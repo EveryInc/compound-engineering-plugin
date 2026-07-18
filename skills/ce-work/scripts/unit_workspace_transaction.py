@@ -364,41 +364,91 @@ def _valid_git_object_id(value: object) -> bool:
     return len(raw) in {20, 32} and raw.hex() == value
 
 
-def _unit_ready_for_run_verification(unit: object) -> bool:
-    if not isinstance(unit, dict) or unit.get("state") != "cleaned":
-        return False
+def _native_completion_commit(unit: dict) -> str | None:
+    attempts = unit.get("attempts")
+    if not isinstance(attempts, list) or not attempts or not isinstance(attempts[-1], dict):
+        return None
+    fallback = attempts[-1].get("fallback")
+    if not isinstance(fallback, dict):
+        return None
+    claim = fallback.get("claimed")
+    completion = fallback.get("completed")
+    if not isinstance(claim, dict) or not isinstance(completion, dict) or completion.get("claim") != claim:
+        return None
+    claim_mode = claim.get("mode")
+    if claim_mode not in {"prefer", "require"}:
+        return None
+    if claim_mode == "require" and not (
+        claim.get("caller_mode") == "interactive" and claim.get("confirmed_native") is True
+    ):
+        return None
+    accepted_head = completion.get("accepted_head")
+    snapshot = completion.get("snapshot")
+    if not (
+        _valid_git_object_id(accepted_head)
+        and isinstance(completion.get("at"), str)
+        and bool(completion["at"])
+        and isinstance(completion.get("summary"), str)
+        and bool(completion["summary"])
+        and isinstance(completion.get("evidence_digest"), str)
+        and len(completion["evidence_digest"]) == 64
+        and _valid_git_object_id(completion["evidence_digest"])
+        and isinstance(snapshot, dict)
+        and snapshot.get("head") == accepted_head
+        and snapshot.get("status_empty") is True
+        and snapshot.get("worktree_index_empty") is True
+        and _valid_git_object_id(snapshot.get("head_tree"))
+        and snapshot.get("head_tree") == snapshot.get("index_tree")
+        and snapshot.get("status_sha256") == digest_bytes(b"")
+    ):
+        return None
+    return accepted_head
+
+
+def _unit_accepted_commit(unit: dict) -> str | None:
+    if unit.get("state") == "native-completed":
+        return _native_completion_commit(unit)
+    if unit.get("state") != "cleaned":
+        return None
     integration = unit.get("integration")
     if not isinstance(integration, dict):
-        return False
+        return None
     canonical = integration.get("canonical_commit")
-    return (
+    if not (
         isinstance(canonical, dict)
         and all(_valid_git_object_id(canonical.get(field)) for field in ("commit", "parent", "tree"))
         and isinstance(canonical.get("at"), str)
         and bool(canonical["at"])
-    )
+    ):
+        return None
+    return canonical["commit"]
+
+
+def _unit_ready_for_run_verification(unit: object) -> bool:
+    return isinstance(unit, dict) and _unit_accepted_commit(unit) is not None
 
 
 def _validate_accepted_run_head(repo: str, units: dict, current_head: str) -> None:
-    """Require HEAD to be the accepted commit that contains every external unit."""
+    """Require HEAD to be the accepted commit that contains every completed unit."""
     commits: set[str] = set()
     for unit in units.values():
-        canonical = unit["integration"]["canonical_commit"]
-        commit = canonical["commit"]
+        commit = _unit_accepted_commit(unit)
+        if commit is None:
+            raise Operational("BLOCKED", "unit completion evidence changed before plan-wide verification")
         if commit in commits:
-            raise Operational("BLOCKED", "external unit completion evidence contains duplicate canonical commits")
+            raise Operational("BLOCKED", "unit completion evidence contains duplicate accepted commits")
         commits.add(commit)
 
     if current_head not in commits:
         raise Operational(
             "BLOCKED",
-            "canonical HEAD no longer matches the final controller-accepted integration commit",
+            "canonical HEAD no longer matches the final controller-accepted unit commit",
             {"accepted_heads": sorted(commits), "actual_head": current_head},
         )
     if any(git_text(repo, "merge-base", commit, current_head, check=False) != commit for commit in commits):
         raise Operational(
             "BLOCKED",
-            "canonical HEAD does not contain every controller-accepted external unit",
+            "canonical HEAD does not contain every controller-accepted unit",
             {"accepted_heads": sorted(commits), "actual_head": current_head},
         )
 
@@ -617,13 +667,18 @@ def cmd_verify_run(args) -> tuple[str, dict]:
         if not units or any(not _unit_ready_for_run_verification(unit) for unit in units.values()):
             raise Operational(
                 "REFUSED",
-                "verify-run requires every external unit to be cleaned with an accepted canonical commit",
+                "verify-run requires every unit to be terminal with an accepted canonical commit",
             )
         if doc.get("integration_lock") is not None:
             raise Operational("BLOCKED", "verify-run requires no active integration lock")
         repo = info["toplevel"]
         lock_unit = sorted(units)[-1]
-    acquired = cmd_integration_acquire(_args(run_id=args.run_id, unit_id=lock_unit, resume=False))[1]
+    acquired = cmd_integration_acquire(_args(
+        run_id=args.run_id,
+        unit_id=lock_unit,
+        resume=False,
+        plan_verification=True,
+    ))[1]
     token = acquired["lock_token"]
     attempt_id = secrets.token_hex(16)
     try:

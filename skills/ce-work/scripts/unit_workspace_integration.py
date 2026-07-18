@@ -55,9 +55,15 @@ def cmd_integration_acquire(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id) as doc:
         validate_repo(doc)
         unit = doc["units"].get(args.unit_id)
-        if not unit or unit["state"] not in INTEGRATABLE_STATES | {"preserved", "committed", "cleaned"}:
+        plan_verification = bool(getattr(args, "plan_verification", False))
+        recover_only = bool(getattr(args, "recover_only", False))
+        allowed_states = INTEGRATABLE_STATES | {"preserved", "committed", "cleaned"}
+        if plan_verification or (recover_only and unit and unit.get("state") == "native-completed"):
+            allowed_states.add("native-completed")
+        if not unit or unit["state"] not in allowed_states:
             raise Operational("REFUSED", "unit is not ready for integration")
-        validate_wave_order(doc, unit)
+        if not plan_verification and unit["state"] != "native-completed":
+            validate_wave_order(doc, unit)
         path = integration_lock_path(doc)
         existing = doc.get("integration_lock")
         if existing:
@@ -67,7 +73,6 @@ def cmd_integration_acquire(args) -> tuple[str, dict]:
                 raise Operational("REFUSED", "integration claim is releasing; resume or retry release before acquisition")
             validate_lock(doc, args.unit_id, existing["nonce"])
             return "ACQUIRED", {"lock_token": existing["nonce"], "resumed": True, "path": path}
-        recover_only = getattr(args, "recover_only", False)
         nonce = secrets.token_hex(24)
         resumed = False
         if recover_only:
@@ -509,8 +514,8 @@ def integration_release(run_id: str, unit_id: str, lock_token: str) -> None:
             and unit.get("state") == "integration-pending"
             and not unit.get("integration", {}).get("pre_fold")
         )
-        if not unit or (unit["state"] not in {"committed", "preserved", "cleaned"} and not pre_apply):
-            raise Operational("REFUSED", "integration lock releases only before preflight, after commit, or after exact preservation")
+        if not unit or (unit["state"] not in {"committed", "preserved", "cleaned", "native-completed"} and not pre_apply):
+            raise Operational("REFUSED", "integration lock releases only before preflight or after accepted completion")
         path = held.get("path")
         if path != integration_lock_path(doc):
             raise Operational("BLOCKED", "manifest integration lock path changed")

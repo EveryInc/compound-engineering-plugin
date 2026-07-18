@@ -2204,6 +2204,13 @@ describe("ce-work unit workspace controller", () => {
       snapshot: { head: nativeHead, status_empty: true },
     })
     expect(ctl(runs, "status", "--run-id", "run-fallback", "--unit-id", "U").body.unit.state).toBe("native-completed")
+    expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).body.run_id).toBe("run-fallback")
+    const fallbackVerification = ctl(
+      runs, "verify-run", "--run-id", "run-fallback",
+      "--verification-summary", "native fallback plan gate passed",
+      "--", "python3", "-c", "raise SystemExit(0)",
+    )
+    expect(fallbackVerification.word).toBe("RUN_VERIFIED")
     expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("NOT_FOUND")
     expect(ctl(
       runs, "complete-fallback", "--run-id", "run-fallback", "--unit-id", "U",
@@ -2380,10 +2387,26 @@ describe("ce-work unit workspace controller", () => {
     const confirmed = ctl(runs, "claim-fallback", "--run-id", "run-require", "--unit-id", "U", "--caller-mode", "interactive", "--confirm-native")
     expect(confirmed.word).toBe("FALLBACK_AUTHORIZED")
     expect(confirmed.body.start_native).toBe(true)
+    expect(confirmed.body.claim).toMatchObject({
+      mode: "require",
+      caller_mode: "interactive",
+      confirmed_native: true,
+    })
+    writeFileSync(path.join(f.repo, "required-native.txt"), "accepted native implementation\n")
+    git(f.repo, "add", "required-native.txt")
+    git(f.repo, "commit", "-m", "required native implementation")
+    const nativeHead = git(f.repo, "rev-parse", "HEAD")
     expect(ctl(
       runs, "complete-fallback", "--run-id", "run-require", "--unit-id", "U",
-      "--accepted-head", f.base, "--evidence-digest", "b".repeat(64), "--summary", "native checks passed",
-    ).word).toBe("REFUSED")
+      "--accepted-head", nativeHead, "--evidence-digest", "b".repeat(64), "--summary", "native checks passed",
+    ).word).toBe("FALLBACK_COMPLETED")
+    expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).body.run_id).toBe("run-require")
+    expect(ctl(
+      runs, "verify-run", "--run-id", "run-require",
+      "--verification-summary", "required fallback plan gate passed",
+      "--", "python3", "-c", "raise SystemExit(0)",
+    ).word).toBe("RUN_VERIFIED")
+    expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("NOT_FOUND")
   })
 
   test("refuses ambiguous job adoption and preserves output on canonical divergence", () => {

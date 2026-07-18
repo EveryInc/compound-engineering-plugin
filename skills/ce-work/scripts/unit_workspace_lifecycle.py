@@ -49,9 +49,21 @@ def unfinished_run(doc: dict) -> bool:
         if unit.get("state") != "native-completed":
             continue
         attempt = find_attempt(unit)
-        completion = attempt.get("fallback", {}).get("completed")
+        fallback = attempt.get("fallback", {})
+        claim = fallback.get("claimed") if isinstance(fallback, dict) else None
+        completion = fallback.get("completed") if isinstance(fallback, dict) else None
+        claim_valid = isinstance(claim, dict) and (
+            claim.get("mode") == "prefer"
+            or (
+                claim.get("mode") == "require"
+                and claim.get("caller_mode") == "interactive"
+                and claim.get("confirmed_native") is True
+            )
+        )
         if not (
-            isinstance(completion, dict)
+            claim_valid
+            and isinstance(completion, dict)
+            and completion.get("claim") == claim
             and isinstance(completion.get("at"), str)
             and completion.get("at")
             and isinstance(completion.get("summary"), str)
@@ -69,8 +81,6 @@ def unfinished_run(doc: dict) -> bool:
             and completion["snapshot"].get("status_sha256") == digest_bytes(b"")
         ):
             raise TrustFailure(f"native fallback completion receipt is malformed: {uid}")
-    if all(state == "native-completed" for state in states):
-        return doc.get("integration_lock") is not None
     receipts = doc.get("verifications", [])
     if not isinstance(receipts, list) or any(not isinstance(receipt, dict) for receipt in receipts):
         raise TrustFailure("manifest verification receipts are malformed")
@@ -535,7 +545,13 @@ def cmd_claim_fallback(args) -> tuple[str, dict]:
                 raise Operational("CHOICE_REQUIRED", "required external route terminated; ask whether to continue natively", {"unit_id": args.unit_id, "reason": reason})
         elif mode != "prefer":
             raise Operational("REFUSED", f"binding mode {mode!r} does not authorize native fallback")
-        claim = {"at": now_iso(), "reason": reason, "caller_mode": args.caller_mode, "mode": mode}
+        claim = {
+            "at": now_iso(),
+            "reason": reason,
+            "caller_mode": args.caller_mode,
+            "mode": mode,
+            "confirmed_native": bool(args.confirm_native),
+        }
         fallback.update({"eligible": False, "reason": reason, "claimed": claim})
         event(doc, "native-fallback-authorized", args.unit_id, {"reason": reason, "mode": mode, "caller_mode": args.caller_mode})
         return "FALLBACK_AUTHORIZED", {"unit_id": args.unit_id, "start_native": True, "reason": reason, "claim": claim}
@@ -562,8 +578,13 @@ def cmd_complete_fallback(args) -> tuple[str, dict]:
             raise Operational("REFUSED", "native fallback completion requires an existing claim")
         if fallback.get("completed") is not None or unit.get("state") == "native-completed":
             raise Operational("REFUSED", "native fallback completion was already recorded")
-        if claim.get("mode") != "prefer":
-            raise Operational("REFUSED", "only a prefer-mode native fallback can be completed")
+        claim_mode = claim.get("mode")
+        if claim_mode not in {"prefer", "require"}:
+            raise Operational("REFUSED", "native fallback completion requires an authorized prefer or require claim")
+        if claim_mode == "require" and not (
+            claim.get("caller_mode") == "interactive" and claim.get("confirmed_native") is True
+        ):
+            raise Operational("REFUSED", "require-mode native fallback completion requires explicit interactive confirmation")
         if doc.get("integration_lock") is not None:
             raise Operational("REFUSED", "release the integration lock before completing native fallback")
 

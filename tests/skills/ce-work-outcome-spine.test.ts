@@ -418,6 +418,7 @@ describe("ce-work cross-model engine contract", () => {
     expect(protocol).toContain("exactly one native fallback")
     expect(protocol).toContain("FALLBACK_ALREADY_AUTHORIZED")
     expect(protocol).toContain("FALLBACK_COMPLETED")
+    expect(protocol).toContain("`RUN_VERIFIED`")
     expect(protocol).toContain("CHOICE_REQUIRED")
     expect(protocol).toContain("headless `require` remains blocked")
     expect(protocol).toContain("exact restoration")
