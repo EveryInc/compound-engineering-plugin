@@ -531,6 +531,22 @@ describe("ce-work unit workspace controller", () => {
     expect(invalid.stderr).toContain("codex, claude, grok-cli, cursor, composer, grok-cursor")
     expect(existsSync(path.join(runs, "invalid-route"))).toBe(false)
 
+    for (const [runId, malformed, message] of [
+      ["missing-binding-mode", { target: "codex", model: null, source: "test" }, "exactly mode, target, model, and source"],
+      ["invalid-binding-mode", { mode: "preferred", target: "codex", model: null, source: "test" }, "mode must be 'prefer' or 'require'"],
+      ["extra-binding-field", { mode: "prefer", target: "codex", model: null, source: "test", extra: true }, "exactly mode, target, model, and source"],
+      ["empty-binding-source", { mode: "prefer", target: "codex", model: null, source: "" }, "source must be a non-empty string"],
+    ] as const) {
+      const malformedResult = ctl(
+        runs, "init", "--run-id", runId, "--repo", f.repo, "--plan", f.plan,
+        "--plan-digest", f.digest, "--binding-json", JSON.stringify(malformed),
+        "--egress-json", JSON.stringify({ route: "codex", intermediaries: [], restrictions: [] }),
+      )
+      expect(malformedResult.word).toBe("REFUSED")
+      expect(malformedResult.stderr).toContain(message)
+      expect(existsSync(path.join(runs, runId))).toBe(false)
+    }
+
     for (const [index, model] of ["composer-2.5-fast", "grok-4.5", "cursor-grok-4.5-high", "rock@beta"].entries()) {
       const runId = `invalid-cursor-model-${index}`
       const invalidModel = ctl(
@@ -2178,6 +2194,15 @@ describe("ce-work unit workspace controller", () => {
     expect(again.word).toBe("FALLBACK_ALREADY_AUTHORIZED")
     expect(again.body.start_native).toBe(false)
 
+    const baseTree = git(f.repo, "rev-parse", "HEAD^{tree}")
+    const unrelatedHead = git(f.repo, "commit-tree", baseTree, "-m", "unrelated native history")
+    git(f.repo, "reset", "--hard", unrelatedHead)
+    expect(ctl(
+      runs, "complete-fallback", "--run-id", "run-fallback", "--unit-id", "U",
+      "--accepted-head", unrelatedHead, "--evidence-digest", "a".repeat(64), "--summary", "native checks passed",
+    ).word).toBe("BLOCKED")
+    git(f.repo, "reset", "--hard", f.base)
+
     expect(ctl(
       runs, "complete-fallback", "--run-id", "run-fallback", "--unit-id", "U",
       "--accepted-head", f.base, "--evidence-digest", "not-a-digest", "--summary", "native checks passed",
@@ -2198,6 +2223,7 @@ describe("ce-work unit workspace controller", () => {
     )
     expect(completed.word).toBe("FALLBACK_COMPLETED")
     expect(completed.body.completion).toMatchObject({
+      base: f.base,
       accepted_head: nativeHead,
       evidence_digest: "a".repeat(64),
       summary: "native checks passed",

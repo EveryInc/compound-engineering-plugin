@@ -383,9 +383,12 @@ def _native_completion_commit(unit: dict) -> str | None:
     ):
         return None
     accepted_head = completion.get("accepted_head")
+    base = unit.get("workspace", {}).get("base")
     snapshot = completion.get("snapshot")
     if not (
         _valid_git_object_id(accepted_head)
+        and _valid_git_object_id(base)
+        and completion.get("base") == base
         and isinstance(completion.get("at"), str)
         and bool(completion["at"])
         and isinstance(completion.get("summary"), str)
@@ -435,6 +438,13 @@ def _validate_accepted_run_head(repo: str, units: dict, current_head: str) -> No
         commit = _unit_accepted_commit(unit)
         if commit is None:
             raise Operational("BLOCKED", "unit completion evidence changed before plan-wide verification")
+        base = unit.get("workspace", {}).get("base")
+        if not isinstance(base, str) or git_text(repo, "merge-base", base, commit, check=False) != base:
+            raise Operational(
+                "BLOCKED",
+                "controller-accepted unit commit does not descend from its recorded base",
+                {"unit_id": unit.get("unit_id"), "base": base, "accepted_commit": commit},
+            )
         if commit in commits:
             raise Operational("BLOCKED", "unit completion evidence contains duplicate accepted commits")
         commits.add(commit)

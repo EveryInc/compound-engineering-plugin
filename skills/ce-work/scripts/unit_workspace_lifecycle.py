@@ -72,6 +72,7 @@ def unfinished_run(doc: dict) -> bool:
             and re.fullmatch(r"[0-9a-f]{64}", completion["evidence_digest"])
             and isinstance(completion.get("accepted_head"), str)
             and re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", completion["accepted_head"])
+            and completion.get("base") == unit.get("workspace", {}).get("base")
             and isinstance(completion.get("snapshot"), dict)
             and completion["snapshot"].get("head") == completion["accepted_head"]
             and completion["snapshot"].get("branch_ref") == doc.get("branch", {}).get("ref")
@@ -597,9 +598,13 @@ def cmd_complete_fallback(args) -> tuple[str, dict]:
         accepted_commit = git_text(repo, "rev-parse", "--verify", f"{args.accepted_head}^{{commit}}", check=False)
         if accepted_commit != args.accepted_head or snapshot.get("head") != args.accepted_head:
             raise Operational("BLOCKED", "accepted native fallback head does not match canonical HEAD")
+        base = unit.get("workspace", {}).get("base")
+        if not isinstance(base, str) or git_text(repo, "merge-base", base, args.accepted_head, check=False) != base:
+            raise Operational("BLOCKED", "accepted native fallback head does not descend from the recorded unit base")
 
         receipt = {
             "at": now_iso(),
+            "base": base,
             "accepted_head": args.accepted_head,
             "evidence_digest": args.evidence_digest,
             "summary": summary,

@@ -464,6 +464,14 @@ def route_model_allowed(route: str, model: str) -> bool:
 def fixed_route_contract(binding: dict, egress: dict, word: str = "BLOCKED") -> dict:
     if not isinstance(binding, dict) or not isinstance(egress, dict):
         raise Operational(word, "run binding or egress sanction is malformed")
+    expected_binding_fields = {"mode", "target", "model", "source"}
+    if set(binding) != expected_binding_fields:
+        raise Operational(word, "binding must contain exactly mode, target, model, and source")
+    if binding.get("mode") not in {"prefer", "require"}:
+        raise Operational(word, "binding mode must be 'prefer' or 'require'")
+    source = binding.get("source")
+    if not isinstance(source, str) or not source or "\0" in source or len(source.encode()) > 256:
+        raise Operational(word, "binding source must be a non-empty string of at most 256 bytes")
     route = egress.get("route")
     contract = ROUTE_CONTRACTS.get(route)
     if not contract:
