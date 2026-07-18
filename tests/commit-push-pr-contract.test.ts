@@ -7,6 +7,33 @@ async function readRepoFile(relativePath: string): Promise<string> {
 }
 
 describe("ce-commit-push-pr contract", () => {
+  test("reconciles the complete branch scope before composition", async () => {
+    const content = await readRepoFile(
+      "skills/ce-commit-push-pr/references/pr-description-writing.md",
+    )
+
+    expect(content).not.toContain("Read every commit")
+    const sizingSection = content.match(
+      /## Step A: Size the description([\s\S]+?)## Step B:/,
+    )?.[1]
+    expect(sizingSection).toContain(
+      "complete oneline commit list and final three-dot diff",
+    )
+    expect(sizingSection).toContain("scope map")
+    expect(sizingSection).toContain("umbrella outcome")
+    expect(sizingSection).toContain("consult the fuller messages only")
+    const titleSection = content.match(
+      /## Step B: Compose the title([\s\S]+?)## Step B1:/,
+    )?.[1]
+    expect(titleSection).toContain("scope map")
+    expect(titleSection).toContain("umbrella outcome")
+    const auditSection = content.match(
+      /## Step E: Pre-apply coverage audit([\s\S]+)\s*$/,
+    )?.[1]
+    expect(auditSection).toContain("scope map")
+    expect(auditSection).toContain("every material outcome")
+  })
+
   test("repository PR-body contracts set structure without replacing editorial guidance", async () => {
     const content = await readRepoFile(
       "skills/ce-commit-push-pr/references/pr-description-writing.md",
