@@ -309,6 +309,17 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(babysit).toMatch(/manager-owned[\s\S]{0,200}(implicit|babysit)[\s\S]{0,200}author/i)
   })
 
+  test("managed-stack mutation pauses before delegation when atomic propagation is unproven", async () => {
+    const babysit = await readRepoFile(BABYSIT)
+    const gate = babysit.indexOf("**Managed-stack atomicity gate.**")
+    const feedback = babysit.indexOf("3. **Feedback before CI.**")
+
+    expect(gate).toBeGreaterThan(-1)
+    expect(gate).toBeLessThan(feedback)
+    expect(babysit).toMatch(/atomicity cannot be proven[^.]{0,160}pause before delegation/i)
+    expect(babysit).toMatch(/normally bare `\/ce-babysit-pr`[\s\S]{0,180}current branch no longer identifies that PR/i)
+  })
+
   test("sequential babysitting is a confirmed-managed-stack-only, one-watcher scope", async () => {
     const [babysit, watchLoop] = await Promise.all([
       readRepoFile(BABYSIT),
