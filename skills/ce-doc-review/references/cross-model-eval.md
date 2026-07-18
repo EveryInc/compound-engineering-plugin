@@ -55,7 +55,7 @@ PATH — and cross-host per the repo's eval default: Claude Code AND Codex.
    (the Phase 1 classification) and `origin` (the same `{origin_path}` slot the
    in-process personas receive) to each cross-model call.
 
-6. **One model per target at high reasoning (R4; R5 superseded).** Assert every
+6. **One model per target at the script-owned reasoning tier (R4; R5 superseded).** Assert every
    activated trio lens uses the same sanctioned target and fixed route. The
    script's mapping owns the concrete model and reasoning flags; prose does not
    restate model IDs. `cursor` omits `--model` for Cursor default/Auto, while
