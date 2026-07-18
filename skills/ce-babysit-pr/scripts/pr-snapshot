@@ -1460,9 +1460,6 @@ def _wake_reason(a, settle_seconds):
     if a.get("stack_blocker"):
         return "stack-blocked"
     branch_currency = a.get("branch_currency") or {}
-    if (a.get("open_needs_human", 0)
-            or branch_currency.get("disposition") == DISPOSITION_NEEDS_HUMAN):
-        return "needs-human"         # parked items block ready; surface them
     if a.get("has_failing_checks") and a.get("checks_terminal"):
         # a dispatched check left terminally red (counts.ci is 0 — nothing new to dispatch) is a
         # blocker to hand back, not a reason to idle to max-runtime.
@@ -1475,6 +1472,9 @@ def _wake_reason(a, settle_seconds):
                                              CURRENCY_ATTENTION_INSPECT,
                                              CURRENCY_ATTENTION_RECONCILE):
         return "branch-currency"
+    if (a.get("open_needs_human", 0)
+            or branch_currency.get("disposition") == DISPOSITION_NEEDS_HUMAN):
+        return "needs-human"         # parked items block ready; surface them
     # merge-ready candidate: green + settled with no fresh review movement. A live 👀 blocks the
     # ordinary 300s settle, but wakes the agent after 900 quiet seconds for the semantic stale-review
     # judgment. The agent may extend once to 1800s by re-arming with that settle value; the detector

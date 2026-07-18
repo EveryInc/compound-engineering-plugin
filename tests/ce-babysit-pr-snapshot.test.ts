@@ -403,6 +403,11 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(wakeReason({ ...open, counts: { ...open.counts, threads: 1 } })).toBe("actionable")
     expect(wakeReason({
       ...open,
+      open_needs_human: 1,
+      needs_human_ids: ["parked-review-decision"],
+    })).toBe("branch-currency")
+    expect(wakeReason({
+      ...open,
       counts: { ...open.counts, ci: 0 },
       has_failing_checks: true,
       checks_terminal: true,
