@@ -399,11 +399,11 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
 
     for (const text of [babysit, watchLoop]) {
       expect(text).toMatch(/success only when[^.]{0,320}`all_checks_ok`[^.]{0,320}`stack_blocker`[^.]{0,80}(null|clear)/i)
-      expect(text).toMatch(/success only when[^.]{0,640}`branch_currency_blocker`[^.]{0,100}(null|clear)/i)
+      expect(text).toMatch(/success only when[^.]{0,640}`mergeability_certain`[^.]{0,160}`merge_state_status == "CLEAN"`[^.]{0,240}`branch_currency_blocker`[^.]{0,100}(null|clear)/i)
     }
     expect(pipelineStart).toBeGreaterThan(-1)
     expect(pipelineEnd).toBeGreaterThan(pipelineStart)
-    expect(pipelineDelta).toMatch(/`all_checks_ok`[\s\S]{0,260}`stack_blocker`[\s\S]{0,160}`branch_currency_blocker == null`/i)
+    expect(pipelineDelta).toMatch(/`all_checks_ok`[\s\S]{0,260}`mergeability_certain`[\s\S]{0,160}`merge_state_status == "CLEAN"`[\s\S]{0,260}`stack_blocker`[\s\S]{0,160}`branch_currency_blocker`[^.]{0,80}(null|clear)/i)
     expect(pipelineDelta).toMatch(/open\/claimed\/parked current currency item[^.]{0,240}residual/i)
   })
 
