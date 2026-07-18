@@ -208,6 +208,30 @@ def validate_wave_ready(doc: dict, unit: dict) -> None:
         )
 
 
+def validate_dependencies_ready(doc: dict, unit: dict) -> None:
+    missing: list[str] = []
+    unaccepted: list[str] = []
+    for dependency_id in unit.get("dependencies", []):
+        dependency = doc.get("units", {}).get(dependency_id)
+        if dependency is None:
+            missing.append(dependency_id)
+            continue
+        canonical = dependency.get("integration", {}).get("canonical_commit")
+        commit = canonical.get("commit") if isinstance(canonical, dict) else None
+        if not isinstance(commit, str) or not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", commit):
+            unaccepted.append(dependency_id)
+    if missing or unaccepted:
+        raise Operational(
+            "BLOCKED",
+            "unit dependencies must have controller-accepted canonical commits before preflight",
+            {
+                "unit_id": unit["unit_id"],
+                "missing_dependencies": missing,
+                "unaccepted_dependencies": unaccepted,
+            },
+        )
+
+
 def cmd_preflight(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id) as doc:
         info = validate_repo(doc)
@@ -215,6 +239,7 @@ def cmd_preflight(args) -> tuple[str, dict]:
         if not unit or unit["state"] not in {"integration-pending", "preserved"}:
             raise Operational("REFUSED", "unit is not integration-pending")
         validate_lock(doc, args.unit_id, args.lock_token)
+        validate_dependencies_ready(doc, unit)
         if scope_expansion_pending(unit):
             raise Operational(
                 "BLOCKED",

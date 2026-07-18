@@ -38,10 +38,10 @@ function git(cwd: string, ...args: string[]): string {
   return sh(cwd, ["git", ...args]).stdout.trim()
 }
 
-function makeRepo(): { repo: string; plan: string; digest: string; base: string } {
+function makeRepo(objectFormat: "sha1" | "sha256" = "sha1"): { repo: string; plan: string; digest: string; base: string } {
   const repo = path.join(tmp("ce-work-repo-"), "repo")
   mkdirSync(repo)
-  git(repo, "init", "-b", "main")
+  git(repo, "init", `--object-format=${objectFormat}`, "-b", "main")
   git(repo, "config", "user.name", "CE Work Test")
   git(repo, "config", "user.email", "ce-work@example.test")
   mkdirSync(path.join(repo, "docs", "plans"), { recursive: true })
@@ -582,8 +582,11 @@ describe("ce-work unit workspace controller", () => {
     const resultPath = path.join(runs, "run-authority", "units", "U", "result", "implementation-result.json")
     const result = JSON.parse(readFileSync(resultPath, "utf8"))
     result.actual_route = "claude"
+    result.evidence = ["x".repeat(3 * 1024 * 1024)]
     writeFileSync(resultPath, `${JSON.stringify(result)}\n`, { mode: 0o600 })
     chmodSync(resultPath, 0o600)
+    expect(statSync(resultPath).size).toBeGreaterThan(2 * 1024 * 1024)
+    expect(statSync(resultPath).size).toBeLessThan(5 * 1024 * 1024)
     const blocked = ctl(runs, "terminalize", "--run-id", "run-authority", "--unit-id", "U")
     expect(blocked.word).toBe("BLOCKED")
     expect(blocked.body.mismatches.actual_route).toEqual({ expected: "codex", actual: "claude" })
@@ -883,6 +886,26 @@ describe("ce-work unit workspace controller", () => {
     expect(ctl(runs, "cleanup", "--run-id", "run-empty", "--unit-id", "empty", "--abandon", "--expect-transport", empty.commit).word).toBe("CLEANED")
   })
 
+  test("pins a transport ref with the repository object ID width", () => {
+    const f = makeRepo("sha256")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    expect(init(runs, "run-sha256", f).word).toBe("READY")
+    expect(ctl(
+      runs, "prepare", "--run-id", "run-sha256", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("sha256 packet"),
+    ).word).toBe("PREPARED")
+    const job = fakeDoneJob(runs, "run-sha256", "U", "sha256 packet", "job-sha256")
+    expect(ctl(
+      runs, "record-job", "--run-id", "run-sha256", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    ).word).toBe("AUTHORING")
+
+    const terminal = ctl(runs, "terminalize", "--run-id", "run-sha256", "--unit-id", "U")
+    expect(terminal.word).toBe("INTEGRATION_PENDING")
+    expect(terminal.body.transport.commit).toHaveLength(64)
+    expect(git(f.repo, "rev-parse", terminal.body.transport.ref)).toBe(terminal.body.transport.commit)
+  })
+
   test("retains scope-expansion evidence but refuses ordinary fold-in", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
@@ -1140,6 +1163,101 @@ describe("ce-work unit workspace controller", () => {
     expect(resumed.stderr).toContain("adapter terminal receipt does not match controller authorization")
   })
 
+  test("preflight requires accepted canonical commits for every dependency", () => {
+    const unmet = makeRepo()
+    const unmetRuns = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(unmetRuns, "run-unmet-dependencies", unmet)
+    ctl(
+      unmetRuns, "prepare", "--run-id", "run-unmet-dependencies", "--unit-id", "U1",
+      "--base", unmet.base, "--packet", packetFile("dependency packet"),
+    )
+    ctl(
+      unmetRuns, "prepare", "--run-id", "run-unmet-dependencies", "--unit-id", "U2",
+      "--base", unmet.base, "--packet", packetFile("dependent packet"),
+      "--dependency", "U1", "--dependency", "missing",
+    )
+    const unmetJob = fakeDoneJob(unmetRuns, "run-unmet-dependencies", "U2", "dependent packet")
+    ctl(
+      unmetRuns, "record-job", "--run-id", "run-unmet-dependencies", "--unit-id", "U2",
+      "--attempt-id", "attempt-1", "--job-id", unmetJob,
+    )
+    ctl(unmetRuns, "terminalize", "--run-id", "run-unmet-dependencies", "--unit-id", "U2")
+    const unmetLock = ctl(
+      unmetRuns, "integration-acquire", "--run-id", "run-unmet-dependencies", "--unit-id", "U2",
+    )
+    const blocked = ctl(
+      unmetRuns, "preflight", "--run-id", "run-unmet-dependencies", "--unit-id", "U2",
+      "--lock-token", unmetLock.body.lock_token,
+    )
+    expect(blocked.word).toBe("BLOCKED")
+    expect(blocked.body).toEqual({
+      unit_id: "U2",
+      missing_dependencies: ["missing"],
+      unaccepted_dependencies: ["U1"],
+    })
+    expect(ctl(
+      unmetRuns, "integration-release", "--run-id", "run-unmet-dependencies", "--unit-id", "U2",
+      "--lock-token", unmetLock.body.lock_token,
+    ).word).toBe("RELEASED")
+
+    const accepted = makeRepo()
+    const acceptedRuns = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(acceptedRuns, "run-accepted-dependency", accepted)
+    ctl(
+      acceptedRuns, "prepare", "--run-id", "run-accepted-dependency", "--unit-id", "U1",
+      "--base", accepted.base, "--packet", packetFile("accepted dependency packet"),
+    )
+    const dependencyWorkspace = path.join(acceptedRuns, "run-accepted-dependency", "units", "U1", "workspace")
+    writeFileSync(path.join(dependencyWorkspace, "dependency.txt"), "accepted\n")
+    const dependencyJob = fakeDoneJob(
+      acceptedRuns, "run-accepted-dependency", "U1", "accepted dependency packet", "job-dependency",
+    )
+    ctl(
+      acceptedRuns, "record-job", "--run-id", "run-accepted-dependency", "--unit-id", "U1",
+      "--attempt-id", "attempt-1", "--job-id", dependencyJob,
+    )
+    ctl(acceptedRuns, "terminalize", "--run-id", "run-accepted-dependency", "--unit-id", "U1")
+    const integrated = ctl(
+      acceptedRuns, "integrate", "--run-id", "run-accepted-dependency", "--unit-id", "U1",
+      "--commit-message", "test: integrate dependency", "--", "true",
+    )
+    expect(integrated.word).toBe("UNIT_COMMITTED")
+    const dependency = ctl(
+      acceptedRuns, "status", "--run-id", "run-accepted-dependency", "--unit-id", "U1",
+    ).body.unit
+    expect(dependency.state).toBe("cleaned")
+    expect(dependency.integration.canonical_commit.commit).toBe(integrated.body.canonical_commit)
+
+    ctl(
+      acceptedRuns, "prepare", "--run-id", "run-accepted-dependency", "--unit-id", "U2",
+      "--base", integrated.body.canonical_commit, "--packet", packetFile("accepted dependent packet"),
+      "--dependency", "U1",
+    )
+    const dependentJob = fakeDoneJob(
+      acceptedRuns, "run-accepted-dependency", "U2", "accepted dependent packet", "job-dependent",
+    )
+    ctl(
+      acceptedRuns, "record-job", "--run-id", "run-accepted-dependency", "--unit-id", "U2",
+      "--attempt-id", "attempt-1", "--job-id", dependentJob,
+    )
+    ctl(acceptedRuns, "terminalize", "--run-id", "run-accepted-dependency", "--unit-id", "U2")
+    const acceptedLock = ctl(
+      acceptedRuns, "integration-acquire", "--run-id", "run-accepted-dependency", "--unit-id", "U2",
+    )
+    expect(ctl(
+      acceptedRuns, "preflight", "--run-id", "run-accepted-dependency", "--unit-id", "U2",
+      "--lock-token", acceptedLock.body.lock_token,
+    ).word).toBe("PREFLIGHT_OK")
+    expect(ctl(
+      acceptedRuns, "restore", "--run-id", "run-accepted-dependency", "--unit-id", "U2",
+      "--lock-token", acceptedLock.body.lock_token,
+    ).word).toBe("PRESERVED")
+    expect(ctl(
+      acceptedRuns, "integration-release", "--run-id", "run-accepted-dependency", "--unit-id", "U2",
+      "--lock-token", acceptedLock.body.lock_token,
+    ).word).toBe("RELEASED")
+  })
+
   test("fold-in is host-owned, lock-serialized, restorable, and cleanup is explicit", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
@@ -1173,7 +1291,7 @@ describe("ce-work unit workspace controller", () => {
     expect(sh(f.repo, ["git", "rev-parse", "-q", "--verify", t.ref], false).status).not.toBe(0)
   })
 
-  test("unit and plan-wide verification clean only ignored artifacts they create", () => {
+  test("unit and plan-wide verification restore existing ignored artifacts and clean new ones", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
     writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\n")
@@ -1196,10 +1314,13 @@ describe("ce-work unit workspace controller", () => {
       runs, "integrate", "--run-id", "run-ignored-verification", "--unit-id", "U",
       "--commit-message", "feat(test): integrate ignored verification fixture",
       "--", "python3", "-c",
-      "from pathlib import Path; p = Path('unit-build/sub/unit.verification-cache'); p.parent.mkdir(parents=True); p.write_text('unit')",
+      "from pathlib import Path; Path('existing.verification-cache').write_text('mutated'); p = Path('unit-build/sub/unit.verification-cache'); p.parent.mkdir(parents=True); p.write_text('unit')",
     )
     expect(integrated.word).toBe("UNIT_COMMITTED")
-    expect(integrated.body.cleaned_paths).toEqual(["unit-build/sub/unit.verification-cache"])
+    expect(integrated.body.cleaned_paths).toEqual([
+      "existing.verification-cache",
+      "unit-build/sub/unit.verification-cache",
+    ])
     expect(existsSync(path.join(f.repo, "unit-build"))).toBe(false)
     expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
 
@@ -1207,16 +1328,33 @@ describe("ce-work unit workspace controller", () => {
       runs, "verify-run", "--run-id", "run-ignored-verification",
       "--verification-summary", "ignored plan artifact cleanup",
       "--", "python3", "-c",
-      "from pathlib import Path; p = Path('plan-build/sub/plan.verification-cache'); p.parent.mkdir(parents=True); p.write_text('plan')",
+      "from pathlib import Path; Path('existing.verification-cache').unlink(); p = Path('plan-build/sub/plan.verification-cache'); p.parent.mkdir(parents=True); p.write_text('plan')",
     )
     expect(verified.word).toBe("RUN_VERIFIED")
-    expect(verified.body.cleaned_paths).toEqual(["plan-build/sub/plan.verification-cache"])
+    expect(verified.body.cleaned_paths).toEqual([
+      "existing.verification-cache",
+      "plan-build/sub/plan.verification-cache",
+    ])
     expect(existsSync(path.join(f.repo, "plan-build"))).toBe(false)
     expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
     expect(ctl(runs, "status", "--run-id", "run-ignored-verification").body.verifications.at(-1)).toMatchObject({
       verification_exit: 0,
-      cleaned_paths: ["plan-build/sub/plan.verification-cache"],
+      cleaned_paths: ["existing.verification-cache", "plan-build/sub/plan.verification-cache"],
     })
+
+    const failedPlan = ctl(
+      runs, "verify-run", "--run-id", "run-ignored-verification",
+      "--verification-summary", "failed ignored plan artifact cleanup",
+      "--", "python3", "-c",
+      "from pathlib import Path; Path('existing.verification-cache').write_text('mutated again'); Path('keep.txt').write_text('tracked mutation'); raise SystemExit(9)",
+    )
+    expect(failedPlan.word).toBe("BLOCKED")
+    expect(failedPlan.body).toMatchObject({
+      verification_exit: 9,
+      cleaned_paths: ["existing.verification-cache", "keep.txt"],
+    })
+    expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
+    expect(readFileSync(path.join(f.repo, "keep.txt"), "utf8")).toBe("keep\n")
   })
 
   test("failed unit verification reports and removes its new ignored artifact", () => {
@@ -1242,13 +1380,13 @@ describe("ce-work unit workspace controller", () => {
       runs, "integrate", "--run-id", "run-ignored-verification-failure", "--unit-id", "U",
       "--commit-message", "feat(test): integration must not commit",
       "--", "python3", "-c",
-      "from pathlib import Path; Path('failed.verification-cache').write_text('failed'); raise SystemExit(7)",
+      "from pathlib import Path; Path('existing.verification-cache').write_text('mutated'); Path('failed.verification-cache').write_text('failed'); raise SystemExit(7)",
     )
     expect(failed.word).toBe("BLOCKED")
     expect(failed.body).toMatchObject({
       verification_exit: 7,
       canonical_state_changed: false,
-      cleaned_paths: ["failed.verification-cache"],
+      cleaned_paths: ["existing.verification-cache", "failed.verification-cache"],
     })
     expect(existsSync(path.join(f.repo, "failed.verification-cache"))).toBe(false)
     expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
@@ -1766,6 +1904,25 @@ describe("ce-work unit workspace controller", () => {
     const unsafe = ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest)
     expect(unsafe.word).toBe("UNREADABLE")
     expect(unsafe.body).toBeNull()
+  })
+
+  test("ignores a tampered prompt run when discovering a matching plan run", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    expect(init(runs, "run-plan", f).word).toBe("READY")
+    const prompt = initWithPrompt(runs, "run-prompt", f, "Implement the requested change")
+    expect(prompt.result.word).toBe("READY")
+    writeFileSync(path.join(runs, "run-prompt", "source", "bare-prompt.md"), "tampered\n")
+
+    const resumed = ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest)
+    expect(resumed.word).toBe("RESUMED")
+    expect(resumed.body.run_id).toBe("run-plan")
+
+    const planManifestPath = path.join(runs, "run-plan", "manifest.json")
+    const planManifest = JSON.parse(readFileSync(planManifestPath, "utf8"))
+    planManifest.source.storage = "run"
+    writeFileSync(planManifestPath, `${JSON.stringify(planManifest)}\n`)
+    expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("UNREADABLE")
   })
 
   test("never authorizes fallback for a live attempt and claims terminal prefer fallback exactly once", () => {

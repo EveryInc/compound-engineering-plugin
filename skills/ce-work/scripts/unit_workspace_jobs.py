@@ -232,12 +232,24 @@ HOST_RECEIPT_FIELDS = (
     "model_requested", "model_actual", "model_receipt_status", "activity_posture",
     "restriction_posture", "failure_reason", "raw_log", "packet_digest",
 )
+MAX_RESULT_BYTES = 5 * 1024 * 1024
+
+
+def read_result_json(path: str) -> tuple[dict, bytes]:
+    raw = read_private(path, MAX_RESULT_BYTES)
+    try:
+        value = json.loads(raw)
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise TrustFailure(f"malformed JSON state: {path}") from exc
+    if not isinstance(value, dict):
+        raise TrustFailure(f"JSON state is not an object: {path}")
+    return value, raw
 
 
 def terminal_receipt(unit: dict, attempt: dict) -> dict:
     result_dir = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result")
     result_path = os.path.join(result_dir, "implementation-result.json")
-    receipt = read_private_json(result_path)
+    receipt, result_bytes = read_result_json(result_path)
     authorization = attempt.get("authorization")
     if not isinstance(authorization, dict):
         raise Operational("BLOCKED", "attempt has no controller-issued route authorization")
@@ -273,7 +285,7 @@ def terminal_receipt(unit: dict, attempt: dict) -> dict:
         "changed_file_count": len(receipt.get("changed_files", [])),
         "evidence_count": len(receipt.get("evidence", [])),
         "scope_expansion_requested": receipt.get("scope_expansion") is not None,
-        "result_sha256": digest_bytes(read_private(result_path, MAX_JSON_BYTES)),
+        "result_sha256": digest_bytes(result_bytes),
         "raw_log_sha256": digest_bytes(log_bytes),
         "raw_log_bytes": len(log_bytes),
     }
@@ -285,7 +297,7 @@ def record_terminal_validation_failure(run_id: str, unit_id: str, error: Operati
     with locked_manifest(run_id) as doc:
         unit = doc["units"][unit_id]
         result_path = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result", "implementation-result.json")
-        result_digest = digest_bytes(read_private(result_path, MAX_JSON_BYTES))
+        result_digest = digest_bytes(read_private(result_path, MAX_RESULT_BYTES))
     with locked_manifest(run_id, write=True) as doc:
         attempt = find_attempt(doc["units"][unit_id])
         failure = {
@@ -312,7 +324,7 @@ def validate_terminal_validation_failure(run_id: str, unit: dict, attempt: dict)
     if observed != "done":
         raise Operational("BLOCKED", "terminal-validation job evidence changed")
     result_path = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result", "implementation-result.json")
-    if digest_bytes(read_private(result_path, MAX_JSON_BYTES)) != failure.get("result_sha256"):
+    if digest_bytes(read_private(result_path, MAX_RESULT_BYTES)) != failure.get("result_sha256"):
         raise Operational("BLOCKED", "terminal-validation result evidence changed")
     return failure
 
@@ -683,7 +695,7 @@ def terminalize(run_id: str, unit_id: str) -> dict:
             "GIT_COMMITTER_EMAIL": "ce-work@localhost",
         }
         commit = git(repo, "commit-tree", tree, "-p", base, input_data=f"ce-work transport {run_id}/{unit_id}\n".encode(), env=env).decode().strip()
-        zero = "0" * 40
+        zero = "0" * len(commit)
         git(repo, "update-ref", ref, commit, zero)
         test_fault("after-transport-ref")
     raw_diff = git(repo, "diff-tree", "-r", "-M", "--name-status", "-z", base, commit)

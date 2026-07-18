@@ -75,21 +75,21 @@ def discover_resume_run(repo: str, plan_digest: str) -> tuple[str, list[dict]]:
         source = doc.get("source")
         if not isinstance(repository, dict) or not isinstance(branch, dict) or not isinstance(plan, dict):
             raise TrustFailure(f"manifest repository, branch, or plan record is malformed: {entry.path}")
+        if (
+            repository.get("identity_digest") != info["identity_digest"]
+            or repository.get("toplevel") != info["toplevel"]
+            or repository.get("git_dir") != info["git_dir"]
+            or branch.get("ref") != info["branch_ref"]
+        ):
+            continue
         if source is not None and not isinstance(source, dict):
             raise TrustFailure(f"manifest source record is malformed: {entry.path}")
-        validate_source(doc)
         source_kind = source.get("kind") if isinstance(source, dict) else plan.get("kind", "plan")
         source_digest = source.get("digest") if isinstance(source, dict) else plan.get("digest")
-        is_unfinished = unfinished_run(doc)
-        if (
-            repository.get("identity_digest") == info["identity_digest"]
-            and repository.get("toplevel") == info["toplevel"]
-            and repository.get("git_dir") == info["git_dir"]
-            and branch.get("ref") == info["branch_ref"]
-            and source_kind == "plan"
-            and source_digest == plan_digest
-            and is_unfinished
-        ):
+        if source_kind != "plan" or source_digest != plan_digest:
+            continue
+        validate_source(doc)
+        if unfinished_run(doc):
             candidates.append({
                 "run_id": entry.name,
                 "updated_at": doc.get("updated_at"),

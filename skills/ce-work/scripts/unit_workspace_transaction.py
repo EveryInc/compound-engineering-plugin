@@ -7,6 +7,7 @@ import json
 import os
 import secrets
 import shutil
+import stat
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -85,6 +86,170 @@ def _ignored_paths(repo: str) -> set[str]:
     """Return ignored, untracked files without changing ordinary clean-state rules."""
     raw = git(repo, "ls-files", "--others", "--ignored", "--exclude-standard", "-z", "--")
     return set(filter(None, raw.decode("utf-8", "surrogateescape").split("\0")))
+
+
+def _artifact_path(repo: str, rel: str) -> str:
+    repo = os.path.abspath(repo)
+    target = os.path.abspath(os.path.join(repo, rel))
+    if target == repo or os.path.commonpath([repo, target]) != repo:
+        raise Operational("BLOCKED", "ignored artifact path escaped canonical repository")
+    return target
+
+
+def _snapshot_ignored_artifacts(repo: str, paths: set[str], private_parent: str) -> dict:
+    """Copy ignored regular files to private state without following symlinks."""
+    validate_private_dir(private_parent)
+    backup_root = os.path.join(private_parent, f"ignored-snapshot-{secrets.token_hex(8)}")
+    os.mkdir(backup_root, 0o700)
+    validate_private_dir(backup_root)
+    files: dict[str, dict] = {}
+    directories: dict[str, int] = {}
+    repo = os.path.abspath(repo)
+    try:
+        for index, rel in enumerate(sorted(paths)):
+            target = _artifact_path(repo, rel)
+            parent = os.path.dirname(target)
+            ancestors: list[str] = []
+            while parent != repo:
+                ancestors.append(parent)
+                parent = os.path.dirname(parent)
+            for directory in reversed(ancestors):
+                directory_rel = os.path.relpath(directory, repo)
+                entry = os.lstat(directory)
+                if not stat.S_ISDIR(entry.st_mode) or stat.S_ISLNK(entry.st_mode):
+                    raise Operational("REFUSED", f"ignored artifact parent is not a real directory: {directory_rel}")
+                directories[directory_rel] = stat.S_IMODE(entry.st_mode)
+
+            before = os.lstat(target)
+            if not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode) or before.st_nlink != 1:
+                raise Operational("REFUSED", f"cannot safely snapshot ignored artifact: {rel}")
+            uid_getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
+            effective_uid = uid_getter() if uid_getter is not None else None
+            if effective_uid is not None and before.st_uid != effective_uid:
+                raise Operational("REFUSED", f"ignored artifact is not owned by the current user: {rel}")
+
+            source_fd = os.open(target, os.O_RDONLY | O_NOFOLLOW)
+            backup = os.path.join(backup_root, f"{index:08d}")
+            backup_fd = os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL | O_NOFOLLOW, 0o600)
+            digest = hashlib.sha256()
+            try:
+                opened = os.fstat(source_fd)
+                if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino) or not stat.S_ISREG(opened.st_mode):
+                    raise Operational("BLOCKED", f"ignored artifact changed while being snapshotted: {rel}")
+                while True:
+                    chunk = os.read(source_fd, 1024 * 1024)
+                    if not chunk:
+                        break
+                    digest.update(chunk)
+                    view = memoryview(chunk)
+                    while view:
+                        written = os.write(backup_fd, view)
+                        view = view[written:]
+                finished = os.fstat(source_fd)
+                if (
+                    finished.st_size != before.st_size
+                    or finished.st_mtime_ns != before.st_mtime_ns
+                    or finished.st_ctime_ns != before.st_ctime_ns
+                ):
+                    raise Operational("BLOCKED", f"ignored artifact changed while being snapshotted: {rel}")
+            finally:
+                os.close(source_fd)
+                os.close(backup_fd)
+            files[rel] = {
+                "backup": backup,
+                "digest": digest.hexdigest(),
+                "mode": stat.S_IMODE(before.st_mode),
+                "size": before.st_size,
+            }
+    except Exception:
+        shutil.rmtree(backup_root)
+        raise
+    return {"root": backup_root, "files": files, "directories": directories}
+
+
+def _artifact_matches(target: str, record: dict) -> bool:
+    try:
+        before = os.lstat(target)
+        if not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode):
+            return False
+        fd = os.open(target, os.O_RDONLY | O_NOFOLLOW)
+    except (FileNotFoundError, OSError):
+        return False
+    digest = hashlib.sha256()
+    try:
+        opened = os.fstat(fd)
+        if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino) or not stat.S_ISREG(opened.st_mode):
+            return False
+        while True:
+            chunk = os.read(fd, 1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    finally:
+        os.close(fd)
+    return (
+        before.st_size == record["size"]
+        and stat.S_IMODE(before.st_mode) == record["mode"]
+        and digest.hexdigest() == record["digest"]
+    )
+
+
+def _remove_artifact_entry(path: str) -> None:
+    try:
+        entry = os.lstat(path)
+    except FileNotFoundError:
+        return
+    if stat.S_ISDIR(entry.st_mode) and not stat.S_ISLNK(entry.st_mode):
+        shutil.rmtree(path)
+    else:
+        os.unlink(path)
+
+
+def _restore_ignored_artifacts(repo: str, snapshot: dict) -> set[str]:
+    """Restore snapshotted ignored files and parent directory modes exactly."""
+    repo = os.path.abspath(repo)
+    restored: set[str] = set()
+    for rel, mode in sorted(snapshot["directories"].items(), key=lambda item: item[0].count("/")):
+        directory = _artifact_path(repo, rel)
+        try:
+            entry = os.lstat(directory)
+        except FileNotFoundError:
+            entry = None
+        if entry is not None and (not stat.S_ISDIR(entry.st_mode) or stat.S_ISLNK(entry.st_mode)):
+            _remove_artifact_entry(directory)
+            entry = None
+        if entry is None:
+            os.mkdir(directory, mode)
+        os.chmod(directory, mode, follow_symlinks=False)
+
+    for rel, record in sorted(snapshot["files"].items()):
+        target = _artifact_path(repo, rel)
+        if _artifact_matches(target, record):
+            continue
+        restored.add(rel)
+        _remove_artifact_entry(target)
+        parent = os.path.dirname(target)
+        temporary = os.path.join(parent, f".ce-work-restore-{secrets.token_hex(8)}")
+        source_fd = os.open(record["backup"], os.O_RDONLY | O_NOFOLLOW)
+        target_fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | O_NOFOLLOW, record["mode"])
+        try:
+            while True:
+                chunk = os.read(source_fd, 1024 * 1024)
+                if not chunk:
+                    break
+                view = memoryview(chunk)
+                while view:
+                    written = os.write(target_fd, view)
+                    view = view[written:]
+            os.fchmod(target_fd, record["mode"])
+        finally:
+            os.close(source_fd)
+            os.close(target_fd)
+        os.replace(temporary, target)
+        if not _artifact_matches(target, record):
+            raise Operational("BLOCKED", f"ignored artifact restoration could not be proven: {rel}")
+    shutil.rmtree(snapshot["root"])
+    return restored
 
 
 def _restore_owned_verification(
@@ -209,6 +374,11 @@ def _verify_run_locked(args, repo: str, command: list[str], units: dict) -> tupl
     if not before["status_empty"] or before_paths:
         raise Operational("BLOCKED", "verify-run requires a clean canonical checkout")
     _validate_accepted_run_head(repo, units, before["head"])
+    ignored_snapshot = _snapshot_ignored_artifacts(
+        repo,
+        before_ignored,
+        os.path.join(run_dir(args.run_id), "jobs"),
+    )
 
     verification_log, stream = _run_verification_log(args.run_id)
     with stream:
@@ -232,7 +402,8 @@ def _verify_run_locked(args, repo: str, command: list[str], units: dict) -> tupl
     new_ignored = _ignored_paths(repo) - before_ignored
     ignored_directories = _new_parent_directories(new_ignored, before_directories)
     _remove_owned_new_paths(repo, new_ignored | ignored_directories, before["head"])
-    cleaned_paths = sorted(new_ignored)
+    restored_ignored = _restore_ignored_artifacts(repo, ignored_snapshot)
+    cleaned_paths = sorted(new_ignored | restored_ignored)
     if after != before:
         if after["branch_ref"] != before["branch_ref"] or after["head"] != before["head"]:
             with locked_manifest(args.run_id, write=True) as doc:
@@ -256,10 +427,11 @@ def _verify_run_locked(args, repo: str, command: list[str], units: dict) -> tupl
                     "retain_integration_lock": True,
                 },
             )
-        cleaned_paths = sorted((after_paths - before_paths) | new_ignored)
+        deletion_paths = (after_paths - before_paths) | new_ignored
+        cleaned_paths = sorted(deletion_paths | restored_ignored)
         git(repo, "reset", "--hard", before["head"])
-        created_directories = _new_parent_directories(set(cleaned_paths), before_directories)
-        _remove_owned_new_paths(repo, set(cleaned_paths) | created_directories, before["head"])
+        created_directories = _new_parent_directories(deletion_paths, before_directories)
+        _remove_owned_new_paths(repo, deletion_paths | created_directories, before["head"])
         restored = semantic_snapshot(repo)
         if restored != before:
             with locked_manifest(args.run_id, write=True) as doc:
@@ -423,6 +595,11 @@ def cmd_integrate(args) -> tuple[str, dict]:
         before_paths = status_paths(repo)
         before_ignored = _ignored_paths(repo)
         before_directories = _directory_paths(repo)
+        ignored_snapshot = _snapshot_ignored_artifacts(
+            repo,
+            before_ignored,
+            os.path.join(run_dir(args.run_id), "units", args.unit_id, "result"),
+        )
 
         verification_log, stream = _verification_log(args.run_id, args.unit_id)
         with stream:
@@ -443,9 +620,10 @@ def cmd_integrate(args) -> tuple[str, dict]:
         after = semantic_snapshot(repo)
         after_paths = status_paths(repo)
         new_ignored = _ignored_paths(repo) - before_ignored
-        cleaned_paths = sorted((after_paths - before_paths) | new_ignored)
         ignored_directories = _new_parent_directories(new_ignored, before_directories)
         _remove_owned_new_paths(repo, new_ignored | ignored_directories, before["head"])
+        restored_ignored = _restore_ignored_artifacts(repo, ignored_snapshot)
+        cleaned_paths = sorted((after_paths - before_paths) | new_ignored | restored_ignored)
         log_digest = hashlib.sha256(Path(verification_log).read_bytes()).hexdigest()
         if verification_exit != 0 or after != before:
             _restore_owned_verification(args.run_id, args.unit_id, token, before, before_paths, after_paths)
