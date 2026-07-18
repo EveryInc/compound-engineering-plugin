@@ -706,6 +706,31 @@ def retained_blocked_abandonment_receipt(run_id: str, unit: dict, attempt: dict)
     }
 
 
+def owned_workspace_path(run_id: str, unit_id: str, recorded_workspace: str) -> str:
+    unit_root = os.path.join(run_dir(run_id), "units", unit_id)
+    expected_workspace = os.path.join(unit_root, "workspace")
+    if os.path.abspath(recorded_workspace) != expected_workspace:
+        raise TrustFailure("manifest workspace path does not match the controller-owned unit workspace")
+    validate_private_dir(unit_root)
+    return expected_workspace
+
+
+def remove_unregistered_owned_workspace(run_id: str, unit_id: str, recorded_workspace: str) -> None:
+    expected_workspace = owned_workspace_path(run_id, unit_id, recorded_workspace)
+    if not os.path.lexists(expected_workspace):
+        return
+    entry = os.lstat(expected_workspace)
+    uid_getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
+    effective_uid = uid_getter() if uid_getter is not None else None
+    if not stat.S_ISDIR(entry.st_mode) or stat.S_ISLNK(entry.st_mode):
+        raise Operational("BLOCKED", "unregistered workspace path is not a real directory")
+    if effective_uid is not None and entry.st_uid != effective_uid:
+        raise Operational("BLOCKED", "unregistered workspace is not owned by the current user")
+    shutil.rmtree(expected_workspace)
+    if os.path.lexists(expected_workspace):
+        raise Operational("BLOCKED", "unregistered workspace remained after cleanup")
+
+
 def cmd_cleanup(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id) as doc:
         validate_repo(doc)
@@ -757,6 +782,7 @@ def cmd_cleanup(args) -> tuple[str, dict]:
         ref = unit["transport"].get("ref")
         repo = doc["repository"]["toplevel"]
         common = doc["repository"]["common_dir"]
+    workspace = owned_workspace_path(args.run_id, args.unit_id, workspace)
     with locked_manifest(args.run_id, write=True) as doc:
         event(doc, "cleanup-intent", args.unit_id, {"workspace": workspace, "ref": ref, "abandonment_receipt": abandonment_receipt})
     with admin_lock(common):
@@ -766,6 +792,7 @@ def cmd_cleanup(args) -> tuple[str, dict]:
             test_fault("cleanup-after-worktree-remove")
         if any(os.path.realpath(str(r.get("worktree", ""))) == os.path.realpath(workspace) for r in worktree_rows(repo)):
             raise Operational("BLOCKED", "worktree remained registered after cleanup")
+        remove_unregistered_owned_workspace(args.run_id, args.unit_id, workspace)
     if ref and commit:
         current = git_text(repo, "rev-parse", "-q", "--verify", ref, check=False)
         if current and current != commit:

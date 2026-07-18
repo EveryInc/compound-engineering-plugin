@@ -2055,7 +2055,11 @@ describe("ce-work unit workspace controller", () => {
     const again = ctl(runs, "resume", "--run-id", "run-crash")
     expect(again.body.actions).toEqual([])
     expect(ctlWithEnv(runs, { CE_WORK_TEST_FAULT: "cleanup-after-worktree-remove" }, "cleanup", "--run-id", "run-crash", "--unit-id", "U", "--abandon", "--expect-transport", commit).word).toBe("INTERRUPTED")
+    expect(existsSync(workspace)).toBe(false)
+    mkdirSync(workspace)
+    writeFileSync(path.join(workspace, "retained-after-unregister.txt"), "must be removed\n")
     expect(ctl(runs, "cleanup", "--run-id", "run-crash", "--unit-id", "U", "--abandon", "--expect-transport", commit).word).toBe("CLEANED")
+    expect(existsSync(workspace)).toBe(false)
   })
 
   test("discovers a successful run whose plan verification lock was not released", () => {
