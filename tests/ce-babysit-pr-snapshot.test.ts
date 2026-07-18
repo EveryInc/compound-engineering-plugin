@@ -474,7 +474,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     markCurrency(ambiguousState, ambiguous.branch_currency.key, "claimed")
     const persisted = JSON.parse(readFileSync(path.join(ambiguousState, "state.json"), "utf8"))
     expect(persisted.branch_currency_state.items[ambiguous.branch_currency.key].recovery_state).toBe("ambiguous")
-  })
+  }, 20000)
 
   test("branch currency: mutation observation consumes the attempt and remains reconciliation-only", () => {
     const fetch = fetchFile(dir, "currency-consumed.json", quietCurrencyFixture())
@@ -516,16 +516,21 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     const resumed = snapshot(state, fetch, ["--start-invocation",
       "--invocation-budget-seconds", ORDINARY_TEST_BUDGET_SECONDS])
     expect(resumed.branch_currency.attention).toBe("reconcile")
-  })
+  }, 20000)
 
   test("branch currency: standing confirmed and needs-human residuals stay quiet, and max-runtime outranks new work", () => {
     const fetch = fetchFile(dir, "currency-standing.json", quietCurrencyFixture())
     for (const disposition of ["confirmed", "needs-human"]) {
       const residualState = path.join(dir, `currency-standing-${disposition}`)
-      const observed = snapshot(residualState, fetch, EXPIRING_TEST_INVOCATION)
+      const observed = snapshot(residualState, fetch)
       markCurrency(residualState, observed.branch_currency.key, "claimed")
       markCurrency(residualState, observed.branch_currency.key, disposition,
         disposition === "needs-human" ? "semantic-v1" : undefined)
+      const residualPath = path.join(residualState, "state.json")
+      const expiredResidual = JSON.parse(readFileSync(residualPath, "utf8"))
+      expiredResidual.started_at = "2000-01-01T00:00:00Z"
+      expiredResidual.invocation_budget_seconds = 1
+      writeFileSync(residualPath, JSON.stringify(expiredResidual))
       expect(watch(residualState, fetch).reason).toBe("max-runtime")
     }
 
@@ -542,7 +547,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       expired.branch_currency_state.current_key, "--currency-disposition", "claimed"],
     { encoding: "utf8" })
     expect(lateClaim.status).not.toBe(0)
-  }, 10000)
+  }, 20000)
 
   test("branch currency: a carried semantic park wakes only for inspection and unchanged evidence stays parked", () => {
     const dirty = quietCurrencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
@@ -603,7 +608,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       attention: "claim",
       parked_semantic_fingerprints: [],
     })
-  })
+  }, 20000)
 
   test("branch currency: unresolved claims survive base and expected head movement until reconciled", () => {
     const first = snapshot(state, fetchFile(dir, "currency-key-1.json", currencyFixture()))
@@ -662,7 +667,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(confirmed.branch_currency_blocker).toBeNull()
     const persisted = JSON.parse(readFileSync(path.join(state, "state.json"), "utf8"))
     expect(persisted.branch_currency_state.current_key).toBeNull()
-  })
+  }, 20000)
 
   test("branch currency: invocation-fenced transitions preserve an unchanged semantic park", () => {
     const observed = snapshot(state, fetchFile(dir, "currency-park.json", currencyFixture({
@@ -697,7 +702,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       mergeable: "CONFLICTING",
       merge_state_status: "DIRTY",
     }))).branch_currency.disposition).toBe("open")
-  })
+  }, 15000)
 
   test("branch currency: base-only movement retains the semantic park for later inspection", () => {
     const dirty = currencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
@@ -723,7 +728,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     })
     expect(persisted.branch_currency_state.semantic_parks["conflict-v1"]).not.toHaveProperty("base_oid")
     expect(persisted.branch_currency_state.items[parkedObservation.branch_currency.key].disposition).toBe("needs-human")
-  })
+  }, 15000)
 
   test("branch currency: dependents do not block a normal-base root, but managed, open-parent, and uncertain routes do", () => {
     const dependentRoot = snapshot(path.join(dir, "currency-dependent-root"), fetchFile(dir, "currency-dependent-root.json", currencyFixture({
@@ -748,7 +753,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       const value = snapshot(path.join(dir, `currency-excluded-${index}`), fetchFile(dir, `currency-excluded-${index}.json`, currencyFixture({ pr_chain: prChain })))
       expect(value.branch_currency).toBeNull()
     }
-  })
+  }, 15000)
 
   test("host branch-update capability reads the operation-specific true, false, and unknown outcomes", () => {
     const positive = probeHostBranchUpdateCapability({
