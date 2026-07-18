@@ -2326,6 +2326,46 @@ describe("ce-work unit workspace controller", () => {
     expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("UNREADABLE")
   })
 
+  test("does not authorize native fallback before dependencies are accepted", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-fallback-dependency", f)
+    ctl(
+      runs, "prepare", "--run-id", "run-fallback-dependency", "--unit-id", "U1",
+      "--base", f.base, "--packet", packetFile("dependency packet"),
+    )
+    ctl(
+      runs, "prepare", "--run-id", "run-fallback-dependency", "--unit-id", "U2",
+      "--base", f.base, "--packet", packetFile("dependent packet"), "--dependency", "U1",
+    )
+    const job = fakeRunningJob(runs, "run-fallback-dependency", "U2", "dependent packet")
+    ctl(
+      runs, "record-job", "--run-id", "run-fallback-dependency", "--unit-id", "U2",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    terminalizeFakeJob(runs, "run-fallback-dependency", job, "failed")
+    expect(ctl(runs, "resume", "--run-id", "run-fallback-dependency").body.actions).toContainEqual({
+      unit_id: "U2",
+      action: "monitored",
+      process_state: "failed",
+    })
+
+    const blocked = ctl(
+      runs, "claim-fallback", "--run-id", "run-fallback-dependency", "--unit-id", "U2",
+      "--caller-mode", "headless",
+    )
+    expect(blocked.word).toBe("BLOCKED")
+    expect(blocked.stderr).toContain("dependencies must have controller-accepted canonical commits")
+    expect(blocked.body).toMatchObject({
+      unit_id: "U2",
+      missing_dependencies: [],
+      unaccepted_dependencies: ["U1"],
+    })
+    expect(ctl(
+      runs, "status", "--run-id", "run-fallback-dependency", "--unit-id", "U2",
+    ).body.unit.attempts[0].fallback.claimed).toBeNull()
+  })
+
   test("adopts a metadata-only never-started job and authorizes fallback exactly once", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")

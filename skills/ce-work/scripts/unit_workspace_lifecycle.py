@@ -537,6 +537,7 @@ def cmd_claim_fallback(args) -> tuple[str, dict]:
                 "reason": claimed["reason"],
                 "claim": claimed,
             }
+        validate_dependencies_ready(doc, unit)
         reason, attempt = fallback_basis(doc, unit)
         mode = doc.get("binding", {}).get("mode")
         if mode == "require":
