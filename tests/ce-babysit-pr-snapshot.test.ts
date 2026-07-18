@@ -560,6 +560,55 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(wakeReason({ ...confirmed, quiet_seconds: 0 }, 300)).toBeNull()
   }, 15000)
 
+  test("branch currency: async evidence movement also re-wakes an ambiguous same-invocation claim", () => {
+    const behind = fetchFile(dir, "currency-async-ambiguous-behind.json", quietCurrencyFixture())
+    const observed = snapshot(state, behind)
+    markCurrency(state, observed.branch_currency.key, "claimed")
+    markCurrencyOutcome(state, observed.branch_currency.key, "ambiguous")
+
+    expect(snapshot(state, behind).branch_currency.attention).toBeNull()
+
+    const moved = snapshot(state, fetchFile(dir, "currency-async-ambiguous-clean.json", quietCurrencyFixture({
+      head_sha: "s2",
+      mergeable: "MERGEABLE",
+      merge_state_status: "CLEAN",
+    })))
+    expect(moved.branch_currency).toMatchObject({
+      key: observed.branch_currency.key,
+      disposition: "claimed",
+      attention: "reconcile",
+      recovery_state: "ambiguous",
+      reconciliation_only: true,
+    })
+    expect(wakeReason(moved)).toBe("branch-currency")
+  }, 15000)
+
+  test("branch currency: a BEHIND capability park reopens when the same observation becomes updateable", () => {
+    for (const capability of [false, "unknown"] as const) {
+      const capabilityState = path.join(dir, `currency-capability-${capability}`)
+      const unavailable = fetchFile(dir, `currency-capability-${capability}-off.json`, quietCurrencyFixture({
+        host_branch_update_capability: capability,
+      }))
+      const observed = snapshot(capabilityState, unavailable)
+      markCurrency(capabilityState, observed.branch_currency.key, "needs-human")
+      expect(snapshot(capabilityState, unavailable).branch_currency).toMatchObject({
+        disposition: "needs-human",
+        attention: null,
+      })
+
+      const enabled = snapshot(capabilityState, fetchFile(dir, `currency-capability-${capability}-on.json`, quietCurrencyFixture({
+        host_branch_update_capability: true,
+      })))
+      expect(enabled.branch_currency).toMatchObject({
+        key: observed.branch_currency.key,
+        disposition: "open",
+        attention: "claim",
+        host_branch_update_capability: true,
+      })
+      expect(wakeReason(enabled)).toBe("branch-currency")
+    }
+  }, 15000)
+
   test("branch currency: standing confirmed and needs-human residuals stay quiet, and max-runtime outranks new work", () => {
     const fetch = fetchFile(dir, "currency-standing.json", quietCurrencyFixture())
     for (const disposition of ["confirmed", "needs-human"]) {

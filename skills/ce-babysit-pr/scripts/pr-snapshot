@@ -750,13 +750,14 @@ def _prepare_claimed_currency_item(state, item, cur=None, head=None):
         or item.get("reconciled_invocation_id") == invocation_id
     )
     base = (cur or {}).get("base") or {}
-    mutation_evidence_moved = (
-        item.get("recovery_state") == CURRENCY_OUTCOME_MUTATION_OBSERVED
+    async_evidence_moved = (
+        item.get("recovery_state") in (
+            CURRENCY_OUTCOME_MUTATION_OBSERVED, CURRENCY_OUTCOME_AMBIGUOUS)
         and ((head and head != item.get("head_sha"))
              or (base.get("oid") and base.get("oid") != item.get("base_oid")))
     )
     item["attention"] = (CURRENCY_ATTENTION_RECONCILE
-                         if mutation_evidence_moved or not already_handled_here else None)
+                         if async_evidence_moved or not already_handled_here else None)
     item["reconciliation_only"] = True
     return item
 
@@ -789,7 +790,10 @@ def _apply_branch_currency(state, cur, head, head_changed, now):
     item = items.get(key)
     if not isinstance(item, dict):
         item = {**observation, "disposition": DISPOSITION_OPEN}
+        prior_host_branch_update_capability = None
     else:
+        prior_host_branch_update_capability = item.get(
+            "host_branch_update_capability", "unknown")
         # Refresh non-identity facts without changing an invocation-fenced disposition.
         item.update(observation)
     item["host_branch_update_capability"] = cur.get(
@@ -799,6 +803,15 @@ def _apply_branch_currency(state, cur, head, head_changed, now):
     item.setdefault("retry_count", 0)
     item.setdefault("mutation_consumed", False)
     disposition = item.get("disposition", DISPOSITION_OPEN)
+    # A transient capability park is not a durable decision: the unchanged observation becomes
+    # claimable as soon as the host confirms that the branch-update operation is authorized.
+    if (disposition == DISPOSITION_NEEDS_HUMAN
+            and item.get("status") == "BEHIND"
+            and item.get("recovery_state") is None
+            and prior_host_branch_update_capability in (False, "unknown")
+            and item.get("host_branch_update_capability") is True):
+        item["disposition"] = DISPOSITION_OPEN
+        disposition = DISPOSITION_OPEN
     if disposition == DISPOSITION_OPEN:
         inspection_required = (item.get("status") == "DIRTY"
                                and bool(parks)
