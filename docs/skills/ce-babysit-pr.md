@@ -164,6 +164,8 @@ Managed stacks stay on their manager's refresh/restack path; the ordinary branch
 **What happens when the base branch keeps moving?**
 Each distinct head/base/status observation has a bounded claim-and-reconcile lifecycle, not a wall-clock guess or lifetime update limit. Routine movement can converge automatically many times over a long watch, but the same unchanged observation cannot trigger repeated branch-changing attempts across restarts. A parked semantic conflict remains parked when unrelated base commits do not change the conflict itself, and the final summary explains what was observed, what was automated, and what decision is still needed.
 
+For a behind PR, the host update itself carries the claimed head SHA as a precondition. If another actor pushes first, GitHub rejects the stale operation instead of applying it to the newer head, and the skill re-snapshots before deciding what remains.
+
 ---
 
 ## See Also

@@ -409,6 +409,9 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
       expect(text).toMatch(/confirm[^.]{0,220}(contains|ancestor)[^.]{0,160}(observed )?base OID/i)
       expect(text).toMatch(/host[^.]{0,160}(accept|mutation-observed)[^.]{0,180}(not|isn't)[^.]{0,120}(complet|confirm|success)/i)
       expect(text).toMatch(/host_branch_update_capability[^.]{0,260}(not|never)[^.]{0,140}(Git push|direct push|push authority)/i)
+      expect(text).toContain("expected_head_sha")
+      expect(text).toMatch(/expected_head_sha[^.]{0,180}(observed|claimed)[^.]{0,100}head/i)
+      expect(text).toMatch(/422[^.]{0,180}(mismatch|stale|reconcile)/i)
     }
     expect(babysit).toMatch(/BEHIND[\s\S]{0,1000}revalidate[^.]{0,240}head[^.]{0,160}base OIDs/i)
   })
