@@ -117,6 +117,7 @@ def cmd_prepare(args) -> tuple[str, dict]:
     attempt_record = {
         "attempt_id": attempt_id,
         "job_id": None,
+        "dispatch_authorization_receipt": None,
         "process_state": "never-started",
         "activity": {"posture": args.activity_posture, "latest_at": None},
         "fallback": {"eligible": False, "reason": None, "claimed": None},
@@ -412,7 +413,23 @@ def cmd_authorize_dispatch(args) -> tuple[str, dict]:
         expected_workspace = unit["workspace"]["path"]
         if os.path.abspath(args.workspace) != expected_workspace:
             raise Operational("BLOCKED", "workspace path does not match the recorded unit")
-        resumed = bound_job == job_id
+        expected_dispatch_authorization_receipt = {
+            "attempt_id": attempt_id,
+            "job_id": job_id,
+            "authorization_path": expected_authorization_path,
+            "authorization_digest": expected_authorization_digest,
+            "workspace": expected_workspace,
+            "packet_path": unit["packet"]["path"],
+            "packet_digest": unit["packet_digest"],
+            "result_dir": os.path.join(os.path.dirname(expected_workspace), "result"),
+        }
+        recorded_dispatch_authorization_receipt = attempt.get("dispatch_authorization_receipt")
+        if recorded_dispatch_authorization_receipt is not None and (
+            bound_job != job_id
+            or recorded_dispatch_authorization_receipt != expected_dispatch_authorization_receipt
+        ):
+            raise Operational("BLOCKED", "recorded dispatch authorization does not match the exact request")
+        resumed = recorded_dispatch_authorization_receipt == expected_dispatch_authorization_receipt
         if resumed:
             validate_workspace(doc, unit)
         else:
@@ -433,6 +450,7 @@ def cmd_authorize_dispatch(args) -> tuple[str, dict]:
         validate_private_dir(expected_result_dir)
         if not resumed:
             attempt["job_id"] = job_id
+            attempt["dispatch_authorization_receipt"] = expected_dispatch_authorization_receipt
             unit["state"] = "authoring"
             event(doc, "job-bound", unit_id, {
                 "attempt_id": attempt_id,

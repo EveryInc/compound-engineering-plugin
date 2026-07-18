@@ -137,9 +137,9 @@ function authorizeDispatch(
     adapter: ADAPTER,
     ...overrides,
   }
-  const jobId = `job-auth-${Math.random().toString(16).slice(2)}`
+  const jobId = values.jobId ?? `job-auth-${Math.random().toString(16).slice(2)}`
   const jobDir = path.join(runsRoot, runId, "jobs", jobId)
-  mkdirSync(jobDir, { mode: 0o700 })
+  mkdirSync(jobDir, { recursive: true, mode: 0o700 })
   chmodSync(jobDir, 0o700)
   writeFileSync(path.join(jobDir, "meta.json"), `${JSON.stringify({
     job_id: jobId,
@@ -572,6 +572,81 @@ describe("ce-work unit workspace controller", () => {
     const authorizeDirtyBlocked = authorizeDispatch(runs, runId, "U-authorize-dirty", authorizeDirty.prepared)
     expect(authorizeDirtyBlocked.word).toBe("BLOCKED")
     expect(authorizeDirtyBlocked.stderr).toContain("workspace is dirty before dispatch authorization")
+  })
+
+  test("requires an exact durable authorization receipt before relaxing pristine dispatch validation", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-prebound-authorization"
+    init(runs, runId, f)
+
+    const prepare = (unitId: string) => ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", unitId, "--base", f.base,
+      "--packet", packetFile(`packet-${unitId}`),
+    ).body
+    const prebind = (unitId: string, prepared: any, jobId: string) => {
+      fakeRunningJob(runs, runId, unitId, `packet-${unitId}`, jobId)
+      const recorded = ctl(
+        runs, "record-job", "--run-id", runId, "--unit-id", unitId,
+        "--attempt-id", "attempt-1", "--job-id", jobId,
+      )
+      expect(recorded.word).toBe("AUTHORING")
+      expect(recorded.body.resumed).toBe(false)
+      expect(prepared.packet_digest).toBe(packetDigest(`packet-${unitId}`))
+    }
+
+    const wrongHead = prepare("U-prebound-head")
+    const wrongHeadJob = "job-prebound-head"
+    prebind("U-prebound-head", wrongHead, wrongHeadJob)
+    writeFileSync(path.join(wrongHead.workspace, "worker.txt"), "premature\n")
+    git(wrongHead.workspace, "add", "worker.txt")
+    git(
+      wrongHead.workspace,
+      "-c", "user.name=Worker", "-c", "user.email=worker@example.test",
+      "commit", "-m", "premature worker commit",
+    )
+    const wrongHeadBlocked = authorizeDispatch(runs, runId, "U-prebound-head", wrongHead, { jobId: wrongHeadJob })
+    expect(wrongHeadBlocked.word).toBe("BLOCKED")
+    expect(wrongHeadBlocked.stderr).toContain("workspace HEAD no longer equals the recorded base")
+
+    const dirty = prepare("U-prebound-dirty")
+    const dirtyJob = "job-prebound-dirty"
+    prebind("U-prebound-dirty", dirty, dirtyJob)
+    writeFileSync(path.join(dirty.workspace, "keep.txt"), "premature dirty edit\n")
+    const dirtyBlocked = authorizeDispatch(runs, runId, "U-prebound-dirty", dirty, { jobId: dirtyJob })
+    expect(dirtyBlocked.word).toBe("BLOCKED")
+    expect(dirtyBlocked.stderr).toContain("workspace is dirty before dispatch authorization")
+
+    const pristine = prepare("U-prebound-pristine")
+    const pristineJob = "job-prebound-pristine"
+    prebind("U-prebound-pristine", pristine, pristineJob)
+    const authorized = authorizeDispatch(runs, runId, "U-prebound-pristine", pristine, { jobId: pristineJob })
+    expect(authorized.word).toBe("AUTHORIZED")
+    expect(authorized.body.resumed).toBe(false)
+    expect(ctl(runs, "status", "--run-id", runId, "--unit-id", "U-prebound-pristine").body.unit.attempts[0].dispatch_authorization_receipt).toEqual({
+      attempt_id: "attempt-1",
+      job_id: pristineJob,
+      authorization_path: pristine.authorization_path,
+      authorization_digest: pristine.authorization_digest,
+      workspace: pristine.workspace,
+      packet_path: pristine.packet_path,
+      packet_digest: pristine.packet_digest,
+      result_dir: pristine.result_dir,
+    })
+
+    writeFileSync(path.join(pristine.workspace, "keep.txt"), "legitimate worker edit\n")
+    const resumed = authorizeDispatch(runs, runId, "U-prebound-pristine", pristine, { jobId: pristineJob })
+    expect(resumed.word).toBe("AUTHORIZED")
+    expect(resumed.body.resumed).toBe(true)
+
+    const manifestPath = path.join(runs, runId, "manifest.json")
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"))
+    manifest.units["U-prebound-pristine"].attempts[0].dispatch_authorization_receipt.packet_digest = "0".repeat(64)
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 })
+    chmodSync(manifestPath, 0o600)
+    const mismatched = authorizeDispatch(runs, runId, "U-prebound-pristine", pristine, { jobId: pristineJob })
+    expect(mismatched.word).toBe("BLOCKED")
+    expect(mismatched.stderr).toContain("recorded dispatch authorization does not match the exact request")
   })
 
   test("returns the recorded canonical adapter from a symlinked skill for fresh and resumed dispatch", () => {
