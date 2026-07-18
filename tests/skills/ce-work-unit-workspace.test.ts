@@ -97,6 +97,25 @@ function ctlWithScriptAndEnv(script: string, runsRoot: string, extraEnv: Record<
   return { code: r.status ?? -1, word: lines[0] || "", body, stderr: r.stderr }
 }
 
+function ownerRootProbe(ownerRoot: string, runsRoot: string, foreignLike = false) {
+  const source = [
+    "import os, sys",
+    `sys.path.insert(0, ${JSON.stringify(path.dirname(SCRIPT))})`,
+    "import unit_workspace_state as state",
+    "state.OWNER_SCRATCH_ROOT = sys.argv[1]",
+    foreignLike ? "state._EFFECTIVE_UID = os.geteuid() + 1" : "",
+    "print(state.ensure_root())",
+  ].filter(Boolean).join("; ")
+  return spawnSync("python3", ["-c", source, ownerRoot], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      CE_WORK_RUNS_ROOT: runsRoot,
+      CE_PEER_JOBS_ROOT: "",
+    },
+  })
+}
+
 function init(runsRoot: string, runId: string, fixture: ReturnType<typeof makeRepo>) {
   return initWithBinding(runsRoot, runId, fixture, "prefer")
 }
@@ -310,6 +329,40 @@ describe("ce-work unit workspace controller", () => {
     expect(result.word).toBe("READY")
     expect(result.body.recovery_path).toBe(path.join(runs, "run-peer-root-only"))
     expect(existsSync(path.join(runs, "run-peer-root-only", "manifest.json"))).toBe(true)
+  })
+
+  test("repairs the owner scratch root and rejects unsafe owner-root entries", () => {
+    const repairParent = tmp("ce-work-owner-repair-")
+    const repairRoot = path.join(repairParent, "compound-engineering-owner")
+    const repairRuns = path.join(repairRoot, "ce-work")
+    mkdirSync(repairRoot, { mode: 0o755 })
+    chmodSync(repairRoot, 0o755)
+    const repaired = ownerRootProbe(repairRoot, repairRuns)
+    expect(repaired.status).toBe(0)
+    expect(statSync(repairRoot).mode & 0o777).toBe(0o700)
+    expect(statSync(repairRuns).mode & 0o777).toBe(0o700)
+
+    const linkTarget = tmp("ce-work-owner-link-target-")
+    const linkRoot = path.join(tmp("ce-work-owner-link-parent-"), "compound-engineering-owner")
+    symlinkSync(linkTarget, linkRoot, "dir")
+    const linked = ownerRootProbe(linkRoot, path.join(linkRoot, "ce-work"))
+    expect(linked.status).not.toBe(0)
+    expect(linked.stderr).toContain("cannot safely open owner scratch root")
+    expect(existsSync(path.join(linkTarget, "ce-work"))).toBe(false)
+
+    const foreignRoot = path.join(tmp("ce-work-owner-foreign-"), "compound-engineering-owner")
+    mkdirSync(foreignRoot, { mode: 0o700 })
+    const foreign = ownerRootProbe(foreignRoot, path.join(foreignRoot, "ce-work"), true)
+    expect(foreign.status).not.toBe(0)
+    expect(foreign.stderr).toContain("owner scratch root is not owned by current user")
+    expect(existsSync(path.join(foreignRoot, "ce-work"))).toBe(false)
+
+    const externalParent = tmp("ce-work-external-root-")
+    chmodSync(externalParent, 0o755)
+    const unrelatedOwnerRoot = path.join(tmp("ce-work-unrelated-owner-"), "compound-engineering-owner")
+    const externalRuns = path.join(externalParent, "ce-work")
+    expect(ownerRootProbe(unrelatedOwnerRoot, externalRuns).status).toBe(0)
+    expect(statSync(externalParent).mode & 0o777).toBe(0o755)
   })
 
   test("creates private durable state and rejects unsafe identity or mode", () => {
@@ -1291,6 +1344,59 @@ describe("ce-work unit workspace controller", () => {
     expect(ctl(runs, "integration-release", "--run-id", "run-fold", "--unit-id", "U", "--lock-token", token).word).toBe("RELEASED")
     expect(ctl(runs, "cleanup", "--run-id", "run-fold", "--unit-id", "U", "--abandon", "--expect-transport", t.commit).word).toBe("CLEANED")
     expect(sh(f.repo, ["git", "rev-parse", "-q", "--verify", t.ref], false).status).not.toBe(0)
+  })
+
+  test("an interrupted old release does not unlink a newer run's live integration lock", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const prepare = (runId: string) => {
+      init(runs, runId, f)
+      ctl(
+        runs, "prepare", "--run-id", runId, "--unit-id", "U",
+        "--base", f.base, "--packet", packetFile(`${runId} packet`),
+      )
+      const job = fakeDoneJob(runs, runId, "U", `${runId} packet`, `${runId}-job`)
+      ctl(
+        runs, "record-job", "--run-id", runId, "--unit-id", "U",
+        "--attempt-id", "attempt-1", "--job-id", job,
+      )
+      ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U")
+    }
+    prepare("run-old-release")
+    prepare("run-new-owner")
+
+    const oldLock = ctl(
+      runs, "integration-acquire", "--run-id", "run-old-release", "--unit-id", "U",
+    )
+    expect(ctlWithEnv(
+      runs,
+      { CE_WORK_TEST_FAULT: "integration-release-after-unlink" },
+      "integration-release", "--run-id", "run-old-release", "--unit-id", "U",
+      "--lock-token", oldLock.body.lock_token,
+    ).word).toBe("INTERRUPTED")
+    expect(ctl(runs, "status", "--run-id", "run-old-release").body.integration_lock.phase).toBe("releasing")
+
+    const newLock = ctl(
+      runs, "integration-acquire", "--run-id", "run-new-owner", "--unit-id", "U",
+    )
+    expect(newLock.word).toBe("ACQUIRED")
+    const resumedOld = ctl(runs, "resume", "--run-id", "run-old-release")
+    expect(resumedOld.word).toBe("RESUMED")
+    expect(resumedOld.body.actions).toContainEqual({
+      unit_id: "U",
+      action: "integration-release-reconciled",
+    })
+    expect(ctl(runs, "status", "--run-id", "run-old-release").body.integration_lock).toBeNull()
+
+    const resumedNew = ctl(
+      runs, "integration-acquire", "--run-id", "run-new-owner", "--unit-id", "U", "--resume",
+    )
+    expect(resumedNew.word).toBe("ACQUIRED")
+    expect(resumedNew.body.lock_token).toBe(newLock.body.lock_token)
+    expect(ctl(
+      runs, "integration-release", "--run-id", "run-new-owner", "--unit-id", "U",
+      "--lock-token", newLock.body.lock_token,
+    ).word).toBe("RELEASED")
   })
 
   test("unit and plan-wide verification restore existing ignored artifacts and clean new ones", () => {

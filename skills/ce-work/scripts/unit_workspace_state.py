@@ -33,9 +33,14 @@ from pathlib import Path
 SCHEMA_VERSION = 1
 _uid_getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
 _EFFECTIVE_UID = _uid_getter() if _uid_getter is not None else None
-DEFAULT_RUNS_ROOT = (
-    os.path.join("/tmp", f"compound-engineering-{_EFFECTIVE_UID}", "ce-work")
+OWNER_SCRATCH_ROOT = (
+    os.path.join("/tmp", f"compound-engineering-{_EFFECTIVE_UID}")
     if _EFFECTIVE_UID is not None
+    else None
+)
+DEFAULT_RUNS_ROOT = (
+    os.path.join(OWNER_SCRATCH_ROOT, "ce-work")
+    if OWNER_SCRATCH_ROOT is not None
     else None
 )
 MAX_JSON_BYTES = 2 * 1024 * 1024
@@ -129,8 +134,42 @@ def ensure_private_dir(path: str) -> None:
     validate_private_dir(path)
 
 
+def _owner_root_for_runs(root: str) -> str | None:
+    if OWNER_SCRATCH_ROOT is None:
+        return None
+    owner_root = os.path.abspath(OWNER_SCRATCH_ROOT)
+    return owner_root if os.path.commonpath([owner_root, os.path.abspath(root)]) == owner_root else None
+
+
+def _ensure_owner_scratch_root(path: str) -> None:
+    try:
+        os.mkdir(path, 0o700)
+    except FileExistsError:
+        pass
+    try:
+        fd = os.open(path, os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+    except OSError as exc:
+        raise TrustFailure(f"cannot safely open owner scratch root {path}: {exc}") from exc
+    try:
+        current = os.fstat(fd)
+        if not stat.S_ISDIR(current.st_mode):
+            raise TrustFailure(f"owner scratch root is not a real directory: {path}")
+        if _euid() is not None and current.st_uid != _euid():
+            raise TrustFailure(f"owner scratch root is not owned by current user: {path}")
+        if _mode(current) != 0o700:
+            os.fchmod(fd, 0o700)
+            repaired = os.fstat(fd)
+            if repaired.st_uid != current.st_uid or _mode(repaired) != 0o700:
+                raise TrustFailure(f"could not repair owner scratch root mode to 0700: {path}")
+    finally:
+        os.close(fd)
+
+
 def ensure_root() -> str:
     root = runs_root()
+    owner_root = _owner_root_for_runs(root)
+    if owner_root is not None:
+        _ensure_owner_scratch_root(owner_root)
     parent = os.path.dirname(root)
     # The configured root's ancestors are caller-controlled; the private root
     # itself and everything below it are the durable confidentiality boundary.

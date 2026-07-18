@@ -483,6 +483,21 @@ def cmd_restore(args) -> tuple[str, dict]:
 
 
 
+def release_lock_is_owned(doc: dict, unit_id: str, lock_token: str, lock: dict) -> bool:
+    expected = {
+        "run_id": doc["run_id"],
+        "unit_id": unit_id,
+        "repository": doc["repository"]["identity_digest"],
+        "branch_ref": doc["branch"]["ref"],
+    }
+    if any(lock.get(key) != value for key, value in expected.items()):
+        return False
+    nonce = lock.get("nonce")
+    if not isinstance(nonce, str) or not re.fullmatch(r"[0-9a-f]{48}", nonce):
+        return False
+    return nonce == lock_token
+
+
 def integration_release(run_id: str, unit_id: str, lock_token: str) -> None:
     with locked_manifest(run_id, write=True) as doc:
         held = doc.get("integration_lock")
@@ -507,17 +522,28 @@ def integration_release(run_id: str, unit_id: str, lock_token: str) -> None:
             event(doc, "integration-lock-release-intent", unit_id)
         elif phase != "releasing":
             raise Operational("BLOCKED", "manifest integration claim has an unknown phase")
-    try:
-        os.unlink(path)
-    except FileNotFoundError:
-        pass
-    test_fault("integration-release-after-unlink")
     with locked_manifest(run_id, write=True) as doc:
         held = doc.get("integration_lock")
         if not held or held.get("unit_id") != unit_id or held.get("nonce") != lock_token or held.get("phase") != "releasing":
             raise Operational("BLOCKED", "manifest integration claim changed")
+        if held.get("path") != path or path != integration_lock_path(doc):
+            raise Operational("BLOCKED", "manifest integration lock path changed")
+        current = None
+        try:
+            current = read_integration_lock(path)
+        except TrustFailure:
+            if os.path.lexists(path):
+                raise
+        if current is not None and release_lock_is_owned(doc, unit_id, lock_token, current):
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                pass
+        test_fault("integration-release-after-unlink")
         if os.path.lexists(path):
-            raise Operational("BLOCKED", "integration lock file remained after release")
+            current = read_integration_lock(path)
+            if release_lock_is_owned(doc, unit_id, lock_token, current):
+                raise Operational("BLOCKED", "integration lock file remained after release")
         doc["integration_lock"] = None
         event(doc, "integration-lock-released", unit_id)
 
