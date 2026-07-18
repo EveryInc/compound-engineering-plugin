@@ -112,7 +112,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     // producer side: the watch subcommand emits the sentinel and can wake on each precedence reason
     expect(script).toContain("def cmd_watch")
     expect(script).toContain("BABYSIT_WAKE")
-    for (const reason of ["terminal", "blocked-external", "actionable", "feedback-candidate", "stack-blocked", "needs-human", "merge-ready"]) {
+    for (const reason of ["terminal", "blocked-external", "actionable", "feedback-candidate", "stack-blocked", "needs-human", "merge-ready", "invocation-superseded"]) {
       expect(script, `watch must be able to wake on '${reason}'`).toContain(reason)
     }
   })
@@ -128,6 +128,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
       expect(text).toMatch(/successful[^.]{0,100}(fetch|snapshot)[^.]{0,160}supersed/i)
       expect(text).toMatch(/newer invocation[^.]{0,160}(cancel|stop)[^.]{0,160}(preflight|first fetch)/i)
       expect(text).toMatch(/stale[^.]{0,120}wake[^.]{0,160}(coalesc|ignore|discard)/i)
+      expect(text).toMatch(/invocation-superseded[^.]{0,180}(end|stop)[^.]{0,120}(old )?(loop|watch)/i)
     }
     expect(script).toContain('"watch_generation"')
     expect(script).toContain("_reserve_watch_candidate")

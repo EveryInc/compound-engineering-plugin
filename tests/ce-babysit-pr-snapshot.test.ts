@@ -696,6 +696,36 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(fresh.invocation_elapsed_seconds).toBeLessThan(10)
   })
 
+  test("a new invocation clock starts after a slow first fetch", () => {
+    const sd = path.join(dir, "slow-first-fetch")
+    const python = `
+import json
+from datetime import datetime, timedelta, timezone
+from importlib.machinery import SourceFileLoader
+from types import SimpleNamespace
+m = SourceFileLoader("prs", ${JSON.stringify(SCRIPT)}).load_module()
+before_fetch = datetime(2026, 1, 1, tzinfo=timezone.utc)
+after_fetch = before_fetch + timedelta(seconds=61)
+clock_reads = 0
+def fake_now():
+    global clock_reads
+    clock_reads += 1
+    return before_fetch if clock_reads == 1 else after_fetch
+m._now = fake_now
+m._fetch_snapshot = lambda args: json.loads(${JSON.stringify(JSON.stringify(FAILING))})
+args = SimpleNamespace(state_dir=${JSON.stringify(sd)}, pr=1, repo="o/r", fetch_file=None,
+                       reset_session=False, start_invocation=True, continue_invocation=False,
+                       invocation_id=None, session_started_at=None,
+                       invocation_budget_seconds=28800)
+m.cmd_snapshot(args)
+`
+    const r = spawnSync("python3", ["-c", python], { encoding: "utf8" })
+    expect(r.status, r.stderr).toBe(0)
+    const value = JSON.parse(r.stdout)
+    expect(value.invocation_started_at).toBe("2026-01-01T00:01:01+00:00")
+    expect(value.invocation_elapsed_seconds).toBe(0)
+  })
+
   test("a new invocation defaults to one fixed eight-hour budget", () => {
     const sd = path.join(dir, "default-invocation-budget")
     const r = spawnSync("python3", [
@@ -835,6 +865,36 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(wake.reason).toBe("max-runtime")
     expect(wake.invocation_elapsed_seconds).toBeGreaterThanOrEqual(2)
   })
+
+  test("the fixed cap fetches terminal PR state before emitting max-runtime", async () => {
+    const sd = path.join(dir, "budget-terminal-precedence")
+    const waiting = {
+      ...FAILING,
+      threads: [],
+      checks: [{ key: "CI/test", name: "test", status: "IN_PROGRESS", conclusion: null, details_url: "u" }],
+    }
+    const fetch = fetchFile(dir, "budget-terminal-precedence.json", waiting)
+    const started = snapshot(sd, fetch, ["--start-invocation", "--invocation-budget-seconds", "1"])
+    const watcher = startWatch(sd, fetch, [
+      "--interval", "5",
+      "--invocation-id", started.invocation_id,
+      "--session-started-at", started.invocation_started_at,
+      "--invocation-budget-seconds", "1",
+    ])
+    await waitForWatchGeneration(sd)
+
+    const replacement = fetchFile(dir, "budget-terminal-precedence-closed.json", {
+      ...waiting,
+      pr_state: "CLOSED",
+    })
+    renameSync(replacement, fetch)
+
+    const result = await watcher.result
+    expect(result.code, result.stderr).toBe(0)
+    const wake = JSON.parse(result.stdout.trim().split("\n").pop()!)
+    expect(wake.reason).toBe("terminal")
+    expect(wake.pr_state).toBe("CLOSED")
+  }, 5000)
 
   test("watch cannot start or reset an invocation budget", () => {
     const sd = path.join(dir, "watch-cannot-reset")
@@ -1192,6 +1252,44 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(newerResult.code, newerResult.stderr).toBe(0)
     const wake = JSON.parse(newerResult.stdout.trim())
     expect(wake.watch_generation).toBe(activeGeneration)
+  }, 15000)
+
+  test("watch: an explicit invocation replacement emits a non-action supersession wake", async () => {
+    const sd = path.join(dir, "watch-invocation-superseded")
+    const running = {
+      ...FAILING,
+      threads: [],
+      checks: [{ key: "CI/test", name: "test", status: "IN_PROGRESS", conclusion: null, details_url: "u" }],
+    }
+    const fetch = fetchFile(dir, "watch-invocation-superseded.json", running)
+    const initial = snapshot(sd, fetch, ["--start-invocation", "--invocation-budget-seconds", "28800"])
+    const oldWatch = startWatch(sd, fetch)
+    await waitForWatchGeneration(sd)
+
+    const replacement = snapshot(sd, fetch, ["--start-invocation", "--invocation-budget-seconds", "12345"])
+    const replacementClock = {
+      invocation_id: replacement.invocation_id,
+      started_at: replacement.invocation_started_at,
+      invocation_budget_seconds: replacement.invocation_budget_seconds,
+    }
+
+    const result = await oldWatch.result
+    expect(result.code, result.stderr).toBe(0)
+    const wake = JSON.parse(result.stdout.trim())
+    expect(wake).toEqual({
+      event: "BABYSIT_WAKE",
+      reason: "invocation-superseded",
+      watch_generation: expect.any(String),
+      superseded_invocation_id: initial.invocation_id,
+      current_invocation_id: replacement.invocation_id,
+    })
+
+    const persisted = JSON.parse(readFileSync(path.join(sd, "state.json"), "utf8"))
+    expect({
+      invocation_id: persisted.invocation_id,
+      started_at: persisted.started_at,
+      invocation_budget_seconds: persisted.invocation_budget_seconds,
+    }).toEqual(replacementClock)
   }, 15000)
 
   test("watch: takeover interrupts an old watcher blocked in its next fetch", async () => {

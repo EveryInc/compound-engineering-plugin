@@ -82,6 +82,13 @@ class _WatchSuperseded(Exception):
     """Internal control flow: this watch lost ownership and must unwind immediately."""
 
 
+class _InvocationSuperseded(Exception):
+    """Internal control flow: this watch belongs to an invocation that was replaced."""
+
+    def __init__(self, current_invocation_id):
+        self.current_invocation_id = current_invocation_id
+
+
 def _now():
     return datetime.now(timezone.utc)
 
@@ -1068,9 +1075,16 @@ def _apply_snapshot(box, args, cur, now, advance_trajectory):
 def _run_snapshot(args, now, advance_trajectory=True, watch_generation=None):
     """One fetch -> diff -> persist. Returns the actionable/state dict."""
     cur = _fetch_snapshot(args)
+    if (getattr(args, "start_invocation", False)
+            or getattr(args, "reset_session", False)):
+        # A new invocation starts after preflight I/O; a slow first fetch must not consume its budget.
+        now = _now()
     with locked_state(args.state_dir, args.pr, args.repo, now) as box:
         if watch_generation is not None and box["state"].get("watch_generation") != watch_generation:
             raise _WatchSuperseded()
+        if (watch_generation is not None
+                and box["state"].get("invocation_id") != getattr(args, "invocation_id", None)):
+            raise _InvocationSuperseded(box["state"].get("invocation_id"))
         actionable, box["state"] = _apply_snapshot(box, args, cur, now, advance_trajectory)
     return actionable
 
@@ -1374,18 +1388,23 @@ def cmd_watch(args):
                 return
             remaining = max(0, budget - invocation_elapsed) if budget else args.interval
             wait_seconds = min(args.interval, remaining)
-            cap_precedes_next_poll = bool(budget and remaining <= args.interval)
             if stop_requested.wait(wait_seconds):
                 return
             if not _watch_is_current(args, generation):
                 superseded = True
                 return
-            if cap_precedes_next_poll:
-                continue
             actionable = _run_snapshot(args, _now(), advance_trajectory=False,
                                        watch_generation=generation)
     except _WatchSuperseded:
         superseded = True
+        return
+    except _InvocationSuperseded as exc:
+        superseded = True
+        _emit_wake_if_current(
+            args, generation, "invocation-superseded",
+            superseded_invocation_id=getattr(args, "invocation_id", None),
+            current_invocation_id=exc.current_invocation_id,
+        )
         return
     finally:
         interrupt_immediately = False
