@@ -316,6 +316,19 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     }
   })
 
+  test("mark writes are fenced by the active invocation tuple", async () => {
+    const [babysit, watchLoop, script] = await Promise.all([
+      readRepoFile(BABYSIT),
+      readRepoFile("skills/ce-babysit-pr/references/watch-loop.md"),
+      readRepoFile(PR_SNAPSHOT),
+    ])
+    for (const text of [babysit, watchLoop]) {
+      expect(text).toMatch(/mark[\s\S]{0,500}(invocation ID|RUN_INVOCATION_ID)[\s\S]{0,500}(start anchor|RUN_STARTED_AT)[\s\S]{0,500}(budget|RUN_BUDGET_SECONDS)/i)
+    }
+    expect(script).toMatch(/m\.add_argument\("--invocation-id", required=True/)
+    expect(script).toMatch(/def cmd_mark\(args\):[\s\S]{0,180}_apply_invocation\(box, args, now\)/)
+  })
+
   test("blocked approval watching stays inside the invocation budget", async () => {
     const babysit = await readRepoFile(BABYSIT)
     expect(babysit).toContain("within this invocation's remaining fixed budget")

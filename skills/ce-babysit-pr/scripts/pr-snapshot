@@ -15,7 +15,8 @@ Subcommands:
   snapshot --pr N [--repo O/R] --state-dir DIR [--fetch-file F]
            Fetch (or load F), diff against on-disk state, persist the
            observed state atomically, emit the actionable set as JSON.
-  mark     --state-dir DIR (--thread ID --disposition needs-human|dispatched
+  mark     --state-dir DIR --invocation-id ID --session-started-at TIME
+           --invocation-budget-seconds N (--thread ID --disposition needs-human|dispatched
            | --comment ID --disposition needs-human|dispatched | --check KEY)
            Record that the agent acted on an item. A `dispatched` thread is
            re-emitted when a later reviewer comment moves its last-comment
@@ -1448,6 +1449,7 @@ def _mark_thread_baseline(item_id, args, state):
 def cmd_mark(args):
     now = _now()
     with locked_state(args.state_dir, args.pr, args.repo, now) as box:
+        _apply_invocation(box, args, now)
         state = box["state"]
         if args.check:
             head = state.get("head_sha")
@@ -1507,6 +1509,12 @@ def main():
     m.add_argument("--pr", type=int, default=0)
     m.add_argument("--repo", default=None)
     m.add_argument("--state-dir", required=True)
+    m.add_argument("--invocation-id", required=True,
+                   help="token emitted by the invocation's first snapshot")
+    m.add_argument("--session-started-at", type=_session_started_at, required=True,
+                   help="fixed anchor emitted by the invocation's first snapshot")
+    m.add_argument("--invocation-budget-seconds", type=float, required=True,
+                   help="fixed budget emitted by the invocation's first snapshot")
     m.add_argument("--thread", default=None)
     # `open` re-actionizes a parked thread — the explicit re-open the SKILL prose relies on when a
     # parked stream's context materially changes (a human pushed, the check universe moved).

@@ -64,7 +64,8 @@ function mark(stateDir: string, args: string[]): void {
   const extra = args.includes("--fetch-file")
     ? []
     : ["--fetch-file", fetchFile(path.dirname(stateDir), "mark-empty.json", { threads: [] })]
-  const r = spawnSync("python3", [SCRIPT, "mark", "--state-dir", stateDir, ...args, ...extra], { encoding: "utf8" })
+  const r = spawnSync("python3", [SCRIPT, "mark", "--state-dir", stateDir,
+    ...persistedInvocationArgs(stateDir), ...args, ...extra], { encoding: "utf8" })
   expect(r.status, r.stderr).toBe(0)
 }
 
@@ -918,6 +919,28 @@ m.cmd_snapshot(args)
     ], { encoding: "utf8" })
     expect(r.status).not.toBe(0)
     expect(r.stderr).toContain("unrecognized arguments: --reset-session")
+  })
+
+  test("mark requires the current invocation tuple before mutating dispositions", () => {
+    const sd = path.join(dir, "mark-invocation-fence")
+    const fetch = fetchFile(dir, "mark-invocation-fence.json", FAILING)
+    snapshot(sd, fetch)
+    const oldInvocation = persistedInvocationArgs(sd)
+    snapshot(sd, fetch, ["--start-invocation"])
+
+    const tokenless = spawnSync("python3", [SCRIPT, "mark", "--state-dir", sd,
+      "--thread", "T1", "--disposition", "dispatched"], { encoding: "utf8" })
+    expect(tokenless.status).not.toBe(0)
+
+    const stale = spawnSync("python3", [SCRIPT, "mark", "--state-dir", sd, ...oldInvocation,
+      "--thread", "T1", "--disposition", "dispatched"], { encoding: "utf8" })
+    expect(stale.status).not.toBe(0)
+    const persisted = JSON.parse(readFileSync(path.join(sd, "state.json"), "utf8"))
+    expect(persisted.threads?.T1?.disposition).not.toBe("dispatched")
+
+    mark(sd, ["--thread", "T1", "--disposition", "dispatched"])
+    const updated = JSON.parse(readFileSync(path.join(sd, "state.json"), "utf8"))
+    expect(updated.threads.T1.disposition).toBe("dispatched")
   })
 
   test("clearing a fork approval gate is movement (resets the settle clock so merge-ready waits for check-runs)", () => {
