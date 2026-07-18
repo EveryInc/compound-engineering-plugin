@@ -406,6 +406,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       open_needs_human: 1,
       needs_human_ids: ["parked-review-decision"],
     })).toBe("branch-currency")
+    expect(wakeReason({ ...open, blocked_external: true })).toBe("branch-currency")
     expect(wakeReason({
       ...open,
       counts: { ...open.counts, ci: 0 },

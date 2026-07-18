@@ -1448,8 +1448,6 @@ def _wake_reason(a, settle_seconds):
     Ordered by precedence — a terminal/blocked/needs-human state outranks a merge-ready read."""
     if a.get("pr_state") in ("MERGED", "CLOSED"):
         return "terminal"
-    if a.get("blocked_external"):
-        return "blocked-external"
     c = a.get("counts") or {}
     if c.get("threads", 0) or c.get("ci", 0):
         return "actionable"
@@ -1472,6 +1470,8 @@ def _wake_reason(a, settle_seconds):
                                              CURRENCY_ATTENTION_INSPECT,
                                              CURRENCY_ATTENTION_RECONCILE):
         return "branch-currency"
+    if a.get("blocked_external"):
+        return "blocked-external"
     if (a.get("open_needs_human", 0)
             or branch_currency.get("disposition") == DISPOSITION_NEEDS_HUMAN):
         return "needs-human"         # parked items block ready; surface them
