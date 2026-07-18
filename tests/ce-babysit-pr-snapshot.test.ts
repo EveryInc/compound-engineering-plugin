@@ -1298,6 +1298,35 @@ m.cmd_snapshot(args)
     }).toEqual(replacementClock)
   }, 15000)
 
+  test("watch: an expired old budget cannot emit max-runtime after invocation replacement", async () => {
+    const sd = path.join(dir, "watch-expired-invocation-superseded")
+    const running = {
+      ...FAILING,
+      threads: [],
+      checks: [{ key: "CI/test", name: "test", status: "IN_PROGRESS", conclusion: null, details_url: "u" }],
+    }
+    const fetch = fetchFile(dir, "watch-expired-invocation-superseded.json", running)
+    const initial = snapshot(sd, fetch, EXPIRING_TEST_INVOCATION)
+    const oldWatch = startWatch(sd, fetch, [
+      "--interval", "5",
+      "--invocation-id", initial.invocation_id,
+      "--session-started-at", initial.invocation_started_at,
+      "--invocation-budget-seconds", "1",
+    ])
+    await waitForWatchGeneration(sd)
+
+    const replacement = snapshot(sd, fetch, ["--start-invocation", "--invocation-budget-seconds", "28800"])
+    const result = await oldWatch.result
+    expect(result.code, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout.trim())).toEqual({
+      event: "BABYSIT_WAKE",
+      reason: "invocation-superseded",
+      watch_generation: expect.any(String),
+      superseded_invocation_id: initial.invocation_id,
+      current_invocation_id: replacement.invocation_id,
+    })
+  }, 15000)
+
   test("watch: takeover interrupts an old watcher blocked in its next fetch", async () => {
     const sd = path.join(dir, "watch-blocked-fetch")
     const running = {

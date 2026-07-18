@@ -1272,15 +1272,25 @@ def _watch_is_current(args, generation):
 
 def _emit_wake_if_current(args, generation, reason, **fields):
     """Serialize the final ownership check with takeover so an old generation cannot emit after
-    the new generation has become current. A wake emitted just before takeover is valid at emission
-    and will be recognized as stale against the next fresh snapshot."""
+    the new generation has become current. Invocation replacement also supersedes every ordinary
+    wake from the old budget, even when the replacement kept the same watch generation."""
     state_path = os.path.join(args.state_dir, "state.json")
     with _watch_lock(args.state_dir, exclusive=False):
         if not os.path.exists(state_path):
             return False
         with open(state_path) as f:
-            if json.load(f).get("watch_generation") != generation:
-                return False
+            state = json.load(f)
+        if state.get("watch_generation") != generation:
+            return False
+        current_invocation_id = state.get("invocation_id")
+        watcher_invocation_id = getattr(args, "invocation_id", None)
+        if current_invocation_id != watcher_invocation_id and reason != "invocation-superseded":
+            _emit_wake(
+                "invocation-superseded", watch_generation=generation,
+                superseded_invocation_id=watcher_invocation_id,
+                current_invocation_id=current_invocation_id,
+            )
+            return True
         _emit_wake(reason, watch_generation=generation, **fields)
         return True
 
