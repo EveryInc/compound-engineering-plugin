@@ -977,6 +977,37 @@ describe("ce-work unit workspace controller", () => {
     expect(git(f.repo, "rev-parse", terminal.body.transport.ref)).toBe(terminal.body.transport.commit)
   })
 
+  test("blocks ignored untracked worker output before writing a transport", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, ".gitignore"), "ignored-output/\n")
+    git(f.repo, "add", ".gitignore")
+    git(f.repo, "commit", "-m", "ignore generated output")
+    f.base = git(f.repo, "rev-parse", "HEAD")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    expect(init(runs, "run-ignored-worker", f).word).toBe("READY")
+    expect(ctl(
+      runs, "prepare", "--run-id", "run-ignored-worker", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("ignored worker packet"),
+    ).word).toBe("PREPARED")
+    const workspace = path.join(runs, "run-ignored-worker", "units", "U", "workspace")
+    mkdirSync(path.join(workspace, "ignored-output"))
+    writeFileSync(path.join(workspace, "ignored-output", "fixture.txt"), "required fixture\n")
+    const job = fakeDoneJob(runs, "run-ignored-worker", "U", "ignored worker packet", "job-ignored-worker")
+    expect(ctl(
+      runs, "record-job", "--run-id", "run-ignored-worker", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    ).word).toBe("AUTHORING")
+
+    const terminal = ctl(runs, "terminalize", "--run-id", "run-ignored-worker", "--unit-id", "U")
+    expect(terminal.word).toBe("BLOCKED")
+    expect(terminal.stderr).toContain("ignored untracked output")
+    expect(terminal.stderr).toContain("ignored-output/fixture.txt")
+    const status = ctl(runs, "status", "--run-id", "run-ignored-worker", "--unit-id", "U").body.unit
+    expect(status.state).toBe("authored")
+    expect(status.transport.commit).toBeNull()
+    expect(existsSync(path.join(workspace, "ignored-output", "fixture.txt"))).toBe(true)
+  })
+
   test("retains scope-expansion evidence but refuses ordinary fold-in", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")

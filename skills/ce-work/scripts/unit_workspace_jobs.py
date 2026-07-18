@@ -752,6 +752,20 @@ def terminalize(run_id: str, unit_id: str) -> dict:
         base = unit["workspace"]["base"]
         repo = doc["repository"]["toplevel"]
     no_sequencer(workspace)
+    ignored_raw = git(workspace, "ls-files", "--others", "--ignored", "--exclude-standard", "-z")
+    ignored_paths = [
+        part.decode("utf-8", "surrogateescape")
+        for part in ignored_raw.split(b"\0")
+        if part
+    ]
+    if ignored_paths:
+        preview = json.dumps(ignored_paths[:20], ensure_ascii=True)
+        suffix = f" and {len(ignored_paths) - 20} more" if len(ignored_paths) > 20 else ""
+        raise Operational(
+            "BLOCKED",
+            f"worker workspace contains ignored untracked output that cannot enter the transport: {preview}{suffix}",
+            {"ignored_paths": ignored_paths[:100], "ignored_path_count": len(ignored_paths)},
+        )
     git(workspace, "add", "-A", "--", ".")
     index = git(workspace, "ls-files", "--stage", "-z")
     if any(row.startswith(b"160000 ") for row in index.split(b"\0") if row):
