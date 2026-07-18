@@ -793,7 +793,9 @@ def _apply_branch_currency(state, cur, head, head_changed, now):
     item.setdefault("mutation_consumed", False)
     disposition = item.get("disposition", DISPOSITION_OPEN)
     if disposition == DISPOSITION_OPEN:
-        inspection_required = bool(parks) and item.get("inspection_result") != "changed"
+        inspection_required = (item.get("status") == "DIRTY"
+                               and bool(parks)
+                               and item.get("inspection_result") != "changed")
         item["inspection_required"] = inspection_required
         retry_wait_seconds = 0
         retry_not_before = item.get("retry_not_before")

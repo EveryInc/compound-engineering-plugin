@@ -736,6 +736,28 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(persisted.branch_currency_state.items[parkedObservation.branch_currency.key].disposition).toBe("needs-human")
   }, 15000)
 
+  test("branch currency: a carried DIRTY semantic park does not divert a later BEHIND update into inspection", () => {
+    const dirty = currencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
+    const parkedObservation = snapshot(state, fetchFile(dir, "currency-dirty-to-behind-1.json", dirty))
+    markCurrency(state, parkedObservation.branch_currency.key, "claimed")
+    markCurrency(state, parkedObservation.branch_currency.key, "needs-human", "conflict-v1")
+
+    const behind = snapshot(state, fetchFile(dir, "currency-dirty-to-behind-2.json", currencyFixture({
+      base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-2" },
+    })))
+    expect(behind.branch_currency).toMatchObject({
+      status: "BEHIND",
+      disposition: "open",
+      attention: "claim",
+      inspection_required: false,
+      parked_semantic_fingerprints: ["conflict-v1"],
+    })
+
+    markCurrency(state, behind.branch_currency.key, "claimed")
+    const persisted = JSON.parse(readFileSync(path.join(state, "state.json"), "utf8"))
+    expect(persisted.branch_currency_state.semantic_parks).toHaveProperty("conflict-v1")
+  }, 15000)
+
   test("branch currency: dependents do not block a normal-base root, but managed, open-parent, and uncertain routes do", () => {
     const dependentRoot = snapshot(path.join(dir, "currency-dependent-root"), fetchFile(dir, "currency-dependent-root.json", currencyFixture({
       pr_chain: {
