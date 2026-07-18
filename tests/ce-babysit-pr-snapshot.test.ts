@@ -143,19 +143,19 @@ function extractFeedback(view: unknown): any[] {
   return JSON.parse(r.stdout.trim())
 }
 
-function eyesReactionCount(groups: unknown): number {
+function eyesReactionIdentities(pages: unknown): string[] {
   const r = spawnSync(
     "python3",
     [
       "-c",
       `import json; from importlib.machinery import SourceFileLoader; ` +
         `m=SourceFileLoader('prs', ${JSON.stringify(SCRIPT)}).load_module(); ` +
-        `print(m._eyes_reaction_count(json.loads(${JSON.stringify(JSON.stringify(groups))})))`,
+        `print(json.dumps(m._eyes_reaction_identities(json.loads(${JSON.stringify(JSON.stringify(pages))}))))`,
     ],
     { encoding: "utf8" },
   )
   expect(r.status, r.stderr).toBe(0)
-  return Number(r.stdout.trim())
+  return JSON.parse(r.stdout.trim())
 }
 
 function probeChain(options: {
@@ -1855,12 +1855,12 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     expect(nextHead.review_signal_last_changed_at).toBeNull()
   })
 
-  test("snapshot: eyes count changes reset quiet time while review remains in progress", () => {
-    expect(eyesReactionCount([
-      { content: "EYES", users: { totalCount: 1 } },
-      { content: "THUMBS_UP", users: { totalCount: 4 } },
-      { content: "EYES", users: { totalCount: 1 } },
-    ])).toBe(2)
+  test("snapshot: eyes identity changes reset quiet time even when the count stays fixed", () => {
+    expect(eyesReactionIdentities([[
+      { content: "eyes", user: { node_id: "U_bot_b" } },
+      { content: "eyes", user: { node_id: "U_bot_a" } },
+      { content: "+1", user: { node_id: "U_other" } },
+    ]])).toEqual(["U_bot_a", "U_bot_b"])
 
     const base = {
       ...FAILING,
@@ -1872,38 +1872,70 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     }
     const first = snapshot(state, fetchFile(dir, "signal-count-one.json", {
       ...base,
-      review_signal_count: 1,
+      review_signal_identities: ["U_bot_a"],
     }))
     expect(first.review_signal_count).toBe(1)
+    expect(first.review_signal_identities).toEqual(["U_bot_a"])
     const statePath = path.join(state, "state.json")
     const prior = JSON.parse(readFileSync(statePath, "utf8"))
     prior.last_change_at = "2026-07-17T12:00:00+00:00"
     prior.review_signal_last_changed_at = prior.last_change_at
     writeFileSync(statePath, JSON.stringify(prior))
 
-    const added = snapshot(state, fetchFile(dir, "signal-count-two.json", {
+    const swapped = snapshot(state, fetchFile(dir, "signal-reviewer-swapped.json", {
       ...base,
-      review_signal_count: 2,
+      review_signal_identities: ["U_bot_b"],
     }))
-    expect(added.review_in_progress).toBe(true)
-    expect(added.review_signal_count).toBe(2)
-    expect(added.review_signal_last_changed_at).not.toBe(prior.review_signal_last_changed_at)
-    expect(added.changed_this_tick).toBe(true)
-    expect(added.quiet_seconds).toBeLessThan(2)
+    expect(swapped.review_in_progress).toBe(true)
+    expect(swapped.review_signal_count).toBe(1)
+    expect(swapped.review_signal_identities).toEqual(["U_bot_b"])
+    expect(swapped.review_signal_last_changed_at).not.toBe(prior.review_signal_last_changed_at)
+    expect(swapped.changed_this_tick).toBe(true)
+    expect(swapped.quiet_seconds).toBeLessThan(2)
 
     const persisted = JSON.parse(readFileSync(statePath, "utf8"))
     persisted.last_change_at = "2026-07-17T12:00:00+00:00"
     persisted.review_signal_last_changed_at = persisted.last_change_at
     writeFileSync(statePath, JSON.stringify(persisted))
 
-    const removed = snapshot(state, fetchFile(dir, "signal-count-back-to-one.json", {
+    const unchanged = snapshot(state, fetchFile(dir, "signal-reviewer-unchanged.json", {
       ...base,
-      review_signal_count: 1,
+      review_signal_identities: ["U_bot_b"],
     }))
-    expect(removed.review_in_progress).toBe(true)
-    expect(removed.review_signal_count).toBe(1)
-    expect(removed.changed_this_tick).toBe(true)
-    expect(removed.quiet_seconds).toBeLessThan(2)
+    expect(unchanged.review_in_progress).toBe(true)
+    expect(unchanged.review_signal_count).toBe(1)
+    expect(unchanged.changed_this_tick).toBe(false)
+    expect(unchanged.quiet_seconds).toBeGreaterThan(60)
+  })
+
+  test("snapshot: a count-only legacy review signal migrates to reactor identities", () => {
+    const base = {
+      ...FAILING,
+      merge_state_status: "CLEAN",
+      review_decision: "APPROVED",
+      threads: [],
+      checks: [GREEN_CHECK],
+      review_in_progress: true,
+      review_signal_count: 1,
+    }
+    snapshot(state, fetchFile(dir, "signal-legacy-count.json", base))
+    const statePath = path.join(state, "state.json")
+    const legacy = JSON.parse(readFileSync(statePath, "utf8"))
+    delete legacy.review_signal_identities
+    legacy.last_change_at = "2026-07-17T12:00:00+00:00"
+    legacy.review_signal_last_changed_at = legacy.last_change_at
+    writeFileSync(statePath, JSON.stringify(legacy))
+
+    const migrated = snapshot(state, fetchFile(dir, "signal-identity-aware.json", {
+      ...base,
+      review_signal_identities: ["U_bot_a"],
+    }))
+    expect(migrated.review_in_progress).toBe(true)
+    expect(migrated.review_signal_count).toBe(1)
+    expect(migrated.review_signal_identities).toEqual(["U_bot_a"])
+    expect(migrated.review_signal_seen_on_head).toBe(true)
+    expect(migrated.changed_this_tick).toBe(true)
+    expect(migrated.quiet_seconds).toBeLessThan(2)
   })
 
   test("watch: a no-check MERGEABLE/CLEAN PR still reaches merge-ready (the >=1-check guard is pipeline-only)", () => {
