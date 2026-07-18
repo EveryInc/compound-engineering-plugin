@@ -488,6 +488,15 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       mutation_consumed: true,
       recovery_state: "mutation-observed",
     })
+    expect(wakeReason({
+      ...current,
+      mergeable: "MERGEABLE",
+      merge_state_status: "CLEAN",
+      checks_terminal: true,
+      has_failing_checks: false,
+      review_in_progress: false,
+      quiet_seconds: 2000,
+    }, 0)).toBeNull()
 
     const invalidRetry = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
       ...persistedInvocationArgs(state), "--currency-key", observed.branch_currency.key,

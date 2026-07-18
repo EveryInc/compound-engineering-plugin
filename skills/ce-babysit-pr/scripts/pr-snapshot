@@ -1486,6 +1486,7 @@ def _wake_reason(a, settle_seconds):
     if (a.get("mergeable") == "MERGEABLE" and a.get("merge_state_status") == "CLEAN"
             and a.get("checks_terminal") and not a.get("has_failing_checks")
             and a.get("checks_awaiting_approval", 0) == 0
+            and a.get("branch_currency_blocker") is None
             and not review_blocking
             and a.get("quiet_seconds", 0) >= settle_seconds):
         return "merge-ready"
