@@ -311,13 +311,19 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
 
   test("managed-stack mutation pauses before delegation when atomic propagation is unproven", async () => {
     const babysit = await readRepoFile(BABYSIT)
+    const terminal = babysit.indexOf("1. **Terminal check first.**")
     const gate = babysit.indexOf("**Managed-stack atomicity gate.**")
     const feedback = babysit.indexOf("3. **Feedback before CI.**")
+    const gateBlock = babysit.slice(gate, feedback)
 
+    expect(terminal).toBeGreaterThan(-1)
     expect(gate).toBeGreaterThan(-1)
+    expect(terminal).toBeLessThan(gate)
     expect(gate).toBeLessThan(feedback)
-    expect(babysit).toMatch(/atomicity cannot be proven[^.]{0,160}pause before delegation/i)
-    expect(babysit).toMatch(/normally bare `\/ce-babysit-pr`[\s\S]{0,180}current branch no longer identifies that PR/i)
+    expect(gateBlock).toMatch(/atomicity cannot be proven[^.]{0,160}true stop[^.]{0,120}every mode/i)
+    expect(gateBlock).toContain("do not invoke a delegate, run another tick, or arm/re-arm a watcher")
+    expect(gateBlock).toMatch(/interactive\/self-sustaining[^.]{0,120}hands control back[^.]{0,160}pipeline mode[^.]{0,120}terminates/i)
+    expect(gateBlock).toMatch(/normally bare `\/ce-babysit-pr`[\s\S]{0,180}current branch no longer identifies that PR/i)
   })
 
   test("sequential babysitting is a confirmed-managed-stack-only, one-watcher scope", async () => {
