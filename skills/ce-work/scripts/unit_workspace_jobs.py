@@ -88,7 +88,10 @@ def cmd_prepare(args) -> tuple[str, dict]:
             if read_private(authorization_path, MAX_JSON_BYTES) != authorization_bytes:
                 raise Operational("BLOCKED", "controller-owned authorization no longer matches the recorded attempt")
         if existing and not retrying and existing["workspace"].get("registered"):
-            validate_workspace(doc, existing)
+            if existing.get("state") == "queued":
+                validate_pristine_unit_base(doc, existing)
+            else:
+                validate_workspace(doc, existing)
             return "PREPARED", {
                 "unit_id": uid, "attempt_id": attempt_id,
                 "workspace": workspace, "result_dir": os.path.join(unit_root, "result"),
@@ -184,9 +187,7 @@ def cmd_prepare(args) -> tuple[str, dict]:
             test_fault("after-worktree-add")
         with locked_manifest(args.run_id) as doc:
             unit = doc["units"][uid]
-            validate_workspace(doc, unit)
-            if git_text(workspace, "rev-parse", "HEAD") != base:
-                raise Operational("BLOCKED", "registered workspace is not at the unit base")
+            validate_pristine_unit_base(doc, unit)
     with locked_manifest(args.run_id, write=True) as doc:
         unit = doc["units"][uid]
         unit["workspace"]["registered"] = True
@@ -411,7 +412,11 @@ def cmd_authorize_dispatch(args) -> tuple[str, dict]:
         expected_workspace = unit["workspace"]["path"]
         if os.path.abspath(args.workspace) != expected_workspace:
             raise Operational("BLOCKED", "workspace path does not match the recorded unit")
-        validate_workspace(doc, unit)
+        resumed = bound_job == job_id
+        if resumed:
+            validate_workspace(doc, unit)
+        else:
+            validate_pristine_unit_base(doc, unit)
 
         expected_packet = unit["packet"]["path"]
         if os.path.abspath(args.packet) != expected_packet:
@@ -426,7 +431,6 @@ def cmd_authorize_dispatch(args) -> tuple[str, dict]:
         if os.path.abspath(args.result_dir) != expected_result_dir:
             raise Operational("BLOCKED", "result directory does not match the recorded unit")
         validate_private_dir(expected_result_dir)
-        resumed = bound_job == job_id
         if not resumed:
             attempt["job_id"] = job_id
             unit["state"] = "authoring"

@@ -655,3 +655,19 @@ def validate_workspace(doc: dict, unit: dict) -> dict:
     if common != doc["repository"]["common_dir"]:
         raise Operational("BLOCKED", "unit workspace belongs to another repository")
     return matches[0]
+
+
+def validate_pristine_unit_base(doc: dict, unit: dict) -> dict:
+    row = validate_workspace(doc, unit)
+    workspace = unit["workspace"]["path"]
+    base = unit["workspace"]["base"]
+    if git_text(workspace, "rev-parse", "HEAD") != base:
+        raise Operational("BLOCKED", "unit workspace HEAD no longer equals the recorded base")
+    dirty = status_paths(workspace)
+    if dirty:
+        raise Operational(
+            "BLOCKED",
+            "unit workspace is dirty before dispatch authorization",
+            {"dirty_paths": sorted(dirty)},
+        )
+    return row

@@ -518,6 +518,62 @@ describe("ce-work unit workspace controller", () => {
     expect(authorizeDispatch(runs, "run-hand-authored", "fake-unit", first).word).toBe("REFUSED")
   })
 
+  test("blocks polluted registered workspaces before resumed prepare or first dispatch authorization", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-pristine-dispatch"
+    init(runs, runId, f)
+
+    const prepareUnit = (unitId: string) => {
+      const packet = packetFile(`packet-${unitId}`)
+      const prepared = ctl(
+        runs, "prepare", "--run-id", runId, "--unit-id", unitId, "--base", f.base, "--packet", packet,
+      )
+      expect(prepared.word).toBe("PREPARED")
+      return { packet, prepared: prepared.body }
+    }
+    const advance = (workspace: string) => {
+      writeFileSync(path.join(workspace, "worker.txt"), "premature\n")
+      git(workspace, "add", "worker.txt")
+      git(
+        workspace,
+        "-c", "user.name=Worker", "-c", "user.email=worker@example.test",
+        "commit", "-m", "premature worker commit",
+      )
+    }
+
+    const resumedHead = prepareUnit("U-prepare-head")
+    advance(resumedHead.prepared.workspace)
+    const resumedHeadBlocked = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U-prepare-head", "--base", f.base,
+      "--packet", resumedHead.packet,
+    )
+    expect(resumedHeadBlocked.word).toBe("BLOCKED")
+    expect(resumedHeadBlocked.stderr).toContain("workspace HEAD no longer equals the recorded base")
+
+    const resumedDirty = prepareUnit("U-prepare-dirty")
+    writeFileSync(path.join(resumedDirty.prepared.workspace, "keep.txt"), "premature staged edit\n")
+    git(resumedDirty.prepared.workspace, "add", "keep.txt")
+    const resumedDirtyBlocked = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U-prepare-dirty", "--base", f.base,
+      "--packet", resumedDirty.packet,
+    )
+    expect(resumedDirtyBlocked.word).toBe("BLOCKED")
+    expect(resumedDirtyBlocked.stderr).toContain("workspace is dirty before dispatch authorization")
+
+    const authorizeHead = prepareUnit("U-authorize-head")
+    advance(authorizeHead.prepared.workspace)
+    const authorizeHeadBlocked = authorizeDispatch(runs, runId, "U-authorize-head", authorizeHead.prepared)
+    expect(authorizeHeadBlocked.word).toBe("BLOCKED")
+    expect(authorizeHeadBlocked.stderr).toContain("workspace HEAD no longer equals the recorded base")
+
+    const authorizeDirty = prepareUnit("U-authorize-dirty")
+    writeFileSync(path.join(authorizeDirty.prepared.workspace, "keep.txt"), "premature unstaged edit\n")
+    const authorizeDirtyBlocked = authorizeDispatch(runs, runId, "U-authorize-dirty", authorizeDirty.prepared)
+    expect(authorizeDirtyBlocked.word).toBe("BLOCKED")
+    expect(authorizeDirtyBlocked.stderr).toContain("workspace is dirty before dispatch authorization")
+  })
+
   test("returns the recorded canonical adapter from a symlinked skill for fresh and resumed dispatch", () => {
     const f = makeRepo()
     const linkedSkill = path.join(tmp("ce-work-linked-skill-"), "ce-work")
@@ -619,7 +675,7 @@ describe("ce-work unit workspace controller", () => {
     expect(empty.tree).toBe(git(linked, "rev-parse", `${f.base}^{tree}`))
     expect(git(linked, "rev-list", "--parents", "-n", "1", empty.commit).split(" ")).toEqual([empty.commit, f.base])
     expect(ctl(runs, "cleanup", "--run-id", "run-empty", "--unit-id", "empty", "--abandon", "--expect-transport", empty.commit).word).toBe("CLEANED")
-  }, 20000)
+  })
 
   test("retains scope-expansion evidence but refuses ordinary fold-in", () => {
     const f = makeRepo()
@@ -679,7 +735,7 @@ describe("ce-work unit workspace controller", () => {
     expect(git(f.repo, "status", "--porcelain")).toBe("")
     expect(existsSync(resultPath)).toBe(true)
     expect(git(f.repo, "rev-parse", terminal.body.transport.ref)).toBe(terminal.body.transport.commit)
-  }, 20000)
+  })
 
   test("retains a worker blocker for host resolution without authorizing native fallback", () => {
     const f = makeRepo()
@@ -780,7 +836,7 @@ describe("ce-work unit workspace controller", () => {
         { attempt_id: "attempt-2" },
       ],
     })
-  }, 20000)
+  })
 
   test("refuses to abandon ordinary completed done output by terminal job id", () => {
     const f = makeRepo()
@@ -804,7 +860,7 @@ describe("ce-work unit workspace controller", () => {
     expect(rejected.word).toBe("REFUSED")
     expect(rejected.stderr).toContain("done output is not an exactly retained worker blocker")
     expect(existsSync(path.join(runs, "run-completed-done", "units", "U", "workspace"))).toBe(true)
-  }, 20000)
+  })
 
   test("resume retains a trusted worker blocker while reconciling later units", () => {
     const f = makeRepo()
@@ -850,7 +906,7 @@ describe("ce-work unit workspace controller", () => {
       attempts: [{ terminal_receipt: { terminal_status: "blocked", summary: "done" } }],
     })
     expect(status.units["U-ready"].state).toBe("integration-pending")
-  }, 20000)
+  })
 
   test("resume does not swallow unrelated terminalization blockers", () => {
     const f = makeRepo()
@@ -876,7 +932,7 @@ describe("ce-work unit workspace controller", () => {
     expect(resumed.word).toBe("BLOCKED")
     expect(resumed.body).toMatchObject({ mismatches: { requested_route: { expected: "codex", actual: "claude" } } })
     expect(resumed.stderr).toContain("adapter terminal receipt does not match controller authorization")
-  }, 20000)
+  })
 
   test("fold-in is host-owned, lock-serialized, restorable, and cleanup is explicit", () => {
     const f = makeRepo()
@@ -909,7 +965,7 @@ describe("ce-work unit workspace controller", () => {
     expect(ctl(runs, "integration-release", "--run-id", "run-fold", "--unit-id", "U", "--lock-token", token).word).toBe("RELEASED")
     expect(ctl(runs, "cleanup", "--run-id", "run-fold", "--unit-id", "U", "--abandon", "--expect-transport", t.commit).word).toBe("CLEANED")
     expect(sh(f.repo, ["git", "rev-parse", "-q", "--verify", t.ref], false).status).not.toBe(0)
-  }, 20000)
+  })
 
   test("unit and plan-wide verification clean only ignored artifacts they create", () => {
     const f = makeRepo()
@@ -953,7 +1009,7 @@ describe("ce-work unit workspace controller", () => {
       verification_exit: 0,
       cleaned_paths: ["plan.verification-cache"],
     })
-  }, 20000)
+  })
 
   test("failed unit verification reports and removes its new ignored artifact", () => {
     const f = makeRepo()
@@ -990,7 +1046,7 @@ describe("ce-work unit workspace controller", () => {
     expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
     expect(git(f.repo, "rev-parse", "HEAD")).toBe(f.base)
     expect(git(f.repo, "status", "--porcelain")).toBe("")
-  }, 20000)
+  })
 
   test("resume releases an integration lock acquired before preflight intent", () => {
     const f = makeRepo()
@@ -1022,7 +1078,7 @@ describe("ce-work unit workspace controller", () => {
     expect(ctl(
       runs, "integration-acquire", "--run-id", "run-preflight-gap", "--unit-id", "U",
     ).word).toBe("ACQUIRED")
-  }, 20000)
+  })
 
   test("resume adopts and releases a same-run lock orphaned before manifest ownership", () => {
     const f = makeRepo()
@@ -1065,7 +1121,7 @@ describe("ce-work unit workspace controller", () => {
     expect(ctl(
       runs, "integration-acquire", "--run-id", "run-lock-orphan", "--unit-id", "U",
     ).word).toBe("ACQUIRED")
-  }, 20000)
+  })
 
   test("resume preserves an exact preflight snapshot and releases its integration lock", () => {
     const f = makeRepo()
@@ -1126,7 +1182,7 @@ describe("ce-work unit workspace controller", () => {
     expect(ctl(
       runs, "preflight", "--run-id", "run-preflight-exact", "--unit-id", "U", "--lock-token", retryToken,
     ).word).toBe("PREFLIGHT_OK")
-  }, 20000)
+  })
 
   test("resume completes an interrupted restore, releases its lock, and reconciles its blocker", () => {
     const f = makeRepo()
@@ -1208,7 +1264,7 @@ describe("ce-work unit workspace controller", () => {
       runs, "cleanup", "--run-id", "run-restore-resume", "--unit-id", "U",
       "--abandon", "--expect-transport", transport.commit,
     ).word).toBe("CLEANED")
-  }, 20000)
+  })
 
   test("refuses a wave whose terminalized transports overlap", () => {
     const f = makeRepo()
@@ -1258,7 +1314,7 @@ describe("ce-work unit workspace controller", () => {
       runs, "cleanup", "--run-id", "run-wave-collision", "--unit-id", "U-b",
       "--abandon", "--expect-transport", transports[1].commit,
     ).word).toBe("CLEANED")
-  }, 20000)
+  })
 
   test("restores a failed wave unit exactly before an unaffected sibling integrates", () => {
     const f = makeRepo()
@@ -1323,7 +1379,7 @@ describe("ce-work unit workspace controller", () => {
       runs, "cleanup", "--run-id", "run-wave-restore", "--unit-id", "U-a",
       "--abandon", "--expect-transport", transports["U-a"].commit,
     ).word).toBe("CLEANED")
-  }, 20000)
+  })
 
   test("records the only dirty selected plan as a narrow checkpoint", () => {
     const f = makeRepo()
@@ -1383,7 +1439,7 @@ describe("ce-work unit workspace controller", () => {
     expect(again.body.actions).toEqual([])
     expect(ctlWithEnv(runs, { CE_WORK_TEST_FAULT: "cleanup-after-worktree-remove" }, "cleanup", "--run-id", "run-crash", "--unit-id", "U", "--abandon", "--expect-transport", commit).word).toBe("INTERRUPTED")
     expect(ctl(runs, "cleanup", "--run-id", "run-crash", "--unit-id", "U", "--abandon", "--expect-transport", commit).word).toBe("CLEANED")
-  }, 20000)
+  })
 
   test("discovers a successful run whose plan verification lock was not released", () => {
     const f = makeRepo()
@@ -1426,7 +1482,7 @@ describe("ce-work unit workspace controller", () => {
     })
     expect(ctl(runs, "status", "--run-id", "run-verify-release-crash").body.integration_lock).toBeNull()
     expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("NOT_FOUND")
-  }, 20000)
+  })
 
   test("resume finishes interrupted abandoned artifact cleanup and restores retry eligibility", () => {
     const f = makeRepo()
@@ -1479,7 +1535,7 @@ describe("ce-work unit workspace controller", () => {
     )
     expect(retried.word).toBe("PREPARED")
     expect(retried.body).toMatchObject({ attempt_id: "attempt-2", resumed: false })
-  }, 20000)
+  })
 
   test("lists matching unfinished runs rather than guessing and fails closed on unsafe candidates", () => {
     const f = makeRepo()
@@ -1587,7 +1643,7 @@ describe("ce-work unit workspace controller", () => {
     expect(ctl(runs, "cleanup", "--run-id", "run-reap", "--unit-id", "U", "--abandon", "--expect-job", "wrong-job").word).toBe("REFUSED")
     expect(ctl(runs, "cleanup", "--run-id", "run-reap", "--unit-id", "U", "--abandon", "--expect-job", job).word).toBe("CLEANED")
     expect(ctl(runs, "claim-fallback", "--run-id", "run-reap", "--unit-id", "U", "--caller-mode", "headless").word).toBe("FALLBACK_ALREADY_AUTHORIZED")
-  }, 20000)
+  })
 
   test("retries an abandoned unit under the same run while preserving attempt history", () => {
     const f = makeRepo()
@@ -1676,7 +1732,7 @@ describe("ce-work unit workspace controller", () => {
       process_state: "never-started",
       authorization_retained: true,
     })
-  }, 20000)
+  })
 
   test("require blocks headless fallback and needs an explicit interactive choice", () => {
     const f = makeRepo()
@@ -1723,7 +1779,7 @@ describe("ce-work unit workspace controller", () => {
     // The preserved result can still be explicitly abandoned after inspection.
     expect(ctl(runs, "cleanup", "--run-id", "run-diverge", "--unit-id", "U", "--abandon", "--expect-transport", transport.commit).word).toBe("CLEANED")
     expect(ctl(runs, "integration-release", "--run-id", "run-diverge", "--unit-id", "U", "--lock-token", token).word).toBe("RELEASED")
-  }, 20000)
+  })
 
   test("reconciles commit-before-manifest exactly once and serializes competing hosts", () => {
     const f = makeRepo()
@@ -1759,7 +1815,7 @@ describe("ce-work unit workspace controller", () => {
       units: { U: { state: "cleaned" } },
     })
     expect(ctl(runs, "cleanup", "--run-id", "run-b", "--unit-id", "U", "--abandon", "--expect-transport", second.commit).word).toBe("CLEANED")
-  }, 25000)
+  })
 
   test("resume finalizes an accepted canonical commit without duplicate integration", () => {
     const f = makeRepo()
@@ -1812,7 +1868,7 @@ describe("ce-work unit workspace controller", () => {
     ).word).toBe("RUN_VERIFIED")
     expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("NOT_FOUND")
     expect(ctl(runs, "resume", "--run-id", "run-committed").body.actions).toEqual([])
-  }, 20000)
+  })
 
   test("restores applied-before-manifest and interrupted restore, but blocks on unknown dirt", () => {
     const f = makeRepo()
@@ -1866,7 +1922,7 @@ describe("ce-work unit workspace controller", () => {
     expect(fallback.word).toBe("FALLBACK_AUTHORIZED")
     expect(fallback.body.reason).toBe("canonical-attempt-preserved")
     expect(ctl(runs, "cleanup", "--run-id", "run-restore", "--unit-id", "U", "--abandon", "--expect-transport", transport.commit).word).toBe("CLEANED")
-  }, 25000)
+  })
 })
 
 function worktreePaths(repo: string): string[] {
