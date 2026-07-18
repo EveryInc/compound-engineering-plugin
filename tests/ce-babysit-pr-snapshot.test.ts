@@ -901,6 +901,36 @@ m.cmd_snapshot(args)
     expect(wake.pr_state).toBe("CLOSED")
   }, 5000)
 
+  test("the fixed cap preserves a merge-ready result from its final refresh", async () => {
+    const sd = path.join(dir, "budget-ready-precedence")
+    const waiting = {
+      ...FAILING,
+      threads: [],
+      checks: [{ key: "CI/test", name: "test", status: "IN_PROGRESS", conclusion: null, details_url: "u" }],
+    }
+    const fetch = fetchFile(dir, "budget-ready-precedence.json", waiting)
+    const started = snapshot(sd, fetch, ["--start-invocation", "--invocation-budget-seconds", "1"])
+    const watcher = startWatch(sd, fetch, [
+      "--interval", "5", "--settle-seconds", "0",
+      "--invocation-id", started.invocation_id,
+      "--session-started-at", started.invocation_started_at,
+      "--invocation-budget-seconds", "1",
+    ])
+    await waitForWatchGeneration(sd)
+
+    const replacement = fetchFile(dir, "budget-ready-precedence-clean.json", {
+      ...waiting,
+      mergeable: "MERGEABLE",
+      merge_state_status: "CLEAN",
+      checks: [{ key: "CI/test", name: "test", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+    })
+    renameSync(replacement, fetch)
+
+    const result = await watcher.result
+    expect(result.code, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout.trim()).reason).toBe("merge-ready")
+  }, 5000)
+
   test("watch cannot start or reset an invocation budget", () => {
     const sd = path.join(dir, "watch-cannot-reset")
     const waiting = {

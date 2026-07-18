@@ -336,6 +336,16 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(babysit).not.toContain("hard-capped at 24h")
   })
 
+  test("deadline precedence preserves stop results without starting another work round", async () => {
+    const [babysit, watchLoop] = await Promise.all([
+      readRepoFile(BABYSIT),
+      readRepoFile("skills/ce-babysit-pr/references/watch-loop.md"),
+    ])
+    for (const text of [babysit, watchLoop]) {
+      expect(text).toMatch(/deadline[\s\S]{0,300}terminal[\s\S]{0,200}merge-ready[\s\S]{0,300}max-runtime/i)
+    }
+  })
+
   test("pipeline success requires clean chain currency in both loaded contracts", async () => {
     const [babysit, watchLoop] = await Promise.all([
       readRepoFile(BABYSIT),

@@ -1377,7 +1377,7 @@ def cmd_watch(args):
             actionable["persisted_state_age_seconds"] = _elapsed(
                 actionable.get("persisted_state_created_at"), now)
             reason = _wake_reason(actionable, args.settle_seconds)
-            if reason == "terminal":
+            if reason in ("terminal", "merge-ready"):
                 _emit_wake_if_current(args, generation, reason, url=actionable.get("url"),
                                       pr_state=actionable.get("pr_state"), counts=actionable.get("counts"))
                 return
