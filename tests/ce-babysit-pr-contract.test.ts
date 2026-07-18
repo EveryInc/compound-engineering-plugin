@@ -204,6 +204,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(babysit).toMatch(/must not re-arm.*same unchanged signal/i)
     expect(babysit).toMatch(/unattributed lifecycle incomplete/i)
     expect(babysit).toMatch(/reviewer when identifiable.*observed signal/i)
+    expect(babysit).toMatch(/only uncleared condition.*incomplete lifecycle.*30-minute terminal ceiling/i)
     expect(script).toContain("review_signal_seen_on_head")
     // A done signal on the current head must end the wait, not start another settle period.
     expect(babysit).toContain("never extends the wait")
