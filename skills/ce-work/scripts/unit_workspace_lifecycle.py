@@ -104,12 +104,54 @@ def resolve_resume_run(args) -> str:
     return run_id
 
 
+def retained_worker_blocker(run_id: str, unit_id: str, error: Operational) -> dict | None:
+    if error.word != "BLOCKED" or str(error) != "worker returned a host-resolvable blocker":
+        return None
+    with locked_manifest(run_id) as doc:
+        unit = doc["units"].get(unit_id)
+        if not unit or unit.get("state") != "authored":
+            return None
+        attempt = find_attempt(unit)
+        receipt = attempt.get("terminal_receipt")
+        if (
+            attempt.get("process_state") != "done"
+            or attempt.get("terminal_validation_failure") is not None
+            or not isinstance(receipt, dict)
+            or receipt.get("terminal_status") != "blocked"
+        ):
+            return None
+        blocker = {
+            "unit_id": unit_id,
+            "terminal_status": "blocked",
+            "summary": receipt.get("summary", ""),
+            "terminal_receipt": receipt,
+            "recovery_path": os.path.join(run_dir(run_id), "units", unit_id),
+        }
+    return blocker if error.detail == blocker else None
+
+
+def resume_terminalize(run_id: str, unit_id: str) -> list[dict]:
+    try:
+        transport = terminalize(run_id, unit_id)
+    except Operational as exc:
+        blocker = retained_worker_blocker(run_id, unit_id, exc)
+        if blocker is None:
+            raise
+        return [{
+            "unit_id": unit_id,
+            "action": "worker-blocker-retained",
+            "terminal_status": blocker["terminal_status"],
+            "summary": blocker["summary"],
+            "recovery_path": blocker["recovery_path"],
+        }]
+    return [{"unit_id": unit_id, "action": "terminalized", "transport": transport["commit"]}]
+
+
 def resume_monitor(run_id: str, unit_id: str) -> list[dict]:
     evidence = sync_job(run_id, unit_id)
     actions = [{"unit_id": unit_id, "action": "monitored", "process_state": evidence["process_state"]}]
     if evidence["process_state"] == "done":
-        transport = terminalize(run_id, unit_id)
-        actions.append({"unit_id": unit_id, "action": "terminalized", "transport": transport["commit"]})
+        actions.extend(resume_terminalize(run_id, unit_id))
     return actions
 
 
@@ -260,8 +302,7 @@ def cmd_resume(args) -> tuple[str, dict]:
         elif state == "authoring" and attempt.get("job_id"):
             actions.extend(resume_monitor(run_id, uid))
         elif state == "authored":
-            transport = terminalize(run_id, uid)
-            actions.append({"unit_id": uid, "action": "terminalized", "transport": transport["commit"]})
+            actions.extend(resume_terminalize(run_id, uid))
         elif state == "restoring" and lock and lock.get("unit_id") == uid:
             exact = restore(run_id, uid, lock["nonce"])
             if not exact:

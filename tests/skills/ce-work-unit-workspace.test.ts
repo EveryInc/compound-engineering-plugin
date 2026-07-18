@@ -684,6 +684,78 @@ describe("ce-work unit workspace controller", () => {
     expect(fallback.stderr).toContain("successful worker output must be reconciled rather than bypassed")
   }, 20000)
 
+  test("resume retains a trusted worker blocker while reconciling later units", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-resume-worker-blocked", f)
+    for (const [unitId, terminalStatus] of [
+      ["U-blocked", "blocked"],
+      ["U-ready", "completed"],
+    ] as const) {
+      const packet = `packet-${unitId}`
+      ctl(
+        runs, "prepare", "--run-id", "run-resume-worker-blocked", "--unit-id", unitId,
+        "--base", f.base, "--packet", packetFile(packet),
+      )
+      const job = fakeDoneJob(
+        runs, "run-resume-worker-blocked", unitId, packet, `job-${unitId}`, terminalStatus,
+      )
+      ctl(
+        runs, "record-job", "--run-id", "run-resume-worker-blocked", "--unit-id", unitId,
+        "--attempt-id", "attempt-1", "--job-id", job,
+      )
+    }
+    expect(ctl(
+      runs, "terminalize", "--run-id", "run-resume-worker-blocked", "--unit-id", "U-blocked",
+    ).word).toBe("BLOCKED")
+
+    const resumed = ctl(runs, "resume", "--run-id", "run-resume-worker-blocked")
+    expect(resumed.word).toBe("RESUMED")
+    expect(resumed.body.actions).toContainEqual({
+      unit_id: "U-blocked",
+      action: "worker-blocker-retained",
+      terminal_status: "blocked",
+      summary: "done",
+      recovery_path: path.join(runs, "run-resume-worker-blocked", "units", "U-blocked"),
+    })
+    expect(resumed.body.actions).toContainEqual(expect.objectContaining({
+      unit_id: "U-ready",
+      action: "terminalized",
+    }))
+    const status = ctl(runs, "status", "--run-id", "run-resume-worker-blocked").body
+    expect(status.units["U-blocked"]).toMatchObject({
+      state: "authored",
+      attempts: [{ terminal_receipt: { terminal_status: "blocked", summary: "done" } }],
+    })
+    expect(status.units["U-ready"].state).toBe("integration-pending")
+  }, 20000)
+
+  test("resume does not swallow unrelated terminalization blockers", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-resume-invalid-terminal", f)
+    ctl(
+      runs, "prepare", "--run-id", "run-resume-invalid-terminal", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    const job = fakeDoneJob(runs, "run-resume-invalid-terminal", "U", "packet")
+    const resultPath = path.join(
+      runs, "run-resume-invalid-terminal", "units", "U", "result", "implementation-result.json",
+    )
+    const result = JSON.parse(readFileSync(resultPath, "utf8"))
+    result.requested_route = "claude"
+    writeFileSync(resultPath, `${JSON.stringify(result)}\n`, { mode: 0o600 })
+    ctl(
+      runs, "record-job", "--run-id", "run-resume-invalid-terminal", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+
+    const resumed = ctl(runs, "resume", "--run-id", "run-resume-invalid-terminal")
+    expect(resumed.word).toBe("BLOCKED")
+    expect(resumed.body).toMatchObject({ mismatches: { requested_route: { expected: "codex", actual: "claude" } } })
+    expect(resumed.stderr).toContain("adapter terminal receipt does not match controller authorization")
+  }, 20000)
+
   test("fold-in is host-owned, lock-serialized, restorable, and cleanup is explicit", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
