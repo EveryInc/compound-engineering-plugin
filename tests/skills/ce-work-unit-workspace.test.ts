@@ -1404,6 +1404,7 @@ describe("ce-work unit workspace controller", () => {
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
     writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\n")
     writeFileSync(path.join(f.repo, "existing.verification-cache"), "preserve me\n")
+    mkdirSync(path.join(f.repo, "pre-existing-empty"))
     init(runs, "run-ignored-verification", f)
     ctl(
       runs, "prepare", "--run-id", "run-ignored-verification", "--unit-id", "U",
@@ -1422,32 +1423,51 @@ describe("ce-work unit workspace controller", () => {
       runs, "integrate", "--run-id", "run-ignored-verification", "--unit-id", "U",
       "--commit-message", "feat(test): integrate ignored verification fixture",
       "--", "python3", "-c",
-      "from pathlib import Path; Path('existing.verification-cache').write_text('mutated'); p = Path('unit-build/sub/unit.verification-cache'); p.parent.mkdir(parents=True); p.write_text('unit')",
+      "from pathlib import Path; Path('existing.verification-cache').write_text('mutated'); Path('unit-empty/sub').mkdir(parents=True); p = Path('unit-build/sub/unit.verification-cache'); p.parent.mkdir(parents=True); p.write_text('unit')",
     )
     expect(integrated.word).toBe("UNIT_COMMITTED")
     expect(integrated.body.cleaned_paths).toEqual([
       "existing.verification-cache",
+      "unit-build",
+      "unit-build/sub",
       "unit-build/sub/unit.verification-cache",
+      "unit-empty",
+      "unit-empty/sub",
     ])
     expect(existsSync(path.join(f.repo, "unit-build"))).toBe(false)
+    expect(existsSync(path.join(f.repo, "unit-empty"))).toBe(false)
+    expect(existsSync(path.join(f.repo, "pre-existing-empty"))).toBe(true)
     expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
 
     const verified = ctl(
       runs, "verify-run", "--run-id", "run-ignored-verification",
       "--verification-summary", "ignored plan artifact cleanup",
       "--", "python3", "-c",
-      "from pathlib import Path; Path('existing.verification-cache').unlink(); p = Path('plan-build/sub/plan.verification-cache'); p.parent.mkdir(parents=True); p.write_text('plan')",
+      "from pathlib import Path; Path('existing.verification-cache').unlink(); Path('plan-empty/sub').mkdir(parents=True); p = Path('plan-build/sub/plan.verification-cache'); p.parent.mkdir(parents=True); p.write_text('plan')",
     )
     expect(verified.word).toBe("RUN_VERIFIED")
     expect(verified.body.cleaned_paths).toEqual([
       "existing.verification-cache",
+      "plan-build",
+      "plan-build/sub",
       "plan-build/sub/plan.verification-cache",
+      "plan-empty",
+      "plan-empty/sub",
     ])
     expect(existsSync(path.join(f.repo, "plan-build"))).toBe(false)
+    expect(existsSync(path.join(f.repo, "plan-empty"))).toBe(false)
+    expect(existsSync(path.join(f.repo, "pre-existing-empty"))).toBe(true)
     expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
     expect(ctl(runs, "status", "--run-id", "run-ignored-verification").body.verifications.at(-1)).toMatchObject({
       verification_exit: 0,
-      cleaned_paths: ["existing.verification-cache", "plan-build/sub/plan.verification-cache"],
+      cleaned_paths: [
+        "existing.verification-cache",
+        "plan-build",
+        "plan-build/sub",
+        "plan-build/sub/plan.verification-cache",
+        "plan-empty",
+        "plan-empty/sub",
+      ],
     })
 
     const failedPlan = ctl(

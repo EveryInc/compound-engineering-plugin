@@ -514,10 +514,11 @@ def _verify_run_locked(
     after = semantic_snapshot(repo)
     after_paths = status_paths(repo)
     new_ignored = _ignored_paths(repo) - before_ignored
+    new_directories = _directory_paths(repo) - before_directories
     ignored_directories = _new_parent_directories(new_ignored, before_directories)
-    _remove_owned_new_paths(repo, new_ignored | ignored_directories, before["head"])
+    _remove_owned_new_paths(repo, new_ignored | new_directories | ignored_directories, before["head"])
     restored_ignored = _restore_ignored_artifacts(repo, ignored_snapshot)
-    cleaned_paths = sorted(new_ignored | restored_ignored)
+    cleaned_paths = sorted(new_ignored | new_directories | restored_ignored)
     if after != before:
         if after["branch_ref"] != before["branch_ref"] or after["head"] != before["head"]:
             with locked_manifest(args.run_id, write=True) as doc:
@@ -541,7 +542,7 @@ def _verify_run_locked(
                     "retain_integration_lock": True,
                 },
             )
-        deletion_paths = (after_paths - before_paths) | new_ignored
+        deletion_paths = (after_paths - before_paths) | new_ignored | new_directories
         cleaned_paths = sorted(deletion_paths | restored_ignored)
         git(repo, "reset", "--hard", before["head"])
         created_directories = _new_parent_directories(deletion_paths, before_directories)
@@ -737,10 +738,11 @@ def cmd_integrate(args) -> tuple[str, dict]:
         after = semantic_snapshot(repo)
         after_paths = status_paths(repo)
         new_ignored = _ignored_paths(repo) - before_ignored
+        new_directories = _directory_paths(repo) - before_directories
         ignored_directories = _new_parent_directories(new_ignored, before_directories)
-        _remove_owned_new_paths(repo, new_ignored | ignored_directories, before["head"])
+        _remove_owned_new_paths(repo, new_ignored | new_directories | ignored_directories, before["head"])
         restored_ignored = _restore_ignored_artifacts(repo, ignored_snapshot)
-        cleaned_paths = sorted((after_paths - before_paths) | new_ignored | restored_ignored)
+        cleaned_paths = sorted((after_paths - before_paths) | new_ignored | new_directories | restored_ignored)
         log_digest = hashlib.sha256(Path(verification_log).read_bytes()).hexdigest()
         if verification_exit != 0 or after != before:
             _restore_owned_verification(args.run_id, args.unit_id, token, before, before_paths, after_paths)
