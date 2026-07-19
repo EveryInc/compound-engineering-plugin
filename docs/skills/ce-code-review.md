@@ -22,23 +22,18 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 ## Example invocations
 
 ```text
-# Review the current branch and report findings without changing files
+# Deep-review the current branch; relevant plan and session context are discovered automatically
 /ce-code-review
-
-# Review the current checkout against a known base
-/ce-code-review base:origin/main
 
 # Review a specific PR without checking it out
 /ce-code-review https://github.com/acme/widgets/pull/1234
 
-# Verify the diff against an explicit implementation plan
-/ce-code-review plan:docs/plans/notification-mute.md
+# Review the current branch and fix verified findings in this checkout
+/ce-code-review review this branch and fix eligible findings locally
 
-# Explicitly authorize eligible fixes in the local checkout
-/ce-code-review apply:local
+# Ask for a lighter pass when the full multi-agent review is unnecessary
+/ce-code-review give this branch a quick review
 ```
-
-Do not combine a PR or branch target with `base:`: a base ref means the current checkout is already the intended review scope.
 
 ---
 

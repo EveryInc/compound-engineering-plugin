@@ -35,6 +35,9 @@ One thing it deliberately does *not* do is render a verdict. When a request is r
 ## Example invocations
 
 ```text
+# Shape an ambitious feature or project before committing to a plan
+/ce-brainstorm design a self-serve migration platform for enterprise customers
+
 # Turn a rough feature idea into a requirements artifact
 /ce-brainstorm add a way for users to pause notifications
 
@@ -44,7 +47,10 @@ One thing it deliberately does *not* do is render a verdict. When a request is r
 # Brainstorm non-software work with the same scope and decision discipline
 /ce-brainstorm plan a two-day customer advisory workshop
 
-# Produce a self-contained HTML artifact instead of Markdown
+# Ask for a self-contained HTML artifact in plain language
+/ce-brainstorm add account-level notification settings and make the artifact a self-contained HTML page
+
+# Equivalent shorthand when a repeatable automation needs it
 /ce-brainstorm add account-level notification settings output:html
 ```
 

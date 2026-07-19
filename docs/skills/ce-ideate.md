@@ -39,13 +39,22 @@ The chain works across domains — every step supports universal mode. `ce-ideat
 # Focus ideation on a specific product surface
 /ce-ideate onboarding improvements for new team administrators
 
+# Find solution opportunities across patterns in open GitHub issues
+/ce-ideate what product opportunities do you see across our open GitHub issues?
+
+# Ideate from the unresolved work in a Linear project
+/ce-ideate find solution opportunities across the open tickets in https://linear.app/acme/project/customer-onboarding-1234
+
 # Ask for non-obvious directions without naming a subject
 /ce-ideate surprise me
 
 # Use the same engine for non-software ideation
 /ce-ideate names for a neighborhood coffee shop
 
-# Write Markdown instead of the default self-contained HTML artifact
+# Ask for Markdown instead of the default self-contained HTML artifact
+/ce-ideate developer experience improvements, and write the artifact in Markdown
+
+# Equivalent shorthand when a repeatable automation needs it
 /ce-ideate developer experience improvements output:md
 ```
 

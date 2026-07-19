@@ -27,12 +27,7 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 # Let the skill find the most recent planning document
 /ce-doc-review
-
-# Return structured findings to a calling workflow without questions
-/ce-doc-review mode:headless docs/plans/notification-mute.md
 ```
-
-Interactive mode is for deciding findings now. Headless mode preserves the same classifications but leaves non-safe decisions to its caller.
 
 ---
 

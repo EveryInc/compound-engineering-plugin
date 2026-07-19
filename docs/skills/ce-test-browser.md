@@ -29,12 +29,9 @@
 
 # Connect manual mode to an existing server on a custom port
 /ce-test-browser --port 5000
-
-# Let an outer workflow start the server and choose a free port
-/ce-test-browser mode:pipeline
 ```
 
-Manual mode stops with the correct start command when no server is running. Pipeline mode owns server startup because its caller cannot pause for setup.
+When no server is running, the skill stops with the correct command to start one.
 
 ---
 

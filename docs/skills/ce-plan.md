@@ -36,6 +36,9 @@ But it stands alone just as well — many teams reach for `ce-plan` directly wit
 ## Example invocations
 
 ```text
+# Plan from the current conversation, including a completed ce-brainstorm
+/ce-plan
+
 # Enrich a requirements-only brainstorm artifact into an implementation-ready plan
 /ce-plan docs/plans/notification-mute.md
 
@@ -52,8 +55,11 @@ But it stands alone just as well — many teams reach for `ce-plan` directly wit
 # Plan a non-software multi-step project
 /ce-plan organize a two-day customer advisory workshop
 
-# Produce a self-contained HTML artifact
-/ce-plan docs/plans/notification-mute.md output:html
+# Ask for a self-contained HTML artifact in plain language
+/ce-plan turn the notification mute requirements into an implementation-ready plan and make it a self-contained HTML page
+
+# Equivalent shorthand when a repeatable automation needs it
+/ce-plan turn the notification mute requirements into an implementation-ready plan output:html
 ```
 
 Start with `ce-brainstorm` when the product shape is still unsettled; direct planning works best when the intended outcome is already clear.

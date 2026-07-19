@@ -8,13 +8,13 @@ Point it at a concept, a diff, an idea, or a window of your own recent work, and
 
 ```text
 # Explain a recent code change from its diff
-/ce-explain diff:HEAD~3..HEAD
+/ce-explain teach me how the changes in the last three commits work
 
 # Teach an external technical concept
 /ce-explain Ruby garbage compaction
 
 # Build a timeline for meeting preparation
-/ce-explain since:monday
+/ce-explain build a timeline of what changed since Monday
 
 # Turn an early idea into a visual thinking artifact
 /ce-explain my idea of caching explainers per repository

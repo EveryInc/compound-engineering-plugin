@@ -35,9 +35,6 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 # Describe a different PR from its complete branch scope
 /ce-commit-push-pr https://github.com/acme/widgets/pull/1234
-
-# Ship but leave CI and review monitoring to the caller
-/ce-commit-push-pr mode:pipeline
 ```
 
 ---

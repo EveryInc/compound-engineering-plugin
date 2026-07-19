@@ -34,9 +34,6 @@ The compound-engineering shipping chain is `/ce-work → /ce-commit-push-pr → 
 
 # Run one checkpoint tick and return a copyable resume command
 /ce-babysit-pr 1234 checkpoint
-
-# Force the self-sustaining in-session watch when the harness supports it
-/ce-babysit-pr 1234 watch
 ```
 
 ---

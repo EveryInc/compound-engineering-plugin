@@ -37,8 +37,11 @@ It fills the judgment gap between exploring (`/ce-ideate`), scoping (`/ce-brains
 # Supply a bare link when you want ce-pov to propose the possible questions first
 /ce-pov https://example.com/tool
 
-# Ask for an independent cross-model check
-/ce-pov oracle: should we adopt this auth provider?
+# Ask an independent panel to pressure-test the proposal already in this conversation
+/ce-pov oracle that proposal
+
+# Ask for an independent cross-model check on an explicit question
+/ce-pov ask an independent panel whether we should adopt this auth provider
 /ce-pov compare your take on docs/plans/new-checkout.md with Grok and Composer
 
 # Invoke it mid-session for a grounded second opinion on the current direction
