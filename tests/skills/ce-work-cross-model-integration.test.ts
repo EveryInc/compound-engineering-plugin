@@ -221,6 +221,127 @@ printf '%s\n' '{"terminal_status":"scope_expansion","summary":"shared contract n
     })
   }, 30_000)
 
+  test("structured receipts redact secrets before JSON encoding", () => {
+    const root = temp("ce-work-structured-redaction-")
+    const repo = path.join(root, "repo")
+    const peerRoot = path.join(root, "jobs")
+    const runs = path.join(peerRoot, "ce-work")
+    mkdirSync(repo)
+    git(repo, "init", "-b", "main")
+    git(repo, "config", "user.name", "CE Work Host")
+    git(repo, "config", "user.email", "host@example.test")
+    mkdirSync(path.join(repo, "docs", "plans"), { recursive: true })
+    const plan = path.join(repo, "docs", "plans", "plan.md")
+    writeFileSync(plan, "# Plan\n")
+    git(repo, "add", ".")
+    git(repo, "commit", "-m", "seed")
+    const base = git(repo, "rev-parse", "HEAD")
+    const planDigest = createHash("sha256").update(readFileSync(plan)).digest("hex")
+
+    expect(control(
+      runs,
+      "init",
+      "--run-id", "redaction-run",
+      "--repo", repo,
+      "--plan", plan,
+      "--plan-digest", planDigest,
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U-redact"],"restrictions":[]}',
+    ).word).toBe("READY")
+
+    const prepared = control(
+      runs,
+      "prepare",
+      "--run-id", "redaction-run",
+      "--unit-id", "U-redact",
+      "--base", base,
+      "--packet", packetFile("U-redact packet"),
+      "--attempt-id", "attempt-1",
+      "--activity-posture", "incremental",
+    ).body
+    const resultPath = path.join(prepared.result_dir, "implementation-result.json")
+    const secrets = {
+      summary: 'quote"secret',
+      evidence: "slash\\secret",
+      scope: "café-secret",
+    }
+    const redactionFile = path.join(root, "redactions.txt")
+    writeFileSync(redactionFile, `${Object.values(secrets).join("\n")}\n`, { mode: 0o600 })
+
+    const fakeBin = path.join(root, "fake-bin")
+    mkdirSync(fakeBin)
+    writeFileSync(path.join(fakeBin, "codex"), `#!/bin/sh
+set -eu
+result=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "-o" ]; then result="$2"; shift 2; continue; fi
+  shift
+done
+printf '%s\n' '${JSON.stringify({ type: "init", model: secrets.summary })}'
+printf '%s\n' '${JSON.stringify({
+  terminal_status: "scope_expansion",
+  summary: `summary ${secrets.summary} end`,
+  changed_files: [`src/${secrets.evidence}.ts`],
+  evidence: [`evidence ${secrets.evidence} end`],
+  scope_expansion: {
+    requested_paths: [`src/${secrets.scope}.ts`],
+    reason: `needs ${secrets.scope}`,
+  },
+})}' > "$result"
+`)
+    chmodSync(path.join(fakeBin, "codex"), 0o755)
+
+    const jobId = run(repo, [
+      "python3", RUNNER, "start",
+      "--skill", "ce-work",
+      "--run-id", "redaction-run",
+      "--label", "U-redact",
+      "--input-digest", prepared.packet_digest,
+      "--result-path", resultPath,
+      "--no-sweep",
+      "--", ADAPTER, prepared.authorization_path, prepared.workspace, prepared.packet_path,
+      prepared.packet_digest, prepared.result_dir,
+    ], {
+      ...process.env,
+      CE_PEER_JOBS_ROOT: peerRoot,
+      CE_WORK_RUNS_ROOT: runs,
+      CE_WORK_REDACT_FILE: redactionFile,
+      PATH: `${fakeBin}:${process.env.PATH}`,
+      CE_PEER_POLL_SECS: "0.1",
+      CE_PEER_IDLE_SECS: "10",
+      CE_PEER_HARD_SECS: "30",
+    })
+    expect(control(
+      runs,
+      "record-job",
+      "--run-id", "redaction-run",
+      "--unit-id", "U-redact",
+      "--attempt-id", "attempt-1",
+      "--job-id", jobId,
+    ).word).toBe("AUTHORING")
+    expect(run(repo, [
+      "python3", RUNNER, "wait", "--skill", "ce-work", "--max-secs", "30", jobId,
+    ], { ...process.env, CE_PEER_JOBS_ROOT: peerRoot })).toBe("done")
+
+    const serialized = readFileSync(resultPath, "utf8")
+    const receipt = JSON.parse(serialized)
+    expect(receipt).toMatchObject({
+      summary: "summary [REDACTED] end",
+      changed_files: ["src/[REDACTED].ts"],
+      evidence: ["evidence [REDACTED] end"],
+      scope_expansion: {
+        requested_paths: ["src/[REDACTED].ts"],
+        reason: "needs [REDACTED]",
+      },
+      model_actual: "[REDACTED]",
+    })
+    for (const secret of Object.values(secrets)) expect(serialized).not.toContain(secret)
+    expect(serialized).not.toContain(JSON.stringify(secrets.summary).slice(1, -1))
+    expect(serialized).not.toContain(JSON.stringify(secrets.evidence).slice(1, -1))
+    expect(serialized).not.toContain("caf\\u00e9-secret")
+    expect(serialized.match(/\[REDACTED\]/g)).toHaveLength(6)
+  }, 30_000)
+
   test("missing fixed-route CLI records an authoritative unavailable receipt for fallback disclosure", () => {
     const root = temp("ce-work-unavailable-")
     const repo = path.join(root, "repo")

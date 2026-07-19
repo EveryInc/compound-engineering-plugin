@@ -640,10 +640,15 @@ def redactions():
     try: return [v for v in open(p, encoding="utf-8").read().splitlines() if v]
     except OSError: return []
 
+redaction_values=redactions()
+
 def redact(value):
-    text=value
-    for secret in redactions(): text=text.replace(secret, "[REDACTED]")
-    return text
+    if isinstance(value,str):
+        for secret in redaction_values: value=value.replace(secret, "[REDACTED]")
+        return value
+    if isinstance(value,list): return [redact(child) for child in value]
+    if isinstance(value,dict): return {key:redact(child) for key,child in value.items()}
+    return value
 
 def parse_text(text):
     found=[]
@@ -738,7 +743,7 @@ else:
     base.update({"terminal_status":"failed", "summary":"Adapter terminal output failed result schema",
       "changed_files":[], "evidence":[], "scope_expansion":None,
       "failure_reason":"terminal output failed implementation result schema"})
-base=json.loads(redact(json.dumps(base)))
+base=redact(base)
 fd,tmp=tempfile.mkstemp(dir=os.path.dirname(out),prefix=".result-")
 with os.fdopen(fd,"w") as f: json.dump(base,f,indent=2); f.write("\n")
 os.chmod(tmp,0o600); os.replace(tmp,out)
