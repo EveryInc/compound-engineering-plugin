@@ -979,7 +979,7 @@ describe("ce-work unit workspace controller", () => {
     expect(git(f.repo, "rev-parse", terminal.body.transport.ref)).toBe(terminal.body.transport.commit)
   })
 
-  test("blocks ignored untracked worker output before writing a transport", () => {
+  test("blocks ignored untracked worker output omitted from changed-files evidence", () => {
     const f = makeRepo()
     writeFileSync(path.join(f.repo, ".gitignore"), "ignored-output/\n")
     git(f.repo, "add", ".gitignore")
@@ -1001,7 +1001,7 @@ describe("ce-work unit workspace controller", () => {
       "ignored worker packet",
       "job-ignored-worker",
       "completed",
-      ["ignored-output/fixture.txt"],
+      [],
     )
     expect(ctl(
       runs, "record-job", "--run-id", "run-ignored-worker", "--unit-id", "U",
@@ -1132,7 +1132,7 @@ describe("ce-work unit workspace controller", () => {
       runs, "terminalize", "--run-id", "run-ignored-recovery", "--unit-id", "U",
     ).word).toBe("BLOCKED")
 
-    renameSync(reportedOutput, path.join(workspace, "ignored-output", "incidental.txt"))
+    renameSync(reportedOutput, path.join(workspace, "recovered.txt"))
     expect(ctl(
       runs, "terminalize", "--run-id", "run-ignored-recovery", "--unit-id", "U",
     ).word).toBe("INTEGRATION_PENDING")
@@ -1152,7 +1152,7 @@ describe("ce-work unit workspace controller", () => {
     expect(fallback.stderr).toContain("pinned worker transport must be reconciled")
   })
 
-  test("allows incidental ignored worker side effects outside reported outputs", () => {
+  test("blocks incidental ignored worker side effects outside reported outputs", () => {
     const f = makeRepo()
     writeFileSync(path.join(f.repo, ".gitignore"), "cache/\n")
     git(f.repo, "add", ".gitignore")
@@ -1183,9 +1183,16 @@ describe("ce-work unit workspace controller", () => {
     ).word).toBe("AUTHORING")
 
     const terminal = ctl(runs, "terminalize", "--run-id", "run-ignored-cache", "--unit-id", "U")
-    expect(terminal.word).toBe("INTEGRATION_PENDING")
-    expect(terminal.body.transport.changed_paths).toEqual(["result.txt"])
-    expect(existsSync(path.join(workspace, "cache", "tool.bin"))).toBe(true)
+    expect(terminal.word).toBe("BLOCKED")
+    expect(terminal.stderr).toContain("cache/tool.bin")
+    const status = ctl(runs, "status", "--run-id", "run-ignored-cache", "--unit-id", "U").body.unit
+    expect(status.state).toBe("authored")
+    expect(status.transport.commit).toBeNull()
+    expect(status.attempts[0].terminal_validation_failure).toMatchObject({
+      word: "BLOCKED",
+      reason: expect.stringContaining("ignored untracked output"),
+      job_id: job,
+    })
   })
 
   test("retains scope-expansion evidence but refuses ordinary fold-in", () => {

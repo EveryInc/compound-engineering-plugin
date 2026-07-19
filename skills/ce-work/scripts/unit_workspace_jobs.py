@@ -836,23 +836,13 @@ def terminalize(run_id: str, unit_id: str) -> dict:
             for part in ignored_raw.split(b"\0")
             if part
         ]
-        reported_paths = []
-        for path in receipt["changed_files"]:
-            candidate = os.path.relpath(path, workspace) if os.path.isabs(path) else os.path.normpath(path)
-            if candidate not in {"", ".", ".."} and not candidate.startswith(f"..{os.sep}"):
-                reported_paths.append(candidate.rstrip(os.sep))
-        ignored_outputs = [
-            path
-            for path in ignored_paths
-            if any(path == reported or path.startswith(f"{reported}{os.sep}") for reported in reported_paths)
-        ]
-        if ignored_outputs:
-            preview = json.dumps(ignored_outputs[:20], ensure_ascii=True)
-            suffix = f" and {len(ignored_outputs) - 20} more" if len(ignored_outputs) > 20 else ""
+        if ignored_paths:
+            preview = json.dumps(ignored_paths[:20], ensure_ascii=True)
+            suffix = f" and {len(ignored_paths) - 20} more" if len(ignored_paths) > 20 else ""
             raise Operational(
                 "BLOCKED",
                 f"worker workspace contains ignored untracked output that cannot enter the transport: {preview}{suffix}",
-                {"ignored_paths": ignored_outputs[:100], "ignored_path_count": len(ignored_outputs)},
+                {"ignored_paths": ignored_paths[:100], "ignored_path_count": len(ignored_paths)},
             )
         git(workspace, "add", "-A", "--", ".")
         index = git(workspace, "ls-files", "--stage", "-z")
