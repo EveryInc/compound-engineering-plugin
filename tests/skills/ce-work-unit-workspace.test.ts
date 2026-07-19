@@ -1968,6 +1968,52 @@ describe("ce-work unit workspace controller", () => {
     ).word).toBe("CLEANED")
   })
 
+  test("resume releases a lock stranded after exact restoration was recorded", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-preserved-lock", f)
+    ctl(
+      runs, "prepare", "--run-id", "run-preserved-lock", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    const workspace = path.join(runs, "run-preserved-lock", "units", "U", "workspace")
+    writeFileSync(path.join(workspace, "new.txt"), "new\n")
+    const job = fakeDoneJob(runs, "run-preserved-lock", "U", "packet")
+    ctl(
+      runs, "record-job", "--run-id", "run-preserved-lock", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    const transport = ctl(
+      runs, "terminalize", "--run-id", "run-preserved-lock", "--unit-id", "U",
+    ).body.transport
+    const token = ctl(
+      runs, "integration-acquire", "--run-id", "run-preserved-lock", "--unit-id", "U",
+    ).body.lock_token
+    const preflight = ctl(
+      runs, "preflight", "--run-id", "run-preserved-lock", "--unit-id", "U", "--lock-token", token,
+    ).body.pre_fold
+    git(f.repo, "cherry-pick", "--no-commit", transport.commit)
+    ctl(runs, "mark-applied", "--run-id", "run-preserved-lock", "--unit-id", "U", "--lock-token", token)
+    expect(ctl(
+      runs, "restore", "--run-id", "run-preserved-lock", "--unit-id", "U", "--lock-token", token,
+    ).word).toBe("PRESERVED")
+    const stranded = ctl(runs, "status", "--run-id", "run-preserved-lock").body
+    expect(stranded.units.U).toMatchObject({
+      state: "preserved",
+      integration: { restore: { exact: true, snapshot: preflight } },
+    })
+    expect(stranded.integration_lock).toMatchObject({ unit_id: "U", nonce: token, phase: "held" })
+
+    const resumed = ctl(runs, "resume", "--run-id", "run-preserved-lock")
+    expect(resumed.word).toBe("RESUMED")
+    expect(resumed.body.actions).toContainEqual({
+      unit_id: "U",
+      action: "integration-release-reconciled",
+    })
+    expect(ctl(runs, "status", "--run-id", "run-preserved-lock").body.integration_lock).toBeNull()
+    expect(git(f.repo, "status", "--porcelain")).toBe("")
+  })
+
   test("refuses a wave whose terminalized transports overlap", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
@@ -2245,6 +2291,63 @@ describe("ce-work unit workspace controller", () => {
       runs, "status", "--run-id", "run-native-verify-release-crash",
     ).body.integration_lock).toBeNull()
     expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("NOT_FOUND")
+  })
+
+  test("releases a failed plan verification lock held by native fallback completion", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-native-failed-verify-release-crash", f)
+    ctl(
+      runs, "prepare", "--run-id", "run-native-failed-verify-release-crash", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("native failed verification packet"),
+    )
+    const job = fakeRunningJob(
+      runs, "run-native-failed-verify-release-crash", "U", "native failed verification packet",
+    )
+    ctl(
+      runs, "record-job", "--run-id", "run-native-failed-verify-release-crash", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    terminalizeFakeJob(runs, "run-native-failed-verify-release-crash", job, "failed")
+    ctl(runs, "resume", "--run-id", "run-native-failed-verify-release-crash")
+    expect(ctl(
+      runs, "claim-fallback", "--run-id", "run-native-failed-verify-release-crash", "--unit-id", "U",
+      "--caller-mode", "headless",
+    ).word).toBe("FALLBACK_AUTHORIZED")
+
+    writeFileSync(path.join(f.repo, "native.txt"), "accepted native implementation\n")
+    git(f.repo, "add", "native.txt")
+    git(f.repo, "commit", "-m", "feat(test): complete native fallback")
+    const nativeHead = git(f.repo, "rev-parse", "HEAD")
+    expect(ctl(
+      runs, "complete-fallback", "--run-id", "run-native-failed-verify-release-crash", "--unit-id", "U",
+      "--accepted-head", nativeHead, "--evidence-digest", "a".repeat(64),
+      "--summary", "native checks passed",
+    ).word).toBe("FALLBACK_COMPLETED")
+
+    const interrupted = ctlWithEnv(
+      runs,
+      { CE_WORK_TEST_FAULT: "verify-run-after-receipt" },
+      "verify-run", "--run-id", "run-native-failed-verify-release-crash",
+      "--verification-summary", "failed native plan verification", "--", "false",
+    )
+    expect(interrupted.word).toBe("INTERRUPTED")
+    const stranded = ctl(runs, "status", "--run-id", "run-native-failed-verify-release-crash").body
+    expect(stranded.units.U.state).toBe("native-completed")
+    expect(stranded.verifications.at(-1).verification_exit).not.toBe(0)
+    expect(stranded.blockers.at(-1)).toMatchObject({ reason: "plan-wide verification failed" })
+    expect(stranded.blockers.at(-1).retain_integration_lock).toBeUndefined()
+    expect(stranded.integration_lock).toMatchObject({ unit_id: "U", phase: "held" })
+
+    const resumed = ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest)
+    expect(resumed.word).toBe("RESUMED")
+    expect(resumed.body.actions).toContainEqual({
+      unit_id: "U",
+      action: "integration-release-reconciled",
+    })
+    expect(ctl(
+      runs, "status", "--run-id", "run-native-failed-verify-release-crash",
+    ).body.integration_lock).toBeNull()
   })
 
   test("retains a plan verification lock interrupted before its receipt", () => {

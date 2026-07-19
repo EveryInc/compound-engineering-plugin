@@ -249,7 +249,7 @@ def pending_plan_wide_verification(doc: dict, lock: dict) -> dict | None:
     return pending[0] if pending else None
 
 
-def successful_plan_wide_verification(doc: dict, lock: dict) -> dict | None:
+def receipted_plan_wide_verification(doc: dict, lock: dict) -> dict | None:
     attempts = plan_wide_verification_attempts(doc)
     recorded = [
         attempt for attempt in attempts
@@ -273,7 +273,7 @@ def successful_plan_wide_verification(doc: dict, lock: dict) -> dict | None:
     ]
     if len(receipts) != 1:
         raise TrustFailure("plan-wide verification receipt is missing or duplicated")
-    return recorded[0] if receipts[0].get("verification_exit") == 0 else None
+    return recorded[0]
 
 
 def plan_wide_blocker_retains_lock(doc: dict, lock: dict) -> bool:
@@ -292,7 +292,7 @@ def resume_finalize_committed(run_id: str, unit_id: str) -> list[dict]:
         state = unit["state"]
         lock = doc.get("integration_lock")
         pending_plan_verification = pending_plan_wide_verification(doc, lock) if lock else None
-        successful_plan_verification = successful_plan_wide_verification(doc, lock) if lock else None
+        receipted_plan_verification = receipted_plan_wide_verification(doc, lock) if lock else None
         retained_plan_lock = bool(lock and plan_wide_blocker_retains_lock(doc, lock))
         wave_id = unit.get("wave", {}).get("id")
         cleanup = unit.get("cleanup") or {}
@@ -325,10 +325,10 @@ def resume_finalize_committed(run_id: str, unit_id: str) -> list[dict]:
                     "plan-wide verification blocker retains the canonical integration lock",
                     {"unit_id": unit_id, "retain_integration_lock": True},
                 )
-            if state == "native-completed" and not successful_plan_verification:
+            if state == "native-completed" and not receipted_plan_verification:
                 raise Operational(
                     "BLOCKED",
-                    "native-completed unit retains the canonical integration lock without a successful plan-wide verification receipt",
+                    "native-completed unit retains the canonical integration lock without a plan-wide verification receipt",
                     {"unit_id": unit_id, "retain_integration_lock": True},
                 )
             cmd_integration_release(SimpleNamespace(run_id=run_id, unit_id=unit_id, lock_token=lock["nonce"]))
@@ -441,6 +441,26 @@ def cmd_resume(args) -> tuple[str, dict]:
                 "canonical_preserved": True,
                 "integration_lock_released": True,
             })
+        elif state == "preserved" and lock and lock.get("unit_id") == uid:
+            validate_lock(doc, uid, lock["nonce"])
+            restore_evidence = unit.get("integration", {}).get("restore")
+            pre_fold = unit.get("integration", {}).get("pre_fold")
+            if (
+                not isinstance(restore_evidence, dict)
+                or restore_evidence.get("exact") is not True
+                or not isinstance(pre_fold, dict)
+                or restore_evidence.get("snapshot") != pre_fold
+            ):
+                raise Operational("BLOCKED", "preserved-unit recovery lacks exact restoration evidence")
+            if semantic_snapshot(doc["repository"]["toplevel"]) != pre_fold:
+                raise Operational("BLOCKED", "canonical checkout no longer matches the exact restored snapshot")
+            integration_release(run_id, uid, lock["nonce"])
+            resolve_unit_recovery_blockers(
+                run_id,
+                uid,
+                reason="integration failed after exact restoration but lock release failed",
+            )
+            actions.append({"unit_id": uid, "action": "integration-release-reconciled"})
         elif state == "integration-pending" and not unit["integration"].get("pre_fold") and lock and lock.get("unit_id") == uid:
             validate_lock(doc, uid, lock["nonce"])
             integration_release(run_id, uid, lock["nonce"])

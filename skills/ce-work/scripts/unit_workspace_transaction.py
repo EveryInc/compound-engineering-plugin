@@ -31,6 +31,7 @@ from unit_workspace_lifecycle import (
     cmd_cleanup,
     pending_plan_wide_verification,
     plan_wide_verification_attempts,
+    receipted_plan_wide_verification,
 )
 
 MAX_IGNORED_SNAPSHOT_ENTRIES = 512
@@ -634,9 +635,12 @@ def cmd_verify_run(args) -> tuple[str, dict]:
         with locked_manifest(args.run_id) as doc:
             lock = doc.get("integration_lock")
             pending = pending_plan_wide_verification(doc, lock) if isinstance(lock, dict) else None
+            receipted = receipted_plan_wide_verification(doc, lock) if isinstance(lock, dict) else None
         if not exc.detail.get("retain_integration_lock") and not (
             pending and pending.get("attempt_id") == attempt_id
         ):
+            if receipted and receipted.get("attempt_id") == attempt_id:
+                test_fault("verify-run-after-receipt")
             cmd_integration_release(_args(run_id=args.run_id, unit_id=lock_unit, lock_token=token))
         raise
     test_fault("verify-run-after-receipt")
