@@ -326,25 +326,23 @@ describe("ce-work fixed write routes", () => {
     }
   })
 
-  test("production dispatch honors explicit models while defaults stay harness-configured", () => {
-    for (const [route, model] of [
-      ["cursor", "claude-sonnet-5-low"],
-      ["claude", "sonnet"],
-      ["grok-cli", "grok-4.5"],
-    ] as const) {
-      const f = fixture()
-      const bin = fakeBin(route, f.capture)
-      const result = run(
-        route,
-        f,
-        { ...process.env, PATH: `${bin}:${process.env.PATH}` },
-        undefined,
-        { model_requested: model },
-      )
-      expect(result.code).toBe(0)
-      expect(readFileSync(path.join(f.capture, "argv"), "utf8")).toContain(model)
-      expect(result.result.model_requested).toBe(model)
-    }
+  test.each([
+    ["cursor", "claude-sonnet-5-low"],
+    ["claude", "sonnet"],
+    ["grok-cli", "grok-4.5"],
+  ] as const)("production %s dispatch honors explicit model %s while defaults stay harness-configured", (route, model) => {
+    const f = fixture()
+    const bin = fakeBin(route, f.capture)
+    const result = run(
+      route,
+      f,
+      { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+      undefined,
+      { model_requested: model },
+    )
+    expect(result.code).toBe(0)
+    expect(readFileSync(path.join(f.capture, "argv"), "utf8")).toContain(model)
+    expect(result.result.model_requested).toBe(model)
   })
 
   test("production dispatch derives the model from controller authorization, not ambient overrides", () => {
