@@ -163,6 +163,38 @@ class SafeTokenAllDots(unittest.TestCase):
                 MOD.resolve_job_dir("..")
 
 
+class PosixDetachPreflight(unittest.TestCase):
+    def test_returns_silently_when_fork_and_setsid_present(self):
+        self.assertIsNone(MOD._require_posix_detach())
+
+    def test_blocks_before_jobs_root_base_when_fork_setsid_missing(self):
+        # Regression (#1186 review): on native Windows, os.fork/os.setsid are
+        # ALSO missing alongside os.geteuid/os.getuid, so cmd_start must reject
+        # via _require_posix_detach() before ever calling jobs_root_base() --
+        # otherwise jobs_root_base()'s unrelated "effective user ID is
+        # unavailable" error fires first and the clearer WSL/#1184 message
+        # never shows on the default (no CE_PEER_JOBS_ROOT) invocation path.
+        real_fork, real_setsid = os.fork, os.setsid
+        del os.fork
+        del os.setsid
+        try:
+            with mock.patch.object(
+                MOD,
+                "jobs_root_base",
+                side_effect=AssertionError(
+                    "jobs_root_base must not run before the POSIX detach check"
+                ),
+            ):
+                with self.assertRaises(MOD.RunnerError) as cm:
+                    MOD.cmd_start(None, None)
+            message = str(cm.exception)
+            self.assertIn("os.fork/os.setsid", message)
+            self.assertIn("1184", message)
+        finally:
+            os.fork = real_fork
+            os.setsid = real_setsid
+
+
 class PidRunningZombie(unittest.TestCase):
     def test_zombie_leader_counts_as_not_running(self):
         # A just-exited leader is briefly a <defunct> zombie: os.kill(pid, 0)
