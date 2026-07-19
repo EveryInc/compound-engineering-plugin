@@ -1810,8 +1810,9 @@ describe("ce-work unit workspace controller", () => {
       ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U")
       const marker = path.join(tmp("ce-work-verification-marker-"), "ran")
 
-      const refused = ctl(
-        runs, "integrate", "--run-id", runId, "--unit-id", "U",
+      const refused = ctlWithEnv(
+        runs, { CE_WORK_TEST_FAULT: "directory-snapshot-before-walk" },
+        "integrate", "--run-id", runId, "--unit-id", "U",
         "--commit-message", "feat(test): verification must not run",
         "--", "python3", "-c",
         `from pathlib import Path; Path(${JSON.stringify(marker)}).write_text('ran')`,
@@ -1822,6 +1823,46 @@ describe("ce-work unit workspace controller", () => {
       const resultDir = path.join(runs, runId, "units", "U", "result")
       expect(readdirSync(resultDir).some((name) => name.startsWith("ignored-snapshot-"))).toBe(false)
     }
+  })
+
+  test("plan verification refuses oversized ignored state before directory traversal", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-plan-ignored-entry-limit"
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\n")
+    init(runs, runId, f)
+    ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    const workspace = path.join(runs, runId, "units", "U", "workspace")
+    writeFileSync(path.join(workspace, "integrated.txt"), "integrated\n")
+    const job = fakeDoneJob(runs, runId, "U", "packet")
+    ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U")
+    expect(ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U",
+      "--commit-message", "feat(test): integrate ignored limit fixture", "--", "true",
+    ).word).toBe("UNIT_COMMITTED")
+
+    const cache = path.join(f.repo, "many-ignored")
+    mkdirSync(cache)
+    for (let index = 0; index < 513; index += 1) {
+      writeFileSync(path.join(cache, `${index.toString().padStart(4, "0")}.verification-cache`), "x")
+    }
+    const marker = path.join(tmp("ce-work-verification-marker-"), "ran")
+    const refused = ctlWithEnv(
+      runs, { CE_WORK_TEST_FAULT: "directory-snapshot-before-walk" },
+      "verify-run", "--run-id", runId, "--", "python3", "-c",
+      `from pathlib import Path; Path(${JSON.stringify(marker)}).write_text('ran')`,
+    )
+    expect(refused.word).toBe("REFUSED")
+    expect(refused.stderr).toContain("ignored artifact snapshot exceeds")
+    expect(existsSync(marker)).toBe(false)
+    expect(ctl(runs, "status", "--run-id", runId).body.integration_lock).toBeNull()
   })
 
   test("failed unit verification reports and removes its new ignored artifact", () => {

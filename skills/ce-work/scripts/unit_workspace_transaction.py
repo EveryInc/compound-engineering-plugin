@@ -73,6 +73,7 @@ def _directory_snapshot(repo: str) -> dict[str, int]:
     """Snapshot repository directory paths and modes without traversing Git metadata."""
     repo = os.path.abspath(repo)
     directories: dict[str, int] = {}
+    test_fault("directory-snapshot-before-walk")
 
     def fail(error: OSError) -> None:
         raise Operational("BLOCKED", f"could not inspect repository directories: {error}")
@@ -493,14 +494,15 @@ def _verify_run_locked(
     before = semantic_snapshot(repo)
     before_paths = status_paths(repo)
     before_ignored = _ignored_paths(repo)
-    before_directory_snapshot = _directory_snapshot(repo)
-    before_directories = set(before_directory_snapshot)
     if not before["status_empty"] or before_paths:
         raise Operational("BLOCKED", "verify-run requires a clean canonical checkout")
     _validate_accepted_run_head(repo, units, before["head"])
     accepted_units = accepted_unit_commit_snapshot(units)
     if accepted_units is None:
         raise Operational("BLOCKED", "unit completion evidence changed before plan-wide verification")
+    _preflight_ignored_artifacts(repo, before_ignored)
+    before_directory_snapshot = _directory_snapshot(repo)
+    before_directories = set(before_directory_snapshot)
     ignored_snapshot = _snapshot_ignored_artifacts(
         repo,
         before_ignored,
@@ -755,6 +757,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
         before = semantic_snapshot(repo)
         before_paths = status_paths(repo)
         before_ignored = _ignored_paths(repo)
+        _preflight_ignored_artifacts(repo, before_ignored)
         before_directories = _directory_paths(repo)
         ignored_snapshot = _snapshot_ignored_artifacts(
             repo,
