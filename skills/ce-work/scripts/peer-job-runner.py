@@ -702,7 +702,23 @@ def sweep_stale_runs(skill_dir: str, keep: str) -> None:
         shutil.rmtree(entry.path, ignore_errors=True)
 
 
+def _require_posix_detach() -> None:
+    """Detached peer jobs need os.fork/os.setsid (POSIX). Checked first, before
+    jobs_root_base()/geteuid, so native Windows fails with this clear message
+    instead of jobs_root_base()'s unrelated "effective user ID is unavailable"
+    error (both are missing there) or an AttributeError mid-detach (#1184)."""
+    if not hasattr(os, "fork") or not hasattr(os, "setsid"):
+        # Native Windows (and some embedded Pythons) lack POSIX process APIs.
+        raise RunnerError(
+            "detached peer jobs require os.fork/os.setsid (POSIX); no job was "
+            "started. On native Windows, run Claude Code / this skill under WSL, "
+            "or wait for a Windows-native detach path (see "
+            "EveryInc/compound-engineering-plugin#1184)."
+        )
+
+
 def cmd_start(args, worker_argv) -> int:
+    _require_posix_detach()
     for flag, value in (("--skill", args.skill), ("--run-id", args.run_id)):
         if not _is_safe_token(value):
             raise RunnerError(f"{flag} must match [A-Za-z0-9._-]+ and not be all dots (got {value!r})")
