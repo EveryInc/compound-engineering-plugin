@@ -613,6 +613,15 @@ def detach_supervisor(job_dir: str, argv, result_path, conf: dict) -> bool:
     """setsid double-fork. The grandchild (new session, stdio on /dev/null,
     reparented to init) runs the supervisor; the parent returns once the
     supervisor acks that the pid file exists."""
+    if not hasattr(os, "fork") or not hasattr(os, "setsid"):
+        # Native Windows (and some embedded Pythons) lack POSIX process APIs.
+        # Fail with a clear message instead of AttributeError mid-detach (#1184).
+        raise RunnerError(
+            "detached peer jobs require os.fork/os.setsid (POSIX). "
+            "On native Windows, run Claude Code / this skill under WSL, or wait "
+            "for a Windows-native detach path (see EveryInc/compound-engineering-plugin#1184). "
+            f"Job left never-started at {job_dir}"
+        )
     sys.stdout.flush()
     sys.stderr.flush()
     read_fd, write_fd = os.pipe()
