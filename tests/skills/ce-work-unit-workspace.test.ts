@@ -2512,6 +2512,86 @@ describe("ce-work unit workspace controller", () => {
     ).body.unit.attempts[0].fallback.claimed).toBeNull()
   })
 
+  test("does not complete native fallback from an old base that omits an accepted dependency", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-fallback-ancestry", f)
+    ctl(
+      runs, "prepare", "--run-id", "run-fallback-ancestry", "--unit-id", "U1",
+      "--base", f.base, "--packet", packetFile("dependency packet"),
+    )
+    ctl(
+      runs, "prepare", "--run-id", "run-fallback-ancestry", "--unit-id", "U2",
+      "--base", f.base, "--packet", packetFile("dependent packet"), "--dependency", "U1",
+    )
+
+    for (const unitId of ["U1", "U2"]) {
+      const job = fakeRunningJob(
+        runs, "run-fallback-ancestry", unitId, `${unitId === "U1" ? "dependency" : "dependent"} packet`,
+        `job-${unitId}`,
+      )
+      ctl(
+        runs, "record-job", "--run-id", "run-fallback-ancestry", "--unit-id", unitId,
+        "--attempt-id", "attempt-1", "--job-id", job,
+      )
+      terminalizeFakeJob(runs, "run-fallback-ancestry", job, "failed")
+    }
+    ctl(runs, "resume", "--run-id", "run-fallback-ancestry")
+
+    expect(ctl(
+      runs, "claim-fallback", "--run-id", "run-fallback-ancestry", "--unit-id", "U1",
+      "--caller-mode", "headless",
+    ).word).toBe("FALLBACK_AUTHORIZED")
+    writeFileSync(path.join(f.repo, "dependency.txt"), "accepted dependency\n")
+    git(f.repo, "add", "dependency.txt")
+    git(f.repo, "commit", "-m", "accepted dependency")
+    const dependencyHead = git(f.repo, "rev-parse", "HEAD")
+    expect(ctl(
+      runs, "complete-fallback", "--run-id", "run-fallback-ancestry", "--unit-id", "U1",
+      "--accepted-head", dependencyHead, "--evidence-digest", "c".repeat(64),
+      "--summary", "dependency checks passed",
+    ).word).toBe("FALLBACK_COMPLETED")
+
+    git(f.repo, "reset", "--hard", f.base)
+    const authorized = ctl(
+      runs, "claim-fallback", "--run-id", "run-fallback-ancestry", "--unit-id", "U2",
+      "--caller-mode", "headless",
+    )
+    expect(authorized.word).toBe("FALLBACK_AUTHORIZED")
+    writeFileSync(path.join(f.repo, "dependent.txt"), "old-base native implementation\n")
+    git(f.repo, "add", "dependent.txt")
+    git(f.repo, "commit", "-m", "old-base native implementation")
+    const oldBaseHead = git(f.repo, "rev-parse", "HEAD")
+
+    const blocked = ctl(
+      runs, "complete-fallback", "--run-id", "run-fallback-ancestry", "--unit-id", "U2",
+      "--accepted-head", oldBaseHead, "--evidence-digest", "d".repeat(64),
+      "--summary", "dependent checks passed",
+    )
+    expect(blocked.word).toBe("BLOCKED")
+    expect(blocked.stderr).toContain("does not contain every controller-accepted prerequisite")
+    expect(blocked.body.missing_ancestry).toContainEqual({
+      kind: "dependency", unit_id: "U1", commit: dependencyHead,
+    })
+    const afterBlocked = ctl(
+      runs, "status", "--run-id", "run-fallback-ancestry", "--unit-id", "U2",
+    ).body.unit
+    expect(afterBlocked.state).toBe("authoring")
+    expect(afterBlocked.attempts[0].fallback.claimed).toEqual(authorized.body.claim)
+    expect(afterBlocked.attempts[0].fallback.completed).toBeNull()
+
+    git(f.repo, "reset", "--hard", dependencyHead)
+    writeFileSync(path.join(f.repo, "dependent.txt"), "descendant native implementation\n")
+    git(f.repo, "add", "dependent.txt")
+    git(f.repo, "commit", "-m", "descendant native implementation")
+    const descendantHead = git(f.repo, "rev-parse", "HEAD")
+    expect(ctl(
+      runs, "complete-fallback", "--run-id", "run-fallback-ancestry", "--unit-id", "U2",
+      "--accepted-head", descendantHead, "--evidence-digest", "d".repeat(64),
+      "--summary", "dependent checks passed",
+    ).word).toBe("FALLBACK_COMPLETED")
+  })
+
   test("accepts a native-completed dependency before a later fallback claim", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")

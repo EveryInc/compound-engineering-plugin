@@ -600,6 +600,41 @@ def cmd_claim_fallback(args) -> tuple[str, dict]:
         return "FALLBACK_AUTHORIZED", {"unit_id": args.unit_id, "start_native": True, "reason": reason, "claim": claim}
 
 
+def validate_fallback_ancestry(doc: dict, unit: dict, accepted_head: str) -> None:
+    required: list[dict] = []
+    for dependency_id in unit.get("dependencies", []):
+        dependency = doc.get("units", {}).get(dependency_id)
+        accepted_commit = unit_accepted_commit(dependency) if isinstance(dependency, dict) else None
+        if accepted_commit is None:
+            raise Operational(
+                "BLOCKED",
+                "unit dependency completion evidence changed before native fallback completion",
+                {"unit_id": unit["unit_id"], "dependency_id": dependency_id},
+            )
+        required.append({"kind": "dependency", "unit_id": dependency_id, "commit": accepted_commit})
+
+    wave = unit.get("wave", {})
+    if wave.get("id"):
+        wave_members(doc, unit)
+        base = wave.get("base")
+        for head in wave.get("allowed_heads", []):
+            if head != base:
+                required.append({"kind": "wave-head", "commit": head})
+
+    missing = [
+        item for item in required
+        if git_text(
+            doc["repository"]["toplevel"], "merge-base", item["commit"], accepted_head, check=False,
+        ) != item["commit"]
+    ]
+    if missing:
+        raise Operational(
+            "BLOCKED",
+            "accepted native fallback head does not contain every controller-accepted prerequisite",
+            {"unit_id": unit["unit_id"], "accepted_head": accepted_head, "missing_ancestry": missing},
+        )
+
+
 def cmd_complete_fallback(args) -> tuple[str, dict]:
     if not re.fullmatch(r"[0-9a-f]{64}", args.evidence_digest):
         raise Operational("REFUSED", "native fallback evidence digest must be lowercase SHA-256 hex")
@@ -643,6 +678,7 @@ def cmd_complete_fallback(args) -> tuple[str, dict]:
         base = unit.get("workspace", {}).get("base")
         if not isinstance(base, str) or git_text(repo, "merge-base", base, args.accepted_head, check=False) != base:
             raise Operational("BLOCKED", "accepted native fallback head does not descend from the recorded unit base")
+        validate_fallback_ancestry(doc, unit, args.accepted_head)
 
         receipt = {
             "at": now_iso(),
