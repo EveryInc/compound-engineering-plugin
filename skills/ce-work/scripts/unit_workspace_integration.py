@@ -327,6 +327,33 @@ def dependency_advanced_head(doc: dict, unit: dict, head: str) -> bool:
     )
 
 
+def validate_preflight_ancestry(doc: dict, unit: dict, heads: set[str]) -> None:
+    required = {
+        commit
+        for unit_id, candidate in doc.get("units", {}).items()
+        if unit_id != unit["unit_id"]
+        and (commit := unit_accepted_commit(candidate)) is not None
+    }
+    wave = unit.get("wave", {})
+    required.update(head for head in wave.get("allowed_heads", []) if head != wave.get("base"))
+
+    repo = doc["repository"]["toplevel"]
+    missing = {
+        head: sorted(
+            commit for commit in required
+            if git_text(repo, "merge-base", commit, head, check=False) != commit
+        )
+        for head in sorted(heads)
+    }
+    missing = {head: commits for head, commits in missing.items() if commits}
+    if missing:
+        raise Operational(
+            "BLOCKED",
+            "preflight HEAD omits controller-accepted prerequisite commits",
+            {"unit_id": unit["unit_id"], "missing_ancestry": missing},
+        )
+
+
 def cmd_preflight(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id) as doc:
         info = validate_repo(doc)
@@ -348,12 +375,14 @@ def cmd_preflight(args) -> tuple[str, dict]:
             )
         validate_wave_ready(doc, unit)
         allowed = set(unit["wave"].get("allowed_heads", []))
+        requested: set[str] = set()
         if args.allowed_head:
             requested = {git_text(info["toplevel"], "rev-parse", f"{h}^{{commit}}") for h in args.allowed_head}
             if any(head not in allowed and not dependency_advanced_head(doc, unit, head) for head in requested):
                 raise Operational("BLOCKED", "unrecorded same-wave HEAD allowance")
         if info["head"] not in allowed and not dependency_advanced_head(doc, unit, info["head"]):
             raise Operational("BLOCKED", "canonical HEAD advanced outside the recorded wave")
+        validate_preflight_ancestry(doc, unit, requested | {info["head"]})
         snap = semantic_snapshot(info["toplevel"])
         if not snap["status_empty"] or snap["index_tree"] != snap["head_tree"]:
             raise Operational("BLOCKED", "canonical checkout is not clean at preflight")

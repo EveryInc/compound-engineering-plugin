@@ -96,24 +96,25 @@ function writeStub(body: string): string {
   return p
 }
 
-function jobDirOf(root: string, id: string, runId = "run1"): string {
-  return path.join(root, "ce-doc-review", runId, "jobs", id)
+function jobDirOf(root: string, id: string, runId = "run1", skill = "ce-doc-review"): string {
+  return path.join(root, skill, runId, "jobs", id)
 }
 
 function startJob(
   root: string,
   env: Record<string, string>,
   worker: string[],
-  opts: { runId?: string; resultPath?: string; extra?: string[] } = {},
+  opts: { runId?: string; resultPath?: string; extra?: string[]; skill?: string } = {},
 ): { id: string; dir: string; res: RunResult } {
   const runId = opts.runId ?? "run1"
-  const args = ["start", "--skill", "ce-doc-review", "--run-id", runId]
+  const skill = opts.skill ?? "ce-doc-review"
+  const args = ["start", "--skill", skill, "--run-id", runId]
   if (opts.resultPath) args.push("--result-path", opts.resultPath)
   if (opts.extra) args.push(...opts.extra)
   args.push("--", ...worker)
   const res = runner(root, env, args)
   const id = res.stdout.trim()
-  return { id, dir: jobDirOf(root, id, runId), res }
+  return { id, dir: jobDirOf(root, id, runId, skill), res }
 }
 
 /** Record the job's supervisor+worker pids for the no-orphans teardown. */
@@ -304,11 +305,19 @@ describe("peer-job-runner lifecycle", () => {
     expect(pidAlive(pids!.worker_pid)).toBe(false)
   }, 25000)
 
-  test("idle 0 disables only idle supervision; hard cap remains authoritative", () => {
+  test("ce-work idle 0 disables only idle supervision; hard cap remains authoritative", () => {
     const root = makeRoot()
-    const env = { ...FAST, CE_PEER_IDLE_SECS: "0", CE_PEER_HARD_SECS: "2" }
+    const env = {
+      ...FAST,
+      CE_WORK_RUNS_ROOT: path.join(root, "ce-work"),
+      CE_PEER_IDLE_SECS: "0",
+      CE_PEER_HARD_SECS: "2",
+    }
     const stub = writeStub(`echo once\nsleep 60\nexit 0\n`)
-    const { id, dir } = startJob(root, env, [stub], { extra: ["--no-sweep"] })
+    const { id, dir } = startJob(root, env, [stub], {
+      extra: ["--no-sweep"],
+      skill: "ce-work",
+    })
     trackJob(dir)
     const meta = JSON.parse(readFileSync(path.join(dir, "meta.json"), "utf8"))
     expect(meta.supervision.idle).toBeNull()
@@ -321,6 +330,21 @@ describe("peer-job-runner lifecycle", () => {
     expect(reason).toContain("hard cap")
     expect(reason).not.toContain("idle window")
   }, 20000)
+
+  test("non-ce-work idle 0 retains the default idle supervision", () => {
+    const root = makeRoot()
+    const env = { ...FAST, CE_PEER_IDLE_SECS: "0", CE_PEER_HARD_SECS: "60" }
+    const stub = writeStub(`echo once\nsleep 60\nexit 0\n`)
+    const { id, dir } = startJob(root, env, [stub])
+    trackJob(dir)
+    const meta = JSON.parse(readFileSync(path.join(dir, "meta.json"), "utf8"))
+    expect(meta.skill).toBe("ce-doc-review")
+    expect(meta.supervision.idle).toBe(240)
+    expect(runner(root, env, ["reap", id]).code).toBe(0)
+    expect(["timeout", "died-without-result"]).toContain(
+      waitState(root, env, id, 10).stdout.trim(),
+    )
+  }, 15000)
 
   test("reap margin race: supervisor record wins over a racing clean exit", () => {
     const root = makeRoot()

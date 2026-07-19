@@ -173,9 +173,9 @@ def _env_num(name: str, default: float, conv, *, allow_zero: bool = False):
     return val if val > 0 else default
 
 
-def cfg() -> dict:
+def cfg(skill=None) -> dict:
     return {
-        "idle": _env_num("CE_PEER_IDLE_SECS", 240.0, float, allow_zero=True),
+        "idle": _env_num("CE_PEER_IDLE_SECS", 240.0, float, allow_zero=skill == "ce-work"),
         "hard": _env_num("CE_PEER_HARD_SECS", 630.0, float),
         "log_max": int(_env_num("CE_PEER_LOG_MAX_BYTES", 10 * 1024 * 1024, int)),
         "result_max": int(_env_num("CE_PEER_RESULT_MAX_BYTES", 5 * 1024 * 1024, int)),
@@ -753,7 +753,7 @@ def cmd_start(args, worker_argv) -> int:
             resolved = argv0
     argv = [resolved] + list(worker_argv[1:])
 
-    conf = cfg()
+    conf = cfg(args.skill)
     meta = {
         "job_id": job_id,
         "skill": args.skill,

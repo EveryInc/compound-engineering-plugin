@@ -1585,6 +1585,28 @@ describe("ce-work unit workspace controller", () => {
     )
     expect(second.word).toBe("UNIT_COMMITTED")
 
+    git(f.repo, "reset", "--hard", f.base)
+    const staleLock = ctl(runs, "integration-acquire", "--run-id", runId, "--unit-id", "U3")
+    const stale = ctl(
+      runs, "preflight", "--run-id", runId, "--unit-id", "U3",
+      "--lock-token", staleLock.body.lock_token,
+    )
+    expect(stale.word).toBe("BLOCKED")
+    expect(stale.body).toMatchObject({
+      unit_id: "U3",
+      missing_ancestry: {
+        [f.base]: expect.arrayContaining([
+          first.body.canonical_commit,
+          second.body.canonical_commit,
+        ]),
+      },
+    })
+    expect(ctl(
+      runs, "integration-release", "--run-id", runId, "--unit-id", "U3",
+      "--lock-token", staleLock.body.lock_token,
+    ).word).toBe("RELEASED")
+
+    git(f.repo, "reset", "--hard", second.body.canonical_commit)
     writeFileSync(path.join(f.repo, "unrelated.txt"), "unrelated canonical advance\n")
     git(f.repo, "add", "unrelated.txt")
     git(f.repo, "commit", "-m", "unrelated canonical advance")
@@ -1700,8 +1722,10 @@ describe("ce-work unit workspace controller", () => {
   test("unit and plan-wide verification restore existing ignored artifacts and clean new ones", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
-    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\n")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\nlocal-cache/\n")
     writeFileSync(path.join(f.repo, "existing.verification-cache"), "preserve me\n")
+    const ignoredDirectory = path.join(f.repo, "local-cache")
+    mkdirSync(ignoredDirectory, { mode: 0o750 })
     mkdirSync(path.join(f.repo, "pre-existing-empty"))
     init(runs, "run-ignored-verification", f)
     ctl(
@@ -1721,11 +1745,12 @@ describe("ce-work unit workspace controller", () => {
       runs, "integrate", "--run-id", "run-ignored-verification", "--unit-id", "U",
       "--commit-message", "feat(test): integrate ignored verification fixture",
       "--", "python3", "-c",
-      "from pathlib import Path; Path('existing.verification-cache').write_text('mutated'); Path('unit-empty/sub').mkdir(parents=True); p = Path('unit-build/sub/unit.verification-cache'); p.parent.mkdir(parents=True); p.write_text('unit')",
+      "from pathlib import Path; Path('existing.verification-cache').write_text('mutated'); Path('local-cache').chmod(0o700); Path('unit-empty/sub').mkdir(parents=True); p = Path('unit-build/sub/unit.verification-cache'); p.parent.mkdir(parents=True); p.write_text('unit')",
     )
     expect(integrated.word).toBe("UNIT_COMMITTED")
     expect(integrated.body.cleaned_paths).toEqual([
       "existing.verification-cache",
+      "local-cache",
       "unit-build",
       "unit-build/sub",
       "unit-build/sub/unit.verification-cache",
@@ -1735,6 +1760,7 @@ describe("ce-work unit workspace controller", () => {
     expect(existsSync(path.join(f.repo, "unit-build"))).toBe(false)
     expect(existsSync(path.join(f.repo, "unit-empty"))).toBe(false)
     expect(existsSync(path.join(f.repo, "pre-existing-empty"))).toBe(true)
+    expect(statSync(ignoredDirectory).mode & 0o777).toBe(0o750)
     expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
 
     const verified = ctl(
@@ -1932,8 +1958,10 @@ describe("ce-work unit workspace controller", () => {
   test("failed unit verification reports and removes its new ignored artifact", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
-    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\n")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\nlocal-cache/\n")
     writeFileSync(path.join(f.repo, "existing.verification-cache"), "preserve me\n")
+    const ignoredDirectory = path.join(f.repo, "local-cache")
+    mkdirSync(ignoredDirectory, { mode: 0o750 })
     init(runs, "run-ignored-verification-failure", f)
     ctl(
       runs, "prepare", "--run-id", "run-ignored-verification-failure", "--unit-id", "U",
@@ -1952,18 +1980,62 @@ describe("ce-work unit workspace controller", () => {
       runs, "integrate", "--run-id", "run-ignored-verification-failure", "--unit-id", "U",
       "--commit-message", "feat(test): integration must not commit",
       "--", "python3", "-c",
-      "from pathlib import Path; Path('existing.verification-cache').write_text('mutated'); Path('failed.verification-cache').write_text('failed'); raise SystemExit(7)",
+      "from pathlib import Path; Path('existing.verification-cache').write_text('mutated'); Path('failed.verification-cache').write_text('failed'); Path('local-cache').chmod(0o700); raise SystemExit(7)",
     )
     expect(failed.word).toBe("BLOCKED")
     expect(failed.body).toMatchObject({
       verification_exit: 7,
       canonical_state_changed: false,
-      cleaned_paths: ["existing.verification-cache", "failed.verification-cache"],
+      cleaned_paths: ["existing.verification-cache", "failed.verification-cache", "local-cache"],
     })
     expect(existsSync(path.join(f.repo, "failed.verification-cache"))).toBe(false)
+    expect(statSync(ignoredDirectory).mode & 0o777).toBe(0o750)
     expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
     expect(git(f.repo, "rev-parse", "HEAD")).toBe(f.base)
     expect(git(f.repo, "status", "--porcelain")).toBe("")
+  })
+
+  test("unit verification retains the lock when directory restoration cannot be proven", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const ignoredDirectory = path.join(f.repo, "local-cache")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "local-cache/\n")
+    mkdirSync(ignoredDirectory, { mode: 0o750 })
+    init(runs, "run-directory-restore-blocked", f)
+    ctl(
+      runs, "prepare", "--run-id", "run-directory-restore-blocked", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    const workspace = path.join(runs, "run-directory-restore-blocked", "units", "U", "workspace")
+    writeFileSync(path.join(workspace, "integrated.txt"), "integrated\n")
+    const job = fakeDoneJob(runs, "run-directory-restore-blocked", "U", "packet")
+    ctl(
+      runs, "record-job", "--run-id", "run-directory-restore-blocked", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    ctl(runs, "terminalize", "--run-id", "run-directory-restore-blocked", "--unit-id", "U")
+
+    const blocked = ctl(
+      runs, "integrate", "--run-id", "run-directory-restore-blocked", "--unit-id", "U",
+      "--commit-message", "feat(test): integration must fail closed",
+      "--", "python3", "-c",
+      "import os; from pathlib import Path; os.rename('local-cache', 'moved-cache'); Path('local-cache').write_text('obstruction')",
+    )
+    expect(blocked.word).toBe("BLOCKED")
+    expect(blocked.stderr).toContain("unit verification directory restoration could not be proven")
+    expect(blocked.body).toMatchObject({
+      unit_id: "U",
+      verification_exit: 0,
+      retain_integration_lock: true,
+    })
+    expect(ctl(runs, "status", "--run-id", "run-directory-restore-blocked").body).toMatchObject({
+      integration_lock: { unit_id: "U" },
+      blockers: [expect.objectContaining({
+        unit_id: "U",
+        reason: "unit verification directory restoration could not be proven",
+        retain_integration_lock: true,
+      })],
+    })
   })
 
   test("resume releases an integration lock acquired before preflight intent", () => {

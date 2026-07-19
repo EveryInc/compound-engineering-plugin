@@ -758,7 +758,8 @@ def cmd_integrate(args) -> tuple[str, dict]:
         before_paths = status_paths(repo)
         before_ignored = _ignored_paths(repo)
         _preflight_ignored_artifacts(repo, before_ignored)
-        before_directories = _directory_paths(repo)
+        before_directory_snapshot = _directory_snapshot(repo)
+        before_directories = set(before_directory_snapshot)
         ignored_snapshot = _snapshot_ignored_artifacts(
             repo,
             before_ignored,
@@ -784,11 +785,48 @@ def cmd_integrate(args) -> tuple[str, dict]:
         after = semantic_snapshot(repo)
         after_paths = status_paths(repo)
         new_ignored = _ignored_paths(repo) - before_ignored
-        new_directories = _directory_paths(repo) - before_directories
+        after_directory_snapshot = _directory_snapshot(repo)
+        new_directories = set(after_directory_snapshot) - before_directories
+        directory_state_changed = after_directory_snapshot != before_directory_snapshot
         ignored_directories = _new_parent_directories(new_ignored, before_directories)
         _remove_owned_new_paths(repo, new_ignored | new_directories | ignored_directories, before["head"])
         restored_ignored = _restore_ignored_artifacts(repo, ignored_snapshot)
-        cleaned_paths = sorted((after_paths - before_paths) | new_ignored | new_directories | restored_ignored)
+        directory_restore_error = None
+        try:
+            restored_directories = _restore_directory_snapshot(repo, before_directory_snapshot)
+        except Operational as exc:
+            restored_directories = set()
+            directory_restore_error = str(exc)
+        cleaned_paths = sorted(
+            (after_paths - before_paths) | new_ignored | new_directories | restored_ignored | restored_directories
+        )
+        restored_directory_snapshot = _directory_snapshot(repo)
+        if restored_directory_snapshot != before_directory_snapshot or directory_restore_error:
+            detail = {
+                "unit_id": args.unit_id,
+                "verification_exit": verification_exit,
+                "verification_log": verification_log,
+                "cleaned_paths": cleaned_paths,
+                "directory_restore_error": directory_restore_error,
+                "retain_integration_lock": True,
+            }
+            with locked_manifest(args.run_id, write=True) as doc:
+                lock = doc.get("integration_lock") or {}
+                doc["blockers"].append({
+                    "at": now_iso(),
+                    "unit_id": args.unit_id,
+                    "reason": "unit verification directory restoration could not be proven",
+                    "retain_integration_lock": True,
+                    "integration_lock_nonce": lock.get("nonce"),
+                })
+                event(doc, "unit-verification-restore-blocked", args.unit_id, {
+                    "verification_exit": verification_exit,
+                })
+            raise Operational(
+                "BLOCKED",
+                "unit verification directory restoration could not be proven",
+                detail,
+            )
         log_digest = hashlib.sha256(Path(verification_log).read_bytes()).hexdigest()
         if verification_exit != 0 or after != before:
             _restore_owned_verification(args.run_id, args.unit_id, token, before, before_paths, after_paths)
@@ -811,6 +849,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
             "log_sha256": log_digest,
             "before": before,
             "after": after,
+            "directory_state_changed": directory_state_changed,
             "cleaned_paths": cleaned_paths,
         }, sort_keys=True, separators=(",", ":")).encode())
         cmd_mark_verified(_args(
@@ -874,6 +913,8 @@ def cmd_integrate(args) -> tuple[str, dict]:
                 "canonical commit accepted but post-commit finalization is incomplete",
                 detail,
             ) from original
+        if token is not None and original.detail.get("retain_integration_lock"):
+            raise
         if token is not None:
             with locked_manifest(args.run_id) as doc:
                 unit = doc["units"].get(args.unit_id)
