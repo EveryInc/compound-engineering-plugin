@@ -1547,6 +1547,70 @@ describe("ce-work unit workspace controller", () => {
     ).word).toBe("RELEASED")
   })
 
+  test("integrates an early-prepared unit after its dependency chain is accepted", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-late-dependency-heads"
+    init(runs, runId, f)
+
+    const units = [
+      { id: "U1", dependencies: [] },
+      { id: "U2", dependencies: ["U1"] },
+      { id: "U3", dependencies: ["U1", "U2"] },
+    ]
+    for (const unit of units) {
+      ctl(
+        runs, "prepare", "--run-id", runId, "--unit-id", unit.id,
+        "--base", f.base, "--packet", packetFile(`packet-${unit.id}`),
+        ...unit.dependencies.flatMap((dependency) => ["--dependency", dependency]),
+      )
+      const workspace = path.join(runs, runId, "units", unit.id, "workspace")
+      writeFileSync(path.join(workspace, `${unit.id}.txt`), `${unit.id}\n`)
+      const job = fakeDoneJob(runs, runId, unit.id, `packet-${unit.id}`, `job-${unit.id}`)
+      ctl(
+        runs, "record-job", "--run-id", runId, "--unit-id", unit.id,
+        "--attempt-id", "attempt-1", "--job-id", job,
+      )
+      expect(ctl(runs, "terminalize", "--run-id", runId, "--unit-id", unit.id).word).toBe("INTEGRATION_PENDING")
+    }
+
+    const first = ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U1",
+      "--commit-message", "test: integrate first dependency", "--", "true",
+    )
+    expect(first.word).toBe("UNIT_COMMITTED")
+    const second = ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U2",
+      "--commit-message", "test: integrate second dependency", "--", "true",
+    )
+    expect(second.word).toBe("UNIT_COMMITTED")
+
+    writeFileSync(path.join(f.repo, "unrelated.txt"), "unrelated canonical advance\n")
+    git(f.repo, "add", "unrelated.txt")
+    git(f.repo, "commit", "-m", "unrelated canonical advance")
+    const lock = ctl(runs, "integration-acquire", "--run-id", runId, "--unit-id", "U3")
+    const blocked = ctl(
+      runs, "preflight", "--run-id", runId, "--unit-id", "U3",
+      "--lock-token", lock.body.lock_token,
+    )
+    expect(blocked.word).toBe("BLOCKED")
+    expect(blocked.stderr).toContain("canonical HEAD advanced outside the recorded wave")
+    expect(ctl(
+      runs, "integration-release", "--run-id", runId, "--unit-id", "U3",
+      "--lock-token", lock.body.lock_token,
+    ).word).toBe("RELEASED")
+
+    git(f.repo, "reset", "--hard", second.body.canonical_commit)
+    const dependent = ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U3",
+      "--commit-message", "test: integrate dependent unit", "--", "true",
+    )
+    expect(dependent.word).toBe("UNIT_COMMITTED")
+    expect(readFileSync(path.join(f.repo, "U1.txt"), "utf8")).toBe("U1\n")
+    expect(readFileSync(path.join(f.repo, "U2.txt"), "utf8")).toBe("U2\n")
+    expect(readFileSync(path.join(f.repo, "U3.txt"), "utf8")).toBe("U3\n")
+  })
+
   test("fold-in is host-owned, lock-serialized, restorable, and cleanup is explicit", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
@@ -3103,18 +3167,22 @@ describe("ce-work unit workspace controller", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
     init(runs, "run-native-dependency", f)
-    ctl(
-      runs, "prepare", "--run-id", "run-native-dependency", "--unit-id", "U1",
-      "--base", f.base, "--packet", packetFile("native dependency packet"),
-    )
-    const dependencyJob = fakeRunningJob(
-      runs, "run-native-dependency", "U1", "native dependency packet", "job-native-dependency",
-    )
-    ctl(
-      runs, "record-job", "--run-id", "run-native-dependency", "--unit-id", "U1",
-      "--attempt-id", "attempt-1", "--job-id", dependencyJob,
-    )
-    terminalizeFakeJob(runs, "run-native-dependency", dependencyJob, "failed")
+    for (const unit of [
+      { id: "U1", packet: "native dependency packet", job: "job-native-dependency", dependencies: [] },
+      { id: "U2", packet: "dependent packet", job: "job-native-dependent", dependencies: ["U1"] },
+    ]) {
+      ctl(
+        runs, "prepare", "--run-id", "run-native-dependency", "--unit-id", unit.id,
+        "--base", f.base, "--packet", packetFile(unit.packet),
+        ...unit.dependencies.flatMap((dependency) => ["--dependency", dependency]),
+      )
+      const job = fakeRunningJob(runs, "run-native-dependency", unit.id, unit.packet, unit.job)
+      ctl(
+        runs, "record-job", "--run-id", "run-native-dependency", "--unit-id", unit.id,
+        "--attempt-id", "attempt-1", "--job-id", job,
+      )
+      terminalizeFakeJob(runs, "run-native-dependency", job, "failed")
+    }
     ctl(runs, "resume", "--run-id", "run-native-dependency")
     expect(ctl(
       runs, "claim-fallback", "--run-id", "run-native-dependency", "--unit-id", "U1",
@@ -3130,19 +3198,6 @@ describe("ce-work unit workspace controller", () => {
       "--summary", "native dependency checks passed",
     ).word).toBe("FALLBACK_COMPLETED")
 
-    ctl(
-      runs, "prepare", "--run-id", "run-native-dependency", "--unit-id", "U2",
-      "--base", nativeHead, "--packet", packetFile("dependent packet"), "--dependency", "U1",
-    )
-    const dependentJob = fakeRunningJob(
-      runs, "run-native-dependency", "U2", "dependent packet", "job-native-dependent",
-    )
-    ctl(
-      runs, "record-job", "--run-id", "run-native-dependency", "--unit-id", "U2",
-      "--attempt-id", "attempt-1", "--job-id", dependentJob,
-    )
-    terminalizeFakeJob(runs, "run-native-dependency", dependentJob, "failed")
-    ctl(runs, "resume", "--run-id", "run-native-dependency")
     expect(ctl(
       runs, "claim-fallback", "--run-id", "run-native-dependency", "--unit-id", "U2",
       "--caller-mode", "headless",

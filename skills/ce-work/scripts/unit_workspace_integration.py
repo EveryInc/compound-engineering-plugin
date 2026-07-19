@@ -302,6 +302,31 @@ def validate_dependencies_ready(doc: dict, unit: dict) -> None:
         )
 
 
+def dependency_advanced_head(doc: dict, unit: dict, head: str) -> bool:
+    dependency_commits = [
+        unit_accepted_commit(doc["units"][dependency_id])
+        for dependency_id in unit.get("dependencies", [])
+    ]
+    if not dependency_commits or any(commit is None for commit in dependency_commits):
+        return False
+    accepted_heads = {
+        commit
+        for candidate in doc.get("units", {}).values()
+        if (commit := unit_accepted_commit(candidate)) is not None
+    }
+    if head not in accepted_heads:
+        return False
+    allowed_heads = unit.get("wave", {}).get("allowed_heads", [])
+    required_ancestors = [*dependency_commits]
+    if allowed_heads:
+        required_ancestors.append(allowed_heads[-1])
+    repo = doc["repository"]["toplevel"]
+    return all(
+        git_text(repo, "merge-base", commit, head, check=False) == commit
+        for commit in required_ancestors
+    )
+
+
 def cmd_preflight(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id) as doc:
         info = validate_repo(doc)
@@ -325,9 +350,9 @@ def cmd_preflight(args) -> tuple[str, dict]:
         allowed = set(unit["wave"].get("allowed_heads", []))
         if args.allowed_head:
             requested = {git_text(info["toplevel"], "rev-parse", f"{h}^{{commit}}") for h in args.allowed_head}
-            if not requested.issubset(allowed):
+            if any(head not in allowed and not dependency_advanced_head(doc, unit, head) for head in requested):
                 raise Operational("BLOCKED", "unrecorded same-wave HEAD allowance")
-        if info["head"] not in allowed:
+        if info["head"] not in allowed and not dependency_advanced_head(doc, unit, info["head"]):
             raise Operational("BLOCKED", "canonical HEAD advanced outside the recorded wave")
         snap = semantic_snapshot(info["toplevel"])
         if not snap["status_empty"] or snap["index_tree"] != snap["head_tree"]:

@@ -540,13 +540,19 @@ def fallback_basis(doc: dict, unit: dict) -> tuple[str, dict]:
         validate_terminal_validation_failure(doc["run_id"], unit, attempt)
         snap = semantic_snapshot(doc["repository"]["toplevel"])
         allowed_heads = set(unit.get("wave", {}).get("allowed_heads", []))
-        if snap["head"] not in allowed_heads or not snap["status_empty"] or snap["index_tree"] != snap["head_tree"]:
+        if (
+            snap["head"] not in allowed_heads
+            and not dependency_advanced_head(doc, unit, snap["head"])
+        ) or not snap["status_empty"] or snap["index_tree"] != snap["head_tree"]:
             raise Operational("BLOCKED", "canonical checkout diverged or is dirty; native fallback is not safe")
         return "terminal-validation-failure", attempt
     if process_state in TERMINAL_PROCESS - {"done"} or (process_state == "never-started" and attempt.get("job_id")):
         snap = semantic_snapshot(doc["repository"]["toplevel"])
         allowed_heads = set(unit.get("wave", {}).get("allowed_heads", []))
-        if snap["head"] not in allowed_heads or not snap["status_empty"] or snap["index_tree"] != snap["head_tree"]:
+        if (
+            snap["head"] not in allowed_heads
+            and not dependency_advanced_head(doc, unit, snap["head"])
+        ) or not snap["status_empty"] or snap["index_tree"] != snap["head_tree"]:
             raise Operational("BLOCKED", "canonical checkout diverged or is dirty; native fallback is not safe")
         recorded = attempt.get("terminal_receipt")
         if process_state == "failed" and isinstance(recorded, dict) and recorded.get("terminal_status") in {"unavailable", "failed"}:
@@ -612,7 +618,10 @@ def cmd_claim_fallback(args) -> tuple[str, dict]:
         if wave.get("id"):
             validate_wave_order(doc, unit)
             allowed_heads = wave.get("allowed_heads", [])
-            if not allowed_heads or claim_snapshot["head"] != allowed_heads[-1]:
+            if not allowed_heads or (
+                claim_snapshot["head"] != allowed_heads[-1]
+                and not dependency_advanced_head(doc, unit, claim_snapshot["head"])
+            ):
                 raise Operational("BLOCKED", "native fallback must start from the latest recorded wave head")
         mode = doc.get("binding", {}).get("mode")
         if mode == "require":
