@@ -801,7 +801,14 @@ def cmd_integrate(args) -> tuple[str, dict]:
             (after_paths - before_paths) | new_ignored | new_directories | restored_ignored | restored_directories
         )
         restored_directory_snapshot = _directory_snapshot(repo)
-        if restored_directory_snapshot != before_directory_snapshot or directory_restore_error:
+        directory_restoration_unproven = (
+            restored_directory_snapshot != before_directory_snapshot or directory_restore_error
+        )
+        log_digest = hashlib.sha256(Path(verification_log).read_bytes()).hexdigest()
+        verification_failed = verification_exit != 0 or after != before
+        if verification_failed:
+            _restore_owned_verification(args.run_id, args.unit_id, token, before, before_paths, after_paths)
+        if directory_restoration_unproven:
             detail = {
                 "unit_id": args.unit_id,
                 "verification_exit": verification_exit,
@@ -827,9 +834,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
                 "unit verification directory restoration could not be proven",
                 detail,
             )
-        log_digest = hashlib.sha256(Path(verification_log).read_bytes()).hexdigest()
-        if verification_exit != 0 or after != before:
-            _restore_owned_verification(args.run_id, args.unit_id, token, before, before_paths, after_paths)
+        if verification_failed:
             cmd_integration_release(_args(run_id=args.run_id, unit_id=args.unit_id, lock_token=token))
             token = None
             raise Operational(

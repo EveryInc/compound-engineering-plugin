@@ -2019,17 +2019,23 @@ describe("ce-work unit workspace controller", () => {
       runs, "integrate", "--run-id", "run-directory-restore-blocked", "--unit-id", "U",
       "--commit-message", "feat(test): integration must fail closed",
       "--", "python3", "-c",
-      "import os; from pathlib import Path; os.rename('local-cache', 'moved-cache'); Path('local-cache').write_text('obstruction')",
+      "import os; from pathlib import Path; os.rename('local-cache', 'moved-cache'); Path('local-cache').write_text('obstruction'); raise SystemExit(7)",
     )
     expect(blocked.word).toBe("BLOCKED")
     expect(blocked.stderr).toContain("unit verification directory restoration could not be proven")
     expect(blocked.body).toMatchObject({
       unit_id: "U",
-      verification_exit: 0,
+      verification_exit: 7,
+      cleaned_paths: ["local-cache", "moved-cache"],
+      directory_restore_error: "pre-verification directory is obstructed: local-cache",
       retain_integration_lock: true,
     })
+    expect(git(f.repo, "rev-parse", "HEAD")).toBe(f.base)
+    expect(existsSync(path.join(f.repo, "integrated.txt"))).toBe(false)
+    expect(existsSync(ignoredDirectory)).toBe(false)
     expect(ctl(runs, "status", "--run-id", "run-directory-restore-blocked").body).toMatchObject({
       integration_lock: { unit_id: "U" },
+      units: { U: { state: "preserved" } },
       blockers: [expect.objectContaining({
         unit_id: "U",
         reason: "unit verification directory restoration could not be proven",
