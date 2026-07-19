@@ -1014,7 +1014,26 @@ describe("ce-work unit workspace controller", () => {
     const status = ctl(runs, "status", "--run-id", "run-ignored-worker", "--unit-id", "U").body.unit
     expect(status.state).toBe("authored")
     expect(status.transport.commit).toBeNull()
+    expect(status.attempts[0].terminal_validation_failure).toMatchObject({
+      word: "BLOCKED",
+      reason: expect.stringContaining("ignored untracked output"),
+      job_id: job,
+    })
+    expect(status.attempts[0].fallback).toMatchObject({
+      eligible: true,
+      reason: "terminal-validation-failure",
+      claimed: null,
+    })
     expect(existsSync(path.join(workspace, "ignored-output", "fixture.txt"))).toBe(true)
+    expect(ctl(
+      runs, "claim-fallback", "--run-id", "run-ignored-worker", "--unit-id", "U",
+      "--caller-mode", "headless",
+    ).word).toBe("FALLBACK_AUTHORIZED")
+    expect(ctl(
+      runs, "cleanup", "--run-id", "run-ignored-worker", "--unit-id", "U",
+      "--abandon", "--expect-job", job,
+    ).word).toBe("CLEANED")
+    expect(existsSync(workspace)).toBe(false)
   })
 
   test("allows incidental ignored worker side effects outside reported outputs", () => {

@@ -833,11 +833,13 @@ def terminalize(run_id: str, unit_id: str) -> dict:
     if ignored_outputs:
         preview = json.dumps(ignored_outputs[:20], ensure_ascii=True)
         suffix = f" and {len(ignored_outputs) - 20} more" if len(ignored_outputs) > 20 else ""
-        raise Operational(
+        error = Operational(
             "BLOCKED",
             f"worker workspace contains ignored untracked output that cannot enter the transport: {preview}{suffix}",
             {"ignored_paths": ignored_outputs[:100], "ignored_path_count": len(ignored_outputs)},
         )
+        record_terminal_validation_failure(run_id, unit_id, error)
+        raise error
     git(workspace, "add", "-A", "--", ".")
     index = git(workspace, "ls-files", "--stage", "-z")
     if any(row.startswith(b"160000 ") for row in index.split(b"\0") if row):
