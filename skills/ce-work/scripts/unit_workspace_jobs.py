@@ -222,7 +222,7 @@ def process_evidence(job_dir: str) -> dict:
     activity = {"latest_at": None, "log_bytes": 0}
     log = os.path.join(job_dir, "out.log")
     if os.path.lexists(log):
-        st = stat_private_file(log, 10 * 1024 * 1024)
+        st = stat_private_file(log)
         activity = {"latest_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(st.st_mtime)), "log_bytes": st.st_size}
     return {"process_state": word, "activity": activity}
 

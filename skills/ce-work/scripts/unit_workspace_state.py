@@ -284,7 +284,7 @@ def read_private(path: str, cap: int = MAX_JSON_BYTES) -> bytes:
         os.close(fd)
 
 
-def stat_private_file(path: str, cap: int) -> os.stat_result:
+def stat_private_file(path: str) -> os.stat_result:
     """Validate a private file by descriptor without consuming its content."""
     try:
         fd = os.open(path, os.O_RDONLY | O_NOFOLLOW)
@@ -298,8 +298,6 @@ def stat_private_file(path: str, cap: int) -> os.stat_result:
             raise TrustFailure(f"state is not owned by current user: {path}")
         if _mode(st) != 0o600:
             raise TrustFailure(f"state mode is {_mode(st):04o}, expected 0600: {path}")
-        if st.st_size > cap:
-            raise TrustFailure(f"state exceeds {cap}-byte limit: {path}")
         return st
     finally:
         os.close(fd)

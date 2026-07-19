@@ -2472,6 +2472,45 @@ describe("ce-work unit workspace controller", () => {
     expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("UNREADABLE")
   })
 
+  test("keeps oversized runner activity logs authoritative for failed-job recovery", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-oversized-runner-log"
+    const unitId = "U"
+    init(runs, runId, f)
+    ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", unitId,
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    const job = fakeRunningJob(runs, runId, unitId, "packet", "job-oversized-log")
+    ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", unitId,
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    terminalizeFakeJob(runs, runId, job, "failed")
+    const logPath = path.join(runs, runId, "jobs", job, "out.log")
+    truncateSync(logPath, 10 * 1024 * 1024 + 1)
+
+    const synced = ctl(runs, "sync-job", "--run-id", runId, "--unit-id", unitId)
+    expect(synced).toMatchObject({
+      word: "SYNCED",
+      body: { process_state: "failed", activity: { log_bytes: 10 * 1024 * 1024 + 1 } },
+    })
+    const attempt = ctl(runs, "status", "--run-id", runId, "--unit-id", unitId).body.unit.attempts[0]
+    expect(attempt).toMatchObject({
+      process_state: "failed",
+      activity: { log_bytes: 10 * 1024 * 1024 + 1 },
+      fallback: { eligible: true, reason: "failed", claimed: null },
+    })
+    expect(ctl(
+      runs, "claim-fallback", "--run-id", runId, "--unit-id", unitId,
+      "--caller-mode", "headless",
+    )).toMatchObject({
+      word: "FALLBACK_AUTHORIZED",
+      body: { start_native: true, reason: "failed" },
+    })
+  })
+
   test("does not authorize native fallback before dependencies are accepted", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
