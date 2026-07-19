@@ -1049,6 +1049,56 @@ describe("ce-work unit workspace controller", () => {
     expect(existsSync(workspace)).toBe(false)
   })
 
+  test("authorizes fallback and abandonment after post-receipt gitlink validation fails", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-gitlink-worker"
+    expect(init(runs, runId, f).word).toBe("READY")
+    expect(ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("gitlink worker packet"),
+    ).word).toBe("PREPARED")
+    const workspace = path.join(runs, runId, "units", "U", "workspace")
+    const nested = path.join(workspace, "nested-module")
+    mkdirSync(nested)
+    git(nested, "init", "-b", "main")
+    git(nested, "config", "user.name", "Nested Test")
+    git(nested, "config", "user.email", "nested@example.test")
+    writeFileSync(path.join(nested, "nested.txt"), "nested\n")
+    git(nested, "add", "nested.txt")
+    git(nested, "commit", "-m", "nested seed")
+    const job = fakeDoneJob(runs, runId, "U", "gitlink worker packet", "job-gitlink-worker")
+    expect(ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    ).word).toBe("AUTHORING")
+
+    const terminal = ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U")
+    expect(terminal.word).toBe("BLOCKED")
+    expect(terminal.stderr).toContain("submodule state cannot be transported implicitly")
+    const status = ctl(runs, "status", "--run-id", runId, "--unit-id", "U").body.unit
+    expect(status.state).toBe("authored")
+    expect(status.attempts[0].terminal_receipt).toMatchObject({ terminal_status: "completed" })
+    expect(status.attempts[0].terminal_validation_failure).toMatchObject({
+      word: "BLOCKED",
+      reason: "submodule state cannot be transported implicitly",
+      job_id: job,
+    })
+    expect(status.attempts[0].fallback).toMatchObject({
+      eligible: true,
+      reason: "terminal-validation-failure",
+      claimed: null,
+    })
+    expect(ctl(
+      runs, "claim-fallback", "--run-id", runId, "--unit-id", "U", "--caller-mode", "headless",
+    ).word).toBe("FALLBACK_AUTHORIZED")
+    expect(ctl(
+      runs, "cleanup", "--run-id", runId, "--unit-id", "U",
+      "--abandon", "--expect-job", job,
+    ).word).toBe("CLEANED")
+    expect(existsSync(workspace)).toBe(false)
+  })
+
   test("retires ignored-output fallback eligibility after terminalization recovers", () => {
     const f = makeRepo()
     writeFileSync(path.join(f.repo, ".gitignore"), "ignored-output/\n")
@@ -2062,6 +2112,148 @@ describe("ce-work unit workspace controller", () => {
       runs, "cleanup", "--run-id", "run-wave-collision", "--unit-id", "U-b",
       "--abandon", "--expect-transport", transports[1].commit,
     ).word).toBe("CLEANED")
+  })
+
+  test("advances a non-overlapping external sibling after native wave completion", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-wave-native-external"
+    init(runs, runId, f)
+
+    for (const [position, unitId] of ["U-native", "U-external"].entries()) {
+      ctl(
+        runs, "prepare", "--run-id", runId, "--unit-id", unitId,
+        "--base", f.base, "--packet", packetFile(`packet-${unitId}`),
+        "--wave-id", "wave-1", "--wave-position", String(position),
+      )
+    }
+
+    const externalWorkspace = path.join(runs, runId, "units", "U-external", "workspace")
+    writeFileSync(path.join(externalWorkspace, "external.txt"), "external\n")
+    const externalJob = fakeDoneJob(runs, runId, "U-external", "packet-U-external", "job-external")
+    ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U-external",
+      "--attempt-id", "attempt-1", "--job-id", externalJob,
+    )
+    const externalTransport = ctl(
+      runs, "terminalize", "--run-id", runId, "--unit-id", "U-external",
+    ).body.transport
+
+    const nativeJob = fakeRunningJob(runs, runId, "U-native", "packet-U-native", "job-native")
+    ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U-native",
+      "--attempt-id", "attempt-1", "--job-id", nativeJob,
+    )
+    terminalizeFakeJob(runs, runId, nativeJob, "failed")
+    expect(ctl(
+      runs, "claim-fallback", "--run-id", runId, "--unit-id", "U-native", "--caller-mode", "headless",
+    ).word).toBe("FALLBACK_AUTHORIZED")
+    writeFileSync(path.join(f.repo, "native.txt"), "native\n")
+    git(f.repo, "add", "native.txt")
+    git(f.repo, "commit", "-m", "native wave member")
+    const nativeHead = git(f.repo, "rev-parse", "HEAD")
+    const completed = ctl(
+      runs, "complete-fallback", "--run-id", runId, "--unit-id", "U-native",
+      "--accepted-head", nativeHead, "--evidence-digest", "a".repeat(64),
+      "--summary", "native checks passed",
+    )
+    expect(completed).toMatchObject({
+      word: "FALLBACK_COMPLETED",
+      body: {
+        eligible_siblings: ["U-external"],
+        completion: { changed_paths: ["native.txt"] },
+      },
+    })
+    expect(ctl(runs, "status", "--run-id", runId).body.units).toMatchObject({
+      "U-native": { state: "native-completed" },
+      "U-external": { wave: { allowed_heads: [f.base, nativeHead] } },
+    })
+
+    const manifestPath = path.join(runs, runId, "manifest.json")
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"))
+    manifest.units["U-native"].attempts[0].fallback.completed.changed_paths = [1]
+    writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`)
+    expect(ctl(
+      runs, "integration-acquire", "--run-id", runId, "--unit-id", "U-external",
+    )).toMatchObject({
+      word: "BLOCKED",
+      body: { reason: "earlier wave unit not resolved", units: ["U-native"] },
+    })
+    manifest.units["U-native"].attempts[0].fallback.completed.changed_paths = ["native.txt"]
+    writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`)
+
+    const token = ctl(
+      runs, "integration-acquire", "--run-id", runId, "--unit-id", "U-external",
+    ).body.lock_token
+    expect(ctl(
+      runs, "preflight", "--run-id", runId, "--unit-id", "U-external", "--lock-token", token,
+    ).word).toBe("PREFLIGHT_OK")
+    git(f.repo, "cherry-pick", "--no-commit", externalTransport.commit)
+    expect(ctl(
+      runs, "mark-applied", "--run-id", runId, "--unit-id", "U-external", "--lock-token", token,
+    ).word).toBe("APPLIED")
+    expect(ctl(
+      runs, "mark-verified", "--run-id", runId, "--unit-id", "U-external", "--lock-token", token,
+      "--evidence-digest", "external-green",
+    ).word).toBe("VERIFIED")
+    git(f.repo, "commit", "-m", "integrate external wave member")
+    expect(ctl(
+      runs, "mark-committed", "--run-id", runId, "--unit-id", "U-external", "--lock-token", token,
+    ).word).toBe("COMMITTED")
+    expect(readFileSync(path.join(f.repo, "native.txt"), "utf8")).toBe("native\n")
+    expect(readFileSync(path.join(f.repo, "external.txt"), "utf8")).toBe("external\n")
+  })
+
+  test("rejects a native wave completion that collides with an external sibling", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-wave-native-collision"
+    init(runs, runId, f)
+    for (const [position, unitId] of ["U-native", "U-external"].entries()) {
+      ctl(
+        runs, "prepare", "--run-id", runId, "--unit-id", unitId,
+        "--base", f.base, "--packet", packetFile(`packet-${unitId}`),
+        "--wave-id", "wave-1", "--wave-position", String(position),
+      )
+    }
+
+    const externalWorkspace = path.join(runs, runId, "units", "U-external", "workspace")
+    writeFileSync(path.join(externalWorkspace, "keep.txt"), "external collision\n")
+    const externalJob = fakeDoneJob(runs, runId, "U-external", "packet-U-external", "job-external")
+    ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U-external",
+      "--attempt-id", "attempt-1", "--job-id", externalJob,
+    )
+    ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U-external")
+
+    const nativeJob = fakeRunningJob(runs, runId, "U-native", "packet-U-native", "job-native")
+    ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U-native",
+      "--attempt-id", "attempt-1", "--job-id", nativeJob,
+    )
+    terminalizeFakeJob(runs, runId, nativeJob, "failed")
+    ctl(runs, "claim-fallback", "--run-id", runId, "--unit-id", "U-native", "--caller-mode", "headless")
+    writeFileSync(path.join(f.repo, "keep.txt"), "native collision\n")
+    git(f.repo, "add", "keep.txt")
+    git(f.repo, "commit", "-m", "colliding native wave member")
+    const nativeHead = git(f.repo, "rev-parse", "HEAD")
+
+    const blocked = ctl(
+      runs, "complete-fallback", "--run-id", runId, "--unit-id", "U-native",
+      "--accepted-head", nativeHead, "--evidence-digest", "b".repeat(64),
+      "--summary", "native checks passed",
+    )
+    expect(blocked).toMatchObject({
+      word: "BLOCKED",
+      body: {
+        reason: "changed-path collision",
+        collisions: { "U-native:U-external": ["keep.txt"] },
+      },
+    })
+    expect(ctl(runs, "status", "--run-id", runId).body.units).toMatchObject({
+      "U-native": { state: "authoring" },
+      "U-external": { wave: { allowed_heads: [f.base] } },
+    })
   })
 
   test("restores a failed wave unit exactly before an unaffected sibling integrates", () => {

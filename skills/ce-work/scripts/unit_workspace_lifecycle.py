@@ -600,6 +600,13 @@ def cmd_claim_fallback(args) -> tuple[str, dict]:
             }
         validate_dependencies_ready(doc, unit)
         reason, attempt = fallback_basis(doc, unit)
+        claim_snapshot = semantic_snapshot(doc["repository"]["toplevel"])
+        wave = unit.get("wave", {})
+        if wave.get("id"):
+            validate_wave_order(doc, unit)
+            allowed_heads = wave.get("allowed_heads", [])
+            if not allowed_heads or claim_snapshot["head"] != allowed_heads[-1]:
+                raise Operational("BLOCKED", "native fallback must start from the latest recorded wave head")
         mode = doc.get("binding", {}).get("mode")
         if mode == "require":
             if args.caller_mode == "headless":
@@ -614,6 +621,7 @@ def cmd_claim_fallback(args) -> tuple[str, dict]:
             "caller_mode": args.caller_mode,
             "mode": mode,
             "confirmed_native": bool(args.confirm_native),
+            "canonical_head": claim_snapshot["head"],
         }
         fallback.update({"eligible": False, "reason": reason, "claimed": claim})
         event(doc, "native-fallback-authorized", args.unit_id, {"reason": reason, "mode": mode, "caller_mode": args.caller_mode})
@@ -700,6 +708,31 @@ def cmd_complete_fallback(args) -> tuple[str, dict]:
             raise Operational("BLOCKED", "accepted native fallback head does not descend from the recorded unit base")
         validate_fallback_ancestry(doc, unit, args.accepted_head)
 
+        wave = unit.get("wave", {})
+        changed_paths: list[str] = []
+        advanced: list[str] = []
+        if wave.get("id"):
+            validate_wave_order(doc, unit)
+            claim_head = claim.get("canonical_head")
+            allowed_heads = wave.get("allowed_heads", [])
+            if (
+                not isinstance(claim_head, str)
+                or not allowed_heads
+                or claim_head != allowed_heads[-1]
+                or git_text(repo, "merge-base", claim_head, args.accepted_head, check=False) != claim_head
+            ):
+                raise Operational("BLOCKED", "native fallback completion does not extend the latest recorded wave head")
+            raw = git(repo, "diff-tree", "-r", "-M", "--name-status", "-z", claim_head, args.accepted_head)
+            changed_paths = parse_diff_paths(raw)
+            validate_wave_collisions(
+                doc,
+                unit,
+                overrides={unit["unit_id"]: set(changed_paths)},
+                require_complete=False,
+            )
+            members = wave_members(doc, unit)
+            validate_wave_advancement(members, unit, claim_head, args.accepted_head)
+
         receipt = {
             "at": now_iso(),
             "base": base,
@@ -708,14 +741,25 @@ def cmd_complete_fallback(args) -> tuple[str, dict]:
             "summary": summary,
             "snapshot": snapshot,
             "claim": dict(claim),
+            "changed_paths": changed_paths,
         }
         fallback["completed"] = receipt
         unit["state"] = "native-completed"
+        if wave.get("id"):
+            advanced = advance_wave_allowed_heads(members, wave["position"], args.accepted_head)
+            event(doc, "wave-advanced", args.unit_id, {
+                "canonical_commit": args.accepted_head,
+                "eligible_siblings": advanced,
+            })
         event(doc, "native-fallback-completed", args.unit_id, {
             "accepted_head": args.accepted_head,
             "evidence_digest": args.evidence_digest,
         })
-        return "FALLBACK_COMPLETED", {"unit_id": args.unit_id, "completion": receipt}
+        return "FALLBACK_COMPLETED", {
+            "unit_id": args.unit_id,
+            "completion": receipt,
+            "eligible_siblings": advanced,
+        }
 
 
 def cmd_reap(args) -> tuple[str, dict]:

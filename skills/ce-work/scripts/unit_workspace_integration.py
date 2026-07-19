@@ -10,7 +10,7 @@ import shutil
 from pathlib import Path
 
 from unit_workspace_state import *
-from unit_workspace_jobs import parse_diff_paths, scope_expansion_pending
+from unit_workspace_jobs import find_attempt, parse_diff_paths, scope_expansion_pending
 
 
 def integration_lock_path(doc: dict) -> str:
@@ -170,7 +170,13 @@ def validate_wave_order(doc: dict, unit: dict) -> None:
     earlier_unresolved = [
         candidate["unit_id"] for candidate in members
         if candidate["wave"]["position"] < unit["wave"]["position"]
-        and candidate.get("state") not in {"committed", "preserved", "cleaned"}
+        and not (
+            candidate.get("state") in {"committed", "preserved", "cleaned"}
+            or (
+                candidate.get("state") == "native-completed"
+                and unit_accepted_commit(candidate) is not None
+            )
+        )
     ]
     if earlier_unresolved:
         raise Operational(
@@ -180,29 +186,58 @@ def validate_wave_order(doc: dict, unit: dict) -> None:
         )
 
 
-def validate_wave_ready(doc: dict, unit: dict) -> None:
+def wave_member_changed_paths(candidate: dict) -> set[str] | None:
+    transport = candidate.get("transport", {})
+    if transport.get("commit"):
+        paths = transport.get("changed_paths")
+    elif candidate.get("state") == "native-completed":
+        if unit_accepted_commit(candidate) is None:
+            raise TrustFailure("native wave completion evidence is malformed")
+        completion = find_attempt(candidate).get("fallback", {}).get("completed")
+        paths = completion.get("changed_paths") if isinstance(completion, dict) else None
+    else:
+        return None
+    if not isinstance(paths, list) or any(not isinstance(path, str) for path in paths):
+        raise TrustFailure("wave member changed paths are malformed")
+    return set(paths)
+
+
+def validate_wave_collisions(
+    doc: dict,
+    unit: dict,
+    overrides: dict[str, set[str]] | None = None,
+    require_complete: bool = True,
+) -> None:
     members = wave_members(doc, unit)
     if not members:
         return
-    validate_wave_order(doc, unit)
-    unterminated = [
-        candidate["unit_id"] for candidate in members
-        if not candidate.get("transport", {}).get("commit")
-    ]
+    overrides = overrides or {}
+    changed_by_unit: dict[str, set[str]] = {}
+    unterminated: list[str] = []
+    for candidate in members:
+        unit_id = candidate["unit_id"]
+        paths = overrides.get(unit_id)
+        if paths is None:
+            paths = wave_member_changed_paths(candidate)
+        if paths is None:
+            unterminated.append(unit_id)
+        else:
+            changed_by_unit[unit_id] = paths
     if unterminated:
-        raise Operational(
-            "BLOCKED",
-            "every wave worker must terminalize before the first fold-in",
-            {"reason": "wave not fully terminalized", "units": unterminated},
-        )
-    changed_by_unit = {
-        candidate["unit_id"]: set(candidate["transport"].get("changed_paths", []))
-        for candidate in members
-    }
+        if require_complete:
+            raise Operational(
+                "BLOCKED",
+                "every wave worker must terminalize before the first fold-in",
+                {"reason": "wave not fully terminalized", "units": unterminated},
+            )
     collisions: dict[str, list[str]] = {}
     for index, left in enumerate(members):
         for right in members[index + 1:]:
-            overlap = sorted(changed_by_unit[left["unit_id"]] & changed_by_unit[right["unit_id"]])
+            left_paths = changed_by_unit.get(left["unit_id"])
+            right_paths = changed_by_unit.get(right["unit_id"])
+            if left_paths is None or right_paths is None:
+                continue
+            overlap = sorted(left_paths & right_paths)
             if overlap:
                 collisions[f'{left["unit_id"]}:{right["unit_id"]}'] = overlap
     if collisions:
@@ -211,6 +246,38 @@ def validate_wave_ready(doc: dict, unit: dict) -> None:
             "wave transports have a changed-path collision",
             {"reason": "changed-path collision", "collisions": collisions},
         )
+
+
+def validate_wave_ready(doc: dict, unit: dict) -> None:
+    members = wave_members(doc, unit)
+    if not members:
+        return
+    validate_wave_order(doc, unit)
+    validate_wave_collisions(doc, unit)
+
+
+def validate_wave_advancement(members: list[dict], unit: dict, parent: str, canonical: str) -> list[str]:
+    position = unit["wave"]["position"]
+    targets = [candidate for candidate in members if candidate["wave"]["position"] > position]
+    for candidate in targets:
+        allowed = candidate["wave"].get("allowed_heads", [])
+        if canonical in allowed:
+            continue
+        if not allowed or allowed[-1] != parent:
+            raise Operational("BLOCKED", "wave advancement is not the exact recorded canonical chain")
+    return [candidate["unit_id"] for candidate in targets]
+
+
+def advance_wave_allowed_heads(members: list[dict], position: int, canonical: str) -> list[str]:
+    advanced: list[str] = []
+    for candidate in members:
+        if candidate["wave"]["position"] <= position:
+            continue
+        allowed = candidate["wave"].setdefault("allowed_heads", [])
+        if canonical not in allowed:
+            allowed.append(canonical)
+        advanced.append(candidate["unit_id"])
+    return advanced
 
 
 def validate_dependencies_ready(doc: dict, unit: dict) -> None:
@@ -368,25 +435,11 @@ def cmd_wave_advance(args) -> tuple[str, dict]:
         parent = unit.get("integration", {}).get("pre_fold", {}).get("head")
         if recorded.get("parent") != parent:
             raise Operational("BLOCKED", "canonical wave commit parent is not the recorded pre-fold HEAD")
-        position = unit["wave"]["position"]
-        targets = [candidate for candidate in members if candidate["wave"]["position"] > position]
-        for candidate in targets:
-            allowed = candidate["wave"].get("allowed_heads", [])
-            if canonical in allowed:
-                continue
-            if not allowed or allowed[-1] != parent:
-                raise Operational("BLOCKED", "wave advancement is not the exact recorded canonical chain")
+        validate_wave_advancement(members, unit, parent, canonical)
     with locked_manifest(args.run_id, write=True) as doc:
         unit = doc["units"][args.unit_id]
         position = unit["wave"]["position"]
-        advanced: list[str] = []
-        for candidate in wave_members(doc, unit):
-            if candidate["wave"]["position"] <= position:
-                continue
-            allowed = candidate["wave"].setdefault("allowed_heads", [])
-            if canonical not in allowed:
-                allowed.append(canonical)
-            advanced.append(candidate["unit_id"])
+        advanced = advance_wave_allowed_heads(wave_members(doc, unit), position, canonical)
         event(doc, "wave-advanced", args.unit_id, {"canonical_commit": canonical, "eligible_siblings": advanced})
     return "WAVE_ADVANCED", {"unit_id": args.unit_id, "canonical_commit": canonical, "eligible_siblings": advanced}
 

@@ -828,38 +828,40 @@ def terminalize(run_id: str, unit_id: str) -> dict:
         workspace = unit["workspace"]["path"]
         base = unit["workspace"]["base"]
         repo = doc["repository"]["toplevel"]
-    no_sequencer(workspace)
-    ignored_raw = git(workspace, "ls-files", "--others", "--ignored", "--exclude-standard", "-z")
-    ignored_paths = [
-        part.decode("utf-8", "surrogateescape")
-        for part in ignored_raw.split(b"\0")
-        if part
-    ]
-    reported_paths = []
-    for path in receipt["changed_files"]:
-        candidate = os.path.relpath(path, workspace) if os.path.isabs(path) else os.path.normpath(path)
-        if candidate not in {"", ".", ".."} and not candidate.startswith(f"..{os.sep}"):
-            reported_paths.append(candidate.rstrip(os.sep))
-    ignored_outputs = [
-        path
-        for path in ignored_paths
-        if any(path == reported or path.startswith(f"{reported}{os.sep}") for reported in reported_paths)
-    ]
-    if ignored_outputs:
-        preview = json.dumps(ignored_outputs[:20], ensure_ascii=True)
-        suffix = f" and {len(ignored_outputs) - 20} more" if len(ignored_outputs) > 20 else ""
-        error = Operational(
-            "BLOCKED",
-            f"worker workspace contains ignored untracked output that cannot enter the transport: {preview}{suffix}",
-            {"ignored_paths": ignored_outputs[:100], "ignored_path_count": len(ignored_outputs)},
-        )
-        record_terminal_validation_failure(run_id, unit_id, error)
-        raise error
-    git(workspace, "add", "-A", "--", ".")
-    index = git(workspace, "ls-files", "--stage", "-z")
-    if any(row.startswith(b"160000 ") for row in index.split(b"\0") if row):
-        raise Operational("BLOCKED", "submodule state cannot be transported implicitly")
-    tree = git_text(workspace, "write-tree")
+    try:
+        no_sequencer(workspace)
+        ignored_raw = git(workspace, "ls-files", "--others", "--ignored", "--exclude-standard", "-z")
+        ignored_paths = [
+            part.decode("utf-8", "surrogateescape")
+            for part in ignored_raw.split(b"\0")
+            if part
+        ]
+        reported_paths = []
+        for path in receipt["changed_files"]:
+            candidate = os.path.relpath(path, workspace) if os.path.isabs(path) else os.path.normpath(path)
+            if candidate not in {"", ".", ".."} and not candidate.startswith(f"..{os.sep}"):
+                reported_paths.append(candidate.rstrip(os.sep))
+        ignored_outputs = [
+            path
+            for path in ignored_paths
+            if any(path == reported or path.startswith(f"{reported}{os.sep}") for reported in reported_paths)
+        ]
+        if ignored_outputs:
+            preview = json.dumps(ignored_outputs[:20], ensure_ascii=True)
+            suffix = f" and {len(ignored_outputs) - 20} more" if len(ignored_outputs) > 20 else ""
+            raise Operational(
+                "BLOCKED",
+                f"worker workspace contains ignored untracked output that cannot enter the transport: {preview}{suffix}",
+                {"ignored_paths": ignored_outputs[:100], "ignored_path_count": len(ignored_outputs)},
+            )
+        git(workspace, "add", "-A", "--", ".")
+        index = git(workspace, "ls-files", "--stage", "-z")
+        if any(row.startswith(b"160000 ") for row in index.split(b"\0") if row):
+            raise Operational("BLOCKED", "submodule state cannot be transported implicitly")
+        tree = git_text(workspace, "write-tree")
+    except Operational as exc:
+        record_terminal_validation_failure(run_id, unit_id, exc)
+        raise
     ref = transport_ref(run_id, unit_id)
     existing = git_text(repo, "rev-parse", "-q", "--verify", ref, check=False)
     if existing:

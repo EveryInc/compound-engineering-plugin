@@ -132,6 +132,8 @@ def _native_completion_commit(unit: dict) -> str | None:
     accepted_head = completion.get("accepted_head")
     base = unit.get("workspace", {}).get("base")
     snapshot = completion.get("snapshot")
+    wave = unit.get("wave", {})
+    changed_paths = completion.get("changed_paths")
     if not (
         _valid_git_object_id(accepted_head)
         and _valid_git_object_id(base)
@@ -150,6 +152,14 @@ def _native_completion_commit(unit: dict) -> str | None:
         and _valid_git_object_id(snapshot.get("head_tree"))
         and snapshot.get("head_tree") == snapshot.get("index_tree")
         and snapshot.get("status_sha256") == digest_bytes(b"")
+        and (
+            not wave.get("id")
+            or (
+                _valid_git_object_id(claim.get("canonical_head"))
+                and isinstance(changed_paths, list)
+                and all(isinstance(path, str) for path in changed_paths)
+            )
+        )
     ):
         return None
     return accepted_head
