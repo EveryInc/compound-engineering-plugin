@@ -300,6 +300,32 @@ describe("ce-work fixed write routes", () => {
     expect(compatible.stdout).toContain("--model composer-next-fast")
   })
 
+  test("target-scoped model overrides do not make unrelated route probes unavailable", () => {
+    const composerOverride = {
+      ...process.env,
+      CE_WORK_MODEL_OVERRIDE_TARGET: "composer",
+      CE_WORK_MODEL_OVERRIDE: "composer-next-fast",
+    }
+
+    const codex = emit("codex", composerOverride)
+    expect(codex.status).toBe(0)
+    expect(codex.stdout).not.toContain("--model")
+    expect(codex.stdout).not.toContain("composer-next-fast")
+    expect(emit("composer", composerOverride).stdout).toContain("--model composer-next-fast")
+  })
+
+  test("malformed model override bindings remain unavailable", () => {
+    for (const env of [
+      { CE_WORK_MODEL_OVERRIDE: "composer-next-fast" },
+      { CE_WORK_MODEL_OVERRIDE_TARGET: "composer" },
+      { CE_WORK_MODEL_OVERRIDE_TARGET: "unknown", CE_WORK_MODEL_OVERRIDE: "composer-next-fast" },
+    ]) {
+      const rejected = emit("codex", { ...process.env, ...env })
+      expect(rejected.status).toBe(2)
+      expect(rejected.stderr).toContain("not compatible")
+    }
+  })
+
   test("production dispatch honors explicit models while defaults stay harness-configured", () => {
     for (const [route, model] of [
       ["cursor", "claude-sonnet-5-low"],

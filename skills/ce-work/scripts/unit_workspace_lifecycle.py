@@ -249,6 +249,33 @@ def pending_plan_wide_verification(doc: dict, lock: dict) -> dict | None:
     return pending[0] if pending else None
 
 
+def successful_plan_wide_verification(doc: dict, lock: dict) -> dict | None:
+    attempts = plan_wide_verification_attempts(doc)
+    recorded = [
+        attempt for attempt in attempts
+        if attempt.get("status") == "receipt-recorded"
+        and attempt.get("integration_lock_nonce") == lock.get("nonce")
+        and attempt.get("lock_unit_id") == lock.get("unit_id")
+    ]
+    if len(recorded) > 1:
+        raise TrustFailure("multiple receipted plan-wide verification attempts share one integration lock")
+    if not recorded:
+        return None
+    evidence_digest = recorded[0].get("evidence_digest")
+    if not isinstance(evidence_digest, str) or not re.fullmatch(r"[0-9a-f]{64}", evidence_digest):
+        raise TrustFailure("plan-wide verification attempt receipt digest is malformed")
+    verifications = doc.get("verifications", [])
+    if not isinstance(verifications, list) or any(not isinstance(receipt, dict) for receipt in verifications):
+        raise TrustFailure("manifest verification receipts are malformed")
+    receipts = [
+        receipt for receipt in verifications
+        if receipt.get("evidence_digest") == evidence_digest
+    ]
+    if len(receipts) != 1:
+        raise TrustFailure("plan-wide verification receipt is missing or duplicated")
+    return recorded[0] if receipts[0].get("verification_exit") == 0 else None
+
+
 def plan_wide_blocker_retains_lock(doc: dict, lock: dict) -> bool:
     return any(
         blocker.get("unit_id") is None
@@ -265,13 +292,14 @@ def resume_finalize_committed(run_id: str, unit_id: str) -> list[dict]:
         state = unit["state"]
         lock = doc.get("integration_lock")
         pending_plan_verification = pending_plan_wide_verification(doc, lock) if lock else None
+        successful_plan_verification = successful_plan_wide_verification(doc, lock) if lock else None
         retained_plan_lock = bool(lock and plan_wide_blocker_retains_lock(doc, lock))
         wave_id = unit.get("wave", {}).get("id")
         cleanup = unit.get("cleanup") or {}
         artifact_cleanup_complete = cleanup.get("artifact_cleanup", {}).get("complete") is True
-    if state == "cleaned":
+    if state in {"cleaned", "native-completed"}:
         actions: list[dict] = []
-        if not artifact_cleanup_complete:
+        if state == "cleaned" and not artifact_cleanup_complete:
             cmd_cleanup(SimpleNamespace(
                 run_id=run_id,
                 unit_id=unit_id,
@@ -295,6 +323,12 @@ def resume_finalize_committed(run_id: str, unit_id: str) -> list[dict]:
                 raise Operational(
                     "BLOCKED",
                     "plan-wide verification blocker retains the canonical integration lock",
+                    {"unit_id": unit_id, "retain_integration_lock": True},
+                )
+            if state == "native-completed" and not successful_plan_verification:
+                raise Operational(
+                    "BLOCKED",
+                    "native-completed unit retains the canonical integration lock without a successful plan-wide verification receipt",
                     {"unit_id": unit_id, "retain_integration_lock": True},
                 )
             cmd_integration_release(SimpleNamespace(run_id=run_id, unit_id=unit_id, lock_token=lock["nonce"]))
@@ -465,7 +499,7 @@ def cmd_resume(args) -> tuple[str, dict]:
                     "canonical_preserved": True,
                     "integration_lock_released": True,
                 })
-        elif state in {"committed", "cleaned"}:
+        elif state in {"committed", "cleaned", "native-completed"}:
             actions.extend(resume_finalize_committed(run_id, uid))
     return "RESUMED", {"run_id": run_id, "actions": actions, "redispatched": False, "applied": False}
 

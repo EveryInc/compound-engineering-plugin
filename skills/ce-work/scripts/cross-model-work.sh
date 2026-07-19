@@ -58,10 +58,14 @@ route_model() {
 }
 
 validate_model_override() {
-  local route="$1" override="${CE_WORK_MODEL_OVERRIDE:-}" target override_lower
-  [ -n "$override" ] || { [ -z "${CE_WORK_MODEL_OVERRIDE_TARGET:-}" ]; return; }
+  local route="$1" override="${CE_WORK_MODEL_OVERRIDE:-}" override_target="${CE_WORK_MODEL_OVERRIDE_TARGET:-}" target override_lower
+  [ -n "$override" ] || { [ -z "$override_target" ]; return; }
+  case "$override_target" in
+    codex|claude|grok|cursor|composer) ;;
+    *) return 1 ;;
+  esac
   target="$(route_target "$route")" || return 1
-  [ "${CE_WORK_MODEL_OVERRIDE_TARGET:-}" = "$target" ] || return 1
+  [ "$override_target" = "$target" ] || return 0
   if [ "$route" = cursor ]; then
     case "$override" in
       [A-Za-z0-9]*)
