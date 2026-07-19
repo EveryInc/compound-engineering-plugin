@@ -198,7 +198,7 @@ Native execution is the default. You can assign implementation to a target in th
 ```text
 /ce-work use Codex for implementation on docs/plans/2026-07-15-example.md
 /ce-work implement docs/plans/2026-07-15-example.md with Cursor
-/ce-work use Cursor with Rock for implementation on docs/plans/2026-07-15-example.md
+/ce-work use Cursor with Grok for implementation on docs/plans/2026-07-15-example.md
 /ce-work only use Composer for implementation on docs/plans/2026-07-15-example.md
 /ce-work use Codex to add retry limits to the existing webhook sender
 ```

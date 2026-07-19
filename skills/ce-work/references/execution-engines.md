@@ -21,7 +21,7 @@ Lower sources may fill an unspecified detail but cannot contradict or broaden a 
 
 A live request such as "use Codex" is preference-strength by default. Interpret unambiguous strict intent such as "must use Codex" or "only use Codex" as requirement-strength; intent is the contract, not any single keyword. The resolved mode is `prefer` or `require`.
 
-Live or contextual intent may name one route or an ordered fallback list (for example, "prefer Cursor with Rock, then Codex"). Preserve that order and normalize each harness/model candidate with the same rules as standing configuration. A typed caller binding remains a single already-selected candidate; do not widen its exact four-field grammar into a list.
+Live or contextual intent may name one route or an ordered fallback list (for example, "prefer Cursor with Grok, then Codex"). Preserve that order and normalize each harness/model candidate with the same rules as standing configuration. A typed caller binding remains a single already-selected candidate; do not widen its exact four-field grammar into a list.
 
 For example, current-task strict Composer resolves to Composer with `require` even when a caller Codex binding and config Cursor preference are both present. Without that task instruction, a caller Codex binding sourced from the current LFG task keeps that provenance. Without applicable live or caller intent, the ordered config candidates apply only when standing mode is enabled.
 

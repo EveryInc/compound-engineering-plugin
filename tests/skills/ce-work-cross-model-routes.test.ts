@@ -82,7 +82,6 @@ composer-2.5-fast - Composer 2.5 Fast
 composer-next-fast - Composer Next Fast
 cursor-grok-4.5-high - Cursor Grok 4.5 High
 claude-sonnet-5-low - Sonnet 5 1M Low
-rock-1 - Rock 1
 MODELS
   exit 0
 fi
@@ -269,10 +268,10 @@ describe("ce-work fixed write routes", () => {
     const cursor = emit("cursor", {
       ...process.env,
       CE_WORK_MODEL_OVERRIDE_TARGET: "cursor",
-      CE_WORK_MODEL_OVERRIDE: "rock-1",
+      CE_WORK_MODEL_OVERRIDE: "claude-sonnet-5-low",
     })
     expect(cursor.status).toBe(0)
-    expect(cursor.stdout).toContain("--model rock-1")
+    expect(cursor.stdout).toContain("--model claude-sonnet-5-low")
 
     for (const reserved of ["composer", "composer-2.5-fast", "grok-4.5", "cursor-grok-4.5-high"]) {
       const rejected = emit("cursor", {
@@ -303,7 +302,7 @@ describe("ce-work fixed write routes", () => {
 
   test("production dispatch honors explicit models while defaults stay harness-configured", () => {
     for (const [route, model] of [
-      ["cursor", "rock-1"],
+      ["cursor", "claude-sonnet-5-low"],
       ["claude", "sonnet"],
       ["grok-cli", "grok-4.5"],
     ] as const) {
@@ -352,7 +351,7 @@ describe("ce-work fixed write routes", () => {
       ["cursor", { model_requested: "composer-2.5-fast" }],
       ["cursor", { model_requested: "grok-4.5" }],
       ["cursor", { model_requested: "cursor-grok-4.5-high" }],
-      ["cursor", { model_requested: "rock@beta" }],
+      ["cursor", { model_requested: "model@beta" }],
     ] as const) {
       const f = fixture()
       const bin = fakeBin(route, f.capture)

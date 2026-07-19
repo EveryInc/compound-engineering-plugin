@@ -548,7 +548,7 @@ describe("ce-work unit workspace controller", () => {
       expect(existsSync(path.join(runs, runId))).toBe(false)
     }
 
-    for (const [index, model] of ["composer-2.5-fast", "grok-4.5", "cursor-grok-4.5-high", "rock@beta"].entries()) {
+    for (const [index, model] of ["composer-2.5-fast", "grok-4.5", "cursor-grok-4.5-high", "model@beta"].entries()) {
       const runId = `invalid-cursor-model-${index}`
       const invalidModel = ctl(
         runs, "init", "--run-id", runId, "--repo", f.repo, "--plan", f.plan,

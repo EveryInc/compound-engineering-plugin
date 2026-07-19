@@ -384,8 +384,8 @@ describe("ce-setup check-health", () => {
   })
 
   test.each([
-    ["zero-indented sequence", "work_engine_preferences:\n- harness: cursor\n  model: rock-1\n- harness: claude\n"],
-    ["mapping keys in either order", "work_engine_preferences:\n  - model: rock-1\n    harness: cursor\n  - harness: claude\n"],
+    ["zero-indented sequence", "work_engine_preferences:\n- harness: cursor\n  model: custom-1\n- harness: claude\n"],
+    ["mapping keys in either order", "work_engine_preferences:\n  - model: custom-1\n    harness: cursor\n  - harness: claude\n"],
   ])("accepts %s", async (_name, preferences) => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
 
@@ -394,14 +394,14 @@ describe("ce-setup check-health", () => {
       const result = await runCheckHealth(root, "/usr/bin:/bin")
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain("CE Work implementation engine: prefer -> cursor@rock-1, claude@default")
+      expect(result.stdout).toContain("CE Work implementation engine: prefer -> cursor@custom-1, claude@default")
       expect(result.stdout).not.toContain("project issue(s) found")
     } finally {
       await rm(root, { recursive: true, force: true })
     }
   })
 
-  test.each(["rock@beta", "$(touch)", "-model-flag"])('rejects adapter-unsafe model token "%s"', async (model) => {
+  test.each(["model@beta", "$(touch)", "-model-flag"])('rejects adapter-unsafe model token "%s"', async (model) => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
 
     try {
