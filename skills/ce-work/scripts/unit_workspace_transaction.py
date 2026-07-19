@@ -66,8 +66,13 @@ def _remove_owned_new_paths(repo: str, paths: set[str], pre_head: str) -> None:
 
 def _directory_paths(repo: str) -> set[str]:
     """Snapshot repository directories without traversing Git metadata."""
+    return set(_directory_snapshot(repo))
+
+
+def _directory_snapshot(repo: str) -> dict[str, int]:
+    """Snapshot repository directory paths and modes without traversing Git metadata."""
     repo = os.path.abspath(repo)
-    directories: set[str] = set()
+    directories: dict[str, int] = {}
 
     def fail(error: OSError) -> None:
         raise Operational("BLOCKED", f"could not inspect repository directories: {error}")
@@ -76,9 +81,39 @@ def _directory_paths(repo: str) -> set[str]:
         names[:] = [name for name in names if name != ".git"]
         for name in names:
             path = os.path.join(parent, name)
-            if not os.path.islink(path):
-                directories.add(os.path.relpath(path, repo))
+            try:
+                entry = os.lstat(path)
+            except OSError as exc:
+                raise Operational("BLOCKED", f"could not inspect repository directory {path}: {exc}") from exc
+            if stat.S_ISDIR(entry.st_mode) and not stat.S_ISLNK(entry.st_mode):
+                directories[os.path.relpath(path, repo)] = stat.S_IMODE(entry.st_mode)
     return directories
+
+
+def _restore_directory_snapshot(repo: str, snapshot: dict[str, int]) -> set[str]:
+    """Restore only preexisting directory entries; never remove an obstruction."""
+    restored: set[str] = set()
+    for rel, mode in sorted(snapshot.items(), key=lambda item: (item[0].count("/"), item[0])):
+        target = _artifact_path(repo, rel)
+        try:
+            entry = os.lstat(target)
+        except FileNotFoundError:
+            try:
+                os.mkdir(target, mode)
+                os.chmod(target, mode, follow_symlinks=False)
+            except OSError as exc:
+                raise Operational("BLOCKED", f"could not restore pre-verification directory {rel}: {exc}") from exc
+            restored.add(rel)
+            continue
+        if not stat.S_ISDIR(entry.st_mode) or stat.S_ISLNK(entry.st_mode):
+            raise Operational("BLOCKED", f"pre-verification directory is obstructed: {rel}")
+        if stat.S_IMODE(entry.st_mode) != mode:
+            try:
+                os.chmod(target, mode, follow_symlinks=False)
+            except OSError as exc:
+                raise Operational("BLOCKED", f"could not restore pre-verification directory mode {rel}: {exc}") from exc
+            restored.add(rel)
+    return restored
 
 
 def _new_parent_directories(paths: set[str], before: set[str]) -> set[str]:
@@ -458,7 +493,8 @@ def _verify_run_locked(
     before = semantic_snapshot(repo)
     before_paths = status_paths(repo)
     before_ignored = _ignored_paths(repo)
-    before_directories = _directory_paths(repo)
+    before_directory_snapshot = _directory_snapshot(repo)
+    before_directories = set(before_directory_snapshot)
     if not before["status_empty"] or before_paths:
         raise Operational("BLOCKED", "verify-run requires a clean canonical checkout")
     _validate_accepted_run_head(repo, units, before["head"])
@@ -501,7 +537,9 @@ def _verify_run_locked(
     after = semantic_snapshot(repo)
     after_paths = status_paths(repo)
     new_ignored = _ignored_paths(repo) - before_ignored
-    new_directories = _directory_paths(repo) - before_directories
+    after_directory_snapshot = _directory_snapshot(repo)
+    new_directories = set(after_directory_snapshot) - before_directories
+    directory_state_changed = after_directory_snapshot != before_directory_snapshot
     ignored_directories = _new_parent_directories(new_ignored, before_directories)
     _remove_owned_new_paths(repo, new_ignored | new_directories | ignored_directories, before["head"])
     restored_ignored = _restore_ignored_artifacts(repo, ignored_snapshot)
@@ -534,29 +572,38 @@ def _verify_run_locked(
         git(repo, "reset", "--hard", before["head"])
         created_directories = _new_parent_directories(deletion_paths, before_directories)
         _remove_owned_new_paths(repo, deletion_paths | created_directories, before["head"])
-        restored = semantic_snapshot(repo)
-        if restored != before:
-            with locked_manifest(args.run_id, write=True) as doc:
-                lock = doc.get("integration_lock") or {}
-                blocker = {
-                    "at": now_iso(),
-                    "unit_id": None,
-                    "reason": "plan-wide verification restoration could not be proven",
-                    "retain_integration_lock": True,
-                    "integration_lock_nonce": lock.get("nonce"),
-                }
-                doc["blockers"].append(blocker)
-                event(doc, "run-verification-restore-blocked", None, {"verification_exit": verification_exit})
-            raise Operational(
-                "BLOCKED",
-                "plan-wide verification restoration could not be proven",
-                {
-                    "verification_exit": verification_exit,
-                    "verification_log": verification_log,
-                    "cleaned_paths": cleaned_paths,
-                    "retain_integration_lock": True,
-                },
-            )
+    directory_restore_error = None
+    try:
+        restored_directories = _restore_directory_snapshot(repo, before_directory_snapshot)
+    except Operational as exc:
+        restored_directories = set()
+        directory_restore_error = str(exc)
+    cleaned_paths = sorted(set(cleaned_paths) | restored_directories)
+    restored = semantic_snapshot(repo)
+    restored_directory_snapshot = _directory_snapshot(repo)
+    if restored != before or restored_directory_snapshot != before_directory_snapshot or directory_restore_error:
+        with locked_manifest(args.run_id, write=True) as doc:
+            lock = doc.get("integration_lock") or {}
+            blocker = {
+                "at": now_iso(),
+                "unit_id": None,
+                "reason": "plan-wide verification restoration could not be proven",
+                "retain_integration_lock": True,
+                "integration_lock_nonce": lock.get("nonce"),
+            }
+            doc["blockers"].append(blocker)
+            event(doc, "run-verification-restore-blocked", None, {"verification_exit": verification_exit})
+        raise Operational(
+            "BLOCKED",
+            "plan-wide verification restoration could not be proven",
+            {
+                "verification_exit": verification_exit,
+                "verification_log": verification_log,
+                "cleaned_paths": cleaned_paths,
+                "directory_restore_error": directory_restore_error,
+                "retain_integration_lock": True,
+            },
+        )
 
     log_digest = hashlib.sha256(Path(verification_log).read_bytes()).hexdigest()
     receipt = {
@@ -568,7 +615,7 @@ def _verify_run_locked(
         "log_sha256": log_digest,
         "canonical_head": before["head"],
         "accepted_units": accepted_units,
-        "canonical_state_changed": after != before,
+        "canonical_state_changed": after != before or directory_state_changed,
         "cleaned_paths": cleaned_paths,
         "verification_log": verification_log if verification_exit != 0 else None,
         "verification_log_retained": verification_exit != 0,

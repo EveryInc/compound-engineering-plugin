@@ -1712,6 +1712,60 @@ describe("ce-work unit workspace controller", () => {
     expect(readFileSync(path.join(f.repo, "keep.txt"), "utf8")).toBe("keep\n")
   })
 
+  test("plan-wide verification restores a preexisting empty ignored directory", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const ignoredDirectory = path.join(f.repo, "local-cache")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "local-cache/\n")
+    mkdirSync(ignoredDirectory, { mode: 0o750 })
+    init(runs, "run-empty-ignored-directory", f)
+    ctl(
+      runs, "prepare", "--run-id", "run-empty-ignored-directory", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    const workspace = path.join(runs, "run-empty-ignored-directory", "units", "U", "workspace")
+    writeFileSync(path.join(workspace, "integrated.txt"), "integrated\n")
+    const job = fakeDoneJob(runs, "run-empty-ignored-directory", "U", "packet")
+    ctl(
+      runs, "record-job", "--run-id", "run-empty-ignored-directory", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    ctl(runs, "terminalize", "--run-id", "run-empty-ignored-directory", "--unit-id", "U")
+    expect(ctl(
+      runs, "integrate", "--run-id", "run-empty-ignored-directory", "--unit-id", "U",
+      "--commit-message", "feat(test): integrate empty directory fixture",
+      "--", "python3", "-c", "pass",
+    ).word).toBe("UNIT_COMMITTED")
+
+    const verified = ctl(
+      runs, "verify-run", "--run-id", "run-empty-ignored-directory",
+      "--", "python3", "-c", "import shutil; shutil.rmtree('local-cache')",
+    )
+    expect(verified.word).toBe("RUN_VERIFIED")
+    expect(verified.body.cleaned_paths).toEqual(["local-cache"])
+    expect(existsSync(ignoredDirectory)).toBe(true)
+    expect(statSync(ignoredDirectory).mode & 0o777).toBe(0o750)
+    expect(ctl(
+      runs, "status", "--run-id", "run-empty-ignored-directory",
+    ).body.verifications.at(-1)).toMatchObject({
+      canonical_state_changed: true,
+      cleaned_paths: ["local-cache"],
+    })
+
+    const failed = ctl(
+      runs, "verify-run", "--run-id", "run-empty-ignored-directory",
+      "--", "python3", "-c",
+      "import shutil; shutil.rmtree('local-cache'); raise SystemExit(7)",
+    )
+    expect(failed.word).toBe("BLOCKED")
+    expect(failed.body).toMatchObject({
+      verification_exit: 7,
+      cleaned_paths: ["local-cache"],
+    })
+    expect(existsSync(ignoredDirectory)).toBe(true)
+    expect(statSync(ignoredDirectory).mode & 0o777).toBe(0o750)
+  })
+
   test("refuses ignored snapshots over deterministic entry or byte bounds before verification", () => {
     const cases: Array<[string, (repo: string) => void]> = [
       ["bytes", (repo) => {
