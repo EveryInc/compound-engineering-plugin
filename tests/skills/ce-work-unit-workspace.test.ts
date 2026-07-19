@@ -8,6 +8,7 @@ import {
   readFileSync,
   readdirSync,
   realpathSync,
+  renameSync,
   rmSync,
   symlinkSync,
   statSync,
@@ -1029,11 +1030,76 @@ describe("ce-work unit workspace controller", () => {
       runs, "claim-fallback", "--run-id", "run-ignored-worker", "--unit-id", "U",
       "--caller-mode", "headless",
     ).word).toBe("FALLBACK_AUTHORIZED")
+    renameSync(
+      path.join(workspace, "ignored-output", "fixture.txt"),
+      path.join(workspace, "ignored-output", "incidental.txt"),
+    )
+    const owned = ctl(runs, "terminalize", "--run-id", "run-ignored-worker", "--unit-id", "U")
+    expect(owned.word).toBe("REFUSED")
+    expect(owned.stderr).toContain("native fallback already owns implementation")
+    const claimed = ctl(runs, "status", "--run-id", "run-ignored-worker", "--unit-id", "U").body.unit
+    expect(claimed.state).toBe("authored")
+    expect(claimed.transport.commit).toBeNull()
+    expect(claimed.attempts[0].terminal_validation_failure).toBeTruthy()
+    expect(claimed.attempts[0].fallback.claimed).toBeTruthy()
     expect(ctl(
       runs, "cleanup", "--run-id", "run-ignored-worker", "--unit-id", "U",
       "--abandon", "--expect-job", job,
     ).word).toBe("CLEANED")
     expect(existsSync(workspace)).toBe(false)
+  })
+
+  test("retires ignored-output fallback eligibility after terminalization recovers", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, ".gitignore"), "ignored-output/\n")
+    git(f.repo, "add", ".gitignore")
+    git(f.repo, "commit", "-m", "ignore generated output")
+    f.base = git(f.repo, "rev-parse", "HEAD")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    expect(init(runs, "run-ignored-recovery", f).word).toBe("READY")
+    expect(ctl(
+      runs, "prepare", "--run-id", "run-ignored-recovery", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("ignored recovery packet"),
+    ).word).toBe("PREPARED")
+    const workspace = path.join(runs, "run-ignored-recovery", "units", "U", "workspace")
+    mkdirSync(path.join(workspace, "ignored-output"))
+    const reportedOutput = path.join(workspace, "ignored-output", "fixture.txt")
+    writeFileSync(reportedOutput, "required fixture\n")
+    const job = fakeDoneJob(
+      runs,
+      "run-ignored-recovery",
+      "U",
+      "ignored recovery packet",
+      "job-ignored-recovery",
+      "completed",
+      ["ignored-output/fixture.txt"],
+    )
+    expect(ctl(
+      runs, "record-job", "--run-id", "run-ignored-recovery", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    ).word).toBe("AUTHORING")
+    expect(ctl(
+      runs, "terminalize", "--run-id", "run-ignored-recovery", "--unit-id", "U",
+    ).word).toBe("BLOCKED")
+
+    renameSync(reportedOutput, path.join(workspace, "ignored-output", "incidental.txt"))
+    expect(ctl(
+      runs, "terminalize", "--run-id", "run-ignored-recovery", "--unit-id", "U",
+    ).word).toBe("INTEGRATION_PENDING")
+    const recovered = ctl(
+      runs, "status", "--run-id", "run-ignored-recovery", "--unit-id", "U",
+    ).body.unit
+    expect(recovered.state).toBe("integration-pending")
+    expect(recovered.transport.commit).toBeTruthy()
+    expect(recovered.attempts[0].terminal_validation_failure).toBeUndefined()
+    expect(recovered.attempts[0].fallback).toEqual({ eligible: false, reason: null, claimed: null })
+
+    const fallback = ctl(
+      runs, "claim-fallback", "--run-id", "run-ignored-recovery", "--unit-id", "U",
+      "--caller-mode", "headless",
+    )
+    expect(fallback.word).toBe("REFUSED")
+    expect(fallback.stderr).toContain("pinned worker transport must be reconciled")
   })
 
   test("allows incidental ignored worker side effects outside reported outputs", () => {

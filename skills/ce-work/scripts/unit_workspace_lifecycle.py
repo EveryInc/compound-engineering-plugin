@@ -471,6 +471,8 @@ def cmd_resume(args) -> tuple[str, dict]:
 
 
 def fallback_basis(doc: dict, unit: dict) -> tuple[str, dict]:
+    if unit.get("state") == "integration-pending" and unit.get("transport", {}).get("commit"):
+        raise Operational("REFUSED", "pinned worker transport must be reconciled rather than bypassed by fallback")
     attempt = find_attempt(unit)
     process_state = attempt.get("process_state")
     if process_state == "done" and attempt.get("terminal_validation_failure"):

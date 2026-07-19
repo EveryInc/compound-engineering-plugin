@@ -437,6 +437,15 @@ def validate_terminal_validation_failure(run_id: str, unit: dict, attempt: dict)
     return failure
 
 
+def retire_terminal_validation_failure(unit: dict) -> None:
+    attempt = find_attempt(unit)
+    failure = attempt.get("terminal_validation_failure")
+    claimed = attempt.get("fallback", {}).get("claimed")
+    if failure is not None and not claimed:
+        attempt.pop("terminal_validation_failure")
+        attempt["fallback"] = {"eligible": False, "reason": None, "claimed": None}
+
+
 def validate_runner_contract(run_id: str, unit: dict, meta: dict) -> None:
     unit_id = unit["unit_id"]
     expected_result_dir = os.path.join(run_dir(run_id), "units", unit_id, "result")
@@ -801,14 +810,20 @@ def terminalize(run_id: str, unit_id: str) -> dict:
                 "recovery_path": os.path.join(run_dir(run_id), "units", unit_id),
             },
         )
-    with locked_manifest(run_id) as doc:
+    with locked_manifest(run_id, write=True) as doc:
         unit = doc["units"].get(unit_id)
         if not unit:
             raise Operational("REFUSED", "unknown unit")
         if unit["state"] == "integration-pending" and unit["transport"].get("commit"):
+            retire_terminal_validation_failure(unit)
             return unit["transport"]
         if unit["state"] != "authored":
             raise Operational("BLOCKED", f"unit cannot terminalize from {unit['state']}")
+        if find_attempt(unit).get("fallback", {}).get("claimed"):
+            raise Operational(
+                "REFUSED",
+                "native fallback already owns implementation; worker output cannot be terminalized",
+            )
         validate_workspace(doc, unit)
         workspace = unit["workspace"]["path"]
         base = unit["workspace"]["base"]
@@ -879,6 +894,7 @@ def terminalize(run_id: str, unit_id: str) -> dict:
         unit = doc["units"][unit_id]
         if unit["state"] not in ("authored", "integration-pending"):
             raise Operational("BLOCKED", "unit state changed during terminalization")
+        retire_terminal_validation_failure(unit)
         unit["state"] = "integration-pending"
         unit["transport"] = transport
         event(doc, "transport-pinned", unit_id, {"commit": commit, "ref": ref, "digest": tdigest})
