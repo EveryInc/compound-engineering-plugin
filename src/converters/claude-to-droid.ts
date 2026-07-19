@@ -20,7 +20,7 @@ const CLAUDE_TO_DROID_TOOLS: Record<string, string> = {
   task: "Task",
   todowrite: "TodoWrite",
   todoread: "TodoWrite",
-  question: "AskUser",
+  askuserquestion: "AskUser",
 }
 
 const VALID_DROID_TOOLS = new Set([

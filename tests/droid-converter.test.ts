@@ -127,6 +127,27 @@ describe("convertClaudeToDroid", () => {
     expect(parsed.data.tools).toEqual(["Execute", "Read"])
   })
 
+  test("maps AskUserQuestion by its real tool name, not the bare word", () => {
+    // \bquestion\b never matches inside the CamelCase AskUserQuestion, so key on the full name.
+    const usesTool: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [{ name: "asker", description: "asks things", body: "Use AskUserQuestion after Read to gather files.", sourcePath: "/tmp/plugin/agents/asker.md" }],
+      commands: [],
+      skills: [],
+    }
+    const withTool = convertClaudeToDroid(usesTool, { agentMode: "subagent", inferTemperature: false, permissions: "none" })
+    expect(parseFrontmatter(withTool.droids[0].content).data.tools).toEqual(["AskUser", "Read"])
+
+    const prose: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [{ name: "asker", description: "asks things", body: "Answer the user's question after Read.", sourcePath: "/tmp/plugin/agents/asker.md" }],
+      commands: [],
+      skills: [],
+    }
+    const bareWord = convertClaudeToDroid(prose, { agentMode: "subagent", inferTemperature: false, permissions: "none" })
+    expect(parseFrontmatter(bareWord.droids[0].content).data.tools).toEqual(["Read"])
+  })
+
   test("passes through skill directories", () => {
     const bundle = convertClaudeToDroid(fixturePlugin, {
       agentMode: "subagent",
