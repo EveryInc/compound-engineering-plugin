@@ -188,6 +188,23 @@ def unit_ready_for_run_verification(unit: object) -> bool:
     return isinstance(unit, dict) and unit_accepted_commit(unit) is not None
 
 
+def accepted_unit_commit_snapshot(units: object) -> dict[str, str] | None:
+    if not isinstance(units, dict):
+        return None
+    snapshot: dict[str, str] = {}
+    for unit_id in sorted(units):
+        if not isinstance(unit_id, str) or not SAFE_ID.fullmatch(unit_id):
+            return None
+        unit = units[unit_id]
+        if not isinstance(unit, dict):
+            return None
+        commit = unit_accepted_commit(unit)
+        if commit is None:
+            return None
+        snapshot[unit_id] = commit
+    return snapshot
+
+
 def _mode(st: os.stat_result) -> int:
     return stat.S_IMODE(st.st_mode)
 

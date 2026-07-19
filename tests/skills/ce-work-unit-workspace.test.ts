@@ -3337,6 +3337,68 @@ describe("ce-work unit workspace controller", () => {
     expect(ctl(runs, "resume", "--run-id", "run-committed").body.actions).toEqual([])
   })
 
+  test("requires fresh plan verification after the accepted unit set changes", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-verification-scope"
+    init(runs, runId, f)
+
+    const completeUnit = (unitId: string, base: string) => {
+      const packet = `${unitId} packet`
+      const prepared = ctl(
+        runs, "prepare", "--run-id", runId, "--unit-id", unitId,
+        "--base", base, "--packet", packetFile(packet),
+      )
+      writeFileSync(path.join(prepared.body.workspace, `${unitId}.txt`), `${unitId}\n`)
+      const job = fakeDoneJob(runs, runId, unitId, packet, `job-${unitId}`)
+      ctl(
+        runs, "record-job", "--run-id", runId, "--unit-id", unitId,
+        "--attempt-id", "attempt-1", "--job-id", job,
+      )
+      ctl(runs, "terminalize", "--run-id", runId, "--unit-id", unitId)
+      expect(ctl(
+        runs, "integrate", "--run-id", runId, "--unit-id", unitId,
+        "--commit-message", `feat(test): integrate ${unitId}`, "--", "true",
+      ).word).toBe("UNIT_COMMITTED")
+      return ctl(runs, "status", "--run-id", runId).body.units[unitId].integration.canonical_commit.commit
+    }
+
+    const firstHead = completeUnit("U1", f.base)
+    expect(ctl(
+      runs, "verify-run", "--run-id", runId,
+      "--verification-summary", "first unit set verified", "--", "true",
+    ).word).toBe("RUN_VERIFIED")
+    expect(ctl(runs, "status", "--run-id", runId).body.verifications.at(-1)).toMatchObject({
+      verification_exit: 0,
+      canonical_head: firstHead,
+      accepted_units: { U1: firstHead },
+    })
+    expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("NOT_FOUND")
+
+    const secondHead = completeUnit("U2", firstHead)
+    const stale = ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest)
+    expect(stale.word).toBe("RESUMED")
+    expect(stale.body).toMatchObject({ run_id: runId, actions: [] })
+
+    expect(ctl(
+      runs, "verify-run", "--run-id", runId,
+      "--verification-summary", "changed unit set verified", "--", "true",
+    ).word).toBe("RUN_VERIFIED")
+    expect(ctl(runs, "status", "--run-id", runId).body.verifications.at(-1)).toMatchObject({
+      verification_exit: 0,
+      canonical_head: secondHead,
+      accepted_units: { U1: firstHead, U2: secondHead },
+    })
+    expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("NOT_FOUND")
+
+    writeFileSync(path.join(f.repo, "unaccepted.txt"), "not controller accepted\n")
+    git(f.repo, "add", "unaccepted.txt")
+    git(f.repo, "commit", "--no-verify", "-m", "test: advance beyond verified head")
+    expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("RESUMED")
+    git(f.repo, "reset", "--hard", secondHead)
+    expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("NOT_FOUND")
+  })
+
   test("restores applied-before-manifest and interrupted restore, but blocks on unknown dirt", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")

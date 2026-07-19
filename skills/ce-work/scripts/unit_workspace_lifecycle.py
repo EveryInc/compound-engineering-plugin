@@ -28,7 +28,7 @@ def cmd_status(args) -> tuple[str, dict]:
     return "STATUS", body
 
 
-def unfinished_run(doc: dict) -> bool:
+def unfinished_run(doc: dict, canonical_head: str) -> bool:
     units = doc.get("units")
     if not isinstance(units, dict):
         raise TrustFailure("manifest units are malformed")
@@ -85,8 +85,15 @@ def unfinished_run(doc: dict) -> bool:
     receipts = doc.get("verifications", [])
     if not isinstance(receipts, list) or any(not isinstance(receipt, dict) for receipt in receipts):
         raise TrustFailure("manifest verification receipts are malformed")
+    accepted_units = accepted_unit_commit_snapshot(units)
+    if accepted_units is None:
+        return True
     return doc.get("integration_lock") is not None or not any(
-        receipt.get("verification_exit") == 0 for receipt in receipts
+        receipt.get("verification_exit") == 0
+        and receipt.get("accepted_units") == accepted_units
+        and receipt.get("canonical_head") == canonical_head
+        and canonical_head in accepted_units.values()
+        for receipt in receipts
     )
 
 
@@ -127,7 +134,7 @@ def discover_resume_run(repo: str, plan_digest: str) -> tuple[str, list[dict]]:
         if source_kind != "plan" or source_digest != plan_digest:
             continue
         validate_source(doc)
-        if unfinished_run(doc):
+        if unfinished_run(doc, info["head"]):
             candidates.append({
                 "run_id": entry.name,
                 "updated_at": doc.get("updated_at"),

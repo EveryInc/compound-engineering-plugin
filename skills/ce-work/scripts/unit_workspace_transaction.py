@@ -462,6 +462,9 @@ def _verify_run_locked(
     if not before["status_empty"] or before_paths:
         raise Operational("BLOCKED", "verify-run requires a clean canonical checkout")
     _validate_accepted_run_head(repo, units, before["head"])
+    accepted_units = accepted_unit_commit_snapshot(units)
+    if accepted_units is None:
+        raise Operational("BLOCKED", "unit completion evidence changed before plan-wide verification")
     ignored_snapshot = _snapshot_ignored_artifacts(
         repo,
         before_ignored,
@@ -564,6 +567,7 @@ def _verify_run_locked(
         "verification_exit": verification_exit,
         "log_sha256": log_digest,
         "canonical_head": before["head"],
+        "accepted_units": accepted_units,
         "canonical_state_changed": after != before,
         "cleaned_paths": cleaned_paths,
         "verification_log": verification_log if verification_exit != 0 else None,
