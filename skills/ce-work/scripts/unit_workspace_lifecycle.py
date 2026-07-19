@@ -637,6 +637,7 @@ def cmd_claim_fallback(args) -> tuple[str, dict]:
 
 def validate_fallback_ancestry(doc: dict, unit: dict, accepted_head: str) -> None:
     required: list[dict] = []
+    dependency_ids = set(unit.get("dependencies", []))
     for dependency_id in unit.get("dependencies", []):
         dependency = doc.get("units", {}).get(dependency_id)
         accepted_commit = unit_accepted_commit(dependency) if isinstance(dependency, dict) else None
@@ -655,6 +656,17 @@ def validate_fallback_ancestry(doc: dict, unit: dict, accepted_head: str) -> Non
         for head in wave.get("allowed_heads", []):
             if head != base:
                 required.append({"kind": "wave-head", "commit": head})
+
+    represented_commits = {item["commit"] for item in required}
+    for accepted_unit_id in sorted(doc.get("units", {})):
+        if accepted_unit_id == unit["unit_id"] or accepted_unit_id in dependency_ids:
+            continue
+        accepted_unit = doc["units"][accepted_unit_id]
+        accepted_commit = unit_accepted_commit(accepted_unit)
+        if accepted_commit is None or accepted_commit in represented_commits:
+            continue
+        required.append({"kind": "accepted-unit", "unit_id": accepted_unit_id, "commit": accepted_commit})
+        represented_commits.add(accepted_commit)
 
     missing = [
         item for item in required

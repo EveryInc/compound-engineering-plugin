@@ -2987,6 +2987,77 @@ describe("ce-work unit workspace controller", () => {
     ).word).toBe("FALLBACK_COMPLETED")
   })
 
+  test("does not complete native fallback when its head omits a unit accepted after the claim", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-fallback-concurrent-acceptance"
+    init(runs, runId, f)
+
+    for (const unitId of ["U-fallback", "U-accepted"]) {
+      ctl(
+        runs, "prepare", "--run-id", runId, "--unit-id", unitId,
+        "--base", f.base, "--packet", packetFile(`packet-${unitId}`),
+      )
+      const job = fakeRunningJob(runs, runId, unitId, `packet-${unitId}`, `job-${unitId}`)
+      ctl(
+        runs, "record-job", "--run-id", runId, "--unit-id", unitId,
+        "--attempt-id", "attempt-1", "--job-id", job,
+      )
+      terminalizeFakeJob(runs, runId, job, "failed")
+    }
+    ctl(runs, "resume", "--run-id", runId)
+
+    expect(ctl(
+      runs, "claim-fallback", "--run-id", runId, "--unit-id", "U-fallback",
+      "--caller-mode", "headless",
+    ).word).toBe("FALLBACK_AUTHORIZED")
+    expect(ctl(
+      runs, "claim-fallback", "--run-id", runId, "--unit-id", "U-accepted",
+      "--caller-mode", "headless",
+    ).word).toBe("FALLBACK_AUTHORIZED")
+
+    writeFileSync(path.join(f.repo, "accepted.txt"), "accepted independent unit\n")
+    git(f.repo, "add", "accepted.txt")
+    git(f.repo, "commit", "-m", "accept independent unit")
+    const acceptedHead = git(f.repo, "rev-parse", "HEAD")
+    expect(ctl(
+      runs, "complete-fallback", "--run-id", runId, "--unit-id", "U-accepted",
+      "--accepted-head", acceptedHead, "--evidence-digest", "e".repeat(64),
+      "--summary", "independent checks passed",
+    ).word).toBe("FALLBACK_COMPLETED")
+
+    git(f.repo, "reset", "--hard", f.base)
+    writeFileSync(path.join(f.repo, "fallback.txt"), "stale fallback implementation\n")
+    git(f.repo, "add", "fallback.txt")
+    git(f.repo, "commit", "-m", "implement stale fallback")
+    const staleHead = git(f.repo, "rev-parse", "HEAD")
+    const blocked = ctl(
+      runs, "complete-fallback", "--run-id", runId, "--unit-id", "U-fallback",
+      "--accepted-head", staleHead, "--evidence-digest", "f".repeat(64),
+      "--summary", "fallback checks passed",
+    )
+    expect(blocked.word).toBe("BLOCKED")
+    expect(blocked.stderr).toContain("does not contain every controller-accepted prerequisite")
+    expect(blocked.body.missing_ancestry).toEqual([{
+      kind: "accepted-unit", unit_id: "U-accepted", commit: acceptedHead,
+    }])
+    expect(ctl(
+      runs, "status", "--run-id", runId, "--unit-id", "U-fallback",
+    ).body.unit).toMatchObject({
+      state: "authoring",
+      attempts: [{ fallback: { completed: null } }],
+    })
+
+    git(f.repo, "reset", "--hard", acceptedHead)
+    git(f.repo, "cherry-pick", staleHead)
+    const updatedHead = git(f.repo, "rev-parse", "HEAD")
+    expect(ctl(
+      runs, "complete-fallback", "--run-id", runId, "--unit-id", "U-fallback",
+      "--accepted-head", updatedHead, "--evidence-digest", "f".repeat(64),
+      "--summary", "fallback checks passed",
+    ).word).toBe("FALLBACK_COMPLETED")
+  })
+
   test("accepts a native-completed dependency before a later fallback claim", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
