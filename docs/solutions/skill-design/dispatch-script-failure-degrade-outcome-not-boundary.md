@@ -50,7 +50,7 @@ Several things that look like "security" are really *output correctness*. Preser
 **6. The degrade target is per-skill — name what is actually lost.**
 The fallback is not universally "the solo answer." It is whatever coverage survives:
 - `ce-pov` → solo POV (losing the peer loses the whole cross-check).
-- `ce-code-review` → drop the cross-model leg; the in-process adversarial reviewer still covers the lens, so only independent corroboration/promotion is lost.
+- `ce-code-review` → depends on whether a peer job id was returned: if not, the in-process adversarial reviewer still covers the lens and only cross-model corroboration is lost; if a job id was returned before the crash, that local reviewer was already dropped and is never revived, so the adversarial lens itself degrades unless hand-recovery restores it.
 - `ce-doc-review` → drop the leg; in-process twins still cover each lens, but the whole-doc broad-read sweep has no twin, so *that* read is the real loss.
 
 State the specific loss in the coverage/availability note rather than letting it vanish as "not run."
