@@ -42,6 +42,9 @@ The chain works across domains — every step supports universal mode. `ce-ideat
 # Find solution opportunities across patterns in open GitHub issues
 /ce-ideate what product opportunities do you see across our open GitHub issues?
 
+# Ideate from the open work in an accessible Linear project
+/ce-ideate find solution opportunities across https://linear.app/acme/project/customer-onboarding-1234
+
 # Ask for non-obvious directions without naming a subject
 /ce-ideate surprise me
 
