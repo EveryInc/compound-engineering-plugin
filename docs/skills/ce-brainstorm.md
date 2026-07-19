@@ -32,6 +32,24 @@ One thing it deliberately does *not* do is render a verdict. When a request is r
 
 ---
 
+## Example invocations
+
+```text
+# Turn a rough feature idea into a requirements artifact
+/ce-brainstorm add a way for users to pause notifications
+
+# Explore a problem without prescribing the solution up front
+/ce-brainstorm support agents get paged overnight for non-urgent events
+
+# Brainstorm non-software work with the same scope and decision discipline
+/ce-brainstorm plan a two-day customer advisory workshop
+
+# Produce a self-contained HTML artifact instead of Markdown
+/ce-brainstorm add account-level notification settings output:html
+```
+
+---
+
 ## The Problem
 
 Going straight from a vague idea to implementation produces:

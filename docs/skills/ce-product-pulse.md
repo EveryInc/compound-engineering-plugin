@@ -19,6 +19,26 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 ---
 
+## Example invocations
+
+```text
+# Use the configured default window, or 24 hours when none is configured
+/ce-product-pulse
+
+# Review a weekly window
+/ce-product-pulse 7d
+
+# Run a narrow launch check while still respecting ingestion delay
+/ce-product-pulse 1h
+
+# Re-run the source and metric setup interview
+/ce-product-pulse reconfigure
+```
+
+Choose the shortest window that answers the question: a launch check and a weekly operating review should not use the same horizon.
+
+---
+
 ## The Problem
 
 Most "how are we doing?" reports fail in predictable ways:

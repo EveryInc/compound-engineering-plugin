@@ -21,6 +21,28 @@ The skill is prose-first and uses the active agent's available capabilities. It 
 
 ---
 
+## Example invocations
+
+```text
+# End the current session and create a handoff in managed temporary storage
+/ce-handoff
+
+# Create a handoff with a specific focus for the receiving agent
+/ce-handoff create finish the authentication migration
+
+# Find likely handoffs by topic, then choose one before its body is read
+/ce-handoff resume authentication migration
+
+# Resume directly when you already have the source
+/ce-handoff resume /path/to/authentication-migration.md
+/ce-handoff resume https://example.com/authentication-migration-handoff
+
+# Make the handoff reachable from another machine or container
+/ce-handoff create a handoff and publish it to ht-ml.app
+```
+
+---
+
 ## The Problem
 
 A productive agent session contains more than changed files. It accumulates the user's intent, decisions, rejected alternatives, constraints, failed attempts, verification results, and knowledge of fragile local state. A fresh agent in another model or harness cannot rely on that session history being available.
@@ -52,14 +74,7 @@ Automatic managed-store discovery works when the receiving session can see the s
 
 ## Create and Resume Ergonomics
 
-The direction is determined by intent:
-
-```text
-/ce-handoff
-/ce-handoff create focus on the failing integration test
-```
-
-Both create a new handoff. The bare form always means create.
+The direction is determined by intent. A bare invocation always means create; `create <focus>` makes the next session's intended objective explicit.
 
 Creation ends with the exact command needed in the receiving session:
 
@@ -69,13 +84,7 @@ Creation ends with the exact command needed in the receiving session:
 
 Before the command, the creation response briefly summarizes what the handoff captured so the user can confirm its substance without opening the file. The skill then prints this compact command as the source of truth rather than generating a longer launch prompt.
 
-```text
-/ce-handoff resume https://example.com/team/auth-migration-handoff
-/ce-handoff resume authentication migration
-Find the handoff about the authentication migration
-```
-
-These resume from an explicit source or discover likely candidates. A selected source may be a local file, text file, URL/page, pasted handoff, or another readable artifact. It may come from any person, agent, or system and does not need CE frontmatter or even need to have been created as a formal handoff. Natural language avoids forcing the user to remember command syntax when “handoff” feels directionally awkward in a new session.
+Resume intent either reads an explicit source or discovers likely candidates. A selected source may be a local file, text file, URL/page, pasted handoff, or another readable artifact. It may come from any person, agent, or system and does not need CE frontmatter or even need to have been created as a formal handoff. Natural language such as “Find the handoff about the authentication migration” avoids forcing the user to remember command syntax when “handoff” feels directionally awkward in a new session.
 
 ## Safe Discovery
 

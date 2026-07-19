@@ -17,6 +17,27 @@
 
 ---
 
+## Example invocations
+
+```text
+# Test routes affected by the current branch; the user owns the dev server
+/ce-test-browser
+
+# Test a specific pull request or branch
+/ce-test-browser 847
+/ce-test-browser feature/new-dashboard
+
+# Connect manual mode to an existing server on a custom port
+/ce-test-browser --port 5000
+
+# Let an outer workflow start the server and choose a free port
+/ce-test-browser mode:pipeline
+```
+
+Manual mode stops with the correct start command when no server is running. Pipeline mode owns server startup because its caller cannot pause for setup.
+
+---
+
 ## The Problem
 
 End-to-end browser testing is fragmented across tools and easy to skip:

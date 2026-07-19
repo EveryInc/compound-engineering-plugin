@@ -19,6 +19,26 @@ It drafts only. It never posts, publishes, commits, or opens PRs — shipping th
 
 ---
 
+## Example invocations
+
+```text
+# Derive what shipped from the current project and draft the default channels
+/ce-promote
+
+# Supply the shipped value when the repository context is not enough
+/ce-promote announce one-click CSV export for account reports
+
+# Ask for several alternatives on one channel
+/ce-promote 3 tweet options for the new one-click CSV export
+
+# Draft a coordinated cross-channel launch set
+/ce-promote a launch across X, LinkedIn, and email for one-click CSV export
+```
+
+Name channels when you need a particular distribution shape; otherwise the skill chooses a small default set. It always drafts and never posts.
+
+---
+
 ## The Problem
 
 Messaging usually waits for a separate marketing pass, so it lags the ship — and the engineer who has the most context on the user value isn't the one who writes the copy. When announcement copy *is* written ad hoc, it tends toward AI tells ("We're thrilled to announce…"), hashtag spam, and implementation-speak instead of user value.

@@ -19,6 +19,26 @@
 
 ---
 
+## Example invocations
+
+```text
+# Publish a local Markdown document and keep the file canonical
+/ce-proof share docs/plans/notification-mute.md to Proof
+
+# Read or collaborate on an existing Proof document
+/ce-proof https://www.proofeditor.ai/d/example?token=example
+
+# Publish the Markdown file that was just edited
+/ce-proof share this to Proof
+
+# Pull current Proof content to a local file as a separate explicit action
+/ce-proof pull this Proof document to docs/reviews/notification-mute.md
+```
+
+Publishing is one-way by default. Pulling remote content back to disk is separate because it changes the local source of truth.
+
+---
+
 ## The Problem
 
 Sharing markdown drafts for review is harder than it looks:

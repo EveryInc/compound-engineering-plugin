@@ -22,6 +22,25 @@ The compound-engineering shipping chain is `/ce-work → /ce-commit-push-pr → 
 
 ---
 
+## Example invocations
+
+```text
+# Watch the pull request for the current branch until it is ready or blocked
+/ce-babysit-pr
+
+# Watch a specific pull request by number or URL
+/ce-babysit-pr 1234
+/ce-babysit-pr https://github.com/acme/widgets/pull/1234
+
+# Run one checkpoint tick and return a copyable resume command
+/ce-babysit-pr 1234 checkpoint
+
+# Force the self-sustaining in-session watch when the harness supports it
+/ce-babysit-pr 1234 watch
+```
+
+---
+
 ## The Problem
 
 Babysitting a PR by hand — or with a naive loop — fails in predictable ways:

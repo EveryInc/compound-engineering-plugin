@@ -30,6 +30,26 @@ This is the fourth and final step in the compound-engineering ideation chain:
 
 ---
 
+## Example invocations
+
+```text
+# Execute a specific implementation-ready plan and own the shipping tail
+/ce-work docs/plans/notification-mute.md
+
+# Implement a clear small or medium task without writing a plan first
+/ce-work extract a shared duration formatter from the notification views
+
+# Resume the latest eligible plan in docs/plans
+/ce-work
+
+# Return implementation evidence to an outer orchestrator without opening a PR
+/ce-work mode:return-to-caller docs/plans/notification-mute.md
+```
+
+Use caller-owned mode only from an outer workflow such as `lfg`; direct users normally want the standalone path that verifies, reviews, and ships the work.
+
+---
+
 ## The Problem
 
 Asking an agent "implement this plan" goes wrong in predictable ways:

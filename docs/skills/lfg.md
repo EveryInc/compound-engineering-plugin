@@ -20,6 +20,24 @@ Use it when you want the full agentic shipping path and are comfortable with the
 
 ---
 
+## Example invocations
+
+```text
+# Ship a clear software task autonomously from planning through a green PR
+/lfg add account-level notification mute settings
+
+# Use the requirements already established in the current conversation
+/ce-brainstorm add account-level notification mute settings
+/lfg
+
+# Ship an existing feedback-sweep plan after customer items are reconciled
+/lfg docs/plans/feedback-sweep-plan.md
+```
+
+Invoke `lfg` only when you want the full hands-off shipping pipeline. Use the individual skills when you want to inspect or approve each stage.
+
+---
+
 ## The Problem
 
 The normal CE workflow is deliberately staged: plan, work, simplify, review, ship. That is useful when you want to inspect each step, but too much handoff when the task is well-bounded and you want the agent to carry the whole thing.

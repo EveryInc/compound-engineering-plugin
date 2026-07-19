@@ -8,6 +8,25 @@
 | **Invocation** | Manual (`/ce-sweep`) or scheduled (`/ce-sweep mode:headless`); never model-invoked |
 | **Position** | Around the loop — feeds `/lfg` and `ce-plan` from customer feedback |
 
+## Example invocations
+
+```text
+# First run: configure sources, approvals, state location, and scheduling
+/ce-sweep
+
+# Later runs: fetch, acknowledge, analyze, verify, and reconcile the plan
+/ce-sweep
+
+# Scheduled or unattended run: defer ambiguous decisions into the plan
+/ce-sweep mode:headless
+
+# Re-enter setup to add or edit feedback sources
+/ce-sweep reconfigure
+
+# Ship the reconciled open items through the autonomous pipeline
+/lfg docs/plans/feedback-sweep-plan.md
+```
+
 ## Problem
 
 Feedback triage tends to become a bespoke, per-repo ritual: scan a Slack channel since last time, react to show it was seen, download and watch screen recordings, figure out whether something already got fixed, and keep a private list of what's still open. Every project rebuilds this by hand, the state lives in someone's head or a one-off file, and "fixed" claims get trusted without evidence.
@@ -25,17 +44,6 @@ Every item's lifecycle lives in a durable YAML state file with a versioned schem
 3. **Fix verification trusts only merge evidence.** Thread claims never close an item — only a verified merge to the default branch does, recorded with the merge SHA.
 4. **The plan is a view, not a log.** One rolling plan at a stable path is reconciled every run: new items append, verified-fixed items drain, and a human-owned notes region survives untouched. If `/lfg` has enriched the plan in place, the sweep archives it and starts a fresh view rather than clobbering execution state.
 5. **Headless-safe by contract.** `mode:headless` never prompts: ambiguous product calls defer into the plan's outstanding questions, and an acknowledgment volume circuit-breaker defers rather than mass-reacting when a cursor looks wrong.
-
-## Quick Example
-
-```
-/ce-sweep                    # first run: interactive setup (sources, approvals, state location, schedule offer)
-/ce-sweep                    # subsequent runs: sweep, acknowledge, analyze, verify, reconcile plan
-/ce-sweep mode:headless      # scheduled/unattended run — defers decisions into the plan
-/ce-sweep reconfigure        # re-enter setup to add or edit sources
-```
-
-After a sweep: `/lfg docs/plans/feedback-sweep-plan.md` ships the open items.
 
 ## When to Reach For It
 

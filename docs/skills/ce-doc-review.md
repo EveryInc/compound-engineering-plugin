@@ -19,6 +19,23 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 ---
 
+## Example invocations
+
+```text
+# Review a specific requirements or plan document interactively
+/ce-doc-review docs/plans/notification-mute.md
+
+# Let the skill find the most recent planning document
+/ce-doc-review
+
+# Return structured findings to a calling workflow without questions
+/ce-doc-review mode:headless docs/plans/notification-mute.md
+```
+
+Interactive mode is for deciding findings now. Headless mode preserves the same classifications but leaves non-safe decisions to its caller.
+
+---
+
 ## The Problem
 
 Document review is harder than code review in specific ways:

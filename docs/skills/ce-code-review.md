@@ -19,6 +19,29 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 ---
 
+## Example invocations
+
+```text
+# Review the current branch and report findings without changing files
+/ce-code-review
+
+# Review the current checkout against a known base
+/ce-code-review base:origin/main
+
+# Review a specific PR without checking it out
+/ce-code-review https://github.com/acme/widgets/pull/1234
+
+# Verify the diff against an explicit implementation plan
+/ce-code-review plan:docs/plans/notification-mute.md
+
+# Explicitly authorize eligible fixes in the local checkout
+/ce-code-review apply:local
+```
+
+Do not combine a PR or branch target with `base:`: a base ref means the current checkout is already the intended review scope.
+
+---
+
 ## The Problem
 
 Generalist code review prompts collapse in predictable ways:

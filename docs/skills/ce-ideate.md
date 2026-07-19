@@ -30,6 +30,29 @@ The chain works across domains — every step supports universal mode. `ce-ideat
 
 ---
 
+## Example invocations
+
+```text
+# Generate grounded product or codebase opportunities
+/ce-ideate what should we improve in this repository?
+
+# Focus ideation on a specific product surface
+/ce-ideate onboarding improvements for new team administrators
+
+# Ask for non-obvious directions without naming a subject
+/ce-ideate surprise me
+
+# Use the same engine for non-software ideation
+/ce-ideate names for a neighborhood coffee shop
+
+# Write Markdown instead of the default self-contained HTML artifact
+/ce-ideate developer experience improvements output:md
+```
+
+Use `ce-pov` when the candidates are already known and need judgment; use `ce-brainstorm` when one candidate needs scope.
+
+---
+
 ## The Problem
 
 Asking an AI "what's worth exploring here?" usually returns:

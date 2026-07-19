@@ -21,6 +21,32 @@ It fills the judgment gap between exploring (`/ce-ideate`), scoping (`/ce-brains
 
 ---
 
+## Example invocations
+
+```text
+# Decide whether an external tool fits this project
+/ce-pov should we adopt Drizzle ORM here?
+
+# Get a holistic bottom line on a document
+# Use ce-doc-review instead when you want issue-by-issue findings
+/ce-pov what do you think of docs/plans/new-checkout.md?
+
+# Choose between approaches that are already on the table
+/ce-pov for this service, should we use polling or webhooks?
+
+# Supply a bare link when you want ce-pov to propose the possible questions first
+/ce-pov https://example.com/tool
+
+# Ask for an independent cross-model check
+/ce-pov oracle: should we adopt this auth provider?
+/ce-pov compare your take on docs/plans/new-checkout.md with Grok and Composer
+
+# Invoke it mid-session for a grounded second opinion on the current direction
+/ce-pov
+```
+
+---
+
 ## The Problem
 
 A bare agent asked "what's your POV on X?" fails in predictable ways:
@@ -142,19 +168,7 @@ Skip `ce-pov` when:
 
 ## Use Standalone
 
-- **Adoption** — `/ce-pov should we adopt Drizzle ORM here?`
-- **Migration** — `/ce-pov should we migrate off Moment to Temporal?`
-- **Selection** — `/ce-pov what should we use for feature flags?`
-- **Comparison** — `/ce-pov how does Biome compare to our ESLint + Prettier setup?`
-- **Exposure** — `/ce-pov does CVE-2026-1234 in tar affect us?`
-- **Revisit** — `/ce-pov we passed on tRPC last year — still the right call?`
-- **Bare link** — paste a URL with nothing else; the intake gate proposes framings
-- **Warm** — `/ce-pov` mid-brainstorm for a second opinion
-- **Document take** — `/ce-pov what do you think of docs/plans/new-checkout.md?`
-- **Approach set** — `/ce-pov for this service, should we use polling or webhooks?`
-- **Named cross-check** — `/ce-pov compare your take with Grok and Composer`
-- **Cursor default** — `/ce-pov compare your take with Cursor`
-- **Oracle** — `/ce-pov oracle: should we adopt this auth provider?`
+The examples near the top cover the main subject shapes and panel routes. Other useful prompts include migration decisions, bounded technology selection, CVE exposure, revisiting a past decision, and a Cursor-default cross-check.
 
 ---
 

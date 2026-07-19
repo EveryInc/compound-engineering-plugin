@@ -23,6 +23,26 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 ---
 
+## Example invocations
+
+```text
+# Simplify the current branch diff before review or PR creation
+/ce-simplify-code
+
+# Limit the pass to one file
+/ce-simplify-code app/services/notification_dispatcher.rb
+
+# Describe a conversational scope when paths alone are not expressive enough
+/ce-simplify-code the changes I made to NotificationDispatcher
+
+# Clean up code an agent just generated before it becomes review noise
+/ce-simplify-code the authentication code from the last implementation step
+```
+
+User-named scope is authoritative. A bare invocation prefers the branch diff, then staged or unstaged work, then files recently edited in the conversation.
+
+---
+
 ## The Problem
 
 After writing a feature, the code usually has refinement debt that's easy to miss in the moment:

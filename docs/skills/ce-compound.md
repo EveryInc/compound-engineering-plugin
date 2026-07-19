@@ -19,6 +19,26 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 ---
 
+## Example invocations
+
+```text
+# Capture the verified solution from the current conversation
+/ce-compound
+
+# Focus capture when the session contains several solved problems
+/ce-compound the email digest race condition we fixed
+
+# Capture unattended with the full research and review path
+/ce-compound mode:headless depth:full the verified caching fix
+
+# Use the lower-overhead unattended path when the context is already clear
+/ce-compound mode:headless depth:lightweight the verified caching fix
+```
+
+Use headless mode only when the caller should own any follow-up decisions; ordinary interactive capture can still ask before changing project guidance.
+
+---
+
 ## The Problem
 
 Most teams solve the same problem twice — sometimes with the same person — because the first solution lives in conversation, chat history, or a teammate's head. Common failure shapes:

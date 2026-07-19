@@ -20,6 +20,24 @@ It is **diff-scoped**, not whole-app exploration, and it is **hands-off**: once 
 
 ---
 
+## Example invocations
+
+```text
+# Dogfood the diff on the current feature branch
+/ce-dogfood
+
+# Dogfood a specific pull request or branch
+/ce-dogfood 847
+/ce-dogfood feature/new-dashboard
+
+# Reuse a dev server already running on a custom port
+/ce-dogfood --port 5000
+```
+
+Use `ce-test-browser` instead when you want a bounded route test rather than exploratory, experience-focused QA.
+
+---
+
 ## The Problem
 
 A branch can pass static review and unit tests and still be broken or rough in the browser — and finding that out usually means a manual click-through that:

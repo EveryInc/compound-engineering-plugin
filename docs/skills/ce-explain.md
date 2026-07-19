@@ -4,6 +4,22 @@
 
 Point it at a concept, a diff, an idea, or a window of your own recent work, and get a dense, visual explainer written for you personally — with an optional check-in (predict what a diff does before the reveal; answer exercises that get corrected) that makes the material actually stick.
 
+## Example invocations
+
+```text
+# Explain a recent code change from its diff
+/ce-explain diff:HEAD~3..HEAD
+
+# Teach an external technical concept
+/ce-explain Ruby garbage compaction
+
+# Build a timeline for meeting preparation
+/ce-explain since:monday
+
+# Turn an early idea into a visual thinking artifact
+/ce-explain my idea of caching explainers per repository
+```
+
 ## The Problem
 
 Agent-driven development removed the learning that writing code by hand used to provide. You ship work through agents, rarely read the code, and stop accumulating the understanding that typing it yourself once forced. The cost shows up twice: comprehension debt on your own projects, and recall gaps when a meeting needs you to speak to what happened last week. The plugin's other skills capture knowledge for the *repo* (`/ce-compound`) or judge options (`/ce-pov`); none of them teaches *you*.
@@ -26,15 +42,6 @@ The explainer is HTML-first (markdown on request), show-n-tell by default — di
 3. **Skippable by design.** Routine recaps skip the check-in; you can always decline. Some things don't need a learning loop.
 4. **Capability-detected destinations.** The destination ask offers only what your environment supports, with a local file as the always-present floor — and the artifact exists on disk before the ask, so declining everything loses nothing.
 5. **Honest external grounding.** External topics with no web access fall back to model knowledge — labeled as unverified in the artifact, never passed off as checked.
-
-## Quick Example
-
-```text
-/ce-explain diff:HEAD~3..HEAD
-/ce-explain ruby garbage compaction
-/ce-explain since:monday          # meeting prep
-/ce-explain my idea of caching explainers per repo
-```
 
 ## When to Reach For It
 

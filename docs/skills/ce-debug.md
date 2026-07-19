@@ -21,6 +21,27 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 ---
 
+## Example invocations
+
+```text
+# Start from a failing test
+/ce-debug spec/models/notification_subscription_spec.rb
+
+# Start from an issue or ticket and include its full discussion
+/ce-debug https://github.com/acme/widgets/issues/1234
+/ce-debug ABC-456
+
+# Start from observed behavior when no ticket exists
+/ce-debug the digest job sends duplicate emails after a retry
+
+# Invoke first, then paste a stack trace when the error is the best evidence
+/ce-debug
+```
+
+Describe what is observably broken, not the fix you suspect; the skill validates the causal chain before changing code.
+
+---
+
 ## The Problem
 
 Common debugging anti-patterns:

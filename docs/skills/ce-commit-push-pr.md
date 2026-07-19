@@ -21,6 +21,27 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 ---
 
+## Example invocations
+
+```text
+# Commit current work, push the branch, and open a PR
+/ce-commit-push-pr
+
+# Draft a PR description without applying it
+/ce-commit-push-pr draft a PR description for this branch
+
+# Rewrite the current PR description with a specific emphasis
+/ce-commit-push-pr update the PR description to include benchmark results
+
+# Describe a different PR from its complete branch scope
+/ce-commit-push-pr https://github.com/acme/widgets/pull/1234
+
+# Ship but leave CI and review monitoring to the caller
+/ce-commit-push-pr mode:pipeline
+```
+
+---
+
 ## The Problem
 
 Going from "code written" to "PR open" is supposed to be a one-step move, but it tends to fail in predictable ways:

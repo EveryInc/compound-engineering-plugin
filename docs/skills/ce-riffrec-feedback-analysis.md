@@ -17,6 +17,25 @@
 
 ---
 
+## Example invocations
+
+```text
+# Analyze a complete Riffrec capture bundle
+/ce-riffrec-feedback-analysis riffrec-2026-05-04-checkout-flow.zip
+
+# Analyze video, audio, or written feedback through the same router
+/ce-riffrec-feedback-analysis demo.mp4
+/ce-riffrec-feedback-analysis voice-memo.m4a
+/ce-riffrec-feedback-analysis meeting-notes.md
+
+# Get capture setup help when no recording exists yet
+/ce-riffrec-feedback-analysis how do I install and use Riffrec?
+```
+
+Short single-issue inputs become concise bug reports; longer or multi-issue inputs produce structured analysis and hand off to `ce-brainstorm`.
+
+---
+
 ## The Problem
 
 Raw user-feedback recordings don't reduce to structured input automatically:
