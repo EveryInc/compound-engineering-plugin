@@ -1,3 +1,5 @@
+import { isReservedPathRoot } from "./slash-command"
+
 export type CodexInvocationTargets = {
   promptTargets: Record<string, string>
   skillTargets: Record<string, string>
@@ -59,7 +61,7 @@ export function transformContentForCodex(
   const slashCommandPattern = /(?<![:\w>}\]\)])\/([a-z][a-z0-9_:-]*?)(?=[\s,."')\]}`]|$)/gi
   result = result.replace(slashCommandPattern, (match, commandName: string) => {
     if (commandName.includes("/")) return match
-    if (["dev", "tmp", "etc", "usr", "var", "bin", "home"].includes(commandName)) return match
+    if (isReservedPathRoot(commandName)) return match
 
     const normalizedName = normalizeCodexName(commandName)
     if (promptTargets[normalizedName]) {

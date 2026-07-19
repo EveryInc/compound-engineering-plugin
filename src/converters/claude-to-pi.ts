@@ -7,6 +7,7 @@ import type {
   PiMcporterServer,
 } from "../types/pi"
 import type { ClaudeToOpenCodeOptions } from "./claude-to-opencode"
+import { transformSlashCommands } from "../utils/slash-command"
 
 export type ClaudeToPiOptions = ClaudeToOpenCodeOptions
 
@@ -137,13 +138,7 @@ export function transformContentForPi(body: string): string {
   result = result.replace(/\bTodoRead\b/g, "the platform's task-tracking primitive")
 
   // /command-name or /workflows:command-name -> /workflows-command-name
-  const slashCommandPattern = /(?<![:\w])\/([a-z][a-z0-9_:-]*?)(?=[\s,."')\]}`]|$)/gi
-  result = result.replace(slashCommandPattern, (match, commandName: string) => {
-    if (commandName.includes("/")) return match
-    if (["dev", "tmp", "etc", "usr", "var", "bin", "home"].includes(commandName)) {
-      return match
-    }
-
+  result = transformSlashCommands(result, (commandName) => {
     if (commandName.startsWith("skill:")) {
       const skillName = commandName.slice("skill:".length)
       return `/skill:${normalizeName(skillName)}`

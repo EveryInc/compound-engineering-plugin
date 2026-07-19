@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from "fs"
 import path from "path"
 import { formatFrontmatter } from "../utils/frontmatter"
+import { isReservedPathRoot } from "../utils/slash-command"
 import { type ClaudeAgent, type ClaudeCommand, type ClaudeMcpServer, type ClaudePlugin, filterSkillsByPlatform } from "../types/claude"
 import type {
   KiroAgent,
@@ -164,7 +165,7 @@ export function transformContentForKiro(body: string, knownAgentNames: string[] 
       if (nextChar === "/" && !match.endsWith("`")) {
         return match
       }
-      if (["dev", "tmp", "etc", "usr", "var", "bin", "home"].includes(cmdName)) {
+      if (isReservedPathRoot(cmdName)) {
         return match
       }
       return `the ${normalizeName(cmdName)} skill`

@@ -2,6 +2,7 @@ import { formatFrontmatter } from "../utils/frontmatter"
 import { type ClaudeAgent, type ClaudeCommand, type ClaudePlugin, filterSkillsByPlatform } from "../types/claude"
 import type { DroidBundle, DroidCommandFile, DroidAgentFile } from "../types/droid"
 import type { ClaudeToOpenCodeOptions } from "./claude-to-opencode"
+import { transformSlashCommands } from "../utils/slash-command"
 
 export type ClaudeToDroidOptions = ClaudeToOpenCodeOptions
 
@@ -139,13 +140,7 @@ export function transformContentForDroid(body: string): string {
 
   // 2. Transform slash command references
   // /workflows:plan → /plan, /command-name stays as-is
-  const slashCommandPattern = /(?<![:\w])\/([a-z][a-z0-9_:-]*?)(?=[\s,."')\]}`]|$)/gi
-  result = result.replace(slashCommandPattern, (match, commandName: string) => {
-    if (commandName.includes('/')) return match
-    if (['dev', 'tmp', 'etc', 'usr', 'var', 'bin', 'home'].includes(commandName)) return match
-    const flattened = flattenCommandName(commandName)
-    return `/${flattened}`
-  })
+  result = transformSlashCommands(result, (commandName) => `/${flattenCommandName(commandName)}`)
 
   // 3. Transform @agent-name references to droid references
   const agentRefPattern = /@agent-([a-z][a-z0-9-]*)/gi
