@@ -649,6 +649,38 @@ printf '%s\\n' '{"terminal_status":"completed","summary":"done","changed_files":
     expect(readFileSync(path.join(f.capture, "stdin"), "utf8")).toContain("[REDACTED]")
   })
 
+  test("raw output is redacted before retained evidence is capped", () => {
+    const maxRawBytes = 256
+    const sentinel = "BOUNDARY-SECRET-credential-123"
+    const sentinelPrefix = sentinel.slice(0, 8)
+    const f = fixture()
+    const redactions = path.join(f.root, "redactions")
+    writeFileSync(redactions, `${sentinel}\n`)
+    const bin = temp("ce-work-bin-")
+    const prefix = "x".repeat(maxRawBytes - sentinelPrefix.length)
+    writeFileSync(path.join(bin, "claude"), `#!/bin/sh
+cat > '${f.capture}/stdin'
+printf '%s' '${prefix}${sentinel}${"y".repeat(maxRawBytes)}'
+`)
+    chmodSync(path.join(bin, "claude"), 0o755)
+
+    const result = run("claude", f, {
+      ...process.env,
+      PATH: `${bin}:${process.env.PATH}`,
+      CE_WORK_MAX_RAW_BYTES: String(maxRawBytes),
+      CE_WORK_REDACT_FILE: redactions,
+    })
+
+    expect(result.code).toBe(1)
+    expect(result.result.terminal_status).toBe("unavailable")
+    expect(result.result.failure_reason).toContain(`exceeded ${maxRawBytes} bytes`)
+    const log = readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")
+    expect(Buffer.byteLength(log)).toBe(maxRawBytes)
+    expect(log).not.toContain(sentinel)
+    expect(log).not.toContain(sentinelPrefix)
+    expect(log).toContain("[REDAC")
+  })
+
   test("malformed terminal output is a schema failure with a redacted log", () => {
     const f = fixture()
     const bin = fakeBin("cursor", f.capture, "not-json")

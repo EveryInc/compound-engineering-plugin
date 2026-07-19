@@ -395,16 +395,61 @@ PY
 redact_stream() {
   CE_WORK_REDACT_FILE="${CE_WORK_REDACT_FILE:-}" python3 -c '
 import os, sys
-data = sys.stdin.read()
 p = os.environ.get("CE_WORK_REDACT_FILE", "")
 if p:
     try:
-        values = [v for v in open(p, encoding="utf-8").read().splitlines() if v]
+        values = [v for v in open(p, "rb").read().splitlines() if v]
     except OSError:
         values = []
-    for value in values:
-        data = data.replace(value, "[REDACTED]")
-sys.stdout.write(data)
+else:
+    values = []
+
+def emit(data):
+    while data:
+        written = os.write(sys.stdout.fileno(), data)
+        data = data[written:]
+
+pending = b""
+max_value_bytes = max((len(value) for value in values), default=1)
+try:
+    if not values:
+        while True:
+            chunk = os.read(sys.stdin.fileno(), 65536)
+            if not chunk:
+                break
+            emit(chunk)
+        sys.exit(0)
+
+    while True:
+        chunk = os.read(sys.stdin.fileno(), 65536)
+        if not chunk:
+            break
+        pending += chunk
+        offset = 0
+        output = bytearray()
+        while len(pending) - offset >= max_value_bytes:
+            match = next((value for value in values if pending.startswith(value, offset)), None)
+            if match is not None:
+                output.extend(b"[REDACTED]")
+                offset += len(match)
+            else:
+                output.append(pending[offset])
+                offset += 1
+        emit(bytes(output))
+        pending = pending[offset:]
+    offset = 0
+    output = bytearray()
+    while offset < len(pending):
+        match = next((value for value in values if pending.startswith(value, offset)), None)
+        if match is not None:
+            output.extend(b"[REDACTED]")
+            offset += len(match)
+        else:
+            output.append(pending[offset])
+            offset += 1
+    emit(bytes(output))
+except BrokenPipeError:
+    os._exit(0)
 '
 }
 
@@ -560,7 +605,7 @@ RAW_BYTES="$(raw_byte_count)"
   cat "$RAW_STDOUT"
   cat "$RAW_STDERR"
   [ -f "$RAW_RESULT" ] && cat "$RAW_RESULT"
-} | head -c "$MAX_RAW_BYTES" | redact_stream > "$LOG_FILE"
+} | redact_stream | head -c "$MAX_RAW_BYTES" > "$LOG_FILE"
 chmod 600 "$LOG_FILE"
 
 if [ -f "$RAW_LIMIT_MARKER" ]; then
