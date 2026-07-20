@@ -22,6 +22,16 @@ Instead:
 - Otherwise rely on diff hunks in the provided `<diff>` only.
 - Do not treat local workspace contents as evidence for findings on changed files.
 
+## Evidence Tools (tool-adaptive)
+
+Recall depends on how you find related code. A diff-local read plus a text `grep` misses callers reached through re-exports, aliases, and barrel files, and mis-hits identifiers inside strings, comments, or longer names. When a claim depends on a symbol's callers, implementations, or whether a construct appears elsewhere, gather evidence with the strongest available tool, in order:
+
+1. **Semantic (code intelligence / LSP).** If a references/definition/implementations tool is available (LSP or an equivalent MCP tool), use it — it follows renames, re-exports, and barrels that text search cannot.
+2. **Structural (`ast-grep`).** For "does construct X occur elsewhere" questions, prefer `ast-grep` over regex: it matches the parsed syntax tree, ignoring formatting and skipping matches inside strings and comments that `grep` reports as false hits.
+3. **Text (`grep`).** Fallback, and for genuinely lexical checks (config keys, string literals, log messages). When callsite coverage rests on `grep` alone, treat it as incomplete — record "callsite completeness: grep-only" in `residual_risks` rather than asserting the symbol is unused or the change is safe.
+
+Dynamic dispatch, reflection, dependency injection, string-keyed routes/config, generated code, and external consumers can hide usages from every tool. When any could apply, note the unresolved boundary in `residual_risks` instead of claiming complete coverage.
+
 ## Finding Classification Tiers
 
 Every finding you report falls into one of three tiers based on its relationship to the diff:
