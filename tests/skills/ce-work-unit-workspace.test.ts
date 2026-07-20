@@ -2203,6 +2203,50 @@ describe("ce-work unit workspace controller", () => {
     expect(git(f.repo, "status", "--porcelain")).toBe("")
   })
 
+  test("failed unit verification restores the pre-fold directory snapshot", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-failed-verification-directory-rollback"
+    const preFoldEmpty = path.join(f.repo, "pre-fold-empty")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "pre-fold-empty/\n")
+    mkdirSync(preFoldEmpty, { mode: 0o750 })
+    init(runs, runId, f)
+    ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    const workspace = path.join(runs, runId, "units", "U", "workspace")
+    const transportOnly = path.join(workspace, "transport-only")
+    mkdirSync(transportOnly)
+    writeFileSync(path.join(transportOnly, "new.txt"), "transport output\n")
+    const job = fakeDoneJob(runs, runId, "U", "packet")
+    ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    expect(ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U").word).toBe("INTEGRATION_PENDING")
+
+    const failed = ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U",
+      "--commit-message", "feat(test): integration must roll back",
+      "--", "python3", "-c", "raise SystemExit(7)",
+    )
+    expect(failed.word).toBe("BLOCKED")
+    expect(failed.body).toMatchObject({
+      verification_exit: 7,
+      canonical_state_changed: false,
+      cleaned_paths: ["transport-only"],
+    })
+    expect(existsSync(path.join(f.repo, "transport-only"))).toBe(false)
+    expect(existsSync(preFoldEmpty)).toBe(true)
+    expect(statSync(preFoldEmpty).mode & 0o777).toBe(0o750)
+    expect(git(f.repo, "status", "--porcelain")).toBe("")
+    expect(ctl(runs, "status", "--run-id", runId).body).toMatchObject({
+      integration_lock: null,
+      units: { U: { state: "preserved", integration: { restore: { exact: true } } } },
+    })
+  })
+
   test("unit verification retains the lock when directory restoration cannot be proven", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
@@ -2223,19 +2267,20 @@ describe("ce-work unit workspace controller", () => {
     )
     ctl(runs, "terminalize", "--run-id", "run-directory-restore-blocked", "--unit-id", "U")
 
-    const blocked = ctl(
-      runs, "integrate", "--run-id", "run-directory-restore-blocked", "--unit-id", "U",
+    const blocked = ctlWithEnv(
+      runs, { CE_WORK_TEST_FAULT: "unit-verification-before-directory-restore" },
+      "integrate", "--run-id", "run-directory-restore-blocked", "--unit-id", "U",
       "--commit-message", "feat(test): integration must fail closed",
       "--", "python3", "-c",
-      "import os; from pathlib import Path; os.rename('local-cache', 'moved-cache'); Path('local-cache').write_text('obstruction'); raise SystemExit(7)",
+      "import shutil; shutil.rmtree('local-cache'); raise SystemExit(7)",
     )
     expect(blocked.word).toBe("BLOCKED")
     expect(blocked.stderr).toContain("unit verification directory restoration could not be proven")
     expect(blocked.body).toMatchObject({
       unit_id: "U",
       verification_exit: 7,
-      cleaned_paths: ["local-cache", "moved-cache"],
-      directory_restore_error: "pre-verification directory is obstructed: local-cache",
+      cleaned_paths: [],
+      directory_restore_error: "injected test interruption at unit-verification-before-directory-restore",
       retain_integration_lock: true,
     })
     expect(git(f.repo, "rev-parse", "HEAD")).toBe(f.base)

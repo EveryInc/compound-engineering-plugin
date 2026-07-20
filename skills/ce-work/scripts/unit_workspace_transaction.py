@@ -748,6 +748,8 @@ def cmd_integrate(args) -> tuple[str, dict]:
         with locked_manifest(args.run_id) as doc:
             repo = doc["repository"]["toplevel"]
             transport = doc["units"][args.unit_id]["transport"]["commit"]
+        _preflight_ignored_artifacts(repo, _ignored_paths(repo))
+        pre_fold_directory_snapshot = _directory_snapshot(repo)
         git(repo, "cherry-pick", "--no-commit", transport)
         cmd_mark_applied(_args(run_id=args.run_id, unit_id=args.unit_id, lock_token=token))
         with locked_manifest(args.run_id) as doc:
@@ -791,23 +793,35 @@ def cmd_integrate(args) -> tuple[str, dict]:
         ignored_directories = _new_parent_directories(new_ignored, before_directories)
         _remove_owned_new_paths(repo, new_ignored | new_directories | ignored_directories, before["head"])
         restored_ignored = _restore_ignored_artifacts(repo, ignored_snapshot)
+        verification_failed = verification_exit != 0 or after != before
+        target_directory_snapshot = before_directory_snapshot
+        rollback_directories: set[str] = set()
+        if verification_failed:
+            rollback_directories = set(before_directory_snapshot) - set(pre_fold_directory_snapshot)
+            _restore_owned_verification(args.run_id, args.unit_id, token, before, before_paths, after_paths)
+            target_directory_snapshot = pre_fold_directory_snapshot
+            rollback_directories |= set(_directory_snapshot(repo)) - set(target_directory_snapshot)
+            _remove_owned_new_paths(repo, rollback_directories, before["head"])
         directory_restore_error = None
         try:
-            restored_directories = _restore_directory_snapshot(repo, before_directory_snapshot)
+            test_fault("unit-verification-before-directory-restore")
+            restored_directories = _restore_directory_snapshot(repo, target_directory_snapshot)
         except Operational as exc:
             restored_directories = set()
             directory_restore_error = str(exc)
         cleaned_paths = sorted(
-            (after_paths - before_paths) | new_ignored | new_directories | restored_ignored | restored_directories
+            (after_paths - before_paths)
+            | new_ignored
+            | new_directories
+            | rollback_directories
+            | restored_ignored
+            | restored_directories
         )
         restored_directory_snapshot = _directory_snapshot(repo)
         directory_restoration_unproven = (
-            restored_directory_snapshot != before_directory_snapshot or directory_restore_error
+            restored_directory_snapshot != target_directory_snapshot or directory_restore_error
         )
         log_digest = hashlib.sha256(Path(verification_log).read_bytes()).hexdigest()
-        verification_failed = verification_exit != 0 or after != before
-        if verification_failed:
-            _restore_owned_verification(args.run_id, args.unit_id, token, before, before_paths, after_paths)
         if directory_restoration_unproven:
             detail = {
                 "unit_id": args.unit_id,
