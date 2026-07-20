@@ -766,6 +766,16 @@ def parse_diff_paths(raw: bytes) -> list[str]:
     return paths
 
 
+def diff_changes_gitlink(raw: bytes) -> bool:
+    for record in raw.split(b"\0"):
+        if not record.startswith(b":"):
+            continue
+        fields = record[1:].split(b" ", 4)
+        if len(fields) >= 2 and b"160000" in fields[:2]:
+            return True
+    return False
+
+
 def terminalize(run_id: str, unit_id: str) -> dict:
     evidence = sync_job(run_id, unit_id)
     if evidence["process_state"] != "done":
@@ -845,10 +855,10 @@ def terminalize(run_id: str, unit_id: str) -> dict:
                 {"ignored_paths": ignored_paths[:100], "ignored_path_count": len(ignored_paths)},
             )
         git(workspace, "add", "-A", "--", ".")
-        index = git(workspace, "ls-files", "--stage", "-z")
-        if any(row.startswith(b"160000 ") for row in index.split(b"\0") if row):
-            raise Operational("BLOCKED", "submodule state cannot be transported implicitly")
         tree = git_text(workspace, "write-tree")
+        mode_diff = git(repo, "diff-tree", "-r", "--raw", "-z", "--no-renames", base, tree)
+        if diff_changes_gitlink(mode_diff):
+            raise Operational("BLOCKED", "submodule state cannot be transported implicitly")
     except Operational as exc:
         record_terminal_validation_failure(run_id, unit_id, exc)
         raise

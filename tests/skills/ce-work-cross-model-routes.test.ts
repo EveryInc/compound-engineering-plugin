@@ -86,6 +86,9 @@ MODELS
   exit 0
 fi
 printf '%s\\n' "$@" > '${capture}/argv'
+last=''
+for arg in "$@"; do last="$arg"; done
+printf '%s' "$last" > '${capture}/prompt-arg'
 printf '%s' "$PWD" > '${capture}/pwd'
 env | sort > '${capture}/env'
 cat > '${capture}/stdin'
@@ -247,6 +250,11 @@ describe("ce-work fixed write routes", () => {
     expect(result.code).toBe(0)
     expect(readFileSync(path.join(f.capture, "pwd"), "utf8")).toBe(realpathSync(f.workspace))
     expect(readFileSync(path.join(f.capture, "stdin"), "utf8")).toContain("Implement U3 only.")
+    if (route === "cursor" || route === "composer" || route === "grok-cursor") {
+      expect(readFileSync(path.join(f.capture, "prompt-arg"), "utf8")).toBe(
+        readFileSync(path.join(f.capture, "stdin"), "utf8"),
+      )
+    }
     expect(readFileSync(path.join(f.capture, "env"), "utf8")).toContain("PYTHONDONTWRITEBYTECODE=1")
     expect(readFileSync(path.join(f.workspace, "result.txt"), "utf8")).toBe("READY\n")
     expect(result.result.terminal_status).toBe("completed")
@@ -621,11 +629,13 @@ printf '%s\\n' '{"terminal_status":"completed","summary":"done","changed_files":
   })
 
   test("sentinel values are removed from environment, prompt, result, log, and argv", () => {
+    const sentinelPrefix = "SENTINEL-credential"
     const sentinel = "SENTINEL-credential-123"
+    const sentinelSuffix = "-123"
     const f = fixture()
     writeFileSync(f.packet, `Implement U3. Token: ${sentinel}\n`)
     const redactions = path.join(f.root, "redactions")
-    writeFileSync(redactions, `${sentinel}\n`)
+    writeFileSync(redactions, `${sentinelPrefix}\n${sentinel}\n${sentinelPrefix}\n`)
     const response = `{"terminal_status":"completed","summary":"saw ${sentinel}","changed_files":["result.txt"],"evidence":[],"scope_expansion":null}`
     const bin = fakeBin("codex", f.capture, response)
     const result = run("codex", f, {
@@ -637,13 +647,16 @@ printf '%s\\n' '{"terminal_status":"completed","summary":"done","changed_files":
     expect(result.code).toBe(0)
     for (const file of ["argv", "stdin", "env"]) {
       expect(readFileSync(path.join(f.capture, file), "utf8")).not.toContain(sentinel)
+      expect(readFileSync(path.join(f.capture, file), "utf8")).not.toContain(sentinelSuffix)
     }
     for (const file of readdirSync(f.resultDir)) {
       expect(readFileSync(path.join(f.resultDir, file), "utf8")).not.toContain(sentinel)
+      expect(readFileSync(path.join(f.resultDir, file), "utf8")).not.toContain(sentinelSuffix)
       expect(statSync(path.join(f.resultDir, file)).mode & 0o777).toBe(0o600)
     }
     expect(statSync(f.resultDir).mode & 0o777).toBe(0o700)
     expect(JSON.stringify(result.result)).not.toContain(sentinel)
+    expect(result.result.summary).toBe("saw [REDACTED]")
     expect(readFileSync(path.join(f.capture, "stdin"), "utf8")).toContain("[REDACTED]")
   })
 

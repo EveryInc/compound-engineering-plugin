@@ -316,6 +316,33 @@ afterEach(() => {
 })
 
 describe("ce-work unit workspace controller", () => {
+  test("ignores inherited Git repository-selection and index variables", () => {
+    const f = makeRepo()
+    const decoy = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const initialized = ctlWithEnv(
+      runs,
+      { GIT_DIR: path.join(decoy.repo, ".git"), GIT_WORK_TREE: decoy.repo },
+      "init", "--run-id", "run-sanitized-git-env", "--repo", f.repo,
+      "--plan", f.plan, "--plan-digest", f.digest,
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U"],"restrictions":[]}',
+    )
+    expect(initialized.word).toBe("READY")
+    const manifest = JSON.parse(readFileSync(path.join(initialized.body.recovery_path, "manifest.json"), "utf8"))
+    expect(manifest.repository.toplevel).toBe(realpathSync(f.repo))
+
+    const ambientIndex = path.join(tmp("ce-work-index-"), "ambient.index")
+    const prepared = ctlWithEnv(
+      runs,
+      { GIT_INDEX_FILE: ambientIndex },
+      "prepare", "--run-id", "run-sanitized-git-env", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("sanitized Git environment"),
+    )
+    expect(prepared.word).toBe("PREPARED")
+    expect(existsSync(ambientIndex)).toBe(false)
+  })
+
   test("derives the CE Work runs root from the generic peer root when needed", () => {
     const f = makeRepo()
     const peerRoot = tmp("ce-work-peer-root-")
@@ -1097,6 +1124,54 @@ describe("ce-work unit workspace controller", () => {
       "--abandon", "--expect-job", job,
     ).word).toBe("CLEANED")
     expect(existsSync(workspace)).toBe(false)
+  })
+
+  test("allows an unchanged baseline gitlink but blocks changing it", () => {
+    const f = makeRepo()
+    const baselineTarget = f.base
+    git(f.repo, "update-index", "--add", "--cacheinfo", "160000", baselineTarget, "baseline-module")
+    git(f.repo, "commit", "-m", "add baseline gitlink")
+    mkdirSync(path.join(f.repo, "baseline-module"))
+    f.base = git(f.repo, "rev-parse", "HEAD")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-baseline-gitlink"
+    expect(init(runs, runId, f).word).toBe("READY")
+
+    expect(ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "unchanged",
+      "--base", f.base, "--packet", packetFile("unchanged gitlink packet"),
+    ).word).toBe("PREPARED")
+    const unchangedWorkspace = path.join(runs, runId, "units", "unchanged", "workspace")
+    writeFileSync(path.join(unchangedWorkspace, "keep.txt"), "transported\n")
+    const unchangedJob = fakeDoneJob(
+      runs, runId, "unchanged", "unchanged gitlink packet", "job-unchanged-gitlink",
+    )
+    expect(ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "unchanged",
+      "--attempt-id", "attempt-1", "--job-id", unchangedJob,
+    ).word).toBe("AUTHORING")
+    const unchanged = ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "unchanged")
+    expect(unchanged.word).toBe("INTEGRATION_PENDING")
+    expect(git(f.repo, "ls-tree", unchanged.body.transport.commit, "baseline-module")).toContain(
+      `160000 commit ${baselineTarget}`,
+    )
+
+    expect(ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "changed",
+      "--base", f.base, "--packet", packetFile("changed gitlink packet"),
+    ).word).toBe("PREPARED")
+    const changedWorkspace = path.join(runs, runId, "units", "changed", "workspace")
+    git(changedWorkspace, "update-index", "--cacheinfo", "160000", f.base, "baseline-module")
+    const changedJob = fakeDoneJob(
+      runs, runId, "changed", "changed gitlink packet", "job-changed-gitlink",
+    )
+    expect(ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "changed",
+      "--attempt-id", "attempt-1", "--job-id", changedJob,
+    ).word).toBe("AUTHORING")
+    const changed = ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "changed")
+    expect(changed.word).toBe("BLOCKED")
+    expect(changed.stderr).toContain("submodule state cannot be transported implicitly")
   })
 
   test("retires ignored-output fallback eligibility after terminalization recovers", () => {

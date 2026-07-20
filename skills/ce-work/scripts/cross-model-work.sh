@@ -115,14 +115,17 @@ adapter_argv() {
       printf '%s\0' cursor-agent -p --output-format stream-json --stream-partial-output \
         --force --sandbox enabled --trust --workspace "$WORKSPACE"
       [ "$cursor_model" = auto ] || printf '%s\0' --model "$cursor_model"
+      printf '%s\0' "$PROMPT_ARG"
       ;;
     composer)
       printf '%s\0' cursor-agent -p --output-format stream-json --stream-partial-output \
         --force --sandbox enabled --trust --workspace "$WORKSPACE" --model "$(route_model composer)"
+      printf '%s\0' "$PROMPT_ARG"
       ;;
     grok-cursor)
       printf '%s\0' cursor-agent -p --output-format stream-json --stream-partial-output \
         --force --sandbox enabled --trust --workspace "$WORKSPACE" --model "$(route_model grok-cursor)"
+      printf '%s\0' "$PROMPT_ARG"
       ;;
     *) return 1 ;;
   esac
@@ -131,6 +134,7 @@ adapter_argv() {
 if [ "${1:-}" = "--emit-adapter" ]; then
   WORKSPACE="<workspace>"
   PROMPT_FILE="<prompt-file>"
+  PROMPT_ARG="<prompt>"
   RAW_RESULT="<raw-result>"
   ROUTE="${2:-}"
   validate_model_override "$ROUTE" || {
@@ -398,7 +402,10 @@ import os, sys
 p = os.environ.get("CE_WORK_REDACT_FILE", "")
 if p:
     try:
-        values = [v for v in open(p, "rb").read().splitlines() if v]
+        values = sorted(
+            {v for v in open(p, "rb").read().splitlines() if v},
+            key=lambda value: (-len(value), value),
+        )
     except OSError:
         values = []
 else:
@@ -461,6 +468,8 @@ except BrokenPipeError:
   redact_stream < "$PACKET_SNAPSHOT"
 } > "$PROMPT_FILE"
 chmod 600 "$PROMPT_FILE"
+PROMPT_ARG=""
+IFS= read -r -d '' PROMPT_ARG < "$PROMPT_FILE" || true
 
 TARGET="$AUTH_TARGET"
 HARNESS="$AUTH_HARNESS"
@@ -637,7 +646,7 @@ source, stream, out, route, target, harness, requested, packet_digest, log, acti
 def redactions():
     p=os.environ.get("CE_WORK_REDACT_FILE", "")
     if not p: return []
-    try: return [v for v in open(p, encoding="utf-8").read().splitlines() if v]
+    try: return sorted(set(v for v in open(p, encoding="utf-8").read().splitlines() if v), key=lambda value: (-len(value), value))
     except OSError: return []
 
 redaction_values=redactions()

@@ -54,6 +54,23 @@ UNIT_STATES = {
     "queued", "authoring", "authored", "integration-pending", "integrated",
     "restoring", "verified", "committed", "preserved", "cleaned", "native-completed",
 }
+GIT_LOCAL_ENV_VARS = frozenset({
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_CONFIG",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_DIR",
+    "GIT_GRAFT_FILE",
+    "GIT_IMPLICIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_PREFIX",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_SHALLOW_FILE",
+    "GIT_WORK_TREE",
+})
 
 
 class Operational(Exception):
@@ -415,9 +432,11 @@ def locked_manifest(run_id: str, write: bool = False):
 
 
 def git(repo: str, *args: str, input_data: bytes | None = None, check: bool = True, env: dict | None = None) -> bytes:
+    process_env = {key: value for key, value in os.environ.items() if key not in GIT_LOCAL_ENV_VARS}
+    process_env.update(env or {})
     proc = subprocess.run(
         ["git", "-C", repo, *args], input=input_data, capture_output=True,
-        env={**os.environ, **(env or {})}, check=False,
+        env=process_env, check=False,
     )
     if check and proc.returncode != 0:
         message = proc.stderr.decode("utf-8", "replace").strip()
