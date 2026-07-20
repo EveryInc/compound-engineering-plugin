@@ -36,17 +36,21 @@
 # brainstorm_output: html        # md | html (default: md)
 # ideate_output: md              # md | html (default: html -- ideation docs are human-facing, so HTML is the default; set md to opt out)
 
-# --- Fable elevation (Claude Code only) ---
-# Claude Code ONLY; silently ignored on every other harness (Codex, Cursor, ...).
-# When on, /ce-plan and /ce-brainstorm dispatch their reasoning-heavy step (plan
-# authoring; approach generation) to the Fable model via a subagent, so you get
-# higher-reasoning output even when your session model is cheaper -- no session
-# switch. Per-skill so you can enable one without the other. You can also just
-# say "use fable" in a prompt for a one-off. Invalid/commented/missing -> off.
+# --- Model elevation ---
+# Send only the reasoning-heavy step of /ce-plan (interpret research, then author
+# the plan) and /ce-brainstorm (generate approaches) to a model you name. The rest
+# of each skill -- dialogue, research, orchestration -- stays on your session
+# model. The value is a model alias (e.g. `fable`, `opus`). You can also name a
+# model in a prompt for a one-off, which overrides these keys.
+#
+# Cross-harness: setting a key means every harness you run these skills in will
+# attempt that model. The host serves it natively where it can; otherwise the
+# Claude CLI is invoked when installed and authenticated; otherwise the step runs
+# on your session model and the run says so. Invalid/commented/missing -> no
+# elevation.
 
-# plan_use_fable: true           # true | false (default: false)
-# brainstorm_use_fable: true     # true | false (default: false)
-# fable_nudge: false             # true | false (default: true -- one-time tip when elevation is available but off)
+# plan_model: fable              # model alias for the plan-authoring step (no default)
+# brainstorm_model: fable        # model alias for approach generation (no default)
 
 # --- PR concept teaching (ce-commit-push-pr) ---
 # When a PR introduces a concept new to the codebase, the generated PR
