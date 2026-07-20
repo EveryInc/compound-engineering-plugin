@@ -2799,6 +2799,60 @@ describe("ce-work unit workspace controller", () => {
     expect(git(f.repo, "rev-parse", "HEAD")).toBe(cp.body.checkpoint.commit)
   })
 
+  test("reconciles a plan checkpoint whose manifest receipt was interrupted exactly once", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    writeFileSync(f.plan, "# Plan\n\nchanged\n")
+    f.digest = createHash("sha256").update(readFileSync(f.plan)).digest("hex")
+    expect(init(runs, "run-plan-receipt", f).word).toBe("READY")
+
+    const interrupted = ctlWithEnv(
+      runs,
+      { CE_WORK_TEST_FAULT: "checkpoint-plan-after-commit" },
+      "checkpoint-plan", "--run-id", "run-plan-receipt",
+    )
+    expect(interrupted.word).toBe("INTERRUPTED")
+    const checkpointCommit = git(f.repo, "rev-parse", "HEAD")
+    expect(checkpointCommit).not.toBe(f.base)
+    expect(git(f.repo, "status", "--porcelain")).toBe("")
+
+    const manifestPath = path.join(runs, "run-plan-receipt", "manifest.json")
+    const before = JSON.parse(readFileSync(manifestPath, "utf8"))
+    expect(before.plan.checkpoint).toBeNull()
+    expect(before.events.filter((row: any) => row.kind === "plan-checkpoint")).toHaveLength(0)
+
+    const recovered = ctl(runs, "checkpoint-plan", "--run-id", "run-plan-receipt")
+    expect(recovered.word).toBe("CHECKPOINTED")
+    expect(recovered.body.checkpoint).toMatchObject({
+      prior_head: f.base,
+      commit: checkpointCommit,
+      path: "docs/plans/plan.md",
+      digest: f.digest,
+    })
+    const again = ctl(runs, "checkpoint-plan", "--run-id", "run-plan-receipt")
+    expect(again.word).toBe("NOOP")
+    expect(again.body.checkpoint).toEqual(recovered.body.checkpoint)
+    const after = JSON.parse(readFileSync(manifestPath, "utf8"))
+    expect(after.plan.checkpoint).toEqual(recovered.body.checkpoint)
+    expect(after.events.filter((row: any) => row.kind === "plan-checkpoint")).toHaveLength(1)
+  })
+
+  test("blocks unrelated clean HEAD movement instead of adopting it as a plan checkpoint", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    expect(init(runs, "run-plan-unrelated-head", f).word).toBe("READY")
+    writeFileSync(path.join(f.repo, "unrelated.txt"), "manual change\n")
+    git(f.repo, "add", "unrelated.txt")
+    git(f.repo, "commit", "-m", "docs: unrelated manual commit")
+
+    const blocked = ctl(runs, "checkpoint-plan", "--run-id", "run-plan-unrelated-head")
+    expect(blocked.word).toBe("BLOCKED")
+    expect(blocked.body).toMatchObject({ expected_prior_head: f.base, head: git(f.repo, "rev-parse", "HEAD") })
+    const manifest = JSON.parse(readFileSync(path.join(runs, "run-plan-unrelated-head", "manifest.json"), "utf8"))
+    expect(manifest.plan.checkpoint).toBeNull()
+    expect(manifest.events.filter((row: any) => row.kind === "plan-checkpoint")).toHaveLength(0)
+  })
+
   test("recovers worktree and transport crash windows without duplicate dispatch", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")

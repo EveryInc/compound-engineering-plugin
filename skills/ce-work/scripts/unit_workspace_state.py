@@ -31,6 +31,7 @@ from pathlib import Path
 
 
 SCHEMA_VERSION = 1
+PLAN_CHECKPOINT_MESSAGE = "docs(ce-work): checkpoint selected implementation plan"
 _uid_getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
 _EFFECTIVE_UID = _uid_getter() if _uid_getter is not None else None
 OWNER_SCRATCH_ROOT = (
@@ -830,8 +831,41 @@ def status_paths(repo: str) -> set[str]:
     return paths
 
 
+def reconcile_plan_checkpoint(repo: str, doc: dict, info: dict, plan_rel: str) -> dict | None:
+    """Recover the controller's plan commit when its manifest receipt was interrupted."""
+    prior = doc.get("branch", {}).get("initial_head")
+    commit = info["head"]
+    if commit == prior:
+        return None
+    lineage = git_text(repo, "rev-list", "--parents", "-n", "1", commit).split()
+    changed = set(filter(None, git(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", "-z", commit).decode("utf-8", "surrogateescape").split("\0")))
+    message = git(repo, "show", "-s", "--format=%B", commit).decode("utf-8", "surrogateescape").rstrip("\n")
+    plan_bytes = git(repo, "show", f"{commit}:{plan_rel}", check=False)
+    if (
+        not _valid_git_object_id(prior)
+        or lineage != [commit, prior]
+        or changed != {plan_rel}
+        or message != PLAN_CHECKPOINT_MESSAGE
+        or digest_bytes(plan_bytes) != doc["plan"]["digest"]
+    ):
+        raise Operational(
+            "BLOCKED",
+            "canonical HEAD advanced without a recorded matching plan checkpoint",
+            {"expected_prior_head": prior, "head": commit},
+        )
+    committed_at = int(git_text(repo, "show", "-s", "--format=%ct", commit))
+    return {
+        "prior_head": prior,
+        "commit": commit,
+        "tree": info["head_tree"],
+        "path": plan_rel,
+        "digest": doc["plan"]["digest"],
+        "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(committed_at)),
+    }
+
+
 def cmd_checkpoint_plan(args) -> tuple[str, dict]:
-    with locked_manifest(args.run_id) as doc:
+    with locked_manifest(args.run_id, write=True) as doc:
         info = validate_repo(doc)
         repo = info["toplevel"]
         plan = doc.get("plan")
@@ -846,7 +880,15 @@ def cmd_checkpoint_plan(args) -> tuple[str, dict]:
             raise Operational("BLOCKED", "selected plan content no longer matches recorded digest")
         dirty = status_paths(repo)
         if not dirty:
-            return "NOOP", {"checkpoint": doc["plan"].get("checkpoint"), "head": info["head"]}
+            checkpoint = doc["plan"].get("checkpoint")
+            if checkpoint is not None:
+                return "NOOP", {"checkpoint": checkpoint, "head": info["head"]}
+            checkpoint = reconcile_plan_checkpoint(repo, doc, info, plan_rel)
+            if checkpoint is None:
+                return "NOOP", {"checkpoint": None, "head": info["head"]}
+            doc["plan"]["checkpoint"] = checkpoint
+            event(doc, "plan-checkpoint", detail={"commit": checkpoint["commit"], "path": plan_rel})
+            return "CHECKPOINTED", {"checkpoint": checkpoint}
         if dirty != {plan_rel}:
             raise Operational("BLOCKED", "canonical dirt is not exactly the selected plan", {"dirty_paths": sorted(dirty)})
         prior = info["head"]
@@ -856,11 +898,12 @@ def cmd_checkpoint_plan(args) -> tuple[str, dict]:
         git(repo, "reset", "--mixed", prior)
         raise Operational("BLOCKED", "staged paths are not exactly the selected plan")
     try:
-        commit_index_tree(repo, "docs(ce-work): checkpoint selected implementation plan")
+        commit_index_tree(repo, PLAN_CHECKPOINT_MESSAGE)
     except Operational:
         git(repo, "reset", "--mixed", prior, check=False)
         raise
     commit = git_text(repo, "rev-parse", "HEAD")
+    test_fault("checkpoint-plan-after-commit")
     if status_paths(repo):
         raise Operational("BLOCKED", "checkpoint committed but canonical checkout is not clean")
     cp = {"prior_head": prior, "commit": commit, "tree": git_text(repo, "rev-parse", "HEAD^{tree}"), "path": plan_rel, "digest": doc["plan"]["digest"], "at": now_iso()}
