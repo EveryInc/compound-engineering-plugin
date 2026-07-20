@@ -86,7 +86,11 @@ When adversarial is selected and the working tree is the reviewed head (`local-a
 
 Declared mappings run first. If a CLI rejects an obsolete or incompatible adapter default, the skill may discover the closest compatible equivalent within the same target/family and hard read-only, host-exclusion, authority, and egress boundaries. It discloses the substitution and actual route; an explicit user model or newly receiving intermediary never changes silently, and recipient-changing retry returns to the host for sanction. The pass stays detached and non-blocking, and a second target remains opt-in (`CROSS_MODEL_MAX_PEERS=2`).
 
-This shares the provider/route kernel with `ce-doc-review` (parity-tested in CI) but keeps code-review's product scope: adversarial-only, diff/work-tree delivery, not doc-review's judgment trio or whole-doc sweep.
+The host identity and the command's execution lane are separate facts. A restricted Codex lane requests one-shot approved host execution for the exact, already-sanctioned runner start; denial or lack of that capability starts no job and keeps the in-process adversarial fallback. A returned job ID permanently assigns the adversarial brief to the peer, so later timeout, auth failure, or unusable output can use only bounded same-route recovery and never revive the local twin.
+
+Completion is artifact-backed. The start declares `adversarial-<target>.json` as its result path and binds the exact diff bytes with a SHA-256 digest. The worker rechecks that digest before constructing the prompt, removes stale output first, and the orchestrator reads the result only by job ID. A schema-valid artifact proves the review ran; a reconciled served-model receipt is additionally required before it counts as independent corroboration. Empty findings is a successful critique. Diagnostics are environment-scoped categories (`auth_failed`, `quota_limited`, `timeout`, `unusable_output`), not raw provider messages or global account claims.
+
+This shares the provider/route kernel with `ce-doc-review` (parity-tested in CI) but keeps code-review's product scope: adversarial-only, exact-diff delivery with read-only in-tree context, not doc-review's judgment trio or whole-doc sweep.
 
 ### 2. Severity (P0-P3) and autofix class are orthogonal
 

@@ -47,7 +47,7 @@ The script always uses the adversarial persona brief; fold-in forces `reviewer` 
 
 ## Step 3 — Announce
 
-The ce-code-review invocation authorizes the selected configured/allowlisted route after this disclosure. The announce is a transparent notice, not a second confirmation gate. Skip for an explicit user prohibition or an observed scope/allowlist/route/authentication failure, never solely because the user did not separately authorize the external pass in the same prompt.
+The ce-code-review invocation authorizes the selected configured/allowlisted route after this disclosure. The announce is a transparent notice, not a second egress-confirmation gate. This does not grant host-execution authority; Step 4 resolves that separately at the actual start call. Skip for an explicit user prohibition or an observed scope/allowlist/route/authentication failure, never solely because the user did not separately authorize the external pass in the same prompt.
 
 - **Interactive host, default mode:** surface a **prominent standalone line** that frames it as an **independent cross-model adversarial review** (say "cross-model" / "independent model" — not the internal "peer" jargon), names the requested **model and reasoning level** from the in-script mapping, and — because two different models can arrive over the *same* `cursor-agent` CLI — names **the route as well as the model** for cursor-agent routes, and states that reviewed code/diff content is sent to that provider. **Announce wording follows the receipt:** name a model as serving only where the route carries a served-model receipt; on receipt-less routes say "requested <model> at <effort>; serving model/effort unverified on this route." Placed with the Stage 3 team announce, not buried after it.
   - Call the pass **independent** only when host and target serving families are attestably different. For Cursor default/Auto or an unknown host family, call it a cross-harness review and state that independence is unverified; do not promise agreement promotion before the receipt exists.
@@ -55,15 +55,54 @@ The ce-code-review invocation authorizes the selected configured/allowlisted rou
 - **Interactive host, no peer resolved** (host serving family un-attestable, or no different provider installed/authed): one quiet line that the cross-model pass was skipped and why. Never an error.
 - **`mode:agent`:** emit no user-facing prose. The script still emits a one-line stderr audit log per send that review content was sent cross-model to the named provider, so the third-party data egress is auditable.
 
+## Peer worker environment allowlist (source of truth)
+
+This route-qualified allowlist is the sole source of truth for the detached worker environment. Build it with `env -i`; everything else is dropped. Native CLI-owned OAuth and keychain discovery remains available only through the accepted non-secret discovery fields, especially `HOME`; credentials themselves stay owned by the CLI. Environment values whose names contain `API`, `TOKEN`, or `KEY` are never forwarded, nor are password, secret, or credential values. A route that requires a secret environment variable is unsupported until separately authorized with a new contract.
+
+| Fixed route | Exact accepted non-secret discovery fields |
+|---|---|
+| `codex` | `HOME`, `PATH`, `TMPDIR`, `XDG_CONFIG_HOME`, `CODEX_HOME` |
+| `claude` | `HOME`, `USER`, `PATH`, `TMPDIR`, `XDG_CONFIG_HOME`, `CLAUDE_CONFIG_DIR` |
+| `grok-cli` | `HOME`, `PATH`, `TMPDIR`, `XDG_CONFIG_HOME` |
+| `grok-cursor` | `HOME`, `PATH`, `TMPDIR`, `XDG_CONFIG_HOME` |
+| `cursor` | `HOME`, `PATH`, `TMPDIR`, `XDG_CONFIG_HOME` |
+| `composer` | `HOME`, `PATH`, `TMPDIR`, `XDG_CONFIG_HOME` |
+
+Every route also accepts only these operational fields: `CROSS_MODEL_HOST_HARNESS`, `CROSS_MODEL_FIXED_ROUTE`, `CROSS_MODEL_PEERS`, `CROSS_MODEL_MAX_PEERS`, `CROSS_MODEL_MODEL_OVERRIDE_TARGET`, `CROSS_MODEL_MODEL_OVERRIDE`, `CROSS_MODEL_INPUT_DIGEST`, `CROSS_MODEL_IDLE_SECS`, `CROSS_MODEL_HARD_SECS`, and `CROSS_MODEL_HEARTBEAT_SECS`. In the launch command, `<route-discovery-env>` expands to assignments for exactly the selected table row. For example, the macOS `claude` route uses `HOME="$HOME" USER="$USER" PATH="$PATH" TMPDIR="${TMPDIR:-/tmp}" XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-}" CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-}"`; `USER` is required there for native OAuth/keychain discovery. Do not add host-attestation markers or provider-specific credential variables.
+
 ## Step 4 — Start the detached peer job before local dispatch
 
 The script is a CLI shell-out, not a subagent, so it doesn't consume the subagent concurrency budget. **Never hold a tool call open for the peer's runtime** — some harnesses kill long tool calls, which silently vanishes the pass. At the Stage 3d routing boundary, start it as a **detached, supervised job** through the bundled runner in one short Bash call (prints the job id in under ~2s). Only after that call returns may the host finalize the local roster and enter Stage 4. The detached worker still overlaps the local reviewers; binding it first prevents the host from accidentally dispatching the in-process adversarial fallback too.
+
+Before the first launch, distinguish the current execution lane from the host identity already attested in Step 1. Resolve launch authority as exactly one outcome before the exclusive local roster is finalized:
+
+- `normal` — the current lane can run the finalized native peer command.
+- `approved_host_launch` — the current lane is restricted, but the host approved that finalized command.
+- `host_denied` — the host rejected that launch.
+- `authority_unavailable` — the harness exposes no way to request the authority the launch needs.
+
+Only `normal` and `approved_host_launch` may detach. For `host_denied` or `authority_unavailable`, issue no start command: there is no job ID and no detach. Keep the in-process `adversarial-reviewer` as the skill-specific local fallback and record the authority outcome in Coverage. Because the provider CLI never ran, never infer provider logout, missing credentials, or provider unavailability from either branch.
+
+**Restricted Codex adapter.** Submit the exact finalized `peer-job-runner.py start` command below in the same exec call that requests `sandbox_permissions: "require_escalated"`; the `justification` must name the fixed route and the reviewed-code egress recipients. Omit `prefix_rule`: approval is call-scoped, not a reusable token. Never approve a probe and launch later. An unrestricted or already authorized execution lane runs the identical command normally. The adapter metadata shape is:
+
+```text
+exec({
+  cmd: "<the exact finalized shell command below>",
+  sandbox_permissions: "require_escalated",
+  justification: "Launch the <target> cross-model adversarial review through <fixed-route>; reviewed code/diff content will egress to <recipients>."
+})
+```
+
+Set the aggregate deadline anchor before the initial launch, then preserve it across the peer and local waves.
 
 Invoke via the skill-dir anchor — set `SKILL_DIR` to the absolute directory of **this** skill's `SKILL.md` (the Bash tool's CWD is the user's project, not the skill dir, on every host):
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the ce-code-review SKILL.md you read>";
-CROSS_MODEL_HOST_HARNESS="<host-harness>" CROSS_MODEL_FIXED_ROUTE="<fixed-route>" python3 "$SKILL_DIR/scripts/peer-job-runner.py" start --skill ce-code-review --run-id "<run-id>" --label adversarial -- env CROSS_MODEL_HOST_HARNESS="<host-harness>" CROSS_MODEL_FIXED_ROUTE="<fixed-route>" bash "$SKILL_DIR/scripts/cross-model-adversarial-review.sh" "<host-serving-family>" "<target>" "<base-ref>" "<run-dir>"
+BASE_REF="<base-ref>";
+INPUT_DIGEST="$(git diff "$BASE_REF" -- | python3 -c 'import hashlib,sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())')" || exit 1;
+RESULT_PATH="<run-dir>/adversarial-<target>.json";
+CROSS_MODEL_HOST_HARNESS="<host-harness>" CROSS_MODEL_FIXED_ROUTE="<fixed-route>" python3 "$SKILL_DIR/scripts/peer-job-runner.py" start --skill ce-code-review --run-id "<run-id>" --label adversarial --input-digest "$INPUT_DIGEST" --result-path "$RESULT_PATH" -- env -i <route-discovery-env> CROSS_MODEL_HOST_HARNESS="<host-harness>" CROSS_MODEL_FIXED_ROUTE="<fixed-route>" CROSS_MODEL_PEERS="${CROSS_MODEL_PEERS:-}" CROSS_MODEL_MAX_PEERS="${CROSS_MODEL_MAX_PEERS:-}" CROSS_MODEL_MODEL_OVERRIDE_TARGET="${CROSS_MODEL_MODEL_OVERRIDE_TARGET:-}" CROSS_MODEL_MODEL_OVERRIDE="${CROSS_MODEL_MODEL_OVERRIDE:-}" CROSS_MODEL_INPUT_DIGEST="$INPUT_DIGEST" CROSS_MODEL_IDLE_SECS="${CROSS_MODEL_IDLE_SECS:-}" CROSS_MODEL_HARD_SECS="${CROSS_MODEL_HARD_SECS:-}" CROSS_MODEL_HEARTBEAT_SECS="${CROSS_MODEL_HEARTBEAT_SECS:-}" bash "$SKILL_DIR/scripts/cross-model-adversarial-review.sh" "<host-serving-family>" "<target>" "$BASE_REF" "<run-dir>"
 ```
 
 - `<run-id>` = the Stage 3d run id (the same one that forms `<run-dir>`); job state lives under `<run-dir>/jobs/<job-id>/`.
@@ -72,7 +111,9 @@ CROSS_MODEL_HOST_HARNESS="<host-harness>" CROSS_MODEL_FIXED_ROUTE="<fixed-route>
 - `<base-ref>` = the Stage 1 `BASE` (the diff base the peer reviews via `git diff <base-ref>`).
 - `<run-dir>` = the absolute Stage 4 run dir. The script writes `adversarial-<provider>.json` there **only after** forcing `reviewer` to `adversarial-<provider>` and downgrading peer `safe_auto` → `gated_auto`.
 
-**Single-reap finish.** The runner detaches the worker into its own supervised session. Capture the epoch time right after `start` (`date +%s`) and do not poll while local reviewers are active. After local returns are collected, check status once. If still running and the shared 610s deadline leaves time, issue one bounded `wait` sized to the remaining deadline (cap the wait at 240s); do not start repeated short polling turns. Fold in the artifact when terminal. At the deadline, `reap <job-id>` and perform one final `wait --max-secs 10` because reap is asynchronous. The script self-bounds (idle timeout 180s; hard backstop 600s), so deadline reaping is exceptional. Done detection stays presence-keyed: the worker publishes `<run-dir>/adversarial-<provider>.json` only after normalization. The script reads the persona brief and schema from the skill dir and reviews the current work tree against `<base-ref>`.
+Record the launch ledger row immediately after the authority decision/start attempt with these fields in order: `label`, `target`, `fixed route`, `authority outcome`, `job ID/no-job`, `expected result path`, `input digest`. The digest is SHA-256 over the exact `git diff <base-ref> --` bytes; the worker removes stale output, recomputes those bytes before prompting, and fails closed on drift.
+
+**Single-reap finish.** The runner detaches the worker into its own supervised session. Use the deadline anchor recorded in working state before the launch and do not poll while local reviewers are active. After local returns are collected, check status once. If still running and the shared 610s deadline leaves time, issue one bounded `wait` sized to the remaining deadline (cap the wait at 240s); do not start repeated short polling turns. Fold in the artifact when terminal. At the deadline, `reap <job-id>` and perform one final `wait --max-secs 10` because reap is asynchronous. The script self-bounds (idle timeout 180s; hard backstop 600s), so deadline reaping is exceptional. Done detection stays presence-keyed: the worker publishes `<run-dir>/adversarial-<provider>.json` only after normalization. The script reads the persona brief and schema from the skill dir and reviews the current work tree against `<base-ref>`.
 
 The `start` command's returned job ID is the successful-start receipt. Do not immediately call `status`, inspect `--help`, or otherwise verify that receipt; persist it and continue to local dispatch. Status collection begins only after the local wave completes.
 
@@ -88,16 +129,16 @@ If it is still running and time remains, use the documented single `wait`; do no
 
 ## Step 5 — Fold into Stage 5
 
-- Read the artifact through the runner's verified read — `python3 "$SKILL_DIR/scripts/peer-job-runner.py" result --path <run-dir>/adversarial-<target>.json`. Its findings enter ordinary dedup, but agreement promotion is allowed **only when `independence_verified` is `true`**. A false or absent value may contribute findings but never raises confidence. `independence_verified` attests a different serving family; it does not claim the exact served model was verified. `receipt_supported`, `model_actual`, and `effort_actual` carry that separate identity evidence. Peer findings never grant silent-apply authority.
+- If and only if a job ID exists, collect only with `python3 "$SKILL_DIR/scripts/peer-job-runner.py" result <job-id>`. Never collect by path or scan. Revalidate full schema (including valid empty `findings`), exact reviewer, and ledger digest; mismatch is `unusable_output`. A valid artifact without verified serving identity is `ran_attributed`. Promotion requires `ran_verified_independent`: both `independence_verified` and `model_receipt_verified` are true and receipt identity reconciles.
 - In final Coverage, name `cross_model_route`, `model_requested`, `effort_requested`, `receipt_supported`, `model_actual`, `effort_actual`, and `independence_verified` from the artifact. Keep the literal `unverified`; never compress a request into a serving claim such as "via Codex high" when actual model or effort is unverified.
-- **Never started / not run** — the job was never started (gates not met, host un-attestable, no different provider reachable, CLI missing/unauthed): the pass simply didn't run. Note "cross-model pass: not run" in Coverage for human-facing markdown; stay silent in `mode:agent`. Ignore any `*.raw.json` leftovers — they are not fold-in artifacts.
+- **Never started / not run** — no job ID exists (gates not met, host un-attestable, no different provider reachable, `host_denied`, or `authority_unavailable`). Issue no runner collection command, inspect no result path, keep the local fallback, and record an environment-scoped reason. No provider command ran, so do not claim an authentication failure.
 - **Dispatch-infrastructure failure** — the runner or worker itself crashed: a non-zero exit before any job starts, a preflight/detach failure, or an unresolved `$SKILL_DIR`/script path. This is distinct from the gate-not-met skips above (there, no dispatch was attempted), so do not fold it into the silent not-run bucket on the first error. The two failure shapes recover at different points. A **no-job-id** preflight failure (exit before any job id, unresolved `$SKILL_DIR`) is recovered entirely at **Stage 3d's no-job branch**, before the local roster is materialized — the only point where re-running the start can still recover cross-model corroboration and, failing that, cleanly fall to the in-process reviewer (which then covers the lens; only corroboration is lost). Do **not** re-attempt that case here at fold-in: Stage 4 may already have dispatched the in-process `adversarial-reviewer`, so a fold-in peer re-run would put both on the same brief and violate the exclusive routing boundary. This step handles only the **job-id-returned-then-failed** crash — its failed job is reaped here and the in-process reviewer is already gone. For it, re-run the **same resolved fixed route** by hand — holding the target and model, the `git diff <base-ref>` read scope, and the adversarial persona brief fixed — while each failure is a new, plausibly recoverable one and the shared 610s deadline holds. This is a same-route retry, deliberately distinct from the quota rule below, which requires a newly disclosed route. Stop once a failure repeats or the deadline is spent; the hand recovery is then the adversarial lens's only cover, so the Coverage line must report the adversarial lens as **degraded**, not merely cross-model corroboration lost. A hand recovery may not substitute a different target or provider, widen the read scope, or relax the read-only trust boundary — those make the recovered peer untrustworthy, not merely unavailable.
-- **Ran but produced no usable output** — the job reached `done` (or any terminal state) yet no `adversarial-<provider>.json` exists (the peer ran and egressed but returned nothing schema-shaped — unparseable output, empty findings the script dropped). Distinct from not-run: note "cross-model pass: peer ran, no usable output" in human-facing markdown Coverage. Never fail the review.
+- **Ran but produced no usable output** — a started job failed artifact validation or produced no registered artifact. A full-schema artifact with empty `findings` is successful, not unusable. Record `unusable_output`; never fail the review.
 - **Started but not `done`** — the final status read reports `failed`, `timeout`, or `died-without-result` (a job reaped at the 610s deadline records `timeout`, with the reap noted in its reason) → still non-blocking, but never silent: name the peer and its terminal state in Coverage (e.g. "cross-model adversarial peer: timeout"). Silent absence stays correct only for passes that never started or were skipped.
 - Empty `findings` → note "cross-model pass: no additional issues" in Coverage.
-- **Classify the skip reason before deleting.** Read `out.log` before cleanup, including bounded lines prefixed `peer skip evidence:`, and name observed quota, authentication, or capability failure. After the same quota or usage-limit evidence appears more than once in this session, do not retry that route automatically. A retry uses a newly resolved, disclosed, and sanctioned fixed route; never silently continue to another recipient.
+- **Classify before deleting.** Read only bounded runner-owned diagnostics, including the stable `peer skip evidence:` category line. Persist only `auth_failed`, `quota_limited`, `timeout`, or `unusable_output`, redacting credentials, tokens, paths, commands, and raw prose. If quota and authentication markers coexist, `quota_limited` wins. Never retry repeated quota evidence automatically.
 - After fold-in (or after deadline reaping), delete the consumed job directory (`<run-dir>/jobs/<job-id>/`) — its log and result are review content and must not outlive their use.
-- A finding sharing a fingerprint with in-process `adversarial` promotes only when the artifact records `independence_verified: true`. Cursor-default artifacts default false; an unattested host skips automatic dispatch.
+- A finding sharing a fingerprint with in-process `adversarial` promotes only for `ran_verified_independent`, including verified identity receipt reconciliation.
 
 ## Trust boundary (maintainers)
 

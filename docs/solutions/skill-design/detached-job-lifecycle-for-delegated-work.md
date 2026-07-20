@@ -19,7 +19,7 @@ tags: [detached-jobs, process-lifecycle, cross-harness, tool-call-timeout, setsi
 
 ## Context
 
-Several skills in this plugin delegate real work to external CLIs via bundled scripts — the cross-model peer reviews in ce-doc-review and ce-code-review are the current examples. Their contract makes one shell tool call launch the script and await its exit: both `skills/ce-doc-review/references/cross-model-review.md` (line 78) and `skills/ce-code-review/references/cross-model-review.md` (line 71) instruct the orchestrator to set the Bash tool timeout high enough to cover the script's hard cap and await completion. The scripts self-bound conscientiously — `CROSS_MODEL_IDLE_SECS` defaults to 180s of byte-growth idle detection on the streaming codex route and `CROSS_MODEL_HARD_SECS` defaults to 600s (`skills/ce-doc-review/scripts/cross-model-doc-review.sh:330-331`, `skills/ce-code-review/scripts/cross-model-adversarial-review.sh:247-248`), and both `trap '' HUP` to survive a departing parent shell (`cross-model-doc-review.sh:72`, `cross-model-adversarial-review.sh:59`).
+Several skills in this plugin delegate real work to external CLIs via bundled scripts — the cross-model peer reviews in ce-doc-review and ce-code-review are the current examples. The original failure arose when one shell tool call launched the worker and awaited its entire runtime. The current contract starts a durable detached job in a short call, then collects it through later status/wait/result calls. The workers still self-bound with idle and hard limits, but those limits now supervise the detached provider process instead of holding the orchestrator's tool call open.
 
 None of that helps when the harness enforces its own ceiling on tool-call duration. A ~2-minute class of limits exists on some hosts, and when it fires, the harness kills the supervising shell itself — the script's internal timeouts, traps, and cleanup logic never get a say. Because these passes are deliberately non-blocking (any failure means no output file, which reads as "the pass didn't run"), the result is a silent no-op: the orchestrator proceeds, the user sees a review with one reviewer quietly missing, and nothing flags that a limit was hit.
 
@@ -37,7 +37,7 @@ Never let one tool call span a delegate's runtime. Split the lifecycle so every 
    /tmp/compound-engineering/<skill>/<run-id>/jobs/<job-id>/
      status      # exactly one word: running | done | failed | timeout
      pid         # detached worker's pid
-     out.log     # raw delegate stream (also the liveness signal)
+     out.log     # sanitized worker stream (also the liveness signal)
      meta.json   # job identity: run id, lens/provider or work unit,
                  # input digest (e.g. base SHA), started timestamp
      result.json # published ATOMICALLY (write tmp, validate/normalize,
@@ -46,13 +46,17 @@ Never let one tool call span a delegate's runtime. Split the lifecycle so every 
 
 3. **SUPERVISE.** A watchdog runs *inside* the detached process, not in the orchestrator: liveness is `out.log` byte growth; an idle window with no growth reaps the delegate; a hard cap reaps it regardless. Reaping kills the whole process tree — TERM, a grace period, then KILL; when a process-group kill is unavailable, walk the tree deepest-first so children die before their parents can respawn or orphan them.
 
-4. **POLL.** The orchestrator checks `status` with sub-second reads interleaved between its other work, and reads `result.json` only once the status word is terminal. No foreground sleep loops.
+4. **POLL.** The orchestrator checks `status` with short reads interleaved between its other work, and retrieves the declared result only by job ID once the status word is terminal. No foreground sleep loops and no predictable-path fold-in reads.
 
 5. **DEADLINE OWNERSHIP.** The detached worker owns the per-job idle and hard limits. The caller owns a separate aggregate deadline that is shorter than or equal to the worker's hard cap, and when it passes, the caller proceeds without the job. An additive, non-blocking pass must never be able to become an unbounded wait.
 
 6. **SINGLE TERMINAL RECORD.** Exactly one authoritative terminal state, written atomically after the worker classifies the outcome. Never two files (e.g. a status word AND a separate exit-code file) that a crash can leave disagreeing.
 
 7. **NO PROMPTS.** Nothing in the detached path may ask a question. The worker has no terminal and no user; every input is resolved before detach (headless/CI posture throughout).
+
+8. **RESOLVE LAUNCH AUTHORITY BEFORE DETACH.** Host identity is not execution capability. If the current command lane is known restricted for a credential-sensitive native route, request the harness's one-shot host-execution capability for the exact sanctioned start command. A denial or unavailable adapter creates no job. The runner and detached worker inherit their launch lane; neither may self-elevate or retry inside a known-bad child sandbox.
+
+9. **BIND SUCCESS TO INPUT AND ARTIFACT.** Pass a non-empty input digest and deterministic result path at start, remove stale output before every attempt, and have the worker recompute the exact input immediately before prompt construction. Runner `done` is artifact-backed, but the caller still retrieves with `result <job-id>`, validates the complete schema and digest, then reconciles the served-model receipt before claiming independent review. A clean worker exit, job ID, auth preflight, or raw provider output does not prove the delegated work ran.
 
 The detach itself must create a new session, because plain `nohup` is not sufficient (see the spike below). macOS ships no `setsid(1)` utility, so use a POSIX::setsid double-fork:
 

@@ -147,8 +147,10 @@ target_serving_family() {
 }
 
 MODEL_ACTUAL="unverified"
+MODEL_RECEIPT_VERIFIED=false
 extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODEL_ACTUAL
   MODEL_ACTUAL="unverified"
+  MODEL_RECEIPT_VERIFIED=false
   [ "$1" = "claude" ] || return 0
   local requested actual prefix matched
   requested="$(route_model claude)"
@@ -167,6 +169,7 @@ extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODE
   fi
   if [ -n "$matched" ]; then
     MODEL_ACTUAL="$matched"
+    MODEL_RECEIPT_VERIFIED=true
     return 0
   fi
   actual="$(jq -r '.modelUsage // empty | keys[0] // empty' "$PEERLOG" 2>/dev/null)"
@@ -339,11 +342,30 @@ case "$MAX_PEERS" in ''|*[!0-9]*) MAX_PEERS=1 ;; esac
 [ "$MAX_PEERS" -gt 2 ] && MAX_PEERS=2
 
 in_csv() { case ",$2," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
-# Require a reviewer-shaped return (top-level `findings` array), not merely valid
-# JSON: a grok error/envelope object (e.g. a 402 usage-exhausted body) is valid
-# JSON but has no findings and would be dropped at normalize. Matches the
-# adversarial twin's check.
-out_missing_or_invalid() { [ ! -s "$RAW_OUT" ] || ! jq -e '(.findings|type)=="array"' "$RAW_OUT" >/dev/null 2>&1; }
+# Validate the complete findings schema at recovery and fold-in. Empty findings
+# is valid; every present finding must carry all required fields and exact enums.
+validate_findings_file() {   # <path>
+  [ -s "$1" ] || return 1
+  jq -e '
+    def string_array: type == "array" and all(.[]; type == "string");
+    def valid_finding:
+      type == "object" and
+      (.title | type == "string" and length <= 100) and
+      (.severity | type == "string" and IN("P0", "P1", "P2", "P3")) and
+      (.section | type == "string") and
+      (.why_it_matters | type == "string") and
+      (.finding_type | type == "string" and IN("error", "omission")) and
+      (.autofix_class | type == "string" and IN("safe_auto", "gated_auto", "manual")) and
+      (.confidence | type == "number" and IN(0, 25, 50, 75, 100)) and
+      (.evidence | type == "array" and length >= 1 and all(.[]; type == "string" and length > 0)) and
+      ((has("suggested_fix") | not) or .suggested_fix == null or (.suggested_fix | type == "string"));
+    (.reviewer | type == "string") and
+    (.findings | type == "array" and all(.[]; valid_finding)) and
+    (.residual_risks | string_array) and
+    (.deferred_questions | string_array)
+  ' "$1" >/dev/null 2>&1
+}
+out_missing_or_invalid() { ! validate_findings_file "$RAW_OUT"; }
 
 # The cursor-agent route egresses content through Cursor even when the *model* is
 # grok (grok-via-cursor-agent). CROSS_MODEL_PEERS is an egress boundary (R19), not
@@ -413,6 +435,29 @@ if [ -n "${CROSS_MODEL_DRY_RUN:-}" ]; then
   printf 'RESOLVED_PEERS: %s\n' "$(first_n "$MAX_PEERS" $SELECTED)"
   exit 0
 fi
+
+# Bind this worker to the exact document/slice declared by its runner job.
+# Remove the deterministic output first so a stale artifact cannot survive a
+# digest failure or provider skip.
+FIXED_TARGET_EARLY="$(route_target "${CROSS_MODEL_FIXED_ROUTE:-}")"
+[ -n "$FIXED_TARGET_EARLY" ] && rm -f "$RUN_DIR/$REVIEWER_NAME-$FIXED_TARGET_EARLY.json"
+EXPECTED_INPUT_DIGEST="${CROSS_MODEL_INPUT_DIGEST:-}"
+case "$EXPECTED_INPUT_DIGEST" in
+  ''|*[!0-9a-fA-F]*) skip "input digest missing or malformed; skipping before prompt construction" ;;
+esac
+[ "${#EXPECTED_INPUT_DIGEST}" -eq 64 ] || skip "input digest missing or malformed; skipping before prompt construction"
+command -v python3 >/dev/null 2>&1 || skip "python3 unavailable for input digest verification; skipping before prompt construction"
+ACTUAL_INPUT_DIGEST="$(python3 - "$DOC_PATH" <<'PY'
+import hashlib, sys
+h = hashlib.sha256()
+with open(sys.argv[1], "rb") as source:
+    for chunk in iter(lambda: source.read(1024 * 1024), b""):
+        h.update(chunk)
+print(h.hexdigest())
+PY
+)" || skip "could not compute input digest; skipping before prompt construction"
+[ -n "$ACTUAL_INPUT_DIGEST" ] && [ "$ACTUAL_INPUT_DIGEST" = "$(printf '%s' "$EXPECTED_INPUT_DIGEST" | tr '[:upper:]' '[:lower:]')" ] || skip "input digest mismatch; skipping before prompt construction"
+INPUT_DIGEST="$ACTUAL_INPUT_DIGEST"
 
 # --- compose the peer prompt from the canonical persona (single source) ----
 # The full findings schema is embedded so the peer knows every required field.
@@ -666,9 +711,16 @@ run_provider() {   # <provider>
   # (codex/cursor-agent) can neither list a shared cwd nor read another lens's
   # published <lens>-<provider>.json -- it has no path handle to RUN_DIR at all.
   # OUT is published to RUN_DIR only after the peer process exits (normalize below),
-  # never written into RUN_DIR by the peer itself. Falls back to RUN_DIR only if
-  # mktemp fails (preserves prior behavior over failing the pass).
-  PEER_WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/xmodel-doc-peer-XXXXXX")" || PEER_WORKDIR="$RUN_DIR"
+  # never written into RUN_DIR by the peer itself. Workspace isolation is a hard
+  # capability gate: suppress mktemp's implementation detail and fail closed with
+  # one bounded diagnostic rather than exposing RUN_DIR to the provider.
+  PEER_WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/xmodel-doc-peer-XXXXXX" 2>/dev/null)" || {
+    PEER_WORKDIR=""
+    RAW_OUT=""
+    rm -f "$OUT"
+    log "private peer workspace unavailable; skipping before provider invocation"
+    return 0
+  }
   RAW_OUT="$PEER_WORKDIR/$REVIEWER_NAME-$provider.raw.json"
   [ -n "$fixed" ] || { log "host must resolve one fixed route before egress; skipping"; rm -f "$OUT"; return 0; }
   [ "$(route_target "$fixed")" = "$provider" ] || { log "fixed route '$fixed' does not match target '$provider'; skipping"; rm -f "$OUT"; return 0; }
@@ -700,7 +752,7 @@ run_provider() {   # <provider>
   # workspace and is never a fold-in artifact — if this script dies before normalize
   # (orphaned launch), synthesis finds no .json in RUN_DIR.
   rm -f "$OUT"
-  if [ -s "$RAW_OUT" ]; then
+  if validate_findings_file "$RAW_OUT"; then
     _norm="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-norm-XXXXXX")"
     case "$ACTUAL_ROUTE:$MODEL_ACTUAL" in
       cursor:*) _target_family="unknown" ;;
@@ -713,8 +765,9 @@ run_provider() {   # <provider>
          --arg target "$provider" --arg harness "$(route_harness "$ACTUAL_ROUTE")" \
          --arg family "$_target_family" --argjson independent "$_independent" \
          --arg mreq "$(route_model "$ACTUAL_ROUTE")" --arg mact "$MODEL_ACTUAL" \
-         'if (.findings|type)=="array"
-          then { reviewer: $r,
+         --argjson receipt "$MODEL_RECEIPT_VERIFIED" \
+         --arg digest "$INPUT_DIGEST" \
+         '{ reviewer: $r,
                  cross_model_route: $route,
                  cross_model_target: $target,
                  cross_model_harness: $harness,
@@ -722,10 +775,11 @@ run_provider() {   # <provider>
                  independence_verified: $independent,
                  model_requested: $mreq,
                  model_actual: $mact,
+                 model_receipt_verified: $receipt,
+                 input_digest: $digest,
                  findings: [ .findings[] | if (.autofix_class? == "safe_auto") then .autofix_class = "gated_auto" else . end ],
-                 residual_risks: (.residual_risks // []),
-                 deferred_questions: (.deferred_questions // []) }
-          else empty end' \
+                 residual_risks: .residual_risks,
+                 deferred_questions: .deferred_questions }' \
          "$RAW_OUT" > "$_norm" 2>/dev/null; then
       mv "$_norm" "$OUT"
     else
@@ -733,7 +787,9 @@ run_provider() {   # <provider>
     fi
     rm -f "$RAW_OUT"
   fi
-  if [ -s "$OUT" ] && jq -e '(.reviewer|type=="string") and (.findings|type=="array") and (.residual_risks|type=="array") and (.deferred_questions|type=="array")' "$OUT" >/dev/null 2>&1; then
+  if validate_findings_file "$OUT" &&
+     jq -e --arg digest "$INPUT_DIGEST" --arg reviewer "$REVIEWER_NAME-$provider" \
+       '(.input_digest == $digest) and (.reviewer == $reviewer)' "$OUT" >/dev/null 2>&1; then
     n="$(jq '.findings | length' "$OUT" 2>/dev/null || echo '?')"
     log "wrote $n finding(s) to $OUT (reviewer $REVIEWER_NAME-$provider)"
   else
@@ -760,33 +816,19 @@ run_provider() {   # <provider>
   [ -n "$PEER_WORKDIR" ] && [ "$PEER_WORKDIR" != "$RUN_DIR" ] && rm -rf "$PEER_WORKDIR"
 }
 
-# Prefer structured CLI diagnostics over a raw tail, which can hide the useful
-# error near the beginning of a large JSON envelope.
+# Classify private provider output into a stable allowlisted taxonomy. Raw text
+# can contain credentials, bearer headers, signed URLs, or sensitive host paths.
 bounded_failure_evidence() {   # <logfile>
-  local path="$1" human ancillary evidence
-  human="$(jq -r '
-    [
-      (.result? | select(type == "string" and length > 0)),
-      (.message? | select(type == "string" and length > 0)),
-      (.error?.message? | select(type == "string" and length > 0))
-    ] | unique | join(" | ")
-  ' "$path" 2>/dev/null)"
-  ancillary="$(jq -r '
-    [
-      (if .api_error_status? != null then "api_error_status=\(.api_error_status)" else empty end),
-      (.terminal_reason? | select(type == "string" and length > 0) | "terminal_reason=" + .)
-    ] | unique | join(" | ")
-  ' "$path" 2>/dev/null)"
-  # Ancillary fields describe the exit but are not the diagnostic itself. If
-  # no recognized human-readable field exists, retain bounded raw output so a
-  # CLI's newer or provider-specific error field is still visible.
-  [ -n "$human" ] && evidence="$human" || evidence="$(cat "$path")"
-  [ -n "$ancillary" ] && evidence="${evidence:+$evidence | }$ancillary"
-  evidence="${evidence//$'\n'/ }"
-  if [ "${#evidence}" -gt 300 ]; then
-    evidence="${evidence:0:147} ... ${evidence: -147}"
-  fi
-  printf '%s' "$evidence"
+  local path="$1" lowered
+  lowered="$(cat "$path" 2>/dev/null | tr '[:upper:]' '[:lower:]')"
+  # Quota wins when a provider envelope also mentions authorization/auth; the
+  # actionable terminal constraint is exhaustion, not a login instruction.
+  case "$lowered" in
+    *"quota"*|*"rate limit"*|*"rate_limit"*|*"usage limit"*|*"usage-limit"*|*"exhausted"*|*"too many requests"*|*"http 402"*|*'"status":402'*|*"http 429"*|*'"status":429'*) printf 'quota_limited' ;;
+    *"not logged in"*|*"log in"*|*"login"*|*"unauthorized"*|*"unauthenticated"*|*"authentication"*|*"authorization"*|*"credential"*|*"http 401"*|*'"status":401'*) printf 'auth_failed' ;;
+    *"timed out"*|*"timeout"*|*"deadline exceeded"*) printf 'timeout' ;;
+    *) printf 'unusable_output' ;;
+  esac
 }
 
 # --- run the host-sanctioned fixed target -----------------------------------

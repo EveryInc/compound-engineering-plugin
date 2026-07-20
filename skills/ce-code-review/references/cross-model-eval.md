@@ -59,9 +59,26 @@ and Codex with fake peer CLIs first on PATH.
    <model>; serving model unverified on this route." `mode:agent` emits no
    user-facing prose but retains the worker's stderr audit record.
 
+9. **Restricted Codex approved host launch.** In a fresh restricted Codex case
+   with the native Claude route selected and host approval granted, assert the
+   exact finalized `peer-job-runner.py start` command is submitted in the same
+   exec call whose tool metadata includes
+   `sandbox_permissions: "require_escalated"` and a justification naming the
+   fixed route and reviewed-code egress recipients. The call omits
+   `prefix_rule`; no approval probe precedes it. Assert the fake Claude CLI
+   actually executes, the returned job ID removes the local adversarial fallback,
+   and the verified artifact is collected later through the normal result path.
+
+10. **Restricted Codex denied or unavailable authority.** In fresh cases where
+    the host denies the finalized launch and where escalation capability is
+    unavailable, assert zero start calls, zero job IDs, no detach, and no
+    provider-auth inference. The launch ledger records `host_denied` or
+    `authority_unavailable`, and the in-process `adversarial-reviewer` remains in
+    the final roster.
+
 ## Pass criteria
 
-All eight cases pass on the current on-disk source on Claude Code and Codex. The
+All ten cases pass on the current on-disk source on Claude Code and Codex. The
 negative activation cases launch no peer, the fixed-route cases perform no
 worker-internal recipient fallback, and only `independence_verified: true`
 artifacts can promote agreement.

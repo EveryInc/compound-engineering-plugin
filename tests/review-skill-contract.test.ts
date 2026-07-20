@@ -435,8 +435,8 @@ describe("ce-code-review contract", () => {
     expect(content).toContain("### Stage 5b: Validation pass")
 
     // Cross-model corroboration is the only validator shortcut.
-    expect(content).toMatch(/ordinary reviewer plus an `adversarial-<provider>` reviewer/i)
-    expect(content).toMatch(/Same-model corroboration never licenses this shortcut/i)
+    expect(content).toMatch(/ordinary reviewer plus a `ran_verified_independent` adversarial peer/i)
+    expect(content).toMatch(/Same-model or unverified-identity corroboration never licenses this shortcut/i)
 
     // Remaining findings use one bounded foreground batch.
     expect(content).toMatch(/deterministic validator batch/i)
@@ -1099,7 +1099,7 @@ describe("cross-model peer skip legibility", () => {
     test(`${worker} gates fixed-route success on a findings-shaped return, not any valid JSON`, async () => {
       const src = await readRepoFile(worker)
       expect(src).toMatch(/out_missing_or_invalid\(\)/)
-      expect(src).toContain('(.findings|type)=="array"')
+      expect(src).toMatch(/validate_findings_file/)
     })
   }
 
@@ -1123,7 +1123,7 @@ describe("cross-model peer skip legibility", () => {
       // to classify a quota/usage-limit exhaustion (harness-agnostic reasoning).
       expect(referenceSrc).toContain("peer skip evidence:")
       expect(referenceSrc).toMatch(/quota|usage-limit/i)
-      expect(referenceSrc).toMatch(/more than once in this session/i)
+      expect(referenceSrc).toMatch(/repeated quota evidence|more than once in this session/i)
     })
   }
 
@@ -1181,6 +1181,172 @@ describe("cross-model peer skip legibility", () => {
     const wholeDocCase = docReviewEval.match(/10\. \*\*Whole-document sweep[\s\S]*?(?=\n11\. \*\*)/)?.[0]
     expect(wholeDocCase).toContain("`independence_verified: true`")
     expect(wholeDocCase).toMatch(/false or\s+absent independence[\s\S]*without promotion/)
+  })
+
+  test("review skills resolve peer-launch authority separately from host identity", async () => {
+    const skillPaths = [
+      "skills/ce-code-review/SKILL.md",
+      "skills/ce-doc-review/SKILL.md",
+    ]
+    const referencePaths = [
+      "skills/ce-code-review/references/cross-model-review.md",
+      "skills/ce-doc-review/references/cross-model-review.md",
+    ]
+
+    for (const skillPath of skillPaths) {
+      const src = await readRepoFile(skillPath)
+      expect(src).toMatch(/current execution lane[\s\S]{0,160}host identity/i)
+      expect(src).toMatch(
+        /`normal`[\s\S]{0,200}`approved_host_launch`[\s\S]{0,200}`host_denied`[\s\S]{0,200}`authority_unavailable`/i,
+      )
+    }
+
+    for (const referencePath of referencePaths) {
+      const src = await readRepoFile(referencePath)
+      expect(src).toContain('sandbox_permissions: "require_escalated"')
+      expect(src).toMatch(/same\s+exec call/i)
+      expect(src).toMatch(/`justification`[\s\S]{0,100}fixed route[\s\S]{0,100}egress/i)
+      expect(src).toMatch(/omit `prefix_rule`/i)
+      expect(src).toMatch(/call-scoped/i)
+      expect(src).toMatch(/never approve a probe[\s\S]{0,100}launch later/i)
+      expect(src).toMatch(/identical command[\s\S]{0,80}normally/i)
+      expect(src).toMatch(/no job ID[\s\S]{0,80}no detach|no detach[\s\S]{0,80}no job ID/i)
+      expect(src).toMatch(/never infer[\s\S]{0,100}provider logout/i)
+    }
+  })
+
+  test("review skills ledger each peer start before their aggregate deadline", async () => {
+    const docReview = await readRepoFile(
+      "skills/ce-doc-review/references/cross-model-review.md",
+    )
+    const codeReview = await readRepoFile(
+      "skills/ce-code-review/references/cross-model-review.md",
+    )
+
+    for (const src of [docReview, codeReview]) {
+      expect(src).toMatch(/launch ledger/i)
+      expect(src).toMatch(
+        /label[\s\S]{0,160}fixed route[\s\S]{0,160}authority outcome[\s\S]{0,160}job ID\/no-job[\s\S]{0,160}expected result path/i,
+      )
+      expect(src).toMatch(/aggregate deadline[\s\S]{0,100}before the (?:initial|first) launch/i)
+    }
+
+    expect(docReview).toMatch(/per-leg starts/i)
+    expect(docReview).toMatch(/immutable batch/i)
+    expect(docReview).toMatch(/never (?:claim|treat)[\s\S]{0,80}approval reuse/i)
+    expect(codeReview).toMatch(/before[\s\S]{0,100}exclusive (?:local )?roster[\s\S]{0,100}final/i)
+  })
+
+  test("review evals cover restricted-Codex approval and no-authority branches", async () => {
+    const evalPaths = [
+      "skills/ce-code-review/references/cross-model-eval.md",
+      "skills/ce-doc-review/references/cross-model-eval.md",
+    ]
+
+    for (const evalPath of evalPaths) {
+      const src = await readRepoFile(evalPath)
+      expect(src).toMatch(/restricted Codex/i)
+      expect(src).toContain('sandbox_permissions: "require_escalated"')
+      expect(src).toMatch(/same\s+exec call/i)
+      expect(src).toMatch(/zero start calls/i)
+      expect(src).toMatch(/zero job IDs/i)
+      expect(src).toMatch(/no\s+provider-auth inference/i)
+    }
+  })
+
+
+  test("review peer launches use one route-qualified sanitized environment contract", async () => {
+    const referencePaths = [
+      "skills/ce-code-review/references/cross-model-review.md",
+      "skills/ce-doc-review/references/cross-model-review.md",
+    ]
+    const sharedFields = [
+      "HOME",
+      "PATH",
+      "TMPDIR",
+      "XDG_CONFIG_HOME",
+      "CROSS_MODEL_HOST_HARNESS",
+      "CROSS_MODEL_FIXED_ROUTE",
+      "CROSS_MODEL_PEERS",
+      "CROSS_MODEL_MAX_PEERS",
+      "CROSS_MODEL_MODEL_OVERRIDE_TARGET",
+      "CROSS_MODEL_MODEL_OVERRIDE",
+      "CROSS_MODEL_INPUT_DIGEST",
+      "CROSS_MODEL_IDLE_SECS",
+      "CROSS_MODEL_HARD_SECS",
+      "CROSS_MODEL_HEARTBEAT_SECS",
+    ]
+
+    for (const referencePath of referencePaths) {
+      const src = await readRepoFile(referencePath)
+      const allowlist = src.match(
+        /## Peer worker environment allowlist[\s\S]*?(?=\n## )/i,
+      )?.[0]
+      expect(allowlist).toBeDefined()
+      expect(allowlist).toMatch(/route-qualified[\s\S]{0,120}source of truth/i)
+      for (const route of ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer"]) {
+        expect(allowlist).toContain(`\`${route}\``)
+      }
+      for (const field of sharedFields) {
+        expect(allowlist).toContain(`\`${field}\``)
+      }
+      expect(allowlist).toContain("`CODEX_HOME`")
+      expect(allowlist).toContain("`CLAUDE_CONFIG_DIR`")
+      expect(allowlist).toMatch(/`claude`[^\n]*`HOME`[^\n]*`USER`[^\n]*`PATH`[^\n]*`TMPDIR`/i)
+      expect(allowlist).toMatch(/drop[s]? every other ambient variable|everything else is dropped/i)
+      expect(allowlist).toMatch(/API[\s\S]{0,80}token[\s\S]{0,80}key[\s\S]{0,120}never forwarded/i)
+      expect(allowlist).toMatch(
+        /secret environment variable[\s\S]{0,120}unsupported[\s\S]{0,120}separately authorized/i,
+      )
+      expect(allowlist).toMatch(/OAuth[\s\S]{0,120}keychain[\s\S]{0,160}`HOME`/i)
+      expect(src).toContain("-- env -i")
+      expect(src).toMatch(
+        /-- env -i[\s\S]{0,120}`?<route-discovery-env>`?[\s\S]{0,500}CROSS_MODEL_HOST_HARNESS="<host-harness>"[\s\S]{0,500}CROSS_MODEL_FIXED_ROUTE="<fixed-route>"/i,
+      )
+    }
+
+    const docReview = await readRepoFile(
+      "skills/ce-doc-review/references/cross-model-review.md",
+    )
+    expect(docReview).toContain("`CROSS_MODEL_MAX_DOC_CHARS`")
+  })
+
+})
+
+describe("review-skill artifact and diagnostic parity", () => {
+  test("keeps both peer launch contracts input-bound and job-ID-collected", async () => {
+    const references = await Promise.all([
+      readRepoFile("skills/ce-code-review/references/cross-model-review.md"),
+      readRepoFile("skills/ce-doc-review/references/cross-model-review.md"),
+    ])
+
+    for (const reference of references) {
+      expect(reference).toContain('--input-digest "$INPUT_DIGEST"')
+      expect(reference).toMatch(/--result-path "\$(?:EXPECTED_RESULT|RESULT_PATH)"/)
+      expect(reference).toContain('CROSS_MODEL_INPUT_DIGEST="$INPUT_DIGEST"')
+      expect(reference).toMatch(/result <job-id>/)
+      expect(reference).not.toContain("result --path")
+      expect(reference).toContain("ran_attributed")
+      expect(reference).toContain("ran_verified_independent")
+    }
+  })
+
+  test("keeps both peer workers on the same redacted failure taxonomy", async () => {
+    const workers = await Promise.all([
+      readRepoFile("skills/ce-code-review/scripts/cross-model-adversarial-review.sh"),
+      readRepoFile("skills/ce-doc-review/scripts/cross-model-doc-review.sh"),
+    ])
+
+    for (const worker of workers) {
+      for (const category of ["auth_failed", "quota_limited", "timeout", "unusable_output"]) {
+        expect(worker).toContain(`printf '${category}'`)
+      }
+      expect(worker).toContain("CROSS_MODEL_INPUT_DIGEST")
+      expect(worker).toContain("model_receipt_verified")
+      expect(worker).toMatch(/credentials|bearer/i)
+      expect(worker).toMatch(/signed URL/i)
+      expect(worker).toMatch(/host paths/i)
+    }
   })
 })
 

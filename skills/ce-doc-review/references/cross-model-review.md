@@ -44,15 +44,53 @@ The **persona file** basename and the **reviewer name** are distinct: the script
 
 ## Step 3 — Announce
 
+The ce-doc-review invocation authorizes the selected configured/allowlisted egress route after this disclosure. The announce is a transparent notice, not a second egress-confirmation gate. Egress authorization does not grant host-execution authority; Step 4 resolves launch authority separately at the actual start call.
+
 - **Interactive host, default (non-headless) mode:** surface a **prominent standalone line** that frames it as an **independent cross-model review** of the judgment lenses (say "cross-model" / "independent model" — not the internal "peer" jargon), names the concrete **model and reasoning level** from the in-script mapping (e.g. GPT-5.6-sol at medium reasoning, Opus at high, Grok 4.5 at high, Composer 2.5-fast), and — because two different models can arrive over the *same* `cursor-agent` CLI — names **the route as well as the model** for cursor-agent routes so Grok-4.5-via-cursor-agent, Composer-via-cursor-agent, and Grok-4.5-via-the-grok-CLI are unambiguous, **and states that full document content is sent to that provider** (third-party egress; for cursor-agent routes the egress is to Cursor *plus* the serving provider). **Announce wording follows the receipt:** name a model as serving only where the route carries a served-model receipt; on receipt-less routes say "requested <model>; serving model unverified on this route" instead of asserting the concrete model. Placed with the Phase 2 team announce, not buried after it. Wording is yours; the falsifiable requirements: prominent, reads as a **cross-model reviewer** (not a generic persona), names the requested model (with the unverified marker on receipt-less routes), names the route when it is cursor-agent, names the egress. Example: `🔀 Cross-model pass — the judgment lenses are also being reviewed by an independent model: requested **Grok 4.5 (high reasoning), via cursor-agent** (serving model unverified on this route). Full document content is sent to xAI/Cursor.`
   - Call the pass **independent** only when host and target serving families are attestably different. For Cursor default/Auto or an unknown host family, call it a cross-harness review and state that independence is unverified; do not promise agreement promotion before the receipt exists.
   - Announce the one fixed route and every recipient before dispatch. A route failure produces no artifact and may be retried only after the host resolves, sanctions, and discloses the new route. Reconcile `cross_model_target`, `cross_model_harness`, `cross_model_route`, `model_requested`, and `model_actual` from the artifact; never infer a serving model from the requested ID.
 - **Interactive host, no peer resolved** (host un-attestable, or no different provider installed/authed): one quiet line that the cross-model pass was skipped and why. Never an error.
 - **Headless mode:** emit no user-facing prose. The script still emits a one-line stderr audit log per send that document content was sent cross-model to the named provider, so the third-party data egress is auditable even though the pass is silent to the user. Headless still requires a reachable peer under the normal gates; an explicit `cross_model_peer:` in `.compound-engineering/config.local.yaml` or a non-empty `CROSS_MODEL_PEERS` allowlist is the preferred enablement surface when teams want fail-closed-by-default CI egress (unset allowlist still means the default availability order).
 
+## Peer worker environment allowlist (source of truth)
+
+This route-qualified allowlist is the sole source of truth for the detached worker environment. Build it with `env -i`; everything else is dropped. Native CLI-owned OAuth and keychain discovery remains available only through the accepted non-secret discovery fields, especially `HOME`; credentials themselves stay owned by the CLI. Environment values whose names contain `API`, `TOKEN`, or `KEY` are never forwarded, nor are password, secret, or credential values. A route that requires a secret environment variable is unsupported until separately authorized with a new contract.
+
+| Fixed route | Exact accepted non-secret discovery fields |
+|---|---|
+| `codex` | `HOME`, `PATH`, `TMPDIR`, `XDG_CONFIG_HOME`, `CODEX_HOME` |
+| `claude` | `HOME`, `USER`, `PATH`, `TMPDIR`, `XDG_CONFIG_HOME`, `CLAUDE_CONFIG_DIR` |
+| `grok-cli` | `HOME`, `PATH`, `TMPDIR`, `XDG_CONFIG_HOME` |
+| `grok-cursor` | `HOME`, `PATH`, `TMPDIR`, `XDG_CONFIG_HOME` |
+| `cursor` | `HOME`, `PATH`, `TMPDIR`, `XDG_CONFIG_HOME` |
+| `composer` | `HOME`, `PATH`, `TMPDIR`, `XDG_CONFIG_HOME` |
+
+Every route also accepts only these operational fields: `CROSS_MODEL_HOST_HARNESS`, `CROSS_MODEL_FIXED_ROUTE`, `CROSS_MODEL_PEERS`, `CROSS_MODEL_MAX_PEERS`, `CROSS_MODEL_MODEL_OVERRIDE_TARGET`, `CROSS_MODEL_MODEL_OVERRIDE`, `CROSS_MODEL_INPUT_DIGEST`, `CROSS_MODEL_MAX_DOC_CHARS`, `CROSS_MODEL_IDLE_SECS`, `CROSS_MODEL_HARD_SECS`, and `CROSS_MODEL_HEARTBEAT_SECS`. In the launch command, `<route-discovery-env>` expands to assignments for exactly the selected table row. For example, the macOS `claude` route uses `HOME="$HOME" USER="$USER" PATH="$PATH" TMPDIR="${TMPDIR:-/tmp}" XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-}" CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-}"`; `USER` is required there for native OAuth/keychain discovery. Do not add host-attestation markers or provider-specific credential variables.
+
 ## Step 4 — Run the bundled script (one call per activated trio lens, in parallel with the persona reviewers)
 
 Each call is a CLI shell-out, not a subagent. Resolve one target and one fixed route once per document review, then launch every activated lens against that same sanctioned target/route. Launch each call as a detached job through `scripts/peer-job-runner.py` in the same dispatch wave as the in-process reviewers. A failed route does not fall through inside the worker.
+
+Before the first launch, distinguish the current execution lane from the host identity already attested in Step 1. Resolve launch authority for each leg as exactly one outcome:
+
+- `normal` — the current lane can run that finalized native peer command.
+- `approved_host_launch` — the current lane is restricted, but the host approved that finalized command.
+- `host_denied` — the host rejected that launch.
+- `authority_unavailable` — the harness exposes no way to request the authority the launch needs.
+
+Only `normal` and `approved_host_launch` may detach. For `host_denied` or `authority_unavailable`, issue no start command for that leg: there is no job ID and no detach. Continue with the in-process trio twin as the skill-specific local fallback; for a denied/unavailable `whole-doc` leg, name the missing broad read in Coverage rather than inventing a substitute. Because the provider CLI never ran, never infer provider logout, missing credentials, or provider unavailability from either authority branch.
+
+**Restricted Codex adapter.** Submit each exact finalized `peer-job-runner.py start` command below in the same exec call that requests `sandbox_permissions: "require_escalated"`; the `justification` must name the fixed route and the document-content egress recipients. Omit `prefix_rule`: approval is call-scoped, not a reusable token. Never approve a probe and launch later. An unrestricted or already authorized execution lane runs the identical command normally. The adapter metadata shape is:
+
+```text
+exec({
+  cmd: "<the exact finalized shell command below>",
+  sandbox_permissions: "require_escalated",
+  justification: "Launch the <label> cross-model document review through <fixed-route>; document content will egress to <recipients>."
+})
+```
+
+Use per-leg starts by default. Each restricted-Codex leg gets its own call-scoped decision; never claim approval reuse from an earlier leg. An intentional immutable batch is allowed only when one exec call contains every fully resolved start command and its justification names the fixed route, all labels, and all egress recipients. Set the aggregate deadline anchor before the initial launch and preserve it across every leg.
 
 **Two modes — slice the trio, sweep the whole doc (R20, KTD6):**
 
@@ -69,10 +107,13 @@ install -d -m 700 "$SCRATCH_ROOT" || exit 1;
 if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
 chmod 700 "$SCRATCH_ROOT" || exit 1;
 RUN_DIR="$SCRATCH_ROOT/ce-doc-review/<run-id>"; (umask 077; mkdir -p "$RUN_DIR") || exit 1; chmod 700 "$RUN_DIR" || exit 1;
-CROSS_MODEL_HOST_HARNESS="<host-harness>" CROSS_MODEL_FIXED_ROUTE="<fixed-route>" python3 "$SKILL_DIR/scripts/peer-job-runner.py" start --skill ce-doc-review --run-id "<run-id>" --label "<reviewer-name>" -- env CROSS_MODEL_HOST_HARNESS="<host-harness>" CROSS_MODEL_FIXED_ROUTE="<fixed-route>" bash "$SKILL_DIR/scripts/cross-model-doc-review.sh" "<host-serving-family>" "<target>" "<reviewer-name>" "<document-path>" "<document-type>" "<origin>" "$RUN_DIR"
+DOCUMENT_PATH="<document-path>";
+INPUT_DIGEST="$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "$DOCUMENT_PATH")" || exit 1;
+RESULT_PATH="$RUN_DIR/<reviewer-name>-<target>.json";
+CROSS_MODEL_HOST_HARNESS="<host-harness>" CROSS_MODEL_FIXED_ROUTE="<fixed-route>" python3 "$SKILL_DIR/scripts/peer-job-runner.py" start --skill ce-doc-review --run-id "<run-id>" --label "<reviewer-name>" --input-digest "$INPUT_DIGEST" --result-path "$RESULT_PATH" -- env -i <route-discovery-env> CROSS_MODEL_HOST_HARNESS="<host-harness>" CROSS_MODEL_FIXED_ROUTE="<fixed-route>" CROSS_MODEL_PEERS="${CROSS_MODEL_PEERS:-}" CROSS_MODEL_MAX_PEERS="${CROSS_MODEL_MAX_PEERS:-}" CROSS_MODEL_MODEL_OVERRIDE_TARGET="${CROSS_MODEL_MODEL_OVERRIDE_TARGET:-}" CROSS_MODEL_MODEL_OVERRIDE="${CROSS_MODEL_MODEL_OVERRIDE:-}" CROSS_MODEL_INPUT_DIGEST="$INPUT_DIGEST" CROSS_MODEL_MAX_DOC_CHARS="${CROSS_MODEL_MAX_DOC_CHARS:-}" CROSS_MODEL_IDLE_SECS="${CROSS_MODEL_IDLE_SECS:-}" CROSS_MODEL_HARD_SECS="${CROSS_MODEL_HARD_SECS:-}" CROSS_MODEL_HEARTBEAT_SECS="${CROSS_MODEL_HEARTBEAT_SECS:-}" bash "$SKILL_DIR/scripts/cross-model-doc-review.sh" "<host-serving-family>" "<target>" "<reviewer-name>" "$DOCUMENT_PATH" "<document-type>" "<origin>" "$RUN_DIR"
 ```
 
-Omit `--result-path`; `done` means only that the worker exited. The fixed target determines the expected `<reviewer-name>-<target>.json` filename.
+The caller hashes the exact slice/full-document file and registers its deterministic result path. The worker removes stale output, recomputes the digest immediately before prompting, and publishes only a full-schema artifact carrying that digest. Runner `done` therefore means the registered artifact exists, not merely that the worker exited zero.
 
 - `<host-serving-family>` is `codex`, `claude`, `grok`, `composer`, or `unknown`; `<host-harness>` is `codex`, `claude`, `grok`, `cursor`, or `unknown`.
 - `<target>` is exactly one of `codex`, `claude`, `grok`, `cursor`, or `composer`; `<fixed-route>` is its already-sanctioned route (`grok-cli` and `grok-cursor` remain distinct).
@@ -82,6 +123,8 @@ Omit `--result-path`; `done` means only that the worker exited. The fixed target
 - `<origin>` = the same `{origin_path}` slot the in-process personas receive.
 - `<run-dir>` = the absolute `$RUN_DIR` resolved above. The script writes `<reviewer-name>-<provider>.json` there per resolved peer **only after** forcing `reviewer` to `<reviewer-name>-<provider>` and downgrading peer `safe_auto` → `gated_auto`.
 
+Record one launch ledger row per leg immediately after its authority decision/start attempt with these fields in order: `label`, `target`, `fixed route`, `authority outcome`, `job ID/no-job`, `expected result path`, `input digest`. Record the expected path and exact slice/full-document digest even for `no-job`.
+
 Every runner call is bounded — no tool call ever spans a worker's runtime, on any host. Between dispatch waves, poll outstanding jobs (it returns early when the watched jobs settle):
 
 ```bash
@@ -89,7 +132,7 @@ SKILL_DIR="<absolute path of the directory containing the ce-doc-review SKILL.md
 python3 "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 --json <job-ids...>
 ```
 
-Capture the epoch time right after the final `start` (`date +%s`) — that anchor is how you know when the deadline passes, since nothing else tracks wall clock across tool calls. At synthesis, loop bounded `wait` calls until every job is terminal **or 610 seconds have elapsed since the final `start`** (compare `date +%s` against the anchor before each slice) (do not begin a `wait` slice that would extend past the deadline — reap instead); at that deadline, `reap` each job still nonterminal, then run one final bounded `wait --max-secs 10` pass (reap is asynchronous — the terminal record lands a grace period after it returns), then fold in whichever `<reviewer-name>-<provider>.json` files exist in `<run-dir>`. The detached script still self-bounds (codex idle-timeout default 180s with reasoning forced on for liveness; hard backstop `CROSS_MODEL_HARD_SECS` default 600s) and exits cleanly; the runner's supervisor windows sit outside those caps as the backstop. The script needs no prompt or schema passed in — it reads the persona brief, `findings-schema.json`, and the document itself from disk.
+Use the deadline anchor recorded in working state before the initial launch — that anchor is how you know when the deadline passes, since nothing else tracks wall clock across tool calls. At synthesis, loop bounded `wait` calls until every job is terminal **or 610 seconds have elapsed since that anchor** (compare `date +%s` against the anchor before each slice) (do not begin a `wait` slice that would extend past the deadline — reap instead); at that deadline, `reap` each job still nonterminal, then run one final bounded `wait --max-secs 10` pass (reap is asynchronous — the terminal record lands a grace period after it returns), then fold in whichever `<reviewer-name>-<provider>.json` files exist in `<run-dir>`. The detached script still self-bounds (codex idle-timeout default 180s with reasoning forced on for liveness; hard backstop `CROSS_MODEL_HARD_SECS` default 600s) and exits cleanly; the runner's supervisor windows sit outside those caps as the backstop. The script needs no prompt or schema passed in — it reads the persona brief, `findings-schema.json`, and the document itself from disk.
 
 Any started job whose terminal state is not `done` (`failed` / `timeout` / `died-without-result` — a job reaped at the deadline records `timeout`, with the reap noted in its reason; a preflight failure never yields a job id — a genuine gate-not-met skip is the silent `never-started` case, but a dispatch-infrastructure crash before any job starts is not a clean skip and triggers the hand-recovery rule in Step 5) is named in the Coverage line with its lens and terminal state (e.g. "cross-model security-lens peer: timeout"); silent absence remains correct only for passes that were never started (gate not met / skip). A missing fold-in file is still "the pass didn't run for that lens," never a review failure — except when a dispatch-infrastructure crash voided the whole pass at once, which Step 5 handles as named whole-pass loss (the whole-doc broad read especially), not per-lens "not run." After fold-in, delete the consumed job dirs under `<run-dir>/jobs` (use the environment's preferred deletion command).
 
@@ -97,13 +140,13 @@ The cross-model pass does **not** receive the accumulated decision primer that i
 
 ## Step 5 — Fold into synthesis
 
-- Read each fold-in artifact through the runner's verified read — `python3 "$SKILL_DIR/scripts/peer-job-runner.py" result --path <run-dir>/<reviewer-name>-<target>.json` (fd-ownership-checked, bounded; exit 4 means unreadable -> treat as no file). If present, treat it as one reviewer return with `reviewer: <reviewer-name>-<target>`. It enters ordinary dedup, but enters cross-model agreement promotion **only when `independence_verified` is `true`**. A false or absent value may contribute findings but never raises an anchor. Peer returns never grant silent-apply authority.
-- **No file, clean skip** (script skipped before starting real work: host un-attestable, no different provider reachable, CLI missing/unauthed, unparseable output, or lens not activated) → the pass simply didn't run for that lens. Note "cross-model pass: not run" in Coverage on an interactive host in default mode; stay silent in headless mode. Never fail the review. Ignore any `*.raw.json` leftovers — they are not fold-in artifacts.
+- For a leg with a job ID, collect only with `python3 "$SKILL_DIR/scripts/peer-job-runner.py" result <job-id>`. Never collect by path or directory scan. Revalidate full schema (including valid empty `findings`), exact reviewer, and ledger `input_digest`; mismatch is `unusable_output`. A valid artifact without verified serving identity is `ran_attributed`. Promotion requires `ran_verified_independent`: both `independence_verified` and `model_receipt_verified` are true and receipt identity reconciles.
+- **No job ID / never started** (gates not met, host un-attestable, no different provider reachable, lens not activated, `host_denied`, or `authority_unavailable`) → issue no job command and inspect no result path. Use the local twin and record an environment-scoped reason; never infer provider logout because no provider command ran.
 - **Dispatch-infrastructure failure vs. clean skip.** The clean skip above is a script that *chose* not to start real work. A dispatch-infrastructure crash is different — the runner or worker itself failed: a non-zero exit before any job starts, a preflight/detach failure, or an unresolved `$SKILL_DIR`/script path. Because every leg shares one runner, route, and `$SKILL_DIR`, such a crash typically drops the **whole** cross-model pass at once, not one lens. Do not fold it into the silent skip on the first error: re-run the **same resolved route** by hand — re-issuing the affected `start` calls with the target/model, the tool-less empty-scratch isolation posture, and the embedded-document read scope all held fixed — while each failure is a new, plausibly recoverable one and the shared 610s deadline holds (a same-route retry, distinct from the quota rule below, which requires a newly disclosed route). Stop and drop the cross-model pass once a failure repeats or the deadline is spent. Each trio lens is still covered by its in-process twin; what an infra crash silently voids is the **whole-doc broad read** (the sweep leg has no twin) plus cross-model corroboration — name that loss in the Coverage line rather than letting it disappear as "not run." A hand recovery may not substitute a different target or provider, widen the read scope beyond the embedded document, or relax the read-only empty-scratch posture.
 - **Started but not `done`** (the job's final state is `failed` / `timeout` / `died-without-result`) → still non-blocking, but never silent: name the lens and terminal state in Coverage per Step 4's naming rule.
-- **Classify the skip reason before the job dirs are deleted.** When a peer produced no usable output or ended non-`done`, read its `out.log` before cleanup, including bounded lines prefixed `peer skip evidence:`. Name observed quota, authentication, or capability failure specifically; after the same quota or usage-limit evidence appears more than once in this session, do not retry that route automatically. A retry uses a newly resolved and disclosed fixed route; never silently continue to another recipient.
+- **Classify before cleanup.** For a started peer, read only bounded runner-owned diagnostics, including the stable `peer skip evidence:` category line. Persist only `auth_failed`, `quota_limited`, `timeout`, or `unusable_output`, redacting credentials, tokens, paths, commands, and raw prose. If quota and authentication markers coexist, `quota_limited` wins. Never retry repeated quota evidence automatically.
 - Empty `findings` → note "cross-model pass: no additional issues" in Coverage.
-- A finding sharing a dedup fingerprint with its in-process twin (`<reviewer-name>`) promotes by one anchor step only when the artifact records `independence_verified: true`. Cursor-default artifacts default false; an unattested host skips automatic dispatch. Twin match uses section+title or same section with >50% evidence-substring overlap.
+- A finding sharing a dedup fingerprint with its in-process twin promotes only for `ran_verified_independent`: both independence and identity receipt are verified and route/target/harness/requested/served identity reconcile. Twin match uses section+title or same section with >50% evidence-substring overlap.
 
 ## Trust boundary (maintainers)
 

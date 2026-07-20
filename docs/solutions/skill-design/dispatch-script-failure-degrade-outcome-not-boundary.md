@@ -55,6 +55,12 @@ The fallback is not universally "the solo answer." It is whatever coverage survi
 
 State the specific loss in the coverage/availability note rather than letting it vanish as "not run."
 
+**7. Keep launch authority, lifecycle completion, artifact validity, and identity as separate evidence.**
+A denied or unavailable host lane means no provider ran and cannot imply logout. A job ID proves only that detachment began. Terminal `done` is meaningful only when the runner was given a deterministic result path, and the caller still must retrieve by job ID, validate the complete artifact and its bound input digest, and reconcile the served-model receipt before claiming independent review. This evidence lattice prevents both false success and false authentication diagnoses.
+
+**8. Persist categories, not provider failure text.**
+Provider stdout and stderr can contain credentials, bearer headers, signed URLs, and host paths. Classify failures privately into a stable taxonomy such as `auth_failed`, `quota_limited`, `timeout`, or `unusable_output` before anything reaches durable runner logs or coverage. Login guidance is valid only for `auth_failed` observed after an authorized launch and must remain scoped to that route and execution context.
+
 ## Why This Matters
 
 A fallback exists to make a system *more* robust. A fallback that recovers capability by bypassing the control the script enforced is a downgrade disguised as resilience — it is exactly the failure the deterministic path was meant to prevent, now triggered precisely when things are already going wrong. This is the fail-safe-defaults principle (Saltzer & Schroeder): when a protective mechanism fails, the safe state is to *narrow*, not to improvise around it. The discipline is: **degrade the outcome/ambition, never silently substitute or weaken the boundary** — while calibrating that boundary to what the user actually consented to, so caution doesn't become its own bug.

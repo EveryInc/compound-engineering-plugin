@@ -13,6 +13,7 @@ import {
 } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
+import { createHash } from "node:crypto"
 
 const tempRoots: string[] = []
 function mkTempRoot(prefix: string): string {
@@ -73,6 +74,23 @@ const DOC_SCRIPT = path.join(
 
 const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer"] as const
 
+const VALID_FINDING = {
+  title: "Missing authorization guard",
+  severity: "P1",
+  file: "src/a.ts",
+  line: 1,
+  why_it_matters: "Unauthorized callers can reach the changed path.",
+  autofix_class: "manual",
+  owner: "downstream-resolver",
+  requires_verification: true,
+  confidence: 100,
+  evidence: ["src/a.ts:1 lacks the expected guard."],
+  pre_existing: false,
+}
+function reviewJson(reviewer = "adversarial", findings: unknown[] = [VALID_FINDING]): string {
+  return JSON.stringify({ reviewer, findings, residual_risks: [], testing_gaps: [] })
+}
+
 const NEVER_FLAGS = [
   "--yolo",
   "--force",
@@ -123,6 +141,12 @@ function run(
   env: NodeJS.ProcessEnv = process.env,
 ) {
   const effectiveEnv = { ...env }
+  if (!("CROSS_MODEL_INPUT_DIGEST" in effectiveEnv) && args[2]) {
+    const diff = spawnSync("git", ["diff", args[2], "--"], {
+      cwd: path.join(__dirname, "../.."),
+    }).stdout
+    effectiveEnv.CROSS_MODEL_INPUT_DIGEST = createHash("sha256").update(diff ?? Buffer.alloc(0)).digest("hex")
+  }
   if (!("CROSS_MODEL_DRY_RUN" in effectiveEnv) && !("CROSS_MODEL_FIXED_ROUTE" in effectiveEnv)) {
     const target = args[1]
     const grokAvailable = target === "grok" && Boolean(spawnSync("command", ["-v", "grok"], {
@@ -217,7 +241,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
   })
 
   test("schema-valid output from a timed-out peer is never published", () => {
-    const body = `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"reviewer":"adversarial","findings":[{"title":"late"}]}'\nsleep 5\n`
+    const body = `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${reviewJson()}'\nsleep 5\n`
     const { env } = sandbox(["cursor-agent"], body)
     const runDir = makeRunDir()
     const r = run(["claude", "cursor", "HEAD", runDir], runDir, {
@@ -385,7 +409,7 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
     expect(run(["claude", "codex", "HEAD", "/no/such/run-dir"], runDir, env).files).toHaveLength(0)
   })
 
-  test("surfaces short provider errors without dropping the diagnostic", () => {
+  test("classifies provider errors without echoing raw diagnostics", () => {
     const { env } = sandbox(
       ["claude"],
       "#!/bin/sh\ncat >/dev/null\nprintf '%s' 'schema invalid' >&2\nexit 1\n",
@@ -393,7 +417,8 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
     const runDir = makeRunDir()
     const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
     expect(r.code).toBe(0)
-    expect(r.stderr).toContain("peer skip evidence (stderr): schema invalid")
+    expect(r.stderr).toContain("peer skip evidence (stderr): unusable_output")
+    expect(r.stderr).not.toContain("schema invalid")
   })
 
   test("surfaces structured Claude auth errors even when the envelope is long", () => {
@@ -409,8 +434,8 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
     )
     const runDir = makeRunDir()
     const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
-    expect(r.stderr).toContain("Not logged in")
-    expect(r.stderr).toContain("terminal_reason=api_error")
+    expect(r.stderr).toContain("peer skip evidence: auth_failed")
+    expect(r.stderr).not.toContain("Not logged in")
   })
 
   test("ancillary structured fields do not hide an unrecognized human-readable diagnostic", () => {
@@ -425,14 +450,25 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
     const runDir = makeRunDir()
     const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
 
-    expect(r.stderr).toContain("Provider rejected the request for this account")
-    expect(r.stderr).toContain("terminal_reason=api_error")
+    expect(r.stderr).toContain("peer skip evidence: unusable_output")
+    expect(r.stderr).not.toContain("Provider rejected the request for this account")
+  })
+
+  test("quota classification wins over auth wording and raw secrets remain private", () => {
+    const secret = "sk-live-super-secret-value"
+    const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' 'Authorization: Bearer ${secret}; not logged in; quota exhausted; https://x.test/a?X-Amz-Signature=abc /Users/private/key' >&2\nexit 1\n`)
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
+    expect(r.stderr).toContain("peer skip evidence (stderr): quota_limited")
+    for (const leaked of [secret, "Bearer", "Authorization:", "X-Amz-Signature", "/Users/private", "not logged in"]) {
+      expect(r.stderr).not.toContain(leaked)
+    }
   })
 })
 
 describe("cross-model-adversarial-review normalization", () => {
   const claudeStub =
-    `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t","file":"a.ts","line":1}]}}'\n`
+    `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${JSON.stringify({ structured_output: JSON.parse(reviewJson()) })}'\n`
 
   test("forces reviewer to adversarial-<provider> and backfills testing_gaps", () => {
     const { env } = sandbox(["claude"], claudeStub)
@@ -449,6 +485,8 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(Array.isArray(out.findings)).toBe(true)
     expect(out.cross_model_route).toBe("claude")
     expect(out.independence_verified).toBe(true)
+    const diff = spawnSync("git", ["diff", "HEAD", "--"], { cwd: path.join(__dirname, "../..") }).stdout
+    expect(out.input_digest).toBe(createHash("sha256").update(diff ?? Buffer.alloc(0)).digest("hex"))
   })
 
   test("drops the return when findings is not an array", () => {
@@ -461,9 +499,41 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(r.files).toHaveLength(0)
   })
 
+  test("drops incomplete findings and malformed enum/array shapes", () => {
+    const invalidReviews = [
+      { ...JSON.parse(reviewJson()), findings: [{ title: "Incomplete" }] },
+      { ...JSON.parse(reviewJson()), findings: [{ ...VALID_FINDING, severity: "P9" }] },
+      { ...JSON.parse(reviewJson()), findings: [{ ...VALID_FINDING, evidence: [] }] },
+      { ...JSON.parse(reviewJson()), findings: [{ ...VALID_FINDING, owner: "nobody" }] },
+      { ...JSON.parse(reviewJson()), testing_gaps: [42] },
+    ]
+    for (const invalid of invalidReviews) {
+      const stub = `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${JSON.stringify({ structured_output: invalid })}'\n`
+      const { env } = sandbox(["claude"], stub)
+      const runDir = makeRunDir()
+      const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
+      expect(r.files).not.toContain("adversarial-claude.json")
+    }
+  })
+
+  test("fails closed before provider invocation when the exact diff digest mismatches", () => {
+    const invoked = path.join(mkTempRoot("xmodel-cr-digest-invoked-"), "marker")
+    const { env } = sandbox(["claude"], `#!/bin/sh\n: > '${invoked}'\n`)
+    const runDir = makeRunDir()
+    const stale = path.join(runDir, "adversarial-claude.json")
+    writeFileSync(stale, reviewJson("adversarial-claude", []))
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_INPUT_DIGEST: "0".repeat(64),
+    })
+    expect(existsSync(invoked)).toBe(false)
+    expect(existsSync(stale)).toBe(false)
+    expect(r.stderr).toContain("input digest mismatch")
+  })
+
   test("downgrades a peer safe_auto finding to gated_auto", () => {
     const stub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t","autofix_class":"safe_auto","confidence":100}]}}'\n`
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${JSON.stringify({ structured_output: { ...JSON.parse(reviewJson()), findings: [{ ...VALID_FINDING, autofix_class: "safe_auto" }] } })}'\n`
     const { env } = sandbox(["claude"], stub)
     const runDir = makeRunDir()
     run(["codex", "claude", "HEAD", runDir], runDir, env)
@@ -480,7 +550,7 @@ describe("cross-model-adversarial-review normalization", () => {
     // by the full dated id that actually served the run. Requested alias "opus"
     // expects a served id starting claude-opus-.
     const receiptStub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t"}]},"modelUsage":{"claude-opus-4-8-20260115":{"inputTokens":10}}}'\n`
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${JSON.stringify({ structured_output: JSON.parse(reviewJson()), modelUsage: { "claude-opus-4-8-20260115": { inputTokens: 10 } } })}'\n`
     const { env } = sandbox(["claude"], receiptStub)
     const runDir = makeRunDir()
     const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
@@ -491,6 +561,7 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(out.cross_model_route).toBe("claude")
     expect(out.model_requested).toBe("opus")
     expect(out.model_actual).toBe("claude-opus-4-8-20260115")
+    expect(out.model_receipt_verified).toBe(true)
     expect(r.stderr).not.toContain("model mismatch")
   })
 
@@ -500,7 +571,7 @@ describe("cross-model-adversarial-review normalization", () => {
     // pick) would choose haiku; the prefix match must select the opus key and
     // raise no mismatch warning.
     const multiKeyStub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t"}]},"modelUsage":{"claude-haiku-4-5-20251001":{"inputTokens":2},"claude-opus-4-8-20260115":{"inputTokens":10}}}'\n`
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${JSON.stringify({ structured_output: JSON.parse(reviewJson()), modelUsage: { "claude-haiku-4-5-20251001": { inputTokens: 2 }, "claude-opus-4-8-20260115": { inputTokens: 10 } } })}'\n`
     const { env } = sandbox(["claude"], multiKeyStub)
     const runDir = makeRunDir()
     const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
@@ -510,6 +581,7 @@ describe("cross-model-adversarial-review normalization", () => {
     )
     expect(out.model_requested).toBe("opus")
     expect(out.model_actual).toBe("claude-opus-4-8-20260115")
+    expect(out.model_receipt_verified).toBe(true)
     expect(r.stderr).not.toContain("model mismatch")
   })
 
@@ -517,7 +589,7 @@ describe("cross-model-adversarial-review normalization", () => {
     // Backend served a haiku id while opus was requested: the artifact must carry
     // the ACTUAL id (never the requested value) and stderr must warn.
     const mismatchStub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t"}]},"modelUsage":{"claude-haiku-4-5-20251001":{"inputTokens":10}}}'\n`
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${JSON.stringify({ structured_output: JSON.parse(reviewJson()), modelUsage: { "claude-haiku-4-5-20251001": { inputTokens: 10 } } })}'\n`
     const { env } = sandbox(["claude"], mismatchStub)
     const runDir = makeRunDir()
     const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
@@ -526,6 +598,7 @@ describe("cross-model-adversarial-review normalization", () => {
     )
     expect(out.model_requested).toBe("opus")
     expect(out.model_actual).toBe("claude-haiku-4-5-20251001")
+    expect(out.model_receipt_verified).toBe(false)
     expect(r.stderr).toContain("WARNING: model mismatch - requested opus, backend served claude-haiku-4-5-20251001")
   })
 
@@ -541,6 +614,7 @@ describe("cross-model-adversarial-review normalization", () => {
     )
     expect(out.model_requested).toBe("opus")
     expect(out.model_actual).toBe("unverified")
+    expect(out.model_receipt_verified).toBe(false)
     expect(r.stderr).toContain("model receipt absent/unparseable on claude route; recording unverified")
   })
 
@@ -557,7 +631,7 @@ describe("cross-model-adversarial-review normalization", () => {
 
   test("Cursor default omits a model request and is never assumed independent", () => {
     const cursorStub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"reviewer":"adversarial","findings":[{"title":"t"}]}'\n`
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${reviewJson()}'\n`
     const { env } = sandbox(["cursor-agent"], cursorStub)
     const runDir = makeRunDir()
     run(["claude", "cursor", "HEAD", runDir], runDir, env)
@@ -570,7 +644,7 @@ describe("cross-model-adversarial-review normalization", () => {
   })
 
   test("receiptless Composer through Cursor cannot claim an independent serving family", () => {
-    const { env } = sandbox(["cursor-agent"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"reviewer":"adversarial","findings":[]}'\n`)
+    const { env } = sandbox(["cursor-agent"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${reviewJson("adversarial", [])}'\n`)
     const runDir = makeRunDir()
     const r = run(["claude", "composer", "HEAD", runDir], runDir, {
       ...env,
@@ -610,7 +684,7 @@ describe("cross-model-adversarial-review normalization", () => {
     // route exposes no authoritative identity report, so model_actual is the
     // literal "unverified" and cross_model_route still records the route.
     const codexStub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"reviewer":"adversarial","findings":[{"title":"t"}]}'\n`
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${reviewJson()}'\n`
     const { env } = sandbox(["codex"], codexStub)
     const runDir = makeRunDir()
     const r = run(["claude", "codex", "HEAD", runDir], runDir, env)
@@ -626,7 +700,7 @@ describe("cross-model-adversarial-review normalization", () => {
 
 describe("cross-model-adversarial-review fixed-recipient dispatch", () => {
   const okStub =
-    `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t"}]}}'\n`
+    `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${JSON.stringify({ structured_output: JSON.parse(reviewJson()) })}'\n`
   const failStub = `#!/bin/sh\ncat >/dev/null 2>&1\nexit 1\n`
 
   test("does not send to a second recipient after the sanctioned target fails", () => {
@@ -646,7 +720,7 @@ describe("cross-model-adversarial-review fixed-recipient dispatch", () => {
     const bareJsonStub =
       `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","ok":true}}'\n`
     const okStub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t"}]}}'\n`
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${JSON.stringify({ structured_output: JSON.parse(reviewJson()) })}'\n`
     const { bin, env } = sandbox(["claude", "grok"])
     writeFileSync(path.join(bin, "claude"), bareJsonStub)
     chmodSync(path.join(bin, "claude"), 0o755)
@@ -732,7 +806,7 @@ describe("cross-model-adversarial-review argv integrity", () => {
     const capRoot = mkTempRoot("xmodel-cr-cap-")
     const capFile = path.join(capRoot, "schema-arg.txt")
     const recordStub =
-      `#!/bin/sh\ncat >/dev/null\nprev=\nfor a in "$@"; do if [ "$prev" = "--json-schema" ]; then printf '%s' "$a" > "$SCHEMA_CAPTURE"; fi; prev="$a"; done\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[]}}'\n`
+      `#!/bin/sh\ncat >/dev/null\nprev=\nfor a in "$@"; do if [ "$prev" = "--json-schema" ]; then printf '%s' "$a" > "$SCHEMA_CAPTURE"; fi; prev="$a"; done\nprintf '%s' '${JSON.stringify({ structured_output: JSON.parse(reviewJson("adversarial", [])) })}'\n`
     const { env } = sandbox(["claude"], recordStub)
     const runDir = makeRunDir()
     run(["codex", "claude", "HEAD", runDir], runDir, {
@@ -749,7 +823,7 @@ describe("cross-model-adversarial-review argv integrity", () => {
     const capRoot = mkTempRoot("xmodel-cr-cap-")
     const capFile = path.join(capRoot, "cursor-stdin.txt")
     const recordStub =
-      `#!/bin/sh\ncat > "$PROMPT_CAPTURE"\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[]}}'\n`
+      `#!/bin/sh\ncat > "$PROMPT_CAPTURE"\nprintf '%s' '${JSON.stringify({ structured_output: JSON.parse(reviewJson("adversarial", [])) })}'\n`
     const { env } = sandbox(["cursor-agent"], recordStub)
     const runDir = makeRunDir()
     const r = run(["claude", "composer", "HEAD", runDir], runDir, {
