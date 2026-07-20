@@ -3866,6 +3866,84 @@ describe("ce-work unit workspace controller", () => {
     })
   })
 
+  test("retries an abandoned lower-position wave unit after a later sibling is accepted", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-lower-position-retry-after-wave-advance"
+    init(runs, runId, f)
+
+    const transports: Record<string, any> = {}
+    for (const [position, unitId] of ["U-retry", "U-later"].entries()) {
+      const packet = `packet-${unitId}`
+      const prepared = ctl(
+        runs, "prepare", "--run-id", runId, "--unit-id", unitId,
+        "--base", f.base, "--packet", packetFile(packet),
+        "--wave-id", "wave-1", "--wave-position", String(position),
+      )
+      expect(prepared.word).toBe("PREPARED")
+      writeFileSync(path.join(prepared.body.workspace, `${unitId}.txt`), `${unitId}\n`)
+      const job = fakeDoneJob(runs, runId, unitId, packet, `job-lower-retry-${unitId}`)
+      ctl(
+        runs, "record-job", "--run-id", runId, "--unit-id", unitId,
+        "--attempt-id", "attempt-1", "--job-id", job,
+      )
+      transports[unitId] = ctl(
+        runs, "terminalize", "--run-id", runId, "--unit-id", unitId,
+      ).body.transport
+    }
+    expect(ctl(
+      runs, "cleanup", "--run-id", runId, "--unit-id", "U-retry",
+      "--abandon", "--expect-transport", transports["U-retry"].commit,
+    ).word).toBe("CLEANED")
+
+    const later = ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U-later",
+      "--commit-message", "feat(test): accept later wave sibling",
+      "--", "python3", "-c", "raise SystemExit(0)",
+    )
+    expect(later.word).toBe("UNIT_COMMITTED")
+    const laterHead = later.body.canonical_commit
+    expect(ctl(runs, "status", "--run-id", runId).body.units["U-retry"].wave.allowed_heads).toEqual([f.base])
+
+    const retried = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U-retry",
+      "--base", laterHead, "--packet", packetFile("corrected lower-position packet"),
+      "--attempt-id", "attempt-2", "--wave-id", "wave-1", "--wave-position", "0",
+    )
+    expect(retried.word).toBe("PREPARED")
+    expect(ctl(runs, "status", "--run-id", runId).body.units).toMatchObject({
+      "U-retry": {
+        wave: { id: "wave-1", base: f.base, position: 0, allowed_heads: [f.base, laterHead] },
+        workspace: { base: laterHead, registered: true },
+      },
+      "U-later": {
+        state: "cleaned",
+        wave: { id: "wave-1", base: f.base, position: 1, allowed_heads: [f.base, laterHead] },
+      },
+    })
+
+    writeFileSync(path.join(retried.body.workspace, "U-retry-corrected.txt"), "corrected\n")
+    const retryJob = fakeDoneJob(
+      runs, runId, "U-retry", "corrected lower-position packet", "job-lower-retry-U-retry-2",
+    )
+    ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U-retry",
+      "--attempt-id", "attempt-2", "--job-id", retryJob,
+    )
+    expect(ctl(
+      runs, "terminalize", "--run-id", runId, "--unit-id", "U-retry",
+    ).word).toBe("INTEGRATION_PENDING")
+    const completed = ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U-retry",
+      "--commit-message", "fix(test): accept lower-position retry",
+      "--", "python3", "-c", "raise SystemExit(0)",
+    )
+    expect(completed.word).toBe("UNIT_COMMITTED")
+    expect(git(f.repo, "merge-base", "--is-ancestor", laterHead, completed.body.canonical_commit)).toBe("")
+    expect(readFileSync(path.join(f.repo, "U-later.txt"), "utf8")).toBe("U-later\n")
+    expect(readFileSync(path.join(f.repo, "U-retry-corrected.txt"), "utf8")).toBe("corrected\n")
+  })
+
   test("retries an abandoned independent unit from a controller-accepted sibling head", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")

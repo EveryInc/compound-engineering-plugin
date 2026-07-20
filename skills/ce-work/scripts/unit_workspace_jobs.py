@@ -35,13 +35,6 @@ def _validate_retry_base(doc: dict, unit: dict, requested_base: str) -> None:
             "retry base is not a controller-accepted canonical head",
             {"requested_base": requested_base, "latest_allowed_head": latest_allowed},
         )
-    if wave.get("id") and requested_base != latest_allowed:
-        raise Operational(
-            "BLOCKED",
-            "retry base is not the latest recorded wave head",
-            {"requested_base": requested_base, "latest_allowed_head": latest_allowed},
-        )
-
     repo = doc["repository"]["toplevel"]
     required = accepted_heads | {original_base, *allowed_heads}
     missing = sorted(
@@ -58,6 +51,33 @@ def _validate_retry_base(doc: dict, unit: dict, requested_base: str) -> None:
                 "missing_ancestry": missing,
             },
         )
+
+
+def _record_retry_base(doc: dict, unit: dict, requested_base: str) -> None:
+    wave = unit["wave"]
+    position = wave.get("position")
+    if not isinstance(position, int):
+        raise TrustFailure("recorded retry wave position is malformed")
+    targets = [unit]
+    if wave.get("id"):
+        for candidate in doc.get("units", {}).values():
+            candidate_wave = candidate.get("wave", {})
+            if candidate is unit or candidate_wave.get("id") != wave["id"]:
+                continue
+            candidate_position = candidate_wave.get("position")
+            if not isinstance(candidate_position, int):
+                raise TrustFailure("recorded wave position is malformed")
+            if candidate_position > position:
+                targets.append(candidate)
+    for candidate in targets:
+        candidate_wave = candidate.get("wave", {})
+        if candidate_wave.get("base") != wave.get("base"):
+            raise Operational("BLOCKED", "wave members do not share one recorded base")
+        allowed_heads = candidate_wave.setdefault("allowed_heads", [])
+        if not isinstance(allowed_heads, list) or any(not _valid_retry_commit_id(head) for head in allowed_heads):
+            raise TrustFailure("recorded retry HEAD allowances are malformed")
+        if requested_base not in allowed_heads:
+            allowed_heads.append(requested_base)
 
 
 def cmd_prepare(args) -> tuple[str, dict]:
@@ -238,9 +258,7 @@ def cmd_prepare(args) -> tuple[str, dict]:
             unit["packet_digest"] = packet_digest
             unit["packet"] = {"path": packet_path, "digest": packet_digest, "bytes": len(packet_bytes), "retained": True}
             unit["workspace"] = {"path": workspace, "base": base, "registered": False}
-            allowed_heads = unit["wave"].setdefault("allowed_heads", [])
-            if base not in allowed_heads:
-                allowed_heads.append(base)
+            _record_retry_base(doc, unit, base)
             unit["attempts"].append(attempt_record)
             unit["transport"] = {"base": None, "tree": None, "commit": None, "ref": None, "digest": None, "changed_paths": []}
             unit["integration"] = {"intent_revision": None, "pre_fold": None, "expected_apply": None, "applied": None, "verification": None, "canonical_commit": None, "restore": None}
