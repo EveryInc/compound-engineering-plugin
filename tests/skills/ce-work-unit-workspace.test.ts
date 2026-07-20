@@ -3566,7 +3566,13 @@ describe("ce-work unit workspace controller", () => {
 
     expect(ctl(
       runs, "sync-job", "--run-id", "run-launched-failure", "--unit-id", "U",
-    ).word).toBe("SYNCED")
+    )).toMatchObject({
+      word: "SYNCED",
+      body: {
+        process_state: "failed",
+        failure_reason: "terminal output failed implementation result schema",
+      },
+    })
     const attempt = ctl(
       runs, "status", "--run-id", "run-launched-failure", "--unit-id", "U",
     ).body.unit.attempts[0]

@@ -728,17 +728,19 @@ def sync_job(run_id: str, unit_id: str) -> dict:
         authoritative_failure = evidence["process_state"] in TERMINAL_PROCESS - {"done"} or (
             evidence["process_state"] == "never-started" and bool(attempt.get("job_id"))
         )
+        effective_failure_reason = None
         if authoritative_failure:
-            fallback = attempt.setdefault("fallback", {})
-            fallback.setdefault("claimed", None)
-            fallback["eligible"] = fallback.get("claimed") is None
-            fallback["reason"] = (
+            effective_failure_reason = (
                 failure_receipt["failure_reason"]
                 if failure_receipt is not None
                 else evidence["failure_reason"]
                 if oversized_result_failure and evidence["failure_reason"]
                 else evidence["process_state"]
             )
+            fallback = attempt.setdefault("fallback", {})
+            fallback.setdefault("claimed", None)
+            fallback["eligible"] = fallback.get("claimed") is None
+            fallback["reason"] = effective_failure_reason
         changed = (
             prior_state != evidence["process_state"]
             or prior_activity != attempt["activity"]
@@ -755,7 +757,7 @@ def sync_job(run_id: str, unit_id: str) -> dict:
         activity = dict(attempt["activity"])
     return {
         "process_state": evidence["process_state"],
-        "failure_reason": evidence["failure_reason"],
+        "failure_reason": effective_failure_reason,
         "activity": activity,
     }
 
