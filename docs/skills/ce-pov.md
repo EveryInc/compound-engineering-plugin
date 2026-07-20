@@ -109,13 +109,11 @@ A peer never replaces ce-pov's own judgment. Name one or more providers to cross
 
 Peers inspect the shared working tree directly. When a proposal or document already exists in the project, ce-pov points peers to it instead of constructing duplicate review packets. The initial independent round includes the subject but withholds ce-pov's conclusion and every other voice's judgment. A critique request includes the position being challenged because that position is then the subject.
 
-When voices materially disagree, they get up to two reconciliation exchanges by default. Before each exchange ce-pov verifies disputed, decision-changing project claims and gives every voice the same evidence delta (`verified`, `contradicted`, or `unverifiable`) plus the already-formed positions. Each peer reports whether it `moved` or `held`. A user-supplied pass or round limit overrides the default.
+When voices materially disagree, they get up to two reconciliation exchanges by default — so a full default run is **up to three exchanges total**: one blind independent round plus at most two reconciliations. Before each exchange ce-pov verifies disputed, decision-changing project claims and gives every voice the same evidence delta (`verified`, `contradicted`, or `unverifiable`) plus the already-formed positions. Each peer reports whether it `moved` or `held`. A user-supplied pass or round limit overrides the default.
 
-At the effective limit, automatic dispatch stops and ce-pov exposes the convergence or stalemate. It recommends a specific bounded extension only when it can name the unresolved question, new evidence or framing, and why another exchange could move a position; continuing requires user approval unless a larger limit was supplied in advance. ce-pov remains the decision-maker, not a vote counter, and a failed or timed-out peer never blocks the solo POV.
+**Why two, and not five.** Three total exchanges is where debate stops paying: cross-model agreement converges within two to three rounds, and past that the marginal accuracy gain flattens or reverses while cost and latency keep climbing. Extra rounds also make the panel *worse* at its actual job — models with correlated training tend to converge on each other rather than on new evidence, so a high round count mostly manufactures agreement that reads as confidence. Most runs never reach the cap anyway: convergence is ce-pov's reasoned confidence, not a vote tally, so a run ends the moment the POV is settled or every peer holds.
 
-Target names distinguish models from harnesses. **Cursor** means `cursor-agent` using its configured default/Auto model; **Composer** means a Composer model through Cursor; **Grok** prefers the Grok CLI and can use a sanctioned Grok-via-Cursor route. Cursor Auto is labeled unverified unless a serving-model receipt exists and does not count as independent cross-model corroboration without that proof.
-
-Concrete model IDs and CLI flags are preferred adapter defaults, not permanent product promises. If the landscape changes, ce-pov tries the declared mapping first, then may discover the closest compatible equivalent within the same requested target and hard safety/egress boundaries. It discloses the substitution and actual route; an explicitly named model or newly receiving intermediary never changes silently.
+**The cap is a checkpoint, not a ceiling.** Two bounds *automatic* spend; it does not bound the debate. At the effective limit, automatic dispatch stops and ce-pov exposes the convergence or stalemate. It recommends a specific bounded extension only when it can name the unresolved question, new evidence or framing, and why another exchange could move a position; continuing requires user approval unless a larger limit was supplied in advance. That way the rare decision that genuinely needs a fourth exchange can reach one by reasoning, instead of every routine run pre-paying for it. ce-pov remains the decision-maker, not a vote counter, and a failed or timed-out peer never blocks the solo POV.
 
 ### 9. Reasoned, tier-gated follow-up
 
@@ -187,7 +185,19 @@ The examples near the top cover the main subject shapes and panel routes. Other 
 | `compare/cross-check with <peers>` | Forms ce-pov's own POV, then consults every named peer |
 | `oracle` | Runs a blind initial cross-check with up to two reachable different-model peers, then bounded evidence-based reconciliation when needed |
 
-`Cursor` selects Cursor's configured default/Auto model; `Composer` selects a Composer model through Cursor. These names are intentionally not aliases.
+### Peer target names
+
+Target names distinguish models from harnesses, and are intentionally not aliases for each other:
+
+| Name | Resolves to |
+|------|-------------|
+| `Cursor` | `cursor-agent` using its configured default/Auto model |
+| `Composer` | A Composer model through Cursor |
+| `Grok` | The Grok CLI preferred; a sanctioned Grok-via-Cursor route otherwise |
+
+Cursor Auto is labeled unverified unless a serving-model receipt exists, and without that proof it does not count as independent cross-model corroboration.
+
+Concrete model IDs and CLI flags are preferred adapter defaults, not permanent product promises. If the landscape changes, ce-pov tries the declared mapping first, then may discover the closest compatible equivalent within the same requested target and hard safety/egress boundaries. It discloses the substitution and actual route; an explicitly named model or newly receiving intermediary never changes silently.
 
 ---
 
@@ -201,6 +211,9 @@ An adoption verdict built only on web evidence is abstract, while a document tak
 
 **How is this different from `ce-doc-review`?**
 Use `ce-pov` for "what do you think of this doc?" — a holistic bottom line with strengths and risks. Use `ce-doc-review` for "review this doc" or "find the issues" — structured findings and remediation.
+
+**Why only two reconciliation rounds — why not five?**
+Because two is the cap on *automatic* spend, not on the debate. A default run is up to three exchanges (one blind independent round plus two reconciliations), which is where cross-model debate converges; beyond that the marginal gain flattens while cost, latency, and correlated-model false consensus all rise. Most runs stop earlier still, because ce-pov ends on reasoned confidence rather than a round count. When a decision genuinely needs more, the limit is a checkpoint: ce-pov proposes a bounded extension with the specific unresolved question it would answer, and you can supply a larger limit up front.
 
 **Does it always write a document?**
 No. The default is a compact chat POV. A full shareable write-up and a durable `ce-compound` capture are both opt-in — offered, never forced.
