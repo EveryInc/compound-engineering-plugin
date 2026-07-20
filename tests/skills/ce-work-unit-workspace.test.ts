@@ -343,6 +343,58 @@ describe("ce-work unit workspace controller", () => {
     expect(existsSync(ambientIndex)).toBe(false)
   })
 
+  test("unit and plan-wide verification ignore inherited Git local environment", () => {
+    const f = makeRepo()
+    const decoy = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-verification-sanitized-git-env"
+    const gitLocalEnvVars = git(f.repo, "rev-parse", "--local-env-vars").split("\n")
+    const ambientGitEnv = Object.fromEntries(gitLocalEnvVars.map((name) => [name, "ambient-decoy"]))
+    Object.assign(ambientGitEnv, {
+      GIT_DIR: path.join(decoy.repo, ".git"),
+      GIT_WORK_TREE: decoy.repo,
+      GIT_INDEX_FILE: path.join(decoy.repo, ".git", "index"),
+    })
+    const verificationProbe = [
+      "import os, subprocess",
+      `forbidden = set(${JSON.stringify(gitLocalEnvVars)})`,
+      "leaked = forbidden.intersection(os.environ)",
+      "assert not leaked, sorted(leaked)",
+      `expected = os.path.realpath(${JSON.stringify(f.repo)})`,
+      "actual = os.path.realpath(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], text=True).strip())",
+      "assert actual == expected, (actual, expected)",
+    ].join("; ")
+
+    init(runs, runId, f)
+    ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("sanitized verification environment"),
+    )
+    const workspace = path.join(runs, runId, "units", "U", "workspace")
+    writeFileSync(path.join(workspace, "integrated.txt"), "integrated\n")
+    const job = fakeDoneJob(runs, runId, "U", "sanitized verification environment")
+    ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U")
+
+    const integrated = ctlWithEnv(
+      runs, ambientGitEnv,
+      "integrate", "--run-id", runId, "--unit-id", "U",
+      "--commit-message", "feat(test): integrate sanitized verification fixture",
+      "--", "python3", "-c", verificationProbe,
+    )
+    expect(integrated.word).toBe("UNIT_COMMITTED")
+
+    const verified = ctlWithEnv(
+      runs, ambientGitEnv,
+      "verify-run", "--run-id", runId,
+      "--", "python3", "-c", verificationProbe,
+    )
+    expect(verified.word).toBe("RUN_VERIFIED")
+  })
+
   test("derives the CE Work runs root from the generic peer root when needed", () => {
     const f = makeRepo()
     const peerRoot = tmp("ce-work-peer-root-")

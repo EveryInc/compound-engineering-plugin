@@ -431,12 +431,16 @@ def locked_manifest(run_id: str, write: bool = False):
         os.close(fd)
 
 
-def git(repo: str, *args: str, input_data: bytes | None = None, check: bool = True, env: dict | None = None) -> bytes:
+def sanitized_git_environment(overrides: dict | None = None) -> dict[str, str]:
     process_env = {key: value for key, value in os.environ.items() if key not in GIT_LOCAL_ENV_VARS}
-    process_env.update(env or {})
+    process_env.update(overrides or {})
+    return process_env
+
+
+def git(repo: str, *args: str, input_data: bytes | None = None, check: bool = True, env: dict | None = None) -> bytes:
     proc = subprocess.run(
         ["git", "-C", repo, *args], input=input_data, capture_output=True,
-        env=process_env, check=False,
+        env=sanitized_git_environment(env), check=False,
     )
     if check and proc.returncode != 0:
         message = proc.stderr.decode("utf-8", "replace").strip()

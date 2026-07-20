@@ -527,7 +527,7 @@ def _verify_run_locked(
                 stdin=subprocess.DEVNULL,
                 stdout=stream,
                 stderr=subprocess.STDOUT,
-                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                env=sanitized_git_environment({"PYTHONDONTWRITEBYTECODE": "1"}),
                 check=False,
             )
             verification_exit = proc.returncode
@@ -775,7 +775,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
                     stdin=subprocess.DEVNULL,
                     stdout=stream,
                     stderr=subprocess.STDOUT,
-                    env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                    env=sanitized_git_environment({"PYTHONDONTWRITEBYTECODE": "1"}),
                     check=False,
                 )
                 verification_exit = proc.returncode
