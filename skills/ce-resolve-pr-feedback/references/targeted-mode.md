@@ -27,9 +27,11 @@ This fetches thread IDs and their first comment IDs (minimal fields, no bodies) 
 
 **Step 3** -- Check for your own unsubmitted review before doing any work. A reply posted while you hold one is absorbed into that draft: the call returns a comment ID and URL as if it succeeded, but the reviewer sees nothing until the draft is submitted. Full Mode gets this free from `get-pr-comments`; targeted mode never calls that script, so check directly (PENDING reviews are only visible to their author, so any hit is yours):
 ```bash
-GH_HOST=<host> gh api repos/OWNER/REPO/pulls/PR_NUMBER/reviews --jq '[.[] | select(.state == "PENDING")] | length'
+GH_HOST=<host> gh api --paginate repos/OWNER/REPO/pulls/PR_NUMBER/reviews --jq '.[] | select(.state == "PENDING") | .id'
 ```
-If this returns anything other than `0`, stop. Tell the user they have an unsubmitted review on the PR and that it must be submitted or discarded before this skill can reply. Do not submit or discard it yourself; a draft review is unsent human writing.
+`--paginate` is required: this endpoint is chronological and pages at 30, so a draft can sort past page 1. Print IDs rather than a count — `--jq` runs per page, so a count emits one number per page, but IDs simply concatenate and stay empty when there is no draft. (`--slurp` is not an option; `gh` rejects it alongside `--jq`.)
+
+If this prints anything, stop. Tell the user they have an unsubmitted review on the PR and that it must be submitted or discarded before this skill can reply. Do not submit or discard it yourself; a draft review is unsent human writing.
 
 ## 2. Judge, Fix, Reply, Resolve
 
