@@ -33,6 +33,19 @@ Capture the headless envelope so it can drive the contextual summary above the p
 - The number of fixes auto-applied
 - The count of remaining findings, broken out by user-facing bucket (proposed fixes, decisions, FYI observations)
 - The severity breakdown of decisions and proposed fixes (specifically the P0/P1 count, since those benefit from explicit user attention)
+- The `cross_model_coverage` array exactly as returned, preserving one record per expected peer leg in ledger order. Keep its finding-independent fields intact: `label`, `target`, `fixed_route`, `authority_outcome`, `terminal_state`, `artifact_verified`, `identity_verified`, `input_digest`, `status`, and `reason`.
+
+Do not derive cross-model status from finding counts. A clean local review, a verified empty peer artifact, and a missing peer artifact can all have zero peer findings while proving different things. Consume each record's stable `status` literally:
+
+- `verified` — the peer artifact and identity receipt were verified. Empty findings means the leg ran and found no additional issues.
+- `local_only` — local reviewer coverage completed, but no independently verified peer artifact exists for that leg.
+- `host_denied` — the host denied the exact launch and no provider launched.
+- `auth_failed` — authentication failed only in the exact host execution context named by the record.
+- `timeout` — the peer leg timed out after launch.
+- `quota_limited` — the attempted route reported a route quota or usage limit.
+- `unusable_output` — the started leg produced no usable verified artifact.
+
+These peer-leg states must not become `skipped_reason: skill_unreachable`; that value is reserved for a failure to enter `ce-doc-review` at all. A degraded peer leg also does not mean the document review itself failed: preserve its local findings and fixes, then report the peer degradation separately. Keep every reason environment-scoped. Even for `auth_failed`, never say the user or account is globally logged out.
 
 When ce-doc-review returns "Review complete", proceed to Final Checks.
 
@@ -61,7 +74,9 @@ After all mutations in this run have settled (initial write, deepening synthesis
 
 **Path format:** Use absolute paths for chat-output file references — relative paths are not auto-linked as clickable in most terminals.
 
-**Summary line above the menu (always):** Print a single concise line summarizing the headless review state — e.g., `Doc review applied 3 fixes. 2 decisions, 1 proposed fix, 4 FYI observations remain (1 at P1).` When no fixes were applied and no findings remain, print `Doc review clean — no fixes needed.` When the envelope carries `skipped_reason: output_format_html` (HTML run, per Phase 5.3.8 format gate), print `Doc review skipped — ce-doc-review is markdown-only today; the HTML plan was not reviewed.` When it carries `skipped_reason: skill_unreachable`, print `Doc review skipped — ce-doc-review could not be invoked (<skipped_detail>); it did not run.` If a review that actually began failed, print `Doc review failed after starting — <actual error>; the plan was not fully reviewed.` This line establishes what the autofix pass did (or didn't) so the user has the context to choose between the menu options below. Never describe a pre-entry harness or delegation failure as a downstream skill timeout.
+**Summary line above the menu (always):** Print one concise document-review sentence — e.g., `Doc review applied 3 fixes. 2 decisions, 1 proposed fix, 4 FYI observations remain (1 at P1).` When no fixes were applied and no findings remain, print `Doc review clean — no fixes needed.` For a completed Markdown review, follow it with a separate cross-model sentence derived only from `cross_model_coverage`: group the records by `target` and `status`, count expected versus `verified` legs, and preserve every distinct degraded status rather than choosing one catch-all reason. When every expected Claude leg is verified, print `Claude cross-model review verified for all <N> legs.` If those verified artifacts are all empty, append `No additional peer issues.` For mixed results, print the verified count and each remaining status count, for example `Claude cross-model coverage: 3/4 legs verified; 1 timeout.` Use the returned environment-scoped reason only when a count alone would be ambiguous. If a completed Markdown review should have peer-leg coverage but the array is absent or malformed, print `Cross-model coverage unavailable; do not infer that a peer critique ran.` A zero finding count never changes that result.
+
+When the envelope carries `skipped_reason: output_format_html` (HTML run, per Phase 5.3.8 format gate), print `Doc review skipped — ce-doc-review is markdown-only today; the HTML plan was not reviewed.` When it carries `skipped_reason: skill_unreachable`, print `Doc review skipped — ce-doc-review could not be invoked (<skipped_detail>); it did not run.` HTML and `skill_unreachable` branches do not consume or synthesize `cross_model_coverage`. If a review that actually began failed, print `Doc review failed after starting — <actual error>; the plan was not fully reviewed.` This summary establishes what the autofix pass did and what peer evidence exists so the user can choose between the menu options below. Never describe a pre-entry harness or delegation failure as a downstream skill timeout.
 
 **Question:** "Plan ready at `<absolute path to plan>`. What would you like to do next?"
 

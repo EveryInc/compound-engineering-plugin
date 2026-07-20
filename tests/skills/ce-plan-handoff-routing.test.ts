@@ -41,6 +41,41 @@ const ISSUE_CREATION_SECTION =
 // "Start `/ce-work` (Recommended)", and the agent stops in prose without
 // invoking the ce-work skill.
 describe("ce-plan post-generation menu routing", () => {
+  test("captures and summarizes cross-model coverage separately from finding counts", () => {
+    expect(HANDOFF_BODY).toContain("cross_model_coverage")
+    expect(HANDOFF_BODY).toContain("Do not derive cross-model status from finding counts")
+    expect(HANDOFF_BODY).toMatch(/group the records by `target` and `status`/i)
+    expect(HANDOFF_BODY).toContain("Claude cross-model review verified for all")
+    expect(HANDOFF_BODY).toContain("Cross-model coverage unavailable; do not infer that a peer critique ran.")
+
+    for (const status of [
+      "verified",
+      "local_only",
+      "host_denied",
+      "auth_failed",
+      "timeout",
+      "quota_limited",
+      "unusable_output",
+    ]) {
+      expect(HANDOFF_BODY).toContain(`\`${status}\``)
+    }
+  })
+
+  test("keeps degraded peer states scoped and distinct from whole-review failures", () => {
+    expect(HANDOFF_BODY).toMatch(/`host_denied`[^\n]+no provider launched/i)
+    expect(HANDOFF_BODY).toMatch(/`auth_failed`[^\n]+exact host execution context/i)
+    expect(HANDOFF_BODY).toMatch(/`timeout`[^\n]+peer leg timed out/i)
+    expect(HANDOFF_BODY).toMatch(/`quota_limited`[^\n]+route quota/i)
+    expect(HANDOFF_BODY).toMatch(/`unusable_output`[^\n]+usable verified artifact/i)
+    expect(HANDOFF_BODY).toMatch(/must not become `skipped_reason: skill_unreachable`/i)
+    expect(HANDOFF_BODY).toMatch(/does not mean the document review itself failed/i)
+    expect(HANDOFF_BODY).toMatch(/never say the user or account is globally logged out/i)
+  })
+
+  test("leaves HTML and skill-unreachable summary branches peer-free", () => {
+    expect(HANDOFF_BODY).toMatch(/HTML and `skill_unreachable` branches do not consume or synthesize `cross_model_coverage`/i)
+  })
+
   test("SKILL.md contains inline routing for all four menu options", () => {
     // Anchor on the Phase 5.4 region so a stray match elsewhere in the file
     // doesn't satisfy these assertions.
