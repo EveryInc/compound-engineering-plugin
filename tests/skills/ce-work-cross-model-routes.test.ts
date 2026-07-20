@@ -643,6 +643,67 @@ printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[
     },
   )
 
+  test.each([
+    ["normal", 0],
+    ["launched-route failure", 7],
+  ] as const)(
+    "the %s receipt path fails closed when an exited cooperative route swaps the result dir after log retention",
+    (_receiptPath, routeExit) => {
+      const f = fixture()
+      const bin = temp("ce-work-bin-")
+      const expectedResultDir = path.join(f.runs, "route-run", "units", "U3", "result")
+      const originalResultDir = `${expectedResultDir}.original`
+      const outsideDir = path.join(f.root, "outside")
+      const outsideResult = path.join(outsideDir, "implementation-result.json")
+      const publishStarted = path.join(f.capture, "receipt-publication-started")
+      const swapDone = path.join(f.capture, "result-dir-swap-done")
+      const python3 = spawnSync("which", ["python3"], { encoding: "utf8" }).stdout.trim()
+      mkdirSync(outsideDir)
+      writeFileSync(outsideResult, '{"sentinel":"outside"}\n', { mode: 0o644 })
+      chmodSync(outsideResult, 0o644)
+
+      writeFileSync(path.join(bin, "python3"), `#!/bin/sh
+set -eu
+case "\${2:-}" in
+  *"result receipt publication refused"*)
+    : > '${publishStarted}'
+    attempts=0
+    while [ ! -e '${swapDone}' ]; do
+      attempts=$((attempts + 1))
+      [ "$attempts" -lt 500 ] || exit 97
+      sleep 0.01
+    done
+    ;;
+esac
+exec '${python3}' "$@"
+`)
+      chmodSync(path.join(bin, "python3"), 0o755)
+      writeFileSync(path.join(bin, "claude"), `#!/bin/sh
+set -eu
+cat > '${f.capture}/stdin'
+(
+  while [ ! -e '${publishStarted}' ]; do sleep 0.01; done
+  mv '${expectedResultDir}' '${originalResultDir}'
+  ln -s '${outsideDir}' '${expectedResultDir}'
+  : > '${swapDone}'
+) </dev/null >/dev/null 2>&1 &
+printf '%s\n' '{"type":"system","subtype":"init","model":"claude-fable-5"}'
+printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[],"evidence":[],"scope_expansion":null}'
+exit ${routeExit}
+`)
+      chmodSync(path.join(bin, "claude"), 0o755)
+
+      const result = run("claude", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
+
+      expect(result.code).toBe(2)
+      expect(result.stderr).toContain("result receipt publication refused")
+      expect(readFileSync(outsideResult, "utf8")).toBe('{"sentinel":"outside"}\n')
+      expect(statSync(outsideResult).mode & 0o777).toBe(0o644)
+      expect(existsSync(path.join(originalResultDir, "implementation-result.json"))).toBe(false)
+      expect(readFileSync(path.join(originalResultDir, "adapter.log"), "utf8")).toContain("terminal_status")
+    },
+  )
+
   test("scope expansion is terminalized for host handling", () => {
     const f = fixture()
     const response = '{"terminal_status":"scope_expansion","summary":"shared contract needed","changed_files":[],"evidence":[],"scope_expansion":{"requested_paths":["shared.ts"],"reason":"required by unit"}}'

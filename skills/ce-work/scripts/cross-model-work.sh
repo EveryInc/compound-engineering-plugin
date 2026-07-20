@@ -404,6 +404,66 @@ except OSError as error:
 ' "$RESULT_DIR" "$RESULT_DIR_IDENTITY"
 }
 
+write_result_receipt() {
+  python3 -c '
+import os, secrets, stat, sys
+
+path, expected = sys.argv[1:]
+dir_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+dir_fd = None
+receipt_fd = None
+tmp_name = None
+try:
+    data = sys.stdin.buffer.read()
+    dir_fd = os.open(path, dir_flags)
+    directory = os.fstat(dir_fd)
+    if not stat.S_ISDIR(directory.st_mode):
+        raise OSError("result dir is not a directory")
+    if f"{directory.st_dev}:{directory.st_ino}" != expected:
+        raise OSError("result dir identity changed during route")
+    file_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    for _ in range(128):
+        candidate = f".result-{os.getpid()}-{secrets.token_hex(8)}"
+        try:
+            receipt_fd = os.open(candidate, file_flags, 0o600, dir_fd=dir_fd)
+            tmp_name = candidate
+            break
+        except FileExistsError:
+            continue
+    if receipt_fd is None:
+        raise OSError("could not reserve a result receipt temporary file")
+    target = os.fstat(receipt_fd)
+    if not stat.S_ISREG(target.st_mode):
+        raise OSError("result receipt temporary file is not regular")
+    os.fchmod(receipt_fd, 0o600)
+    view = memoryview(data)
+    while view:
+        view = view[os.write(receipt_fd, view):]
+    os.close(receipt_fd)
+    receipt_fd = None
+    os.replace(
+        tmp_name,
+        "implementation-result.json",
+        src_dir_fd=dir_fd,
+        dst_dir_fd=dir_fd,
+    )
+    tmp_name = None
+except OSError as error:
+    print(f"result receipt publication refused: {error}", file=sys.stderr)
+    raise SystemExit(2)
+finally:
+    if receipt_fd is not None:
+        os.close(receipt_fd)
+    if tmp_name is not None and dir_fd is not None:
+        try:
+            os.unlink(tmp_name, dir_fd=dir_fd)
+        except OSError:
+            pass
+    if dir_fd is not None:
+        os.close(dir_fd)
+' "$RESULT_DIR" "$RESULT_DIR_IDENTITY"
+}
+
 # Read the packet once through a no-follow descriptor, hash those exact bytes,
 # and build the prompt from the private snapshot. The controller-provided
 # digest is therefore bound to the content that actually crosses the route.
@@ -524,6 +584,8 @@ HARNESS="$AUTH_HARNESS"
 
 publish_unavailable() {
   local reason="$1"
+  local terminal_status="${2:-unavailable}"
+  local actual_route="${3:-}"
   if [ "$LOG_RETAINED" -ne 1 ]; then
     printf '%s\n' "$reason" | redact_stream | write_adapter_log || {
       log "result dir or adapter log identity changed during route"
@@ -531,30 +593,29 @@ publish_unavailable() {
     }
     LOG_RETAINED=1
   fi
-  python3 - "$RESULT_FILE" "$ROUTE" "$TARGET" "$HARNESS" "$MODEL_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$reason" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" <<'PY'
-import json, os, sys, tempfile
-out, route, target, harness, requested, packet_digest, log, reason, activity, restriction = sys.argv[1:]
+  python3 - "$ROUTE" "$TARGET" "$HARNESS" "$MODEL_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$reason" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$terminal_status" "$actual_route" <<'PY' | write_result_receipt
+import json, sys
+route, target, harness, requested, packet_digest, log, reason, activity, restriction, terminal_status, actual_route = sys.argv[1:]
 value = {
-  "schema_version": 1, "terminal_status": "unavailable", "summary": "External route unavailable",
+  "schema_version": 1, "terminal_status": terminal_status,
+  "summary": "External route failed after launch" if terminal_status == "failed" else "External route unavailable",
   "changed_files": [], "evidence": [], "scope_expansion": None,
-  "requested_route": route, "actual_route": None, "target": target, "harness": harness,
+  "requested_route": route, "actual_route": actual_route or None, "target": target, "harness": harness,
   "intermediaries": ["cursor"] if route in ("composer", "grok-cursor") else [],
   "model_requested": requested, "model_actual": "unverified", "model_receipt_status": "unverified",
   "packet_digest": packet_digest,
   "activity_posture": activity, "restriction_posture": restriction,
   "failure_reason": reason, "raw_log": log,
 }
-fd, tmp = tempfile.mkstemp(dir=os.path.dirname(out), prefix=".result-")
-with os.fdopen(fd, "w") as f: json.dump(value, f, indent=2); f.write("\n")
-os.chmod(tmp, 0o600); os.replace(tmp, out)
+json.dump(value, sys.stdout, indent=2)
+sys.stdout.write("\n")
 PY
-  chmod 600 "$RESULT_FILE"
 }
 
 if [ "${CE_WORK_REQUIRE_ENFORCED_CONFINEMENT:-}" = "1" ]; then
   case "$ROUTE" in
     claude|grok-cli)
-      publish_unavailable "route offers cooperative workspace restriction, not required enforceable confinement"
+      publish_unavailable "route offers cooperative workspace restriction, not required enforceable confinement" || exit 2
       exit 2
       ;;
   esac
@@ -567,7 +628,7 @@ case "$ROUTE" in
   cursor|composer|grok-cursor) BINARY=cursor-agent ;;
 esac
 if ! command -v "$BINARY" >/dev/null 2>&1; then
-  publish_unavailable "fixed route executable '$BINARY' is unavailable"
+  publish_unavailable "fixed route executable '$BINARY' is unavailable" || exit 2
   exit 2
 fi
 
@@ -676,19 +737,12 @@ RAW_BYTES="$(raw_byte_count)"
 LOG_RETAINED=1
 
 if [ -f "$RAW_LIMIT_MARKER" ]; then
-  publish_unavailable "fixed route raw output exceeded ${MAX_RAW_BYTES} bytes"
+  publish_unavailable "fixed route raw output exceeded ${MAX_RAW_BYTES} bytes" || exit 2
   exit 1
 fi
 
 if [ "$ROUTE_EXIT" -ne 0 ]; then
-  publish_unavailable "fixed route exited with exit $ROUTE_EXIT"
-  python3 - "$RESULT_FILE" <<'PY'
-import json, sys
-p=sys.argv[1]
-v=json.load(open(p)); v["terminal_status"]="failed"; v["summary"]="External route failed after launch"; v["actual_route"]=v["requested_route"]
-open(p,"w").write(json.dumps(v, indent=2)+"\n")
-PY
-  chmod 600 "$RESULT_FILE"
+  publish_unavailable "fixed route exited with exit $ROUTE_EXIT" failed "$ROUTE" || exit 2
   exit 1
 fi
 
@@ -696,10 +750,10 @@ SOURCE="$RAW_STDOUT"
 [ "$ROUTE" = codex ] && SOURCE="$RAW_RESULT"
 set +e
 CE_WORK_REDACT_FILE="${CE_WORK_REDACT_FILE:-}" python3 - \
-  "$SOURCE" "$RAW_STDOUT" "$RESULT_FILE" "$ROUTE" "$TARGET" "$HARNESS" \
-  "$MODEL_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$MODEL_DISPLAY_HINT" <<'PY'
-import json, os, re, sys, tempfile
-source, stream, out, route, target, harness, requested, packet_digest, log, activity, restriction, display_hint = sys.argv[1:]
+  "$SOURCE" "$RAW_STDOUT" "$ROUTE" "$TARGET" "$HARNESS" \
+  "$MODEL_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$MODEL_DISPLAY_HINT" <<'PY' | write_result_receipt
+import json, os, re, sys
+source, stream, route, target, harness, requested, packet_digest, log, activity, restriction, display_hint = sys.argv[1:]
 
 def redactions():
     p=os.environ.get("CE_WORK_REDACT_FILE", "")
@@ -811,13 +865,14 @@ else:
       "changed_files":[], "evidence":[], "scope_expansion":None,
       "failure_reason":"terminal output failed implementation result schema"})
 base=redact(base)
-fd,tmp=tempfile.mkstemp(dir=os.path.dirname(out),prefix=".result-")
-with os.fdopen(fd,"w") as f: json.dump(base,f,indent=2); f.write("\n")
-os.chmod(tmp,0o600); os.replace(tmp,out)
+json.dump(base,sys.stdout,indent=2)
+sys.stdout.write("\n")
 sys.exit(0 if valid else 4)
 PY
-NORMALIZE_EXIT=$?
-chmod 600 "$RESULT_FILE"
+NORMALIZE_STATUSES=("${PIPESTATUS[@]}")
+NORMALIZE_EXIT="${NORMALIZE_STATUSES[0]}"
+PUBLISH_EXIT="${NORMALIZE_STATUSES[1]}"
+if [ "$PUBLISH_EXIT" -ne 0 ]; then exit 2; fi
 if [ "$NORMALIZE_EXIT" -ne 0 ]; then exit 1; fi
 
 TERMINAL_STATUS="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["terminal_status"])' "$RESULT_FILE")"
