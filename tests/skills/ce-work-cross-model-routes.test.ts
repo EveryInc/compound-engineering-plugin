@@ -431,25 +431,23 @@ describe("ce-work fixed write routes", () => {
     expect(result.result.model_requested).toBe("composer-next-fast")
   })
 
-  test("forged route or model authorization is rejected before CLI invocation", () => {
-    for (const [route, overrides] of [
-      ["codex", { route: "claude" }],
-      ["composer", { model_requested: "gpt-5.6-sol" }],
-      ["cursor", { model_requested: "composer-2.5-fast" }],
-      ["cursor", { model_requested: "grok-4.5" }],
-      ["cursor", { model_requested: "cursor-grok-4.5-high" }],
-      ["cursor", { model_requested: "model@beta" }],
-    ] as const) {
-      const f = fixture()
-      const bin = fakeBin(route, f.capture)
-      const digest = createHash("sha256").update(readFileSync(f.packet)).digest("hex")
-      const result = run(route, f, { ...process.env, PATH: `${bin}:${process.env.PATH}` }, digest, overrides, true)
-      expect(result.code).toBe(2)
-      expect(result.stderr).toContain("controller authorization rejected")
-      expect(result.result).toBeNull()
-      expect(existsSync(path.join(f.capture, "argv"))).toBe(false)
-      expect(existsSync(path.join(f.capture, "stdin"))).toBe(false)
-    }
+  test.each([
+    ["route mismatch", "codex", { route: "claude" }],
+    ["Composer family mismatch", "composer", { model_requested: "gpt-5.6-sol" }],
+    ["Cursor Composer model", "cursor", { model_requested: "composer-2.5-fast" }],
+    ["Cursor unqualified Grok model", "cursor", { model_requested: "grok-4.5" }],
+    ["Cursor Grok route model", "cursor", { model_requested: "cursor-grok-4.5-high" }],
+    ["adapter-unsafe model token", "cursor", { model_requested: "model@beta" }],
+  ] as const)("forged %s authorization is rejected before CLI invocation", (_name, route, overrides) => {
+    const f = fixture()
+    const bin = fakeBin(route, f.capture)
+    const digest = createHash("sha256").update(readFileSync(f.packet)).digest("hex")
+    const result = run(route, f, { ...process.env, PATH: `${bin}:${process.env.PATH}` }, digest, overrides, true)
+    expect(result.code).toBe(2)
+    expect(result.stderr).toContain("controller authorization rejected")
+    expect(result.result).toBeNull()
+    expect(existsSync(path.join(f.capture, "argv"))).toBe(false)
+    expect(existsSync(path.join(f.capture, "stdin"))).toBe(false)
   })
 
   test("controller handshake rejects hand-authored, cross-attempt, and cross-unit authorization", () => {
