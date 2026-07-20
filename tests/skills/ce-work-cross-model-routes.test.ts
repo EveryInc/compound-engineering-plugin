@@ -838,6 +838,29 @@ printf '%s' '${prefix}${sentinel}${"y".repeat(maxRawBytes)}'
     expect(log).toContain("[REDAC")
   })
 
+  test("oversized raw output still publishes the bounded limit receipt under pipefail", () => {
+    const maxRawBytes = 256
+    const f = fixture()
+    const bin = temp("ce-work-bin-")
+    writeFileSync(path.join(bin, "claude"), `#!/bin/sh
+cat > '${f.capture}/stdin'
+python3 -c 'import sys; sys.stdout.buffer.write(b"x" * 8388608)'
+`)
+    chmodSync(path.join(bin, "claude"), 0o755)
+
+    const result = run("claude", f, {
+      ...process.env,
+      PATH: `${bin}:${process.env.PATH}`,
+      CE_WORK_MAX_RAW_BYTES: String(maxRawBytes),
+    })
+
+    expect(result.code).toBe(1)
+    expect(result.result.terminal_status).toBe("unavailable")
+    expect(result.result.failure_reason).toBe(`fixed route raw output exceeded ${maxRawBytes} bytes`)
+    expect(result.stderr).not.toContain("result dir or adapter log identity changed")
+    expect(statSync(path.join(f.resultDir, "adapter.log")).size).toBe(maxRawBytes)
+  })
+
   test("malformed terminal output is a schema failure with a redacted log", () => {
     const f = fixture()
     const bin = fakeBin("cursor", f.capture, "not-json")

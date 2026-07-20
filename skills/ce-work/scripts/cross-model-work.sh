@@ -570,6 +570,24 @@ except BrokenPipeError:
 '
 }
 
+cap_stream() {
+  python3 -c '
+import os, sys
+
+remaining = int(sys.argv[1])
+while True:
+    chunk = os.read(sys.stdin.fileno(), 65536)
+    if not chunk:
+        break
+    if remaining:
+        retained = chunk[:remaining]
+        while retained:
+            written = os.write(sys.stdout.fileno(), retained)
+            retained = retained[written:]
+        remaining -= min(len(chunk), remaining)
+' "$MAX_RAW_BYTES"
+}
+
 {
   cat "$PERSONA"
   printf '\n\nThe required final-result JSON schema is:\n\n'
@@ -730,7 +748,7 @@ RAW_BYTES="$(raw_byte_count)"
   cat "$RAW_STDOUT"
   cat "$RAW_STDERR"
   if [ -f "$RAW_RESULT" ]; then cat "$RAW_RESULT"; fi
-} | redact_stream | head -c "$MAX_RAW_BYTES" | write_adapter_log || {
+} | redact_stream | cap_stream | write_adapter_log || {
   log "result dir or adapter log identity changed during route"
   exit 2
 }
