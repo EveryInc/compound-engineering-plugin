@@ -10,6 +10,56 @@ import re
 from unit_workspace_state import *
 
 
+def _valid_retry_commit_id(value: object) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", value) is not None
+
+
+def _validate_retry_base(doc: dict, unit: dict, requested_base: str) -> None:
+    wave = unit.get("wave", {})
+    original_base = wave.get("base")
+    allowed_heads = wave.get("allowed_heads", [])
+    if not _valid_retry_commit_id(original_base):
+        raise TrustFailure("recorded retry base is malformed")
+    if not isinstance(allowed_heads, list) or any(not _valid_retry_commit_id(head) for head in allowed_heads):
+        raise TrustFailure("recorded retry HEAD allowances are malformed")
+
+    accepted_heads = {
+        commit
+        for candidate in doc.get("units", {}).values()
+        if (commit := unit_accepted_commit(candidate)) is not None
+    }
+    latest_allowed = allowed_heads[-1] if allowed_heads else original_base
+    if requested_base != original_base and requested_base not in accepted_heads:
+        raise Operational(
+            "BLOCKED",
+            "retry base is not a controller-accepted canonical head",
+            {"requested_base": requested_base, "latest_allowed_head": latest_allowed},
+        )
+    if wave.get("id") and requested_base != latest_allowed:
+        raise Operational(
+            "BLOCKED",
+            "retry base is not the latest recorded wave head",
+            {"requested_base": requested_base, "latest_allowed_head": latest_allowed},
+        )
+
+    repo = doc["repository"]["toplevel"]
+    required = accepted_heads | {original_base, *allowed_heads}
+    missing = sorted(
+        commit for commit in required
+        if git_text(repo, "merge-base", commit, requested_base, check=False) != commit
+    )
+    if missing:
+        raise Operational(
+            "BLOCKED",
+            "retry base omits controller-accepted canonical history",
+            {
+                "requested_base": requested_base,
+                "latest_allowed_head": latest_allowed,
+                "missing_ancestry": missing,
+            },
+        )
+
+
 def cmd_prepare(args) -> tuple[str, dict]:
     uid = safe_id(args.unit_id, "unit id")
     attempt_id = safe_id(args.attempt_id, "attempt id")
@@ -31,9 +81,10 @@ def cmd_prepare(args) -> tuple[str, dict]:
         authorization = attempt_authorization(doc, args.activity_posture, uid, attempt_id, packet_digest)
         authorization_bytes = (json.dumps(authorization, sort_keys=True, separators=(",", ":")) + "\n").encode()
         authorization_digest = digest_bytes(authorization_bytes)
+        contract_wave_base = existing.get("wave", {}).get("base") if existing else base
         expected_contract = {
             "dependencies": list(args.dependency),
-            "wave": {"id": args.wave_id, "base": base, "position": args.wave_position},
+            "wave": {"id": args.wave_id, "base": contract_wave_base, "position": args.wave_position},
             "packet_digest": packet_digest,
             "attempt_id": attempt_id,
             "authorization": authorization,
@@ -59,13 +110,18 @@ def cmd_prepare(args) -> tuple[str, dict]:
                 prior_wave = existing.get("wave", {})
                 if {
                     "id": prior_wave.get("id"),
-                    "base": prior_wave.get("base"),
                     "position": prior_wave.get("position"),
-                } != {"id": args.wave_id, "base": base, "position": args.wave_position}:
-                    raise Operational("BLOCKED", "retry wave/base contract differs from the recorded unit")
+                } != {"id": args.wave_id, "position": args.wave_position}:
+                    raise Operational("BLOCKED", "retry wave identity/position differs from the recorded unit")
+                _validate_retry_base(doc, existing, base)
                 retrying = True
             else:
                 attempt = find_attempt(existing, attempt_id)
+        if existing and not retrying and (
+            existing.get("workspace", {}).get("path") != workspace
+            or existing.get("workspace", {}).get("base") != base
+        ):
+            raise Operational("BLOCKED", "duplicate unit id has a different workspace contract")
         if existing and not retrying:
             if existing.get("state") == "cleaned" or existing.get("cleanup"):
                 raise Operational(
@@ -100,8 +156,6 @@ def cmd_prepare(args) -> tuple[str, dict]:
                 "adapter": attempt["adapter"],
                 "base": base, "resumed": True,
             }
-        if existing and not retrying and (existing["workspace"]["path"] != workspace or existing["workspace"]["base"] != base):
-            raise Operational("BLOCKED", "duplicate unit id has a different workspace contract")
     ensure_private_dir(unit_root)
     ensure_private_dir(os.path.join(unit_root, "result"))
     if os.path.lexists(packet_path):
@@ -163,6 +217,18 @@ def cmd_prepare(args) -> tuple[str, dict]:
                 raise Operational("BLOCKED", "unit retry eligibility changed while it was being prepared")
             if any(attempt.get("attempt_id") == attempt_id for attempt in unit.get("attempts", [])):
                 raise Operational("BLOCKED", "retry attempt id was concurrently claimed")
+            info = validate_repo(doc)
+            if info["head"] != base:
+                raise Operational("BLOCKED", "canonical HEAD changed while retry was being prepared")
+            if unit.get("dependencies") != list(args.dependency):
+                raise Operational("BLOCKED", "retry dependencies differ from the recorded unit")
+            prior_wave = unit.get("wave", {})
+            if {
+                "id": prior_wave.get("id"),
+                "position": prior_wave.get("position"),
+            } != {"id": args.wave_id, "position": args.wave_position}:
+                raise Operational("BLOCKED", "retry wave identity/position differs from the recorded unit")
+            _validate_retry_base(doc, unit, base)
             previous = find_attempt(unit)
             previous["cleanup_receipt"] = dict(cleanup)
             restore = unit.get("integration", {}).get("restore")
@@ -172,6 +238,9 @@ def cmd_prepare(args) -> tuple[str, dict]:
             unit["packet_digest"] = packet_digest
             unit["packet"] = {"path": packet_path, "digest": packet_digest, "bytes": len(packet_bytes), "retained": True}
             unit["workspace"] = {"path": workspace, "base": base, "registered": False}
+            allowed_heads = unit["wave"].setdefault("allowed_heads", [])
+            if base not in allowed_heads:
+                allowed_heads.append(base)
             unit["attempts"].append(attempt_record)
             unit["transport"] = {"base": None, "tree": None, "commit": None, "ref": None, "digest": None, "changed_paths": []}
             unit["integration"] = {"intent_revision": None, "pre_fold": None, "expected_apply": None, "applied": None, "verification": None, "canonical_commit": None, "restore": None}

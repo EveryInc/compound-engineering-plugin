@@ -150,6 +150,8 @@ def discover_resume_run(repo: str, plan_digest: str) -> tuple[str, list[dict]]:
 
 def resolve_resume_run(args) -> str:
     if args.run_id:
+        if args.repo or args.plan_digest:
+            raise Operational("REFUSED", "resume accepts --run-id alone or both --repo and --plan-digest")
         return safe_id(args.run_id, "run id")
     if not args.repo or not args.plan_digest:
         raise Operational("REFUSED", "resume requires --run-id or both --repo and --plan-digest")

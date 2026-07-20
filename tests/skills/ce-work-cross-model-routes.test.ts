@@ -340,6 +340,29 @@ describe("ce-work fixed write routes", () => {
     expect(result.result.model_receipt_status).toBe("verified")
   })
 
+  test("Claude dispatch preserves USER for Keychain auth without forwarding credential variables", () => {
+    const f = fixture()
+    const bin = fakeBin("claude", f.capture)
+    const user = "ce-work-keychain-user"
+    const apiSecret = "SENTINEL-claude-api-secret"
+    const oauthSecret = "SENTINEL-claude-oauth-secret"
+    const result = run("claude", f, {
+      ...process.env,
+      PATH: `${bin}:${process.env.PATH}`,
+      USER: user,
+      ANTHROPIC_API_KEY: apiSecret,
+      CLAUDE_CODE_OAUTH_TOKEN: oauthSecret,
+    })
+
+    expect(result.code).toBe(0)
+    const dispatchEnv = readFileSync(path.join(f.capture, "env"), "utf8")
+    expect(dispatchEnv).toContain(`USER=${user}`)
+    expect(dispatchEnv).not.toContain("ANTHROPIC_API_KEY=")
+    expect(dispatchEnv).not.toContain("CLAUDE_CODE_OAUTH_TOKEN=")
+    expect(dispatchEnv).not.toContain(apiSecret)
+    expect(dispatchEnv).not.toContain(oauthSecret)
+  })
+
   test("target-scoped model overrides do not make unrelated route probes unavailable", () => {
     const composerOverride = {
       ...process.env,

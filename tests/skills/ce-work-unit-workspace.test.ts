@@ -481,6 +481,24 @@ describe("ce-work unit workspace controller", () => {
     expect(ctl(runs, "init", "--run-id", "outside", "--repo", f.repo, "--plan", outside, "--plan-digest", digest).word).toBe("REFUSED")
   })
 
+  test("refuses mixed resume selectors instead of ignoring repository identity", () => {
+    const f = makeRepo()
+    const other = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-bound-to-first-repo", f)
+
+    const mixed = ctl(
+      runs, "resume", "--run-id", "run-bound-to-first-repo",
+      "--repo", other.repo, "--plan-digest", other.digest,
+    )
+
+    expect(mixed.word).toBe("REFUSED")
+    expect(mixed.stderr).toContain("--run-id alone or both --repo and --plan-digest")
+    expect(ctl(runs, "status", "--run-id", "run-bound-to-first-repo").word).toBe("STATUS")
+    const manifest = JSON.parse(readFileSync(path.join(runs, "run-bound-to-first-repo", "manifest.json"), "utf8"))
+    expect(manifest.repository.toplevel).toBe(realpathSync(f.repo))
+  })
+
   test("persists a bounded prompt source privately without pretending it is a repository plan", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
@@ -3739,6 +3757,179 @@ describe("ce-work unit workspace controller", () => {
       process_state: "never-started",
       authorization_retained: true,
     })
+  })
+
+  test("retries an abandoned wave unit from the latest controller-accepted head only", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-retry-after-wave-advance"
+    init(runs, runId, f)
+
+    const transports: Record<string, any> = {}
+    for (const [position, unitId] of ["U-first", "U-retry", "U-manual"].entries()) {
+      const packet = `packet-${unitId}`
+      const prepared = ctl(
+        runs, "prepare", "--run-id", runId, "--unit-id", unitId,
+        "--base", f.base, "--packet", packetFile(packet),
+        "--wave-id", "wave-1", "--wave-position", String(position),
+      )
+      expect(prepared.word).toBe("PREPARED")
+      writeFileSync(path.join(prepared.body.workspace, `${unitId}.txt`), `${unitId}\n`)
+      const job = fakeDoneJob(runs, runId, unitId, packet, `job-${unitId}`)
+      expect(ctl(
+        runs, "record-job", "--run-id", runId, "--unit-id", unitId,
+        "--attempt-id", "attempt-1", "--job-id", job,
+      ).word).toBe("AUTHORING")
+      transports[unitId] = ctl(
+        runs, "terminalize", "--run-id", runId, "--unit-id", unitId,
+      ).body.transport
+    }
+
+    for (const unitId of ["U-retry", "U-manual"]) {
+      expect(ctl(
+        runs, "cleanup", "--run-id", runId, "--unit-id", unitId,
+        "--abandon", "--expect-transport", transports[unitId].commit,
+      ).word).toBe("CLEANED")
+    }
+
+    const first = ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U-first",
+      "--commit-message", "feat(test): accept first wave unit",
+      "--", "python3", "-c", "raise SystemExit(0)",
+    )
+    expect(first.word).toBe("UNIT_COMMITTED")
+    const firstHead = first.body.canonical_commit
+
+    const changedDependencies = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U-retry",
+      "--base", firstHead, "--packet", packetFile("corrected retry packet"),
+      "--attempt-id", "attempt-2", "--dependency", "U-first",
+      "--wave-id", "wave-1", "--wave-position", "1",
+    )
+    expect(changedDependencies.word).toBe("BLOCKED")
+    expect(changedDependencies.stderr).toContain("retry dependencies differ from the recorded unit")
+    const changedPosition = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U-retry",
+      "--base", firstHead, "--packet", packetFile("corrected retry packet"),
+      "--attempt-id", "attempt-2", "--wave-id", "wave-1", "--wave-position", "2",
+    )
+    expect(changedPosition.word).toBe("BLOCKED")
+    expect(changedPosition.stderr).toContain("retry wave identity/position differs from the recorded unit")
+
+    const retried = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U-retry",
+      "--base", firstHead, "--packet", packetFile("corrected retry packet"),
+      "--attempt-id", "attempt-2", "--wave-id", "wave-1", "--wave-position", "1",
+    )
+    expect(retried.stderr).toBe("")
+    expect(retried.word).toBe("PREPARED")
+    expect(retried.body.base).toBe(firstHead)
+    expect(ctl(runs, "status", "--run-id", runId).body.units["U-retry"]).toMatchObject({
+      state: "queued",
+      wave: { id: "wave-1", base: f.base, position: 1, allowed_heads: [f.base, firstHead] },
+      workspace: { base: firstHead, registered: true },
+    })
+
+    writeFileSync(path.join(retried.body.workspace, "U-retry-corrected.txt"), "corrected\n")
+    const retryJob = fakeDoneJob(runs, runId, "U-retry", "corrected retry packet", "job-U-retry-2")
+    expect(ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U-retry",
+      "--attempt-id", "attempt-2", "--job-id", retryJob,
+    ).word).toBe("AUTHORING")
+    expect(ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U-retry").word).toBe("INTEGRATION_PENDING")
+    const completedRetry = ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U-retry",
+      "--commit-message", "fix(test): accept corrected retry",
+      "--", "python3", "-c", "raise SystemExit(0)",
+    )
+    expect(completedRetry.word).toBe("UNIT_COMMITTED")
+    const retryHead = completedRetry.body.canonical_commit
+    expect(git(f.repo, "merge-base", "--is-ancestor", firstHead, retryHead)).toBe("")
+
+    writeFileSync(path.join(f.repo, "manual.txt"), "manual\n")
+    git(f.repo, "add", "manual.txt")
+    git(f.repo, "commit", "-m", "manual head advance")
+    const manualHead = git(f.repo, "rev-parse", "HEAD")
+    const blocked = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U-manual",
+      "--base", manualHead, "--packet", packetFile("manual retry packet"),
+      "--attempt-id", "attempt-2", "--wave-id", "wave-1", "--wave-position", "2",
+    )
+    expect(blocked).toMatchObject({
+      word: "BLOCKED",
+      body: { requested_base: manualHead, latest_allowed_head: retryHead },
+    })
+    expect(ctl(runs, "status", "--run-id", runId).body.units["U-manual"]).toMatchObject({
+      state: "cleaned",
+      wave: { id: "wave-1", base: f.base, position: 2, allowed_heads: [f.base, firstHead, retryHead] },
+      workspace: { base: f.base, registered: true },
+    })
+  })
+
+  test("retries an abandoned independent unit from a controller-accepted sibling head", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-independent-retry-after-advance"
+    init(runs, runId, f)
+
+    const transports: Record<string, any> = {}
+    for (const unitId of ["U-first", "U-retry"]) {
+      const packet = `packet-${unitId}`
+      const prepared = ctl(
+        runs, "prepare", "--run-id", runId, "--unit-id", unitId,
+        "--base", f.base, "--packet", packetFile(packet),
+      )
+      writeFileSync(path.join(prepared.body.workspace, `${unitId}.txt`), `${unitId}\n`)
+      const job = fakeDoneJob(runs, runId, unitId, packet, `job-independent-${unitId}`)
+      ctl(
+        runs, "record-job", "--run-id", runId, "--unit-id", unitId,
+        "--attempt-id", "attempt-1", "--job-id", job,
+      )
+      transports[unitId] = ctl(
+        runs, "terminalize", "--run-id", runId, "--unit-id", unitId,
+      ).body.transport
+    }
+    expect(ctl(
+      runs, "cleanup", "--run-id", runId, "--unit-id", "U-retry",
+      "--abandon", "--expect-transport", transports["U-retry"].commit,
+    ).word).toBe("CLEANED")
+
+    const first = ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U-first",
+      "--commit-message", "feat(test): accept independent sibling",
+      "--", "python3", "-c", "raise SystemExit(0)",
+    )
+    expect(first.word).toBe("UNIT_COMMITTED")
+    const firstHead = first.body.canonical_commit
+    const retried = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U-retry",
+      "--base", firstHead, "--packet", packetFile("corrected independent packet"),
+      "--attempt-id", "attempt-2",
+    )
+    expect(retried.word).toBe("PREPARED")
+    expect(ctl(runs, "status", "--run-id", runId).body.units["U-retry"]).toMatchObject({
+      wave: { id: null, base: f.base, position: 0, allowed_heads: [f.base, firstHead] },
+      workspace: { base: firstHead, registered: true },
+    })
+
+    writeFileSync(path.join(retried.body.workspace, "U-retry-corrected.txt"), "corrected\n")
+    const retryJob = fakeDoneJob(
+      runs, runId, "U-retry", "corrected independent packet", "job-independent-U-retry-2",
+    )
+    ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U-retry",
+      "--attempt-id", "attempt-2", "--job-id", retryJob,
+    )
+    expect(ctl(
+      runs, "terminalize", "--run-id", runId, "--unit-id", "U-retry",
+    ).word).toBe("INTEGRATION_PENDING")
+    expect(ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U-retry",
+      "--commit-message", "fix(test): accept independent retry",
+      "--", "python3", "-c", "raise SystemExit(0)",
+    ).word).toBe("UNIT_COMMITTED")
+    expect(readFileSync(path.join(f.repo, "U-first.txt"), "utf8")).toBe("U-first\n")
+    expect(readFileSync(path.join(f.repo, "U-retry-corrected.txt"), "utf8")).toBe("corrected\n")
   })
 
   test("require blocks headless fallback and needs an explicit interactive choice", () => {

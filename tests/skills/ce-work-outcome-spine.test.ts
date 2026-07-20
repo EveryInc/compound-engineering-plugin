@@ -97,6 +97,8 @@ describe("ce-work native characterization", () => {
 
     expect(engineGate).toContain("**Native dispatch (inline/subagent engines only)**")
     expect(engineGate).toContain("must not re-enter this ordinary subagent dispatch")
+    expect(engineGate).toContain("**A successful controller `init` locks that unit to the selected cross-model engine.**")
+    expect(engineGate).toContain("Never reclassify it as trivial, abandon it for speed, or implement it natively")
     expect(engineGate).toContain("**After each serial inline/subagent unit:**")
     expect(engineGate).toContain("**After a parallel inline/subagent batch")
   })
@@ -496,6 +498,7 @@ describe("ce-work cross-model engine contract", () => {
   })
 
   test("ships an evaluator-owned fresh-context fixture pack for the weakest seams", async () => {
+    const skill = await readRepoFile("skills/ce-work/SKILL.md")
     const evalPack = await readRepoFile("skills/ce-work/references/cross-model-work-eval.md")
 
     expect(evalPack).toMatch(/must not be injected into\s+the agent under test/)
@@ -504,7 +507,7 @@ describe("ce-work cross-model engine contract", () => {
     expect(evalPack).toContain("Change")
     expect(evalPack).toContain("Verify")
     expect(evalPack).toContain("Consider")
-    for (let fixture = 1; fixture <= 33; fixture += 1) {
+    for (let fixture = 1; fixture <= 38; fixture += 1) {
       expect(evalPack).toContain(`E${fixture} `)
     }
     for (const seam of [
@@ -533,10 +536,18 @@ describe("ce-work cross-model engine contract", () => {
       "session-carried plan",
       "bounded bare-prompt delegation",
       "unclear bare-prompt restraint",
+      "host-native matrix",
+      "strict alternate matrix",
+      "post-init recipient lock",
+      "sibling-clone recovery isolation",
+      "plugin-bundled reference load",
     ]) {
       expect(evalPack).toContain(seam)
     }
     expect(evalPack).toContain("| E20 linked-checkout sibling | CE Work is itself running in an existing linked worktree and selects external implementation for one unit | Create a new detached **sibling** through the repository's shared Git common directory, place it under `/tmp/compound-engineering-<effective-uid>/ce-work/<run-id>/` rather than beneath the active checkout, base it at the recorded clean canonical SHA, and keep canonical fold-in host-owned. Do not reject the route merely because the active checkout is already a worktree, and do not create a nested worktree. |")
+    expect(skill).toContain("from this skill's loaded `SKILL.md` directory")
+    expect(skill).toContain("never glob the target repository")
+    expect(skill).toContain("continuing natively")
   })
 })
 
