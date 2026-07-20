@@ -500,7 +500,7 @@ describe("ce-work fixed write routes", () => {
     expect(allowed.code).toBe(0)
   })
 
-  test("a quiet route reports no activity before byte growth and raw route output is capped", () => {
+  test("a quiet route reports no activity before byte growth", () => {
     const quiet = fixture()
     const quietBin = temp("ce-work-bin-")
     writeFileSync(path.join(quietBin, "claude"), `#!/bin/sh
@@ -516,7 +516,9 @@ exit 7
     })
     expect(quietResult.code).toBe(1)
     expect(quietResult.stderr).not.toContain("output-updated")
+  })
 
+  test("raw route output is capped", () => {
     const noisy = fixture()
     const noisyBin = temp("ce-work-bin-")
     writeFileSync(path.join(noisyBin, "claude"), `#!/bin/sh
