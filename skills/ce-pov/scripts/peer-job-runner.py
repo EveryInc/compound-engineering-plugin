@@ -57,7 +57,7 @@ supervisor's window fire, the supervisor's record wins.
 
 Environment overrides (defaults in parentheses):
   CE_PEER_JOBS_ROOT         base dir (/tmp/compound-engineering-<effective-uid>)
-  CE_WORK_RUNS_ROOT         ce-work run dir; wins for --skill ce-work
+  CE_WORK_RUNS_ROOT         parent CE Work dir containing all <run-id>/ dirs
   CE_PEER_IDLE_SECS         idle window, no out.log growth (240)
   CE_PEER_HARD_SECS         hard cap on worker wall clock (630)
   CE_PEER_LOG_MAX_BYTES     out.log byte cap (10485760)

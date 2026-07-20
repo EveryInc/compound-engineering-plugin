@@ -326,6 +326,7 @@ describe("ce-work cross-model engine contract", () => {
 
   test("defines an executable serial external-unit transaction before any parallel protocol", async () => {
     const protocol = await readRepoFile("skills/ce-work/references/cross-model-execution.md")
+    const runner = await readRepoFile("skills/ce-work/scripts/peer-job-runner.py")
     const serial = sliceSection(protocol, "## Serial external-unit protocol", "## Preserve tail ownership")
 
     for (const command of [
@@ -364,6 +365,10 @@ describe("ce-work cross-model engine contract", () => {
     expect(serial).toContain("never infer a pass from stdout")
     expect(serial).toContain("`run_id`, `unit_id`, and `attempt_id`")
     expect(serial).toContain("`CE_PEER_HARD_SECS=7200`")
+    expect(serial).toContain(
+      "parent CE Work directory containing all `<run-id>/` directories, not an individual run directory",
+    )
+    expect(runner).toContain("CE_WORK_RUNS_ROOT         parent CE Work dir containing all <run-id>/ dirs")
     expect(serial).toContain("Both `--input-digest` and the adapter's expected-packet argument")
     expect(serial).toContain("controller `authorize-dispatch` success")
     expect(serial).toContain("runner-exported job id")
