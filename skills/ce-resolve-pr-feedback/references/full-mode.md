@@ -28,13 +28,16 @@ GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/get-pr-comments" PR_NUMBER OWNER
 
 **Pass the base `OWNER/REPO`** (parsed from the PR URL, when one was given) as the second arg. `get-pr-comments` otherwise falls back to `gh repo view` in the *current checkout* — so for a fork→upstream PR handed in as a URL, omitting it would fetch review feedback from the fork (or fail) instead of the upstream base repo. Every `get-pr-comments` call below (fetch and verify) takes the same `OWNER/REPO`.
 
-Returns a JSON object with three keys:
+Returns a JSON object with four keys:
 
 | Key | Contents | Has file/line? | Resolvable? |
 |-----|----------|---------------|-------------|
+| `pending_review` | Node ID of your own unsubmitted (PENDING) review on this PR, or `null` | n/a | n/a |
 | `review_threads` | Unresolved inline code review threads (includes outdated; each carries its `isOutdated` flag so line drift can be accounted for) | Yes | Yes (GraphQL) |
 | `pr_comments` | Top-level PR conversation comments (excludes PR author) | No | No |
 | `review_bodies` | Review submission bodies with non-empty text (excludes PR author) | No | No |
+
+**Stop here if `pending_review` is non-null.** Thread replies posted while you hold an unsubmitted review are absorbed into that draft: the reply call returns a comment ID and URL as if it succeeded, but nothing is visible to the reviewer until the draft is submitted. Do not proceed into steps 2-8 — the fixes would land while every reply silently disappeared. Tell the user they have an unsubmitted review on the PR, that it must be submitted or discarded before this skill can reply, and stop. Do not submit or discard it yourself; a draft review is unsent human writing.
 
 If the script fails, fall back to:
 ```bash
@@ -169,7 +172,7 @@ GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/get-thread-for-comment" PR_NUMBE
 ```
 The returned `id` is the authoritative thread ID to use for reply and resolve. If it differs from what `get-pr-comments` returned, use the one from this script.
 
-1. **Reply** using [scripts/reply-to-pr-thread](../scripts/reply-to-pr-thread) (if the bundled script is missing, post the reply with `gh api` or `gh pr comment` as appropriate):
+1. **Reply** using [scripts/reply-to-pr-thread](../scripts/reply-to-pr-thread). If the bundled script is missing, reply with `gh api --method POST repos/{owner}/{repo}/pulls/PR_NUMBER/comments/COMMENT_ID/replies -f body=...` against the thread's first comment — never `gh pr review` or a `/reviews` POST, which open an unsubmitted draft review that swallows this reply and every one after it:
 ```bash
 SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>";
 echo "REPLY_TEXT" | GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/reply-to-pr-thread" THREAD_ID
