@@ -3409,6 +3409,81 @@ describe("ce-work unit workspace controller", () => {
     ).word).toBe("FALLBACK_AUTHORIZED")
   })
 
+  test("cleanup preserves native fallback acceptance while pruning external artifacts", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-native-cleanup-acceptance"
+    const units = [
+      { id: "U1", packet: "native cleanup dependency", job: "job-native-cleanup-dependency", dependencies: [] },
+      { id: "U2", packet: "native cleanup dependent", job: "job-native-cleanup-dependent", dependencies: ["U1"] },
+    ]
+    init(runs, runId, f)
+    for (const unit of units) {
+      ctl(
+        runs, "prepare", "--run-id", runId, "--unit-id", unit.id,
+        "--base", f.base, "--packet", packetFile(unit.packet),
+        ...unit.dependencies.flatMap((dependency) => ["--dependency", dependency]),
+      )
+      const job = fakeRunningJob(runs, runId, unit.id, unit.packet, unit.job)
+      ctl(
+        runs, "record-job", "--run-id", runId, "--unit-id", unit.id,
+        "--attempt-id", "attempt-1", "--job-id", job,
+      )
+      terminalizeFakeJob(runs, runId, job, "failed")
+    }
+    ctl(runs, "resume", "--run-id", runId)
+
+    expect(ctl(
+      runs, "claim-fallback", "--run-id", runId, "--unit-id", "U1", "--caller-mode", "headless",
+    ).word).toBe("FALLBACK_AUTHORIZED")
+    writeFileSync(path.join(f.repo, "native-cleanup-dependency.txt"), "accepted native dependency\n")
+    git(f.repo, "add", "native-cleanup-dependency.txt")
+    git(f.repo, "commit", "-m", "native cleanup dependency")
+    const dependencyHead = git(f.repo, "rev-parse", "HEAD")
+    expect(ctl(
+      runs, "complete-fallback", "--run-id", runId, "--unit-id", "U1",
+      "--accepted-head", dependencyHead, "--evidence-digest", "c".repeat(64),
+      "--summary", "native dependency checks passed",
+    ).word).toBe("FALLBACK_COMPLETED")
+
+    const beforeCleanup = ctl(runs, "status", "--run-id", runId, "--unit-id", "U1").body.unit
+    expect(existsSync(beforeCleanup.packet.path)).toBe(true)
+    expect(existsSync(path.join(runs, runId, "jobs", units[0].job))).toBe(true)
+    expect(ctl(
+      runs, "cleanup", "--run-id", runId, "--unit-id", "U1",
+      "--abandon", "--expect-job", units[0].job,
+    ).word).toBe("CLEANED")
+    const cleaned = ctl(runs, "status", "--run-id", runId, "--unit-id", "U1").body.unit
+    expect(cleaned).toMatchObject({
+      state: "native-completed",
+      cleanup: { abandoned: true, artifact_cleanup: { complete: true } },
+    })
+    expect(existsSync(cleaned.packet.path)).toBe(false)
+    expect(existsSync(path.join(runs, runId, "jobs", units[0].job))).toBe(false)
+    expect(ctl(
+      runs, "cleanup", "--run-id", runId, "--unit-id", "U1",
+      "--abandon", "--expect-job", units[0].job,
+    ).body.resumed).toBe(true)
+
+    expect(ctl(
+      runs, "claim-fallback", "--run-id", runId, "--unit-id", "U2", "--caller-mode", "headless",
+    ).word).toBe("FALLBACK_AUTHORIZED")
+    writeFileSync(path.join(f.repo, "native-cleanup-dependent.txt"), "accepted native dependent\n")
+    git(f.repo, "add", "native-cleanup-dependent.txt")
+    git(f.repo, "commit", "-m", "native cleanup dependent")
+    const dependentHead = git(f.repo, "rev-parse", "HEAD")
+    expect(ctl(
+      runs, "complete-fallback", "--run-id", runId, "--unit-id", "U2",
+      "--accepted-head", dependentHead, "--evidence-digest", "d".repeat(64),
+      "--summary", "native dependent checks passed",
+    ).word).toBe("FALLBACK_COMPLETED")
+    expect(ctl(
+      runs, "verify-run", "--run-id", runId,
+      "--verification-summary", "native cleanup plan gate passed",
+      "--", "python3", "-c", "raise SystemExit(0)",
+    ).word).toBe("RUN_VERIFIED")
+  })
+
   test("preserves a launched-route failure reason for fallback disclosure", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")

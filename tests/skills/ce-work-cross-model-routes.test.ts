@@ -551,6 +551,38 @@ describe("ce-work adapter results, identity, and secret handling", () => {
     expect(existsSync(cursorMarker)).toBe(false)
   })
 
+  test.each(["adapter-log", "result-dir"] as const)(
+    "refuses a worker-substituted %s symlink without touching its outside target",
+    (substitution) => {
+      const f = fixture()
+      const bin = temp("ce-work-bin-")
+      const expectedResultDir = path.join(f.runs, "route-run", "units", "U3", "result")
+      const outsideDir = path.join(f.root, "outside")
+      const outsideLog = path.join(outsideDir, "adapter.log")
+      mkdirSync(outsideDir)
+      writeFileSync(outsideLog, "outside evidence\n", { mode: 0o644 })
+      chmodSync(outsideLog, 0o644)
+      const substitute = substitution === "adapter-log"
+        ? `ln -s '${outsideLog}' '${expectedResultDir}/adapter.log'`
+        : `mv '${expectedResultDir}' '${expectedResultDir}.original'\nln -s '${outsideDir}' '${expectedResultDir}'`
+      writeFileSync(path.join(bin, "claude"), `#!/bin/sh
+set -eu
+cat > '${f.capture}/stdin'
+${substitute}
+printf '%s\n' '{"type":"system","subtype":"init","model":"claude-fable-5"}'
+printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[],"evidence":[],"scope_expansion":null}'
+`)
+      chmodSync(path.join(bin, "claude"), 0o755)
+
+      const result = run("claude", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
+
+      expect(result.code).toBe(2)
+      expect(result.stderr).toContain("adapter log retention refused")
+      expect(readFileSync(outsideLog, "utf8")).toBe("outside evidence\n")
+      expect(statSync(outsideLog).mode & 0o777).toBe(0o644)
+    },
+  )
+
   test("scope expansion is terminalized for host handling", () => {
     const f = fixture()
     const response = '{"terminal_status":"scope_expansion","summary":"shared contract needed","changed_files":[],"evidence":[],"scope_expansion":{"requested_paths":["shared.ts"],"reason":"required by unit"}}'

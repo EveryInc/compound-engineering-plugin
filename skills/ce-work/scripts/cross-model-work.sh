@@ -178,6 +178,7 @@ PACKET_SNAPSHOT="$SCRATCH/unit-packet"
 AUTH_VALUES="$SCRATCH/authorization-values"
 RESULT_FILE="$RESULT_DIR/implementation-result.json"
 LOG_FILE="$RESULT_DIR/adapter.log"
+LOG_RETAINED=0
 trap 'rm -rf "$SCRATCH"' EXIT
 
 # The controller's create-exclusive authorization artifact is the production
@@ -349,6 +350,59 @@ case "$RESULT_DIR/" in "$WORKSPACE/"*) log "result dir must be outside the worke
 case "$PACKET" in "$WORKSPACE"/*) log "unit packet must be outside the worker workspace"; exit 2 ;; esac
 git -C "$WORKSPACE" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { log "workspace is not a Git worktree"; exit 2; }
 chmod 700 "$RESULT_DIR" 2>/dev/null || { log "result dir could not be made private"; exit 2; }
+RESULT_DIR_IDENTITY="$(python3 - "$RESULT_DIR" <<'PY'
+import os, stat, sys
+
+path = sys.argv[1]
+flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+fd = os.open(path, flags)
+try:
+    info = os.fstat(fd)
+    if not stat.S_ISDIR(info.st_mode):
+        raise OSError("result dir is not a directory")
+    print(f"{info.st_dev}:{info.st_ino}")
+finally:
+    os.close(fd)
+PY
+)" || { log "result dir identity could not be captured"; exit 2; }
+
+write_adapter_log() {
+  python3 -c '
+import os, stat, sys
+
+path, expected = sys.argv[1:]
+dir_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+try:
+    dir_fd = os.open(path, dir_flags)
+    try:
+        directory = os.fstat(dir_fd)
+        if not stat.S_ISDIR(directory.st_mode):
+            raise OSError("result dir is not a directory")
+        if f"{directory.st_dev}:{directory.st_ino}" != expected:
+            raise OSError("result dir identity changed during route")
+        file_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+        log_fd = os.open("adapter.log", file_flags, 0o600, dir_fd=dir_fd)
+        try:
+            target = os.fstat(log_fd)
+            if not stat.S_ISREG(target.st_mode):
+                raise OSError("adapter log is not a regular file")
+            os.fchmod(log_fd, 0o600)
+            while True:
+                chunk = sys.stdin.buffer.read(65536)
+                if not chunk:
+                    break
+                view = memoryview(chunk)
+                while view:
+                    view = view[os.write(log_fd, view):]
+        finally:
+            os.close(log_fd)
+    finally:
+        os.close(dir_fd)
+except OSError as error:
+    print(f"adapter log retention refused: {error}", file=sys.stderr)
+    raise SystemExit(2)
+' "$RESULT_DIR" "$RESULT_DIR_IDENTITY"
+}
 
 # Read the packet once through a no-follow descriptor, hash those exact bytes,
 # and build the prompt from the private snapshot. The controller-provided
@@ -470,9 +524,12 @@ HARNESS="$AUTH_HARNESS"
 
 publish_unavailable() {
   local reason="$1"
-  if [ ! -e "$LOG_FILE" ]; then
-    printf '%s\n' "$reason" | redact_stream > "$LOG_FILE"
-    chmod 600 "$LOG_FILE"
+  if [ "$LOG_RETAINED" -ne 1 ]; then
+    printf '%s\n' "$reason" | redact_stream | write_adapter_log || {
+      log "result dir or adapter log identity changed during route"
+      exit 2
+    }
+    LOG_RETAINED=1
   fi
   python3 - "$RESULT_FILE" "$ROUTE" "$TARGET" "$HARNESS" "$MODEL_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$reason" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" <<'PY'
 import json, os, sys, tempfile
@@ -607,9 +664,12 @@ RAW_BYTES="$(raw_byte_count)"
 {
   cat "$RAW_STDOUT"
   cat "$RAW_STDERR"
-  [ -f "$RAW_RESULT" ] && cat "$RAW_RESULT"
-} | redact_stream | head -c "$MAX_RAW_BYTES" > "$LOG_FILE"
-chmod 600 "$LOG_FILE"
+  if [ -f "$RAW_RESULT" ]; then cat "$RAW_RESULT"; fi
+} | redact_stream | head -c "$MAX_RAW_BYTES" | write_adapter_log || {
+  log "result dir or adapter log identity changed during route"
+  exit 2
+}
+LOG_RETAINED=1
 
 if [ -f "$RAW_LIMIT_MARKER" ]; then
   publish_unavailable "fixed route raw output exceeded ${MAX_RAW_BYTES} bytes"

@@ -306,7 +306,7 @@ def resume_finalize_committed(run_id: str, unit_id: str) -> list[dict]:
         artifact_cleanup_complete = cleanup.get("artifact_cleanup", {}).get("complete") is True
     if state in {"cleaned", "native-completed"}:
         actions: list[dict] = []
-        if state == "cleaned" and not artifact_cleanup_complete:
+        if (state == "cleaned" or cleanup) and not artifact_cleanup_complete:
             cmd_cleanup(SimpleNamespace(
                 run_id=run_id,
                 unit_id=unit_id,
@@ -812,8 +812,13 @@ def remove_finalized_artifacts(run_id: str, unit_id: str) -> None:
     """Prune bulky controller-owned artifacts only after a unit is finalized."""
     with locked_manifest(run_id) as doc:
         unit = doc["units"].get(unit_id)
-        if not unit or unit.get("state") != "cleaned":
-            raise Operational("REFUSED", "artifact pruning requires a cleaned unit")
+        cleanup = unit.get("cleanup") if unit else None
+        if (
+            not unit
+            or unit.get("state") not in {"cleaned", "native-completed"}
+            or not isinstance(cleanup, dict)
+        ):
+            raise Operational("REFUSED", "artifact pruning requires a finalized unit with recorded cleanup")
         attempt_job_ids = [attempt.get("job_id") for attempt in unit.get("attempts", []) if attempt.get("job_id")]
         authorization_paths = [attempt.get("authorization_path") for attempt in unit.get("attempts", []) if attempt.get("authorization_path")]
         packet_path = unit.get("packet", {}).get("path")
@@ -901,12 +906,13 @@ def cmd_cleanup(args) -> tuple[str, dict]:
         unit = doc["units"].get(args.unit_id)
         if not unit:
             raise Operational("REFUSED", "unknown unit")
-        if unit["state"] == "cleaned":
+        cleanup_recorded = isinstance(unit.get("cleanup"), dict)
+        if unit["state"] == "cleaned" or (unit["state"] == "native-completed" and cleanup_recorded):
             if not unit.get("cleanup", {}).get("artifact_cleanup", {}).get("complete"):
                 pass
             else:
                 return "CLEANED", {"unit_id": args.unit_id, "resumed": True}
-    if unit["state"] == "cleaned":
+    if unit["state"] == "cleaned" or (unit["state"] == "native-completed" and cleanup_recorded):
         remove_finalized_artifacts(args.run_id, args.unit_id)
         return "CLEANED", {"unit_id": args.unit_id, "resumed": True}
     with locked_manifest(args.run_id) as doc:
@@ -965,6 +971,7 @@ def cmd_cleanup(args) -> tuple[str, dict]:
             git(repo, "update-ref", "-d", ref, commit)
     with locked_manifest(args.run_id, write=True) as doc:
         unit = doc["units"][args.unit_id]
+        finalized_state = "native-completed" if unit["state"] == "native-completed" else "cleaned"
         unit["cleanup"] = {
             "at": now_iso(),
             "workspace_removed": True,
@@ -973,7 +980,7 @@ def cmd_cleanup(args) -> tuple[str, dict]:
             "abandonment_receipt": abandonment_receipt,
             "artifact_cleanup": {"at": None, "complete": False},
         }
-        unit["state"] = "cleaned"
+        unit["state"] = finalized_state
         event(doc, "unit-cleaned", args.unit_id)
     test_fault("cleanup-before-artifact-prune")
     remove_finalized_artifacts(args.run_id, args.unit_id)
