@@ -367,6 +367,9 @@ describe("ce-work cross-model engine contract", () => {
     expect(serial).toContain("never infer a pass from stdout")
     expect(serial).toContain("`run_id`, `unit_id`, and `attempt_id`")
     expect(serial).toContain("`CE_PEER_HARD_SECS=7200`")
+    expect(serial).toContain("`CE_PEER_IDLE_SECS=600` for route-qualified `incremental` activity")
+    expect(serial).toContain("`CE_PEER_IDLE_SECS=0` for `hard-only` or otherwise untrustworthy activity")
+    expect(serial).toContain("resets on progress and detects a stall; it is not a wall-clock maximum")
     expect(serial).toContain(
       "parent CE Work directory containing all `<run-id>/` directories, not an individual run directory",
     )
@@ -507,7 +510,7 @@ describe("ce-work cross-model engine contract", () => {
     expect(evalPack).toContain("Change")
     expect(evalPack).toContain("Verify")
     expect(evalPack).toContain("Consider")
-    for (let fixture = 1; fixture <= 38; fixture += 1) {
+    for (let fixture = 1; fixture <= 39; fixture += 1) {
       expect(evalPack).toContain(`E${fixture} `)
     }
     for (const seam of [
@@ -541,6 +544,7 @@ describe("ce-work cross-model engine contract", () => {
       "post-init recipient lock",
       "sibling-clone recovery isolation",
       "plugin-bundled reference load",
+      "incremental idle window",
     ]) {
       expect(evalPack).toContain(seam)
     }
