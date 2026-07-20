@@ -86,9 +86,6 @@ MODELS
   exit 0
 fi
 printf '%s\\n' "$@" > '${capture}/argv'
-last=''
-for arg in "$@"; do last="$arg"; done
-printf '%s' "$last" > '${capture}/prompt-arg'
 printf '%s' "$PWD" > '${capture}/pwd'
 env | sort > '${capture}/env'
 cat > '${capture}/stdin'
@@ -251,9 +248,7 @@ describe("ce-work fixed write routes", () => {
     expect(readFileSync(path.join(f.capture, "pwd"), "utf8")).toBe(realpathSync(f.workspace))
     expect(readFileSync(path.join(f.capture, "stdin"), "utf8")).toContain("Implement U3 only.")
     if (route === "cursor" || route === "composer" || route === "grok-cursor") {
-      expect(readFileSync(path.join(f.capture, "prompt-arg"), "utf8")).toBe(
-        readFileSync(path.join(f.capture, "stdin"), "utf8"),
-      )
+      expect(readFileSync(path.join(f.capture, "argv"), "utf8")).not.toContain("Implement U3 only.")
     }
     expect(readFileSync(path.join(f.capture, "env"), "utf8")).toContain("PYTHONDONTWRITEBYTECODE=1")
     expect(readFileSync(path.join(f.workspace, "result.txt"), "utf8")).toBe("READY\n")
