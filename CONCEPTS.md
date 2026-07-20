@@ -87,6 +87,8 @@ A delegated worker process launched into its own session so it outlives the shel
 
 The launching call returns as soon as the job exists; supervision (idle and hard limits, process-tree reaping) runs inside the detached worker, while the caller keeps its own aggregate deadline and proceeds without the job when that passes. A job publishes exactly one terminal record, atomically, and nothing in the detached path may prompt for input.
 
+Liveness and progress are distinct signals, and an idle window detects only whichever one its watched stream actually carries. A worker-emitted heartbeat proves the supervising process is alive while saying nothing about whether the delegate is producing; conversely a delegate that buffers its output until completion looks identical to a wedged one. Which signal a given delegate can supply is a property of that delegate to be measured, not assumed, before an idle window is trusted to distinguish a working run from a stalled one.
+
 ### Cross-model pass
 An additive delegated run that sends the host workflow's review or judgment brief through a different model-provider route and folds the structured result back into the host's synthesis. It stays non-blocking when the peer cannot run, and it counts as independent corroboration only when the serving model family can be verified rather than merely requested.
 
