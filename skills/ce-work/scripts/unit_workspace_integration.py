@@ -307,19 +307,24 @@ def dependency_advanced_head(doc: dict, unit: dict, head: str) -> bool:
         unit_accepted_commit(doc["units"][dependency_id])
         for dependency_id in unit.get("dependencies", [])
     ]
-    if not dependency_commits or any(commit is None for commit in dependency_commits):
+    if any(commit is None for commit in dependency_commits):
         return False
     accepted_heads = {
         commit
-        for candidate in doc.get("units", {}).values()
+        for unit_id, candidate in doc.get("units", {}).items()
+        if unit_id != unit.get("unit_id")
         if (commit := unit_accepted_commit(candidate)) is not None
     }
     if head not in accepted_heads:
         return False
     allowed_heads = unit.get("wave", {}).get("allowed_heads", [])
-    required_ancestors = [*dependency_commits]
-    if allowed_heads:
-        required_ancestors.append(allowed_heads[-1])
+    required_ancestors = {
+        *accepted_heads,
+        *dependency_commits,
+        *allowed_heads,
+        unit.get("workspace", {}).get("base"),
+    }
+    required_ancestors.discard(None)
     repo = doc["repository"]["toplevel"]
     return all(
         git_text(repo, "merge-base", commit, head, check=False) == commit

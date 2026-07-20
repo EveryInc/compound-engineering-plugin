@@ -3398,6 +3398,71 @@ describe("ce-work unit workspace controller", () => {
     ).body.unit.attempts[0].fallback.claimed).toBeNull()
   })
 
+  test("claims fallback from an accepted independent sibling but not a manual descendant", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-fallback-independent-sibling"
+    init(runs, runId, f)
+
+    const accepted = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U-accepted",
+      "--base", f.base, "--packet", packetFile("accepted packet"),
+    ).body
+    ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U-fallback",
+      "--base", f.base, "--packet", packetFile("fallback packet"),
+    )
+    writeFileSync(path.join(accepted.workspace, "accepted.txt"), "accepted sibling\n")
+    const acceptedJob = fakeDoneJob(runs, runId, "U-accepted", "accepted packet", "job-accepted-sibling")
+    ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U-accepted",
+      "--attempt-id", "attempt-1", "--job-id", acceptedJob,
+    )
+    ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U-accepted")
+    const integrated = ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U-accepted",
+      "--commit-message", "feat(test): accept independent sibling", "--",
+      "python3", "-c", "raise SystemExit(0)",
+    )
+    expect(integrated.word).toBe("UNIT_COMMITTED")
+    const acceptedHead = integrated.body.canonical_commit
+
+    const fallbackJob = fakeRunningJob(runs, runId, "U-fallback", "fallback packet", "job-fallback-sibling")
+    ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U-fallback",
+      "--attempt-id", "attempt-1", "--job-id", fallbackJob,
+    )
+    terminalizeFakeJob(runs, runId, fallbackJob, "failed")
+    ctl(runs, "resume", "--run-id", runId)
+
+    writeFileSync(path.join(f.repo, "manual.txt"), "unrelated manual movement\n")
+    git(f.repo, "add", "manual.txt")
+    git(f.repo, "commit", "-m", "chore: unrelated manual descendant")
+    expect(ctl(
+      runs, "claim-fallback", "--run-id", runId, "--unit-id", "U-fallback",
+      "--caller-mode", "headless",
+    ).word).toBe("BLOCKED")
+
+    git(f.repo, "reset", "--hard", acceptedHead)
+    const authorized = ctl(
+      runs, "claim-fallback", "--run-id", runId, "--unit-id", "U-fallback",
+      "--caller-mode", "headless",
+    )
+    expect(authorized).toMatchObject({
+      word: "FALLBACK_AUTHORIZED",
+      body: { claim: { canonical_head: acceptedHead } },
+    })
+    writeFileSync(path.join(f.repo, "fallback.txt"), "native fallback\n")
+    git(f.repo, "add", "fallback.txt")
+    git(f.repo, "commit", "-m", "fix(test): complete fallback after sibling")
+    const fallbackHead = git(f.repo, "rev-parse", "HEAD")
+    expect(ctl(
+      runs, "complete-fallback", "--run-id", runId, "--unit-id", "U-fallback",
+      "--accepted-head", fallbackHead, "--evidence-digest", "a".repeat(64),
+      "--summary", "fallback checks passed",
+    ).word).toBe("FALLBACK_COMPLETED")
+  })
+
   test("does not complete native fallback from an old base that omits an accepted dependency", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
