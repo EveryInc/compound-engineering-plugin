@@ -215,9 +215,9 @@ Synthesis's premise chains (step 3.5c) do not cover this: they are built on the 
 
 Evaluate lazily, at the point the finding would have been presented — do not scan ahead after every answer.
 
-Record each as `withdrawn` in the decision list. Withdrawn is its own completion-report bucket, and carries forward in the decision primer as a rejected-class decision alongside Skip, Defer, and Acknowledge — a finding withdrawn on a user-asserted fact would otherwise regenerate in round N+1, since the document itself never changed.
+Record each as `withdrawn` in the decision list, noting which decision retired it. Withdrawn is its own completion-report bucket. It carries forward in the decision primer as a rejected-class decision — alongside Skip, Defer, and Acknowledge — **only when the decision that retired it is durable**: a settled premise (Skip/Defer), a user-asserted fact, or a staged Apply that actually landed. Such a finding would otherwise regenerate in round N+1, since the document itself never changed.
 
-If a staged Apply that retired findings fails during end-of-walk-through execution, list those withdrawals in the completion report's failure section — they were retired on a fix that never landed.
+**A withdrawal triggered by a staged Apply is provisional until that Apply lands.** The Apply doesn't execute until end-of-walk-through, so a finding retired by it is only conditionally resolved. If that Apply fails during execution (write error, or the defensive no-fix fallback), the premise fix never happened and the finding is not resolved: **revert its withdrawal — do not carry it forward as rejected-class** — and list it in the completion report's failure section as returned to scope, so round N+1 surfaces it again instead of R29 suppressing it. Withdrawals retired by a settled premise or a user-asserted fact are durable and unaffected by any Apply failure.
 
 ---
 
