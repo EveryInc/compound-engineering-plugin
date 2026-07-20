@@ -822,6 +822,67 @@ describe("ce-work unit workspace controller", () => {
     expect(authorizeDispatch(runs, "run-hand-authored", "fake-unit", first).word).toBe("REFUSED")
   })
 
+  test("rejects a swapped result directory before reading terminal receipt or raw log", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-result-dir-swap"
+    init(runs, runId, f)
+    const prepared = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    ).body
+    const job = fakeDoneJob(runs, runId, "U", "packet", "job-result-dir-swap")
+    expect(ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    ).word).toBe("AUTHORING")
+
+    const originalResultDir = `${prepared.result_dir}.original`
+    renameSync(prepared.result_dir, originalResultDir)
+    mkdirSync(prepared.result_dir, { mode: 0o700 })
+    const forgedLog = path.join(prepared.result_dir, "adapter.log")
+    writeFileSync(forgedLog, "forged adapter activity\n", { mode: 0o600 })
+    const forged = JSON.parse(readFileSync(path.join(originalResultDir, "implementation-result.json"), "utf8"))
+    forged.summary = "forged result"
+    forged.raw_log = forgedLog
+    writeFileSync(
+      path.join(prepared.result_dir, "implementation-result.json"),
+      `${JSON.stringify(forged)}\n`,
+      { mode: 0o600 },
+    )
+
+    const terminal = ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U")
+    expect(terminal.word).toBe("UNREADABLE")
+    expect(terminal.stderr).toContain("controller result directory identity changed")
+    const status = ctl(runs, "status", "--run-id", runId, "--unit-id", "U").body.unit
+    expect(status.state).toBe("authoring")
+    expect(status.attempts[0].terminal_receipt).toBeNull()
+    expect(readFileSync(forgedLog, "utf8")).toBe("forged adapter activity\n")
+  })
+
+  test("does not backfill a missing result-directory identity on resumed prepare", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-result-dir-legacy-resume"
+    const packet = packetFile("packet")
+    init(runs, runId, f)
+    expect(ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packet,
+    ).word).toBe("PREPARED")
+    const manifestPath = path.join(runs, runId, "manifest.json")
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"))
+    delete manifest.units.U.result_dir_identity
+    writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`, { mode: 0o600 })
+
+    const resumed = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packet,
+    )
+    expect(resumed.word).toBe("UNREADABLE")
+    expect(resumed.stderr).toContain("no valid controller-recorded result directory identity")
+  })
+
   test("blocks polluted registered workspaces before resumed prepare or first dispatch authorization", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
@@ -927,7 +988,8 @@ describe("ce-work unit workspace controller", () => {
     const authorized = authorizeDispatch(runs, runId, "U-prebound-pristine", pristine, { jobId: pristineJob })
     expect(authorized.word).toBe("AUTHORIZED")
     expect(authorized.body.resumed).toBe(false)
-    expect(ctl(runs, "status", "--run-id", runId, "--unit-id", "U-prebound-pristine").body.unit.attempts[0].dispatch_authorization_receipt).toEqual({
+    const pristineStatus = ctl(runs, "status", "--run-id", runId, "--unit-id", "U-prebound-pristine").body.unit
+    expect(pristineStatus.attempts[0].dispatch_authorization_receipt).toEqual({
       attempt_id: "attempt-1",
       job_id: pristineJob,
       authorization_path: pristine.authorization_path,
@@ -936,6 +998,7 @@ describe("ce-work unit workspace controller", () => {
       packet_path: pristine.packet_path,
       packet_digest: pristine.packet_digest,
       result_dir: pristine.result_dir,
+      result_dir_identity: pristineStatus.result_dir_identity,
     })
 
     writeFileSync(path.join(pristine.workspace, "keep.txt"), "legitimate worker edit\n")

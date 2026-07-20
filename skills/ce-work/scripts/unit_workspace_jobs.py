@@ -6,6 +6,7 @@ import base64
 import json
 import os
 import re
+import stat
 
 from unit_workspace_state import *
 
@@ -163,6 +164,8 @@ def cmd_prepare(args) -> tuple[str, dict]:
                 raise Operational("BLOCKED", "controller-owned unit packet no longer matches supplied bytes")
             if read_private(authorization_path, MAX_JSON_BYTES) != authorization_bytes:
                 raise Operational("BLOCKED", "controller-owned authorization no longer matches the recorded attempt")
+            result_fd, _ = open_recorded_result_dir(existing)
+            os.close(result_fd)
         if existing and not retrying and existing["workspace"].get("registered"):
             if existing.get("state") == "queued":
                 validate_pristine_unit_base(doc, existing)
@@ -177,7 +180,9 @@ def cmd_prepare(args) -> tuple[str, dict]:
                 "base": base, "resumed": True,
             }
     ensure_private_dir(unit_root)
-    ensure_private_dir(os.path.join(unit_root, "result"))
+    result_dir = os.path.join(unit_root, "result")
+    ensure_private_dir(result_dir)
+    result_dir_identity = private_result_dir_identity(result_dir)
     if os.path.lexists(packet_path):
         if read_private(packet_path, MAX_PACKET_BYTES) != packet_bytes:
             raise Operational("BLOCKED", "controller-owned packet path contains different bytes")
@@ -211,6 +216,7 @@ def cmd_prepare(args) -> tuple[str, dict]:
             "packet_digest": packet_digest,
             "packet": {"path": packet_path, "digest": packet_digest, "bytes": len(packet_bytes), "retained": True},
             "workspace": {"path": workspace, "base": base, "registered": False},
+            "result_dir_identity": result_dir_identity,
             "attempts": [attempt_record],
             "transport": {"base": None, "tree": None, "commit": None, "ref": None, "digest": None, "changed_paths": []},
             "integration": {"intent_revision": None, "pre_fold": None, "expected_apply": None, "applied": None, "verification": None, "canonical_commit": None, "restore": None},
@@ -258,6 +264,7 @@ def cmd_prepare(args) -> tuple[str, dict]:
             unit["packet_digest"] = packet_digest
             unit["packet"] = {"path": packet_path, "digest": packet_digest, "bytes": len(packet_bytes), "retained": True}
             unit["workspace"] = {"path": workspace, "base": base, "registered": False}
+            unit["result_dir_identity"] = result_dir_identity
             _record_retry_base(doc, unit, base)
             unit["attempts"].append(attempt_record)
             unit["transport"] = {"base": None, "tree": None, "commit": None, "ref": None, "digest": None, "changed_paths": []}
@@ -327,14 +334,140 @@ MAX_RESULT_BYTES = 5 * 1024 * 1024
 MAX_REPORTED_CHANGED_FILES = 1000
 
 
-def read_result_json(path: str) -> tuple[dict, bytes]:
-    raw = read_private(path, MAX_RESULT_BYTES)
+def _validate_private_dir_fd(fd: int, path: str) -> os.stat_result:
+    st = os.fstat(fd)
+    effective_uid = os.geteuid() if hasattr(os, "geteuid") else None
+    if not stat.S_ISDIR(st.st_mode):
+        raise TrustFailure(f"not a real directory: {path}")
+    if effective_uid is not None and st.st_uid != effective_uid:
+        raise TrustFailure(f"directory is not owned by current user: {path}")
+    mode = stat.S_IMODE(st.st_mode)
+    if mode != 0o700:
+        raise TrustFailure(f"directory mode is {mode:04o}, expected 0700: {path}")
+    return st
+
+
+def private_result_dir_identity(path: str) -> dict:
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | O_NOFOLLOW)
+    except OSError as exc:
+        raise TrustFailure(f"cannot safely open result directory {path}: {exc}") from exc
+    try:
+        st = _validate_private_dir_fd(fd, path)
+        return {"dev": st.st_dev, "ino": st.st_ino}
+    finally:
+        os.close(fd)
+
+
+def open_recorded_result_dir(unit: dict) -> tuple[int, str]:
+    result_dir = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result")
+    identity = unit.get("result_dir_identity")
+    if (
+        not isinstance(identity, dict)
+        or set(identity) != {"dev", "ino"}
+        or any(not isinstance(identity.get(key), int) or isinstance(identity.get(key), bool) for key in ("dev", "ino"))
+    ):
+        raise TrustFailure("unit has no valid controller-recorded result directory identity")
+    try:
+        fd = os.open(result_dir, os.O_RDONLY | os.O_DIRECTORY | O_NOFOLLOW)
+    except OSError as exc:
+        raise TrustFailure(f"cannot safely open result directory {result_dir}: {exc}") from exc
+    try:
+        st = _validate_private_dir_fd(fd, result_dir)
+        if (st.st_dev, st.st_ino) != (identity["dev"], identity["ino"]):
+            raise TrustFailure("controller result directory identity changed")
+        return fd, result_dir
+    except Exception:
+        os.close(fd)
+        raise
+
+
+def read_private_at(dir_fd: int, name: str, cap: int, display_path: str) -> bytes:
+    if os.path.basename(name) != name or name in {"", ".", ".."}:
+        raise TrustFailure(f"unsafe state file name: {name!r}")
+    try:
+        fd = os.open(name, os.O_RDONLY | O_NOFOLLOW, dir_fd=dir_fd)
+    except OSError as exc:
+        raise TrustFailure(f"cannot safely open state file {display_path}: {exc}") from exc
+    try:
+        st = os.fstat(fd)
+        effective_uid = os.geteuid() if hasattr(os, "geteuid") else None
+        if not stat.S_ISREG(st.st_mode):
+            raise TrustFailure(f"state is not a regular file: {display_path}")
+        if effective_uid is not None and st.st_uid != effective_uid:
+            raise TrustFailure(f"state is not owned by current user: {display_path}")
+        mode = stat.S_IMODE(st.st_mode)
+        if mode != 0o600:
+            raise TrustFailure(f"state mode is {mode:04o}, expected 0600: {display_path}")
+        if st.st_size > cap:
+            raise TrustFailure(f"state exceeds {cap}-byte limit: {display_path}")
+        out = bytearray()
+        while len(out) <= cap:
+            part = os.read(fd, min(65536, cap + 1 - len(out)))
+            if not part:
+                break
+            out.extend(part)
+        if len(out) > cap:
+            raise TrustFailure(f"state grew beyond {cap}-byte limit: {display_path}")
+        return bytes(out)
+    finally:
+        os.close(fd)
+
+
+def stat_private_at(
+    dir_fd: int,
+    name: str,
+    display_path: str,
+    *,
+    missing_ok: bool = False,
+) -> os.stat_result | None:
+    if os.path.basename(name) != name or name in {"", ".", ".."}:
+        raise TrustFailure(f"unsafe state file name: {name!r}")
+    try:
+        fd = os.open(name, os.O_RDONLY | O_NOFOLLOW, dir_fd=dir_fd)
+    except FileNotFoundError:
+        if missing_ok:
+            return None
+        raise TrustFailure(f"cannot safely open state file {display_path}: file is missing")
+    except OSError as exc:
+        raise TrustFailure(f"cannot safely open state file {display_path}: {exc}") from exc
+    try:
+        st = os.fstat(fd)
+        effective_uid = os.geteuid() if hasattr(os, "geteuid") else None
+        if not stat.S_ISREG(st.st_mode):
+            raise TrustFailure(f"state is not a regular file: {display_path}")
+        if effective_uid is not None and st.st_uid != effective_uid:
+            raise TrustFailure(f"state is not owned by current user: {display_path}")
+        mode = stat.S_IMODE(st.st_mode)
+        if mode != 0o600:
+            raise TrustFailure(f"state mode is {mode:04o}, expected 0600: {display_path}")
+        return st
+    finally:
+        os.close(fd)
+
+
+def read_recorded_result_file(unit: dict, name: str, cap: int) -> bytes:
+    result_fd, result_dir = open_recorded_result_dir(unit)
+    try:
+        return read_private_at(
+            result_fd,
+            name,
+            cap,
+            os.path.join(result_dir, name),
+        )
+    finally:
+        os.close(result_fd)
+
+
+def read_recorded_result_json(unit: dict) -> tuple[dict, bytes]:
+    result_path = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result", "implementation-result.json")
+    raw = read_recorded_result_file(unit, "implementation-result.json", MAX_RESULT_BYTES)
     try:
         value = json.loads(raw)
     except (ValueError, UnicodeDecodeError) as exc:
-        raise TrustFailure(f"malformed JSON state: {path}") from exc
+        raise TrustFailure(f"malformed JSON state: {result_path}") from exc
     if not isinstance(value, dict):
-        raise TrustFailure(f"JSON state is not an object: {path}")
+        raise TrustFailure(f"JSON state is not an object: {result_path}")
     return value, raw
 
 
@@ -346,8 +479,7 @@ def terminal_receipt(
     launched_failure: bool = False,
 ) -> dict:
     result_dir = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result")
-    result_path = os.path.join(result_dir, "implementation-result.json")
-    receipt, result_bytes = read_result_json(result_path)
+    receipt, result_bytes = read_recorded_result_json(unit)
     authorization = attempt.get("authorization")
     if not isinstance(authorization, dict):
         raise Operational("BLOCKED", "attempt has no controller-issued route authorization")
@@ -425,12 +557,9 @@ def terminal_receipt(
         raise Operational("BLOCKED", "adapter terminal receipt has invalid changed-files evidence")
     raw_log = receipt.get("raw_log")
     expected_log = os.path.join(result_dir, "adapter.log")
-    if not isinstance(raw_log, str) or os.path.realpath(raw_log) != os.path.realpath(expected_log):
+    if not isinstance(raw_log, str) or os.path.abspath(raw_log) != expected_log:
         raise Operational("BLOCKED", "adapter raw-log receipt escaped the controller result directory")
-    expected_log = os.path.realpath(expected_log)
-    if not os.path.lexists(expected_log):
-        raise Operational("BLOCKED", "adapter terminal receipt names a missing raw log")
-    log_bytes = read_private(expected_log, 10 * 1024 * 1024)
+    log_bytes = read_recorded_result_file(unit, "adapter.log", 10 * 1024 * 1024)
     return {key: receipt.get(key) for key in HOST_RECEIPT_FIELDS} | {
         "terminal_status": receipt["terminal_status"],
         "summary": str(receipt.get("summary", ""))[:4096],
@@ -469,6 +598,7 @@ def _validate_authorized_failed_job(
         "packet_path": unit["packet"]["path"],
         "packet_digest": unit["packet_digest"],
         "result_dir": expected_result_dir,
+        "result_dir_identity": unit.get("result_dir_identity"),
     }
     if attempt.get("dispatch_authorization_receipt") != expected_dispatch:
         raise Operational("BLOCKED", "failed receipt is not bound to the exact authorized dispatch")
@@ -503,8 +633,7 @@ def record_terminal_validation_failure(run_id: str, unit_id: str, error: Operati
         raise error
     with locked_manifest(run_id) as doc:
         unit = doc["units"][unit_id]
-        result_path = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result", "implementation-result.json")
-        result_digest = digest_bytes(read_private(result_path, MAX_RESULT_BYTES))
+        result_digest = digest_bytes(read_recorded_result_file(unit, "implementation-result.json", MAX_RESULT_BYTES))
     with locked_manifest(run_id, write=True) as doc:
         attempt = find_attempt(doc["units"][unit_id])
         failure = {
@@ -530,8 +659,7 @@ def validate_terminal_validation_failure(run_id: str, unit: dict, attempt: dict)
     observed = process_evidence(runner_job_dir(run_id, attempt["job_id"]))["process_state"]
     if observed != "done":
         raise Operational("BLOCKED", "terminal-validation job evidence changed")
-    result_path = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result", "implementation-result.json")
-    if digest_bytes(read_private(result_path, MAX_RESULT_BYTES)) != failure.get("result_sha256"):
+    if digest_bytes(read_recorded_result_file(unit, "implementation-result.json", MAX_RESULT_BYTES)) != failure.get("result_sha256"):
         raise Operational("BLOCKED", "terminal-validation result evidence changed")
     return failure
 
@@ -650,6 +778,7 @@ def cmd_authorize_dispatch(args) -> tuple[str, dict]:
             "packet_path": unit["packet"]["path"],
             "packet_digest": unit["packet_digest"],
             "result_dir": os.path.join(os.path.dirname(expected_workspace), "result"),
+            "result_dir_identity": unit.get("result_dir_identity"),
         }
         recorded_dispatch_authorization_receipt = attempt.get("dispatch_authorization_receipt")
         if recorded_dispatch_authorization_receipt is not None and (
@@ -675,7 +804,8 @@ def cmd_authorize_dispatch(args) -> tuple[str, dict]:
         expected_result_dir = os.path.join(os.path.dirname(expected_workspace), "result")
         if os.path.abspath(args.result_dir) != expected_result_dir:
             raise Operational("BLOCKED", "result directory does not match the recorded unit")
-        validate_private_dir(expected_result_dir)
+        result_fd, _ = open_recorded_result_dir(unit)
+        os.close(result_fd)
         if not resumed:
             attempt["job_id"] = job_id
             attempt["dispatch_authorization_receipt"] = expected_dispatch_authorization_receipt
@@ -785,12 +915,17 @@ def sync_job(run_id: str, unit_id: str) -> dict:
         failure_receipt = None
         oversized_result_failure = False
         if evidence["process_state"] == "failed":
-            result_path = os.path.join(
-                os.path.dirname(unit["workspace"]["path"]),
-                "result",
-                "implementation-result.json",
-            )
-            if os.path.lexists(result_path) and stat_private_file(result_path).st_size > MAX_RESULT_BYTES:
+            result_fd, result_dir = open_recorded_result_dir(unit)
+            try:
+                result_stat = stat_private_at(
+                    result_fd,
+                    "implementation-result.json",
+                    os.path.join(result_dir, "implementation-result.json"),
+                    missing_ok=True,
+                )
+            finally:
+                os.close(result_fd)
+            if result_stat is not None and result_stat.st_size > MAX_RESULT_BYTES:
                 _validate_authorized_failed_job(run_id, unit, attempt)
                 oversized_result_failure = True
             else:
