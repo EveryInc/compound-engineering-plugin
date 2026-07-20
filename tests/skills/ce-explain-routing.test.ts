@@ -4,6 +4,18 @@ import { describe, expect, test } from "bun:test"
 
 const SKILL_PATH = path.join(process.cwd(), "skills/ce-explain/SKILL.md")
 const SKILL_BODY = readFileSync(SKILL_PATH, "utf8")
+const CHECK_IN_PATH = path.join(process.cwd(), "skills/ce-explain/references/check-in.md")
+const CHECK_IN_BODY = readFileSync(CHECK_IN_PATH, "utf8")
+const DESTINATIONS_PATH = path.join(
+  process.cwd(),
+  "skills/ce-explain/references/destinations.md",
+)
+const DESTINATIONS_BODY = readFileSync(DESTINATIONS_PATH, "utf8")
+const HTML_REFERENCE_PATH = path.join(
+  process.cwd(),
+  "skills/ce-explain/references/explainer-html.md",
+)
+const HTML_REFERENCE_BODY = readFileSync(HTML_REFERENCE_PATH, "utf8")
 
 // Regression guard mirroring tests/skills/ce-plan-handoff-routing.test.ts
 // (issue #714 class): SKILL.md content caches at session start while reference
@@ -26,7 +38,8 @@ describe("ce-explain destination and handoff routing", () => {
 
   test("inline routing exists for every destination option", () => {
     const optionFragments: { name: string; fragment: string }[] = [
-      { name: "Artifact surface", fragment: "Artifact surface" },
+      { name: "Claude Artifact", fragment: "Claude Artifact" },
+      { name: "Publish publicly to ht-ml.app", fragment: "Publish publicly to ht-ml.app" },
       { name: "Local file", fragment: "Local file" },
       { name: "Publish to Proof", fragment: "Publish to Proof" },
       { name: "Send to Thinkroom", fragment: "Send to Thinkroom" },
@@ -97,6 +110,72 @@ describe("ce-explain destination and handoff routing", () => {
       "ce-explain SKILL.md must carry the predict-then-reveal ordering rule inline (show raw change only, take the prediction, end the turn).",
     ).toBe(true)
   })
+
+  test("check-in makes the explainer the recommended first choice", () => {
+    const explainerChoice = CHECK_IN_BODY.indexOf("Just the explainer (Recommended)")
+    const quizChoice = CHECK_IN_BODY.indexOf("Quiz me")
+    expect(explainerChoice).toBeGreaterThan(-1)
+    expect(quizChoice).toBeGreaterThan(explainerChoice)
+    expect(CHECK_IN_BODY).not.toMatch(/Quiz me \(Recommended\)/i)
+    expect(CHECK_IN_BODY).toMatch(/Just the explainer[^\n]+skip prediction and exercises/i)
+    expect(CHECK_IN_BODY).toMatch(/Predict-then-reveal[\s\S]+Run this section only when the user's exact choice was \*\*Quiz me\*\*/i)
+    expect(CHECK_IN_BODY).toMatch(/Exercises \(concepts, ideas, dense recaps\)[\s\S]+Run this section only when the user's exact choice was \*\*Quiz me\*\*/i)
+  })
+
+  test("only the exact Quiz me choice enables prediction and exercises", () => {
+    const phase3Start = SKILL_BODY.indexOf("### Phase 3")
+    const phase4Start = SKILL_BODY.indexOf("### Phase 4")
+    const phase5Start = SKILL_BODY.indexOf("### Phase 5")
+    const phase6Start = SKILL_BODY.indexOf("### Phase 6")
+    const phase3 = SKILL_BODY.slice(phase3Start, phase4Start)
+    const phase5 = SKILL_BODY.slice(phase5Start, phase6Start)
+
+    expect(phase3).toMatch(/Record the user's exact Phase 3 choice/i)
+    expect(phase3).toMatch(/Only \*\*Quiz me\*\* enables the prediction and exercise mechanics/i)
+    expect(phase3).toMatch(/\*\*Just the explainer\*\* skips both while still composing and presenting the report/i)
+    expect(phase3).toMatch(/Diff mode with Quiz me selected/i)
+    expect(phase5).toMatch(/only when the recorded exact Phase 3 choice was \*\*Quiz me\*\*/i)
+    expect(phase5).toMatch(/choice was \*\*Just the explainer\*\*, skip this phase/i)
+  })
+
+  test("recap evidence is dispatched directly without a main-agent pre-scan", () => {
+    expect(SKILL_BODY).toMatch(/dispatch a generic subagent directly/i)
+    expect(SKILL_BODY).toMatch(/Do not pre-scan, count, or characterize the window/i)
+  })
+
+  test("Claude Artifact owns its adaptation and ht-ml requires post-warning confirmation", () => {
+    expect(DESTINATIONS_BODY).toMatch(/Give the tool the canonical `\$RUN_DIR\/explainer\.html`/i)
+    expect(DESTINATIONS_BODY).toMatch(/tool owns any adaptation needed/i)
+    expect(DESTINATIONS_BODY).toMatch(/do not pre-process the HTML/i)
+    expect(DESTINATIONS_BODY).not.toContain("extract-artifact-fragment.py")
+    expect(DESTINATIONS_BODY).toMatch(/public and may be indexed, crawled, copied, or archived/i)
+    expect(DESTINATIONS_BODY).toMatch(/initial request explicitly selected ht-ml\.app/i)
+    expect(DESTINATIONS_BODY).toMatch(/ask for explicit confirmation after the warning before any publish/i)
+    expect(DESTINATIONS_BODY).toMatch(/initial request itself does not count as confirmation/i)
+    expect(DESTINATIONS_BODY).toMatch(/If confirmation cannot be obtained, do not publish; preserve the canonical `\$RUN_DIR\/explainer\.html` and report its local path/i)
+    expect(SKILL_BODY).toMatch(/pre-warning request does not count as confirmation/i)
+    expect(SKILL_BODY).toMatch(/If confirmation cannot be obtained, do not publish; preserve the canonical HTML and report its local `\$RUN_DIR\/explainer\.html` path/i)
+    expect(SKILL_BODY).toMatch(/Publish publicly to ht-ml\.app[^\n]+read and follow the ht-ml\.app sub-flow in `references\/destinations\.md`/i)
+    expect(DESTINATIONS_BODY).toMatch(/ht-ml\.app or general HTML-publishing capability/i)
+    expect(DESTINATIONS_BODY).toMatch(/skill-invocation primitive/i)
+    expect(DESTINATIONS_BODY).toMatch(/tool, connector, or browser capability directly/i)
+    expect(DESTINATIONS_BODY).toMatch(/Do not assume a particular skill name or installation path/i)
+    expect(DESTINATIONS_BODY).toContain("https://ht-ml.app/llms.txt")
+    expect(DESTINATIONS_BODY).not.toContain("scripts/publish-ht-ml.sh")
+    expect(DESTINATIONS_BODY).toMatch(/never publish headlessly/i)
+  })
+
+  test("HTML output pins stable metadata and preserves baseline constraints", () => {
+    expect(HTML_REFERENCE_BODY).toMatch(/exact field labels `Date`, `Input shape`, and `Subject`/)
+    expect(HTML_REFERENCE_BODY).toMatch(/exactly one of `concept`, `diff`, `idea`, or `recap`/)
+    expect(HTML_REFERENCE_BODY).toMatch(/`Subject` names the topic, ref, or recap window/)
+    expect(HTML_REFERENCE_BODY).toMatch(/No companion `\.css`, `\.js`, or `\.svg` files/)
+    expect(HTML_REFERENCE_BODY).toMatch(/No external requests of any kind/)
+    expect(HTML_REFERENCE_BODY).toMatch(
+      /No forms, no click handlers, no embedded quizzes, no "submit" affordances, no scripts/,
+    )
+    expect(HTML_REFERENCE_BODY).toMatch(/Class names and element IDs are ASCII-only/)
+  })
 })
 
 // Cross-file parity guard (issue #1057): SKILL.md Phase 3 and
@@ -110,9 +189,6 @@ describe("ce-explain destination and handoff routing", () => {
 // differently, and future wording improvements are fine as long as every
 // invariant stays present in both.
 describe("ce-explain predict-then-reveal parity between SKILL.md and references/check-in.md", () => {
-  const CHECK_IN_PATH = path.join(process.cwd(), "skills/ce-explain/references/check-in.md")
-  const CHECK_IN_BODY = readFileSync(CHECK_IN_PATH, "utf8")
-
   const invariants: { name: string; pattern: RegExp }[] = [
     {
       name: "the prediction question (what the change does, and why it was made)",
