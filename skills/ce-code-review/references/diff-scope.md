@@ -32,6 +32,8 @@ Recall depends on how you find related code. A diff-local read plus a text `grep
 
 Dynamic dispatch, reflection, dependency injection, string-keyed routes/config, generated code, and external consumers can hide usages from every tool. When any could apply, note the unresolved boundary in `residual_risks` instead of claiming complete coverage.
 
+**Scope caveat (`pr-remote` / `branch-remote`).** Semantic (LSP) and structural (`ast-grep`) tools inspect the **working tree**, which in remote scope is *not* the reviewed head (see Remote scope above). Do not use them as evidence for changed files when the local checkout is not the reviewed branch — they would report stale or unrelated callsites. In remote scope, inspect the reviewed ref instead: `git show <remote-head-ref>:<path>` for reads and `git grep <pattern> <remote-head-ref> -- <path>` for usage search, falling back to diff hunks. The ladder above applies at full strength only when scope is local-aligned (working tree == reviewed head).
+
 ## Finding Classification Tiers
 
 Every finding you report falls into one of three tiers based on its relationship to the diff:
