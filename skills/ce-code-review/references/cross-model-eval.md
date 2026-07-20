@@ -59,9 +59,17 @@ and Codex with fake peer CLIs first on PATH.
    <model>; serving model unverified on this route." `mode:agent` emits no
    user-facing prose but retains the worker's stderr audit record.
 
+9. **Oversized diffs recover without one giant prompt.** A fixture above the
+   inline token or file-count limit sends the peer the orchestrator's compact
+   semantic review map plus a private exact-diff path, never the whole diff.
+   The worker does not cut semantic shards or invent risk divisions; the
+   orchestrator does, and the adversarial agent reads bounded ranges and narrows
+   them further rather than returning a progress note or silently omitting the
+   pass. A normal-sized fixture keeps the direct diff path.
+
 ## Pass criteria
 
-All eight cases pass on the current on-disk source on Claude Code and Codex. The
+All nine cases pass on the current on-disk source on Claude Code and Codex. The
 negative activation cases launch no peer, the fixed-route cases perform no
 worker-internal recipient fallback, and only `independence_verified: true`
 artifacts can promote agreement.
