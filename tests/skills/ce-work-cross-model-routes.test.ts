@@ -77,6 +77,7 @@ function fakeBin(route: typeof ROUTES[number], capture: string, response?: strin
   const script = `#!/bin/sh
 set -eu
 if [ "\${1:-}" = "--list-models" ]; then
+  env | sort > '${capture}/probe-env'
   cat <<'MODELS'
 composer-2.5-fast - Composer 2.5 Fast
 composer-next-fast - Composer Next Fast
@@ -301,6 +302,42 @@ describe("ce-work fixed write routes", () => {
     })
     expect(compatible.status).toBe(0)
     expect(compatible.stdout).toContain("--model composer-next-fast")
+  })
+
+  test("Cursor model probes use the credential-sanitized route environment", () => {
+    const f = fixture()
+    const bin = fakeBin("cursor", f.capture)
+    const cursorAgent = path.join(bin, "cursor-agent")
+    writeFileSync(
+      cursorAgent,
+      readFileSync(cursorAgent, "utf8").replace("model='Cursor Grok 4.5 High'", "model='Sonnet 5 1M Low'"),
+    )
+    chmodSync(cursorAgent, 0o755)
+    const cursorConfig = path.join(f.root, "cursor-config")
+    const apiSecret = "SENTINEL-api-secret-credential"
+    const result = run(
+      "cursor",
+      f,
+      {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        CURSOR_CONFIG_DIR: cursorConfig,
+        OPENAI_API_KEY: apiSecret,
+      },
+      undefined,
+      { model_requested: "claude-sonnet-5-low" },
+    )
+
+    expect(result.code).toBe(0)
+    const probeEnv = readFileSync(path.join(f.capture, "probe-env"), "utf8")
+    const dispatchEnv = readFileSync(path.join(f.capture, "env"), "utf8")
+    for (const observed of [probeEnv, dispatchEnv]) {
+      expect(observed).toContain(`CURSOR_CONFIG_DIR=${cursorConfig}`)
+      expect(observed).not.toContain("OPENAI_API_KEY=")
+      expect(observed).not.toContain(apiSecret)
+    }
+    expect(result.result.model_actual).toBe("Sonnet 5 1M Low")
+    expect(result.result.model_receipt_status).toBe("verified")
   })
 
   test("target-scoped model overrides do not make unrelated route probes unavailable", () => {

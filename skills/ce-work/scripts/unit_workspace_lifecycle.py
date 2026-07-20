@@ -565,7 +565,7 @@ def fallback_basis(doc: dict, unit: dict) -> tuple[str, dict]:
             if observed != recorded:
                 raise Operational("BLOCKED", "recorded failed receipt evidence changed")
             return observed["failure_reason"], attempt
-        return str(process_state), attempt
+        return str(attempt.get("fallback", {}).get("reason") or process_state), attempt
     restore_evidence = unit.get("integration", {}).get("restore")
     if unit.get("state") == "preserved" and restore_evidence and restore_evidence.get("exact") is True:
         if doc.get("integration_lock"):

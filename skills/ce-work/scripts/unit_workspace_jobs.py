@@ -219,12 +219,16 @@ def process_evidence(job_dir: str) -> dict:
         word = "running"
     else:
         word = "never-started"
+    failure_reason = None
+    reason_path = os.path.join(job_dir, "reason")
+    if word in TERMINAL_PROCESS and os.path.lexists(reason_path):
+        failure_reason = read_private(reason_path, 4096).decode("utf-8", "strict").strip() or None
     activity = {"latest_at": None, "log_bytes": 0}
     log = os.path.join(job_dir, "out.log")
     if os.path.lexists(log):
         st = stat_private_file(log)
         activity = {"latest_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(st.st_mtime)), "log_bytes": st.st_size}
-    return {"process_state": word, "activity": activity}
+    return {"process_state": word, "failure_reason": failure_reason, "activity": activity}
 
 
 HOST_RECEIPT_FIELDS = (
@@ -353,13 +357,11 @@ def terminal_receipt(
     }
 
 
-def _authorized_failed_terminal_receipt(
+def _validate_authorized_failed_job(
     run_id: str,
     unit: dict,
     attempt: dict,
-    *,
-    unavailable: bool,
-) -> dict:
+) -> None:
     job_id = attempt.get("job_id")
     if not isinstance(job_id, str):
         raise Operational("BLOCKED", "failed receipt has no bound runner job")
@@ -383,6 +385,16 @@ def _authorized_failed_terminal_receipt(
     }
     if attempt.get("dispatch_authorization_receipt") != expected_dispatch:
         raise Operational("BLOCKED", "failed receipt is not bound to the exact authorized dispatch")
+
+
+def _authorized_failed_terminal_receipt(
+    run_id: str,
+    unit: dict,
+    attempt: dict,
+    *,
+    unavailable: bool,
+) -> dict:
+    _validate_authorized_failed_job(run_id, unit, attempt)
     return terminal_receipt(
         unit,
         attempt,
@@ -684,15 +696,25 @@ def sync_job(run_id: str, unit_id: str) -> dict:
             return {"process_state": "never-started", "activity": attempt["activity"]}
         evidence = process_evidence(runner_job_dir(run_id, attempt["job_id"]))
         failure_receipt = None
+        oversized_result_failure = False
         if evidence["process_state"] == "failed":
-            for reader in (unavailable_terminal_receipt, launched_failure_terminal_receipt):
-                try:
-                    failure_receipt = reader(run_id, unit, attempt)
-                    break
-                except TrustFailure:
-                    raise
-                except Operational:
-                    continue
+            result_path = os.path.join(
+                os.path.dirname(unit["workspace"]["path"]),
+                "result",
+                "implementation-result.json",
+            )
+            if os.path.lexists(result_path) and stat_private_file(result_path).st_size > MAX_RESULT_BYTES:
+                _validate_authorized_failed_job(run_id, unit, attempt)
+                oversized_result_failure = True
+            else:
+                for reader in (unavailable_terminal_receipt, launched_failure_terminal_receipt):
+                    try:
+                        failure_receipt = reader(run_id, unit, attempt)
+                        break
+                    except TrustFailure:
+                        raise
+                    except Operational:
+                        continue
     with locked_manifest(run_id, write=True) as doc:
         attempt = find_attempt(doc["units"][unit_id])
         prior_state = attempt.get("process_state")
@@ -713,6 +735,8 @@ def sync_job(run_id: str, unit_id: str) -> dict:
             fallback["reason"] = (
                 failure_receipt["failure_reason"]
                 if failure_receipt is not None
+                else evidence["failure_reason"]
+                if oversized_result_failure and evidence["failure_reason"]
                 else evidence["process_state"]
             )
         changed = (
@@ -729,7 +753,11 @@ def sync_job(run_id: str, unit_id: str) -> dict:
                 receipt_event = "route-unavailable" if failure_receipt["terminal_status"] == "unavailable" else "route-failed"
                 event(doc, receipt_event, unit_id, {"failure_reason": failure_receipt["failure_reason"]})
         activity = dict(attempt["activity"])
-    return {"process_state": evidence["process_state"], "activity": activity}
+    return {
+        "process_state": evidence["process_state"],
+        "failure_reason": evidence["failure_reason"],
+        "activity": activity,
+    }
 
 
 def cmd_sync_job(args) -> tuple[str, dict]:

@@ -571,18 +571,6 @@ if ! command -v "$BINARY" >/dev/null 2>&1; then
   exit 2
 fi
 
-# Cursor reports a human display label in its init receipt, not necessarily the
-# model key passed on argv. Capture the current catalog label before dispatch so
-# receipt comparison can follow CLI vocabulary drift without weakening the pin.
-MODEL_DISPLAY_HINT=""
-if [ "$MODEL_REQUESTED" != auto ]; then
-  case "$ROUTE" in
-    cursor|composer|grok-cursor)
-      MODEL_DISPLAY_HINT="$({ "$BINARY" --list-models 2>/dev/null || true; } | awk -F ' - ' -v key="$MODEL_REQUESTED" '$1 == key { sub(/^[^ ]+ - /, ""); print; exit }')"
-      ;;
-  esac
-fi
-
 ARGS=()
 while IFS= read -r -d '' token; do ARGS+=("$token"); done < <(adapter_argv "$ROUTE")
 
@@ -603,6 +591,21 @@ case "$ROUTE" in
     [ -n "${CURSOR_CONFIG_DIR:-}" ] && MIN_ENV+=("CURSOR_CONFIG_DIR=$CURSOR_CONFIG_DIR")
     ;;
 esac
+
+# Cursor reports a human display label in its init receipt, not necessarily the
+# model key passed on argv. Capture the current catalog label before dispatch so
+# receipt comparison can follow CLI vocabulary drift without weakening the pin.
+# The catalog probe uses the same minimal environment as the worker because it
+# reaches the same authenticated CLI surface before dispatch.
+MODEL_DISPLAY_HINT=""
+if [ "$MODEL_REQUESTED" != auto ]; then
+  case "$ROUTE" in
+    cursor|composer|grok-cursor)
+      MODEL_DISPLAY_HINT="$({ "${MIN_ENV[@]}" "$BINARY" --list-models 2>/dev/null || true; } | awk -F ' - ' -v key="$MODEL_REQUESTED" '$1 == key { sub(/^[^ ]+ - /, ""); print; exit }')"
+      ;;
+  esac
+fi
+
 ACTIVITY_POLL_SECS="${CE_WORK_ACTIVITY_POLL_SECS:-15}"
 case "$ACTIVITY_POLL_SECS" in ''|*[!0-9]*) ACTIVITY_POLL_SECS=15 ;; esac
 [ "$ACTIVITY_POLL_SECS" -lt 1 ] && ACTIVITY_POLL_SECS=1

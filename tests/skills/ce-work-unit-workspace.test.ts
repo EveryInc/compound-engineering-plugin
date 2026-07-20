@@ -3177,6 +3177,52 @@ describe("ce-work unit workspace controller", () => {
     })
   })
 
+  test("keeps an oversized implementation result as a recoverable failed job", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-oversized-result"
+    const unitId = "U"
+    init(runs, runId, f)
+    const prepared = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", unitId,
+      "--base", f.base, "--packet", packetFile("packet"),
+    ).body
+    const authorized = authorizeDispatch(runs, runId, unitId, prepared)
+    const job = authorized.body.job_id
+    const reason = "result exceeded byte cap (5242881 > 5242880 bytes)"
+    terminalizeFakeJob(runs, runId, job, "failed")
+    writeFileSync(path.join(runs, runId, "jobs", job, "reason"), `${reason}\n`, { mode: 0o600 })
+    const resultPath = path.join(prepared.result_dir, "implementation-result.json")
+    writeFileSync(resultPath, "", { mode: 0o600 })
+    truncateSync(resultPath, 5 * 1024 * 1024 + 1)
+
+    expect(ctl(runs, "sync-job", "--run-id", runId, "--unit-id", unitId)).toMatchObject({
+      word: "SYNCED",
+      body: { process_state: "failed", failure_reason: reason },
+    })
+    const attempt = ctl(runs, "status", "--run-id", runId, "--unit-id", unitId).body.unit.attempts[0]
+    expect(attempt).toMatchObject({
+      process_state: "failed",
+      fallback: { eligible: true, reason, claimed: null },
+    })
+    expect(attempt.terminal_receipt).toBeNull()
+
+    expect(ctl(
+      runs, "claim-fallback", "--run-id", runId, "--unit-id", unitId,
+      "--caller-mode", "headless",
+    )).toMatchObject({
+      word: "FALLBACK_AUTHORIZED",
+      body: { start_native: true, reason },
+    })
+    expect(ctl(
+      runs, "claim-fallback", "--run-id", runId, "--unit-id", unitId,
+      "--caller-mode", "headless",
+    )).toMatchObject({
+      word: "FALLBACK_ALREADY_AUTHORIZED",
+      body: { start_native: false, reason },
+    })
+  })
+
   test("does not authorize native fallback before dependencies are accepted", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
