@@ -15,6 +15,8 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 
 const tempRoots: string[] = []
+const REPO_ROOT = path.join(__dirname, "../..")
+const DIRTY_MARKER = path.join(REPO_ROOT, ".xmodel-cr-test-dirty")
 function mkTempRoot(prefix: string): string {
   const dir = mkdtempSync(path.join(tmpdir(), prefix))
   tempRoots.push(dir)
@@ -22,6 +24,7 @@ function mkTempRoot(prefix: string): string {
 }
 afterAll(() => {
   for (const dir of tempRoots) rmSync(dir, { recursive: true, force: true })
+  if (existsSync(DIRTY_MARKER)) rmSync(DIRTY_MARKER, { force: true })
 })
 
 const REAL_TOOLS = [
@@ -116,13 +119,24 @@ function makeRunDir(): string {
   return mkTempRoot("xmodel-cr-run-")
 }
 
+/** Untracked file so `git diff HEAD --` is non-empty on a clean checkout. */
+function ensureDirtyTree(cwd: string): void {
+  if (cwd !== REPO_ROOT) return
+  writeFileSync(DIRTY_MARKER, `fixture ${Date.now()}\n`)
+}
+
 /** Run the script and return exit code, stdout, stderr, and run-dir file list. */
 function run(
   args: string[],
   runDir: string,
   env: NodeJS.ProcessEnv = process.env,
-  cwd = path.join(__dirname, "../.."), // repo root — script needs git
+  cwd = REPO_ROOT, // repo root — script needs git
+  opts: { skipDirtyTree?: boolean } = {},
 ) {
+  const baseRef = args[2]
+  if (!opts.skipDirtyTree && baseRef === "HEAD" && cwd === REPO_ROOT) {
+    ensureDirtyTree(cwd)
+  }
   const effectiveEnv = { ...env }
   if (!("CROSS_MODEL_DRY_RUN" in effectiveEnv) && !("CROSS_MODEL_FIXED_ROUTE" in effectiveEnv)) {
     const target = args[1]
@@ -459,12 +473,16 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
     writeFileSync(path.join(repo, "f"), "x")
     spawnSync("git", ["add", "f"], { cwd: repo })
     spawnSync("git", ["commit", "-m", "init"], { cwd: repo })
+    const invoked = path.join(mkTempRoot("xmodel-cr-empty-invoked-"), "marker")
     const { env } = sandbox(
       ["claude"],
-      "#!/bin/sh\ncat >/dev/null\nprintf '%s' '{\"structured_output\":{\"reviewer\":\"adversarial\",\"findings\":[{\"title\":\"confabulated\"}]}}'\n",
+      `#!/bin/sh\n: > '${invoked}'\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"confabulated"}]}}'\n`,
     )
     const runDir = makeRunDir()
-    const r = run(["codex", "claude", "HEAD", runDir], runDir, env, repo)
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env, repo, {
+      skipDirtyTree: true,
+    })
+    expect(existsSync(invoked)).toBe(false)
     expect(r.code).toBe(0)
     expect(r.files).toHaveLength(0)
     expect(r.stderr).toContain("no changes between 'HEAD' and the working tree")
