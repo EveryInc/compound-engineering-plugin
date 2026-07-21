@@ -16,7 +16,7 @@ Before step 1, use the platform's task-tracking capability when available to pub
 
 Before step 1, interpret whether the invoking conversation expresses **semantic intent to assign a pipeline stage** — planning or implementation — to a specific model or harness. This is judgment, not keyword or prompt-token matching: an explicit instruction such as "plan with fable" or "use Codex for implementation" creates an assignment, while a plain mention of Codex, Composer, Fable, or another model/harness in feature content, quoted material, comparison text, or a filename does not. Two pipeline stages are routable, each with its own carrier:
 
-- **Planning** routes to `ce-plan` as a `plan_model:<alias>` carrier — the plan-authoring model (model elevation), model-only. Example aliases: `fable`, `opus`.
+- **Planning** routes to `ce-plan` as a `plan_model:<alias>` carrier — the plan-authoring **model** (model elevation), model-only. Example aliases: `fable`, `opus`. Planning has no cross-harness engine: an assignment that scopes a *harness* to planning ("plan with codex", "plan on cursor") is **not supported** — surface it as a routing-carrier blocker rather than encoding a harness name as `plan_model:<harness>`, which `ce-plan` cannot serve and would silently fall back to the session model. Only the implementation stage routes to a different harness.
 - **Implementation** routes to `ce-work` as an `implementation_engine` object (grammar below) — the authoring harness/model.
 
 Resolve each directive by scope:
