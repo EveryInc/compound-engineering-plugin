@@ -121,6 +121,7 @@ function run(
   args: string[],
   runDir: string,
   env: NodeJS.ProcessEnv = process.env,
+  cwd = path.join(__dirname, "../.."), // repo root — script needs git
 ) {
   const effectiveEnv = { ...env }
   if (!("CROSS_MODEL_DRY_RUN" in effectiveEnv) && !("CROSS_MODEL_FIXED_ROUTE" in effectiveEnv)) {
@@ -137,7 +138,7 @@ function run(
   const r = spawnSync("bash", [SCRIPT, ...args], {
     encoding: "utf8",
     env: effectiveEnv,
-    cwd: path.join(__dirname, "../.."), // repo root — script needs git
+    cwd,
   })
   return {
     code: r.status ?? -1,
@@ -436,6 +437,37 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
     const runDir = makeRunDir()
     expect(run(["claude", "codex", "", runDir], runDir, env).code).toBe(0)
     expect(run(["claude", "codex", "HEAD", "/no/such/run-dir"], runDir, env).files).toHaveLength(0)
+  })
+
+  test("unresolvable base ref skips before peer invoke (no output file)", () => {
+    const { env } = sandbox(
+      ["claude"],
+      "#!/bin/sh\ncat >/dev/null\nprintf '%s' '{\"structured_output\":{\"reviewer\":\"adversarial\",\"findings\":[{\"title\":\"confabulated\"}]}}'\n",
+    )
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "no-such-ref-1193", runDir], runDir, env)
+    expect(r.code).toBe(0)
+    expect(r.files).toHaveLength(0)
+    expect(r.stderr).toContain("base ref 'no-such-ref-1193' does not resolve")
+  })
+
+  test("empty working-tree diff skips before peer invoke", () => {
+    const repo = mkTempRoot("xmodel-cr-empty-")
+    spawnSync("git", ["init", "-b", "main"], { cwd: repo })
+    spawnSync("git", ["config", "user.email", "test@test"], { cwd: repo })
+    spawnSync("git", ["config", "user.name", "test"], { cwd: repo })
+    writeFileSync(path.join(repo, "f"), "x")
+    spawnSync("git", ["add", "f"], { cwd: repo })
+    spawnSync("git", ["commit", "-m", "init"], { cwd: repo })
+    const { env } = sandbox(
+      ["claude"],
+      "#!/bin/sh\ncat >/dev/null\nprintf '%s' '{\"structured_output\":{\"reviewer\":\"adversarial\",\"findings\":[{\"title\":\"confabulated\"}]}}'\n",
+    )
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env, repo)
+    expect(r.code).toBe(0)
+    expect(r.files).toHaveLength(0)
+    expect(r.stderr).toContain("no changes between 'HEAD' and the working tree")
   })
 
   test("surfaces short provider errors without dropping the diagnostic", () => {

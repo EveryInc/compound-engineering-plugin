@@ -302,6 +302,18 @@ SCHEMA_REF="$SCHEMA_CONTENT"
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || skip "not inside a git repository; skipping"
 PEER_WORKDIR="$REPO_ROOT"
 
+# Fail closed before embedding or instructing a diff: an unresolvable base ref or
+# an empty working-tree diff produces a structurally valid prompt with no code
+# changes, which invites confabulated adversarial findings.
+git -C "$REPO_ROOT" rev-parse --verify --quiet "${BASE}^{commit}" >/dev/null \
+  || skip "base ref '$BASE' does not resolve to a commit in this repository; skipping"
+git -C "$REPO_ROOT" diff --quiet "$BASE" -- 2>/dev/null; _diff_rc=$?
+case "$_diff_rc" in
+  1) ;;  # differences exist — the reviewable case
+  0) skip "no changes between '$BASE' and the working tree; nothing to review; skipping" ;;
+  *) skip "git diff '$BASE' failed (exit $_diff_rc); skipping" ;;
+esac
+
 # --- resolve which provider(s) to run (exclude host, allowlist, availability) --
 ALLOW="${CROSS_MODEL_PEERS:-}"
 MAX_PEERS="${CROSS_MODEL_MAX_PEERS:-1}"
