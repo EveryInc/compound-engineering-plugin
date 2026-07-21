@@ -1510,10 +1510,11 @@ def _apply_snapshot(box, args, cur, now, advance_trajectory):
 def _run_snapshot(args, now, advance_trajectory=True, watch_generation=None):
     """One fetch -> diff -> persist. Returns the actionable/state dict."""
     cur = _fetch_snapshot(args)
-    if (getattr(args, "start_invocation", False)
-            or getattr(args, "reset_session", False)):
-        # A new invocation starts after preflight I/O; a slow first fetch must not consume its budget.
-        now = _now()
+    # Re-capture the clock *after* the (blocking) fetch so activity accounting reflects post-fetch
+    # time: a suspend that lands during the fetch is then credited as dead time by this poll's
+    # _advance_activity, instead of leaving the next top-of-loop budget check to fire max-runtime on
+    # a gap it hasn't yet excluded. It also keeps a new invocation's slow first fetch off its budget.
+    now = _now()
     with locked_state(args.state_dir, args.pr, args.repo, now) as box:
         if watch_generation is not None and box["state"].get("watch_generation") != watch_generation:
             raise _WatchSuperseded()
