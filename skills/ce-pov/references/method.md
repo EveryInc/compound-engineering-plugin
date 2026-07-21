@@ -6,7 +6,7 @@ Load this before reasoning about the POV (SKILL.md Phase 2). It defines the Veri
 
 1. **Frame** (Phase 0) — the question, incumbent, horizon, and success criteria are pinned, and the selection escape hatch has fired if the field is unbounded.
 2. **Precedent** (Phase 1) — the precedent-&-activity scout has reported whether a prior stance exists. Precedent-aware, not rigidly first: a CVE's urgency can lead, but you still consume precedent before grading.
-3. **Verify** (Phase 2) — apply the grounding gate below to the scout dossiers.
+3. **Verify** (Phase 2) — apply the grounding gate below to the grounded evidence (scout dossiers and bounded inline-read observations).
 4. **Point of view** (Phase 3) — emit the contract for the active subject shape below.
 
 ## Two cross-cutting properties (not phases)
@@ -16,16 +16,16 @@ Load this before reasoning about the POV (SKILL.md Phase 2). It defines the Veri
 
 ## The grounding gate
 
-The project floor always applies. The external floor applies in full to an external-adoption question. For a document or approach set, it applies only to external claims that materially support the POV's bottom line; when no external claim is load-bearing, no external source is required. A conversation claim (warm mode) never satisfies either floor until a scout corroborated it — it sits in the *conversation hypotheses* bucket, never the *verified facts* bucket.
+The project floor always applies. The external floor applies in full to an external-adoption question. For a document or approach set, it applies only to external claims that materially support the POV's bottom line; when no external claim is load-bearing, no external source is required. A conversation claim (warm mode) never satisfies either floor until a scout or a bounded inline read of the authoritative source corroborated it — it sits in the *conversation hypotheses* bucket, never the *verified facts* bucket.
 
 ### External-adoption questions: the two-floor Invalid-Verdict gate
 
 The verdict must clear **two absolute floors**. They are independent: strong external evidence never compensates for a thin project leg, and vice versa. This is a pass/fail checklist, **not** a comparison of leg sizes.
 
-- **Project floor** — PASS requires the verdict to rest on a concrete, *verified* project fact relevant to the decision, in one of these forms: a **named incumbent plus at least one concrete touchpoint** (a `file:line`, dependency, issue, PR, or doc passage from the dossiers) for a replace/migrate; the **verified absence of an incumbent plus a concrete integration/fit point** (where it would slot in, the conventions it must match) for a net-new adoption; or a **prior decision** on the question. FAIL means the project was not actually inspected — return **"Hold — insufficient project grounding"** with a numbered list of exactly what to inspect to make the floor passable. Forbidden from Adopt/Reject on a failed project floor, regardless of how strong the external evidence is.
+- **Project floor** — PASS requires the verdict to rest on a concrete, *verified* project fact relevant to the decision, in one of these forms: a **named incumbent plus at least one concrete touchpoint** (a `file:line`, dependency, issue, PR, or doc passage from the dossiers or a bounded inline read) for a replace/migrate; the **verified absence of an incumbent plus a concrete integration/fit point** (where it would slot in, the conventions it must match) for a net-new adoption; or a **prior decision** on the question. FAIL means the project was not actually inspected — return **"Hold — insufficient project grounding"** with a numbered list of exactly what to inspect to make the floor passable. Forbidden from Adopt/Reject on a failed project floor, regardless of how strong the external evidence is.
 - **External floor** — PASS requires at least one verified external source whose text supports the claim it backs. FAIL (e.g., no research tools were reachable) → return **"Hold — external evidence unavailable"**, not a graded verdict at lowered confidence.
 
-A conversation claim (warm mode) never satisfies a floor until a scout corroborated it — it sits in the *conversation hypotheses* bucket, never the *verified facts* bucket.
+A conversation claim (warm mode) never satisfies a floor until a scout or a bounded inline read of the authoritative source corroborated it — it sits in the *conversation hypotheses* bucket, never the *verified facts* bucket.
 
 ### Documents and approach sets: explicit blocker returns
 

@@ -86,11 +86,11 @@ echo "$SCRATCH_DIR";
 
 **Capability gating is two-level:** skip only a scout (or scout-portion) with **no reachable surface at all** — the project-grounding scout and the precedent scout's local-doc pass are file reads and always run; the tracker/PR reads and the external researcher are tool-gated and degrade. Let a scout that loses a tool mid-run self-report "unavailable." Never block on a missing surface — record it and let it lower the verdict's stated confidence, or trip the external floor (Phase 2) when the external leg is entirely absent.
 
-**Populate the provenance buckets** from the returned dossiers, keeping them separate for Phase 2: *observed-project-facts* and *verified-external-facts* (these count as grounding) vs. *conversation-claims* and *unconfirmed-assumptions* from a warm invocation (these do not count until a scout corroborates them). Read dossiers from their paths on demand; do not pull their bulk into this context.
+**Populate the provenance buckets** from the returned dossiers and your own bounded inline-read observations, keeping them separate for Phase 2: *observed-project-facts* and *verified-external-facts* (these count as grounding) vs. *conversation-claims* and *unconfirmed-assumptions* from a warm invocation (these do not count until a scout or a bounded inline read of the authoritative source corroborates them). Read dossiers from their paths on demand; do not pull their bulk into this context.
 
 ### Phase 2: Verify Grounding
 
-**Read `references/method.md` now**, before reasoning about the POV — it defines the Verify and POV steps, the skeptic stance and reversibility tiering as cross-cutting properties, and the subject-aware grounding gate. Apply that gate as a pass/fail checklist over the dossiers: on an external-adoption subject a failed floor forbids Adopt/Reject and returns the matching Hold subtype; on a document or approach set it returns the matching explicit Blocked result. Do this reasoning on the clean context — read a dossier on demand, never pull its bulk in.
+**Read `references/method.md` now**, before reasoning about the POV — it defines the Verify and POV steps, the skeptic stance and reversibility tiering as cross-cutting properties, and the subject-aware grounding gate. Apply that gate as a pass/fail checklist over the grounded evidence (scout dossiers and recorded bounded inline-read observations): on an external-adoption subject a failed floor forbids Adopt/Reject and returns the matching Hold subtype; on a document or approach set it returns the matching explicit Blocked result. Do this reasoning on the clean context — read a dossier on demand, never pull its bulk in.
 
 ### Phase 3: Point of View
 

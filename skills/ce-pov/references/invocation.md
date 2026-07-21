@@ -15,12 +15,12 @@ So every input is labeled by provenance, and only verified buckets satisfy the g
 
 | Bucket | Counts as grounding? |
 |---|---|
-| Observed project facts (from a scout dossier) | Yes |
-| Verified external facts (from a scout dossier) | Yes |
-| Conversation claims | No — frame and hypotheses until a scout corroborates |
+| Observed project facts (from a scout dossier or a host bounded read of the authoritative source) | Yes |
+| Verified external facts (from a scout dossier or a host bounded read of the authoritative source) | Yes |
+| Conversation claims | No — frame and hypotheses until a scout or a bounded inline read corroborates |
 | Unconfirmed assumptions | No — surfaced for the user to confirm or deny |
 
-If the conversation says "we have 40 call-sites on X," the project-grounding scout must confirm that against the codebase before it counts. **Warm adds no evidentiary weight** — it surfaces the question and hypotheses; the scouts still do the independent grounding. Same invalidation rule, no warm exemption.
+If the conversation says "we have 40 call-sites on X," the project-grounding scout — or the host's own bounded read, when the sites are already located — must confirm that against the codebase before it counts. **Warm adds no evidentiary weight** — it surfaces the question and hypotheses; the independent grounding is still done by scouts or bounded reads of the source, never by the conversation itself. Same invalidation rule, no warm exemption.
 
 ## Establishing the question (frame gate)
 
@@ -34,7 +34,7 @@ A warm summons naming an already-formed position to oracle — the host's prior 
 
 The conversation's momentum pulls toward agreement, and a second opinion that rubber-stamps is worthless. "More adversarial" is not an attitude; it is two concrete rules:
 
-1. Run an **explicit disconfirming-evidence pass** on each load-bearing conversation claim — try to refute it from the scout dossiers before accepting it.
+1. Run an **explicit disconfirming-evidence pass** on each load-bearing conversation claim — try to refute it from the grounded evidence (scout dossiers or bounded inline reads) before accepting it.
 2. **Never upgrade a grade on conversation momentum alone** — if the only thing pushing toward Adopt is that the room already wants it, that is not grounding, and the grade does not move.
 
 ## Guest output contract
