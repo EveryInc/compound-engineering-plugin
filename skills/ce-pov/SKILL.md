@@ -57,11 +57,11 @@ Dispatch is tiered by task shape, never hardcoded to a model name:
 
    State the tier in the verdict and let the user override. The tier sizes the rest of the run (Phase 1 scout count, Phase 2 depth, Phase 3 reversal trigger): Tier 1 stays a one-screen verdict off a single combined grounding pass; Tier 2 adds the full scout fleet and an alternatives pass; Tier 3 adds deep external research, a precedent search, and a durable-record offer. Do not run a Tier-3 workup on a trivially reversible `npm i`, or hand a security-surface decision the moderate Tier-2 treatment.
 
-### Phase 1: Ground (dispatch scouts, never inline)
+### Phase 1: Ground (dispatch scouts by default; bounded inline reads when facts are pre-located)
 
 Grounding searches code, git, the issue tracker, PRs, and docs — noisy work that would flood this context and crowd out the verdict reasoning. Dispatch it to scout sub-agents that search in their own context and return only a dossier path plus a short gist; read a dossier on demand, never inline the raw search.
 
-Use the project's active instructions already in context. Send scouts directly to candidate-specific current evidence. If the candidate cannot be scoped from the frame and existing context, allow one targeted root or workspace probe.
+Use the project's active instructions already in context. Send scouts directly to candidate-specific current evidence. If the candidate cannot be scoped from the frame and existing context, allow one targeted root or workspace probe. When the load-bearing facts are already located and verified in the current context — typical for warm invocations and Tier-1 subjects with pre-located claims — you may verify them directly with bounded reads instead of dispatching scouts; unscoped or noisy grounding still dispatches. The Tier-1 prior-decision scan (`docs/solutions/`, ADRs, design docs) stays mandatory on either path.
 
 Create the scratch dir once, and reuse the echoed path for every scout this run:
 

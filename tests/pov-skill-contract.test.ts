@@ -30,6 +30,16 @@ describe("ce-pov subject-shape contract", () => {
     expect(skill).not.toContain("repo-profile-cache")
   })
 
+  test("licenses bounded inline grounding while keeping the prior-decision scan mandatory", async () => {
+    const skill = await skillFile("SKILL.md")
+    const phaseOne = between(skill, "### Phase 1: Ground", "### Phase 2: Verify Grounding")
+
+    expect(phaseOne).toContain("Send scouts directly to candidate-specific current evidence")
+    expect(phaseOne).toMatch(/bounded reads instead of dispatching scouts/)
+    expect(phaseOne).toMatch(/unscoped or noisy grounding still dispatches/)
+    expect(phaseOne).toMatch(/prior-decision scan.*stays mandatory on either path/)
+  })
+
   test("semantic cross-model requests activate without the oracle shorthand", async () => {
     const skill = await skillFile("SKILL.md")
     const frontmatter = skill.split("---", 3)[1] ?? ""
