@@ -58,11 +58,16 @@ const NEVER_FLAGS = [
   "--force",
 ]
 
-/** Sandbox PATH: real coreutils plus a stub `claude` with the given body. */
-function sandbox(claudeStub: string): { bin: string; env: NodeJS.ProcessEnv } {
+/** Sandbox PATH: real coreutils plus a stub `claude` with the given body.
+ *  `omit` drops named tools from the PATH to exercise missing-capability paths. */
+function sandbox(
+  claudeStub: string,
+  omit: string[] = [],
+): { bin: string; env: NodeJS.ProcessEnv } {
   const bin = path.join(mkTempRoot("elevation-sandbox-"), "bin")
   mkdirSync(bin, { recursive: true })
   for (const [tool, real] of REAL_TOOL_PATHS) {
+    if (omit.includes(tool)) continue
     if (existsSync(path.join(bin, tool))) continue
     try {
       symlinkSync(real, path.join(bin, tool))
@@ -81,8 +86,9 @@ function runWorker(
   model: string,
   claudeStub: string,
   extraEnv: Record<string, string> = {},
+  omit: string[] = [],
 ): { result: any; stderr: string; status: number | null } {
-  const { bin, env } = sandbox(claudeStub)
+  const { bin, env } = sandbox(claudeStub, omit)
   const scratch = mkTempRoot("elevation-run-")
   const promptFile = path.join(scratch, "brief.md")
   const resultPath = path.join(scratch, "result.json")
@@ -144,6 +150,20 @@ describe("elevation-dispatch worker", () => {
     expect(result.output).toBe("PLAN BODY")
     expect(result.served_model).toBe("claude-fable-5")
     expect(result.receipt).toBe("matched")
+  })
+
+  test("missing jq exits 0 with a failure envelope, so the runner still emits it", () => {
+    // jq is optional (ce-setup). The worker must NOT exit nonzero here: the
+    // runner classifies a nonzero exit as `failed`, and its `result` command
+    // then refuses to emit the artifact — the recovery flow could never read
+    // this envelope. Exit 0 makes the job `done` so status:failed degrades
+    // cleanly to inline.
+    const stub =
+      "#!/bin/sh\n" + `printf '%s\\n' '${RESULT_LINE("PLAN BODY", null)}'\n`
+    const { result, status } = runWorker("fable", stub, {}, ["jq"])
+    expect(status).toBe(0)
+    expect(result.status).toBe("failed")
+    expect(result.requested_model).toBe("fable")
   })
 
   test("a large plan is shipped intact — envelope build never passes it as an argv", () => {

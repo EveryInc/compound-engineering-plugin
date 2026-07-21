@@ -66,10 +66,14 @@ RESULT_PATH="${3:?result-path required}"
 
 # jq builds every result envelope; it is only an optional capability (ce-setup),
 # so preflight it here rather than spending the CLI call and failing to parse.
+# Exit 0 with a failure envelope, NOT nonzero: the runner classifies a nonzero
+# exit as `failed`, and its `result` command then refuses to emit the artifact,
+# so the recovery flow could never read this envelope. Exit 0 makes the job
+# `done`, the envelope's status:failed is read, and it degrades to inline.
 if ! command -v jq >/dev/null 2>&1; then
-  log "jq not found on PATH; cannot parse the elevated result — skipping elevation"
-  printf '%s' '{"status":"failed","evidence":"jq unavailable on PATH"}' > "$RESULT_PATH" 2>/dev/null || true
-  exit 3
+  log "jq not found on PATH; cannot parse the elevated result — degrading to inline"
+  printf '{"status":"failed","requested_model":"%s","evidence":"jq unavailable on PATH"}' "$MODEL" > "$RESULT_PATH" 2>/dev/null || true
+  exit 0
 fi
 
 PEERLOG="$(mktemp -t elevation-peer-XXXXXX)"
