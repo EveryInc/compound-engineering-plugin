@@ -98,8 +98,9 @@ First form ce-pov's own independent POV under the active subject-shape contract 
 
 When a panel is named or summoned, or when a cold POV may qualify for a proactive offer, read
 `references/cross-model-panel.md` before resolving participation or deciding whether to offer.
+A summons is detected by reasoning over the invocation context — the user's wording or a calling skill's args — and a caller's paraphrase never cancels it.
 Invoking a named peer, an explicit cross-check, or `oracle` authorizes the panel protocol's normal read-only consultation against this project. Announce the selected peers before dispatch; ask only when a retry adds an unexpected recipient or intermediary, or an active instruction requires separate approval. Peers inspect the shared working tree directly and cannot edit it. The panel protocol preserves an unbiased initial round, bounds evidence-based reconciliation while honoring user-supplied pass limits, and attributes only receipt-supported independence.
-Resolve and finish the panel branch, including any fold-in or reconciliation, before composing the user-facing result. If no panel runs, keep the solo result unchanged.
+Resolve and finish the panel branch, including any fold-in or reconciliation, before composing the user-facing result. Any POV delivered after a summons states which peers ran, or that none did and the observed reason; if no panel runs after a summons, keep the verdict content unchanged but add that panel-status line rather than shipping a bare solo verdict. A POV with no summons keeps the solo result unchanged with no panel note.
 
 Only then emit the final contract for the active subject shape. For an external-adoption question, the existing grade vocabulary, schema fields, tier sizing, and output economy apply unchanged. A document take or approach-set position follows its own explicit contract. Every shape is a **compact chat block, not a research report**: lead with the grade, bottom line, or position named by its contract; keep each field terse; and never reprint scout dossiers or raw search output.
 

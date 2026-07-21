@@ -304,7 +304,10 @@ note:
   to change the result.
 - **Partial:** name surviving and dropped targets and the observed failure state.
 - **No survivor:** deliver the solo POV with "cross-model check unavailable or
-  incomplete."
+  incomplete." When a summons was present but the panel branch never entered
+  (no reachable peers, or the branch never fired), still state that panel status —
+  which peers were attempted, or that none ran and the observed reason — rather
+  than shipping a bare solo verdict.
 
 Retain target, route, requested model, served model, and independence receipts in
 the panel record, but keep the default chat note decision-relevant: name the

@@ -114,6 +114,16 @@ describe("ce-pov cross-model panel contract", () => {
     expect(phaseThree).toMatch(/critique that position|reconciliation round/)
   })
 
+  test("discloses panel status after any summons even when no panel runs", async () => {
+    const skill = await skillFile("SKILL.md")
+    const panel = await skillFile("references/cross-model-panel.md")
+    const phaseThree = between(skill, "### Phase 3: Point of View", "### Phase 4: Follow-up")
+
+    expect(phaseThree).toContain("states which peers ran")
+    expect(phaseThree).toMatch(/caller's paraphrase never cancels it/)
+    expect(panel).toMatch(/summons was present but the panel branch never entered/)
+  })
+
   test("follow-up covers every subject shape while retaining adoption tier gates", async () => {
     const skill = await skillFile("SKILL.md")
     const phaseFour = skill.slice(skill.indexOf("### Phase 4: Follow-up"))
