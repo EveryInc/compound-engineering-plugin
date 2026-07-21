@@ -129,8 +129,14 @@ describe("elevation-dispatch worker", () => {
     expect(argv).toContain("high")
     expect(argv).toContain("stream-json")
     expect(argv).toContain("--verbose")
-    // read-only posture: an allowlist of Read/Glob/Grep only — no denylist, and
-    // no write/shell tool present at all (a later-added tool stays excluded).
+    // read-only posture: --tools RESTRICTS the available built-in set to these
+    // five (Write/Edit/Bash are not present at all — verified: --allowedTools
+    // alone only pre-approves and leaves every other tool available), and
+    // --allowedTools pre-approves the same five so --permission-mode dontAsk runs
+    // them without a prompt. --tools is the real boundary; --allowedTools keeps
+    // them functional. No denylist.
+    expect(argv).toContain("--tools")
+    expect(argv).toContain("Read,Glob,Grep,WebSearch,WebFetch")
     const ai = argv.indexOf("--allowedTools")
     expect(ai).toBeGreaterThan(-1)
     for (const tool of ["Read", "Glob", "Grep", "WebSearch", "WebFetch"]) {

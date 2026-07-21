@@ -32,7 +32,7 @@ Elevation is never a correctness dependency: every adapter failure degrades to t
 
 The elevated call gets repo **read** access (Read/Glob/Grep) and **multiple turns** on every adapter, so it can verify its brief rather than trust it — a single stateless call with a fixed packet forecloses the behavior that makes a high-reasoning model worth dispatching. It never gets write or shell access:
 
-- On the **Claude CLI** route this is flag-enforced — the worker passes `--allowedTools Read Glob Grep WebSearch WebFetch` (an allowlist, so a tool later added to the CLI is not silently permitted); the elevated call reads the repo and may check current facts on the web, while writes, shell, skills, and MCP stay unavailable.
+- On the **Claude CLI** route this is flag-enforced — the worker passes `--tools Read,Glob,Grep,WebSearch,WebFetch` to restrict the available built-in set, so Write/Edit/Bash are not present at all, plus `--allowedTools` for those same tools so `--permission-mode dontAsk` runs them without a prompt instead of denying them. `--allowedTools` alone only *pre-approves* — it leaves every other tool available — so `--tools` is the flag that actually enforces the read-only boundary. The elevated call reads the repo and may check current facts on the web, while writes, shell, skills, and MCP stay unavailable.
 - On the **native** route the subagent primitive exposes a model override but no per-dispatch tool restriction, so write/shell denial is an **instruction** to the subagent, not a hard guarantee.
 
 Hand over the working context as **file paths the subagent reads itself**, never a re-narrated prose brief. If a needed piece lives only in context, **write it to a fresh scratch file** (e.g. `mktemp` under the OS temp dir):

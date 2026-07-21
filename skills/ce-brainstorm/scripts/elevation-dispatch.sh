@@ -33,21 +33,26 @@ log() { printf '[elevation] %s\n' "$*" >&2; }
 
 EFFORT="high"   # settled: elevation runs at high effort
 
-# Read-only tool posture (R7): an ALLOWlist, not a denylist — only these tools
-# are available, so a tool later added to the CLI is not silently permitted.
-# The elevated step reads the repo (Read/Glob/Grep) and may check current facts
-# on the web (WebSearch/WebFetch) while authoring; it never needs Write/Bash/Task
-# or any mutating tool. Its output is returned prose, not a file write.
+# Read-only tool posture (R7): the available built-in set, not a denylist. The
+# elevated step reads the repo (Read/Glob/Grep) and may check current facts on
+# the web (WebSearch/WebFetch) while authoring; it never needs Write/Bash/Task or
+# any mutating tool. Its output is returned prose, not a file write.
 ALLOWED=(Read Glob Grep WebSearch WebFetch)
 
 build_cmd() {   # <model> -> sets CMD array (claude CLI, streaming, read-only)
   # --safe-mode suppresses the user environment's hooks, plugins, and MCP
-  # servers; --disable-slash-commands blocks skills — so the elevated call is
-  # locked to the allowlist regardless of what the invoking machine configures.
+  # servers; --disable-slash-commands blocks skills. --tools RESTRICTS the
+  # available built-in set to this list — Write/Edit/Bash are not present at all.
+  # This is the real read-only boundary: --allowedTools ALONE only pre-approves
+  # (verified — it leaves every other tool available), so --allowedTools here
+  # just lets --permission-mode dontAsk run these five without a prompt instead
+  # of denying them.
+  local csv; csv="$(IFS=,; printf '%s' "${ALLOWED[*]}")"
   CMD=(claude -p --model "$1" --effort "$EFFORT"
        --output-format stream-json --verbose
        --safe-mode --disable-slash-commands --strict-mcp-config
-       --permission-mode dontAsk --allowedTools "${ALLOWED[@]}"
+       --permission-mode dontAsk
+       --tools "$csv" --allowedTools "${ALLOWED[@]}"
        --max-turns "${ELEVATION_MAX_TURNS:-30}")
 }
 
