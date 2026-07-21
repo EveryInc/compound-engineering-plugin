@@ -60,6 +60,10 @@ But it stands alone just as well — many teams reach for `ce-plan` directly wit
 
 # Equivalent shorthand when a repeatable automation needs it
 /ce-plan turn the notification mute requirements into an implementation-ready plan output:html
+
+# Keep your session on a model like Opus, but send only the heavy planning
+# step to Fable -- surgical use of a strong-but-expensive model where it pays off
+/ce-plan use fable to turn the notification mute requirements into an implementation-ready plan
 ```
 
 Start with `ce-brainstorm` when the product shape is still unsettled; direct planning works best when the intended outcome is already clear.
