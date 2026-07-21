@@ -135,7 +135,10 @@ the Phase 4 handoff:
 
 1. **Complete** — no placeholders, `TBD`s, or half-written sections remain;
    every Outstanding Question is classified as `Resolve Before Planning` or
-   `Deferred to Planning`.
+   `Deferred to Planning`. When the coherent-work gate split a broader request,
+   the `work-relationships` section is present and carries the marker for the
+   resolved output format: `<!-- ce-section: work-relationships -->` in Markdown
+   or `data-ce-section="work-relationships"` on its wrapping `<section>` in HTML.
 2. **Consistent** — Goal Capsule, Requirements, Key Flows, Acceptance Examples,
    Scope Boundaries, and the `work-relationships` section do not contradict one
    another. Could a reader find a contradiction in each section in one pass? A
