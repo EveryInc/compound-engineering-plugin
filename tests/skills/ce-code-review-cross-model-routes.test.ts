@@ -637,6 +637,22 @@ describe("cross-model-adversarial-review normalization", () => {
     )
     expect(out.findings[0].title).toBe("unterminated block")
   }, 20_000)
+
+  test("codex stdout recovery handles an escaped quote-brace inside a JSON string", () => {
+    // A naive brace counter (pre-raw_decode) treats every "{" as a nesting
+    // level even inside a string, so an escaped \"{\" in a findings value
+    // pushes it one level too deep and it never unwinds back to zero.
+    const codexStub =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"reviewer":"adversarial","findings":[{"title":"t","evidence":"payload was literally \\"{\\" and stayed valid"}],"residual_risks":[],"testing_gaps":[]}'\n`
+    const { env } = sandbox(["codex"], codexStub)
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "HEAD", runDir], runDir, env)
+    expect(r.files).toContain("adversarial-codex.json")
+    const out = JSON.parse(
+      readFileSync(path.join(runDir, "adversarial-codex.json"), "utf8"),
+    )
+    expect(out.findings[0].title).toBe("t")
+  }, 20_000)
 })
 
 describe("cross-model-adversarial-review fixed-recipient dispatch", () => {

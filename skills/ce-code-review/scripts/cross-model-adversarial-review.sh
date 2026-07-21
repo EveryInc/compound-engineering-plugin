@@ -360,7 +360,7 @@ BASE_PROMPT="$(mktemp "${TMPDIR:-/tmp}/xmodel-base-XXXXXX")"
 PROMPT_FILE="$(mktemp "${TMPDIR:-/tmp}/xmodel-prompt-XXXXXX")"
 PEERLOG="$(mktemp "${TMPDIR:-/tmp}/xmodel-log-XXXXXX")"
 # Peer stderr goes to its own file, NOT merged into PEERLOG: PEERLOG must stay
-# clean stdout for the findings brace-match and the receipt jq-parse. An
+# clean stdout for the findings raw_decode scan and the receipt jq-parse. An
 # auth/quota/rate-limit message often lands on stderr, so capture it separately
 # and surface it in the skip evidence (grok's 402 is on stdout, others on stderr).
 PEERERR="$(mktemp "${TMPDIR:-/tmp}/xmodel-err-XXXXXX")"
@@ -530,7 +530,9 @@ run_timeout_cmd() {
   ACTIVE_PEER_PID=""
 }
 
-recover_findings_json() {
+# Decode each {...} object in raw stdout via raw_decode (string/escape-aware,
+# unlike brace counting) and keep the last one shaped like findings.
+recover_findings_json() {   # <logfile> <outfile>
   command -v python3 >/dev/null 2>&1 || return 1
   python3 - "$1" "$2" <<'PY' 2>/dev/null
 import sys, json
@@ -542,7 +544,7 @@ while True:
     if j < 0: break
     try:
         obj, end = dec.raw_decode(txt, j)
-    except ValueError:
+    except Exception:
         i = j + 1
         continue
     if isinstance(obj, dict) and isinstance(obj.get("findings"), list): best = obj

@@ -423,7 +423,7 @@ fi
 PROMPT_FILE="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-prompt-XXXXXX")"
 PEERLOG="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-log-XXXXXX")"
 # Peer stderr goes to its own file, NOT merged into PEERLOG: PEERLOG must stay
-# clean stdout for the findings brace-match and the receipt jq-parse. An
+# clean stdout for the findings raw_decode scan and the receipt jq-parse. An
 # auth/quota/rate-limit message often lands on stderr, so capture it separately
 # and surface it in the skip evidence (grok's 402 is on stdout, others on stderr).
 PEERERR="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-err-XXXXXX")"
@@ -604,7 +604,7 @@ while True:
     if j < 0: break
     try:
         obj, end = dec.raw_decode(txt, j)
-    except ValueError:
+    except Exception:
         i = j + 1
         continue
     if isinstance(obj, dict) and isinstance(obj.get("findings"), list): best = obj

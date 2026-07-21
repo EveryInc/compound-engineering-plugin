@@ -730,6 +730,23 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     expect(out.findings[0].title).toBe("unterminated block")
   }, 20_000)
 
+  test("codex stdout recovery handles an escaped quote-brace inside a JSON string", () => {
+    // A naive brace counter (pre-raw_decode) treats every "{" as a nesting
+    // level even inside a string, so an escaped \"{\" in a findings value
+    // pushes it one level too deep and it never unwinds back to zero.
+    const codexStub =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"reviewer":"adversarial","findings":[{"section":"X","title":"t","evidence":"payload was literally \\"{\\" and stayed valid"}]}'\n`
+    const { env } = sandbox(["codex"], codexStub)
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "adversarial", doc, "plan", "none", runDir], runDir, env)
+    expect(r.files).toContain("adversarial-codex.json")
+    const out = JSON.parse(
+      readFileSync(path.join(runDir, "adversarial-codex.json"), "utf8"),
+    )
+    expect(out.findings[0].title).toBe("t")
+  }, 20_000)
+
   test("the whole-doc sweep reviewer-name is accepted and normalizes to whole-doc-<provider>", () => {
     // R20/U9: the broad whole-document sweep runs under reviewer-name `whole-doc`.
     const stub =
