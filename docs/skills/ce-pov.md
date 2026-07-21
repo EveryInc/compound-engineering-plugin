@@ -89,7 +89,7 @@ The differentiator is reading *your* project: dependency manifests and lockfiles
 
 ### 4. Scout-based grounding keeps the verdict context clean
 
-Grounding runs in **scout sub-agents** that search in their own context and return a compact dossier plus a gist; the orchestrator reads dossiers on demand and reasons over the verdict on a clean context. This keeps noisy issue/PR/code search from crowding out the judgment. Dispatch is tier-sensitive — a reversible Tier-1 call runs a single combined pass; the full fleet is reserved for one-way decisions.
+Grounding runs in **scout sub-agents** that search in their own context and return a compact dossier plus a gist; the orchestrator reads dossiers on demand and reasons over the verdict on a clean context. This keeps noisy issue/PR/code search from crowding out the judgment. Dispatch is tier-sensitive — a reversible Tier-1 call runs a single combined pass; the full fleet is reserved for one-way decisions. When the load-bearing facts are already located and verified in context — common for warm invocations and reversible Tier-1 calls — ce-pov may verify them with bounded inline reads instead of dispatching scouts, while the prior-decision scan still runs either way.
 
 ### 5. Cold and warm invocation — one method
 
@@ -107,7 +107,9 @@ Adoption verdicts preserve the same five grades (Adopt / Trial / Hold / Reject /
 
 A peer never replaces ce-pov's own judgment. Name one or more providers to cross-check directly, ask in ordinary language for independent opinions from other models, use `oracle` as shorthand to fan out to as many as two reachable different-model peers, or accept a proactive offer on a decision with meaningful correction cost. Named peers are honored exactly and are not capped. The skill announces the selected peers and proceeds read-only; it asks only when a retry introduces an unexpected recipient/intermediary or an active instruction requires separate approval.
 
-Peers inspect the shared working tree directly. When a proposal or document already exists in the project, ce-pov points peers to it instead of constructing duplicate review packets. The initial independent round includes the subject but withholds ce-pov's conclusion and every other voice's judgment. A critique request includes the position being challenged because that position is then the subject.
+Peers inspect the shared working tree directly. When a proposal or document already exists in the project, ce-pov points peers to it instead of constructing duplicate review packets. The initial independent round carries the framed question, subject, read scope, and evidence — but withholds ce-pov's conclusion, its argument (risk lists, decisive premises, advocacy, evaluative labels), and every other voice's judgment; the host's case enters at the reconcile exchange, its designed home. When the subject is itself an already-formed position — ce-pov's prior take or your own view — that position ships as the subject and peers return their own verdict on the underlying question rather than capitulating to it. A critique request includes the position being challenged because that position is then the subject.
+
+A POV delivered after any panel summons always reports panel status — which peers ran, or that none did and the observed reason — so a dropped, unreachable, or never-entered panel never silently ships as a bare solo verdict.
 
 When voices materially disagree, they get up to two reconciliation exchanges by default — so a full default run is **up to three exchanges total**: one blind independent round plus at most two reconciliations. Before each exchange ce-pov verifies disputed, decision-changing project claims and gives every voice the same evidence delta (`verified`, `contradicted`, or `unverifiable`) plus the already-formed positions. Each peer reports whether it `moved` or `held`. A user-supplied pass or round limit overrides the default.
 
