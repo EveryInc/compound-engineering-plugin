@@ -203,6 +203,12 @@ root, and pre-create the round output directory as private scratch outside the
 repository. For named peers, start one job per exact target; for a selected panel,
 start one job per selected peer. Start all jobs before waiting.
 
+Each worker writes `<run-dir>/pov-<target>.json`, where `<target>` is the resolved
+route target with `grok-cli`/`grok-cursor` collapsing to `grok`. Pass exactly that
+path as `--result-path` to `peer-job-runner.py start`, so `done` is keyed to the
+artifact and `result <job-id>` reads it without guessing the filename or the
+host's provider key.
+
 Record every job id and the epoch after the final start. Poll all jobs in
 bounded slices with
 `python3 "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 --json <job-ids...>`.

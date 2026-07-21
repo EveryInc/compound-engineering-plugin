@@ -29,7 +29,9 @@
 #                     Point to repository files instead of copying their contents;
 #                     the peer grounds itself from the shared working tree.
 #   <run-dir>         existing private dir outside the repository; output ->
-#                     <run-dir>/pov-<provider>.json
+#                     <run-dir>/pov-<target>.json, where <target> is the resolved
+#                     <fixed-route> target (grok-cli/grok-cursor both collapse to
+#                     grok) -- NOT the <host-provider> key.
 #
 # Test/introspection mode (no model call, no side effects):
 #   cross-model-pov.sh --emit-adapter <route>

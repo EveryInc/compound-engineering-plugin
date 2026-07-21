@@ -265,6 +265,15 @@ describe("ce-pov cross-model panel contract", () => {
     expect(prose).toMatch(/new finite cap, never an open-ended loop/)
   })
 
+  test("names the peer result artifact and pins result-path at job start", async () => {
+    const panel = await skillFile("references/cross-model-panel.md")
+    const prose = compact(panel)
+
+    expect(panel).toContain("pov-<target>.json")
+    expect(prose).toContain("grok-cli`/`grok-cursor` collapsing to `grok`")
+    expect(prose).toMatch(/Pass exactly that\s+path as `--result-path`/)
+  })
+
   test("keeps include and exclude path filters explicitly cooperative in the worker prompt", async () => {
     const worker = await skillFile("scripts/cross-model-pov.sh")
     const scopePrompt = between(worker, '<repository-read-scope enforcement=', "<subject-payload>")
