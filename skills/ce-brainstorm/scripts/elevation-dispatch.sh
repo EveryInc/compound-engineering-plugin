@@ -48,10 +48,19 @@ build_cmd() {   # <model> -> sets CMD array (claude CLI, streaming, read-only)
   # just lets --permission-mode dontAsk run these five without a prompt instead
   # of denying them.
   local csv; csv="$(IFS=,; printf '%s' "${ALLOWED[*]}")"
+  # The handoff scratch files (research/dialogue) live in the OS temp dir, which
+  # is outside the launch dir. Claude's file access defaults to the launch dir
+  # and is extended via --add-dir, so add the OS temp root(s). This is read-only
+  # (only Read/Glob/Grep are available) and makes the handoff reads guaranteed by
+  # the documented permission model rather than a version's tool-allow behavior.
+  local tmproot; tmproot="${TMPDIR:-/tmp}"; tmproot="${tmproot%/}"
+  local add_dirs=(--add-dir "$tmproot")
+  [ "$tmproot" != "/tmp" ] && add_dirs+=(--add-dir /tmp)
   CMD=(claude -p --model "$1" --effort "$EFFORT"
        --output-format stream-json --verbose
        --safe-mode --disable-slash-commands --strict-mcp-config
        --permission-mode dontAsk
+       "${add_dirs[@]}"
        --tools "$csv" --allowedTools "${ALLOWED[@]}"
        --max-turns "${ELEVATION_MAX_TURNS:-30}")
 }

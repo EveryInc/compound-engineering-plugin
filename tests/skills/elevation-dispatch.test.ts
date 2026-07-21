@@ -137,6 +137,11 @@ describe("elevation-dispatch worker", () => {
     // them functional. No denylist.
     expect(argv).toContain("--tools")
     expect(argv).toContain("Read,Glob,Grep,WebSearch,WebFetch")
+    // handoff scratch files live in the OS temp dir (outside the launch dir);
+    // --add-dir extends read access there so they stay readable.
+    const di = argv.indexOf("--add-dir")
+    expect(di).toBeGreaterThan(-1)
+    expect(argv[di + 1]).toBeTruthy()
     const ai = argv.indexOf("--allowedTools")
     expect(ai).toBeGreaterThan(-1)
     for (const tool of ["Read", "Glob", "Grep", "WebSearch", "WebFetch"]) {
