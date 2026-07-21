@@ -17,6 +17,8 @@ import path from "node:path"
 const tempRoots: string[] = []
 const REPO_ROOT = path.join(__dirname, "../..")
 const DIRTY_MARKER = path.join(REPO_ROOT, ".xmodel-cr-test-dirty")
+const DIRTY_MARKER_REL = ".xmodel-cr-test-dirty"
+let dirtyTreeStaged = false
 function mkTempRoot(prefix: string): string {
   const dir = mkdtempSync(path.join(tmpdir(), prefix))
   tempRoots.push(dir)
@@ -24,7 +26,11 @@ function mkTempRoot(prefix: string): string {
 }
 afterAll(() => {
   for (const dir of tempRoots) rmSync(dir, { recursive: true, force: true })
-  if (existsSync(DIRTY_MARKER)) rmSync(DIRTY_MARKER, { force: true })
+  if (dirtyTreeStaged || existsSync(DIRTY_MARKER)) {
+    spawnSync("git", ["reset", "HEAD", "--", DIRTY_MARKER_REL], { cwd: REPO_ROOT })
+    if (existsSync(DIRTY_MARKER)) rmSync(DIRTY_MARKER, { force: true })
+    dirtyTreeStaged = false
+  }
 })
 
 const REAL_TOOLS = [
@@ -119,10 +125,12 @@ function makeRunDir(): string {
   return mkTempRoot("xmodel-cr-run-")
 }
 
-/** Untracked file so `git diff HEAD --` is non-empty on a clean checkout. */
+/** Stage a fixture file so `git diff --quiet HEAD --` sees changes (untracked alone is ignored). */
 function ensureDirtyTree(cwd: string): void {
   if (cwd !== REPO_ROOT) return
   writeFileSync(DIRTY_MARKER, `fixture ${Date.now()}\n`)
+  const r = spawnSync("git", ["add", "--", DIRTY_MARKER_REL], { cwd: REPO_ROOT })
+  if (r.status === 0) dirtyTreeStaged = true
 }
 
 /** Run the script and return exit code, stdout, stderr, and run-dir file list. */
