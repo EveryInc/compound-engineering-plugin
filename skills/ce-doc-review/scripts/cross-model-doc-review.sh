@@ -13,7 +13,7 @@
 # Independence is by PROVIDER, not CLI brand. A provider is reached by a ROUTE:
 # its dedicated CLI, or (for fixed grok-cursor / composer routes) cursor-agent. All
 # activated lenses run on ONE model per provider at high reasoning, except codex
-# on medium; composer's -fast tier is its ceiling (accepted exceptions).
+# on extra-high; composer's -fast tier is its ceiling (accepted exceptions).
 #
 # Usage:
 #   cross-model-doc-review.sh <host-provider> <candidates> <reviewer-name> \
@@ -79,7 +79,7 @@ log()  { printf '[cross-model-doc] %s\n' "$*" >&2; }
 skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no output
 
 # --- model + reasoning per provider ----------------------------------------
-# ONE model per provider at high reasoning, except codex on medium (supersedes
+# ONE model per provider at high reasoning, except codex on extra-high (supersedes
 # the old per-lens sol/terra split). Concrete IDs are the CURRENT instance of the
 # tier principle and the single maintenance point when model families change.
 M_CODEX="gpt-5.6-luna"         # codex CLI            (-c model_reasoning_effort="xhigh")
