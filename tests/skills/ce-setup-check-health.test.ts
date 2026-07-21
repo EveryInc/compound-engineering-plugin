@@ -108,6 +108,16 @@ describe("ce-setup check-health", () => {
     expect(skill).not.toMatch(/Codex delegation defaults/i)
   })
 
+  test("advertises model-elevation keys and not the retired fable keys", async () => {
+    const template = await readFile(configTemplate, "utf8")
+
+    expect(template).toContain("plan_model")
+    expect(template).toContain("brainstorm_model")
+    expect(template).not.toContain("plan_use_fable")
+    expect(template).not.toContain("brainstorm_use_fable")
+    expect(template).not.toContain("fable_nudge")
+  })
+
   test("routes retired and malformed dormant engine settings into preference repair", async () => {
     const skill = await readFile(path.join(repoRoot, "skills", "ce-setup", "SKILL.md"), "utf8")
     const step3 = skill.match(/### Step 3:[\s\S]*?(?=### Step 4:)/)?.[0] ?? ""
@@ -199,6 +209,27 @@ describe("ce-setup check-health", () => {
     }
   })
 
+  async function repoWithLocalConfig(body: string): Promise<string> {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+    await initGitRepo(root)
+    await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+    await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.example.yaml"))
+    await writeFile(path.join(root, ".compound-engineering", "config.local.yaml"), body)
+    await writeFile(path.join(root, ".gitignore"), ".compound-engineering/*.local.yaml\n")
+    return root
+  }
+
+  test("warns on an active retired fable key and names its replacement", async () => {
+    const root = await repoWithLocalConfig("plan_use_fable: true\n")
+    try {
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+      expect(result.stdout).toContain("Retired config key 'plan_use_fable'")
+      expect(result.stdout).toContain("plan_model")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   test("commented or missing work-engine keys preserve native execution", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
 
@@ -210,6 +241,40 @@ describe("ce-setup check-health", () => {
       expect(result.exitCode).toBe(0)
       expect(result.stdout).toContain("CE Work implementation engine: native (setting is commented or missing)")
       expect(result.stdout).not.toContain("prefer ->")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("does not warn on a commented retired key", async () => {
+    const root = await repoWithLocalConfig("# plan_use_fable: true\n")
+    try {
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+      expect(result.stdout).not.toContain("Retired config key")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("does not warn when only the new model keys are set", async () => {
+    const root = await repoWithLocalConfig("plan_model: fable\nbrainstorm_model: opus\n")
+    try {
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+      expect(result.stdout).not.toContain("Retired config key")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("does not warn or error when no local config exists", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.example.yaml"))
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).not.toContain("Retired config key")
     } finally {
       await rm(root, { recursive: true, force: true })
     }

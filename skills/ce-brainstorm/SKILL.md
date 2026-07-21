@@ -241,7 +241,7 @@ Follow the Interaction Rules above. Use the platform's blocking question tool wh
 
 ### Phase 2: Explore Approaches
 
-**Reasoning elevation (Claude Code only).** Before generating approaches, if positively Claude Code (`CLAUDECODE=1`, not Cursor/Codex), load `references/reasoning-elevation.md` and follow it — it may dispatch approach generation to a higher-reasoning model when the user has opted in, and it owns the completion-time discoverability tip. On any non-Claude host, skip it entirely — proceed on the session model with no mention. If a prompt names a model this skill does not recognize on this harness, proceed on the session model without comment.
+**Model elevation.** Before generating approaches, load `references/reasoning-elevation.md` and follow it. It resolves whether the user chose a model for approach generation — from this run's prompt or the `brainstorm_model` config key — and if so dispatches that one step to the chosen model on any harness, with a read-only verifying handoff and transparent fallback to your session model. When no model is chosen it is a no-op; proceed normally. It runs the same on every harness — do not gate it on the host.
 
 If multiple plausible directions remain, propose **2-3 concrete approaches** based on research and conversation. Otherwise state the recommended direction directly.
 

@@ -677,7 +677,7 @@ Fires **whenever Phase 0.2 resolved an upstream Product Contract source** — a 
 
 #### 5.2 Write Plan File
 
-**Reasoning elevation (Claude Code only).** Before authoring the plan, if positively Claude Code (`CLAUDECODE=1`, not Cursor/Codex), load `references/reasoning-elevation.md` and follow it — it may dispatch the interpret-findings-then-author step to a higher-reasoning model when the user has opted in, and it owns the completion-time discoverability tip. On any non-Claude host, skip it entirely — proceed on the session model with no mention. If a prompt names a model this skill does not recognize on this harness, proceed on the session model without comment.
+**Model elevation.** Before authoring the plan, load `references/reasoning-elevation.md` and follow it. It resolves whether the user chose a model for the interpret-findings-then-author step — from this run's prompt or the `plan_model` config key — and if so dispatches that one step to the chosen model on any harness, with a read-only verifying handoff and transparent fallback to your session model. When no model is chosen it is a no-op; proceed normally. It runs the same on every harness — do not gate it on the host.
 
 **REQUIRED: Write the plan file to disk before presenting any options.**
 

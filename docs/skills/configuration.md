@@ -10,7 +10,7 @@ Config is a local default, not another agent-instructions file:
 
 - A direct instruction for the current task wins over a conflicting config preference.
 - Active session and project/user instructions already loaded by the harness can override or narrow config. Depending on the harness, project instructions may come from `AGENTS.md`, `CLAUDE.md`, or another native mechanism.
-- Each skill's runtime contract still decides whether a setting applies. For example, pipeline execution forces planning artifacts to markdown, and Fable elevation is Claude Code-only.
+- Each skill's runtime contract still decides whether a setting applies. For example, pipeline execution forces planning artifacts to markdown, and model elevation takes effect on whichever harness can reach the requested model.
 - Some skills define a more specific preference order for their own routing. Their skill page documents that order.
 
 Because the file is gitignored and belongs to one checkout, linked worktrees do not automatically inherit it. CE Work resolves delegation before it creates detached worker worktrees, so an already-selected route is carried into that run; a separate interactive session opened directly in another worktree uses that worktree's own config.
@@ -23,7 +23,7 @@ All settings are optional. Commented examples are documentation, not active valu
 |---|---|---|
 | [`ce-ideate`](./ce-ideate.md), [`ce-brainstorm`](./ce-brainstorm.md), [`ce-plan`](./ce-plan.md) | `ideate_output`, `brainstorm_output`, `plan_output` | Artifact format: `md` or `html`. Defaults are HTML for ideation and markdown for brainstorms/plans. Pipeline contexts force markdown. |
 | [`ce-plan`](./ce-plan.md) | `plan_skip_scoping_confirm` | `true` skips the normal pre-plan scope confirmation; default `false`. It does not suppress genuine blockers or the post-plan menu. |
-| [`ce-plan`](./ce-plan.md), [`ce-brainstorm`](./ce-brainstorm.md) | `plan_use_fable`, `brainstorm_use_fable`, `fable_nudge` | Claude Code-only reasoning elevation. Elevation defaults off; the one-time nudge defaults on. |
+| [`ce-plan`](./ce-plan.md), [`ce-brainstorm`](./ce-brainstorm.md) | `plan_model`, `brainstorm_model` | Model elevation: send the reasoning-heavy step to a named model (e.g. `fable`, `opus`) instead of the session model. Value is a model alias; a prompt request overrides it. Takes effect on every harness — natively where the host serves the model, else via the Claude CLI, else inline. No default (elevation off). |
 | [`ce-work`](./ce-work.md), [`lfg`](./lfg.md) | `work_engine_mode`, `work_engine_preferences` | Ordered implementation-author preferences. Mode is `off`, `prefer`, or `require`; each entry has a `harness` and optional `model`. See [Implementation routing](#implementation-routing). |
 | [`ce-code-review`](./ce-code-review.md), [`ce-doc-review`](./ce-doc-review.md) | `cross_model_peer` | Preferred cross-model review target: `codex`, `claude`, `grok`, `cursor`, or `composer`. The review skills still apply host-independence and route-availability gates. |
 | [`ce-commit-push-pr`](./ce-commit-push-pr.md) | `pr_teaching_section`, `pr_teaching_archive`, `auto_babysit` | Toggle PR concept teaching, opt into explainer archival, or opt out of the default babysit handoff. Defaults: `true`, `false`, and `true`. |
