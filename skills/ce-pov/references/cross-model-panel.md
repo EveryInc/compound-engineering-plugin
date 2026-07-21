@@ -160,7 +160,21 @@ merely to brief the peer.
 For an initial `independent` round, exclude ce-pov's position and every other
 voice's conclusion. The proposal, document, or approach set being judged is the
 subject and remains fully available; independence means withholding prior
-judgments about it, not withholding the artifact. For `skeptic` mode, include
+judgments about it, not withholding the artifact. The host's own argument —
+candidate-risk enumerations, decisive premises stated as fact, advocacy framing,
+and evaluative option labels — is reconcile-round material, not round-1 material;
+the independent round carries only the framed question, the subject, the read
+scope, and the evidence. Define round-1 evidence by provenance: source-located
+facts and the user's decision-relevant need are round-1 material, while host
+interpretations, risk rankings, and recommended consequences are not (for
+example, "the file at PATH contains X" is round-1 evidence, while "X is the risky
+option" waits for reconcile). Label inlined conversation-only material as such,
+and carry the user's stated goal — including its intensity — when it bears on the
+decision. State in the payload that rejecting every supplied option, or the
+framing itself, is a valid position. When ce-pov authored the subject in-session,
+present the options symmetrically in the payload's own words even though the full
+subject document remains attached. Write this as a floor with one example, not an
+exhaustive catalog of pre-arguing patterns. For `skeptic` mode, include
 ce-pov's position because critiquing it is the task. Reconciliation payloads
 follow Section 5 and deliberately include already-formed positions.
 

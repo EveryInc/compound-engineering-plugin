@@ -201,6 +201,10 @@ describe("ce-pov cross-model panel contract", () => {
 
     expect(prose).toMatch(/initial `independent` round, exclude ce-pov's position and every other voice's conclusion/)
     expect(prose).toMatch(/proposal, document, or approach set.*subject.*fully available/)
+    expect(prose).toMatch(/host's own argument.*is reconcile-round material, not round-1 material/)
+    expect(prose).toMatch(/Define round-1 evidence by provenance/)
+    expect(prose).toContain("rejecting every supplied option, or the framing itself, is a valid position")
+    expect(prose).toContain("present the options symmetrically in the payload's own words")
     expect(prose).toMatch(/For `skeptic` mode, include ce-pov's position/)
     expect(prose).toMatch(/Reconciliation payloads.*include already-formed positions/)
     expect(prose).toMatch(/Do not duplicate readable files/)
