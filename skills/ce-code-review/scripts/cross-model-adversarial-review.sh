@@ -430,7 +430,10 @@ if [ "$ESTIMATED_DIFF_TOKENS" -gt "$INLINE_MAX_TOKENS" ] || [ "$DIFF_FILES" -gt 
 fi
 
 # --- run machinery ---------------------------------------------------------
-IDLE_SECS="${CROSS_MODEL_IDLE_SECS:-180}"
+# Idle cap must exceed the peer's worst-case silent turn: Codex --json is
+# event-line (not token) output, so a slow xhigh reasoning turn (Luna p95 ~242s,
+# max ~419s) can go quiet past a low cap and be reaped before turn.completed.
+IDLE_SECS="${CROSS_MODEL_IDLE_SECS:-480}"
 HARD_SECS="${CROSS_MODEL_HARD_SECS:-600}"
 TO_BIN="$(command -v gtimeout || command -v timeout || true)"
 
