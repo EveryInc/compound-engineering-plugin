@@ -1338,14 +1338,69 @@ def _session_started_at(value):
     return _iso(parsed.astimezone(timezone.utc))
 
 
+def _lock_file(lf, exclusive=True):
+    """Take a blocking advisory lock on an open file handle.
+
+    POSIX uses flock. Windows has no fcntl module at all, so `import fcntl`
+    raised ModuleNotFoundError and took every pr-snapshot subcommand down with
+    it; msvcrt.locking is the platform equivalent.
+
+    Two behavioural differences on Windows, both safe here:
+
+    - msvcrt locks a byte RANGE rather than the whole file, so it takes byte 0.
+      Every caller uses the same dedicated lock file, so one byte is sufficient
+      to serialize them.
+    - msvcrt has no shared mode, so a shared request becomes exclusive. That is
+      more conservative than the POSIX path, never less: it can only reduce
+      concurrency between readers, never admit a racing writer.
+
+    LK_NBLCK in a retry loop rather than LK_LOCK, because LK_LOCK gives up after
+    ten seconds and raises - which would surface as a spurious failure on a
+    contended state dir rather than as the wait it should be.
+    """
+    try:
+        import fcntl
+    except ImportError:
+        import msvcrt
+        import time
+        lf.seek(0)
+        deadline = time.time() + 30
+        while True:
+            try:
+                msvcrt.locking(lf.fileno(), msvcrt.LK_NBLCK, 1)
+                return
+            except OSError:
+                if time.time() > deadline:
+                    raise
+                time.sleep(0.05)
+    else:
+        fcntl.flock(lf, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+
+
+def _unlock_file(lf):
+    try:
+        import fcntl
+    except ImportError:
+        import msvcrt
+        lf.seek(0)
+        try:
+            msvcrt.locking(lf.fileno(), msvcrt.LK_UNLCK, 1)
+        except OSError:
+            # Already released, or the handle is closing. Unlocking is
+            # best-effort: the caller's `with` closes the handle either way,
+            # which drops the lock.
+            pass
+    else:
+        fcntl.flock(lf, fcntl.LOCK_UN)
+
+
 @contextmanager
 def locked_state(state_dir, pr, repo, now):
-    import fcntl
     os.makedirs(state_dir, exist_ok=True)
     lock_path = os.path.join(state_dir, "lock")
     state_path = os.path.join(state_dir, "state.json")
     with open(lock_path, "w") as lf:
-        fcntl.flock(lf, fcntl.LOCK_EX)
+        _lock_file(lf)
         if os.path.exists(state_path):
             with open(state_path) as f:
                 state = json.load(f)
@@ -1362,7 +1417,7 @@ def locked_state(state_dir, pr, repo, now):
         os.fsync(tmp.fileno())
         tmp.close()
         os.replace(tmp.name, state_path)
-        fcntl.flock(lf, fcntl.LOCK_UN)
+        _unlock_file(lf)
 
 
 def _fetch_snapshot(args):
@@ -1571,14 +1626,13 @@ def _process_identity(pid):
 
 @contextmanager
 def _watch_lock(state_dir, exclusive):
-    import fcntl
     os.makedirs(state_dir, exist_ok=True)
     with open(os.path.join(state_dir, "lock"), "w") as lf:
-        fcntl.flock(lf, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+        _lock_file(lf, exclusive)
         try:
             yield
         finally:
-            fcntl.flock(lf, fcntl.LOCK_UN)
+            _unlock_file(lf)
 
 
 def _watch_candidate_path(args):
