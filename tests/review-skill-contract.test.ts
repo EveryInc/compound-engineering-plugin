@@ -390,12 +390,43 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/Bounded foreground dispatch/)
     expect(content).toMatch(/active-agent\/thread\/concurrency-limit spawn errors as backpressure/)
     expect(content).toMatch(/background execution off/)
-    expect(content).not.toMatch(/parallel dispatch|bounded parallel scheduler/i)
+    // Default is a concurrent foreground batch sized to the host cap, degrading to serial
+    // where the harness does not run same-message calls concurrently — not strict serial.
+    expect(content).toMatch(/foreground concurrent batch/i)
+    expect(content).toMatch(/degrades to serial/i)
+    expect(content).not.toMatch(/exactly one reviewer|one reviewer at a time|one at a time/i)
+    // The anti-poll ban targets detached bash/CLI delegate polling, not subagent concurrency,
+    // so the rationale must name the detached delegate rather than forbid concurrency itself.
+    expect(content).toMatch(/detached/i)
     // Exceptions are restated at point of action so the agent does not have to recall them
     // from the Model tiering subsection above while advancing the foreground queue.
     expect(content).toContain("correctness-reviewer")
     expect(content).toContain("security-reviewer")
     expect(content).toContain("adversarial-reviewer")
+  })
+
+  test("Stage 4 concurrent-batch dispatch preserves cap-safety and determinism", async () => {
+    const content = await readRepoFile(
+      "skills/ce-code-review/references/dispatch-reviewers.md",
+    )
+
+    // Batch size is learned from the host, never a fixed constant, so it can't overrun a cap.
+    expect(content).toMatch(/never hard-code a number/i)
+    expect(content).toMatch(/active-agent cap/i)
+
+    // A requested batch larger than the host cap clamps and drops no reviewer (restores #1031's
+    // backpressure guarantee per batch slot instead of the strict pool-of-one).
+    expect(content).toMatch(/dropping no reviewer/i)
+    expect(content).toMatch(/retried in a later batch/i)
+
+    // Determinism does not depend on completion order: findings are order-independent and
+    // stable numbers are assigned downstream after the post-merge sort.
+    expect(content).toMatch(/completion order cannot change any finding/i)
+    expect(content).toMatch(/after the post-merge sort/i)
+
+    // Anti-poll invariant still holds: no sleep/status/wakeup loops to await reviewers.
+    expect(content).toMatch(/scheduled wakeups/i)
+    expect(content).toMatch(/still waiting/i)
   })
 
   test("Stage 5 synthesis uses anchor gate and one-anchor promotion", async () => {
