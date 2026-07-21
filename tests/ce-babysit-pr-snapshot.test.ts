@@ -736,6 +736,58 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(after.invocation_backstop_seconds).toBe(3 * 24 * 60 * 60)
   }, 20000)
 
+  test("checkpoint mode: an agent snapshot with a stale heartbeat never accumulates dead time", () => {
+    // KTD4 scope guard: only the in-session watch (watch_generation) accumulates. A plain agent
+    // snapshot bumps the heartbeat with accumulate=False, so checkpoint/durable runs stay wall-clock.
+    const fetch = fetchFile(dir, "checkpoint.json", quietCurrencyFixture())
+    snapshot(state, fetch)
+    patchState(state, { started_at: isoAgo(6 * 3600), last_activity_at: isoAgo(6 * 3600),
+      dead_time_seconds: 0 })
+    const observed = snapshot(state, fetch) // plain (non-watch) agent snapshot
+    expect(readState(state).dead_time_seconds).toBe(0)
+    // Wall-clock retained: elapsed reflects the full ~6h with nothing refunded.
+    expect(observed.invocation_elapsed_seconds).toBeGreaterThan(6 * 3600 - 120)
+  }, 20000)
+
+  test("an agent mark bumps the activity heartbeat without accumulating dead time", () => {
+    // A long tick that only marks keeps the heartbeat fresh, so the next watch poll charges nothing.
+    const fetch = fetchFile(dir, "markbump.json", FAILING_ACTIONABLE)
+    snapshot(state, fetch)
+    patchState(state, { last_activity_at: isoAgo(6 * 3600), dead_time_seconds: 0 })
+    mark(state, ["--check", "CI/test"])
+    const after = readState(state)
+    expect(after.dead_time_seconds).toBe(0)
+    expect(new Date(after.last_activity_at).getTime()).toBeGreaterThan(Date.now() - 60 * 1000)
+  }, 20000)
+
+  test("clock-backward safety: a future heartbeat/anchor never produces negative accounting", () => {
+    const fetch = fetchFile(dir, "clockback.json", FAILING_ACTIONABLE)
+    snapshot(state, fetch)
+    patchState(state, { started_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+      last_activity_at: new Date(Date.now() + 3600 * 1000).toISOString(), dead_time_seconds: 0 })
+    const wake = watch(state, fetch)
+    expect(wake.reason).not.toBe("max-runtime")
+    const after = readState(state)
+    expect(after.dead_time_seconds).toBeGreaterThanOrEqual(0)
+  }, 20000)
+
+  test("continue-invocation adopting a new id into a used state dir resets the active-time clock", () => {
+    // Regression: adopting a fresh invocation must not inherit a prior invocation's dead time.
+    const fetch = fetchFile(dir, "adopt.json", quietCurrencyFixture())
+    snapshot(state, fetch)
+    patchState(state, { dead_time_seconds: 5000, last_activity_at: isoAgo(6 * 3600) })
+    const prior = readState(state)
+    const r = spawnSync("python3", [SCRIPT, "snapshot", "--pr", "1", "--repo", "o/r",
+      "--state-dir", state, "--fetch-file", fetch, "--continue-invocation",
+      "--invocation-id", "adopted-new-id", "--session-started-at", prior.started_at,
+      "--invocation-budget-seconds", String(prior.invocation_budget_seconds)],
+      { encoding: "utf8" })
+    expect(r.status, r.stderr).toBe(0)
+    const after = readState(state)
+    expect(after.invocation_id).toBe("adopted-new-id")
+    expect(after.dead_time_seconds).toBe(0)
+  }, 20000)
+
   test("branch currency: a carried semantic park wakes only for inspection and unchanged evidence stays parked", () => {
     const dirty = quietCurrencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
     const original = snapshot(state, fetchFile(dir, "currency-inspect-1.json", dirty))

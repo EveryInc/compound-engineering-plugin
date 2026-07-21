@@ -1344,8 +1344,10 @@ def _advance_activity(state, now, threshold=DEAD_TIME_THRESHOLD_SECONDS, accumul
     Every watch poll and every agent snapshot/mark marks activity. A gap wider than `threshold`
     means the whole process was not running — a suspended machine — so, when accumulating, the
     excess beyond the threshold is charged to dead time and later excluded from active elapsed.
-    Agent snapshots/marks bump the heartbeat with `accumulate=False`, so a long active agent tick
-    keeps the heartbeat fresh and is never refunded (dead time only ever grows in the watch loop).
+    Agent snapshots/marks bump the heartbeat with `accumulate=False`, so active agent work keeps the
+    heartbeat fresh and is not refunded as long as the agent touches state (snapshots or marks) within
+    the threshold; a single silent tick longer than the threshold is the coarse-discriminator limit
+    the plan defers, bounded by the wall-clock backstop. Dead time only ever grows in the watch loop.
     Clock-backward safe: `_elapsed` floors negative deltas at 0 and the accumulator never decreases.
     """
     last = state.get("last_activity_at") or state.get("started_at")
@@ -1459,6 +1461,11 @@ def _apply_invocation(box, args, now):
         state["invocation_id"] = invocation_id
         state["started_at"] = requested_started_at
         state["invocation_budget_seconds"] = requested_budget
+        # Adopting a new invocation into this state dir establishes a fresh active-time clock, just
+        # like --start: never inherit a prior invocation's accumulated dead time or stale heartbeat.
+        state["last_activity_at"] = requested_started_at
+        state["dead_time_seconds"] = 0.0
+        state.setdefault("invocation_backstop_seconds", DEFAULT_INVOCATION_BACKSTOP_SECONDS)
         return
 
     persisted_id = state.get("invocation_id")
