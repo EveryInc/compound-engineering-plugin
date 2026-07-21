@@ -98,18 +98,23 @@ write_result() {   # <json-string> -> atomic publish to RESULT_PATH
 # negative-slice bug that erased sub-300-char evidence in the review worker.
 bounded_failure_evidence() { tail -c 800 "$PEERLOG" 2>/dev/null || true; }
 
+# Expected served-id prefix for a requested model alias, or empty if unknown.
+model_prefix() {   # <requested> -> prefix | ""
+  case "$1" in
+    fable)    printf 'claude-fable-' ;;
+    opus)     printf 'claude-opus-' ;;
+    sonnet)   printf 'claude-sonnet-' ;;
+    haiku)    printf 'claude-haiku-' ;;
+    claude-*) printf '%s' "$1" ;;
+  esac
+}
+
 # Requested family vs served id (R6/R16). matched | mismatch | unverified.
 classify_receipt() {   # <requested> <served>
-  local req="$1" served="$2" prefix
+  local served="$2" prefix
   { [ -z "$served" ] || [ "$served" = "unverified" ]; } && { printf 'unverified'; return; }
-  case "$req" in
-    fable)    prefix='claude-fable-' ;;
-    opus)     prefix='claude-opus-' ;;
-    sonnet)   prefix='claude-sonnet-' ;;
-    haiku)    prefix='claude-haiku-' ;;
-    claude-*) prefix="$req" ;;
-    *)        printf 'unverified'; return ;;
-  esac
+  prefix="$(model_prefix "$1")"
+  [ -z "$prefix" ] && { printf 'unverified'; return; }
   case "$served" in
     "$prefix"*) printf 'matched' ;;
     *)          printf 'mismatch' ;;
@@ -178,8 +183,15 @@ build_cmd "$MODEL"
 run_codex_cmd
 
 # stream-json terminal event is the last line: {"type":"result", .result, .modelUsage}
+# jq `keys` is sorted, so keys[0] is not necessarily the served model when
+# modelUsage carries an auxiliary model too; prefer the key matching the
+# requested family's prefix, falling back to keys[0], then "unverified".
 EVENT="$(tail -1 "$PEERLOG" 2>/dev/null || true)"
-SERVED="$(printf '%s' "$EVENT" | jq -r '.modelUsage // {} | keys[0] // "unverified"' 2>/dev/null || printf 'unverified')"
+PREFIX="$(model_prefix "$MODEL")"
+SERVED="$(printf '%s' "$EVENT" | jq -r --arg p "$PREFIX" \
+  '(.modelUsage // {} | keys) as $k
+   | (if $p != "" then first($k[] | select(startswith($p))) else empty end) // $k[0] // "unverified"' \
+  2>/dev/null || printf 'unverified')"
 OUTPUT="$(printf '%s' "$EVENT" | jq -r '.result // empty' 2>/dev/null || true)"
 
 if [ "$RUN_SUCCEEDED" = true ] && [ -n "$OUTPUT" ]; then

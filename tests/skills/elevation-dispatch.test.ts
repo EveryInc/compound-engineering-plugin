@@ -27,7 +27,7 @@ const REAL_TOOLS = [
   "bash", "sh", "jq", "date", "sed", "tr", "cat", "wc", "mktemp", "env",
   "sleep", "rm", "mv", "chmod", "printf", "kill", "tail",
 ]
-function realToolPaths(): Array<[string, string]> {
+function resolveRealToolPaths(): Array<[string, string]> {
   const out: Array<[string, string]> = []
   for (const tool of REAL_TOOLS) {
     const real = spawnSync("command", ["-v", tool], {
@@ -38,6 +38,9 @@ function realToolPaths(): Array<[string, string]> {
   }
   return out
 }
+// Resolved once — PATH entries are static within a run, so re-forking
+// `command -v` per sandbox() call would waste ~17 subprocesses each time.
+const REAL_TOOL_PATHS = resolveRealToolPaths()
 
 const WORKER = path.join(
   __dirname,
@@ -60,7 +63,7 @@ const NEVER_FLAGS = [
 function sandbox(claudeStub: string): { bin: string; env: NodeJS.ProcessEnv } {
   const bin = path.join(mkTempRoot("elevation-sandbox-"), "bin")
   mkdirSync(bin, { recursive: true })
-  for (const [tool, real] of realToolPaths()) {
+  for (const [tool, real] of REAL_TOOL_PATHS) {
     if (existsSync(path.join(bin, tool))) continue
     try {
       symlinkSync(real, path.join(bin, tool))
@@ -152,6 +155,17 @@ describe("elevation-dispatch worker", () => {
     expect(result.status).toBe("ok")
     expect(result.served_model).toBe("claude-opus-4-8")
     expect(result.receipt).toBe("mismatch")
+  })
+
+  test("picks the requested family's key from a multi-key modelUsage, not keys[0]", () => {
+    // jq `keys` is sorted, so keys[0] here is claude-haiku-*, an auxiliary
+    // model — the served model for a requested opus is claude-opus-*.
+    const stub =
+      "#!/bin/sh\n" +
+      `printf '%s\\n' '${RESULT_LINE("PLAN BODY", { "claude-haiku-4-5": { outputTokens: 1 }, "claude-opus-4-8": { outputTokens: 9 } })}'\n`
+    const { result } = runWorker("opus", stub)
+    expect(result.served_model).toBe("claude-opus-4-8")
+    expect(result.receipt).toBe("matched")
   })
 
   test("an absent receipt is recorded as unverified, not the requested model", () => {
