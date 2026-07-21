@@ -249,12 +249,12 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(r.stderr).toContain("peer exited non-zero or timed out")
   })
 
-  test("codex: read-only sandbox + skip-git-repo-check + medium reasoning", () => {
+  test("codex: read-only sandbox + skip-git-repo-check + xhigh reasoning", () => {
     const cmd = emitAdapter("codex")
     expect(cmd).toContain("-s read-only")
     expect(cmd).toContain("--skip-git-repo-check")
-    expect(cmd).toContain('model_reasoning_effort="medium"')
-    expect(cmd).toContain("gpt-5.6-sol")
+    expect(cmd).toContain('model_reasoning_effort="xhigh"')
+    expect(cmd).toContain("gpt-5.6-luna")
   })
 
   test("claude: all tools disabled + safe mode + dontAsk + effort high", () => {
@@ -710,7 +710,7 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
       readFileSync(path.join(runDir, "adversarial-codex.json"), "utf8"),
     )
     expect(out.cross_model_route).toBe("codex")
-    expect(out.model_requested).toBe("gpt-5.6-sol")
+    expect(out.model_requested).toBe("gpt-5.6-luna")
     expect(out.model_actual).toBe("unverified")
   }, 20_000) // the codex liveness poll sleeps in 5s slices even for a fast stub
 

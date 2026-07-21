@@ -281,12 +281,12 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(r.stderr).toContain("peer exited non-zero or timed out")
   })
 
-  test("codex: read-only sandbox + skip-git-repo-check + medium reasoning + repo-root cwd", () => {
+  test("codex: read-only sandbox + skip-git-repo-check + xhigh reasoning + repo-root cwd", () => {
     const cmd = emitAdapter("codex")
     expect(cmd).toContain("-s read-only")
     expect(cmd).toContain("--skip-git-repo-check")
-    expect(cmd).toContain('model_reasoning_effort="medium"')
-    expect(cmd).toContain("gpt-5.6-sol")
+    expect(cmd).toContain('model_reasoning_effort="xhigh"')
+    expect(cmd).toContain("gpt-5.6-luna")
     expect(cmd).toContain("-C <repo-root>")
   })
 
@@ -672,7 +672,7 @@ describe("cross-model-adversarial-review normalization", () => {
       readFileSync(path.join(runDir, "adversarial-codex.json"), "utf8"),
     )
     expect(out.cross_model_route).toBe("codex")
-    expect(out.model_requested).toBe("gpt-5.6-sol")
+    expect(out.model_requested).toBe("gpt-5.6-luna")
     expect(out.model_actual).toBe("unverified")
   }, 20_000) // the codex liveness poll sleeps in 5s slices even for a fast stub
 })
@@ -743,8 +743,8 @@ describe("cross-model-adversarial-review fixed-recipient dispatch", () => {
 
 describe("cross-model provider kernel parity (code-review vs doc-review)", () => {
   test("model IDs match across both skills' --emit-adapter output", () => {
-    expect(emitAdapter("codex")).toContain("gpt-5.6-sol")
-    expect(emitAdapter("codex", DOC_SCRIPT)).toContain("gpt-5.6-sol")
+    expect(emitAdapter("codex")).toContain("gpt-5.6-luna")
+    expect(emitAdapter("codex", DOC_SCRIPT)).toContain("gpt-5.6-luna")
     expect(emitAdapter("claude")).toContain("--model opus")
     expect(emitAdapter("claude", DOC_SCRIPT)).toContain("--model opus")
     expect(emitAdapter("grok-cli")).toContain("grok-4.5")

@@ -70,7 +70,7 @@ skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no o
 # ONE editorial model/reasoning mapping per provider. Concrete IDs are the CURRENT
 # instance of the tier principle and the single maintenance point when families change.
 # Keep these in sync with ce-doc-review's script (parity-tested in CI).
-M_CODEX="gpt-5.6-sol"          # codex CLI            (-c model_reasoning_effort="medium")
+M_CODEX="gpt-5.6-luna"         # codex CLI            (-c model_reasoning_effort="xhigh")
 M_CLAUDE="opus"                # claude CLI, Opus 4.8 (--effort high)
 M_GROK="grok-4.5"              # grok CLI             (--effort high)
 M_GROK_CURSOR="cursor-grok-4.5-high"  # fixed cursor-agent Grok route (current id)
@@ -78,7 +78,7 @@ M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is t
 
 route_effort() {
   case "$1" in
-    codex) printf 'medium' ;;
+    codex) printf 'xhigh' ;;
     claude|grok-cli) printf 'high' ;;
     grok-cursor) printf 'model-implied-high' ;;
     composer) printf 'fast' ;;
@@ -184,7 +184,7 @@ extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODE
 }
 
 # --- adapter argv (single source of truth for route flags) -----------------
-# Emits the CLI + flags NUL-delimited. Read-only / no-prompt (codex medium, others high).
+# Emits the CLI + flags NUL-delimited. Read-only / no-prompt (codex xhigh, others high).
 # Code-review isolation is IN-TREE (repo root), not empty-scratch tool-less:
 # peers may Read surrounding code. PEER_WORKDIR is the repo root; RAW_OUT lives
 # outside the repo (temp) and is published to RUN_DIR only after normalize.
@@ -194,7 +194,7 @@ adapter_argv() {
   case "$1" in
     codex)
       printf '%s\0' codex exec - -C "$PEER_WORKDIR" --skip-git-repo-check -s read-only --json \
-        -o "$RAW_OUT" -m "$(route_model codex)" -c 'model_reasoning_effort="medium"' -c 'hide_agent_reasoning=false'
+        -o "$RAW_OUT" -m "$(route_model codex)" -c 'model_reasoning_effort="xhigh"' -c 'hide_agent_reasoning=false'
       ;;
     claude)
       # Read allowed for surrounding context; mutators / shell / subagents / MCP /
@@ -625,7 +625,7 @@ attempt_route() {
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT"
   build_cmd "$route"
   case "$route" in
-    codex)                  note="$(route_model "$route") (effort medium)" ;;
+    codex)                  note="$(route_model "$route") (effort xhigh)" ;;
     claude|grok-cli)        note="$(route_model "$route") (effort high)" ;;
     grok-cursor|composer)  note="$(route_model "$route")" ;;
     cursor)                note="auto (serving model unverified)" ;;
