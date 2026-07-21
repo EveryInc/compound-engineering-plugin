@@ -461,7 +461,7 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
     expect(run(["claude", "codex", "HEAD", "/no/such/run-dir"], runDir, env).files).toHaveLength(0)
   })
 
-  test("unresolvable base ref skips before peer invoke (no output file)", () => {
+  test("unresolvable base ref skips at diff staging (no output file)", () => {
     const { env } = sandbox(
       ["claude"],
       "#!/bin/sh\ncat >/dev/null\nprintf '%s' '{\"structured_output\":{\"reviewer\":\"adversarial\",\"findings\":[{\"title\":\"confabulated\"}]}}'\n",
@@ -470,7 +470,8 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
     const r = run(["codex", "claude", "no-such-ref-1193", runDir], runDir, env)
     expect(r.code).toBe(0)
     expect(r.files).toHaveLength(0)
-    expect(r.stderr).toContain("base ref 'no-such-ref-1193' does not resolve")
+    // git diff against an unresolvable ref exits non-zero -> the staging guard skips.
+    expect(r.stderr).toContain("cannot stage reviewed diff")
   })
 
   test("empty working-tree diff skips before peer invoke", () => {

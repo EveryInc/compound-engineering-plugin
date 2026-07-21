@@ -302,18 +302,6 @@ SCHEMA_REF="$SCHEMA_CONTENT"
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || skip "not inside a git repository; skipping"
 PEER_WORKDIR="$REPO_ROOT"
 
-# Fail closed before embedding or instructing a diff: an unresolvable base ref or
-# an empty working-tree diff produces a structurally valid prompt with no code
-# changes, which invites confabulated adversarial findings.
-git -C "$REPO_ROOT" rev-parse --verify --quiet "${BASE}^{commit}" >/dev/null \
-  || skip "base ref '$BASE' does not resolve to a commit in this repository; skipping"
-git -C "$REPO_ROOT" diff --quiet "$BASE" -- 2>/dev/null; _diff_rc=$?
-case "$_diff_rc" in
-  1) ;;  # differences exist — the reviewable case
-  0) skip "no changes between '$BASE' and the working tree; nothing to review; skipping" ;;
-  *) skip "git diff '$BASE' failed (exit $_diff_rc); skipping" ;;
-esac
-
 # --- resolve which provider(s) to run (exclude host, allowlist, availability) --
 ALLOW="${CROSS_MODEL_PEERS:-}"
 MAX_PEERS="${CROSS_MODEL_MAX_PEERS:-1}"
@@ -394,6 +382,10 @@ DIFF_SOURCE="$RAW_DIR/review.diff"
 git -C "$REPO_ROOT" diff --no-ext-diff --no-color "$BASE" -- > "$DIFF_SOURCE" 2>/dev/null || skip "cannot stage reviewed diff; skipping"
 chmod 600 "$DIFF_SOURCE" || skip "cannot secure staged diff; skipping"
 DIFF_BYTES="$(wc -c < "$DIFF_SOURCE" 2>/dev/null || echo 0)"
+# An empty diff (valid base, no changes) still composes a structurally valid
+# prompt with an empty diff region, which invites confabulated findings. The
+# staging guard above already fail-closes an unresolvable base ref or diff error.
+[ "$DIFF_BYTES" -gt 0 ] || skip "no changes between '$BASE' and the working tree; nothing to review; skipping"
 DIFF_FILES="$(awk '/^diff --git / { n += 1 } END { print n + 0 }' "$DIFF_SOURCE")"
 ESTIMATED_DIFF_TOKENS=$(( (DIFF_BYTES + 1) / 2 ))
 
