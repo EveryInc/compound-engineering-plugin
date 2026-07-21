@@ -23,9 +23,9 @@ Detect the reachable access method by **category**, never by assuming a specific
 - **Linear** — a Linear MCP server, or the `orca linear` CLI.
 - **Jira** — a Jira MCP server, or a documented Jira CLI.
 
-Prefer the tracker implied by the focus hint or the repository's remote. A missing binary, unset env var, or unloaded MCP server is **not** proof the tracker is unavailable — probe what is actually reachable before concluding. The fetch mechanism differs per tracker; everything else in this prompt is tracker-agnostic.
+Prefer the tracker implied by the focus hint or the repository's remote. For a GitHub repo checked out as a fork (both an `upstream` and an `origin` remote), resolve issues against **`upstream`** — issues live on the upstream repo, not the fork. A missing binary, unset env var, or unloaded MCP server is **not** proof the tracker is unavailable — probe what is actually reachable before concluding; note that a GitHub MCP aliased under a non-`github` prefix is reachable but will not match `mcp__github__*` until that server's prefix is added to the dispatch allowlist. The fetch mechanism differs per tracker; everything else in this prompt is tracker-agnostic.
 
-If no access method is reachable, stop and return: "Issue analysis unavailable: no tracker access method found. Ensure a supported tracker CLI or MCP server (GitHub `gh` / GitHub MCP, Linear MCP / `orca linear`, or a Jira MCP / CLI) is installed and authenticated."
+If no access method is reachable, stop and return a message whose **first line is exactly** `Issue analysis unavailable: no tracker access method found` so the caller can detect degradation deterministically, followed by: "Ensure a supported tracker CLI or MCP server (GitHub `gh` / GitHub MCP, Linear MCP / `orca linear`, or a Jira MCP / CLI) is installed and authenticated." Emit the leading `Issue analysis unavailable:` prefix in this unavailable case only — it is the defined signal, not prose to reuse elsewhere.
 
 **Jira note:** Jira rides the same methodology and prose floor as GitHub and Linear, but has not been exercised against a live instance — treat a Jira run as lower-confidence and lean on the tracker's real status/field list rather than assumptions.
 
@@ -58,9 +58,9 @@ You run in one of two modes, named in your dispatch: **SCAN** or **CLUSTER**. Do
 One bounded pass to learn the tracker's shape so the orchestrator can decide whether to ask the user a scoping question. Do **not** cluster or synthesize themes.
 
 1. Run the capability probe above.
-2. Do **one bounded fetch** of open issues (and enough recently-closed for the recurrence read), reading the distribution — counts by workflow-state category, priority, project/area, and recency — **off that same fetch**. There is no separate count-probe; the bounded fetch *is* the working first fetch, and the cluster call reuses it.
+2. Do **one bounded fetch** of open issues (and enough recently-closed for the recurrence read), reading the distribution — counts by workflow-state category, priority, project/area, and recency — **off that same fetch**. Write the fetched working set (identifiers, states, priorities, labels, and truncated bodies) to `{scratch-dir}/issue-scan.json` so the cluster call can reuse it without re-fetching. There is no separate count-probe; the bounded fetch *is* the working first fetch, and the cluster call reuses this persisted set.
 3. Return, and stop:
-   - **Signal count** — total open observed, stated as a lower bound `>N` when the tracker reports more remain (e.g., Linear `hasMore: true`, or a pagination cap). If fewer than 5 total issues, say so plainly — the caller will skip clustering.
+   - **Signal count** — total open observed, stated as a lower bound `>N` when the tracker reports more remain (e.g., Linear `hasMore: true`, or a pagination cap). Count **eligible** issues (open plus recently-closed that carry recurrence signal), not open alone — a tracker with 3 open but 20 recurring recently-closed on one theme still has signal. If fewer than 5 eligible issues, say so plainly — the caller will skip clustering.
    - **Distribution** — the by-state / by-priority / by-project / by-recency breakdown.
    - **Ambiguity assessment** — whether the eligible set holds **two or more coherent, materially-different scopes that no single deliberately-varied sample could fairly represent within a clusterable budget**. If yes, propose the distribution-derived slices (e.g., named projects, a large triage queue, a priority band). If no, state the auto-scope you would take (focus hint → priority-when-populated → workflow-state → recency).
 
@@ -68,7 +68,7 @@ One bounded pass to learn the tracker's shape so the orchestrator can decide whe
 
 Given the resolved scope from the orchestrator (a slice, or "representative sample of everything"):
 
-1. Assemble the working set within that scope, reusing the scan fetch and fetching only a narrowed slice when the user narrowed. Bound the set by the clustering payload budget, not a fixed ticket count. When the eligible set exceeds the budget, **stratified-sample** across state × priority × recency bands with a minimum-per-stratum floor, so small-but-distinct buckets are not zeroed out — never recency-only sampling.
+1. Assemble the working set within that scope by **reading the scan's persisted set from `{scratch-dir}/issue-scan.json`** (the caller passes the same `{scratch-dir}`), re-fetching only a narrowed slice the persisted set does not already cover when the user narrowed. Bound the set by the clustering payload budget, not a fixed ticket count. When the eligible set exceeds the budget, **stratified-sample** across state × priority × recency bands with a minimum-per-stratum floor, so small-but-distinct buckets are not zeroed out — never recency-only sampling.
 2. Cluster into themes (methodology below).
 3. Emit themes **plus the coverage accounting** (contract below).
 

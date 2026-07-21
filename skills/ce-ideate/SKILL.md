@@ -118,7 +118,7 @@ Before classifying mode or dispatching any grounding, check whether the subject 
 - Questions exist only to supply what sub-agents need to operate: an identifiable subject (this phase) and enough context for the agent to say something specific about it (0.4, elsewhere modes only). Nothing else.
 - Never ask about solution direction, constraints, audience, tone, success criteria, or anything that characterizes the subject — those belong to `ce-brainstorm`.
 - Always keep "Surprise me" (letting the agent decide the focus) as a real option, not a fallback for when the user can't name a subject. Ideation is allowed to be greenfield by design.
-- Stop as soon as the subject is identifiable or the user has delegated to "Surprise me." More than 3 total questions across 0.2 and 0.4 is a smell that ideation is not the right workflow — consider suggesting `ce-brainstorm`.
+- Stop as soon as the subject is identifiable or the user has delegated to "Surprise me." More than 3 total questions across 0.2, 0.3 (mode confirmation), 0.4, and the Phase 1 issue-scoping gate is a smell that ideation is not the right workflow — consider suggesting `ce-brainstorm`.
 
 **Detection — issue-tracker intent (repo mode only; subject-identifying).**
 
@@ -298,14 +298,14 @@ Use the project's active instructions already in context. Send the codebase scan
 
 4. **Issue intelligence** (conditional, orchestrator-gated two-call protocol) — if issue-tracker intent was detected in Phase 0.3, run the issue lens as below. Unlike the other grounding agents this one is **not** fire-and-forget parallel: it may need a scoping question, and a subagent cannot block for user input, so you (the orchestrator) own the question between the analyst's two calls.
 
-   **a. Scan call.** Read `references/agents/issue-intelligence-analyst.md` and dispatch a generic subagent seeded with that prompt, the focus hint, and the instruction that it is in **SCAN mode**. It probes tracker access (GitHub / Linear / Jira by capability, not by assuming a binary), does one bounded fetch, and returns the distribution, a signal count, and an ambiguity assessment — it does **not** cluster.
+   **a. Scan call.** Read `references/agents/issue-intelligence-analyst.md` and dispatch a generic subagent seeded with that prompt, the focus hint, the `<scratch-dir>` from earlier in Phase 1, and the instruction that it is in **SCAN mode**. It probes tracker access (GitHub / Linear / Jira by capability, not by assuming a binary), does one bounded fetch, persists that fetched set to `<scratch-dir>/issue-scan.json`, and returns the distribution, a signal count, and an ambiguity assessment — it does **not** cluster.
 
-   - If it returns no-reachable-tracker, log a warning ("Issue analysis unavailable: {reason}. Proceeding with standard ideation.") and continue with the remaining grounding — no cluster call.
-   - If it reports fewer than 5 total issues, note "Insufficient issue signal for theme analysis" and proceed with default ideation frames in Phase 2 — no scoping question, no cluster call.
+   - If its **first line is the `Issue analysis unavailable:` marker** (no reachable tracker), log a warning ("{that message}. Proceeding with standard ideation.") and continue with the remaining grounding — no cluster call.
+   - If it reports fewer than 5 eligible issues, note "Insufficient issue signal for theme analysis" and proceed with default ideation frames in Phase 2 — no scoping question, no cluster call.
 
    **b. Scoping gate (you decide; ask at most one question).** Read the scan's ambiguity assessment. Auto-scope **silently** by default — compose the scope from focus hint → priority (when populated) → workflow-state → recency. Fire **one** blocking scoping question (per Interaction Method) **only** when the scan reports irreducible ambiguity: two or more coherent, materially-different scopes that no single deliberately-varied sample could fairly represent. Its options are the scan's distribution-derived slices plus an always-present "analyze a representative sample of everything," so the user can decline to narrow. This is a **grounding / subject-scoping** question — the same kind as the Phase 0.2 subject gate ("what should the agent work on") — **not** a Phase 0.4 solution-constraint question; it counts toward the ≤3-question grain, and "Surprise me" stays available. Skip it entirely when the scan is unambiguous.
 
-   **c. Cluster call.** Dispatch the analyst again in **CLUSTER mode** with the resolved scope. It returns the leverage-ranked themes plus coverage accounting. Run this in parallel with any remaining grounding.
+   **c. Cluster call.** Dispatch the analyst again in **CLUSTER mode**, passing the resolved scope **and the same `<scratch-dir>`** so it reuses the scan's persisted `issue-scan.json` rather than re-fetching. It returns the leverage-ranked themes plus coverage accounting. The scan call can run alongside the other grounding agents, but this cluster call — and the consolidation and Phase 1.5 that depend on its themes — must **await** it: do not treat the issue lens as fire-and-forget, and do not close consolidation before the cluster result lands.
 
 **Elsewhere mode dispatch (skip the codebase scan; user-supplied context is the primary grounding):**
 
@@ -354,7 +354,7 @@ Consolidate all dispatched results into a short grounding summary using these se
 - **User-named references** *(repo mode, when the focus hint named root-level `*.md` files)* — full content from directive files the user explicitly named in their prompt or focus (research artifacts route through `User-supplied research` instead). Phase 2 treats these as constraint
 - **Additional context** *(repo mode, when other root-level markdown was discovered but not named)* — one-line gists per file. Phase 2 treats these as background, not direction
 - **Past learnings** — relevant institutional knowledge from `docs/solutions/`
-- **Issue intelligence** *(when present, repo mode only)* — theme summaries with titles, descriptions, issue counts, and trend directions
+- **Issue intelligence** *(when present, repo mode only)* — theme summaries with titles, descriptions, issue counts, leverage, and trend directions, **plus the cluster call's coverage accounting** (fetched / eligible / analyzed / excluded / unknown-remainder, with any `>N` lower bound) so the non-exhaustive-coverage disclosure reaches Phase 2 ideation and the Phase 4 artifact rather than being dropped here
 - **External context** *(when web research ran)* — prior art, adjacent solutions, market signals, cross-domain analogies. Note "(reused from earlier dispatch)" when V15 reuse fired
 - **User-supplied research** *(when the user provided research artifacts)* — dossier gists with paths, or inline content for small artifacts; kept distinct from External context so source provenance stays visible
 - **Slack context** *(when present)* — organizational context
