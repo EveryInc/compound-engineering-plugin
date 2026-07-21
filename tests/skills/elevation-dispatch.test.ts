@@ -55,7 +55,6 @@ const BRAINSTORM_WORKER = path.join(
 const NEVER_FLAGS = [
   "--dangerously-skip-permissions",
   "--yolo",
-  "--allowedTools",
   "--force",
 ]
 
@@ -124,15 +123,15 @@ describe("elevation-dispatch worker", () => {
     expect(argv).toContain("high")
     expect(argv).toContain("stream-json")
     expect(argv).toContain("--verbose")
-    // read-only posture: mutators denied, Read/Glob/Grep NOT in the deny list
-    const di = argv.indexOf("--disallowedTools")
-    expect(di).toBeGreaterThan(-1)
-    const denied = argv.slice(di + 1)
-    expect(denied).toContain("Edit")
-    expect(denied).toContain("Write")
-    expect(denied).toContain("Bash")
-    expect(denied).not.toContain("Read")
-    expect(denied).not.toContain("Grep")
+    // read-only posture: an allowlist of Read/Glob/Grep only — no denylist, and
+    // no write/shell tool present at all (a later-added tool stays excluded).
+    const ai = argv.indexOf("--allowedTools")
+    expect(ai).toBeGreaterThan(-1)
+    for (const tool of ["Read", "Glob", "Grep", "WebSearch", "WebFetch"]) {
+      expect(argv).toContain(tool)
+    }
+    expect(argv).not.toContain("--disallowedTools")
+    for (const tool of ["Edit", "Write", "Bash", "Task"]) expect(argv).not.toContain(tool)
     for (const flag of NEVER_FLAGS) expect(argv).not.toContain(flag)
   })
 

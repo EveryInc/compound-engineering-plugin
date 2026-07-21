@@ -32,7 +32,7 @@ Elevation is never a correctness dependency: every adapter failure degrades to t
 
 The elevated call gets repo **read** access (Read/Glob/Grep) and **multiple turns** on every adapter, so it can verify its brief rather than trust it — a single stateless call with a fixed packet forecloses the behavior that makes a high-reasoning model worth dispatching. It never gets write or shell access:
 
-- On the **Claude CLI** route this is flag-enforced — the worker passes `--disallowedTools Edit Write NotebookEdit Bash Task WebFetch WebSearch Skill 'mcp__*'`, which denies mutators/shell/web while leaving Read/Glob/Grep.
+- On the **Claude CLI** route this is flag-enforced — the worker passes `--allowedTools Read Glob Grep WebSearch WebFetch` (an allowlist, so a tool later added to the CLI is not silently permitted); the elevated call reads the repo and may check current facts on the web, while writes, shell, skills, and MCP stay unavailable.
 - On the **native** route the subagent primitive exposes a model override but no per-dispatch tool restriction, so write/shell denial is an **instruction** to the subagent, not a hard guarantee.
 
 Hand over the working context as **file paths the subagent reads itself**, never a re-narrated prose brief. If a needed piece lives only in context, **write it to a fresh scratch file** (e.g. `mktemp` under the OS temp dir):
@@ -55,14 +55,14 @@ Never hold a tool call open for the model's runtime — some harnesses kill long
    ```bash
    SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read — this skill's own directory>";
    SKILL_NAME="<this skill's name: ce-plan or ce-brainstorm>";
-   CE_PEER_HARD_SECS=5400 CE_PEER_LOG_MAX_BYTES=52428800 \
+   CE_PEER_HARD_SECS=5400 CE_ELEVATION_HARD_SECS=5400 CE_PEER_LOG_MAX_BYTES=52428800 \
      python3 "$SKILL_DIR/scripts/peer-job-runner.py" start \
      --skill "$SKILL_NAME" --run-id "<run-id>" --label elevation \
      --result-path "<result-path>" \
      -- bash "$SKILL_DIR/scripts/elevation-dispatch.sh" "<model>" "<prompt-file>" "<result-path>"
    ```
 
-   `CE_PEER_HARD_SECS` is the raised backstop well above any legitimate run (R11); `CE_PEER_LOG_MAX_BYTES` is raised for the streaming route so a healthy high-volume run is not reaped as a failure (R22). `start` returns a job id in under ~2s.
+`CE_PEER_HARD_SECS` (the outer runner cap) and `CE_ELEVATION_HARD_SECS` (the worker's own inner cap) are set to the **same** raised backstop well above any legitimate run (R11) — keep them equal so the inner cap never reaps a healthy run before the outer one. `CE_PEER_LOG_MAX_BYTES` is raised for the streaming route so a healthy high-volume run is not reaped as a failure (R22). `start` returns a job id in under ~2s.
 
 3. **Poll** with `python3 "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 "<job-id>"` between your other work, until terminal.
 

@@ -7,8 +7,9 @@
 # make a healthy long run byte-identical to a wedged one. See
 # docs/solutions/skill-design/cli-output-buffering-for-progress-detection.md.
 #
-# Read-only posture (R7): writes, shell, web, skills, and MCP are denied by flag;
-# the model may Read/Glob/Grep the repo to verify its brief.
+# Read-only posture (R7): the CLI is allowlisted to Read/Glob/Grep plus
+# WebSearch/WebFetch, so writes, shell, skills, and MCP are unavailable; the
+# model reads the repo and web to verify its brief and returns prose.
 #
 # Usage:
 #   elevation-dispatch.sh <model> <prompt-file> <result-path>
@@ -32,14 +33,17 @@ log() { printf '[elevation] %s\n' "$*" >&2; }
 
 EFFORT="high"   # settled: elevation runs at high effort
 
-# Read-only tool posture (R7): deny mutators, shell, web, skills, mcp.
-# Read/Glob/Grep are not in the deny list, so the model can inspect the repo.
-DISALLOWED=(Edit Write NotebookEdit Bash Task WebFetch WebSearch Skill 'mcp__*')
+# Read-only tool posture (R7): an ALLOWlist, not a denylist — only these tools
+# are available, so a tool later added to the CLI is not silently permitted.
+# The elevated step reads the repo (Read/Glob/Grep) and may check current facts
+# on the web (WebSearch/WebFetch) while authoring; it never needs Write/Bash/Task
+# or any mutating tool. Its output is returned prose, not a file write.
+ALLOWED=(Read Glob Grep WebSearch WebFetch)
 
 build_cmd() {   # <model> -> sets CMD array (claude CLI, streaming, read-only)
   CMD=(claude -p --model "$1" --effort "$EFFORT"
        --output-format stream-json --verbose
-       --permission-mode dontAsk --disallowedTools "${DISALLOWED[@]}"
+       --permission-mode dontAsk --allowedTools "${ALLOWED[@]}"
        --max-turns "${ELEVATION_MAX_TURNS:-30}")
 }
 
@@ -59,8 +63,10 @@ RESULT_PATH="${3:?result-path required}"
 PEERLOG="$(mktemp -t elevation-peer-XXXXXX)"
 
 # Idle window is the primary stall signal; the hard cap is a raised backstop (R11).
+# Keep this inner cap >= the runner's CE_PEER_HARD_SECS so it never reaps a
+# healthy run before the outer supervisor's own raised backstop.
 IDLE_SECS="${CE_ELEVATION_IDLE_SECS:-180}"
-HARD_SECS="${CE_ELEVATION_HARD_SECS:-3600}"
+HARD_SECS="${CE_ELEVATION_HARD_SECS:-5400}"
 POLL_SECS="${CE_ELEVATION_POLL_SECS:-5}"   # $PEERLOG growth poll interval
 
 reap() {
