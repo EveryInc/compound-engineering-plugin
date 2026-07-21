@@ -4,6 +4,8 @@
 
 `ce-promote` is the **post-ship messaging** skill. After a feature merges, it figures out what shipped, picks the right channels, and drafts the announcement copy — an X post or thread, a one-line changelog blurb, a LinkedIn post, an email, a blog intro, a short demo script. It produces good copy with nothing installed, and uses the [Spiral CLI](https://www.npmjs.com/package/@every-env/spiral-cli) for brand-voice-matched drafts when it's present and authed.
 
+Declining the one-time Spiral setup offer is remembered in the checkout-local config; see the [configuration reference](./configuration.md).
+
 It drafts only. It never posts, publishes, commits, or opens PRs — shipping the copy is a human action.
 
 ---

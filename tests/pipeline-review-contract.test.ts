@@ -6,6 +6,12 @@ async function readRepoFile(relativePath: string): Promise<string> {
   return readFile(path.join(process.cwd(), relativePath), "utf8")
 }
 
+async function readCeWorkImplementationContract(): Promise<string> {
+  const skill = await readRepoFile("skills/ce-work/SKILL.md")
+  const implementationLoop = await readRepoFile("skills/ce-work/references/implementation-loop.md").catch(() => "")
+  return `${skill}\n${implementationLoop}`
+}
+
 describe("ce-work review contract", () => {
   test("requires code review before shipping", async () => {
     const content = await readRepoFile("skills/ce-work/SKILL.md")
@@ -62,7 +68,7 @@ describe("ce-work review contract", () => {
   })
 
   test("includes per-task testing deliberation in execution loop", async () => {
-    const content = await readRepoFile("skills/ce-work/SKILL.md")
+    const content = await readCeWorkImplementationContract()
 
     // Testing deliberation exists in the execution loop
     expect(content).toContain("Assess testing coverage")
@@ -172,7 +178,7 @@ describe("ce-plan testing contract", () => {
 
 describe("ce-work testing evidence contract", () => {
   test("requires evidence strategy before behavior changes and evidence in return-to-caller", async () => {
-    const content = await readRepoFile("skills/ce-work/SKILL.md")
+    const content = await readCeWorkImplementationContract()
 
     expect(content).toContain("Choose the evidence strategy for this task before changing behavior")
     expect(content).toContain("default to test-first or characterization-first")
@@ -254,14 +260,71 @@ describe("verification_evidence seam parity (ce-work <-> lfg)", () => {
       "3. Invoke the `ce-simplify-code`"
     )
 
-    // One-shot retry on the same plan path (idempotency backfill), no user prompt.
-    expect(gate).toContain(
-      "invoke `ce-work` one more time with the same `mode:return-to-caller <plan-path-from-step-1>` argument"
-    )
-    expect(gate).toContain("Do not prompt the user and do not alter the plan path argument")
+    // One-shot recovery on the same plan and engine binding, with the returned durable run id.
+    expect(gate).toContain("invoke `ce-work` one more time in recovery mode")
+    expect(gate).toContain("same `implementation_engine:<compact-json>` carrier")
+    expect(gate).toContain("implementation_run:<safe-id>")
+    expect(gate).toContain("Do not prompt the user and do not alter the plan path or engine carrier")
+    expect(gate).toContain("When `actual_route` is `native` and `run_id` is `null`")
+    expect(gate).toContain("repeat the original ce-work invocation once without an `implementation_run:` carrier")
+    expect(gate).toContain("A non-native return without a safe run id remains blocked")
     // Second still-missing return stops blocked instead of continuing to ship.
     expect(gate).toContain("stop as blocked and report the missing fields")
     expect(gate).toContain("instead of continuing to simplify/review/ship")
+  })
+})
+
+describe("cross-model execution receipt seam parity (ce-work <-> lfg)", () => {
+  const ROUTE_RECEIPT_FIELDS = [
+    "implementation_engine_binding",
+    "requested_route",
+    "actual_route",
+    "requested_model",
+    "actual_model",
+    "fallback_reason",
+    "run_id",
+    "unit_receipts",
+    "plan_checkpoint",
+    "blockers",
+    "recovery_path",
+  ]
+
+  function sliceSection(content: string, startAnchor: string, endAnchor: string): string {
+    const start = content.indexOf(startAnchor)
+    expect(start, `start anchor not found: ${startAnchor}`).toBeGreaterThanOrEqual(0)
+    const end = content.indexOf(endAnchor, start + startAnchor.length)
+    expect(end, `end anchor not found: ${endAnchor}`).toBeGreaterThan(start)
+    return content.slice(start, end)
+  }
+
+  test("lfg requires every route receipt exposed by ce-work", async () => {
+    const ceWork = await readRepoFile("skills/ce-work/SKILL.md")
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+    const returned = sliceSection(ceWork, "## Return-to-Caller Mode", "Engine selection (")
+    const gate = sliceSection(
+      lfg,
+      "2. Invoke the `ce-work` skill with `mode:return-to-caller",
+      "3. Invoke the `ce-simplify-code`",
+    )
+
+    for (const field of ROUTE_RECEIPT_FIELDS) {
+      expect(returned, `ce-work must return ${field}`).toContain(`\`${field}\``)
+      expect(gate, `lfg must gate on ${field}`).toContain(`\`${field}\``)
+    }
+  })
+
+  test("lfg keeps the binding out of plan and review inputs", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+    const carrier = sliceSection(
+      lfg,
+      "## Implementation-only routing carrier",
+      "1. Invoke the `ce-plan` skill",
+    )
+    expect(carrier).toContain("remove the implementation-routing directive")
+    expect(carrier).toContain("Never pass")
+    expect(carrier).toContain("`ce-plan`")
+    expect(carrier).toContain("`ce-code-review`")
+    expect(carrier).toContain("feature content")
   })
 })
 

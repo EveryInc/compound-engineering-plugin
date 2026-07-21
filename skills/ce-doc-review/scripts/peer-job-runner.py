@@ -57,6 +57,7 @@ supervisor's window fire, the supervisor's record wins.
 
 Environment overrides (defaults in parentheses):
   CE_PEER_JOBS_ROOT         base dir (/tmp/compound-engineering-<effective-uid>)
+  CE_WORK_RUNS_ROOT         parent CE Work dir containing all <run-id>/ dirs
   CE_PEER_IDLE_SECS         idle window, no out.log growth (240)
   CE_PEER_HARD_SECS         hard cap on worker wall clock (630)
   CE_PEER_LOG_MAX_BYTES     out.log byte cap (10485760)
@@ -128,7 +129,7 @@ exit codes:
   4  ownership check failed (job state or result not owned by the current
      user) — content is never emitted
 
-environment overrides: CE_PEER_JOBS_ROOT, CE_PEER_IDLE_SECS,
+environment overrides: CE_PEER_JOBS_ROOT, CE_WORK_RUNS_ROOT, CE_PEER_IDLE_SECS,
 CE_PEER_HARD_SECS, CE_PEER_LOG_MAX_BYTES, CE_PEER_RESULT_MAX_BYTES,
 CE_PEER_POLL_SECS, CE_PEER_GRACE_SECS (defaults in the module docstring).
 """
@@ -153,7 +154,13 @@ def jobs_root_base() -> str:
     return os.path.abspath(DEFAULT_ROOT)
 
 
-def _env_num(name: str, default: float, conv) -> float:
+def skill_runs_root(skill: str) -> str:
+    if skill == "ce-work" and os.environ.get("CE_WORK_RUNS_ROOT"):
+        return os.path.abspath(os.environ["CE_WORK_RUNS_ROOT"])
+    return os.path.join(jobs_root_base(), skill)
+
+
+def _env_num(name: str, default: float, conv, *, allow_zero: bool = False):
     raw = os.environ.get(name)
     if not raw:
         return default
@@ -161,12 +168,14 @@ def _env_num(name: str, default: float, conv) -> float:
         val = conv(raw)
     except ValueError:
         return default
+    if allow_zero and val == 0:
+        return None
     return val if val > 0 else default
 
 
-def cfg() -> dict:
+def cfg(skill=None) -> dict:
     return {
-        "idle": _env_num("CE_PEER_IDLE_SECS", 240.0, float),
+        "idle": _env_num("CE_PEER_IDLE_SECS", 240.0, float, allow_zero=skill == "ce-work"),
         "hard": _env_num("CE_PEER_HARD_SECS", 630.0, float),
         "log_max": int(_env_num("CE_PEER_LOG_MAX_BYTES", 10 * 1024 * 1024, int)),
         "result_max": int(_env_num("CE_PEER_RESULT_MAX_BYTES", 5 * 1024 * 1024, int)),
@@ -305,7 +314,7 @@ def claim_job_dir(jobs_root: str):
     raise RunnerError(f"could not claim a unique job dir after {CLAIM_ATTEMPTS} attempts")
 
 
-def resolve_job_dir(ref: str) -> str:
+def resolve_job_dir(ref: str, skill=None) -> str:
     if os.sep in ref:
         p = os.path.abspath(ref)
         if os.path.isdir(p):
@@ -313,9 +322,17 @@ def resolve_job_dir(ref: str) -> str:
         raise RunnerError(f"no such job dir: {ref}")
     if not _is_safe_token(ref):
         raise RunnerError(f"invalid job ref: {ref!r}")
-    matches = sorted(glob.glob(os.path.join(jobs_root_base(), "*", "*", "jobs", ref)))
+    if skill is not None:
+        if not _is_safe_token(skill):
+            raise RunnerError(f"invalid skill: {skill!r}")
+        search_root = skill_runs_root(skill)
+        patterns = [os.path.join(search_root, "*", "jobs", ref)]
+    else:
+        search_root = jobs_root_base()
+        patterns = [os.path.join(search_root, "*", "*", "jobs", ref)]
+    matches = sorted({match for pattern in patterns for match in glob.glob(pattern)})
     if not matches:
-        raise RunnerError(f"job not found under {jobs_root_base()}: {ref}")
+        raise RunnerError(f"job not found under {search_root}: {ref}")
     if len(matches) > 1:
         raise RunnerError(f"ambiguous job id {ref}: {len(matches)} matches; pass the job dir path")
     return matches[0]
@@ -539,11 +556,13 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
         log_fd = os.open(os.path.join(job_dir, "out.log"), os.O_WRONLY | os.O_APPEND | O_NOFOLLOW)
         devnull = os.open(os.devnull, os.O_RDONLY)
         try:
+            worker_env = {**os.environ, "CE_PEER_JOB_ID": os.path.basename(job_dir)}
             proc = subprocess.Popen(
                 argv,
                 stdin=devnull,
                 stdout=log_fd,
                 stderr=log_fd,
+                env=worker_env,
                 start_new_session=True,  # worker leads its own group: reap = killpg
                 close_fds=True,
             )
@@ -592,7 +611,7 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
                 f"out.log exceeded byte cap ({size} > {conf['log_max']} bytes)"
             )
             break
-        if now - last_growth >= conf["idle"]:
+        if conf["idle"] is not None and now - last_growth >= conf["idle"]:
             _reap_worker(proc, conf)
             state, reason = "timeout", f"no output for {conf['idle']:g}s (idle window)"
             break
@@ -709,11 +728,12 @@ def cmd_start(args, worker_argv) -> int:
         raise RunnerError("no worker argv; place it after `--`")
 
     base = jobs_root_base()
-    skill_dir = os.path.join(base, args.skill)
+    skill_dir = skill_runs_root(args.skill)
     run_dir = os.path.join(skill_dir, args.run_id)
     jobs_root = os.path.join(run_dir, "jobs")
-    ensure_owned_dirs(base, jobs_root)
-    sweep_stale_runs(skill_dir, keep=run_dir)
+    ensure_owned_dirs(skill_dir if skill_dir != os.path.join(base, args.skill) else base, jobs_root)
+    if not args.no_sweep:
+        sweep_stale_runs(skill_dir, keep=run_dir)
 
     job_id, job_dir = claim_job_dir(jobs_root)
     result_path = os.path.abspath(args.result_path) if args.result_path else None
@@ -733,6 +753,7 @@ def cmd_start(args, worker_argv) -> int:
             resolved = argv0
     argv = [resolved] + list(worker_argv[1:])
 
+    conf = cfg(args.skill)
     meta = {
         "job_id": job_id,
         "skill": args.skill,
@@ -742,6 +763,8 @@ def cmd_start(args, worker_argv) -> int:
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "worker_argv": argv,
         "result_path": result_path,
+        "sweep_enabled": not args.no_sweep,
+        "supervision": conf,
     }
     try:
         create_exclusive(
@@ -764,7 +787,7 @@ def cmd_start(args, worker_argv) -> int:
             "nothing was detached"
         )
 
-    if not detach_supervisor(job_dir, argv, result_path, cfg()):
+    if not detach_supervisor(job_dir, argv, result_path, conf):
         raise RunnerError(
             f"detach failed for job {job_id}: supervisor did not acknowledge; "
             f"inspect {job_dir}"
@@ -788,14 +811,14 @@ def _emit_states(rows, as_json: bool) -> None:
 def cmd_status(args) -> int:
     rows = []
     for ref in args.jobs:
-        job_dir = resolve_job_dir(ref)
+        job_dir = resolve_job_dir(ref, args.skill)
         rows.append((ref, job_dir, job_state(job_dir)))
     _emit_states(rows, args.json)
     return 0
 
 
 def cmd_wait(args) -> int:
-    dirs = [(ref, resolve_job_dir(ref)) for ref in args.jobs]
+    dirs = [(ref, resolve_job_dir(ref, args.skill)) for ref in args.jobs]
     deadline = time.monotonic() + max(0.0, args.max_secs)
     rows = [(ref, d, "running") for ref, d in dirs]
     while True:
@@ -842,7 +865,7 @@ def cmd_result(args) -> int:
             return 3
         _emit_bytes(data)
         return 0
-    job_dir = resolve_job_dir(args.job)
+    job_dir = resolve_job_dir(args.job, args.skill)
     state = job_state(job_dir)
     if state == "unreadable":
         sys.stderr.write(
@@ -881,7 +904,7 @@ def cmd_result(args) -> int:
 
 
 def cmd_reap(args) -> int:
-    job_dir = resolve_job_dir(args.job)
+    job_dir = resolve_job_dir(args.job, args.skill)
     state = job_state(job_dir)
     if state in TERMINAL_STATES or state == "never-started":
         return 0
@@ -986,14 +1009,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--result-path", default=None, dest="result_path",
         help="worker's expected result file; done then requires it non-empty",
     )
+    p_start.add_argument(
+        "--no-sweep", action="store_true",
+        help="retain old sibling run roots (ce-work durable recovery)",
+    )
 
     p_status = sub.add_parser("status", help="print each job's state word")
+    p_status.add_argument("--skill", default=None, help="limit job-id lookup to this skill")
     p_status.add_argument("--json", action="store_true")
     p_status.add_argument("jobs", nargs="+", help="job ids or job dir paths")
 
     p_wait = sub.add_parser(
         "wait", help="bounded poll until all watched jobs settle (or the cap)"
     )
+    p_wait.add_argument("--skill", default=None, help="limit job-id lookup to this skill")
     p_wait.add_argument("--max-secs", type=float, default=30.0, dest="max_secs")
     p_wait.add_argument("--json", action="store_true")
     p_wait.add_argument("jobs", nargs="+", help="job ids or job dir paths")
@@ -1002,6 +1031,7 @@ def build_parser() -> argparse.ArgumentParser:
         "result",
         help="emit a done job's artifact (exit: 0 done, 2 running, 3 other, 4 unreadable)",
     )
+    p_result.add_argument("--skill", default=None, help="limit job-id lookup to this skill")
     p_result.add_argument("job", nargs="?", default=None)
     p_result.add_argument(
         "--path",
@@ -1012,6 +1042,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_reap = sub.add_parser(
         "reap", help="terminate a running job now; no-op if already terminal"
     )
+    p_reap.add_argument("--skill", default=None, help="limit job-id lookup to this skill")
     p_reap.add_argument("job")
     return parser
 

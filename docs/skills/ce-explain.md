@@ -33,14 +33,14 @@ One skill, four input shapes:
 - **Idea** — your idea, taken as a fixed given, explained for implications and trade-offs (never scoped or ranked — that's brainstorm/ideate territory).
 - **Work recap** — "what did I do this week?" answered from git activity and project docs, absorbable in minutes before a meeting.
 
-The explainer is HTML-first (markdown on request), show-n-tell by default — diagrams for structure, annotated snippets for code, timelines for recaps — and written to a stable temp location before the skill asks where you want it: an artifact surface, a local file, or a detected destination like Proof or Thinkroom. Destinations are offered only when actually available.
+The explainer is HTML-first (markdown on request), show-n-tell by default — diagrams for structure, annotated snippets for code, timelines for recaps — and written to a stable temp location before the skill asks where you want it. Claude Code prefers a private Claude Artifact when that tool is present; other harnesses prefer an explicitly confirmed public ht-ml.app page. Local file, Proof, Thinkroom, and leave-in-temp routes remain capability-gated fallbacks.
 
 ## What Makes It Novel
 
 1. **Predict-then-reveal for diffs.** The turn *ends* after you're shown the raw change and asked for your prediction. No interpretive content leaks early — the reveal then names exactly what your prediction missed. That gap-naming is the teaching.
-2. **The check-in lives in the session, not the artifact.** The doc stays display-only; exercises are posed in chat where the skill can check and correct your answers.
+2. **The check-in lives in the session, not the artifact.** The doc stays display-only; exercises are posed in chat where the skill can check and correct your answers. “Just the explainer” is the recommended first choice; the quiz is an opt-in second choice.
 3. **Skippable by design.** Routine recaps skip the check-in; you can always decline. Some things don't need a learning loop.
-4. **Capability-detected destinations.** The destination ask offers only what your environment supports, with a local file as the always-present floor — and the artifact exists on disk before the ask, so declining everything loses nothing.
+4. **Capability-detected destinations.** Claude Artifact is preferred in Claude Code; elsewhere, ht-ml.app provides a harness-independent public URL after an explicit public-content warning. A local file is the always-present floor, and the artifact exists on disk before the ask, so declining everything loses nothing.
 5. **Honest external grounding.** External topics with no web access fall back to model knowledge — labeled as unverified in the artifact, never passed off as checked.
 
 ## When to Reach For It

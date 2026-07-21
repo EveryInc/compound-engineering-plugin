@@ -16,7 +16,7 @@ Use it when you want the full agentic shipping path and are comfortable with the
 | When to use it | Software tasks that are ready for autonomous implementation |
 | What it produces | Code changes, commits, usually a PR, and durable residual notes when something cannot be fully resolved |
 | What's next | Review the PR, merge when ready, and run `/ce-compound` if there is reusable learning to capture |
-| Distinguishing | Hard ordering gates, return-to-caller execution, review-fix persistence, browser test pass, bounded CI autofix loop |
+| Distinguishing | Hard ordering gates, implementation-only cross-model routing, return-to-caller execution, review-fix persistence, browser test pass, bounded CI autofix loop |
 
 ---
 
@@ -50,7 +50,7 @@ Without an explicit pipeline, autonomous runs tend to skip planning, treat revie
 
 - Step 1 composes a transient settled-decisions brief from the conversation — each decision with its class, rejected alternative, and reason, topically scoped to the feature — and passes it to `/ce-plan` so decisions the user already made are carried, not re-asked; the brief is skipped entirely when nothing is settled
 - `/ce-plan` must produce an implementation-ready code plan before work starts
-- `/ce-work` runs in return-to-caller mode so the pipeline regains control after implementation
+- `/ce-work` runs in return-to-caller mode so the pipeline regains control after implementation; a requested implementation target is carried only across this seam
 - Behavior-changing implementation must return verification evidence from `/ce-work`; if evidence is missing, `lfg` retries `/ce-work` once for evidence completion and then stops blocked rather than shipping blind
 - `/ce-simplify-code` runs before review unless the change is docs-only or trivial
 - `/ce-code-review` reports findings, then `lfg` applies eligible fixes and commits them
@@ -99,6 +99,29 @@ You can also invoke it directly:
 
 Direct invocation is useful for clear software tasks, but it gives the planner less product context.
 
+## Route Only the Implementation Stage
+
+You may ask `lfg` to have another model or harness author implementation while `lfg` keeps ownership of planning, review, PR creation, and CI:
+
+```text
+/lfg use Codex for implementation; add account-level notification mute settings
+/lfg implement the settled plan, but only use Composer for implementation
+```
+
+`lfg` recognizes the intent from the whole instruction rather than matching one keyword. It removes that routing direction from the product request before planning, then carries a transient object containing exactly `mode`, `target`, `model`, and `source` beside `mode:return-to-caller` only when it invokes `ce-work`. On string-only hosts that seam is `mode:return-to-caller implementation_engine:<compact-json> <plan-path>`; for example, `implementation_engine:{"mode":"prefer","target":"codex","model":null,"source":"lfg-current-turn"}`. The object never becomes plan content, a settled product decision, or review input. A plain mention of a model in feature text, quoted material, a comparison, or a filename does not activate routing.
+
+That four-field carrier is deliberately scalar. If the current LFG instruction names an ordered fallback list, LFG keeps the whole list as stage-scoped current-task context and passes no truncated carrier; CE Work resolves and preflights that retained list in order. If a host cannot preserve the current-task context across its skill invocation, LFG blocks instead of silently losing the later candidates. Standing ordered config needs no carrier and remains the most portable way to establish a reusable matrix.
+
+The first example is preference-strength. If the Codex route is unavailable before work starts, `ce-work` implements natively and returns the requested route, actual route/model, and fallback reason; `lfg` discloses the fallback and continues to its one shipping tail. The second is requirement-strength. Because `lfg` is headless, an unavailable required route blocks without asking or silently switching to native work.
+
+Target `cursor` means the Cursor harness with its configured default model. Target `composer` means a Composer-family model requested through Cursor. A model pin is optional. Route substitution stays within the requested target/model family and is disclosed; a route is not used until its fixed-recipient, unattended write adapter is qualified and locally available. The cross-model engine has a launch floor of at least one real non-native route passing that qualification matrix; failing candidates remain unavailable rather than becoming guessed production commands.
+
+When the prompt has no implementation instruction, `lfg` passes no empty binding. `ce-work` then considers applicable session/project instructions already in context before the gitignored per-checkout `work_engine_mode` and ordered `work_engine_preferences` list. Each config candidate names a `harness` and optional `model`; omission uses that harness's configured default. Config `prefer` is active in the automatic flow and falls back natively only after its ordered candidates are exhausted; config `require` blocks if none qualify. A current-task implementation instruction outranks those defaults.
+
+See [Compound Engineering configuration](./configuration.md#implementation-routing) for the shared config shape and its relationship to harness-loaded instructions.
+
+Long external runs remain observable through the `ce-work` return contract: run id, requested and actual identity, unit/job state, activity and elapsed time, checkpoint, verification/commit state, blockers, and recovery path. If `lfg` retries once to reconcile missing verification evidence, it uses the same binding and run id; it does not dispatch implementation or run the shipping tail twice. See [`ce-work`](./ce-work.md#choose-the-implementation-author) for egress disclosure, private run state, detached-worktree containment, transactional fold-in, timeouts, resume/reap/cleanup, fallback, and parallel-wave behavior.
+
 ---
 
 ## Reference
@@ -107,6 +130,7 @@ Direct invocation is useful for clear software tasks, but it gives the planner l
 |----------|--------|
 | _(empty)_ | Plans from current context, then runs the pipeline if the plan is eligible |
 | `<feature description>` | Passes the description to `/ce-plan`, then runs the pipeline |
+| `<feature description + implementation assignment>` | Removes the assignment from planning and carries it only to `ce-work` as `prefer` unless the instruction clearly requires the target |
 
 Output: code changes, commits, and usually a PR. If there is no configured git remote, output is local commits only. If CI remains red after the bounded repair loop, unresolved failures are recorded durably before the run ends.
 

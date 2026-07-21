@@ -61,7 +61,7 @@ Name the few strengths and risks that actually determine the bottom line; do not
 
 ## Approach-set position contract
 
-An approach-set POV judges only the options the user or conversation supplied; generating a new option field belongs to `ce-ideate` or `ce-brainstorm`. Lead with a plain-language **Position**. Name each supplied approach by a short distinguishing gloss on first mention in the Position and Tradeoffs — never a bare label like "Option A" that only the original list defines — so the block stands alone for a reader who never saw that list. Then state:
+An approach-set POV judges only the options the user or conversation supplied; generating a new option field belongs to `ce-ideate` or `ce-brainstorm`. Lead with a plain-language **Position**. Then state:
 
 `Why` · `Tradeoffs by supplied approach` · `Verified facts (project + load-bearing external claims, kept distinct)` · `Conversation hypotheses (unverified — warm only)` · `Conditions` · `Handoff (optional separate continuation)`
 
@@ -69,7 +69,13 @@ Choose an approach and recommend it when verified project facts and the material
 
 ## Output economy
 
-`ce-pov` writes no document, so the chat block *is* the whole deliverable — make it a tight POV, not a transcript of the investigation. Lead with the grade for an external-adoption question and with the bottom line or position for the other shapes. Keep each schema field to one line or a few bullets. The `Verified facts` field **cites** from the dossiers (`file:line`, issue/PR number, url) rather than reproducing them, and the dossiers themselves are never printed to chat. For adoption subjects, length is governed by the tier, not by how much was found:
+`ce-pov` writes no document, so the chat block *is* the whole deliverable — make it a tight POV, not a transcript of the investigation.
+
+Lead with the grade for an external-adoption question and with the bottom line or position for the other shapes. Keep each schema field to one line or a few bullets. The `Verified facts` field **cites** from the dossiers (`file:line`, issue/PR number, url) rather than reproducing them, and the dossiers themselves are never printed to chat.
+
+**Name what identifiers refer to.** When the POV references an identifier the subject defines rather than the reader — a supplied option label like "Option A", a document requirement or unit ID like `R8` or `U3` — pair it with a short distinguishing gloss at first mention (`R8 (elevated-call read access)`, not bare `R8`), so the block stands alone for someone who never saw the option list or does not have the document open. Keep the identifier; keep the gloss to a few words. Resolve the gloss from the material already in context — the supplied list, or the document `ce-pov` read. This governs the whole delivered block, including any peer position folded in during reconciliation: a peer that wrote a bare label does not license relaying one.
+
+For adoption subjects, length is governed by the tier, not by how much was found:
 
 - **Tier 1** — one screen: the grade, the incumbent, 1-2 project + 1-2 external cited facts, the conditions, the handoff. No reversal trigger, no alternatives walk-through.
 - **Tier 2/3** — fuller (alternatives, the reversal trigger, deeper conditions), but still leads with the grade and keeps evidence to cited bullets, never walls of quoted text.

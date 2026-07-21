@@ -81,6 +81,33 @@
 
 # plan_skip_scoping_confirm: true   # true | false (default: false)
 
+# --- Cross-model review preference ---
+# Preferred peer for ce-doc-review and ce-code-review when their conditional
+# cross-model pass activates. Conversation instructions still win, and the
+# skills skip routes that cannot establish the required host/peer distinction.
+
+# cross_model_peer: codex          # codex | claude | grok | cursor | composer
+
+# --- ce-work implementation engine ---
+# Standing, per-checkout preferences for who authors implementation units. Live
+# task/session/project instructions and LFG's provenance-bearing binding may
+# override or narrow these defaults. `off` disables only this standing preference.
+# `prefer` tries candidates in order, then falls back natively with disclosure.
+# `require` asks before native fallback in an interactive ce-work run and blocks
+# without prompting under LFG/headless execution. Harnesses: codex | claude | grok
+# | cursor. Omit model to use that harness's configured default. Composer is a model
+# family through Cursor: { harness: cursor, model: composer }. Do not put CLI flags
+# or commands here. A candidate equivalent to the current host/default is skipped;
+# a different explicit model in the same harness remains eligible.
+
+# work_engine_mode: prefer        # off | prefer | require (default: off)
+# work_engine_preferences:
+#   - harness: cursor
+#     model: composer
+#   - harness: codex
+#     model: "gpt-5.6"
+#   - harness: claude             # configured default model
+
 # --- ce-promote ---
 # Written automatically when you decline the Spiral setup offer in /ce-promote.
 # Suppresses that one-time setup nudge in this project. Remove the key to re-enable.

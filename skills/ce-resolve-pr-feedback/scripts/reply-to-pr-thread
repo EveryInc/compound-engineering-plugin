@@ -2,6 +2,18 @@
 
 # Replies to a PR review thread. Body is read from stdin to avoid
 # shell escaping issues with markdown (quotes, newlines, etc.).
+#
+# GraphQL rather than REST (`POST pulls/{n}/comments/{id}/replies`) because the
+# surrounding pipeline is thread-node-ID-native: get-pr-comments returns PRRT_
+# IDs and resolveReviewThread has no REST equivalent, so replying by thread ID
+# keeps one ID currency end to end. REST addresses a *comment*, which would mean
+# carrying the thread's root comment databaseId purely for this call. Both
+# produce a real inline threaded reply -- this is not a capability difference.
+#
+# Omitting pullRequestReviewId below means the reply is absorbed into the
+# viewer's PENDING review when one exists, returning success while staying
+# invisible until that draft is submitted. The modes guard against this via
+# get-pr-comments' pending_review key; do not add a reviewId here without one.
 
 set -e
 

@@ -13,6 +13,7 @@ const CONSUMER_SKILLS = [
   "ce-doc-review",
   "ce-code-review",
   "ce-pov",
+  "ce-work",
   "ce-plan",
   "ce-brainstorm",
 ]

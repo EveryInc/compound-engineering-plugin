@@ -29,7 +29,14 @@ if [ -z "$OWNER" ] || [ -z "$REPO" ]; then
     exit 1
 fi
 
-# Output is a JSON object with three keys:
+# Output is a JSON object with four keys:
+#   pending_review   - node ID of the viewer's own unsubmitted (PENDING) review
+#                      on this PR, or null. Replies posted while one exists get
+#                      silently absorbed into that draft and stay invisible
+#                      until it is submitted, so the modes must stop before the
+#                      reply loop when this is non-null. Costs no extra request:
+#                      the reviews query below already selects `state`, and a
+#                      PENDING review is only visible to its own author.
 #   review_threads   - unresolved inline review threads, edge-wrapped as
 #                      [{ node: { id, isResolved, isOutdated, path, line, ...,
 #                                 comments: { nodes: [...] } } }]
@@ -109,6 +116,7 @@ reviews_pages=$(gh api graphql --paginate --slurp \
   -f owner="$OWNER" -f repo="$REPO" -F pr="$PR_NUMBER" \
   -f query='
 query Reviews($owner: String!, $repo: String!, $pr: Int!, $endCursor: String) {
+  viewer { login }
   repository(owner: $owner, name: $repo) {
     pullRequest(number: $pr) {
       reviews(first: 100, after: $endCursor) {
@@ -138,7 +146,12 @@ jq -n \
   [$comments[].data.repository.pullRequest.comments.nodes[]] as $all_comments |
   [$reviews[].data.repository.pullRequest.reviews.nodes[]] as $all_reviews |
   [$all_threads[] | select(.isResolved == false)] as $unresolved |
+  ($reviews[0].data.viewer.login) as $viewer |
   {
+    pending_review: (first($all_reviews[]
+      | select(.state == "PENDING")
+      | select(($viewer == null) or (.author.login == $viewer))
+      | .id) // null),
     review_threads: [$unresolved[] | { node: . }],
     pr_comments: [$all_comments[]
       | select(($author.login == null) or (.author.login != $author.login))

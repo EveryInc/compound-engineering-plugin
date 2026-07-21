@@ -209,7 +209,7 @@ The deliverable is written automatically — you don't have to ask. If a run was
 | `surprise me` | Surprise-me mode |
 | `go deep` | Maximum depth: every ideation agent runs on the top-tier model, verification budgets double, and a second critic joins the filtering pass |
 | `top issue themes in <area>` | Triggers issue-tracker intent |
-| `output:md` | Write the artifact as markdown instead of the default self-contained HTML (`output:html` forces HTML explicitly). Also settable per-project via `ideate_output` in `.compound-engineering/config.local.yaml` |
+| `output:md` | Write the artifact as markdown instead of the default self-contained HTML (`output:html` forces HTML explicitly). Also settable per-project via `ideate_output` in `.compound-engineering/config.local.yaml`; see the [configuration reference](./configuration.md) |
 
 Skip phrases supported anywhere in the prompt: `no external research`, `no slack`.
 

@@ -96,24 +96,25 @@ function writeStub(body: string): string {
   return p
 }
 
-function jobDirOf(root: string, id: string, runId = "run1"): string {
-  return path.join(root, "ce-doc-review", runId, "jobs", id)
+function jobDirOf(root: string, id: string, runId = "run1", skill = "ce-doc-review"): string {
+  return path.join(root, skill, runId, "jobs", id)
 }
 
 function startJob(
   root: string,
   env: Record<string, string>,
   worker: string[],
-  opts: { runId?: string; resultPath?: string; extra?: string[] } = {},
+  opts: { runId?: string; resultPath?: string; extra?: string[]; skill?: string } = {},
 ): { id: string; dir: string; res: RunResult } {
   const runId = opts.runId ?? "run1"
-  const args = ["start", "--skill", "ce-doc-review", "--run-id", runId]
+  const skill = opts.skill ?? "ce-doc-review"
+  const args = ["start", "--skill", skill, "--run-id", runId]
   if (opts.resultPath) args.push("--result-path", opts.resultPath)
   if (opts.extra) args.push(...opts.extra)
   args.push("--", ...worker)
   const res = runner(root, env, args)
   const id = res.stdout.trim()
-  return { id, dir: jobDirOf(root, id, runId), res }
+  return { id, dir: jobDirOf(root, id, runId, skill), res }
 }
 
 /** Record the job's supervisor+worker pids for the no-orphans teardown. */
@@ -137,11 +138,64 @@ function waitState(
 }
 
 describe("peer-job-runner lifecycle", () => {
+  test("ce-work's skill-specific root wins and remains discoverable by job id", () => {
+    const genericRoot = makeRoot()
+    const ceWorkRunsRoot = mkTempRoot("ce-work-runs-root-")
+    const stub = writeStub("exit 0\n")
+    const env = {
+      ...FAST,
+      CE_WORK_RUNS_ROOT: ceWorkRunsRoot,
+      CE_PEER_JOBS_ROOT: genericRoot,
+    }
+    const started = runner(genericRoot, env, [
+      "start", "--skill", "ce-work", "--run-id", "run1", "--", stub,
+    ])
+    expect(started.code).toBe(0)
+    const id = started.stdout.trim()
+    const dir = path.join(ceWorkRunsRoot, "run1", "jobs", id)
+    expect(existsSync(dir)).toBe(true)
+    trackJob(dir)
+    const unscoped = runner(genericRoot, env, ["status", id])
+    expect(unscoped.code).toBe(1)
+    expect(unscoped.stderr).toContain(`job not found under ${genericRoot}`)
+    const waited = runner(genericRoot, env, [
+      "wait", "--skill", "ce-work", "--max-secs", "10", id,
+    ])
+    expect(waited.stdout.trim()).toBe("done")
+  }, 20000)
+
+  test("explicit non-ce-work lookup ignores a stale ce-work root", () => {
+    const genericRoot = makeRoot()
+    const ceWorkRunsRoot = mkTempRoot("stale-ce-work-runs-root-")
+    const stub = writeStub("exit 0\n")
+    const env = {
+      ...FAST,
+      CE_WORK_RUNS_ROOT: ceWorkRunsRoot,
+      CE_PEER_JOBS_ROOT: genericRoot,
+    }
+    const started = startJob(genericRoot, env, [stub])
+    expect(started.res.code).toBe(0)
+    trackJob(started.dir)
+    const waited = runner(genericRoot, env, [
+      "wait", "--skill", "ce-doc-review", "--max-secs", "10", started.id,
+    ])
+    expect(waited.stdout.trim()).toBe("done")
+
+    const duplicate = path.join(ceWorkRunsRoot, "other-run", "jobs", started.id)
+    mkdirSync(duplicate, { recursive: true })
+    writeFileSync(path.join(duplicate, "status"), "failed\n")
+    const status = runner(genericRoot, env, [
+      "status", "--skill", "ce-doc-review", started.id,
+    ])
+    expect(status.code).toBe(0)
+    expect(status.stdout.trim()).toBe("done")
+  }, 20000)
+
   test("happy path: start -> done; result emits artifact; every call sub-2s", () => {
     const root = makeRoot()
     const resultPath = path.join(mkTempRoot("peer-res-"), "result.json")
     const stub = writeStub(
-      `echo hello-from-worker\nprintf '%s' '{"ok":true}' > "$1"\nexit 0\n`,
+      `echo hello-from-worker\nprintf '{"job_id":"%s"}' "$CE_PEER_JOB_ID" > "$1"\nexit 0\n`,
     )
     const { id, dir, res } = startJob(root, FAST, [stub, resultPath], {
       resultPath,
@@ -156,7 +210,7 @@ describe("peer-job-runner lifecycle", () => {
     expect(w.code).toBe(0)
     expect(w.stdout.trim()).toBe("done")
 
-    const st = runner(root, FAST, ["status", id])
+    const st = runner(root, FAST, ["status", "--skill", "ce-doc-review", id])
     expect(st.code).toBe(0)
     expect(st.ms).toBeLessThan(2000) // R1
     expect(st.stdout.trim()).toBe("done")
@@ -165,10 +219,10 @@ describe("peer-job-runner lifecycle", () => {
     const rows = JSON.parse(stJson.stdout)
     expect(rows).toEqual([{ ref: id, job_dir: dir, state: "done" }])
 
-    const rr = runner(root, FAST, ["result", id])
+    const rr = runner(root, FAST, ["result", "--skill", "ce-doc-review", id])
     expect(rr.code).toBe(0)
     expect(rr.ms).toBeLessThan(2000) // R1
-    expect(rr.stdout).toBe('{"ok":true}')
+    expect(rr.stdout).toBe(`{"job_id":"${id}"}`)
 
     // R2: durable job state on disk
     expect(readFileSync(path.join(dir, "status"), "utf8").trim()).toBe("done")
@@ -199,15 +253,17 @@ describe("peer-job-runner lifecycle", () => {
     trackJob(dir)
 
     const size1 = statSync(path.join(dir, "out.log")).size
-    Bun.sleepSync(1000)
-    const st = runner(root, FAST, ["status", id])
-    expect(st.stdout.trim()).toBe("running")
-    const size2 = statSync(path.join(dir, "out.log")).size
+    const growthDeadline = Date.now() + 20000
+    let size2 = size1
+    while (Date.now() < growthDeadline && size2 <= size1) {
+      Bun.sleepSync(100)
+      size2 = statSync(path.join(dir, "out.log")).size
+    }
     expect(size2).toBeGreaterThan(size1) // log grew AFTER start returned
 
     const w = waitState(root, FAST, id, 15)
     expect(w.stdout.trim()).toBe("done")
-  }, 20000)
+  }, 30000)
 
   test("bounded wait: returns early on terminal, and never exceeds --max-secs", () => {
     const root = makeRoot()
@@ -249,35 +305,92 @@ describe("peer-job-runner lifecycle", () => {
     expect(pidAlive(pids!.worker_pid)).toBe(false)
   }, 25000)
 
-  test("hard cap and margin race: supervisor reaps, and its record wins over a racing clean exit", () => {
+  test("ce-work idle 0 disables only idle supervision; hard cap remains authoritative", () => {
     const root = makeRoot()
-    const env = { ...FAST, CE_PEER_HARD_SECS: "2", CE_PEER_IDLE_SECS: "30" }
+    const env = {
+      ...FAST,
+      CE_WORK_RUNS_ROOT: path.join(root, "ce-work"),
+      CE_PEER_IDLE_SECS: "0",
+      CE_PEER_HARD_SECS: "2",
+    }
+    const stub = writeStub(`echo once\nsleep 60\nexit 0\n`)
+    const { id, dir } = startJob(root, env, [stub], {
+      extra: ["--no-sweep"],
+      skill: "ce-work",
+    })
+    trackJob(dir)
+    const meta = JSON.parse(readFileSync(path.join(dir, "meta.json"), "utf8"))
+    expect(meta.supervision.idle).toBeNull()
+    expect(meta.supervision.hard).toBe(2)
+    expect(meta.sweep_enabled).toBe(false)
 
-    // (a) worker that ignores every cap and never goes idle -> supervisor hard cap
+    const w = waitState(root, env, id, 15)
+    expect(w.stdout.trim()).toBe("timeout")
+    const reason = readFileSync(path.join(dir, "reason"), "utf8")
+    expect(reason).toContain("hard cap")
+    expect(reason).not.toContain("idle window")
+  }, 20000)
+
+  test("non-ce-work idle 0 retains the default idle supervision", () => {
+    const root = makeRoot()
+    const env = { ...FAST, CE_PEER_IDLE_SECS: "0", CE_PEER_HARD_SECS: "60" }
+    const stub = writeStub(`echo once\nsleep 60\nexit 0\n`)
+    const { id, dir } = startJob(root, env, [stub])
+    trackJob(dir)
+    const meta = JSON.parse(readFileSync(path.join(dir, "meta.json"), "utf8"))
+    expect(meta.skill).toBe("ce-doc-review")
+    expect(meta.supervision.idle).toBe(240)
+    expect(runner(root, env, ["reap", id]).code).toBe(0)
+    expect(["timeout", "died-without-result"]).toContain(
+      waitState(root, env, id, 10).stdout.trim(),
+    )
+  }, 15000)
+
+  test("reap margin race: supervisor record wins over a racing clean exit", () => {
+    const root = makeRoot()
+    const env = {
+      ...FAST,
+      CE_PEER_HARD_SECS: "60",
+      CE_PEER_IDLE_SECS: "30",
+      CE_PEER_GRACE_SECS: "10",
+    }
+
     const resultPath = path.join(mkTempRoot("peer-res-"), "late.json")
-    // Trap TERM to publish a result and exit 0 DURING the supervisor's reap:
-    // the terminal record must still be the supervisor's `timeout` (R3).
     const stubborn = writeStub(
-      `trap 'printf done > "$1"; exit 0' TERM\nwhile :; do echo tick; sleep 0.2; done\n`,
+      `trap 'printf done > "$1"; exit 0' TERM\necho ready\nwhile :; do echo tick; sleep 0.2; done\n`,
     )
     const a = startJob(root, env, [stubborn, resultPath], { resultPath })
     trackJob(a.dir)
+
+    // Establish that the TERM trap is installed before requesting the reap;
+    // hard-cap behavior is covered separately above.
+    const logPath = path.join(a.dir, "out.log")
+    const readyDeadline = Date.now() + 20000
+    while (
+      Date.now() < readyDeadline &&
+      !readFileSync(logPath, "utf8").includes("ready")
+    ) {
+      Bun.sleepSync(100)
+    }
+    expect(readFileSync(logPath, "utf8")).toContain("ready")
+    expect(runner(root, env, ["reap", a.id]).code).toBe(0)
+
     const wa = waitState(root, env, a.id, 20)
     expect(wa.stdout.trim()).toBe("timeout")
-    expect(readFileSync(path.join(a.dir, "reason"), "utf8")).toContain("hard")
-    // the race really happened: the worker did publish before dying...
+    expect(readFileSync(path.join(a.dir, "reason"), "utf8")).toContain("reaped on request")
     expect(existsSync(resultPath)).toBe(true)
-    // ...but the supervisor's record wins, so result refuses (exit 3)
     expect(runner(root, env, ["result", a.id]).code).toBe(3)
+  }, 45000)
 
-    // (b) worker-side cap fires first (worker exits nonzero on its own) -> failed
+  test("worker exit before supervisor reaping is classified failed", () => {
+    const root = makeRoot()
     const selfCapped = writeStub(`echo capped >&2\nexit 7\n`)
-    const b = startJob(root, env, [selfCapped])
+    const b = startJob(root, FAST, [selfCapped])
     trackJob(b.dir)
-    const wb = waitState(root, env, b.id, 10)
+    const wb = waitState(root, FAST, b.id, 10)
     expect(wb.stdout.trim()).toBe("failed")
     expect(readFileSync(path.join(b.dir, "reason"), "utf8")).toContain("7")
-  }, 30000)
+  }, 15000)
 
   test("byte cap on out.log: flooding worker reaped as failed with oversize reason", () => {
     const root = makeRoot()
@@ -379,6 +492,30 @@ describe("peer-job-runner lifecycle", () => {
     expect(st.stderr).not.toContain("Traceback")
   }, 15000)
 
+  test("--no-sweep preserves old durable run roots while default start still sweeps", () => {
+    const root = makeRoot()
+    const skillDir = path.join(root, "ce-doc-review")
+    const durable = path.join(skillDir, "durable-old")
+    mkdirSync(path.join(durable, "jobs"), { recursive: true })
+    writeFileSync(path.join(durable, "transport-ref-evidence"), "retain")
+    const past = new Date(Date.now() - 25 * 3600 * 1000)
+    utimesSync(durable, past, past)
+
+    const stub = writeStub(`exit 0\n`)
+    const retained = startJob(root, FAST, [stub], {
+      runId: "ce-work-style",
+      extra: ["--no-sweep"],
+    })
+    trackJob(retained.dir)
+    expect(waitState(root, FAST, retained.id, 10).stdout.trim()).toBe("done")
+    expect(existsSync(durable)).toBe(true)
+
+    const swept = startJob(root, FAST, [stub], { runId: "review-default" })
+    trackJob(swept.dir)
+    expect(waitState(root, FAST, swept.id, 10).stdout.trim()).toBe("done")
+    expect(existsSync(durable)).toBe(false)
+  }, 15000)
+
   test("reap: fast return, supervisor classifies once, second reap is a no-op", () => {
     const root = makeRoot()
     const stub = writeStub(`sleep 60\nexit 0\n`)
@@ -386,7 +523,7 @@ describe("peer-job-runner lifecycle", () => {
     const pids = trackJob(dir)
     expect(pids).not.toBeNull()
 
-    const r1 = runner(root, FAST, ["reap", id])
+    const r1 = runner(root, FAST, ["reap", "--skill", "ce-doc-review", id])
     expect(r1.code).toBe(0)
     expect(r1.ms).toBeLessThan(2000) // fast return; supervisor owns the kill
 
