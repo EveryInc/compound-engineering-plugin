@@ -193,8 +193,14 @@ SERVED="$(printf '%s' "$EVENT" | jq -r --arg p "$PREFIX" \
    | (if $p != "" then first($k[] | select(startswith($p))) else empty end) // $k[0] // "unverified"' \
   2>/dev/null || printf 'unverified')"
 OUTPUT="$(printf '%s' "$EVENT" | jq -r '.result // empty' 2>/dev/null || true)"
+# A terminal event carries .result even when truncated or errored (subtype
+# "error_max_turns"/"error_during_execution", is_error true). Ship "ok" only on
+# a clean success, so a partial plan is never mistaken for a complete one.
+SUBTYPE="$(printf '%s' "$EVENT" | jq -r '.subtype // empty' 2>/dev/null || true)"
+IS_ERROR="$(printf '%s' "$EVENT" | jq -r '.is_error // false' 2>/dev/null || printf 'true')"
 
-if [ "$RUN_SUCCEEDED" = true ] && [ -n "$OUTPUT" ]; then
+if [ "$RUN_SUCCEEDED" = true ] && [ -n "$OUTPUT" ] \
+   && [ "$SUBTYPE" = "success" ] && [ "$IS_ERROR" != "true" ]; then
   RECEIPT="$(classify_receipt "$MODEL" "$SERVED")"
   write_result "$(jq -n --arg m "$MODEL" --arg s "$SERVED" --arg r "$RECEIPT" --arg o "$OUTPUT" \
     '{status:"ok", requested_model:$m, served_model:$s, receipt:$r, output:$o}')"

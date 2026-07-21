@@ -147,6 +147,20 @@ describe("elevation-dispatch worker", () => {
     expect(result.receipt).toBe("matched")
   })
 
+  test("a truncated/error terminal result is failed, not shipped as ok", () => {
+    // max-turns result still carries .result, but subtype/is_error mark it bad.
+    const errLine = JSON.stringify({
+      type: "result",
+      subtype: "error_max_turns",
+      is_error: true,
+      result: "PARTIAL PLAN, cut off mid-",
+      modelUsage: { "claude-fable-5": { outputTokens: 5 } },
+    })
+    const stub = "#!/bin/sh\n" + `printf '%s\\n' '${errLine}'\n`
+    const { result } = runWorker("fable", stub)
+    expect(result.status).toBe("failed")
+  })
+
   test("a different served family is recorded as a mismatch", () => {
     const stub =
       "#!/bin/sh\n" +
