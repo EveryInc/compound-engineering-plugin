@@ -112,6 +112,7 @@ perl -e 'use POSIX qw(setsid); exit if fork; setsid(); exit if fork; open(STDIN,
 
 ## Related
 
+- `docs/solutions/skill-design/anti-poll-scope-and-async-subagent-dispatch.md` — scopes this doc's anti-poll rule. The POLL step's "no foreground sleep loops" and the anti-pattern row target *detached* bash/CLI delegate polling (this doc's subject), **not** harness-managed subagent dispatch (Claude Code `Agent`, Codex `spawn_agent`), which returns on its own tool call with no poll loop. Read it before applying the POLL rule to a skill that fans out subagents, so the ban isn't misread as forbidding concurrent subagent dispatch.
 - `docs/solutions/skill-design/requested-vs-verified-model-identity.md` — sibling pattern: the `meta.json` job identity and atomically published result are the natural home for its `model_requested` / `model_actual` receipt fields.
 - `docs/solutions/skill-design/cross-harness-cross-model-tool-invocation.md` — documented the empirical precursor on a single host (Codex reaping nohup'd children when the tool call ends); this doc widens that finding to 2 of 3 tested hosts and supplies the survival mechanism.
 - `docs/solutions/skill-design/watch-loops-need-a-blocked-external-terminal-state.md` — sibling pattern for supervising long-running external work: terminal-state taxonomy and bounded waits.
