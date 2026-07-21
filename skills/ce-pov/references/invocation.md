@@ -17,7 +17,7 @@ So every input is labeled by provenance, and only verified buckets satisfy the g
 |---|---|
 | Observed project facts (from a scout dossier or a host bounded read of the authoritative source) | Yes |
 | Verified external facts (from a scout dossier or a host bounded read of the authoritative source) | Yes |
-| Conversation claims | No — frame and hypotheses until a scout or a bounded inline read corroborates |
+| Conversation claims | No — frame and hypotheses until a scout or a bounded inline read of the authoritative source corroborates |
 | Unconfirmed assumptions | No — surfaced for the user to confirm or deny |
 
 If the conversation says "we have 40 call-sites on X," the project-grounding scout — or the host's own bounded read, when the sites are already located — must confirm that against the codebase before it counts. **Warm adds no evidentiary weight** — it surfaces the question and hypotheses; the independent grounding is still done by scouts or bounded reads of the source, never by the conversation itself. Same invalidation rule, no warm exemption.
