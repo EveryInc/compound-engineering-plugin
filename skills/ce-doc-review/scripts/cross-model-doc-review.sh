@@ -423,7 +423,7 @@ fi
 PROMPT_FILE="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-prompt-XXXXXX")"
 PEERLOG="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-log-XXXXXX")"
 # Peer stderr goes to its own file, NOT merged into PEERLOG: PEERLOG must stay
-# clean stdout for the findings brace-match and the receipt jq-parse. An
+# clean stdout for the findings raw_decode scan and the receipt jq-parse. An
 # auth/quota/rate-limit message often lands on stderr, so capture it separately
 # and surface it in the skip evidence (grok's 402 is on stdout, others on stderr).
 PEERERR="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-err-XXXXXX")"
@@ -593,24 +593,29 @@ run_timeout_cmd() {   # $1 = stdin file ("" -> /dev/null). CMD already built.
   ACTIVE_PEER_PID=""
 }
 
-# Brace-match the largest {...} object containing "findings" out of raw stdout.
+# Decode each {...} object in raw stdout via raw_decode (string/escape-aware,
+# unlike brace counting) and keep the last one shaped like findings.
 recover_findings_json() {   # <logfile> <outfile>
   command -v python3 >/dev/null 2>&1 || return 1
   python3 - "$1" "$2" <<'PY' 2>/dev/null
 import sys, json
 txt = open(sys.argv[1], encoding="utf-8", errors="replace").read()
-best, depth, start = None, 0, None
-for i, ch in enumerate(txt):
-    if ch == '{':
-        if depth == 0: start = i
-        depth += 1
-    elif ch == '}' and depth > 0:
-        depth -= 1
-        if depth == 0 and start is not None:
-            try:
-                obj = json.loads(txt[start:i+1])
-                if isinstance(obj, dict) and "findings" in obj: best = obj
-            except Exception: pass
+# Any selectable object carries a literal `"findings"` key; if the raw text has
+# none, there is nothing to recover. Skip the scan — raw_decode probing every
+# `{` is O(n^2) on brace-dense non-findings stdout (error/crash dumps).
+if '"findings"' not in txt: sys.exit(0)
+dec = json.JSONDecoder()
+best, i = None, 0
+while True:
+    j = txt.find('{', i)
+    if j < 0: break
+    try:
+        obj, end = dec.raw_decode(txt, j)
+    except Exception:
+        i = j + 1
+        continue
+    if isinstance(obj, dict) and isinstance(obj.get("findings"), list): best = obj
+    i = end
 if best is not None: open(sys.argv[2], "w").write(json.dumps(best))
 PY
   [ -s "$2" ]
