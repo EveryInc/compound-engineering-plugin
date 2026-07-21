@@ -1127,6 +1127,31 @@ describe("cross-model peer skip legibility", () => {
     })
   }
 
+  // A restricted host sandbox (e.g. a Codex task with network disabled) denies
+  // the spawned peer CLI network/keychain, producing the exact same
+  // `Not logged in` signal as a genuine account logout. The classifier surfaces
+  // that string verbatim, so each cross-model reference must scope an
+  // auth-shaped peer failure to the peer's execution context and forbid the
+  // account-logout / run-login conclusion — otherwise the agent misreports the
+  // user as logged out. This is harness-agnostic prose (no Codex-only
+  // mechanism), so it must hold across code review, doc review, and pov alike.
+  const authScopeRefs = [
+    "skills/ce-code-review/references/cross-model-review.md",
+    "skills/ce-doc-review/references/cross-model-review.md",
+    "skills/ce-pov/references/cross-model-panel.md",
+  ]
+  for (const reference of authScopeRefs) {
+    test(`${reference} scopes an auth-shaped peer failure to execution context`, async () => {
+      // Collapse whitespace: ce-pov hard-wraps prose, so the anchor phrases can
+      // straddle a line break while the code-review/doc-review bullets do not.
+      const src = (await readRepoFile(reference)).replace(/\s+/g, " ")
+      expect(src).toContain("describes only the peer's execution context")
+      expect(src).toContain(
+        "never report it as the user's account being logged out",
+      )
+    })
+  }
+
   for (const reference of pairs.map((p) => p.reference)) {
     test(`${reference} keeps Cursor harness identity separate from serving family`, async () => {
       const src = await readRepoFile(reference)

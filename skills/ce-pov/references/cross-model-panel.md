@@ -202,7 +202,13 @@ harness/intermediary route, requested model, served model, and
 `independence_verified` separately. A served model of `unverified` remains
 unverified. If a job yields no usable artifact, use bounded `peer skip evidence`
 from its log to state an observed quota, authentication, or route failure; never
-invent a cause.
+invent a cause. An authentication-shaped peer failure (`not logged in`, `please
+log in`, 401, or CLI text prompting login) describes only the peer's execution
+context: a sandboxed host — e.g. a restricted Codex task denying spawned commands
+network or keychain access — produces the identical signal to a genuine account
+logout, so state it as a cross-model execution-context authentication failure and
+never report it as the user's account being logged out or prompt the user to run
+a login command on that basis.
 
 ## 5. Detect dissent, verify claims, and reconcile
 
