@@ -110,7 +110,7 @@ it as a non-inferiority test.
   and rejected one cheaper model (Terra) for weaker detection. A follow-up then found
   the model axis *also* had a free-cost win that the token-only metric had hidden:
   once cost was priced in dollars, a cheaper-per-token model (Luna) at the top tier
-  tied detection for ~30% less spend. Two intuitions ("high reasoning is worth it,"
+  tied detection for ~70% less spend (~0.30x the API cost). Two intuitions ("high reasoning is worth it,"
   "more tokens means more expensive") were both wrong, and only measurement — with
   the right cost axis — showed it.
 
@@ -148,7 +148,7 @@ Isolation: the arm differs only in the two swapped tokens on the real invocation
 codex exec ... -m gpt-5.6-sol   -c 'model_reasoning_effort="high"'    # baseline
 codex exec ... -m gpt-5.6-sol   -c 'model_reasoning_effort="medium"'  # tier candidate  (faster, more predictable)
 codex exec ... -m gpt-5.6-terra -c 'model_reasoning_effort="high"'    # model candidate (rejected: weaker detection)
-codex exec ... -m gpt-5.6-luna  -c 'model_reasoning_effort="xhigh"'   # model candidate (adopted: ~30% cheaper in API $)
+codex exec ... -m gpt-5.6-luna  -c 'model_reasoning_effort="xhigh"'   # model candidate (adopted: ~70% cheaper in API $)
 ```
 
 Concrete result shape (real bugs, blind 3-vote judge, medians). The tier drop and
@@ -167,10 +167,11 @@ Luna wins on API dollars but is ~54% slower at the median with a heavy tail (JS 
 efficiency, Sol-medium for faster/predictable turnaround.** ChatGPT-Pro-metered use
 is a separate axis (Luna ~3.1-3.3x the message capacity), not the API-dollar figure.
 
-The 2026-07-20 write-up adds the corrected API-dollar axis and the Luna result on
-top of the original 2026-07-18 write-up (Sol tiers only, token-volume cost):
-`docs/plans/2026-07-18-adversarial-peer-benchmark-report.md`; running phase log:
-`docs/plans/2026-07-17-001-eval-cross-model-peer-model-config.md`.
+The corrected API-dollar axis and the Luna result are captured in this document.
+The original Sol-only benchmark (token-volume cost, no Luna run) is the 2026-07-18
+write-up `docs/plans/2026-07-18-adversarial-peer-benchmark-report.md` and its phase
+log `docs/plans/2026-07-17-001-eval-cross-model-peer-model-config.md` — both predate
+the Luna/API-dollar update and do not contain it.
 Runnable harness (re-run when models change):
 `github.com/tmchow/cross-model-peer-eval` (private). Current config: `gpt-5.6-luna`
 at `xhigh` for both `ce-code-review` and `ce-doc-review` adversarial peers.
