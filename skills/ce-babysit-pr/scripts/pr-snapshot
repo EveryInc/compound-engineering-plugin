@@ -1459,6 +1459,14 @@ def _apply_invocation(box, args, now):
                 same_anchor = False
             if not same_anchor or state.get("invocation_budget_seconds") != requested_budget:
                 raise SystemExit("continuation cannot renew or extend an existing invocation")
+            # Honor a carry arg on a same-invocation re-continue too, as a monotonic floor: raise the
+            # dead-time to the carried value without clobbering time this dir already accumulated
+            # (dead time only ever grows). This makes the carry order-independent — it lands whether
+            # it arrives on the first adopt or a later re-continue.
+            continue_dead_time = getattr(args, "continue_dead_time_seconds", None)
+            if continue_dead_time is not None:
+                state["dead_time_seconds"] = max(
+                    state.get("dead_time_seconds") or 0, float(continue_dead_time))
             return
         state["invocation_id"] = invocation_id
         state["started_at"] = requested_started_at

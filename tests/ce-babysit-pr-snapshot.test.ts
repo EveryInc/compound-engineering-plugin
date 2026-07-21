@@ -831,6 +831,27 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(readState(layer3).dead_time_seconds).toBe(0)
   }, 20000)
 
+  test("carry arg on a same-id re-continue raises the dead-time floor without clobbering accumulation", () => {
+    // Bugbot: the carry must be honored on a later same-id re-continue (early-return path), not only
+    // the first adopt. It sets a monotonic floor — raises 0 to the carry, never lowers a larger value.
+    const fetch = fetchFile(dir, "recont.json", quietCurrencyFixture())
+    snapshot(state, fetch)
+    const prior = readState(state)
+    const layer = path.join(dir, "recont-layer")
+    const cont = (extra: string[]) => spawnSync("python3",
+      [SCRIPT, "snapshot", "--pr", "1", "--repo", "o/r", "--state-dir", layer, "--fetch-file", fetch,
+        "--continue-invocation", "--invocation-id", prior.invocation_id,
+        "--session-started-at", prior.started_at,
+        "--invocation-budget-seconds", String(prior.invocation_budget_seconds), ...extra],
+      { encoding: "utf8" })
+    expect(cont([]).status).toBe(0) // first continue (adopt), no carry -> 0
+    expect(readState(layer).dead_time_seconds).toBe(0)
+    expect(cont(["--continue-dead-time-seconds", "3000"]).status).toBe(0) // re-continue raises floor
+    expect(readState(layer).dead_time_seconds).toBe(3000)
+    expect(cont(["--continue-dead-time-seconds", "1000"]).status).toBe(0) // lower carry never clobbers
+    expect(readState(layer).dead_time_seconds).toBe(3000)
+  }, 20000)
+
   test("branch currency: a carried semantic park wakes only for inspection and unchanged evidence stays parked", () => {
     const dirty = quietCurrencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
     const original = snapshot(state, fetchFile(dir, "currency-inspect-1.json", dirty))
