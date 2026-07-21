@@ -640,6 +640,102 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(lateClaim.status).not.toBe(0)
   }, 20000)
 
+  // Active-watch-capability budget: the 8h cap is spent in active time, not raw wall-clock.
+  // A suspended machine (laptop asleep) is excluded; the 3-day backstop stays wall-clock.
+  const FAILING_ACTIONABLE = {
+    pr_state: "OPEN", mergeable: "MERGEABLE", merge_state_status: "UNSTABLE", review_decision: null,
+    head_sha: "h1", url: "https://github.com/o/r/pull/1", threads: [],
+    checks: [{ key: "CI/test", name: "test", status: "COMPLETED", conclusion: "FAILURE", details_url: "u" }],
+    feedback: [], awaiting_approval: 0,
+  }
+  const isoAgo = (seconds: number) =>
+    new Date(Date.now() - seconds * 1000).toISOString().replace(/\.\d+Z$/, "Z")
+  function patchState(stateDir: string, patch: Record<string, unknown>): void {
+    const p = path.join(stateDir, "state.json")
+    writeFileSync(p, JSON.stringify({ ...JSON.parse(readFileSync(p, "utf8")), ...patch }))
+  }
+  function readState(stateDir: string): any {
+    return JSON.parse(readFileSync(path.join(stateDir, "state.json"), "utf8"))
+  }
+
+  test("active-time budget: a suspended span (stale activity heartbeat) is excluded from the 8h cap", () => {
+    // Covers AE1. started_at and last_activity both ~6h stale (machine was suspended), budget 8h.
+    const fetch = fetchFile(dir, "active-suspend.json", FAILING_ACTIONABLE)
+    snapshot(state, fetch)
+    patchState(state, { started_at: isoAgo(6 * 3600), last_activity_at: isoAgo(6 * 3600),
+      dead_time_seconds: 0 })
+    // The watch arms, measures the ~6h activity gap, charges it to dead time, and does NOT max-runtime.
+    expect(watch(state, fetch).reason).toBe("actionable")
+    const after = readState(state)
+    // ~6h minus the 15-min threshold is charged to dead time (excluded from the active budget).
+    expect(after.dead_time_seconds).toBeGreaterThan(6 * 3600 - 15 * 60 - 60)
+    expect(after.dead_time_seconds).toBeLessThan(6 * 3600)
+  }, 20000)
+
+  test("active-time budget: steady sub-threshold polling accrues no dead time", () => {
+    // Covers AE2. A recent heartbeat (well under the 15-min threshold) never registers as suspend.
+    const fetch = fetchFile(dir, "active-steady.json", FAILING_ACTIONABLE)
+    snapshot(state, fetch)
+    patchState(state, { started_at: isoAgo(2 * 3600), last_activity_at: isoAgo(30),
+      dead_time_seconds: 0 })
+    expect(watch(state, fetch).reason).toBe("actionable")
+    expect(readState(state).dead_time_seconds).toBe(0)
+  }, 20000)
+
+  test("3-day backstop: raw wall-clock expiry fires even when active elapsed is ~0", () => {
+    // Covers AE4. started_at 4 days ago, dead_time ~4 days (active ~0), heartbeat fresh so the poll
+    // adds nothing. The 8h active cap is nowhere near hit, but the wall-clock backstop terminates.
+    const fetch = fetchFile(dir, "backstop.json", FAILING_ACTIONABLE)
+    snapshot(state, fetch)
+    patchState(state, { started_at: isoAgo(4 * 86400), last_activity_at: isoAgo(10),
+      dead_time_seconds: 4 * 86400 })
+    const wake = watch(state, fetch)
+    expect(wake.reason).toBe("max-runtime")
+    expect(wake.max_runtime_ceiling).toBe("backstop")
+  }, 20000)
+
+  test("active cap: active elapsed past the 8h budget fires max-runtime with the active-budget ceiling", () => {
+    // started_at 9h ago, no dead time, wall-clock < 3-day backstop -> the active budget is the ceiling.
+    const fetch = fetchFile(dir, "active-cap.json", FAILING_ACTIONABLE)
+    snapshot(state, fetch)
+    patchState(state, { started_at: isoAgo(9 * 3600), last_activity_at: isoAgo(10),
+      dead_time_seconds: 0 })
+    const wake = watch(state, fetch)
+    expect(wake.reason).toBe("max-runtime")
+    expect(wake.max_runtime_ceiling).toBe("active-budget")
+  }, 20000)
+
+  test("legacy state without active-time fields migrates on load", () => {
+    // Covers U1. A pre-existing state file lacking the new fields gains them with safe defaults.
+    const fetch = fetchFile(dir, "migrate.json", quietCurrencyFixture())
+    snapshot(state, fetch)
+    const legacy = readState(state)
+    delete legacy.last_activity_at
+    delete legacy.dead_time_seconds
+    delete legacy.invocation_backstop_seconds
+    writeFileSync(path.join(state, "state.json"), JSON.stringify(legacy))
+    snapshot(state, fetch)
+    const migrated = readState(state)
+    expect(migrated.dead_time_seconds).toBe(0)
+    expect(migrated.last_activity_at).toBeTruthy()
+    expect(migrated.invocation_backstop_seconds).toBe(3 * 24 * 60 * 60)
+  }, 20000)
+
+  test("re-arm preserves accumulated dead time and the backstop (no reset, no extend)", () => {
+    // Covers AE5. A continue-invocation re-arm keeps the accumulated dead time rather than resetting.
+    const fetch = fetchFile(dir, "rearm.json", quietCurrencyFixture())
+    snapshot(state, fetch)
+    patchState(state, { dead_time_seconds: 1234, last_activity_at: isoAgo(10) })
+    const inv = persistedInvocationArgs(state)
+    const r = spawnSync("python3", [SCRIPT, "snapshot", "--pr", "1", "--repo", "o/r",
+      "--state-dir", state, "--fetch-file", fetch, "--continue-invocation", ...inv],
+      { encoding: "utf8" })
+    expect(r.status, r.stderr).toBe(0)
+    const after = readState(state)
+    expect(after.dead_time_seconds).toBe(1234)
+    expect(after.invocation_backstop_seconds).toBe(3 * 24 * 60 * 60)
+  }, 20000)
+
   test("branch currency: a carried semantic park wakes only for inspection and unchanged evidence stays parked", () => {
     const dirty = quietCurrencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
     const original = snapshot(state, fetchFile(dir, "currency-inspect-1.json", dirty))

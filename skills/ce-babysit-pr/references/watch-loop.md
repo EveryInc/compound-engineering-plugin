@@ -76,6 +76,9 @@ State lives at `<scratch-root>/ce-babysit-pr/<host>-<owner>-<repo>-<pr>/state.js
   "started_at": "<iso8601>",
   "invocation_id": "<opaque invocation token>",
   "invocation_budget_seconds": 28800,
+  "last_activity_at": "<iso8601 — activity heartbeat: last watch poll or agent snapshot/mark>",
+  "dead_time_seconds": 0,
+  "invocation_backstop_seconds": 259200,
   "watch_generation": "<opaque generation>",
   "watch_pid": 12345,
   "watch_process_identity": "<pid-reuse guard>",
@@ -177,5 +180,5 @@ The one-time semantic-scope offer and draft/human boundaries live inline in SKIL
 - **PR closed or merged externally:** detected as `pr_state != "OPEN"` on any tick → clean exit with a final status.
 - **needs-human feedback:** `ce-resolve-pr-feedback` leaves those threads open and returns them as escalations; record each with `mark ... --disposition needs-human`, keep doing independent CI work, and surface them. Never auto-decline or auto-resolve a thread you did not fix. A parked `needs-human` is a **standing residual** (SKILL.md Step 3): it blocks *declaring* merge-ready but does **not** end the watch — keep handling new CI and later review rounds around it. Only a true stop (terminal / looks-ready / the budget cap) ends the active layer, not a count of accumulated escalations; an authorized confirmed-managed-stack run may transition after a looks-ready layer as defined inline in SKILL.md.
 - **No push access / fork PR:** a delegated push will fail. Detect that from the delegated skill's result, report it, and stop — the loop cannot make progress it has no permission to make.
-- **CI that never completes:** a check stuck `IN_PROGRESS` for a long time will keep the loop from settling. When the fixed invocation budget is reached, hand back with the measured `invocation_elapsed_seconds`; never substitute the age of persisted PR state or automatically start another budget.
+- **CI that never completes:** a check stuck `IN_PROGRESS` for a long time will keep the loop from settling. When the invocation budget is reached — either the 8h **active** cap (`invocation_elapsed_seconds`, which excludes suspended time) or the 3-calendar-day **wall-clock backstop** (`invocation_wall_elapsed_seconds`) — hand back with the measured `invocation_elapsed_seconds` and the `max_runtime_ceiling` that fired; never substitute the age of persisted PR state or automatically start another budget.
 - **Rate limits / transient API errors:** honor the reset time, back off, resume. The claim→confirm protocol protects against replay.
