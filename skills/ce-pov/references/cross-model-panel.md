@@ -71,6 +71,15 @@ Cursor-default counts automatically only when its serving family can be
 attested as different from the host; it remains eligible when explicitly named
 or configured as a preference.
 
+**Prior-opinion subjects.** When the subject is an already-formed position —
+ce-pov's own prior POV or the user's stated view — that position is the subject
+artifact and ships in the payload; peers answer the underlying question with
+their own verdict, and those `independent` voices enter convergence (unlike
+`skeptic` mode, where the critique does not). Any fresh host meta-judgment formed
+after the summons is withheld per Section 4's round-1 sequencing. A user-supplied
+position is handled identically to a host-authored one — shipped as the subject,
+never capitulated to.
+
 ## 2. Normalize scope and freeze repository identity
 
 Normalize the allowed read scope once as:
@@ -173,8 +182,10 @@ and carry the user's stated goal — including its intensity — when it bears o
 decision. State in the payload that rejecting every supplied option, or the
 framing itself, is a valid position. When ce-pov authored the subject in-session,
 present the options symmetrically in the payload's own words even though the full
-subject document remains attached. Write this as a floor with one example, not an
-exhaustive catalog of pre-arguing patterns. For `skeptic` mode, include
+subject document remains attached. When that in-session subject is itself an
+already-formed position, it ships as the subject per Section 1's prior-opinion
+rule and peers still return their own independent verdict. Write this as a floor
+with one example, not an exhaustive catalog of pre-arguing patterns. For `skeptic` mode, include
 ce-pov's position because critiquing it is the task. Reconciliation payloads
 follow Section 5 and deliberately include already-formed positions.
 

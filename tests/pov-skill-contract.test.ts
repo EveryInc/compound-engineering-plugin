@@ -210,6 +210,18 @@ describe("ce-pov cross-model panel contract", () => {
     expect(prose).toMatch(/Do not duplicate readable files/)
   })
 
+  test("packages a prior-opinion subject as first-class without capitulating", async () => {
+    const panel = await skillFile("references/cross-model-panel.md")
+    const invocation = await skillFile("references/invocation.md")
+    const prose = compact(panel)
+
+    expect(panel).toContain("Prior-opinion subjects")
+    expect(prose).toMatch(/already-formed position.*that position is the subject artifact and ships in the payload/)
+    expect(prose).toMatch(/enter convergence \(unlike `skeptic` mode/)
+    expect(panel).toContain("never capitulated to")
+    expect(invocation).toContain("not a revision prompt")
+  })
+
   test("grounds initial peers in the subject and shared tree without a host-curated project floor", async () => {
     const peer = await skillFile("references/agents/pov-peer.md")
     const prose = compact(peer)
