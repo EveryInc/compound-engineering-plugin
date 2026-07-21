@@ -8,6 +8,7 @@ import {
   symlinkSync,
   chmodSync,
   existsSync,
+  realpathSync,
   rmSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
@@ -119,7 +120,7 @@ describe("elevation-dispatch worker", () => {
   })
 
   test("emits a streaming, read-only claude argv", () => {
-    const r = spawnSync("bash", [WORKER, "--emit-adapter", "fable"], {
+    const r = spawnSync("bash", [WORKER, "--emit-adapter", "fable", "/fake/handoff/xyz"], {
       encoding: "utf8",
     })
     expect(r.status).toBe(0)
@@ -137,11 +138,13 @@ describe("elevation-dispatch worker", () => {
     // them functional. No denylist.
     expect(argv).toContain("--tools")
     expect(argv).toContain("Read,Glob,Grep,WebSearch,WebFetch")
-    // handoff scratch files live in the OS temp dir (outside the launch dir);
-    // --add-dir extends read access there so they stay readable.
+    // handoff read access is scoped to the single per-run handoff dir passed to
+    // build_cmd — exactly one --add-dir, and never the whole OS temp root.
     const di = argv.indexOf("--add-dir")
     expect(di).toBeGreaterThan(-1)
-    expect(argv[di + 1]).toBeTruthy()
+    expect(argv[di + 1]).toBe("/fake/handoff/xyz")
+    expect(argv.filter((a) => a === "--add-dir").length).toBe(1)
+    expect(argv).not.toContain("/tmp")
     const ai = argv.indexOf("--allowedTools")
     expect(ai).toBeGreaterThan(-1)
     for (const tool of ["Read", "Glob", "Grep", "WebSearch", "WebFetch"]) {
@@ -161,6 +164,33 @@ describe("elevation-dispatch worker", () => {
     expect(result.output).toBe("PLAN BODY")
     expect(result.served_model).toBe("claude-fable-5")
     expect(result.receipt).toBe("matched")
+  })
+
+  test("grants read access to only the prompt's own dir, not the whole temp root", () => {
+    // Security: the elevated model must see the per-run handoff dir (where the
+    // orchestrator co-locates prompt + evidence) and nothing else in the temp
+    // root. The worker derives --add-dir from the prompt-file's parent dir.
+    const scratch = mkTempRoot("elevation-handoff-")
+    const promptFile = path.join(scratch, "brief.md")
+    const resultPath = path.join(scratch, "result.json")
+    const argvDump = path.join(scratch, "argv.txt")
+    writeFileSync(promptFile, "author the plan")
+    const dumpStub =
+      "#!/bin/sh\n" +
+      `printf '%s\\n' "$*" > "${argvDump}"\n` +
+      `printf '%s\\n' '${RESULT_LINE("OK", { "claude-fable-5": {} })}'\n`
+    const { env } = sandbox(dumpStub)
+    spawnSync("bash", [WORKER, "fable", promptFile, resultPath], {
+      encoding: "utf8",
+      env: { CE_ELEVATION_POLL_SECS: "0.2", ...env },
+    })
+    const argv = readFileSync(argvDump, "utf8")
+    const m = argv.match(/--add-dir (\S+)/)
+    expect(m).toBeTruthy()
+    // realpath both sides — macOS pwd is logical (/var/...) vs realpath (/private/var/...)
+    expect(realpathSync(m![1])).toBe(realpathSync(scratch))
+    expect(argv).not.toMatch(/--add-dir \/tmp(\s|$)/)
+    expect((argv.match(/--add-dir/g) || []).length).toBe(1)
   })
 
   test("missing jq exits 0 with a failure envelope, so the runner still emits it", () => {

@@ -39,7 +39,7 @@ EFFORT="high"   # settled: elevation runs at high effort
 # any mutating tool. Its output is returned prose, not a file write.
 ALLOWED=(Read Glob Grep WebSearch WebFetch)
 
-build_cmd() {   # <model> -> sets CMD array (claude CLI, streaming, read-only)
+build_cmd() {   # <model> <handoff-dir> -> sets CMD array (claude CLI, streaming, read-only)
   # --safe-mode suppresses the user environment's hooks, plugins, and MCP
   # servers; --disable-slash-commands blocks skills. --tools RESTRICTS the
   # available built-in set to this list — Write/Edit/Bash are not present at all.
@@ -48,14 +48,14 @@ build_cmd() {   # <model> -> sets CMD array (claude CLI, streaming, read-only)
   # just lets --permission-mode dontAsk run these five without a prompt instead
   # of denying them.
   local csv; csv="$(IFS=,; printf '%s' "${ALLOWED[*]}")"
-  # The handoff scratch files (research/dialogue) live in the OS temp dir, which
-  # is outside the launch dir. Claude's file access defaults to the launch dir
-  # and is extended via --add-dir, so add the OS temp root(s). This is read-only
-  # (only Read/Glob/Grep are available) and makes the handoff reads guaranteed by
-  # the documented permission model rather than a version's tool-allow behavior.
-  local tmproot; tmproot="${TMPDIR:-/tmp}"; tmproot="${tmproot%/}"
-  local add_dirs=(--add-dir "$tmproot")
-  [ "$tmproot" != "/tmp" ] && add_dirs+=(--add-dir /tmp)
+  # Grant read access to ONLY the single per-run handoff dir ($2, where the
+  # orchestrator co-located the prompt and evidence), which sits outside the
+  # launch dir. Claude's file access defaults to the launch dir and is extended
+  # via --add-dir. Adding the whole OS temp root ($TMPDIR / /tmp) instead would
+  # expose every other same-user scratch file and credential to the elevated
+  # model; the scoped dir does not. Read-only (only Read/Glob/Grep available).
+  local add_dirs=()
+  [ -n "${2:-}" ] && add_dirs=(--add-dir "$2")
   CMD=(claude -p --model "$1" --effort "$EFFORT"
        --output-format stream-json --verbose
        --safe-mode --disable-slash-commands --strict-mcp-config
@@ -66,9 +66,11 @@ build_cmd() {   # <model> -> sets CMD array (claude CLI, streaming, read-only)
 }
 
 # Test hook: print the argv the worker would exec, without calling a model.
+# Accepts an optional handoff dir ($3) so the emitted argv shows the scoped
+# --add-dir; without it the flag is omitted (no dir to grant).
 if [ "${1:-}" = "--emit-adapter" ]; then
   [ -n "${2:-}" ] || { log "--emit-adapter requires <model>"; exit 2; }
-  build_cmd "$2"
+  build_cmd "$2" "${3:-}"
   printf '%s\0' "${CMD[@]}"
   exit 0
 fi
@@ -77,6 +79,14 @@ MODEL="${1:?model required}"
 PROMPT_FILE="${2:?prompt-file required}"
 RESULT_PATH="${3:?result-path required}"
 [ -f "$PROMPT_FILE" ] || { log "prompt file not found: $PROMPT_FILE"; exit 2; }
+
+# The orchestrator co-locates the prompt and every evidence file in one private
+# per-run dir; grant the elevated model read access to just that dir (resolved
+# to an absolute path), never the whole OS temp root. Pure-bash dirname (no
+# external `dirname`): strip the last /component, defaulting to cwd if none.
+HANDOFF_DIR="${PROMPT_FILE%/*}"
+[ "$HANDOFF_DIR" = "$PROMPT_FILE" ] && HANDOFF_DIR="."
+HANDOFF_DIR="$(cd "$HANDOFF_DIR" 2>/dev/null && pwd || printf '%s' "$HANDOFF_DIR")"
 
 # jq builds every result envelope; it is only an optional capability (ce-setup),
 # so preflight it here rather than spending the CLI call and failing to parse.
@@ -215,7 +225,7 @@ run_codex_cmd() {
 }
 
 # --- main -------------------------------------------------------------------
-build_cmd "$MODEL"
+build_cmd "$MODEL" "$HANDOFF_DIR"
 run_codex_cmd
 
 # The stream-json terminal event is the LAST line whose type is "result". Match
