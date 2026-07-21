@@ -24,15 +24,15 @@ Instead:
 
 ## Evidence Tools (tool-adaptive)
 
-Recall depends on how you find related code. A diff-local read plus a text `grep` misses callers reached through re-exports, aliases, and barrel files, and mis-hits identifiers inside strings, comments, or longer names. When a claim depends on a symbol's callers, implementations, or whether a construct appears elsewhere, gather evidence with the strongest available tool, in order:
+Recall depends on how you find related code. A diff-local read plus a text `grep` misses callers reached through re-exports, aliases, and barrel files, and mis-hits identifiers inside strings, comments, or longer names. When a claim depends on a symbol's callers, implementations, or whether a construct appears elsewhere, use the strongest search your harness actually exposes, preferring in this order and falling through when a tier is unavailable:
 
-1. **Semantic (code intelligence / LSP).** If a references/definition/implementations tool is available (LSP or an equivalent MCP tool), use it — it follows renames, re-exports, and barrels that text search cannot.
-2. **Structural (`ast-grep`).** For "does construct X occur elsewhere" questions, prefer `ast-grep` over regex: it matches the parsed syntax tree, ignoring formatting and skipping matches inside strings and comments that `grep` reports as false hits.
-3. **Text (`grep`).** Fallback, and for genuinely lexical checks (config keys, string literals, log messages). When callsite coverage rests on `grep` alone, treat it as incomplete — record "callsite completeness: grep-only" in `residual_risks` rather than asserting the symbol is unused or the change is safe.
+1. **Symbol-aware search** — a references/definitions/implementations capability (LSP or an equivalent MCP tool) that follows renames, re-exports, and barrels text search cannot. Most reviewer harnesses do not expose one; when it is absent, drop to the next tier without ceremony.
+2. **Structural (AST) search** — a syntax-tree matcher such as `ast-grep` (optional; may not be installed). For "does construct X occur elsewhere" it beats regex: it matches the parsed tree, ignoring formatting and skipping the string/comment hits `grep` reports as false positives.
+3. **Text search (`grep`)** — always available; correct for genuinely lexical checks (config keys, string literals, log messages), and the fallback when the tiers above are not reachable.
 
-Dynamic dispatch, reflection, dependency injection, string-keyed routes/config, generated code, and external consumers can hide usages from every tool. When any could apply, note the unresolved boundary in `residual_risks` instead of claiming complete coverage.
+No tool is complete: dynamic dispatch, reflection, dependency injection, string-keyed routes/config, generated code, and external consumers hide usages from all of them. This only bites a claim that rests on *exhaustive* coverage — "this symbol is unused," "nothing else calls this," "safe to change." For such a claim, when coverage is text-search-only or a hiding construct could apply, record the unresolved boundary in `residual_risks` (e.g. `callsite completeness: grep-only`) or step the finding down, rather than asserting absence or safety. A finding that does not turn on exhaustive coverage needs no such note.
 
-**Scope caveat (`pr-remote` / `branch-remote`).** Semantic (LSP) and structural (`ast-grep`) tools inspect the **working tree**, which in remote scope is *not* the reviewed head (see Remote scope above). Do not use them as evidence for changed files when the local checkout is not the reviewed branch — they would report stale or unrelated callsites. In remote scope, inspect the reviewed ref instead: `git show <remote-head-ref>:<path>` for reads and `git grep <pattern> <remote-head-ref> -- <path>` for usage search, falling back to diff hunks. The ladder above applies at full strength only when scope is local-aligned (working tree == reviewed head).
+In `pr-remote` / `branch-remote` scope these tiers inspect the working tree, which is not the reviewed head — apply the Remote scope rules above (`git show` / `git grep <remote-head-ref>`) instead of local search.
 
 ## Finding Classification Tiers
 
