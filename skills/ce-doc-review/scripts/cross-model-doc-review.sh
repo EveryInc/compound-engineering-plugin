@@ -590,24 +590,25 @@ run_timeout_cmd() {   # $1 = stdin file ("" -> /dev/null). CMD already built.
   ACTIVE_PEER_PID=""
 }
 
-# Brace-match the largest {...} object containing "findings" out of raw stdout.
+# Decode each {...} object in raw stdout via raw_decode (string/escape-aware,
+# unlike brace counting) and keep the last one shaped like findings.
 recover_findings_json() {   # <logfile> <outfile>
   command -v python3 >/dev/null 2>&1 || return 1
   python3 - "$1" "$2" <<'PY' 2>/dev/null
 import sys, json
 txt = open(sys.argv[1], encoding="utf-8", errors="replace").read()
-best, depth, start = None, 0, None
-for i, ch in enumerate(txt):
-    if ch == '{':
-        if depth == 0: start = i
-        depth += 1
-    elif ch == '}' and depth > 0:
-        depth -= 1
-        if depth == 0 and start is not None:
-            try:
-                obj = json.loads(txt[start:i+1])
-                if isinstance(obj, dict) and "findings" in obj: best = obj
-            except Exception: pass
+dec = json.JSONDecoder()
+best, i = None, 0
+while True:
+    j = txt.find('{', i)
+    if j < 0: break
+    try:
+        obj, end = dec.raw_decode(txt, j)
+    except ValueError:
+        i = j + 1
+        continue
+    if isinstance(obj, dict) and isinstance(obj.get("findings"), list): best = obj
+    i = end
 if best is not None: open(sys.argv[2], "w").write(json.dumps(best))
 PY
   [ -s "$2" ]
