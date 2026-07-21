@@ -150,7 +150,7 @@ describe("ce-setup check-health", () => {
     expect(ceWork).toContain("reap and ownership-checked cleanup")
     expect(ceWork).toContain("synthetic transport commit")
     expect(lfg).toContain("mode:return-to-caller implementation_engine:<compact-json> <plan-path>")
-    expect(lfg).toContain("The object never becomes plan content")
+    expect(lfg).toContain("Neither carrier becomes plan content")
     expect(readme).toContain("qualified cross-model author")
     expect(ceWork).not.toMatch(/every (implementation )?unit (gets|uses|runs in) (a )?(detached )?worktree/i)
   })

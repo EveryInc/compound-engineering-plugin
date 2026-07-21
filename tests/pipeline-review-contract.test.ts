@@ -317,10 +317,10 @@ describe("cross-model execution receipt seam parity (ce-work <-> lfg)", () => {
     const lfg = await readRepoFile("skills/lfg/SKILL.md")
     const carrier = sliceSection(
       lfg,
-      "## Implementation-only routing carrier",
+      "## Per-stage routing carriers",
       "1. Invoke the `ce-plan` skill",
     )
-    expect(carrier).toContain("remove the implementation-routing directive")
+    expect(carrier).toContain("Remove every routing directive")
     expect(carrier).toContain("Never pass")
     expect(carrier).toContain("`ce-plan`")
     expect(carrier).toContain("`ce-code-review`")

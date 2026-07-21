@@ -16,7 +16,7 @@ Use it when you want the full agentic shipping path and are comfortable with the
 | When to use it | Software tasks that are ready for autonomous implementation |
 | What it produces | Code changes, commits, usually a PR, and durable residual notes when something cannot be fully resolved |
 | What's next | Review the PR, merge when ready, and run `/ce-compound` if there is reusable learning to capture |
-| Distinguishing | Hard ordering gates, implementation-only cross-model routing, return-to-caller execution, review-fix persistence, browser test pass, bounded CI autofix loop |
+| Distinguishing | Hard ordering gates, per-stage cross-model routing (planning and implementation), return-to-caller execution, review-fix persistence, browser test pass, bounded CI autofix loop |
 
 ---
 
@@ -26,6 +26,10 @@ Use it when you want the full agentic shipping path and are comfortable with the
 # Most common: settle an ambitious feature's requirements, then ship from that context
 /ce-brainstorm design account-level notification controls for enterprise teams
 /lfg
+
+# Same handoff, but author the plan on a specific model (implementation stays native)
+/ce-brainstorm design account-level notification controls for enterprise teams
+/lfg plan with fable
 
 # Ship a clear, already-well-bounded software task directly
 /lfg add a CSV export button to the account reports page
@@ -102,16 +106,32 @@ You can also invoke it directly:
 
 Direct invocation is useful for clear software tasks, but it gives the planner less product context.
 
-## Route Only the Implementation Stage
+## Route the Planning and Implementation Stages
 
-You may ask `lfg` to have another model or harness author implementation while `lfg` keeps ownership of planning, review, PR creation, and CI:
+You may ask `lfg` to have a specific model or harness author a pipeline stage while `lfg` keeps ownership of the rest of the run. Two stages are routable, each independently:
 
 ```text
-/lfg use Codex for implementation; add account-level notification mute settings
+# implementation only
+/lfg add account-level notification mute settings, use Codex for implementation
 /lfg implement the settled plan, but only use Composer for implementation
+
+# planning only (authors the plan on the named model via ce-plan's elevation)
+/lfg add account-level notification mute settings, plan with fable
+
+# after /ce-brainstorm settled the requirements — no feature text needed
+/lfg plan with fable
+
+# both stages at once, each to its own model/harness
+/lfg add account-level notification mute settings, plan with fable and use codex for implementation
 ```
 
-`lfg` recognizes the intent from the whole instruction rather than matching one keyword. It removes that routing direction from the product request before planning, then carries a transient object containing exactly `mode`, `target`, `model`, and `source` beside `mode:return-to-caller` only when it invokes `ce-work`. On string-only hosts that seam is `mode:return-to-caller implementation_engine:<compact-json> <plan-path>`; for example, `implementation_engine:{"mode":"prefer","target":"codex","model":null,"source":"lfg-current-turn"}`. The object never becomes plan content, a settled product decision, or review input. A plain mention of a model in feature text, quoted material, a comparison, or a filename does not activate routing.
+`lfg` recognizes the intent from the whole instruction rather than matching one keyword, and resolves each directive **by scope**:
+
+- **Scoped** — the instruction names the stage ("plan with fable", "codex for implementation"). It routes to that stage: a `plan_model:<alias>` carrier to `ce-plan` (model elevation), an `implementation_engine` object to `ce-work`. Both may resolve at once.
+- **Unscoped** — a bare assignment with no stage named ("use fable", "with codex"). It binds to **implementation only** and is disclosed in `lfg`'s opening line; it never silently spreads to planning or every stage.
+- **Unscoped but genuinely ambiguous, and you are present** — `lfg` asks exactly one upfront question before the pipeline starts, then runs hands-off. In a headless run (scheduler, loop, nested orchestrator) it never asks — it applies the implementation default and discloses it, because there is no one to answer.
+
+The implementation carrier is a transient object containing exactly `mode`, `target`, `model`, and `source`, passed beside `mode:return-to-caller` only when `lfg` invokes `ce-work`. On string-only hosts that seam is `mode:return-to-caller implementation_engine:<compact-json> <plan-path>`; for example, `implementation_engine:{"mode":"prefer","target":"codex","model":null,"source":"lfg-current-turn"}`. The `plan_model:<alias>` carrier rides beside — never inside — `ce-plan`'s request. Neither carrier becomes plan content, a settled product decision, or review input. A plain mention of a model in feature text, quoted material, a comparison, or a filename does not activate routing.
 
 That four-field carrier is deliberately scalar. If the current LFG instruction names an ordered fallback list, LFG keeps the whole list as stage-scoped current-task context and passes no truncated carrier; CE Work resolves and preflights that retained list in order. If a host cannot preserve the current-task context across its skill invocation, LFG blocks instead of silently losing the later candidates. Standing ordered config needs no carrier and remains the most portable way to establish a reusable matrix.
 
@@ -119,7 +139,7 @@ The first example is preference-strength. If the Codex route is unavailable befo
 
 Target `cursor` means the Cursor harness with its configured default model. Target `composer` means a Composer-family model requested through Cursor. A model pin is optional. Route substitution stays within the requested target/model family and is disclosed; a route is not used until its fixed-recipient, unattended write adapter is qualified and locally available. The cross-model engine has a launch floor of at least one real non-native route passing that qualification matrix; failing candidates remain unavailable rather than becoming guessed production commands.
 
-When the prompt has no implementation instruction, `lfg` passes no empty binding. `ce-work` then considers applicable session/project instructions already in context before the gitignored per-checkout `work_engine_mode` and ordered `work_engine_preferences` list. Each config candidate names a `harness` and optional `model`; omission uses that harness's configured default. Config `prefer` is active in the automatic flow and falls back natively only after its ordered candidates are exhausted; config `require` blocks if none qualify. A current-task implementation instruction outranks those defaults.
+When the prompt has no stage instruction, `lfg` passes no empty binding for that stage. For planning, `ce-plan` then resolves elevation from its `plan_model` config key (or no elevation). For implementation, `ce-work` considers applicable session/project instructions already in context before the gitignored per-checkout `work_engine_mode` and ordered `work_engine_preferences` list. Each config candidate names a `harness` and optional `model`; omission uses that harness's configured default. Config `prefer` is active in the automatic flow and falls back natively only after its ordered candidates are exhausted; config `require` blocks if none qualify. A current-task implementation instruction outranks those defaults.
 
 See [Compound Engineering configuration](./configuration.md#implementation-routing) for the shared config shape and its relationship to harness-loaded instructions.
 
@@ -133,7 +153,7 @@ Long external runs remain observable through the `ce-work` return contract: run 
 |----------|--------|
 | _(empty)_ | Plans from current context, then runs the pipeline if the plan is eligible |
 | `<feature description>` | Passes the description to `/ce-plan`, then runs the pipeline |
-| `<feature description + implementation assignment>` | Removes the assignment from planning and carries it only to `ce-work` as `prefer` unless the instruction clearly requires the target |
+| `<feature description + stage assignment>` | Removes routing directives from the product request; routes a scoped planning directive to `ce-plan` (`plan_model`) and/or a scoped implementation directive to `ce-work` (`implementation_engine`); an unscoped assignment binds to implementation only |
 
 Output: code changes, commits, and usually a PR. If there is no configured git remote, output is local commits only. If CI remains red after the bounded repair loop, unresolved failures are recorded durably before the run ends.
 

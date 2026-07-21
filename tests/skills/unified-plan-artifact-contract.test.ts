@@ -251,10 +251,10 @@ describe("unified plan artifact contract", () => {
     expect(lfgNextWorkHandoff).toMatch(/do not extend or edit the prior plan/i)
   })
 
-  test("lfg carries implementation routing only at the ce-work seam", () => {
+  test("lfg carries per-stage routing carriers at each stage seam", () => {
     const carrier = sliceSection(
       lfg,
-      "## Implementation-only routing carrier",
+      "## Per-stage routing carriers",
       "1. Invoke the `ce-plan` skill",
     )
     expect(carrier).toContain("semantic intent")
@@ -270,6 +270,28 @@ describe("unified plan artifact contract", () => {
     expect(carrier).toContain("Never pass")
     expect(carrier).toContain("`ce-plan`")
     expect(carrier).toContain("planning or review")
+
+    // Per-stage routing: planning routes to a plan_model carrier; an unscoped
+    // directive binds to implementation only and never broadens; the upfront
+    // disambiguation question is interactive-gated and headless runs never ask.
+    expect(carrier).toContain("plan_model:<alias>")
+    expect(carrier).toContain("Planning** routes to `ce-plan`")
+    expect(carrier).toContain("Scoped directive")
+    expect(carrier).toContain("Unscoped directive")
+    expect(carrier).toContain("implementation stage only")
+    expect(carrier).toContain("never broaden an unscoped directive")
+    expect(carrier).toMatch(/ask exactly \*\*one\*\* upfront question/i)
+    expect(carrier).toMatch(/disable-model-invocation.*headless run, never ask/is)
+    expect(carrier).toContain("default path is mandatory")
+
+    // Step 1 threads the plan_model carrier to ce-plan beside the sanitized request.
+    const step1 = sliceSection(
+      lfg,
+      "1. Invoke the `ce-plan` skill",
+      "2. Invoke the `ce-work` skill",
+    )
+    expect(step1).toContain("prefix the invocation with its `plan_model:<alias>` carrier")
+    expect(step1).toMatch(/never woven into it/i)
 
     const step2 = sliceSection(
       lfg,

@@ -87,7 +87,7 @@ Resolution steps:
 4. **Default.** Otherwise `OUTPUT_FORMAT=md`.
 5. **Pipeline override.** When invoked from LFG or any `disable-model-invocation` context, force `OUTPUT_FORMAT=md` regardless of steps 1-4. `ce-work` and other automated downstream consumers parse markdown reliably; HTML in pipeline runs is unnecessary friction.
 
-**Token-parsing convention:** only literal-prefix flag tokens (`output:`, `mode:`, the exact `confirm:auto`/`confirm:ask` forms, `delegate:` where applicable) are consumed and stripped. Other `<word>:<word>` tokens — including conventional commit prefixes like `feat:`, `fix:`, `chore:`, and any unrecognized `confirm:<value>` (e.g., a `confirm: delete-account modal` feature description) — pass through verbatim.
+**Token-parsing convention:** only literal-prefix flag tokens (`output:`, `mode:`, the exact `confirm:auto`/`confirm:ask` forms, `plan_model:<alias>`, `delegate:` where applicable) are consumed and stripped. Other `<word>:<word>` tokens — including conventional commit prefixes like `feat:`, `fix:`, `chore:`, and any unrecognized `confirm:<value>` (e.g., a `confirm: delete-account modal` feature description) — pass through verbatim. A stripped `plan_model:<alias>` carrier (passed by an orchestrator such as LFG) is retained for the Phase 5.2 model-elevation step, not woven into the feature description.
 
 **Load the format-rendering reference based on the resolved value.** Section content is the same in either format; presentation differs. Both references are paired with `references/plan-sections.md`, which describes what the plan contains regardless of format.
 
@@ -677,7 +677,7 @@ Fires **whenever Phase 0.2 resolved an upstream Product Contract source** — a 
 
 #### 5.2 Write Plan File
 
-**Model elevation.** Before authoring the plan, load `references/reasoning-elevation.md` and follow it. It resolves whether the user chose a model for the interpret-findings-then-author step — from this run's prompt or the `plan_model` config key — and if so dispatches that one step to the chosen model on any harness, with a read-only verifying handoff and transparent fallback to your session model. When no model is chosen it is a no-op; proceed normally. It runs the same on every harness — do not gate it on the host.
+**Model elevation.** Before authoring the plan, load `references/reasoning-elevation.md` and follow it. It resolves whether a model was chosen for the interpret-findings-then-author step — from this run's prompt, a stripped `plan_model:<alias>` caller carrier (e.g. passed by LFG, honored even in pipeline mode), or the `plan_model` config key — and if so dispatches that one step to the chosen model on any harness, with a read-only verifying handoff and transparent fallback to your session model. When no model is chosen it is a no-op; proceed normally. It runs the same on every harness — do not gate it on the host.
 
 **REQUIRED: Write the plan file to disk before presenting any options.**
 
