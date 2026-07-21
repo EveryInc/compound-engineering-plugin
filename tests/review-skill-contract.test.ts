@@ -1160,6 +1160,7 @@ describe("cross-model peer skip legibility", () => {
     )
     expect(skill).toMatch(/`independence_verified:?\s*true`/)
     expect(mechanics).toContain('source.get("independence_verified") is True')
+    expect(mechanics).toContain('source.get("model_receipt_verified") is True')
     expect(mechanics).toContain('name.startswith("adversarial-")')
   })
 

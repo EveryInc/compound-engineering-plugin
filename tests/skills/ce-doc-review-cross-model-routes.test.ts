@@ -209,6 +209,14 @@ describe("cross-model-doc-review route safety (R17)", () => {
     expect(source).toContain('rm -rf "$PEER_WORKDIR"')
   })
 
+  test("the approved digest and prompt consume the same private document snapshot", () => {
+    const source = readFileSync(SCRIPT, "utf8")
+    expect(source).toContain('DOC_SNAPSHOT="$(mktemp')
+    expect(source).toContain('getattr(os, "O_NOFOLLOW", 0)')
+    expect(source).toContain('cat "$DOC_SNAPSHOT"')
+    expect(source).not.toContain('cat "$DOC_PATH"')
+  })
+
   test("every route carries read-only / no-prompt / least-privilege flags and no NEVER-use flag", () => {
     for (const route of ROUTES) {
       const cmd = emitAdapter(route)
@@ -507,6 +515,17 @@ describe("cross-model-doc-review skip paths (R11, R16) — non-blocking, no file
     expect(run(["claude", "codex", "adversarial", "/no/such/doc", "plan", "none", runDir], runDir, env).files).toHaveLength(0)
   })
 
+  test("an early skip removes a stale registered result", () => {
+    const { env } = sandbox(["claude"])
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const stale = path.join(runDir, "adversarial-claude.json")
+    writeFileSync(stale, reviewJson("adversarial-claude", []))
+    const r = run(["unknown", "claude", "adversarial", doc, "plan", "none", runDir], runDir, env)
+    expect(r.code).toBe(0)
+    expect(existsSync(stale)).toBe(false)
+  })
+
   test("classifies provider errors without echoing raw diagnostics", () => {
     const { env } = sandbox(
       ["claude"],
@@ -567,6 +586,22 @@ describe("cross-model-doc-review skip paths (R11, R16) — non-blocking, no file
     expect(r.stderr).not.toContain("Provider rejected the request for this account")
   })
 
+  test("does not classify rejected review prose as an authentication failure", () => {
+    const invalid = {
+      ...JSON.parse(reviewJson()),
+      findings: [{ ...VALID_FINDING, evidence: [], why_it_matters: "Credential authorization is incomplete." }],
+    }
+    const { env } = sandbox(
+      ["claude"],
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${JSON.stringify({ structured_output: invalid })}'\n`,
+    )
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "adversarial", doc, "plan", "none", runDir], runDir, env)
+    expect(r.stderr).toContain("peer skip evidence: unusable_output")
+    expect(r.stderr).not.toContain("peer skip evidence: auth_failed")
+  })
+
   test("quota classification wins over auth wording and raw secrets remain private", () => {
     const secret = "sk-live-super-secret-value"
     const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' 'Authorization: Bearer ${secret}; not logged in; quota exhausted; https://x.test/a?X-Amz-Signature=abc /Users/private/key' >&2\nexit 1\n`)
@@ -581,23 +616,26 @@ describe("cross-model-doc-review skip paths (R11, R16) — non-blocking, no file
 })
 
 describe("cross-model-doc-review normalization (R18, KTD5)", () => {
-  // A stub CLI that emits a structured_output envelope with reviewer:"adversarial"
-  // and NO residual_risks — the script must force reviewer -> <lens>-<provider>
-  // and backfill the soft arrays.
+  // A stub CLI that emits a valid structured_output envelope with reviewer:"adversarial";
+  // the script must force reviewer -> <lens>-<provider> and preserve soft arrays.
   const claudeStub =
     `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${JSON.stringify({ structured_output: JSON.parse(reviewJson()) })}'\n`
 
-  test("forces reviewer to <lens>-<provider> and backfills soft arrays", () => {
+  test("forces reviewer to <lens>-<provider> and preserves validated soft arrays", () => {
     const { env } = sandbox(["claude"], claudeStub)
     const doc = makeDoc()
     const runDir = makeRunDir()
-    const r = run(["codex", "claude", "adversarial", doc, "plan", "none", runDir], runDir, env)
+    const r = run(["codex", "claude", "adversarial", doc, "plan", "none", runDir], runDir, {
+      ...env,
+      CE_PEER_JOB_ID: "job-123",
+    })
     expect(r.code).toBe(0)
     expect(r.files).toContain("adversarial-claude.json")
     const out = JSON.parse(
       readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"),
     )
     expect(out.reviewer).toBe("adversarial-claude")
+    expect(out.job_id).toBe("job-123")
     expect(out.residual_risks).toEqual([])
     expect(out.deferred_questions).toEqual([])
     expect(Array.isArray(out.findings)).toBe(true)
@@ -709,6 +747,35 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     expect(out.model_actual).toBe("claude-opus-4-8-20260115")
     expect(out.model_receipt_verified).toBe(true)
     expect(r.stderr).not.toContain("model mismatch")
+  })
+
+  test("full Claude model overrides require an exact served-model receipt", () => {
+    const requested = "claude-opus-4-8"
+    const override = {
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+      CROSS_MODEL_MODEL_OVERRIDE: requested,
+    }
+    for (const [served, verified] of [
+      [requested, true],
+      [`${requested}-20260115`, false],
+    ] as const) {
+      const stub =
+        `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${JSON.stringify({ structured_output: JSON.parse(reviewJson()), modelUsage: { [served]: { inputTokens: 10 } } })}'\n`
+      const { env } = sandbox(["claude"], stub)
+      const doc = makeDoc()
+      const runDir = makeRunDir()
+      const r = run(["codex", "claude", "adversarial", doc, "plan", "none", runDir], runDir, {
+        ...env,
+        ...override,
+      })
+      const out = JSON.parse(
+        readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"),
+      )
+      expect(out.model_requested).toBe(requested)
+      expect(out.model_actual).toBe(served)
+      expect(out.model_receipt_verified).toBe(verified)
+      expect(r.stderr.includes("model mismatch")).toBe(!verified)
+    }
   })
 
   test("keeps the served id and warns prominently on a receipt mismatch (R7)", () => {

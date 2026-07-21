@@ -38,7 +38,8 @@ Capture the headless envelope so it can drive the contextual summary above the p
 Do not derive cross-model status from finding counts. A clean local review, a verified empty peer artifact, and a missing peer artifact can all have zero peer findings while proving different things. Consume each record's stable `status` literally:
 
 - `verified` — the peer artifact and identity receipt were verified. Empty findings means the leg ran and found no additional issues.
-- `local_only` — local reviewer coverage completed, but no independently verified peer artifact exists for that leg.
+- `ran_attributed` — a schema-valid peer artifact ran and was attributed, but its serving identity was not independently verified.
+- `local_only` — local reviewer coverage completed and no usable peer artifact exists for that leg.
 - `host_denied` — the host denied the exact launch and no provider launched.
 - `auth_failed` — authentication failed only in the exact host execution context named by the record.
 - `timeout` — the peer leg timed out after launch.

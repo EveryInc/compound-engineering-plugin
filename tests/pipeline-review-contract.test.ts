@@ -519,8 +519,8 @@ describe("ce-doc-review contract", () => {
     // Cross-persona agreement promotion (replaces +0.10 boost)
     expect(synthesis).toContain("Cross-Persona Agreement Promotion")
     expect(synthesis).toContain("one anchor step")
-    expect(synthesis).toContain("`independence_verified` is `true`")
-    expect(synthesis).toContain("cannot use the twin fingerprint exception")
+    expect(synthesis).toContain("`independence_verified` and `model_receipt_verified` are true")
+    expect(synthesis).toContain("Other returns use the ordinary fingerprint and receive no promotion")
     expect(synthesis).toContain("Cursor default/Auto")
 
     // R29 and R30 round-2 rules

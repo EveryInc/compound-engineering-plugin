@@ -162,7 +162,12 @@ extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODE
   # only then. A missing/unparseable envelope stays "unverified" (never the
   # requested value).
   matched=""
-  if [ -n "$prefix" ]; then
+  case "$requested" in
+    claude-*)
+      matched="$(jq -r --arg requested "$requested" 'first((.modelUsage // {} | keys[] | select(. == $requested))) // empty' "$PEERLOG" 2>/dev/null)"
+      ;;
+  esac
+  if [ -z "$matched" ] && [ -n "$prefix" ]; then
     # first modelUsage key matching the expected family prefix (jq-native, no
     # external `head`: the route sandbox may not carry coreutils on PATH).
     matched="$(jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(startswith($p)))) // empty' "$PEERLOG" 2>/dev/null)"
@@ -283,6 +288,14 @@ RUN_DIR="${7:-}"
 # Requiring it to pre-exist would silently no-op the whole pass (no fold-in files).
 mkdir -p "$RUN_DIR" 2>/dev/null
 [ -d "$RUN_DIR" ] || skip "run-dir '$RUN_DIR' could not be created; skipping"
+# Validate the output-name component and clear the registered result before any
+# later validation can exit cleanly.
+case "$REVIEWER_NAME" in
+  security-lens|adversarial|product-lens|whole-doc) ;;
+  *) skip "reviewer-name '$REVIEWER_NAME' is not a cross-model reviewer (want security-lens|adversarial|product-lens|whole-doc); skipping" ;;
+esac
+FIXED_TARGET="$(route_target "${CROSS_MODEL_FIXED_ROUTE:-}")"
+[ -n "$FIXED_TARGET" ] && rm -f "$RUN_DIR/$REVIEWER_NAME-$FIXED_TARGET.json"
 command -v jq >/dev/null 2>&1 || skip "jq not installed; skipping"
 
 # Validate the host identity tuple. An unknown serving family is allowed, but
@@ -439,23 +452,58 @@ fi
 # Bind this worker to the exact document/slice declared by its runner job.
 # Remove the deterministic output first so a stale artifact cannot survive a
 # digest failure or provider skip.
-FIXED_TARGET_EARLY="$(route_target "${CROSS_MODEL_FIXED_ROUTE:-}")"
-[ -n "$FIXED_TARGET_EARLY" ] && rm -f "$RUN_DIR/$REVIEWER_NAME-$FIXED_TARGET_EARLY.json"
 EXPECTED_INPUT_DIGEST="${CROSS_MODEL_INPUT_DIGEST:-}"
 case "$EXPECTED_INPUT_DIGEST" in
   ''|*[!0-9a-fA-F]*) skip "input digest missing or malformed; skipping before prompt construction" ;;
 esac
 [ "${#EXPECTED_INPUT_DIGEST}" -eq 64 ] || skip "input digest missing or malformed; skipping before prompt construction"
 command -v python3 >/dev/null 2>&1 || skip "python3 unavailable for input digest verification; skipping before prompt construction"
-ACTUAL_INPUT_DIGEST="$(python3 - "$DOC_PATH" <<'PY'
-import hashlib, sys
-h = hashlib.sha256()
-with open(sys.argv[1], "rb") as source:
-    for chunk in iter(lambda: source.read(1024 * 1024), b""):
-        h.update(chunk)
-print(h.hexdigest())
+DOC_SNAPSHOT="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-input-XXXXXX")" || skip "could not create private document snapshot; skipping before prompt construction"
+chmod 600 "$DOC_SNAPSHOT" 2>/dev/null || { rm -f "$DOC_SNAPSHOT"; skip "could not protect private document snapshot; skipping before prompt construction"; }
+trap 'rm -f "$DOC_SNAPSHOT"' EXIT
+ACTUAL_INPUT_DIGEST="$(python3 - "$DOC_PATH" "$DOC_SNAPSHOT" "$MAX_DOC_CHARS" <<'PY'
+import hashlib, os, stat, sys
+
+source_path, snapshot_path, max_bytes_text = sys.argv[1:]
+flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+source_fd = os.open(source_path, flags)
+try:
+    source_stat = os.fstat(source_fd)
+    if not stat.S_ISREG(source_stat.st_mode):
+        raise OSError("document is not a regular file")
+    if hasattr(os, "geteuid") and source_stat.st_uid != os.geteuid():
+        raise OSError("document is not owned by the current user")
+    snapshot_fd = os.open(
+        snapshot_path,
+        os.O_WRONLY | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0),
+    )
+    try:
+        snapshot_stat = os.fstat(snapshot_fd)
+        if not stat.S_ISREG(snapshot_stat.st_mode):
+            raise OSError("snapshot is not a regular file")
+        os.fchmod(snapshot_fd, 0o600)
+        digest = hashlib.sha256()
+        total = 0
+        max_bytes = int(max_bytes_text)
+        while True:
+            chunk = os.read(source_fd, 1024 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > max_bytes:
+                raise OSError("document exceeds configured byte limit")
+            digest.update(chunk)
+            view = memoryview(chunk)
+            while view:
+                view = view[os.write(snapshot_fd, view):]
+        os.fsync(snapshot_fd)
+        print(digest.hexdigest())
+    finally:
+        os.close(snapshot_fd)
+finally:
+    os.close(source_fd)
 PY
-)" || skip "could not compute input digest; skipping before prompt construction"
+)" || { rm -f "$DOC_SNAPSHOT"; skip "could not snapshot and hash document input; skipping before prompt construction"; }
 [ -n "$ACTUAL_INPUT_DIGEST" ] && [ "$ACTUAL_INPUT_DIGEST" = "$(printf '%s' "$EXPECTED_INPUT_DIGEST" | tr '[:upper:]' '[:lower:]')" ] || skip "input digest mismatch; skipping before prompt construction"
 INPUT_DIGEST="$ACTUAL_INPUT_DIGEST"
 
@@ -476,7 +524,7 @@ PEER_WORKDIR=""
 RAW_OUT=""
 RUN_SUCCEEDED=false
 cleanup_temp() {
-  rm -f "$PROMPT_FILE" "$PEERLOG" "$PEERERR"
+  rm -f "$PROMPT_FILE" "$PEERLOG" "$PEERERR" "$DOC_SNAPSHOT"
   [ -n "$RAW_OUT" ] && rm -f "$RAW_OUT"
   [ -n "$PEER_WORKDIR" ] && [ "$PEER_WORKDIR" != "${RUN_DIR:-}" ] && rm -rf "$PEER_WORKDIR"
 }
@@ -500,7 +548,7 @@ DOC_BASENAME="$(basename "$DOC_PATH")"
   printf 'Origin: %s\n\n' "$ORIGIN"
   printf '<prior-decisions>\nRound 1 — no prior decisions.\n</prior-decisions>\n\n'
   printf 'Document content:\n'
-  cat "$DOC_PATH"
+  cat "$DOC_SNAPSHOT"
   printf '\n</review-context>\n'
   [ -n "$CONTEXT_SLOT_RULES" ] && printf '\n%s\n' "$CONTEXT_SLOT_RULES"
 } > "$PROMPT_FILE"
@@ -739,7 +787,7 @@ run_provider() {   # <provider>
   attempt_route "$provider" "$primary"
 
   # --- normalize + validate against the synthesis reviewer-return contract ---
-  # Force reviewer = <reviewer-name>-<provider>; backfill soft arrays; drop the
+  # Force reviewer = <reviewer-name>-<provider>; preserve validated soft arrays; drop the
   # file if findings is not an array. Peer findings fold in as a corroboration
   # signal only -- synthesis (references/synthesis-and-presentation.md) never
   # auto-applies them and caps the cross-model bonus at one anchor step.
@@ -766,8 +814,9 @@ run_provider() {   # <provider>
          --arg family "$_target_family" --argjson independent "$_independent" \
          --arg mreq "$(route_model "$ACTUAL_ROUTE")" --arg mact "$MODEL_ACTUAL" \
          --argjson receipt "$MODEL_RECEIPT_VERIFIED" \
-         --arg digest "$INPUT_DIGEST" \
+         --arg digest "$INPUT_DIGEST" --arg job_id "${CE_PEER_JOB_ID:-}" \
          '{ reviewer: $r,
+                 job_id: $job_id,
                  cross_model_route: $route,
                  cross_model_target: $target,
                  cross_model_harness: $harness,
@@ -799,11 +848,10 @@ run_provider() {   # <provider>
     # empty review) and, in a repeated-pass session, deprioritize an exhausted
     # route. Harness-agnostic: the agent classifies from the text; this only makes
     # the evidence visible in out.log. Surface BOTH streams -- the error can be on
-    # stdout (grok's 402) or stderr (claude/cursor auth/quota). Bash builtins only
-    # (the route sandbox has no tail/tr). Prefer structured error fields because
-    # a raw tail can discard the actionable message in a large CLI envelope.
+    # stdout (grok's 402) or stderr (claude/cursor auth/quota). Prefer structured
+    # terminal fields so review prose cannot masquerade as a provider failure.
     if [ -s "$PEERLOG" ]; then
-      _pt="$(bounded_failure_evidence "$PEERLOG")"
+      _pt="$(bounded_failure_evidence "$PEERLOG" structured)"
       log "  peer skip evidence: $_pt"
     fi
     if [ -s "$PEERERR" ]; then
@@ -818,15 +866,21 @@ run_provider() {   # <provider>
 
 # Classify private provider output into a stable allowlisted taxonomy. Raw text
 # can contain credentials, bearer headers, signed URLs, or sensitive host paths.
-bounded_failure_evidence() {   # <logfile>
-  local path="$1" lowered
-  lowered="$(cat "$path" 2>/dev/null | tr '[:upper:]' '[:lower:]')"
+bounded_failure_evidence() {   # <logfile> [structured]
+  local path="$1" mode="${2:-raw}" lowered
+  if [ "$mode" = "structured" ] && jq -e . "$path" >/dev/null 2>&1; then
+    # Never classify from structured_output/review prose. Only terminal fields
+    # can support an auth/quota/timeout diagnosis.
+    lowered="$(jq -r '[.error?, .result?, .api_error_status?, .terminal_reason?, .status?, .type?, .subtype?] | map(select(. != null) | tostring) | join("\n")' "$path" 2>/dev/null | tr '[:upper:]' '[:lower:]')"
+  else
+    lowered="$(cat "$path" 2>/dev/null | tr '[:upper:]' '[:lower:]')"
+  fi
   # Quota wins when a provider envelope also mentions authorization/auth; the
   # actionable terminal constraint is exhaustion, not a login instruction.
   case "$lowered" in
     *"quota"*|*"rate limit"*|*"rate_limit"*|*"usage limit"*|*"usage-limit"*|*"exhausted"*|*"too many requests"*|*"http 402"*|*'"status":402'*|*"http 429"*|*'"status":429'*) printf 'quota_limited' ;;
-    *"not logged in"*|*"log in"*|*"login"*|*"unauthorized"*|*"unauthenticated"*|*"authentication"*|*"authorization"*|*"credential"*|*"http 401"*|*'"status":401'*) printf 'auth_failed' ;;
     *"timed out"*|*"timeout"*|*"deadline exceeded"*) printf 'timeout' ;;
+    *"not logged in"*|*"login required"*|*"please log in"*|*"unauthorized"*|*"unauthenticated"*|*"authentication failed"*|*"invalid credential"*|*"missing credential"*|*"http 401"*|*'"status":401'*) printf 'auth_failed' ;;
     *) printf 'unusable_output' ;;
   esac
 }
@@ -836,7 +890,6 @@ bounded_failure_evidence() {   # <logfile>
 # frozen to one route. Dispatch that route's target directly so a later eligible
 # candidate is not discarded by the discovery-order cap. run_provider never
 # changes recipients after dispatch.
-FIXED_TARGET="$(route_target "${CROSS_MODEL_FIXED_ROUTE:-}")"
 if [ -n "$FIXED_TARGET" ]; then
   case " $SELECTED " in
     *" $FIXED_TARGET "*) run_provider "$FIXED_TARGET" ;;

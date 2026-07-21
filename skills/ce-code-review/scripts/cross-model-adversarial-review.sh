@@ -166,7 +166,12 @@ extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODE
   # only then. A missing/unparseable envelope stays "unverified" (never the
   # requested value).
   matched=""
-  if [ -n "$prefix" ]; then
+  case "$requested" in
+    claude-*)
+      matched="$(jq -r --arg requested "$requested" 'first((.modelUsage // {} | keys[] | select(. == $requested))) // empty' "$PEERLOG" 2>/dev/null)"
+      ;;
+  esac
+  if [ -z "$matched" ] && [ -n "$prefix" ]; then
     # first modelUsage key matching the expected family prefix (jq-native, no
     # external `head`: the route sandbox may not carry coreutils on PATH).
     matched="$(jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(startswith($p)))) // empty' "$PEERLOG" 2>/dev/null)"
@@ -269,6 +274,11 @@ RUN_DIR="${4:-}"
 # --- validate inputs -------------------------------------------------------
 [ -n "$BASE" ] || skip "no base ref given; skipping"
 [ -n "$RUN_DIR" ] && [ -d "$RUN_DIR" ] || skip "run-dir '${RUN_DIR:-<empty>}' is not a directory; skipping"
+# Clear the registered deterministic result before any later validation can
+# exit cleanly. Otherwise an early skip could let the runner mistake an older
+# same-path artifact for this job's result.
+FIXED_TARGET="$(route_target "${CROSS_MODEL_FIXED_ROUTE:-}")"
+[ -n "$FIXED_TARGET" ] && rm -f "$RUN_DIR/adversarial-$FIXED_TARGET.json"
 command -v jq >/dev/null 2>&1 || skip "jq not installed; skipping"
 
 # Validate the host identity tuple. An unknown serving family is allowed, but
@@ -379,8 +389,6 @@ if [ -n "${CROSS_MODEL_DRY_RUN:-}" ]; then
   exit 0
 fi
 
-FIXED_TARGET_EARLY="$(route_target "${CROSS_MODEL_FIXED_ROUTE:-}")"
-[ -n "$FIXED_TARGET_EARLY" ] && rm -f "$RUN_DIR/adversarial-$FIXED_TARGET_EARLY.json"
 EXPECTED_INPUT_DIGEST="${CROSS_MODEL_INPUT_DIGEST:-}"
 case "$EXPECTED_INPUT_DIGEST" in
   ''|*[!0-9a-fA-F]*) skip "input digest missing or malformed; skipping before prompt construction" ;;
@@ -391,8 +399,11 @@ DIFF_INPUT="$(mktemp "${TMPDIR:-/tmp}/xmodel-diff-input-XXXXXX")" || skip "canno
 git -C "$REPO_ROOT" diff "$BASE" -- > "$DIFF_INPUT" 2>/dev/null || { rm -f "$DIFF_INPUT"; skip "could not compute exact diff input; skipping before prompt construction"; }
 ACTUAL_INPUT_DIGEST="$(python3 - "$DIFF_INPUT" <<'PY'
 import hashlib, sys
+h = hashlib.sha256()
 with open(sys.argv[1], "rb") as source:
-    print(hashlib.sha256(source.read()).hexdigest())
+    for chunk in iter(lambda: source.read(1024 * 1024), b""):
+        h.update(chunk)
+print(h.hexdigest())
 PY
 )" || { rm -f "$DIFF_INPUT"; skip "could not compute input digest; skipping before prompt construction"; }
 [ -n "$ACTUAL_INPUT_DIGEST" ] && [ "$ACTUAL_INPUT_DIGEST" = "$(printf '%s' "$EXPECTED_INPUT_DIGEST" | tr '[:upper:]' '[:lower:]')" ] || { rm -f "$DIFF_INPUT"; skip "input digest mismatch; skipping before prompt construction"; }
@@ -685,8 +696,9 @@ run_provider() {
          --arg ereq "$(route_effort "$ACTUAL_ROUTE")" \
          --argjson receipt "$(route_receipt_supported "$ACTUAL_ROUTE")" \
          --argjson receipt_verified "$MODEL_RECEIPT_VERIFIED" \
-         --arg digest "$INPUT_DIGEST" \
+         --arg digest "$INPUT_DIGEST" --arg job_id "${CE_PEER_JOB_ID:-}" \
          '{ reviewer: $r,
+                 job_id: $job_id,
                  cross_model_route: $route,
                  cross_model_target: $target,
                  cross_model_harness: $harness,
@@ -703,11 +715,11 @@ run_provider() {
                    | if (.autofix_class? == "safe_auto") then .autofix_class = "gated_auto" else . end
                    | if ((.first_evidence? // "") | type) == "string" and ((.first_evidence? // "") | length) > 0
                      then .
-                     elif ((.evidence? // []) | type) == "array" and ((.evidence? // []) | length) > 0 and ((.evidence[0]) | type) == "string"
+                     elif (.evidence | length) > 0
                      then .first_evidence = .evidence[0]
                      else . end ],
-                 residual_risks: (.residual_risks // []),
-                 testing_gaps: (.testing_gaps // []) }' \
+                 residual_risks: .residual_risks,
+                 testing_gaps: .testing_gaps }' \
          "$RAW_OUT" > "$_norm" 2>/dev/null; then
       mv "$_norm" "$OUT"
     else
@@ -727,11 +739,10 @@ run_provider() {
     # empty review) and, in a repeated-pass session, deprioritize an exhausted
     # route. Harness-agnostic: the agent classifies from the text; this only makes
     # the evidence visible in out.log. Surface BOTH streams -- the error can be on
-    # stdout (grok's 402) or stderr (claude/cursor auth/quota). Bash builtins only
-    # (the route sandbox has no tail/tr). Prefer structured error fields because
-    # a raw tail can discard the actionable message in a large CLI envelope.
+    # stdout (grok's 402) or stderr (claude/cursor auth/quota). Prefer structured
+    # terminal fields so review prose cannot masquerade as a provider failure.
     if [ -s "$PEERLOG" ]; then
-      _pt="$(bounded_failure_evidence "$PEERLOG")"
+      _pt="$(bounded_failure_evidence "$PEERLOG" structured)"
       log "  peer skip evidence: $_pt"
     fi
     if [ -s "$PEERERR" ]; then
@@ -744,14 +755,20 @@ run_provider() {
 
 # Classify private provider output into a stable allowlisted taxonomy. Raw text
 # can contain credentials, bearer headers, signed URLs, or sensitive host paths.
-bounded_failure_evidence() {   # <logfile>
-  local path="$1" lowered
-  lowered="$(cat "$path" 2>/dev/null | tr '[:upper:]' '[:lower:]')"
+bounded_failure_evidence() {   # <logfile> [structured]
+  local path="$1" mode="${2:-raw}" lowered
+  if [ "$mode" = "structured" ] && jq -e . "$path" >/dev/null 2>&1; then
+    # Never classify from structured_output/review prose. Only terminal fields
+    # can support an auth/quota/timeout diagnosis.
+    lowered="$(jq -r '[.error?, .result?, .api_error_status?, .terminal_reason?, .status?, .type?, .subtype?] | map(select(. != null) | tostring) | join("\n")' "$path" 2>/dev/null | tr '[:upper:]' '[:lower:]')"
+  else
+    lowered="$(cat "$path" 2>/dev/null | tr '[:upper:]' '[:lower:]')"
+  fi
   # Quota wins when an envelope mentions both exhaustion and auth terminology.
   case "$lowered" in
     *"quota"*|*"rate limit"*|*"rate_limit"*|*"usage limit"*|*"usage-limit"*|*"exhausted"*|*"too many requests"*|*"http 402"*|*'"status":402'*|*"http 429"*|*'"status":429'*) printf 'quota_limited' ;;
-    *"not logged in"*|*"log in"*|*"login"*|*"unauthorized"*|*"unauthenticated"*|*"authentication"*|*"authorization"*|*"credential"*|*"http 401"*|*'"status":401'*) printf 'auth_failed' ;;
     *"timed out"*|*"timeout"*|*"deadline exceeded"*) printf 'timeout' ;;
+    *"not logged in"*|*"login required"*|*"please log in"*|*"unauthorized"*|*"unauthenticated"*|*"authentication failed"*|*"invalid credential"*|*"missing credential"*|*"http 401"*|*'"status":401'*) printf 'auth_failed' ;;
     *) printf 'unusable_output' ;;
   esac
 }
@@ -759,7 +776,6 @@ bounded_failure_evidence() {   # <logfile>
 # Discovery preserves caller order and MAX_PEERS, but live egress is already
 # frozen to one host-sanctioned route. Dispatch that route's target directly so
 # a later eligible candidate is not discarded by the discovery-order cap.
-FIXED_TARGET="$(route_target "${CROSS_MODEL_FIXED_ROUTE:-}")"
 if [ -n "$FIXED_TARGET" ]; then
   case " $SELECTED " in
     *" $FIXED_TARGET "*) run_provider "$FIXED_TARGET" ;;

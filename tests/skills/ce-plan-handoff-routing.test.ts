@@ -50,6 +50,7 @@ describe("ce-plan post-generation menu routing", () => {
 
     for (const status of [
       "verified",
+      "ran_attributed",
       "local_only",
       "host_denied",
       "auth_failed",
@@ -59,6 +60,11 @@ describe("ce-plan post-generation menu routing", () => {
     ]) {
       expect(HANDOFF_BODY).toContain(`\`${status}\``)
     }
+  })
+
+  test("distinguishes attributed peer artifacts from local-only coverage", () => {
+    expect(HANDOFF_BODY).toMatch(/`ran_attributed`[^\n]+schema-valid peer artifact ran/i)
+    expect(HANDOFF_BODY).toMatch(/`local_only`[^\n]+no usable peer artifact/i)
   })
 
   test("keeps degraded peer states scoped and distinct from whole-review failures", () => {

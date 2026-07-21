@@ -212,6 +212,74 @@ describe("ce-code-review deterministic mechanics", () => {
     ])
   })
 
+  test("adversarial corroboration requires both independence and a verified model receipt", () => {
+    const finding = {
+      title: "Receipt-gated defect",
+      severity: "P1",
+      file: "src/worker.ts",
+      line: 12,
+      confidence: 50,
+      autofix_class: "gated_auto",
+      owner: "downstream-resolver",
+      requires_verification: true,
+      pre_existing: false,
+      first_evidence: "src/worker.ts:12 -- result = staleValue",
+    }
+    const ordinary = {
+      reviewer: "correctness",
+      findings: [finding],
+      residual_risks: [],
+      testing_gaps: [],
+    }
+
+    for (const modelReceiptVerified of [false, undefined]) {
+      const peer = {
+        reviewer: "adversarial-claude",
+        findings: [finding],
+        residual_risks: [],
+        testing_gaps: [],
+        independence_verified: true,
+        ...(modelReceiptVerified === undefined
+          ? {}
+          : { model_receipt_verified: modelReceiptVerified }),
+      }
+      const result = run(
+        "python3",
+        [FINDINGS_SCRIPT],
+        undefined,
+        JSON.stringify([ordinary, peer]),
+      )
+      expect(result.status).toBe(0)
+      const merged = JSON.parse(result.stdout)
+      expect(merged.findings).toEqual([])
+      expect(merged.suppressed_findings[0].independent_reviewers).toEqual([
+        "correctness",
+      ])
+    }
+
+    const verified = run(
+      "python3",
+      [FINDINGS_SCRIPT],
+      undefined,
+      JSON.stringify([
+        ordinary,
+        {
+          reviewer: "adversarial-claude",
+          findings: [finding],
+          residual_risks: [],
+          testing_gaps: [],
+          independence_verified: true,
+          model_receipt_verified: true,
+        },
+      ]),
+    )
+    expect(verified.status).toBe(0)
+    expect(JSON.parse(verified.stdout).findings[0]).toMatchObject({
+      confidence: 75,
+      independent_reviewers: ["correctness", "adversarial-claude"],
+    })
+  })
+
   test("synthetic reruns do not infer independence from reviewer attribution", () => {
     const result = run(
       "python3",

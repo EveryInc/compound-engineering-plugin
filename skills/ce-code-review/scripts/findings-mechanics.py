@@ -76,7 +76,10 @@ def independent_reviewer(name: str, source: dict[str, Any]) -> bool:
     if name == "fast-pass":
         return False
     if name.startswith("adversarial-"):
-        return source.get("independence_verified") is True
+        return (
+            source.get("independence_verified") is True
+            and source.get("model_receipt_verified") is True
+        )
     return True
 
 

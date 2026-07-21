@@ -143,8 +143,10 @@ target_serving_family() {
 }
 
 MODEL_ACTUAL="unverified"
+MODEL_RECEIPT_VERIFIED=false
 extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODEL_ACTUAL
   MODEL_ACTUAL="unverified"
+  MODEL_RECEIPT_VERIFIED=false
   [ "$1" = "claude" ] || return 0
   local requested actual prefix matched
   requested="$(route_model claude)"
@@ -156,13 +158,19 @@ extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODE
   # only then. A missing/unparseable envelope stays "unverified" (never the
   # requested value).
   matched=""
-  if [ -n "$prefix" ]; then
+  case "$requested" in
+    claude-*)
+      matched="$(jq -r --arg requested "$requested" 'first((.modelUsage // {} | keys[] | select(. == $requested))) // empty' "$PEERLOG" 2>/dev/null)"
+      ;;
+  esac
+  if [ -z "$matched" ] && [ -n "$prefix" ]; then
     # first modelUsage key matching the expected family prefix (jq-native, no
     # external `head`: the route sandbox may not carry coreutils on PATH).
     matched="$(jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(startswith($p)))) // empty' "$PEERLOG" 2>/dev/null)"
   fi
   if [ -n "$matched" ]; then
     MODEL_ACTUAL="$matched"
+    MODEL_RECEIPT_VERIFIED=true
     return 0
   fi
   actual="$(jq -r '.modelUsage // empty | keys[0] // empty' "$PEERLOG" 2>/dev/null)"

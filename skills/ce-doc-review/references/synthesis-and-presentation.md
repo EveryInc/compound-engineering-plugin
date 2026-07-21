@@ -74,6 +74,8 @@ Note the promotion in the Reviewer column of the output (e.g., `coherence, feasi
 
 **Cross-model returns count as independent personas only when they are `ran_verified_independent`.** Both independence and the served-model identity receipt must verify. Other valid returns remain attributed evidence but cannot use the twin exception, promote an anchor, or be described as different-model corroboration.
 
+Cursor default/Auto without a verified served-model identity always remains attributed evidence; harness branding alone never establishes independence.
+
 When the cross-model judgment pass ran (see `references/cross-model-review.md`), each peer return enters synthesis as a reviewer named `<reviewer-name>-<provider>` (e.g. `adversarial-codex`, `security-lens-grok`, `product-lens-composer` — whichever different provider was resolved). For 3.3 fingerprint matching and this 3.4 promotion, only an independence-verified return is treated like an independent persona. Agreement between such a `<reviewer-name>-<provider>` return and its in-process twin (`<reviewer-name>`) is the **strongest** corroboration signal in the set — different model providers in separate processes, not one model's self-agreement — so it promotes by the normal one anchor step and is rendered `<reviewer-name>, <reviewer-name>-<provider> (+1 anchor)` (e.g. `adversarial, adversarial-codex (+1 anchor)`). **In user-facing Phase 4 output, render the peer legibly as a cross-model reviewer that names its model** — e.g. `adversarial + cross-model: Grok 4.5 (+1 anchor)`, and for a cursor-agent route name the route too (`… via cursor-agent`) so grok-vs-composer is unambiguous — rather than surfacing the raw `<lens>-<provider>` token; the stored `reviewer` field keeps the `<lens>-<provider>` form for fingerprinting. Twin matching uses the 3.3 cross-model exception: same section plus >50% evidence-substring overlap counts even when titles diverge. **The whole-document sweep** (`whole-doc-<provider>`, R20) has **no in-process twin** — so it does not use the twin exception; when independence is verified, its findings dedup and corroborate by the normal section+title fingerprint against any in-process reviewer, and a match promotes one anchor step just the same (rendered e.g. `feasibility, whole-doc-codex (+1 anchor)`). **Corroboration only, never apply authority:** a peer-only finding is never silently applied as `safe_auto` — not by the peer returning that class, and **not via the 3.6 promotion scan** (see the cross-model peer cap in 3.6 and the safeguard in 3.7); it caps at `gated_auto` (user confirms) unless an in-process reviewer independently corroborates it. **Peer agreement alone also does not promote the anchor.** The one-step promotion in this rule requires at least one in-process contributor and at least one independence-verified peer — mirroring the 3.6 autofix cap on the anchor axis. A merged finding whose contributors are all cross-model peers is **not** promoted. This holds *a fortiori* in the default single-peer config, where peer-peer agreement can be one model agreeing with itself. Cross-model agreement adds **at most one** anchor step even when an opt-in second peer also agrees; the bonus does not stack.
 
 This replaces the earlier residual-concern promotion step. Findings at anchors `0` / `25` are not promoted back into the review surface; they appear only as drop counts in Coverage. If a dropped finding is genuinely important, the reviewer should raise their anchor to `50` or higher through stronger evidence rather than relying on a promotion rule.
@@ -276,7 +278,23 @@ After safe_auto fixes apply, remaining findings split into buckets:
 
 **Headless mode:** Do not use interactive question tools. Output all findings as a structured text envelope the caller can parse. Internal enum values (`safe_auto`, `gated_auto`, `manual`, `FYI`) stay in the schema and synthesis prose; the envelope below uses user-facing vocabulary — "fixes", "Proposed fixes", "Decisions", "FYI observations" — so headless output reads the same way interactive output does.
 
-Before the ordinary Coverage table/envelope, emit one stable cross-model Coverage record per launch-ledger leg, in ledger order, with exactly: `label`, `target`, `fixed_route`, `authority_outcome`, `terminal_state`, `artifact_verified`, `identity_verified`, `input_digest`, `status`, `reason`. Artifact verification requires terminal `done`, successful `result <job-id>`, full schema, exact reviewer, and matching digest. Identity verification additionally requires reconciled route, target, harness, requested identity, served identity, and verified receipt. Status is exactly one of `verified`, `local_only`, `host_denied`, `auth_failed`, `timeout`, `quota_limited`, `unusable_output`; reason is environment-scoped and redacted. A valid attributed artifact without verified identity is `local_only`. If diagnostics match both quota and authentication, choose `quota_limited`.
+Before the ordinary Coverage table/envelope, emit a named `cross_model_coverage` array with one stable record per launch-ledger leg, in ledger order. Emit `cross_model_coverage: []` when the completed review expected no peer legs. Each record has exactly: `label`, `target`, `fixed_route`, `authority_outcome`, `terminal_state`, `artifact_verified`, `identity_verified`, `input_digest`, `status`, `reason`. Artifact verification requires terminal `done`, successful `result <job-id>`, full schema, exact reviewer, matching job ID, and matching digest. Identity verification additionally requires reconciled route, target, harness, requested identity, served identity, and verified receipt. Status is exactly one of `verified`, `ran_attributed`, `local_only`, `host_denied`, `auth_failed`, `timeout`, `quota_limited`, `unusable_output`; reason is environment-scoped and redacted. A valid attributed artifact without verified identity is `ran_attributed`; `local_only` means no usable peer artifact exists and only local reviewer coverage completed. If diagnostics match both quota and authentication, choose `quota_limited`.
+
+Serialize the array explicitly in the headless envelope before the ordinary Coverage section:
+
+```yaml
+cross_model_coverage:
+  - label: <ledger label>
+    target: <sanctioned target>
+    fixed_route: <resolved fixed route>
+    authority_outcome: <normal|approved_host_launch|host_denied|authority_unavailable>
+    terminal_state: <done|failed|timeout|died-without-result|never-started>
+    artifact_verified: <true|false>
+    identity_verified: <true|false>
+    input_digest: <sha256 or empty when no job was authorized>
+    status: <stable status>
+    reason: <redacted environment-scoped reason>
+```
 
 ```
 Document review complete (headless mode).
