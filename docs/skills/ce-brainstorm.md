@@ -55,7 +55,7 @@ One thing it deliberately does *not* do is render a verdict. When a request is r
 
 # Keep your session on a model like Opus, but generate the approaches on Fable --
 # surgical use of a strong-but-expensive model just for the heavy reasoning step
-/ce-brainstorm add account-level notification settings, use fable to generate the approaches
+/ce-brainstorm add account-level notification settings, use fable
 ```
 
 ---
