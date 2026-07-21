@@ -39,6 +39,7 @@ Hand over the working context as **file paths the subagent reads itself**, never
 
 - **Research / grounding evidence.** ce-brainstorm already wrote a Phase 1.1 grounding dossier — pass it. ce-plan consolidates its Phase 1 findings *in context only*, so **serialize those consolidated findings to a scratch file now and pass it** — the elevated author must interpret the same evidence the inline path had.
 - **Dialogue / decisions.** Write the accumulated dialogue/decisions to a fresh scratch file and pass that path too.
+- **Project conventions the plan must honor.** The elevated call runs under `--safe-mode`, which disables the project's instruction files — so a fresh author cannot see conventions the main session already has in context: plan location and naming, required structure or frontmatter, path and scope constraints, domain rules. Serialize the relevant active project instructions/conventions the session already holds to a scratch file in the bundle, so the elevated author produces a conformant artifact (plan or approaches) instead of one the session must reconcile afterward. This file is the session's curated, trusted selection of constraints the output should honor — distinct from the research/dialogue evidence, which is data to interpret (R20).
 
 Re-narration is forbidden: the main model's default tendency is to compress, and a lossy summary is the failure the quality bet cannot absorb.
 
