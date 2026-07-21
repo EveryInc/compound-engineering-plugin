@@ -130,6 +130,8 @@ describe("elevation-dispatch worker", () => {
     expect(argv).toContain("high")
     expect(argv).toContain("stream-json")
     expect(argv).toContain("--verbose")
+    // one-shot background call — no resumable session left on disk
+    expect(argv).toContain("--no-session-persistence")
     // read-only posture: --tools RESTRICTS the available built-in set to these
     // five (Write/Edit/Bash are not present at all — verified: --allowedTools
     // alone only pre-approves and leaves every other tool available), and

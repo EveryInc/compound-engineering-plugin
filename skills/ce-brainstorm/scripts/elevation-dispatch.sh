@@ -56,9 +56,12 @@ build_cmd() {   # <model> <handoff-dir> -> sets CMD array (claude CLI, streaming
   # model; the scoped dir does not. Read-only (only Read/Glob/Grep available).
   local add_dirs=()
   [ -n "${2:-}" ] && add_dirs=(--add-dir "$2")
+  # --no-session-persistence: this is a one-shot background model call, so the
+  # prompt and scratch-file references must not be saved as a resumable session
+  # on disk (matches the other scripted Claude peer routes in this repo).
   CMD=(claude -p --model "$1" --effort "$EFFORT"
        --output-format stream-json --verbose
-       --safe-mode --disable-slash-commands --strict-mcp-config
+       --safe-mode --no-session-persistence --disable-slash-commands --strict-mcp-config
        --permission-mode dontAsk
        "${add_dirs[@]}"
        --tools "$csv" --allowedTools "${ALLOWED[@]}"
