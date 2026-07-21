@@ -71,6 +71,7 @@ legacy_cfg="skip"
 repo_cfg_gitignore="skip"
 local_cfg="skip"
 example_cfg="skip"
+retired_keys=""
 project_issues=0
 
 if [ "$in_repo" = "yes" ]; then
@@ -97,6 +98,18 @@ if [ "$in_repo" = "yes" ]; then
     example_cfg="outdated"
   else
     example_cfg="ok"
+  fi
+
+  # Retired keys set as ACTIVE (non-commented) in the user's local config. A
+  # commented `# plan_use_fable:` line does not match `^[[:space:]]*<key>:`.
+  retired_keys=""
+  local_cfg_file="$repo_root/.compound-engineering/config.local.yaml"
+  if [ -f "$local_cfg_file" ]; then
+    for key in plan_use_fable brainstorm_use_fable fable_nudge; do
+      if grep -Eq "^[[:space:]]*${key}[[:space:]]*:" "$local_cfg_file" 2>/dev/null; then
+        retired_keys="${retired_keys}${key} "
+      fi
+    done
   fi
 fi
 
@@ -157,6 +170,15 @@ if [ "$in_repo" = "yes" ]; then
     warn "Example config outdated (new settings available)"
     project_issues=$((project_issues + 1))
   fi
+
+  for key in $retired_keys; do
+    case "$key" in
+      plan_use_fable)       warn "Retired config key '$key' — removed; use 'plan_model' instead" ;;
+      brainstorm_use_fable) warn "Retired config key '$key' — removed; use 'brainstorm_model' instead" ;;
+      fable_nudge)          warn "Retired config key '$key' — removed; model elevation is always available" ;;
+    esac
+    project_issues=$((project_issues + 1))
+  done
 else
   section "Project config"
   skip "Not inside a git repository"

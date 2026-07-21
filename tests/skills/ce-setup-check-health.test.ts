@@ -122,4 +122,59 @@ describe("ce-setup check-health", () => {
       await rm(root, { recursive: true, force: true })
     }
   })
+
+  async function repoWithLocalConfig(body: string): Promise<string> {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+    await initGitRepo(root)
+    await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+    await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.example.yaml"))
+    await writeFile(path.join(root, ".compound-engineering", "config.local.yaml"), body)
+    await writeFile(path.join(root, ".gitignore"), ".compound-engineering/*.local.yaml\n")
+    return root
+  }
+
+  test("warns on an active retired fable key and names its replacement", async () => {
+    const root = await repoWithLocalConfig("plan_use_fable: true\n")
+    try {
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+      expect(result.stdout).toContain("Retired config key 'plan_use_fable'")
+      expect(result.stdout).toContain("plan_model")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("does not warn on a commented retired key", async () => {
+    const root = await repoWithLocalConfig("# plan_use_fable: true\n")
+    try {
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+      expect(result.stdout).not.toContain("Retired config key")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("does not warn when only the new model keys are set", async () => {
+    const root = await repoWithLocalConfig("plan_model: fable\nbrainstorm_model: opus\n")
+    try {
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+      expect(result.stdout).not.toContain("Retired config key")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("does not warn or error when no local config exists", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.example.yaml"))
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).not.toContain("Retired config key")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
 })
