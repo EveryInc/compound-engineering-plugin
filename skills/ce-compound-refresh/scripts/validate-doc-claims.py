@@ -51,7 +51,7 @@ PLACEHOLDER_SUBSTRINGS = ("path/to", "...", "…")
 SHA_RE = re.compile(r"\b[0-9a-f]{7,40}\b")
 BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
-FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
+FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
 SCAFFOLD_RES = (
     re.compile(r"\bLearnings?\s+#?\d"),
     re.compile(r"\{\{[^}\n]*\}\}"),
@@ -131,8 +131,15 @@ def mask_code(lines: list[str]) -> list[str]:
             masked.append(" " * len(line))
             continue
         if fence is not None:
-            # CommonMark: a closing fence is the same char and at least as long.
-            if m and m.group(1)[0] == fence[0] and len(m.group(1)) >= len(fence):
+            # CommonMark: a closing fence is the same char, at least as long,
+            # and followed only by whitespace — an info string (```json) opens
+            # but never closes, so it stays block content.
+            if (
+                m
+                and m.group(1)[0] == fence[0]
+                and len(m.group(1)) >= len(fence)
+                and not m.group(2).strip()
+            ):
                 fence = None
             masked.append(" " * len(line))
             continue

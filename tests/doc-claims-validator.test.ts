@@ -296,6 +296,21 @@ describe("validate-doc-claims script", () => {
         expect(result.stdout).not.toContain("FLAG scaffold")
       })
 
+      test("keeps a same-length info-string fence line as block content", () => {
+        // A bare ``` block whose content demonstrates a ```json opener: the
+        // inner ```json has trailing text, so CommonMark does not treat it as
+        // a closing fence — the {{...}} after it stays masked.
+        const docPath = writeRepoDoc(
+          "```\n" +
+            "```json\n" +
+            '{ "actor_id": "{{PLACEHOLDER_APP_ID}}" }\n' +
+            "```\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+        expect(result.stdout).not.toContain("FLAG scaffold")
+      })
+
       test("flags prose {{...}} after a closing fence, not the fenced content", () => {
         // Pins the fence toggle-off transition: content resumes prose masking
         // once the block closes.
