@@ -808,6 +808,29 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(after.dead_time_seconds).toBe(0)
   }, 20000)
 
+  test("managed-stack continuation carries accumulated dead time to the next layer's state dir", () => {
+    // Codex P2: the shared active-time budget spans stack layers, but dead time is per-state-dir.
+    // --continue-dead-time-seconds threads the prior layer's excluded-suspend total into the new
+    // layer so it is not re-counted as active. Absent the arg, an adopt still resets to 0.
+    const fetch = fetchFile(dir, "stack-carry.json", quietCurrencyFixture())
+    snapshot(state, fetch)
+    const prior = readState(state)
+    const cont = (stateDir: string, extra: string[]) => spawnSync("python3",
+      [SCRIPT, "snapshot", "--pr", "1", "--repo", "o/r", "--state-dir", stateDir, "--fetch-file", fetch,
+        "--continue-invocation", "--invocation-id", prior.invocation_id,
+        "--session-started-at", prior.started_at,
+        "--invocation-budget-seconds", String(prior.invocation_budget_seconds), ...extra],
+      { encoding: "utf8" })
+    const layer2 = path.join(dir, "layer2")
+    const r = cont(layer2, ["--continue-dead-time-seconds", "4200"])
+    expect(r.status, r.stderr).toBe(0)
+    expect(readState(layer2).dead_time_seconds).toBe(4200)
+    const layer3 = path.join(dir, "layer3")
+    const r2 = cont(layer3, [])
+    expect(r2.status, r2.stderr).toBe(0)
+    expect(readState(layer3).dead_time_seconds).toBe(0)
+  }, 20000)
+
   test("branch currency: a carried semantic park wakes only for inspection and unchanged evidence stays parked", () => {
     const dirty = quietCurrencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
     const original = snapshot(state, fetchFile(dir, "currency-inspect-1.json", dirty))
