@@ -86,7 +86,7 @@ The same generate-critique-survive mechanism runs across very different topic do
 
 ### 8. Issue-tracker intent
 
-Phrases like "what users are reporting" or "biggest issue patterns" trigger an issue-intelligence agent that pulls real GitHub issues and feeds clustered themes into the ideation frames.
+Phrases like "what users are reporting" or "biggest issue patterns" trigger an issue-intelligence agent that pulls real issues from your tracker — GitHub, Linear, or Jira, whichever is reachable — and feeds leverage-ranked clustered themes into the ideation frames. It scopes large trackers by the tracker's own structure and asks at most one question, only when the tracker is genuinely split; it discloses what it did and didn't analyze rather than implying it read everything.
 
 ---
 

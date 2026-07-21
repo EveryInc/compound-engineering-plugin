@@ -157,7 +157,7 @@ For the full catalog and how each skill chains together, see [docs/skills](docs/
 ```text
 /ce-ideate new drawing tools
 /ce-ideate surprise me
-/ce-ideate github issues   # ground ideas in your open issues instead of a prompt
+/ce-ideate open issues     # ground ideas in your tracker's open issues (GitHub, Linear, Jira)
 ```
 
 `/ce-ideate` does the homework first (codebase, past learnings, prior art on the web, optionally your issue tracker), then hands you a ranked set of grounded candidates to take into `/ce-brainstorm`.
