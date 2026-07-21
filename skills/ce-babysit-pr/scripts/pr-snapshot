@@ -1392,9 +1392,11 @@ def locked_state(state_dir, pr, repo, now):
         # that original value as the state birth time before a new invocation replaces the clock.
         state.setdefault("state_created_at", state.get("started_at") or _iso(now))
         # Active-time accounting fields migrate onto legacy state on first observation. Seed the
-        # activity heartbeat from the invocation anchor and the dead-time accumulator empty, so a
-        # pre-existing invocation simply starts measuring active time from now with nothing refunded.
-        state.setdefault("last_activity_at", state.get("started_at") or _iso(now))
+        # heartbeat to *now*, not the old anchor: there is no recorded activity for the pre-migration
+        # period, so charging that whole span as one supra-threshold gap would refund the entire
+        # historical invocation (a 9h-old 8h run would read as ~15 min active and never max-runtime).
+        # Seeding to load time makes the first poll see a ~0 gap and keeps elapsed on real wall-clock.
+        state.setdefault("last_activity_at", _iso(now))
         state.setdefault("dead_time_seconds", 0.0)
         state.setdefault("invocation_backstop_seconds", DEFAULT_INVOCATION_BACKSTOP_SECONDS)
         box = {"state": state}
@@ -1433,8 +1435,8 @@ def _apply_invocation(box, args, now):
         state["invocation_id"] = invocation_id
         state["started_at"] = requested_started_at
         state["invocation_budget_seconds"] = requested_budget
-        # A fresh invocation resets the active-time clock: heartbeat at the anchor, no dead time yet.
-        state["last_activity_at"] = requested_started_at
+        # A fresh invocation resets the active-time clock: heartbeat at now, no dead time yet.
+        state["last_activity_at"] = _iso(now)
         state["dead_time_seconds"] = 0.0
         state.setdefault("invocation_backstop_seconds", DEFAULT_INVOCATION_BACKSTOP_SECONDS)
         args.invocation_id = invocation_id
@@ -1463,7 +1465,9 @@ def _apply_invocation(box, args, now):
         state["invocation_budget_seconds"] = requested_budget
         # Adopting a new invocation into this state dir establishes a fresh active-time clock, just
         # like --start: never inherit a prior invocation's accumulated dead time or stale heartbeat.
-        state["last_activity_at"] = requested_started_at
+        # Seed the heartbeat to now (not the shared anchor, which may be hours old) so the first poll
+        # sees a ~0 gap and does not refund the span between the anchor and adoption as dead time.
+        state["last_activity_at"] = _iso(now)
         state["dead_time_seconds"] = 0.0
         state.setdefault("invocation_backstop_seconds", DEFAULT_INVOCATION_BACKSTOP_SECONDS)
         return

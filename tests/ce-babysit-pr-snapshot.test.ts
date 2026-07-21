@@ -721,6 +721,26 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(migrated.invocation_backstop_seconds).toBe(3 * 24 * 60 * 60)
   }, 20000)
 
+  test("legacy migration does not refund pre-migration time: an expired old invocation still max-runtimes", () => {
+    // Regression (Cursor/Codex): seeding last_activity to the OLD started_at made the first poll
+    // charge the whole historical invocation as one suspend gap, so a 9h-old 8h run read as ~15 min
+    // active and never expired. Seeding to load time keeps it on wall-clock -> it must still expire.
+    const fetch = fetchFile(dir, "legacy-expire.json", FAILING_ACTIONABLE)
+    snapshot(state, fetch)
+    const legacy = readState(state)
+    legacy.started_at = isoAgo(9 * 3600)
+    legacy.invocation_budget_seconds = 8 * 3600
+    delete legacy.last_activity_at
+    delete legacy.dead_time_seconds
+    delete legacy.invocation_backstop_seconds
+    writeFileSync(path.join(state, "state.json"), JSON.stringify(legacy))
+    const wake = watch(state, fetch)
+    expect(wake.reason).toBe("max-runtime")
+    expect(wake.max_runtime_ceiling).toBe("active-budget")
+    // The historical span was not laundered into dead time.
+    expect(readState(state).dead_time_seconds).toBe(0)
+  }, 20000)
+
   test("re-arm preserves accumulated dead time and the backstop (no reset, no extend)", () => {
     // Covers AE5. A continue-invocation re-arm keeps the accumulated dead time rather than resetting.
     const fetch = fetchFile(dir, "rearm.json", quietCurrencyFixture())
