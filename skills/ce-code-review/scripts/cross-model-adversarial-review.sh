@@ -537,6 +537,10 @@ recover_findings_json() {   # <logfile> <outfile>
   python3 - "$1" "$2" <<'PY' 2>/dev/null
 import sys, json
 txt = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+# Any selectable object carries a literal `"findings"` key; if the raw text has
+# none, there is nothing to recover. Skip the scan — raw_decode probing every
+# `{` is O(n^2) on brace-dense non-findings stdout (error/crash dumps).
+if '"findings"' not in txt: sys.exit(0)
 dec = json.JSONDecoder()
 best, i = None, 0
 while True:
