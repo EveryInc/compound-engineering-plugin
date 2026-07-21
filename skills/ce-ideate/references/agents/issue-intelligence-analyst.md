@@ -33,7 +33,7 @@ If no access method is reachable, stop and return a message whose **first line i
 
 Trackers expose two different axes; keep them distinct.
 
-- **Lifecycle (open vs closed)** is native on every tracker: GitHub `state` + `state_reason`; Linear state `type` `completed`/`canceled`; Jira `statusCategory` `Done` + resolution.
+- **Lifecycle (open vs closed)** is native on every tracker: GitHub `state` plus the completion reason (the `gh` CLI `--json` field is `stateReason`; the REST/GraphQL field is `state_reason` / `stateReason` — use the name your reachable surface actually exposes); Linear state `type` `completed`/`canceled`; Jira `statusCategory` `Done` + resolution.
 - **Workflow state within "open"** (triage / backlog / ready / in-progress) is **asymmetric**:
   - **Linear / Jira** carry it as a first-class typed field — Linear's every state has a canonical `type` ∈ {`backlog`, `unstarted`, `started`, `completed`, `canceled`}; Jira has `statusCategory` ∈ {To Do, In Progress, Done}. Names are workspace-custom, so **key on the canonical category, never the display name**.
   - **GitHub** has **no** native workflow-state field — it is label-inferred (`triage`, `status:in-progress`, per-repo, often absent) or, when a repo clearly uses one, a GitHub Projects v2 Status field. When GitHub carries no workflow signal, this axis contributes nothing and scoping falls back to priority + recency.
@@ -68,7 +68,7 @@ One bounded pass to learn the tracker's shape so the orchestrator can decide whe
 
 Given the resolved scope from the orchestrator (a slice, or "representative sample of everything"):
 
-1. Assemble the working set within that scope by **reading the scan's persisted set from `{scratch-dir}/issue-scan.json`** (the caller passes the same `{scratch-dir}`), re-fetching only a narrowed slice the persisted set does not already cover when the user narrowed. Bound the set by the clustering payload budget, not a fixed ticket count. When the eligible set exceeds the budget, **stratified-sample** across state × priority × recency bands with a minimum-per-stratum floor, so small-but-distinct buckets are not zeroed out — never recency-only sampling.
+1. Assemble the working set within that scope, starting from the scan's persisted set at `{scratch-dir}/issue-scan.json` (the caller passes the same `{scratch-dir}`) rather than re-fetching from scratch. Fetch **additional** issues when the scope needs them the persisted set does not already cover: a narrowed slice when the user narrowed, **or** under-represented strata when the scan hit a pagination/bound cap (its signal count was a `>N` lower bound) and "representative sample of everything" would otherwise stratify only what the scan happened to retrieve. Bound the set by the clustering payload budget, not a fixed ticket count. When the eligible set exceeds the budget, **stratified-sample** across state × priority × recency bands with a minimum-per-stratum floor, so small-but-distinct buckets are not zeroed out — never recency-only sampling.
 2. Cluster into themes (methodology below).
 3. Emit themes **plus the coverage accounting** (contract below).
 
