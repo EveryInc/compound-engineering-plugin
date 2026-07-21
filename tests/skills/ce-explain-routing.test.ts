@@ -80,24 +80,32 @@ describe("ce-explain destination and handoff routing", () => {
     }
   })
 
-  test("ce-polish handoff is user-run, never skill-invoked", () => {
-    // ce-polish sets disable-model-invocation: true (pinned in
+  test("`ce-polish` handoff is user-run, never skill-invoked", () => {
+    // `ce-polish` sets disable-model-invocation: true (pinned in
     // EXPECTED_USER_INVOKED_SKILLS in tests/skill-conventions.test.ts), so the
     // model cannot dispatch it via the Skill tool. The routing must present
-    // observations in chat and tell the user to run /ce-polish themselves.
+    // observations in chat and give the user a host-correct `ce-polish`
+    // invocation rather than hardcoding one harness's syntax.
     const polishBullet = phaseRegion.match(/^- \*\*[^\n]*polish[^\n]*\*\*[^\n]+/im)
     expect(
       polishBullet,
-      "ce-explain SKILL.md Phase 6 is missing the inline UI/UX polish handoff bullet.",
+      "`ce-explain` SKILL.md Phase 6 is missing the inline UI/UX polish handoff bullet.",
     ).not.toBeNull()
     const line = polishBullet![0]
+    const renderingRule = phaseRegion.match(/\*\*User-runnable invocation rendering\.\*\*[^\n]+/i)
+    expect(renderingRule).not.toBeNull()
     expect(
-      /tell the user to run\s+`\/ce-polish`|user-invoked only/i.test(line),
-      "ce-explain SKILL.md polish handoff must present observations in chat and route to a user-run /ce-polish.",
+      /user-invoked only/i.test(line) &&
+        /rendering rule above/i.test(line) &&
+        renderingRule![0].includes("$ce-polish") &&
+        renderingRule![0].includes("/ce-polish") &&
+        /active host|Codex/i.test(renderingRule![0]) &&
+        /default to `\/ce-polish`[^.]{0,180}dollar-prefixed/i.test(renderingRule![0]),
+      "`ce-explain` SKILL.md polish handoff must present observations in chat and render one host-correct user invocation for `ce-polish`.",
     ).toBe(true)
     expect(
       /invoke the `ce-polish` skill/i.test(line),
-      "ce-explain SKILL.md polish handoff must NOT instruct invoking ce-polish via the skill primitive — it is user-invoked only (disable-model-invocation).",
+      "`ce-explain` SKILL.md polish handoff must NOT instruct invoking `ce-polish` via the skill primitive — it is user-invoked only (disable-model-invocation).",
     ).toBe(false)
   })
 

@@ -53,7 +53,7 @@ Independent verification remains required for findings that lack cross-model cor
 
 ### Stage 5c: Act on findings (explicit local apply only)
 
-**Skip unless local apply was explicitly authorized.** A bare `/ce-code-review` is report-only and does not apply findings. Authorization exists only when `apply:local` was passed or the invoking user prompt explicitly asked this review to apply/fix its findings. Do not infer authority from `autofix_class`, a clean tree, an actionable finding, or the fact that another workflow may apply later. `mode:agent` does not apply fixes and conflicts with `apply:local`; the pipeline caller owns any later mutation.
+**Skip unless local apply was explicitly authorized.** A bare `ce-code-review` invocation is report-only and does not apply findings. Authorization exists only when `apply:local` was passed or the invoking user prompt explicitly asked this review to apply/fix its findings. Do not infer authority from `autofix_class`, a clean tree, an actionable finding, or the fact that another workflow may apply later. `mode:agent` does not apply fixes and conflicts with `apply:local`; the pipeline caller owns any later mutation.
 
 `apply:local` is authority, not an output mode: presentation remains markdown and reviewer selection is unchanged.
 

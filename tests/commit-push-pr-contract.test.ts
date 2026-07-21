@@ -152,6 +152,9 @@ describe("ce-commit-push-pr contract", () => {
 describe("PR concept teaching contract", () => {
   test("SKILL.md wires the teaching gate, pipeline mode, and trailer", async () => {
     const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+    const trailerStart = content.indexOf("**User-runnable invocation rendering.**")
+    const trailerEnd = content.indexOf("**Babysit handoff", trailerStart)
+    const trailer = content.slice(trailerStart, trailerEnd)
 
     // Non-interactive modifier for orchestrated callers
     expect(content).toContain("mode:pipeline")
@@ -163,9 +166,14 @@ describe("PR concept teaching contract", () => {
     expect(content).toContain("active (non-commented)")
     expect(content).toContain("Step B2")
 
-    // Machine-readable trailer + interactive offer
-    expect(content).toContain("New concepts:")
-    expect(content).toContain("Run /ce-explain")
+    // Machine-readable trailer + host-rendered interactive offer
+    expect(trailerStart).toBeGreaterThan(-1)
+    expect(trailerEnd).toBeGreaterThan(trailerStart)
+    expect(trailer).toContain("New concepts:")
+    expect(trailer).toContain("using the rendering rule above")
+    expect(trailer).toContain("$ce-explain <name>")
+    expect(trailer).toContain("/ce-explain <name>")
+    expect(trailer).toMatch(/default to `\/ce-explain <name>`[\s\S]{0,220}Codex[\s\S]{0,160}output one form only/i)
   })
 
   test("SKILL.md archival transition guards ordering, gitignore, and modes", async () => {

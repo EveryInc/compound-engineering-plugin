@@ -3,6 +3,13 @@ import path from "path"
 import { describe, expect, test } from "bun:test"
 import { parseFrontmatter } from "../src/utils/frontmatter"
 
+const ROOT_AGENTS = readFileSync(path.join(process.cwd(), "AGENTS.md"), "utf8")
+const PORTABLE_AUTHORING_GUIDE = readFileSync(
+  path.join(process.cwd(), "docs/solutions/skill-design/portable-agent-skill-authoring.md"),
+  "utf8",
+)
+const ROOT_README = readFileSync(path.join(process.cwd(), "README.md"), "utf8")
+
 /**
  * Convention-enforcement tests for skill content, encoding the repo-root
  * AGENTS.md rules "File References in Skills" and "Platform-Specific
@@ -128,6 +135,29 @@ import { parseFrontmatter } from "../src/utils/frontmatter"
 const REPO_ROOT = process.cwd()
 const SKILLS_ROOT = path.join(REPO_ROOT, "skills")
 const AGENTS_MD_REF = `AGENTS.md (repo root)`
+
+describe("user-facing skill invocation authoring contract", () => {
+  test("authoring guidance separates semantic routing from host-rendered user copy", () => {
+    for (const text of [ROOT_AGENTS, PORTABLE_AUTHORING_GUIDE]) {
+      expect(text).toContain("$skill-name")
+      expect(text).toContain("/skill-name")
+      expect(text).toMatch(/agent-to-agent|skill-to-skill/i)
+      expect(text).toMatch(/format formal skill names as inline code/i)
+      expect(text).toContain("`ce-plan`")
+      expect(text).toMatch(/in prose, render only the invocation as inline code[^\n]*fenced block/i)
+      expect(text).toMatch(/active host|active harness/i)
+      expect(text).toMatch(/default to `\/skill-name`[\s\S]{0,160}Codex[\s\S]{0,160}dollar-prefixed/i)
+      expect(text).toMatch(/\/goal[\s\S]{0,180}(built-in|exception)|built-in[\s\S]{0,180}\/goal/i)
+      expect(text).toMatch(/smallest section[\s\S]{0,180}do not repeat[\s\S]{0,180}separately loaded reference/i)
+    }
+  })
+
+  test("README explains Codex invocation syntax without rewriting the built-in goal command", () => {
+    expect(ROOT_README).toMatch(/README uses `\/skill-name`[\s\S]{0,180}Codex[\s\S]{0,120}`\$skill-name`/i)
+    expect(ROOT_README).toContain("`$ce-plan` and `$lfg`")
+    expect(ROOT_README).toMatch(/\/goal[\s\S]{0,80}Codex built-in/i)
+  })
+})
 
 // ---------------------------------------------------------------------------
 // Exemptions. Shrinking these lists is welcome; growing them requires written

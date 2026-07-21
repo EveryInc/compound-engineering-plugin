@@ -49,6 +49,8 @@ Display the diagnostic output to the user. Missing optional tools are not setup 
 
 ### Step 3: Decide Whether Fixes Are Needed
 
+**User-runnable invocation rendering.** In setup summaries, default to `/ce-setup`; use `$ce-setup` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
+
 Proceed to Phase 2 only if one or more repo-local project issues exist:
 
 - obsolete `compound-engineering.local.md`
@@ -64,7 +66,7 @@ If no project issues exist, report:
 Project config: ✅
 Optional capabilities: see diagnostic report above
 
-Run /ce-setup anytime to re-check.
+Run `<rendered invocation>` anytime to re-check.
 ```
 
 If optional tools are missing, do not offer a bulk install. The diagnostic already printed the relevant install command or project URL. Say: "Install optional tools only for the workflows you use."
@@ -125,5 +127,5 @@ Fixed:     <repo-local fixes applied, or none>
 Skipped:   <repo-local fixes declined, or none>
 Optional:  <missing optional tools, or all available>
 
-Run /ce-setup anytime to re-check.
+Run `<rendered invocation>` anytime to re-check.
 ```

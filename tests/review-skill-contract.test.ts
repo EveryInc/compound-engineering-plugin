@@ -498,7 +498,7 @@ describe("ce-code-review contract", () => {
     // Act stage is separately authorized; bare and mode:agent invocations stay report-only.
     expect(content).toContain("### Stage 5c: Act on findings")
     expect(content).toMatch(/Skip unless local apply was explicitly authorized/i)
-    expect(content).toMatch(/bare `\/ce-code-review`.{0,80}does not apply/i)
+    expect(content).toMatch(/bare `ce-code-review` invocation.{0,80}does not apply/i)
     expect(content).toMatch(/`mode:agent` does not apply fixes/i)
 
     // Bias to act, push back if wrong, no deny-list

@@ -103,6 +103,8 @@ Re-running the Bun convert/install CLI for Codex also strips the block if it is 
 
 **Each unit of engineering work should make subsequent units easier -- not harder.**
 
+Invocation syntax: this README uses `/skill-name` examples for slash-skill hosts. In Codex, invoke installed skills with `$skill-name` (for example, `$ce-plan` and `$lfg`); `/goal` remains a Codex built-in command.
+
 Traditional development accumulates technical debt. Every feature adds complexity. Every bug fix leaves behind a little more local knowledge that someone has to rediscover later. The codebase gets larger, the context gets harder to hold, and the next change becomes slower.
 
 Compound engineering inverts this. 80% is in planning and review, 20% is in execution:

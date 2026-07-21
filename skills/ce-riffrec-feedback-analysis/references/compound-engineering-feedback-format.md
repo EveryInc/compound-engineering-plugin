@@ -105,7 +105,7 @@ topic: <topic>
 
 ## Next Steps
 
--> /ce-brainstorm to confirm, correct, and regroup the captured requirements before any planning.
+-> Invoke `ce-brainstorm` to confirm, correct, and regroup the captured requirements before any planning.
 ```
 
 ## Evidence Rules

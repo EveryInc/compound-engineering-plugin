@@ -380,7 +380,7 @@ describe("ce-plan review contract", () => {
     // Both executors are offered; ce-work is always the recommended default (it is the
     // correctly-layered entry point that reaches goal/workflow engines itself), while goal
     // mode is the opt-in preference for driving the work through the harness's goal loop.
-    expect(content).toContain("**Start `/ce-work`** - Build and ship the plan in this session")
+    expect(content).toContain("**Start `ce-work`** - Build and ship the plan in this session")
     expect(content).toContain("**Run it as a `/goal`**")
     expect(content).toMatch(/`ce-work` \(option 1\) always carries \*\(recommended\)\*/i)
     expect(content).toContain("Codex `create_goal` in the available tool list")
@@ -807,9 +807,16 @@ describe("concept-teaching seam parity (ce-commit-push-pr <-> lfg)", () => {
     // The callsite passes the mode explicitly rather than relying on defaults
     expect(lfg).toContain("Invoke the `ce-commit-push-pr` skill with `mode:pipeline branding:on`.")
 
-    // The pre-DONE report line names the concept and the /ce-explain pointer
+    // The pre-DONE report names the concept and renders each user-runnable
+    // handoff for the active host rather than hardcoding one harness's syntax.
     expect(lfg).toContain("New concept introduced:")
-    expect(lfg).toContain("run /ce-explain")
+    expect(lfg).toContain("run <rendered ce-explain invocation> to go deeper")
+    expect(lfg).toContain("run <rendered ce-babysit-pr invocation> to watch it through review to merge")
+    for (const target of ["ce-explain <name>", "ce-babysit-pr <pr-url>"]) {
+      expect(lfg).toContain(`$${target}`)
+      expect(lfg).toContain(`/${target}`)
+    }
+    expect(lfg).toMatch(/default to `\/ce-explain <name>`[\s\S]{0,360}Codex[\s\S]{0,220}output one form only/i)
 
     // The callee documents the mode the caller passes
     expect(skill).toContain("mode:pipeline")
