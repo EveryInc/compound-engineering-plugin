@@ -25,7 +25,7 @@ afterAll(() => {
 
 const REAL_TOOLS = [
   "bash", "sh", "jq", "date", "sed", "tr", "cat", "wc", "mktemp", "env",
-  "sleep", "rm", "mv", "chmod", "printf", "kill", "tail",
+  "sleep", "rm", "mv", "chmod", "printf", "kill", "tail", "grep",
 ]
 function resolveRealToolPaths(): Array<[string, string]> {
   const out: Array<[string, string]> = []
@@ -144,6 +144,20 @@ describe("elevation-dispatch worker", () => {
     expect(result.output).toBe("PLAN BODY")
     expect(result.served_model).toBe("claude-fable-5")
     expect(result.receipt).toBe("matched")
+  })
+
+  test("a large plan is shipped intact — envelope build never passes it as an argv", () => {
+    // Guards the ARG_MAX fix: the success envelope pipes the event THROUGH jq
+    // rather than passing .result as `jq --arg o "$OUTPUT"`. A ~300KB plan would
+    // exceed ARG_MAX and fail the exec if that regressed. printf is a shell
+    // builtin, so emitting it from the stub is not itself argv-bounded.
+    const big = "PLAN LINE. ".repeat(30000) // ~300KB, well past ARG_MAX
+    const stub =
+      "#!/bin/sh\n" +
+      `printf '%s\\n' '${RESULT_LINE(big, { "claude-fable-5": { outputTokens: 5 } })}'\n`
+    const { result } = runWorker("fable", stub)
+    expect(result.status).toBe("ok")
+    expect(result.output).toBe(big)
   })
 
   test("a truncated/error terminal result is failed, not shipped as ok", () => {

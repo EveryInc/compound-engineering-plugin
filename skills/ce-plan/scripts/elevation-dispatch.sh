@@ -41,8 +41,12 @@ EFFORT="high"   # settled: elevation runs at high effort
 ALLOWED=(Read Glob Grep WebSearch WebFetch)
 
 build_cmd() {   # <model> -> sets CMD array (claude CLI, streaming, read-only)
+  # --safe-mode suppresses the user environment's hooks, plugins, and MCP
+  # servers; --disable-slash-commands blocks skills — so the elevated call is
+  # locked to the allowlist regardless of what the invoking machine configures.
   CMD=(claude -p --model "$1" --effort "$EFFORT"
        --output-format stream-json --verbose
+       --safe-mode --disable-slash-commands --strict-mcp-config
        --permission-mode dontAsk --allowedTools "${ALLOWED[@]}"
        --max-turns "${ELEVATION_MAX_TURNS:-30}")
 }
@@ -59,6 +63,14 @@ MODEL="${1:?model required}"
 PROMPT_FILE="${2:?prompt-file required}"
 RESULT_PATH="${3:?result-path required}"
 [ -f "$PROMPT_FILE" ] || { log "prompt file not found: $PROMPT_FILE"; exit 2; }
+
+# jq builds every result envelope; it is only an optional capability (ce-setup),
+# so preflight it here rather than spending the CLI call and failing to parse.
+if ! command -v jq >/dev/null 2>&1; then
+  log "jq not found on PATH; cannot parse the elevated result — skipping elevation"
+  printf '%s' '{"status":"failed","evidence":"jq unavailable on PATH"}' > "$RESULT_PATH" 2>/dev/null || true
+  exit 3
+fi
 
 PEERLOG="$(mktemp -t elevation-peer-XXXXXX)"
 
@@ -188,29 +200,41 @@ run_codex_cmd() {
 build_cmd "$MODEL"
 run_codex_cmd
 
-# stream-json terminal event is the last line: {"type":"result", .result, .modelUsage}
-# jq `keys` is sorted, so keys[0] is not necessarily the served model when
-# modelUsage carries an auxiliary model too; prefer the key matching the
-# requested family's prefix, falling back to keys[0], then "unverified".
-EVENT="$(tail -1 "$PEERLOG" 2>/dev/null || true)"
+# The stream-json terminal event is the LAST line whose type is "result". Match
+# on it rather than `tail -1`, so a diagnostic written to stderr after the result
+# (an update notice, wrapper output) does not become the "result" we parse.
+EVENT="$(grep -a '"type":"result"' "$PEERLOG" 2>/dev/null | tail -1 || true)"
 PREFIX="$(model_prefix "$MODEL")"
+# jq `keys` is sorted, so keys[0] is not necessarily the served model when
+# modelUsage carries an auxiliary model too; prefer the requested family's key.
 SERVED="$(printf '%s' "$EVENT" | jq -r --arg p "$PREFIX" \
   '(.modelUsage // {} | keys) as $k
    | (if $p != "" then first($k[] | select(startswith($p))) else empty end) // $k[0] // "unverified"' \
   2>/dev/null || printf 'unverified')"
-OUTPUT="$(printf '%s' "$EVENT" | jq -r '.result // empty' 2>/dev/null || true)"
-# A terminal event carries .result even when truncated or errored (subtype
-# "error_max_turns"/"error_during_execution", is_error true). Ship "ok" only on
-# a clean success, so a partial plan is never mistaken for a complete one.
+# Ship "ok" only on a clean success — a terminal event carries .result even when
+# truncated/errored (subtype error_*, is_error true). HAS_OUTPUT is a tiny jq
+# flag, so the plan text is never loaded into a shell variable or an argv.
 SUBTYPE="$(printf '%s' "$EVENT" | jq -r '.subtype // empty' 2>/dev/null || true)"
 IS_ERROR="$(printf '%s' "$EVENT" | jq -r '.is_error // false' 2>/dev/null || printf 'true')"
+HAS_OUTPUT="$(printf '%s' "$EVENT" | jq -r 'if (.result // "") == "" then "no" else "yes" end' 2>/dev/null || printf 'no')"
 
-if [ "$RUN_SUCCEEDED" = true ] && [ -n "$OUTPUT" ] \
+if [ "$RUN_SUCCEEDED" = true ] && [ "$HAS_OUTPUT" = "yes" ] \
    && [ "$SUBTYPE" = "success" ] && [ "$IS_ERROR" != "true" ]; then
   RECEIPT="$(classify_receipt "$MODEL" "$SERVED")"
-  write_result "$(jq -n --arg m "$MODEL" --arg s "$SERVED" --arg r "$RECEIPT" --arg o "$OUTPUT" \
-    '{status:"ok", requested_model:$m, served_model:$s, receipt:$r, output:$o}')"
-  log "elevated step complete: requested=$MODEL served=$SERVED receipt=$RECEIPT"
+  # Build the envelope by piping the event THROUGH jq, which reads .result
+  # internally — never pass the plan text as an argv --arg, which would exceed
+  # ARG_MAX for a large Deep plan.
+  tmp="${RESULT_PATH}.tmp.$$"
+  if printf '%s' "$EVENT" | jq --arg m "$MODEL" --arg s "$SERVED" --arg r "$RECEIPT" \
+       '{status:"ok", requested_model:$m, served_model:$s, receipt:$r, output:.result}' \
+       > "$tmp" 2>/dev/null; then
+    mv -f "$tmp" "$RESULT_PATH"
+    log "elevated step complete: requested=$MODEL served=$SERVED receipt=$RECEIPT"
+  else
+    rm -f "$tmp"
+    write_result "$(jq -n --arg m "$MODEL" '{status:"failed", requested_model:$m, evidence:"result envelope build failed"}')"
+    log "elevated step: result envelope build failed"
+  fi
 else
   write_result "$(jq -n --arg m "$MODEL" --arg e "$(bounded_failure_evidence)" \
     '{status:"failed", requested_model:$m, evidence:$e}')"
