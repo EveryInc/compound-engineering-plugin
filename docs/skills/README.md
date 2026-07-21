@@ -96,7 +96,7 @@ Invoked when a specific need arises — not part of any chain.
 
 | Skill | Description |
 |-------|-------------|
-| [`/lfg`](./lfg.md) | Run the full hands-off engineering pipeline from planning through a green PR — plan, work, simplify, review, fix, browser-test, ship, and watch CI |
+| [`/lfg`](./lfg.md) | Run the full hands-off engineering pipeline through a green PR, then conditionally recommend an opt-in fresh-session handoff for the next separately planned area |
 
 ---
 

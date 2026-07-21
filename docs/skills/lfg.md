@@ -59,8 +59,11 @@ Without an explicit pipeline, autonomous runs tend to skip planning, treat revie
 - `/ce-commit-push-pr mode:pipeline branding:on` ships remaining changes when a remote exists and explicitly marks the CE provenance
 - CI is watched for up to three repair iterations on an open PR
 - An invalidating settlement conflict surfaced by planning or review halts the pipeline before shipping rather than quietly overriding what was agreed; non-halting flagged conflicts become durable residuals that reach the PR body
+- At closeout, an eligible multi-area plan can produce a justified recommendation for the next separately planned area; `lfg` owns that choice and offers an opt-in `/ce-handoff` rather than continuing automatically
 
 The pipeline also has a local-only path: if the repository has no git remote, it commits locally and skips push, PR creation, and CI watch instead of retrying impossible network steps.
+
+The next-work offer is gated: the completed plan must explicitly describe a larger body of separately planned work, and at least one supported future area must still be unplanned. If that gate passes, `lfg` selects and explains the best next area from current evidence. It invokes `/ce-handoff` only after you explicitly accept the offer; that handoff is for a fresh session to brainstorm one coherent area into a separate requirements-only plan, not to extend or edit the plan that just shipped. If no eligible area remains, `lfg` ends without an offer.
 
 ---
 
