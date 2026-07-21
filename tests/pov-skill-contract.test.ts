@@ -35,7 +35,8 @@ describe("ce-pov subject-shape contract", () => {
     const phaseOne = between(skill, "### Phase 1: Ground", "### Phase 2: Verify Grounding")
 
     expect(phaseOne).toContain("Send scouts directly to candidate-specific current evidence")
-    expect(phaseOne).toMatch(/bounded reads instead of dispatching scouts/)
+    expect(phaseOne).toMatch(/bounded reads.*instead of dispatching scouts/)
+    expect(phaseOne).toMatch(/a pointer to check, never self-verifying/)
     expect(phaseOne).toMatch(/unscoped or noisy grounding still dispatches/)
     expect(phaseOne).toMatch(/prior-decision scan.*stays mandatory on either path/)
   })
@@ -130,7 +131,8 @@ describe("ce-pov cross-model panel contract", () => {
     const phaseThree = between(skill, "### Phase 3: Point of View", "### Phase 4: Follow-up")
 
     expect(phaseThree).toContain("states which peers ran")
-    expect(phaseThree).toMatch(/caller's paraphrase never cancels it/)
+    expect(phaseThree).toMatch(/caller's paraphrase in one channel never cancels/)
+    expect(phaseThree).toMatch(/no summons keeps the solo result unchanged with no panel note/)
     expect(panel).toMatch(/summons was present but the panel branch never entered/)
   })
 

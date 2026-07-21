@@ -182,10 +182,12 @@ and carry the user's stated goal — including its intensity — when it bears o
 decision. State in the payload that rejecting every supplied option, or the
 framing itself, is a valid position. When ce-pov authored the subject in-session,
 present the options symmetrically in the payload's own words even though the full
-subject document remains attached. When that in-session subject is itself an
-already-formed position, it ships as the subject per Section 1's prior-opinion
-rule and peers still return their own independent verdict. Write this as a floor
-with one example, not an exhaustive catalog of pre-arguing patterns. For `skeptic` mode, include
+subject document remains attached. When the subject is itself an already-formed
+position (Section 1), the strip list above applies only to fresh host framing
+generated in response to the summons: the position's own premises, labels, and
+advocacy ship intact as the subject artifact, and only host meta-judgment formed
+about it after the summons waits for reconcile — peers still return their own
+independent verdict. For `skeptic` mode, include
 ce-pov's position because critiquing it is the task. Reconciliation payloads
 follow Section 5 and deliberately include already-formed positions.
 
