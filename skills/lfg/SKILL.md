@@ -105,6 +105,10 @@ Never pass this object or the removed directive to `ce-plan`, `ce-doc-review`, `
 
     If step 8 recorded a `New concepts:` trailer, first echo one line per concept: `New concept introduced: <name> — run /ce-explain <name> to go deeper.`
 
-    If an open PR exists, add one line pointing the user to the interactive watch-to-merge (pipeline mode stopped at "CI decided," not "merged"): `PR is moving — run /ce-babysit-pr <pr-url> to watch it through review to merge.` Then output the DONE promise.
+    If an open PR exists, add one line pointing the user to the interactive watch-to-merge (pipeline mode stopped at "CI decided," not "merged"): `PR is moving — run /ce-babysit-pr <pr-url> to watch it through review to merge.`
+
+    Before the DONE promise, inspect the canonical plan from step 1 for the semantic role `work-relationships`. Load `references/next-work-handoff.md` when that role exists, or when an older unmarked Product Contract appears to name the area this plan owns plus future separately planned areas and their relationships; the reference owns the cautious legacy semantic fallback, candidate selection, and opt-in offer contract. Do not match an exact visible heading, treat ordinary non-goals as future work, or invoke `ce-handoff` before the user explicitly accepts the offer. If neither semantic signal exists, do not load the reference and make no next-work offer.
+
+    Then output the DONE promise.
 
 Start with step 1 now. Remember: plan FIRST, then work. Never skip the plan.

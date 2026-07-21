@@ -80,6 +80,8 @@ A typical "let's brainstorm" with an AI also has shape problems: it asks five qu
 - **Opt-in visual probes** for decisions that are faster to judge as rough sketches than prose
 - **Synthesis Summary** as the last opportunity to correct scope before the doc lands
 - **Fresh-context claim verification** checks the doc's repo claims before it lands
+- **One coherent work unit per artifact** with a plain-language view of how separately planned work currently fits together
+- **Ready for Planning Check** repairs completeness, consistency, focus, and planning-readiness defects before handoff
 - **Right-sized Product Contract** inside a unified plan with stable identifiers (R/A/F/AE) that flow into planning
 
 ---

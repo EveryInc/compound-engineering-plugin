@@ -37,6 +37,8 @@ Brainstorm complete.
 
 Plan artifact: <absolute path to requirements-only unified plan>  # omit line if no artifact was created
 
+Planning and shipping will use this artifact as the definition of what to build.  # omit line if no artifact was created
+
 What would you like to do next? (Pick a number or describe what you want.)
 ```
 

@@ -275,6 +275,12 @@ Long HTML plans are agent-consumed as source text as often as they are read in
 a browser. Keep the heading text visible and adjacent to the `id`; do not rely
 on a nav link alone to carry the section name.
 
+Optional sections with a contract-defined semantic role put that role on their
+wrapping `<section>` with `data-ce-section`. For example, the broader-work
+relationship section uses `data-ce-section="work-relationships"`. The role is
+stable even when the visible heading changes; it supplements, rather than
+replaces, readable heading text and any useful anchor.
+
 ### Text contrast is local
 
 Every text-on-background pairing must hold up on its own. A color that

@@ -49,6 +49,9 @@ const planDeepeningWorkflow = readRepoFile(
   "skills/ce-plan/references/deepening-workflow.md",
 )
 const lfg = readRepoFile("skills/lfg/SKILL.md")
+const lfgNextWorkHandoff = readRepoFile(
+  "skills/lfg/references/next-work-handoff.md",
+)
 const docReview = readRepoFile("skills/ce-doc-review/SKILL.md")
 const docReviewTemplate = readRepoFile(
   "skills/ce-doc-review/references/subagent-template.md",
@@ -138,6 +141,23 @@ describe("unified plan artifact contract", () => {
     expect(brainstormHandoff).toMatch(/with no artifact.*nothing to enrich/i)
   })
 
+  test("brainstorm self-reviews the written artifact before its handoff", () => {
+    expect(brainstormSkill).toContain("Ready for Planning Check")
+    for (const check of ["Complete", "Consistent", "Focused", "Usable by planning"]) {
+      expect(brainstormSections).toContain(`**${check}**`)
+    }
+    expect(brainstormSections).toMatch(/Fix a failed check in place.*preserves settled intent/s)
+    expect(brainstormSections).toContain("ask one targeted question")
+    expect(brainstormSections).toMatch(/choose or change product behavior or\s+scope/)
+    expect(brainstormSkill).toContain("Do not declare the artifact written or enter Phase 4 while any check fails")
+  })
+
+  test("brainstorm handoff explains that downstream work consumes the written artifact", () => {
+    expect(brainstormHandoff).toContain(
+      "Planning and shipping will use this artifact as the definition of what to build.",
+    )
+  })
+
   test("ce-doc-review personas map unified-* document types to their base review lens", () => {
     // Another-agent P2 (PR #972): persona prompts branch on `Document type:
     // requirements` / `plan`, but the orchestrator may pass `unified-requirements`
@@ -191,6 +211,44 @@ describe("unified plan artifact contract", () => {
     expect(lfg).toContain("stop as blocked and report the missing fields")
     expect(lfg).toContain("ce-code-review` skill with `mode:agent plan:<plan-path-from-step-1>`")
     expect(lfg).not.toContain("artifact_readiness: approach-plan")
+  })
+
+  test("lfg offers an opt-in fresh-session handoff for separately planned future work", () => {
+    expect(lfg).toContain("semantic role `work-relationships`")
+    expect(lfg).toContain("cautious legacy semantic fallback")
+    expect(lfg).toContain("references/next-work-handoff.md")
+    expect(lfg).toMatch(/older unmarked Product Contract.*area this plan owns.*future separately planned areas/s)
+    expect(lfg).toContain("Do not match an exact visible heading")
+    expect(lfg).toMatch(/do not .*invoke `ce-handoff` before the user explicitly accepts/i)
+
+    expect(lfgNextWorkHandoff).toContain("<!-- ce-section: work-relationships -->")
+    expect(lfgNextWorkHandoff).toContain('data-ce-section="work-relationships"')
+    expect(lfgNextWorkHandoff).toContain("The visible heading is not part of this protocol")
+    expect(lfgNextWorkHandoff).toMatch(/larger body of separately planned work/i)
+    expect(lfgNextWorkHandoff).toMatch(/already planned, completed, absorbed/i)
+    expect(lfgNextWorkHandoff).toMatch(/Do not choose by document\s+order/)
+    expect(lfgNextWorkHandoff).toContain("One justified winner")
+    expect(lfgNextWorkHandoff).toContain("Real tie")
+    expect(lfgNextWorkHandoff).toContain("No ready candidate")
+    expect(lfgNextWorkHandoff).toContain("Only after explicit acceptance")
+    expect(lfgNextWorkHandoff).toContain("LFG owns the recommendation")
+
+    for (const field of [
+      "Next-session objective",
+      "Recommended area",
+      "Why next",
+      "Authoritative prior plan",
+      "Relationship to completed work",
+      "Actual delivery state",
+      "Carry-forward decisions",
+      "Assumptions to revalidate",
+      "Other candidates not selected",
+      "Artifact boundary",
+    ]) {
+      expect(lfgNextWorkHandoff).toContain(`**${field}:**`)
+    }
+    expect(lfgNextWorkHandoff).toMatch(/separate requirements-only unified plan/i)
+    expect(lfgNextWorkHandoff).toMatch(/do not extend or edit the prior plan/i)
   })
 
   test("lfg carries implementation routing only at the ce-work seam", () => {
