@@ -337,9 +337,6 @@ RUN_DIR="${7:-}"
 # --- validate inputs -------------------------------------------------------
 [ -n "$REVIEWER_NAME" ] || skip "no reviewer-name given; skipping"
 [ -n "$REVIEWER_NAME" ] && set_reviewer_policy "$REVIEWER_NAME" || skip "reviewer-name '$REVIEWER_NAME' is not a cross-model reviewer (want security-lens|adversarial|product-lens|whole-doc); skipping"
-[ -n "$DOC_PATH" ] && [ -f "$DOC_PATH" ] || skip "document '${DOC_PATH:-<empty>}' not readable on disk; skipping"
-: "${DOC_TYPE:=unified-plan}"
-: "${ORIGIN:=none}"
 [ -n "$RUN_DIR" ] || skip "run-dir not given; skipping"
 # Create the scratch run-dir rather than skipping when it doesn't exist yet:
 # ce-doc-review (unlike ce-code-review) has no pre-existing run-artifact dir, and
@@ -347,6 +344,13 @@ RUN_DIR="${7:-}"
 # Requiring it to pre-exist would silently no-op the whole pass (no fold-in files).
 mkdir -p "$RUN_DIR" 2>/dev/null
 [ -d "$RUN_DIR" ] || skip "run-dir '$RUN_DIR' could not be created; skipping"
+DECLARED_TARGET="$(route_target "${CROSS_MODEL_FIXED_ROUTE:-}")"
+case "$DECLARED_TARGET" in
+  codex|claude|grok|cursor|composer) rm -f "$RUN_DIR/$REVIEWER_NAME-$DECLARED_TARGET.json" ;;
+esac
+[ -n "$DOC_PATH" ] && [ -f "$DOC_PATH" ] || skip "document '${DOC_PATH:-<empty>}' not readable on disk; skipping"
+: "${DOC_TYPE:=unified-plan}"
+: "${ORIGIN:=none}"
 command -v jq >/dev/null 2>&1 || skip "jq not installed; skipping"
 
 # Validate the host identity tuple. An unknown serving family is allowed, but

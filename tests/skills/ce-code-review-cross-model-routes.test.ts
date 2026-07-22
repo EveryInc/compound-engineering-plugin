@@ -469,6 +469,22 @@ describe("cross-model-adversarial-review provider selection", () => {
 })
 
 describe("cross-model-adversarial-review skip paths — non-blocking, no file", () => {
+  test("an early startup skip removes a stale artifact for the fixed target", () => {
+    const { env } = sandbox(["claude"])
+    const runDir = makeRunDir()
+    const stale = path.join(runDir, "adversarial-claude.json")
+    writeFileSync(stale, '{"reviewer":"adversarial-claude","findings":[]}')
+    const r = run(
+      ["codex", "claude", "", runDir],
+      runDir,
+      { ...env, CROSS_MODEL_FIXED_ROUTE: "claude" },
+      REPO_ROOT,
+      { skipDirtyTree: true },
+    )
+    expect(r.code).toBe(0)
+    expect(existsSync(stale)).toBe(false)
+  })
+
   const cases: Array<[string, string[], Record<string, string>]> = [
     ["un-attestable host (empty)", ["", "codex,claude"], {}],
     ["MAX_PEERS=0 disables the pass", ["claude", "codex"], { CROSS_MODEL_MAX_PEERS: "0" }],

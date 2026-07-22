@@ -303,8 +303,12 @@ BASE="${3:-}"
 RUN_DIR="${4:-}"
 
 # --- validate inputs -------------------------------------------------------
-[ -n "$BASE" ] || skip "no base ref given; skipping"
 [ -n "$RUN_DIR" ] && [ -d "$RUN_DIR" ] || skip "run-dir '${RUN_DIR:-<empty>}' is not a directory; skipping"
+DECLARED_TARGET="$(route_target "${CROSS_MODEL_FIXED_ROUTE:-}")"
+case "$DECLARED_TARGET" in
+  codex|claude|grok|cursor|composer) rm -f "$RUN_DIR/adversarial-$DECLARED_TARGET.json" ;;
+esac
+[ -n "$BASE" ] || skip "no base ref given; skipping"
 command -v jq >/dev/null 2>&1 || skip "jq not installed; skipping"
 
 # Validate the host identity tuple. An unknown serving family is allowed, but

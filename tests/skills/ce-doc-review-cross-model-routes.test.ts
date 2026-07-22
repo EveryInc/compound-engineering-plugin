@@ -486,6 +486,21 @@ describe("cross-model-doc-review provider selection (R7, R15, R16)", () => {
 })
 
 describe("cross-model-doc-review skip paths (R11, R16) — non-blocking, no file", () => {
+  test("an early startup skip removes a stale artifact for the fixed lane target", () => {
+    const { env } = sandbox(["claude"])
+    const runDir = makeRunDir()
+    const stale = path.join(runDir, "product-lens-claude.json")
+    writeFileSync(stale, '{"reviewer":"product-lens-claude","findings":[]}')
+    const missingDoc = path.join(runDir, "missing.md")
+    const r = run(
+      ["codex", "claude", "product-lens", missingDoc, "plan", "none", runDir],
+      runDir,
+      { ...env, CROSS_MODEL_FIXED_ROUTE: "claude" },
+    )
+    expect(r.code).toBe(0)
+    expect(existsSync(stale)).toBe(false)
+  })
+
   const cases: Array<[string, string[], Record<string, string>]> = [
     ["un-attestable host (empty)", ["", "codex,claude"], {}],
     ["MAX_PEERS=0 disables the pass", ["claude", "codex"], { CROSS_MODEL_MAX_PEERS: "0" }],
