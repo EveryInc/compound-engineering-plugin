@@ -1,0 +1,94 @@
+{
+  "schema_version": 2,
+  "corpus_license": "Synthetic fixtures authored for this repository; no private repository content.",
+  "recipients": ["anthropic", "openai"],
+  "trials_per_arm": 5,
+  "judge_votes_per_output": 3,
+  "timeout_ms": 900000,
+  "review_concurrency": 4,
+  "judge_concurrency": 6,
+  "arms": [
+    { "id": "opus-high", "provider": "anthropic", "model": "opus", "effort": "high" },
+    { "id": "fable-high", "provider": "anthropic", "model": "fable", "effort": "high" }
+  ],
+  "judge": { "provider": "openai", "model": "gpt-5.6-luna", "effort": "xhigh" },
+  "planning_cost_assumptions": {
+    "currency": "USD",
+    "source": "2026-07-21 planning caps; confirm current provider pricing before execution.",
+    "per_call_usd": { "opus-high": 0.2, "fable-high": 0.3, "judge": 0.05 }
+  },
+  "adoption_cases": [
+    {
+      "id": "product-actor",
+      "kind": "seeded",
+      "role": "product-lens",
+      "document_type": "requirements",
+      "origin": "none",
+      "path": "documents/product-actor.md",
+      "ledger": [{ "id": "PROD-1", "severity": "P1", "summary": "success criteria omit the named operator actor" }]
+    },
+    {
+      "id": "product-destructive",
+      "kind": "seeded",
+      "role": "product-lens",
+      "document_type": "requirements",
+      "origin": "none",
+      "path": "documents/product-destructive.md",
+      "ledger": [{ "id": "PROD-2", "severity": "P1", "summary": "destructive bulk action is the default path" }]
+    },
+    {
+      "id": "product-scope",
+      "kind": "seeded",
+      "role": "product-lens",
+      "document_type": "requirements",
+      "origin": "none",
+      "path": "documents/product-scope.md",
+      "ledger": [{ "id": "PROD-3", "severity": "P2", "summary": "goal promises all workspaces while scope covers one" }]
+    },
+    {
+      "id": "product-clean",
+      "kind": "clean",
+      "role": "product-lens",
+      "document_type": "requirements",
+      "origin": "none",
+      "path": "documents/clean-requirements.md",
+      "ledger": []
+    },
+    {
+      "id": "whole-trace",
+      "kind": "seeded",
+      "role": "whole-doc",
+      "document_type": "plan",
+      "origin": "none",
+      "path": "documents/whole-trace.md",
+      "ledger": [{ "id": "WHOLE-1", "severity": "P1", "summary": "required restore behavior has no implementation or test trace" }]
+    },
+    {
+      "id": "whole-order",
+      "kind": "seeded",
+      "role": "whole-doc",
+      "document_type": "plan",
+      "origin": "none",
+      "path": "documents/whole-order.md",
+      "ledger": [{ "id": "WHOLE-2", "severity": "P0", "summary": "deployment order permits incompatible schema and code" }]
+    },
+    {
+      "id": "whole-metric",
+      "kind": "seeded",
+      "role": "whole-doc",
+      "document_type": "plan",
+      "origin": "none",
+      "path": "documents/whole-metric.md",
+      "ledger": [{ "id": "WHOLE-3", "severity": "P2", "summary": "rollout gate names metrics without thresholds" }]
+    },
+    {
+      "id": "whole-clean",
+      "kind": "clean",
+      "role": "whole-doc",
+      "document_type": "plan",
+      "origin": "none",
+      "path": "documents/clean-plan.md",
+      "ledger": []
+    }
+  ]
+}
