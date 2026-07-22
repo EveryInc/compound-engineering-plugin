@@ -8,7 +8,7 @@ It's a **utility skill** — point it at whatever you want refined. With no argu
 
 The premise is that simplification preserves exact functionality. The skill enforces this by running typecheck, lint, and scoped tests after fixes. **It refuses to relax assertions, weaken type signatures, or skip tests to make checks pass** — that defeats the guarantee.
 
-The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-simplify-code` runs automatically as a quality gate inside `/ce-work` Phase 3 (for diffs ≥30 changed lines) and as step 3 of the autonomous `/lfg` loop (before review, skipped for docs-only or trivial changes), and is directly invocable for refining a feature branch before you open a PR.
+The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-simplify-code` runs automatically as a quality gate inside `/ce-work` Phase 3 (for diffs with ≥30 substantive code lines) and as step 3 of the autonomous `/lfg` loop (before review, skipped for docs-only or trivial changes), and is directly invocable for refining a feature branch before you open a PR.
 
 ---
 
@@ -133,7 +133,7 @@ Skip `ce-simplify-code` when:
 
 `ce-simplify-code` is invoked automatically by two workflows, always **before** the review step so reviewers see the simplified diff:
 
-- **`/ce-work` Phase 3** — runs when a diff is ≥30 changed lines, ahead of the harness-native or `/ce-code-review` review tier.
+- **`/ce-work` Phase 3** — runs when a diff has ≥30 substantive code lines, ahead of the harness-native or `/ce-code-review` review tier.
 - **`/lfg` step 3** — the autonomous build loop runs it on the branch diff after the build step and before code review. It's skipped only for docs-only changes (markdown/docs paths) or trivial ones (roughly under 10 changed lines), and it leaves its edits uncommitted so the loop's later commit step sweeps them up with the rest of the work.
 
 It's also commonly invoked manually before `/ce-commit-push-pr`, when you want a refinement pass on a branch you've been building over multiple sessions.
@@ -218,7 +218,7 @@ The skill won't relax assertions, weaken type signatures, or skip tests to paper
 It can be, but in practice the moment to find an existing utility is when you're searching for it, not when you're writing the feature. A separate refinement pass with parallel cross-cutting search catches things the original write didn't.
 
 **Does it run for tiny diffs?**
-By default it runs against whatever code scope it resolves, but the yield on tiny diffs (a couple of lines) is low. The automated callers gate on size for that reason: `ce-work` runs it only for diffs ≥30 changed lines, and `/lfg` skips it for docs-only or trivial (roughly under 10 changed lines) changes. The skill itself does not gate on size — an explicit scope on a small function is authoritative and still runs; the size floor is a cost policy that lives in the callers and in any [standing instruction](#make-it-automatic) you add.
+By default it runs against whatever code scope it resolves, but the yield on tiny diffs (a couple of lines) is low. The automated callers gate on size for that reason: `ce-work` runs it only for diffs with ≥30 substantive code lines, and `/lfg` skips it for docs-only or trivial (roughly under 10 changed lines) changes. The skill itself does not gate on size — an explicit scope on a small function is authoritative and still runs; the size floor is a cost policy that lives in the callers and in any [standing instruction](#make-it-automatic) you add.
 
 **What if I point it at a docs-only or mechanical diff?**
 The skill detects when the resolved scope has no substantive code — documentation/Markdown-only, or only generated, vendored, lockfile, or purely mechanical churn — and stops with a short "nothing to simplify" note instead of dispatching the three reviewers, which would find nothing there. On a mixed diff it narrows to the code files and continues. This self-guard keys on the *kind* of change, not its size.
