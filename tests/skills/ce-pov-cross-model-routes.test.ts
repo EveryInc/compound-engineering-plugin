@@ -205,8 +205,55 @@ describe("ce-pov output gate and receipts", () => {
     expect(out.serving_family).toBe("claude")
     expect(out.model_requested).toBe("opus")
     expect(out.model_actual).toBe("claude-opus-4-8-20260115")
+    expect(out.model_observed_ids).toEqual(["claude-opus-4-8-20260115"])
     expect(out.movement).toBe("initial")
     expect(out.independence_verified).toBe(true)
+  })
+
+  test("records same-family Fable IDs and fails mixed Fable-plus-Opus identity closed", () => {
+    const fableEnvelope = '{"stop_reason":"end_turn","structured_output":{"voice":"peer","position":"Choose A","reasoning":"Lower correction cost","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"},"modelUsage":{"claude-fable-5-20260701":{"inputTokens":10},"claude-fable-5-20260715":{"inputTokens":2}}}'
+    const fableSandbox = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${fableEnvelope}'\n`)
+    const fableDir = runDir()
+    const fableRun = run(["codex", "claude", payload(), fableDir], fableDir, {
+      ...fableSandbox.env,
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+      CROSS_MODEL_MODEL_OVERRIDE: "claude-fable-5",
+    })
+    const fable = JSON.parse(readFileSync(path.join(fableDir, "pov-claude.json"), "utf8"))
+    expect(fable.model_actual).toBe("claude-fable-5-20260701")
+    expect(fable.model_observed_ids).toEqual([
+      "claude-fable-5-20260701",
+      "claude-fable-5-20260715",
+    ])
+    expect(fableRun.stderr).not.toContain("model mismatch")
+
+    const mixedEnvelope = '{"stop_reason":"end_turn","structured_output":{"voice":"peer","position":"Choose A","reasoning":"Lower correction cost","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"},"modelUsage":{"claude-fable-5-20260715":{"inputTokens":2},"claude-opus-4-8-20260115":{"inputTokens":10}}}'
+    const mixedSandbox = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${mixedEnvelope}'\n`)
+    const mixedDir = runDir()
+    const mixedRun = run(["codex", "claude", payload(), mixedDir], mixedDir, mixedSandbox.env)
+    const mixed = JSON.parse(readFileSync(path.join(mixedDir, "pov-claude.json"), "utf8"))
+    expect(mixed.model_actual).toBe("unverified")
+    expect(mixed.model_observed_ids).toEqual([
+      "claude-fable-5-20260715",
+      "claude-opus-4-8-20260115",
+    ])
+    expect(mixed.independence_verified).toBe(false)
+    expect(mixedRun.stderr).toContain("ambiguous multi-family model receipt")
+  })
+
+  test("explicit Claude refusal publishes no POV while end_turn remains usable", () => {
+    const refusedEnvelope = '{"stop_reason":"refusal","structured_output":{"voice":"peer","position":"Choose A","reasoning":"Lower correction cost","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"},"modelUsage":{"claude-opus-4-8-20260115":{"inputTokens":10}}}'
+    const refusedSandbox = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${refusedEnvelope}'\n`)
+    const refusedDir = runDir()
+    const refusedRun = run(["codex", "claude", payload(), refusedDir], refusedDir, refusedSandbox.env)
+    expect(refusedRun.files).not.toContain("pov-claude.json")
+    expect(refusedRun.stderr).toContain("explicit refusal")
+
+    const endedEnvelope = '{"stop_reason":"end_turn","structured_output":{"voice":"peer","position":"Choose A","reasoning":"Lower correction cost","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"},"modelUsage":{"claude-opus-4-8-20260115":{"inputTokens":10}}}'
+    const endedSandbox = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${endedEnvelope}'\n`)
+    const endedDir = runDir()
+    const endedRun = run(["codex", "claude", payload(), endedDir], endedDir, endedSandbox.env)
+    expect(endedRun.files).toContain("pov-claude.json")
   })
 
   test("recovers a raw schema-shaped POV without a structured-output envelope", () => {
@@ -231,6 +278,7 @@ describe("ce-pov output gate and receipts", () => {
     expect(out.position).toBe("Choose B")
     expect(out.reasoning).toBe("The boundary is clearer")
     expect(out.model_actual).toBe("unverified")
+    expect(out.model_observed_ids).toEqual([])
     expect(out.serving_family).toBe("unknown")
     expect(out.independence_verified).toBe(false)
   })

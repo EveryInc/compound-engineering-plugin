@@ -606,11 +606,63 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(r.stderr).not.toContain("model mismatch")
   })
 
-  test("multi-key receipt: prefers the requested-family key over the alphabetically-first auxiliary key (R7)", () => {
-    // A real envelope can carry an auxiliary model's usage (here haiku) beside
-    // the serving model. jq `keys` sorts, so a naive keys[0] (or any sorted
-    // pick) would choose haiku; the prefix match must select the opus key and
-    // raise no mismatch warning.
+  test("accepts multiple Fable IDs from one expected family and records every observed ID (R7)", () => {
+    const receiptStub =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"stop_reason":"end_turn","structured_output":{"reviewer":"adversarial","findings":[]},"modelUsage":{"claude-fable-5-20260701":{"inputTokens":10},"claude-fable-5-20260715":{"inputTokens":2}}}'\n`
+    const { env } = sandbox(["claude"], receiptStub)
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+      CROSS_MODEL_MODEL_OVERRIDE: "claude-fable-5",
+    })
+    const out = JSON.parse(readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"))
+    expect(out.model_actual).toBe("claude-fable-5-20260701")
+    expect(out.model_observed_ids).toEqual([
+      "claude-fable-5-20260701",
+      "claude-fable-5-20260715",
+    ])
+    expect(out.findings).toEqual([])
+    expect(r.stderr).not.toContain("model mismatch")
+  })
+
+  test("fails identity closed when a Claude receipt contains Fable and Opus families (R7)", () => {
+    const receiptStub =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"stop_reason":"end_turn","structured_output":{"reviewer":"adversarial","findings":[]},"modelUsage":{"claude-fable-5-20260715":{"inputTokens":2},"claude-opus-4-8-20260115":{"inputTokens":10}}}'\n`
+    const { env } = sandbox(["claude"], receiptStub)
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
+    const out = JSON.parse(readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"))
+    expect(out.model_actual).toBe("unverified")
+    expect(out.model_observed_ids).toEqual([
+      "claude-fable-5-20260715",
+      "claude-opus-4-8-20260115",
+    ])
+    expect(out.independence_verified).toBe(false)
+    expect(r.stderr).toContain("ambiguous multi-family model receipt")
+  })
+
+  test("explicit Claude refusal publishes no artifact while end_turn empty findings stays usable (R11)", () => {
+    const refused =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"stop_reason":"refusal","structured_output":{"reviewer":"adversarial","findings":[]},"modelUsage":{"claude-opus-4-8-20260115":{"inputTokens":10}}}'\n`
+    const refusedSandbox = sandbox(["claude"], refused)
+    const refusedDir = makeRunDir()
+    const refusedRun = run(["codex", "claude", "HEAD", refusedDir], refusedDir, refusedSandbox.env)
+    expect(refusedRun.files).not.toContain("adversarial-claude.json")
+    expect(refusedRun.stderr).toContain("explicit refusal")
+
+    const ended =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"stop_reason":"end_turn","structured_output":{"reviewer":"adversarial","findings":[]},"modelUsage":{"claude-opus-4-8-20260115":{"inputTokens":10}}}'\n`
+    const endedSandbox = sandbox(["claude"], ended)
+    const endedDir = makeRunDir()
+    const endedRun = run(["codex", "claude", "HEAD", endedDir], endedDir, endedSandbox.env)
+    expect(endedRun.files).toContain("adversarial-claude.json")
+    expect(JSON.parse(readFileSync(path.join(endedDir, "adversarial-claude.json"), "utf8")).findings).toEqual([])
+  })
+
+  test("multi-key receipt: different model families fail identity closed (R7)", () => {
+    // Without an authoritative final-output-model field, an auxiliary model's
+    // usage cannot be distinguished from the model that produced the artifact.
     const multiKeyStub =
       `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t"}]},"modelUsage":{"claude-haiku-4-5-20251001":{"inputTokens":2},"claude-opus-4-8-20260115":{"inputTokens":10}}}'\n`
     const { env } = sandbox(["claude"], multiKeyStub)
@@ -621,8 +673,13 @@ describe("cross-model-adversarial-review normalization", () => {
       readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"),
     )
     expect(out.model_requested).toBe("opus")
-    expect(out.model_actual).toBe("claude-opus-4-8-20260115")
-    expect(r.stderr).not.toContain("model mismatch")
+    expect(out.model_actual).toBe("unverified")
+    expect(out.model_observed_ids).toEqual([
+      "claude-haiku-4-5-20251001",
+      "claude-opus-4-8-20260115",
+    ])
+    expect(out.independence_verified).toBe(false)
+    expect(r.stderr).toContain("ambiguous multi-family model receipt")
   })
 
   test("keeps the served id and warns prominently on a receipt mismatch (R7)", () => {
@@ -653,6 +710,7 @@ describe("cross-model-adversarial-review normalization", () => {
     )
     expect(out.model_requested).toBe("opus")
     expect(out.model_actual).toBe("unverified")
+    expect(out.model_observed_ids).toEqual([])
     expect(r.stderr).toContain("model receipt absent/unparseable on claude route; recording unverified")
   })
 

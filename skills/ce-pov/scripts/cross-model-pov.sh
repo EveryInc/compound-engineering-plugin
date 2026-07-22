@@ -92,13 +92,14 @@ M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is t
 # keyed by the full dated id that actually served the run. Match requested vs
 # actual by expected full-family prefix (alias -> dated id counts as a match;
 # never substring). Every other route records the literal "unverified" — never
-# a fallback to the requested value. Keep this block byte-identical across
-# ce-code-review and ce-doc-review (kernel parity).
+# a fallback to the requested value. Keep this block byte-identical across all
+# three Claude adapters (kernel parity).
 expected_model_prefix() {   # <requested-alias> -> expected served-id prefix
   case "$1" in
-    opus)   printf 'claude-opus-' ;;
-    sonnet) printf 'claude-sonnet-' ;;
-    haiku)  printf 'claude-haiku-' ;;
+    fable|claude-fable-*)   printf 'claude-fable-' ;;
+    opus|claude-opus-*)     printf 'claude-opus-' ;;
+    sonnet|claude-sonnet-*) printf 'claude-sonnet-' ;;
+    haiku|claude-haiku-*)   printf 'claude-haiku-' ;;
   esac
 }
 
@@ -145,35 +146,51 @@ target_serving_family() {
 }
 
 MODEL_ACTUAL="unverified"
+MODEL_OBSERVED_IDS="[]"
+MODEL_IDENTITY_AMBIGUOUS=false
 extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODEL_ACTUAL
   MODEL_ACTUAL="unverified"
+  MODEL_OBSERVED_IDS="[]"
+  MODEL_IDENTITY_AMBIGUOUS=false
   [ "$1" = "claude" ] || return 0
-  local requested actual prefix matched
+  local requested actual prefix observed_count all_expected family_count
   requested="$(route_model claude)"
   prefix="$(expected_model_prefix "$requested")"
-  # jq `keys` is sorted, so keys[0] is the alphabetically-first model, not
-  # necessarily the one that served the run (a multi-key envelope can also carry
-  # an auxiliary model's usage). Prefer a key matching the requested family's
-  # expected prefix; fall back to the first key only when none matches, and warn
-  # only then. A missing/unparseable envelope stays "unverified" (never the
-  # requested value).
-  matched=""
-  if [ -n "$prefix" ]; then
-    # first modelUsage key matching the expected family prefix (jq-native, no
-    # external `head`: the route sandbox may not carry coreutils on PATH).
-    matched="$(jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(startswith($p)))) // empty' "$PEERLOG" 2>/dev/null)"
-  fi
-  if [ -n "$matched" ]; then
-    MODEL_ACTUAL="$matched"
+  MODEL_OBSERVED_IDS="$(jq -c '[(.modelUsage // {}) | keys[]] | unique' "$PEERLOG" 2>/dev/null)"
+  case "$MODEL_OBSERVED_IDS" in '['*']') ;; *) MODEL_OBSERVED_IDS="[]" ;; esac
+  observed_count="$(jq -r 'length' <<<"$MODEL_OBSERVED_IDS" 2>/dev/null)"
+  if [ "${observed_count:-0}" -eq 0 ]; then
+    log "model receipt absent/unparseable on claude route; recording unverified"
     return 0
   fi
-  actual="$(jq -r '.modelUsage // empty | keys[0] // empty' "$PEERLOG" 2>/dev/null)"
-  if [ -z "$actual" ]; then
-    log "model receipt absent/unparseable on claude route; recording unverified"
+  actual="$(jq -r '.[0]' <<<"$MODEL_OBSERVED_IDS")"
+  all_expected=false
+  if [ -n "$prefix" ]; then
+    all_expected="$(jq -r --arg p "$prefix" 'all(.[]; startswith($p))' <<<"$MODEL_OBSERVED_IDS" 2>/dev/null)"
+  fi
+  if [ "$all_expected" = "true" ]; then
+    MODEL_ACTUAL="$actual"
+    return 0
+  fi
+  family_count="$(jq -r '
+    map(if startswith("claude-fable-") then "fable"
+        elif startswith("claude-opus-") then "opus"
+        elif startswith("claude-sonnet-") then "sonnet"
+        elif startswith("claude-haiku-") then "haiku"
+        else . end) | unique | length
+  ' <<<"$MODEL_OBSERVED_IDS" 2>/dev/null)"
+  if [ "${family_count:-0}" -gt 1 ]; then
+    MODEL_IDENTITY_AMBIGUOUS=true
+    log "WARNING: ambiguous multi-family model receipt for requested $requested; observed $MODEL_OBSERVED_IDS; recording unverified"
     return 0
   fi
   MODEL_ACTUAL="$actual"
   log "WARNING: model mismatch - requested $requested, backend served $actual; reconcile must surface this"
+}
+
+claude_explicit_refusal() {   # <route>; reads the top-level stop reason in $PEERLOG
+  [ "$1" = "claude" ] || return 1
+  [ "$(jq -r '.stop_reason // empty' "$PEERLOG" 2>/dev/null)" = "refusal" ]
 }
 
 # --- adapter argv (single source of truth for route flags) -----------------
@@ -629,7 +646,16 @@ attempt_route() {   # <provider> <route>
       fi
       ;;
     grok-cli)    run_timeout_cmd ""            ; [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # grok reads --prompt-file
-    claude)      run_timeout_cmd "$PROMPT_FILE"; [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # claude -p reads stdin
+    claude)
+      run_timeout_cmd "$PROMPT_FILE"
+      if [ "$RUN_SUCCEEDED" = true ]; then
+        if claude_explicit_refusal "$route"; then
+          log "claude returned an explicit refusal; skipping fold-in"
+        else
+          parse_structured "$PEERLOG" "$RAW_OUT"
+        fi
+      fi
+      ;;   # claude -p reads stdin
     grok-cursor|cursor|composer)
       # cursor-agent reads the prompt from stdin (verified). Use stdin, NOT a
       # positional argv token: the composed prompt (persona + schema + template +
@@ -671,10 +697,12 @@ run_fixed_route() {
     esac
     independence=false
     [ "$HOST_PROVIDER" != "unknown" ] && [ "$serving_family" != "unknown" ] && [ "$HOST_PROVIDER" != "$serving_family" ] && independence=true
+    [ "$MODEL_IDENTITY_AMBIGUOUS" != true ] || independence=false
     if jq --arg v "peer-$provider" --arg route "$ACTUAL_ROUTE" \
          --arg target "$provider" --arg harness "$(route_harness "$ACTUAL_ROUTE")" \
          --arg family "$serving_family" \
          --arg mreq "$(route_model "$ACTUAL_ROUTE")" --arg mact "$MODEL_ACTUAL" \
+         --argjson mobs "$MODEL_OBSERVED_IDS" \
          --argjson independent "$independence" \
          'if ((.voice|type)=="string" and (.voice|length)>0 and (.position|type)=="string" and (.position|length)>0 and (.reasoning|type)=="string" and (.reasoning|length)>0 and (.evidence|type)=="array" and (.external_check=="ran" or .external_check=="unavailable") and (.mode=="independent" or .mode=="skeptic") and (.movement=="initial" or .movement=="moved" or .movement=="held"))
           then { voice: $v,
@@ -684,6 +712,7 @@ run_fixed_route() {
                  serving_family: $family,
                  model_requested: $mreq,
                  model_actual: $mact,
+                 model_observed_ids: $mobs,
                  independence_verified: $independent,
                  position: .position,
                  reasoning: .reasoning,
