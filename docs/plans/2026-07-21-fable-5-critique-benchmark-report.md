@@ -2225,3 +2225,5 @@ Recompute and verify the completed decision table with:
 ```text
 bun run scripts/evals/fable-critique-benchmark.ts --verify-report docs/plans/2026-07-21-fable-5-critique-benchmark-report.md
 ```
+
+This is a consistency verifier: it validates the registered trial set, fixture digests, export safety, and recomputed decision table against the receipts stored in this report. It does not independently authenticate those stored outcomes against deleted raw provider streams; review the committed evidence and the original run provenance before treating the result as externally attested.

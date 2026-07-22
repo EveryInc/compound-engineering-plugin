@@ -1,4 +1,4 @@
-import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from "node:fs"
+import { chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { spawnSync } from "node:child_process"
@@ -95,6 +95,7 @@ track_end '${path.join(state, "review")}'
   writeFileSync(codex, `#!/bin/sh
 if [ "$1" = "--version" ]; then echo 'codex fake-version'; exit 0; fi
 ${tracker}
+printf 'judge-env-sentinel=%s\\n' "\${BENCHMARK_SECRET_SHOULD_NOT_REACH_JUDGE-unset}" >> '${argvLog}'
 while ! mkdir '${path.join(state, "argv-lock")}' 2>/dev/null; do sleep 0.001; done
 printf 'codex %s cwd=%s\\n' "$*" "$PWD" >> '${argvLog}'
 rmdir '${path.join(state, "argv-lock")}'
@@ -231,6 +232,40 @@ describe("Fable ordinary-lane critique benchmark", () => {
     expect(result.stderr).toContain("secret/path sentinel rejected")
   })
 
+  test("preflight rejects a symlinked fixture before any provider content call", () => {
+    const corpus = copiedCorpus()
+    const manifest = JSON.parse(readFileSync(corpus.manifest, "utf8"))
+    const fixture = path.join(path.dirname(corpus.manifest), manifest.adoption_cases[0].path)
+    const outside = path.join(corpus.root, "outside.md")
+    writeFileSync(outside, "Synthetic external fixture\n")
+    rmSync(fixture)
+    symlinkSync(outside, fixture)
+
+    const { result, routes } = preflight(corpus.manifest, path.join(corpus.root, "scratch"))
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("fixture may not be a symlink")
+    expect(readFileSync(routes.log, "utf8")).toBe("")
+  })
+
+  test.each([
+    ["Opus provider", (manifest: any) => { manifest.arms[0].provider = "openai" }],
+    ["Opus model", (manifest: any) => { manifest.arms[0].model = "fable" }],
+    ["Fable effort", (manifest: any) => { manifest.arms[1].effort = "medium" }],
+    ["judge provider", (manifest: any) => { manifest.judge.provider = "anthropic" }],
+    ["judge model", (manifest: any) => { manifest.judge.model = "gpt-5.6-sol" }],
+    ["judge effort", (manifest: any) => { manifest.judge.effort = "high" }],
+  ])("preflight rejects a substituted %s tuple", (_name, mutate) => {
+    const corpus = copiedCorpus()
+    const manifest = JSON.parse(readFileSync(corpus.manifest, "utf8"))
+    mutate(manifest)
+    writeFileSync(corpus.manifest, `${JSON.stringify(manifest, null, 2)}\n`)
+
+    const { result, routes } = preflight(corpus.manifest, path.join(corpus.root, "scratch"))
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toMatch(/benchmark arms must be exact|benchmark judge must be the exact registered/)
+    expect(readFileSync(routes.log, "utf8")).toBe("")
+  })
+
   test("preflight rejects an insecure scratch root", () => {
     const root = tempRoot("fable-benchmark-insecure-")
     const scratch = path.join(root, "scratch")
@@ -269,6 +304,7 @@ describe("Fable ordinary-lane critique benchmark", () => {
       PATH: `${routes.bin}:${process.env.PATH ?? ""}`,
       FABLE_CRITIQUE_ALLOWED_RECIPIENTS: "anthropic,openai",
       FABLE_CRITIQUE_COST_ESTIMATE_APPROVED: "16.00",
+      BENCHMARK_SECRET_SHOULD_NOT_REACH_JUDGE: "do-not-inherit",
     })
 
     expect(result.status).toBe(0)
@@ -287,6 +323,11 @@ describe("Fable ordinary-lane critique benchmark", () => {
     expect(codexLines[0]).not.toContain("--effort")
     expect(codexLines[0]).toContain("--output-schema")
     expect(codexLines[0]).toContain("--output-last-message")
+    expect(codexLines[0]).toContain("--disable shell_snapshot")
+    expect(codexLines[0]).toContain("--disable shell_tool")
+    expect(codexLines[0]).toContain("--disable unified_exec")
+    expect(argv).toContain("judge-env-sentinel=unset")
+    expect(argv).not.toContain("judge-env-sentinel=do-not-inherit")
     for (const line of codexLines) {
       expect(line).toContain(`${realpathSync(path.join(root, "scratch"))}/`)
     }
@@ -530,7 +571,7 @@ describe("Fable ordinary-lane critique benchmark", () => {
     const routes = fakeRoutes(routeRoot)
     const valid = run(["--verify-report", REPORT, "--manifest", MANIFEST], { PATH: `${routes.bin}:${process.env.PATH ?? ""}` })
     expect(valid.status).toBe(0)
-    expect(valid.stdout).toContain("report verification: PASS (adopt)")
+    expect(valid.stdout).toContain("report consistency verification: PASS (adopt)")
     expect(existsSync(routes.log) ? readFileSync(routes.log, "utf8") : "").toBe("")
 
     const report = readFileSync(REPORT, "utf8")
@@ -574,7 +615,7 @@ describe("Fable ordinary-lane critique benchmark", () => {
     writeFileSync(report, `# Completed\n\n\`\`\`benchmark-aggregate-json\n${JSON.stringify(payload, null, 2)}\n\`\`\`\n`)
     const valid = run(["--verify-report", report, "--manifest", MANIFEST])
     expect(valid.status).toBe(0)
-    expect(valid.stdout).toContain("report verification: PASS (adopt)")
+    expect(valid.stdout).toContain("report consistency verification: PASS (adopt)")
 
     payload.overall_decision = "stop"
     writeFileSync(report, `# Tampered\n\n\`\`\`benchmark-aggregate-json\n${JSON.stringify(payload, null, 2)}\n\`\`\`\n`)
