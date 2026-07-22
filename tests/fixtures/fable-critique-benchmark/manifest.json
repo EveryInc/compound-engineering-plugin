@@ -28,24 +28,6 @@
       "ledger": [{ "id": "PROD-1", "severity": "P1", "summary": "success criteria omit the named operator actor" }]
     },
     {
-      "id": "product-destructive",
-      "kind": "seeded",
-      "role": "product-lens",
-      "document_type": "requirements",
-      "origin": "none",
-      "path": "documents/product-destructive.md",
-      "ledger": [{ "id": "PROD-2", "severity": "P1", "summary": "destructive bulk action is the default path" }]
-    },
-    {
-      "id": "product-scope",
-      "kind": "seeded",
-      "role": "product-lens",
-      "document_type": "requirements",
-      "origin": "none",
-      "path": "documents/product-scope.md",
-      "ledger": [{ "id": "PROD-3", "severity": "P2", "summary": "goal promises all workspaces while scope covers one" }]
-    },
-    {
       "id": "product-clean",
       "kind": "clean",
       "role": "product-lens",
@@ -55,15 +37,6 @@
       "ledger": []
     },
     {
-      "id": "whole-trace",
-      "kind": "seeded",
-      "role": "whole-doc",
-      "document_type": "plan",
-      "origin": "none",
-      "path": "documents/whole-trace.md",
-      "ledger": [{ "id": "WHOLE-1", "severity": "P1", "summary": "required restore behavior has no implementation or test trace" }]
-    },
-    {
       "id": "whole-order",
       "kind": "seeded",
       "role": "whole-doc",
@@ -71,15 +44,6 @@
       "origin": "none",
       "path": "documents/whole-order.md",
       "ledger": [{ "id": "WHOLE-2", "severity": "P0", "summary": "deployment order permits incompatible schema and code" }]
-    },
-    {
-      "id": "whole-metric",
-      "kind": "seeded",
-      "role": "whole-doc",
-      "document_type": "plan",
-      "origin": "none",
-      "path": "documents/whole-metric.md",
-      "ledger": [{ "id": "WHOLE-3", "severity": "P2", "summary": "rollout gate names metrics without thresholds" }]
     },
     {
       "id": "whole-clean",

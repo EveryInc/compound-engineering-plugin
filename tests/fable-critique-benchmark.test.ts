@@ -182,14 +182,14 @@ describe("Fable ordinary-lane critique benchmark", () => {
 
     expect(result.status).toBe(0)
     expect(result.stdout).toContain("Adoption lanes: product-lens, whole-doc")
-    expect(result.stdout).toContain("Corpus inputs: 8 (4 product-lens, 4 whole-doc)")
+    expect(result.stdout).toContain("Corpus inputs: 4 (2 product-lens, 2 whole-doc)")
     expect(result.stdout).toContain("Trials per model/input: 5")
-    expect(result.stdout).toContain("Opus/high review calls: 40")
-    expect(result.stdout).toContain("Fable/high review calls: 40")
-    expect(result.stdout).toContain("Anthropic arm calls: 80")
-    expect(result.stdout).toContain("OpenAI judge calls: 240")
-    expect(result.stdout).toContain("Total provider calls: 320")
-    expect(result.stdout).toContain("Estimated provider spend: $32.00")
+    expect(result.stdout).toContain("Opus/high review calls: 20")
+    expect(result.stdout).toContain("Fable/high review calls: 20")
+    expect(result.stdout).toContain("Anthropic arm calls: 40")
+    expect(result.stdout).toContain("OpenAI judge calls: 120")
+    expect(result.stdout).toContain("Total provider calls: 160")
+    expect(result.stdout).toContain("Estimated provider spend: $16.00")
     expect(result.stdout).toContain("offline preflight: PASS")
     expect(result.stdout).toContain("No provider content calls were made")
     expect(readFileSync(routes.log, "utf8").trim().split("\n")).toEqual(["--version", "--version"])
@@ -243,15 +243,15 @@ describe("Fable ordinary-lane critique benchmark", () => {
     const routes = fakeRoutes(root)
     const result = run([
       "--run", "--manifest", MANIFEST, "--scratch-root", path.join(root, "scratch"),
-      "--confirm-provider-calls", "319",
+      "--confirm-provider-calls", "159",
     ], {
       PATH: `${routes.bin}:${process.env.PATH ?? ""}`,
       FABLE_CRITIQUE_ALLOWED_RECIPIENTS: "anthropic,openai",
     })
 
     expect(result.status).not.toBe(0)
-    expect(result.stderr).toContain("pass --confirm-provider-calls 320")
-    expect(result.stderr).toContain("FABLE_CRITIQUE_COST_ESTIMATE_APPROVED=32.00")
+    expect(result.stderr).toContain("pass --confirm-provider-calls 160")
+    expect(result.stderr).toContain("FABLE_CRITIQUE_COST_ESTIMATE_APPROVED=16.00")
     expect(readFileSync(routes.log, "utf8")).not.toContain("provider-content-call")
   })
 
@@ -261,16 +261,16 @@ describe("Fable ordinary-lane critique benchmark", () => {
     const aggregate = path.join(root, "aggregate.json")
     const result = run([
       "--run", "--manifest", MANIFEST, "--scratch-root", path.join(root, "scratch"),
-      "--confirm-provider-calls", "320", "--aggregate-output", aggregate,
+      "--confirm-provider-calls", "160", "--aggregate-output", aggregate,
     ], {
       PATH: `${routes.bin}:${process.env.PATH ?? ""}`,
       FABLE_CRITIQUE_ALLOWED_RECIPIENTS: "anthropic,openai",
-      FABLE_CRITIQUE_COST_ESTIMATE_APPROVED: "32.00",
+      FABLE_CRITIQUE_COST_ESTIMATE_APPROVED: "16.00",
     })
 
     expect(result.status).toBe(0)
-    expect(Number(readFileSync(path.join(routes.reviewState, "calls"), "utf8"))).toBe(80)
-    expect(Number(readFileSync(path.join(routes.judgeState, "calls"), "utf8"))).toBe(240)
+    expect(Number(readFileSync(path.join(routes.reviewState, "calls"), "utf8"))).toBe(40)
+    expect(Number(readFileSync(path.join(routes.judgeState, "calls"), "utf8"))).toBe(120)
     const maxReviews = Number(readFileSync(path.join(routes.reviewState, "max"), "utf8"))
     const maxJudges = Number(readFileSync(path.join(routes.judgeState, "max"), "utf8"))
     expect(maxReviews).toBeGreaterThan(1)
@@ -279,7 +279,7 @@ describe("Fable ordinary-lane critique benchmark", () => {
     expect(maxJudges).toBeLessThanOrEqual(6)
     const argv = readFileSync(routes.argvLog, "utf8")
     const codexLines = argv.split("\n").filter((entry) => entry.startsWith("codex "))
-    expect(codexLines).toHaveLength(240)
+    expect(codexLines).toHaveLength(120)
     expect(codexLines[0]).toContain('-c model_reasoning_effort="xhigh"')
     expect(codexLines[0]).not.toContain("--effort")
     expect(codexLines[0]).toContain("--output-schema")
@@ -288,7 +288,7 @@ describe("Fable ordinary-lane critique benchmark", () => {
       expect(line).toContain(`${realpathSync(path.join(root, "scratch"))}/`)
     }
     const claudeLines = argv.split("\n").filter((entry) => entry.startsWith("claude "))
-    expect(claudeLines).toHaveLength(80)
+    expect(claudeLines).toHaveLength(40)
     for (const line of claudeLines) {
       expect(line).toContain(`${realpathSync(path.join(root, "scratch"))}/`)
       expect(line).not.toContain(`cwd=${ROOT}`)
@@ -319,9 +319,9 @@ describe("Fable ordinary-lane critique benchmark", () => {
       values.add(normalized)
       argsByPrompt.set(match![1], values)
     }
-    expect(argsByPrompt.size).toBe(8)
+    expect(argsByPrompt.size).toBe(4)
     expect([...argsByPrompt.values()].every((values) => values.size === 1)).toBe(true)
-    expect(JSON.parse(readFileSync(aggregate, "utf8")).redacted_trial_receipts).toHaveLength(80)
+    expect(JSON.parse(readFileSync(aggregate, "utf8")).redacted_trial_receipts).toHaveLength(40)
   }, 30_000)
 
   test("matching unambiguous Fable alone enters its quality numerator; every failure remains in the denominator", () => {
@@ -343,8 +343,8 @@ describe("Fable ordinary-lane critique benchmark", () => {
       if (outcome === "substituted") candidate.model_actual = "claude-opus-4-8"
       const scored = scoreEvidence(manifest, evidence)
       const product = scored.decision_table.find((row) => row.lane === "product-lens")!
-      expect(product.fable.quality_numerator).toBe(19)
-      expect(product.fable.quality_denominator).toBe(20)
+      expect(product.fable.quality_numerator).toBe(9)
+      expect(product.fable.quality_denominator).toBe(10)
       expect(scored.overall_decision).toBe("stop")
     }
   })

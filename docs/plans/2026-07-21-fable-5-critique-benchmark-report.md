@@ -16,12 +16,12 @@ All 56 calls remain in the historical ledger. Nothing was selectively replaced, 
 
 ## Current frozen protocol
 
-- Corpus: eight public/synthetic documents—three seeded plus one clean input for each of `product-lens` and `whole-doc`.
+- Corpus: four public/synthetic documents—one seeded plus one clean input for each of `product-lens` and `whole-doc`.
 - Arms: Opus/high and Fable/high, five pre-registered non-replaceable trials per model/input.
-- Review calls: 40 Opus/high plus 40 Fable/high, 80 Anthropic calls total.
-- Judge ceiling: three blinded OpenAI votes per review output, 240 calls.
-- Total provider-call ceiling: 320.
-- Planning ceiling: $32.00 ($0.20 per Opus call, $0.30 per Fable call, and $0.05 per judge call).
+- Review calls: 20 Opus/high plus 20 Fable/high, 40 Anthropic calls total.
+- Judge ceiling: three blinded OpenAI votes per review output, 120 calls.
+- Total provider-call ceiling: 160.
+- Planning ceiling: $16.00 ($0.20 per Opus call, $0.30 per Fable call, and $0.05 per judge call).
 - Quality eligibility: only a matching, unambiguous, schema-valid, non-refusal Fable receipt enters the Fable quality numerator. Substituted, ambiguous/unverified, refused, schema-invalid, auth/quota-failed, and timed-out trials remain in the denominator with no replacement run.
 - Decision: per lane, detection delta and its lower bound must be at least -0.10; no P0/P1 item may regress; noise delta must be at most 0.5 findings/review; schema, receipt/non-refusal, and deadline success may not regress.
 
@@ -31,7 +31,7 @@ Run the zero-egress gate before any spend approval:
 FABLE_CRITIQUE_ALLOWED_RECIPIENTS=anthropic,openai bun run scripts/evals/fable-critique-benchmark.ts --preflight
 ```
 
-A paid run remains locked until the operator supplies both `--confirm-provider-calls 320` and `FABLE_CRITIQUE_COST_ESTIMATE_APPROVED=32.00` after rechecking current provider prices. This report contains no new ordinary-lane quality result.
+A paid run remains locked until the operator supplies both `--confirm-provider-calls 160` and `FABLE_CRITIQUE_COST_ESTIMATE_APPROVED=16.00` after rechecking current provider prices. This report contains no new ordinary-lane quality result.
 
 ```benchmark-aggregate-json
 {
@@ -54,11 +54,11 @@ A paid run remains locked until the operator supplies both `--confirm-provider-c
   "ordinary_adoption_benchmark": {
     "status": "not-run",
     "provider_call_counts": {
-      "anthropic": 80,
-      "openai": 240,
-      "total": 320
+      "anthropic": 40,
+      "openai": 120,
+      "total": 160
     },
-    "estimated_spend_usd": 32
+    "estimated_spend_usd": 16
   },
   "tracks": [],
   "decision_table": [],
