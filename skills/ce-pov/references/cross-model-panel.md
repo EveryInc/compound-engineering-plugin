@@ -29,6 +29,15 @@ not present it as different-model corroboration. If the host family is unknown,
 automatic discovery excludes any candidate whose independence cannot be
 verified rather than guessing.
 
+The per peer lane critique pass predicate is `receipt_version:
+critique-author/v1` AND `critique_status: usable` AND `receipt_status: matched`.
+Only a lane passing that predicate may enter convergence or raise confidence.
+Legacy, missing, or tampered receipt fields are `unverified`; never copy
+`model_requested` into `model_actual`. Requiredness is consumer-owned: a caller
+may mark a named lane required, and producer `required: false` cannot downgrade
+that declaration. Optional skipped lanes remain non-blocking and diagnostic,
+while valid sibling lanes remain visible.
+
 `Cursor` and `Composer` are distinct targets:
 
 - `cursor` uses `cursor-agent` with no forced model, allowing Cursor's configured
@@ -245,7 +254,8 @@ a login command on that basis.
 
 ## 5. Detect dissent, verify claims, and reconcile
 
-Only `mode: independent` voices enter convergence. Material dissent means a
+Only `mode: independent` voices whose critique pass predicate is matched and
+usable enter convergence. Material dissent means a
 different adoption grade, a different selected approach, or document bottom
 lines that imply different reader actions (`proceed`, `revise-first`, or
 `reject`) or disagree on whether a risk is fatal. Wording, emphasis, confidence,
@@ -317,8 +327,10 @@ note:
   which peers were attempted, or that none ran and the observed reason — rather
   than shipping a bare solo verdict.
 
-Retain target, route, requested model, served model, and independence receipts in
-the panel record, but keep the default chat note decision-relevant: name the
+Retain a compact per-lane `critique_receipts` summary in the panel record with
+`lane`, consumer-owned `required`, `model_requested`, `model_actual`,
+`receipt_source`, `receipt_status`, and `critique_status`, alongside target,
+route, and independence. Keep the default chat note decision-relevant: name the
 peer, its position and movement, any observed failure, and an independence caveat
 when it affects credibility. Do not dump route or model diagnostics unless they
 materially change the conclusion or the user asks. Never attribute a position to

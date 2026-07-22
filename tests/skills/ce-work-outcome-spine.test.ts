@@ -21,6 +21,21 @@ function sliceSection(content: string, startAnchor: string, endAnchor: string): 
 }
 
 describe("ce-work native characterization", () => {
+  test("shipping carries critique receipts and blocks only incomplete required review lanes", async () => {
+    const followup = await readRepoFile("skills/ce-work/references/review-findings-followup.md")
+    const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
+    const combined = `${followup}\n${shipping}`
+
+    expect(combined).toContain("critique_receipts")
+    expect(combined).toContain("critique_status: usable")
+    expect(combined).toContain("receipt_status: matched")
+    expect(combined).toContain("critique-author/v1")
+    expect(combined).toMatch(/producer[^\n]*required: false[^\n]*(?:cannot|must not)[^\n]*downgrade/i)
+    expect(combined).toMatch(/legacy|missing|tampered/i)
+    expect(combined).toMatch(/required[^\n]*(?:blocks|stop)[^\n]*(?:clean|ship|shipping)/i)
+    expect(combined).toMatch(/optional[^\n]*skipped[^\n]*non-blocking/i)
+    expect(combined).toMatch(/sibling lanes/i)
+  })
   test("opens with result, next consumer, done condition, and host-owned canonical integration", async () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
     const outcome = sliceSection(skill, "## Outcome", "## Input Document")

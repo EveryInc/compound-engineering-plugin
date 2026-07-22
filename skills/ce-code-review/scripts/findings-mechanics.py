@@ -72,11 +72,23 @@ def fingerprint(finding: dict[str, Any]) -> tuple[str, str, str]:
     )
 
 
+def critique_receipt_passed(source: dict[str, Any]) -> bool:
+    """Return true only for the normalized, usable author-receipt contract."""
+    return (
+        source.get("receipt_version") == "critique-author/v1"
+        and source.get("critique_status") == "usable"
+        and source.get("receipt_status") == "matched"
+    )
+
+
 def independent_reviewer(name: str, source: dict[str, Any]) -> bool:
     if name == "fast-pass":
         return False
     if name.startswith("adversarial-"):
-        return source.get("independence_verified") is True
+        return (
+            source.get("independence_verified") is True
+            and critique_receipt_passed(source)
+        )
     return True
 
 

@@ -41,6 +41,20 @@ const ISSUE_CREATION_SECTION =
 // "Start `ce-work` (Recommended)", and the agent stops in prose without
 // invoking the `ce-work` skill.
 describe("ce-plan post-generation menu routing", () => {
+  test("headless handoff carries per-lane critique receipts and gates clean wording", () => {
+    expect(HANDOFF_BODY).toContain("critique_receipts")
+    for (const field of [
+      "lane", "required", "model_requested", "model_actual", "receipt_source",
+      "receipt_status", "critique_status",
+    ]) {
+      expect(HANDOFF_BODY).toContain(field)
+    }
+    expect(HANDOFF_BODY).toContain("critique-author/v1")
+    expect(HANDOFF_BODY).toMatch(/critique_status[^\n]*usable[^\n]*receipt_status[^\n]*matched/i)
+    expect(HANDOFF_BODY).toMatch(/required[^\n]*(?:caller|ce-plan)/i)
+    expect(HANDOFF_BODY).toMatch(/sibling lanes/i)
+    expect(HANDOFF_BODY).toMatch(/Doc review clean[^\n]*(?:only|unless|when)/i)
+  })
   test("SKILL.md contains inline routing for all four menu options", () => {
     // Anchor on the Phase 5.4 region so a stray match elsewhere in the file
     // doesn't satisfy these assertions.

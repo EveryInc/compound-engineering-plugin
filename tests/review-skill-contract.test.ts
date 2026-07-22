@@ -1,5 +1,6 @@
 import { readFile } from "fs/promises"
 import path from "path"
+import { spawnSync } from "node:child_process"
 import { describe, expect, test } from "bun:test"
 
 async function readRepoFile(relativePath: string): Promise<string> {
@@ -1217,6 +1218,85 @@ describe("cross-model peer skip legibility", () => {
     expect(skill).toMatch(/`independence_verified:?\s*true`/)
     expect(mechanics).toContain('source.get("independence_verified") is True')
     expect(mechanics).toContain('name.startswith("adversarial-")')
+  })
+
+  test("code-review promotion requires a usable critique with a matched author receipt", async () => {
+    const mechanicsPath = path.join(
+      process.cwd(),
+      "skills/ce-code-review/scripts/findings-mechanics.py",
+    )
+    const mechanics = await readRepoFile(
+      "skills/ce-code-review/scripts/findings-mechanics.py",
+    )
+    const crossModel = await readRepoFile(
+      "skills/ce-code-review/references/cross-model-review.md",
+    )
+    const finish = await readRepoFile(
+      "skills/ce-code-review/references/finish-review.md",
+    )
+
+    expect(mechanics).toContain("def critique_receipt_passed")
+    expect(mechanics).toContain('source.get("critique_status") == "usable"')
+    expect(mechanics).toContain('source.get("receipt_status") == "matched"')
+    expect(crossModel).toContain("critique_status: usable")
+    expect(crossModel).toContain("receipt_status: matched")
+    expect(crossModel).toContain("critique-author/v1")
+    expect(finish).toContain("critique_receipts")
+
+    const finding = {
+      title: "same bug", severity: "P2", file: "a.ts", line: 1,
+      confidence: 50, autofix_class: "manual", owner: "downstream-resolver",
+      requires_verification: true, pre_existing: false, first_evidence: "a.ts:1",
+    }
+    const local = {
+      reviewer: "correctness", findings: [finding], residual_risks: [], testing_gaps: [],
+    }
+    const peer = (receipt_status: string) => ({
+      reviewer: "adversarial-claude", findings: [finding], residual_risks: [], testing_gaps: [],
+      independence_verified: true, receipt_version: "critique-author/v1",
+      critique_status: "usable", receipt_status,
+    })
+    const run = (receiptStatus: string) => spawnSync(
+      "python3", [mechanicsPath], {
+        encoding: "utf8",
+        input: JSON.stringify([local, peer(receiptStatus)]),
+      },
+    )
+    const matched = run("matched")
+    const mismatched = run("mismatched")
+    expect(matched.status).toBe(0)
+    expect(mismatched.status).toBe(0)
+    expect(JSON.parse(matched.stdout).findings).toHaveLength(1)
+    expect(JSON.parse(mismatched.stdout).findings).toHaveLength(0)
+  })
+
+  test("review consumers preserve caller-owned requiredness and per-lane receipts", async () => {
+    for (const reference of [
+      "skills/ce-code-review/references/cross-model-review.md",
+      "skills/ce-doc-review/references/cross-model-review.md",
+      "skills/ce-doc-review/references/synthesis-and-presentation.md",
+      "skills/ce-pov/references/cross-model-panel.md",
+    ]) {
+      const source = await readRepoFile(reference)
+      expect(source, reference).toContain("receipt_version")
+      expect(source, reference).toContain("receipt_status")
+      expect(source, reference).toContain("critique_status")
+      expect(source, reference).toContain("model_requested")
+      expect(source, reference).toContain("model_actual")
+      expect(source, reference).toMatch(/per-lane|per peer lane/i)
+      expect(source, reference).toMatch(/caller|consumer/i)
+      expect(source, reference).toMatch(/required: false|producer.*required/i)
+    }
+  })
+
+  test("LFG blocks clean, shipping, and DONE claims only for incomplete required critique lanes", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+    expect(lfg).toContain("critique_receipts")
+    expect(lfg).toContain("critique_status: usable")
+    expect(lfg).toContain("receipt_status: matched")
+    expect(lfg).toMatch(/required[^\n]*caller|caller[^\n]*required/i)
+    expect(lfg).toMatch(/optional[^\n]*skipped[^\n]*non-blocking/i)
+    expect(lfg).toMatch(/clean|ship|DONE/)
   })
 
   test("review-skill behavioral eval specs exercise the fixed-route U8 contract", async () => {

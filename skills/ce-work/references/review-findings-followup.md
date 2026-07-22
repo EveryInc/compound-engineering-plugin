@@ -10,10 +10,16 @@ This reference loads **after** review has run. In the ce-work shipping flow, ste
 
 Reuse the review output already in hand:
 
-- Parsed JSON (`status`, `actionable_findings`, `findings`, `artifact_path`, `run_id`) **or** the markdown Actionable Findings summary captured by the caller
+- Parsed JSON (`status`, `actionable_findings`, `findings`, `critique_receipts`, `artifact_path`, `run_id`) **or** the markdown Actionable Findings summary captured by the caller
 - Run artifact dir: `<artifact-path>/` (`review.json`, per-reviewer JSON for `why_it_matters`)
 
 If `status` is `failed`, stop shipping and surface `reason`. If `degraded`, note partial reviewer coverage before applying anything.
+
+### Critique receipt gate
+
+For every entry in `critique_receipts`, the only passing state is `receipt_version: critique-author/v1` AND `critique_status: usable` AND `receipt_status: matched`. Legacy, missing, or tampered artifacts normalize to `model_actual: unverified` and `receipt_status: unverified`; never copy `model_requested` into `model_actual`. Preserve valid sibling lanes in the summary.
+
+Requiredness is caller/consumer-owned. A producer's `required: false` cannot downgrade a consumer-declared required lane. If a required lane does not pass, stop the review-success/shipping gate and return its exact receipt state. Optional `skipped`, failed, mismatched, or unverified lanes remain explicit and non-blocking.
 
 ### Fallback — invoke review only for cold callers
 
@@ -47,6 +53,8 @@ Default to applying every actionable finding. Applying is a reversible edit to a
 - **Flag, don't block, green-but-unverifiable edits** — when an applied fix touches auth/authz, a public or cross-service contract/schema, or concurrency, a passing test does not prove safety; apply it when there is a clear `suggested_fix` and confidence, and call it out prominently in the diff review.
 
 There is no precondition safety checklist and no deny-list — a code-review fix is a reversible edit, so downside is controlled after the fact (diff review + tests + the commit checkpoint), not by gating the apply.
+
+**Cross-model source gate.** Before auto-applying, intersect a finding's cross-model reviewers with `critique_receipts`. A peer-only finding is eligible only when its lane passed the critique receipt gate. A mismatched, unverified, refused, invalid, failed, skipped, or legacy peer finding remains diagnostic and goes to residual work; it cannot be auto-fixed. A finding independently raised by an ordinary in-process reviewer may still be applied on that ordinary evidence—the incomplete peer contributes no promotion or apply authority.
 
 **Evidence still matches the code** — the fix subagent confirms at `file:line` before editing. The orchestrator does **not** open files just to decide eligibility or dispatch.
 
@@ -97,7 +105,7 @@ Otherwise dispatch a subagent — even for a single finding. When unsure, dispat
 
 ### Summary (required)
 
-Report: batches dispatched, `#` applied vs skipped (with reasons from subagents), artifact path, tests run.
+Report: batches dispatched, `#` applied vs skipped (with reasons from subagents), artifact path, tests run, and the compact per-lane `critique_receipts` summary.
 
 ## Handoff to Residual Work Gate
 

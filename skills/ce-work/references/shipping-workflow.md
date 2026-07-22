@@ -34,6 +34,10 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
 
    **3a. Review (read-only).** Invoke `ce-code-review` with `mode:agent` (add `plan:<path>` when known; `base:<ref>` when the diff base is resolved). Pass **`depth:full`** when the plan, the task, or the user explicitly asked for a full / deep / thorough review — that is the one escalation signal `ce-code-review` cannot infer from the diff alone. Do not pass `mode:autofix`. Parse the JSON.
 
+   Parse and retain its per-lane `critique_receipts` summary. Each entry carries `lane`, caller-owned `required`, `model_requested`, `model_actual`, `receipt_source`, `receipt_status`, and `critique_status`. A lane passes only with `receipt_version: critique-author/v1`, `critique_status: usable`, and `receipt_status: matched`. Legacy/missing/tampered entries are unverified; never infer actual author from the request. Producer `required: false` cannot downgrade a consumer-declared required lane. Preserve valid sibling lanes.
+
+   An incomplete required critique lane blocks the clean/ship gate: stop before fix application or shipping and surface the exact receipt state. An optional `skipped` or degraded lane remains explicit and non-blocking; do not claim that lane ran cleanly.
+
    **3b. Apply fixes (caller-owned).** Load `references/review-findings-followup.md`: filter on JSON, batch by file, dispatch fix subagents. Orchestrator merges, tests, commits. Then proceed to the Residual Work Gate.
 
    **If `ce-code-review` cannot run at all** — subagent dispatch unavailable, unauthenticated, or hard-capped, returning `status: failed`/`degraded` with no coverage even after its own sequential Fallback: in an **interactive** session, run the harness-native review if one exists (e.g. `/review`) and fix inline; in a **non-interactive** session (autonomous pipeline, or no native review available), skip the dedicated step, note `Code review: skipped (ce-code-review unavailable)`, and add an explicit manual diff scan to Final Validation. Never silently ship a non-mechanical change with no review of any kind.
@@ -67,6 +71,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
    - No console errors or warnings
    - If the plan has a `Requirements` section (or legacy `Requirements Trace`), verify each requirement is satisfied by the completed work
    - If any `Deferred to Implementation` questions were noted, confirm they were resolved during execution
+   - Every required critique lane in `critique_receipts` is matched and usable; optional skipped lanes remain explicit and non-blocking
 
 6. **Prepare Operational Validation Plan** (REQUIRED)
    - Add a `## Post-Deploy Monitoring & Validation` section to the PR description for every change.
@@ -97,6 +102,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
    - Figma design link (if applicable)
    - The Post-Deploy Monitoring & Validation section (see Phase 3 Step 6)
    - Any "Known Residuals" accepted in the Phase 3 Residual Work Gate, rendered as a dedicated section in the PR body with severity, file:line, and title per finding
+   - The compact per-lane `critique_receipts` summary, without converting an optional skip or mismatch into a successful-review claim
 
    If the Residual Work Gate filed residual findings as tracker tickets, back-fill the opened PR's URL into those tickets once it exists — best-effort, so each ticket links to the PR carrying the finding.
 

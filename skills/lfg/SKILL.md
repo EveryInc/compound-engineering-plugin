@@ -70,7 +70,11 @@ When the implementation instruction instead names an ordered fallback list, do n
 
 4. Invoke the `ce-code-review` skill with `mode:agent plan:<plan-path-from-step-1>`.
 
-   Pass the plan file path from step 1 so ce-code-review can verify requirements completeness. Read the **Actionable Findings** summary the skill emits. Also read any findings stamped `settled_conflict` (each names the conflicting KTD). A stamped finding whose evidence is invalidating — the settled decision cannot work: infeasible, wrong-thing, or destructive — stops the pipeline as blocked, with the finding reported, before the shipping precondition. Stamped preference-grade findings proceed (they are report-only) but must flow into step 6's residual record.
+   Pass the plan file path from step 1 so ce-code-review can verify requirements completeness. Read the **Actionable Findings** summary and the per-lane `critique_receipts` the skill emits. Each receipt entry carries `lane`, LFG/caller-owned `required`, `model_requested`, `model_actual`, `receipt_source`, `receipt_status`, and `critique_status`. A critique lane passes only with `receipt_version: critique-author/v1`, `critique_status: usable`, and `receipt_status: matched`. Legacy/missing/tampered entries are unverified; never copy requested model into actual author. Producer `required: false` cannot downgrade a caller-declared required lane, and valid sibling lanes remain visible.
+
+   The existing cross-model review remains optional/additive unless the plan, user, or calling workflow already declared its lane required. Optional `skipped` lanes are explicit and non-blocking. An incomplete required lane stops before steps 5–10: do not claim the review clean, apply its peer-only fixes, ship, or output DONE. Surface the exact receipt state without relabeling mismatch as authentication or quota failure.
+
+   Also read any findings stamped `settled_conflict` (each names the conflicting KTD). A stamped finding whose evidence is invalidating — the settled decision cannot work: infeasible, wrong-thing, or destructive — stops the pipeline as blocked, with the finding reported, before the shipping precondition. Stamped preference-grade findings proceed (they are report-only) but must flow into step 6's residual record.
 
    `mode:agent` is report-only **by design** — it surfaces findings but never edits the tree; LFG applies the eligible ones in step 5. When narrating progress to the user, frame this as "review found X → applied X in step 5," not as "code review did not auto-fix." A report-only review followed by an LFG-applied fix is the intended contract, not a gap.
 
@@ -115,6 +119,8 @@ When the implementation instruction instead names an ordered fallback list, do n
    Collect its structured result (`{ status, fixes_applied, residuals }`). It surfaces unfixable CI as a **run-report comment on the PR** and returns residuals — do **NOT** write a `## CI Failures Unresolved` PR-body section. A `needs-human` residual (a fix that would need a product/design decision) is deferred, not applied — that is the autopilot contract, unchanged. Do not block DONE once babysit has surfaced residuals.
 
 10. Output `<promise>DONE</promise>` when complete
+
+    Carry the compact `critique_receipts` summary from step 4 into the final shipping state. Recheck that every caller-required lane is matched and usable immediately before DONE. Optional skipped/degraded lanes stay named and non-blocking; they are never rewritten as successful reviews.
 
     For the two user-runnable handoffs below, default to `/ce-explain <name>` / `/ce-babysit-pr <pr-url>`. Use `$ce-explain <name>` / `$ce-babysit-pr <pr-url>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
 

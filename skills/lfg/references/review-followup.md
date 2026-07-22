@@ -10,7 +10,9 @@ ce-code-review mode:agent plan:<plan-path-from-step-1>
 
 Read the **Actionable Findings** summary and artifact path. Do not pass `mode:autofix`.
 
-Capture parsed JSON (`status`, `actionable_findings`, `findings`, `artifact_path`, `run_id`) or the markdown Actionable Findings section. If `status` is `failed`, stop and surface `reason`.
+Capture parsed JSON (`status`, `actionable_findings`, `findings`, `critique_receipts`, `artifact_path`, `run_id`) or the markdown Actionable Findings section. If `status` is `failed`, stop and surface `reason`.
+
+Before apply, normalize each critique lane using the single pass predicate: `receipt_version: critique-author/v1` AND `critique_status: usable` AND `receipt_status: matched`. Requiredness comes from LFG/the caller, not the producer; producer `required: false` cannot downgrade a required lane. Missing, legacy, or tampered receipts are unverified. An incomplete required lane stops the pipeline. An optional incomplete lane remains non-blocking and explicit.
 
 ## Step 5 — apply and persist review fixes
 
@@ -22,6 +24,7 @@ Apply a finding in the working tree only when **all** of the following hold:
 2. **`confidence` is `100`, or `75` with cross-persona agreement noted in the report** — do not apply anchor-50 findings.
 3. **The fix is mechanical** — one coherent change, no contract/permission/security posture change, no new public API shape, no behavior change that needs product sign-off.
 4. **Evidence still matches the code** at the cited `file:line` before editing.
+5. **Any peer-only source lane passed its critique receipt gate.** An unmatched peer may remain diagnostic but contributes no apply authority; an independently raised in-process finding can still qualify on its in-process evidence.
 
 Do not treat `autofix_class` as permission to auto-apply.
 
