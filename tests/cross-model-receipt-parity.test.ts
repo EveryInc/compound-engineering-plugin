@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test"
 const PLUGIN_ROOT = path.join(process.cwd(), "skills")
 
 // The model-identity receipt kernel (expected_model_prefix / route_model /
-// extract_model_receipt) is byte-duplicated between the two cross-model peer
+// extract_model_receipt) is byte-duplicated between the cross-model peer
 // scripts (the plugin has no cross-skill import mechanism — see AGENTS.md
 // "File References in Skills") and each carries a "keep byte-identical"
 // comment. This test makes that comment enforceable.
@@ -43,6 +43,9 @@ describe("cross-model receipt-kernel parity", () => {
     }
     expect(kernels[0]).toContain("claude-fable-")
     expect(kernels[0]).toContain("MODEL_OBSERVED_IDS")
-    expect(kernels[0]).toContain("claude_explicit_refusal")
+    expect(kernels[0]).toContain("parse_claude_structured")
+    expect(kernels[0]).toContain("claude.assistant.message.model")
+    expect(kernels[0]).toContain("observed_participants")
+    expect(kernels[0]).not.toContain("modelUsage // {} | keys[] | select")
   })
 })

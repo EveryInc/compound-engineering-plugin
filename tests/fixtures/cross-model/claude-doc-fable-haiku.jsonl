@@ -1,0 +1,3 @@
+{"type":"system","subtype":"init","model":"claude-fable-5"}
+{"type":"assistant","message":{"role":"assistant","model":"claude-fable-5-20260715","stop_reason":"end_turn","content":[{"type":"text","text":"Synthetic document critique complete."}]}}
+{"type":"result","subtype":"success","is_error":false,"structured_output":{"reviewer":"whole-doc","findings":[],"residual_risks":[],"deferred_questions":[]},"modelUsage":{"claude-fable-5-20260715":{"inputTokens":10},"claude-haiku-4-5-20251001":{"inputTokens":2}}}

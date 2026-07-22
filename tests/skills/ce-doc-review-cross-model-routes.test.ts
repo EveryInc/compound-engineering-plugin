@@ -75,6 +75,26 @@ const SCRIPT = path.join(
   __dirname,
   "../../skills/ce-doc-review/scripts/cross-model-doc-review.sh",
 )
+const STREAM_FIXTURE = path.join(
+  __dirname,
+  "../fixtures/cross-model/claude-doc-fable-haiku.jsonl",
+)
+
+function claudeStreamStub(stream: string): string {
+  return `#!/bin/sh\ncat >/dev/null\nprintf '%s\\n' '${stream.trim()}'\n`
+}
+
+function claudeResultStub(
+  structuredOutput: Record<string, unknown>,
+  model = "claude-opus-4-8-20260115",
+  modelUsage: Record<string, unknown> = { [model]: { inputTokens: 10 } },
+  stopReason = "end_turn",
+): string {
+  return claudeStreamStub([
+    JSON.stringify({ type: "assistant", message: { model, stop_reason: stopReason, content: [] } }),
+    JSON.stringify({ type: "result", subtype: "success", is_error: false, structured_output: structuredOutput, modelUsage }),
+  ].join("\n"))
+}
 
 const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer"] as const
 
@@ -266,6 +286,8 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(cmd).not.toContain("--bare")
     expect(cmd).toContain("--effort high")
     expect(cmd).toContain("--model opus")
+    expect(cmd).toContain("--output-format stream-json")
+    expect(cmd).toContain("--verbose")
   })
 
   test("grok CLI: deny Read + web/subagents off + dontAsk + effort high", () => {
@@ -507,8 +529,61 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
   // A stub CLI that emits a structured_output envelope with reviewer:"adversarial"
   // and NO residual_risks — the script must force reviewer -> <lens>-<provider>
   // and backfill the soft arrays.
-  const claudeStub =
-    `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"section":"X","title":"t"}]}}'\n`
+  const claudeStub = claudeResultStub({
+    reviewer: "adversarial",
+    findings: [{ section: "X", title: "t" }],
+  })
+
+  test("publishes critique-author/v1 from the final assistant event, not participant ordering", () => {
+    const stream = readFileSync(STREAM_FIXTURE, "utf8")
+    const { env } = sandbox(["claude"], claudeStreamStub(stream))
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "whole-doc", doc, "plan", "none", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+      CROSS_MODEL_MODEL_OVERRIDE: "claude-fable-5",
+    })
+    expect(r.files).toContain("whole-doc-claude.json")
+    const out = JSON.parse(readFileSync(path.join(runDir, "whole-doc-claude.json"), "utf8"))
+    expect(out).toMatchObject({
+      receipt_version: "critique-author/v1",
+      lane: "whole-doc",
+      required: false,
+      model_actual: "claude-fable-5-20260715",
+      receipt_source: "claude.assistant.message.model",
+      receipt_status: "matched",
+      observed_participants: [
+        "claude-fable-5-20260715",
+        "claude-haiku-4-5-20251001",
+      ],
+      critique_status: "usable",
+    })
+    expect(r.files.filter((file) => file.endsWith(".jsonl"))).toEqual([])
+  })
+
+  test("an Opus author remains mismatched even when Fable appears in participant inventory", () => {
+    const stream = [
+      '{"type":"assistant","message":{"model":"claude-opus-4-8-20260115","stop_reason":"end_turn"}}',
+      '{"type":"result","subtype":"success","is_error":false,"structured_output":{"reviewer":"whole-doc","findings":[]},"modelUsage":{"claude-fable-5-20260715":{},"claude-opus-4-8-20260115":{}}}',
+    ].join("\n")
+    const { env } = sandbox(["claude"], claudeStreamStub(stream))
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    run(["codex", "claude", "whole-doc", doc, "plan", "none", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+      CROSS_MODEL_MODEL_OVERRIDE: "claude-fable-5",
+    })
+    const out = JSON.parse(readFileSync(path.join(runDir, "whole-doc-claude.json"), "utf8"))
+    expect(out.model_actual).toBe("claude-opus-4-8-20260115")
+    expect(out.receipt_status).toBe("mismatched")
+    expect(out.independence_verified).toBe(false)
+    expect(out.observed_participants).toEqual([
+      "claude-fable-5-20260715",
+      "claude-opus-4-8-20260115",
+    ])
+  })
 
   test("forces reviewer to <lens>-<provider> and backfills soft arrays", () => {
     const { env } = sandbox(["claude"], claudeStub)
@@ -530,8 +605,7 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
   })
 
   test("drops the return when findings is not an array", () => {
-    const badStub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":"oops"}}'\n`
+    const badStub = claudeResultStub({ reviewer: "adversarial", findings: "oops" })
     const { env } = sandbox(["claude"], badStub)
     const doc = makeDoc()
     const runDir = makeRunDir()
@@ -543,8 +617,10 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
   test("downgrades a peer safe_auto finding to gated_auto (R18), preserving other fields", () => {
     // A peer must never grant silent-apply authority; the script strips safe_auto
     // at fold-in rather than trusting synthesis prose to do it.
-    const stub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"section":"X","title":"t","autofix_class":"safe_auto","confidence":100}]}}'\n`
+    const stub = claudeResultStub({
+      reviewer: "adversarial",
+      findings: [{ section: "X", title: "t", autofix_class: "safe_auto", confidence: 100 }],
+    })
     const { env } = sandbox(["claude"], stub)
     const doc = makeDoc()
     const runDir = makeRunDir()
@@ -559,11 +635,9 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
   })
 
   test("records model_requested and the dated model_actual when the claude receipt matches (R7)", () => {
-    // Real claude CLI envelope shape: modelUsage at the envelope top level, keyed
-    // by the full dated id that actually served the run. Requested alias "opus"
-    // expects a served id starting claude-opus-.
-    const receiptStub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"section":"X","title":"t"}]},"modelUsage":{"claude-opus-4-8-20260115":{"inputTokens":10}}}'\n`
+    const receiptStub = claudeResultStub({
+      reviewer: "adversarial", findings: [{ section: "X", title: "t" }],
+    })
     const { env } = sandbox(["claude"], receiptStub)
     const doc = makeDoc()
     const runDir = makeRunDir()
@@ -579,8 +653,11 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
   })
 
   test("records all same-family Fable receipt IDs without treating them as ambiguous (R7)", () => {
-    const receiptStub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"stop_reason":"end_turn","structured_output":{"reviewer":"whole-doc","findings":[]},"modelUsage":{"claude-fable-5-20260701":{"inputTokens":10},"claude-fable-5-20260715":{"inputTokens":2}}}'\n`
+    const receiptStub = claudeResultStub(
+      { reviewer: "whole-doc", findings: [] },
+      "claude-fable-5-20260701",
+      { "claude-fable-5-20260701": { inputTokens: 10 }, "claude-fable-5-20260715": { inputTokens: 2 } },
+    )
     const { env } = sandbox(["claude"], receiptStub)
     const doc = makeDoc()
     const runDir = makeRunDir()
@@ -599,35 +676,36 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     expect(r.stderr).not.toContain("model mismatch")
   })
 
-  test("fails identity closed on a Fable-plus-Opus receipt and preserves both IDs (R7)", () => {
-    const receiptStub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"stop_reason":"end_turn","structured_output":{"reviewer":"adversarial","findings":[]},"modelUsage":{"claude-fable-5-20260715":{"inputTokens":2},"claude-opus-4-8-20260115":{"inputTokens":10}}}'\n`
+  test("uses the assistant author for a Fable-plus-Opus participant inventory (R7)", () => {
+    const receiptStub = claudeResultStub(
+      { reviewer: "adversarial", findings: [] },
+      "claude-opus-4-8-20260115",
+      { "claude-fable-5-20260715": { inputTokens: 2 }, "claude-opus-4-8-20260115": { inputTokens: 10 } },
+    )
     const { env } = sandbox(["claude"], receiptStub)
     const doc = makeDoc()
     const runDir = makeRunDir()
     const r = run(["codex", "claude", "adversarial", doc, "plan", "none", runDir], runDir, env)
     const out = JSON.parse(readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"))
-    expect(out.model_actual).toBe("unverified")
+    expect(out.model_actual).toBe("claude-opus-4-8-20260115")
     expect(out.model_observed_ids).toEqual([
       "claude-fable-5-20260715",
       "claude-opus-4-8-20260115",
     ])
-    expect(out.independence_verified).toBe(false)
-    expect(r.stderr).toContain("ambiguous multi-family model receipt")
+    expect(out.independence_verified).toBe(true)
+    expect(out.receipt_status).toBe("matched")
   })
 
   test("explicit Claude refusal publishes no document artifact while end_turn empty findings stays usable (R11)", () => {
     const doc = makeDoc()
-    const refused =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"stop_reason":"refusal","structured_output":{"reviewer":"adversarial","findings":[]},"modelUsage":{"claude-opus-4-8-20260115":{"inputTokens":10}}}'\n`
+    const refused = claudeResultStub({ reviewer: "adversarial", findings: [] }, undefined, undefined, "refusal")
     const refusedSandbox = sandbox(["claude"], refused)
     const refusedDir = makeRunDir()
     const refusedRun = run(["codex", "claude", "adversarial", doc, "plan", "none", refusedDir], refusedDir, refusedSandbox.env)
     expect(refusedRun.files).not.toContain("adversarial-claude.json")
-    expect(refusedRun.stderr).toContain("explicit refusal")
+    expect(refusedRun.stderr).toContain("refused")
 
-    const ended =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"stop_reason":"end_turn","structured_output":{"reviewer":"adversarial","findings":[]},"modelUsage":{"claude-opus-4-8-20260115":{"inputTokens":10}}}'\n`
+    const ended = claudeResultStub({ reviewer: "adversarial", findings: [] })
     const endedSandbox = sandbox(["claude"], ended)
     const endedDir = makeRunDir()
     const endedRun = run(["codex", "claude", "adversarial", doc, "plan", "none", endedDir], endedDir, endedSandbox.env)
@@ -635,11 +713,12 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     expect(JSON.parse(readFileSync(path.join(endedDir, "adversarial-claude.json"), "utf8")).findings).toEqual([])
   })
 
-  test("multi-key receipt: different model families fail identity closed (R7)", () => {
-    // Without an authoritative final-output-model field, an auxiliary model's
-    // usage cannot be distinguished from the model that produced the artifact.
-    const multiKeyStub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"section":"X","title":"t"}]},"modelUsage":{"claude-haiku-4-5-20251001":{"inputTokens":2},"claude-opus-4-8-20260115":{"inputTokens":10}}}'\n`
+  test("multi-key participant inventory does not override the assistant author (R7)", () => {
+    const multiKeyStub = claudeResultStub(
+      { reviewer: "adversarial", findings: [{ section: "X", title: "t" }] },
+      "claude-opus-4-8-20260115",
+      { "claude-haiku-4-5-20251001": { inputTokens: 2 }, "claude-opus-4-8-20260115": { inputTokens: 10 } },
+    )
     const { env } = sandbox(["claude"], multiKeyStub)
     const doc = makeDoc()
     const runDir = makeRunDir()
@@ -649,20 +728,21 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
       readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"),
     )
     expect(out.model_requested).toBe("opus")
-    expect(out.model_actual).toBe("unverified")
+    expect(out.model_actual).toBe("claude-opus-4-8-20260115")
     expect(out.model_observed_ids).toEqual([
       "claude-haiku-4-5-20251001",
       "claude-opus-4-8-20260115",
     ])
-    expect(out.independence_verified).toBe(false)
-    expect(r.stderr).toContain("ambiguous multi-family model receipt")
+    expect(out.independence_verified).toBe(true)
   })
 
   test("keeps the served id and warns prominently on a receipt mismatch (R7)", () => {
     // Backend served a haiku id while opus was requested: the artifact must carry
     // the ACTUAL id (never the requested value) and stderr must warn.
-    const mismatchStub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"section":"X","title":"t"}]},"modelUsage":{"claude-haiku-4-5-20251001":{"inputTokens":10}}}'\n`
+    const mismatchStub = claudeResultStub(
+      { reviewer: "adversarial", findings: [{ section: "X", title: "t" }] },
+      "claude-haiku-4-5-20251001",
+    )
     const { env } = sandbox(["claude"], mismatchStub)
     const doc = makeDoc()
     const runDir = makeRunDir()
@@ -672,24 +752,22 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     )
     expect(out.model_requested).toBe("opus")
     expect(out.model_actual).toBe("claude-haiku-4-5-20251001")
+    expect(out.receipt_status).toBe("mismatched")
+    expect(out.independence_verified).toBe(false)
     expect(r.stderr).toContain("WARNING: model mismatch - requested opus, backend served claude-haiku-4-5-20251001")
   })
 
-  test("records model_actual unverified with a parse warning when the claude envelope carries no receipt (R8)", () => {
-    // claudeStub emits no modelUsage: never fall back to the requested value —
-    // record the literal "unverified", warn on stderr, and still fold in.
-    const { env } = sandbox(["claude"], claudeStub)
+  test("fails closed when the claude stream carries no assistant author receipt (R8)", () => {
+    const noAuthor = claudeStreamStub(JSON.stringify({
+      type: "result", subtype: "success", is_error: false,
+      structured_output: { reviewer: "adversarial", findings: [] }, modelUsage: {},
+    }))
+    const { env } = sandbox(["claude"], noAuthor)
     const doc = makeDoc()
     const runDir = makeRunDir()
     const r = run(["codex", "claude", "adversarial", doc, "plan", "none", runDir], runDir, env)
-    expect(r.files).toContain("adversarial-claude.json")
-    const out = JSON.parse(
-      readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"),
-    )
-    expect(out.model_requested).toBe("opus")
-    expect(out.model_actual).toBe("unverified")
-    expect(out.model_observed_ids).toEqual([])
-    expect(r.stderr).toContain("model receipt absent/unparseable on claude route; recording unverified")
+    expect(r.files).not.toContain("adversarial-claude.json")
+    expect(r.stderr).toContain("author receipt")
   })
 
   test("unknown host family skips automatic review before provider invocation", () => {
@@ -810,8 +888,9 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
 
   test("the whole-doc sweep reviewer-name is accepted and normalizes to whole-doc-<provider>", () => {
     // R20/U9: the broad whole-document sweep runs under reviewer-name `whole-doc`.
-    const stub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"whole-doc","findings":[{"section":"X","title":"t"}]}}'\n`
+    const stub = claudeResultStub({
+      reviewer: "whole-doc", findings: [{ section: "X", title: "t" }],
+    })
     const { env } = sandbox(["claude"], stub)
     const doc = makeDoc()
     const runDir = makeRunDir()

@@ -26,6 +26,7 @@ function temp(prefix: string): string {
 afterAll(() => roots.forEach((dir) => rmSync(dir, { recursive: true, force: true })))
 
 const SCRIPT = path.join(__dirname, "../../skills/ce-pov/scripts/cross-model-pov.sh")
+const STREAM_FIXTURE = path.join(__dirname, "../fixtures/cross-model/claude-pov-opus-multiturn.jsonl")
 const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer"] as const
 const NEVER_FLAGS = ["--yolo", "--force", "-f", "--always-approve", "--dangerously-skip-permissions"]
 const REAL_TOOLS = [
@@ -86,6 +87,20 @@ function emit(route: string, env: NodeJS.ProcessEnv = process.env) {
   expect(result.status).toBe(0)
   return result.stdout.trim()
 }
+function claudeStreamStub(stream: string): string {
+  return `#!/bin/sh\ncat >/dev/null\nprintf '%s\\n' '${stream.trim()}'\n`
+}
+function claudeResultStub(
+  structuredOutput: Record<string, unknown>,
+  model = "claude-opus-4-8-20260115",
+  modelUsage: Record<string, unknown> = { [model]: { inputTokens: 10 } },
+  stopReason = "end_turn",
+): string {
+  return claudeStreamStub([
+    JSON.stringify({ type: "assistant", message: { model, stop_reason: stopReason, content: [] } }),
+    JSON.stringify({ type: "result", subtype: "success", is_error: false, structured_output: structuredOutput, modelUsage }),
+  ].join("\n"))
+}
 
 describe("ce-pov cross-model route safety", () => {
   test("all routes preserve read/write/exec denial and avoid never-use flags", () => {
@@ -98,6 +113,8 @@ describe("ce-pov cross-model route safety", () => {
     expect(emit("codex")).toContain("-s read-only")
     expect(emit("codex")).toContain("-C <read-root>")
     expect(emit("claude")).toContain("--permission-mode dontAsk")
+    expect(emit("claude")).toContain("--output-format stream-json")
+    expect(emit("claude")).toContain("--verbose")
     expect(emit("claude")).toContain("--safe-mode")
     expect(emit("claude")).toContain("--disable-slash-commands")
     expect(emit("claude")).not.toContain("--bare")
@@ -155,7 +172,34 @@ describe("ce-pov cross-model route safety", () => {
 })
 
 describe("ce-pov output gate and receipts", () => {
-  const valid = '{"structured_output":{"voice":"peer","position":"Choose A","reasoning":"Lower correction cost","evidence":["https://example.com"],"external_check":"ran","mode":"independent","movement":"initial"},"modelUsage":{"claude-opus-4-8-20260115":{"inputTokens":10}}}'
+  const valid = {
+    voice: "peer", position: "Choose A", reasoning: "Lower correction cost",
+    evidence: ["https://example.com"], external_check: "ran", mode: "independent", movement: "initial",
+  }
+
+  test("selects the last assistant author before success and publishes critique-author/v1", () => {
+    const stream = readFileSync(STREAM_FIXTURE, "utf8")
+    const { env } = sandbox(["claude"], claudeStreamStub(stream))
+    const dir = runDir()
+    const result = run(["codex", "claude", payload(), dir], dir, env)
+    expect(result.files).toContain("pov-claude.json")
+    const out = JSON.parse(readFileSync(path.join(dir, "pov-claude.json"), "utf8"))
+    expect(out).toMatchObject({
+      receipt_version: "critique-author/v1",
+      lane: "pov",
+      required: false,
+      model_requested: "opus",
+      model_actual: "claude-opus-4-8-20260115",
+      receipt_source: "claude.assistant.message.model",
+      receipt_status: "matched",
+      observed_participants: [
+        "claude-haiku-4-5-20251001",
+        "claude-opus-4-8-20260115",
+      ],
+      critique_status: "usable",
+    })
+    expect(result.files.filter((file) => file.endsWith(".jsonl"))).toEqual([])
+  })
 
   test.each([
     ["missing position", '{"structured_output":{"reasoning":"why"}}'],
@@ -166,9 +210,8 @@ describe("ce-pov output gate and receipts", () => {
     ["missing external check", '{"structured_output":{"voice":"peer","position":"Choose A","reasoning":"why","evidence":[],"mode":"independent","movement":"initial"}}'],
     ["missing voice", '{"structured_output":{"position":"Choose A","reasoning":"why","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"}}'],
   ])("%s fails the fixed route without publishing an artifact", (_name, invalid) => {
-    const { bin, env } = sandbox(["claude"])
-    writeFileSync(path.join(bin, "claude"), `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${invalid}'\n`)
-    chmodSync(path.join(bin, "claude"), 0o755)
+    const structured = JSON.parse(invalid).structured_output
+    const { env } = sandbox(["claude"], claudeResultStub(structured))
     const dir = runDir()
     const scratchParent = temp("pov-invalid-scratch-")
     const result = run(["codex", "claude", payload(), dir], dir, {
@@ -184,7 +227,8 @@ describe("ce-pov output gate and receipts", () => {
     ["missing movement", '{"structured_output":{"position":"Choose A","reasoning":"why"}}'],
     ["invalid movement", '{"structured_output":{"position":"Choose A","reasoning":"why","movement":"changed"}}'],
   ])("%s is not usable output", (_name, invalid) => {
-    const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${invalid}'\n`)
+    const structured = JSON.parse(invalid).structured_output
+    const { env } = sandbox(["claude"], claudeResultStub(structured))
     const dir = runDir()
     const result = run(["codex", "claude", payload(), dir], dir, env)
     expect(result.code).toBe(0)
@@ -192,7 +236,7 @@ describe("ce-pov output gate and receipts", () => {
   })
 
   test("normalizes a valid POV with actual route and served-model receipt", () => {
-    const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${valid}'\n`)
+    const { env } = sandbox(["claude"], claudeResultStub(valid))
     const dir = runDir()
     const result = run(["codex", "claude", payload(), dir], dir, env)
     expect(result.files).toContain("pov-claude.json")
@@ -210,9 +254,12 @@ describe("ce-pov output gate and receipts", () => {
     expect(out.independence_verified).toBe(true)
   })
 
-  test("records same-family Fable IDs and fails mixed Fable-plus-Opus identity closed", () => {
-    const fableEnvelope = '{"stop_reason":"end_turn","structured_output":{"voice":"peer","position":"Choose A","reasoning":"Lower correction cost","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"},"modelUsage":{"claude-fable-5-20260701":{"inputTokens":10},"claude-fable-5-20260715":{"inputTokens":2}}}'
-    const fableSandbox = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${fableEnvelope}'\n`)
+  test("records participant IDs while binding authorship to the assistant event", () => {
+    const fableSandbox = sandbox(["claude"], claudeResultStub(
+      { ...valid, evidence: [], external_check: "unavailable" },
+      "claude-fable-5-20260701",
+      { "claude-fable-5-20260701": { inputTokens: 10 }, "claude-fable-5-20260715": { inputTokens: 2 } },
+    ))
     const fableDir = runDir()
     const fableRun = run(["codex", "claude", payload(), fableDir], fableDir, {
       ...fableSandbox.env,
@@ -227,44 +274,47 @@ describe("ce-pov output gate and receipts", () => {
     ])
     expect(fableRun.stderr).not.toContain("model mismatch")
 
-    const mixedEnvelope = '{"stop_reason":"end_turn","structured_output":{"voice":"peer","position":"Choose A","reasoning":"Lower correction cost","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"},"modelUsage":{"claude-fable-5-20260715":{"inputTokens":2},"claude-opus-4-8-20260115":{"inputTokens":10}}}'
-    const mixedSandbox = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${mixedEnvelope}'\n`)
+    const mixedSandbox = sandbox(["claude"], claudeResultStub(
+      { ...valid, evidence: [], external_check: "unavailable" },
+      "claude-opus-4-8-20260115",
+      { "claude-fable-5-20260715": { inputTokens: 2 }, "claude-opus-4-8-20260115": { inputTokens: 10 } },
+    ))
     const mixedDir = runDir()
     const mixedRun = run(["codex", "claude", payload(), mixedDir], mixedDir, mixedSandbox.env)
     const mixed = JSON.parse(readFileSync(path.join(mixedDir, "pov-claude.json"), "utf8"))
-    expect(mixed.model_actual).toBe("unverified")
+    expect(mixed.model_actual).toBe("claude-opus-4-8-20260115")
     expect(mixed.model_observed_ids).toEqual([
       "claude-fable-5-20260715",
       "claude-opus-4-8-20260115",
     ])
-    expect(mixed.independence_verified).toBe(false)
-    expect(mixedRun.stderr).toContain("ambiguous multi-family model receipt")
+    expect(mixed.independence_verified).toBe(true)
+    expect(mixed.receipt_status).toBe("matched")
   })
 
   test("explicit Claude refusal publishes no POV while end_turn remains usable", () => {
-    const refusedEnvelope = '{"stop_reason":"refusal","structured_output":{"voice":"peer","position":"Choose A","reasoning":"Lower correction cost","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"},"modelUsage":{"claude-opus-4-8-20260115":{"inputTokens":10}}}'
-    const refusedSandbox = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${refusedEnvelope}'\n`)
+    const refusedSandbox = sandbox(["claude"], claudeResultStub(
+      { ...valid, evidence: [], external_check: "unavailable" }, undefined, undefined, "refusal",
+    ))
     const refusedDir = runDir()
     const refusedRun = run(["codex", "claude", payload(), refusedDir], refusedDir, refusedSandbox.env)
     expect(refusedRun.files).not.toContain("pov-claude.json")
-    expect(refusedRun.stderr).toContain("explicit refusal")
+    expect(refusedRun.stderr).toContain("refused")
 
-    const endedEnvelope = '{"stop_reason":"end_turn","structured_output":{"voice":"peer","position":"Choose A","reasoning":"Lower correction cost","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"},"modelUsage":{"claude-opus-4-8-20260115":{"inputTokens":10}}}'
-    const endedSandbox = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${endedEnvelope}'\n`)
+    const endedSandbox = sandbox(["claude"], claudeResultStub({
+      ...valid, evidence: [], external_check: "unavailable",
+    }))
     const endedDir = runDir()
     const endedRun = run(["codex", "claude", payload(), endedDir], endedDir, endedSandbox.env)
     expect(endedRun.files).toContain("pov-claude.json")
   })
 
-  test("recovers a raw schema-shaped POV without a structured-output envelope", () => {
+  test("fails closed on a legacy raw schema-shaped POV without an author receipt", () => {
     const raw = '{"voice":"peer","position":"Choose A","reasoning":"Lower correction cost","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"}'
     const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${raw}'\n`)
     const dir = runDir()
     const result = run(["codex", "claude", payload(), dir], dir, env)
-    expect(result.files).toContain("pov-claude.json")
-    const out = JSON.parse(readFileSync(path.join(dir, "pov-claude.json"), "utf8"))
-    expect(out.position).toBe("Choose A")
-    expect(out.reasoning).toBe("Lower correction cost")
+    expect(result.files).not.toContain("pov-claude.json")
+    expect(result.stderr).toContain("author receipt")
   })
 
   test("recovers a fenced POV nested in a CLI result envelope", () => {
@@ -300,8 +350,8 @@ describe("ce-pov output gate and receipts", () => {
   })
 
   test("an explicitly named peer can run with unknown host family but is not independent", () => {
-    const response = '{"structured_output":{"voice":"peer","position":"Hold","reasoning":"Need evidence","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"}}'
-    const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${response}'\n`)
+    const response = { voice: "peer", position: "Hold", reasoning: "Need evidence", evidence: [], external_check: "unavailable", mode: "independent", movement: "initial" }
+    const { env } = sandbox(["claude"], claudeResultStub(response))
     const dir = runDir()
     const result = run(["unknown", "claude", payload(), dir], dir, {
       ...env,

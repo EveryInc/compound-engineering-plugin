@@ -1,0 +1,4 @@
+{"type":"system","subtype":"init","model":"claude-opus-4-8"}
+{"type":"assistant","message":{"role":"assistant","model":"claude-haiku-4-5-20251001","stop_reason":"tool_use","content":[{"type":"text","text":"Synthetic preliminary turn."}]}}
+{"type":"assistant","message":{"role":"assistant","model":"claude-opus-4-8-20260115","stop_reason":"end_turn","content":[{"type":"text","text":"Synthetic final position."}]}}
+{"type":"result","subtype":"success","is_error":false,"structured_output":{"voice":"peer","position":"Choose A","reasoning":"Lower correction cost","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"},"modelUsage":{"claude-haiku-4-5-20251001":{"inputTokens":2},"claude-opus-4-8-20260115":{"inputTokens":10}}}

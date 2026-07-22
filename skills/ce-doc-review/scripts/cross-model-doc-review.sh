@@ -89,13 +89,11 @@ M_GROK_CURSOR="cursor-grok-4.5-high"  # fixed cursor-agent Grok route (current i
 M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is the ceiling)
 
 # --- model-identity receipt (R7/R8) -----------------------------------------
-# "Which model ran" is a claim that needs a serving-side receipt. Only the
-# claude CLI reports one today: its JSON envelope carries a modelUsage object
-# keyed by the full dated id that actually served the run. Match requested vs
-# actual by expected full-family prefix (alias -> dated id counts as a match;
-# never substring). Every other route records the literal "unverified" — never
-# a fallback to the requested value. Keep this block byte-identical across all
-# three Claude adapters (kernel parity).
+# "Which model authored the critique" needs a serving-side author receipt.
+# Claude stream-json supplies it on the final valid top-level assistant event
+# before exactly one successful terminal result, at message.model. Terminal
+# modelUsage keys are participant inventory only. Keep this block byte-identical
+# across all three Claude adapters (kernel parity).
 expected_model_prefix() {   # <requested-alias> -> expected served-id prefix
   case "$1" in
     fable|claude-fable-*)   printf 'claude-fable-' ;;
@@ -149,50 +147,67 @@ target_serving_family() {
 
 MODEL_ACTUAL="unverified"
 MODEL_OBSERVED_IDS="[]"
-MODEL_IDENTITY_AMBIGUOUS=false
-extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODEL_ACTUAL
+OBSERVED_PARTICIPANTS="[]"
+RECEIPT_SOURCE="unverified"
+RECEIPT_STATUS="unverified"
+CLAUDE_TERMINAL_INDEX=""
+extract_model_receipt() {   # <route>; reads JSONL in $PEERLOG, sets receipt globals
   MODEL_ACTUAL="unverified"
   MODEL_OBSERVED_IDS="[]"
-  MODEL_IDENTITY_AMBIGUOUS=false
+  OBSERVED_PARTICIPANTS="[]"
+  RECEIPT_SOURCE="unverified"
+  RECEIPT_STATUS="unverified"
+  CLAUDE_TERMINAL_INDEX=""
   [ "$1" = "claude" ] || return 0
-  local requested actual prefix observed_count all_expected family_count
+  local requested prefix receipt
   requested="$(route_model claude)"
   prefix="$(expected_model_prefix "$requested")"
-  MODEL_OBSERVED_IDS="$(jq -c '[(.modelUsage // {}) | keys[]] | unique' "$PEERLOG" 2>/dev/null)"
-  case "$MODEL_OBSERVED_IDS" in '['*']') ;; *) MODEL_OBSERVED_IDS="[]" ;; esac
-  observed_count="$(jq -r 'length' <<<"$MODEL_OBSERVED_IDS" 2>/dev/null)"
-  if [ "${observed_count:-0}" -eq 0 ]; then
-    log "model receipt absent/unparseable on claude route; recording unverified"
-    return 0
-  fi
-  actual="$(jq -r '.[0]' <<<"$MODEL_OBSERVED_IDS")"
-  all_expected=false
-  if [ -n "$prefix" ]; then
-    all_expected="$(jq -r --arg p "$prefix" 'all(.[]; startswith($p))' <<<"$MODEL_OBSERVED_IDS" 2>/dev/null)"
-  fi
-  if [ "$all_expected" = "true" ]; then
-    MODEL_ACTUAL="$actual"
-    return 0
-  fi
-  family_count="$(jq -r '
-    map(if startswith("claude-fable-") then "fable"
-        elif startswith("claude-opus-") then "opus"
-        elif startswith("claude-sonnet-") then "sonnet"
-        elif startswith("claude-haiku-") then "haiku"
-        else . end) | unique | length
-  ' <<<"$MODEL_OBSERVED_IDS" 2>/dev/null)"
-  if [ "${family_count:-0}" -gt 1 ]; then
-    MODEL_IDENTITY_AMBIGUOUS=true
-    log "WARNING: ambiguous multi-family model receipt for requested $requested; observed $MODEL_OBSERVED_IDS; recording unverified"
-    return 0
-  fi
-  MODEL_ACTUAL="$actual"
-  log "WARNING: model mismatch - requested $requested, backend served $actual; reconcile must surface this"
+  [ -n "$prefix" ] || { log "claude author receipt has unknown requested family '$requested'; skipping fold-in"; return 1; }
+  receipt="$(jq -c -s '
+    def success_result:
+      type == "object" and .type == "result" and .subtype == "success" and ((.is_error // false) != true);
+    if all(.[]; type == "object") | not then error("non-object event") else . end
+    | [to_entries[] | select(.value | success_result)] as $success
+    | if ($success | length) != 1 then error("successful terminal count") else . end
+    | ($success[0].key) as $terminal
+    | if any(to_entries[]; .key > $terminal and (.value.type == "assistant" or .value.type == "result"))
+      then error("event after terminal") else . end
+    | [to_entries[]
+       | select(.key < $terminal)
+       | select(.value.type == "assistant")
+       | select((.value.message | type) == "object")
+       | select((.value.message.model | type) == "string" and (.value.message.model | length) > 0)] as $authors
+    | if ($authors | length) == 0 then error("missing assistant author") else . end
+    | ($authors[-1].value.message) as $author
+    | if (($author.stop_reason // "") == "refusal" or ($success[0].value.stop_reason // "") == "refusal")
+      then error("refusal") else . end
+    | if (($success[0].value.structured_output | type) != "object")
+      then error("missing structured output") else . end
+    | { terminal_index: $terminal,
+        model_actual: $author.model,
+        observed_participants:
+          (if ($success[0].value.modelUsage // null) == null then []
+           elif (($success[0].value.modelUsage | type) == "object")
+           then ($success[0].value.modelUsage | keys | unique | sort)
+           else error("invalid participant inventory") end) }
+  ' "$PEERLOG" 2>/dev/null)" || {
+    log "claude author receipt missing, malformed, refused, or unbindable; skipping fold-in"
+    return 1
+  }
+  CLAUDE_TERMINAL_INDEX="$(jq -r '.terminal_index' <<<"$receipt")"
+  MODEL_ACTUAL="$(jq -r '.model_actual' <<<"$receipt")"
+  OBSERVED_PARTICIPANTS="$(jq -c '.observed_participants' <<<"$receipt")"
+  MODEL_OBSERVED_IDS="$OBSERVED_PARTICIPANTS"
+  RECEIPT_SOURCE="claude.assistant.message.model"
+  case "$MODEL_ACTUAL" in
+    "$prefix"*) RECEIPT_STATUS="matched" ;;
+    *) RECEIPT_STATUS="mismatched"; log "WARNING: model mismatch - requested $requested, backend served $MODEL_ACTUAL" ;;
+  esac
 }
 
-claude_explicit_refusal() {   # <route>; reads the top-level stop reason in $PEERLOG
-  [ "$1" = "claude" ] || return 1
-  [ "$(jq -r '.stop_reason // empty' "$PEERLOG" 2>/dev/null)" = "refusal" ]
+parse_claude_structured() {   # <outfile>; writes only the bound terminal structured_output
+  [ -n "$CLAUDE_TERMINAL_INDEX" ] || return 1
+  jq -s --argjson i "$CLAUDE_TERMINAL_INDEX" '.[$i].structured_output' "$PEERLOG" > "$1" 2>/dev/null
 }
 
 # --- adapter argv (single source of truth for route flags) -----------------
@@ -220,7 +235,8 @@ adapter_argv() {
       # R17 tool-less isolation.
       printf '%s\0' claude -p --model "$(route_model claude)" --effort high --permission-mode dontAsk \
         --safe-mode --disable-slash-commands --tools "" \
-        --max-turns 15 --no-session-persistence --json-schema "$SCHEMA_REF" --output-format json
+        --max-turns 15 --no-session-persistence --json-schema "$SCHEMA_REF" \
+        --output-format stream-json --verbose
       ;;
     grok-cli)
       printf '%s\0' grok --prompt-file "$PROMPT_FILE" --model "$(route_model grok-cli)" --effort high \
@@ -668,11 +684,7 @@ attempt_route() {   # <provider> <route>
     claude)
       run_timeout_cmd "$PROMPT_FILE"
       if [ "$RUN_SUCCEEDED" = true ]; then
-        if claude_explicit_refusal "$route"; then
-          log "claude returned an explicit refusal; skipping fold-in"
-        else
-          parse_structured "$PEERLOG" "$RAW_OUT"
-        fi
+        extract_model_receipt "$route" && parse_claude_structured "$RAW_OUT" || rm -f "$RAW_OUT"
       fi
       ;;   # claude -p reads stdin
     grok-cursor|cursor|composer)
@@ -688,7 +700,7 @@ attempt_route() {   # <provider> <route>
   fi
   # Extract the served-model receipt from the envelope while $PEERLOG still
   # holds it — normalization below only sees the schema-extracted RAW_OUT.
-  extract_model_receipt "$route"
+  [ "$route" = "claude" ] || extract_model_receipt "$route"
 }
 
 # Run one host-resolved provider through its fixed route.
@@ -743,12 +755,16 @@ run_provider() {   # <provider>
     esac
     _independent=false
     [ "$HOST_PROVIDER" != "unknown" ] && [ "$_target_family" != "unknown" ] && [ "$HOST_PROVIDER" != "$_target_family" ] && _independent=true
-    [ "$MODEL_IDENTITY_AMBIGUOUS" != true ] || _independent=false
+    [ "$ACTUAL_ROUTE" != "claude" ] || [ "$RECEIPT_STATUS" = "matched" ] || _independent=false
     if jq --arg r "$REVIEWER_NAME-$provider" --arg route "$ACTUAL_ROUTE" \
          --arg target "$provider" --arg harness "$(route_harness "$ACTUAL_ROUTE")" \
          --arg family "$_target_family" --argjson independent "$_independent" \
          --arg mreq "$(route_model "$ACTUAL_ROUTE")" --arg mact "$MODEL_ACTUAL" \
          --argjson mobs "$MODEL_OBSERVED_IDS" \
+         --arg rsource "$RECEIPT_SOURCE" --arg rstatus "$RECEIPT_STATUS" \
+         --arg lane "$REVIEWER_NAME" \
+         --argjson participants "$OBSERVED_PARTICIPANTS" \
+         --argjson isclaude "$([ "$ACTUAL_ROUTE" = "claude" ] && echo true || echo false)" \
          'if (.findings|type)=="array"
           then { reviewer: $r,
                  cross_model_route: $route,
@@ -762,6 +778,15 @@ run_provider() {   # <provider>
                  findings: [ .findings[] | if (.autofix_class? == "safe_auto") then .autofix_class = "gated_auto" else . end ],
                  residual_risks: (.residual_risks // []),
                  deferred_questions: (.deferred_questions // []) }
+               + (if $isclaude then {
+                    receipt_version: "critique-author/v1",
+                    lane: $lane,
+                    required: false,
+                    receipt_source: $rsource,
+                    receipt_status: $rstatus,
+                    observed_participants: $participants,
+                    critique_status: "usable"
+                  } else {} end)
           else empty end' \
          "$RAW_OUT" > "$_norm" 2>/dev/null; then
       mv "$_norm" "$OUT"
