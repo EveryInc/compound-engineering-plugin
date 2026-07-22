@@ -293,7 +293,6 @@ PAYLOAD_PATH="${3:-}"
 RUN_DIR="${4:-}"
 
 # --- validate inputs -------------------------------------------------------
-[ -n "$PAYLOAD_PATH" ] && [ -f "$PAYLOAD_PATH" ] || skip "subject payload '${PAYLOAD_PATH:-<empty>}' not readable on disk; skipping"
 READ_ROOT="${CROSS_MODEL_READ_ROOT:-$(pwd -P)}"
 [ -d "$READ_ROOT" ] || skip "declared repository/read root '$READ_ROOT' is not a directory"
 READ_ROOT="$(cd "$READ_ROOT" && pwd -P)" || skip "cannot resolve repository/read root '$READ_ROOT'"
@@ -322,6 +321,18 @@ case "$RUN_DIR_RESOLVED/" in "$REPO_ROOT/"*) skip "run-dir must be outside the r
 [ -d "$RUN_DIR_RESOLVED" ] || skip "run-dir '$RUN_DIR' must already exist"
 RUN_DIR="$RUN_DIR_RESOLVED"
 chmod 700 "$RUN_DIR" 2>/dev/null || skip "run-dir '$RUN_DIR' could not be made private"
+
+case "$FIXED_ROUTE" in
+  codex|claude|grok-cli|grok-cursor|cursor|composer) ;;
+  *) skip "unknown fixed route '${FIXED_ROUTE:-<empty>}'; host must resolve one route before egress" ;;
+esac
+TARGET="$(route_target "$FIXED_ROUTE")" || skip "unknown fixed route '${FIXED_ROUTE:-<empty>}'; host must resolve one route before egress"
+apply_model_override "$FIXED_ROUTE" || skip "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$FIXED_ROUTE'"
+# The fixed-target artifact is run-scoped state. Clear it before any later
+# startup skip so a reused run directory cannot publish an earlier POV.
+rm -f "$RUN_DIR/pov-$TARGET.json"
+
+[ -n "$PAYLOAD_PATH" ] && [ -f "$PAYLOAD_PATH" ] || skip "subject payload '${PAYLOAD_PATH:-<empty>}' not readable on disk; skipping"
 command -v jq >/dev/null 2>&1 || skip "jq not installed; skipping"
 INCLUDE_PATHS="${CROSS_MODEL_INCLUDE_PATHS:-}"
 EXCLUDE_PATHS="${CROSS_MODEL_EXCLUDE_PATHS:-}"
@@ -334,13 +345,6 @@ case "$HOST_HARNESS" in
   codex|claude|grok|cursor|unknown) ;;
   *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|unknown)" ;;
 esac
-
-case "$FIXED_ROUTE" in
-  codex|claude|grok-cli|grok-cursor|cursor|composer) ;;
-  *) skip "unknown fixed route '${FIXED_ROUTE:-<empty>}'; host must resolve one route before egress" ;;
-esac
-TARGET="$(route_target "$FIXED_ROUTE")" || skip "unknown fixed route '${FIXED_ROUTE:-<empty>}'; host must resolve one route before egress"
-apply_model_override "$FIXED_ROUTE" || skip "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$FIXED_ROUTE'"
 
 # --- self-locate skill root + canonical sibling files ----------------------
 SKILL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || skip "cannot resolve skill root; skipping"

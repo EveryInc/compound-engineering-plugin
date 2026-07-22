@@ -33,7 +33,7 @@ Capture the headless envelope so it can drive the contextual summary above the p
 - The number of fixes auto-applied
 - The count of remaining findings, broken out by user-facing bucket (proposed fixes, decisions, FYI observations)
 - The severity breakdown of decisions and proposed fixes (specifically the P0/P1 count, since those benefit from explicit user attention)
-- A compact per-lane `critique_receipts` list. Each entry carries `lane`, ce-plan/caller-owned `required`, `model_requested`, `model_actual`, `receipt_source`, `receipt_status`, and `critique_status`. Preserve valid sibling lanes when another lane is incomplete.
+- A compact per-lane `critique_receipts` list. Each entry carries `lane`, ce-plan/caller-owned `required`, `receipt_version`, `model_requested`, `model_actual`, `receipt_source`, `receipt_status`, and `critique_status`. Preserve selected and valid sibling lanes when another lane is incomplete.
 
 For every critique lane, success means `receipt_version: critique-author/v1` AND `critique_status: usable` AND `receipt_status: matched`. Legacy, missing, or tampered receipts are unverified; never copy requested model into actual author. Requiredness belongs to ce-plan or its caller, so producer `required: false` cannot downgrade a caller-required lane. The existing cross-model document-review lanes remain optional/additive unless the caller explicitly marks one required; optional `skipped` or degraded lanes stay non-blocking and explicit.
 

@@ -177,6 +177,18 @@ describe("ce-pov output gate and receipts", () => {
     evidence: ["https://example.com"], external_check: "ran", mode: "independent", movement: "initial",
   }
 
+  test("an early startup skip removes a stale artifact for the fixed target", () => {
+    const { env } = sandbox(["claude"])
+    const dir = runDir()
+    const stale = path.join(dir, "pov-claude.json")
+    writeFileSync(stale, JSON.stringify(valid))
+
+    const result = run(["codex", "claude", path.join(dir, "missing.md"), dir], dir, env)
+
+    expect(result.code).toBe(0)
+    expect(existsSync(stale)).toBe(false)
+  })
+
   test("selects the last assistant author before success and publishes critique-author/v1", () => {
     const stream = readFileSync(STREAM_FIXTURE, "utf8")
     const { env } = sandbox(["claude"], claudeStreamStub(stream))

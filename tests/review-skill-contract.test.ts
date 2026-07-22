@@ -1273,7 +1273,11 @@ describe("cross-model peer skip legibility", () => {
     expect(crossModel).toContain("critique_status: usable")
     expect(crossModel).toContain("receipt_status: matched")
     expect(crossModel).toContain("critique-author/v1")
+    expect(crossModel).toContain("receipt_version")
+    expect(crossModel).not.toContain("stay silent in `mode:agent`")
+    expect(crossModel).toContain("critique_status: skipped")
     expect(finish).toContain("critique_receipts")
+    expect(finish).toContain('"receipt_version"')
 
     const finding = {
       title: "same bug", severity: "P2", file: "a.ts", line: 1,
@@ -1319,6 +1323,11 @@ describe("cross-model peer skip legibility", () => {
       expect(source, reference).toMatch(/caller|consumer/i)
       expect(source, reference).toMatch(/required: false|producer.*required/i)
     }
+
+    const synthesis = await readRepoFile(
+      "skills/ce-doc-review/references/synthesis-and-presentation.md",
+    )
+    expect(synthesis).toContain("version=<receipt_version>")
   })
 
   test("LFG blocks clean, shipping, and DONE claims only for incomplete required critique lanes", async () => {

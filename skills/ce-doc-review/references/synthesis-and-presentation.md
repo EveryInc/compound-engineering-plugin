@@ -276,13 +276,13 @@ After safe_auto fixes apply, remaining findings split into buckets:
 
 **Headless mode:** Do not use interactive question tools. Output all findings as a structured text envelope the caller can parse. Internal enum values (`safe_auto`, `gated_auto`, `manual`, `FYI`) stay in the schema and synthesis prose; the envelope below uses user-facing vocabulary — "fixes", "Proposed fixes", "Decisions", "FYI observations" — so headless output reads the same way interactive output does.
 
-Before the finding buckets, emit `critique_receipts` as a compact per-lane list. Every entry carries `lane`, consumer-owned `required`, `model_requested`, `model_actual`, `receipt_source`, `receipt_status`, and `critique_status`. Producer `required: false` cannot downgrade caller-required lanes. Legacy/missing/tampered receipts normalize to unverified without copying requested into actual, and all valid sibling lanes remain visible. The list is diagnostic for optional lanes and gate-bearing only for lanes the caller declared required.
+Before the finding buckets, emit `critique_receipts` as a compact per-lane list. Every entry carries `lane`, consumer-owned `required`, `receipt_version`, `model_requested`, `model_actual`, `receipt_source`, `receipt_status`, and `critique_status`. Producer `required: false` cannot downgrade caller-required lanes. Legacy/missing/tampered receipts normalize to unverified without copying requested into actual, and all selected and valid sibling lanes remain visible. The list is diagnostic for optional lanes and gate-bearing only for lanes the caller declared required.
 
 ```
 Document review complete (headless mode).
 
 critique_receipts:
-- lane=<lane>; required=<true|false>; requested=<model_requested>; actual=<model_actual>; source=<receipt_source>; receipt=<receipt_status>; critique=<critique_status>
+- lane=<lane>; required=<true|false>; version=<receipt_version>; requested=<model_requested>; actual=<model_actual>; source=<receipt_source>; receipt=<receipt_status>; critique=<critique_status>
 
 Applied N fixes:
 - <section>: <what was changed> (<reviewer>)
