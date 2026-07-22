@@ -72,7 +72,9 @@ type TrialEvidence = PreRegisteredTrial & {
   outcome: Outcome
   identity_status: "verified" | "ambiguous" | "unverified"
   model_actual: string
-  observed_model_ids: string[]
+  observed_participants: string[]
+  receipt_source: "claude.assistant.message.model" | "unverified"
+  usable: boolean
   schema_valid: boolean
   non_refusal: boolean
   deadline_met: boolean
@@ -97,7 +99,7 @@ const ORDINARY_LANES = new Set<Lane>(["product-lens", "whole-doc"])
 const GUARDED_ROLES = new Set(["security-lens", "adversarial", "code-adversarial"])
 const NON_INFERIORITY_MARGIN = -0.1
 const MAX_NOISE_DELTA = 0.5
-const RAW_EXPORT_KEYS = new Set(["prompt", "stdout", "stderr", "provider_envelope", "judge_vote"])
+const RAW_EXPORT_KEYS = new Set(["prompt", "stdout", "stderr", "provider_envelope", "provider_stream", "raw_stream", "judge_vote"])
 const FAILURE_OUTCOMES: Outcome[] = [
   "substituted",
   "ambiguous",
@@ -341,6 +343,7 @@ function median(values: number[]): number {
 }
 
 export function qualityEligible(trial: TrialEvidence): boolean {
+  if (!trial.usable) return false
   if (trial.model_requested === "fable") {
     return trial.outcome === "matched" && trial.identity_status === "verified" && trial.model_actual.startsWith("claude-fable-")
   }
@@ -529,17 +532,32 @@ async function parallelMap<T, R>(items: T[], concurrency: number, operation: (it
   return results
 }
 
-function observedModels(envelope: any): string[] {
-  return Object.keys(envelope?.modelUsage ?? {}).filter((model) => model.startsWith("claude-")).sort()
+function parseStreamEvents(stdout: string): any[] | undefined {
+  const lines = stdout.split(/\r?\n/).filter((line) => line.trim().length > 0)
+  if (lines.length === 0) return undefined
+  try {
+    const events = lines.map((line) => JSON.parse(line))
+    return events.every((event) => event && typeof event === "object" && !Array.isArray(event)) ? events : undefined
+  } catch {
+    return undefined
+  }
 }
 
-function classifyTrial(base: PreRegisteredTrial, result: CapturedProcess, elapsed: number): TrialEvidence & { structured?: any } {
+function participantInventory(terminal: any): string[] | undefined {
+  if (terminal?.modelUsage == null) return []
+  if (typeof terminal.modelUsage !== "object" || Array.isArray(terminal.modelUsage)) return undefined
+  return [...new Set(Object.keys(terminal.modelUsage))].sort()
+}
+
+export function classifyTrial(base: PreRegisteredTrial, result: CapturedProcess, elapsed: number): TrialEvidence & { structured?: any } {
   const empty: TrialEvidence = {
     ...base,
     outcome: "unverified",
     identity_status: "unverified",
     model_actual: "unverified",
-    observed_model_ids: [],
+    observed_participants: [],
+    receipt_source: "unverified",
+    usable: false,
     schema_valid: false,
     non_refusal: false,
     deadline_met: result.error?.name !== "ETIMEDOUT",
@@ -551,37 +569,46 @@ function classifyTrial(base: PreRegisteredTrial, result: CapturedProcess, elapse
   const errorText = String(result.stderr ?? "")
   if (/auth|login|credential/i.test(errorText)) return { ...empty, outcome: "auth-failed" }
   if (/quota|rate.?limit|credit/i.test(errorText)) return { ...empty, outcome: "quota-failed" }
-  let envelope: any
-  try {
-    envelope = JSON.parse(String(result.stdout ?? ""))
-  } catch {
-    return empty
-  }
-  const models = observedModels(envelope)
-  const families = new Set(models.map((model) => model.includes("fable") ? "fable" : model.includes("opus") ? "opus" : "other"))
-  const structured = envelope?.structured_output
+  const events = parseStreamEvents(String(result.stdout ?? ""))
+  if (!events) return empty
+  const successfulResults = events
+    .map((event, index) => ({ event, index }))
+    .filter(({ event }) => event.type === "result" && event.subtype === "success" && event.is_error !== true)
+  if (successfulResults.length !== 1) return empty
+  const terminal = successfulResults[0]
+  if (events.some((event, index) => index > terminal.index && (event.type === "assistant" || event.type === "result"))) return empty
+  const authors = events
+    .slice(0, terminal.index)
+    .filter((event) => event.type === "assistant" && event.message && typeof event.message === "object")
+    .filter((event) => typeof event.message.model === "string" && event.message.model.length > 0)
+  if (authors.length === 0) return empty
+  const author = authors[authors.length - 1].message
+  const participants = participantInventory(terminal.event)
+  if (!participants) return empty
+  const structured = terminal.event.structured_output
   const schemaValid =
     typeof structured?.reviewer === "string" &&
     Array.isArray(structured?.findings) &&
     Array.isArray(structured?.residual_risks) &&
     Array.isArray(structured?.deferred_questions)
-  const refused = envelope?.stop_reason === "refusal"
+  const refused = author.stop_reason === "refusal" || terminal.event.stop_reason === "refusal"
   const expectedPrefix = base.model_requested === "fable" ? "claude-fable-" : "claude-opus-"
-  const actual = models.length === 1 ? models[0] : "unverified"
+  const actual = author.model
   let outcome: Outcome = "unverified"
-  let identity: TrialEvidence["identity_status"] = "unverified"
+  const identity: TrialEvidence["identity_status"] = "verified"
   if (refused) outcome = "refused"
   else if (!schemaValid) outcome = "schema-invalid"
-  else if (families.size > 1) { outcome = "ambiguous"; identity = "ambiguous" }
-  else if (models.length === 0) outcome = "unverified"
-  else if (models.every((model) => model.startsWith(expectedPrefix))) { outcome = "matched"; identity = "verified" }
+  else if (actual.startsWith(expectedPrefix)) outcome = "matched"
   else outcome = "substituted"
+  const usable = schemaValid && !refused && result.status === 0 && result.error === undefined
   return {
     ...empty,
     outcome,
     identity_status: identity,
     model_actual: actual,
-    observed_model_ids: models,
+    observed_participants: participants,
+    receipt_source: "claude.assistant.message.model",
+    usable,
     schema_valid: schemaValid,
     non_refusal: !refused,
     structured,
@@ -644,14 +671,15 @@ async function runReviewTrial(manifest: Manifest, manifestPath: string, trial: P
     "--max-turns", "15",
     "--no-session-persistence",
     "--json-schema", schema,
-    "--output-format", "json",
+    "--output-format", "stream-json",
+    "--verbose",
   ], {
     input: prompt,
     cwd: reviewDir,
     timeout: manifest.timeout_ms,
   })
   const classified = classifyTrial(trial, result, Date.now() - started)
-  writeFileSync(path.join(reviewDir, "provider-envelope.json"), String(result.stdout ?? ""), { mode: 0o600 })
+  writeFileSync(path.join(reviewDir, "provider-stream.jsonl"), String(result.stdout ?? ""), { mode: 0o600 })
   return classified
 }
 

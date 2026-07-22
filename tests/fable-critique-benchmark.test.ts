@@ -85,7 +85,8 @@ track_start '${path.join(state, "review")}'
 sleep 0.02
 model=opus; previous=
 for argument in "$@"; do [ "$previous" = "--model" ] && model="$argument"; previous="$argument"; done
-printf '{"stop_reason":"end_turn","structured_output":{"reviewer":"benchmark","findings":[],"residual_risks":[],"deferred_questions":[]},"modelUsage":{"claude-%s-test":{}}}' "$model"
+printf '{"type":"assistant","message":{"model":"claude-%s-test","stop_reason":"end_turn"}}\n' "$model"
+printf '{"type":"result","subtype":"success","is_error":false,"stop_reason":"end_turn","structured_output":{"reviewer":"benchmark","findings":[],"residual_risks":[],"deferred_questions":[]},"modelUsage":{"claude-haiku-participant":{},"claude-%s-test":{}}}\n' "$model"
 track_end '${path.join(state, "review")}'
 `)
   chmodSync(claude, 0o755)
@@ -153,7 +154,9 @@ function perfectEvidence() {
       outcome: "matched" as const,
       identity_status: "verified" as const,
       model_actual: fable ? "claude-fable-5" : "claude-opus-4-8",
-      observed_model_ids: [fable ? "claude-fable-5" : "claude-opus-4-8"],
+      observed_participants: [fable ? "claude-fable-5" : "claude-opus-4-8"],
+      receipt_source: "claude.assistant.message.model" as const,
+      usable: true,
       schema_valid: true,
       non_refusal: true,
       deadline_met: true,
@@ -299,7 +302,8 @@ describe("Fable ordinary-lane critique benchmark", () => {
       expect(line).toContain("--max-turns 15")
       expect(line).toContain("--no-session-persistence")
       expect(line).toContain("--json-schema")
-      expect(line).toContain("--output-format json")
+      expect(line).toContain("--output-format stream-json")
+      expect(line).toContain("--verbose")
     }
     const prompts = readdirSync(routes.promptDir).map((file) => readFileSync(path.join(routes.promptDir, file), "utf8"))
     expect(prompts.some((prompt) => prompt.includes("You are a senior product leader."))).toBe(true)
@@ -321,14 +325,87 @@ describe("Fable ordinary-lane critique benchmark", () => {
     }
     expect(argsByPrompt.size).toBe(4)
     expect([...argsByPrompt.values()].every((values) => values.size === 1)).toBe(true)
-    expect(JSON.parse(readFileSync(aggregate, "utf8")).redacted_trial_receipts).toHaveLength(40)
+    const receipts = JSON.parse(readFileSync(aggregate, "utf8")).redacted_trial_receipts
+    expect(receipts).toHaveLength(40)
+    expect(receipts.every((receipt: any) => receipt.outcome === "matched" && receipt.usable === true)).toBe(true)
+    expect(receipts.every((receipt: any) => receipt.receipt_source === "claude.assistant.message.model")).toBe(true)
+    expect(receipts.every((receipt: any) => receipt.observed_participants.includes("claude-haiku-participant"))).toBe(true)
+    expect(receipts.every((receipt: any) => receipt.model_actual !== "claude-haiku-participant")).toBe(true)
+    expect(readdirSync(path.join(root, "scratch"))).toEqual([])
   }, 30_000)
 
-  test("matching unambiguous Fable alone enters its quality numerator; every failure remains in the denominator", () => {
+  test("authorship is the final assistant before one successful result; modelUsage is participant inventory only", () => {
+    const trial = buildPreRegisteredTrials(JSON.parse(readFileSync(MANIFEST, "utf8")), MANIFEST)[0]
+    const stream = [
+      { type: "assistant", message: { model: "claude-haiku-helper", stop_reason: "end_turn" } },
+      { type: "assistant", message: { model: "claude-opus-4-8", stop_reason: "end_turn" } },
+      {
+        type: "result",
+        subtype: "success",
+        is_error: false,
+        stop_reason: "end_turn",
+        structured_output: { reviewer: "benchmark", findings: [], residual_risks: [], deferred_questions: [] },
+        modelUsage: { "claude-haiku-helper": {}, "claude-opus-4-8": {} },
+      },
+    ].map((event) => JSON.stringify(event)).join("\n")
+    const classified = (benchmark as any).classifyTrial(trial, { status: 0, stdout: `${stream}\n`, stderr: "" }, 123)
+
+    expect(classified.outcome).toBe("matched")
+    expect(classified.usable).toBe(true)
+    expect(classified.model_actual).toBe("claude-opus-4-8")
+    expect(classified.receipt_source).toBe("claude.assistant.message.model")
+    expect(classified.observed_participants).toEqual(["claude-haiku-helper", "claude-opus-4-8"])
+  })
+
+  test.each([
+    {
+      name: "missing assistant author",
+      events: [
+        { type: "result", subtype: "success", is_error: false, structured_output: { reviewer: "benchmark", findings: [], residual_risks: [], deferred_questions: [] }, modelUsage: { "claude-opus-4-8": {} } },
+      ],
+    },
+    {
+      name: "multiple successful terminals",
+      events: [
+        { type: "assistant", message: { model: "claude-opus-4-8" } },
+        { type: "result", subtype: "success", is_error: false, structured_output: { reviewer: "benchmark", findings: [], residual_risks: [], deferred_questions: [] } },
+        { type: "result", subtype: "success", is_error: false, structured_output: { reviewer: "benchmark", findings: [], residual_risks: [], deferred_questions: [] } },
+      ],
+    },
+    {
+      name: "event after terminal",
+      events: [
+        { type: "assistant", message: { model: "claude-opus-4-8" } },
+        { type: "result", subtype: "success", is_error: false, structured_output: { reviewer: "benchmark", findings: [], residual_risks: [], deferred_questions: [] } },
+        { type: "assistant", message: { model: "claude-opus-4-8" } },
+      ],
+    },
+    {
+      name: "invalid participant inventory",
+      events: [
+        { type: "assistant", message: { model: "claude-opus-4-8" } },
+        { type: "result", subtype: "success", is_error: false, structured_output: { reviewer: "benchmark", findings: [], residual_risks: [], deferred_questions: [] }, modelUsage: [] },
+      ],
+    },
+  ])("$name cannot earn quality credit", ({ events }) => {
+    const trial = buildPreRegisteredTrials(JSON.parse(readFileSync(MANIFEST, "utf8")), MANIFEST)[0]
+    const classified = (benchmark as any).classifyTrial(trial, {
+      status: 0,
+      stdout: `${events.map((event) => JSON.stringify(event)).join("\n")}\n`,
+      stderr: "",
+    }, 123)
+
+    expect(classified.outcome).toBe("unverified")
+    expect(classified.usable).toBe(false)
+    expect(classified.model_actual).toBe("unverified")
+  })
+
+  test("only matched and usable authorship receipts enter quality; every failure remains in the denominator", () => {
     const source = readFileSync(SCRIPT, "utf8")
     expect(source).toContain("qualityEligible")
     expect(source).toContain('trial.model_requested === "fable"')
     expect(source).toContain('trial.outcome === "matched"')
+    expect(source).toContain("trial.usable")
     expect(source).toContain('trial.identity_status === "verified"')
     expect(source).toContain("quality_denominator: expectedTrials")
     for (const outcome of ["substituted", "ambiguous", "unverified", "refused", "schema-invalid", "auth-failed", "quota-failed", "timed-out"]) {
@@ -341,6 +418,7 @@ describe("Fable ordinary-lane critique benchmark", () => {
       candidate.outcome = outcome
       candidate.identity_status = outcome === "ambiguous" ? "ambiguous" : outcome === "substituted" ? "verified" : "unverified"
       if (outcome === "substituted") candidate.model_actual = "claude-opus-4-8"
+      candidate.usable = outcome === "substituted"
       const scored = scoreEvidence(manifest, evidence)
       const product = scored.decision_table.find((row) => row.lane === "product-lens")!
       expect(product.fable.quality_numerator).toBe(9)
@@ -355,6 +433,7 @@ describe("Fable ordinary-lane critique benchmark", () => {
       trial.outcome = "ambiguous"
       trial.identity_status = "ambiguous"
       trial.model_actual = "unverified"
+      trial.usable = false
     }
 
     const scored = scoreEvidence(manifest, evidence)
@@ -378,7 +457,7 @@ describe("Fable ordinary-lane critique benchmark", () => {
   test("raw exports, sentinel hits, and cleanup failures are fail-closed", () => {
     const source = readFileSync(SCRIPT, "utf8")
     expect(source).toContain("RAW_EXPORT_KEYS")
-    for (const rawKey of ["prompt", "stdout", "stderr", "provider_envelope", "judge_vote"]) {
+    for (const rawKey of ["prompt", "stdout", "stderr", "provider_envelope", "provider_stream", "raw_stream", "judge_vote"]) {
       expect(source).toContain(`"${rawKey}"`)
     }
     expect(source).toContain("assertAggregateExportSafe")
@@ -461,6 +540,10 @@ describe("Fable ordinary-lane critique benchmark", () => {
     expect(report).toContain("$10.58")
     expect(report).toContain("$16.51")
     expect(report).toContain("$27.09")
+    expect(report).toContain("$16.00")
+    expect(report).toContain("40 responses")
+    expect(report).toContain("authorship remains unverified")
+    expect(report).toContain("participant inventory")
     expect(report).toContain("fixture-correlated")
     expect(report).toContain("consistent with Anthropic's documented safety routing")
     expect(report).toContain("does not prove the cause of any individual call")
