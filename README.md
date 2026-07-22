@@ -145,6 +145,7 @@ These sit around the loop or get reached for on demand -- not every cycle needs 
 |-------|---------|
 | [`/ce-ideate`](docs/skills/ce-ideate.md) | *Before the loop*, when you don't yet know what to build -- generates and critically ranks grounded ideas, then routes the strongest one into `/ce-brainstorm` |
 | [`/ce-strategy`](docs/skills/ce-strategy.md) | *Upstream anchor* -- creates and maintains `STRATEGY.md`, read as grounding by ideate, brainstorm, and plan so strategy choices flow into every feature |
+| [`/ce-fde`](docs/skills/ce-fde.md) | *Business-outcome outer loop* -- measures one operating workflow, routes approved software into the CE loop, and requires controlled live value before expansion |
 | [`/ce-product-pulse`](docs/skills/ce-product-pulse.md) | *Outer loop* -- a time-windowed report on what users actually experienced (usage, performance, errors), saved to `docs/pulse-reports/`; its follow-ups feed back into ideation and brainstorming |
 | [`/ce-debug`](docs/skills/ce-debug.md) | *Instead of brainstorm -> plan -> work* when the input is a bug rather than a feature -- reproduce, trace root cause, fix, then polish/review before PR handoff when warranted |
 | [`/ce-pov`](docs/skills/ce-pov.md) | *On demand, before you commit* -- a decisive, project-grounded adoption verdict, holistic document take, or position on supplied approaches; optionally cross-checked by named peers or `oracle` through a blind initial round and bounded reconciliation |
@@ -205,13 +206,14 @@ The first pass tightens recent branch changes before review. The targeted pass i
 
 After installing, run `/ce-setup` in any project. It checks repo-local config, reports optional tool capabilities, and helps keep machine-local CE settings safely gitignored.
 
-The `compound-engineering` plugin currently ships 31 skills and 0 standalone agents. Specialist review, research, and workflow behavior lives inside the owning skills as skill-local prompt assets.
+The `compound-engineering` plugin currently ships 32 skills and 0 standalone agents. Specialist review, research, and workflow behavior lives inside the owning skills as skill-local prompt assets.
 
 ### Full Skill Inventory
 
 | Skill | Purpose |
 |-------|---------|
 | [`/ce-strategy`](docs/skills/ce-strategy.md) | Create or maintain `STRATEGY.md` |
+| [`/ce-fde`](docs/skills/ce-fde.md) | Improve one operating workflow and prove its value before expansion |
 | [`/ce-ideate`](docs/skills/ce-ideate.md) | Generate and critically evaluate grounded ideas |
 | [`/ce-pov`](docs/skills/ce-pov.md) | Form a decisive, project-grounded POV on an adoption, document, or approach set |
 | [`/ce-explain`](docs/skills/ce-explain.md) | Explain a concept, diff, idea, or window of your own work as a personal learning artifact |
