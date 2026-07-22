@@ -25,7 +25,7 @@ This is not a software plan template (no implementation units / test scenarios) 
 
 ## Stage 3: Checkpoint
 
-Hold at the approach. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code — call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded; `request_user_input` in Codex; `ask_question` in Antigravity CLI (`agy`)/Pi). Fall back to numbered options in chat only when no blocking tool exists or the call errors — never silently skip.
+Hold at the approach. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code — call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded; `request_user_input` in Codex; `ask_question` in Antigravity CLI (`agy`); `ask_user` in Pi (requires the `pi-ask-user` extension)). Fall back to numbered options in chat only when no blocking tool exists or the call errors — never silently skip.
 
 **Sequence orthogonal axes** rather than cramming them into one menu (per the "split orthogonal decisions" rule and the 4-option cap):
 

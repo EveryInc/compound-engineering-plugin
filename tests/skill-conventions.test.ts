@@ -807,6 +807,40 @@ describe("platform-variable fallback (AGENTS.md 'Platform-Specific Variables in 
 })
 
 // ---------------------------------------------------------------------------
+// Blocking-question adapter: Pi is `ask_user` (pi-ask-user extension), never
+// Antigravity's `ask_question`. The capability-over-tool rewrite (PR #1218 and
+// the cross-harness tool-invocation learning) lists per-harness adapters; a
+// recurring drift folds Pi into Antigravity's slot ("... (`agy`) / Pi"), which
+// silently names the wrong Pi tool. Smallest falsifiable unit: any skill line
+// that names the `ask_question` adapter alongside Pi must also name `ask_user`.
+// ---------------------------------------------------------------------------
+
+describe("blocking-question adapter names the correct Pi tool", () => {
+  test("no skill line assigns Pi the `ask_question` adapter instead of `ask_user`", () => {
+    const offenders: string[] = []
+    for (const skill of skillDirs) {
+      for (const filePath of listMarkdownFiles(skill.absPath)) {
+        const fileRel = path.relative(REPO_ROOT, filePath)
+        const lines = readFileSync(filePath, "utf8").split("\n")
+        lines.forEach((line, i) => {
+          // Only adapter lines that already mention Antigravity's ask_question
+          // AND Pi. The conflation groups Pi under ask_question and omits
+          // ask_user; the canonical form names both on the same line.
+          if (!line.includes("ask_question")) return
+          if (!/\bPi\b/.test(line)) return
+          if (line.includes("ask_user")) return
+          offenders.push(`  ${fileRel}:${i + 1} — ${line.trim()}`)
+        })
+      }
+    }
+    expect(
+      offenders,
+      `Pi's blocking-question tool is \`ask_user\` (requires the \`pi-ask-user\` extension), not Antigravity's \`ask_question\`. Do not fold Pi into the Antigravity adapter slot ("... (\`agy\`) / Pi"); give Pi its own \`ask_user\` adapter. See ${AGENTS_MD_REF} "User-Facing Skill Invocations" and docs/solutions/skill-design/cross-harness-cross-model-tool-invocation.md.\nOffending occurrences:\n${offenders.join("\n")}`,
+    ).toEqual([])
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Synthetic fixtures: prove violations are caught and valid content passes
 // (mutation-resistance layer).
 // ---------------------------------------------------------------------------
