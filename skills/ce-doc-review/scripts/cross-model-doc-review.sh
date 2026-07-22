@@ -172,14 +172,12 @@ target_serving_family() {
 }
 
 MODEL_ACTUAL="unverified"
-MODEL_OBSERVED_IDS="[]"
 OBSERVED_PARTICIPANTS="[]"
 RECEIPT_SOURCE="unverified"
 RECEIPT_STATUS="unverified"
 CLAUDE_TERMINAL_INDEX=""
 extract_model_receipt() {   # <route>; reads JSONL in $PEERLOG, sets receipt globals
   MODEL_ACTUAL="unverified"
-  MODEL_OBSERVED_IDS="[]"
   OBSERVED_PARTICIPANTS="[]"
   RECEIPT_SOURCE="unverified"
   RECEIPT_STATUS="unverified"
@@ -214,7 +212,7 @@ extract_model_receipt() {   # <route>; reads JSONL in $PEERLOG, sets receipt glo
         observed_participants:
           (if ($success[0].value.modelUsage // null) == null then []
            elif (($success[0].value.modelUsage | type) == "object")
-           then ($success[0].value.modelUsage | keys | unique | sort)
+           then ($success[0].value.modelUsage | keys)
            else error("invalid participant inventory") end) }
   ' "$PEERLOG" 2>/dev/null)" || {
     log "claude author receipt missing, malformed, refused, or unbindable; skipping fold-in"
@@ -223,7 +221,6 @@ extract_model_receipt() {   # <route>; reads JSONL in $PEERLOG, sets receipt glo
   CLAUDE_TERMINAL_INDEX="$(jq -r '.terminal_index' <<<"$receipt")"
   MODEL_ACTUAL="$(jq -r '.model_actual' <<<"$receipt")"
   OBSERVED_PARTICIPANTS="$(jq -c '.observed_participants' <<<"$receipt")"
-  MODEL_OBSERVED_IDS="$OBSERVED_PARTICIPANTS"
   RECEIPT_SOURCE="claude.assistant.message.model"
   case "$MODEL_ACTUAL" in
     "$prefix"*) RECEIPT_STATUS="matched" ;;
@@ -795,7 +792,7 @@ run_provider() {   # <provider>
          --arg target "$provider" --arg harness "$(route_harness "$ACTUAL_ROUTE")" \
          --arg family "$_target_family" --argjson independent "$_independent" \
          --arg mreq "$(route_model "$ACTUAL_ROUTE")" --arg mact "$MODEL_ACTUAL" \
-         --argjson mobs "$MODEL_OBSERVED_IDS" \
+         --argjson mobs "$OBSERVED_PARTICIPANTS" \
          --arg rsource "$RECEIPT_SOURCE" --arg rstatus "$RECEIPT_STATUS" \
          --arg lane "$REVIEWER_NAME" \
          --argjson participants "$OBSERVED_PARTICIPANTS" \

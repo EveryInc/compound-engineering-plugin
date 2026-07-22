@@ -546,7 +546,7 @@ function parseStreamEvents(stdout: string): any[] | undefined {
 function participantInventory(terminal: any): string[] | undefined {
   if (terminal?.modelUsage == null) return []
   if (typeof terminal.modelUsage !== "object" || Array.isArray(terminal.modelUsage)) return undefined
-  return [...new Set(Object.keys(terminal.modelUsage))].sort()
+  return Object.keys(terminal.modelUsage).sort()
 }
 
 export function classifyTrial(base: PreRegisteredTrial, result: CapturedProcess, elapsed: number): TrialEvidence & { structured?: any } {

@@ -521,7 +521,7 @@ describe("ce-doc-review contract", () => {
     expect(synthesis).toContain("one anchor step")
     expect(synthesis).toContain("`independence_verified` is `true`")
     expect(synthesis).toContain("cannot use the twin fingerprint exception")
-    expect(synthesis).toContain("Cursor default/Auto")
+    expect(synthesis).toContain("names its model")
 
     // R29 and R30 round-2 rules
     expect(synthesis).toContain("R29 Rejected-Finding Suppression")

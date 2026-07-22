@@ -525,12 +525,12 @@ describe("Fable ordinary-lane critique benchmark", () => {
     expect(whole.bootstrap_lower_bound_delta).toBeLessThan(-0.1)
   })
 
-  test("report verification publishes the completed stop and preserves cautious historical language", () => {
+  test("report verification publishes the completed adoption and preserves cautious historical language", () => {
     const routeRoot = tempRoot("fable-benchmark-report-routes-")
     const routes = fakeRoutes(routeRoot)
     const valid = run(["--verify-report", REPORT, "--manifest", MANIFEST], { PATH: `${routes.bin}:${process.env.PATH ?? ""}` })
     expect(valid.status).toBe(0)
-    expect(valid.stdout).toContain("report verification: PASS (stop)")
+    expect(valid.stdout).toContain("report verification: PASS (adopt)")
     expect(existsSync(routes.log) ? readFileSync(routes.log, "utf8") : "").toBe("")
 
     const report = readFileSync(REPORT, "utf8")
@@ -553,7 +553,7 @@ describe("Fable ordinary-lane critique benchmark", () => {
   test("report verification rejects a tampered completed verdict", () => {
     const root = tempRoot("fable-benchmark-report-")
     const tampered = path.join(root, "report.md")
-    writeFileSync(tampered, readFileSync(REPORT, "utf8").replace('"overall_decision": "stop"', '"overall_decision": "adopt"'))
+    writeFileSync(tampered, readFileSync(REPORT, "utf8").replace('"overall_decision": "adopt"', '"overall_decision": "stop"'))
     const result = run(["--verify-report", tampered, "--manifest", MANIFEST])
     expect(result.status).not.toBe(0)
     expect(result.stderr).toContain("report decision does not match recomputed decision")

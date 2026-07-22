@@ -42,7 +42,8 @@ describe("cross-model receipt-kernel parity", () => {
       expect(kernels[i]).toBe(kernels[0])
     }
     expect(kernels[0]).toContain("claude-fable-")
-    expect(kernels[0]).toContain("MODEL_OBSERVED_IDS")
+    expect(kernels[0]).toContain('OBSERVED_PARTICIPANTS="[]"')
+    expect(kernels[0]).not.toContain("MODEL_OBSERVED_IDS")
     expect(kernels[0]).toContain("parse_claude_structured")
     expect(kernels[0]).toContain("claude.assistant.message.model")
     expect(kernels[0]).toContain("observed_participants")
