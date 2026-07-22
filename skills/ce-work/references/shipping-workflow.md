@@ -18,7 +18,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
 
 2. **Simplify** (conditional — separate from code review)
 
-   Before code review, invoke **`ce-simplify-code`** when the diff is non-mechanical and large enough to benefit (default: **>=30 changed lines**). Skip when the diff is purely mechanical (formatting, dependency bumps, lint-only fixes, generated artifacts).
+   Before code review, invoke **`ce-simplify-code`** when the diff has enough substantive code to benefit (default: **>=30 substantive changed code lines** — count human-authored code, not total diff lines). Skip when the diff is purely mechanical (formatting, dependency bumps, lint-only fixes, generated artifacts) or when substantive code stays under the floor even though the total diff is larger.
 
    This step refines reuse, quality, and efficiency on the **current diff** so any later review sees cleaner code. It is not a substitute for code review.
 
@@ -121,7 +121,7 @@ Before creating PR, verify:
 - [ ] Validation/evidence context passed to `ce-commit-push-pr` when the change has observable behavior
 - [ ] Commit messages follow conventional format
 - [ ] PR description includes Post-Deploy Monitoring & Validation section (or explicit no-impact rationale)
-- [ ] Simplify: `ce-simplify-code` when diff >=30 lines (or skipped with reason)
+- [ ] Simplify: `ce-simplify-code` when the diff has >=30 substantive changed code lines (or skipped with reason)
 - [ ] Code review: `ce-code-review` ran (self-sized), or skipped (mechanical diff / unavailable — noted in summary); residuals handled via the Residual Work Gate
 - [ ] PR description includes summary, testing notes, and evidence when captured
 - [ ] `ce-commit-push-pr` received `branding:on` from the Compound Engineering workflow
