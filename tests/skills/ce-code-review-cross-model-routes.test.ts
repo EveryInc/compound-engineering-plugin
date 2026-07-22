@@ -110,8 +110,15 @@ const NEVER_FLAGS = [
   "--dangerously-skip-permissions",
 ]
 
-function emitAdapter(route: string, script = SCRIPT, extraEnv: Record<string, string> = {}): string {
-  const r = spawnSync("bash", [script, "--emit-adapter", route], {
+function emitAdapter(
+  route: string,
+  script = SCRIPT,
+  extraEnv: Record<string, string> = {},
+  reviewer = script === DOC_SCRIPT && route === "claude" ? "adversarial" : undefined,
+): string {
+  const args = [script, "--emit-adapter", route]
+  if (reviewer) args.push(reviewer)
+  const r = spawnSync("bash", args, {
     encoding: "utf8",
     env: { ...process.env, ...extraEnv },
   })
@@ -628,24 +635,20 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(r.stderr).not.toContain("model mismatch")
   })
 
-  test("accepts multiple Fable IDs from one expected family and records every observed ID (R7)", () => {
+  test("accepts multiple Opus IDs from the adversarial lane family and records every observed ID (R7)", () => {
     const receiptStub = claudeResultStub(
       { reviewer: "adversarial", findings: [] },
-      "claude-fable-5-20260701",
-      { "claude-fable-5-20260701": { inputTokens: 10 }, "claude-fable-5-20260715": { inputTokens: 2 } },
+      "claude-opus-4-8-20260101",
+      { "claude-opus-4-8-20260101": { inputTokens: 10 }, "claude-opus-4-8-20260115": { inputTokens: 2 } },
     )
     const { env } = sandbox(["claude"], receiptStub)
     const runDir = makeRunDir()
-    const r = run(["codex", "claude", "HEAD", runDir], runDir, {
-      ...env,
-      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
-      CROSS_MODEL_MODEL_OVERRIDE: "claude-fable-5",
-    })
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
     const out = JSON.parse(readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"))
-    expect(out.model_actual).toBe("claude-fable-5-20260701")
+    expect(out.model_actual).toBe("claude-opus-4-8-20260101")
     expect(out.model_observed_ids).toEqual([
-      "claude-fable-5-20260701",
-      "claude-fable-5-20260715",
+      "claude-opus-4-8-20260101",
+      "claude-opus-4-8-20260115",
     ])
     expect(out.findings).toEqual([])
     expect(r.stderr).not.toContain("model mismatch")
@@ -801,6 +804,28 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(crossFamily.stderr).toContain("not compatible with route")
   })
 
+  test("Claude overrides stay inside the code adversarial Opus family", () => {
+    const opusExact = {
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+      CROSS_MODEL_MODEL_OVERRIDE: "claude-opus-4-8-20260115",
+    }
+    expect(emitAdapter("claude", SCRIPT, opusExact))
+      .toContain("--model claude-opus-4-8-20260115")
+
+    for (const model of ["fable", "claude-fable-5-20260715", "sonnet", "claude-haiku-4-5-20251001"]) {
+      const rejected = spawnSync("bash", [SCRIPT, "--emit-adapter", "claude"], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+          CROSS_MODEL_MODEL_OVERRIDE: model,
+        },
+      })
+      expect(rejected.status, model).toBe(2)
+      expect(rejected.stderr, model).toContain("not compatible with route")
+    }
+  })
+
   test("codex route records model_actual unverified — no served-model receipt on that route (R8)", () => {
     // The codex stub writes findings to stdout (the -o file recovery path); the
     // route exposes no authoritative identity report, so model_actual is the
@@ -856,28 +881,27 @@ describe("cross-model-adversarial-review fixed-recipient dispatch", () => {
     `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t"}]}}'\n`
 
   test("binds critique authorship to the final assistant event and treats modelUsage as participant inventory", () => {
-    const stream = readFileSync(STREAM_FIXTURE, "utf8")
+    const stream = [
+      '{"type":"assistant","message":{"model":"claude-opus-4-8-20260115","stop_reason":"end_turn"}}',
+      '{"type":"result","subtype":"success","is_error":false,"structured_output":{"reviewer":"adversarial","findings":[]},"modelUsage":{"claude-haiku-4-5-20251001":{},"claude-opus-4-8-20260115":{}}}',
+    ].join("\n")
     const { env } = sandbox(["claude"], claudeStreamStub(stream))
     const runDir = makeRunDir()
-    const r = run(["codex", "claude", "HEAD", runDir], runDir, {
-      ...env,
-      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
-      CROSS_MODEL_MODEL_OVERRIDE: "claude-fable-5",
-    })
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
     expect(r.files).toContain("adversarial-claude.json")
     const out = JSON.parse(readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"))
     expect(out).toMatchObject({
       receipt_version: "critique-author/v1",
       lane: "adversarial",
       required: false,
-      model_requested: "claude-fable-5",
-      model_actual: "claude-fable-5-20260715",
+      model_requested: "opus",
+      model_actual: "claude-opus-4-8-20260115",
       receipt_source: "claude.assistant.message.model",
       receipt_status: "matched",
       critique_status: "usable",
       observed_participants: [
-        "claude-fable-5-20260715",
         "claude-haiku-4-5-20251001",
+        "claude-opus-4-8-20260115",
       ],
     })
     expect(out.model_observed_ids).toEqual(out.observed_participants)
@@ -987,11 +1011,12 @@ describe("cross-model-adversarial-review fixed-recipient dispatch", () => {
 })
 
 describe("cross-model provider kernel parity (code-review vs doc-review)", () => {
-  test("model IDs match across both skills' --emit-adapter output", () => {
+  test("non-Claude model IDs stay aligned while Claude follows its review lane", () => {
     expect(emitAdapter("codex")).toContain("gpt-5.6-luna")
     expect(emitAdapter("codex", DOC_SCRIPT)).toContain("gpt-5.6-luna")
     expect(emitAdapter("claude")).toContain("--model opus")
     expect(emitAdapter("claude", DOC_SCRIPT)).toContain("--model opus")
+    expect(emitAdapter("claude", DOC_SCRIPT, {}, "product-lens")).toContain("--model fable")
     expect(emitAdapter("grok-cli")).toContain("grok-4.5")
     expect(emitAdapter("grok-cli", DOC_SCRIPT)).toContain("grok-4.5")
     expect(emitAdapter("grok-cursor")).toContain("cursor-grok-4.5-high")
@@ -1012,16 +1037,14 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
     }
   })
 
-  test("model-override validation stays byte-identical across review workers", () => {
-    const block = (script: string) => {
+  test("receipt extraction stays shared while lane override validation is intentionally local", () => {
+    const receiptBlock = (script: string) => {
       const source = readFileSync(script, "utf8")
-      const start = source.indexOf("validate_model_override()")
-      const end = source.indexOf("# --- --emit-adapter", start)
-      expect(start).toBeGreaterThan(-1)
-      expect(end).toBeGreaterThan(start)
+      const start = source.indexOf("expected_model_prefix()")
+      const end = source.indexOf("route_model()", start)
       return source.slice(start, end)
     }
-    expect(block(SCRIPT)).toBe(block(DOC_SCRIPT))
+    expect(receiptBlock(SCRIPT)).toBe(receiptBlock(DOC_SCRIPT))
   })
 })
 

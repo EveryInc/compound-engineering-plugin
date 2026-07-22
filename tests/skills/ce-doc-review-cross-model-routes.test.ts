@@ -108,11 +108,25 @@ const NEVER_FLAGS = [
   "--dangerously-skip-permissions",
 ]
 
-function emitAdapter(route: string, extraEnv: Record<string, string> = {}): string {
-  const r = spawnSync("bash", [SCRIPT, "--emit-adapter", route], {
+function emitAdapterResult(
+  route: string,
+  extraEnv: Record<string, string> = {},
+  reviewer = route === "claude" ? "adversarial" : undefined,
+) {
+  const args = [SCRIPT, "--emit-adapter", route]
+  if (reviewer) args.push(reviewer)
+  return spawnSync("bash", args, {
     encoding: "utf8",
     env: { ...process.env, ...extraEnv },
   })
+}
+
+function emitAdapter(
+  route: string,
+  extraEnv: Record<string, string> = {},
+  reviewer = route === "claude" ? "adversarial" : undefined,
+): string {
+  const r = emitAdapterResult(route, extraEnv, reviewer)
   expect(r.status).toBe(0)
   return (r.stdout ?? "").trim()
 }
@@ -278,7 +292,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
   })
 
   test("claude: all tools disabled + safe mode + dontAsk + effort high", () => {
-    const cmd = emitAdapter("claude")
+    const cmd = emitAdapter("claude", {}, "adversarial")
     expect(cmd).toContain("--permission-mode dontAsk")
     expect(cmd).toContain("--tools") // allowlist deny-all ("" disables every built-in)
     expect(cmd).toContain("--safe-mode")
@@ -288,6 +302,41 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(cmd).toContain("--model opus")
     expect(cmd).toContain("--output-format stream-json")
     expect(cmd).toContain("--verbose")
+  })
+
+  test.each([
+    ["product-lens", "fable"],
+    ["whole-doc", "fable"],
+    ["security-lens", "opus"],
+    ["adversarial", "opus"],
+  ])("derives Claude %s routing only from the validated reviewer identity", (reviewer, model) => {
+    const cmd = emitAdapter("claude", {}, reviewer)
+    expect(cmd).toContain(`--model ${model}`)
+    expect(cmd).toContain("--effort high")
+  })
+
+  test("rejects an unknown reviewer before Claude adapter introspection", () => {
+    const result = emitAdapterResult("claude", {}, "not-a-lens")
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain("reviewer-name")
+  })
+
+  test("accepts exact-ID overrides only within the selected Claude lane family", () => {
+    const fableExact = {
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+      CROSS_MODEL_MODEL_OVERRIDE: "claude-fable-5-20260715",
+    }
+    const opusExact = {
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+      CROSS_MODEL_MODEL_OVERRIDE: "claude-opus-4-8-20260115",
+    }
+    expect(emitAdapter("claude", fableExact, "product-lens"))
+      .toContain("--model claude-fable-5-20260715")
+    expect(emitAdapter("claude", opusExact, "security-lens"))
+      .toContain("--model claude-opus-4-8-20260115")
+
+    expect(emitAdapterResult("claude", opusExact, "whole-doc").status).toBe(2)
+    expect(emitAdapterResult("claude", fableExact, "adversarial").status).toBe(2)
   })
 
   test("grok CLI: deny Read + web/subagents off + dontAsk + effort high", () => {
@@ -539,11 +588,7 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     const { env } = sandbox(["claude"], claudeStreamStub(stream))
     const doc = makeDoc()
     const runDir = makeRunDir()
-    const r = run(["codex", "claude", "whole-doc", doc, "plan", "none", runDir], runDir, {
-      ...env,
-      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
-      CROSS_MODEL_MODEL_OVERRIDE: "claude-fable-5",
-    })
+    const r = run(["codex", "claude", "whole-doc", doc, "plan", "none", runDir], runDir, env)
     expect(r.files).toContain("whole-doc-claude.json")
     const out = JSON.parse(readFileSync(path.join(runDir, "whole-doc-claude.json"), "utf8"))
     expect(out).toMatchObject({
@@ -570,15 +615,15 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     const { env } = sandbox(["claude"], claudeStreamStub(stream))
     const doc = makeDoc()
     const runDir = makeRunDir()
-    run(["codex", "claude", "whole-doc", doc, "plan", "none", runDir], runDir, {
-      ...env,
-      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
-      CROSS_MODEL_MODEL_OVERRIDE: "claude-fable-5",
-    })
+    const result = run(["codex", "claude", "whole-doc", doc, "plan", "none", runDir], runDir, env)
     const out = JSON.parse(readFileSync(path.join(runDir, "whole-doc-claude.json"), "utf8"))
+    expect(out.model_requested).toBe("fable")
     expect(out.model_actual).toBe("claude-opus-4-8-20260115")
     expect(out.receipt_status).toBe("mismatched")
     expect(out.independence_verified).toBe(false)
+    expect(result.stderr).toContain("provider substitution")
+    expect(result.stderr).toContain("consistent with documented safety routing")
+    expect(result.stderr).not.toMatch(/not logged in|out of credits|quota|rate.limit/i)
     expect(out.observed_participants).toEqual([
       "claude-fable-5-20260715",
       "claude-opus-4-8-20260115",
@@ -661,11 +706,7 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     const { env } = sandbox(["claude"], receiptStub)
     const doc = makeDoc()
     const runDir = makeRunDir()
-    const r = run(["codex", "claude", "whole-doc", doc, "plan", "none", runDir], runDir, {
-      ...env,
-      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
-      CROSS_MODEL_MODEL_OVERRIDE: "claude-fable-5",
-    })
+    const r = run(["codex", "claude", "whole-doc", doc, "plan", "none", runDir], runDir, env)
     const out = JSON.parse(readFileSync(path.join(runDir, "whole-doc-claude.json"), "utf8"))
     expect(out.model_actual).toBe("claude-fable-5-20260701")
     expect(out.model_observed_ids).toEqual([

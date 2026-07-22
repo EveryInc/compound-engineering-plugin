@@ -12,8 +12,9 @@
 #
 # Independence is by PROVIDER, not CLI brand. A provider is reached by a ROUTE:
 # its dedicated CLI, or (for fixed grok-cursor / composer routes) cursor-agent. All
-# activated lenses run on ONE model per provider at high reasoning, except codex
-# on extra-high; composer's -fast tier is its ceiling (accepted exceptions).
+# activated lenses run on one model per provider at high reasoning, except that
+# Claude is lane-aware: ordinary document lanes request Fable while guarded
+# lanes request Opus. Codex stays extra-high; composer's -fast tier is its ceiling.
 #
 # Usage:
 #   cross-model-doc-review.sh <host-provider> <candidates> <reviewer-name> \
@@ -46,7 +47,7 @@
 #   <run-dir>       an existing dir; output -> <run-dir>/<reviewer-name>-<provider>.json
 #
 # Test/introspection mode (no model call, no side effects):
-#   cross-model-doc-review.sh --emit-adapter <route>
+#   cross-model-doc-review.sh --emit-adapter <route> [reviewer-name]
 #     prints the exact argv the given route would run (route in:
 #     codex | claude | grok-cli | grok-cursor | composer). Both this mode and the
 #     live run build their argv from adapter_argv(), so the U7 route-safety test
@@ -79,14 +80,39 @@ log()  { printf '[cross-model-doc] %s\n' "$*" >&2; }
 skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no output
 
 # --- model + reasoning per provider ----------------------------------------
-# ONE model per provider at high reasoning, except codex on extra-high (supersedes
-# the old per-lens sol/terra split). Concrete IDs are the CURRENT instance of the
-# tier principle and the single maintenance point when model families change.
+# Non-Claude routes keep one provider-wide model. Claude is selected only from
+# the validated reviewer policy below. Concrete IDs are the CURRENT instance of
+# the tier principle and the single maintenance point when model families change.
 M_CODEX="gpt-5.6-luna"         # codex CLI            (-c model_reasoning_effort="xhigh")
-M_CLAUDE="opus"                # claude CLI, Opus 4.8 (--effort high)
+M_CLAUDE_FABLE="fable"         # ordinary document lanes (--effort high)
+M_CLAUDE_OPUS="opus"           # guarded document lanes  (--effort high)
+M_CLAUDE=""                     # selected once from the validated reviewer identity
 M_GROK="grok-4.5"              # grok CLI             (--effort high)
 M_GROK_CURSOR="cursor-grok-4.5-high"  # fixed cursor-agent Grok route (current id)
 M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is the ceiling)
+
+PERSONA_FILE=""
+set_reviewer_policy() {   # <validated reviewer identity>; sets persona + Claude lane model
+  case "$1" in
+    security-lens) PERSONA_FILE="security-lens-reviewer"; M_CLAUDE="$M_CLAUDE_OPUS" ;;
+    adversarial)   PERSONA_FILE="adversarial-document-reviewer"; M_CLAUDE="$M_CLAUDE_OPUS" ;;
+    product-lens)  PERSONA_FILE="product-lens-reviewer"; M_CLAUDE="$M_CLAUDE_FABLE" ;;
+    whole-doc)     PERSONA_FILE="whole-doc-reviewer"; M_CLAUDE="$M_CLAUDE_FABLE" ;;
+    *) return 1 ;;
+  esac
+}
+
+announce_claude_identity_outcome() {
+  local requested
+  requested="$(route_model claude)" || return 0
+  if [ "$RECEIPT_STATUS" = "mismatched" ]; then
+    case "$requested:$MODEL_ACTUAL" in
+      fable:claude-opus-*|claude-fable-*:claude-opus-*)
+        log "provider substitution: requested $requested, backend served $MODEL_ACTUAL; consistent with documented safety routing, with per-call cause unverified"
+        ;;
+    esac
+  fi
+}
 
 # --- model-identity receipt (R7/R8) -----------------------------------------
 # "Which model authored the critique" needs a serving-side author receipt.
@@ -271,8 +297,14 @@ validate_model_override() {
   target="$(route_target "$route")" || return 1
   [ "$override_target" = "$target" ] || return 0
   [ "$target" != "cursor" ] || return 1
+  if [ "$route" = "claude" ]; then
+    case "$M_CLAUDE:$override" in
+      fable:fable|fable:claude-fable-*|opus:opus|opus:claude-opus-*) return 0 ;;
+      *) return 1 ;;
+    esac
+  fi
   case "$route:$override" in
-    codex:gpt-*|codex:o[0-9]*|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|composer:composer-*) ;;
+    codex:gpt-*|codex:o[0-9]*|grok-cli:grok-*|grok-cursor:cursor-grok-*|composer:composer-*) ;;
     *) return 1 ;;
   esac
 }
@@ -284,6 +316,10 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   OUT="<run-dir>/<lens>-<provider>.json"
   PROMPT_FILE="<prompt-file>"; SCHEMA_REF="<schema>"
   route="${2:-}"
+  if [ "$route" = "claude" ]; then
+    REVIEWER_NAME="${3:-}"
+    set_reviewer_policy "$REVIEWER_NAME" || { echo "reviewer-name '${REVIEWER_NAME:-<empty>}' is not valid for Claude adapter introspection" >&2; exit 2; }
+  fi
   validate_model_override "$route" 2>/dev/null || { echo "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
   # adapter_argv emits NUL-delimited argv (can't be captured in a shell var), so
   # validate the route first, then render for humans with NUL -> space.
@@ -303,6 +339,7 @@ RUN_DIR="${7:-}"
 
 # --- validate inputs -------------------------------------------------------
 [ -n "$REVIEWER_NAME" ] || skip "no reviewer-name given; skipping"
+[ -n "$REVIEWER_NAME" ] && set_reviewer_policy "$REVIEWER_NAME" || skip "reviewer-name '$REVIEWER_NAME' is not a cross-model reviewer (want security-lens|adversarial|product-lens|whole-doc); skipping"
 [ -n "$DOC_PATH" ] && [ -f "$DOC_PATH" ] || skip "document '${DOC_PATH:-<empty>}' not readable on disk; skipping"
 : "${DOC_TYPE:=unified-plan}"
 : "${ORIGIN:=none}"
@@ -327,15 +364,8 @@ case "$HOST_HARNESS" in
 esac
 [ "$HOST_PROVIDER" != "unknown" ] || skip "host serving family unattested; automatic cross-model review skipped"
 
-# --- derive persona-brief filename from the allowlisted reviewer-name -------
-# Never a caller argument -> no path-traversal / arbitrary-file-read surface.
-case "$REVIEWER_NAME" in
-  security-lens) PERSONA_FILE="security-lens-reviewer" ;;
-  adversarial)   PERSONA_FILE="adversarial-document-reviewer" ;;
-  product-lens)  PERSONA_FILE="product-lens-reviewer" ;;
-  whole-doc)     PERSONA_FILE="whole-doc-reviewer" ;;   # broad whole-document sweep (R20/U9); embeds the full doc, no in-process twin
-  *) skip "reviewer-name '$REVIEWER_NAME' is not a cross-model reviewer (want security-lens|adversarial|product-lens|whole-doc); skipping" ;;
-esac
+# The validated reviewer policy above is the only source for both the persona
+# path and Claude request family; document contents and caller paths never choose it.
 
 # --- self-locate skill root + canonical sibling files ----------------------
 SKILL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || skip "cannot resolve skill root; skipping"
@@ -684,7 +714,12 @@ attempt_route() {   # <provider> <route>
     claude)
       run_timeout_cmd "$PROMPT_FILE"
       if [ "$RUN_SUCCEEDED" = true ]; then
-        extract_model_receipt "$route" && parse_claude_structured "$RAW_OUT" || rm -f "$RAW_OUT"
+        if extract_model_receipt "$route"; then
+          announce_claude_identity_outcome
+          parse_claude_structured "$RAW_OUT" || rm -f "$RAW_OUT"
+        else
+          rm -f "$RAW_OUT"
+        fi
       fi
       ;;   # claude -p reads stdin
     grok-cursor|cursor|composer)

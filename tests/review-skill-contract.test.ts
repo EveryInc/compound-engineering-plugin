@@ -1122,6 +1122,38 @@ describe("cross-model peer skip legibility", () => {
     },
   ]
 
+  test("review contracts publish the final lane-aware Claude policy and POV boundary", async () => {
+    const docWorker = await readRepoFile(
+      "skills/ce-doc-review/scripts/cross-model-doc-review.sh",
+    )
+    const codeWorker = await readRepoFile(
+      "skills/ce-code-review/scripts/cross-model-adversarial-review.sh",
+    )
+    const povWorker = await readRepoFile(
+      "skills/ce-pov/scripts/cross-model-pov.sh",
+    )
+    const docReference = await readRepoFile(
+      "skills/ce-doc-review/references/cross-model-review.md",
+    )
+    const codeReference = await readRepoFile(
+      "skills/ce-code-review/references/cross-model-review.md",
+    )
+
+    expect(docWorker).toMatch(/product-lens[^\n]*fable/i)
+    expect(docWorker).toMatch(/whole-doc[^\n]*fable/i)
+    expect(docWorker).toMatch(/security-lens[^\n]*opus/i)
+    expect(docWorker).toMatch(/adversarial[^\n]*opus/i)
+    expect(codeWorker).toContain('M_CLAUDE="opus"')
+    expect(povWorker).toContain('M_CLAUDE="opus"')
+
+    expect(docReference).toMatch(/product-lens.*whole-doc.*Fable/is)
+    expect(docReference).toMatch(/security-lens.*adversarial.*Opus/is)
+    expect(docReference).toMatch(/per-lane.*announce|announce.*per-lane/is)
+    expect(docReference).toMatch(/provider substitution.*documented safety routing/is)
+    expect(codeReference).toMatch(/adversarial.*Opus.*high/is)
+    expect(`${docReference}\n${codeReference}`).toMatch(/POV.*Opus.*compatibility exception/is)
+  })
+
   // A fixed route succeeded only
   // when it returned a reviewer-shaped object with a top-level `findings` array
   // — not merely any valid JSON. Accepting an error/envelope object (e.g. a grok
