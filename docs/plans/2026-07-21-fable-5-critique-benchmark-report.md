@@ -1076,6 +1076,7 @@ Both ordinary lanes passed the pre-registered adoption gate. Fable matched Opus 
       "schema_regression": false,
       "receipt_regression": false,
       "receipt_gate_failed": false,
+      "absolute_detection_floor_failed": false,
       "refusal_regression": false,
       "deadline_regression": false,
       "decision": "pass"
@@ -1111,6 +1112,7 @@ Both ordinary lanes passed the pre-registered adoption gate. Fable matched Opus 
       "schema_regression": false,
       "receipt_regression": false,
       "receipt_gate_failed": false,
+      "absolute_detection_floor_failed": false,
       "refusal_regression": false,
       "deadline_regression": false,
       "decision": "pass"
@@ -1145,7 +1147,7 @@ All 56 calls remain in the historical ledger. Nothing was selectively replaced, 
 - Total provider-call ceiling: 160.
 - Planning ceiling: $16.00 ($0.20 per Opus call, $0.30 per Fable call, and $0.05 per judge call).
 - Quality eligibility: only a matching, usable final-assistant author receipt enters its arm's quality numerator. `modelUsage` remains participant inventory only. Substituted, ambiguous/unverified, refused, schema-invalid, auth/quota-failed, and timed-out trials remain in the denominator with no replacement run.
-- Decision: each lane requires complete quality-eligible receipts in both arms; detection delta and its lower bound must be at least -0.10; no P0/P1 item may regress; noise delta must be at most 0.5 findings/review; schema, receipt/non-refusal, and deadline success may not regress.
+- Decision: each lane requires complete quality-eligible receipts in both arms and at least 0.5 absolute severity-weighted detection in each arm; detection delta and its lower bound must be at least -0.10; no P0/P1 item may regress; noise delta must be at most 0.5 findings/review; schema, receipt/non-refusal, and deadline success may not regress.
 
 ```historical-unverified-benchmark-json
 {
@@ -2171,6 +2173,7 @@ All 56 calls remain in the historical ledger. Nothing was selectively replaced, 
       "schema_regression": false,
       "receipt_regression": false,
       "receipt_gate_failed": true,
+      "absolute_detection_floor_failed": true,
       "refusal_regression": false,
       "deadline_regression": false,
       "decision": "stop"
@@ -2206,6 +2209,7 @@ All 56 calls remain in the historical ledger. Nothing was selectively replaced, 
       "schema_regression": false,
       "receipt_regression": false,
       "receipt_gate_failed": true,
+      "absolute_detection_floor_failed": true,
       "refusal_regression": false,
       "deadline_regression": false,
       "decision": "stop"

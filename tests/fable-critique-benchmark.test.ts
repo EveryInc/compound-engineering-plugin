@@ -38,7 +38,7 @@ function fakeRoutes(root: string): { bin: string; log: string } {
   return { bin, log }
 }
 
-function concurrentFakeRoutes(root: string): { bin: string; reviewState: string; judgeState: string; argvLog: string; promptDir: string } {
+function concurrentFakeRoutes(root: string, judgeFails = false): { bin: string; reviewState: string; judgeState: string; argvLog: string; promptDir: string } {
   const bin = path.join(root, "concurrent-bin")
   const state = path.join(root, "state")
   const argvLog = path.join(state, "argv.log")
@@ -101,6 +101,7 @@ printf 'codex %s cwd=%s\\n' "$*" "$PWD" >> '${argvLog}'
 rmdir '${path.join(state, "argv-lock")}'
 track_start '${path.join(state, "judge")}'
 sleep 0.02
+if ${judgeFails ? "true" : "false"}; then track_end '${path.join(state, "judge")}'; exit 91; fi
 output=
 previous=
 for argument in "$@"; do [ "$previous" = "--output-last-message" ] && output="$argument"; previous="$argument"; done
@@ -375,6 +376,25 @@ describe("Fable ordinary-lane critique benchmark", () => {
     expect(readdirSync(path.join(root, "scratch"))).toEqual([])
   }, 30_000)
 
+  test("paid execution fails closed when any judge vote is unavailable", () => {
+    const root = tempRoot("fable-benchmark-judge-failure-")
+    const routes = concurrentFakeRoutes(root, true)
+    const aggregate = path.join(root, "aggregate.json")
+    const result = run([
+      "--run", "--manifest", MANIFEST, "--scratch-root", path.join(root, "scratch"),
+      "--confirm-provider-calls", "160", "--aggregate-output", aggregate,
+    ], {
+      PATH: `${routes.bin}:${process.env.PATH ?? ""}`,
+      FABLE_CRITIQUE_ALLOWED_RECIPIENTS: "anthropic,openai",
+      FABLE_CRITIQUE_COST_ESTIMATE_APPROVED: "16.00",
+    })
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("judge vote failed validation; benchmark evidence is incomplete")
+    expect(existsSync(aggregate)).toBe(false)
+    expect(readdirSync(path.join(root, "scratch"))).toEqual([])
+  }, 30_000)
+
   test("authorship is the final assistant before one successful result; modelUsage is participant inventory only", () => {
     const trial = buildPreRegisteredTrials(JSON.parse(readFileSync(MANIFEST, "utf8")), MANIFEST)[0]
     const stream = [
@@ -396,6 +416,30 @@ describe("Fable ordinary-lane critique benchmark", () => {
     expect(classified.model_actual).toBe("claude-opus-4-8")
     expect(classified.receipt_source).toBe("claude.assistant.message.model")
     expect(classified.observed_participants).toEqual(["claude-haiku-helper", "claude-opus-4-8"])
+  })
+
+  test("requires a recognized assistant stop reason and ignores successful stderr chatter", () => {
+    const trial = buildPreRegisteredTrials(JSON.parse(readFileSync(MANIFEST, "utf8")), MANIFEST)[0]
+    const stream = (stopReason: string | undefined) => [
+      { type: "assistant", message: { model: "claude-opus-4-8", ...(stopReason ? { stop_reason: stopReason } : {}) } },
+      {
+        type: "result", subtype: "success", is_error: false,
+        structured_output: { reviewer: "benchmark", findings: [], residual_risks: [], deferred_questions: [] },
+        modelUsage: { "claude-opus-4-8": {} },
+      },
+    ].map((event) => JSON.stringify(event)).join("\n")
+
+    const missingStop = (benchmark as any).classifyTrial(trial, { status: 0, stdout: stream(undefined), stderr: "" }, 1)
+    expect(missingStop.outcome).toBe("unverified")
+    expect(missingStop.usable).toBe(false)
+
+    const chatter = (benchmark as any).classifyTrial(trial, {
+      status: 0,
+      stdout: stream("end_turn"),
+      stderr: "authentication credits remain available",
+    }, 1)
+    expect(chatter.outcome).toBe("matched")
+    expect(chatter.usable).toBe(true)
   })
 
   test.each([
@@ -493,6 +537,9 @@ describe("Fable ordinary-lane critique benchmark", () => {
     const { trials, evidence } = perfectEvidence()
     expect(() => assertExactTrialSet(trials, evidence.slice(1))).toThrow("pre-registered non-replaceable set")
     expect(() => assertExactTrialSet(trials, [...evidence, evidence[0]])).toThrow("pre-registered non-replaceable set")
+    const tampered = structuredClone(evidence)
+    tampered[0].fixture_digest = "0".repeat(64)
+    expect(() => assertExactTrialSet(trials, tampered)).toThrow("pre-registered non-replaceable set")
   })
 
   test("raw exports, sentinel hits, and cleanup failures are fail-closed", () => {
@@ -521,6 +568,7 @@ describe("Fable ordinary-lane critique benchmark", () => {
     expect(source).toContain("non_refusal_success_rate")
     expect(source).toContain("deadline_success_rate")
     expect(source).toContain("NON_INFERIORITY_MARGIN = -0.1")
+    expect(source).toContain("MIN_ABSOLUTE_DETECTION = 0.5")
     expect(source).toContain("MAX_NOISE_DELTA = 0.5")
 
     expect(scoreEvidence(perfectEvidence().manifest, perfectEvidence().evidence).overall_decision).toBe("adopt")
@@ -556,6 +604,12 @@ describe("Fable ordinary-lane critique benchmark", () => {
       mutate(evidence)
       expect(scoreEvidence(manifest, evidence).overall_decision).toBe("stop")
     }
+
+    const ineffective = perfectEvidence()
+    for (const trial of ineffective.evidence) trial.detected_ledger_ids = []
+    const ineffectiveScore = scoreEvidence(ineffective.manifest, ineffective.evidence)
+    expect(ineffectiveScore.overall_decision).toBe("stop")
+    expect(ineffectiveScore.decision_table.every((row) => row.absolute_detection_floor_failed)).toBe(true)
 
     const { manifest, evidence } = perfectEvidence()
     for (const trial of evidence.filter((item) => item.arm_id === "fable-high" && item.case_id === "whole-order")) {
@@ -598,6 +652,20 @@ describe("Fable ordinary-lane critique benchmark", () => {
     const result = run(["--verify-report", tampered, "--manifest", MANIFEST])
     expect(result.status).not.toBe(0)
     expect(result.stderr).toContain("report decision does not match recomputed decision")
+  })
+
+  test("report verification rejects tampered pre-registration metadata", () => {
+    const root = tempRoot("fable-benchmark-report-metadata-")
+    const tampered = path.join(root, "report.md")
+    const report = readFileSync(REPORT, "utf8").replace(
+      /"fixture_digest": "[a-f0-9]{64}"/,
+      `"fixture_digest": "${"0".repeat(64)}"`,
+    )
+    writeFileSync(tampered, report)
+
+    const result = run(["--verify-report", tampered, "--manifest", MANIFEST])
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("pre-registered non-replaceable set")
   })
 
   test("report verification recomputes a completed ordinary-lane decision table", () => {
