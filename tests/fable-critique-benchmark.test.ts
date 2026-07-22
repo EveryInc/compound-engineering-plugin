@@ -349,6 +349,20 @@ describe("Fable ordinary-lane critique benchmark", () => {
     }
   })
 
+  test("equal receipt failure in both arms cannot produce a vacuous adoption verdict", () => {
+    const { manifest, evidence } = perfectEvidence()
+    for (const trial of evidence) {
+      trial.outcome = "ambiguous"
+      trial.identity_status = "ambiguous"
+      trial.model_actual = "unverified"
+    }
+
+    const scored = scoreEvidence(manifest, evidence)
+    expect(scored.overall_decision).toBe("stop")
+    expect(scored.decision_table.every((row) => row.receipt_gate_failed)).toBe(true)
+    expect(scored.decision_table.every((row) => row.decision === "stop")).toBe(true)
+  })
+
   test("the harness pre-registers one immutable trial set and exposes no selective rerun surface", () => {
     const source = readFileSync(SCRIPT, "utf8")
     expect(source).toContain("buildPreRegisteredTrials")
@@ -432,12 +446,12 @@ describe("Fable ordinary-lane critique benchmark", () => {
     expect(whole.bootstrap_lower_bound_delta).toBeLessThan(-0.1)
   })
 
-  test("report verification preserves the stopped historical ledger and uses cautious routing language", () => {
+  test("report verification publishes the completed stop and preserves cautious historical language", () => {
     const routeRoot = tempRoot("fable-benchmark-report-routes-")
     const routes = fakeRoutes(routeRoot)
     const valid = run(["--verify-report", REPORT, "--manifest", MANIFEST], { PATH: `${routes.bin}:${process.env.PATH ?? ""}` })
     expect(valid.status).toBe(0)
-    expect(valid.stdout).toContain("report verification: PASS (historical stop; ordinary benchmark not run)")
+    expect(valid.stdout).toContain("report verification: PASS (stop)")
     expect(existsSync(routes.log) ? readFileSync(routes.log, "utf8") : "").toBe("")
 
     const report = readFileSync(REPORT, "utf8")
@@ -453,13 +467,13 @@ describe("Fable ordinary-lane critique benchmark", () => {
     expect(report).not.toContain("sustained usage caused")
   })
 
-  test("report verification rejects tampered historical counts or spend", () => {
+  test("report verification rejects a tampered completed verdict", () => {
     const root = tempRoot("fable-benchmark-report-")
     const tampered = path.join(root, "report.md")
-    writeFileSync(tampered, readFileSync(REPORT, "utf8").replace('"receipt_mismatches": 3', '"receipt_mismatches": 2'))
+    writeFileSync(tampered, readFileSync(REPORT, "utf8").replace('"overall_decision": "stop"', '"overall_decision": "adopt"'))
     const result = run(["--verify-report", tampered, "--manifest", MANIFEST])
     expect(result.status).not.toBe(0)
-    expect(result.stderr).toContain("historical stop evidence is invalid")
+    expect(result.stderr).toContain("report decision does not match recomputed decision")
   })
 
   test("report verification recomputes a completed ordinary-lane decision table", () => {

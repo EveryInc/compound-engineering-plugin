@@ -376,8 +376,9 @@ function armMetrics(manifest: Manifest, lane: Lane, armId: ArmId, trials: TrialE
 }
 
 function detectedInMajority(trials: TrialEvidence[], armId: ArmId, caseId: string, ledgerId: string): boolean {
+  const expected = trials.filter((trial) => trial.arm_id === armId && trial.case_id === caseId).length
   const eligible = trials.filter((trial) => trial.arm_id === armId && trial.case_id === caseId && qualityEligible(trial))
-  return eligible.filter((trial) => trial.detected_ledger_ids.includes(ledgerId)).length >= Math.ceil(eligible.length / 2)
+  return expected > 0 && eligible.filter((trial) => trial.detected_ledger_ids.includes(ledgerId)).length >= Math.ceil(expected / 2)
 }
 
 function pairedBootstrapLowerBound(manifest: Manifest, lane: Lane, trials: TrialEvidence[]): number {
@@ -425,12 +426,14 @@ export function scoreEvidence(manifest: Manifest, trials: TrialEvidence[]) {
       fable.schema_success_rate < opus.schema_success_rate ||
       fable.receipt_success_rate < opus.receipt_success_rate ||
       fable.non_refusal_success_rate < opus.non_refusal_success_rate
+    const receiptGateFailed = opus.receipt_success_rate !== 1 || fable.receipt_success_rate !== 1
     const deadlineRegression = fable.deadline_success_rate < opus.deadline_success_rate
     const pass =
       detectionDelta >= NON_INFERIORITY_MARGIN &&
       bootstrap_lower_bound_delta >= NON_INFERIORITY_MARGIN &&
       p0_p1_regressions.length === 0 &&
       noiseDelta <= MAX_NOISE_DELTA &&
+      !receiptGateFailed &&
       !providerSuccessRegression &&
       !deadlineRegression
     return {
@@ -443,6 +446,7 @@ export function scoreEvidence(manifest: Manifest, trials: TrialEvidence[]) {
       noise_delta: noiseDelta,
       schema_regression: fable.schema_success_rate < opus.schema_success_rate,
       receipt_regression: fable.receipt_success_rate < opus.receipt_success_rate,
+      receipt_gate_failed: receiptGateFailed,
       refusal_regression: fable.non_refusal_success_rate < opus.non_refusal_success_rate,
       deadline_regression: deadlineRegression,
       decision: pass ? "pass" : "stop",
