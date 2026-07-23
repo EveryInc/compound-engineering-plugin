@@ -95,6 +95,8 @@ Section: {section}
 {Conflict-context line, when applicable — see below}
 ```
 
+Substitutions below are this surface's expression of the shared rendering floor (`references/rendering-floor.md`) — the canonical source for the decision-first field order, the opaque-token policy across all three token classes, and the code-span budget. The terminal block's field order (title → What's wrong → Proposed fix → If this is left as-is) is the floor's order rendered as a labeled block; keep the two in sync.
+
 Substitutions:
 
 - **`{plain-English title}`** — a 3–8 word summary suitable as a heading. Derived from the merged finding's `title` field but rephrased so it reads as observable consequence (e.g., "Implementers will pick different tiers" rather than "Section X-Y lists four tiers"). For document-review findings, observable consequence is the *effect on a reader, implementer, or downstream decision*, not runtime behavior.

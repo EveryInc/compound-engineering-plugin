@@ -250,6 +250,14 @@ Run this pass on the merged set across all personas. Record the count dropped as
 
 ## Phase 4: Apply and Present
 
+**Rendering floor (applies to every finding, every mode — read before rendering anything).** Read
+`references/rendering-floor.md` now. It is the single source of truth for the decision-first field
+order (Recommendation → Consequence-if-unchanged → Change → Basis → Trace-on-request), the
+domain-agnostic opaque-token policy (navigation anchors, provenance anchors, mechanism symbols; at
+most two anchors per block), and the code-span budget. Every surface below — the headless envelope,
+the interactive template, and the bulk preview — maps its own layout onto that floor. Do not restate
+a weaker per-surface rule; the floor is authoritative.
+
 **User-facing vocabulary rule (applies to ALL user-visible output in Phase 4, not just the rendered template).** Internal enum values — `safe_auto`, `gated_auto`, `manual`, `FYI` — stay inside the schema and synthesis prose. Every word the user sees in Phase 4 output, including free-text narration between sections, transition preambles, status lines, and confirmation messages, MUST use user-facing vocabulary: "fixes" (for `safe_auto`), "proposed fixes" (for `gated_auto`), "decisions" (for `manual` findings at anchor `75` or `100`), "FYI observations" (for any finding at anchor `50`). The only exception is the `Tier` column in rendered tables, which is explicitly documented as surfacing the internal enum for transparency. Do NOT emit narration like "safe_auto fixes applied" or "N safe_auto findings" — write "fixes applied" or "N fixes" instead.
 
 ### Apply safe_auto fixes
@@ -272,7 +280,18 @@ After safe_auto fixes apply, remaining findings split into buckets:
 - FYI-subsection findings → surface in the presentation only, no routing
 - Zero actionable findings remaining → skip the routing question; flow directly to Phase 5 terminal question
 
-**Self-contained rendered lines (both modes, including the Applied-fixes list).** Rendered output is read by someone who does not have the document open and has not internalized its internal ID scheme. When a rendered line — an applied fix, proposed fix, decision, FYI observation, residual concern, or deferred question — references an identifier the document itself defines (a requirement ID, unit ID, or similar shorthand such as `R6`, `U3`, `KTD2`), pair the identifier at its first mention within that finding's rendered block with a short plain-language handle for what it names, drawn from the document (e.g., `R6 (suppress peer panels on low-stakes calls)`, not bare `R6`). Resolve the handle at render time against the document already in context from Phase 1 — findings arrive carrying the bare identifier, so the handle is looked up here, not transported from the persona that raised the finding. Render-time lookup is also what keeps the handle accurate after an Apply has edited or renumbered the item it names. If the document is no longer in context, re-read the referenced section before rendering rather than emitting the bare identifier. Keep the identifier — it anchors the finding for anyone editing the document — and keep the handle to a few words; do not inline the full requirement or unit text. A line whose only description of a referenced item is the bare identifier is not acceptable rendered output. Universally understood section names (`Requirements`, `Open Questions`) need no handle.
+**Self-contained rendered lines (both modes, including the Applied-fixes list).** Every rendered line —
+an applied fix, proposed fix, decision, FYI observation, residual concern, or deferred question —
+obeys the shared rendering floor (`references/rendering-floor.md`): decision-first field order, and the
+opaque-token policy applied to **all three** token classes, not document IDs alone. A requirement or
+unit ID (`R6`, `U3`) is a navigation anchor (keep the ID, gloss at first mention); a ticket or PR
+number (`ESP-3373`, `PR #1776`) is a provenance anchor (gloss only when the event changes the
+decision, else move to trace); a function, file, variable, or line reference the document names
+(`clearMuxStatus`, `codebookTranscriptMode.ts:46`) is a mechanism symbol (translate to its role; keep
+the exact symbol only when precise scope drives the decision). At most two anchors per block; resolve
+each handle at render time against the document in context so it stays accurate after an Apply
+renumbers the item. A line whose only description of a referenced item is a bare identifier — of any
+class — is not acceptable rendered output.
 
 **Headless mode:** Do not use interactive question tools. Output all findings as a structured text envelope the caller can parse. Internal enum values (`safe_auto`, `gated_auto`, `manual`, `FYI`) stay in the schema and synthesis prose; the envelope below uses user-facing vocabulary — "fixes", "Proposed fixes", "Decisions", "FYI observations" — so headless output reads the same way interactive output does.
 
@@ -285,26 +304,30 @@ Applied N fixes:
 
 Proposed fixes (concrete fix, requires user confirmation):
 
-[P0] Section: <section> — <title> (<reviewer>, confidence <anchor>)
-  Why: <why_it_matters>
-  Suggested fix: <suggested_fix>
+[P0] Section: <section> — <consequence-first title> (<reviewer>, confidence <anchor>)
+  Recommendation: <Apply | Defer | Skip>
+  Consequence if unchanged: <one sentence, no opaque identifier>
+  Change: <suggested_fix as intent language>
+  Basis: <at most two sentences of mechanism, opaque tokens glossed, at most two anchors>
 
 Decisions (requires user judgment):
 
-[P1] Section: <section> — <title> (<reviewer>, confidence <anchor>)
-  Why: <why_it_matters>
-  Suggested fix: <suggested_fix or "none">
+[P1] Section: <section> — <consequence-first title> (<reviewer>, confidence <anchor>)
+  Recommendation: <Apply | Defer | Skip>
+  Consequence if unchanged: <one sentence, no opaque identifier>
+  Change: <suggested_fix as intent language, or "none">
+  Basis: <at most two sentences of mechanism, opaque tokens glossed, at most two anchors>
 
   Dependents (would resolve if this root is rejected):
-    [P2] Section: <section> — <title> (<reviewer>, confidence <anchor>)
-      Why: <why_it_matters>
-    [P2] Section: <section> — <title> (<reviewer>, confidence <anchor>)
-      Why: <why_it_matters>
+    [P2] Section: <section> — <consequence-first title> (<reviewer>, confidence <anchor>)
+      Consequence if unchanged: <one sentence, no opaque identifier>
+    [P2] Section: <section> — <consequence-first title> (<reviewer>, confidence <anchor>)
+      Consequence if unchanged: <one sentence, no opaque identifier>
 
 FYI observations (anchor 50, no decision required):
 
-[P3] Section: <section> — <title> (<reviewer>, confidence <anchor>)
-  Why: <why_it_matters>
+[P3] Section: <section> — <consequence-first title> (<reviewer>, confidence <anchor>)
+  Consequence if unchanged: <one sentence, no opaque identifier>
 
 Residual concerns:
 - <concern> (<source>)
@@ -321,7 +344,7 @@ Review complete
 
 Omit any section with zero items. The section headers reflect user-facing vocabulary: the "Proposed fixes" bucket carries `gated_auto` findings at anchor `75` or `100` (the persona has a concrete fix; the user confirms), "Decisions" carries `manual` findings at anchor `75` or `100` (judgment calls), and "FYI observations" carries any finding at anchor `50` regardless of `autofix_class`. When a root has dependents, render the root at its normal position in the severity-sorted list and nest its dependents as an indented `Dependents (...)` sub-block immediately below. Do not re-list dependents at their own severity position — they appear only under their root. End with "Review complete" as the terminal signal so callers can detect completion.
 
-**Compact rendering for FYI observations, residual concerns, and deferred questions (high-count mode).** When the combined count of these three buckets is 5 or more, collapse each to a one-line count followed by a tight bullet list without per-item `Why` expansion. Actionable buckets (Proposed fixes / Decisions) remain fully rendered regardless. This mirrors the interactive-mode rule in `references/review-output-template.md` so both modes produce the same shape.
+**Compact rendering for FYI observations, residual concerns, and deferred questions (high-count mode).** When the combined count of these three buckets is 5 or more, collapse each to a one-line count followed by a tight bullet list of the consequence lines only, without any per-item mechanism/Basis expansion. Actionable buckets (Proposed fixes / Decisions) remain fully rendered regardless. This mirrors the interactive-mode rule in `references/review-output-template.md` so both modes produce the same shape.
 
 **Interactive mode:**
 
