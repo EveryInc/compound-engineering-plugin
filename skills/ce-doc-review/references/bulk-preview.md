@@ -84,7 +84,7 @@ Each line uses the compressed form of the framing-quality guidance from the suba
 - **Shape:** `[<severity>] <section> — <one-line summary>`
 - **Width target:** keep lines near 80 columns so the preview renders cleanly in narrow terminals. Truncate with ellipsis when necessary.
 - **No section numbering** unless the reader needs it to locate the issue (when multiple findings hit the same named section).
-- **Self-contained identifiers** — when the one-line summary references a document-defined identifier (a requirement or unit ID such as `R4`, `U3`), pair it at first mention with a short plain-language handle drawn from the document (e.g., `R4 (the auth-token requirement)`) — never a bare identifier as the summary's only description of what it names. Keep the ID itself. Per the self-contained-rendered-lines rule in `references/synthesis-and-presentation.md`.
+- **Self-contained identifiers** — the one-line summary obeys the shared rendering floor (`references/rendering-floor.md`): it is consequence-first and applies the opaque-token policy to all three classes (navigation anchors like `R4`/`U3` keep the ID and gloss at first mention; provenance anchors like tickets/PRs appear only when the event drives the decision; mechanism symbols like functions/files translate to their role). A summary whose only description of a referenced item is a bare identifier of any class is not acceptable. The floor is the single source.
 
 When no `why_it_matters` is available for a finding (rare — only if persona output was malformed), fall back to the finding's title directly. Note the gap in the completion report's Coverage section if it affects more than a few findings in the same run.
 

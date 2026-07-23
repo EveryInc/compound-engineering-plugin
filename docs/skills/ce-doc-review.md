@@ -144,6 +144,10 @@ The declared model/route mappings are attempted first. When a current CLI reject
 
 Decisions the user examined and settled carry a `session-settled:` annotation, and `ce-doc-review` treats it as protected content: the safe-auto pass never strips it, and a persona that wants to challenge a settled decision must frame the challenge as infeasibility, not preference — surfaced for decision, never auto-applied.
 
+### 11. Shared rendering floor — decision-first, domain-agnostic legibility
+
+Because the skill reviews documents for arbitrary products, a finding can name identifiers only its author understands: document IDs (`R6`, `U3`), external refs (tickets, PR numbers), and code symbols the reviewed doc happens to mention (functions, files, line references). A single source — `references/rendering-floor.md` — governs every presentation surface (interactive walkthrough, batch table, headless envelope, bulk preview) so each finding leads with a recommendation and a one-sentence consequence that names no opaque token, caps mechanism at two sentences, and glosses opaque tokens by function: navigation anchors keep their ID and get a handle, provenance anchors appear only when the referenced event drives the decision, and code symbols are translated to the role they play. The user can decide Apply / Defer / Skip without opening the reviewed codebase.
+
 ---
 
 ## Quick Example
