@@ -73,5 +73,7 @@ jobs:
           npm install -g @anthropic-ai/claude-code@2.1.175
           bun run plugin:validate
 
+      # Runs the package `test` script so the flags CI uses and the flags a
+      # contributor gets from `bun run test` cannot drift apart.
       - name: Run tests
-        run: bun test
+        run: bun run test
