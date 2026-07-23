@@ -722,11 +722,21 @@ describe("cross-layer ownership contract", () => {
   test("brainstorm Key Decisions are a provenance index with Governs links, not a second statement", () => {
     expect(brainstormSections).toMatch(/provenance index entry/)
     expect(brainstormSections).toContain("`Governs R5, R7`")
+    expect(brainstormSections).toContain(
+      "it must not create a KTD that merely mirrors the product decision",
+    )
+    expect(brainstormSections).not.toContain(
+      "inherits these labels into plan KTDs",
+    )
   })
 
   test("ce-plan preservation protects meaning + IDs and sanctions restructuring with its own note class", () => {
     expect(planSkill).toContain("Meaning-preserving restructuring is sanctioned")
     expect(planSkill).toContain("restructured, no scope change")
+    expect(planSkill).toContain(
+      "Preserve Product Contract meaning and stable IDs under Phase 0.3 step 3",
+    )
+    expect(planSkill).not.toContain("Preserve Product Contract IDs and content")
     expect(planSkill).toContain(
       "re-point every affected `Governs R…`, `Covers R…`, and inline `per R…` citation",
     )

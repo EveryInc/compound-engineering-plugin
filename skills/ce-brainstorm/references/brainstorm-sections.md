@@ -223,8 +223,11 @@ worse than omitting it.
   exactly two classes — `user-directed` (the user chose against or between
   surfaced options) and `user-approved` (the agent proposed with the
   tradeoff surfaced; the user assented). An agent never labels its own
-  unexamined proposal. `ce-plan` enrichment inherits these labels into
-  plan KTDs.
+  unexamined proposal. Preserve the label on the Product Contract Key
+  Decision and its exact `Governs R…` links. `ce-plan` may inherit the label
+  into a KTD only when the KTD makes a distinct how-level choice and cites
+  the governed R-IDs; it must not create a KTD that merely mirrors the
+  product decision.
 
 - **How This Work Fits Together** — required when the coherent-work gate split
   a broader request; otherwise include when this plan is one part of a larger
