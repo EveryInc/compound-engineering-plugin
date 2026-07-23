@@ -1,4 +1,6 @@
-import { readFileSync } from "fs"
+import { spawnSync } from "node:child_process"
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
+import { tmpdir } from "os"
 import path from "path"
 import { describe, expect, test } from "bun:test"
 
@@ -71,5 +73,62 @@ describe("ce-resolve-pr-feedback scripts paginate GraphQL connections (issue #79
     ).toMatch(/gh api graphql --paginate\b/)
     expect(body).toMatch(/reviewThreads\(first:\s*\d+,\s*after:\s*\$endCursor\)/)
     expect(body).toMatch(PAGE_INFO_SELECTION)
+  })
+
+  test("get-thread-for-comment emits the matched thread context from a slurpfile", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "ce-thread-lookup-"))
+    const fakeGh = path.join(dir, "gh")
+    const thread = {
+      id: "thread-1",
+      isResolved: false,
+      isOutdated: true,
+      path: "example.ts",
+      line: null,
+      originalLine: 42,
+      startLine: null,
+      originalStartLine: 40,
+      comments: {
+        nodes: [{
+          id: "comment-1",
+          author: { login: "reviewer" },
+          body: "Please fix this.",
+          createdAt: "2026-07-23T00:00:00Z",
+          url: "https://github.com/o/r/pull/1#discussion_r1",
+        }],
+      },
+    }
+
+    writeFileSync(
+      fakeGh,
+      `#!/usr/bin/env bash\ncat <<'JSON'\n${JSON.stringify([{
+        data: {
+          repository: {
+            pullRequest: {
+              reviewThreads: {
+                nodes: [thread],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        },
+      }])}\nJSON\n`,
+    )
+    chmodSync(fakeGh, 0o755)
+
+    try {
+      const result = spawnSync(
+        "bash",
+        [path.join(SCRIPTS_DIR, "get-thread-for-comment"), "1", "comment-1", "o/r"],
+        {
+          encoding: "utf8",
+          env: { ...process.env, PATH: `${dir}:${process.env.PATH}` },
+        },
+      )
+
+      expect(result.status, result.stderr).toBe(0)
+      expect(JSON.parse(result.stdout)).toEqual(thread)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

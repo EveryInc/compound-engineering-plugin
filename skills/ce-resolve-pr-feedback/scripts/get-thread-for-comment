@@ -72,8 +72,8 @@ query Threads($owner: String!, $repo: String!, $pr: Int!, $endCursor: String) {
   }
 }' > "$tmp_threads"
 
-jq -r --slurpfile pages "$tmp_threads" --arg cid "$COMMENT_NODE_ID" '
+jq -e -n --slurpfile pages "$tmp_threads" --arg cid "$COMMENT_NODE_ID" '
   [$pages[0][].data.repository.pullRequest.reviewThreads.nodes[]
    | select(any(.comments.nodes[]; .id == $cid))]
-  | if length == 0 then error("No thread found for comment \($cid)") else .[0].id end
+  | if length == 0 then error("No thread found for comment \($cid)") else .[0] end
 '
