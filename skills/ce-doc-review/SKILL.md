@@ -27,15 +27,27 @@ If `mode:headless` is present, set **headless mode** for the rest of the workflo
 
 The caller receives findings with their original classifications intact and decides what to do with them.
 
-**Headless argument contract:** Require `mode:headless <document-path>`, for example `mode:headless docs/plans/my-plan.md`.
+**Headless argument contract:** Require `mode:headless <document-path>`, for example `mode:headless <path-to-doc>.md`.
 
 If `mode:headless` is not present, run in default interactive mode with the routing question, walk-through, and bulk-preview behaviors documented in `references/walkthrough.md` and `references/bulk-preview.md`.
+
+## Artifact Root
+
+This skill reviews a document at a path it is handed and, in interactive mode with no path given, discovers the most recent plan under `<root>/plans/`. Resolve `<root>` once at the start of the run and use it everywhere a `<root>/` path appears below. It reviews a document at any path; it never needs `<root>` to review a doc the caller named.
+
+<!-- ce-docs-root:start -->
+**Resolve the CE artifact root `<root>` before composing any artifact path.**
+
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml`; first non-empty value wins (`<repo-root>` = `git rev-parse --show-toplevel`). Unset -> `<root>` is `docs`, exactly as before.
+- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
+- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
+<!-- ce-docs-root:end -->
 
 ## Phase 1: Get and Analyze Document
 
 **If a document path is provided:** Read it, then proceed. If the Read fails or the file is not on disk, apply the missing-document gate below instead of continuing.
 
-**If no document is specified (interactive mode):** Ask which document to review, or find the most recent in `docs/brainstorms/` or `docs/plans/` using a file-search/glob tool (e.g., Glob in Claude Code).
+**If no document is specified (interactive mode):** Ask which document to review, or find the most recent under `<root>/plans/` using a file-search/glob tool (e.g., Glob in Claude Code).
 
 **If no document is specified (headless mode):** Output "Review failed: headless mode requires a document path. Expected arguments: mode:headless <path>" and stop without dispatching reviewers.
 
@@ -46,7 +58,7 @@ If `mode:headless` is not present, run in default interactive mode with the rout
 
 ### Classify Document Type
 
-Classify the document by reading its **content shape**, not its file path. Path is a tie-breaker hint, not the primary signal — a brainstorm-style doc placed under `docs/plans/` should still classify as `requirements`, and a plan-shaped doc under `docs/brainstorms/` should still classify as `plan`. The reviewers below operate differently depending on this classification, so misclassifying a plan-shaped doc as a requirements doc (or vice versa) produces noisy or under-scrutinized findings.
+Classify the document by reading its **content shape and metadata**, not its file path. Under the unified plan contract a requirements-only and an implementation-ready plan both live in `<root>/plans/`, so location no longer signals type — a requirements-style doc classifies as `requirements` and a plan-shaped doc as `plan` wherever either sits. The reviewers below operate differently depending on this classification, so misclassifying a plan-shaped doc as a requirements doc (or vice versa) produces noisy or under-scrutinized findings.
 
 First check for the unified artifact contract:
 
@@ -72,7 +84,7 @@ Use these signals to decide:
 - Repo-relative file paths to create/modify/test
 - Prose framing focused on technical decisions, sequencing, and implementer-facing detail
 
-**Tie-breaker rule.** When the content signals are mixed or sparse, fall back to path: legacy `docs/brainstorms/` → `requirements`, `docs/plans/` → `plan` unless unified metadata says otherwise. When neither path location applies, treat the dominant content shape as authoritative; if shape is genuinely ambiguous, default to `requirements` (the more conservative classification — it activates fewer plan-specific feasibility checks).
+**Tie-breaker rule.** When the content signals are mixed or sparse, treat the dominant content shape as authoritative; if shape is genuinely ambiguous, default to `requirements` (the more conservative classification — it activates fewer plan-specific feasibility checks). Path location does not disambiguate type under the unified plan contract, where requirements-only and implementation-ready plans share `<root>/plans/`; a legacy `origin: docs/brainstorms/...` field, when present, still reads as a `plan` signal per the frontmatter list above.
 
 Pass the classification result to each persona via the `{document_type}` slot in the subagent template. Personas read this and adapt their analysis accordingly.
 
