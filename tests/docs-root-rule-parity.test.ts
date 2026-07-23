@@ -22,6 +22,12 @@ const CONSUMER_SKILLS = [
   "ce-plan",
   "ce-brainstorm",
   "ce-ideate",
+  "ce-work",
+  "ce-pov",
+  "ce-optimize",
+  "ce-explain",
+  "ce-debug",
+  "lfg",
 ]
 
 const START = "<!-- ce-docs-root:start -->"

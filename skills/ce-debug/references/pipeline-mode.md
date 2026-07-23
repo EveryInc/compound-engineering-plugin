@@ -35,7 +35,7 @@ To defer, name the invariant the fix would need to satisfy and why no bounded co
 Never write a PR-body section. Never block. Surface it so the human sees it after the run:
 
 - If it maps to an **open review thread**, leave that thread open (and attach the `decision_context` as a reply when a thread reply is in scope).
-- Otherwise, **return it in the `residuals` list** for the caller to place in its single run-report comment. For a bare `ce-debug` invocation with no orchestrator and no PR, file it as a ticket in the project's tracker (detected in Phase 1.4) with enough background to action it standalone; only when no tracker is reachable, fall back to a committed `docs/residual-review-findings/<branch-or-sha>.md` file (staged with any fix) as the last resort.
+- Otherwise, **return it in the `residuals` list** for the caller to place in its single run-report comment. For a bare `ce-debug` invocation with no orchestrator and no PR, file it as a ticket in the project's tracker (detected in Phase 1.4) with enough background to action it standalone; only when no tracker is reachable, fall back to a committed `<root>/residual-review-findings/<branch-or-sha>.md` file (staged with any fix) as the last resort.
 
 `decision_context` uses the shape ce-debug already produces: what the failure is, what you found, why it needs a human decision, options + tradeoffs, and your lean.
 

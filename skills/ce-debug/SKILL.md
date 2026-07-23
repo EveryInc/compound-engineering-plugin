@@ -23,6 +23,18 @@ Default is **interactive** — investigate, then use the Phase 2 fix-choice gate
 3. **One change at a time.** Test one hypothesis, change one thing. If you're changing multiple things to "see if it helps," stop — that is shotgun debugging.
 4. **When stuck, diagnose why — don't just try harder.**
 
+## Artifact Root
+
+This skill may record residuals under `<root>/residual-review-findings/` and compound learnings under `<root>/solutions/`. Resolve `<root>` once at the start of the run and use it everywhere a `<root>/` path appears below.
+
+<!-- ce-docs-root:start -->
+**Resolve the CE artifact root `<root>` before composing any artifact path.**
+
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml`; first non-empty value wins (`<repo-root>` = `git rev-parse --show-toplevel`). Unset -> `<root>` is `docs`, exactly as before.
+- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
+- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
+<!-- ce-docs-root:end -->
+
 ## Execution Flow
 
 | Phase | Name | Purpose |
@@ -270,7 +282,7 @@ Run this tail after Phase 3 ran and before the branch-based commit/PR handoff. T
 
 **Review the final fix scope.** After simplification (or after the skip decision), review every non-mechanical fix unless review tooling is unavailable. Run default `ce-code-review` only when its diff scope is known to be this fix: the branch was created by this skill, or the pre-fix tree was clean and you can pass `base:<pre-fix-HEAD>`. Do not run default `ce-code-review` on a pre-existing dirty branch or a branch with unrelated committed work; standalone review uses the branch/worktree diff and may apply fixes outside the bug scope. In that case, run the harness's lightweight review tool only if it accepts an explicit file scope; otherwise perform an explicit manual review of the fix-owned files and record `Code review: targeted manual due to unrelated branch work`. If `ce-code-review` is unavailable on an otherwise fix-only scope, fall back to the harness's lightweight review tool when available; otherwise do one explicit manual diff scan and state that dedicated review was unavailable.
 
-**Handle residual findings before shipping.** Inspect the review's Actionable Findings. Do not auto-open a PR with unresolved P0/P1 findings, or with findings whose fix needs a product/design decision. Ask the user whether to fix now, accept/defer durably, or stop. For lower-severity residuals the user accepts, preserve them before any outward handoff: if a PR will be opened, pass them as "Known Residuals" context to `ce-commit-push-pr`; if the user chooses commit-only or stop, prefer filing a ticket per finding in the project's tracker (detected in Phase 1.4) with enough background to action it standalone — the finding, why it matters, file:line, severity, a pointer to the review run, and the branch/head commit SHA so the ticket points at the code even without a PR. Only when no tracker is reachable, create `docs/residual-review-findings/<branch-or-head-sha>.md` with the accepted findings and source review context as the last resort, stage it with the fix when committing, and mention the file path in the final summary. Accepted residuals must not live only in the session.
+**Handle residual findings before shipping.** Inspect the review's Actionable Findings. Do not auto-open a PR with unresolved P0/P1 findings, or with findings whose fix needs a product/design decision. Ask the user whether to fix now, accept/defer durably, or stop. For lower-severity residuals the user accepts, preserve them before any outward handoff: if a PR will be opened, pass them as "Known Residuals" context to `ce-commit-push-pr`; if the user chooses commit-only or stop, prefer filing a ticket per finding in the project's tracker (detected in Phase 1.4) with enough background to action it standalone — the finding, why it matters, file:line, severity, a pointer to the review run, and the branch/head commit SHA so the ticket points at the code even without a PR. Only when no tracker is reachable, create `<root>/residual-review-findings/<branch-or-head-sha>.md` with the accepted findings and source review context as the last resort, stage it with the fix when committing, and mention the file path in the final summary. Accepted residuals must not live only in the session.
 
 **Re-verify after tail edits.** If simplification or review changed code, rerun the bug's regression test and any targeted checks the tail identified. Never proceed to commit or PR with a red tree.
 
@@ -281,7 +293,7 @@ Run this tail after Phase 3 ran and before the branch-based commit/PR handoff. T
 **Scope**: [fix-only branch / base:<pre-fix-HEAD> / fix-owned files only / targeted manual due to unrelated branch work]
 **Simplify**: [ran/skipped + reason]
 **Review**: [ran/skipped/manual + outcome]
-**Residuals**: [none / accepted Known Residuals for PR / filed as tracker tickets / accepted residuals written to docs/residual-review-findings/<branch-or-head-sha>.md (last resort) / blocked pending user decision]
+**Residuals**: [none / accepted Known Residuals for PR / filed as tracker tickets / accepted residuals written to <root>/residual-review-findings/<branch-or-head-sha>.md (last resort) / blocked pending user decision]
 **Re-verification**: [checks rerun after tail edits]
 ```
 
@@ -303,7 +315,7 @@ Options:
 
 #### After a PR is open (either path): consider offering learning capture
 
-Most bugs are localized mechanical fixes (typo, missed null check, missing import) where the only "lesson" is the bug itself. Compounding those clutters `docs/solutions/` without adding value. Decide which path applies:
+Most bugs are localized mechanical fixes (typo, missed null check, missing import) where the only "lesson" is the bug itself. Compounding those clutters `<root>/solutions/` without adding value. Decide which path applies:
 
 - **Skip silently** when the fix is mechanical and there's no generalizable insight. Default to this when in doubt.
 - **Offer neutrally** when the lesson can be stated in one sentence — e.g., "X.foo() returns T | undefined when Y, not just T", or "the diagnostic path was non-obvious and worth recording." If you cannot articulate the lesson, skip rather than offer.
