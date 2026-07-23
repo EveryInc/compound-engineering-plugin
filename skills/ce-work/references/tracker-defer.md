@@ -14,7 +14,7 @@ Used by `ce-work` Residual Work Gate and similar caller flows when the user choo
 
 - First Defer of the session with a generic (non-named) label confirms the effective tracker choice.
 - Execution failures prompt with Retry / Fall back to next sink / Convert to Skip.
-- Labels in the routing question reflect `named_sink_available` (name the tracker) vs fallback generics.
+- Labels reflect `named_sink_available` (name the tracker) vs fallback generics.
 
 ### Non-interactive mode
 
@@ -51,7 +51,7 @@ Detection is reasoning-based. Do not maintain an enumerated checklist of files t
 
 ## Probe timing and caching
 
-Availability probes run **at most once per session** and **only when Defer execution is imminent**. Never speculatively at review start, never per-Defer, never per-walk-through-finding. The cached tuple is reused for every Defer action in the same run.
+Availability probes run **at most once per session** and **only when Defer execution is imminent**. Never speculatively at review start, never per-Defer, never per-finding. The cached tuple is reused for every Defer action in the same run.
 
 Typical probe sequence:
 
@@ -62,15 +62,15 @@ Typical probe sequence:
    - Otherwise, probe GitHub Issues via `gh auth status` + `gh repo view --json hasIssuesEnabled` (skip if already probed in step 2). If it works, `any_sink_available = true`.
    - Otherwise, `any_sink_available = false`.
 
-When Interactive mode's routing question is skipped entirely (R2 zero-findings case), no probes run. When the cached tuple is reused across a session, any `named_sink_available = true` from the session's first probe stays cached — do not re-probe per Defer.
+When the cached tuple is reused across a session, any `named_sink_available = true` from the session's first probe stays cached — do not re-probe per Defer.
 
 ---
 
 ## Label logic (Interactive mode)
 
-- When `confidence = high` AND `named_sink_available = true`: the routing question's option C and the walk-through's per-finding Defer option both include the tracker name verbatim. Example: `File a Linear ticket per finding`, `Defer — file a Linear ticket`.
+- When `confidence = high` AND `named_sink_available = true`: the file-tickets option and any per-finding Defer option include the tracker name verbatim. Example: `File a Linear ticket per finding`, `Defer — file a Linear ticket`.
 - When `any_sink_available = true` but either `confidence = low` or `named_sink_available = false` (a fallback tier is working instead): the labels read generically — `File an issue per finding`, `Defer — file a ticket`. Before executing the first Defer of the session, the agent confirms the effective tracker choice with the user using the platform's blocking question tool.
-- When `any_sink_available = false`: option C is omitted from the routing question, option B (Defer) is omitted from the walk-through per-finding options, and the agent tells the user why in the routing question's stem.
+- When `any_sink_available = false`: the file-tickets option is omitted entirely, and the agent tells the user why rather than offering a Defer that cannot land.
 
 Non-interactive mode skips label decisions entirely — it acts silently on the detected sink.
 
@@ -84,7 +84,7 @@ When the named tracker is unavailable or no tracker is named, fall back in this 
 2. **GitHub Issues via `gh`** — when `gh auth status` succeeds and the current repo has issues enabled (`gh repo view --json hasIssuesEnabled` returns `true`)
 3. **No sink** — findings remain in the review report's residual-work section (Interactive mode) or are returned in the `no_sink` bucket for the caller to route (Non-interactive mode). The agent does not re-display them through a transient surface.
 
-Previously this chain included a third in-session fallback tier. That tier was removed because in-session tasks do not survive past the session and therefore do not meet the "durable filing" intent of a Defer action. When no durable tracker exists, the correct behavior is to leave findings in the report (Interactive) or return them to the caller (Non-interactive).
+Do not add an in-session task list as a tier. In-session tasks do not survive past the session, so they fail the "durable filing" intent of a Defer action. When no durable tracker exists, the correct behavior is to leave findings in the report (Interactive) or return them to the caller (Non-interactive).
 
 ---
 
@@ -94,7 +94,7 @@ Every Defer action creates a ticket with the following content, adapted to the t
 
 - **Title:** the merged finding's `title` (schema-capped at 10 words).
 - **Body:**
-  - Plain-English problem statement — reads the persona-produced `why_it_matters` from the contributing reviewer's artifact file at `<artifact-path>/{reviewer}.json`, using the same `file + line_bucket(line, +/-3) + normalize(title)` matching agent mode uses (see SKILL.md Stage 6 detail enrichment). Falls back to the merged finding's `title`, `severity`, `file`, and `suggested_fix` (when present) when no artifact match is available — these fields are guaranteed in the merge-tier compact return.
+  - Plain-English problem statement — reads the persona-produced `why_it_matters` from the contributing reviewer's artifact file at `<artifact-path>/{reviewer}.json`, matched on `file + line_bucket(line, +/-3) + normalize(title)`. Falls back to the merged finding's `title`, `severity`, `file`, and `suggested_fix` (when present) when no artifact match is available — these fields are guaranteed in the merge-tier compact return.
   - Suggested fix (when present in the finding's `suggested_fix`).
   - Evidence (direct quotes from the reviewer's artifact).
   - Source: a link to the PR carrying this change when one already exists at filing time; otherwise the branch and head commit SHA, so the ticket points at the code even before a PR is opened. When the same run opens a PR after the ticket is filed, back-fill the PR link into the ticket (best-effort; never block shipping on the update).
@@ -118,13 +118,11 @@ Stem:
 Options:
 - `Retry on <tracker>` — re-attempt the same tracker once more (useful for transient errors)
 - `Fall back to next sink` — move this finding's Defer to the next tier in the fallback chain (e.g., from Linear to GitHub Issues)
-- `Convert to Skip — record the failure` — abandon this Defer, note the failure in the completion report's failure section, and continue the walk-through or bulk flow
+- `Convert to Skip — record the failure` — abandon this Defer, note the failure in the completion report's failure section, and continue
 
 **Non-interactive mode:** do not prompt. Automatically fall through to the next tier. If every tier fails, record the finding in the `failed` bucket of the structured return and continue. If the chain exhausts with no sink ever available, the finding ends up in the `no_sink` bucket.
 
 When a high-confidence named tracker fails at execution, the cached `named_sink_available` is set to `false` for the rest of the session. Subsequent Defer actions fall straight through to the next tier without retrying a confirmed-broken sink. `any_sink_available` is only downgraded to `false` when every tier has been confirmed broken — a failed Linear call that succeeds via `gh` keeps `any_sink_available = true`.
-
-Only when `ToolSearch` explicitly returns no match or the tool call errors — or on a platform with no blocking question tool — fall back to numbered options and waiting for the user's reply (Interactive mode only).
 
 ---
 
@@ -145,6 +143,6 @@ When uncertain, prefer "drop with explicit user-facing notice" over "pass throug
 
 ## Cross-platform notes
 
-The question-tool name varies by platform. In Interactive mode, use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension)). In Claude Code the tool should already be loaded from the Interactive-mode pre-load step — if it isn't, call `ToolSearch` with query `select:AskUserQuestion` now. Fall back to numbered options in chat only when the harness genuinely lacks a blocking tool — `ToolSearch` returns no match, the tool call explicitly fails, or the runtime mode does not expose it (e.g., Codex edit modes without `request_user_input`). A pending schema load is not a fallback trigger. Never silently skip the question.
+The question-tool name varies by platform. In Interactive mode, use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension)). In Claude Code, if it is not already loaded, call `ToolSearch` with query `select:AskUserQuestion` now. Fall back to numbered options in chat only when the harness genuinely lacks a blocking tool — `ToolSearch` returns no match, the tool call explicitly fails, or the runtime mode does not expose it (e.g., Codex edit modes without `request_user_input`). A pending schema load is not a fallback trigger. Never silently skip the question.
 
 Non-interactive mode is platform-agnostic: it never prompts, so the platform's question tool is not relevant.

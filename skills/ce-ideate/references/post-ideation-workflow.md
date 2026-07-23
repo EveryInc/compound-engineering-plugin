@@ -32,7 +32,7 @@ Rejection criteria:
 
 Score survivors using a consistent rubric weighing: groundedness in stated context, **basis strength** (`direct:` > `external:` > `reasoned:`; none excluded, but direct-evidence ideas score higher all else equal), expected value, novelty, pragmatism, leverage on future work, implementation burden, overlap with stronger ideas, and **axis spread** (when Phase 1.5 produced an axis list) — survivor sets that cover the topic's surface outscore sets that cluster on one axis, all else equal.
 
-**Axis coverage as a list-level concern.** When axes were defined, axis spread is evaluated across the survivor set, not per-idea. After per-idea filtering, check the survivor set: if axis coverage is uneven and stronger candidates exist on under-represented axes, prefer the spread when promoting borderline candidates. Phase 2's recovery dispatch should already have surfaced candidates for empty axes; this is a polish step on the survivor selection. If an axis ends up with zero survivors despite recovery (or because recovery hit the 2-axis cap), note it in the rejection summary as a deliberate gap rather than an oversight.
+**Axis coverage as a list-level concern.** Axis spread is evaluated across the survivor set, never as a per-idea reject reason: after per-idea filtering, prefer the spread when promoting borderline candidates on under-represented axes. If an axis ends up with zero survivors, note it in the rejection summary as a deliberate gap rather than an oversight.
 
 Target output:
 - keep 5-7 survivors by default
@@ -42,8 +42,6 @@ Target output:
 ## Phase 4: Write and Present the Deliverable
 
 The ideation artifact is produced **automatically** — persistence is not opt-in. After filtering, write the deliverable, show a concise summary, and open it. The full content lives in the file; the session shows only an orienting summary, so the rich format is what the reader actually engages with.
-
-**Checkpoint B (V17).** Before writing the deliverable, write `<scratch-dir>/survivors.md` (absolute path from Phase 1) containing the survivor list plus key context (focus hint, grounding summary, rejection summary). Best-effort: if the write fails, log a warning and proceed; the checkpoint is not load-bearing. Reuses the same `<run-id>` / `<scratch-dir>` generated in Phase 1.
 
 ### 4.1 Write the Deliverable (automatic, both modes)
 
@@ -79,9 +77,9 @@ This ranked list doubles as the index the user references when choosing an idea 
 
 ## Phase 5: Next Steps
 
-Ask what to do next using the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. Free-text answers are accepted.
+Ask what to do next using the platform's blocking question tool (per SKILL.md Interaction Method — never silently skip the question). Free-text answers are accepted.
 
-The deliverable already exists (Phase 4), so the menu is purely *what next* — there is no "save" step.
+The deliverable already exists (Phase 4), so the menu is purely *what next* — there is no "save" step. In an unattended run (pipeline / headless / no user to answer), skip the menu entirely: report the path and the ranked list and stop, as if the user had chosen Done.
 
 **Stem:** "Your ideation is saved to `<path>`. What next?"
 
@@ -145,23 +143,8 @@ Then narrate the path and end the session — do not return to the menu.
 
 Only when the file was **created fresh this run**: delete it, confirm the deletion, and end. On a **resume** run (a pre-existing file was updated in place), do **not** delete — tell the user the existing doc at `<path>` remains and offer no destructive action. Discard is never a default; it fires only on an explicit request.
 
-Do not delete the run's scratch directory (`<scratch-dir>`) on completion — it holds the V15 web-research cache reused across run-ids by later ideation invocations in the same session (see `references/web-research-cache.md`), the Checkpoint A/B files, the evidence dossiers, and (in the no-repo case) the deliverable itself. OS handles eventual cleanup.
+Do not delete the run's scratch directory (`<scratch-dir>`) on completion — it holds the evidence dossiers and, in the no-repo case, the deliverable itself. OS handles eventual cleanup.
 
-## Quality Bar
+## The two hard floors
 
-Before finishing, check:
-
-- the idea set is grounded in the stated context (codebase in repo mode; user-supplied context in elsewhere mode)
-- **every surviving idea has an articulated basis** (`direct:`, `external:`, or `reasoned:`) that actually supports the claimed move — speculation dressed as ambition was rejected, with reasons
-- load-bearing `direct:` bases were verified against the repo (or the supplied context) — by the generating agent's verification reads or the Phase 3 verifier — not taken on faith
-- **every surviving idea passes the meeting-test** unless Phase 0.5 detected tactical focus signals that waived the floor
-- **no surviving idea replaces the subject** rather than operating on it
-- when Phase 1.5 produced an axis list, the survivor set spreads across axes rather than clustering on one — and any axis with zero survivors is noted as a deliberate gap in the rejection summary, not silently absent
-- the candidate list was generated before filtering
-- the original many-ideas -> critique -> survivors mechanism was preserved
-- if sub-agents were used, they improved diversity without replacing the core workflow
-- every rejected idea has a reason
-- survivors are materially better than a naive "give me ideas" list
-- the deliverable was written automatically in both modes (Phase 4) — to `docs/ideation/` when present, else the CE temp area, never the user's CWD
-- the session showed a concise summary, not a reproduction of the full deliverable
-- acting on an idea routes to `ce-brainstorm` (with a substance seed, not the whole file), not directly to implementation
+No survivor ships without a basis that actually supports it, and no rejection ships without a reason.

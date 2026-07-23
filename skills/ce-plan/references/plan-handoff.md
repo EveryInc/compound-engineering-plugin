@@ -45,10 +45,6 @@ Before proceeding to post-generation options:
 - Confirm the planning boundary is intact
 - Confirm origin decisions were preserved when an origin document exists
 
-If artifact-backed mode was used:
-- Clean up the temporary scratch directory after the plan is safely updated
-- If cleanup is not practical on the current platform, note where the artifacts were left
-
 **Format-specific composition.** When `OUTPUT_FORMAT=html` (resolved in SKILL.md Phase 0.0), the plan is written as a single self-contained `.html` file — there is no markdown sibling. Read `references/html-rendering.md` for composition rules: invariants, precedence stack, format principles, agent-consumability rules, and the post-compose audit. The `.html` file is the artifact downstream consumers (ce-work, human readers) read. `ce-doc-review` is not a current HTML consumer — its mutation mechanics are markdown-only today, and HTML plans skip the 5.3.8 doc-review pass until that gap closes.
 
 When `OUTPUT_FORMAT=md`, write the markdown directly per `references/markdown-rendering.md`. No HTML is composed.

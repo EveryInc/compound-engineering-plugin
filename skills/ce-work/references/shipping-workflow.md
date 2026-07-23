@@ -13,7 +13,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
    # Examples: bin/rails test, npm test, pytest, go test, etc.
 
    # Run linting (per the project's configured lint command / active instructions)
-   # Use linting-agent before pushing to origin
+   # Fix lint failures before pushing to origin
    ```
 
 2. **Simplify** (conditional — separate from code review)
@@ -112,26 +112,10 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
 
 Before creating PR, verify:
 
-- [ ] All clarifying questions asked and answered
 - [ ] All tasks marked completed
 - [ ] Testing addressed -- tests pass AND new/changed behavior has corresponding test coverage (or an explicit justification for why tests are not needed)
-- [ ] Linting passes (use linting-agent)
-- [ ] Code follows existing patterns
-- [ ] Figma designs match implementation (if applicable)
-- [ ] Validation/evidence context passed to `ce-commit-push-pr` when the change has observable behavior
-- [ ] Commit messages follow conventional format
-- [ ] PR description includes Post-Deploy Monitoring & Validation section (or explicit no-impact rationale)
+- [ ] Linting passes
 - [ ] Simplify: `ce-simplify-code` when the diff has >=30 substantive changed code lines (or skipped with reason)
 - [ ] Code review: `ce-code-review` ran (self-sized), or skipped (mechanical diff / unavailable — noted in summary); residuals handled via the Residual Work Gate
-- [ ] PR description includes summary, testing notes, and evidence when captured
+- [ ] PR description includes summary, testing notes, captured evidence, the Post-Deploy Monitoring & Validation section (or explicit no-impact rationale), and any Known Residuals
 - [ ] `ce-commit-push-pr` received `branding:on` from the Compound Engineering workflow
-
-## Code Review
-
-Single portable path: **`ce-code-review`** self-sizes (lite roster for small low-risk code-only diffs, full roster otherwise). No harness-native review detection, no escalation tiers — the size/sensitive-surface judgment lives inside `ce-code-review` now.
-
-**Skip** only for a purely mechanical diff (formatting, dep-bumps, lint-only, generated). Everything else is reviewed.
-
-**Two steps — review is not fix.** (3a) Review-only via `mode:agent`; add `depth:full` when the plan/task/user explicitly asked for a deep review. (3b) Batched fix subagents per `references/review-findings-followup.md`; residuals → Residual Work Gate.
-
-**If `ce-code-review` can't run** (no subagent dispatch): interactive → harness-native review if present, fix inline; non-interactive → skip-with-note + manual diff scan in Final Validation. Never silently ship a non-mechanical change unreviewed.

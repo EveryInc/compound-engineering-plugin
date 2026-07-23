@@ -13,17 +13,11 @@ Tokens exist so automation and chained calls can force a decision. Plain languag
 | `output:<md\|html>` | `output:md` | Overrides the artifact format (default `html`) |
 | `audience:<who>` | `audience:team`, `audience:"the design review"` | Renders for that reader instead of the user personally |
 
-**A `word:value` pair is a flag only when it reads as one.** It leads the request or stands alone, carries no space after the colon, and — the decisive test — **the request still makes sense with it removed. If stripping it would garble the sentence, it was never a flag.** Leave it in the request text and classify by meaning. Ordinary technical prose is full of colons, and a flag parser that eats them silently changes what the user asked for:
-
-- "walk me through the diff: why did we split the parser" — stripping `diff:why` leaves "walk me through the did we split the parser". Garbled, so this is prose. Classify by meaning (a diff request about the parser split), and never let the bogus ref `why` outrank that.
-- "explain how we pick the audience: engineers vs designers" — a concept request about audience selection, rendered personally. Not an `audience:` flag naming "engineers".
-- "teach me how our renderer decides output: html or terminal escape codes" — prose. Note this one fails quietly if mis-parsed, because `html` is already the default format, so nothing visible contradicts it.
-- `diff:main..HEAD`, or `audience:team` leading a request — genuine flags: nothing is left to garble.
+**A `word:value` pair is a flag only when it reads as one.** It leads the request or stands alone, carries no space after the colon, and — the decisive test — **the request still makes sense with it removed. If stripping it would garble the sentence, it was never a flag.** Leave it in the request text and classify by meaning: ordinary technical prose is full of colons, and mis-parsing one can fail quietly ("teach me how our renderer decides output: html or terminal escape codes" is prose, and `html` is already the default, so nothing visible contradicts the bad parse).
 
 - A token in flag position beats inference. A colon inside prose does not.
 - `diff:` and `since:` together conflict — say so and ask which mode the user wants.
-- An unrecognized `<word>:<word>` token (including conventional-commit prefixes like `feat:` appearing inside a topic) is not a flag — it passes through verbatim as request text. The same holds for a *recognized* token that fails the reads-as-a-flag test above.
-- A token with an empty or missing value is not a flag — treat it as prose.
+- An unrecognized `<word>:<word>` token (including conventional-commit prefixes like `feat:` appearing inside a topic), or a token with an empty value, is not a flag — it passes through verbatim as request text. The same holds for a *recognized* token that fails the reads-as-a-flag test above.
 - `output:` with an unknown value: drop the token, note `Ignored unknown output: value '<value>' — using html`, and continue.
 
 ## Inference (no forcing token)
@@ -43,10 +37,10 @@ Classify the remaining text by shape:
 
 ## Audience resolution
 
-Audience is orthogonal to input shape — resolve it for every shape, including recaps.
+Resolve audience for every input shape, including recaps.
 
 - **Default: the user personally.** Absent a signal, do not ask and do not adapt.
-- **Another reader** when the `audience:` token is present, or when the request plainly says someone else will read it — "write this up for the team", "I'm sharing this with <person/group>", "for the design review", "a share-out", "something I can post in <channel>". The test is whether the *artifact itself* lands in front of other people. Carry the named reader forward verbatim; the rendering rule lives in the compose-time reference.
-- Wanting to *speak* from the material is not an audience signal. "Prep me for standup", "catch me up before the meeting", "walk engineering through it — get me ready", and "so I can explain it to them" all stay personal: the user is still the reader. That resolves the case, so no re-render note is needed.
-- **A request to share is not a request for a status update.** "Something I can drop in the #eng channel about this week's work" reads like a status-update ask in ordinary usage, and this skill does not write status updates. Honor the *audience* and refuse the *form*: render the explainer for that reader at full depth. Decline only if the user wants the terse update itself rather than an explainer for it — and say which you're doing.
-- Ambiguous between personal and another reader (for example, "write up what shipped this week"), default to personal and say in one line that it can be re-rendered for a reader. Do not spend a blocking question on this.
+- **Another reader** when the `audience:` token is present, or when the request plainly says someone else will read it — "write this up for the team", "for the design review", "something I can post in <channel>". The test is whether the *artifact itself* lands in front of other people. Carry the named reader forward verbatim; the rendering rule lives in the compose-time reference.
+- Wanting to *speak* from the material is not an audience signal. "Prep me for standup", "walk engineering through it — get me ready", and "so I can explain it to them" all stay personal: the user is still the reader.
+- **A request to share is not a request for a status update.** "Something I can drop in the #eng channel about this week's work" reads like a status-update ask, and this skill does not write status updates. Honor the *audience* and refuse the *form*: render the explainer for that reader at full depth, and say which you're doing.
+- Ambiguous between personal and another reader ("write up what shipped this week"): default to personal and say in one line that it can be re-rendered for a reader. Do not spend a blocking question on this.

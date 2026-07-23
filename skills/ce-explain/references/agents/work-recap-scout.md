@@ -18,6 +18,6 @@ Write an **evidence file** to `{run-dir}/recap-evidence.md`: at most 120 lines. 
 - Why, when a doc or commit body says so — quoted, with the source (`file:line` or sha)
 - The main files/areas touched
 
-Order by date. Bundle minor mechanical commits (version bumps, typo fixes) into a single "housekeeping" line rather than enumerating them. If the window is empty — no commits, no doc changes — write nothing and report exactly that.
+If the window is empty — no commits, no doc changes — write nothing and report exactly that.
 
 Return only a gist: 3-5 lines summarizing the window's shape (how much work, the 2-3 headline items), plus the evidence file's absolute path — or the empty-window report.

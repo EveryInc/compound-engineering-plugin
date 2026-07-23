@@ -4,14 +4,14 @@
 
 **Two-stage shape: internal draft, then chat-time synthesis.** The synthesis is composed in two stages. Stage 1 is an internal three-bucket draft (Stated / Inferred / Out of scope) the agent uses to think comprehensively about scope. Stage 2 is the compressed chat-time output: a tier-shaped summary plus "Call outs" (zero or more, capped by plan depth — see the cap table under "How many call-outs are right?") — the specific forks where the user might redirect. The user only sees stage 2. The internal draft still informs the plan body via the doc-shape routing below; it just doesn't reach the user verbatim. This split exists because the comprehensive audit shape produced too much detail for the user to weigh in on, even when the granularity rules were followed.
 
-**Three-bucket structure is the internal draft, not the user-facing artifact.** It does its scope-thinking job during stage 1 and dissolves when Phase 5.2 writes the plan: Stated content informs the Product Contract's Requirements, Inferred content informs Key Technical Decisions / Implementation Units (normal interactive mode) or the Planning Contract's `### Assumptions` (non-interactive mode, or an interactive `SKIP_SCOPING_CONFIRM` skip run), Out-of-scope content informs the Product Contract's Scope Boundaries. The plan has no parallel `## Synthesis` section — only the stage-2 summary embeds, under the Product Contract's `### Summary`. See "Doc shape after confirmation" below for the exact routing and section nesting.
+**The three buckets are the internal draft, not the user-facing artifact.** They dissolve into the plan body at Phase 5.2 per "Doc shape after confirmation" below; the plan has no `## Synthesis` section — only the stage-2 summary embeds, under the Product Contract's `### Summary`.
 
-This content is loaded when a synthesis-summary phase fires in ce-plan. There are two variants — they share structure but differ in timing and content focus:
+Two variants share this structure but differ in timing and focus:
 
-- **Solo variant** (Phase 0.7): fires after Phase 0.4 bootstrap and Phase 0.6 depth classification, before Phase 1 research begins. Catches scope misinterpretation before sub-agent dispatch is spent. Full breadth — problem frame, intended behavior, success criteria, in/out scope.
-- **Brainstorm-sourced variant** (Phase 5.1.5): fires after Phase 1 research, before Phase 5.2 plan-write. Focuses on plan-time decisions (which files/modules to touch, which patterns extended vs. introduced new, test scope, refactor scope). Brainstorm-validated WHAT is assumed and not re-stated.
+- **Solo variant** (Phase 0.7): fires before Phase 1 research, catching scope misinterpretation before sub-agent dispatch is spent. Full breadth — problem frame, intended behavior, success criteria, in/out scope.
+- **Brainstorm-sourced variant** (Phase 5.1.5): fires after research, before plan-write. Focuses on plan-time decisions (which files/modules to touch, patterns extended vs. introduced new, test scope, refactor scope). Brainstorm-validated WHAT is assumed and not re-stated.
 
-Both variants share the two-stage shape, the keep test for call-outs, soft-cut behavior, and the doc-shape routing. In non-interactive (headless) mode, both compose the internal draft and skip stage 2 — the user-facing compression is moot when there is no synchronous user. The internal draft dissolves into the plan body the same way, with Inferred bets routing to a `## Assumptions` section. See "Headless mode (shared)" below for the full routing.
+In non-interactive (headless) mode both compose the internal draft and skip stage 2 — see "Headless mode (shared)".
 
 ---
 
@@ -109,20 +109,6 @@ The cap is heuristic, not law. The real discipline is the keep test on each cand
 
 A useful test: read the call-outs aloud. If two or more sound like "and also" extensions of the same idea, they belong as one.
 
-### Anti-patterns in call-outs
-
-Each anti-pattern below produces a call-out that fails the affirmability test. If a candidate call-out matches one of these, it is plan-body content — cut, do not rephrase.
-
-- Names a file path or module name (`internal/artifacts/pii.go`)
-- Names a flag, env var, or exact env value (`--accept-redaction-list=<finding-id,...>`)
-- Specifies a JSON shape, response format, or exact data structure
-- Names HTTP status codes, event names, or exact error wording
-- Describes implementation flow ("first X, then Y, then Z")
-- Names exact method signatures, call graphs, or SQL syntax
-- States a mechanical choice with no real alternative ("uses stdlib regexp")
-
-The line-number, signature, and code-spec rules are not new — they have always been forbidden in Inferred bullets. They apply equally to call-outs, which are now the user-facing surface.
-
 ---
 
 ## When to skip the blocking confirmation
@@ -159,9 +145,9 @@ Both variants share these structural rules. They address failure modes where the
 
 **Summary leads, call-outs follow** — not the reverse, and no separate framing block above. Putting extensive content ABOVE the synthesis (an approach pitch, files-touched bullets, rationale block) inverts the structure: the synthesis becomes a footnote to the proposal instead of the proposal being a tier-budgeted summary the call-outs depend on.
 
-**Anti-pattern: synthesis as plan-pitch.** Plan-body content — file paths, code shapes, sentinel strings, exact error messages, "Recommendation" / "Behavior when X" / "Why this shape" rationale — does not belong in chat output regardless of where it appears: not in a block above the call-outs, not inside the summary, and not nested in a call-out's commentary or sub-bullets. The position rule and the content rule are independent: a structurally-legal placement (inside a call-out bullet) does not legitimize plan-body content. If you find yourself writing it anywhere, stop. That content is Phase 5.2 (plan-write) territory — it belongs in the plan body the next phase will write, not in the synthesis presentation. The synthesis is a scope/decisions checkpoint: a tier-budgeted summary plus call-outs bounded by the tiered cap (see "How many call-outs are right?"). Implementation detail leaking into the synthesis (anywhere) is a sign Phases 1-4 (research and structuring) and Phase 5.2 (plan-write) have collapsed into the synthesis-confirmation step.
+**Anti-pattern: synthesis as plan-pitch.** Plan-body content — file paths, code shapes, sentinel strings, exact error messages, "Recommendation" / "Behavior when X" / "Why this shape" rationale — does not belong in chat output regardless of where it appears: not in a block above the call-outs, not inside the summary, not nested in a call-out's sub-bullets. A structurally-legal placement does not legitimize the content; it belongs in the plan body Phase 5.2 will write.
 
-**Anti-pattern: numerical attestation.** "All nine requirements covered," "all three flows in scope," "five acceptance examples addressed," counts of files or test scenarios. These are the agent showing its work or attesting completeness, not naming scope decisions. "Covers the full brainstorm scope" already conveys the claim; the count adds nothing the user can affirm or redirect. Cut the numbers; keep the scope claim.
+**Anti-pattern: numerical attestation.** "All nine requirements covered," "all three flows in scope," counts of files or test scenarios. That is the agent attesting completeness, not naming a scope decision the user can affirm or redirect. Cut the numbers; keep the scope claim.
 
 **A revision is not a confirmation.** After any user revision (even a trivially-understood swap), integrate the change, re-present the revised stage 2 with the change reflected, and wait for explicit confirmation before writing the plan. The loop is:
 
@@ -183,14 +169,7 @@ Each call-out should be affirmable or rejectable by the user **without reading c
 - Column / table names — "user-TZ" or "destination-calendar TZ" when "which source" is the choice
 - Approach posture — "DB-side query with Google-side fallback" when "which strategy" is the choice
 
-**Not allowed** (always plan-body, regardless of variant):
-- Line numbers (`route.ts:249-255`)
-- Exact method signatures, call graphs, or implementation flow ("at the top, before include/exclude evaluation, returning ...")
-- Exact JSON / response shapes (`{pause, cleanup: {eventsDeleted, eventsFailed, errors}}`)
-- HTTP status codes (`409`, `404`, `403`)
-- Exact event / activity-log / type names (`userPauseSet/userPauseEdited/...`)
-- Exact wording of error messages or UI labels
-- SQL syntax or query bodies
+**Not allowed** (always plan-body, and a candidate that matches one of these is cut, not rephrased): line numbers (`route.ts:249-255`); exact method signatures, call graphs, or implementation flow ("at the top, before include/exclude evaluation, returning ..."); exact JSON / response shapes; HTTP status codes; exact event, type, error-message, or UI-label wording; SQL syntax; flag or env-var strings; and mechanical choices with no real alternative ("uses stdlib regexp").
 
 The line is drawn slightly differently per variant. **Solo (Phase 0.7)** stays at the higher level — brainstorm's WHAT hasn't been validated yet, so file/module names are usually too specific; talk in terms of "the rule entity," not "syncRules table." **Brainstorm-sourced (Phase 5.1.5)** allows the file / module / pattern / column level when those ARE plan-time decisions, but not implementation flow specifics.
 
@@ -200,53 +179,16 @@ The line is drawn slightly differently per variant. **Solo (Phase 0.7)** stays a
 |---|---|
 | Timezone source: `users.timezone` (IANA), fallback to destination calendar TZ if null. Research found `useTimezoneSync` and `ProtectionStatsCalculator` establish the pattern. | Timezone source: user-TZ (reverses brainstorm's tentative lean — research found established infra and pattern precedent) |
 | Skip filter goes in `RuleMatcher.eventMatchesRule` at the top, before include/exclude evaluation, using the existing `filteredReason` mechanism. | Skip filter extends the existing event-skip pattern in the matcher (vs. introducing a new mechanism) |
-| Reactivation guard: explicit safety in `[ruleId]/route.ts` PATCH — when `isActive: false → true`, the existing handler clears `status/pausedAt/pausedReason`. | Reactivation guard: pause window state preserved through the isActive toggle's existing system-pause-clearing path |
-| Partial cleanup failure response: `{pause, cleanup: {eventsDeleted, eventsFailed, errors}}`; pause window persists regardless of cleanup outcome. | Partial cleanup failure: pause window persists; partial-failure response mirrors the existing rule-edit precedent |
-
-The test: a scanner reading a call-out should affirm or reject it without needing to read code. If they would have to look up a column name, method name, or call graph to evaluate the call-out, the granularity is wrong — that's plan-body content.
-
-### Worked example: compression from internal draft to call-outs
-
-For a PII redaction gate proposal where the internal draft had 4 Stated items, 7 Inferred items, and 3 Out-of-scope items, the compressed stage 2 looks like:
-
-```
-Planning a mechanical PII redaction gate before promote (the unguarded leak path from the amazon-orders retro) and alongside the existing vendor-prefix scanner at publish. Phase-1 detectors are shape-only — card last-4, postal address, JSON person names. Default halts; per-finding ack via flag.
-
-**Call outs:**
-- Person-name filter works by JSON key (allowlist of attribution keys: `printer`, `printer_name`, `owner_name`, `author`), not by name value.
-- Promote scans the working-dir snapshot before the copy step, not the staged copy.
-- Publish combines PII + vendor-prefix findings into one report, not fail-fast on first.
-
-Confirm and I'll proceed to research, drawing on this scope.
-```
-
-What got cut from the internal draft and why:
-
-- "Module name: `internal/artifacts/pii.go`" — plan-body content (file path), fails affirmability test
-- "Flag name: `--accept-redaction-list=<finding-id,...>`" — plan-body content (exact flag string), fails affirmability test
-- "No new dependencies — stdlib regexp + filepath.WalkDir only" — mechanical, no real alternative
-- "Detector regex precision tuned during implementation" — deferred-impl, not a plan-time fork
-- All three Out-of-scope items — either restated in prose ("defer to #960") or implicitly excluded by scope
-
-What survived: three real forks where another reasonable agent might choose differently and the user can correct cheaply now. Each is affirmable in one sentence without reading code.
 
 ---
 
 ## Solo variant (Phase 0.7)
 
-Fires only when:
-- Phase 0.2 found no upstream brainstorm doc
-- AND Phase 0.4 stayed in ce-plan (did not route to ce-debug, ce-work, or universal-planning)
-- AND Phase 0.5 cleared (no unresolved blockers)
-- AND not on Phase 0.1 fast paths (resume normal, deepen-intent)
-
-Each guard is an explicit conditional in SKILL.md, not implicit. R2 solo does NOT fire on resume/deepen, route-out, or brainstorm-sourced paths.
+SKILL.md owns the gate conditions (solo invocation only; never on resume, deepen, or route-out paths).
 
 **Content focus**: full-breadth internal draft. Phase 0.4 bootstrap is brief by design ("ask one or two clarifying questions"), so the agent has made substantial inferences before Phase 0.7 fires. The Inferred bucket in the internal draft is especially load-bearing here — the agent's bets are widest. Stage 2 compression still applies: most of those inferences will not survive the keep test, and that is correct — the user should only see the forks they can meaningfully redirect.
 
 **Counter-warning for rich-context invocations.** When the inference source is *not* just Phase 0.4 bootstrap — e.g., a prior in-conversation validation agent, completed sibling work units earlier in the same session, or a planning artifact already in the conversation — the temptation is to dump that material into call-outs verbatim. The granularity rules tighten in this case, not loosen: the agent has more material to compress, not more material to expose. A bet that's already been validated upstream is **Stated** (internal), not Inferred (internal); a bet whose specifics belong in plan-body is named at decision-level in the call-out regardless of how much detail upstream context provided. If recent turns produced detailed code, file paths, or research artifacts, expect the internal draft to over-share and compress proactively before stage 2. A session-settled decision is the strongest form of already-validated content — carry it forward as a `Carrying forward:` line, never re-ask it.
-
-**Why pre-research, not pre-write**: research effort would be wasted if scope is wrong. Catching scope errors before sub-agent dispatch (Phase 1.1's repo-research-analyst, learnings-researcher, etc.) saves token and time cost.
 
 ### Stage 2 template (solo)
 
@@ -286,9 +228,7 @@ Then continue to Phase 1 without waiting. Use prose for any user response that d
 
 ## Brainstorm-sourced variant (Phase 5.1.5)
 
-Fires only when:
-- Phase 0.2 found upstream brainstorm doc (brainstorm-sourced invocation)
-- AND not on Phase 0.1 fast paths
+SKILL.md owns the gate conditions (any upstream Product Contract source; never on Phase 0.1 fast paths).
 
 **Content focus**: plan-time decisions only. The brainstorm + R1 synthesis already validated WHAT to build; the internal draft and stage 2 surface HOW the plan will execute that work — decisions the brainstorm did not make.
 
@@ -302,8 +242,6 @@ Items to surface in the internal draft:
 Most of these will not survive the keep test as separate call-outs. Surface only the forks where another reasonable agent might choose differently and the user can correct cheaply now.
 
 **Reads from the Product Contract, not a synthesis section**: the upstream artifact is a requirements-only unified plan (`product_contract_source: ce-brainstorm`), not a separate brainstorm doc, and it has no `## Synthesis` section (the synthesis is a chat-time artifact in ce-brainstorm; only the prose summary embeds, under the Product Contract). Phase 5.1.5 derives plan-time decisions from the Product Contract's sections — Summary, Problem Frame, Requirements, Key Flows, Scope Boundaries — plus Phase 1 research. Legacy standalone requirements docs (`origin: docs/brainstorms/...`) and older brainstorms that may carry a legacy `## Synthesis` section still work; that content is treated as supplementary, not authoritative, with the Product Contract / body sections taking precedence.
-
-**Why pre-write, not pre-research**: brainstorm doc + R1 synthesis already validated WHAT, so research is well-targeted. Plan-time decisions emerge during research and structuring (Phases 1-4), so pre-write catches them at the latest cheap moment — before Phase 5.2 commits the plan to disk.
 
 ### Stage 2 template (brainstorm-sourced)
 
@@ -341,9 +279,7 @@ Then continue to Phase 5.2 without waiting. Use prose for any user response that
 
 ## Soft-cut on circularity (shared)
 
-Track which call-outs the user touched per round. The soft-cut blocking question fires **only when the same call-out is revised twice** (or a third-round revision targets a call-out already revised in round two). New-call-out revisions across rounds proceed without limit.
-
-**Identity across rounds is by decision dimension, not surface wording.** A revision may cause stage 2 to re-derive — the same underlying fork can come back rephrased, merged with another call-out, or split into two. "Same call-out" means the same decision being made (e.g., "where does the scan run" stays one decision whether it's worded as "promote scans the working-dir snapshot" or "scan target: pre-copy working dir"). When a re-cut collapses multiple prior call-outs into one, the new combined call-out inherits the "touched" status of any of its constituents — soft-cut fires if any of those underlying decisions was already revised once before.
+Track which call-outs the user touched per round. The soft-cut blocking question fires **only when the same call-out is revised twice**. New-call-out revisions across rounds proceed without limit. "Same call-out" means the same underlying decision, not the same wording — a fork that comes back rephrased, merged, or split is still the same fork, and a merged call-out inherits the touched status of any constituent.
 
 When the soft-cut fires, use the platform's blocking question tool with two options:
 

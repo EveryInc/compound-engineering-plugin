@@ -4,13 +4,7 @@ These rules apply to every reviewer. They define what is "your code to review" v
 
 ## Scope Discovery
 
-Determine the diff to review using this priority order:
-
-1. **User-specified scope.** If the caller passed `BASE:`, `FILES:`, or `DIFF:` markers, use that scope exactly.
-2. **Working copy changes.** If there are unstaged or staged changes (`git diff HEAD` is non-empty), review those.
-3. **Unpushed commits vs base branch.** If the working copy is clean, review `git diff $(git merge-base HEAD <base>)..HEAD` where `<base>` is the default branch (main or master).
-
-The scope step in the SKILL.md handles discovery and passes you the resolved diff. You do not need to run git commands yourself unless PR scope mode requires it (below).
+The orchestrator resolved scope and passed you the `BASE:`, `FILES:`, and `DIFF:` markers — use that scope exactly. You do not need to run git commands yourself unless PR scope mode requires it (below).
 
 ## Remote scope (`pr-remote` and `branch-remote`)
 

@@ -1,107 +1,18 @@
-# Universal Ideation Facilitator
+# Universal Ideation (non-software topics)
 
-This file is loaded when ce-ideate detects an elsewhere-mode topic with no software surface at all — naming (independent of product), narrative writing, personal decisions, non-digital business strategy, physical-product design. Topics that concern a software artifact (page, app, feature, flow, product) are routed to elsewhere-software and do not load this file, even when the ideas are about copy, UX, or visual design for that artifact.
+Read this when ce-ideate classified the subject as **elsewhere-non-software** — naming (independent of product), narrative writing, personal decisions, non-digital business strategy, physical-product design. A topic that concerns a software artifact (page, app, feature, flow, product) routes to elsewhere-software and does not load this file, even when the ideas are about copy, UX, or visual design for that artifact.
 
-Phase 1 elsewhere-mode grounding runs before this reference takes over — user-context synthesis and web-research feed the facilitation below. Learnings-researcher is skipped by default for elsewhere-non-software since the CWD's `docs/solutions/` almost always contains engineering patterns that do not transfer to non-digital topics. What this file replaces is Phase 2's software-flavored frame dispatch and the post-ideation wrap-up; the repo-specific codebase scan never runs in elsewhere mode. Absorb these principles and facilitate ideation in the topic's native domain, using the Phase 1 grounding summary as input.
+The mechanism is unchanged in this mode: run Phase 2 from `references/divergent-ideation.md` (the six frames, the dispatch payload, the per-idea basis contract, the generation rules) and Phases 3-5 from `references/post-ideation-workflow.md` (filtering rubric, fresh-context basis verification, auto-write, next-steps menu). This file states only what differs in a non-digital domain — read the frames and contracts from those files rather than improvising domain-agnostic versions.
 
-The mechanism that makes ideation good — generate many, critique adversarially, present survivors with reasons — is preserved. Only the framing of the work changes.
+## What differs
 
----
+- **No repo reads, ever.** Grounding is user-context synthesis + web research (learnings is skipped by default — the CWD's `docs/solutions/` is engineering patterns that rarely transfer). Verification reads and the basis verifier work against the user-supplied context and web research, not repo files. `direct:` bases quote the user's material or a cited source.
+- **Most of these subjects are atomic.** For a name, a tagline, or a plot the candidate *is* the deliverable, so Phase 1.5 usually skips decomposition (`Decomposition skipped — atomic subject`). Multi-part subjects still decompose — "brand strategy for a launch" → positioning; visual identity; voice; launch channels; pricing/packaging. Skip when 3 orthogonal axes do not emerge.
+- **Match the tone to the stakes.** Business decisions (pricing, positioning, roadmap) lead with constraints and tradeoffs; creative work (naming, narrative, visual concepts) leads with energy and range; personal decisions lead with values before mechanics.
+- **The meeting-test floor translates.** "Would this warrant team discussion" becomes "is this worth talking through" in the topic's own domain — the floor itself still applies.
+- **Re-ground when intake shifts the topic.** If answers collected here materially refine scope, audience, or domain beyond what Phase 1 covered, re-dispatch the affected Phase 1 agents before generating. Ranking against stale grounding surfaces ideas fit to the wrong topic.
+- **`ce-brainstorm` is the terminal step here.** There is no `ce-plan` → `ce-work` rung after it in this mode: brainstorm develops the chosen idea further (a name into a brand brief, a plot into an outline, a decision into a weighed framework) and ends there. Say that when offering it.
 
-## Your role
+## Wrap-up
 
-Be a divergent thinking partner, not a delivery service. The user came here for a stronger candidate set than they could generate alone, not a single recommendation. Resist the urge to converge early. A premature favorite anchors the conversation and crowds out better candidates that have not surfaced yet.
-
-Match the tone to the stakes. For business or product decisions (pricing, positioning, roadmap), lead with constraints and tradeoffs. For creative work (naming, narrative, visual concepts), lead with energy and range. For personal decisions, lead with values before mechanics.
-
-## How to start
-
-Match depth to scope:
-
-- **Quick** — the user wants a starter set right now. Generate one round, critique briefly, present 3-5 survivors, done.
-- **Standard** — light intake (one or two questions), one round of generation, adversarial critique, present 5-7 survivors.
-- **Full** — rich intake, multiple frames in parallel, deep critique, present 5-7 survivors with strong rationale.
-
-Apply the discrimination test before asking anything. Would swapping one piece of the user's stated context for a contrasting alternative materially change which ideas survive? If yes, the context is load-bearing — proceed. If no, ask 1-3 narrowly chosen questions. Follow the questioning principles from SKILL.md Phase 0.2: ask only about the **subject** (what to ideate on) or **substance** (what Phase 1 agents need to say something specific) — never about solution direction, constraints, audience, tone, or success criteria. Those belong to `ce-brainstorm`. Build on what the user already provided rather than starting from a template. After each answer, re-apply the test before asking another. Stop on dismissive responses ("idk just go") and treat genuine "no constraint" answers as real answers.
-
-**Grounding freshness.** Phase 1 elsewhere-mode grounding (user-context synthesis + web-research by default; learnings skipped for non-software, see SKILL.md Phase 1) has already run before this reference takes over, and its outputs feed the generation below. If intake answers here materially refine the topic or constraints — new scope, different audience, a domain shift that the original grounding did not cover — re-dispatch the affected Phase 1 agents on the refined topic before generating ideas. The guardrail mirrors SKILL.md Phase 0.4's rule that mode and grounding re-evaluate when intake changes the scope to be acted on; ranking against stale grounding risks surfacing ideas fit to the wrong topic.
-
-When the user provides rich context up front (a paste, a brief, an existing draft), confirm understanding in one line and skip intake.
-
-## How to decompose
-
-Before generating, decompose the topic into 3-5 orthogonal **axes** that name *what aspects of the subject to think about*. Frames in "How to generate" determine *how to think* (the lens); axes determine *what to think on* (the surface). Without explicit axes, the same topic interpreted six ways through six lenses still leaves most of the surface unexamined — lens diversity does not produce surface coverage on its own.
-
-This step is the facilitator's own analysis — no sub-agent, no additional research. The Phase 1 grounding supplies the substance.
-
-Axes should be:
-
-- **3-5 in number.** Fewer means atomic — skip decomposition. More fragments coverage.
-- **Orthogonal.** A single idea should fall on one axis, not span multiple.
-- **Derived from grounding**, not from a generic template.
-- **At the same level** of granularity.
-- **Named in the topic's language**, not meta-language about ideation.
-
-**Worked examples (illustrative, not a template):**
-
-- "Name my new coffee shop" → atomic; skip decomposition (the candidate *is* a name)
-- "Plot ideas for a short story" → atomic; skip decomposition (the candidate *is* a plot)
-- "Brand strategy for a launch" → axes might be: positioning; visual identity; voice; launch channels; pricing/packaging
-- "Career options for the next 5 years" → axes might be: domain (industry/role); structure (employee/founder/freelance); geography; growth ambition; financial floor
-
-**Skip condition.** Many elsewhere-non-software topics are atomic by nature — a single name, tagline, or one-shot creative output. When 3+ orthogonal axes do not emerge, skip decomposition and note `Decomposition skipped — atomic subject` in the grounding summary.
-
-**Surprise-me skip.** No settled subject in surprise-me mode; skip decomposition and note `Decomposition skipped — surprise-me mode`.
-
-Record the axes (or skip-reason) at the head of generation. Generation will distribute ideas across axes; convergence will weight axis spread alongside other rubric criteria.
-
-## How to generate
-
-Generate the full candidate list before critiquing any idea. Use the same six frames as software ideation, described in domain-agnostic language. Each frame is a **starting bias, not a constraint** — follow promising threads across frames. When dispatching frames as parallel sub-agents (Full depth), follow SKILL.md Model Tiers: evidence-driven frames (pain, inversion, leverage) on the generation tier; ceiling frames (assumption-breaking, analogy, constraint-flipping) on the ceiling tier.
-
-- **Pain and friction** — what is consistently annoying, slow, or broken in the current state of the topic? Generate ideas that remove or reduce that friction.
-- **Inversion, removal, automation** — what would happen if a step were inverted, removed entirely, or automated away? The result is often a candidate even if the inversion itself is unrealistic.
-- **Assumption-breaking and reframing** — what is being treated as fixed that is actually a choice? Reframe the problem one level up or sideways.
-- **Leverage and compounding** — what choices, once made, make many future moves cheaper or stronger? Look for second-order effects.
-- **Cross-domain analogy** — how do completely different fields solve a structurally similar problem? The grounding domain is the user's topic; the analogy domain is anywhere else (other industries, biology, games, infrastructure, history). Push past the obvious analogy to non-obvious ones.
-- **Constraint-flipping** — invert the obvious constraint to its opposite or extreme. What if the budget were 10x or 0? What if there were one constraint instead of ten, or ten instead of one? Use the resulting design as a candidate even if the flip itself is not realistic.
-
-Aim for 5-8 ideas per frame. **When axes are present, distribute ideas across axes** — each frame's lens applies to every axis, but ideas should not all cluster on one. Tag each idea with the axis it targets. After generating, merge and dedupe; scan for cross-cutting combinations (3-5 additions at most; more in surprise-me mode, where different frames often discover different subjects and combinations are the magic layer).
-
-**Axis-coverage check (when axes are present).** After merging, count ideas per axis. If any axis has zero ideas, generate one additional small batch (3-5 ideas) targeting the empty axis with the frame whose lens best fits — Pain & friction for usability gaps, Cross-domain analogy for distribution or compounding gaps, etc. Cap recovery at 2 axes; beyond that, accept thin coverage rather than fan out. Note any axis that was not recovered in the rejection summary so the gap is visible.
-
-**Per-idea output contract (mirrors the software-mode contract in `references/divergent-ideation.md`):** each idea carries title, summary, **axis** (when decomposition produced an axis list — pick the one this idea most centrally targets; omit when skipped), **basis** (required, tagged `direct:` quoted evidence / `external:` named prior art or domain research / `reasoned:` written-out first-principles argument), why-it-matters connecting the basis to the move's significance, and a one-line meeting-test self-check (waived when tactical focus signals were detected in Phase 0.5). Basis is required, not optional — unjustified speculation does not surface.
-
-**Generation rules:**
-
-- Every idea carries an articulated basis. The failure mode to prevent is plausible-sounding speculation that lacks any basis the user can verify.
-- Aim past the obvious. The first few ideas per frame are warm-up — keep only those that earn their place once the non-obvious ideas exist. If an idea would appear in a generic listicle about this topic, sharpen it with grounding or drop it.
-- Bias toward the basis type your frame naturally produces — pain/inversion/leverage tend toward `direct:`; analogy and constraint-flipping tend toward `reasoned:` — but don't exclude other types. When a frame produces a reasoned basis, write the argument out, don't gesture at it.
-- Apply the meeting-test as a default floor: would this idea warrant the equivalent of team discussion (or whatever maps to "worth talking through" in this topic's native domain)? If not, it's below the floor and does not surface. The floor is relaxed only when Phase 0.5 detected tactical focus signals.
-- Stay within the subject's identity. Expansions, new surfaces, new directions, retirements are fair game when the basis supports them. Subject-replacement moves (abandoning the subject, pivoting to an unrelated domain) are out regardless of basis.
-
-**Surprise-me mode in this reference.** When Phase 0.2 routed to surprise-me, there is no user-specified subject. Through each frame's lens, explore the Phase 1 grounding (user-context synthesis + web research) and identify the subject(s) you find most interesting for that lens. Different frames finding different subjects is the feature. The basis may include identification of the subject itself — why this subject is worth ideating on through this lens, citing what in the Phase 1 material signals it.
-
-## How to converge
-
-Before the final cut, dispatch one fresh-context basis verifier (generation tier — see SKILL.md Model Tiers) whose payload is only the grounding summary and the candidate list, prompted to refute: bases that don't support the claimed move, prior art that isn't real or relevantly analogous, reasoned arguments that don't hold. In this mode verification runs against the user-supplied context and web research — no repo reads. Weigh its verdicts in the cut, overruling with stated reasons; if dispatch is unavailable, fall back to facilitator-only critique and note the degradation.
-
-Apply adversarial critique. For each candidate, write a one-line reason if rejected. **Basis-integrity check:** reject any idea lacking an articulated basis, any idea whose stated basis does not actually support the claimed move (speculation dressed as ambition), and any idea that replaces the subject rather than operating on it. Score survivors using a consistent rubric weighing: groundedness in stated context, **basis strength** (`direct:` > `external:` > `reasoned:`; none excluded, but direct-evidence ideas score higher all else equal), expected value, novelty, pragmatism, leverage, implementation burden, overlap with stronger candidates, and **axis spread** (when axes were defined) — survivor sets that cover the topic's surface outscore sets that cluster on one axis, all else equal. Axis spread is a list-level concern, not a per-idea reject reason; apply it after per-idea filtering when choosing among comparable candidates.
-
-Target 5-7 survivors by default. If too many survive, run a second stricter pass. If fewer than five survive, report that honestly rather than lowering the bar.
-
-## When to wrap up
-
-Wrap up with the same flow as `references/post-ideation-workflow.md` Phases 4–5 — the mechanics are identical in this mode:
-
-- **Auto-write the deliverable** (Phase 4.1). The full per-idea detail (title, description, axis, basis, rationale, downsides, confidence, complexity) and the rejection summary go in the **file** — persistence is automatic, not opt-in. Location: `docs/ideation/` when it already exists, otherwise the run's CE temp area (`<scratch-root>/ce-ideate/<run-id>/`) — never the user's CWD. `OUTPUT_FORMAT` (SKILL.md Phase 0.0; default `html`) sets the extension.
-- **Present a concise summary** (Phase 4.2) — the ranked list (title · axis · confidence · complexity), counts, the path, and any zero-survivor axis. Do not reprint the full detail in the session; the rich file is what the user engages with. For HTML, best-effort open it in the browser (Phase 4.3).
-
-Then offer the Phase 5 next-steps menu via the platform's blocking question tool (`AskUserQuestion` in Claude Code — call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded; `request_user_input` in Codex; `ask_question` in Antigravity CLI (`agy`) / Pi). Fall back to a numbered list only when no blocking tool exists or the call errors. Never silently skip. Four options, option 1 format-keyed:
-
-1. **Open in browser** *(html)* / **Publish to Proof** *(md)* — open the HTML deliverable, or publish the markdown to Proof for a shareable link (per §5.1). On Proof failure the auto-written local file stays intact.
-2. **Brainstorm one idea with `ce-brainstorm`** — go deeper on one chosen idea (asks which). In universal mode this is **not** the first step of an implementation chain — there is no `ce-plan` → `ce-work` after; `ce-brainstorm` develops the idea further (a name into a brand brief, a plot into an outline, a decision into a weighed framework) and ends there. Seed it with the idea's substance + a provenance pointer (per §5.2) — not the whole file.
-3. **Discuss or refine the ideas first** — stay here to think across the set before committing: adjust or interrogate one idea, compare several, or combine/merge them (per §5.3). Adjustments and merges rewrite the file; Q&A and comparison do not.
-4. **Done — keep the file and stop.**
-
-Discard is a free-text escape ("say 'discard' to delete it"), create-only — never deletes a resumed or pre-existing doc.
+Run Phase 4 and the Phase 5 menu from `references/post-ideation-workflow.md` unchanged: auto-write the deliverable (`OUTPUT_FORMAT` sets the extension; `docs/ideation/` when it already exists, otherwise the run's scratch dir, never the user's CWD), present the concise ranked summary, and offer the same four options with the first slot format-keyed — **Open in browser** under `OUTPUT_FORMAT=html`, **Publish to Proof** under `md` — then Brainstorm one idea (with the terminal framing above), Discuss or refine the ideas first, and Done.

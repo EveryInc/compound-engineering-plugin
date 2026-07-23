@@ -73,7 +73,7 @@ Populate these headings with concrete evidence from the request and Phase 0 disc
 - `Constraints and exclusions` — inherited restrictions, non-goals, and unresolved boundaries; and
 - `Units` — use one conservative `P1` unit by default; create more only when discovery establishes distinct goals, dependencies, expected files, and verification without guessing.
 
-If any of Goal, bounded Scope, or Acceptance and verification cannot be populated, do not initialize or egress. Return to Phase 0 clarification or planning. Compute the brief's SHA-256, call controller `init` with `--prompt-brief <temp-path> --prompt-digest <sha256>`, and use the controller-owned private copy and digest thereafter. The caller's temp path is never authoritative after initialization. Invocation origin does not change this contract.
+If any of Goal, bounded Scope, or Acceptance and verification cannot be populated, do not initialize or egress. Return to Phase 0 clarification or planning. Compute the brief's SHA-256, call controller `init` with `--prompt-brief <temp-path> --prompt-digest <sha256>`, and use the controller-owned private copy and digest thereafter. The caller's temp path is never authoritative after initialization.
 
 ## Serial external-unit protocol
 

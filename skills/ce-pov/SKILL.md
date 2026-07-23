@@ -26,16 +26,6 @@ Write user-facing messages for the person deciding what to do. Lead with the dec
 
 When you must ask the user a question, use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. Ask one question at a time.
 
-## Model Tiers
-
-Dispatch is tiered by task shape, never hardcoded to a model name:
-
-- **Extraction tier** — the project-grounding scout and the precedent-&-activity scout: search-and-quote work. Use the platform's cheapest capable model when the harness exposes a known override; otherwise inherit.
-- **Generation tier** — the external-evidence researcher: web/docs retrieval and entailment checking. Use the platform's mid-tier model when a known override exists; otherwise inherit.
-- **Ceiling tier** — the POV reasoning itself (the grounding gate, the skeptic synthesis, the subject-shape contract). This runs in the main conversation on the orchestrator's model; nothing is dispatched for it.
-
-**Degradation rule.** When the platform's subagent primitive cannot select per-agent models, dispatch every scout on the inherited model and keep their read budgets — cost control then comes from the read budgets and the tier-sensitive scout count, not from tiering.
-
 ## Execution Flow
 
 ### Phase 0: Frame and Classify
@@ -44,26 +34,25 @@ Dispatch is tiered by task shape, never hardcoded to a model name:
 
 1. **Detect the invocation context — cold or warm.** Warm means `ce-pov` was invoked mid-session for a second opinion, with the question sitting in the surrounding conversation or absent. For the warm contract beyond the frame — taking only the *question and claims-to-verify* (never grounding), the guest output, the provenance buckets — read `references/invocation.md`.
 
-2. **Establish the frame before grounding — orient, then infer or propose; never guess.** The same input supports very different verdicts: a bare link to a new sign-in method could mean adopt it, migrate to it, compare it to what we have, or just answer a question about it. Guessing sends the scouts after the wrong question. So orient cheaply on what was provided — fetch a bare link lightly to learn what it is, recognize a bare topic, read a paste (orientation, not grounding) — then settle the **subject and the POV intent** (adopt / migrate / compare / is-this-our-problem / Document-take / Approach-set / explainer):
+2. **Establish the frame before grounding — orient, then infer or propose; never guess.** The same input supports very different verdicts: a bare link to a new sign-in method could mean adopt it, migrate to it, compare it to what we have, or just answer a question about it. Guessing grounds the wrong question. So orient cheaply on what was provided — fetch a bare link lightly to learn what it is, recognize a bare topic, read a paste (orientation, not grounding) — then settle the **subject and the POV intent** (adopt / migrate / compare / is-this-our-problem / Document-take / Approach-set / explainer):
    - Both clear → state the frame in one line and proceed.
-   - Intent ambiguous (a bare link or topic with no stated intent, or a warm invocation with no clear question) → **read `references/intake.md`** and follow it: propose the concrete candidate framings this input suggests and confirm before grounding. Do not guess and fan out.
+   - Intent ambiguous (a bare link or topic with no stated intent, or a warm invocation with no clear question) → **read `references/intake.md`** and follow it: propose the concrete candidate framings this input suggests and confirm before grounding. Do not guess.
 
 3. **Apply the selection escape hatch.** If the input is a *selection* over a field ("what should we use for auth?"), it belongs here only when the realistic field is bounded (roughly five or fewer real candidates) and the criteria are knowable. If the field can't be bounded without inventing options, or the criteria are unclear, **stop**: return a Hold and route to `ce-ideate` (to enumerate) or `ce-brainstorm` (to surface criteria), then offer to re-run. Read `references/boundaries.md` only when the input's fit for `ce-pov` is genuinely in doubt or the field can't be bounded; skip it for a clearly in-scope verdict.
 
-4. **Classify the reversibility tier — three levels.** Infer it from project signals:
-   - **Tier 1 — two-way door:** a dependency, lint rule, or config; trivially reversible.
-   - **Tier 2 — one-way but bounded:** a data store, an internal API/contract, or a migration whose blast radius stays inside this codebase.
-   - **Tier 3 — one-way and high-stakes:** a security, legal, or privacy surface; a public API/contract; or an irreversible data migration.
+4. **Scale effort to reversibility, state the tier in the verdict, and let the user override.** **Tier 1** (two-way door — a dependency, lint rule, or config) stays a one-screen verdict. **Tier 2** (one-way but bounded — a data store, an internal API/contract, or a migration whose blast radius stays inside this codebase) adds a real alternatives pass. **Tier 3** (one-way and high-stakes — a security, legal, or privacy surface; a public API/contract; or an irreversible data migration) adds deep external evidence, a precedent search, a stated reversal trigger, and a durable-record offer. Do not run a Tier-3 workup on a trivially reversible `npm i`, or hand a security-surface decision the moderate Tier-2 treatment.
 
-   State the tier in the verdict and let the user override. The tier sizes the rest of the run (Phase 1 scout count, Phase 2 depth, Phase 3 reversal trigger): Tier 1 stays a one-screen verdict off a single combined grounding pass; Tier 2 adds the full scout fleet and an alternatives pass; Tier 3 adds deep external research, a precedent search, and a durable-record offer. Do not run a Tier-3 workup on a trivially reversible `npm i`, or hand a security-surface decision the moderate Tier-2 treatment.
+### Phase 1: Ground (bounded inline reads by default; delegate noisy search)
 
-### Phase 1: Ground (dispatch scouts by default; bounded inline reads when facts are pre-located)
+Ground the question against the authoritative sources yourself, with bounded reads instead of dispatching scouts: dependency manifests and lockfiles for the incumbent, its call sites and the surfaces a change would touch, `docs/solutions/` + ADRs + design docs for a prior decision, the issue tracker and PR prose when an interface is reachable, and the web for maturity, pitfalls, and migration reality. `references/grounding-checklist.md` holds the non-obvious asks for each leg. Use the project's active instructions already in context.
 
-Grounding searches code, git, the issue tracker, PRs, and docs — noisy work that would flood this context and crowd out the verdict reasoning. Dispatch it to scout sub-agents that search in their own context and return only a dossier path plus a short gist; read a dossier on demand, never inline the raw search.
+Delegate a leg to a subagent only when its search would be broad enough to flood this context; unscoped or noisy grounding still dispatches. Send scouts directly to candidate-specific current evidence, seeded with the checklist asks plus the framed question (subject + intent), the named incumbent, the tier, and the resolved `<scratch-dir>` — a fresh subagent inherits none of this conversation — and have each write its dossier there and return the path plus a 3-5 line gist, which you read on demand rather than inlining raw search. If the candidate cannot be scoped from the frame and existing context, allow one targeted root or workspace probe.
 
-Use the project's active instructions already in context. Send scouts directly to candidate-specific current evidence. If the candidate cannot be scoped from the frame and existing context, allow one targeted root or workspace probe. When the load-bearing facts are already located in the current context — a warm invocation or a Tier-1 subject often points straight at the file, symbol, or record — you may confirm them yourself with bounded reads of the authoritative source (code, git, tracker, docs) instead of dispatching scouts; unscoped or noisy grounding still dispatches. A conversation claim is a pointer to check, never self-verifying: an unverified assertion still requires the bounded read or a scout before it counts. The Tier-1 prior-decision scan (`docs/solutions/`, ADRs, design docs) stays mandatory on either path.
+A conversation claim is a pointer to check, never self-verifying: an unverified assertion still requires the bounded read or a scout before it counts. The prior-decision scan (`docs/solutions/`, ADRs, design docs) stays mandatory on either path.
 
-Create the scratch dir once, and reuse the echoed path for every scout this run:
+**Keep the provenance buckets separate** for Phase 2: *observed-project-facts* and *verified-external-facts* (these count as grounding) vs. *conversation-claims* and *unconfirmed-assumptions* (these do not until a bounded read of the authoritative source or a scout corroborates them). Never block on a surface you cannot reach — no tracker interface, no web tools — record it, and let it lower the verdict's stated confidence or trip the external floor (Phase 2) when the external leg is entirely absent.
+
+Create the scratch dir once, and reuse the echoed path for every scout or peer payload this run:
 
 ```bash
 SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
@@ -76,21 +65,9 @@ SCRATCH_DIR="$SCRATCH_ROOT/ce-pov/$(openssl rand -hex 4)";
 echo "$SCRATCH_DIR";
 ```
 
-**Every scout payload carries the same context.** A fresh subagent does not inherit this conversation, so fill the persona files' `{subject}` / `{scratch-dir}` placeholders at dispatch: pass each scout the framed question (subject + intent), the named incumbent and the reversibility tier, and the resolved `<scratch-dir>` path — plus any user-supplied links for the external researcher. A scout seeded with only its generic persona grounds "some external thing" and can produce an empty or unfocused dossier.
-
-**Tier-sensitive dispatch.** For **Tier 1** (reversible), run a single combined grounding pass: seed one subagent with `references/agents/project-grounding-scout.md` covering the candidate-specific project facts (incumbent, call-sites) at a tight read budget, and one with `references/agents/external-evidence-researcher.md`; skip the standalone precedent scout — on this tier the project-grounding scout's **prior-decision scan** (`docs/solutions/`, ADRs, design docs) is the precedent check, so it must run. For **Tier 2/3**, dispatch the full fleet in parallel:
-
-- **project-grounding scout** (extraction tier) — read `references/agents/project-grounding-scout.md` and seed a generic subagent with it. Run the **candidate-specific** slice fresh: the named incumbent for *this* candidate, its call-sites/footprint, incumbent-pain, exact runtime or framework constraints that materially affect compatibility, and the project/candidate/dependency license check. Do not start with generic shape discovery; the project floor (see `references/method.md`) still requires a freshly verified call-site and current compatibility evidence.
-- **precedent-&-activity scout** (extraction tier) — read `references/agents/precedent-activity-scout.md` and seed a generic subagent with it. Always run its **local-doc precedent pass** (`docs/solutions/`, ADRs, design docs — file reads, no tools needed); only its tracker/PR portion is capability-gated and degrades gracefully when those interfaces aren't reachable. Do **not** skip the whole scout for missing tracker access — that would drop the only path that surfaces a prior local adopt/reject decision.
-- **external-evidence researcher** (generation tier) — read `references/agents/external-evidence-researcher.md` and seed a generic subagent with it; capability-gated on web tools. **Scale the remit to the tier so Tier 3's deeper-workup promise is real, not nominal:** at **Tier 3**, seed it with a deeper brief — a wider source net, a larger read budget, and *mandatory* two-source corroboration on every load-bearing claim (at Tier 3 a single-source claim cannot anchor the verdict); **Tier 2** uses the persona's standard budget and its prefer-two-sources default.
-
-**Capability gating is two-level:** skip only a scout (or scout-portion) with **no reachable surface at all** — the project-grounding scout and the precedent scout's local-doc pass are file reads and always run; the tracker/PR reads and the external researcher are tool-gated and degrade. Let a scout that loses a tool mid-run self-report "unavailable." Never block on a missing surface — record it and let it lower the verdict's stated confidence, or trip the external floor (Phase 2) when the external leg is entirely absent.
-
-**Populate the provenance buckets** from the returned dossiers and your own bounded inline-read observations, keeping them separate for Phase 2: *observed-project-facts* and *verified-external-facts* (these count as grounding) vs. *conversation-claims* and *unconfirmed-assumptions* from a warm invocation (these do not count until a scout or a bounded inline read of the authoritative source corroborates them). Read dossiers from their paths on demand; do not pull their bulk into this context.
-
 ### Phase 2: Verify Grounding
 
-**Read `references/method.md` now**, before reasoning about the POV — it defines the Verify and POV steps, the skeptic stance and reversibility tiering as cross-cutting properties, and the subject-aware grounding gate. Apply that gate as a pass/fail checklist over the grounded evidence (scout dossiers and recorded bounded inline-read observations): on an external-adoption subject a failed floor forbids Adopt/Reject and returns the matching Hold subtype; on a document or approach set it returns the matching explicit Blocked result. Do this reasoning on the clean context — read a dossier on demand, never pull its bulk in.
+**Read `references/method.md` now**, before reasoning about the POV — it defines the skeptic stance, the subject-aware grounding gate, and the output contract for each subject shape. Apply that gate as a pass/fail checklist over the grounded evidence: on an external-adoption subject a failed floor forbids Adopt/Reject and returns the matching Hold subtype; on a document or approach set it returns the matching explicit Blocked result.
 
 ### Phase 3: Point of View
 

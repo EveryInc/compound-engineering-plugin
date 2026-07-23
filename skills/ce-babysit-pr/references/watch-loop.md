@@ -1,18 +1,14 @@
 # Watch loop — scheduling, state, dedup, edge cases
 
-Read this once per babysit session, before acting on the first tick's output. It defines *how ticks are scheduled per harness*, the *on-disk state contract*, the *claim→act→confirm dedup protocol* that makes ticks idempotent and crash-safe, and the *edge-case handling*. SKILL.md owns the ordering invariant; this file owns the mechanics.
+SKILL.md owns the ordering invariant; this file owns the mechanics: *how ticks are scheduled per harness*, the *claim→act→confirm dedup protocol* that makes ticks idempotent and crash-safe, and the *edge-case handling*. Read it before acting on branch currency, a managed stack, or a non-convergence trigger.
 
 ## How the watch sustains itself
 
-A skill's turn ends when it returns, so *the skill sets up its own loop* — nothing re-invokes it by magic. The robust, cross-harness-verified way is **not** to call a specific per-harness scheduler; it is to run a cheap deterministic background change-detector and **stay in-session**, woken when it signals:
-
-- **`pr-snapshot watch`** is that detector — same fetch→diff on an interval, **no agent tokens**, prints one `BABYSIT_WAKE {reason,url,...}` line *only* on work to inspect (`actionable` for unresolved threads or failed CI; `feedback-candidate` for non-thread content awaiting resolver judgment; `branch-currency` for an item requiring claim, semantic inspection, or reconciliation) or a stop condition (`terminal` / `blocked-external` / `blocked-failing` — a dispatched check left terminally red — / `needs-human` / `merge-ready` after settle / `max-runtime` / `stop-signal` / `invocation-superseded`), then exits. A `feedback-candidate` that the resolver silent-drops is a normal classification outcome, not a detector false positive.
-- At the fixed deadline, the final refresh preserves `terminal` and already-settled `merge-ready` stops; `max-runtime` outranks every non-terminal work/residual wake so the cap cannot start another agent round.
-- The agent **backgrounds `watch` and waits for that line** with its harness's *background-and-wake* capability, runs a tick, and re-arms. The loop lives **in the current session**, so it keeps every decision the conversation made — declined nits, a reviewer judged wrong, the user's mid-run steering — and spends reasoning only when something changed.
+A skill's turn ends when it returns, so *the skill sets up its own loop* — nothing re-invokes it by magic. The robust, cross-harness-verified way is **not** a per-harness scheduler: background `pr-snapshot watch` (the same fetch→diff on an interval, **no agent tokens**, printing one `BABYSIT_WAKE {reason,url,...}` line only on work to inspect or a stop condition, then exiting), **stay in-session** waiting on that line, run a tick, and re-arm. At the fixed deadline, the final refresh preserves `terminal` and already-settled `merge-ready` stops; `max-runtime` outranks every non-terminal work/residual wake so the cap cannot start another agent round.
 
 Watcher ownership is **latest-valid-watcher-wins**. A newer invocation cancels an older invocation whose first fetch is still in flight, preventing network completion order from stealing ownership back. That candidate reservation does not displace the active watcher: only a successful first snapshot atomically supersedes and gracefully terminates it, while a failed preflight leaves it healthy and active. Wakes and snapshots carry `watch_generation`. On delivery, compare the wake generation with a fresh snapshot: discard a stale wake and coalesce it into that current read; if the generation matches but the attention set already cleared, do no work. An `invocation-superseded` wake ends the old loop without a tick or re-arm because a later explicit invocation owns the state. Replacement preserves `last_change_at`, `invocation_started_at`, and `invocation_budget_seconds`, so a fresh watcher polls immediately without adding a new settle delay or renewing the budget.
 
-The needed capability is generic — *run a background process and be woken when it emits a line, without ending the turn* — so **describe the capability and use whatever tool the harness has**, rather than hardcoding a scheduler. A skill drives **tool calls**, never user-typed slash commands. Known instances (examples, not a required list; verified live this session):
+The needed capability is generic — *run a background process and be woken when it emits a line, without ending the turn* — so **describe the capability and use whatever tool the harness has**, rather than hardcoding a scheduler. A skill drives **tool calls**, never user-typed slash commands. Known instances (examples, not a required list):
 
 | Harness | Background-and-wake tool the agent uses | Durable beyond the session? |
 |---------|-----------------------------------------|-----------------------------|
@@ -20,11 +16,11 @@ The needed capability is generic — *run a background process and be woken when
 | Grok (CLI/TUI) | background `run_terminal_command` + `get_command_or_subagent_output`; `scheduler_create --durable` for a cross-session schedule | Yes via `scheduler_create --durable` (60s min, 7d) |
 | Cursor (CLI) | `Shell` background + `notify_on_output` sentinel (its `/loop` is user-typed, **not** skill-invocable) | No (session-bound) |
 | Codex (CLI) | a runtime-owned background exec that re-runs the tick (a detached `nohup` is **reaped** when the tool call ends) | No (session-bound) |
-| GUI apps / headless / unknown | none reliable → **checkpoint** | — |
+| GUI apps / headless / unknown | none reliable → **one-tick floor** | — |
 
 **User-runnable resume syntax.** Whenever this reference tells the skill to print or copy a resume invocation, default to `/ce-babysit-pr <url>`. Use `$ce-babysit-pr <url>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
 
-**Checkpoint (the floor):** when no background-and-wake capability exists, run one tick, persist, report, and print the exact host-rendered re-run invocation — monitoring is *paused*, say so plainly. Because every tick is disk-resumable, checkpoint is the same loop hand-cranked; the in-session watch only automates the crank. Never fake a loop with a foreground `sleep` (blocked on Claude Code, discouraged elsewhere) or a detached `nohup` (reaped/unsupported on several harnesses).
+**The floor:** when no background-and-wake capability exists, run one tick, persist, report that monitoring is *paused*, and print the exact host-rendered re-run invocation. Because every tick is disk-resumable, that is the same loop hand-cranked. Never fake a loop with a foreground `sleep` (blocked on Claude Code, discouraged elsewhere) or a detached `nohup` (reaped/unsupported on several harnesses).
 
 **Durability:** the in-session watch dies with the session; re-invoking resumes from disk (`/tmp` persists across ticks). For an unattended multi-day watch, escalate to a durable scheduler (Grok `scheduler_create --durable`, or cron running `<cli> exec '<host-rendered resume invocation>'`) — a fresh headless run is context-blind, so persist consequential decisions to disk. **Shell env vars do not persist between separate tool calls** on any harness — re-set `SKILL_DIR`/`STATE_DIR` inline in every command.
 
@@ -39,18 +35,16 @@ The needed capability is generic — *run a background process and be woken when
 
 ## Pipeline mode bound (`mode:pipeline`)
 
-An orchestrator (`lfg`) drives ticks in-line and needs the loop to terminate. Run ticks back-to-back until the stop below. **To wait for CI to progress between ticks, use the harness's native non-blocking wait — never a bare foreground `sleep`** (blocked on Claude Code, discouraged elsewhere): Claude Code's `Monitor` until-loop; Grok's `get_command_or_subagent_output(timeout_ms=…)` or a `monitor`; Cursor's `Await` on a backgrounded `gh pr checks --watch`. If the harness has no non-blocking wait, do one tick and return control to the orchestrator rather than busy-spinning. Loop until:
+An orchestrator (`lfg`) drives ticks in-line and needs the loop to terminate. Run ticks back-to-back until the stop below. **To wait for CI to progress between ticks, use the harness's native non-blocking wait — never a bare foreground `sleep`** (blocked on Claude Code): Claude Code's `Monitor` until-loop; Grok's `get_command_or_subagent_output(timeout_ms=…)`; Cursor's `Await` on a backgrounded `gh pr checks --watch`. With no non-blocking wait, do one tick and return control to the orchestrator rather than busy-spinning. Loop until:
 
 - **Report success only when** `all_checks_ok` is true (every check terminal, **none failing**, and at least one observed), the actionable backlog is empty, `mergeability_certain` is true, `merge_state_status == "CLEAN"`, `stack_blocker` is null, and `branch_currency_blocker` is null/current currency is clear. A terminal-but-**red** check `ce-debug` left as a residual (`has_failing_checks` true), an empty rollup (`checks_present` false — Actions has not created check-runs yet, not that CI passed), unknown or non-clean merge state, manager-stale/probe-error chain state, or an open/claimed/parked currency item is **not** success: keep ticking until it clears or the time budget expires, then return with residuals or `no-checks-observed`; or
 - a **budget** is hit: default **3 CI fix rounds** per head-lineage (mirrors `lfg`'s historical cap) and an overall time cap (~30-45 min). On budget-exhaust, the still-red checks and any `needs-human` items become residuals.
 
 Never wait on the merge-ready settle window or human review in pipeline mode — those are interactive stops. A check stuck `IN_PROGRESS` past the time cap ends the run with a "CI still running" residual rather than blocking forever.
 
-The round/time budget above is a **blunt cost floor**, not a convergence detector — it catches a runaway that never trips the trajectory-driven stop below. Prefer to stop *because it's demonstrably not converging*, not because a timer expired.
-
 ## Non-convergence (trigger → route → park → re-open)
 
-A loop can churn without finishing: CI **ping-pong** (fix A surfaces B, fix B brings A back — often an emergent trade-off), a review-bot **treadmill** (each commit spawns fresh nits), or **wrong-approach whack-a-mole** (each nit is valid but the approach, e.g. a regex, is the problem). A raw attempt counter can't tell these from *legitimate progress* (four independent failures each fixed once) — so the decision is **agent reasoning over the trajectory**, and the split is strict:
+A loop can churn without finishing — CI **ping-pong**, a review-bot **treadmill**, **wrong-approach whack-a-mole** — and a raw attempt counter can't tell those from *legitimate progress* (four independent failures each fixed once). So the decision is **agent reasoning over the trajectory**, and the split is strict:
 
 - **`pr-snapshot` (babysit) ships facts.** The `trajectory` block is deterministic and coarse: `check_recur_max`/`recurring_checks` (a check that failed → cleared → failed again on a *new* head; same-head flapping is excluded, so this is not flaky noise), `unresolved_trend` + `new_threads_this_tick` (backlog growing / fresh threads arriving), `stream_alternations` (ci↔review bouncing — cross-stream churn only babysit can see), `heads_since_progress` (heads moved without a new low in open problems). Babysit **never** labels this "non-convergence."
 - **The leaf judges.** When a trigger fires (the thresholds are in SKILL.md Step 2 — the single source of truth; do not re-list them here), pass the trajectory into that tick's `ce-debug`/`ce-resolve-pr-feedback` as **mandatory input**. It must either demonstrate progress (name the invariant the next bounded fix resolves) or return a `needs-human` that **parks the whole stream** with a `decision_context` (the tension/root, options, tradeoffs, its lean).
@@ -61,74 +55,14 @@ A loop can churn without finishing: CI **ping-pong** (fix A surfaces B, fix B br
 
 **Guards:**
 
-- **Moving-target ≠ non-convergence.** Base-branch merges, dep bumps, flaky infra, and bot-rule changes create unrelated new failures. Recurrence already excludes same-SHA flapping; still, don't park a failure the leaf attributes to an external cause rather than the approach.
 - **Cross-stream contradiction.** If `ce-debug` concludes the review-requested behavior is invalid while `ce-resolve-pr-feedback` concludes it's required, that's a single **cross-stream** residual — don't arbitrarily park one side.
 - **Parked = hard blocker, re-openable.** A parked stream makes the PR *not* merge-ready (never "done"), but re-open it on material change (a human pushed a new head, the parked thread was superseded/resolved, or the failing-check universe changed). **How:** CI re-opens itself — a new head SHA clears the SHA-scoped dispatch state, so just re-snapshot. A parked **review thread** does *not* auto-re-open; `mark --thread <id> --disposition open` re-actionizes it for a fresh pass. Un-park deliberately, on judged material change — not on the resolver's own reply.
 
 ## On-disk state contract
 
-State lives at `<scratch-root>/ce-babysit-pr/<host>-<owner>-<repo>-<pr>/state.json` (a stable, cross-invocation-reusable path so any later tick — scheduled or hand-run — finds it). The `<host>` segment (from the PR URL, `github.com` on the public host) is load-bearing for GitHub Enterprise: without it, two PRs sharing `owner/repo#N` on different hosts would reuse one `state.json` and cross-contaminate dispositions. The `pr-snapshot` script owns all reads and writes under a file lock. Shape:
+State lives at `<scratch-root>/ce-babysit-pr/<host>-<owner>-<repo>-<pr>/state.json` (a stable, cross-invocation-reusable path so any later tick — scheduled or hand-run — finds it). The `<host>` segment (from the PR URL, `github.com` on the public host) is load-bearing for GitHub Enterprise: without it, two PRs sharing `owner/repo#N` on different hosts would reuse one `state.json` and cross-contaminate dispositions. The `pr-snapshot` script owns all reads and writes under a file lock — **never read or edit `state.json` directly**; take what you need from each `snapshot`'s emitted JSON, which the script keeps in sync with it (including migrating older state files forward).
 
-```json
-{
-  "pr": { "owner": "...", "repo": "...", "number": 123, "url": "..." },
-  "head_sha": "abc123",
-  "tick": 7,
-  "state_created_at": "<iso8601>",
-  "started_at": "<iso8601>",
-  "invocation_id": "<opaque invocation token>",
-  "invocation_budget_seconds": 28800,
-  "last_activity_at": "<iso8601 — activity heartbeat: last watch poll or agent snapshot/mark>",
-  "dead_time_seconds": 0,
-  "invocation_backstop_seconds": 259200,
-  "watch_generation": "<opaque generation>",
-  "watch_pid": 12345,
-  "watch_process_identity": "<pid-reuse guard>",
-  "checks": { "<check_key>": { "name": "...", "status": "COMPLETED", "conclusion": "FAILURE", "head_sha": "abc123" } },
-  "threads": { "<thread_id>": { "last_comment_id": "...", "last_comment_at": "<iso8601>", "disposition": "open|dispatched|needs-human", "acted_identity": ["<comment_id>", "<comment_at>"] } },
-  "feedback": { "<comment_or_review_id>": { "kind": "comment|review", "author": "...", "disposition": "open|dispatched|needs-human" } },
-  "ci_dispatched": { "<head_sha>": ["<check_key>", "..."] },
-  "review_decision": "APPROVED",
-  "review_in_progress": false,
-  "review_signal_count": 0,
-  "review_signal_identities": [],
-  "review_signal_seen_on_head": true,
-  "review_signal_first_seen_at": "<iso8601>",
-  "review_signal_last_changed_at": "<iso8601>",
-  "mergeable": "MERGEABLE",
-  "merge_state_status": "CLEAN",
-  "base": { "host": "github.com", "repository": "owner/repo", "ref": "main", "oid": "base-sha" },
-  "branch_currency_state": {
-    "current_key": "currency:<identity-hash>",
-    "head_sha": "abc123",
-    "items": { "<currency-key>": { "status": "BEHIND|DIRTY", "disposition": "open|claimed|confirmed|needs-human", "host_branch_update_capability": true, "recovery_state": "claimed|mutation-observed|ambiguous|retry-authorized|retry-exhausted", "semantic_conflict_fingerprint": "<paths-and-stage-blobs>" } },
-    "semantic_parks": { "<fingerprint>": { "head_sha": "abc123", "status": "DIRTY", "route": "normal-base", "observation_key": "<currency-key>" } }
-  },
-  "pr_chain": {
-    "manager_status": "confirmed|absent|probe-error",
-    "manager_source": "gh-stack|graphql|null",
-    "relationship_status": "dependent|independent|probe-error",
-    "target_position": 2,
-    "target_needs_rebase": false,
-    "upstack_needs_rebase": [],
-    "entries": [],
-    "parent_prs": [],
-    "dependent_prs": []
-  },
-  "last_change_at": "<iso8601>",
-  "last_action": "<short string>",
-  "trajectory": {
-    "check_history": { "<check_key>": { "state": "failing|clear", "last_head": "abc123", "recur": 0 } },
-    "seen_threads": { "<thread_id>": 3 },
-    "unresolved_series": [2, 3, 4],
-    "stream_series": ["ci", "review", "ci"],
-    "min_open_problems": 1,
-    "heads_since_progress": 0
-  }
-}
-```
-
-A `check_key` is `"<workflow>/<name>"` (or `"<name>"` when there is no workflow) — stable across polls for the same head, which is all the dedup needs (see below). Each `snapshot` emits `changed_this_tick`, `quiet_seconds`, `invocation_id`, `invocation_started_at`, `invocation_elapsed_seconds`, `invocation_budget_seconds`, `invocation_remaining_seconds`, `persisted_state_created_at`, `persisted_state_age_seconds`, `pr_chain`, `stack_blocker`, the review-signal lifecycle fields, and the derived `trajectory` facts (see **Non-convergence** above). `review_signal_identities` is the sorted set of current 👀 reactor identities; `review_signal_count` and `review_in_progress` remain count and boolean compatibility views. Identity-set changes are observable signal movement even when the count and boolean stay unchanged. Legacy state without identities migrates on its first identity-aware observation. `review_signal_seen_on_head` remains true if all observed 👀 disappear, so a fresh agent can distinguish an incomplete lifecycle from a head where no signal ever appeared; a new head resets it. The first snapshot starts one fixed invocation; later calls must match its token, anchor, and budget. Persisted-state age describes how long the resumable PR journal has existed and never contributes to the invocation cap. The chain probe is CLI-first: accept `gh stack view --json` only when it contains the target PR, then use the GraphQL fallback. Only a stack-field schema-unavailable response with a successful read-only default-branch lookup degrades to `absent`; auth, transport, rate-limit, malformed, other GraphQL, and failed default-branch probes stay `probe-error`. Ordinary open-PR base/head relationships classify manual dependencies only when no manager is confirmed. The `trajectory` sub-state is deterministic bookkeeping the script maintains; the leaves reason over the emitted facts.
+A `check_key` is `"<workflow>/<name>"` (or `"<name>"` when there is no workflow) — stable across polls for the same head, which is all the dedup below needs. The first snapshot starts one fixed invocation; later calls must match its token, anchor, and budget. Persisted-state age describes how long the resumable PR journal has existed and never contributes to the invocation cap.
 
 ## Claim → act → confirm (the dedup protocol)
 
@@ -152,9 +86,8 @@ Do not re-derive "required checks" — GitHub already computes it. Use `mergeabl
 
 The settle window guards the most damaging false positive: "CI went green, told the user to merge, then feedback landed."
 
-- The script stamps `last_change_at` whenever anything observable moves — a check status/conclusion, a thread's identity (added, edited, or resolved-away), the head SHA, `review_decision`, `mergeable`, `merge_state_status`, or the current 👀 reactor identity set. Each snapshot emits `quiet_seconds`.
-- "Looks ready" requires `quiet_seconds >= 300` (default) on top of a CLEAN mergeable state and zero actionable backlog (threads **and** non-thread feedback). A reviewer or bot still working shows up as recent activity → `quiet_seconds` resets.
-- A current-head review signal creates an incomplete lifecycle even if it later disappears. The detector blocks a live 👀 through 900 quiet seconds; the skill applies the same 15-minute floor to a disappeared/non-👀 signal, may extend once to 1800 seconds from concrete prior-round timing, and never re-arms past 30 quiet minutes after the last observable movement solely for the unchanged signal. A new signal transition is movement and resets that quiet phase; the ceiling is not wall-clock time from the first 👀.
+- The script stamps `last_change_at` whenever anything observable moves — a check status/conclusion, a thread's identity (added, edited, or resolved-away), the head SHA, `review_decision`, `mergeable`, `merge_state_status`, or the current 👀 reactor identity set — and emits `quiet_seconds`, so a reviewer or bot still working resets the clock.
+- A current-head review signal creates an incomplete lifecycle even if it later disappears (`review_signal_seen_on_head` stays true after the 👀 goes away, and resets on a new head, so a fresh agent can tell an incomplete lifecycle from a head where no signal ever appeared). The detector blocks a live 👀 through 900 quiet seconds; SKILL.md Step 3 owns the 15-minute floor, the single evidence-based extension to 1800 seconds, and the 30-minute ceiling. A new signal transition is movement and resets that quiet phase; the ceiling is not wall-clock time from the first 👀.
 - **It is a cooling-off signal, not a guarantee.** Five quiet minutes is evidence the PR stopped moving, not proof no review is coming. Report "looks ready — your call," never "safe to merge"; a stalled lifecycle uses the stronger cautious-ready disclosure and resume path from SKILL.md.
 
 ## Concurrency
@@ -165,9 +98,7 @@ The settle window guards the most damaging false positive: "CI went green, told 
 
 ## Managed-stack continuation
 
-Sequential babysitting is available only while a fresh probe positively reports `manager_status == "confirmed"` for the active PR. It uses one active PR target and one watcher, never a watcher per stack layer. On an authorized transition, stop the old watcher, re-read `gh stack view --json`, require the next PR to be the manager's immediate open entry and either non-draft or explicitly included by the user, check out that branch, and initialize its own state directory with `--continue-invocation` plus the same recorded values on the same flags the first snapshot used — `--invocation-id`, `--session-started-at` (the anchor flag, not `--invocation-started-at`), and `--invocation-budget-seconds` — **and `--continue-dead-time-seconds <prior layer's `invocation_dead_time_seconds`>`** so the shared active-time budget carries the suspended time already excluded on earlier layers. One fixed budget covers the entire accepted traversal rather than restarting per PR; each layer's state dir accumulates its own dead time, so omitting the carry value would re-count the prior layer's excluded suspend as active. Recheck downstack settledness only at transitions, immediately before mutation, and at readiness; if a lower layer has become unsettled, return to the lowest unsettled layer rather than writing to both concurrently. Loss of manager confirmation ends continuation.
-
-The one-time semantic-scope offer and draft/human boundaries live inline in SKILL.md because they are routing decisions, not detector mechanics. A manual dependency chain never enters this continuation path; it remains target-local even when its base/head relationships have the same shape.
+Sequential babysitting is available only while a fresh probe positively reports `manager_status == "confirmed"` for the active PR, with one active PR target and one watcher, never a watcher per stack layer. On an authorized transition, stop the old watcher, re-read `gh stack view --json`, require the next PR to be the manager's immediate open entry and either non-draft or explicitly included by the user, check out that branch, and initialize its own state directory with `--continue-invocation` plus the same recorded values on the same flags the first snapshot used — `--invocation-id`, `--session-started-at` (the anchor flag, not `--invocation-started-at`), and `--invocation-budget-seconds` — **and `--continue-dead-time-seconds <prior layer's `invocation_dead_time_seconds`>`**, because each layer's state dir accumulates its own dead time and omitting the carry value would re-count the prior layer's excluded suspend as active. One fixed budget covers the entire accepted traversal rather than restarting per PR. Recheck downstack settledness only at transitions, immediately before mutation, and at readiness; if a lower layer has become unsettled, return to the lowest unsettled layer rather than writing to both concurrently. Loss of manager confirmation ends continuation. The one-time semantic-scope offer and draft/human boundaries live inline in SKILL.md; a manual dependency chain never enters this continuation path.
 
 ## Edge cases
 
@@ -180,7 +111,6 @@ The one-time semantic-scope offer and draft/human boundaries live inline in SKIL
 - **Manager/relationship probe error:** continue review and CI streams, but perform no branch-currency mutation and do not declare ready until classification succeeds.
 - **External head change / force-push:** the head SHA moved under the loop. The snapshot clears SHA-scoped CI state automatically; just re-snapshot. Never clobber unrelated pushed work.
 - **PR closed or merged externally:** detected as `pr_state != "OPEN"` on any tick → clean exit with a final status.
-- **needs-human feedback:** `ce-resolve-pr-feedback` leaves those threads open and returns them as escalations; record each with `mark ... --disposition needs-human`, keep doing independent CI work, and surface them. Never auto-decline or auto-resolve a thread you did not fix. A parked `needs-human` is a **standing residual** (SKILL.md Step 3): it blocks *declaring* merge-ready but does **not** end the watch — keep handling new CI and later review rounds around it. Only a true stop (terminal / looks-ready / the budget cap) ends the active layer, not a count of accumulated escalations; an authorized confirmed-managed-stack run may transition after a looks-ready layer as defined inline in SKILL.md.
+- **needs-human feedback:** `ce-resolve-pr-feedback` leaves those threads open and returns them as escalations; record each with `mark ... --disposition needs-human`, keep doing independent CI work, and surface them. Never auto-decline or auto-resolve a thread you did not fix. A parked `needs-human` is a **standing residual** (SKILL.md Step 3): it blocks *declaring* merge-ready but does **not** end the watch.
 - **No push access / fork PR:** a delegated push will fail. Detect that from the delegated skill's result, report it, and stop — the loop cannot make progress it has no permission to make.
-- **CI that never completes:** a check stuck `IN_PROGRESS` for a long time will keep the loop from settling. When the invocation budget is reached — either the 8h **active** cap (`invocation_elapsed_seconds`, which excludes suspended time) or the 3-calendar-day **wall-clock backstop** (`invocation_wall_elapsed_seconds`) — hand back with the measured `invocation_elapsed_seconds` and the `max_runtime_ceiling` that fired; never substitute the age of persisted PR state or automatically start another budget.
 - **Rate limits / transient API errors:** honor the reset time, back off, resume. The claim→confirm protocol protects against replay.

@@ -34,15 +34,7 @@ In either case, identify which sections apply to the file types in the diff. A s
 
 ## Confidence calibration
 
-Use the anchored confidence rubric in the subagent template. Persona-specific guidance:
-
-**Anchor 100** — the violation is verifiable from the code: the standards file has a quotable rule, the diff has a line that mechanically violates it (e.g., "do not use absolute paths in skills" + a literal absolute path), and no interpretation is needed.
-
-**Anchor 75** — you can quote the specific rule from the standards file and point to the specific line in the diff that violates it. Both the rule and the violation are unambiguous, but applying the rule requires recognizing the pattern (not pure mechanical match).
-
-**Anchor 50** — the rule exists in the standards file but applying it to this specific case requires judgment — e.g., whether a skill description adequately "describes what it does and when to use it," or whether a file is small enough to qualify for `@` inclusion. Surfaces only as P0 escape or soft buckets.
-
-**Anchor 25 or below — suppress** — the standards file is ambiguous about whether this constitutes a violation, or the rule might not apply to this file type.
+Use the anchored confidence rubric in the subagent template. **Anchor 100** — the standards file has a quotable rule and the diff has a line that mechanically violates it (e.g. "do not use absolute paths in skills" + a literal absolute path), with no interpretation. **Anchor 75** — you can quote the specific rule and point to the specific violating line; both are unambiguous, though applying the rule takes pattern recognition. **Anchor 25 or below — suppress** — the standards file is ambiguous about whether this is a violation, or the rule may not apply to this file type.
 
 ## What you don't flag
 

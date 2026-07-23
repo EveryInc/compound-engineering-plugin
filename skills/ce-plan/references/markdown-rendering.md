@@ -1,12 +1,9 @@
 # Markdown Rendering
 
-This is a format-rendering reference — it describes how to render any
-artifact in markdown, independent of which skill is producing it.
-
-It is paired with a section contract (`plan-sections.md`,
-`brainstorm-sections.md`, etc.) that describes *what* the artifact contains.
-This reference describes *how* markdown specifically presents it. The same
-content rendered by different skills shares the same markdown principles.
+This is a format-rendering reference — how to render an artifact in markdown,
+independent of which skill is producing it. It is paired with a section
+contract (`plan-sections.md`, `brainstorm-sections.md`, etc.) that describes
+*what* the artifact contains; this describes *how* markdown presents it.
 
 ## Hard invariants
 
@@ -74,12 +71,11 @@ shape, not by template default.
 - **Tables** when 5+ items share uniform structure (`ID + body`,
   `name + value`, `decision + rationale`, `risk + mitigation`). Tables
   scan faster at that scale and unlock additional columns (status,
-  traceability, severity) that bullets can't accommodate cleanly.
+  traceability, severity) that bullets can't accommodate cleanly. Don't use
+  a table to render content that is really bullets — markdown tables are
+  noisier in raw form and worse for diffs.
 
-The test: which shape would a reader scan fastest for this content? If
-items have parallel structure and 5+ instances, table. If items are 3-5
-and each has a few lines of prose, bullets. If the content is a single
-narrative thought, prose.
+The test: which shape would a reader scan fastest for this content?
 
 ### Bold leader labels within bullets
 
@@ -103,12 +99,6 @@ clutter the doc and break TOC generation.
 
 For substantial artifacts, use horizontal rules (`---`) between top-level
 H2 sections. Omit for short docs where separators would dominate.
-
-### Tables for genuinely comparative info only
-
-Use tables for the uniform-shape case in "Content shape" above. Don't use
-tables to render content lists that are really bullets — markdown tables
-are noisier in raw form and worse for diffs.
 
 ## Section anatomy
 
@@ -156,19 +146,8 @@ specific artifact's content needs.
 
 When the section contract calls for a diagram (architecture, sequence,
 flowchart, state machine, swim lane, data-flow), markdown renders it as
-a fenced mermaid block:
-
-```markdown
-` ``mermaid
-flowchart TB
-  A[Start] --> B{Decision}
-  B -->|yes| C[Action]
-  B -->|no| D[Other action]
-` ``
-```
-
-(`TB` direction default — keeps diagrams narrow in source view and in
-narrow rendered viewports.)
+a fenced mermaid block with `TB` direction as the default — it keeps
+diagrams narrow in source view and in narrow rendered viewports.
 
 Markdown's diagram affordances are limited compared to HTML. For
 quantitative comparisons (bar charts, scatter plots) markdown has no
@@ -182,22 +161,6 @@ mermaid layout `flowchart` (or describe it in prose) — never hand-draw a
 box-drawing/ASCII wireframe; it violates the no-box-drawing-characters rule
 and reads poorly. The wireframe proper is an HTML-only affordance.
 
-## Inline code and code blocks
-
-- **Inline code** for identifiers (variable names, function names,
-  flag names, file paths, IDs that aren't section anchors).
-- **Fenced code blocks** with language tag for code, shell commands,
-  API request/response samples. Always specify the language for syntax
-  highlighting and accessibility.
-
-```markdown
-The flag `--cdp-url` accepts a URL.
-
-` ``bash
-browser-use --cdp-url http://localhost:9222
-` ``
-```
-
 ## No process exhaust
 
 Engineering process metadata stays out of the artifact:
@@ -207,9 +170,6 @@ Engineering process metadata stays out of the artifact:
 - No italic provenance lines ("*Brainstorm completed 2026-05-13*")
 - No engineering-flow shepherding ("Now read this file:", "Next, run that
   command:")
-
-This information belongs in commit messages, tool output, and agent
-transcripts — not in the artifact a reader returns to weeks later.
 
 ## Frontmatter shape
 
@@ -226,17 +186,3 @@ brainstorm frontmatter). Common rules:
   mutable `status` field or an `active → completed` lifecycle — whether
   the work shipped is derived from git, not stored in the doc.
 - Stable across artifact revisions — never rename or repurpose a field.
-
-## Post-write audit
-
-Before declaring the markdown file written, scan it for these common
-slips:
-
-- All stable IDs are plain-prefix format, not bolded.
-- No HTML elements mixed in.
-- All file paths are repo-relative.
-- Horizontal rule separators between H2s (for Standard / Deep artifacts).
-- No process exhaust (Phase X notes, Next Steps pointers, provenance
-  lines).
-- Tables only where 5+ uniform-shape items justify them.
-- Frontmatter has all the per-skill required fields with reasonable values.

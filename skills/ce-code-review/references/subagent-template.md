@@ -32,24 +32,15 @@ You produce up to two outputs depending on whether a run ID was provided:
    `first_evidence` is the ONE exception to "no evidence in the compact return": it is the verbatim motivating line with `file:line` (the same string you put first in the `evidence` array). It is **REQUIRED for every finding at anchor 75 or 100** — the orchestrator enforces the quote-the-line gate from this field, and a 75/100 finding without it is demoted to anchor 50 at merge. Omit it only for anchor-50 findings. Keep it to that single line; the rest of `evidence` stays in the artifact file.
    Include reviewer, residual_risks, and testing_gaps at the top level.
 
-The full file preserves detail for downstream consumers (agent-mode output, debugging).
-The compact return keeps the orchestrator's context lean for merge and synthesis.
-
 The schema below describes the **full artifact file format** (all fields required). For the compact return, follow the field list above -- omit why_it_matters and the full evidence array (but include `first_evidence`) even though the schema marks evidence as required.
 
 {schema}
 
-**Schema conformance — hard constraints (use these exact values; validation rejects anything else):**
+**Schema conformance — hard constraints (use the schema's exact values; validation rejects anything else):**
 
-- `severity`: one of `"P0"`, `"P1"`, `"P2"`, `"P3"` — use these exact strings. Do NOT use `"high"`, `"medium"`, `"low"`, `"critical"`, or any other vocabulary, even if your persona's prose discusses priorities in those terms conceptually.
-- `autofix_class`: one of `"gated_auto"`, `"manual"`, `"advisory"`.
-- `owner`: one of `"downstream-resolver"`, `"human"`, `"release"`.
 - `evidence`: an ARRAY of strings with at least one element. A single string value is a validation failure — wrap every quote in `["..."]` even when there is only one. **For any finding at anchor `75` or `100`, the first evidence item MUST be the verbatim motivating line(s) with `file:line`** — the exact code text that makes the finding true (see "Quote-the-line gate" below).
-- `pre_existing`: boolean, never null.
-- `requires_verification`: boolean, never null.
 - `confidence`: one of exactly `0`, `25`, `50`, `75`, or `100` — a discrete anchor, NOT a continuous number. Any other value (e.g., `72`, `0.85`, `"high"`) is a validation failure. Pick the anchor whose behavioral criterion you can honestly self-apply to this finding (see "Confidence rubric" below).
-
-If your persona description uses severity vocabulary like "high-priority" or "critical" in its rubric text, translate to the P0-P3 scale at emit time. "Critical / must-fix" → P0, "important / should-fix" → P1, "worth-noting / could-fix" → P2, "low-signal" → P3. Same for priorities described qualitatively in your analysis — map to P0-P3 on the way out.
+- If your persona's prose discusses priorities qualitatively, translate at emit time: "critical / must-fix" → `"P0"`, "important / should-fix" → `"P1"`, "worth-noting" → `"P2"`, "low-signal" → `"P3"`. Never emit `"high"`, `"medium"`, `"low"`, or `"critical"` as a `severity`.
 
 **Confidence rubric — use these exact behavioral anchors.** Pick the single anchor whose criterion you can honestly self-apply. Do not pick a value between anchors; only `0`, `25`, `50`, `75`, and `100` are valid. The rubric is anchored on behavior you performed, not on a vague sense of certainty — if you cannot truthfully attach the behavioral claim to the finding, step down to the next anchor.
 
@@ -76,53 +67,11 @@ Anchor and severity are independent axes. A P2 finding can be anchor `100` if th
 
 Synthesis suppresses anchors `0` and `25` silently. Anchor `50` is dropped from primary findings unless the severity is P0 (P0+50 survives) or synthesis routes it to a soft bucket (testing_gaps, residual_risks, advisory) per mode-aware demotion. Anchors `75` and `100` enter the actionable tier.
 
-Example of a schema-valid finding (all required fields, correct enum values, correct array shape):
+Writing `why_it_matters` (required on every finding — an empty string, null, or single phrase is a validation failure):
 
-```json
-{
-  "title": "User-supplied ID in account lookup without ownership check",
-  "severity": "P0",
-  "file": "app/controllers/orders_controller.rb",
-  "line": 42,
-  "why_it_matters": "Any signed-in user can read another user's orders by pasting the target account ID into the URL. The controller looks up the account and returns its orders without verifying the current user owns it. The shipments controller already uses a current_user.owns?(account) guard for the same attack class; matching that pattern fixes this finding.",
-  "autofix_class": "gated_auto",
-  "owner": "downstream-resolver",
-  "requires_verification": true,
-  "suggested_fix": "Add current_user.owns?(account) guard before lookup, matching the pattern in shipments_controller.rb",
-  "confidence": 100,
-  "evidence": [
-    "orders_controller.rb:42 -- account = Account.find(params[:account_id])",
-    "shipments_controller.rb:38 -- raise NotAuthorized unless current_user.owns?(account)"
-  ],
-  "pre_existing": false
-}
-```
-
-The `confidence: 100` is justified because the issue is verifiable from the code alone — the controller fetches by user-supplied ID and returns data without any guard, and the parallel pattern in shipments_controller.rb confirms the project's own convention is being violated.
-
-Writing `why_it_matters` (required field, every finding):
-
-The `why_it_matters` field is how the reader — a developer triaging findings, a ticket-body reader months later, or a caller workflow — understands the problem without re-reading the file. Treat it as the most important prose field in your output; every downstream surface (reports, agent envelopes, ticket bodies) depends on it being good.
-
-- **Lead with observable behavior.** Describe what the bug does from the outside — what a user, attacker, operator, or downstream caller experiences. Do not lead with code structure ("The function X does Y..."). Start with the effect ("Any signed-in user can read another user's orders..."). Function and variable names appear later, only when the reader needs them to locate the issue.
-- **Explain why the fix resolves the problem.** If you include a `suggested_fix`, the `why_it_matters` should make clear why that specific fix addresses the root cause. When a similar pattern exists elsewhere in the codebase (an existing guard, an established convention, a parallel handler), reference it so the recommendation is grounded in the project's own conventions rather than theoretical best practice.
-- **Keep it tight.** Approximately 2-4 sentences plus the minimum code quoted inline to ground the point. Longer framings are a regression — downstream surfaces have narrow display budgets, and verbose `why_it_matters` content gets truncated or skimmed.
-- **Always produce substantive content.** `why_it_matters` is required by the schema. Empty strings, nulls, and single-phrase entries are validation failures. If you found something worth flagging at anchor `50` or higher, you can explain it — the field exists because every finding needs a reason.
-
-Illustrative pair — same finding, weak vs. strong framing:
-
-```
-WEAK (code-citation first; fails the observable-behavior rule):
-  orders_controller.rb:42 has a missing authorization check.
-  Add current_user.owns?(account) guard before the query.
-
-STRONG (observable behavior first, grounded fix reasoning):
-  Any signed-in user can read another user's orders by pasting the
-  target account ID into the URL. The controller looks up the account
-  and returns its orders without verifying the current user owns it.
-  Adding a one-line ownership guard before the lookup matches the
-  pattern already used in the shipments controller for the same attack.
-```
+- **Lead with observable behavior**, not code structure: what a user, attacker, operator, or downstream caller experiences ("Any signed-in user can read another user's orders by pasting the target account ID into the URL"), then the names the reader needs to locate it.
+- **Make clear why the `suggested_fix` resolves it**, referencing a parallel guard or convention already in the codebase when one exists.
+- **Keep it to roughly 2-4 sentences** plus the minimum inline code to ground the point; downstream surfaces truncate long entries.
 
 False-positive categories to actively suppress. Do NOT emit a finding when any of these apply — not even at anchor `25` or `50`. These are not edge cases you should route to soft buckets; they are non-findings.
 
@@ -149,20 +98,7 @@ Rules:
 - Set `autofix_class` and `owner` per `references/action-class-rubric.md`; if that file is not reachable from your working directory, the same `gated_auto` / `manual` / `advisory` and owner semantics are already in the schema above and this template's guidance. This skill does not apply fixes — classify for caller routing only.
 - Default `owner` to `downstream-resolver` for actionable findings unless the item is genuinely human-only or release-owned.
 - Set `requires_verification` to true whenever the likely fix needs targeted tests, a focused re-review, or operational validation before it should be trusted.
-- **Propose a `suggested_fix` whenever any defensible code change is reachable from the diff and surrounding code.** This is the persona's commitment that "I, the reviewer with the diff and evidence in front of me, can articulate what the fix looks like." The suggested fix becomes the authoritative signal that downstream surfaces use to decide whether the agent can act on the finding. Three rules:
-  - **Defensible from review context:** the fix should be reachable from the diff, the cited code, parallel patterns elsewhere in the repo, or framework conventions you can verify. If you cannot ground the fix in evidence the reader can check, omit it.
-  - **Concrete, not generic:** "add a guard before the query" with the specific guard named is concrete; "consider adding validation" is generic. Generic advice is suppressed by the false-positive catalog above.
-  - **Imperfect information is not grounds for omission.** When you don't have full context for the optimal fix, propose the most defensible default and name the assumption. Do not omit because "the right answer depends on X" — name the assumption you're making, propose the default, and let the user override.
-    Examples of imperfect-info findings that should still get a `suggested_fix`:
-    - Pagination strategy unclear → propose offset pagination matching the existing pattern at `file:line`, with assumption named. If product needs cursor-based, the user can switch.
-    - Rate limit value uncertain → propose the value that matches existing rate limits in the project, with assumption named. The user can tune.
-    - Auth model unknown → propose authentication via the existing middleware pattern at `file:line`, with assumption named. If a different service owns the auth flow, the user can route through it.
-    The "I need `<specific input>` before I can commit" framing is a soft punt. The question to ask instead is "what code change would I propose if I had to choose now?" — and propose that, with the assumption named so the user can correct it.
-  - **Genuinely-omit cases are rare.** Omit `suggested_fix` only when there is no code-level change to propose — for example:
-    - The finding is a question, not a fix request: "What is the intended SLA here?" with no clear default to assume.
-    - The resolution is purely organizational with no code component: legal sign-off, business policy decision, or a process change that doesn't touch code.
-    These shapes are the exception, not the norm. Most "manual" findings in code review have a defensible code-level proposal even when context is incomplete. A `manual` finding without `suggested_fix` routes to the best-judgment path's `failed` bucket with reason "no fix proposed by reviewer" — owning that omission is the persona's responsibility.
-  A bad fix suggestion is still worse than none — the false-positive catalog and grounding rule above prevent that. The bias is toward proposing when you can; the omission case is narrow.
+- **Propose a `suggested_fix` whenever any defensible code change is reachable from the diff and surrounding code.** It must be concrete (a named guard, not "consider adding validation") and grounded in evidence the reader can check — the diff, the cited code, a parallel pattern in the repo, or a framework convention you can verify. Imperfect information is not grounds for omission: propose the most defensible default and name the assumption you made so the user can override it ("offset pagination matching `file:line`, assuming no cursor requirement"). "I need `<specific input>` first" is a punt — answer "what would I propose if I had to choose now?" instead. Omit only when there is no code-level change to propose (a genuine open question, or a purely organizational resolution).
 - If you find no issues, return an empty findings array. Still populate residual_risks and testing_gaps if applicable.
 - **Intent verification:** Compare the code changes against the stated intent (and PR title/body when available). If the code does something the intent does not describe, or fails to do something the intent promises, flag it as a finding. Mismatches between stated intent and actual code are high-value findings.
 </output-contract>

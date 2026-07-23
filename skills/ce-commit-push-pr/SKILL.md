@@ -6,19 +6,19 @@ argument-hint: "[PR ref] [mode:pipeline] [archive:on|off] [branding:on|off] [bab
 
 # Git Commit, Push, and PR
 
-**Asking the user:** When this skill says "ask the user", use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting the question in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
+**Asking the user:** Where this skill says "ask the user", use the harness's blocking-question tool — `AskUserQuestion` (Claude Code), `request_user_input` (Codex), `ask_question` (Antigravity CLI), `ask_user` (Pi); load its schema first if the harness defers it. If no such tool exists or the call errors, take the conservative branch, state the assumption, and keep going — do not end the run on an unanswered question.
 
 ## Mode
 
-- **Description-only** — user wants *just* a description ("write/draft a PR description", "describe this PR", or pasted a PR URL/number alone). Run Step 4 only; print the result. Apply only if the user asks. If a PR ref was pasted, pass it to Step 4 so Pre-A resolves the right range.
-- **Description update** — user wants to refresh/rewrite an existing PR's description with no commit/push intent. Determine PR presence with the same rule used everywhere: only an exit-0 `[]` from the existing-PR check means "no open PR" (report and stop); a non-zero check is **unknown** (resolve `gh auth status` / connectivity first — never treat it as "no PR"). With an open PR, run Step 4 (PR mode using the existing PR's URL), then Step 5 to preview, confirm, and apply via `gh pr edit`.
+- **Description-only** — user wants *just* a description ("write/draft a PR description", "describe this PR", or a pasted PR URL/number alone). Run Step 4 only and print the result; apply only if the user asks. Pass a pasted PR ref to Step 4 so Pre-A resolves the right range.
+- **Description update** — refresh/rewrite an existing PR's description with no commit/push intent. With an open PR, run Step 4 (PR mode using the existing PR's URL), then Step 5 to apply via `gh pr edit`. Only an exit-0 `[]` from the existing-PR check means "no open PR" — report and stop.
 - **Full workflow** — otherwise. Run Steps 1-5 in order.
 
-**`mode:pipeline` modifier** — set by orchestrated callers (e.g., `lfg`). Run the resolved mode non-interactively: suppress every blocking ask. Step 5's existing-PR rewrite question defaults to **not rewriting**; in description-update mode the preview ask is skipped and the rewrite applies directly (the update invocation itself is the apply intent); any other suppressed ask takes its conservative documented default (keep the current branch; if Pre-A cannot resolve a base, stop and report rather than guess).
+**`mode:pipeline` modifier** — passed by orchestrated callers (e.g., `lfg`): suppress every blocking ask and take each one's conservative documented default (an existing PR's description is not rewritten unless the invocation itself is the apply intent, as in description-update mode; keep the current branch). Say what you assumed rather than stopping.
 
 ## Context
 
-Gather the repository context by running each command below as its **own** shell tool call — a single argv-style invocation (just the program and its arguments). Do **not** join them with `;`, `&&`, `||`, pipes, `$(...)`, or redirects like `2>/dev/null`: that syntax parses only under POSIX shells and aborts under Windows PowerShell. Read each command's exit status directly — a non-zero exit is a normal state to interpret (no PR yet, no `origin/HEAD`, detached HEAD), not a failure to suppress.
+Gather the repository context by running each command below as its **own** shell tool call — a single argv-style invocation (just the program and its arguments). Do **not** join them with `;`, `&&`, `||`, pipes, `$(...)`, or redirects like `2>/dev/null`: that syntax parses only under POSIX shells and aborts under Windows PowerShell. Read each exit status as data — non-zero is often a normal state (no PR yet, no `origin/HEAD`, detached HEAD), not a failure to suppress.
 
 Run them in order — the existing-PR check needs the branch name from `git branch --show-current`:
 
@@ -37,18 +37,16 @@ Substitute `<branch>` with the current branch from `git branch --show-current`, 
 - **Empty branch (detached HEAD):** skip the PR check entirely — `gh pr list` with an empty `--head` drops the filter and lists unrelated PRs. Resolve it after Step 1 creates a branch.
 - **Fork checkout:** do **not** pass `<owner>:<branch>` — `gh pr list --head` does not accept that syntax and silently returns `[]` for it, which reads as "no PR" and opens a duplicate. The PR lives on the base repo, so make `gh` target the base: rely on its default-repo resolution, or pass `-R <base-owner>/<repo>` explicitly when the default is the fork.
 
-Everything gathered here is a snapshot taken before any action — treat it as a hint, not ground truth. Re-verify the branch, remote, and existing-PR state immediately before each consequential step (push in Step 3, `gh pr create` in Step 5), since they can change between gathering and acting.
-
 ---
 
 ## Step 1: Resolve branch and PR state
 
-The remote default branch returns something like `origin/main`; strip the `origin/` prefix. If that command exited non-zero (no `origin/HEAD` set) or returned bare `HEAD`, try `gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'`. If both fail, fall back to `main`. For the existing-PR check: an empty `[]` array means no open PR for this branch; a non-zero exit means `gh` is missing, unauthenticated, or offline — treat PR state as **unknown** (not "no PR") and re-run the check, or `gh auth status`, before creating a new PR in Step 5 rather than assuming none exists.
+Default branch: strip the `origin/` prefix from the `origin/HEAD` result. If that command exited non-zero (no `origin/HEAD` set) or returned bare `HEAD`, try `gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'`; if both fail, fall back to `main`.
 
 Branch routing:
 
 - **Detached HEAD** — automatically create a feature branch from the current `HEAD` before continuing. Derive the branch name from the change content, run `git checkout -b <branch-name>`, re-read `git branch --show-current`, and use that result for the rest of the workflow. Do not ask whether to create the branch — invoking the full commit/push/PR workflow is already confirmation that the work should become branch-backed. If the derived branch name already exists, choose a non-conflicting suffix or ask only if the conflict cannot be resolved safely.
-- **On default branch with work to do** (uncommitted, unpushed, or no upstream) — automatically create a feature branch (pushing the default directly is not supported). Derive a name from the change content and continue at Step 3, which handles branch creation safely. Do not ask whether to branch — committing on the default is not an option here.
+- **On default branch with work to do** (uncommitted, unpushed, or no upstream) — automatically create a feature branch (pushing the default directly is not supported). Derive a name from the change content and continue at Step 3, which handles branch creation safely.
 - **On default branch with no work** — report no feature branch work and stop.
 - **Feature branch** — continue.
 
@@ -85,24 +83,14 @@ If the working tree is clean and all commits are already pushed, this step is a 
 
 **You MUST read `references/pr-description-writing.md`** in full — the core principle at the top governs every step. The only input it needs from this skill is the PR ref, if one was identified by mode dispatch (description-only with a pasted URL, description update, or confirmed existing-PR rewrite in full workflow). If Step 1 found an existing PR, pass its URL to Step 4 when rewriting so PR mode fetches the existing body and can preserve `Related:` / `Fixes` references already present there.
 
-**Evidence decision** before composition. CE no longer owns a dedicated capture workflow; modern harnesses provide their own browser, screenshot, terminal recording, and artifact capture tools. Treat evidence as user-supplied context or as validation prose, not as a separate skill dispatch.
+**Evidence decision** before composition. If the user supplied evidence (URL, markdown image/embed, local artifact path), incorporate it as `## Demo`, `## Screenshots`, or `## Evidence`, matching the artifact type. Never invent or upload evidence, and never label test output as "Demo" or "Screenshots." If the branch changes behavior a reviewer would need evidence for, add a concise validation note on what was exercised and how it behaved — or say plainly that no real run was possible (credentials, paid services, deploy-only infrastructure, hardware, missing local setup). Do not block PR creation because no visual artifact exists.
 
-1. **User supplied evidence** (URL, markdown image/embed, local artifact path they want referenced) — incorporate it into the PR body as `## Demo`, `## Screenshots`, or `## Evidence`, matching the artifact type. Do not invent or upload evidence.
-2. **User explicitly asks to include evidence but has not supplied it** — ask for the URL/markdown/path, or tell them to use the current harness's capture flow and return with the artifact. Do not launch another CE skill.
-3. **Agent judgment on authored changes** — if you authored the commits and know the change produces no material claim a reviewer would need evidence for (internal plumbing, type-only, backend refactor without user-facing effect, inert documentation, pure refactors), skip evidence handling without asking. Classify by runtime purpose, not extension: markdown or YAML that is runtime agent instructions, configuration, generated product content, or policy code is not auto-skippable just for being markdown or YAML.
+**Concept teaching gate** before composition. Read `<repo-root>/.compound-engineering/config.local.yaml` (repo root from Context) with the native file-read tool. Only an **active (non-commented)** key counts — the shipped template documents these keys as `#` comments, and matching those would silently flip the gate. `pr_teaching_section` is off only when the active value is exactly `false`; a missing file, missing key, or any other value means the default **on**. The same read resolves `pr_teaching_archive` — on only when the active value is exactly `true`, otherwise **off**; a per-run `archive:on|off` token overrides it.
 
-Otherwise, if the branch diff changes behavior a reviewer would need evidence for (UI, CLI output, API behavior with runnable code, generated artifacts, workflow output, ranking/scoring logic, deployment or config behavior), include a concise validation note in the PR body describing what was exercised and how it behaved. If no real run was possible because of unavailable credentials, paid services, deploy-only infrastructure, hardware, or missing local setup, say that plainly in the validation section.
+- Gate **on** — judge concept novelty and compose the section per **Step B2** of the reference.
+- Gate **off** — skip judgment, the section, the Step 5 trailer and offer, and archival entirely.
 
-Do not block PR creation solely because no visual artifact exists. Test output and manual validation notes are acceptable validation evidence, but do not label test output as "Demo" or "Screenshots."
-
-**Concept teaching gate** before composition. Use the repo root gathered in Context (resolving it with `git rev-parse --show-toplevel` if you don't already have it) and read `<repo-root>/.compound-engineering/config.local.yaml` with the native file-read tool. Only an **active (non-commented)** `pr_teaching_section:` key counts — lines starting with `#` are YAML comments, and the shipped template documents keys as commented examples; matching those would silently flip the gate. The gate is off only when the active value is exactly `false`; a missing file, missing key, or any other value means the default: **on**. The same read resolves `pr_teaching_archive:` — on only when the active value is exactly `true`, otherwise **off** — and a per-run `archive:on|off` token overrides the archive key for this invocation.
-
-- Gate **on** — judge concept novelty and compose the section per **Step B2** of the reference. The gate is single: when it is off, skip judgment, the section, the Step 5 trailer and offer, and archival entirely.
-- Gate **off** — compose the description without any concept handling.
-
-**PR branding gate** before composition. Branding is **off unless this invocation includes `branding:on` or the user explicitly asks in the current prompt to add Compound Engineering branding**; normalize that natural-language request to `branding:on`. `branding:off` forces the gate off when `branding:on` is absent. If both tokens are present, stop and report the conflict rather than guessing. Pass the resolved gate and whether the target is a new or existing PR into Step D of the reference. Branding is the generic Compound Engineering badge only; do not attribute the PR to a model or harness. The gate controls adding branding to a new PR body. Existing branding is preserved verbatim unless the user explicitly asks to remove or replace that exact content.
-
-Then continue with the rest of the reference (Steps A through E, including the Step B2 concept judgment when the gate is on) to compose the title and body — Step E is the pre-apply coverage audit and must run before the body is returned.
+**PR branding gate** before composition. Branding is **off unless this invocation includes `branding:on` or the user explicitly asks in the current prompt to add Compound Engineering branding**; normalize that natural-language request to `branding:on`. `branding:off` forces the gate off when `branding:on` is absent. If both tokens are present, stop and report the conflict rather than guessing. Pass the resolved gate into Step D of the reference. Existing branding is preserved verbatim unless the user explicitly asks to remove or replace that exact content.
 
 ## Step 5: Apply and report
 
@@ -113,16 +101,16 @@ Then continue with the rest of the reference (Steps A through E, including the S
 **Existing PR** (full workflow, found in Step 1) — the new commits are already on the PR from Step 3. Report the PR URL, then ask whether to rewrite the description.
 
 - **No** — done.
-- **Yes** — run Step 4 if not already done, then preview and apply (see below).
+- **Yes** — run Step 4 if not already done, then apply (see below).
 
-**Description update mode, or existing-PR rewrite confirmed** — preview before applying. First compare the proposed title and body with the existing PR. If they are identical, keep the existing title and body and do not call `gh pr edit`. If the only difference is a branding-only delta and the user did not explicitly request that exact branding change, also keep the existing title and body; branding alone never creates apply intent. Otherwise ask: "New title: `<title>` (`<N>` chars). Summary leads with: `<first two sentences>`. Total body: `<L>` lines. Apply?" If declined, the user may pass focus text back for a regenerate; do not apply. If confirmed, apply per "Applying via gh" below using `gh pr edit` and report the URL.
+**Description update mode, or existing-PR rewrite confirmed** — first compare the proposed title and body with the existing PR. If they are identical, or if the only difference is a branding-only delta the user did not explicitly request, keep the existing title and body and do not call `gh pr edit`; branding alone never creates apply intent. Otherwise show the new title and opening, then apply per "Applying via gh" below using `gh pr edit` and report the URL.
 
-**Explainer archival** — runs only in full workflow, with `pr_teaching_archive` on, a composed `## New concepts` section, and the apply confirmed (new-PR create, or existing-PR rewrite accepted); a declined rewrite skips archival entirely so no unlinked doc commit is left behind. All paths resolve from the repo root gathered in Context, never the CWD. With two taught concepts, write one file per concept and stage both in the single commit. Execute as explicit transitions immediately before the `gh` call:
+**Explainer archival** — full workflow only, with `pr_teaching_archive` on, a composed `## New concepts` section, and the apply confirmed (new-PR create, or existing-PR rewrite accepted); a declined rewrite skips archival entirely so no unlinked doc commit is left behind. Immediately before the `gh` call, resolving all paths from the repo root gathered in Context (never the CWD):
 
-1. `git check-ignore -q docs/explainers/YYYY-MM-DD-<concept-slug>.md` (from the repo root) — the check works on not-yet-created paths. If the path is ignored, print a one-line warning and skip archival entirely, writing nothing (never `git add -f`).
-2. Write the file (create the directory if needed) with YAML frontmatter `title`, `date`, `input_shape: concept`, `subject`, and the teaching content. If the file already exists from a prior run, overwrite it.
-3. `git add` those file(s) only (never `-A`), commit with `docs(explainer): teach <concept>[, <concept>]`, and push. If the commit reports nothing to commit, the doc is already committed from a prior run — keep the link and continue.
-4. Splice a head-branch blob URL per doc into the `## New concepts` section before applying. Build the URL for the repo's actual host — e.g. `gh browse -n -b <head-branch> -- <path>` (prints the link on whatever host `gh` targets, GitHub Enterprise included) — do not hardcode `github.com`, or the link 404s on GHE.
+1. `git check-ignore -q docs/explainers/YYYY-MM-DD-<concept-slug>.md` — works on not-yet-created paths. If the path is ignored, print a one-line warning and skip archival entirely, writing nothing (never `git add -f`).
+2. Write one file per taught concept with YAML frontmatter `title`, `date`, `input_shape: concept`, `subject`, and the teaching content.
+3. `git add` those files only (never `-A`), commit with `docs(explainer): teach <concept>[, <concept>]`, and push.
+4. Splice a head-branch blob URL per doc into the `## New concepts` section before applying. Build it for the repo's actual host — e.g. `gh browse -n -b <head-branch> -- <path>` — do not hardcode `github.com`, or the link 404s on GHE.
 
 If the doc write, commit, or push fails, warn and continue to PR creation without the link — never strand the flow between commit and PR.
 
@@ -130,9 +118,9 @@ If the doc write, commit, or push fails, warn and continue to PR creation withou
 
 **Concept trailer** — when a body applied by this run contains a `## New concepts` section, print one line after the PR URL in every mode: `New concepts: <name>[, <name>]`. In interactive full-workflow runs follow it with one line per taught concept telling the user to invoke `ce-explain <name>` using the rendering rule above. No trailer when this run applied no body — including a rewrite that was declined or pipeline-defaulted to no — or no PR exists.
 
-**Babysit handoff — default on.** In interactive full workflow, after reporting a newly-created PR URL (or after new commits land on an existing open PR), **auto-invoke `ce-babysit-pr` on that PR by default**: announce it in one non-blocking line (e.g. "Babysitting toward merge-ready — watching CI + incoming review; pass `babysit:off` to skip"), then invoke — never block on a yes/no. *Off is the explicit choice:* **`babysit:off`** skips it this run (**`babysit:continuous`** / **`babysit:checkpoint`** forces that watch mode); **`auto_babysit: false`** in `<repo-root>/.compound-engineering/config.local.yaml` is a standing opt-out, read with the same gate semantics as `pr_teaching_section` (only an active, non-commented value of exactly `false` disables; a missing file/key or any other value means the default **on**; a `babysit:off` token overrides the config for this run).
+**Babysit handoff — default on.** In interactive full workflow, after reporting a newly-created PR URL (or after new commits land on an existing open PR), **auto-invoke `ce-babysit-pr`** on that PR: announce it in one non-blocking line (e.g. "Babysitting toward merge-ready — watching CI + incoming review; pass `babysit:off` to skip"), then invoke — never block on a yes/no. `babysit:off` skips it this run; `babysit:continuous` / `babysit:checkpoint` force that watch mode; **`auto_babysit: false`** in `<repo-root>/.compound-engineering/config.local.yaml` is a standing opt-out (same active-key gate semantics as `pr_teaching_section`; a `babysit:off` token still wins for this run).
 
-**Do not fire (auto-detected, no flag needed):** `mode:pipeline` (the orchestrated caller owns follow-on steps), description-only / description-update modes, no PR created or updated this run, non-GitHub (babysit's own guard stops it), or **a head branch you cannot push to**. **Fork PRs are drivable — not a hard-off.** A fork-to-upstream PR (the common open-source case) is babysittable whenever you can push to its head branch, which holds for a PR whose branch this skill just pushed (you own the fork): babysit reads state on the **base** repo (from the PR URL) and pushes fixes to the **head** repo (your fork). Hard-off only when the head is genuinely not pushable (e.g. someone else's PR). **Soft-degrade:** a checkpoint-only harness runs one tick and prints the resume command instead of a live loop.
+**Do not fire:** `mode:pipeline`, description-only / description-update modes, no PR created or updated this run, non-GitHub, or **a head branch you cannot push to**. **Fork PRs are drivable — not a hard-off:** a fork-to-upstream PR is babysittable whenever you can push to its head branch, which holds for a branch this skill just pushed (you own the fork), because babysit reads state on the **base** repo (from the PR URL) and pushes fixes to the **head** repo (your fork). Hard-off only when the head is genuinely not pushable (e.g. someone else's PR).
 
 ---
 
@@ -147,8 +135,6 @@ __CE_PR_BODY_END__
 ```
 
 The quoted sentinel keeps `$VAR`, backticks, and any literal `EOF` inside the body from being expanded.
-
-For `<TITLE>`: substitute verbatim. If it contains `"`, `` ` ``, `$`, or `\`, escape them or switch to single quotes.
 
 ```bash
 gh pr create --title "<TITLE>" --body-file "$BODY_FILE"   # new PR

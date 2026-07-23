@@ -8,26 +8,17 @@ Interactive mode only. Invoked by `references/walkthrough.md` (per-finding Defer
 
 ## Append flow
 
-### Step 1: Locate or create the Open Questions section
+### Step 1: Locate or create the section
 
-Scan the document for an existing `## Deferred / Open Questions` heading (case-sensitive match on the full heading text). Behavior by location:
-
-- **Heading present at the end of the document (last `##`-level section):** append new content inside this section at the end.
-- **Heading present mid-document (not the last `##`-level section):** still append inside the existing heading at that location. Do not create a duplicate at the end — the user positioned the section deliberately.
-- **Heading absent:** create `## Deferred / Open Questions` at the end of the document. If the document has a trailing horizontal-rule separator (`---`) or a trailing footer (table, links section), insert the new section above it. If the document has only frontmatter and no body, create the section after the frontmatter block (not at byte 0).
+Scan for an existing `## Deferred / Open Questions` heading (case-sensitive match on the full heading text) and append inside it wherever it sits — mid-document placement is deliberate, so never create a duplicate at the end. If the heading is absent, create it at the end of the document, above any trailing horizontal rule (`---`) or footer, and after the frontmatter block when the document has no body.
 
 ### Step 2: Locate or create the timestamped subsection
 
-Within the Open Questions section, scan for a subsection heading matching the current review date: `### From YYYY-MM-DD review`. Behavior:
-
-- **Subsection present:** append new entries to it. Multiple Defer actions within a single review session accumulate under the same subsection.
-- **Subsection absent:** create `### From YYYY-MM-DD review` as the last subsection within the Open Questions section. Insert one blank line before the heading for readability.
-
-Date format: ISO 8601 calendar date (`YYYY-MM-DD`). If multiple reviews occur on the same document on the same day within the same session, they still share the same subsection. Multi-day same-document reviews get distinct subsections, which is the intended behavior.
+Within that section, find the subsection for the current review date — `### From YYYY-MM-DD review` (ISO 8601) — and append to it, or create it as the last subsection when absent, with one blank line before the heading. Every Defer in one session shares that subsection; reviews on different days get their own.
 
 ### Step 3: Format and append the entry
 
-Per deferred finding, append a reader-facing bullet-point entry. The entry carries no HTML comment — the markdown rendering contract forbids mixed-in HTML, and every field Step 4's dedup needs is reconstructable from the visible entry text:
+Per deferred finding, append a reader-facing bullet. **The entry carries no HTML comment** — the markdown rendering contract forbids mixed-in HTML, and every field the dedup check below needs is reconstructable from the visible entry text:
 
 ```
 - **{title}** — {section} ({severity}, {reviewer}, confidence {confidence})
@@ -35,48 +26,19 @@ Per deferred finding, append a reader-facing bullet-point entry. The entry carri
   {why_it_matters}
 ```
 
-Fields come from the finding's schema:
+`{section}` is the finding's section unmodified; `{severity}` is P0-P3; `{reviewer}` is the persona that produced the finding (all co-flagging personas when several); `{confidence}` is the integer anchor, no decimal or percent; `{why_it_matters}` is the full text. Do not include `suggested_fix` or the `evidence` array — the entry is a concern summary for the reader returning later, not a full decision packet.
 
-- `{title}` — the finding's title field
-- `{section}` — the finding's section field, unmodified (human-readable)
-- `{severity}` — P0 / P1 / P2 / P3
-- `{reviewer}` — the persona that produced the finding (after dedup, the persona with the highest confidence anchor; surface all co-flagging personas if multiple)
-- `{confidence}` — the integer anchor (`50`, `75`, or `100`), emitted without a decimal point or percent sign
-- `{why_it_matters}` — the full why_it_matters text, preserving the framing guidance from the subagent template
+### Step 4: Do not append a duplicate
 
-Do not include `suggested_fix` or the full `evidence` array in the appended entry. Those live in the review run artifact (when applicable) and do not belong in the document's Open Questions section — the entry is a concern summary for the reader returning later, not a full decision packet.
+Skip the write when the same finding is already under today's subsection (possible when best-judgment re-routes a finding the walk-through already deferred, or after a retry). Match on section + title + the first ~120 characters of `why_it_matters`, all normalized as in synthesis 3.3 (lowercase, strip punctuation, collapse whitespace); title alone is not enough, since two genuinely different findings can share a short title. Everything needed is in the rendered bullet, so no hidden metadata is required: **entries in the prior format carry a trailing `<!-- dedup-key: ... -->` comment — ignore it for matching, strip it if the entry is otherwise edited, and never write a new one.**
 
-### Step 4: Idempotence on compound-key collisions
-
-If an entry with the same compound key already exists under the same `### From YYYY-MM-DD review` subsection, do not append a duplicate. This can happen when:
-
-- The same review session re-routes the same finding to Defer a second time (rare but possible via best-judgment-the-rest after a walk-through Defer)
-- The orchestrator retries after a partial failure
-
-**Compound key for dedup:** `normalize(section) + normalize(title) + why_fingerprint`. All three reconstruct from the visible entry, so no hidden metadata is needed:
-
-- `normalize(section)` and `normalize(title)` use the same normalization as synthesis step 3.3 dedup (lowercase, strip punctuation, collapse whitespace). For a new finding, compute from the schema; for an existing entry, parse `{title}` (the bold leader) and `{section}` (the text between the em-dash and the opening `(`) out of the rendered bullet.
-- `why_fingerprint` is the first ~120 characters of the entry's `{why_it_matters}` prose, word-boundary-preserving, with any run of whitespace collapsed to a single space. Because why_it_matters renders verbatim in the entry, the same fingerprint recomputes from the visible bullet on any retry or reread. When why_it_matters is empty, fall back to `normalize(section) + normalize(title)` alone.
-
-Title-only dedup is not sufficient: two different findings in the same document (even on the same review date) can legitimately share a short title if their sections or rationale differ. Using only `{title}` would silently drop one — losing user-visible backlog context. Matching on section and the why-fingerprint keeps distinct findings distinct, and stays close to the R29/R30 matching predicate (`section + title + evidence-substring overlap`) so cross-round and intra-round dedup behave consistently.
-
-**Pre-existing entries with a `dedup-key` HTML comment:** entries written by the prior format carry a trailing `<!-- dedup-key: ... -->` comment. Ignore it for matching — the visible-text key above is authoritative — and strip the comment if the entry is otherwise edited. Do not write new ones.
-
-On collision, record the no-op in the completion report's Coverage section so the user sees the duplicate was suppressed. Cross-subsection collisions (same compound key, different dates) are not deduplicated — each review is allowed to re-raise the same concern.
-
----
-
-## Concurrent edit safety
-
-Document edits happen via the platform's edit tool (Edit in Claude Code, or equivalent). Before every append, re-read the document from disk to reduce the window for user-in-editor concurrent-write collisions. If the document's mtime or content has changed unexpectedly between a prior read and the append attempt, abort the append and surface the situation via the failure path below. The user may be editing in their editor during the review session and simultaneous writes would corrupt the document.
-
-The orchestrator only holds the most recent read in memory, not a persistent lock — interactive review doesn't need lock coordination; it needs observation-before-write.
+Record a suppressed duplicate in the completion report's Coverage section. The same concern under a different dated subsection is not a duplicate — each review may re-raise it.
 
 ---
 
 ## Failure path
 
-When the append cannot complete — document is read-only on disk, path is invalid, the platform's edit tool returns an error, concurrent-edit collision detected, or any other write failure — surface the failure inline to the user via the platform's blocking question tool with the following sub-question:
+When the append cannot complete — document is read-only on disk, path is invalid, the edit tool returns an error, the document changed on disk since the last read (the user may be editing it in parallel; a blind overwrite would corrupt it), or any other write failure — surface the failure inline to the user via the platform's blocking question tool with the following sub-question:
 
 **Stem:** `Couldn't append the finding to Open Questions. What should the agent do?`
 
@@ -100,38 +62,17 @@ Silent failure is not acceptable. If the user does not respond to the sub-questi
 
 ## Upstream availability signal
 
-The walk-through and bulk-preview check append-availability before offering Defer as an option. When the document is known-unwritable (e.g., initial read shows it's on a read-only filesystem), the orchestrator caches an `append_available: false` signal at Phase 4 start and Defer is suppressed in the walk-through menu and in the routing question's option C. See `references/walkthrough.md` under "Adaptations" for the menu behavior and `references/bulk-preview.md` under "Edge cases" for the preview behavior.
+When the document is known-unwritable at Phase 4 start (e.g., the initial read shows a read-only filesystem), cache an `append_available: false` signal: the walk-through menu and the routing question's option C suppress Defer (see "Adaptations" in `references/walkthrough.md` and "Edge cases" in `references/bulk-preview.md`).
 
-When append-availability is true at Phase 4 start but an individual append fails mid-flow, the failure path above handles the specific finding — this does not flip the session-level cached signal (other findings may still append successfully if the failure was transient).
+A single append that fails mid-flow goes through the failure path above and does **not** flip the session-level signal — the failure may be transient and other findings may still append.
 
 ---
 
 ## Example appended content
 
-Starting document state:
+A 2026-04-18 session deferring two findings into a document that already has a 2026-04-10 subsection:
 
 ```markdown
-## Risks
-
-...existing content...
-
-## Deferred / Open Questions
-
-### From 2026-04-10 review
-
-- **Alias compatibility-theater concern** — Risks (P1, scope-guardian, confidence 75)
-
-  The alias exists without documented external consumers...
-
-```
-
-After appending two findings in a 2026-04-18 session:
-
-```markdown
-## Risks
-
-...existing content...
-
 ## Deferred / Open Questions
 
 ### From 2026-04-10 review

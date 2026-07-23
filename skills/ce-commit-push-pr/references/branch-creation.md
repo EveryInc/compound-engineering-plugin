@@ -26,7 +26,7 @@ git log origin/<base>..HEAD --oneline
   - **Carry forward** → `BASE_REF=HEAD`. The new branch starts from local HEAD, preserving the commits.
   - **Leave on `<base>`** → `BASE_REF=origin/<base>`. The new branch starts clean; commits remain on local `<base>`.
 
-  Never default silently — carrying foreign commits into a PR is worse than asking again.
+  When you cannot ask, use `BASE_REF=origin/<base>` — it leaves the foreign commits behind — and say so in the summary.
 
 ### 3. Create the feature branch
 

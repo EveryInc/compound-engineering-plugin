@@ -1,10 +1,11 @@
 # Sweep state schema (v1)
 
-This is the canonical, versioned contract for the ce-sweep state file. The
-deterministic state engine (`scripts/sweep-state.py`) is the **only** writer;
-every peer agent (source connectors, the analyzer, the orchestrator) reads the
-file and mutates it **exclusively** through the engine's subcommands so the
-rules below are enforced in one place. Read this before touching state.
+The contract for the ce-sweep state file, which only `scripts/sweep-state.py`
+writes. The engine is additive-safe and atomic — unknown keys and unknown
+statuses are preserved, `upsert-item` merges by id (it replaces only the keys
+present in the incoming JSON), and a file that does not parse or lacks
+`schema_version` is reported `CORRUPT` rather than overwritten. You never
+hand-edit the file, so its serialization is not your concern.
 
 ## Top-level shape
 
@@ -38,82 +39,28 @@ last_run:
 | `items` | map keyed by `<source-id>:<item-id>` | Per-item lifecycle record. The key is source-scoped so a source-native id (a Slack ts, a GitHub issue number) never collides with the same id from another source. Personas pass a source-native `id` plus `--source`; the engine composes the storage key and records both `source` and `id` on the item so it stays self-describing. |
 | `last_run` | map | Bookkeeping for the most recent sweep (see run-record). |
 
-## Compatibility rule (forward/backward)
-
-The engine is deliberately additive-safe so a newer writer and an older reader
-can share a file:
-
-| situation | engine behavior |
-| --- | --- |
-| Unknown top-level key | Preserved on every write-back. Never dropped. |
-| Unknown field on an item or source | Preserved on write-back. Never dropped. |
-| Unknown `status` value | Preserved and passed through. Skip-never-drop — the closed enum below is not a whitelist. |
-| File parses but has no `schema_version` | Treated as `CORRUPT`; the engine refuses to write over it. |
-| `schema_version` greater than the engine knows | Still read/written field-preservingly; the engine only *adds* rules per version, never removes fields. |
-
-Bump `schema_version` only for a change that a v1 reader could misinterpret;
-purely additive fields do not require a bump.
-
 ## Status enum
 
-Closed set of known lifecycle states. Unknown values are preserved, never
-dropped, so a future state can roll out writer-first.
-
-| status | meaning |
-| --- | --- |
-| `ingested` | Captured from a source; not yet triaged. |
-| `ack_deferred` | Receipt noted, but triage deferred to a later pass. |
-| `acknowledged` | Triaged and accepted into the sweep pipeline. |
-| `needs_download` | Referenced media/attachment must be fetched before analysis. |
-| `needs_analysis` | Content present, awaiting analysis. |
-| `manual_stuck` | Blocked; needs manual intervention to proceed. |
-| `analyzed` | Analysis complete; findings recorded on the item. |
-| `in_plan` | Folded into a plan or tracked work item. |
-| `fix_pending` | A fix is underway or awaiting verification. Also the downgrade target for an under-evidenced `closed`. |
-| `closed` | Resolved and verified. REQUIRES all three evidence fields (see below). |
-| `source_gone` | The originating source or message no longer exists. |
+The known lifecycle states, written verbatim: `ingested`, `ack_deferred`,
+`acknowledged`, `needs_download`, `needs_analysis`, `manual_stuck`, `analyzed`,
+`in_plan`, `fix_pending` (also the downgrade target for an under-evidenced
+`closed`), `closed`, `source_gone`.
 
 ## Evidence fields and the `validate` downgrade rule
 
-A `closed` item is a claim that work shipped and was verified, so the engine
-holds it to proof. An item may only remain `closed` if it carries all three:
-
-| field | meaning |
-| --- | --- |
-| `fix_ref` | Reference to the fix (PR/commit/issue link). |
-| `verified_merge_sha` | The merge commit SHA the fix landed on. |
-| `verified_at` | ISO timestamp the fix was verified. |
-
-`validate` scans every item and downgrades any `closed` item missing (or with a
-falsy value for) any of these back to `fix_pending`, then rewrites the file and
-returns the list of downgraded ids. This self-heals a state left inconsistent
-by a crashed run. `validate` is lease-agnostic (it is a repair, run at sweep
-start).
+A `closed` item is a claim that work shipped and was verified, so it may only
+remain `closed` while it carries all three of `fix_ref` (PR/commit reference),
+`verified_merge_sha` (the merge commit the fix landed on), and `verified_at`
+(ISO timestamp). `validate` downgrades any `closed` item missing (or falsy on)
+one of these back to `fix_pending` and returns the downgraded ids — report them.
 
 ## `sensitive` semantics
 
-The **primary** sensitivity mechanism is per-item: the orchestrator reads each
-source's config `sensitive` flag and includes `"sensitive": true` in the item
-JSON on every `upsert-item` for that source (SKILL.md phase 2d). A `sensitive:
-true` on a **source entry** in state is a defensive fallback the engine also
-honors, but nothing seeds it today — the per-item flag is what enforces R28, so
-sensitivity works even though source entries carry only a `cursor`. On any
-`upsert-item` where either the item or its source entry is sensitive, the engine
-**drops `body` and `quote` before writing** — redacted content never reaches
-disk. All other fields (title, url, status, ids) are retained. Redaction happens
-at write time, so flipping a source to sensitive protects only items written
-after the flag is set; re-ingest to redact prior items.
-
-## id-keyed merge rule
-
-Writers own keys, not the whole file. `upsert-item` performs an **id-keyed
-merge**: it loads the existing item, replaces only the keys present in the
-incoming JSON, and preserves every other field already on that item. `source`
-is always (re)set from `--source`. No subcommand semantically rewrites the
-whole file — each mutates only the keys it owns and preserves the rest — even
-though the physical write re-emits the file atomically. This lets independent
-connectors and the analyzer touch the same item across passes without clobbering
-each other's fields.
+On any `upsert-item` where the item or its source entry is sensitive, the engine
+**drops `body` and `quote` before writing**; all other fields (title, url,
+status, ids) are retained. Redaction happens at write time, so flipping a source
+to sensitive protects only items written after the flag is set; re-ingest to
+redact prior items.
 
 ## Lease (single-writer mutex)
 
@@ -141,15 +88,12 @@ Rules the engine enforces:
 
 ## Topology scope
 
-The lease's guarantee depends on where the state file lives:
-
-| topology | lease scope | protocol |
-| --- | --- | --- |
-| local-commit mode (default) | Single writer **per checkout**. | The lease serializes overlapping sweeps in the same working tree (e.g. a cron sweep and a manual one). The file is written in-tree (and may be committed locally). No cross-machine guarantee. |
-| pushed-shared-branch | One writer **per repo**. | The state file lives on a shared branch multiple checkouts push to. `lease-acquire` must be committed, pushed, and confirmed (fetch back and verify our writer won) **before any source-side write**. This makes the lease a repo-wide mutex across machines. |
-
-TTL-based reclaim (`STALE-RECLAIMED`) is what lets a crashed or killed writer's
-lease be taken over after `ttl_minutes` without manual cleanup.
+By default the lease is a single writer **per checkout** (it serializes
+overlapping sweeps in one working tree). With `sweep_shared_branch: true` the
+state file lives on a branch several checkouts push to, and the lease is only a
+repo-wide mutex if `lease-acquire` is committed, pushed, and confirmed **before
+any source-side write**. TTL-based reclaim (`STALE-RECLAIMED`) lets a crashed
+writer's lease be taken over after `ttl_minutes` without manual cleanup.
 
 ## run-record
 
@@ -162,16 +106,11 @@ Records the outcome of a sweep run under `last_run`.
 | `writer` | `--writer` | The writer id that recorded the run. |
 | `counts` | `--counts` (JSON object) | Free-form tallies (per status, per source, etc.). |
 
-`run-record` is intentionally **lease-agnostic**: a run that aborted precisely
-because the lease was `LOCKED` (`outcome: aborted-locked`) must still be able to
-record that fact — but that write happens while the lease holder is mid-sweep.
-To keep it from clobbering the holder's concurrent upserts, every mutating
-subcommand holds an **OS advisory lock** (`flock` on `<state>.lock`) across its
-whole load-modify-write, so two concurrent invocations serialize their writes
-regardless of lease ownership. The lease decides *who owns the sweep*; the file
-lock decides *who is writing the file right now*. The `.lock` file is ephemeral
-and never committed (the skill's commit step adds only the state file and the
-plan, never `-A`).
+`run-record` is intentionally **lease-agnostic** so a run that aborted because
+the lease was `LOCKED` can still record that fact; an OS advisory lock keeps
+that write from clobbering the holder's concurrent upserts. The ephemeral
+`<state>.lock` file is never committed (the skill's commit step adds only the
+state file and the plan, never `-A`).
 
 ## Engine status words
 
@@ -190,22 +129,3 @@ misuse exits non-zero.
 | `REFUSED` | `cursor-advance`: unknown `past-item`, or a cursor that would regress | — |
 | `ERROR` | unexpected internal error (defensive; still exit 0) | — |
 
-## YAML subset
-
-The state file is genuine YAML restricted to a small, deterministic subset so a
-stdlib serializer/parser round-trips it exactly. Any YAML parser can read it;
-only the engine writes it.
-
-| construct | rule |
-| --- | --- |
-| Indentation | 2 spaces per level, no tabs. |
-| Keys | Bare when they match `^[A-Za-z_][A-Za-z0-9_.-]*$`; otherwise a JSON double-quoted string (so ids with `:` are quoted). |
-| Scalars | `null` / `true` / `false` / integers / floats are bare. **Strings are always JSON double-quoted on a single line** (fully escaped) — never block scalars or multiline. |
-| Non-empty maps | Emitted as block mappings, recursing to any depth. |
-| Lists and empty maps | Emitted as inline JSON flow on one line (e.g. `["a", "b"]`, `{}`) — itself valid YAML. |
-| Key order | Deterministic: a preferred order for known keys, then remaining keys sorted, so diffs stay stable. |
-| Comments / blank lines | Ignored on read. The engine does not emit comments. |
-
-A file that fails to parse under these rules, or that parses without a
-`schema_version`, is `CORRUPT`: the engine reports it and refuses to overwrite,
-so a hand-mangled file is never silently clobbered.

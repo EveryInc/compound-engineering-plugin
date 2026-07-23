@@ -4,17 +4,11 @@
 #
 # Location: .context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml
 #
-# PERSISTENCE MODEL:
-# The experiment log on disk is the SINGLE SOURCE OF TRUTH. The agent's
-# in-memory context is expendable and will be compacted during long runs.
-#
 # Write discipline:
 # - Each experiment entry is APPENDED immediately after its measurement
 #   completes (SKILL.md step 3.3), before batch evaluation
-# - Outcome fields may be updated in-place after batch evaluation (step 3.5)
-# - The `best` section is updated after each batch if a new best is found
-# - The `hypothesis_backlog` is updated after each batch
-# - The agent re-reads this file from disk at every phase boundary
+# - Outcome fields, `best`, and `hypothesis_backlog` are updated in place
+#   after batch evaluation (step 3.5)
 #
 # The orchestrator does NOT read the full log each iteration -- it uses a
 # rolling window (last 10 experiments) + a strategy digest file for
@@ -85,7 +79,7 @@ structure:
         description: "Iteration number of the best experiment (use 0 for the baseline snapshot before any experiment is kept)"
       metrics:
         type: object
-        description: "All metric values from the current best state (seed with baseline metrics during CP-1)"
+        description: "All metric values from the current best state (seed with baseline metrics when the log is created in Phase 1)"
       judge:
         type: object
         description: "Judge scores from the best experiment (only when primary type is 'judge')"
@@ -151,8 +145,8 @@ experiment_entry:
         - runner_up_reverted      # file-disjoint runner-up that was cherry-picked but combined measurement was not better
       description: >
         Load-bearing state: the loop branches on this value.
-        'measured' is the only non-terminal state and exists so CP-3 can persist
-        raw metrics before batch-level comparison decides the final outcome.
+        'measured' is the only non-terminal state and exists so step 3.3 can
+        persist raw metrics before batch-level comparison decides the final outcome.
         'kept' and 'runner_up_kept' advance the optimization branch.
         'deferred_needs_approval' items are re-presented at wrap-up.
         All other states are terminal for that experiment.

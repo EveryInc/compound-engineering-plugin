@@ -29,20 +29,14 @@ future-area offer.
 
 ## Recommend the next area
 
-Reason over the remaining candidates instead of taking the first bullet. Prefer
-the area that, based on the plan and what the pipeline learned:
-
-1. has explicit user or plan priority;
-2. can be meaningfully brainstormed now;
-3. is enabled by the completed work;
-4. unlocks the most downstream work;
-5. reduces foundational uncertainty; or
-6. especially benefits from fresh implementation knowledge.
-
-These are judgment criteria, not a points system. Do not choose by document
-order, apparent ease, wording similarity, or a dependency the plan does not
-support. Recheck the candidate against the current delivery result before
-offering it.
+Reason over the remaining candidates instead of taking the first bullet. Based on
+the plan and what the pipeline learned, prefer the area with explicit user or plan
+priority that can be meaningfully brainstormed now and does the most for what
+follows — enabled by the completed work, unlocking downstream work, reducing
+foundational uncertainty, or especially benefiting from fresh implementation
+knowledge. Do not choose by document order, apparent ease, wording similarity, or
+a dependency the plan does not support. Recheck the candidate against the current
+delivery result before offering it.
 
 - **One justified winner:** name it and give the shortest concrete reason it is
   next.
@@ -56,14 +50,11 @@ offering it.
 Place the offer before LFG's `<promise>DONE</promise>`. Keep it non-blocking and
 do not invoke `ce-handoff` yet.
 
-For one winner, use this shape in natural prose:
-
-> The clearest next area is **<area>** because <reason>. If you want to continue
-> it in a fresh agent session, I can create a `ce-handoff` for that brainstorm.
-
-For a real tie, name the tied areas and offer a fresh-session handoff focused on
-choosing the next coherent area. The pipeline still ends with the DONE promise;
-the offer is optional continuity, not another LFG step.
+For one winner, say in natural prose that `<area>` is the clearest next area, give
+the reason, and offer to create a `ce-handoff` for that brainstorm in a fresh
+agent session. For a real tie, name the tied areas and offer a fresh-session
+handoff focused on choosing the next coherent area. The pipeline still ends with
+the DONE promise; the offer is optional continuity, not another LFG step.
 
 ## If the user later accepts
 

@@ -1,6 +1,6 @@
 # Explainer HTML Rendering
 
-How an explainer renders as HTML. Load at compose time (Phase 4), not earlier. The explainer is a personal teaching artifact — these rules keep it self-contained, readable, and honest about its own provenance. It is not a plan artifact: no navigation region, no R/U-ID anchors, no contract sections.
+How an explainer renders as HTML. It is not a plan artifact: no navigation region, no R/U-ID anchors, no contract sections.
 
 ## Hard invariants
 
@@ -28,12 +28,12 @@ Diagrams complement prose; they never replace it. A reader who skips every visua
 
 Default: the user personally. Second person, and no orientation they already have. In a shared repo this still means naming *other* contributors in third person — second person is reserved for the user, and a personal recap of team work uses both.
 
-When intake resolved another reader, render for that reader instead. What changes:
+When intake resolved another reader, render for that reader instead:
 
-- **No second person.** The subject goes to third person when a name is available — recap mode's commit authors, or a name the user supplied — and impersonal ("the retry path was rewritten") when none is.
-- **Minimum orientation added.** One or two sentences of what the project or area is, where the personal rendering would assume it. Add only what the reader cannot follow without.
+- **No second person.** Third person when a name is available — recap mode's commit authors, or a name the user supplied — and impersonal ("the retry path was rewritten") when none is.
+- **Minimum orientation added.** One or two sentences of what the project or area is, only what the reader cannot follow without.
 - **Nothing else changes.** Same depth, same real code from evidence, same `Unverified` label when it applies, same one-sitting length.
-- **The form does not become a status update or a deck.** A share-out request often sounds like one ("something for the #eng channel"), and rendering for that reader is right — but they are getting the explainer, at full depth, not a summary. Adapting the audience never licenses thinning the content.
+- **The form does not become a status update or a deck.** They are getting the explainer, at full depth, not a summary.
 
 ## Reading ergonomics
 
@@ -42,7 +42,3 @@ When intake resolved another reader, render for that reader instead. What change
 - Dense is good; long is not. The explainer is one sitting's read — cut background that doesn't change understanding.
 - **When the evidence exceeds one sitting** (a busy recap window is routinely 50+ commits), select rather than truncate: lead with the few threads that changed how the project works, carry the rest as a compact roll-up, and say plainly what you set aside so the reader knows the timeline isn't the whole log. Never silently drop the tail.
 - Code samples: real code from the grounding evidence where it exists, invented minimal examples only for external topics, always syntax-highlighted with inline `<style>` classes.
-
-## Post-compose audit
-
-Before presenting: no external URLs anywhere in the file; metadata header complete and visible; every visual has a prose equivalent; the file opens correctly standalone (`open <path>`).

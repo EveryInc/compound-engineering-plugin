@@ -23,10 +23,9 @@ Set the display name once per doc session by posting to presence with the `X-Age
 
 ## Publish Mode
 
-The primary use is one-way publishing: take an existing local markdown file (a brainstorm, a unified plan, a learning, a draft), read its full contents and post them as the new doc's body (see "Workflow: Create and Share a New Document" for the source-file recipe — never publish placeholder content), and hand the user a shareable URL. The local file stays canonical — publishing does not sync anything back to disk. The user can open the link to read, comment, and share with others; the agent can also participate via the edit APIs below when given the URL. Two entry points, identical mechanics (see "Workflow: Create and Share a New Document"):
+The primary use is one-way publishing: read an existing local markdown file (a brainstorm, a unified plan, a learning, a draft), post its full contents as the new doc's body, and hand the user a shareable URL. The local file stays canonical — publishing does not sync anything back to disk.
 
-- **Direct user request** — a bare user phrase naming a local markdown file and asking to share it via Proof: "share this to proof", "publish this to proof", "open this in proof editor so I can review", "get me a proof link for this doc". The file is whichever markdown the user just created, edited, or referenced; if ambiguous, ask which file. This is a first-class entry point — do not require an upstream caller.
-- **Upstream skill handoff** — `ce-brainstorm`, `ce-ideate`, or `ce-plan` finishes a draft and hands it off to publish for human review, passing the file path and title explicitly.
+Publishing is triggered either by a direct user ask naming a local markdown file, or by an upstream planning skill (`ce-brainstorm`, `ce-ideate`, `ce-plan`) passing a file path and title. Either way, publish the named markdown file; if which file is unclear, ask.
 
 Only publish markdown. If the source is an HTML unified plan, do not upload it
 to Proof; return the local browser/open path instead. When publishing a unified
@@ -65,12 +64,12 @@ Canonical agent read/write (v3 only — do not invent other agent mutation paths
 
 ### Create a Shared Document
 
-No authentication required on the public create route. Returns a shareable URL with tokens.
+No authentication required on the public create route. Returns a shareable URL with tokens. Build the body from the source file (`$SRC`) with `jq --rawfile`; never hand-write it.
 
 ```bash
-curl -sS -X POST https://www.proofeditor.ai/share/markdown \
-  -H "Content-Type: application/json" \
-  -d '{"title":"My Doc","markdown":"# Hello\n\nContent here."}'
+jq -n --arg title "My Doc" --rawfile md "$SRC" '{title:$title, markdown:$md}' \
+  | curl -sS -X POST https://www.proofeditor.ai/share/markdown \
+    -H "Content-Type: application/json" -d @-
 ```
 
 **Response fields to keep:**
@@ -90,7 +89,7 @@ curl -sS -X POST https://www.proofeditor.ai/share/markdown \
 }
 ```
 
-Use `tokenUrl` as the shareable link. Extract `slug`, `accessToken`, and `ownerSecret` immediately — `ownerSecret` is required for cleanup while the doc is still unclaimed.
+`tokenUrl` is the shareable link.
 
 ### Read a Shared Document
 
@@ -106,7 +105,7 @@ curl -sS "https://www.proofeditor.ai/api/agent/{slug}/v3/document" \
 # -> { ok, revision, title, markdown, comments[], suggestions[], mutationReady? }
 ```
 
-ACTIVE docs can be read tokenlessly via `v3/document`. Mutations, presence, and events need a tokenized credential. Tokenless `GET /d/<slug>` JSON reports `role: null` and no mutation links — that is truthful capability reporting, not a browser lock.
+ACTIVE docs can be read tokenlessly via `v3/document`. Mutations, presence, and events need a tokenized credential. Tokenless `GET /d/<slug>` JSON reports `role: null` and no mutation links.
 
 `comments[]` and `suggestions[]` on the v3 read are the source of review state. Use a comment's `id` for `reply` / `resolve` / `unresolve`. Use a suggestion's `id` for `accept` / `reject`. v3 supports resolving and unresolving comments; it does **not** support deleting comments.
 
@@ -158,7 +157,7 @@ Prefer the narrowest op:
 2. Visible track-changes desired → `suggest` (then `accept`/`reject` as needed)
 3. Whole-doc replacement → `set_document` only when the user asks for full replacement or the change cannot be expressed narrowly
 
-If a `find`/anchor matches more than once, the server rejects with `TARGET_AMBIGUOUS` and `error.candidates` — nothing is changed. Disambiguate with `occurrence` (`"first"`, `"last"`, or 0-based index) or `before`/`after`. Never assume silent first-match.
+If a `find`/anchor matches more than once, the server rejects with `TARGET_AMBIGUOUS` and `error.candidates` — nothing is changed. Disambiguate with `occurrence` (`"first"`, `"last"`, or 0-based index) or `before`/`after`.
 
 Content ops in one request apply atomically; review ops then apply in order. If a review op fails after content committed, the response is `ok: false` with `partial: true` — re-read and retry only the failed op (same `Idempotency-Key` safely replays).
 
@@ -171,7 +170,7 @@ Content ops in one request apply atomically; review ops then apply in order. If 
 - Settled `200` with `ok:true` — inspect returned `revision` / document; chain without an extra read when the body is complete
 - `202` / `PENDING` — write may have committed; re-read `v3/document` before chaining or reporting success
 
-After every successful edit: confirm `ok:true`, confirm the intended text/comment/suggestion, then report the Proof link with a short summary.
+Report the Proof link (`tokenUrl`) once the write settles.
 
 ### Presence
 
@@ -217,12 +216,7 @@ If a mutation keeps failing after a fresh read and one safe retry, call `POST ht
 
 ## Workflow: Review a Shared Document
 
-When given a Proof URL like `https://www.proofeditor.ai/d/abc123?token=xxx`:
-
-1. Extract the slug and token
-2. Bind presence with the CE identity defaults
-3. Read via `v3/document`
-4. Edit with `v3/edit` (narrow content ops; review ops for comments/suggestions)
+When given a Proof URL like `https://www.proofeditor.ai/d/abc123?token=xxx`: extract the slug and token, bind presence, read `v3/document`, then edit.
 
 ```bash
 TOKEN="xxx"
@@ -235,38 +229,17 @@ curl -sS -X POST "https://www.proofeditor.ai/api/agent/$SLUG/presence" \
   -H "X-Agent-Id: $AGENT" \
   -d '{"name":"Compound Engineering","status":"reading","summary":"Reviewing doc"}'
 
-DOC=$(curl -sS "https://www.proofeditor.ai/api/agent/$SLUG/v3/document" \
+curl -sS "https://www.proofeditor.ai/api/agent/$SLUG/v3/document" \
   -H "Authorization: Bearer $TOKEN" \
-  -H "X-Agent-Id: $AGENT")
-REVISION=$(printf '%s' "$DOC" | jq -r '.revision // empty')
+  -H "X-Agent-Id: $AGENT"
 
-# Comment on visible text
+# Comment on visible text (swap in any op from the tables above)
 curl -sS -X POST "https://www.proofeditor.ai/api/agent/$SLUG/v3/edit" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Agent-Id: $AGENT" \
   -H "Idempotency-Key: $(uuidgen)" \
-  -d "$(jq -n --argjson rev "${REVISION:-null}" '{
-    by:"ai:compound-engineering",
-    baseRevision: (if $rev == null then null else $rev end),
-    operations:[{op:"comment",on:"text to comment on",body:"Your comment here"}]
-  } | if .baseRevision == null then del(.baseRevision) else . end')"
-
-# Narrow content edit
-curl -sS -X POST "https://www.proofeditor.ai/api/agent/$SLUG/v3/edit" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Agent-Id: $AGENT" \
-  -H "Idempotency-Key: $(uuidgen)" \
-  -d '{"by":"ai:compound-engineering","operations":[{"op":"replace","find":"old","with":"new"}]}'
-
-# Tracked suggestion
-curl -sS -X POST "https://www.proofeditor.ai/api/agent/$SLUG/v3/edit" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Agent-Id: $AGENT" \
-  -H "Idempotency-Key: $(uuidgen)" \
-  -d '{"by":"ai:compound-engineering","operations":[{"op":"suggest","kind":"replace","find":"old","with":"new"}]}'
+  -d '{"by":"ai:compound-engineering","operations":[{"op":"comment","on":"text to comment on","body":"Your comment here"}]}'
 ```
 
 ## Workflow: Create and Share a New Document
@@ -288,12 +261,6 @@ OWNER_SECRET=$(echo "$RESPONSE" | jq -r '.ownerSecret')   # required for owner d
 
 # Keep OWNER_SECRET in session memory only — never write it into the repo tree.
 
-curl -sS -X POST "https://www.proofeditor.ai/api/agent/$SLUG/presence" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Agent-Id: ai:compound-engineering" \
-  -d '{"name":"Compound Engineering","status":"reading","summary":"Uploaded doc"}'
-
 echo "$URL"
 ```
 
@@ -308,13 +275,7 @@ curl -sS -X DELETE "https://www.proofeditor.ai/api/documents/$SLUG" \
 
 ## Workflow: Pull a Proof Doc to Local
 
-Sync the current Proof doc state to a local markdown file. Used for:
-
-- Ad-hoc snapshots of a Proof doc to disk
-- Pulling a shared Proof doc that the user (or others) edited back down to a local working copy
-- Refreshing a local working copy against the live Proof version
-
-Canonical read for this workflow: `GET /api/agent/$SLUG/v3/document`.
+Write the live Proof markdown back to a local file:
 
 ```bash
 SLUG=<slug>
@@ -325,22 +286,12 @@ STATE_TMP=$(mktemp)
 curl -sS "https://www.proofeditor.ai/api/agent/$SLUG/v3/document" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Agent-Id: ai:compound-engineering" > "$STATE_TMP"
-REVISION=$(jq -r '.revision // empty' "$STATE_TMP")
 
 TMP="${LOCAL}.proof-sync.$$"
 jq -jr '.markdown' "$STATE_TMP" > "$TMP" && mv "$TMP" "$LOCAL"
 rm "$STATE_TMP"
 ```
 
-`jq -jr` streams markdown bytes without going through a shell variable, so trailing newlines survive. `mv` within the same filesystem is atomic.
+`jq -jr` streams markdown bytes without going through a shell variable, so trailing newlines survive.
 
-**Confirm before writing when the pull isn't directly asked for.** If a workflow ends up pulling as a side-effect of a different action, surface the impending write with a short confirm like "Sync Proof doc to `<localPath>`?" A silent overwrite is surprising.
-
-## Safety
-
-- Use `v3/document` as source of truth before editing
-- Prefer narrow `replace` / `insert` / `delete` before `suggest` or `set_document`
-- Always include `by: "ai:compound-engineering"` on writes and `X-Agent-Id: ai:compound-engineering` in headers
-- Use `accessToken` for everyday calls; reserve `ownerSecret` for owner delete
-- Never commit share tokens or owner secrets to the project tree
-- On `TARGET_AMBIGUOUS` / retryable errors, re-resolve against `error.current` — do not double-apply comments blindly
+**Confirm before writing when the pull isn't directly asked for.** If a workflow ends up pulling as a side-effect of a different action, surface the impending write with a short confirm like "Sync Proof doc to `<localPath>`?" If the run is unattended and cannot ask, skip the local write and report the Proof link instead.

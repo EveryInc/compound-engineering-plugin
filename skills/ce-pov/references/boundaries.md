@@ -2,10 +2,6 @@
 
 Load this when the input's fit for `ce-pov` is in doubt, or to route a Hold (SKILL.md Phase 0).
 
-## The discriminator
-
-`ce-pov` takes a **supplied subject** and judges it **against this project**, producing a **decisive position** — not options, not requirements, not implementation, not a diagnosis. If the answer should be a *verdict about your project*, it is `ce-pov`. If the answer is options, requirements, implementation, a diagnosis, or a neutral explainer, route out.
-
 ## Where the lines fall
 
 | If the user wants... | Route to | The line |
@@ -28,8 +24,6 @@ When the field cannot be bounded without inventing options, or the criteria are 
 - Field too open to enumerate → Hold → `ce-ideate` to enumerate the candidates → offer to re-run `ce-pov` on the shortlist.
 - Criteria unclear / unstated requirements → Hold → `ce-brainstorm` to surface them → offer to re-run.
 
-Running a verdict on an unbounded field turns `ce-pov` into disguised requirements discovery — the escape hatch is what keeps it a judgment skill.
+## What counts as the project
 
-## Universal grounding (designed-in, deferred)
-
-`ce-pov` grounds against the project's available context, and "project" includes a non-code folder (docs, decks, markdown, data), not only a git repo. The only case out of scope is *no local material at all* — a pure user-described situation with nothing to ground against. Treat that as out of scope: say the verdict would be ungrounded and ask for the project context, rather than dispensing generic advice dressed as a POV.
+Grounding material may be a non-code folder (docs, decks, markdown, data), not only a git repo. The one out-of-scope case is *no local material at all* — a pure user-described situation with nothing to ground against. Then say the verdict would be ungrounded and ask for the project context, rather than dispensing generic advice dressed as a POV.
