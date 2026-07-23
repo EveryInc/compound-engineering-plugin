@@ -61,7 +61,12 @@ fi
 # limited to structural loop-prevention facts: blank bodies and messages known
 # to come from the PR author. If the PR author is unavailable, fail open.
 
-threads_pages=$(gh api graphql --paginate --slurp \
+tmp_threads=$(mktemp)
+tmp_comments=$(mktemp)
+tmp_reviews=$(mktemp)
+trap 'rm -f "$tmp_threads" "$tmp_comments" "$tmp_reviews"' EXIT
+
+gh api graphql --paginate --slurp \
   -f owner="$OWNER" -f repo="$REPO" -F pr="$PR_NUMBER" \
   -f query='
 query Threads($owner: String!, $repo: String!, $pr: Int!, $endCursor: String) {
@@ -92,9 +97,9 @@ query Threads($owner: String!, $repo: String!, $pr: Int!, $endCursor: String) {
       }
     }
   }
-}')
+}' > "$tmp_threads"
 
-comments_pages=$(gh api graphql --paginate --slurp \
+gh api graphql --paginate --slurp \
   -f owner="$OWNER" -f repo="$REPO" -F pr="$PR_NUMBER" \
   -f query='
 query Comments($owner: String!, $repo: String!, $pr: Int!, $endCursor: String) {
@@ -110,9 +115,9 @@ query Comments($owner: String!, $repo: String!, $pr: Int!, $endCursor: String) {
       }
     }
   }
-}')
+}' > "$tmp_comments"
 
-reviews_pages=$(gh api graphql --paginate --slurp \
+gh api graphql --paginate --slurp \
   -f owner="$OWNER" -f repo="$REPO" -F pr="$PR_NUMBER" \
   -f query='
 query Reviews($owner: String!, $repo: String!, $pr: Int!, $endCursor: String) {
@@ -130,7 +135,7 @@ query Reviews($owner: String!, $repo: String!, $pr: Int!, $endCursor: String) {
       }
     }
   }
-}')
+}' > "$tmp_reviews"
 
 # Resolution semantics: `isOutdated` means the diff hunk around the comment
 # has shifted since the thread was opened -- not that the reviewer concern
@@ -138,15 +143,15 @@ query Reviews($owner: String!, $repo: String!, $pr: Int!, $endCursor: String) {
 # threads are still surfaced (with their isOutdated flag intact) so the
 # resolver can factor in that the referenced line may have moved.
 jq -n \
-  --argjson threads "$threads_pages" \
-  --argjson comments "$comments_pages" \
-  --argjson reviews "$reviews_pages" '
-  ($threads[0].data.repository.pullRequest.author) as $author |
-  [$threads[].data.repository.pullRequest.reviewThreads.nodes[]] as $all_threads |
-  [$comments[].data.repository.pullRequest.comments.nodes[]] as $all_comments |
-  [$reviews[].data.repository.pullRequest.reviews.nodes[]] as $all_reviews |
+  --slurpfile threads "$tmp_threads" \
+  --slurpfile comments "$tmp_comments" \
+  --slurpfile reviews "$tmp_reviews" '
+  ($threads[0][0].data.repository.pullRequest.author) as $author |
+  [$threads[0][].data.repository.pullRequest.reviewThreads.nodes[]] as $all_threads |
+  [$comments[0][].data.repository.pullRequest.comments.nodes[]] as $all_comments |
+  [$reviews[0][].data.repository.pullRequest.reviews.nodes[]] as $all_reviews |
   [$all_threads[] | select(.isResolved == false)] as $unresolved |
-  ($reviews[0].data.viewer.login) as $viewer |
+  ($reviews[0][0].data.viewer.login) as $viewer |
   {
     pending_review: (first($all_reviews[]
       | select(.state == "PENDING")
