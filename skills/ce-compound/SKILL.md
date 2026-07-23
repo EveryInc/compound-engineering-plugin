@@ -25,7 +25,7 @@ Captures problem solutions while context is fresh, creating structured documenta
 /ce-compound mode:headless depth:full [context]        # Full non-interactive run
 ```
 
-**One learning per run.** The workflow's grounding, overlap detection, and cross-referencing all assume a single solved problem. When a session produced multiple distinct learnings, run the skill once per learning, sequentially — each run grounds fresh against the tree. Do not batch several learnings through one run and stitch cross-references between the drafts afterward; drafting-context numbering ("Learning 3") leaking into written docs is the failure this rule prevents.
+**One pipeline pass per learning — the run owns the loop.** The research → assembly → grounding pipeline documents one solved problem at a time, but a single invocation captures every learning the session produced by running that pipeline once per learning, in sequence, inside this run. Full mode enumerates the distinct learnings first (see Phase 0: Learning Enumeration), then executes Phases 1–2.5 once per learning against a fresh per-learning run directory — grounding each against the current tree and writing its doc before the next learning starts, so intra-run near-duplicates hit the normal update-vs-create path. The passes stay sequential rather than fanned-out, so only one learning's subagents are live at a time and context frees between passes. Every doc is named and titled from its own content, never from batch position, and cross-references are resolved only after all docs exist. This preserves what per-learning grounding protected — fresh tree state, per-doc overlap, no "Learning 3" position-labels bleeding into docs — while letting one run capture the whole session. Lightweight mode stays single-pass by design (it exists for tight context): it documents the session's highest-value learning and tips the user to re-run for the rest.
 
 ## CONCEPTS.md bootstrap requests
 
@@ -86,7 +86,7 @@ When spawning subagents, pass the relevant file contents into the task prompt so
 ### Full Mode
 
 <critical_requirement>
-**The primary deliverable is ONE file - the final documentation.**
+**The primary deliverable is ONE file per learning - the final documentation for the learning currently being processed.** In a multi-learning run these rules apply per pass: one doc per enumerated learning, each written before the next learning's pipeline begins.
 
 Phase 1 subagents write their full structured output to a per-run scratch artifact under `<run-dir>/` and return only a compact confirmation containing the artifact path. The orchestrator Reads those artifacts back in Phase 2 assembly. This is scratch space, identical in spirit to `ce-code-review`'s per-reviewer run artifacts; it does not make the scratch files additional deliverables. **Only the orchestrator writes product files** — the final solution doc and the maintenance side effects below. Subagents must not touch `docs/`, project instruction files, or any tracked path. Beyond the Phase 2 solution doc, the orchestrator may also write maintenance side effects — not additional deliverables, and creating one when absent is expected, not a violation of this rule. There are three write-target classes; only the first two are unconditional:
 - **`docs/solutions/...`** — the primary deliverable (always).
@@ -97,6 +97,14 @@ Phase 1 subagents write their full structured output to a per-run scratch artifa
 
 **Why the scratch artifact (issue #956):** a subagent asked to return a long prose body as its inline response intermittently returns an executive summary instead ("Doc body complete — six sections filled. Returning above."), and the original prose is then unrecoverable from the orchestrator side. Writing to disk first means the full output always survives; the inline confirmation is just a pointer, and the orchestrator falls back to whatever the subagent did return inline only when the artifact is missing.
 </critical_requirement>
+
+### Phase 0: Learning Enumeration (Full mode)
+
+Before any research, enumerate the distinct learnings this session produced. A **learning** is one solved problem or one durable piece of guidance with its own root cause and its own prevention — not one code change. Split two findings into separate learnings when they have different root causes or would land in different `docs/solutions/` categories; keep them as one when they are the same root cause seen from two angles (that is one doc with two examples, not two docs). When unsure whether a candidate clears the non-trivial bar (see Preconditions), leave it out — a thin doc dilutes the store more than a missing one does.
+
+Produce an ordered list of learnings, highest-value first, each with a one-line topic. Then run Phases 1–2.5 once per learning, in that order, each against its own fresh run directory (Phase 1 regenerates the run-dir per learning, so artifacts never collide). Write each learning's doc to completion before starting the next, so an intra-run near-duplicate is caught by the normal Phase 2 update-vs-create path. A single-learning session is just a list of length one — the loop degenerates to today's single pass with no extra ceremony.
+
+In headless mode, enumerate the same way and loop without prompting. In lightweight mode, skip enumeration entirely: document the single highest-value learning and tip the user to re-run for the rest.
 
 ### Phase 0.5: Auto Memory Scan
 
@@ -123,7 +131,7 @@ If no relevant entries are found, proceed to Phase 1 without passing memory cont
 
 Launch research subagents. Each writes its full output to a per-run scratch artifact and returns only the artifact path to the orchestrator.
 
-**Run ID and run dir (before dispatching any subagent):** generate a unique run identifier and create the run directory. This scopes every Phase 1 artifact file to the same directory so the orchestrator can Read them back in Phase 2.
+**Run ID and run dir (before dispatching any subagent):** generate a unique run identifier and create the run directory. This scopes every Phase 1 artifact file to the same directory so the orchestrator can Read them back in Phase 2. In a multi-learning run, regenerate this fresh for each learning's pass — the timestamp+random `RUN_ID` gives every learning its own isolated run-dir, so learning 2's `solution.md` never clobbers learning 1's.
 
 ```bash
 SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
@@ -599,11 +607,11 @@ Knowledge track:
 | Subagents write product files into `docs/` or edit tracked paths | Subagents write only scratch artifacts under `<run-dir>/` and return the path; orchestrator writes the one final doc |
 | Subagent returns a long prose body only as its inline response | Subagent writes full output to its run artifact; orchestrator Reads it back (inline return is fallback only) |
 | Research and assembly run in parallel | Research completes → then assembly runs |
-| Multiple files created during workflow | One solution doc written or updated: `docs/solutions/[category]/[filename].md` (plus optional maintenance writes: a `CONCEPTS.md` create/update from Phase 2.4, and — interactive Full only, after consent — a small instruction-file edit for discoverability) |
+| Multiple files created during a single learning's pass | One solution doc per learning written or updated: `docs/solutions/[category]/[filename].md` (plus optional maintenance writes: a `CONCEPTS.md` create/update from Phase 2.4, and — interactive Full only, after consent — a small instruction-file edit for discoverability). A multi-learning run produces one such doc per enumerated learning. |
 | Headless Discoverability Check edits AGENTS.md/CLAUDE.md | Headless Full reports `Instruction-file edit: gap noted, not applied`; headless Lightweight emits a discoverability tip; only interactive Full applies the edit after consent |
 | Creating a new doc when an existing doc covers the same problem | Check overlap assessment; update the existing doc when overlap is high |
 | Asserting code behavior or merge-state from conversation memory | Read the defining source line before asserting; cite PR numbers over SHAs; soften unverifiable claims (Phase 1 extractor rules, re-checked in Phase 2.45) |
-| Batching several learnings through one run and stitching cross-references between drafts | One learning per run; run the skill sequentially for each additional learning |
+| Naming a doc from its batch position ("Learning 3") or writing a cross-reference before the referenced doc exists | Name and title each doc from its own content; run the per-learning pipeline to a written doc before starting the next learning, and resolve cross-references only after all docs land |
 
 ## Success Output
 
@@ -702,6 +710,10 @@ Overlap detected: docs/solutions/performance-issues/n-plus-one-queries.md
 File updated:
 - docs/solutions/performance-issues/n-plus-one-queries.md (added last_updated: 2026-03-24)
 ```
+
+### Multi-learning runs
+
+When Phase 0 enumerated more than one learning, emit each learning's per-doc summary as its pass completes (so progress is visible during the run), then close with a one-line roll-up naming every doc written or updated and any shared refresh recommendation. Do not collapse the individual results into the roll-up alone — each learning's grounding and overlap outcome is its own audit signal. This applies in headless mode too: emit each learning's structured report, then a final roll-up, still ending with the `Documentation complete` terminal signal.
 
 ## The Compounding Philosophy
 
