@@ -386,7 +386,11 @@ describe("ce-explain gaps found by behavioral evals", () => {
 
   test("improvement observations wait for a settled destination and cover stale repo docs", () => {
     const phase6 = sliceSection(SKILL_BODY, "### Phase 6")
-    expect(phase6).toMatch(/Never raise them while a destination or consent question is still open/i)
+    // The gate must name every ask that can be open, not just the destination
+    // one: an enumeration missing the audience re-render offer reads as
+    // permission to interleave handoffs with it.
+    expect(phase6).toMatch(/Never raise them while any of the asks above is still open/i)
+    expect(phase6).toMatch(/the audience re-render offer/i)
     // A superseded plan/solution doc fit none of the three original routes.
     expect(phase6).toMatch(/ce-compound-refresh/i)
     expect(phase6).toMatch(/this skill teaches, it does not maintain repo memory/i)
