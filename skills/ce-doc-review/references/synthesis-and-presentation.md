@@ -288,8 +288,9 @@ anchor (keep the ID, gloss at first mention); a ticket or PR number (`ESP-3373`,
 provenance anchor (gloss only when the event changes the decision, else move to trace); a function,
 file, variable, or line reference the document names (`clearMuxStatus`, `codebookTranscriptMode.ts:46`)
 is a mechanism symbol (translate to its role; keep the exact symbol only when precise scope drives the
-decision). At most two anchors per line, each resolved at render time against the document in context
-so it stays accurate after an Apply renumbers the item. The floor's full decision-first field order
+decision). At most two anchors per finding — counted across all its rendered lines, matching the floor's
+per-block budget — each resolved at render time against the document in context so it stays accurate
+after an Apply renumbers the item. The floor's full decision-first field order
 (Recommendation → Consequence → Change → Basis) applies to **actionable findings** — proposed fixes and
 decisions. FYI observations, residual concerns, and deferred questions carry no recommendation or fix,
 so they render as a single consequence / concern / question line under the token policy, not the full
