@@ -33,6 +33,9 @@ const ceWorkDocs = readRepoFile("docs/skills/ce-work.md")
 const ceWorkEngines = readRepoFile(
   "skills/ce-work/references/execution-engines.md",
 )
+const crossModelExecution = readRepoFile(
+  "skills/ce-work/references/cross-model-execution.md",
+)
 const planMarkdownRendering = readRepoFile(
   "skills/ce-plan/references/markdown-rendering.md",
 )
@@ -722,11 +725,20 @@ describe("cross-layer ownership contract", () => {
   test("brainstorm Key Decisions are a provenance index with Governs links, not a second statement", () => {
     expect(brainstormSections).toMatch(/provenance index entry/)
     expect(brainstormSections).toContain("`Governs R5, R7`")
-    expect(brainstormSections).toContain(
-      "it must not create a KTD that merely mirrors the product decision",
+    expect(brainstormSections).toMatch(
+      /must not create a KTD that merely mirrors\s+the\s+product decision/,
     )
     expect(brainstormSections).not.toContain(
       "inherits these labels into plan KTDs",
+    )
+  })
+
+  test("synthesis routes settled product decisions and planning decisions to their distinct owners", () => {
+    expect(planSynthesisSummary).toMatch(
+      /settled product decisions.*labeled Product Contract Key Decisions.*exact `Governs R…` links/s,
+    )
+    expect(planSynthesisSummary).toMatch(
+      /settled planning(?:\/how)? decisions.*labeled Key Technical Decisions/s,
     )
   })
 
@@ -753,6 +765,38 @@ describe("cross-layer ownership contract", () => {
   test("ce-work packets reverse-resolve Product Key Decisions so settlement labels survive bounded reads", () => {
     expect(ceWork).toContain("`Governs R…` links name the unit's cited R-IDs")
     expect(ceWork).toContain("A KTD or Product Contract Key Decision carrying")
+  })
+
+  test("every executor handoff reverse-resolves labeled Product Contract Key Decisions", () => {
+    const planHandoff = readRepoFile("skills/ce-plan/references/plan-handoff.md")
+    const handoffs = [
+      sliceSection(
+        planSkill,
+        "- **Run it as a `/goal`**",
+        "- **Decide on the review's open items**",
+      ),
+      sliceSection(
+        planHandoff,
+        "- **Run it as a `/goal`**",
+        "- **Decide on the review's open items**",
+      ),
+      sliceSection(
+        ceWorkEngines,
+        "Copyable goal-mode prompt",
+        "Copyable dynamic-workflow prompt",
+      ),
+      sliceSection(
+        crossModelExecution,
+        "3. **Prepare one bounded unit packet.**",
+        "4. **Start one fixed author.**",
+      ),
+    ]
+
+    for (const handoff of handoffs) {
+      expect(handoff).toMatch(
+        /Product Contract Key Decision.*exact `Governs R…` links.*cited R-IDs/s,
+      )
+    }
   })
 
   test("deepening strengthens at the owning entry and never restates owned rules into siblings", () => {
