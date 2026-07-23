@@ -68,6 +68,7 @@ Invoked when a specific need arises — not part of any chain.
 | [`/ce-debug`](./ce-debug.md) | Find root causes systematically — causal chain gate, predictions, post-fix polish/review, PR handoff |
 | [`/ce-code-review`](./ce-code-review.md) | Structured code review with skill-local reviewer personas, confidence-gated findings, four modes |
 | [`/ce-doc-review`](./ce-doc-review.md) | Review requirements or plan documents using skill-local reviewer personas — coherence, feasibility, product-lens, design-lens, security-lens, scope-guardian, adversarial |
+| [`/ce-ticket-scope`](./ce-ticket-scope.md) | Interrogate a work ticket until someone who didn't write it could execute it from the ticket alone — seven-field resolution, operator-case routing (author-interactive vs. implementer clarification comment), proportionality, no-fault framing |
 | [`/ce-simplify-code`](./ce-simplify-code.md) | Refine recently changed code — reuse, quality, and efficiency review; behavior preservation verified |
 | [`/ce-optimize`](./ce-optimize.md) | Metric-driven iterative optimization loops — three-tier evaluation, parallel experiments, persistence discipline |
 
