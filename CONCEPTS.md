@@ -106,6 +106,9 @@ A discrete, self-scored confidence value on a fixed small scale, each level tied
 ### Autofix class
 The classification of a review finding by how safely its proposed fix can be applied: applied silently, applied only after user confirmation, left for a human to resolve, or recorded as advisory with no action.
 
+### Rendering floor
+The single, surface-agnostic contract for how a review finding is presented for a human decision across every output surface a Skill emits — interactive walkthrough, batch report, unattended envelope, one-line preview. It fixes a decision-first field order (recommendation and a plain-language consequence first; mechanism capped and last) and a domain-agnostic policy for opaque tokens: identifiers a reader cannot resolve without opening the reviewed document or code are glossed by their function (navigation, provenance, or mechanism) or moved out of the decision block. Each surface maps its own layout onto the floor instead of carrying its own copy of the rules, so strengthening one surface cannot silently leave the others behind.
+
 ### Headless mode
 An explicit opt-in mode that runs a Skill unattended, with no user prompts — it produces a written report as its deliverable and conservatively defers genuinely ambiguous decisions rather than guessing. A Skill may expose a separate depth selector inside headless mode when automations need an explicit coverage tradeoff; the non-interactive contract and the work depth remain distinct decisions.
 
