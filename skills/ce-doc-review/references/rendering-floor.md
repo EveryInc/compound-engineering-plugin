@@ -14,10 +14,16 @@ without reconstructing the finding from expert narrative. A finding whose only p
 
 ## Decision-first field order
 
-Every actionable finding renders these fields in this order. A surface with labeled lines (walkthrough
-block, headless envelope) prints them as lines; a columnar surface (batch table) or one-line surface
-(bulk preview) satisfies the order by leading its cell/line with the **Consequence if unchanged**
-sentence and carrying the recommendation in its action/Tier column.
+Every actionable finding carries these fields, and each surface makes them decision-first in its own
+idiom rather than reproducing the exact label sequence. The invariant both share: the **consequence is
+legible up front with no opaque token**, and the **recommendation is unmistakably marked**. Concretely:
+the **headless envelope** prints them as explicit labeled lines; the **walkthrough block** leads with a
+consequence-phrased title, then What's-wrong / Proposed-fix / If-left-as-is, and marks the recommendation
+on its question options; the **batch table** leads its Issue cell with the consequence and carries the
+recommendation in its Tier/action column; the **bulk-preview line** leads with the consequence and
+takes its recommendation from the bucket it is grouped under (Applying / Appending / Skipping). A
+surface satisfies the floor when those two invariants hold, not when it emits the four field labels
+verbatim.
 
 1. **Recommendation** — the recommended action (`Apply` / `Defer` / `Skip`, from the finding's
    `recommended_action`), stated up front. This is what the user is being asked to accept or reject.
