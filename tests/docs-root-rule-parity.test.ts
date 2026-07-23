@@ -28,6 +28,10 @@ const CONSUMER_SKILLS = [
   "ce-explain",
   "ce-debug",
   "lfg",
+  "ce-sweep",
+  "ce-dogfood",
+  "ce-product-pulse",
+  "ce-commit-push-pr",
 ]
 
 const START = "<!-- ce-docs-root:start -->"

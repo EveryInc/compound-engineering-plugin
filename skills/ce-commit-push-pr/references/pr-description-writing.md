@@ -172,7 +172,7 @@ Lead with the point, then the mechanism, then the caveat. Dense is good; long is
 
 **Rewrite preservation:** when rewriting an existing PR body, preserve an existing `## New concepts` section and any explainer-doc link verbatim (same rule as `## Demo`) unless the user's focus asks to refresh the concepts. Description-only and description-update runs never write repo files.
 
-**Archival hook:** when the skill's Step 5 confirms the apply and `pr_teaching_archive` is on (full workflow only), the teaching content is also written to `docs/explainers/` and linked from the section — the commit-and-push transition and doc frontmatter live in SKILL.md Step 5.
+**Archival hook:** when the skill's Step 5 confirms the apply and `pr_teaching_archive` is on (full workflow only), the teaching content is also written to `<root>/explainers/` and linked from the section — the commit-and-push transition and doc frontmatter live in SKILL.md Step 5.
 
 ---
 
