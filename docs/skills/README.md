@@ -64,7 +64,7 @@ Invoked when a specific need arises — not part of any chain.
 | Skill | Description |
 |-------|-------------|
 | [`/ce-pov`](./ce-pov.md) | Form a decisive, project-grounded POV as an adoption verdict, holistic document take, or position on supplied approaches — optional named/`oracle` panel with a blind initial round, bounded evidence-based reconciliation, and a user-extensible checkpoint |
-| [`/ce-explain`](./ce-explain.md) | Turn a concept, a diff, an idea, or a window of your own recent work into a dense, visual explainer written for you personally — optional check-in (predict-then-reveal for diffs, corrected exercises), capability-detected destination ask |
+| [`/ce-explain`](./ce-explain.md) | Turn a concept, a diff, an idea, or a window of your own recent work into a dense, self-contained visual document built to keep — evidence-grounded recaps, capability-detected destination ask, optional opt-in check-in (predict-then-reveal for diffs, corrected exercises) |
 | [`/ce-debug`](./ce-debug.md) | Find root causes systematically — causal chain gate, predictions, post-fix polish/review, PR handoff |
 | [`/ce-code-review`](./ce-code-review.md) | Structured code review with skill-local reviewer personas, confidence-gated findings, four modes |
 | [`/ce-doc-review`](./ce-doc-review.md) | Review requirements or plan documents using skill-local reviewer personas — coherence, feasibility, product-lens, design-lens, security-lens, scope-guardian, adversarial |

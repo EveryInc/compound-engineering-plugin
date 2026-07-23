@@ -6,6 +6,8 @@ The check-in is the active-recall step that makes the explainer stick: the user 
 
 Offer a check-in when retention is the point: a hard or unfamiliar concept, a gnarly or consequential diff, a dense recap window with decisions worth recalling later. Skip it (produce the explainer and move on) when comprehension is the point and retention is incidental: a routine recap before a meeting, a small mechanical diff, a topic the user signals they only need to skim. When skipping, do not announce a justification — just proceed.
 
+**When the material and the request disagree, the request wins.** A dense window asked for explicitly as meeting prep is a skip, not an offer — density is your judgment, the stated purpose is the user's. And when the explainer is rendered for another reader, skip the offer: the check-in exercises the user, so quizzing them on a document written for someone else is beside the point. Offer it there only if they ask.
+
 The user can always decline the offer, and a decline is final for the run — do not re-offer.
 
 Offer exactly two choices in this order:

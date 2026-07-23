@@ -157,7 +157,11 @@ describe("ce-explain destination and handoff routing", () => {
     expect(DESTINATIONS_BODY).toMatch(/do not pre-process the HTML/i)
     expect(DESTINATIONS_BODY).not.toContain("extract-artifact-fragment.py")
     expect(DESTINATIONS_BODY).toMatch(/public and may be indexed, crawled, copied, or archived/i)
-    expect(DESTINATIONS_BODY).toMatch(/initial request explicitly selected ht-ml\.app/i)
+    // The one-preferred-publisher rule can suppress ht-ml.app from a menu that
+    // WAS shown; a user naming it anyway has seen no warning and must still get
+    // one. Pin the general condition, not just the narrow "menu skipped" case.
+    expect(DESTINATIONS_BODY).toMatch(/chosen without that warned option in front of the user/i)
+    expect(DESTINATIONS_BODY).toMatch(/kept it off a menu that \*was\* shown/i)
     expect(DESTINATIONS_BODY).toMatch(/ask for explicit confirmation after the warning before any publish/i)
     expect(DESTINATIONS_BODY).toMatch(/initial request itself does not count as confirmation/i)
     expect(DESTINATIONS_BODY).toMatch(/If confirmation cannot be obtained, do not publish; preserve the canonical `\$RUN_DIR\/explainer\.html` and report its local path/i)
@@ -210,6 +214,13 @@ describe("ce-explain predict-then-reveal parity between SKILL.md and references/
       name: "the never-same-message rule (no explanation in the prediction-prompt message)",
       pattern: /same message as the prediction prompt/i,
     },
+    {
+      // A run composing the Phase 3 offer from SKILL.md alone drafted an offer
+      // that summarized the change, leaking the reveal before the prediction
+      // was taken. The rule previously lived only in check-in.md.
+      name: "the no-pre-leak rule for the diff-mode offer (do not describe the change when offering)",
+      pattern: /without describing the change's content or purpose/i,
+    },
   ]
 
   const copies: { label: string; body: string }[] = [
@@ -227,4 +238,157 @@ describe("ce-explain predict-then-reveal parity between SKILL.md and references/
       })
     }
   }
+})
+
+// Audience-rendering guards. ce-explain renders personally by default and for
+// another reader on request; behavioral evals confirmed the judgment holds, but
+// these pin the load-bearing wording the judgment reads from. Each assertion is
+// the smallest unit that would have failed before the audience change landed.
+const MARKDOWN_REFERENCE_PATH = path.join(
+  process.cwd(),
+  "skills/ce-explain/references/explainer-markdown.md",
+)
+const MARKDOWN_REFERENCE_BODY = readFileSync(MARKDOWN_REFERENCE_PATH, "utf8")
+const INTAKE_PATH = path.join(process.cwd(), "skills/ce-explain/references/intake.md")
+const INTAKE_BODY = readFileSync(INTAKE_PATH, "utf8")
+
+// The HTML and markdown renderings are authored as a pair; a rule added to one
+// and missed in the other is the drift these guards exist to catch.
+const RENDERING_REFERENCES = [
+  ["explainer-html.md", HTML_REFERENCE_BODY],
+  ["explainer-markdown.md", MARKDOWN_REFERENCE_BODY],
+] as const
+
+// Mirrors the sliceSection helper in ce-work-outcome-spine.test.ts and
+// pipeline-review-contract.test.ts, with the end anchor optional so a region
+// running to end-of-file (Phase 6, the last phase) can share it. Asserting the
+// anchor rather than slicing from -1 means a renamed heading fails as itself
+// instead of silently shrinking the searched region to nothing.
+function sliceSection(content: string, startAnchor: string, endAnchor?: string): string {
+  const start = content.indexOf(startAnchor)
+  expect(start, `start anchor not found: ${startAnchor}`).toBeGreaterThanOrEqual(0)
+  if (endAnchor === undefined) return content.slice(start)
+  const end = content.indexOf(endAnchor, start + startAnchor.length)
+  expect(end, `end anchor not found: ${endAnchor}`).toBeGreaterThan(start)
+  return content.slice(start, end)
+}
+
+describe("ce-explain audience rendering", () => {
+  test("SKILL.md states both the personal default and the on-request adaptation", () => {
+    expect(SKILL_BODY).toMatch(/Default — the user personally/i)
+    expect(SKILL_BODY).toMatch(/On request — rendered for another reader/i)
+    // Depth must not be traded away when the audience changes.
+    expect(SKILL_BODY).toMatch(/adapt voice and orientation, never depth/i)
+  })
+
+  test("intake owns audience resolution, including the speak-from carve-out", () => {
+    expect(INTAKE_BODY).toMatch(/## Audience resolution/i)
+    expect(INTAKE_BODY).toMatch(/Default: the user personally/i)
+    // The false positive the eval probed: "so I can explain it to the team"
+    // names a group but the user is still the reader.
+    expect(INTAKE_BODY).toMatch(/wanting to \*speak\* from the material is not an audience signal/i)
+    // A share request is not a request to become a status update.
+    expect(INTAKE_BODY).toMatch(/request to share is not a request for a status update/i)
+  })
+
+  test("tokens do not eat ordinary prose containing a colon", () => {
+    // Without the reads-as-a-flag test, "walk me through the diff: why did we
+    // split the parser" strips diff:why and forces diff mode on a bogus ref.
+    expect(INTAKE_BODY).toMatch(/flag only when it reads as one/i)
+    expect(INTAKE_BODY).toMatch(/If stripping it would garble the sentence, it was never a flag/i)
+    // The old absolute rule let a corrupted token outrank correct inference.
+    expect(INTAKE_BODY).toMatch(/A token in flag position beats inference\. A colon inside prose does not\./i)
+    expect(INTAKE_BODY).not.toMatch(/An explicit token always beats inference/i)
+  })
+
+  test("plain-language windows are first-class, not a degraded token path", () => {
+    expect(INTAKE_BODY).toMatch(/names a time window and little else/i)
+    expect(INTAKE_BODY).toMatch(/\*\*Resolving the window \(recap mode\)\.\*\*/i)
+    expect(INTAKE_BODY).toMatch(/a colon must not change the answer/i)
+    expect(INTAKE_BODY).toMatch(/never silently substitute that default for a window the user did name/i)
+  })
+
+  test("both rendering references carry the same voice contract", () => {
+    for (const [label, body] of RENDERING_REFERENCES) {
+      expect(body, `${label} lost its Voice section`).toMatch(/## Voice — personal by default, adapted on request/i)
+      expect(body, `${label} lost the no-second-person rule`).toMatch(/\*\*No second person\.\*\*/i)
+      // A personal recap of team work needs both persons at once.
+      expect(body, `${label} lost the multi-author rule`).toMatch(/naming \*other\* contributors in third person/i)
+      // Honor the audience, refuse the form.
+      expect(body, `${label} lost the status-update refusal`).toMatch(
+        /does not become a status update or a deck/i,
+      )
+    }
+  })
+
+  test("an adapted artifact declares its reader in the metadata header", () => {
+    expect(HTML_REFERENCE_BODY).toMatch(/labelled exactly `Rendered for`/i)
+    expect(MARKDOWN_REFERENCE_BODY).toMatch(/`rendered_for: <reader>`/i)
+    // Absent a spec, runs invented divergent variants of this row.
+    expect(HTML_REFERENCE_BODY).toMatch(/a personal rendering omits the row entirely/i)
+  })
+
+  test("the audience-mismatch offer precedes the destination's consent gate", () => {
+    const phase6 = sliceSection(SKILL_BODY, "### Phase 6")
+    expect(phase6).toMatch(/\*\*Audience mismatch\.\*\*/i)
+    expect(phase6).toMatch(/\*\*This offer comes first\*\*/i)
+    expect(phase6).toMatch(/consent must attach to the artifact actually being published/i)
+    expect(phase6).toMatch(/never re-render unasked, and never block the send on it/i)
+  })
+
+  test("the check-in is skipped for an artifact written for someone else", () => {
+    expect(CHECK_IN_BODY).toMatch(/When the material and the request disagree, the request wins/i)
+    expect(CHECK_IN_BODY).toMatch(/rendered for another reader, skip the offer/i)
+  })
+})
+
+// Guards for gaps that behavioral eval runs hit in the pre-existing skill.
+// Each pins the rule that was missing when a run had to improvise, so the
+// improvisation cannot silently become the behavior again.
+describe("ce-explain gaps found by behavioral evals", () => {
+  test("diff mode has an empty-range rule, matching recap's empty-window rule", () => {
+    // Two runs hit `main..HEAD` resolving to zero commits (work uncommitted)
+    // and each invented a different disclosure.
+    expect(SKILL_BODY).toMatch(/\*\*Empty range\*\*/i)
+    expect(SKILL_BODY).toMatch(/do not silently explain something else/i)
+    // A named subject that doesn't exist gets the same treatment.
+    expect(SKILL_BODY).toMatch(/report that before explaining an adjacent thing/i)
+  })
+
+  test("recap's scout dispatch names the degradation path where it fires", () => {
+    // Three runs independently reported that "dispatch a generic subagent"
+    // carried no cross-reference to the Model Tiers degradation rule, which
+    // lives in a separate section far above Phase 2.
+    const phase2 = sliceSection(SKILL_BODY, "### Phase 2", "### Phase 3")
+    expect(phase2).toMatch(/harness exposes no subagent primitive/i)
+    expect(phase2).toMatch(/run the scout inline/i)
+    // The no-pre-scan protection must survive when the scout IS the main agent.
+    expect(phase2).toMatch(/form no view of the window until it is done/i)
+  })
+
+  test("an oversized window is selected from, not silently truncated", () => {
+    for (const [label, body] of RENDERING_REFERENCES) {
+      expect(body, `${label} lost the oversized-window rule`).toMatch(
+        /When the evidence exceeds one sitting/i,
+      )
+      expect(body, `${label} lost the no-silent-truncation rule`).toMatch(/Never silently drop the tail/i)
+    }
+  })
+
+  test("the destination ask and a publisher's consent gate are distinct asks", () => {
+    const phase6 = sliceSection(SKILL_BODY, "### Phase 6")
+    // "Ask once" previously read as forbidding the second confirmation the
+    // bypass path requires.
+    expect(phase6).toMatch(/that governs the menu itself, not the consent a chosen destination then requires/i)
+    // Naming a suppressed publisher takes the bypassed-menu path.
+    expect(phase6).toMatch(/never as though the menu had warned them/i)
+  })
+
+  test("improvement observations wait for a settled destination and cover stale repo docs", () => {
+    const phase6 = sliceSection(SKILL_BODY, "### Phase 6")
+    expect(phase6).toMatch(/Never raise them while a destination or consent question is still open/i)
+    // A superseded plan/solution doc fit none of the three original routes.
+    expect(phase6).toMatch(/ce-compound-refresh/i)
+    expect(phase6).toMatch(/this skill teaches, it does not maintain repo memory/i)
+  })
 })
