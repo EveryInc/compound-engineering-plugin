@@ -24,6 +24,9 @@ const SURFACES = [
   "review-output-template.md",
   "walkthrough.md",
   "bulk-preview.md",
+  // A Defer persists a finding into the document's Open Questions section — a
+  // user-facing surface a later reader consumes, so it must obey the floor too.
+  "open-questions-defer.md",
 ]
 
 describe("ce-doc-review shared rendering floor", () => {

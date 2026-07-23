@@ -3,9 +3,13 @@
 The single source of truth for how any finding is rendered for a human decision — across **every**
 presentation surface: the interactive walkthrough terminal block (`references/walkthrough.md`), the
 batch report table (`references/review-output-template.md`), the headless envelope
-(`references/synthesis-and-presentation.md` Phase 4), and the bulk-action preview line
-(`references/bulk-preview.md`). Each surface keeps its own layout and maps that layout onto the rules
-below; the rules themselves do not vary by surface.
+(`references/synthesis-and-presentation.md` Phase 4), the bulk-action preview line
+(`references/bulk-preview.md`), and the Open Questions entry a Defer persists into the document
+(`references/open-questions-defer.md`). Each surface keeps its own layout and maps that layout onto the
+rules below; the rules themselves do not vary by surface. The token policy applies to every surface; the
+full decision-first field order applies to the surfaces that render an actionable finding (a persisted
+Open Questions entry is a concern, not an actionable finding, so it takes the token policy and
+consequence-first phrasing only).
 
 The reader is someone who does not have the document open and has not internalized its identifiers
 or the reviewed product's codebase. The output exists so they can decide **Apply / Defer / Skip**

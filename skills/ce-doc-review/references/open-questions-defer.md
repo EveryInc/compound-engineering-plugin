@@ -46,6 +46,8 @@ Fields come from the finding's schema:
 
 Do not include `suggested_fix` or the full `evidence` array in the appended entry. Those live in the review run artifact (when applicable) and do not belong in the document's Open Questions section — the entry is a concern summary for the reader returning later, not a full decision packet.
 
+**Render `{title}` and `{why_it_matters}` under the shared rendering floor** (`references/rendering-floor.md`). This entry is persisted for a later reader who no longer has the review's context, so apply the floor's opaque-token policy to all three classes — gloss navigation IDs at first mention, translate mechanism symbols (functions, files, line refs) to their role, drop non-decision provenance — and lead `{why_it_matters}` with the consequence. The floor's full decision-first field order does not apply: a deferred entry is a persisted concern, not an actionable finding, so it carries no Recommendation/Change/Basis. A deferred entry whose only description of a referenced item is a bare identifier of any class is not acceptable.
+
 ### Step 4: Idempotence on compound-key collisions
 
 If an entry with the same compound key already exists under the same `### From YYYY-MM-DD review` subsection, do not append a duplicate. This can happen when:
