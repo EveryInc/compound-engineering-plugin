@@ -32,6 +32,7 @@ const CONSUMER_SKILLS = [
   "ce-dogfood",
   "ce-product-pulse",
   "ce-commit-push-pr",
+  "ce-code-review",
 ]
 
 const START = "<!-- ce-docs-root:start -->"

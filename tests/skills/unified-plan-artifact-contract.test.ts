@@ -351,7 +351,7 @@ describe("unified plan artifact contract", () => {
     expect(docReviewTemplate).toContain("product_contract_source:ce-brainstorm")
     expect(docReviewTemplate).toContain("product_contract_source:ce-plan-bootstrap")
 
-    expect(codeReview).toContain("docs/plans/*.{md,html}")
+    expect(codeReview).toContain("<root>/plans/*.{md,html}")
     expect(codeReview).toContain("Product Contract` -> `### Requirements")
     expect(codeReview).toContain("readiness before checking completeness")
     expect(codeReview).toContain("must not trigger implementation-unit completeness findings")
@@ -442,7 +442,7 @@ describe("unified plan artifact contract", () => {
   test("ce-code-review discovery/extraction covers HTML and Product Contract requirements", () => {
     // Codex #972 P2: discovery must scan .html and extraction must read
     // Product Contract > Requirements, matching the completeness contract.
-    expect(codeReview).toContain("docs/plans/*.{md,html}")
+    expect(codeReview).toContain("<root>/plans/*.{md,html}")
     expect(codeReview).toMatch(/unified `Product Contract` -> `### Requirements`/)
     expect(codeReview).toMatch(/requirements-only artifact[\s\S]{0,80}product intent only/i)
   })

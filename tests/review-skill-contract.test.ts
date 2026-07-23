@@ -534,7 +534,7 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/Production-file presence alone[\s\S]*non-behavioral edits do not select/i)
     expect(content).toMatch(/maintainability-reviewer.*(large|structural|refactor)/i)
     expect(content).toMatch(/agent-native-reviewer.*agent-facing/i)
-    expect(content).toMatch(/learnings-researcher.*docs\/solutions/i)
+    expect(content).toMatch(/learnings-researcher.*<root>\/solutions/i)
 
     expect(catalog).toContain("## Core and standards gate")
     expect(catalog).toContain("## Generic conditional")
