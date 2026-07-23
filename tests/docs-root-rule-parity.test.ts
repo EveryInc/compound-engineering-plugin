@@ -15,7 +15,14 @@ const FIXTURE = path.join(REPO_ROOT, "tests", "fixtures", "docs-root-rule.md")
 // The block is delimited by <!-- ce-docs-root:start --> / <!-- ce-docs-root:end -->
 // so the literal-path guard (docs-root-literals) can allowlist its default
 // clauses and this test can locate it precisely.
-const CONSUMER_SKILLS = ["ce-setup", "ce-compound", "ce-compound-refresh"]
+const CONSUMER_SKILLS = [
+  "ce-setup",
+  "ce-compound",
+  "ce-compound-refresh",
+  "ce-plan",
+  "ce-brainstorm",
+  "ce-ideate",
+]
 
 const START = "<!-- ce-docs-root:start -->"
 const END = "<!-- ce-docs-root:end -->"

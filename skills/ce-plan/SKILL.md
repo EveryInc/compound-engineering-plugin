@@ -38,6 +38,18 @@ If the input is present but unclear or underspecified, do not abandon — ask on
 
 **IMPORTANT: All file references in the plan document must use repo-relative paths (e.g., `src/models/user.rb`), never absolute paths (e.g., `/Users/name/Code/project/src/models/user.rb`). This applies everywhere — implementation unit file lists, pattern references, origin document links, and prose mentions. Absolute paths break portability across machines, worktrees, and teammates.**
 
+## Artifact Root
+
+This skill writes plans under `<root>/plans/` and reads learnings under `<root>/solutions/`. Resolve `<root>` once at the start of the run and use it everywhere a `<root>/` path appears below; pass the resolved path to any subagent, not the config.
+
+<!-- ce-docs-root:start -->
+**Resolve the CE artifact root `<root>` before composing any artifact path.**
+
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml`; first non-empty value wins (`<repo-root>` = `git rev-parse --show-toplevel`). Unset -> `<root>` is `docs`, exactly as before.
+- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
+- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
+<!-- ce-docs-root:end -->
+
 ## Core Principles
 
 1. **Use the Product Contract as the source of truth** - If `ce-brainstorm` produced a requirements-only unified plan, planning should enrich it in place rather than re-inventing behavior or creating a second artifact.
@@ -105,14 +117,14 @@ Pipeline / `disable-model-invocation` runs already skip the chat confirmation (h
 
 #### 0.1 Resume Existing Plan Work When Appropriate
 
-If the user references an existing plan file or there is an obvious recent matching plan in `docs/plans/`:
+If the user references an existing plan file or there is an obvious recent matching plan in `<root>/plans/`:
 - Read it
 - Confirm whether to update it in place or create a new plan
 - If updating, revise only the still-relevant sections. Plans do not carry per-unit progress state — progress is derived from git by `ce-work`, so there is no progress to preserve across edits
 
-**A requirements-only unified plan is not a resume target.** A `docs/plans/` file with `artifact_readiness: requirements-only` is an *enrichment input*, not an existing plan to resume — do **not** fire the update-or-create confirm for it. Fall through to Phase 0.2, which enriches it in place to `implementation-ready`. This matters most for the hands-off `ce-brainstorm` -> `lfg` flow: `lfg` hands `ce-plan` the requirements-only path in `disable-model-invocation` pipeline mode, where no user is present to answer a resume prompt. More generally, in pipeline mode the resume choice is made automatically (default to in-place update of the referenced plan) and never prompted.
+**A requirements-only unified plan is not a resume target.** A `<root>/plans/` file with `artifact_readiness: requirements-only` is an *enrichment input*, not an existing plan to resume — do **not** fire the update-or-create confirm for it. Fall through to Phase 0.2, which enriches it in place to `implementation-ready`. This matters most for the hands-off `ce-brainstorm` -> `lfg` flow: `lfg` hands `ce-plan` the requirements-only path in `disable-model-invocation` pipeline mode, where no user is present to answer a resume prompt. More generally, in pipeline mode the resume choice is made automatically (default to in-place update of the referenced plan) and never prompted.
 
-**Deepen intent:** The word "deepen" (or "deepening") in reference to a plan is the primary trigger for the deepening fast path. When the user says "deepen the plan", "deepen my plan", "run a deepening pass", or similar, the target document is a **plan** in `docs/plans/`, not a requirements document. Use any path, keyword, or context the user provides to identify the right plan. If a path is provided, verify it is actually a plan document. If the match is not obvious, confirm with the user before proceeding.
+**Deepen intent:** The word "deepen" (or "deepening") in reference to a plan is the primary trigger for the deepening fast path. When the user says "deepen the plan", "deepen my plan", "run a deepening pass", or similar, the target document is a **plan** in `<root>/plans/`, not a requirements document. Use any path, keyword, or context the user provides to identify the right plan. If a path is provided, verify it is actually a plan document. If the match is not obvious, confirm with the user before proceeding.
 
 Words like "strengthen", "confidence", "gaps", and "rigor" are NOT sufficient on their own to trigger deepening. These words appear in normal editing requests ("strengthen that section about the diagram", "there are gaps in the test scenarios") and should not cause a holistic deepening pass. Only treat them as deepening intent when the request clearly targets the plan as a whole and does not name a specific section or content area to change — and even then, prefer to confirm with the user before entering the deepening flow.
 
@@ -163,8 +175,8 @@ Otherwise, read `references/universal-planning.md` and follow that workflow inst
 
 Before asking planning questions, resolve the upstream product source in this order:
 
-1. **Explicit path from the user.** If it points to a unified plan with `artifact_contract: ce-unified-plan/v1` and `artifact_readiness: requirements-only`, this run enriches that same file in place. If it is already `artifact_readiness: implementation-ready`, treat it as a resume/deepening target. If it is a legacy `docs/brainstorms/*-requirements.{md,html}` file, use it as a legacy origin and write a new unified plan in `docs/plans/`.
-2. **Recent requirements-only unified plans.** Search `docs/plans/*.{md,html}` for visible/frontmatter metadata containing `artifact_contract: ce-unified-plan/v1`, `artifact_readiness: requirements-only`, and `product_contract_source: ce-brainstorm`. **Skip a superseded sibling:** if a requirements-only candidate has a same-basename file in the other format (`<basename>.md` / `<basename>.html`) that is already `implementation-ready`, a format conversion superseded it — the implementation-ready sibling is canonical; do not re-enrich the stale requirements-only copy.
+1. **Explicit path from the user.** If it points to a unified plan with `artifact_contract: ce-unified-plan/v1` and `artifact_readiness: requirements-only`, this run enriches that same file in place. If it is already `artifact_readiness: implementation-ready`, treat it as a resume/deepening target. If it is a legacy `docs/brainstorms/*-requirements.{md,html}` file, use it as a legacy origin and write a new unified plan in `<root>/plans/`.
+2. **Recent requirements-only unified plans.** Search `<root>/plans/*.{md,html}` for visible/frontmatter metadata containing `artifact_contract: ce-unified-plan/v1`, `artifact_readiness: requirements-only`, and `product_contract_source: ce-brainstorm`. **Skip a superseded sibling:** if a requirements-only candidate has a same-basename file in the other format (`<basename>.md` / `<basename>.html`) that is already `implementation-ready`, a format conversion superseded it — the implementation-ready sibling is canonical; do not re-enrich the stale requirements-only copy.
 3. **Legacy requirements docs.** Search `docs/brainstorms/` for files matching `*-requirements.md` or `*-requirements.html`. These remain readable historical inputs; do not migrate or rewrite them.
 
 **Relevance criteria:** A Product Contract source is relevant if:
@@ -233,11 +245,11 @@ If the bootstrap reveals that a different workflow would serve the user better:
 - **Bug-shaped prompt** (user describes broken behavior — "fix the bug where X", error message, regression, "doesn't work"). Surface `ce-debug` as a route-out option alongside continuing with `ce-plan` whenever the bug surface is reachable (in cwd OR named repo found at another local path). Stay in `ce-plan` silently when the named code can't be found anywhere local — paper-planning is the only useful output for unreachable surfaces.
 
   **When the bug is at another local path (not cwd):**
-  - Announce the target explicitly **before** any cross-repo investigation: which path will be read AND where plan outputs will land (default: target repo's `docs/plans/`, not cwd's).
+  - Announce the target explicitly **before** any cross-repo investigation: which path will be read AND where plan outputs will land (default: target repo's `<root>/plans/`, not cwd's).
   - Default: proceed from the target repo for both investigation and plan-write. The user can interrupt to redirect (switch context, paper-plan, abandon, etc.). No location menu — the announcement makes the cross-repo nature visible, and the user can speak up if they want something unusual.
   - **After** announcing and proceeding, fire the standard ce-debug routing menu (continue with `ce-plan` vs switch to `ce-debug`) — same shape as the in-cwd case. Cross-repo location and ce-debug skill routing are orthogonal decisions; do not merge them into a single question.
 
-  Reading code at another path is fine in principle — that's just file access. The harm to avoid is silent operation on the wrong repo, especially writing the plan doc somewhere it won't be discovered (a busyblock plan landing in `cli-printing-press/docs/plans/` is a discoverability disaster). The announcement requirement makes the target visible; defaulting to the target repo for both investigation and outputs respects the user's stated intent (they named that repo); the orthogonal ce-debug menu keeps the skill-choice question clean.
+  Reading code at another path is fine in principle — that's just file access. The harm to avoid is silent operation on the wrong repo, especially writing the plan doc somewhere it won't be discovered (a busyblock plan landing in `cli-printing-press/<root>/plans/` is a discoverability disaster). The announcement requirement makes the target visible; defaulting to the target repo for both investigation and outputs respects the user's stated intent (they named that repo); the orthogonal ce-debug menu keeps the skill-choice question clean.
 
   The accessibility classification is conservative and may under-suggest in monorepos, dependency bugs, or after renames. Users can always invoke `ce-debug` manually.
 
@@ -318,7 +330,7 @@ Collect:
 - Exact dependency or runtime versions only when they materially affect the plan or an external research decision
 - Relevant architecture and implementation patterns, files, modules, and tests for the requested scope
 - Applicable constraints from the project's active instructions and context
-- Institutional learnings from `docs/solutions/`
+- Institutional learnings from `<root>/solutions/`
 - Product strategy context when `STRATEGY.md` is present — flag any plan decisions that pull away from the active tracks or the stated approach
 - Agent-native planning findings when the conditional triage dispatched: action/context parity decisions, tool/workspace/execution-lifecycle choices, scope boundaries, and verification scenarios
 
@@ -468,8 +480,8 @@ Ask the user only when the answer materially affects architecture, scope, sequen
 
 - Draft a clear, searchable title using conventional format such as `feat: Add user authentication` or `fix: Prevent checkout double-submit`
 - Determine the plan type: `feat`, `fix`, or `refactor`
-- Build the filename following the repository convention: `docs/plans/YYYY-MM-DD-NNN-<type>-<descriptive-name>-plan.md`
-  - Create `docs/plans/` if it does not exist
+- Build the filename following the repository convention: `<root>/plans/YYYY-MM-DD-NNN-<type>-<descriptive-name>-plan.md`
+  - Create `<root>/plans/` if it does not exist
   - Check existing files for today's date to determine the next sequence number (zero-padded to 3 digits, starting at 001)
   - Keep the descriptive name concise (3-5 words) and kebab-cased
   - Examples: `2026-01-15-001-feat-user-authentication-flow-plan.md`, `2026-02-03-002-fix-checkout-race-condition-plan.md`
@@ -667,7 +679,7 @@ If the plan originated from a requirements document, re-read that document and v
 
 Surface plan-time call-outs to the user before Phase 5.2 commits the plan to disk — the latest cheap moment to catch plan-time scope errors. The brainstorm already validated WHAT to build; this phase surfaces HOW the plan will execute on the forks that matter.
 
-Fires **whenever Phase 0.2 resolved an upstream Product Contract source** — a requirements-only unified plan (an explicit path, or a discovered `product_contract_source: ce-brainstorm` plan in `docs/plans/`) **or** a legacy `*-requirements.{md,html}` brainstorm doc — AND not on Phase 0.1 fast paths (resume normal, deepen-intent). The new `ce-brainstorm` -> `ce-plan <unified-plan>` enrichment flow is brainstorm-sourced and MUST fire this gate, just like legacy flows. Skip Phase 5.1.5 only in solo invocation (no upstream source found; `product_contract_source: ce-plan-bootstrap`) — solo plans handled their synthesis in Phase 0.7.
+Fires **whenever Phase 0.2 resolved an upstream Product Contract source** — a requirements-only unified plan (an explicit path, or a discovered `product_contract_source: ce-brainstorm` plan in `<root>/plans/`) **or** a legacy `*-requirements.{md,html}` brainstorm doc — AND not on Phase 0.1 fast paths (resume normal, deepen-intent). The new `ce-brainstorm` -> `ce-plan <unified-plan>` enrichment flow is brainstorm-sourced and MUST fire this gate, just like legacy flows. Skip Phase 5.1.5 only in solo invocation (no upstream source found; `product_contract_source: ce-plan-bootstrap`) — solo plans handled their synthesis in Phase 0.7.
 
 **Read `references/synthesis-summary.md` before composing the scoping synthesis.** It carries the affirmability test, keep-test criteria, detail test, summary shape budgets, the literal confirmation and auto-proceed templates, granularity rules, anti-patterns, revision-vs-confirmation discipline, doc-body reading rules, doc-shape routing, soft-cut behavior, self-redirect support, the worked PII compression example, and full headless-mode routing — all required for a well-shaped synthesis.
 
@@ -690,10 +702,10 @@ for HTML by the format gate in `references/plan-handoff.md`.
 Use the Write tool to save the complete plan to the resolved format's extension:
 
 ```text
-docs/plans/YYYY-MM-DD-NNN-<type>-<descriptive-name>-plan.<md|html>
+<root>/plans/YYYY-MM-DD-NNN-<type>-<descriptive-name>-plan.<md|html>
 ```
 
-Extension follows `OUTPUT_FORMAT` from Phase 0.0 — `.md` when markdown, `.html` when HTML. Sequence number `NNN` is derived from existing plan files in `docs/plans/` regardless of extension (count both `.md` and `.html`) to ensure unique daily ordering.
+Extension follows `OUTPUT_FORMAT` from Phase 0.0 — `.md` when markdown, `.html` when HTML. Sequence number `NNN` is derived from existing plan files in `<root>/plans/` regardless of extension (count both `.md` and `.html`) to ensure unique daily ordering.
 
 Compose the plan using the content from `references/plan-sections.md` and the format-specific principles from the rendering reference loaded at Phase 0.0 (`markdown-rendering.md` OR `html-rendering.md`).
 
@@ -702,8 +714,8 @@ Compose the plan using the content from `references/plan-sections.md` and the fo
 Write the unified plan artifact according to `references/plan-sections.md`.
 
 - If the source is a requirements-only unified plan, update that file in place unless `OUTPUT_FORMAT`, pipeline mode, or an explicit conversion requires a new canonical path. Preserve Product Contract meaning and stable IDs under Phase 0.3 step 3; sanctioned meaning-preserving restructuring remains allowed and carries its preservation-note and citation-repointing obligations. Add Planning Contract, Implementation Units, Verification Contract, and Definition of Done. When a new canonical path *is* required (format conversion), the original artifact is left in place but is **no longer canonical** — it keeps its `requirements-only` metadata, so discovery treats a requirements-only artifact that has an implementation-ready same-basename sibling as superseded (see Phase 0.2 step 2 and `ce-work`'s blank-invocation discovery) rather than re-enriching or stopping on it.
-- If the source is a legacy requirements doc, create a new unified plan in `docs/plans/` and carry the legacy path in `origin:`.
-- If this is direct planning, create a complete unified plan in `docs/plans/` with `product_contract_source: ce-plan-bootstrap`.
+- If the source is a legacy requirements doc, create a new unified plan in `<root>/plans/` and carry the legacy path in `origin:`.
+- If this is direct planning, create a complete unified plan in `<root>/plans/` with `product_contract_source: ce-plan-bootstrap`.
 - Set `artifact_contract: ce-unified-plan/v1`, `artifact_readiness: implementation-ready`, and `execution: code` for software implementation plans.
 - Do not set `artifact_contract: ce-unified-plan/v1` on universal-planning outputs, answer-seeking outputs, or approach-plans unless they include the full software implementation contract.
 - Do not write a launch prompt into the doc. The launch prompt is generated at handoff (Phase 5.4 menu — `/goal` copy-paste on Claude Code, `create_goal` on Codex) from the plan's current content, so it never goes stale; it points to Goal Capsule, Verification Contract, Definition of Done, and U-IDs rather than duplicating them.

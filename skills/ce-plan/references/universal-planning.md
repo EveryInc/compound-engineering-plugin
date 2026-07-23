@@ -154,7 +154,7 @@ After structuring the plan, ask the user how they want to receive it using the p
 **Options:**
 
 1. **Save to disk** — Write the plan as a markdown file. Ask where:
-   - `docs/plans/` (only show if this directory exists)
+   - `<root>/plans/` (only show if this directory exists)
    - Current working directory
    - `/tmp`
    - A custom path

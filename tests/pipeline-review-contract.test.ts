@@ -721,10 +721,10 @@ describe("ce-compound frontmatter schema expansion contract", () => {
       "skills/ce-compound/references/yaml-schema.md"
     )
 
-    expect(mapping).toContain("architecture_pattern` -> `docs/solutions/architecture-patterns/")
-    expect(mapping).toContain("design_pattern` -> `docs/solutions/design-patterns/")
-    expect(mapping).toContain("tooling_decision` -> `docs/solutions/tooling-decisions/")
-    expect(mapping).toContain("convention` -> `docs/solutions/conventions/")
+    expect(mapping).toContain("architecture_pattern` -> `<root>/solutions/architecture-patterns/")
+    expect(mapping).toContain("design_pattern` -> `<root>/solutions/design-patterns/")
+    expect(mapping).toContain("tooling_decision` -> `<root>/solutions/tooling-decisions/")
+    expect(mapping).toContain("convention` -> `<root>/solutions/conventions/")
   })
 })
 

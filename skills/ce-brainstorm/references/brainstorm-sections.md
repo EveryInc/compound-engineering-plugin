@@ -22,10 +22,10 @@ Sections earn their place by serving one of these audiences. Omit padding.
 
 ## Unified plan skeleton contract
 
-New `ce-brainstorm` outputs live under `docs/plans/` and use the unified plan
+New `ce-brainstorm` outputs live under `<root>/plans/` and use the unified plan
 artifact contract:
 
-- **Path:** `docs/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.<md|html>`.
+- **Path:** `<root>/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.<md|html>`.
 - **`artifact_contract: ce-unified-plan/v1`**.
 - **`artifact_readiness: requirements-only`**.
 - **`product_contract_source: ce-brainstorm`**.
@@ -63,7 +63,7 @@ Skip document creation when **both** hold:
 - The user only needs brief alignment — no exploration produced novel scope,
   framing, or decisions worth preserving in IDed shape.
 - Any durable decisions made during the dialogue can flow naturally to
-  downstream artifacts (`ce-plan`, the commit message, `docs/solutions/`)
+  downstream artifacts (`ce-plan`, the commit message, `<root>/solutions/`)
   without a brainstorm doc as an intermediary.
 
 The trigger for creating a doc is when the dialogue surfaced enough
@@ -75,7 +75,7 @@ durable, IDed form — not just as conversational artifacts.
 this with a null check or with upstream validation?" and the agent confirms
 "upstream validation, here's why" doesn't need a brainstorm doc. The
 decision flows to `ce-plan` (or directly to commit message, or to
-`docs/solutions/` if it's a pattern worth carrying) without a brainstorm
+`<root>/solutions/` if it's a pattern worth carrying) without a brainstorm
 artifact in the middle.
 
 Conversely, a brainstorm about a multi-actor feature with contested scope
@@ -366,7 +366,7 @@ artifact.
 - **`type`** — conventional-commit-prefix-aligned classification (`feat`,
   `fix`, `refactor`, `docs`, etc.).
 - **`date`** — creation date in ISO 8601 (`YYYY-MM-DD`), ASCII digits only.
-  Used in the filename (`docs/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.<md|html>`).
+  Used in the filename (`<root>/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.<md|html>`).
 - **`topic`** — kebab-case slug identifying the brainstorm subject (e.g.,
   `surface-scope-earlier`, `demo-reel-local-save`). Used in the filename and
   as the resume-detection key when `ce-brainstorm` scans for an existing

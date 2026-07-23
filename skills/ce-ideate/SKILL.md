@@ -12,10 +12,10 @@ argument-hint: "[feature, focus area, or constraint] [output:md]"
 `ce-ideate` precedes `ce-brainstorm`.
 
 - `ce-ideate` answers: "What are the strongest ideas worth exploring?"
-- `ce-brainstorm` answers: "What exactly should one chosen idea mean?" and writes a requirements-only unified plan under `docs/plans/`.
+- `ce-brainstorm` answers: "What exactly should one chosen idea mean?" and writes a requirements-only unified plan under `<root>/plans/`.
 - `ce-plan` answers: "How should it be built?"
 
-This workflow produces a ranked ideation artifact — written to `docs/ideation/` when present, else a CE temp path (see Phase 4). It does **not** produce requirements, plans, or code.
+This workflow produces a ranked ideation artifact — written to `<root>/ideation/` when present, else a CE temp path (see Phase 4). It does **not** produce requirements, plans, or code.
 
 ## Interaction Method
 
@@ -36,6 +36,18 @@ Interpret any provided argument as optional context. It may be:
 - a volume hint such as `top 3`, `100 ideas`, or `raise the bar`
 
 If no argument is provided, proceed with open-ended ideation.
+
+## Artifact Root
+
+This skill writes ideation artifacts under `<root>/ideation/` and reads learnings under `<root>/solutions/`. Resolve `<root>` once at the start of the run and use it everywhere a `<root>/` path appears below; pass the resolved path to any subagent, not the config.
+
+<!-- ce-docs-root:start -->
+**Resolve the CE artifact root `<root>` before composing any artifact path.**
+
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml`; first non-empty value wins (`<repo-root>` = `git rev-parse --show-toplevel`). Unset -> `<root>` is `docs`, exactly as before.
+- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
+- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
+<!-- ce-docs-root:end -->
 
 ## Core Principles
 
@@ -87,7 +99,7 @@ The `output:` preference does NOT auto-propagate to `ce-brainstorm` on handoff (
 
 #### 0.1 Check for Recent Ideation Work
 
-Look in `docs/ideation/` for ideation documents (`*.md` or `*.html`) created within the last 30 days.
+Look in `<root>/ideation/` for ideation documents (`*.md` or `*.html`) created within the last 30 days.
 
 Treat a prior ideation doc as relevant when:
 
@@ -179,7 +191,7 @@ Do not prescribe correction phrases ("say X to switch"). State the inferred mode
 
 **Active confirmation on mode ambiguity.** Only fire when mode classification is genuinely ambiguous *after* 0.2 settled the subject — e.g., "our docs" could mean repo docs (repo-grounded) or public marketing docs (elsewhere-software). Most subjects settled in 0.2 classify cleanly here. When ambiguous, ask one confirmation question via the blocking tool with two self-contained labels naming the two candidate interpretations in plain language (e.g., "Treat as repo docs in this codebase" vs "Treat as public marketing docs") — never leak internal mode names. Otherwise the one-sentence inferred-mode statement is sufficient; do not ask.
 
-**Routing rule (non-software mode).** When Decision 2 = non-software, still run Phase 1 Elsewhere-mode grounding (user-context synthesis + web-research by default; skip phrases honored). Learnings-researcher is skipped by default in this mode — the CWD's `docs/solutions/` rarely transfers to naming, narrative, personal, or non-digital business topics; see Phase 1 for the full rationale. Then load `references/universal-ideation.md` and follow it in place of Phase 2's software frame dispatch and the Phase 5 menu narrative. This load is non-optional — the file contains the domain-agnostic generation frames, critique rubric, and wrap-up menu that replace Phase 2 and the post-ideation menu for this mode, and none of those details live in this main body. Improvising from memory produces the wrong facilitation for non-software topics. Do not run the repo-specific codebase scan at any point. The deliverable is auto-written here too (per `references/post-ideation-workflow.md` Phase 4); if the user publishes a markdown deliverable to Proof and it fails, the §5.1 Proof handling applies and the auto-written local file remains the intact record.
+**Routing rule (non-software mode).** When Decision 2 = non-software, still run Phase 1 Elsewhere-mode grounding (user-context synthesis + web-research by default; skip phrases honored). Learnings-researcher is skipped by default in this mode — the CWD's `<root>/solutions/` rarely transfers to naming, narrative, personal, or non-digital business topics; see Phase 1 for the full rationale. Then load `references/universal-ideation.md` and follow it in place of Phase 2's software frame dispatch and the Phase 5 menu narrative. This load is non-optional — the file contains the domain-agnostic generation frames, critique rubric, and wrap-up menu that replace Phase 2 and the post-ideation menu for this mode, and none of those details live in this main body. Improvising from memory produces the wrong facilitation for non-software topics. Do not run the repo-specific codebase scan at any point. The deliverable is auto-written here too (per `references/post-ideation-workflow.md` Phase 4); if the user publishes a markdown deliverable to Proof and it fails, the §5.1 Proof handling applies and the auto-written local file remains the intact record.
 
 #### 0.4 Context-Substance Gate (Elsewhere Modes Only)
 
@@ -239,7 +251,7 @@ The line is informational; users do not need to acknowledge it.
 
 ### Phase 1: Mode-Aware Grounding
 
-Before generating ideas, gather grounding. The dispatch set depends on the mode chosen in Phase 0.3. Web research runs in all modes (skip phrases honored). When the user supplied a research artifact, the user-supplied research handling below also runs in all modes. Learnings runs in repo mode and elsewhere-software, and is **skipped by default in elsewhere-non-software** — the CWD repo's `docs/solutions/` almost always contains engineering patterns that do not transfer to naming, narrative, personal, or non-digital business topics.
+Before generating ideas, gather grounding. The dispatch set depends on the mode chosen in Phase 0.3. Web research runs in all modes (skip phrases honored). When the user supplied a research artifact, the user-supplied research handling below also runs in all modes. Learnings runs in repo mode and elsewhere-software, and is **skipped by default in elsewhere-non-software** — the CWD repo's `<root>/solutions/` almost always contains engineering patterns that do not transfer to naming, narrative, personal, or non-digital business topics.
 
 **Surprise-me grounding depth.** When Phase 0.2 routed to surprise-me mode, Phase 1 must produce richer material than specified mode — Phase 2 sub-agents will discover their own subjects from what Phase 1 returns, so texture matters:
 
@@ -311,7 +323,7 @@ Use the project's active instructions already in context. Send the codebase scan
 
 1. **User-context synthesis** — dispatch a general-purpose sub-agent (cheapest capable model) to read the user-supplied context from Phase 0.4 intake plus any rich-prompt material, and return a structured grounding summary that mirrors the codebase-context shape (project shape → topic shape; notable patterns → stated constraints; pain points → user-named pain points; leverage points → opportunity hooks the context implies). This keeps Phase 2 sub-agents agnostic to grounding source.
 
-2. **Learnings search** *(elsewhere-software only; skipped by default in elsewhere-non-software)* — read `references/agents/learnings-researcher.md` and dispatch a generic subagent seeded with that local prompt plus the topic summary in case relevant institutional knowledge exists (skill-design patterns, prior solutions in similar shape). Skip for elsewhere-non-software: the CWD's `docs/solutions/` is unlikely to be topically relevant for non-digital topics, and running it risks polluting generation with unrelated engineering patterns.
+2. **Learnings search** *(elsewhere-software only; skipped by default in elsewhere-non-software)* — read `references/agents/learnings-researcher.md` and dispatch a generic subagent seeded with that local prompt plus the topic summary in case relevant institutional knowledge exists (skill-design patterns, prior solutions in similar shape). Skip for elsewhere-non-software: the CWD's `<root>/solutions/` is unlikely to be topically relevant for non-digital topics, and running it risks polluting generation with unrelated engineering patterns.
 
 3. **Web research** — same as repo mode (see subsection below).
 
@@ -353,7 +365,7 @@ Consolidate all dispatched results into a short grounding summary using these se
 - **Codebase context** *(repo mode)* — project shape, notable patterns, pain points, leverage points (project-defining files: AGENTS.md/CLAUDE.md/README.md/STRATEGY.md) OR **Topic context** *(elsewhere mode)* — topic shape, stated constraints, user-named pain points, opportunity hooks
 - **User-named references** *(repo mode, when the focus hint named root-level `*.md` files)* — full content from directive files the user explicitly named in their prompt or focus (research artifacts route through `User-supplied research` instead). Phase 2 treats these as constraint
 - **Additional context** *(repo mode, when other root-level markdown was discovered but not named)* — one-line gists per file. Phase 2 treats these as background, not direction
-- **Past learnings** — relevant institutional knowledge from `docs/solutions/`
+- **Past learnings** — relevant institutional knowledge from `<root>/solutions/`
 - **Issue intelligence** *(when present, repo mode only)* — theme summaries with titles, descriptions, issue counts, leverage, and trend directions, **plus the cluster call's coverage accounting** (fetched / eligible / analyzed / excluded / unknown-remainder, with any `>N` lower bound) so the non-exhaustive-coverage disclosure reaches Phase 2 ideation and the Phase 4 artifact rather than being dropped here
 - **External context** *(when web research ran)* — prior art, adjacent solutions, market signals, cross-domain analogies. Note "(reused from earlier dispatch)" when V15 reuse fired
 - **User-supplied research** *(when the user provided research artifacts)* — dossier gists with paths, or inline content for small artifacts; kept distinct from External context so source provenance stays visible

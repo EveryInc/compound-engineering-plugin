@@ -236,7 +236,7 @@ git remote get-url origin
 Apply linking to three reference shapes:
 
 - **Repo-relative code/doc paths** (`services/foo.ts`,
-  `docs/solutions/bar.md`) → `<repo-url>/blob/main/<path>`.
+  `<root>/solutions/bar.md`) → `<repo-url>/blob/main/<path>`.
 - **Named GitHub PRs/issues** (`PR #636`, `issue #1048`) →
   `<repo-url>/pull/636` or `<repo-url>/issues/1048`.
 - **Named external trackers** (Linear `ESP-1705`, Jira `PROJ-123`) →
@@ -482,7 +482,7 @@ with a UI/layout shape can carry a wireframe, whether or not the brainstorm
 as a whole is "a visual product" — a backend-heavy brainstorm with one
 screen change still earns a wireframe for that requirement. It still applies
 to brainstorm **requirements** output — the requirements-only unified plan
-`ce-brainstorm` writes (now under `docs/plans/`), not an implementation-ready
+`ce-brainstorm` writes (now under `<root>/plans/`), not an implementation-ready
 plan (`ce-plan`'s enriched output) — and only to UI-shaped requirements — a
 non-visual requirement (API design, data model, agent workflow,
 infrastructure) takes a conceptual diagram instead, not a

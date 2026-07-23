@@ -114,7 +114,7 @@ Do not print the closing summary first.
 
 Load the `ce-proof` skill to publish the markdown unified plan. Pass:
 
-- **source file:** `docs/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.md`
+- **source file:** `<root>/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.md`
 - **doc title:** `Plan: <topic title> (requirements-only)`
 - **identity:** `ai:compound-engineering` / `Compound Engineering`
 

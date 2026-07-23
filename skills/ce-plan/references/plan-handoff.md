@@ -114,7 +114,7 @@ Based on selection (the bare per-option routing is also stated inline in the SKI
 - **Decide on the review's open items** -> Invoke the `ce-doc-review` skill again under the cross-skill invocation rule, passing the plan path **without** `mode:headless` so the interactive routing question and walkthrough fire. The headless pass already applied `safe_auto` fixes and recorded its findings in the session, so the interactive pass picks up where headless stopped — its R29 suppression rule prevents prior-round Skipped/Deferred entries from re-raising. If the skill cannot be invoked, say that it did not run and return to the menu. After it returns, re-render this menu with the refreshed counts so the user can pick what to do next.
 - **Create Issue** -> Follow the Issue Creation section below
 - **Publish to Proof — shareable link** -> Invoke the `ce-proof` skill under the cross-skill invocation rule to publish the plan. If it cannot be invoked, say that publishing did not start and return to the menu. Pass:
-  - source file: `docs/plans/<plan_filename>.md`
+  - source file: `<root>/plans/<plan_filename>.md`
   - doc title: `Plan: <plan title from frontmatter>`
   - identity: `ai:compound-engineering` / `Compound Engineering`
 
