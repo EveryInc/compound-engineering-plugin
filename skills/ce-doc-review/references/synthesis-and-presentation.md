@@ -282,16 +282,19 @@ After safe_auto fixes apply, remaining findings split into buckets:
 
 **Self-contained rendered lines (both modes, including the Applied-fixes list).** Every rendered line —
 an applied fix, proposed fix, decision, FYI observation, residual concern, or deferred question —
-obeys the shared rendering floor (`references/rendering-floor.md`): decision-first field order, and the
-opaque-token policy applied to **all three** token classes, not document IDs alone. A requirement or
-unit ID (`R6`, `U3`) is a navigation anchor (keep the ID, gloss at first mention); a ticket or PR
-number (`ESP-3373`, `PR #1776`) is a provenance anchor (gloss only when the event changes the
-decision, else move to trace); a function, file, variable, or line reference the document names
-(`clearMuxStatus`, `codebookTranscriptMode.ts:46`) is a mechanism symbol (translate to its role; keep
-the exact symbol only when precise scope drives the decision). At most two anchors per block; resolve
-each handle at render time against the document in context so it stays accurate after an Apply
-renumbers the item. A line whose only description of a referenced item is a bare identifier — of any
-class — is not acceptable rendered output.
+obeys the shared rendering floor's (`references/rendering-floor.md`) opaque-token policy across **all
+three** token classes, not document IDs alone. A requirement or unit ID (`R6`, `U3`) is a navigation
+anchor (keep the ID, gloss at first mention); a ticket or PR number (`ESP-3373`, `PR #1776`) is a
+provenance anchor (gloss only when the event changes the decision, else move to trace); a function,
+file, variable, or line reference the document names (`clearMuxStatus`, `codebookTranscriptMode.ts:46`)
+is a mechanism symbol (translate to its role; keep the exact symbol only when precise scope drives the
+decision). At most two anchors per line, each resolved at render time against the document in context
+so it stays accurate after an Apply renumbers the item. The floor's full decision-first field order
+(Recommendation → Consequence → Change → Basis) applies to **actionable findings** — proposed fixes and
+decisions. FYI observations, residual concerns, and deferred questions carry no recommendation or fix,
+so they render as a single consequence / concern / question line under the token policy, not the full
+field order. A line whose only description of a referenced item is a bare identifier — of any class — is
+not acceptable rendered output.
 
 **Headless mode:** Do not use interactive question tools. Output all findings as a structured text envelope the caller can parse. Internal enum values (`safe_auto`, `gated_auto`, `manual`, `FYI`) stay in the schema and synthesis prose; the envelope below uses user-facing vocabulary — "fixes", "Proposed fixes", "Decisions", "FYI observations" — so headless output reads the same way interactive output does.
 
@@ -344,7 +347,7 @@ Review complete
 
 Omit any section with zero items. The section headers reflect user-facing vocabulary: the "Proposed fixes" bucket carries `gated_auto` findings at anchor `75` or `100` (the persona has a concrete fix; the user confirms), "Decisions" carries `manual` findings at anchor `75` or `100` (judgment calls), and "FYI observations" carries any finding at anchor `50` regardless of `autofix_class`. When a root has dependents, render the root at its normal position in the severity-sorted list and nest its dependents as an indented `Dependents (...)` sub-block immediately below. Do not re-list dependents at their own severity position — they appear only under their root. End with "Review complete" as the terminal signal so callers can detect completion.
 
-**Compact rendering for FYI observations, residual concerns, and deferred questions (high-count mode).** When the combined count of these three buckets is 5 or more, collapse each to a one-line count followed by a tight bullet list of the consequence lines only, without any per-item mechanism/Basis expansion. Actionable buckets (Proposed fixes / Decisions) remain fully rendered regardless. This mirrors the interactive-mode rule in `references/review-output-template.md` so both modes produce the same shape.
+**Compact rendering for FYI observations, residual concerns, and deferred questions (high-count mode).** When the combined count of these three buckets is 5 or more, collapse each to a one-line count followed by a tight bullet list — FYI observations use their consequence line, residual concerns and deferred questions their concern or question text — with no per-item elaboration. Actionable buckets (Proposed fixes / Decisions) remain fully rendered regardless. This mirrors the interactive-mode rule in `references/review-output-template.md` so both modes produce the same shape.
 
 **Interactive mode:**
 
