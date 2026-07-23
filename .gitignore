@@ -10,3 +10,6 @@ __pycache__/
 *.pyc
 
 .compound-engineering/*.local.yaml
+
+# here-now publish state (local tooling, not repo content)
+.herenow/
