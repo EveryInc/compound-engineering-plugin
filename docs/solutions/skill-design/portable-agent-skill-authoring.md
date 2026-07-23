@@ -66,6 +66,26 @@ This is not a ban on effort cues. A targeted phrase may be useful when it counte
 
 This is an admission principle, not a mandate to delete unfamiliar detail. A line that feels redundant may be targeted insurance for a more literal model or a different harness. Test that possibility before removing it.
 
+### When the insurance cannot be tested
+
+"Test that possibility before removing it" assumes the test exists. Sometimes it does not: the benchmark harness may refuse to load a modified skill on the weaker runtime at all, so the insurance hypothesis is unfalsifiable with the available lever. Silence is not permission to delete, and it is not permission to keep either.
+
+Resolve it in this order:
+
+1. **Build the lever if it is cheap.** Converting the skill and running the weaker runtime outside the primary harness is usually hours, not days. Prefer this.
+2. **If the lever does not exist, decide on the measured axis and label the unmeasured one.** Keep the line when it is protocol by the usual test. Remove it only when a stronger measurement on the axis you *can* observe shows the prose is causing harm. Then record the weaker layer as an open verification task, per "Leave unverified claims as explicit verification tasks rather than universal assertions." Never report the removal as portability-neutral.
+3. **Never infer weaker-model safety from strong-model success.** A capable model completing the task proves nothing about the runtime the line was written for.
+
+**Capable-model-first is an accepted deviation in this repository, with conditions.** A corpus can reach a size where its own prose degrades the strongest model available — measured, not suspected. When that happens, optimizing the single canonical source for capable runtimes and accepting measured degradation on weaker ones is a legitimate program, and it inverts the usual evaluation priority under "Evaluate proportionally": strong-model regression leads, weakest-realistic-layer becomes a logged verification task.
+
+Three conditions, all required:
+
+- **The harm is measured on the strong axis**, with a noise floor established first. Two identical copies of the corpus must be compared before any change is credited, because a corpus this size can produce large run-to-run variance on fixed inputs — completion rate and token spend both.
+- **Machine-readable contracts, security guards, and platform gotchas where wrong behavior looks like success are held intact.** These are protocol regardless of model tier; a capable model cannot re-derive an arbitrary shared string or discover a silent-empty CLI flag by trying.
+- **The reversal is written down.** This repository has a prior learning concluding the opposite — that a defensive fix should ship even when adversarial fixtures cannot reproduce the failure on a capable model, because weaker harnesses are also targets. A capable-model-first program reverses that reasoning. State it explicitly in the change that does so; do not let a large diff imply it.
+
+Do not read this as license to delete on taste. It is a named exception with a measurement precondition, and the precondition is the expensive part.
+
 ## The portability problem
 
 A portable skill operates across two execution axes under one authority overlay:
@@ -327,7 +347,11 @@ Prioritize:
 4. **Fresh downstream consumer:** can the next skill or agent use the output without clarification?
 5. **Activation:** do positive and adjacent-negative prompts route correctly?
 
+This order inverts for a capable-model-first program (see "When the insurance cannot be tested"): when the measured harm is on the strongest available runtime, strong-model regression leads and the weakest layer becomes a logged verification task. Invert the order only with the measurement in hand, never on suspicion.
+
 Do not imply a full model-by-harness suite for every edit. Choose fixtures tied to the biggest gotchas in the change.
+
+Establish a noise floor before crediting any change. Compare two identical copies of the artifact under the same runtime and settings first; whatever difference that produces is the floor every later claim must clear. Without it, a single improved run is indistinguishable from run-to-run variance, and for orchestration-heavy corpora that variance can be large enough to swallow any prose effect. State the floor next to the result.
 
 Use fresh context for behavioral prose evaluation. Some harnesses cache skill content at session start, so invoking the edited skill in the authoring session may test stale content.
 
