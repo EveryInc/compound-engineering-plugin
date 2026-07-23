@@ -313,10 +313,33 @@ leave it standing as strikethrough or stack a separate "resolutions" layer on
 top of it. Version control holds the history. Stacked strata double the reading
 surface and hide which text is live.
 
+**One owner per rule; cite, don't restate.** A normative rule — a gate, cap,
+threshold, protocol, or output contract — is stated in full at exactly one
+owning entry: product behavior on its R-ID; an implementation choice on its
+KTD. Every other layer cites the owning ID and adds only what is local to
+it — a unit's Approach carries unit-local deltas (files, sequencing,
+patterns), never a re-derivation of the protocol its cited Rs and KTDs own.
+Linked projections are sanctioned (an AE restating behavior under
+`Covers R…`, a Flow citing the Rs it sequences). **Unlinked sibling
+restatement** — the same rule written out again in a KTD, Scope bullet, or
+Approach with no ID link — is the defect: each copy drifts independently.
+When linked layers disagree, authority is typed: the **R wins on product
+behavior**; the **KTD wins on implementation mechanism** within its cited R
+constraints; a unit overrides neither; AEs and Flows illustrate and
+sequence, never amend.
+
+**Bind external authorities; don't summarize them.** When a requirement,
+KTD, or unit adopts an external document (a field guide, spec, standard),
+state the commitment, cite the path, and record only this work's deltas. A
+multi-sentence summary of the cited document is restatement of an owner that
+lives outside the doc.
+
 **Named test, run before the plan is declared written:** could the implementer
 find a contradiction in each section in one pass? A sentence carrying more than
-one parenthetical, or an item specifying two outcomes, fails the test — split it
-or defer it.
+one parenthetical, a sentence chaining more than two semicolons, an item
+specifying two outcomes, or a rule stated in full in more than one section
+fails the test — split it (a semicolon chain becomes a list), defer it, or
+replace the duplicate with its owning ID.
 
 ## Plan metadata fields
 
@@ -376,12 +399,18 @@ names; adding new fields is fine, but renaming `origin` to `source` or
 
 These apply regardless of rendering format.
 
-- **Stable IDs.** R-IDs (Requirements), U-IDs (Implementation Units), A-IDs
+- **Stable IDs.** R-IDs (Requirements), U-IDs (Implementation Units),
+  KTD-IDs (Key Technical Decisions, implementation-ready plans), A-IDs
   (if Actors fire), F-IDs (if Flows fire), AE-IDs (if Acceptance Examples
   fire). IDs are stable across plan revisions — never renumber to "clean
   up gaps."
-- **Plain prefix.** `R1.`, `U1.` as bullet prefixes. Do not bold; the prefix
-  is visually distinctive on its own.
+- **Plain prefix.** `R1.`, `U1.`, `KTD1.` as bullet prefixes. Do not bold;
+  the prefix is visually distinctive on its own.
+- **KTD-IDs on implementation-ready plans.** Number Key Technical Decisions
+  (`KTD1.`, next unused number, same never-renumber rule as U-IDs) in newly
+  authored implementation-ready plans, and in an existing plan whenever a
+  KTD is added, split, or first cited by a unit. Untouched unnumbered KTDs
+  in legacy plans stay as they are — readable by label, no mass renumbering.
 - **Repo-relative paths.** Always. Never absolute paths in plan content;
   they break portability across machines, worktrees, teammates.
 - **No process exhaust.** No "captured at Phase X" notes, no `## Next Steps`
@@ -394,8 +423,11 @@ These apply regardless of rendering format.
   Exactly two classes: `user-directed` (the user chose against or between
   surfaced options) and `user-approved` (the agent proposed with the tradeoff
   surfaced; the user assented). An agent never labels its own unexamined
-  proposal. A KTD that instantiates a labeled brainstorm / Product Contract
-  Key Decision inherits the label and cites that decision. The annotation is
+  proposal. A KTD that makes the how-level choice instantiating a labeled
+  Product Contract Key Decision inherits the label and cites the decision's
+  governed R-IDs. Do **not** create a KTD that merely mirrors a Product Key
+  Decision with no new technical choice — the Key Decision plus its
+  `Governs R…` links already own that content. The annotation is
   self-contained — decision, rejected alternative, and one-line reason
   readable without the conversation — and lives inline on the entry: no
   sidecar files, no frontmatter registry, no numeric weights, no lifecycle

@@ -128,6 +128,22 @@ standing, and don't keep superseded prose as strikethrough. Version control
 holds the history. Stacked question/resolution strata double the reading surface
 and hide which text is live.
 
+**One owner per rule; cite, don't restate.** A normative rule — a gate, cap,
+threshold, or output contract — is stated in full at exactly one owning
+entry: the R-ID that carries it. Every other section that needs the rule
+cites the owning ID (`Covers R4`, `Governs R5, R7`, "per R6") and adds only
+what is local to that section. Linked projections are sanctioned — an AE
+restating behavior under a `Covers R…` marker, a Flow citing the Rs it
+sequences. **Unlinked sibling restatement** — the same rule written out again
+in a Key Decision, Flow, or Scope bullet with no ID link — is the defect:
+each copy drifts independently and the doc has no rule for which one wins.
+
+**Bind external authorities; don't summarize them.** When a requirement or
+decision adopts an external document (a field guide, spec, standard), state
+the commitment, cite the path, and record only this work's deltas. A
+multi-sentence summary of the cited document is restatement of an owner that
+lives outside the doc.
+
 ## Ready for Planning Check
 
 Run this against the written artifact before declaring it written or presenting
@@ -143,7 +159,8 @@ the Phase 4 handoff:
    Scope Boundaries, and the `work-relationships` section do not contradict one
    another. Could a reader find a contradiction in each section in one pass? A
    sentence with more than one parenthetical or a requirement that specifies two
-   outcomes fails this check — split it or defer the fork.
+   outcomes, or a rule stated in full in more than one section, fails this check
+   — split it, defer the fork, or replace the duplicate with its owning ID.
 3. **Focused** — the Product Contract owns one coherent work unit. Surrounding
    work appears only as context, deferred work, or an explicit non-goal; it does
    not leak into active Requirements, Flows, or Acceptance Examples.
@@ -191,9 +208,15 @@ worse than omitting it.
 
 - **Key Decisions** — include when the brainstorm produced opinionated
   framing choices (defaults, scope narrowings, foundational technical picks)
-  that constrain Requirements / Flows / Scope below. Each entry names the
-  decision in bold with prose rationale. Sits high in the rendered doc so
-  readers encounter the framing choices before descending into detail.
+  that constrain Requirements / Flows / Scope below. Sits high in the
+  rendered doc so readers encounter the framing choices before descending
+  into detail. Each entry is a **provenance index entry, not a second
+  statement of the rule**: the decision in bold, at most one line of
+  rationale, and — when the decision constrains specific requirements —
+  exact `Governs R5, R7` links naming them. The full normative rule text
+  lives on the governed Rs; an entry that would write the rule out again
+  cites them instead. A pure framing decision with no governed R carries
+  its rationale and no links.
   An entry recording a decision settled in the invoking conversation may
   carry the inline annotation
   `(session-settled: <class> — chosen over <alternative>: <reason>)`, with

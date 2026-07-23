@@ -694,3 +694,61 @@ describe("session-settled decision contract", () => {
     )
   })
 })
+
+describe("cross-layer ownership contract", () => {
+  test("both section contracts carry the one-owner rule and the duplication named-test clause", () => {
+    for (const doc of [planSections, brainstormSections]) {
+      expect(doc).toMatch(/One owner per rule; cite, don't restate\./)
+      expect(doc).toMatch(/Unlinked sibling\s+restatement/)
+      expect(doc).toMatch(/Bind external authorities; don't summarize them\./)
+      expect(doc).toMatch(/a rule stated in full\s+in more than one section/)
+    }
+  })
+
+  test("plan-sections registers KTD-IDs with the R/U grammar and typed authority order", () => {
+    expect(planSections).toContain("KTD-IDs (Key Technical Decisions")
+    expect(planSections).toContain("`KTD1.`")
+    expect(planSections).toContain("KTD-IDs on implementation-ready plans")
+    expect(planSections).toContain("no mass renumbering")
+    // Typed authority: R wins product behavior; KTD wins mechanism; units override neither.
+    expect(planSections).toMatch(/R wins on product\s+behavior/)
+    expect(planSections).toMatch(/KTD wins on implementation mechanism/)
+    expect(planSections).toMatch(/a unit overrides neither/)
+    // No mirror KTDs.
+    expect(planSections).toMatch(/Do \*\*not\*\* create a KTD that merely mirrors/)
+    expect(planMarkdownRendering).toContain("`KTD<N>.` plain prefix")
+  })
+
+  test("brainstorm Key Decisions are a provenance index with Governs links, not a second statement", () => {
+    expect(brainstormSections).toMatch(/provenance index entry/)
+    expect(brainstormSections).toContain("`Governs R5, R7`")
+  })
+
+  test("ce-plan preservation protects meaning + IDs and sanctions restructuring with its own note class", () => {
+    expect(planSkill).toContain("Meaning-preserving restructuring is sanctioned")
+    expect(planSkill).toContain("restructured, no scope change")
+    expect(planSkill).toContain(
+      "re-point every affected `Governs R…`, `Covers R…`, and inline `per R…` citation",
+    )
+    expect(planSkill).toContain(
+      "no pre-restructure catch-all link silently excludes a split-out requirement",
+    )
+    expect(planSkill).toContain("do **not** mirror it into a KTD")
+    // Unit Approach owns only unit-local content.
+    expect(planSkill).toContain("Unit-local content only")
+    // Settlement channel: KTD<N> for planning decisions, governed Rs for product decisions.
+    expect(planSkill).toContain("reverse-resolved through its `Governs R…` links")
+  })
+
+  test("ce-work packets reverse-resolve Product Key Decisions so settlement labels survive bounded reads", () => {
+    expect(ceWork).toContain("`Governs R…` links name the unit's cited R-IDs")
+    expect(ceWork).toContain("A KTD or Product Contract Key Decision carrying")
+  })
+
+  test("deepening strengthens at the owning entry and never restates owned rules into siblings", () => {
+    expect(planDeepeningWorkflow).toContain("Strengthen at the owning entry.")
+    expect(planDeepeningWorkflow).toContain(
+      "Restate a rule a cited R or KTD already owns into a sibling section",
+    )
+  })
+})
