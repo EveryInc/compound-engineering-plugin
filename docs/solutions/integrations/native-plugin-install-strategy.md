@@ -1,7 +1,7 @@
 ---
 title: "Native plugin install strategy for supported harnesses"
 date: 2026-06-19
-last_updated: 2026-06-30
+last_updated: 2026-07-24
 category: integrations
 module: installer
 problem_type: integration_decision
@@ -21,6 +21,7 @@ tags:
   - copilot
   - droid
   - qwen
+  - kilo
   - kimi
   - antigravity
   - opencode
@@ -46,6 +47,7 @@ The install strategy follows from that: prefer each harness's native plugin/pack
 | GitHub Copilot CLI | Native plugin marketplace using the existing Claude plugin metadata | No | Copilot translates the Claude plugin metadata itself. |
 | Factory Droid | Native plugin marketplace pointed at the CE GitHub repository | No | Droid translates Claude Code plugins automatically. |
 | Qwen Code | Native extension install from the CE GitHub repository and existing Claude plugin metadata | No | Qwen translates Claude Code extensions automatically. |
+| Kilo Code | Native Agent Skills through the independent Skills CLI, fetched from the official `EveryInc/compound-engineering-plugin` repository | No | Compatibility path, not a CE Kilo runtime plugin or converter target; installation and discovery verified 2026-07-24. |
 | Kimi Code CLI | Native plugin install from this repository using `.kimi-plugin/plugin.json` | No | Kimi can install directly from the GitHub repo and can browse the committed `.kimi-plugin/marketplace.json` custom catalog. |
 | OpenCode | Git-backed OpenCode plugin entry in `opencode.json` | No | `.opencode/plugins/compound-engineering.js` registers the CE skills directory directly. |
 | Pi | Git-backed Pi package install from this repository | No | Root `package.json` exposes `.pi/extensions/compound-engineering.ts` and the CE skills directory. `pi-ask-user` is a recommended companion for richer prompts. |
@@ -149,6 +151,20 @@ For local development from a checkout:
 ```
 
 Enable **Settings -> Features -> Enable Skills** in the Cline extension, then start a new task. The install script skips manual-only skills marked `disable-model-invocation: true` in frontmatter (for example `lfg`, `ce-dogfood`, `ce-polish`) because Cline auto-activates skills from description matching alone. Pass `--include-manual` to link those skills for slash-command use, accepting that Cline may still auto-activate them. CE does not ship a separate Cline CLI `AgentPlugin` entry point; skills are the install surface.
+
+## Kilo Code
+
+Kilo Code supports Agent Skills, so CE uses the independent Skills CLI as a compatibility install path rather than adding a Kilo runtime plugin or converter target. The CLI fetches skills directly from the official `EveryInc/compound-engineering-plugin` repository:
+
+```bash
+npx skills add EveryInc/compound-engineering-plugin --skill '*' --agent kilo --global
+```
+
+CE's Bun converter is unnecessary. As of the 2026-07-24 installation and discovery verification, the Skills CLI's Kilo adapter writes `.kilocode/skills`, while Kilo deliberately discovers both the legacy `.kilocode` and canonical `.kilo` skill paths. That compatibility seam is an implementation detail, not the canonical path users should target themselves.
+
+Kilo selects skills from their descriptions and does not currently enforce CE's `disable-model-invocation: true` manual-only metadata. Installing all skills therefore leaves manual-only workflows eligible for model selection. The verified scope is installation and discovery, not full behavioral parity across CE workflows.
+
+This route adds no CE Kilo manifest, provider spec, converter, lifecycle command, release component, or separate versioning obligation. Kilo and the Skills CLI own the compatibility/discovery behavior; CE's existing root release component continues to own the skill content in the official repository.
 
 ## Kimi Code CLI
 
