@@ -416,6 +416,28 @@ describe("transformContentForCodex", () => {
       )
     })
 
+    test("leaves longer hyphenated agent-like tokens unchanged", () => {
+      const targets: CodexInvocationTargets = {
+        promptTargets: {},
+        skillTargets: {},
+        agentTargets: { "security-reviewer": "security-reviewer" },
+      }
+      expect(transformContentForCodex("@security-reviewer-helper", targets)).toBe(
+        "@security-reviewer-helper",
+      )
+    })
+
+    test("leaves agent-like tokens with a trailing digit unchanged", () => {
+      const targets: CodexInvocationTargets = {
+        promptTargets: {},
+        skillTargets: {},
+        agentTargets: { "security-reviewer": "security-reviewer" },
+      }
+      expect(transformContentForCodex("@security-reviewer2", targets)).toBe(
+        "@security-reviewer2",
+      )
+    })
+
     test("still transforms @-mentions after a non-word character", () => {
       const targets: CodexInvocationTargets = {
         promptTargets: {},

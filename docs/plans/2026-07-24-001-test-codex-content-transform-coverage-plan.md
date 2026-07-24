@@ -129,7 +129,7 @@ Import `normalizeCodexName` and `transformContentForCodex` from `../src/utils/co
 | ``Task repo-researcher (find X)`` | target | default | unchanged | space before `(` |
 | ``inline Task repo-researcher(find X)`` | target | default | unchanged | not at start of the only line |
 | ``Task repo-researcher(find X`` | target | default | unchanged | unbalanced `)` |
-| ``Task repo-researcher(a(b))`` | target | default | ``Spawn the custom agent `repo-researcher` with task: a(b))`` | stops at first `)`; trailing `)` remains |
+| ``Task repo-researcher(a(b))`` | target | default | ``Spawn the custom agent `repo-researcher` with task: a(b)`` | stops at first `)`; trailing `)` remains |
 
 #### `transformContentForCodex` slash-command scenarios
 
@@ -159,7 +159,7 @@ Import `normalizeCodexName` and `transformContentForCodex` from `../src/utils/co
 | `` `research:ce-repo-researcher` `` | `{agentTargets:{"research-ce-repo-researcher":"research-ce-repo-researcher"}}` | ``custom agent `research-ce-repo-researcher` `` | two-segment match |
 | `` `compound-engineering:research:ce-repo-researcher` `` | `{agentTargets:{"research-ce-repo-researcher":"research-ce-repo-researcher"}}` | ``custom agent `research-ce-repo-researcher` `` | three-segment match |
 | `` `ce-repo-researcher` `` | `{agentTargets:{"ce-repo-researcher":"ce-repo-researcher"}}` | unchanged | single-segment not matched by current pattern |
-| `` `a:b:c:d` `` | `{agentTargets:{"a-b-c":"a-b-c"}}` | ``custom agent `a-b-c`:d` `` | four-segment partial match; document current behavior |
+| `` `a:b:c:d` `` | `{agentTargets:{"a-b-c":"a-b-c"}}` | unchanged | four-segment form is outside the supported pattern |
 | `` `Research:Ce-Repo-Researcher` `` | `{agentTargets:{"research-ce-repo-researcher":"research-ce-repo-researcher"}}` | ``custom agent `research-ce-repo-researcher` `` | case-insensitive |
 
 #### `transformContentForCodex` `@`-reference scenarios
@@ -169,7 +169,7 @@ Import `normalizeCodexName` and `transformContentForCodex` from `../src/utils/co
 | ``@security-reviewer`` | `{agentTargets:{"security-reviewer":"security-reviewer"}}` | ``custom agent `security-reviewer` `` | known |
 | ``@security-reviewer`` | none | ``$security-reviewer skill`` | unknown |
 | ``@Security-Reviewer`` | `{agentTargets:{"security-reviewer":"security-reviewer"}}` | ``custom agent `security-reviewer` `` | case-insensitive |
-| ``user@security-reviewer`` | `{agentTargets:{"security-reviewer":"security-reviewer"}}` | ``usercustom agent `security-reviewer` `` | email-like; no word-boundary lookbehind |
+| ``user@security-reviewer`` | `{agentTargets:{"security-reviewer":"security-reviewer"}}` | unchanged | word-character lookbehind preserves email-like text |
 | ``@user`` | none | unchanged | missing required suffix |
 | ``@compound-engineering:review:ce-security-reviewer`` | target | unchanged | colon not allowed |
 
