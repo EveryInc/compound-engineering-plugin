@@ -173,11 +173,11 @@ A full review always spawns correctness, adds project-standards when applicable 
 
 ## Protected Artifacts
 
-Compound-engineering pipeline artifacts must never be flagged for deletion, removal, or gitignore by any reviewer. Match on the artifact **subdirectory segment**, not a `<root>/`-prefixed path, so protection holds whether the artifacts sit under the default `docs/`, a configured `docs_root`, or a root this run never resolved:
+Compound-engineering pipeline artifacts must never be flagged for deletion, removal, or gitignore by any reviewer. A protected artifact is a file **directly inside the artifact root's** subdirectory below, where the artifact root is `docs` by default or the configured `docs_root`. Anchor the match to that root — not a bare segment and not a `<root>/`-prefixed path — so protection holds whether the root was resolved this run or not, and a same-named directory that is not a child of the artifact root (e.g. a skill's own `references/personas/` prompt assets) stays ordinary code:
 
-- a `plans/` segment -- unified plan artifacts created by ce-brainstorm or ce-plan (decision artifacts; execution progress is derived from git, not stored in plan bodies)
-- a `solutions/` segment -- solution documents created during the pipeline
-- the legacy `brainstorms/` segment -- requirements documents created by older ce-brainstorm versions
+- the artifact root's `plans/` -- unified plan artifacts created by ce-brainstorm or ce-plan (decision artifacts; execution progress is derived from git, not stored in plan bodies)
+- the artifact root's `solutions/` -- solution documents created during the pipeline
+- the legacy `brainstorms/` -- requirements documents created by older ce-brainstorm versions
 
 If a reviewer flags any such file for cleanup or removal, discard that finding during synthesis.
 

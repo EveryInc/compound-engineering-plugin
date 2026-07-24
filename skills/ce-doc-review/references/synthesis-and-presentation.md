@@ -366,7 +366,7 @@ This rule prevents two failure modes: (1) regressions where a fix didn't actuall
 
 ### Protected Artifacts
 
-During synthesis, discard any finding that recommends deleting or removing a CE pipeline artifact. Match on the artifact **subdirectory segment**, not a `<root>/`-prefixed path — a path component of `plans/`, `solutions/`, `ideation/`, `explainers/`, `residual-review-findings/`, `pulse-reports/`, `dogfood-reports/`, `feedback-sweep/`, `personas/`, or the legacy `brainstorms/`. Segment-matching protects these files whether they sit under the default `docs/`, a configured `docs_root`, or a root this run never resolved (an explicit-path review does not resolve `<root>`, so a `<root>/`-prefixed match would silently miss). These are pipeline artifacts and must not be flagged for removal.
+During synthesis, discard any finding that recommends deleting or removing a CE pipeline artifact: a file that sits **directly inside the artifact root's** `plans/`, `solutions/`, `ideation/`, `explainers/`, `residual-review-findings/`, `pulse-reports/`, `dogfood-reports/`, `feedback-sweep/`, or `personas/` subdirectory (or the legacy `brainstorms/` one). The artifact root is `docs` by default or the configured `docs_root`; anchoring the match to that root protects these files whether the root was resolved this run or not, without depending on a `<root>/` prefix a headless/explicit-path review never substitutes. Anchor is load-bearing: a same-named directory that is **not** a direct child of the artifact root — e.g. a skill's own `references/personas/` prompt assets — is ordinary code, not a protected artifact, so its deletion finding stands.
 
 ## Phase 5: Next Action — Terminal Question
 
