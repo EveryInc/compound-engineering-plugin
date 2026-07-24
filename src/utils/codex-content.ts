@@ -79,7 +79,7 @@ export function transformContentForCodex(
     .replace(/~\/\.claude\//g, "~/.codex/")
     .replace(/\.claude\//g, ".codex/")
 
-  const agentRefPattern = /@([a-z][a-z0-9-]*-(?:agent|reviewer|researcher|analyst|specialist|oracle|sentinel|guardian|strategist))/gi
+  const agentRefPattern = /(?<!\w)@([a-z][a-z0-9-]*-(?:agent|reviewer|researcher|analyst|specialist|oracle|sentinel|guardian|strategist))/gi
   result = result.replace(agentRefPattern, (_match, agentName: string) => {
     const agentTarget = resolveAgentTarget(agentName, agentTargets)
     if (agentTarget) return `custom agent \`${agentTarget}\``

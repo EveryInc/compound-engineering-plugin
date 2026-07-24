@@ -405,14 +405,25 @@ describe("transformContentForCodex", () => {
       )
     })
 
-    test("transforms @-references even when preceded by a word", () => {
+    test("leaves @-mentions that are preceded by a word character", () => {
       const targets: CodexInvocationTargets = {
         promptTargets: {},
         skillTargets: {},
         agentTargets: { "security-reviewer": "security-reviewer" },
       }
       expect(transformContentForCodex("user@security-reviewer", targets)).toBe(
-        "usercustom agent `security-reviewer`",
+        "user@security-reviewer",
+      )
+    })
+
+    test("still transforms @-mentions after a non-word character", () => {
+      const targets: CodexInvocationTargets = {
+        promptTargets: {},
+        skillTargets: {},
+        agentTargets: { "security-reviewer": "security-reviewer" },
+      }
+      expect(transformContentForCodex("(see @security-reviewer)", targets)).toBe(
+        "(see custom agent `security-reviewer`)",
       )
     })
 
