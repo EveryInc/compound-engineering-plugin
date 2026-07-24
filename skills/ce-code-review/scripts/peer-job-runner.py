@@ -978,6 +978,21 @@ def classify_exit(rc: int, result_path, conf: dict):
     return "failed", f"worker exited {rc}"
 
 
+def classify_exit_with_pending_reap(rc: int, result_path, conf: dict, reap_pending: bool):
+    """Classify a worker that already exited, optionally under a pending reap.
+
+    When reap is pending (Windows `.reap` or POSIX SIGTERM flag) and the worker
+    was killed by the fallback path, classify_exit would record "failed" for a
+    non-zero kill exit — prefer timeout. When the worker already completed
+    successfully (done + result), keep that: a late reap must not rewrite a
+    finished peer run.
+    """
+    state, reason = classify_exit(rc, result_path, conf)
+    if reap_pending and state != "done":
+        return "timeout", "reaped on request before completion"
+    return state, reason
+
+
 def _reap_worker(proc, conf: dict, job_name=None) -> None:
     # Deliberately parallel to kill_tree but driven by proc.poll(): an unreaped
     # Popen child is a zombie that os.kill(pid, 0) still reports alive, so the
@@ -1175,14 +1190,9 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
     while True:
         rc = proc.poll()
         if rc is not None:
-            # If cmd_reap raced the poll sleep and killed the worker itself,
-            # honor the reap marker over classify_exit (which would record
-            # "failed" for a non-zero kill exit). Classification is fixed by
-            # the request, not by how the worker happened to die.
-            if _reap_requested(flag, job_dir):
-                state, reason = "timeout", "reaped on request before completion"
-            else:
-                state, reason = classify_exit(rc, result_path, conf)
+            state, reason = classify_exit_with_pending_reap(
+                rc, result_path, conf, _reap_requested(flag, job_dir),
+            )
             break
         if _reap_requested(flag, job_dir):
             # Classification is fixed BEFORE the kill: even if the worker

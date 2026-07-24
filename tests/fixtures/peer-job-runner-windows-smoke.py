@@ -285,6 +285,107 @@ class WindowsPeerJobSmoke(unittest.TestCase):
         self.assertEqual(waited.returncode, 0, waited.stderr)
         self.assertEqual(waited.stdout.strip(), "done")
 
+    def test_reap_during_long_poll_classifies_timeout_not_failed(self):
+        # Regression (#1248): with poll=2s, min(grace, 1.0) alone races into
+        # the fallback kill path and used to record "failed" from the kill
+        # exit code. Wait must cover one poll tick; classification must be
+        # timeout / reaped-on-request.
+        self.env = {
+            **self.env,
+            "CE_PEER_POLL_SECS": "2.0",
+            "CE_PEER_GRACE_SECS": "5",
+            "CE_PEER_HARD_SECS": "120",
+            "CE_PEER_IDLE_SECS": "120",
+        }
+        worker_py = os.path.join(self.root, "long_poll_worker.py")
+        with open(worker_py, "w", encoding="utf-8") as f:
+            f.write("import time\ntime.sleep(90)\n")
+        started = self._run(
+            [
+                "start",
+                "--skill",
+                "ce-doc-review",
+                "--run-id",
+                "run1",
+                "--",
+                sys.executable,
+                worker_py,
+            ]
+        )
+        self.assertEqual(started.returncode, 0, started.stderr)
+        job_id = started.stdout.strip()
+        job_dir = self._job_dir(job_id)
+        # Give the supervisor time to enter its first poll sleep.
+        time.sleep(0.3)
+        reaped = self._run(["reap", job_id], timeout=30)
+        self.assertEqual(reaped.returncode, 0, reaped.stderr)
+
+        deadline = time.monotonic() + 25
+        status = ""
+        while time.monotonic() < deadline:
+            status_path = os.path.join(job_dir, "status")
+            if os.path.isfile(status_path):
+                with open(status_path, encoding="utf-8") as f:
+                    status = f.read().strip()
+                if status in ("timeout", "failed", "done", "died-without-result"):
+                    break
+            time.sleep(0.1)
+        self.assertEqual(
+            status,
+            "timeout",
+            f"expected timeout from mid-poll reap, got {status!r}; "
+            f"out.log:\n{self._out_log(job_id)}",
+        )
+        with open(os.path.join(job_dir, "reason"), encoding="utf-8") as f:
+            reason = f.read()
+        self.assertIn("reaped on request", reason)
+
+    def test_late_reap_after_natural_done_preserves_done(self):
+        # Regression (#1248 Bugbot): dropping .reap after a successful exit
+        # must not rewrite done -> timeout. cmd_reap on a terminal job is a
+        # no-op; also prove a stale marker left beside a done status is inert
+        # for wait/result.
+        result_path = os.path.join(self.root, "late-reap.json")
+        worker = [
+            sys.executable,
+            "-c",
+            (
+                "import json,sys;"
+                f"p={result_path!r};"
+                "open(p,'w',encoding='utf-8').write(json.dumps({'ok':True}));"
+                "sys.exit(0)"
+            ),
+        ]
+        started = self._run(
+            [
+                "start",
+                "--skill",
+                "ce-doc-review",
+                "--run-id",
+                "run1",
+                "--result-path",
+                result_path,
+                "--",
+                *worker,
+            ]
+        )
+        self.assertEqual(started.returncode, 0, started.stderr)
+        job_id = started.stdout.strip()
+        job_dir = self._job_dir(job_id)
+        waited = self._run(["wait", "--max-secs", "30", job_id])
+        self.assertEqual(waited.returncode, 0, waited.stderr)
+        self.assertEqual(waited.stdout.strip(), "done")
+
+        with open(os.path.join(job_dir, ".reap"), "w", encoding="utf-8") as f:
+            f.write("reap\n")
+        # Terminal + stale marker: reap is a no-op; status stays done.
+        self.assertEqual(self._run(["reap", job_id]).returncode, 0)
+        with open(os.path.join(job_dir, "status"), encoding="utf-8") as f:
+            self.assertEqual(f.read().strip(), "done")
+        got = self._run(["result", job_id])
+        self.assertEqual(got.returncode, 0, got.stderr)
+        self.assertEqual(json.loads(got.stdout), {"ok": True})
+
 
 if __name__ == "__main__":
     if not IS_WINDOWS:

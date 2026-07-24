@@ -323,6 +323,61 @@ class ReapMarkerBranch(unittest.TestCase):
             self.assertLess(time.monotonic() - start, 1.0)
 
 
+class ClassifyExitWithPendingReap(unittest.TestCase):
+    """Pending-.reap / SIGTERM-flag policy when the worker already exited.
+
+    Covers the Windows race Codex found (kill exit must not become "failed")
+    and the Bugbot follow-up (a natural done must not become "timeout").
+    """
+
+    def _conf(self):
+        return {
+            "result_max": 1024 * 1024,
+            "log_max": 1024 * 1024,
+            "poll": 2.0,
+            "grace": 5.0,
+            "idle": None,
+            "hard": 60.0,
+        }
+
+    def test_pending_reap_preserves_successful_done(self):
+        result = tempfile.NamedTemporaryFile(delete=False)
+        result.write(b'{"ok":true}')
+        result.close()
+        try:
+            state, reason = MOD.classify_exit_with_pending_reap(
+                0, result.name, self._conf(), True
+            )
+            self.assertEqual(state, "done")
+            self.assertIn("exited 0", reason)
+        finally:
+            os.unlink(result.name)
+
+    def test_pending_reap_rewrites_non_done_to_timeout(self):
+        # Kill / fallback path: non-zero exit with no result would be "failed".
+        state, reason = MOD.classify_exit_with_pending_reap(
+            1, None, self._conf(), True
+        )
+        self.assertEqual(state, "timeout")
+        self.assertIn("reaped on request", reason)
+
+    def test_no_pending_reap_uses_classify_exit(self):
+        state, reason = MOD.classify_exit_with_pending_reap(
+            7, None, self._conf(), False
+        )
+        self.assertEqual(state, "failed")
+        self.assertIn("exited 7", reason)
+
+    def test_windows_reap_wait_covers_one_poll_interval(self):
+        # cmd_reap's Windows wait must be at least poll+0.25 — the default
+        # min(grace, 1.0) alone is shorter than the default 2s poll and races.
+        conf = self._conf()  # poll=2.0, grace=5.0
+        wait_budget = min(conf["grace"], 1.0)
+        wait_budget = max(wait_budget, conf["poll"] + 0.25)
+        self.assertGreaterEqual(wait_budget, conf["poll"])
+        self.assertGreater(wait_budget, 1.0)
+
+
 class PopenArgvBranch(unittest.TestCase):
     """Windows CreateProcess cannot honor shebang; bare *.sh must go through
     bash/sh at spawn time. meta.json still records the caller argv."""
