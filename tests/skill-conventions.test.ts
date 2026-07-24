@@ -1269,7 +1269,7 @@ describe("findPlatformVarViolations", () => {
  * docs/solutions/conventions/resolve-python-interpreter-not-python3.md.
  */
 const BARE_PYTHON3_INVOCATION =
-  /(?:^|[\s;|&])python3\s+(?:"\$|"\$\{|'\$|-|\/|\.\.?\/)|xargs(?:\s+-\S+)*\s+python3\b/
+  /(?:^|[\s;|&])python3\s+(?:"\$|"\$\{|'\$|-|\/|\.\.?\/|[A-Za-z_][\w./-]*\.(?:py|sh)\b|scripts\/)|xargs(?:\s+-\S+)*\s+python3\b/
 
 function listSkillMarkdownAndShellFiles(skillAbsPath: string): string[] {
   const out: string[] = []
@@ -1296,6 +1296,8 @@ function findBarePython3Invocations(content: string): number[] {
     const line = lines[i]!
     // The sanctioned probe names `python3` as a candidate — not an invocation.
     if (line.includes("for c in python3 python py")) continue
+    // Shell comments are not agent-copied invocation blocks.
+    if (/^\s*#/.test(line)) continue
     if (BARE_PYTHON3_INVOCATION.test(line)) lineNumbers.push(i + 1)
   }
   return lineNumbers
@@ -1326,6 +1328,7 @@ describe("python interpreter resolution (no bare python3 invocations)", () => {
       ),
     ).toEqual([1])
     expect(findBarePython3Invocations('xargs -0 python3 "$SKILL_DIR/scripts/x.py"')).toEqual([1])
+    expect(findBarePython3Invocations("python3 scripts/foo.py")).toEqual([1])
     expect(
       findBarePython3Invocations(
         'Never write inline scripts (`python3 -c`, `node -e`) to process issue data.',
