@@ -461,15 +461,18 @@ function normalizedGitUrl(value: string | undefined): string | undefined {
   return value?.replace(/\.git\/?$/, "").replace(/\/$/, "").toLowerCase()
 }
 
-function isOfficialRemotePlugin(plugin: InstalledPlugin): boolean {
+function isOfficialMarketplacePlugin(plugin: InstalledPlugin): boolean {
+  const pluginSourceIsOfficial =
+    plugin.source?.source === "local" ||
+    (plugin.source?.source === "git" &&
+      normalizedGitUrl(plugin.source.url) === normalizedGitUrl(OFFICIAL_REPOSITORY))
   return (
     plugin.pluginId === OFFICIAL_PLUGIN_ID &&
     plugin.installed === true &&
     plugin.enabled === true &&
     plugin.marketplaceSource?.sourceType === "git" &&
     normalizedGitUrl(plugin.marketplaceSource.source) === normalizedGitUrl(OFFICIAL_REPOSITORY) &&
-    plugin.source?.source === "git" &&
-    normalizedGitUrl(plugin.source.url) === normalizedGitUrl(OFFICIAL_REPOSITORY)
+    pluginSourceIsOfficial
   )
 }
 
@@ -494,7 +497,7 @@ export async function inspectCodexDevStatus(
     mode = localMatchesCheckout ? "local" : "drifted"
   } else if (plugins.length === 0) {
     mode = "absent"
-  } else if (plugins.length === 1 && isOfficialRemotePlugin(plugins[0]!)) {
+  } else if (plugins.length === 1 && isOfficialMarketplacePlugin(plugins[0]!)) {
     mode = "remote"
   } else {
     mode = "drifted"
@@ -591,8 +594,8 @@ export async function switchToRemote(
   await runCodex(context, runner, ["plugin", "add", OFFICIAL_PLUGIN_ID, "--json"])
 
   const installed = await listCompoundEngineeringPlugins(context, runner)
-  if (installed.length !== 1 || !isOfficialRemotePlugin(installed[0]!)) {
-    throw new Error("Could not verify the official Git-backed Compound Engineering plugin")
+  if (installed.length !== 1 || !isOfficialMarketplacePlugin(installed[0]!)) {
+    throw new Error("Could not verify the official marketplace-backed Compound Engineering plugin")
   }
 
   await removeLocalCollection(context)

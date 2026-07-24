@@ -72,6 +72,7 @@ Invoked when a specific need arises — not part of any chain.
 | [`/ce-doc-review`](./ce-doc-review.md) | Review requirements or plan documents using skill-local reviewer personas — coherence, feasibility, product-lens, design-lens, security-lens, scope-guardian, adversarial |
 | [`/ce-simplify-code`](./ce-simplify-code.md) | Refine recently changed code — reuse, quality, and efficiency review; behavior preservation verified |
 | [`/ce-optimize`](./ce-optimize.md) | Metric-driven iterative optimization loops — three-tier evaluation, parallel experiments, persistence discipline |
+| [`/ce-retune`](./ce-retune.md) | Retune a skill corpus for a new model, measurement-first — archive baseline, noise floor, adversarial audit, measured cut passes |
 
 ---
 

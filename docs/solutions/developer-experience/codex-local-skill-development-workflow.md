@@ -13,7 +13,7 @@ related_components:
   - documentation
 applies_when:
   - "Testing Compound Engineering skill changes from any checkout or linked worktree in Codex"
-  - "Switching quickly between unreleased local skill content and the official Git-backed plugin"
+  - "Switching quickly between unreleased local skill content and the official marketplace-backed plugin"
   - "Verifying which worktree supplies the active Compound Engineering skills"
   - "Using modified or untracked skill files without changing the plugin manifest version"
 tags:
@@ -29,7 +29,7 @@ tags:
 
 ## Context
 
-Compound Engineering development needs two different Codex experiences: a fast loop against the exact files in the current checkout, and a production-like loop against the released Git-backed plugin. Treating a checkout as a marketplace does not provide the first experience. The repository's committed marketplace catalog names Compound Engineering but sets its source to the public Git URL, so `codex plugin marketplace add "$PWD"` followed by `codex plugin add compound-engineering@compound-engineering-plugin` can still install remote content (`.agents/plugins/marketplace.json:8-12`). The Codex manifest also remains at a release-owned version such as `3.19.0` while branch contents change (`.codex-plugin/plugin.json:2-4`), so version equality cannot establish which files were loaded.
+Compound Engineering development needs two different Codex experiences: a fast loop against the exact files in the current checkout, and a production-like loop against the released marketplace plugin. Treating a checkout as a marketplace does not provide the first experience. The repository's marketplace entry points at the co-located plugin root, so `codex plugin marketplace add "$PWD"` followed by `codex plugin add compound-engineering@compound-engineering-plugin` installs a cached copy of that checkout. Later edits are not live, and the Codex manifest remains at a release-owned version such as `3.20.0` while branch contents change, so version equality cannot establish which files were loaded.
 
 There are two distinct contracts to keep straight:
 
@@ -56,7 +56,7 @@ bun run codex:dev -- remote
 bun run codex:dev -- remove
 ```
 
-The package script delegates to the dedicated Bun entrypoint (`package.json:18-20`), and that entrypoint returns the workflow exit code while formatting failures consistently (`scripts/codex-dev.ts:1-7`). `local` and `refresh` take the same reconciliation path; `status` is read-only; `remote` restores the official Git-backed plugin; and `remove` clears both supported Compound Engineering installation surfaces (`src/dev/codex-dev.ts:660-688`).
+The package script delegates to the dedicated Bun entrypoint (`package.json:18-20`), and that entrypoint returns the workflow exit code while formatting failures consistently (`scripts/codex-dev.ts:1-7`). `local` and `refresh` take the same reconciliation path; `status` is read-only; `remote` restores the official marketplace-backed plugin; and `remove` clears both supported Compound Engineering installation surfaces (`src/dev/codex-dev.ts:663-699`).
 
 The workflow derives provenance instead of encoding a developer-specific path. It asks Git for the invoking repository root, resolves that path, validates both the package and Codex plugin identities, and requires the manifest's skills entry to resolve to this repository's `skills/` directory (`src/dev/codex-dev.ts:122-140`, `src/dev/codex-dev.ts:171-183`). It records the Git directory, common Git directory, branch, HEAD, and porcelain status, which allows `status` to distinguish primary and linked worktrees and report modified and untracked files (`src/dev/codex-dev.ts:184-228`). Arguments are passed as arrays to `Bun.spawn`, so paths containing spaces are not reconstructed through shell interpolation (`src/dev/codex-dev.ts:19-32`).
 
@@ -66,19 +66,19 @@ Local mode is intentionally skill-only. Before linking anything, repository vali
 
 Local activation is conservative about user state. It refuses to overwrite a regular file or directory, an unrelated symlink, or a broken symlink at the managed path (`src/dev/codex-dev.ts:232-275`). Link creation is exclusive. Removal and retargeting atomically move the current entry into a unique same-parent recovery directory, validate the stable moved entry, and delete it only when its raw symlink target matches the inspected target. An unexpected entry is restored exclusively or retained at a reported recovery path instead of being overwritten or deleted (`src/dev/codex-dev.ts:278-400`). The workflow never recursively deletes the target or neighboring skills (`src/dev/codex-dev.ts:417-430`).
 
-Avoid mixed installations. Codex plugin discovery filters all installed Compound Engineering IDs, not just the official one (`src/dev/codex-dev.ts:449-458`). `local` first activates the link, removes every detected Compound Engineering plugin through `codex plugin remove`, verifies that the resulting mode is local, and restores the prior link state if plugin removal or verification fails (`src/dev/codex-dev.ts:506-537`). Status explicitly classifies a valid link plus any installed Compound Engineering plugin as `mixed`. Link collisions and broken or unrelated links are `drifted`; without a valid local link, unexpected plugin IDs or source mismatches are also `drifted` (`src/dev/codex-dev.ts:476-503`).
+Avoid mixed installations. Codex plugin discovery filters all installed Compound Engineering IDs, not just the official one (`src/dev/codex-dev.ts:449-458`). `local` first activates the link, removes every detected Compound Engineering plugin through `codex plugin remove`, verifies that the resulting mode is local, and restores the prior link state if plugin removal or verification fails (`src/dev/codex-dev.ts:519-540`). Status explicitly classifies a valid link plus any installed Compound Engineering plugin as `mixed`. Link collisions and broken or unrelated links are `drifted`; without a valid local link, unexpected plugin IDs or source mismatches are also `drifted` (`src/dev/codex-dev.ts:479-506`).
 
-Returning to production-like behavior is verification-first. `remote` confirms that the named official marketplace is either absent or Git-backed by the expected repository, upgrades it, adds the official plugin, and verifies that exactly one enabled plugin reports the expected plugin ID and Git sources before unlinking local skills (`src/dev/codex-dev.ts:464-474`, `src/dev/codex-dev.ts:540-604`). If installation fails before verification, the local symlink remains available. `remove` similarly removes only detected Compound Engineering plugin IDs and the exact managed link, then verifies the `absent` state (`src/dev/codex-dev.ts:606-618`).
+Returning to production-like behavior is verification-first. `remote` confirms that the named official marketplace is either absent or Git-backed by the expected repository, upgrades it, adds the official plugin, and verifies that exactly one enabled plugin reports the expected plugin ID and marketplace provenance before unlinking local skills (`src/dev/codex-dev.ts:464-477`, `src/dev/codex-dev.ts:543-607`). The co-located plugin source is local within that Git-fetched marketplace snapshot; the verifier also accepts the former Git plugin source so existing installations remain classifiable during the transition. If installation fails before verification, the local symlink remains available. `remove` similarly removes only detected Compound Engineering plugin IDs and the exact managed link, then verifies the `absent` state (`src/dev/codex-dev.ts:609-621`).
 
-Start a new Codex session after changing between local, remote, and absent modes. For ordinary edits while already in local mode, Codex CLI 0.144.5 empirically observes the live symlinked files, so no reinstall is normally needed; restart only if a change is not visible. The command prints that distinction after every mutating operation (`src/dev/codex-dev.ts:690-694`).
+Start a new Codex session after changing between local, remote, and absent modes. For ordinary edits while already in local mode, Codex CLI 0.144.5 empirically observes the live symlinked files, so no reinstall is normally needed; restart only if a change is not visible. The command prints that distinction after every mutating operation (`src/dev/codex-dev.ts:693-697`).
 
 ## Why This Matters
 
-A marketplace installation and a live development source solve different problems. A marketplace exercises catalog resolution, plugin installation, cache population, and the released user path. A symlink exercises the exact branch or worktree being edited. Conflating them makes a successful local test ambiguous: the manifest version may match while the cache contains an older branch snapshot or the public repository.
+A marketplace installation and a live development source solve different problems. A marketplace exercises catalog resolution, plugin installation, cache population, and the released user path. A symlink exercises the exact branch or worktree being edited. Conflating them makes a successful local test ambiguous: the manifest version may match while the cache contains an older checkout or released-marketplace snapshot.
 
-The fixed collection name provides a stable ownership boundary without a separate manifest of copied skills. Provenance lives in the symlink target and the Git metadata printed by `status`: Codex home, source checkout, primary or linked worktree, branch, commit, dirty counts, skill inventory, linked target, and whether it matches the invoking checkout (`src/dev/codex-dev.ts:620-647`). This makes uncommitted and untracked experiments visible while still making it obvious which worktree is supplying them.
+The fixed collection name provides a stable ownership boundary without a separate manifest of copied skills. Provenance lives in the symlink target and the Git metadata printed by `status`: Codex home, source checkout, primary or linked worktree, branch, commit, dirty counts, skill inventory, linked target, and whether it matches the invoking checkout (`src/dev/codex-dev.ts:623-650`). This makes uncommitted and untracked experiments visible while still making it obvious which worktree is supplying them.
 
-The explicit local/remote state machine also prevents a subtler failure: both surfaces can be enabled at once. Without reconciliation, duplicate skill names may come from a live directory and a cached plugin simultaneously. Classifying that condition as `mixed`, returning a non-zero exit for mixed or drifted states, and providing deterministic repair commands makes the unsafe state visible rather than relying on a developer to remember which installation they last touched (`src/dev/codex-dev.ts:620-696`).
+The explicit local/remote state machine also prevents a subtler failure: both surfaces can be enabled at once. Without reconciliation, duplicate skill names may come from a live directory and a cached plugin simultaneously. Classifying that condition as `mixed`, returning a non-zero exit for mixed or drifted states, and providing deterministic repair commands makes the unsafe state visible rather than relying on a developer to remember which installation they last touched (`src/dev/codex-dev.ts:623-699`).
 
 Finally, preserving the official marketplace while local mode is active makes switching cheap. Local work does not require editing a personal marketplace catalog, and remote mode can refresh and verify the normal installation when a developer wants to reproduce the released user experience. Unrelated marketplace entries and unrelated user skills stay outside the workflow's ownership boundary.
 
@@ -86,13 +86,13 @@ Finally, preserving the official marketplace while local mode is active makes sw
 
 Use `local` when developing or evaluating Compound Engineering skill content from a checkout, feature branch, detached worktree, or dirty working tree. Run it from anywhere inside the intended repository; repository discovery resolves the top level, and the selected `skills/` directory becomes the link target (`src/dev/codex-dev.ts:171-183`, `src/dev/codex-dev.ts:215-229`).
 
-Use `refresh` when the worktree is already linked but a plugin was installed accidentally or the state otherwise needs reconciliation. It is an idempotent alias for `local`, not a file-copy refresh (`src/dev/codex-dev.ts:674-678`). Ordinary local edits already flow through the live link.
+Use `refresh` when the worktree is already linked but a plugin was installed accidentally or the state otherwise needs reconciliation. It is an idempotent alias for `local`, not a file-copy refresh (`src/dev/codex-dev.ts:677-681`). Ordinary local edits already flow through the live link.
 
-Use `status` before testing when provenance matters, after changing worktrees, or whenever duplicate or stale behavior is suspected. It reads the managed link and Codex plugin list, reports `local`, `remote`, `mixed`, `drifted`, or `absent`, and does not execute an installation transition (`src/dev/codex-dev.ts:476-503`, `src/dev/codex-dev.ts:685-687`).
+Use `status` before testing when provenance matters, after changing worktrees, or whenever duplicate or stale behavior is suspected. It reads the managed link and Codex plugin list, reports `local`, `remote`, `mixed`, `drifted`, or `absent`, and does not execute an installation transition (`src/dev/codex-dev.ts:479-506`, `src/dev/codex-dev.ts:688-690`).
 
-Use `remote` before release validation or any test intended to simulate a normal marketplace user. This path exercises the official marketplace and verifies the Git-backed installed plugin before removing the local development link (`src/dev/codex-dev.ts:573-604`).
+Use `remote` before release validation or any test intended to simulate a normal marketplace user. This path exercises the official Git marketplace and verifies the marketplace-backed installed plugin before removing the local development link (`src/dev/codex-dev.ts:576-607`).
 
-Use `remove` when neither the local collection nor a Compound Engineering plugin should remain in the active profile. It is not a repository cleanup command and does not alter the worktree (`src/dev/codex-dev.ts:606-618`).
+Use `remove` when neither the local collection nor a Compound Engineering plugin should remain in the active profile. It is not a repository cleanup command and does not alter the worktree (`src/dev/codex-dev.ts:609-621`).
 
 Do not use the symlink workflow if the Codex manifest gains apps, hooks, or MCP servers, or if the default hook manifest appears; the built-in guard deliberately stops rather than silently testing an incomplete plugin (`src/dev/codex-dev.ts:132-153`). At that point, extend the development workflow to represent those components or test through a full plugin installation.
 
@@ -152,7 +152,7 @@ Switch to the released-user path, then begin a fresh Codex session:
 bun run codex:dev -- remote
 ```
 
-This upgrades the `compound-engineering-plugin` marketplace, ensures `compound-engineering@compound-engineering-plugin` is the sole enabled Compound Engineering plugin, verifies its Git source, and only then unlinks `compound-engineering-local` (`src/dev/codex-dev.ts:545-604`).
+This upgrades the `compound-engineering-plugin` marketplace, ensures `compound-engineering@compound-engineering-plugin` is the sole enabled Compound Engineering plugin, verifies its official marketplace provenance, and only then unlinks `compound-engineering-local` (`src/dev/codex-dev.ts:548-607`).
 
 Remove either supported installation without touching other skills:
 

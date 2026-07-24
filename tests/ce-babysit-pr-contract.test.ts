@@ -437,7 +437,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
       expect(text).toMatch(/ambiguous[^.]{0,220}never[^.]{0,160}(retry|resubmit)/i)
     }
     expect(babysit).toMatch(/stale invocation[^.]{0,220}(reject|invalidate)/i)
-    expect(babysit).toMatch(/SKILL_DIR=[^\n]+;[^\n]+STATE_DIR=[^\n]+;[^\n]+RUN_INVOCATION_ID=[^\n]+;[^\n]+RUN_STARTED_AT=[^\n]+;[^\n]+RUN_BUDGET_SECONDS=[^\n]+;\n\s*python3[^\n]+--currency-disposition claimed/i)
+    expect(babysit).toMatch(/SKILL_DIR=[^\n]+;[^\n]+STATE_DIR=[^\n]+;[^\n]+RUN_INVOCATION_ID=[^\n]+;[^\n]+RUN_STARTED_AT=[^\n]+;[^\n]+RUN_BUDGET_SECONDS=[^\n]+;\n\s*PY=[\s\S]*?"\$PY"[^\n]+--currency-disposition claimed/i)
     expect(watchLoop).toMatch(/max-runtime[^.]{0,160}(claim|mutation)/i)
   })
 

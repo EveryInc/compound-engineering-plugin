@@ -540,8 +540,12 @@ run_timeout_cmd() {   # $1 = stdin file ("" -> /dev/null). CMD already built.
 
 # Recover a POV object from raw stdout or from a string nested in a CLI envelope.
 recover_pov_json() {   # <logfile> <outfile>
-  command -v python3 >/dev/null 2>&1 || return 1
-  python3 - "$1" "$2" <<'PY' 2>/dev/null
+  # Probe execution, not just PATH presence — Windows Store's python3 stub
+  # satisfies `command -v` then exits nonzero (see resolve-python convention).
+  local py
+  py="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
+  [ -n "$py" ] || return 1
+  "$py" - "$1" "$2" <<'PY' 2>/dev/null
 import sys, json
 txt = open(sys.argv[1], encoding="utf-8", errors="replace").read()
 best = None

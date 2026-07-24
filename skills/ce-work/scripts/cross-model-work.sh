@@ -16,6 +16,15 @@
 set -uo pipefail
 umask 077
 
+# Prefer the runner-exported interpreter (sys.executable via CE_PEER_PYTHON),
+# else probe execution — Windows Store's python3 stub satisfies `command -v`
+# then exits nonzero (see resolve-python convention / #1247).
+PY="${CE_PEER_PYTHON:-}"
+if [ -z "$PY" ]; then
+  PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
+fi
+[ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; }
+
 M_GROK_CURSOR="cursor-grok-4.5-high"
 M_COMPOSER="composer-2.5-fast"
 
@@ -185,7 +194,7 @@ trap 'rm -rf "$SCRATCH"' EXIT
 # dispatch capability. Read it once through a no-follow descriptor, validate
 # its exact route/model/packet contract, and derive every dispatch identity
 # field from those bytes before constructing a prompt or invoking a model CLI.
-python3 - "$AUTHORIZATION" "$EXPECTED_PACKET_DIGEST" "$AUTH_VALUES" <<'PY'
+"$PY" - "$AUTHORIZATION" "$EXPECTED_PACKET_DIGEST" "$AUTH_VALUES" <<'PY'
 import json, os, re, stat, sys
 
 source, expected_packet_digest, output = sys.argv[1:]
@@ -325,7 +334,7 @@ RUNNER_JOB_ID="${CE_PEER_JOB_ID:-}"
 # snapshot and every raw controller-returned path back to the controller before
 # prompt construction. Only its AUTHORIZED status permits external egress.
 CONTROLLER="$SKILL_ROOT/scripts/unit-workspace.py"
-AUTH_RESPONSE="$(python3 "$CONTROLLER" authorize-dispatch \
+AUTH_RESPONSE="$("$PY" "$CONTROLLER" authorize-dispatch \
   --authorization "$DISPATCH_AUTHORIZATION" \
   --authorization-digest "$OBSERVED_AUTH_DIGEST" \
   --workspace "$DISPATCH_WORKSPACE" \
@@ -350,7 +359,7 @@ case "$RESULT_DIR/" in "$WORKSPACE/"*) log "result dir must be outside the worke
 case "$PACKET" in "$WORKSPACE"/*) log "unit packet must be outside the worker workspace"; exit 2 ;; esac
 git -C "$WORKSPACE" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { log "workspace is not a Git worktree"; exit 2; }
 chmod 700 "$RESULT_DIR" 2>/dev/null || { log "result dir could not be made private"; exit 2; }
-RESULT_DIR_IDENTITY="$(python3 - "$RESULT_DIR" <<'PY'
+RESULT_DIR_IDENTITY="$("$PY" - "$RESULT_DIR" <<'PY'
 import os, stat, sys
 
 path = sys.argv[1]
@@ -367,7 +376,7 @@ PY
 )" || { log "result dir identity could not be captured"; exit 2; }
 
 write_adapter_log() {
-  python3 -c '
+  "$PY" -c '
 import os, stat, sys
 
 path, expected = sys.argv[1:]
@@ -405,7 +414,7 @@ except OSError as error:
 }
 
 write_result_receipt() {
-  python3 -c '
+  "$PY" -c '
 import os, secrets, stat, sys
 
 path, expected = sys.argv[1:]
@@ -467,7 +476,7 @@ finally:
 # Read the packet once through a no-follow descriptor, hash those exact bytes,
 # and build the prompt from the private snapshot. The controller-provided
 # digest is therefore bound to the content that actually crosses the route.
-OBSERVED_PACKET_DIGEST="$(python3 - "$PACKET" "$PACKET_SNAPSHOT" "$MAX_PACKET_BYTES" <<'PY'
+OBSERVED_PACKET_DIGEST="$("$PY" - "$PACKET" "$PACKET_SNAPSHOT" "$MAX_PACKET_BYTES" <<'PY'
 import hashlib, os, stat, sys
 
 source, snapshot, raw_cap = sys.argv[1:]
@@ -507,7 +516,7 @@ PY
 }
 
 redact_stream() {
-  CE_WORK_REDACT_FILE="${CE_WORK_REDACT_FILE:-}" python3 -c '
+  CE_WORK_REDACT_FILE="${CE_WORK_REDACT_FILE:-}" "$PY" -c '
 import os, sys
 p = os.environ.get("CE_WORK_REDACT_FILE", "")
 if p:
@@ -571,7 +580,7 @@ except BrokenPipeError:
 }
 
 cap_stream() {
-  python3 -c '
+  "$PY" -c '
 import os, sys
 
 remaining = int(sys.argv[1])
@@ -611,7 +620,7 @@ publish_unavailable() {
     }
     LOG_RETAINED=1
   fi
-  python3 - "$ROUTE" "$TARGET" "$HARNESS" "$MODEL_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$reason" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$terminal_status" "$actual_route" <<'PY' | write_result_receipt
+  "$PY" - "$ROUTE" "$TARGET" "$HARNESS" "$MODEL_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$reason" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$terminal_status" "$actual_route" <<'PY' | write_result_receipt
 import json, sys
 route, target, harness, requested, packet_digest, log, reason, activity, restriction, terminal_status, actual_route = sys.argv[1:]
 value = {
@@ -767,7 +776,7 @@ fi
 SOURCE="$RAW_STDOUT"
 [ "$ROUTE" = codex ] && SOURCE="$RAW_RESULT"
 set +e
-CE_WORK_REDACT_FILE="${CE_WORK_REDACT_FILE:-}" python3 - \
+CE_WORK_REDACT_FILE="${CE_WORK_REDACT_FILE:-}" "$PY" - \
   "$SOURCE" "$RAW_STDOUT" "$ROUTE" "$TARGET" "$HARNESS" \
   "$MODEL_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$MODEL_DISPLAY_HINT" <<'PY' | write_result_receipt
 import json, os, re, sys
@@ -893,7 +902,7 @@ PUBLISH_EXIT="${NORMALIZE_STATUSES[1]}"
 if [ "$PUBLISH_EXIT" -ne 0 ]; then exit 2; fi
 if [ "$NORMALIZE_EXIT" -ne 0 ]; then exit 1; fi
 
-TERMINAL_STATUS="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["terminal_status"])' "$RESULT_FILE")"
+TERMINAL_STATUS="$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["terminal_status"])' "$RESULT_FILE")"
 case "$TERMINAL_STATUS" in
   completed|blocked|scope_expansion) exit 0 ;;
   *) exit 1 ;;

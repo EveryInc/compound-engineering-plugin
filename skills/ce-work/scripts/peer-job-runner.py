@@ -24,8 +24,10 @@ Job directory (durable state, the source of truth):
   <root>/<skill>/<run-id>/jobs/<job-id>/
     meta.json   identity: skill, run id, label, input digest, start time,
                 worker argv, result path (written at start, before detach)
-    pid         supervisor pid/pgid + worker pid (written by the supervisor
-                before start returns; its presence marks "detached")
+    pid         supervisor pid + worker pid (written by the supervisor before
+                start returns; its presence marks "detached"). Two fields are
+                platform-conditional, so consumers must use .get(): POSIX adds
+                supervisor_pgid, Windows adds job_name (its job object).
     out.log     worker's combined stdout+stderr (byte growth = liveness)
     reason      terminal detail, written before the status rename so the
                 status file is always the LAST record to land
@@ -77,6 +79,31 @@ exec'd directly (argv list, never a shell); job
 ids are minted internally; --skill/--run-id/--label are restricted to
 [A-Za-z0-9._-]. Nothing here ever prompts: headless/CI-safe by design.
 
+Platform (#1243): the mechanisms above describe POSIX. Native Windows Python
+has no fork/setsid, uid, mode bits, or process groups, so the same contract is
+met by win32 equivalents, all behind `sys.platform == "win32"` branches so the
+POSIX path is behaviorally unchanged:
+  detach    re-invoke this script as a DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+            child (CREATE_BREAKAWAY_FROM_JOB where the job allows) running the
+            internal `__supervise` entrypoint; the pid file is the ack.
+  reap      cmd_reap drops a `.reap` marker the supervisor polls for (no directed
+            signal to a detached, console-less process).
+  teardown  the worker tree lives in a named Job Object -- the real killpg
+            analog, since it reaches descendants of an already-exited leader,
+            which taskkill /T cannot (it walks parent->child from a LIVE
+            parent). Windows releases a named object's name once the last
+            handle closes, so a cmd_reap running after the supervisor died
+            falls back to a Toolhelp32 snapshot walk; that works because
+            Windows never reparents orphans, so a dead pid still appears as
+            th32ParentProcessID on its live children.
+  ownership st_uid == geteuid becomes: the object's owner SID is one this token
+            creates objects as (user or default-owner SID), checked on the opened
+            handle (GetSecurityInfo) exactly like the POSIX fstat-by-fd check.
+  privacy   0700/0600 modes become a hardened ACL (icacls: break inheritance,
+            grant only the user + SYSTEM + Administrators — the root-equivalents).
+  jobs root defaults under %LOCALAPPDATA%\\compound-engineering-jobs (then the
+            user temp dir), owner-private, since there is no shared /tmp.
+
 Pure stdlib. No third-party dependencies.
 """
 import argparse
@@ -103,14 +130,27 @@ def _is_safe_token(value: str) -> bool:
 
 
 TERMINAL_STATES = ("done", "failed", "timeout", "died-without-result")
+IS_WINDOWS = sys.platform == "win32"
 _uid_getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
 _EFFECTIVE_UID = _uid_getter() if _uid_getter is not None else None
-DEFAULT_ROOT = (
-    os.path.join("/tmp", f"compound-engineering-{_EFFECTIVE_UID}")
-    if _EFFECTIVE_UID is not None
-    else None
-)
+if IS_WINDOWS:
+    # No geteuid on Windows; the current-user SID is the ownership identity
+    # (see the Windows security section below), and the per-user jobs root lives
+    # under LOCALAPPDATA (falling back to the user temp dir) with a hardened ACL
+    # so R6 has a working default rather than a required override.
+    _WIN_ROOT_BASE = os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()
+    DEFAULT_ROOT = os.path.join(_WIN_ROOT_BASE, "compound-engineering-jobs")
+elif _EFFECTIVE_UID is not None:
+    DEFAULT_ROOT = os.path.join("/tmp", f"compound-engineering-{_EFFECTIVE_UID}")
+else:
+    DEFAULT_ROOT = None
 O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+# Windows CPython opens os.open() descriptors in CRT *text* mode by default:
+# writes expand \n -> \r\n and reads stop at the first 0x1A (Ctrl-Z EOF), which
+# would silently corrupt and truncate a peer's result artifact and desync the
+# out.log byte caps from st_size. O_BINARY is 0 on POSIX, so this is a no-op
+# there and every os.open below stays byte-exact on both platforms.
+O_BINARY = getattr(os, "O_BINARY", 0)
 SWEEP_AGE_SECS = 24 * 3600
 CLAIM_ATTEMPTS = 16
 STATUS_READ_CAP = 256
@@ -184,6 +224,401 @@ def cfg(skill=None) -> dict:
     }
 
 
+# --- Windows security + process primitives ------------------------------------
+#
+# POSIX ownership is `fstat().st_uid == geteuid()` plus mode 0700/0600. Windows
+# has neither uids nor mode bits, so the equivalent identity is the current
+# user's SID: a job dir/file is "ours" when its owner SID is one this process's
+# token creates objects as (the user SID or the token's default owner SID -- an
+# elevated process defaults new objects to Administrators). A foreign user's
+# planted dir carries neither SID and is rejected, exactly as a uid mismatch is
+# on POSIX. The DACL is hardened to user+SYSTEM+Administrators (root-equivalents,
+# mirroring how root still reaches a 0700 dir) with inheritance broken, so no
+# world/Users grant survives. Pure stdlib via ctypes -- no pywin32.
+
+if IS_WINDOWS:
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    _advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    _SE_FILE_OBJECT = 1
+    _OWNER_SECURITY_INFORMATION = 0x00000001
+    _TOKEN_QUERY = 0x0008
+    _TOKEN_USER_CLASS = 1
+    _TOKEN_OWNER_CLASS = 4
+    _STILL_ACTIVE = 259
+    _WAIT_TIMEOUT = 0x00000102
+    _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    _SYNCHRONIZE = 0x00100000
+    # A detached, console-less parent still gives its children a NEW console
+    # unless this is set, so every job would flash a window on the user's
+    # desktop. Applied to the worker and to every helper tool we shell out to.
+    _WIN_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+
+    def _win_tool(name: str) -> str:
+        """Absolute path to a System32 tool. CreateProcess searches the
+        application and current directories before System32, so invoking
+        `icacls`/`taskkill` by bare name from an untrusted CWD is a binary-
+        hijack surface. Falls back to the bare name only if System32 is
+        unresolvable, which is strictly better than never running."""
+        root = os.environ.get("SystemRoot") or r"C:\Windows"
+        candidate = os.path.join(root, "System32", name + ".exe")
+        return candidate if os.path.isfile(candidate) else name
+
+    _advapi32.ConvertSidToStringSidW.argtypes = [
+        ctypes.c_void_p, ctypes.POINTER(ctypes.c_wchar_p)]
+    _advapi32.ConvertSidToStringSidW.restype = wintypes.BOOL
+    _advapi32.OpenProcessToken.argtypes = [
+        wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
+    _advapi32.OpenProcessToken.restype = wintypes.BOOL
+    _advapi32.GetTokenInformation.argtypes = [
+        wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD)]
+    _advapi32.GetTokenInformation.restype = wintypes.BOOL
+    _advapi32.GetSecurityInfo.argtypes = [
+        wintypes.HANDLE, ctypes.c_int, wintypes.DWORD,
+        ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p, ctypes.c_void_p,
+        ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+    _advapi32.GetSecurityInfo.restype = wintypes.DWORD
+    _advapi32.GetNamedSecurityInfoW.argtypes = [
+        wintypes.LPCWSTR, ctypes.c_int, wintypes.DWORD,
+        ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p, ctypes.c_void_p,
+        ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+    _advapi32.GetNamedSecurityInfoW.restype = wintypes.DWORD
+    _kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+    _kernel32.OpenProcess.argtypes = [
+        wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    _kernel32.OpenProcess.restype = wintypes.HANDLE
+    _kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    _kernel32.WaitForSingleObject.restype = wintypes.DWORD
+    _kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    _kernel32.CloseHandle.restype = wintypes.BOOL
+    _kernel32.LocalFree.argtypes = [wintypes.HGLOBAL]
+    _kernel32.LocalFree.restype = wintypes.HGLOBAL
+    _kernel32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
+    _kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+    _kernel32.OpenJobObjectW.argtypes = [
+        wintypes.DWORD, wintypes.BOOL, wintypes.LPCWSTR]
+    _kernel32.OpenJobObjectW.restype = wintypes.HANDLE
+    _kernel32.AssignProcessToJobObject.argtypes = [
+        wintypes.HANDLE, wintypes.HANDLE]
+    _kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
+    _kernel32.TerminateJobObject.argtypes = [wintypes.HANDLE, wintypes.UINT]
+    _kernel32.TerminateJobObject.restype = wintypes.BOOL
+
+    _JOB_OBJECT_TERMINATE = 0x0008
+    _PROCESS_TERMINATE = 0x0001
+    _PROCESS_SET_QUOTA = 0x0100
+    _TH32CS_SNAPPROCESS = 0x00000002
+    _TH32CS_SNAPTHREAD = 0x00000004
+    _THREAD_SUSPEND_RESUME = 0x0002
+    # CreateProcess CREATE_SUSPENDED: primary thread starts frozen so we can
+    # AssignProcessToJobObject before any user code (or child spawn) runs.
+    _CREATE_SUSPENDED = 0x00000004
+
+    class _PROCESSENTRY32W(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
+            ("th32ModuleID", wintypes.DWORD),
+            ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", ctypes.c_long),
+            ("dwFlags", wintypes.DWORD),
+            ("szExeFile", ctypes.c_wchar * 260),
+        ]
+
+    class _THREADENTRY32(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ThreadID", wintypes.DWORD),
+            ("th32OwnerProcessID", wintypes.DWORD),
+            ("tpBasePri", ctypes.c_long),
+            ("tpDeltaPri", ctypes.c_long),
+            ("dwFlags", wintypes.DWORD),
+        ]
+
+    _kernel32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    _kernel32.CreateToolhelp32Snapshot.restype = ctypes.c_void_p
+    _kernel32.Process32FirstW.argtypes = [
+        ctypes.c_void_p, ctypes.POINTER(_PROCESSENTRY32W)]
+    _kernel32.Process32FirstW.restype = wintypes.BOOL
+    _kernel32.Process32NextW.argtypes = [
+        ctypes.c_void_p, ctypes.POINTER(_PROCESSENTRY32W)]
+    _kernel32.Process32NextW.restype = wintypes.BOOL
+    _kernel32.Thread32First.argtypes = [
+        ctypes.c_void_p, ctypes.POINTER(_THREADENTRY32)]
+    _kernel32.Thread32First.restype = wintypes.BOOL
+    _kernel32.Thread32Next.argtypes = [
+        ctypes.c_void_p, ctypes.POINTER(_THREADENTRY32)]
+    _kernel32.Thread32Next.restype = wintypes.BOOL
+    _kernel32.OpenThread.argtypes = [
+        wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    _kernel32.OpenThread.restype = wintypes.HANDLE
+    _kernel32.ResumeThread.argtypes = [wintypes.HANDLE]
+    _kernel32.ResumeThread.restype = wintypes.DWORD
+    _kernel32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+    _kernel32.TerminateProcess.restype = wintypes.BOOL
+
+    def _win_descendants_deepest_first(root_pid: int):
+        """Children before parents, via a process snapshot. This is the direct
+        analog of the POSIX `ps`-based walk and carries the same pid-reuse
+        exposure. It works on an EXITED leader because Windows never reparents
+        orphans: a dead pid still appears as th32ParentProcessID on its live
+        children (unlike POSIX, where orphans are reparented to init)."""
+        snap = _kernel32.CreateToolhelp32Snapshot(_TH32CS_SNAPPROCESS, 0)
+        if not snap or snap == ctypes.c_void_p(-1).value:
+            return []
+        children = {}
+        try:
+            entry = _PROCESSENTRY32W()
+            entry.dwSize = ctypes.sizeof(_PROCESSENTRY32W)
+            more = _kernel32.Process32FirstW(snap, ctypes.byref(entry))
+            while more:
+                children.setdefault(entry.th32ParentProcessID, []).append(
+                    entry.th32ProcessID)
+                more = _kernel32.Process32NextW(snap, ctypes.byref(entry))
+        finally:
+            _kernel32.CloseHandle(ctypes.c_void_p(snap))
+        order, queue = [], [root_pid]
+        while queue:
+            for child in children.get(queue.pop(0), []):
+                order.append(child)
+                queue.append(child)
+        return list(reversed(order))
+
+    def _win_terminate_pid(pid: int) -> bool:
+        handle = _kernel32.OpenProcess(_PROCESS_TERMINATE, False, pid)
+        if not handle:
+            return False
+        try:
+            return bool(_kernel32.TerminateProcess(handle, 1))
+        finally:
+            _kernel32.CloseHandle(handle)
+
+    def _win_job_name(job_dir: str) -> str:
+        """A per-job named kernel object. Naming it is what makes this a real
+        pgid analog: a DIFFERENT process (cmd_reap, after the supervisor is
+        gone) can reopen it by name and terminate the whole tree."""
+        return "Local\\ce-peer-job-" + os.path.basename(job_dir.rstrip("\\/"))
+
+    def _win_create_job(name: str):
+        """Create the job the worker tree will live in. Deliberately WITHOUT
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE: like a POSIX process group, the job
+        must outlive the supervisor so a dead-supervisor reap still finds a
+        live tree to classify and sweep (matching the POSIX lifecycle tests)."""
+        handle = _kernel32.CreateJobObjectW(None, name)
+        return handle or None
+
+    def _win_assign_to_job(job_handle, pid: int) -> bool:
+        proc = _kernel32.OpenProcess(
+            _PROCESS_SET_QUOTA | _PROCESS_TERMINATE, False, pid)
+        if not proc:
+            return False
+        try:
+            return bool(_kernel32.AssignProcessToJobObject(job_handle, proc))
+        finally:
+            _kernel32.CloseHandle(proc)
+
+    def _win_resume_process(pid: int) -> bool:
+        """Resume every thread of a CREATE_SUSPENDED process. subprocess.Popen
+        does not expose hThread from PROCESS_INFORMATION, so walk the thread
+        snapshot. CREATE_SUSPENDED only freezes the primary thread; resuming
+        all owned threads is still correct and idempotent for running ones."""
+        snap = _kernel32.CreateToolhelp32Snapshot(_TH32CS_SNAPTHREAD, 0)
+        if not snap or snap == ctypes.c_void_p(-1).value:
+            return False
+        resumed = False
+        try:
+            entry = _THREADENTRY32()
+            entry.dwSize = ctypes.sizeof(_THREADENTRY32)
+            more = _kernel32.Thread32First(snap, ctypes.byref(entry))
+            while more:
+                if entry.th32OwnerProcessID == pid:
+                    handle = _kernel32.OpenThread(
+                        _THREAD_SUSPEND_RESUME, False, entry.th32ThreadID)
+                    if handle:
+                        try:
+                            # (DWORD)-1 == failure; 0xFFFFFFFF as unsigned.
+                            if _kernel32.ResumeThread(handle) != 0xFFFFFFFF:
+                                resumed = True
+                        finally:
+                            _kernel32.CloseHandle(handle)
+                more = _kernel32.Thread32Next(snap, ctypes.byref(entry))
+        finally:
+            _kernel32.CloseHandle(ctypes.c_void_p(snap))
+        return resumed
+
+    def _win_terminate_job(name: str) -> bool:
+        """Terminate every process in the named job, whatever the tree shape.
+        This is the piece taskkill /T cannot do: it reaches descendants whose
+        parent has already exited, because job membership is inherited and
+        does not depend on a live parent to walk from."""
+        handle = _kernel32.OpenJobObjectW(_JOB_OBJECT_TERMINATE, False, name)
+        if not handle:
+            return False
+        try:
+            return bool(_kernel32.TerminateJobObject(handle, 1))
+        finally:
+            _kernel32.CloseHandle(handle)
+
+    _WIN_IDENTITY_SIDS = None
+
+    def _win_sid_to_string(psid) -> str:
+        strp = ctypes.c_wchar_p()
+        if not _advapi32.ConvertSidToStringSidW(psid, ctypes.byref(strp)):
+            raise OSError(f"ConvertSidToStringSid failed: {ctypes.get_last_error()}")
+        try:
+            return strp.value
+        finally:
+            _kernel32.LocalFree(ctypes.cast(strp, wintypes.HGLOBAL))
+
+    def _win_token_sid(token, info_class) -> str:
+        size = wintypes.DWORD(0)
+        _advapi32.GetTokenInformation(token, info_class, None, 0, ctypes.byref(size))
+        buf = (ctypes.c_byte * size.value)()
+        if not _advapi32.GetTokenInformation(
+            token, info_class, buf, size, ctypes.byref(size)
+        ):
+            raise OSError(f"GetTokenInformation failed: {ctypes.get_last_error()}")
+        # TOKEN_USER / TOKEN_OWNER both begin with a PSID at offset 0.
+        sid_ptr = ctypes.cast(buf, ctypes.POINTER(ctypes.c_void_p))[0]
+        return _win_sid_to_string(ctypes.c_void_p(sid_ptr))
+
+    def _win_identity_sids() -> frozenset:
+        """The SID strings this process's token creates objects as: the user SID
+        and the default-owner SID (they differ for an elevated process). Cached;
+        an object owned by any of these is treated as ours."""
+        global _WIN_IDENTITY_SIDS
+        if _WIN_IDENTITY_SIDS is not None:
+            return _WIN_IDENTITY_SIDS
+        token = wintypes.HANDLE()
+        if not _advapi32.OpenProcessToken(
+            _kernel32.GetCurrentProcess(), _TOKEN_QUERY, ctypes.byref(token)
+        ):
+            raise OSError(f"OpenProcessToken failed: {ctypes.get_last_error()}")
+        try:
+            sids = {
+                _win_token_sid(token, _TOKEN_USER_CLASS),
+                _win_token_sid(token, _TOKEN_OWNER_CLASS),
+            }
+        finally:
+            _kernel32.CloseHandle(token)
+        _WIN_IDENTITY_SIDS = frozenset(s for s in sids if s)
+        return _WIN_IDENTITY_SIDS
+
+    def _win_owner_sid(api, target) -> str:
+        """Shared GetSecurityInfo / GetNamedSecurityInfoW shape: read the OWNER
+        SID into a freshly allocated security descriptor and stringify it. The
+        SID points INSIDE that descriptor, so freeing the descriptor is the only
+        (and required) cleanup -- never free the SID separately."""
+        psid = ctypes.c_void_p()
+        psd = ctypes.c_void_p()
+        err = api(target, _SE_FILE_OBJECT, _OWNER_SECURITY_INFORMATION,
+                  ctypes.byref(psid), None, None, None, ctypes.byref(psd))
+        if err != 0:
+            raise OSError(f"{api.__name__} failed: {err}")
+        try:
+            return _win_sid_to_string(psid)
+        finally:
+            _kernel32.LocalFree(ctypes.cast(psd, wintypes.HGLOBAL))
+
+    def _win_owner_sid_from_handle(handle: int) -> str:
+        return _win_owner_sid(_advapi32.GetSecurityInfo, wintypes.HANDLE(handle))
+
+    def _win_owner_sid_from_path(path: str) -> str:
+        return _win_owner_sid(_advapi32.GetNamedSecurityInfoW, path)
+
+    def _win_owns_path(path: str) -> bool:
+        return _win_owner_sid_from_path(path) in _win_identity_sids()
+
+    def _win_owns_handle(handle: int) -> bool:
+        return _win_owner_sid_from_handle(handle) in _win_identity_sids()
+
+    def _win_run_quiet(cmd) -> bool:
+        """Fire-and-forget a Windows tool (icacls/taskkill): output suppressed,
+        exit status returned but never raised. check=False suppresses a NONZERO
+        exit, NOT a missing executable -- Popen still raises FileNotFoundError
+        when the tool is absent from PATH, which would otherwise escape the
+        supervisor's teardown and turn an already-classified `done` job into
+        `failed`. Returns True only when the tool ran and exited 0."""
+        try:
+            return subprocess.run(
+                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                check=False, creationflags=_WIN_NO_WINDOW).returncode == 0
+        except OSError:
+            return False
+
+    def _win_harden_acl(path: str) -> None:
+        """Break inheritance and grant only the current user plus the
+        root-equivalents (SYSTEM, Administrators), so no world/Users grant
+        survives -- the 0700 analog. Best-effort: the owner check and the
+        O_EXCL/O_CREAT claim remain the hard gates if icacls is unavailable."""
+        sids = _win_identity_sids()
+        if not sids:
+            return False
+        inherit = "(OI)(CI)" if os.path.isdir(path) else ""
+        # Grant EVERY identity SID, not an arbitrary one from the set: an
+        # elevated token carries two (user + default owner), and picking one
+        # nondeterministically could grant the wrong principal.
+        grants = []
+        for sid in sorted(sids) + ["S-1-5-18", "S-1-5-32-544"]:
+            grants += ["/grant:r", f"*{sid}:{inherit}F"]
+        return _win_run_quiet([_win_tool("icacls"), path, "/inheritance:r"] + grants)
+
+    def _win_pid_alive(pid: int) -> bool:
+        handle = _kernel32.OpenProcess(
+            _PROCESS_QUERY_LIMITED_INFORMATION | _SYNCHRONIZE, False, pid)
+        if not handle:
+            return False
+        try:
+            return _kernel32.WaitForSingleObject(handle, 0) == _WAIT_TIMEOUT
+        finally:
+            _kernel32.CloseHandle(handle)
+
+    def _win_kill_tree(root_pid: int, grace: float, job_name=None) -> bool:
+        """Terminate the worker tree (KTD3). Returns whether the LEADER was
+        alive when the kill began -- the reap classification signal -- which is
+        independent of how much of the tree we then sweep.
+
+        The job object is the primary mechanism and the true killpg analog: it
+        reaches descendants even after the leader has exited. taskkill /T can
+        NOT -- it walks parent->child from a live parent, so against an exited
+        pid it returns "process not found" and silently leaves grandchildren
+        running forever. That is why the sweep is attempted whenever a job name
+        exists, regardless of leader liveness.
+
+        No graceful phase: a console-less worker cannot receive taskkill's
+        WM_CLOSE (it reports "can only be terminated forcefully"), so the grace
+        window was pure latency that also widened the cmd_reap race.
+
+        The job is only reachable by the process that created it: Windows
+        releases a named object's NAME once the last handle closes, even while
+        member processes keep the object alive (verified: OpenJobObject then
+        fails with ERROR_FILE_NOT_FOUND). So a cmd_reap running after the
+        supervisor died cannot use it, and falls back to the snapshot walk --
+        which is exactly the dead-leader case, hence deepest-first descendants
+        BEFORE the leader, and never gated on leader liveness."""
+        alive = _win_pid_alive(root_pid)
+        if job_name:
+            _win_terminate_job(job_name)
+        # Always Toolhelp-sweep after (or without) the job terminate: children
+        # that raced outside the job before AssignProcessToJobObject completed
+        # are not members, and TerminateJobObject alone would leave them.
+        # CREATE_SUSPENDED closes that spawn race; this remains the belt.
+        for pid in _win_descendants_deepest_first(root_pid):
+            _win_terminate_pid(pid)
+        if alive:
+            _win_terminate_pid(root_pid)
+        return alive
+
+
 # --- hardened I/O primitives --------------------------------------------------
 
 def _euid():
@@ -194,6 +629,12 @@ def _check_owned_dir(path: str, require_private: bool = False) -> None:
     st = os.lstat(path)
     if not stat.S_ISDIR(st.st_mode):
         raise RunnerError(f"{path}: not a real directory (symlink or file planted?)")
+    if IS_WINDOWS:
+        # SID ownership stands in for st_uid; the hardened ACL (not a mode bit)
+        # provides privacy, so there is no separate require_private gate.
+        if not _win_owns_path(path):
+            raise RunnerError(f"{path}: not owned by the current user")
+        return
     euid = _euid()
     if euid is not None and st.st_uid != euid:
         raise RunnerError(f"{path}: not owned by the current user")
@@ -209,12 +650,33 @@ def ensure_owned_dirs(base: str, path: str) -> None:
     rel = os.path.relpath(path, base)
     comps = [] if rel == "." else rel.split(os.sep)
     cur = base
+    created_base = True
     try:
         os.mkdir(cur, 0o700)
     except FileExistsError:
-        pass
+        created_base = False
     _check_owned_dir(cur)
-    os.chmod(cur, 0o700)
+    if IS_WINDOWS:
+        # `icacls /inheritance:r` is destructive and irreversible in a way
+        # POSIX's chmod 0700 is not: it permanently drops inherited ACEs. So
+        # only re-ACL a root this runner owns -- one we just created, or the
+        # managed default (repairing a default left non-private, which is what
+        # the POSIX unconditional chmod is for). A pre-existing user-supplied
+        # CE_PEER_JOBS_ROOT keeps its ACLs and rests on the owner check.
+        default_root = os.path.abspath(DEFAULT_ROOT) if DEFAULT_ROOT else None
+        ours = created_base or (
+            default_root is not None
+            and os.path.normcase(cur) == os.path.normcase(default_root))
+        if ours and not _win_harden_acl(cur):
+            # Never proceed as if hardened: an unverified root is the one case
+            # where the privacy half of the model would silently be missing.
+            raise RunnerError(
+                f"{cur}: could not harden the jobs-root ACL (icacls failed or "
+                "is unavailable); refusing to use a root whose privacy is "
+                "unverified"
+            )
+    else:
+        os.chmod(cur, 0o700)
     _check_owned_dir(cur, require_private=True)
     for comp in comps:
         cur = os.path.join(cur, comp)
@@ -225,19 +687,28 @@ def ensure_owned_dirs(base: str, path: str) -> None:
         except FileExistsError:
             pass
         if created:
-            os.chmod(cur, 0o700)
+            if IS_WINDOWS:
+                _win_harden_acl(cur)
+            else:
+                os.chmod(cur, 0o700)
         _check_owned_dir(cur)
 
 
 def read_owned(path: str, cap: int) -> bytes:
     """Open no-follow, verify the OPENED descriptor's owner via fstat, enforce
     the size cap, and return content. Raises Unreadable on any trust failure."""
-    fd = os.open(path, os.O_RDONLY | O_NOFOLLOW)
+    fd = os.open(path, os.O_RDONLY | O_NOFOLLOW | O_BINARY)
     try:
         st = os.fstat(fd)
-        euid = _euid()
-        if euid is not None and st.st_uid != euid:
-            raise Unreadable(f"{path}: not owned by the current user; refusing to read")
+        if IS_WINDOWS:
+            # Verify the OPENED handle's owner SID (TOCTOU-safe, like the POSIX
+            # fstat-by-fd check) before emitting a byte.
+            if not _win_owns_handle(msvcrt.get_osfhandle(fd)):
+                raise Unreadable(f"{path}: not owned by the current user; refusing to read")
+        else:
+            euid = _euid()
+            if euid is not None and st.st_uid != euid:
+                raise Unreadable(f"{path}: not owned by the current user; refusing to read")
         if not stat.S_ISREG(st.st_mode):
             raise Unreadable(f"{path}: not a regular file")
         if st.st_size > cap:
@@ -258,7 +729,7 @@ def read_owned(path: str, cap: int) -> bytes:
 
 
 def create_exclusive(path: str, data: bytes = b"", mode: int = 0o600) -> None:
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | O_NOFOLLOW, mode)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | O_NOFOLLOW | O_BINARY, mode)
     try:
         if data:
             os.write(fd, data)
@@ -359,6 +830,8 @@ def job_state(job_dir: str) -> str:
 # --- process-tree control -----------------------------------------------------
 
 def _pid_alive(pid: int) -> bool:
+    if IS_WINDOWS:
+        return _win_pid_alive(pid)
     try:
         os.kill(pid, 0)
         return True
@@ -374,6 +847,10 @@ def _pid_running(pid: int) -> bool:
     must not count as a live worker when classifying a reap: a zombie leader
     means the worker is gone (died-without-result), not still running (timeout).
     Falls back to the kill -0 result when process state is unavailable."""
+    if IS_WINDOWS:
+        # Windows has no <defunct> zombie state -- a terminated process's handle
+        # is signaled and OpenProcess-based liveness already reports it dead.
+        return _win_pid_alive(pid)
     if not _pid_alive(pid):
         return False
     try:
@@ -440,9 +917,14 @@ def _signal_group_or_tree(pid: int, sig: int) -> None:
         _kill_quiet(pid, sig)
 
 
-def kill_tree(root_pid: int, grace: float) -> bool:
+def kill_tree(root_pid: int, grace: float, job_name=None) -> bool:
     """TERM the pid's process group (workers are started as group leaders),
-    falling back to a deepest-first tree walk; grace, then KILL survivors."""
+    falling back to a deepest-first tree walk; grace, then KILL survivors.
+
+    `job_name` is Windows-only (the worker's job object, the pgid analog) and
+    is ignored on POSIX, where the pgid is derived from the pid itself."""
+    if IS_WINDOWS:
+        return _win_kill_tree(root_pid, grace, job_name)
     # Do NOT early-return just because the leader pid is dead: killpg targets
     # the pgid, which persists while any group member lives even after the
     # leader exits, so a dead leader can still front a live group we must sweep.
@@ -496,11 +978,33 @@ def classify_exit(rc: int, result_path, conf: dict):
     return "failed", f"worker exited {rc}"
 
 
-def _reap_worker(proc, conf: dict) -> None:
+def classify_exit_with_pending_reap(rc: int, result_path, conf: dict, reap_pending: bool):
+    """Classify a worker that already exited, optionally under a pending reap.
+
+    When reap is pending (Windows `.reap` or POSIX SIGTERM flag) and the worker
+    was killed by the fallback path, classify_exit would record "failed" for a
+    non-zero kill exit — prefer timeout. When the worker already completed
+    successfully (done + result), keep that: a late reap must not rewrite a
+    finished peer run.
+    """
+    state, reason = classify_exit(rc, result_path, conf)
+    if reap_pending and state != "done":
+        return "timeout", "reaped on request before completion"
+    return state, reason
+
+
+def _reap_worker(proc, conf: dict, job_name=None) -> None:
     # Deliberately parallel to kill_tree but driven by proc.poll(): an unreaped
     # Popen child is a zombie that os.kill(pid, 0) still reports alive, so the
     # pid-based liveness check would burn the whole grace window.
     if proc.poll() is not None:
+        return
+    if IS_WINDOWS:
+        _win_kill_tree(proc.pid, conf["grace"], job_name)
+        try:
+            proc.wait(timeout=5)
+        except Exception:
+            pass
         return
     _signal_group_or_tree(proc.pid, signal.SIGTERM)
     deadline = time.monotonic() + conf["grace"]
@@ -518,12 +1022,52 @@ def _reap_worker(proc, conf: dict) -> None:
             pass
 
 
-def _interruptible_sleep(secs: float, flag: dict) -> None:
+def _reap_requested(flag: dict, job_dir: str) -> bool:
+    """POSIX delivers the reap as SIGTERM (sets flag). Windows has no reliable
+    directed-signal path to a detached, console-less supervisor, so cmd_reap
+    drops a `.reap` marker in the job dir and the loop polls for it."""
+    if flag["reap"]:
+        return True
+    if IS_WINDOWS and os.path.lexists(os.path.join(job_dir, ".reap")):
+        return True
+    return False
+
+
+def _interruptible_sleep(secs: float, flag: dict, job_dir: str) -> None:
     end = time.monotonic() + secs
     while time.monotonic() < end:
-        if flag["reap"]:
+        # On POSIX _reap_requested reduces to flag["reap"] (the IS_WINDOWS
+        # branch never fires), so this is the original signal-driven behavior.
+        if _reap_requested(flag, job_dir):
             return
         time.sleep(min(0.1, max(0.01, end - time.monotonic())))
+
+
+def _popen_argv(argv):
+    """Argv for subprocess.Popen.
+
+    On Windows, CreateProcess does not honor shebang, so a bare *.sh / *.bash
+    worker must be launched through bash/sh. meta.json still records the
+    caller argv so authorize-dispatch contracts that forbid a shell prefix
+    stay exact. Already-prefixed workers (review skills use `bash script.sh`)
+    are left alone.
+    """
+    if not IS_WINDOWS or not argv:
+        return list(argv)
+    head = argv[0]
+    base = os.path.basename(head).lower()
+    if base in ("bash", "bash.exe", "sh", "sh.exe", "env", "env.exe"):
+        return list(argv)
+    lower = head.lower()
+    if not (lower.endswith(".sh") or lower.endswith(".bash")):
+        return list(argv)
+    shell = shutil.which("bash") or shutil.which("sh")
+    if shell is None:
+        raise RunnerError(
+            "worker is a shell script but neither bash nor sh is on PATH; "
+            "install Git Bash or another POSIX shell to run it on Windows"
+        )
+    return [shell, head] + list(argv[1:])
 
 
 def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
@@ -535,8 +1079,11 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
     def on_term(signum, frame):
         flag["reap"] = True
 
-    signal.signal(signal.SIGTERM, on_term)
-    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    if not IS_WINDOWS:
+        signal.signal(signal.SIGTERM, on_term)
+        signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    # On Windows there is no SIGHUP and no reliable directed SIGTERM to a
+    # detached supervisor; reap arrives via the `.reap` marker polled below.
 
     acked = False
 
@@ -545,6 +1092,10 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
         if acked:
             return
         acked = True
+        # Windows detach has no ack pipe (ack_fd is None): the pid file written
+        # just above IS the ack, and the parent polls for it.
+        if ack_fd is None:
+            return
         try:
             os.write(ack_fd, b"ok")
             os.close(ack_fd)
@@ -552,27 +1103,77 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
             pass
 
     log_fd = None
+    job_name = None
+    job_handle = None
     try:
-        log_fd = os.open(os.path.join(job_dir, "out.log"), os.O_WRONLY | os.O_APPEND | O_NOFOLLOW)
+        log_fd = os.open(
+            os.path.join(job_dir, "out.log"),
+            os.O_WRONLY | os.O_APPEND | O_NOFOLLOW | O_BINARY)
+        if IS_WINDOWS:
+            # Created BEFORE the worker so the tree can never start outside it.
+            # The handle is held for the supervisor's lifetime; the job is what
+            # makes teardown reach descendants of an exited leader.
+            job_name = _win_job_name(job_dir)
+            job_handle = _win_create_job(job_name)
         devnull = os.open(os.devnull, os.O_RDONLY)
         try:
-            worker_env = {**os.environ, "CE_PEER_JOB_ID": os.path.basename(job_dir)}
-            proc = subprocess.Popen(
-                argv,
+            # Export the interpreter running this supervisor so Windows workers
+            # (and any adapter that honors it) do not re-resolve to the Store
+            # python3 stub — see resolve-python convention / #1247.
+            worker_env = {
+                **os.environ,
+                "CE_PEER_JOB_ID": os.path.basename(job_dir),
+                "CE_PEER_PYTHON": sys.executable,
+            }
+            popen_kwargs = dict(
                 stdin=devnull,
                 stdout=log_fd,
                 stderr=log_fd,
                 env=worker_env,
-                start_new_session=True,  # worker leads its own group: reap = killpg
                 close_fds=True,
             )
+            if IS_WINDOWS:
+                # New process group so the worker's own tree is isolated; reap =
+                # job terminate + Toolhelp walk (there is no killpg on Windows).
+                # CREATE_NO_WINDOW because the supervisor is console-less, so
+                # without it Windows allocates a NEW console per worker and the
+                # user sees a window flash for every job. (It is mutually
+                # exclusive with DETACHED_PROCESS, which is why the supervisor
+                # itself uses DETACHED_PROCESS and only the worker uses this.)
+                # CREATE_SUSPENDED: assign to the Job Object before any worker
+                # code runs, so early child spawns inherit membership.
+                popen_kwargs["creationflags"] = (
+                    subprocess.CREATE_NEW_PROCESS_GROUP
+                    | _WIN_NO_WINDOW
+                    | _CREATE_SUSPENDED)
+            else:
+                popen_kwargs["start_new_session"] = True  # worker leads its own group
+            # Wrap bare *.sh on Windows at spawn time only — meta still has the
+            # caller argv (see _popen_argv).
+            proc = subprocess.Popen(_popen_argv(argv), **popen_kwargs)
         finally:
             os.close(devnull)
         pid_doc = {
             "supervisor_pid": os.getpid(),
-            "supervisor_pgid": os.getpgid(0),
             "worker_pid": proc.pid,
         }
+        if IS_WINDOWS:
+            # Assign while still suspended, then resume. Record the job only
+            # once the worker is actually a member, so a later reap never trusts
+            # a name that owns nothing. If assignment fails (job creation denied,
+            # or a nested-job restriction), leave it unset and let teardown fall
+            # back to the Toolhelp walk.
+            if job_handle is not None and _win_assign_to_job(job_handle, proc.pid):
+                pid_doc["job_name"] = job_name
+            else:
+                job_name = None
+            if not _win_resume_process(proc.pid):
+                raise RunnerError(
+                    f"could not resume suspended Windows worker pid {proc.pid}"
+                )
+        else:
+            # pgid drives POSIX group kills; Windows reaps by job object.
+            pid_doc["supervisor_pgid"] = os.getpgid(0)
         # The pid file lands before the parent is acked, so a returned `start`
         # guarantees the detach marker exists (status never mis-reads a fresh
         # job as never-started).
@@ -589,13 +1190,15 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
     while True:
         rc = proc.poll()
         if rc is not None:
-            state, reason = classify_exit(rc, result_path, conf)
+            state, reason = classify_exit_with_pending_reap(
+                rc, result_path, conf, _reap_requested(flag, job_dir),
+            )
             break
-        if flag["reap"]:
+        if _reap_requested(flag, job_dir):
             # Classification is fixed BEFORE the kill: even if the worker
             # publishes and exits 0 during the grace window, the supervisor's
             # record wins (R3).
-            _reap_worker(proc, conf)
+            _reap_worker(proc, conf, job_name)
             state, reason = "timeout", "reaped on request before completion"
             break
         try:
@@ -606,25 +1209,31 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
         if size > last_size:
             last_size, last_growth = size, now
         if size > conf["log_max"]:
-            _reap_worker(proc, conf)
+            _reap_worker(proc, conf, job_name)
             state, reason = "failed", (
                 f"out.log exceeded byte cap ({size} > {conf['log_max']} bytes)"
             )
             break
         if conf["idle"] is not None and now - last_growth >= conf["idle"]:
-            _reap_worker(proc, conf)
+            _reap_worker(proc, conf, job_name)
             state, reason = "timeout", f"no output for {conf['idle']:g}s (idle window)"
             break
         if now - start_t >= conf["hard"]:
-            _reap_worker(proc, conf)
+            _reap_worker(proc, conf, job_name)
             state, reason = "timeout", f"hard cap {conf['hard']:g}s exceeded"
             break
-        _interruptible_sleep(conf["poll"], flag)
+        _interruptible_sleep(conf["poll"], flag, job_dir)
     # An externally killed worker can leave group members behind (its shell's
     # children); sweep the group before publishing so no orphan outlives the
     # terminal record. A pgid cannot be recycled while members remain.
-    _killpg_quiet(proc.pid, signal.SIGTERM)
-    _killpg_quiet(proc.pid, signal.SIGKILL)
+    if IS_WINDOWS:
+        # Job-object sweep: unlike taskkill this still reaches descendants when
+        # the worker leader has already exited, which is the orphan case the
+        # POSIX killpg pair below covers.
+        _win_kill_tree(proc.pid, min(conf["grace"], 1.0), job_name)
+    else:
+        _killpg_quiet(proc.pid, signal.SIGTERM)
+        _killpg_quiet(proc.pid, signal.SIGKILL)
     write_terminal(job_dir, state, reason)
 
 
@@ -632,6 +1241,8 @@ def detach_supervisor(job_dir: str, argv, result_path, conf: dict) -> bool:
     """setsid double-fork. The grandchild (new session, stdio on /dev/null,
     reparented to init) runs the supervisor; the parent returns once the
     supervisor acks that the pid file exists."""
+    if IS_WINDOWS:
+        return detach_supervisor_windows(job_dir, argv, result_path, conf)
     sys.stdout.flush()
     sys.stderr.flush()
     read_fd, write_fd = os.pipe()
@@ -674,6 +1285,105 @@ def detach_supervisor(job_dir: str, argv, result_path, conf: dict) -> bool:
     return ack == b"ok"
 
 
+def detach_supervisor_windows(job_dir: str, argv, result_path, conf: dict) -> bool:
+    """Windows detach: there is no fork/setsid, so re-invoke this script as a
+    fresh DETACHED_PROCESS running the internal `__supervise` entrypoint. The
+    spawn spec travels through an owner-private file in the job dir; the parent
+    returns once the supervisor has left its ack marker (the pid file, or a
+    terminal status if the worker could not launch). CREATE_BREAKAWAY_FROM_JOB
+    is the analog of setsid's reparent-to-init: it lets the supervisor outlive a
+    launching harness that runs inside a kill-on-close Job Object, falling back
+    when the job forbids breakaway."""
+    spec = {"argv": list(argv), "result_path": result_path, "conf": conf}
+    create_exclusive(
+        os.path.join(job_dir, ".spawn.json"),
+        (json.dumps(spec) + "\n").encode(),
+    )
+    cmd = [sys.executable, os.path.abspath(__file__), "__supervise", job_dir]
+    base_flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    devnull = os.open(os.devnull, os.O_RDWR)
+    proc = None
+    try:
+        for flags in (base_flags | subprocess.CREATE_BREAKAWAY_FROM_JOB, base_flags):
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdin=devnull, stdout=devnull, stderr=devnull,
+                    close_fds=True, creationflags=flags,
+                )
+                break
+            except OSError:
+                proc = None
+        if proc is None:
+            return False
+    finally:
+        os.close(devnull)
+
+    pid_path = os.path.join(job_dir, "pid")
+    status_path = os.path.join(job_dir, "status")
+    deadline = time.monotonic() + 15.0
+    while time.monotonic() < deadline:
+        if os.path.lexists(pid_path) or os.path.lexists(status_path):
+            return True
+        if proc.poll() is not None:
+            # Supervisor process exited without leaving a marker: detach failed.
+            return os.path.lexists(pid_path) or os.path.lexists(status_path)
+        time.sleep(0.05)
+    # Deadline with the supervisor still running. Do not abandon it: reporting
+    # a detach failure while leaving a live, unreachable supervisor/worker pair
+    # behind is exactly the orphan this runner exists to prevent. The snapshot
+    # walk reaches the worker as the supervisor's child.
+    try:
+        if proc.poll() is None:
+            _win_kill_tree(proc.pid, 0.0)
+    except Exception:
+        pass
+    return False
+
+
+def _win_supervise_from_spec(job_dir: str) -> int:
+    """Internal `__supervise` entrypoint: the detached Windows supervisor. Drops
+    its console-less std handles onto NUL, reads the owner-checked spawn spec,
+    and runs the shared supervisor loop with a file-based (not fd) ack."""
+    rc = 0
+    # Redundant with detach_supervisor_windows, which already binds this
+    # process's stdio to NUL via Popen -- kept deliberately so the entrypoint is
+    # self-contained: a supervisor is long-lived, and any future/manual
+    # invocation that inherited a real pipe could block forever once it filled.
+    try:
+        devnull = os.open(os.devnull, os.O_RDWR)
+        for fd in (0, 1, 2):
+            try:
+                os.dup2(devnull, fd)
+            except OSError:
+                pass
+        if devnull > 2:
+            os.close(devnull)
+    except OSError:
+        pass
+    try:
+        _check_owned_dir(job_dir)
+        spec = json.loads(read_owned(os.path.join(job_dir, ".spawn.json"), META_READ_CAP))
+        argv = spec["argv"]
+        result_path = spec.get("result_path")
+        conf = spec["conf"]
+        try:
+            os.unlink(os.path.join(job_dir, ".spawn.json"))
+        except OSError:
+            pass
+        supervise(job_dir, argv, result_path, conf, None)
+    except BaseException:
+        rc = 1
+        try:
+            write_terminal(
+                job_dir, "failed", "supervisor crashed before classification",
+                overwrite=False,
+            )
+        except BaseException:
+            pass
+    return rc
+
+
 # --- subcommands ---------------------------------------------------------------
 
 def sweep_stale_runs(skill_dir: str, keep: str) -> None:
@@ -695,30 +1405,40 @@ def sweep_stale_runs(skill_dir: str, keep: str) -> None:
             continue
         if not stat.S_ISDIR(st.st_mode):
             continue
-        if euid is not None and st.st_uid != euid:
+        if IS_WINDOWS:
+            try:
+                if not _win_owns_path(entry.path):
+                    continue
+            except OSError:
+                continue
+        elif euid is not None and st.st_uid != euid:
             continue
         if now - st.st_mtime <= SWEEP_AGE_SECS:
             continue
         shutil.rmtree(entry.path, ignore_errors=True)
 
 
-def _require_posix_detach() -> None:
-    """Detached peer jobs need os.fork/os.setsid (POSIX). Checked first, before
-    jobs_root_base()/geteuid, so native Windows fails with this clear message
-    instead of jobs_root_base()'s unrelated "effective user ID is unavailable"
-    error (both are missing there) or an AttributeError mid-detach (#1184)."""
+def _require_detach_support() -> None:
+    """Detached peer jobs need a supported detach path: os.fork/os.setsid on
+    POSIX, or the native Windows DETACHED_PROCESS path (#1243). Checked first,
+    before jobs_root_base()/geteuid, so an unsupported host fails with this clear
+    message instead of jobs_root_base()'s unrelated "effective user ID is
+    unavailable" error or an AttributeError mid-detach. Native Windows is now
+    supported; only a non-win32 Python missing fork/setsid (some embedded
+    builds) is rejected here."""
+    if IS_WINDOWS:
+        return
     if not hasattr(os, "fork") or not hasattr(os, "setsid"):
-        # Native Windows (and some embedded Pythons) lack POSIX process APIs.
         raise RunnerError(
-            "detached peer jobs require os.fork/os.setsid (POSIX); no job was "
-            "started. On native Windows, run Claude Code / this skill under WSL, "
-            "or wait for a Windows-native detach path (see "
-            "EveryInc/compound-engineering-plugin#1184)."
+            "detached peer jobs require os.fork/os.setsid on this platform; no "
+            "job was started. Run under a POSIX Python, or on native Windows use "
+            "a Windows Python 3 build (see "
+            "EveryInc/compound-engineering-plugin#1243)."
         )
 
 
 def cmd_start(args, worker_argv) -> int:
-    _require_posix_detach()
+    _require_detach_support()
     for flag, value in (("--skill", args.skill), ("--run-id", args.run_id)):
         if not _is_safe_token(value):
             raise RunnerError(f"{flag} must match [A-Za-z0-9._-]+ and not be all dots (got {value!r})")
@@ -744,6 +1464,14 @@ def cmd_start(args, worker_argv) -> int:
         resolved = os.path.abspath(argv0)
         if not os.path.isfile(resolved):
             problem = "does not exist or is not a regular file"
+        elif IS_WINDOWS and resolved.lower().endswith((".sh", ".bash")):
+            # CreateProcess cannot run shebang scripts; _popen_argv wraps with
+            # bash/sh. Require that shell now so start fails closed, not after
+            # detach. Skip the X_OK check — Windows often marks .sh non-exec.
+            if shutil.which("bash") is None and shutil.which("sh") is None:
+                problem = (
+                    "is a shell script but neither bash nor sh is on PATH"
+                )
         elif not os.access(resolved, os.X_OK):
             problem = "is not executable"
     else:
@@ -751,6 +1479,13 @@ def cmd_start(args, worker_argv) -> int:
         if resolved is None:
             problem = "was not found on PATH"
             resolved = argv0
+        elif IS_WINDOWS and resolved.lower().endswith((".sh", ".bash")):
+            # Same shell requirement as the path-separator branch: a PATH hit
+            # on a bare `foo.sh` must not detach when bash/sh is missing.
+            if shutil.which("bash") is None and shutil.which("sh") is None:
+                problem = (
+                    "is a shell script but neither bash nor sh is on PATH"
+                )
     argv = [resolved] + list(worker_argv[1:])
 
     conf = cfg(args.skill)
@@ -922,14 +1657,35 @@ def cmd_reap(args) -> int:
     sup_pid = pid_doc.get("supervisor_pid") if isinstance(pid_doc, dict) else None
     sup_pgid = pid_doc.get("supervisor_pgid") if isinstance(pid_doc, dict) else None
     worker_pid = pid_doc.get("worker_pid") if isinstance(pid_doc, dict) else None
+    # Windows-only: the worker tree's job object. Named precisely so this
+    # process -- which never held the supervisor's handle -- can reopen and
+    # terminate the tree even after the worker leader has exited.
+    job_name = pid_doc.get("job_name") if isinstance(pid_doc, dict) else None
 
     if isinstance(sup_pid, int) and _pid_alive(sup_pid):
         # The supervisor owns TERM-grace-KILL and the terminal classification.
-        if (isinstance(sup_pgid, int) and _killpg_quiet(sup_pgid, signal.SIGTERM)) \
-                or _kill_quiet(sup_pid, signal.SIGTERM):
+        # POSIX signals it (SIGTERM to the group or pid); Windows drops the
+        # `.reap` marker the supervisor's loop polls for.
+        if IS_WINDOWS:
+            try:
+                with open(os.path.join(job_dir, ".reap"), "w") as f:
+                    f.write("reap\n")
+                signaled = True
+            except OSError:
+                signaled = False
+        else:
+            signaled = (isinstance(sup_pgid, int) and _killpg_quiet(sup_pgid, signal.SIGTERM)) \
+                or _kill_quiet(sup_pid, signal.SIGTERM)
+        if signaled:
             # kill -0 is true for a zombie, so confirm the classification landed
             # rather than trusting the signal; fall through to self-cleanup if not.
-            deadline = time.monotonic() + min(conf["grace"], 1.0)
+            # Windows: the supervisor only notices `.reap` on its next poll tick
+            # (default 2s), so min(grace, 1.0) alone is shorter than one poll and
+            # races into the fallback self-classify path.
+            wait_budget = min(conf["grace"], 1.0)
+            if IS_WINDOWS:
+                wait_budget = max(wait_budget, conf["poll"] + 0.25)
+            deadline = time.monotonic() + wait_budget
             while time.monotonic() < deadline:
                 if job_state(job_dir) in TERMINAL_STATES:
                     return 0
@@ -944,7 +1700,8 @@ def cmd_reap(args) -> int:
     # returns whether the leader was alive, which is the reap classification.
     worker_leader_alive = False
     if isinstance(worker_pid, int):
-        worker_leader_alive = kill_tree(worker_pid, min(conf["grace"], 1.0))
+        worker_leader_alive = kill_tree(
+            worker_pid, min(conf["grace"], 1.0), job_name)
     # A worker can publish its declared result and exit before this fallback runs
     # (e.g. the supervisor died mid-run, then the worker completed cleanly). Honor
     # that result instead of discarding it as died-without-result: read the
@@ -1048,6 +1805,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv) -> int:
+    # Internal Windows detach re-invocation (not a user-facing subcommand): the
+    # detached supervisor process runs `__supervise <job_dir>`. Gated on
+    # IS_WINDOWS so POSIX keeps its previous behavior exactly (argparse usage
+    # error), and so a non-win32 Python without geteuid -- where the ownership
+    # checks degrade -- can never be steered into exec'ing argv from a planted
+    # .spawn.json. Only the Windows detach path ever emits this argv.
+    if IS_WINDOWS and argv and argv[0] == "__supervise":
+        if len(argv) < 2:
+            return 2
+        return _win_supervise_from_spec(argv[1])
     worker_argv = []
     if "--" in argv:
         split = argv.index("--")

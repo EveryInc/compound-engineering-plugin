@@ -77,3 +77,44 @@ jobs:
       # contributor gets from `bun run test` cannot drift apart.
       - name: Run tests
         run: bun run test
+
+  # Focused Windows gate for peer-job-runner (#1243). Not a full-suite matrix:
+  # POSIX lifecycle tests (fork/killpg/ps) stay on ubuntu-latest. This job runs
+  # the cross-platform unit fixture under real win32 plus a smoke that hits
+  # Job Objects / DETACHED_PROCESS / bare-.sh wrap — the paths Mac cannot prove.
+  peer-job-runner-windows:
+    runs-on: windows-latest
+
+    steps:
+      # Keep LF in the working tree so newline-anchored parity regexes match.
+      # Default Windows runners often have core.autocrlf=true (see
+      # docs/solutions/developer-experience/windows-crlf-checkout-breaks-newline-anchored-tests.md).
+      - name: Disable autocrlf for LF checkout
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          # Match the verified Windows smoke environment for #1243.
+          python-version: "3.11"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Peer-job-runner unit fixture
+        # Use `python`, never `python3` — on Windows the latter is often the
+        # Microsoft Store stub (see docs/solutions/conventions/resolve-python-interpreter-not-python3.md).
+        run: python tests/fixtures/peer-job-runner-unit.py
+
+      - name: Peer-job-runner Windows smoke
+        run: python tests/fixtures/peer-job-runner-windows-smoke.py
+
+      - name: Peer-job-runner parity
+        run: bun test tests/peer-job-runner-parity.test.ts

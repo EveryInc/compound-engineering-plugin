@@ -53,11 +53,23 @@ Never hold a tool call open for the model's runtime — some harnesses kill long
 
 2. **Start the detached job**, anchoring the bundled scripts to this skill's directory. The Bash tool's CWD is the user's project, not the skill dir, so a bare `scripts/…` path resolves in the wrong place and the run silently never starts — set `SKILL_DIR` inline in the same command and pass `start` with its required flags (`--skill`, `--run-id`, then `--` before the worker argv):
 
+**Interpreter.** The commands below run a bundled Python script. Resolve the
+interpreter in the *same* shell call as the command -- each tool call is a fresh
+shell, so a `$PY` set in an earlier call does not persist. Do not hardcode
+`python3`: on native Windows it resolves to a Microsoft Store stub that exits
+without running Python, and that stub still satisfies `command -v`, so probe
+execution rather than presence.
+
+```bash
+PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+```
+
    ```bash
    SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read — this skill's own directory>";
+   PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
    SKILL_NAME="<this skill's name: ce-plan or ce-brainstorm>";
    CE_PEER_HARD_SECS=5400 CE_ELEVATION_HARD_SECS=5400 CE_PEER_LOG_MAX_BYTES=52428800 \
-     python3 "$SKILL_DIR/scripts/peer-job-runner.py" start \
+     "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" start \
      --skill "$SKILL_NAME" --run-id "<run-id>" --label elevation \
      --result-path "<result-path>" \
      -- bash "$SKILL_DIR/scripts/elevation-dispatch.sh" "<model>" "<prompt-file>" "<result-path>"
@@ -65,9 +77,21 @@ Never hold a tool call open for the model's runtime — some harnesses kill long
 
 `CE_PEER_HARD_SECS` (the outer runner cap) and `CE_ELEVATION_HARD_SECS` (the worker's own inner cap) are set to the **same** raised backstop well above any legitimate run (R11) — keep them equal so the inner cap never reaps a healthy run before the outer one. `CE_PEER_LOG_MAX_BYTES` is raised for the streaming route so a healthy high-volume run is not reaped as a failure (R22). `start` returns a job id in under ~2s.
 
-3. **Poll** with `python3 "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 "<job-id>"` between your other work, until terminal.
+3. **Poll** between your other work until terminal (resolve `$PY` again — each tool call is a fresh shell):
 
-4. **Read the result** via `python3 "$SKILL_DIR/scripts/peer-job-runner.py" result "<job-id>"` — the worker's envelope `{status, requested_model, served_model, receipt, output}`.
+   ```bash
+   SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read — this skill's own directory>";
+   PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+   "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 "<job-id>"
+   ```
+
+4. **Read the result** — the worker's envelope `{status, requested_model, served_model, receipt, output}`:
+
+   ```bash
+   SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read — this skill's own directory>";
+   PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+   "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" result "<job-id>"
+   ```
 
 The worker streams `--output-format stream-json --verbose`, so progress events reset its idle window; a genuinely stalled model stops growing the log and is reaped while a productive long run continues.
 
