@@ -172,8 +172,9 @@ class PosixDetachPreflight(unittest.TestCase):
         # ALSO missing alongside os.geteuid/os.getuid, so cmd_start must reject
         # via _require_posix_detach() before ever calling jobs_root_base() --
         # otherwise jobs_root_base()'s unrelated "effective user ID is
-        # unavailable" error fires first and the clearer WSL/#1184 message
+        # unavailable" error fires first and the clearer WSL/#1243 message
         # never shows on the default (no CE_PEER_JOBS_ROOT) invocation path.
+        # (#1184 is closed; the live Windows-native tracker is #1243.)
         real_fork, real_setsid = os.fork, os.setsid
         del os.fork
         del os.setsid
@@ -189,7 +190,7 @@ class PosixDetachPreflight(unittest.TestCase):
                     MOD.cmd_start(None, None)
             message = str(cm.exception)
             self.assertIn("os.fork/os.setsid", message)
-            self.assertIn("1184", message)
+            self.assertIn("1243", message)
         finally:
             os.fork = real_fork
             os.setsid = real_setsid

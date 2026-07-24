@@ -706,14 +706,15 @@ def _require_posix_detach() -> None:
     """Detached peer jobs need os.fork/os.setsid (POSIX). Checked first, before
     jobs_root_base()/geteuid, so native Windows fails with this clear message
     instead of jobs_root_base()'s unrelated "effective user ID is unavailable"
-    error (both are missing there) or an AttributeError mid-detach (#1184)."""
+    error (both are missing there) or an AttributeError mid-detach (#1184).
+    The unfinished Windows-native path is tracked in #1243 (#1184 is closed)."""
     if not hasattr(os, "fork") or not hasattr(os, "setsid"):
         # Native Windows (and some embedded Pythons) lack POSIX process APIs.
         raise RunnerError(
             "detached peer jobs require os.fork/os.setsid (POSIX); no job was "
             "started. On native Windows, run Claude Code / this skill under WSL, "
             "or wait for a Windows-native detach path (see "
-            "EveryInc/compound-engineering-plugin#1184)."
+            "EveryInc/compound-engineering-plugin#1243)."
         )
 
 
