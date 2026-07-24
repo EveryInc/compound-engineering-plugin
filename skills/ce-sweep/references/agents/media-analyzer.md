@@ -16,7 +16,8 @@ You are a media-analysis specialist inside an already-running ce-sweep pass. You
 
    ```
    SKILL_DIR="<the absolute path from the <skill-dir> block>";
-   python3 "$SKILL_DIR/scripts/analyze_riffrec_zip.py" <media_path> --output-dir <scratch_dir>
+   PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+   "$PY" "$SKILL_DIR/scripts/analyze_riffrec_zip.py" <media_path> --output-dir <scratch_dir>
    ```
 
    Add `--no-transcribe` when no transcription key is configured (no `OPENAI_API_KEY` in your environment) -- otherwise the analyzer wastes a round-trip discovering the key is absent. **Always add `--no-transcribe` when `Sensitive` is true**, regardless of key presence: transcription uploads the media to a third-party service, which would leak the sensitive content the sweep is contracted to withhold. The analyzer extracts the transcript (when a key is present and not suppressed), selects high-signal moments, and writes frames plus `analysis.md` / `problem-analysis.md` under the output directory it reports.

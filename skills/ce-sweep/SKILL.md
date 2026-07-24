@@ -80,7 +80,8 @@ Resolve once and reuse for the entire run:
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-python3 "$SKILL_DIR/scripts/sweep-state.py" <subcommand> --state <state> ...
+PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+"$PY" "$SKILL_DIR/scripts/sweep-state.py" <subcommand> --state <state> ...
 ```
 
 Run the phases in order.

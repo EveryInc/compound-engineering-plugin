@@ -55,8 +55,9 @@ run_with_timeout() {
     return
   fi
 
-  if command -v python3 >/dev/null 2>&1; then
-    python3 - "$TIMEOUT" "$COMMAND" <<'PY'
+  PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
+  if [ -n "$PY" ]; then
+    "$PY" - "$TIMEOUT" "$COMMAND" <<'PY'
 import os
 import signal
 import subprocess
@@ -80,7 +81,7 @@ PY
     return
   fi
 
-  echo "Error: no timeout implementation available (tried timeout, gtimeout, python3)" >&2
+  echo "Error: no timeout implementation available (tried timeout, gtimeout, and a working Python 3 interpreter)" >&2
   exit 1
 }
 

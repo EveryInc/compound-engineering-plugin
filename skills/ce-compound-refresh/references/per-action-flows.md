@@ -64,11 +64,13 @@ Do not let replacement subagents invent frontmatter fields, enum values, or sect
    - The target path and category (same category as the old learning unless the category itself changed)
    - The relevant contents of the three support files listed above
 2. The subagent writes the new learning using the support files as the source of truth: `references/schema.yaml` for frontmatter fields and enum values, `references/yaml-schema.md` for category mapping and YAML-safety rules for array items, and `assets/resolution-template.md` for section order. It should use dedicated file search and read tools if it needs additional context beyond what was passed.
-3. **Validate parser-safety of the new learning's frontmatter** to catch silent-corruption issues the prose rules miss: malformed `---` delimiter lines, unquoted ` #` in scalar values (silent comment truncation), and unquoted `: ` in scalar values (silent mapping confusion). The bundled validator ships **inside the skill bundle**; on Claude Code `${CLAUDE_SKILL_DIR}` resolves to the skill directory, but the runtime Bash tool's CWD is the user's project, so a project-relative path (without the `${CLAUDE_SKILL_DIR}` prefix) would miss. Run it through an existence guard so platforms that cannot locate the script (e.g. native Codex/Gemini installs, where `${CLAUDE_SKILL_DIR}` is unset) fall back to a manual check instead of silently skipping the protection:
+3. **Validate parser-safety of the new learning's frontmatter** to catch silent-corruption issues the prose rules miss: malformed `---` delimiter lines, unquoted ` #` in scalar values (silent comment truncation), and unquoted `: ` in scalar values (silent mapping confusion). The bundled validator ships **inside the skill bundle**; set `SKILL_DIR` to the absolute path of the directory containing this skill's SKILL.md and run it through an existence guard so platforms that cannot locate the script fall back to a manual check instead of silently skipping the protection:
 
    ```bash
-   if [ -n "${CLAUDE_SKILL_DIR}" ] && [ -f "${CLAUDE_SKILL_DIR}/scripts/validate-frontmatter.py" ]; then
-     python3 "${CLAUDE_SKILL_DIR}/scripts/validate-frontmatter.py" <new-learning-path>;
+   SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+   PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+   if [ -f "$SKILL_DIR/scripts/validate-frontmatter.py" ]; then
+     "$PY" "$SKILL_DIR/scripts/validate-frontmatter.py" <new-learning-path>;
    else
      echo "Bundled validate-frontmatter.py not resolvable on this platform; applying the parser-safety checklist manually.";
    fi
@@ -85,7 +87,8 @@ Do not let replacement subagents invent frontmatter fields, enum values, or sect
 
    ```bash
    SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-   python3 "$SKILL_DIR/scripts/validate-doc-claims.py" <new-learning-path>
+   PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+   "$PY" "$SKILL_DIR/scripts/validate-doc-claims.py" <new-learning-path>
    ```
 
    Exit 1 flags are **adjudication input, not failures** — a successor doc describing removed code legitimately cites paths that no longer exist. Resolve each flag by fixing the citation, annotating it as historical, or confirming it intentional; always fix scaffold flags. If the script is not resolvable on this platform, scan the body for those same patterns manually and say so in the report.
