@@ -173,13 +173,13 @@ A full review always spawns correctness, adds project-standards when applicable 
 
 ## Protected Artifacts
 
-The following paths are compound-engineering pipeline artifacts and must never be flagged for deletion, removal, or gitignore by any reviewer:
+Compound-engineering pipeline artifacts must never be flagged for deletion, removal, or gitignore by any reviewer. Match on the artifact **subdirectory segment**, not a `<root>/`-prefixed path, so protection holds whether the artifacts sit under the default `docs/`, a configured `docs_root`, or a root this run never resolved:
 
-- `docs/brainstorms/*` -- legacy requirements documents created by older ce-brainstorm versions
-- `<root>/plans/*.{md,html}` -- unified plan artifacts created by ce-brainstorm or ce-plan (decision artifacts; execution progress is derived from git, not stored in plan bodies)
-- `<root>/solutions/*.md` -- solution documents created during the pipeline
+- a `plans/` segment -- unified plan artifacts created by ce-brainstorm or ce-plan (decision artifacts; execution progress is derived from git, not stored in plan bodies)
+- a `solutions/` segment -- solution documents created during the pipeline
+- the legacy `brainstorms/` segment -- requirements documents created by older ce-brainstorm versions
 
-If a reviewer flags any file in these directories for cleanup or removal, discard that finding during synthesis.
+If a reviewer flags any such file for cleanup or removal, discard that finding during synthesis.
 
 ## Plan Requirements Completeness
 

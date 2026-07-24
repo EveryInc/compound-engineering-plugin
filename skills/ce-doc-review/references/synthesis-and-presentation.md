@@ -366,13 +366,7 @@ This rule prevents two failure modes: (1) regressions where a fix didn't actuall
 
 ### Protected Artifacts
 
-During synthesis, discard any finding that recommends deleting or removing files in:
-
-- `<root>/plans/`
-- `<root>/solutions/`
-- legacy `docs/brainstorms/`
-
-These are pipeline artifacts and must not be flagged for removal.
+During synthesis, discard any finding that recommends deleting or removing a CE pipeline artifact. Match on the artifact **subdirectory segment**, not a `<root>/`-prefixed path — a path component of `plans/`, `solutions/`, `ideation/`, `explainers/`, `residual-review-findings/`, `pulse-reports/`, `dogfood-reports/`, `feedback-sweep/`, `personas/`, or the legacy `brainstorms/`. Segment-matching protects these files whether they sit under the default `docs/`, a configured `docs_root`, or a root this run never resolved (an explicit-path review does not resolve `<root>`, so a `<root>/`-prefixed match would silently miss). These are pipeline artifacts and must not be flagged for removal.
 
 ## Phase 5: Next Action — Terminal Question
 
