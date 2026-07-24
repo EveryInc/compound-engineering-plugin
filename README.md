@@ -514,7 +514,7 @@ bun run codex:dev -- remove
 
 The script derives the repository path, so it works from checkouts in any location, including paths with spaces. It inherits the active `CODEX_HOME`; set `CODEX_HOME` on the command when testing an isolated profile. Run every mode against the same `CODEX_HOME` you use to launch Codex.
 
-Do not use `codex plugin marketplace add "$PWD"` as a local-development shortcut. This repository's committed `.agents/plugins/marketplace.json` intentionally points Compound Engineering back to the public Git repository, so installing from that marketplace can still cache remote content. A matching manifest version also does not prove the cache matches the worktree.
+Do not use `codex plugin marketplace add "$PWD"` for live local development. It installs a cached copy of this checkout, so later edits are not reflected until the plugin is installed again; a matching manifest version also does not prove the cache matches the worktree. The `codex:dev` workflow instead keeps Codex linked to the current skill files.
 
 </details>
 

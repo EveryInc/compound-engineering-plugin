@@ -24,11 +24,11 @@ When testing current skill files in Codex, run the repository workflow from the 
 ```bash
 bun run codex:dev -- local    # link this worktree's skills and remove CE plugin installs
 bun run codex:dev -- status   # show local/remote state and checkout provenance
-bun run codex:dev -- remote   # restore the official Git-backed plugin
+bun run codex:dev -- remote   # restore the official marketplace-backed plugin
 bun run codex:dev -- remove   # remove both supported CE installation surfaces
 ```
 
-`refresh` is an idempotent alias for `local`. Local mode manages only the exact `$CODEX_HOME/skills/compound-engineering-local` symlink and Compound Engineering plugin IDs; it must not alter unrelated user skills. The symlink includes modified and untracked files from the selected worktree. Start a new Codex session after switching installation modes. Current Codex versions detect direct skill edits automatically; restart only if an edit does not appear. Do not use this repository itself as a Codex marketplace for local testing: its committed marketplace source points to the public Git repository.
+`refresh` is an idempotent alias for `local`. Local mode manages only the exact `$CODEX_HOME/skills/compound-engineering-local` symlink and Compound Engineering plugin IDs; it must not alter unrelated user skills. The symlink includes modified and untracked files from the selected worktree. Start a new Codex session after switching installation modes. Current Codex versions detect direct skill edits automatically; restart only if an edit does not appear. For live local testing, use this workflow instead of adding the repository as a marketplace: a marketplace install caches a snapshot, while local mode links the current skill files.
 
 ## Working Agreement
 
