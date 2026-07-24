@@ -258,7 +258,7 @@ In this mode `ce-work` performs implementation and local verification only —
 including mid-implementation Phase 2 "Simplify as You Go" — then records a
 structured summary instead of running the standalone shipping tail.
 
-Return:
+Record these fields, then continue with the run's next stage:
 
 - `status`: `complete`, `blocked`, or `failed`
 - `plan_path`
