@@ -129,7 +129,7 @@ Detail lines for Pre-existing and history-dependent P0/P1 findings may include t
 
 ## Agent mode (JSON)
 
-When `mode:agent` is active, **do not** emit the markdown table report above. Emit **one parseable JSON object** as the primary response and write the same payload to `review.json` under the resolved `<run-dir>`.
+When `mode:agent` is active, **do not** emit the markdown table report above. Emit one parseable JSON object instead, and write the same payload to `review.json` under the resolved `<run-dir>`.
 
 The contract is defined in `references/finish-review.md` under **`### JSON output format (`mode:agent` only)`**. Minimum fields: `status`, `verdict`, `scope`, `intent`, `reviewers`, `findings`, `actionable_findings`, `artifact_path`, `run_id`.
 

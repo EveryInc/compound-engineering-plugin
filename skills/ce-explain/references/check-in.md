@@ -19,6 +19,8 @@ Do not mark the quiz as recommended.
 
 In diff mode, word the offer without describing the change's content or purpose — an offer that summarizes the change pre-leaks the reveal.
 
+Skip the check-in entirely in an unattended run — no blocking question tool and no reply path. The check-in exercises a live human; with nobody to answer, the prediction prompt would end the run.
+
 ## Predict-then-reveal (diff mode)
 
 Run this section only when the user's exact choice was **Quiz me**.

@@ -9,7 +9,7 @@ argument-hint: "[Plan path, work description, or recovery request with run id; b
 ## Outcome
 
 - **Result:** A fully implemented, locally verified change set from a plan, specification, or concrete work prompt.
-- **Next consumer:** In standalone use, the shipping workflow takes the verified change through review and delivery. In Return-to-Caller Mode, the invoking workflow receives the structured implementation and verification envelope and owns its remaining gates.
+- **Next consumer:** In standalone use, the shipping workflow takes the verified change through review and delivery. In Return-to-Caller Mode, `ce-work` records the structured implementation and verification envelope; the remaining gates run later in the same session.
 - **Done:** Every in-scope task is complete, required verification evidence is recorded, relevant checks pass, and the run reaches either its owned shipping handoff, a complete return envelope, or an explicit blocker.
 - **Intent:** Finish the requested feature without renegotiating the plan or transferring canonical integration authority. Workers receive bounded units; the host orchestrator inspects actual changes and owns authoritative verification and canonical commits.
 
@@ -27,7 +27,7 @@ Invocation origin is not observable or relevant: apply the same source-resolutio
 
 **Recovery activation comes first.** Before normal plan, path, blank-input, or bare-prompt classification, interpret whether the user is semantically asking to resume, inspect status, reap, or clean up an existing external implementation run and has supplied its run id. This is intent recognition, not verb-only matching. Validate the id with the controller's safe-id contract: `^[A-Za-z0-9._-]{1,128}$` and at least one non-period character. When this direct recovery intent is present, read `references/cross-model-execution.md`, use that run id as authoritative for the requested controller operation, and return the observed state or blocker. Recovery must not dispatch a new worker, select a new route, fall through to latest-plan discovery, or run either shipping tail. When every unit is already cleaned, **completed recovery is read-only reconciliation**: Do not rerun test, build, format, install, generation, or `verify-run`; report the stored unit and plan-wide verification receipts. If recovery intent is clear but the run id is missing, request the id instead of guessing or classifying the text as new work.
 
-**Otherwise, parse a leading mode token.** If `<input_document>` begins with `mode:return-to-caller` (or the legacy aliases `mode:caller-owned-tail` / `caller:lfg`), strip that token before anything else and enter **Return-to-Caller Mode** (see § Return-to-Caller Mode) — implement and locally verify only, then return the structured envelope instead of running the standalone shipping tail. Before the plan path, accept up to two optional carriers in this fixed order: first one compact JSON object prefixed exactly `implementation_engine:`, then one run id prefixed exactly `implementation_run:`. The engine object remains the typed caller binding and must contain exactly `mode`, `target`, `model`, and `source` with the types and values defined in `references/execution-engines.md`; the run carrier is accepted only for return-to-caller recovery and must satisfy the safe-id contract above. Reject malformed JSON, missing/extra fields, an unsafe run id, or a duplicate carrier. The entire remaining string is the plan path. A mode token or carrier with no following path is an error; report it instead of treating control data as a bare prompt. Without either optional carrier, the original `mode:return-to-caller <plan-path>` form is unchanged and standing configuration remains eligible.
+**Otherwise, parse a leading mode token.** If `<input_document>` begins with `mode:return-to-caller` (or the legacy aliases `mode:caller-owned-tail` / `caller:lfg`), strip that token before anything else and enter **Return-to-Caller Mode** (see § Return-to-Caller Mode) — implement and locally verify only, then record the structured envelope instead of running the standalone shipping tail. Before the plan path, accept up to two optional carriers in this fixed order: first one compact JSON object prefixed exactly `implementation_engine:`, then one run id prefixed exactly `implementation_run:`. The engine object remains the typed caller binding and must contain exactly `mode`, `target`, `model`, and `source` with the types and values defined in `references/execution-engines.md`; the run carrier is accepted only for return-to-caller recovery and must satisfy the safe-id contract above. Reject malformed JSON, missing/extra fields, an unsafe run id, or a duplicate carrier. The entire remaining string is the plan path. A mode token or carrier with no following path is an error; report it instead of treating control data as a bare prompt. Without either optional carrier, the original `mode:return-to-caller <plan-path>` form is unchanged and standing configuration remains eligible.
 
 When `implementation_run:<safe-id>` is present, recovery wins over ordinary input classification: read `references/cross-model-execution.md`, use `resume --run-id <safe-id>` as the authoritative entrypoint, and return the normal Return-to-Caller envelope after reconciliation. Preserve the supplied `implementation_engine` binding when present. Do not resolve a different route, redispatch, reimplement, rerun completed verification, or start another caller tail.
 
@@ -252,10 +252,10 @@ When all Phase 2 tasks are complete and execution transitions to quality check, 
 ## Return-to-Caller Mode
 
 `mode:return-to-caller [implementation_engine:<compact-json>] [implementation_run:<safe-id>] <plan-path>` (legacy alias: `mode:caller-owned-tail`) is
-reserved for orchestrators such as `lfg` that own the post-implementation
-shipping gates (final simplify, code review, PR creation, and CI watching).
+reserved for pipeline runs where the post-implementation shipping gates
+(final simplify, code review, PR creation, and CI watching) run later in the run.
 In this mode `ce-work` performs implementation and local verification only —
-including mid-implementation Phase 2 "Simplify as You Go" — then returns a
+including mid-implementation Phase 2 "Simplify as You Go" — then records a
 structured summary instead of running the standalone shipping tail.
 
 Return:
@@ -285,9 +285,9 @@ Return `status: complete` only when behavior-bearing work has verification evide
 
 Engine selection (`references/execution-engines.md`) still applies in this mode,
 but only for implementation. In return-to-caller mode do not emit a copyable
-goal/workflow prompt — a manual paste step strands the caller; run
-inline/subagents or return a blocker instead. Any goal/workflow engine used here
-must not open a PR, run the owner workflow tail, or bypass the caller-owned
+goal/workflow prompt — a manual paste step stalls an unattended run; run
+inline/subagents or record a blocker instead. Any goal/workflow engine used here
+must not open a PR, run the owner workflow tail, or bypass the later
 gates.
 
 ## Key Principles

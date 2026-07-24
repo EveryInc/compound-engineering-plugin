@@ -108,4 +108,4 @@ The chat POV (the TL;DR) is the deliverable. Any implementation is outside this 
 - **Full write-up** → read `references/report.md` and follow it (HTML by default; opened locally or published via Proof / an available HTML tool). Opt-in; the default stays chat-only.
 - **"compound it"** → invoke `ce-compound` with `mode:headless`, seeding it with the structured POV and the fitting existing capture type (no schema change; headless avoids its interactive prompts). Never mandatory.
 
-**Warm invocations stay a guest:** output the POV block, hand control back, and offer none of the above unless the user asks — a mid-session interjection does not push a next-step or capture decision.
+**Warm invocations stay a guest:** output the POV block and offer none of the above unless the user asks — a mid-session interjection does not push a next-step or capture decision.

@@ -237,7 +237,7 @@ Restated: N (residual/deferred items suppressed as duplicates of actionable find
 Review complete
 ```
 
-Omit any section with zero items. When a root has dependents, render the root at its normal position in the severity-sorted list and nest its dependents as an indented `Dependents (...)` sub-block immediately below — never re-listed at their own severity position. End with "Review complete" as the terminal signal so callers can detect completion.
+Omit any section with zero items. When a root has dependents, render the root at its normal position in the severity-sorted list and nest its dependents as an indented `Dependents (...)` sub-block immediately below — never re-listed at their own severity position. End with `Review complete`.
 
 **Compact rendering (high-count mode).** When the combined count of FYI observations, residual concerns, and deferred questions is 5 or more, collapse each to a one-line count plus a tight bullet list with no per-item `Why`. Proposed fixes and Decisions stay fully rendered regardless. Same rule as interactive mode, so both modes produce the same shape.
 
@@ -286,7 +286,7 @@ These are pipeline artifacts and must not be flagged for removal.
 
 ## Phase 5: Next Action — Terminal Question
 
-**Headless mode:** Return "Review complete" immediately. Do not ask questions. The caller receives the text envelope from Phase 4 and handles any remaining findings.
+**Headless mode:** Emit `Review complete` immediately. Do not ask questions. The Phase 4 text envelope already carries any remaining findings. If this run is also executing a larger workflow, `Review complete` is a marker inside the run, not the end of it — continue with the next step straight after emitting it.
 
 **Interactive mode:** fire the terminal question using the platform's blocking question tool (in Claude Code, `AskUserQuestion`, already loaded by the pre-load step in `SKILL.md`). Fall back to numbered options in chat only when the harness has no such tool or the call errors; never silently skip the question. This question is distinct from the mid-flow routing question (`references/walkthrough.md`) — the routing question chooses *how* to engage with findings, this one chooses *what to do next* once engagement is complete. Do not merge them.
 
@@ -318,13 +318,13 @@ The `<next stage>` substitution uses the document classification from Phase 1. R
 
 **Label adaptation:** when no decisions are queued to apply, the primary option drops the `Apply decisions and` prefix — the label should match what the system is doing. `Apply decisions and proceed` when fixes are queued; `Proceed` when nothing is queued.
 
-**Caller-context handling (implicit):** the terminal question's "Proceed to <next stage>" option is interpreted contextually by the agent from the visible conversation state. When `ce-doc-review` is invoked from inside another skill's flow (e.g., `ce-brainstorm` Phase 4 re-review, `ce-plan` phase 5.3.8), the agent does not fire a nested `ce-plan` or `ce-work` dispatch — it returns control to the caller's flow which continues its own logic. When invoked standalone, "Proceed" dispatches the appropriate next skill. No explicit caller-hint argument is required; if this implicit handling proves unreliable in practice, an explicit `nested:true` flag can be added as a follow-up.
+**Caller-context handling (implicit):** the terminal question's "Proceed to <next stage>" option is interpreted contextually by the agent from the visible conversation state. When `ce-doc-review` is invoked from inside another skill's flow (e.g., `ce-brainstorm` Phase 4 re-review, `ce-plan` phase 5.3.8), the agent does not fire a nested `ce-plan` or `ce-work` dispatch — the surrounding flow simply continues its own logic in the same turn. When invoked standalone, "Proceed" dispatches the appropriate next skill. No explicit caller-hint argument is required; if this implicit handling proves unreliable in practice, an explicit `nested:true` flag can be added as a follow-up.
 
 ### Iteration
 
 On a subsequent pass, re-dispatch personas with the accumulated decision primer and re-synthesize: fixed findings self-suppress because their evidence is gone from the document, rejected re-raises are dropped by R29, and applied fixes are verified by R30. After 2 refinement passes, recommend completion — but allow more if the user wants them.
 
-Return "Review complete" as the terminal signal for callers, regardless of which option the user picked.
+End with `Review complete`, regardless of which option the user picked.
 
 ## What NOT to Do
 

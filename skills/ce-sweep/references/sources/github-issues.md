@@ -30,7 +30,7 @@ Once at run start, before any fetch, verify both capabilities:
 1. Read — `gh auth status` succeeds and `gh issue list` against the configured repo returns without an auth/transport error.
 2. Write — label-edit permission: a token with `repo` scope, or a dry probe of `gh issue edit` permission.
 
-- If GitHub tooling is not available or not authenticated for read, return exactly this sentence and stop:
+- If GitHub tooling is not available or not authenticated for read, return exactly this sentence and skip this source:
 
   GitHub tools unavailable — source skipped this run.
 

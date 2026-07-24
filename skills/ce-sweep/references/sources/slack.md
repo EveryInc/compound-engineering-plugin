@@ -28,7 +28,7 @@ Map every qualifying message since the cursor into the item schema above, then r
 
 Once at run start, before any fetch, verify both a Slack history/read tool and a reaction-add tool.
 
-- If read tools are not available, return exactly this sentence and stop:
+- If read tools are not available, return exactly this sentence and skip this source:
 
   Slack tools unavailable — source skipped this run.
 

@@ -125,4 +125,4 @@ Post-start fallback is a separate atomic gate. After authoritative failure, time
 
 ## Preserve tail ownership
 
-The engine changes only implementation authorship. A standalone invocation resumes `ce-work`'s quality and shipping workflow after local implementation. `mode:return-to-caller` returns implementation and local-verification receipts with `standalone_shipping_skipped: true`; it never runs simplify/review/PR/CI gates owned by the caller. External workers never inherit either tail.
+The engine changes only implementation authorship. A standalone invocation resumes `ce-work`'s quality and shipping workflow after local implementation. `mode:return-to-caller` records implementation and local-verification receipts with `standalone_shipping_skipped: true`; it never runs the simplify/review/PR/CI gates, which run later in the run. External workers never inherit either tail.

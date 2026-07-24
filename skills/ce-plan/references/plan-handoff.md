@@ -36,7 +36,7 @@ Capture the headless envelope so it can drive the contextual summary above the p
 
 When ce-doc-review returns "Review complete", proceed to Final Checks.
 
-**Pipeline mode:** Pipeline runs (LFG or any `disable-model-invocation` context) force `OUTPUT_FORMAT=md` at Phase 0.0, so the format gate above never selects the HTML skip path in pipeline mode. Pipeline runs invoke `ce-doc-review` with `mode:headless` and the plan path — the headless mode is identical to the interactive default at this phase. No further routing is offered in pipeline mode; the caller decides what to do with the returned findings. Address any P0/P1 findings before returning control to the caller. If the review could not start and ce-plan recorded the `skill_unreachable` envelope, return that envelope explicitly so the caller does not treat review as complete.
+**Pipeline mode:** Pipeline runs (LFG or any `disable-model-invocation` context) force `OUTPUT_FORMAT=md` at Phase 0.0, so the format gate above never selects the HTML skip path in pipeline mode. Pipeline runs invoke `ce-doc-review` with `mode:headless` and the plan path — the headless mode is identical to the interactive default at this phase. No further routing is offered in pipeline mode. Address any P0/P1 findings before continuing. If the review could not start and ce-plan recorded the `skill_unreachable` envelope, carry that envelope forward explicitly so the next stage does not treat review as complete.
 
 ## 5.3.9 Final Checks and Cleanup
 
@@ -53,7 +53,7 @@ After all mutations in this run have settled (initial write, deepening synthesis
 
 ## 5.4 Post-Generation Options
 
-**Pipeline mode:** If invoked from an automated workflow such as LFG or any `disable-model-invocation` context, skip the interactive menu below and return control to the caller immediately. The plan file has been written, the confidence check has run, and either `ce-doc-review` completed or ce-plan recorded `skill_unreachable` because the review could not start. Return the resulting review envelope to the caller (e.g., LFG), which determines the next step.
+**Pipeline mode:** If invoked from an automated workflow such as LFG or any `disable-model-invocation` context, skip the interactive menu below and continue immediately. The plan file has been written, the confidence check has run, and either `ce-doc-review` completed or ce-plan recorded `skill_unreachable` because the review could not start. Record the resulting review envelope; the next stage reads it to determine what follows.
 
 **Path format:** Use absolute paths for chat-output file references — relative paths are not auto-linked as clickable in most terminals.
 

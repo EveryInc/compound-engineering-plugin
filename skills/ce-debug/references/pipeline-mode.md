@@ -1,6 +1,6 @@
 # ce-debug — pipeline mode (non-interactive)
 
-Loaded when `ce-debug` is invoked with `mode:pipeline` by an orchestrator (`ce-babysit-pr`, `lfg`). The skill runs to completion without ever asking the user and returns a structured result the caller composes. The investigation rigor is unchanged — only the interaction and the fix-authority boundary change.
+Loaded when `ce-debug` is invoked with `mode:pipeline` by an orchestrator (`ce-babysit-pr`, `lfg`). The skill runs to completion without ever asking the user and records a structured result the next stage reads. The investigation rigor is unchanged — only the interaction and the fix-authority boundary change.
 
 ## Authority: you act under the orchestrator's inherited scope
 
@@ -10,9 +10,9 @@ Being invoked by an orchestrator is **not** itself authorization. You mutate und
 
 - **Phase 0 (triage):** If an issue fetch fails, do not ask the user to paste content — proceed with the input you have and note the gap in the return. Do not ask "what have you tried"; infer prior attempts from the input.
 - **Phase 2 (root cause + fix gate):** There is no "Fix it now / Diagnosis only" question. The caller invoked this skill to fix, so **fix by default — but only convergent fixes** (see the boundary below). A divergent fix is deferred, not applied.
-- **Phase 3 (workspace/branch):** Operate on the current branch — the orchestrator owns branch context; never prompt to create a branch, never prompt about uncommitted work. Commit the fix (`fix(ci): <summary>` for a CI failure, else `fix: <summary>`) and push. Never weaken, skip, or mock a failing assertion to make it pass — repair the real issue or defer.
+- **Phase 3 (workspace/branch):** Operate on the current branch; never prompt to create a branch, never prompt about uncommitted work. Commit the fix (`fix(ci): <summary>` for a CI failure, else `fix: <summary>`) and push. Never weaken, skip, or mock a failing assertion to make it pass — repair the real issue or defer.
 - **Phase 4 (handoff):** No prompt. Emit the structured return below. Skip the compound offer.
-- **Quality tail (simplify/review):** Skip in pipeline to bound cost and nesting depth; the orchestrator scopes review at its own level. Keep the Phase 3 tests.
+- **Quality tail (simplify/review):** Skip in pipeline to bound cost and nesting depth; review is scoped at the pipeline level instead. Keep the Phase 3 tests.
 
 ## The fix-authority boundary: convergent vs divergent
 
@@ -41,7 +41,7 @@ Never write a PR-body section. Never block. Surface it so the human sees it afte
 
 ## Structured return
 
-The skill's final output in pipeline mode is machine-readable (the caller parses it):
+The skill's final output in pipeline mode is machine-readable:
 
 ```json
 {

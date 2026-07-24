@@ -18,7 +18,7 @@ This workflow produces a durable implementation plan. It does **not** implement 
 
 Every normal interactive `ce-plan` branch that produces a plan artifact or checkpoint is incomplete until its owning handoff question is presented. For software implementation-plan runs that continue past Phase 0.1b, that boundary is Phase 5.4's post-generation handoff menu. Non-software plan-seeking and approach-altitude branches use the terminal handoff in the reference workflow they route to; do not force those branches through Phase 5.4 after they have been told to skip subsequent phases. Answer-seeking is the exception: it may end after delivering the answer unless the universal-planning reference says to offer save/share.
 
-For software implementation-plan runs, writing the plan file, running the confidence check, and running or skipping `ce-doc-review` are intermediate milestones, not completion. This remains true when the user's prompt says only "create a plan", "write the doc", "run `ce-doc-review`", or similar. The only exception is pipeline mode (LFG or any `disable-model-invocation` context), where the caller owns the next step after the plan file, confidence check, and headless document review are complete.
+For software implementation-plan runs, writing the plan file, running the confidence check, and running or skipping `ce-doc-review` are intermediate milestones, not completion. This remains true when the user's prompt says only "create a plan", "write the doc", "run `ce-doc-review`", or similar. The only exception is pipeline mode (LFG or any `disable-model-invocation` context), where the run continues into the pipeline's next stage after the plan file, confidence check, and headless document review are complete.
 
 Before any response that could end a software implementation-plan run, verify that the plan path is known, the headless review state or documented skip state is summarized, and the user has been asked: "Plan ready at `<absolute path to plan>`. What would you like to do next?" If the menu fits the platform's blocking-question tool, ask it there; otherwise render the numbered handoff options in chat and wait. If the user selects an action, execute the Phase 5.4 routing for that selection before treating the skill as complete.
 
@@ -35,7 +35,7 @@ When invoked from LFG or any `disable-model-invocation` context there is no sync
 - Resolve every question yourself — including scaffolded ones — by taking the recommended default, and record each choice as an explicit assumption in the plan.
 - `OUTPUT_FORMAT=md` is forced (Phase 0.0 step 5).
 - Skip the scoping-synthesis confirmations (Phase 0.7 / 5.1.5), the `ce-debug` route-out menu, the resume update-or-create prompt (default to in-place update of the referenced plan), and the Phase 5.4 closing menu. Route inferred scope to `## Assumptions` instead of asking.
-- Return control to the caller once the plan file is written, the confidence check has run, and `ce-doc-review` has run headless or the documented `skill_unreachable` envelope was recorded.
+- `ce-plan` is done once the plan file is written, the confidence check has run, and `ce-doc-review` has run headless or the documented `skill_unreachable` envelope was recorded.
 - One stop condition: research that invalidates a session-settled decision returns a blocked report instead of a plan (Phase 5.2).
 
 Questions that would normally block (Phase 0.5 product blockers, Phase 2 architecture questions, source-doc ambiguity) cannot be asked either: take the most defensible reading, record it as an explicit assumption, and carry anything still genuinely undecidable into the plan's Open Questions.
@@ -367,7 +367,7 @@ If Step 1.2 indicates external research is useful, dispatch by the **intent** cl
 - **Landscape / option-discovery** — `references/agents/web-researcher.md` with the focus hint and planning context summary. When the request targets projects on a code host (e.g., "competitors on GitHub"), name the discovery dimensions in the focus hint: project names and URLs, release recency and activity, CLI/UX shape, install path, docs and examples, plugin/extension surfaces, recurring issue themes, and license — treating star counts as a weak signal only.
 - **Mixed** — **sequential, not parallel**: run the `web-researcher` local prompt first to map the landscape and produce a shortlist; then run the `framework-docs-researcher` and/or `best-practices-researcher` local prompts against the shortlisted technologies only when their details materially shape the plan.
 
-**Tool-unavailable handling.** `web-researcher` self-checks for web tools and stops if they are missing. Never block on this: if it reports research unavailable, or any researcher fails, warn and proceed, and carry the gap into Phase 1.4 so the plan records it honestly — especially when the user explicitly requested external research, where a silent skip would leave the plan looking evidence-based when it is not.
+**Tool-unavailable handling.** `web-researcher` self-checks for web tools and reports unavailability if they are missing. Never block on this: if it reports research unavailable, or any researcher fails, warn and proceed, and carry the gap into Phase 1.4 so the plan records it honestly — especially when the user explicitly requested external research, where a silent skip would leave the plan looking evidence-based when it is not.
 
 #### 1.4 Consolidate Research
 
@@ -706,7 +706,7 @@ If the user types free-form prompts targeting the findings (e.g., "review", "wal
 - Confidence check ran or was intentionally skipped by the interactive re-deepen no-accepted-findings path
 - `ce-doc-review` ran in headless mode, or the documented HTML format gate / `skill_unreachable` state / interactive re-deepen no-accepted-findings path skipped it
 - Headless review state or documented skip state was summarized above the menu
-- Phase 5.4 menu was presented for software implementation-plan runs, even if the user only asked to create the plan or run doc review, unless pipeline mode returned control to the caller
+- Phase 5.4 menu was presented for software implementation-plan runs, even if the user only asked to create the plan or run doc review, unless the run is in pipeline mode
 - If the user selected an action, the selected routing was executed
 
 **Completion check:** This skill is not complete until the post-generation menu above has been presented, the user has selected an action, and the inline routing for that selection has been executed. Presenting the menu and stopping at the user's selection is not completion — fire the routed action.
@@ -715,4 +715,4 @@ Incorrect final response: "Created the plan and ran doc review."
 
 Correct terminal handoff: "Created the plan and ran doc review. Plan ready at `<absolute path to plan>`. What would you like to do next?" followed by the numbered handoff options or the platform's blocking question.
 
-**Pipeline mode exception:** In LFG or any `disable-model-invocation` context, skip the interactive menu and return control to the caller after the plan file is written, confidence check has run, and `ce-doc-review` has run in headless mode or `ce-plan` has recorded the documented `skill_unreachable` envelope (per `references/plan-handoff.md`). Pipeline mode forces `OUTPUT_FORMAT=md` at Phase 0.0, so the 5.3.8 format gate never selects the HTML skip path in pipeline runs.
+**Pipeline mode exception:** In LFG or any `disable-model-invocation` context, skip the interactive menu and continue to the pipeline's next stage after the plan file is written, confidence check has run, and `ce-doc-review` has run in headless mode or `ce-plan` has recorded the documented `skill_unreachable` envelope (per `references/plan-handoff.md`). Pipeline mode forces `OUTPUT_FORMAT=md` at Phase 0.0, so the 5.3.8 format gate never selects the HTML skip path in pipeline runs.

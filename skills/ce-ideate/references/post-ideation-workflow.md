@@ -137,7 +137,7 @@ The file is already written, so there is no save step.
 - **Inside a git repo:** offer to commit only the ideation doc (do not create a branch, do not push; if the user declines, leave it uncommitted).
 - **Temp-area or non-repo file:** skip the commit offer.
 
-Then narrate the path and end the session — do not return to the menu.
+Then narrate the path — do not return to the menu.
 
 ### 5.5 Discard (free text)
 

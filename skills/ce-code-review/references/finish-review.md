@@ -53,7 +53,7 @@ Independent verification remains required for findings that lack cross-model cor
 
 ### Stage 5c: Act on findings (explicit local apply only)
 
-**Skip unless local apply was explicitly authorized.** A bare `ce-code-review` invocation is report-only and does not apply findings. Authorization exists only when `apply:local` was passed or the invoking user prompt explicitly asked this review to apply/fix its findings. Do not infer authority from `autofix_class`, a clean tree, an actionable finding, or the fact that another workflow may apply later. `mode:agent` does not apply fixes and conflicts with `apply:local`; the pipeline caller owns any later mutation.
+**Skip unless local apply was explicitly authorized.** A bare `ce-code-review` invocation is report-only and does not apply findings. Authorization exists only when `apply:local` was passed or the invoking user prompt explicitly asked this review to apply/fix its findings. Do not infer authority from `autofix_class`, a clean tree, an actionable finding, or the fact that another workflow may apply later. `mode:agent` does not apply fixes and conflicts with `apply:local`; any later mutation happens outside this review.
 
 `apply:local` is authority, not an output mode: presentation remains markdown and reviewer selection is unchanged.
 
@@ -127,11 +127,11 @@ Assemble the final report. **Default:** human-readable markdown. **`mode:agent`:
 
 Do not include time estimates.
 
-After the final artifact write returns, emit the final response immediately. The artifact write is the last tool call; never use `true`, `echo`, a placeholder transition, or any other tool call to create another turn before the final response.
+After the final artifact write returns, compose the review output immediately. Never insert `true`, `echo`, or any other placeholder tool call between the artifact write and the output.
 
 ### JSON output format (`mode:agent` only)
 
-Emit **one raw JSON object** as the primary response — a single bare JSON value, **no markdown code fence**. A leading ```` ```json ```` fence makes the response start with backticks and breaks naive `JSON.parse` consumers, so never wrap it. Also write `review.json` under the resolved `<run-dir>` with the same payload.
+Emit the JSON object unfenced — **no markdown code fence**. A leading ```` ```json ```` fence makes the response start with backticks and breaks naive `JSON.parse` consumers, so never wrap it. Also write `review.json` under the resolved `<run-dir>` with the same payload; that file is the deterministic artifact for programmatic consumers, so the reply is not the only channel. When this same run is also executing a larger workflow, the JSON is a step output rather than a final answer — continue with the next step immediately after it.
 
 `mode:agent` does not apply fixes — the caller does — so there is no `applied_fixes` field; the handoff is `actionable_findings`. Applied work surfaces only in explicitly authorized local-apply markdown runs (Stage 5c/6).
 

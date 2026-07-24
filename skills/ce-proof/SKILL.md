@@ -264,7 +264,7 @@ OWNER_SECRET=$(echo "$RESPONSE" | jq -r '.ownerSecret')   # required for owner d
 echo "$URL"
 ```
 
-After publish handoffs from planning workflows, surface the URL and return control — do not delete the doc automatically.
+After publish handoffs from planning workflows, surface the URL — do not delete the doc automatically.
 
 When the user later asks to clean up an unclaimed doc you created:
 

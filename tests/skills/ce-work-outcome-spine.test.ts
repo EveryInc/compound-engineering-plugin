@@ -234,13 +234,14 @@ describe("ce-work cross-model engine contract", () => {
   test("keeps external dispatch policy out of the implementation-worker persona", async () => {
     const worker = await readRepoFile("skills/ce-work/references/agents/implementation-worker.md")
 
-    expect(worker).toContain("caller, unit packet, and controller own dispatch")
+    expect(worker).toContain("Dispatch is decided outside this unit")
+    expect(worker).toContain("this persona owns only bounded implementation")
     expect(worker).toContain("Implement exactly the supplied implementation unit")
     expect(worker).toContain("Before returning `completed`")
     expect(worker).toContain("complete Git delta")
     expect(worker).toContain("disposable artifacts created by your own checks")
     expect(worker).toContain("every remaining changed path")
-    for (const dispatchPolicy of ["recipient", "model", "harness", "intermediary", "retry", "route", "additional workers"]) {
+    for (const dispatchPolicy of ["caller", "recipient", "model", "harness", "intermediary", "retry", "route", "additional workers"]) {
       expect(worker.toLowerCase()).not.toContain(dispatchPolicy)
     }
   })

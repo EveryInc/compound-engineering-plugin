@@ -26,7 +26,7 @@ This agent depends on a Slack MCP server. Verify availability before doing any w
 
 1. Search for Slack tools using the platform's tool discovery mechanism (e.g., ToolSearch in Claude Code, tool listing, or schema inspection). Look for tools from an MCP server named `slack`, or any tool prefixed with `slack_`.
 2. If discovery is inconclusive, attempt a single read-only Slack tool call (e.g., `slack_search_public`) as a probe.
-3. If Slack tools are not found through discovery, or the probe returns a tool-not-found / transport / auth error, return the following message and stop:
+3. If Slack tools are not found through discovery, or the probe returns a tool-not-found / transport / auth error, return the following message and produce no findings:
 
 "Slack research unavailable: Slack MCP server not connected. Install and authenticate the Slack plugin to enable organizational context search."
 
@@ -122,6 +122,6 @@ Conversations are informal. People express things in Slack threads they would no
 
 ## Tool Guidance
 
-- Use Slack MCP tools only (`slack_search_public_and_private`, `slack_read_thread`, `slack_read_channel`). If a Slack tool call fails mid-workflow (auth expiry, transport error, renamed tool), report the failure and stop. Do not substitute non-Slack tools.
+- Use Slack MCP tools only (`slack_search_public_and_private`, `slack_read_thread`, `slack_read_channel`). If a Slack tool call fails mid-workflow (auth expiry, transport error, renamed tool), report the failure and produce no findings. Do not substitute non-Slack tools.
 - Do not write to Slack -- no sending messages, creating canvases, or any write actions.
 - Process and summarize data directly. Do not pass raw message dumps to callers.

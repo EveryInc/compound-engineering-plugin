@@ -29,7 +29,7 @@ Map every qualifying feedback email since the cursor into the item schema above,
 
 Once at run start, before any fetch, discover whether an email read tool or MCP is connected.
 
-- If no email read tool is available, return exactly this sentence and stop:
+- If no email read tool is available, return exactly this sentence and skip this source:
 
   Email tools unavailable — source skipped this run.
 

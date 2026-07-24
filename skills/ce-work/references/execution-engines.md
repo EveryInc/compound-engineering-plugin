@@ -113,12 +113,12 @@ Read `cross-model-execution.md` only after routing selects this engine. Resolve 
 
 ### Goal-mode and dynamic-workflow
 
-**With a callable goal tool (Codex `create_goal`):** call `create_goal` with the objective — the content of the copyable prompt below, minus the leading `/goal`. This activates the objective and the **current session** works toward it; there is no separate worker and no envelope to await, so the session continues to its tail (Step 4) and the goal lifecycle marks completion. **The skill does not call `update_goal`** — the working session does that itself. **Use `create_goal` only in standalone use, never in return-to-caller mode** — return-to-caller requires `ce-work` to return control to the caller, but `create_goal` would keep the session pursuing the objective instead of returning; run inline/subagents there.
+**With a callable goal tool (Codex `create_goal`):** call `create_goal` with the objective — the content of the copyable prompt below, minus the leading `/goal`. This activates the objective and the **current session** works toward it; there is no separate worker and no envelope to await, so the session continues to its tail (Step 4) and the goal lifecycle marks completion. **The skill does not call `update_goal`** — the working session does that itself. **Use `create_goal` only in standalone use, never in return-to-caller mode** — return-to-caller requires `ce-work` to record its envelope and stay within its own step, but `create_goal` would redirect the whole session to the objective and skip the envelope; run inline/subagents there.
 
 **No callable goal tool, or dynamic-workflow (Claude Code today):** do **not** attempt to invoke them. Instead:
 
 - **Standalone interactive use:** print a copyable prompt block for the user to paste, then continue inline/subagents if the user does not paste it. Do not stall waiting for a paste.
-- **Return-to-caller use (e.g. under `lfg`):** do **not** emit a copyable prompt — a manual paste step strands the caller. Run inline/subagents instead, or return a blocker if the plan genuinely requires an unavailable engine.
+- **Return-to-caller use (e.g. under `lfg`):** do **not** emit a copyable prompt — a manual paste step stalls an unattended run. Run inline/subagents instead, or return a blocker if the plan genuinely requires an unavailable engine.
 
 Whichever path, the goal/workflow must not open a PR, finalize the session, or bypass the owning workflow's gates.
 
@@ -151,7 +151,7 @@ After any engine finishes implementation, inspect the diff and continue at the t
 | Mode | After implementation, `ce-work` ... |
 |---|---|
 | **Standalone** (user invoked `ce-work` directly, or `ce-plan` handed off interactively) | Resumes its normal post-implementation tail — Phase 3-4 quality gates, simplification, review, commit, and handoff in `references/shipping-workflow.md`. A goal-mode run does not skip these; verify they ran or were explicitly skipped with reason. |
-| **Return-to-caller** (`mode:return-to-caller`, e.g. under `lfg`) | Performs implementation and local verification only, then returns the structured summary in `SKILL.md` § Return-to-Caller Mode (`standalone_shipping_skipped: true`). Does not run simplify/review/PR/CI — the caller owns those. |
+| **Return-to-caller** (`mode:return-to-caller`, e.g. under `lfg`) | Performs implementation and local verification only, then records the structured summary in `SKILL.md` § Return-to-Caller Mode (`standalone_shipping_skipped: true`). Does not run simplify/review/PR/CI — those run later in the run. |
 
 Using goal-mode or a dynamic workflow is a way to get better sustained implementation focus, not a way to skip the owning workflow's finish discipline.
 

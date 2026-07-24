@@ -322,7 +322,10 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(gate).toBeLessThan(feedback)
     expect(gateBlock).toMatch(/atomicity cannot be proven[^.]{0,160}true stop[^.]{0,120}every mode/i)
     expect(gateBlock).toContain("do not invoke a delegate, run another tick, or arm/re-arm a watcher")
-    expect(gateBlock).toMatch(/interactive\/self-sustaining[^.]{0,120}hands control back[^.]{0,160}pipeline mode[^.]{0,120}terminates/i)
+    // The gate is a designed halt, not a hand-off: both modes must stop in place, in this order.
+    // There is no caller frame to hand back to — an in-session skill is the same model, same turn.
+    expect(gateBlock).toMatch(/interactive\/self-sustaining[^.]{0,120}watch ends[^.]{0,160}pipeline mode[^.]{0,120}terminates/i)
+    expect(gateBlock).not.toMatch(/hands? control back|returns? control/i)
     expect(gateBlock).toMatch(/normally bare[\s\S]{0,220}current branch no longer identifies that PR/i)
   })
 

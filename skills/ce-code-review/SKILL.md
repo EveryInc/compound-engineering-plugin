@@ -423,7 +423,7 @@ After Stage 6 **in default mode**, emit a compact **Actionable Findings** summar
 - Include the resolved run-artifact path when one was written.
 - When the actionable queue is empty, state `Actionable findings: none.` explicitly.
 
-In `mode:agent` do **not** emit this markdown summary — the actionable findings are carried solely by the `actionable_findings` field of the JSON object. Emit nothing after the JSON object, so the response stays a single parseable JSON value.
+In `mode:agent` do **not** emit this markdown summary — the actionable findings are carried solely by the `actionable_findings` field of the JSON object. Keep the JSON object a single parseable value and do not interleave prose into it.
 
 Do not run post-review triage (no per-finding walk-through, bulk ticket filing, or routing questions). The report and summary are the complete handoff.
 
