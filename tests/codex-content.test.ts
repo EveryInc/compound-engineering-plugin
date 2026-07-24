@@ -243,6 +243,12 @@ describe("transformContentForCodex", () => {
       ).toBe("Run https://example.com/path")
     })
 
+    test("leaves slash-prefixed routes inside URL queries and fragments untouched", () => {
+      const line =
+        "See https://example.com/#/ce-plan or https://example.com?next=/unknown-cmd"
+      expect(transformContentForCodex(line, emptyTargets)).toBe(line)
+    })
+
     test("ignores slashes preceded by a word character", () => {
       expect(
         transformContentForCodex("paths like a/b and foo/bar", emptyTargets),
@@ -435,6 +441,17 @@ describe("transformContentForCodex", () => {
       }
       expect(transformContentForCodex("@security-reviewer2", targets)).toBe(
         "@security-reviewer2",
+      )
+    })
+
+    test("leaves agent-like tokens with a trailing underscore unchanged", () => {
+      const targets: CodexInvocationTargets = {
+        promptTargets: {},
+        skillTargets: {},
+        agentTargets: { "security-reviewer": "security-reviewer" },
+      }
+      expect(transformContentForCodex("@security-reviewer_helper", targets)).toBe(
+        "@security-reviewer_helper",
       )
     })
 

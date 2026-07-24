@@ -58,7 +58,7 @@ export function transformContentForCodex(
     return agentTarget ? `custom agent \`${agentTarget}\`` : match
   })
 
-  const slashCommandPattern = /(?<![:\w>}\]\)\/])\/([a-z][a-z0-9_:-]*?)(?=[\s,."')\]}`]|$)/gi
+  const slashCommandPattern = /(?<![:\w>}\]\)\/#?=])\/([a-z][a-z0-9_:-]*?)(?=[\s,."')\]}`]|$)/gi
   result = result.replace(slashCommandPattern, (match, commandName: string) => {
     if (isReservedPathRoot(commandName)) return match
 
@@ -79,7 +79,7 @@ export function transformContentForCodex(
     .replace(/~\/\.claude\//g, "~/.codex/")
     .replace(/\.claude\//g, ".codex/")
 
-  const agentRefPattern = /(?<!\w)@([a-z][a-z0-9-]*-(?:agent|reviewer|researcher|analyst|specialist|oracle|sentinel|guardian|strategist))(?![a-z0-9-])/gi
+  const agentRefPattern = /(?<!\w)@([a-z][a-z0-9-]*-(?:agent|reviewer|researcher|analyst|specialist|oracle|sentinel|guardian|strategist))(?![\w-])/gi
   result = result.replace(agentRefPattern, (_match, agentName: string) => {
     const agentTarget = resolveAgentTarget(agentName, agentTargets)
     if (agentTarget) return `custom agent \`${agentTarget}\``
