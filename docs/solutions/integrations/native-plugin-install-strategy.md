@@ -31,7 +31,7 @@ tags:
 
 # Native Plugin Install Strategy
 
-Last verified: 2026-06-20
+Document-wide strategy last verified: 2026-06-20. Kilo installation and discovery last verified: 2026-07-24.
 
 Compound Engineering now treats the plugin as a self-contained skills package. Specialist reviewer and researcher behavior lives in skill-local prompt assets under `references/agents/` or `references/personas/`, and skills seed generic subagents with those files when the current harness exposes a subagent primitive. There are no formal standalone CE agents in the plugin surface.
 
