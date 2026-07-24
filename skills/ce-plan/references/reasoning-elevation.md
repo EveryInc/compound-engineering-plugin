@@ -77,9 +77,21 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
 
 `CE_PEER_HARD_SECS` (the outer runner cap) and `CE_ELEVATION_HARD_SECS` (the worker's own inner cap) are set to the **same** raised backstop well above any legitimate run (R11) — keep them equal so the inner cap never reaps a healthy run before the outer one. `CE_PEER_LOG_MAX_BYTES` is raised for the streaming route so a healthy high-volume run is not reaped as a failure (R22). `start` returns a job id in under ~2s.
 
-3. **Poll** with `"$PY" "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 "<job-id>"` between your other work, until terminal.
+3. **Poll** between your other work until terminal (resolve `$PY` again — each tool call is a fresh shell):
 
-4. **Read the result** via `"$PY" "$SKILL_DIR/scripts/peer-job-runner.py" result "<job-id>"` — the worker's envelope `{status, requested_model, served_model, receipt, output}`.
+   ```bash
+   SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read — this skill's own directory>";
+   PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+   "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 "<job-id>"
+   ```
+
+4. **Read the result** — the worker's envelope `{status, requested_model, served_model, receipt, output}`:
+
+   ```bash
+   SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read — this skill's own directory>";
+   PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+   "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" result "<job-id>"
+   ```
 
 The worker streams `--output-format stream-json --verbose`, so progress events reset its idle window; a genuinely stalled model stops growing the log and is reaped while a productive long run continues.
 
