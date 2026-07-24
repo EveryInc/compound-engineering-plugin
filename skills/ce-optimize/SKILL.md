@@ -20,7 +20,7 @@ If no optimization input was provided, ask: "What would you like to optimize? De
 
 ## Artifact Root
 
-This skill reads learnings under `<root>/solutions/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it (a run that writes no artifact never needs a root); pass the resolved path to any subagent, not the config.
+This skill reads learnings under `<root>/solutions/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it (a run that composes no `<root>/` path -- including a read-only scan of `<root>/solutions/` -- never needs a root); pass the resolved path to any subagent, not the config.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**

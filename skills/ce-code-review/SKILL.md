@@ -173,13 +173,13 @@ A full review always spawns correctness, adds project-standards when applicable 
 
 ## Protected Artifacts
 
-Compound-engineering pipeline artifacts must never be flagged for deletion, removal, or gitignore by any reviewer. A protected artifact is a file **directly inside the artifact root's** subdirectory below, where the artifact root is `docs` by default or the configured `docs_root`. Anchor the match to that root — not a bare segment and not a `<root>/`-prefixed path — so protection holds whether the root was resolved this run or not, and a same-named directory that is not a child of the artifact root (e.g. a skill's own `references/personas/` prompt assets) stays ordinary code:
+Compound-engineering pipeline artifacts must never be flagged for deletion, removal, or gitignore by any reviewer. A protected artifact is any file **under** a `plans/`, `solutions/`, or legacy `brainstorms/` directory **whose immediate parent is the artifact root** — a directory named `docs` (the default, and where unmigrated legacy artifacts stay even after a project sets `docs_root`) or the configured `docs_root` when this run resolved it:
 
-- the artifact root's `plans/` -- unified plan artifacts created by ce-brainstorm or ce-plan (decision artifacts; execution progress is derived from git, not stored in plan bodies)
-- the artifact root's `solutions/` -- solution documents created during the pipeline
+- `plans/` under the artifact root -- unified plan artifacts created by ce-brainstorm or ce-plan (decision artifacts; execution progress is derived from git, not stored in plan bodies)
+- `solutions/` under the artifact root -- solution documents created during the pipeline (categories nest, e.g. `solutions/<category>/foo.md`)
 - the legacy `brainstorms/` -- requirements documents created by older ce-brainstorm versions
 
-If a reviewer flags any such file for cleanup or removal, discard that finding during synthesis.
+Matching by the immediate parent covers nested category files while leaving a same-named directory elsewhere — a skill's own `references/personas/` prompt assets, parented by `references` — as ordinary code whose deletion finding stands. A run that never resolved a configured root still protects the `docs`-parented tree; a configured-root artifact seen by such a run is the one honest gap. Discard any such file's cleanup or removal finding during synthesis.
 
 ## Plan Requirements Completeness
 

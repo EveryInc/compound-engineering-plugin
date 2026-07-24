@@ -40,7 +40,7 @@ Apply a **15-minute trailing buffer** to the window's upper bound. Many analytic
 
 ## Artifact Root
 
-This skill writes pulse reports under `<root>/pulse-reports/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it (a run that writes no artifact never needs a root).
+This skill writes pulse reports under `<root>/pulse-reports/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it (a run that composes no `<root>/` path -- including a read-only scan of `<root>/solutions/` -- never needs a root).
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**
