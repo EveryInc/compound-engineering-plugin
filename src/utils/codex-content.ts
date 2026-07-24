@@ -58,9 +58,8 @@ export function transformContentForCodex(
     return agentTarget ? `custom agent \`${agentTarget}\`` : match
   })
 
-  const slashCommandPattern = /(?<![:\w>}\]\)])\/([a-z][a-z0-9_:-]*?)(?=[\s,."')\]}`]|$)/gi
+  const slashCommandPattern = /(?<![:\w>}\]\)\/])\/([a-z][a-z0-9_:-]*?)(?=[\s,."')\]}`]|$)/gi
   result = result.replace(slashCommandPattern, (match, commandName: string) => {
-    if (commandName.includes("/")) return match
     if (isReservedPathRoot(commandName)) return match
 
     const normalizedName = normalizeCodexName(commandName)
