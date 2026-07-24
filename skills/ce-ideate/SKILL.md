@@ -99,7 +99,7 @@ The `output:` preference does NOT auto-propagate to `ce-brainstorm` on handoff (
 
 #### 0.1 Check for Recent Ideation Work
 
-Look in `<root>/ideation/` for ideation documents (`*.md` or `*.html`) created within the last 30 days.
+Look in `<root>/ideation/` for ideation documents (`*.md` or `*.html`) created within the last 30 days. This is a repo-mode convenience: if there is no git repository, or resolving `<root>` fails (a bad `docs_root`), skip this scan and continue — do not fail the run before Phase 0.3 classifies repo vs elsewhere/no-repo mode, since an elsewhere or non-software ideation run writes to a temp area and never touches `<root>/ideation/`.
 
 Treat a prior ideation doc as relevant when:
 
