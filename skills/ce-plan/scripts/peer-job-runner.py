@@ -313,6 +313,11 @@ if IS_WINDOWS:
     _PROCESS_TERMINATE = 0x0001
     _PROCESS_SET_QUOTA = 0x0100
     _TH32CS_SNAPPROCESS = 0x00000002
+    _TH32CS_SNAPTHREAD = 0x00000004
+    _THREAD_SUSPEND_RESUME = 0x0002
+    # CreateProcess CREATE_SUSPENDED: primary thread starts frozen so we can
+    # AssignProcessToJobObject before any user code (or child spawn) runs.
+    _CREATE_SUSPENDED = 0x00000004
 
     class _PROCESSENTRY32W(ctypes.Structure):
         _fields_ = [
@@ -328,6 +333,17 @@ if IS_WINDOWS:
             ("szExeFile", ctypes.c_wchar * 260),
         ]
 
+    class _THREADENTRY32(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ThreadID", wintypes.DWORD),
+            ("th32OwnerProcessID", wintypes.DWORD),
+            ("tpBasePri", ctypes.c_long),
+            ("tpDeltaPri", ctypes.c_long),
+            ("dwFlags", wintypes.DWORD),
+        ]
+
     _kernel32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
     _kernel32.CreateToolhelp32Snapshot.restype = ctypes.c_void_p
     _kernel32.Process32FirstW.argtypes = [
@@ -336,6 +352,17 @@ if IS_WINDOWS:
     _kernel32.Process32NextW.argtypes = [
         ctypes.c_void_p, ctypes.POINTER(_PROCESSENTRY32W)]
     _kernel32.Process32NextW.restype = wintypes.BOOL
+    _kernel32.Thread32First.argtypes = [
+        ctypes.c_void_p, ctypes.POINTER(_THREADENTRY32)]
+    _kernel32.Thread32First.restype = wintypes.BOOL
+    _kernel32.Thread32Next.argtypes = [
+        ctypes.c_void_p, ctypes.POINTER(_THREADENTRY32)]
+    _kernel32.Thread32Next.restype = wintypes.BOOL
+    _kernel32.OpenThread.argtypes = [
+        wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    _kernel32.OpenThread.restype = wintypes.HANDLE
+    _kernel32.ResumeThread.argtypes = [wintypes.HANDLE]
+    _kernel32.ResumeThread.restype = wintypes.DWORD
     _kernel32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
     _kernel32.TerminateProcess.restype = wintypes.BOOL
 
@@ -398,6 +425,35 @@ if IS_WINDOWS:
             return bool(_kernel32.AssignProcessToJobObject(job_handle, proc))
         finally:
             _kernel32.CloseHandle(proc)
+
+    def _win_resume_process(pid: int) -> bool:
+        """Resume every thread of a CREATE_SUSPENDED process. subprocess.Popen
+        does not expose hThread from PROCESS_INFORMATION, so walk the thread
+        snapshot. CREATE_SUSPENDED only freezes the primary thread; resuming
+        all owned threads is still correct and idempotent for running ones."""
+        snap = _kernel32.CreateToolhelp32Snapshot(_TH32CS_SNAPTHREAD, 0)
+        if not snap or snap == ctypes.c_void_p(-1).value:
+            return False
+        resumed = False
+        try:
+            entry = _THREADENTRY32()
+            entry.dwSize = ctypes.sizeof(_THREADENTRY32)
+            more = _kernel32.Thread32First(snap, ctypes.byref(entry))
+            while more:
+                if entry.th32OwnerProcessID == pid:
+                    handle = _kernel32.OpenThread(
+                        _THREAD_SUSPEND_RESUME, False, entry.th32ThreadID)
+                    if handle:
+                        try:
+                            # (DWORD)-1 == failure; 0xFFFFFFFF as unsigned.
+                            if _kernel32.ResumeThread(handle) != 0xFFFFFFFF:
+                                resumed = True
+                        finally:
+                            _kernel32.CloseHandle(handle)
+                more = _kernel32.Thread32Next(snap, ctypes.byref(entry))
+        finally:
+            _kernel32.CloseHandle(ctypes.c_void_p(snap))
+        return resumed
 
     def _win_terminate_job(name: str) -> bool:
         """Terminate every process in the named job, whatever the tree shape.
@@ -550,8 +606,12 @@ if IS_WINDOWS:
         which is exactly the dead-leader case, hence deepest-first descendants
         BEFORE the leader, and never gated on leader liveness."""
         alive = _win_pid_alive(root_pid)
-        if job_name and _win_terminate_job(job_name):
-            return alive
+        if job_name:
+            _win_terminate_job(job_name)
+        # Always Toolhelp-sweep after (or without) the job terminate: children
+        # that raced outside the job before AssignProcessToJobObject completed
+        # are not members, and TerminateJobObject alone would leave them.
+        # CREATE_SUSPENDED closes that spawn race; this remains the belt.
         for pid in _win_descendants_deepest_first(root_pid):
             _win_terminate_pid(pid)
         if alive:
@@ -1042,7 +1102,14 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
             job_handle = _win_create_job(job_name)
         devnull = os.open(os.devnull, os.O_RDONLY)
         try:
-            worker_env = {**os.environ, "CE_PEER_JOB_ID": os.path.basename(job_dir)}
+            # Export the interpreter running this supervisor so Windows workers
+            # (and any adapter that honors it) do not re-resolve to the Store
+            # python3 stub — see resolve-python convention / #1247.
+            worker_env = {
+                **os.environ,
+                "CE_PEER_JOB_ID": os.path.basename(job_dir),
+                "CE_PEER_PYTHON": sys.executable,
+            }
             popen_kwargs = dict(
                 stdin=devnull,
                 stdout=log_fd,
@@ -1052,14 +1119,18 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
             )
             if IS_WINDOWS:
                 # New process group so the worker's own tree is isolated; reap =
-                # taskkill /T on the worker pid (there is no killpg on Windows).
+                # job terminate + Toolhelp walk (there is no killpg on Windows).
                 # CREATE_NO_WINDOW because the supervisor is console-less, so
                 # without it Windows allocates a NEW console per worker and the
                 # user sees a window flash for every job. (It is mutually
                 # exclusive with DETACHED_PROCESS, which is why the supervisor
                 # itself uses DETACHED_PROCESS and only the worker uses this.)
+                # CREATE_SUSPENDED: assign to the Job Object before any worker
+                # code runs, so early child spawns inherit membership.
                 popen_kwargs["creationflags"] = (
-                    subprocess.CREATE_NEW_PROCESS_GROUP | _WIN_NO_WINDOW)
+                    subprocess.CREATE_NEW_PROCESS_GROUP
+                    | _WIN_NO_WINDOW
+                    | _CREATE_SUSPENDED)
             else:
                 popen_kwargs["start_new_session"] = True  # worker leads its own group
             # Wrap bare *.sh on Windows at spawn time only — meta still has the
@@ -1072,14 +1143,19 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
             "worker_pid": proc.pid,
         }
         if IS_WINDOWS:
-            # Record the job only once the worker is actually a member, so a
-            # later reap never trusts a name that owns nothing. If assignment
-            # fails (job creation denied, or a nested-job restriction), leave
-            # it unset and let teardown fall back to taskkill.
+            # Assign while still suspended, then resume. Record the job only
+            # once the worker is actually a member, so a later reap never trusts
+            # a name that owns nothing. If assignment fails (job creation denied,
+            # or a nested-job restriction), leave it unset and let teardown fall
+            # back to the Toolhelp walk.
             if job_handle is not None and _win_assign_to_job(job_handle, proc.pid):
                 pid_doc["job_name"] = job_name
             else:
                 job_name = None
+            if not _win_resume_process(proc.pid):
+                raise RunnerError(
+                    f"could not resume suspended Windows worker pid {proc.pid}"
+                )
         else:
             # pgid drives POSIX group kills; Windows reaps by job object.
             pid_doc["supervisor_pgid"] = os.getpgid(0)
