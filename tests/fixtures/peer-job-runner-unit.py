@@ -309,6 +309,40 @@ class ReapMarkerBranch(unittest.TestCase):
             self.assertLess(time.monotonic() - start, 1.0)
 
 
+class PopenArgvBranch(unittest.TestCase):
+    """Windows CreateProcess cannot honor shebang; bare *.sh must go through
+    bash/sh at spawn time. meta.json still records the caller argv."""
+
+    def test_posix_passthrough(self):
+        argv = ["/tmp/cross-model-work.sh", "a", "b"]
+        with mock.patch.object(MOD, "IS_WINDOWS", False):
+            self.assertEqual(MOD._popen_argv(argv), argv)
+
+    def test_windows_wraps_bare_shell_script(self):
+        argv = [r"C:\skills\ce-work\scripts\cross-model-work.sh", "a", "b"]
+        with mock.patch.object(MOD, "IS_WINDOWS", True):
+            with mock.patch.object(MOD.shutil, "which", side_effect=lambda n: {
+                "bash": r"C:\Git\bin\bash.exe",
+                "sh": None,
+            }.get(n)):
+                self.assertEqual(
+                    MOD._popen_argv(argv),
+                    [r"C:\Git\bin\bash.exe"] + argv,
+                )
+
+    def test_windows_leaves_explicit_bash_prefix(self):
+        argv = ["bash", "/tmp/cross-model-adversarial-review.sh", "x"]
+        with mock.patch.object(MOD, "IS_WINDOWS", True):
+            self.assertEqual(MOD._popen_argv(argv), argv)
+
+    def test_windows_missing_shell_raises(self):
+        argv = [r"C:\skills\ce-work\scripts\cross-model-work.sh"]
+        with mock.patch.object(MOD, "IS_WINDOWS", True):
+            with mock.patch.object(MOD.shutil, "which", return_value=None):
+                with self.assertRaises(MOD.RunnerError):
+                    MOD._popen_argv(argv)
+
+
 class BinaryRoundTrip(unittest.TestCase):
     """Windows CPython opens os.open() descriptors in CRT *text* mode: writes
     expand \\n -> \\r\\n and reads stop at the first 0x1A (Ctrl-Z EOF), which

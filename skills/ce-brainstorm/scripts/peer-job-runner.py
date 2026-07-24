@@ -968,6 +968,33 @@ def _interruptible_sleep(secs: float, flag: dict, job_dir: str) -> None:
         time.sleep(min(0.1, max(0.01, end - time.monotonic())))
 
 
+def _popen_argv(argv):
+    """Argv for subprocess.Popen.
+
+    On Windows, CreateProcess does not honor shebang, so a bare *.sh / *.bash
+    worker must be launched through bash/sh. meta.json still records the
+    caller argv so authorize-dispatch contracts that forbid a shell prefix
+    stay exact. Already-prefixed workers (review skills use `bash script.sh`)
+    are left alone.
+    """
+    if not IS_WINDOWS or not argv:
+        return list(argv)
+    head = argv[0]
+    base = os.path.basename(head).lower()
+    if base in ("bash", "bash.exe", "sh", "sh.exe", "env", "env.exe"):
+        return list(argv)
+    lower = head.lower()
+    if not (lower.endswith(".sh") or lower.endswith(".bash")):
+        return list(argv)
+    shell = shutil.which("bash") or shutil.which("sh")
+    if shell is None:
+        raise RunnerError(
+            "worker is a shell script but neither bash nor sh is on PATH; "
+            "install Git Bash or another POSIX shell to run it on Windows"
+        )
+    return [shell, head] + list(argv[1:])
+
+
 def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
     """The watchdog around the worker child. Owns liveness (out.log growth),
     the idle/hard windows, byte caps, reap-on-request, and the single terminal
@@ -1035,7 +1062,9 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
                     subprocess.CREATE_NEW_PROCESS_GROUP | _WIN_NO_WINDOW)
             else:
                 popen_kwargs["start_new_session"] = True  # worker leads its own group
-            proc = subprocess.Popen(argv, **popen_kwargs)
+            # Wrap bare *.sh on Windows at spawn time only — meta still has the
+            # caller argv (see _popen_argv).
+            proc = subprocess.Popen(_popen_argv(argv), **popen_kwargs)
         finally:
             os.close(devnull)
         pid_doc = {
@@ -1342,6 +1371,14 @@ def cmd_start(args, worker_argv) -> int:
         resolved = os.path.abspath(argv0)
         if not os.path.isfile(resolved):
             problem = "does not exist or is not a regular file"
+        elif IS_WINDOWS and resolved.lower().endswith((".sh", ".bash")):
+            # CreateProcess cannot run shebang scripts; _popen_argv wraps with
+            # bash/sh. Require that shell now so start fails closed, not after
+            # detach. Skip the X_OK check — Windows often marks .sh non-exec.
+            if shutil.which("bash") is None and shutil.which("sh") is None:
+                problem = (
+                    "is a shell script but neither bash nor sh is on PATH"
+                )
         elif not os.access(resolved, os.X_OK):
             problem = "is not executable"
     else:
