@@ -202,7 +202,7 @@ For a **new PR body**, append the following block after a `---` rule only when t
 [![Compound Engineering](https://img.shields.io/badge/Built_with-Compound_Engineering-6366f1)](https://github.com/EveryInc/compound-engineering-plugin)
 ```
 
-Do not add model or harness attribution. A PR may span multiple agents, models, harnesses, and review passes; naming one overstates its role, while listing every participant makes the footer noisy without giving reviewers useful provenance.
+Do not add model or harness attribution **to this branding block** — no model, reasoning, or harness badge images in the footer. A PR may span multiple agents, models, harnesses, and review passes; naming one in the badge overstates its role, while listing every participant makes the footer noisy without giving reviewers useful provenance. This scopes the branding footer only: when a repository's PR-body contract (its PR template or contribution guide) requires model, reasoning, or harness disclosure, fill that section as specified — the project contract governs (see "Project PR-body contract").
 
 For an **existing PR body**, preserve an existing branding block verbatim, including legacy model or harness badges. Never add one when absent, and never refresh, normalize, or remove it unless the user explicitly asks to remove or replace that exact content. The branding signal controls new-PR composition only; omitting it does not silently delete existing content.
 
