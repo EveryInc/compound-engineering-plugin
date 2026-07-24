@@ -63,7 +63,7 @@ Cross-model review on native Windows never reaches Claude. The runner exits at `
 ### Scope Boundaries
 
 - **In scope:** `skills/*/scripts/peer-job-runner.py` (all parity consumers), unit/lifecycle tests, error/docs pointers to #1243.
-- **Out of scope:** changing peer worker `.sh` adapters; making Git Bash a supported detach host; adding a permanent Windows CI matrix in this PR (optional follow-up); weakening security to "make it work."
+- **Out of scope:** changing peer worker `.sh` adapters; making Git Bash a supported detach host; weakening security to "make it work." A focused `peer-job-runner-windows` GitHub Actions job (unit fixture + Windows smoke + parity) is in scope as the merge-gate substitute for a full Windows suite matrix.
 - **Not source of truth:** `.agy/skills/**` copies are conversion output — edit `skills/` only.
 
 ---
