@@ -177,6 +177,11 @@ const EXPECTED_USER_INVOKED_SKILLS = new Set([
   "ce-polish",
   "ce-product-pulse",
   "ce-promote",
+  // ce-retune: a measurement-first corpus retune that refuses to run without a
+  // benchmark harness and spends many paid runs. No skill or pipeline dispatches
+  // it, and model-routing it would let a cheaper request escalate into an
+  // expensive measurement program, so it stays user-invoked.
+  "ce-retune",
   "ce-setup",
   "ce-sweep",
   "ce-test-xcode",
