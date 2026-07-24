@@ -55,7 +55,13 @@ run_with_timeout() {
     return
   fi
 
-  PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
+  PY=""
+  for c in python3 python py; do
+    if command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1; then
+      PY="$c"
+      break
+    fi
+  done
   if [ -n "$PY" ]; then
     "$PY" - "$TIMEOUT" "$COMMAND" <<'PY'
 import os
