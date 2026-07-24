@@ -34,7 +34,13 @@ cd "$PROJECT_DIR" || {
   exit 0
 }
 
-PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
+PY=""
+for c in python3 python py; do
+  if command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1; then
+    PY="$c"
+    break
+  fi
+done
 if [ -z "$PY" ]; then
   echo '{"mode":"serial","blockers":[{"type":"missing_dependency","description":"A working Python 3 interpreter is required for structured probe output","suggestion":"Install Python 3 (python3, python, or py on PATH) or skip the probe and review parallel-readiness manually"}],"blocker_count":1}'
   exit 0
