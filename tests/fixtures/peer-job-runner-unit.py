@@ -165,16 +165,17 @@ class SafeTokenAllDots(unittest.TestCase):
 
 class PosixDetachPreflight(unittest.TestCase):
     def test_returns_silently_when_fork_and_setsid_present(self):
-        self.assertIsNone(MOD._require_posix_detach())
+        self.assertIsNone(MOD._require_detach_support())
 
     def test_blocks_before_jobs_root_base_when_fork_setsid_missing(self):
-        # Regression (#1186 review): on native Windows, os.fork/os.setsid are
-        # ALSO missing alongside os.geteuid/os.getuid, so cmd_start must reject
-        # via _require_posix_detach() before ever calling jobs_root_base() --
-        # otherwise jobs_root_base()'s unrelated "effective user ID is
-        # unavailable" error fires first and the clearer WSL/#1243 message
-        # never shows on the default (no CE_PEER_JOBS_ROOT) invocation path.
-        # (#1184 is closed; the live Windows-native tracker is #1243.)
+        # Regression (#1186 review): a non-win32 Python missing os.fork/os.setsid
+        # alongside os.geteuid/os.getuid must reject via _require_detach_support()
+        # before ever calling jobs_root_base() -- otherwise jobs_root_base()'s
+        # unrelated "effective user ID is unavailable" error fires first and the
+        # clearer #1243 message never shows on the default (no CE_PEER_JOBS_ROOT)
+        # invocation path. Native Windows now takes the supported detach path
+        # (guarded by IS_WINDOWS, which is False here), so this exercises only the
+        # embedded/non-win32-without-fork case. (#1184 closed; tracker is #1243.)
         real_fork, real_setsid = os.fork, os.setsid
         del os.fork
         del os.setsid
@@ -224,6 +225,104 @@ class PidRunningZombie(unittest.TestCase):
             self.assertFalse(MOD._pid_running(pid))  # ...but it is not running
         finally:
             os.waitpid(pid, 0)  # reap the zombie
+
+
+class DetachSupportBranch(unittest.TestCase):
+    """Platform branch selection (#1243). Testable on ANY host because
+    _require_detach_support's win32 branch returns before touching a _win_*
+    helper -- those names exist only when the module is imported under
+    sys.platform == "win32", so patching IS_WINDOWS is safe only for the
+    branches that do not reach them."""
+
+    @staticmethod
+    def _drop_posix_process_apis():
+        saved = (getattr(os, "fork", None), getattr(os, "setsid", None))
+        for name in ("fork", "setsid"):
+            if hasattr(os, name):
+                delattr(os, name)
+        return saved
+
+    @staticmethod
+    def _restore_posix_process_apis(saved):
+        fork, setsid = saved
+        if fork is not None:
+            os.fork = fork
+        if setsid is not None:
+            os.setsid = setsid
+
+    def test_win32_supported_without_fork_or_setsid(self):
+        # Native Windows lacks both APIs yet is now a supported detach host.
+        saved = self._drop_posix_process_apis()
+        try:
+            with mock.patch.object(MOD, "IS_WINDOWS", True):
+                self.assertIsNone(MOD._require_detach_support())
+        finally:
+            self._restore_posix_process_apis(saved)
+
+    def test_non_win32_without_fork_still_rejected(self):
+        # An embedded/non-win32 Python missing the POSIX APIs must still fail
+        # closed with the actionable #1243 pointer.
+        saved = self._drop_posix_process_apis()
+        try:
+            with mock.patch.object(MOD, "IS_WINDOWS", False):
+                with self.assertRaises(MOD.RunnerError) as cm:
+                    MOD._require_detach_support()
+            self.assertIn("os.fork/os.setsid", str(cm.exception))
+            self.assertIn("1243", str(cm.exception))
+        finally:
+            self._restore_posix_process_apis(saved)
+
+
+class ReapMarkerBranch(unittest.TestCase):
+    """The `.reap` marker replaces SIGTERM on Windows, where there is no
+    directed signal to a detached console-less supervisor. The marker must be
+    inert on POSIX so the signal path keeps its exact prior behavior."""
+
+    def _job_dir(self):
+        return tempfile.mkdtemp(prefix="peer-reap-unit-")
+
+    def test_marker_is_inert_off_windows(self):
+        job_dir = self._job_dir()
+        open(os.path.join(job_dir, ".reap"), "w").close()
+        with mock.patch.object(MOD, "IS_WINDOWS", False):
+            self.assertFalse(MOD._reap_requested({"reap": False}, job_dir))
+
+    def test_marker_requests_reap_on_windows(self):
+        job_dir = self._job_dir()
+        with mock.patch.object(MOD, "IS_WINDOWS", True):
+            self.assertFalse(MOD._reap_requested({"reap": False}, job_dir))
+            open(os.path.join(job_dir, ".reap"), "w").close()
+            self.assertTrue(MOD._reap_requested({"reap": False}, job_dir))
+
+    def test_signal_flag_wins_on_both_platforms(self):
+        job_dir = self._job_dir()
+        for is_windows in (True, False):
+            with mock.patch.object(MOD, "IS_WINDOWS", is_windows):
+                self.assertTrue(MOD._reap_requested({"reap": True}, job_dir))
+
+    def test_interruptible_sleep_returns_early_on_marker(self):
+        job_dir = self._job_dir()
+        open(os.path.join(job_dir, ".reap"), "w").close()
+        with mock.patch.object(MOD, "IS_WINDOWS", True):
+            start = time.monotonic()
+            MOD._interruptible_sleep(5.0, {"reap": False}, job_dir)
+            self.assertLess(time.monotonic() - start, 1.0)
+
+
+class BinaryRoundTrip(unittest.TestCase):
+    """Windows CPython opens os.open() descriptors in CRT *text* mode: writes
+    expand \\n -> \\r\\n and reads stop at the first 0x1A (Ctrl-Z EOF), which
+    silently corrupts and truncates a peer's published result. O_BINARY is 0 on
+    POSIX, so this asserts byte-exactness identically on both platforms."""
+
+    def test_control_bytes_survive_create_exclusive_and_read_owned(self):
+        job_dir = tempfile.mkdtemp(prefix="peer-binary-unit-")
+        path = os.path.join(job_dir, "result.bin")
+        payload = b'{"a":1}\nline\r\nbefore\x1aafter\n'
+        MOD.create_exclusive(path, payload)
+        with open(path, "rb") as f:
+            self.assertEqual(f.read(), payload)  # write was not translated
+        self.assertEqual(MOD.read_owned(path, 4096), payload)  # nor truncated
 
 
 if __name__ == "__main__":
