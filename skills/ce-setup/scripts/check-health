@@ -116,6 +116,14 @@ resolve_docs_root() {
   case "$value" in
     /*) docs_root_error="absolute paths are not allowed; use a repo-relative path"; return ;;
   esac
+  # Reject any `..` path component up front. resolve_real_best_effort only
+  # collapses `..` within the existing prefix (via cd/pwd -P); a `..` that
+  # traverses a not-yet-created segment would otherwise survive literally and
+  # escape the repo, hit the repo root, or reach .git/ while still string-prefix
+  # matching. A legitimate repo-relative artifact root never needs `..`.
+  case "/$value/" in
+    */../*) docs_root_error="path traversal ('..') is not allowed; use a plain repo-relative path"; return ;;
+  esac
   repo_real="$(cd "$repo_root" 2>/dev/null && pwd -P)" || { docs_root_error="could not resolve the repository root"; return; }
   real="$(resolve_real_best_effort "$repo_root/$value")" || { docs_root_error="could not resolve the path"; return; }
   case "$real/" in

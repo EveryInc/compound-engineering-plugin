@@ -533,9 +533,30 @@ describe("ce-setup check-health docs_root resolution", () => {
   })
 
   test("rejects a value that escapes the repository (AE3)", async () => {
+    // `../outside` is caught by the up-front `..` traversal reject (a stricter,
+    // earlier gate than the containment check); either way it fails closed.
     const result = await run({ local: "docs_root: ../outside\n" })
     expect(result.stdout).toContain("Invalid docs_root '../outside'")
-    expect(result.stdout).toContain("outside the repository")
+    expect(result.stdout).toContain("path traversal ('..') is not allowed")
+    expect(result.stdout).not.toContain("Artifact root:")
+  })
+
+  test("rejects `..` traversal through a non-existing segment (escape / repo-root / .git bypass)", async () => {
+    // A `..` that traverses a not-yet-created path segment is NOT collapsed by
+    // the existing-prefix symlink resolution, so without an explicit reject it
+    // would escape the repo, hit the repo root, or reach .git/ while still
+    // string-prefix matching the containment check. All must fail closed.
+    for (const value of ["notexist/../../etc", "notexist/..", "notexist/../.git", "a/b/../c"]) {
+      const result = await run({ local: `docs_root: ${value}\n` })
+      expect(result.stdout, `${value} must be rejected`).toContain("path traversal ('..') is not allowed")
+      expect(result.stdout, `${value} must not resolve`).not.toContain("Artifact root:")
+    }
+  })
+
+  test("accepts a legitimate multi-segment repo-relative root", async () => {
+    const result = await run({ local: "docs_root: .compound-engineering/artifacts\n" })
+    expect(result.stdout).toContain("Artifact root: .compound-engineering/artifacts/")
+    expect(result.stdout).not.toContain("Invalid docs_root")
   })
 
   test("rejects the repository root itself", async () => {
