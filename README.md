@@ -95,7 +95,7 @@ Remove the obsolete Compound Engineering Codex tool-map block from my Codex home
 
 Re-running the Bun convert/install CLI for Codex also strips the block if it is still present; it no longer inserts it.
 
-**Another editor or CLI?** Kimi Code CLI, Cline, Grok Build CLI, Devin CLI, GitHub Copilot, Factory Droid, Qwen Code, OpenCode, Pi, and Antigravity CLI are all supported — see [More install options](#more-install-options).
+**Another editor or CLI?** Kilo Code, Kimi Code CLI, Cline, Grok Build CLI, Devin CLI, GitHub Copilot, Factory Droid, Qwen Code, OpenCode, Pi, and Antigravity CLI are all supported — see [More install options](#more-install-options).
 
 ---
 
@@ -250,7 +250,19 @@ The `compound-engineering` plugin currently ships 32 skills and 0 standalone age
 
 ## More Install Options
 
-[Claude Code, Cursor, and Codex](#install) are at the top. Everything here is equally supported.
+[Claude Code, Cursor, and Codex](#install) are at the top. The installation paths below are supported, but host capabilities and invocation differ as noted.
+
+### Kilo Code
+
+Kilo Code supports native Agent Skills. Install Compound Engineering's skills globally through the independent [Skills CLI](https://www.skills.sh/docs/cli):
+
+```bash
+npx skills add EveryInc/compound-engineering-plugin --skill '*' --agent kilo --global
+```
+
+Node.js and npm are required for `npx`; Compound Engineering's Bun converter is not. The installer shows the proposed changes so you can review and confirm the install. After installation succeeds, run `/reload` or start a new Kilo session, ask Kilo whether `ce-plan` is available, then invoke it with natural language such as “Use the ce-plan skill to plan this change.”
+
+This installation and discovery path is verified and follows [Kilo's Agent Skills documentation](https://kilo.ai/docs/customize/skills). Kilo currently treats Compound Engineering's manual-only metadata as advisory, so installing all skills can leave manual-only workflows eligible for Kilo's description-based selection.
 
 ### Kimi Code CLI
 
