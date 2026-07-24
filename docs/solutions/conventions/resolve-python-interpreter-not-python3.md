@@ -92,10 +92,10 @@ Any time agent-facing prose or a bundled script names an interpreter or external
 the host may resolve differently. Python is the instance encountered here; the class is
 larger. The general form: *the name on PATH is not proof the thing runs.*
 
-Related repo scope: 17 invocation sites across the cross-model review/elevation path were
-converted to this pattern. The remaining sites in unrelated skills (`pr-snapshot`,
-`sweep-state.py`, `validate-*.py`, session-history extractors) are tracked in issue #1247 and
-should reuse this exact snippet rather than inventing a variant.
+Related repo scope: cross-model review/elevation paths and the remaining
+bundled-script invocation sites (`pr-snapshot`, `sweep-state.py`, `validate-*.py`,
+session-history extractors, `ce-optimize` shell helpers) reuse this exact snippet
+rather than inventing a variant. Issue #1247 tracks the Store-stub failure mode.
 
 ## Examples
 

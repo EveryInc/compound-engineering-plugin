@@ -1261,3 +1261,83 @@ describe("findPlatformVarViolations", () => {
     expect(findPlatformVarViolations(sample).map((v) => v.variable)).toEqual(["CLAUDE_SKILL_DIR"])
   })
 })
+
+// ---------------------------------------------------------------------------
+// Python interpreter resolution (#1247 / resolve-python-interpreter-not-python3.md)
+// ---------------------------------------------------------------------------
+
+/**
+ * Bare `python3 …` invocations that an agent would copy into Bash. On native
+ * Windows, `python3` is often the Microsoft Store stub — existence checks pass,
+ * execution fails. Skills must probe execution (`for c in python3 python py`)
+ * and invoke `"$PY"` instead. See
+ * docs/solutions/conventions/resolve-python-interpreter-not-python3.md.
+ */
+const BARE_PYTHON3_INVOCATION =
+  /(?:^|[\s;|&])python3\s+(?:"\$|"\$\{|'\$|-|\/|\.\.?\/|[A-Za-z_][\w./-]*\.(?:py|sh)\b|scripts\/)|xargs(?:\s+-\S+)*\s+python3\b/
+
+function listSkillMarkdownAndShellFiles(skillAbsPath: string): string[] {
+  const out: string[] = []
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        walk(abs)
+        continue
+      }
+      if (entry.isFile() && (entry.name.endsWith(".md") || entry.name.endsWith(".sh"))) {
+        out.push(abs)
+      }
+    }
+  }
+  walk(skillAbsPath)
+  return out
+}
+
+function findBarePython3Invocations(content: string): number[] {
+  const lineNumbers: number[] = []
+  const lines = content.split("\n")
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!
+    // The sanctioned probe names `python3` as a candidate — not an invocation.
+    if (line.includes("for c in python3 python py")) continue
+    // Shell comments are not agent-copied invocation blocks.
+    if (/^\s*#/.test(line)) continue
+    if (BARE_PYTHON3_INVOCATION.test(line)) lineNumbers.push(i + 1)
+  }
+  return lineNumbers
+}
+
+describe("python interpreter resolution (no bare python3 invocations)", () => {
+  for (const skill of skillDirs) {
+    test(`${skill.relPath} does not hardcode bare python3 to invoke bundled scripts`, () => {
+      const offenders: string[] = []
+      for (const filePath of listSkillMarkdownAndShellFiles(skill.absPath)) {
+        const fileRel = path.relative(REPO_ROOT, filePath)
+        const content = readFileSync(filePath, "utf8")
+        for (const lineNumber of findBarePython3Invocations(content)) {
+          offenders.push(`  ${fileRel}:${lineNumber}`)
+        }
+      }
+      expect(
+        offenders,
+        `Hardcoded python3 invocations break on native Windows (Microsoft Store stub). Resolve with an execution probe and invoke "$PY" — see docs/solutions/conventions/resolve-python-interpreter-not-python3.md and issue #1247.\nOffending lines:\n${offenders.join("\n")}`,
+      ).toEqual([])
+    })
+  }
+
+  test("findBarePython3Invocations flags bare calls and ignores the probe", () => {
+    expect(
+      findBarePython3Invocations(
+        'python3 "$SKILL_DIR/scripts/x.py"\nPY="$(for c in python3 python py; do …)"; "$PY" "$SKILL_DIR/scripts/x.py"\n',
+      ),
+    ).toEqual([1])
+    expect(findBarePython3Invocations('xargs -0 python3 "$SKILL_DIR/scripts/x.py"')).toEqual([1])
+    expect(findBarePython3Invocations("python3 scripts/foo.py")).toEqual([1])
+    expect(
+      findBarePython3Invocations(
+        'Never write inline scripts (`python3 -c`, `node -e`) to process issue data.',
+      ),
+    ).toEqual([])
+  })
+})

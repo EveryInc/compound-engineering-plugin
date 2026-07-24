@@ -142,7 +142,8 @@ Offer to seed state from an existing legacy feedback-tracking file so prior work
 
   ```bash
   SKILL_DIR="<absolute path of this skill's directory>";
-  python3 "$SKILL_DIR/scripts/sweep-state.py" import-legacy --state <sweep_state_path> --file <legacy-path> --source-map '{"<legacy-id>":"<config-source-id>"}'
+  PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+  "$PY" "$SKILL_DIR/scripts/sweep-state.py" import-legacy --state <sweep_state_path> --file <legacy-path> --source-map '{"<legacy-id>":"<config-source-id>"}'
   ```
 
   where `<sweep_state_path>` is the value captured in section 4 and `<legacy-path>` is the file the user named. Omit `--source-map` only when the legacy ids already equal the configured source ids. Report the `cursors_imported` and `items_imported` counts the command returns. The import is additive and best-effort: it maps what matches known shapes and skips the rest. It does **not** re-ingest source content and does **not** re-acknowledge imported items — mapped cursors carry forward so already-processed items stay processed.

@@ -62,7 +62,7 @@ These files are the durable contract for the workflow. Read them on-demand at th
 - `references/grounding-validation.md` — grounding-validation protocol: flag adjudication rules and the semantic validator prompt (read in Phase 2.45)
 - `assets/resolution-template.md` — section structure for new docs (read when assembling)
 - `scripts/session-history/` — session discovery and extraction scripts bundled into this skill so session-history support is fully self-contained
-- `scripts/validate-frontmatter.py` — frontmatter parser-safety validator (run in Phase 2 step 8 through the existence guard documented there; resolves only on Claude Code via `${CLAUDE_SKILL_DIR}`, with a manual-checklist fallback elsewhere)
+- `scripts/validate-frontmatter.py` — frontmatter parser-safety validator (run in Phase 2 step 8 through the existence guard documented there; set `SKILL_DIR` to this skill's directory, with a manual-checklist fallback if the script is missing)
 - `scripts/validate-doc-claims.py` — mechanical claims validator: cited paths, commit SHAs, relative links, dangling drafting scaffold (run in Phase 2.45 via the `SKILL_DIR` anchor)
 
 When spawning subagents, pass the relevant file contents into the task prompt so they have the contract without needing cross-skill paths.
@@ -269,7 +269,10 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
 
    ```bash
    SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-   if [ -f "$SKILL_DIR/scripts/session-history/discover-sessions.sh" ] && [ -f "$SKILL_DIR/scripts/session-history/extract-metadata.py" ]; then REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd); REPO_NAME=$(basename "$REPO_ROOT"); SCAN_DAYS="7"; bash "$SKILL_DIR/scripts/session-history/discover-sessions.sh" "$REPO_NAME" "$SCAN_DAYS" --cwd "$REPO_ROOT" | tr '\n' '\0' | xargs -0 python3 "$SKILL_DIR/scripts/session-history/extract-metadata.py" --cwd-filter "$REPO_ROOT"; else echo "Session history bundled scripts were not found in this skill's directory; skipping the session-history probe for this run."; fi
+   if [ -f "$SKILL_DIR/scripts/session-history/discover-sessions.sh" ] && [ -f "$SKILL_DIR/scripts/session-history/extract-metadata.py" ]; then
+     PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+     REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd); REPO_NAME=$(basename "$REPO_ROOT"); SCAN_DAYS="7"; bash "$SKILL_DIR/scripts/session-history/discover-sessions.sh" "$REPO_NAME" "$SCAN_DAYS" --cwd "$REPO_ROOT" | tr '\n' '\0' | xargs -0 "$PY" "$SKILL_DIR/scripts/session-history/extract-metadata.py" --cwd-filter "$REPO_ROOT";
+   else echo "Session history bundled scripts were not found in this skill's directory; skipping the session-history probe for this run."; fi
    ```
 
    Pi sessions are included when present under `~/.pi/agent/sessions/`; they carry `cwd` like Codex but no git branch. If `_meta.files_processed` is `0`, return `no relevant prior sessions`. If the first pass finds no relevant branch matches, or if processing Codex or Pi sessions, derive 2-4 keywords from the topic and re-run metadata extraction with `--keyword K1,K2,...`. Keep at most 5 sessions across Claude Code, Codex, Cursor, and Pi, ranked by branch match, keyword match count, file size over 30KB, and recency. Exclude the current session.
@@ -280,7 +283,10 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
 
    ```bash
    SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-   if [ -f "$SKILL_DIR/scripts/session-history/extract-skeleton.py" ]; then python3 "$SKILL_DIR/scripts/session-history/extract-skeleton.py" --output "$SCRATCH/<session-id>.skeleton.txt" < <session-file>; else echo "Session history bundled scripts were not found in this skill's directory; skipping the session-history probe for this run."; fi
+   if [ -f "$SKILL_DIR/scripts/session-history/extract-skeleton.py" ]; then
+     PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+     "$PY" "$SKILL_DIR/scripts/session-history/extract-skeleton.py" --output "$SCRATCH/<session-id>.skeleton.txt" < <session-file>;
+   else echo "Session history bundled scripts were not found in this skill's directory; skipping the session-history probe for this run."; fi
    ```
 
    Use `extract-errors.py` selectively when dead ends or recurring errors are likely useful. Pass only the scratch file paths and metadata to the synthesis subagent.
@@ -325,11 +331,13 @@ The orchestrating agent (main conversation) performs these steps:
 5. Validate YAML frontmatter against `references/schema.yaml`, including the YAML-safety quoting rule for array items (see `references/yaml-schema.md` > YAML Safety Rules)
 6. Create directory if needed: `mkdir -p <root>/solutions/[category]/`
 7. Write the file: either the updated existing doc or the new `<root>/solutions/[category]/[filename].md`
-8. **Validate parser-safety of the written frontmatter** to catch silent-corruption issues the prose rules miss: malformed `---` delimiter lines, unquoted ` #` in scalar values (silent comment truncation), and unquoted `: ` in scalar values (silent mapping confusion). The bundled validator ships **inside the skill bundle**; on Claude Code `${CLAUDE_SKILL_DIR}` resolves to the skill directory, but the runtime Bash tool's CWD is the user's project, so a project-relative path (without the `${CLAUDE_SKILL_DIR}` prefix) would miss. Run it through an existence guard so platforms that cannot locate the script (e.g. native Codex/Gemini installs, where `${CLAUDE_SKILL_DIR}` is unset) fall back to a manual check instead of silently skipping the protection:
+8. **Validate parser-safety of the written frontmatter** to catch silent-corruption issues the prose rules miss: malformed `---` delimiter lines, unquoted ` #` in scalar values (silent comment truncation), and unquoted `: ` in scalar values (silent mapping confusion). The bundled validator ships **inside the skill bundle**; set `SKILL_DIR` to the absolute path of the directory containing this SKILL.md and run it through an existence guard so platforms that cannot locate the script fall back to a manual check instead of silently skipping the protection:
 
    ```bash
-   if [ -n "${CLAUDE_SKILL_DIR}" ] && [ -f "${CLAUDE_SKILL_DIR}/scripts/validate-frontmatter.py" ]; then
-     python3 "${CLAUDE_SKILL_DIR}/scripts/validate-frontmatter.py" <output-path>;
+   SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+   if [ -f "$SKILL_DIR/scripts/validate-frontmatter.py" ]; then
+     PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+     "$PY" "$SKILL_DIR/scripts/validate-frontmatter.py" <output-path>;
    else
      echo "Bundled validate-frontmatter.py not resolvable on this platform; applying the parser-safety checklist manually.";
    fi
@@ -377,7 +385,12 @@ The doc (and any `CONCEPTS.md` entries from Phase 2.4) is about to become perman
 
    ```bash
    SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-   python3 "$SKILL_DIR/scripts/validate-doc-claims.py" <doc-path>
+   if [ -f "$SKILL_DIR/scripts/validate-doc-claims.py" ]; then
+     PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+     "$PY" "$SKILL_DIR/scripts/validate-doc-claims.py" <doc-path>;
+   else
+     echo "Bundled validate-doc-claims.py not resolvable on this platform; applying the claims checklist manually.";
+   fi
    ```
 
    Exit 0 means nothing flagged. Exit 1 means flags to **adjudicate, not auto-fix** — each flagged path, SHA, link, or scaffold pattern is fixed, annotated as historical, or confirmed intentional per the reference's adjudication table. A doc may legitimately cite a path deleted by the very fix it documents; a flag is a question, not a failure. If the script cannot be resolved on this platform, apply the reference's manual checklist and say so in the output — never silently skip.
