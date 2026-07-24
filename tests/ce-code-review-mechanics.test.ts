@@ -92,6 +92,18 @@ describe("ce-code-review deterministic mechanics", () => {
     }
   })
 
+  test("scope helper resolves docs_root against the git toplevel, not the cwd subdirectory", () => {
+    const { dir, base } = fixtureRepo()
+    mkdirSync(path.join(dir, ".ce-artifacts", "solutions"), { recursive: true })
+    const subdir = path.join(dir, "packages", "inner")
+    mkdirSync(subdir, { recursive: true })
+    // Run from a subdirectory: docs_root is repo-relative, so the corpus must
+    // still resolve under the repo root, not <subdir>/.ce-artifacts/solutions.
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base, "--docs-root", ".ce-artifacts"], subdir)
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout).has_learnings_corpus).toBe(true)
+  })
+
   test("scope helper falls back to the default root for an unsubstituted or empty docs_root", () => {
     const { dir, base } = fixtureRepo()
     mkdirSync(path.join(dir, "docs", "solutions"), { recursive: true })
