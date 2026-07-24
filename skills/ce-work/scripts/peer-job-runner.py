@@ -1669,7 +1669,13 @@ def cmd_reap(args) -> int:
         if signaled:
             # kill -0 is true for a zombie, so confirm the classification landed
             # rather than trusting the signal; fall through to self-cleanup if not.
-            deadline = time.monotonic() + min(conf["grace"], 1.0)
+            # Windows: the supervisor only notices `.reap` on its next poll tick
+            # (default 2s), so min(grace, 1.0) alone is shorter than one poll and
+            # races into the fallback self-classify path.
+            wait_budget = min(conf["grace"], 1.0)
+            if IS_WINDOWS:
+                wait_budget = max(wait_budget, conf["poll"] + 0.25)
+            deadline = time.monotonic() + wait_budget
             while time.monotonic() < deadline:
                 if job_state(job_dir) in TERMINAL_STATES:
                     return 0
