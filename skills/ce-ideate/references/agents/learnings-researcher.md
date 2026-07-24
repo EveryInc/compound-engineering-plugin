@@ -17,13 +17,13 @@ For ideation invocations, search the full learning corpus described below, then 
 
 ## Ground in CONCEPTS.md (if present)
 
-Before searching `docs/solutions/`, check whether `CONCEPTS.md` exists at the repo root. If it does, read it as grounding — it defines the project's shared vocabulary (domain entities, named processes, status concepts) and the canonical names for things the caller may be asking about. Use those definitions to ground keyword extraction and to distill findings using the project's actual terminology rather than synonyms. If it does not exist, skip this step entirely.
+Before searching `<root>/solutions/`, check whether `CONCEPTS.md` exists at the repo root. If it does, read it as grounding — it defines the project's shared vocabulary (domain entities, named processes, status concepts) and the canonical names for things the caller may be asking about. Use those definitions to ground keyword extraction and to distill findings using the project's actual terminology rather than synonyms. If it does not exist, skip this step entirely.
 
 ## Search Strategy (Grep-First Filtering)
 
-The `docs/solutions/` directory contains documented learnings with YAML frontmatter, and may hold hundreds of files. Never read the tree; filter first, then read only what matched.
+The `<root>/solutions/` directory contains documented learnings with YAML frontmatter, and may hold hundreds of files. Never read the tree; filter first, then read only what matched.
 
-> **Grep/Glob fallback:** If `Grep` or `Glob` aren't in your runtime schema, fall back to `Bash` (e.g., `rg -li`, `find`) against `docs/solutions/` with the same patterns and case-insensitivity. Prefer the native tools when present.
+> **Grep/Glob fallback:** If `Grep` or `Glob` aren't in your runtime schema, fall back to `Bash` (e.g., `rg -li`, `find`) against `<root>/solutions/` with the same patterns and case-insensitivity. Prefer the native tools when present.
 
 **1. Keywords from the work context.** Callers may pass a structured block:
 
@@ -38,13 +38,13 @@ Domains: <skill-design | workflow | code-implementation | agent-architecture | .
 
 Free-form text instead of the block is equally valid — treat it as the Activity field. Weight keyword extraction to the input's shape: a bug-shaped query leans on modules, technical terms, and problem indicators; a design-pattern or convention query leans on concepts, decisions, approaches, and domains.
 
-**2. Probe the live tree.** Use the native file-search/glob tool to discover which subdirectories actually exist under `docs/solutions/` at invocation time — names are per-repo convention, so do not hard-code a list. Narrow to the discovered subdirectories matching the caller's Domain hint or keyword shape; search the whole tree when no shape dominates.
+**2. Probe the live tree.** Use the native file-search/glob tool to discover which subdirectories actually exist under `<root>/solutions/` at invocation time — names are per-repo convention, so do not hard-code a list. Narrow to the discovered subdirectories matching the caller's Domain hint or keyword shape; search the whole tree when no shape dominates.
 
 **3. Content-search pre-filter, before reading anything.** Run several case-insensitive content searches in parallel that return paths only, keying on frontmatter fields — `title:` (usually the most descriptive), `tags:`, `module:`, `problem_type:`, plus `symptoms:` and `root_cause:` for bug-shaped input — with `|` alternations for synonyms and related terms the caller did not name. Combine the hits into one candidate set; broaden to full-text search if it comes back nearly empty, narrow if it comes back unusable.
 
 **4. Read frontmatter of candidates only** (first ~30 lines is enough). The fields that matter: `module`, `problem_type`, `component`, `tags`, `symptoms`, `root_cause`, `severity`. Non-bug entries legitimately omit `symptoms` and `root_cause` — do not discard them for that. Rank by overlap with the extracted keywords: `module`/`title`/`tags`/`component` overlap is strong; a relevant `problem_type` or suggestive `root_cause` is moderate; no overlap and no cross-cutting applicability is a skip.
 
-**5. Conditionally check critical patterns.** If `docs/solutions/patterns/critical-patterns.md` exists in this repo, read it — it may contain must-know patterns that apply across all work. If it does not exist, skip it; the convention is optional. Either way, follow the Output Format's Critical Patterns handling (omit the section entirely, or emit a one-line absence note — not both).
+**5. Conditionally check critical patterns.** If `<root>/solutions/patterns/critical-patterns.md` exists in this repo, read it — it may contain must-know patterns that apply across all work. If it does not exist, skip it; the convention is optional. Either way, follow the Output Format's Critical Patterns handling (omit the section entirely, or emit a one-line absence note — not both).
 
 **6. Fully read only strong and moderate matches**, extracting the problem framing or decision context, the learning itself, and prevention or application notes. When a learning's claim conflicts with what you can observe in the current code or docs, flag the conflict explicitly rather than echoing the claim, and note the entry's date so the caller can judge whether it was superseded. Never let a past learning silently override present evidence.
 
@@ -73,7 +73,7 @@ Structure findings as follows:
 - **Relevant Matches**: [Y files]
 
 ### Critical Patterns
-[Include only when `docs/solutions/patterns/critical-patterns.md` exists and has relevant content. If the file does not exist in this repo, omit the section or note its absence in a single line — do not invent content.]
+[Include only when `<root>/solutions/patterns/critical-patterns.md` exists and has relevant content. If the file does not exist in this repo, omit the section or note its absence in a single line — do not invent content.]
 
 ### Relevant Learnings
 

@@ -38,6 +38,7 @@ Those are different concerns. Missing optional tools should not make the whole p
 - Refreshes `.compound-engineering/config.local.example.yaml` from the bundled template.
 - Offers to create `.compound-engineering/config.local.yaml` if missing.
 - Offers to add `.compound-engineering/*.local.yaml` to `.gitignore` if needed.
+- Reports the resolved artifact root and which config layer supplied it, and flags an unusable `docs_root` (see [Artifact root](./configuration.md#artifact-root)).
 - Prints install commands or URLs for missing optional tools, but does not bulk-install them.
 
 ---

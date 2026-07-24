@@ -1,6 +1,28 @@
 # Compound Engineering -- local config
 # Copy to .compound-engineering/config.local.yaml in your project root.
-# All settings are optional. Invalid values fall through to defaults.
+# All settings are optional. Invalid values fall through to defaults
+# (except docs_root -- see below, which fails closed on an unusable value).
+
+# --- Artifact root ---
+# Relocate every CE-written artifact folder (solutions, plans, ideation,
+# explainers, residual-review-findings, pulse-reports, dogfood-reports,
+# feedback-sweep, personas) under one repo-relative root. Unset -> `docs`,
+# byte-identical to today. A configured root becomes the sole location CE reads
+# and writes; CE never falls back to reading `docs/`.
+#
+# Where to put it: prefer the TRACKED `.compound-engineering/config.yaml` (not
+# this gitignored local file) so the setting propagates to every clone and
+# worktree of the project. Setting it here in config.local.yaml works but is
+# per-checkout, which splits one project's artifacts across two locations.
+#
+# The value must be a repo-relative directory whose real (symlink-resolved) path
+# stays inside the repo, is not the repo root itself, and is not under `.git/`.
+# Unlike every other setting here, an unusable value does NOT fall through to the
+# default -- CE stops with an error so a typo can't silently write artifacts into
+# the location you configured away from. `/ce-setup` reports the resolved root
+# and which layer supplied it.
+
+# docs_root: .compound-engineering/artifacts   # repo-relative dir (default: docs)
 
 # --- Product pulse ---
 # Settings written by /ce-product-pulse first-run interview. Re-run the skill with

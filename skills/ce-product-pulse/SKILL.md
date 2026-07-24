@@ -14,9 +14,9 @@ allowed-tools:
 
 # Product Pulse
 
-`ce-product-pulse` queries the product's data sources for a given time window and produces a compact, single-page report covering usage, performance, errors, and followups. The report is saved to `docs/pulse-reports/` and the key points are surfaced in chat.
+`ce-product-pulse` queries the product's data sources for a given time window and produces a compact, single-page report covering usage, performance, errors, and followups. The report is saved to `<root>/pulse-reports/` and the key points are surfaced in chat.
 
-The skill does not mutate the product, the database, or any external system. Its only writes are pulse settings appended to `.compound-engineering/config.local.yaml` (the unified CE local config, gitignored, machine-local) and the report file (`docs/pulse-reports/...`). MCP and other data-source tools are invoked read-only; if a tool offers write modes, do not use them.
+The skill does not mutate the product, the database, or any external system. Its only writes are pulse settings appended to `.compound-engineering/config.local.yaml` (the unified CE local config, gitignored, machine-local) and the report file (`<root>/pulse-reports/...`). MCP and other data-source tools are invoked read-only; if a tool offers write modes, do not use them.
 
 ## Interaction Method
 
@@ -32,12 +32,24 @@ If the argument is empty, default to `pulse_lookback_default` from config (resol
 
 Apply a **15-minute trailing buffer** to the window's upper bound. Many analytics and tracing tools have ingestion lag; querying right up to `now` under-reports the most recent events. For a `24h` window, query `[now - 24h - 15m, now - 15m]`.
 
+## Artifact Root
+
+This skill writes pulse reports under `<root>/pulse-reports/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it. A write to `<root>/...` and a read of `<root>/solutions/` both count as composing a `<root>/` path, so either one triggers resolution; only a run that touches no `<root>/` path at all -- a scratch-only or no-repo flow -- skips it.
+
+<!-- ce-docs-root:start -->
+**Resolve the CE artifact root `<root>` before composing any artifact path.**
+
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml`; first non-empty value wins (`<repo-root>` = `git rev-parse --show-toplevel`). Unset -> `<root>` is `docs`, exactly as before.
+- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
+- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
+<!-- ce-docs-root:end -->
+
 ## Core Principles
 
 1. **Read it like a founder.** No hardcoded thresholds. Do not label things "bad" or "good" by default - present the numbers and let the reader judge.
 2. **Single page.** Target 30-40 lines of terminal output. If the report is getting long, cut.
 3. **No PII in saved reports.** Do not include user emails, account IDs, or message content in the report written to disk.
-4. **Memory through saved reports.** Every run writes to `docs/pulse-reports/` so past pulses are browseable as a timeline.
+4. **Memory through saved reports.** Every run writes to `<root>/pulse-reports/` so past pulses are browseable as a timeline.
 5. **Read-only database access only.** If a database is used as a data source, the connection must be read-only; the interview refuses read-write credentials. Database access is optional - many products complete the pulse with analytics and tracing alone.
 6. **Strategy-seeded when available.** If `STRATEGY.md` exists, the interview reads it before asking questions and carries forward the product name and key metrics as seeds. The goal of data-source setup is to wire up whatever connections are needed to actually measure those metrics.
 7. **Usage and system performance only.** Pulse does not report "what shipped" - that lives in the issue tracker and commit history - and does not replace tracing or analytics dashboards; deep investigation still uses the native tools.
@@ -137,6 +149,6 @@ Read `references/report-template.md` and fill it in using the query results. Kee
 
 #### 2.4 Write the Report
 
-Save to `docs/pulse-reports/YYYY-MM-DD_HH-MM.md` using the local time of the run. Create `docs/pulse-reports/` if it does not exist.
+Save to `<root>/pulse-reports/YYYY-MM-DD_HH-MM.md` using the local time of the run. Create `<root>/pulse-reports/` if it does not exist.
 
 Surface the Headlines and top Followup in chat with the saved file path; the file is the artifact, so do not paste the full report into chat.

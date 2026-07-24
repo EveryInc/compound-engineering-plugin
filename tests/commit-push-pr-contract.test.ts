@@ -179,7 +179,7 @@ describe("PR concept teaching contract", () => {
   test("SKILL.md archival transition guards ordering, gitignore, and modes", async () => {
     const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
 
-    expect(content).toContain("docs/explainers/")
+    expect(content).toContain("<root>/explainers/")
     expect(content).toContain("input_shape: concept")
     expect(content).toContain("docs(explainer): teach")
     // Declined rewrite must not leave a stray committed-but-unlinked doc

@@ -83,7 +83,7 @@ For email sources there are no source-side actions, so approval is moot — reco
 
 Ask where the sweep's state file lives:
 
-- **Committed to the repo** (recommended when multiple agents or machines share branches — one source of truth everyone reads and writes). Sets `sweep_state_path` to the committed default `docs/feedback-sweep/state.yml`.
+- **Committed to the repo** (recommended when multiple agents or machines share branches — one source of truth everyone reads and writes). Sets `sweep_state_path` to the committed default under the artifact root's `feedback-sweep/` — resolve `<root>` to its concrete value first (e.g. the default `docs`), so the persisted value is `<resolved-root>/feedback-sweep/state.yml`, never the literal `<root>` placeholder (per the persist rule below).
 - **Machine-local under `/tmp`** (solo setups; keeps sweep bookkeeping out of the repo, no commit noise). Resolve the path immediately with this shell block, substituting a sanitized repository slug:
 
   ```bash
@@ -128,7 +128,7 @@ Let the user override the path if they want a different location. If they pick m
 
 ## 7. Legacy import (optional)
 
-**Ask:** "Do you have an existing feedback state file to import, so the first sweep skips what's already been processed? Skip if this is a clean start."
+**Ask:** "Do you have an existing feedback state file to import — for example a prior dogfood tracker like `<root>/dogfood-reports/cora-v2-alpha-feedback-state.yml` — so the first sweep skips what's already been processed? Skip if this is a clean start."
 
 - **No / skip** -> proceed to section 8.
 - **Yes** -> ask for the file path, then run the import. `--source-map` pairs each legacy source id with the configured source id from section 1 and is load-bearing: without it an imported `C0AQLMQBGBD` cursor lands under `C0AQLMQBGBD` while the connector reads under `slack-alpha`, orphaning the cursor and re-ingesting everything. Omit it only when the legacy ids already equal the configured ids. Report the returned `cursors_imported` / `items_imported` counts.
@@ -183,7 +183,7 @@ feedback_sources:
   - { type: slack, id: slack-alpha, target: C0XXXXXXX, ack_action: eyes, closeout_action: white_check_mark, sensitive: false, approved: true }
   - { type: github-issues, id: gh-issues, target: owner/repo, ack_action: "feedback:ack", closeout_action: "feedback:resolved", sensitive: false, approved: true }
 
-sweep_state_path: docs/feedback-sweep/state.yml   # committed (multi-agent) or /tmp path (solo)
+sweep_state_path: <resolved-root>/feedback-sweep/state.yml   # concrete path (<root> resolved before persisting); committed (multi-agent) or a /tmp path (solo)
 sweep_ack_cap: 25                                 # max acks per source per run before the circuit breaker
 sweep_lease_ttl_minutes: 60                       # single-writer lease staleness threshold; not asked interactively, tunable here
 sweep_shared_branch: false                        # true: push-gated lease for shared-docs-branch topology

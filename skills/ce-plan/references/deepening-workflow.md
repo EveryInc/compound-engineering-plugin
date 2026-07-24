@@ -42,7 +42,7 @@ Where the table names a `references/agents/*.md` prompt asset, read that file an
 
 **Data-integrity lens — migration failures worth naming, because they pass tests and fail in production:** swapped or inverted ID/enum mappings; a new `NOT NULL` column with no backfill; a rename or drop inside the deploy window, before all code paths stop reading the old name; a dual-write that leaves the new or old column NULL so rollback loses data; an index added to a hot table without concurrent/online creation; silent truncation or precision loss from a type change (`text` -> `varchar(n)`, float -> integer). For each risk it raises, the lens names the invariant, the failure path, and the read-only query or rollback that protects it.
 
-**Historical-rationale lens:** the current year is 2026 — use that when interpreting commit dates. Files in `docs/plans/` and `docs/solutions/` are intentional, permanent artifacts; never recommend removing them or call them unnecessary because a workflow generated them.
+**Historical-rationale lens:** the current year is 2026 — use that when interpreting commit dates. Files in `<root>/plans/` and `<root>/solutions/` are intentional, permanent artifacts; never recommend removing them or call them unnecessary because a workflow generated them.
 
 ## 5.3.5 Run Targeted Research
 

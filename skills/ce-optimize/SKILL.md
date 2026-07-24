@@ -18,6 +18,18 @@ The **optimization input** is the input this skill was invoked with — present 
 
 If no optimization input was provided, ask: "What would you like to optimize? Describe the goal, or provide a path to an optimization spec YAML file."
 
+## Artifact Root
+
+This skill reads learnings under `<root>/solutions/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it. A write to `<root>/...` and a read of `<root>/solutions/` both count as composing a `<root>/` path, so either one triggers resolution; only a run that touches no `<root>/` path at all -- a scratch-only or no-repo flow -- skips it; pass the resolved path to any subagent, not the config.
+
+<!-- ce-docs-root:start -->
+**Resolve the CE artifact root `<root>` before composing any artifact path.**
+
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml`; first non-empty value wins (`<repo-root>` = `git rev-parse --show-toplevel`). Unset -> `<root>` is `docs`, exactly as before.
+- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
+- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
+<!-- ce-docs-root:end -->
+
 ## State
 
 All run state lives under `.context/compound-engineering/ce-optimize/<spec-name>/`: `spec.yaml`, `experiment-log.yaml` (append-only during the loop; update `best` in place), `strategy-digest.md`, plus a `result.yaml` marker in each experiment worktree. `.context/` is gitignored — results do not travel with the branch, commits, or a PR; export them if the user needs a durable artifact.

@@ -28,6 +28,18 @@ Ask one question at a time with the platform's blocking question tool: `AskUserQ
 
 A `mode:headless` token anywhere in the arguments (strip it; treat the remaining tokens per Phase 0) — or any run where the harness exposes no blocking-question tool — never prompts: ambiguous product decisions and the circuit breaker (2c) defer into the plan's Outstanding Questions instead of asking, and first-run setup is refused (Phase 1).
 
+## Artifact Root
+
+This skill records swept feedback under `<root>/feedback-sweep/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it. A write to `<root>/...` and a read of `<root>/solutions/` both count as composing a `<root>/` path, so either one triggers resolution; only a run that touches no `<root>/` path at all -- a scratch-only or no-repo flow -- skips it.
+
+<!-- ce-docs-root:start -->
+**Resolve the CE artifact root `<root>` before composing any artifact path.**
+
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml`; first non-empty value wins (`<repo-root>` = `git rev-parse --show-toplevel`). Unset -> `<root>` is `docs`, exactly as before.
+- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
+- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
+<!-- ce-docs-root:end -->
+
 ## Execution Flow
 
 ### Phase 0: Route by Config State
@@ -41,7 +53,7 @@ A `mode:headless` token anywhere in the arguments (strip it; treat the remaining
 
 **Config keys read here:**
 - `feedback_sources` — list of source entries; each carries a `type` (`slack`, `github-issues`, `email`), its target, the standing-approved ack action, an optional close-out action, and an optional `sensitive: true`. Presence of this key means the skill is configured.
-- `sweep_state_path` — path to the state file, established at setup; fallback `docs/feedback-sweep/state.yml`. A repo-internal path is committed each run and must not be gitignored; a path outside the repo (e.g. under `/tmp`) is machine-local and never committed.
+- `sweep_state_path` — path to the state file, established at setup; fallback `<root>/feedback-sweep/state.yml`. A repo-internal path is committed each run and must not be gitignored; a path outside the repo (e.g. under `/tmp`) is machine-local and never committed.
 - `sweep_lease_ttl_minutes` — single-writer lease staleness threshold; default `60`. Passed to `lease-acquire` in 2a.
 - `sweep_shared_branch` — `true` when several checkouts push this state file to a shared branch (see 2a); default `false`.
 - `sweep_ack_cap` — integer circuit-breaker threshold; default `25`.
@@ -137,7 +149,7 @@ For each `fix_pending` item, resolve its claimed fix ref and verify it merged to
 
 #### 2g. Plan reconciliation
 
-Read `references/plan-template.md` and follow its reconciliation rules (rotation check, machine-region-only rewrite, R-ID stability, draining, untrusted-content block). Target the stable path `docs/plans/feedback-sweep-plan.md`.
+Read `references/plan-template.md` and follow its reconciliation rules (rotation check, machine-region-only rewrite, R-ID stability, draining, untrusted-content block). Target the stable path `<root>/plans/feedback-sweep-plan.md`.
 
 Append new actionable items with their state ids, drain items that are now `closed`, and land any headless-deferred decisions in the Outstanding Questions section.
 
@@ -147,11 +159,11 @@ Interactive only. For items needing a product call, ask the user — grouped by 
 
 #### 2i. Wrap-up
 
-**User-runnable invocation rendering.** In the summary handoff below, default to `/lfg docs/plans/feedback-sweep-plan.md`; use `$lfg docs/plans/feedback-sweep-plan.md` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
+**User-runnable invocation rendering.** In the summary handoff below, default to `/lfg <root>/plans/feedback-sweep-plan.md`; use `$lfg <root>/plans/feedback-sweep-plan.md` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
 
-- **Commit.** `git add` ONLY `docs/plans/feedback-sweep-plan.md` plus `<state>` when it is repo-internal (never `-A`; machine-local state under `/tmp` is never committed), then commit `docs(sweep): feedback sweep <date>`. A commit failure is reported, not fatal. In local-commit mode, never push. In shared-branch mode (`sweep_shared_branch: true`), fetch, rebase, and push the final commit.
+- **Commit.** `git add` ONLY `<root>/plans/feedback-sweep-plan.md` plus `<state>` when it is repo-internal (never `-A`; machine-local state under `/tmp` is never committed), then commit `docs(sweep): feedback sweep <date>`. A commit failure is reported, not fatal. In local-commit mode, never push. In shared-branch mode (`sweep_shared_branch: true`), fetch, rebase, and push the final commit.
 - **Record the run.** `run-record --state <state> --writer <writer> --outcome <completed|partial|failed> --counts '<per-source JSON>' --timestamp <ISO now>`.
 - **Release.** `lease-release --state <state> --writer <writer>`.
 - **Summary** (always emit): new items by source; recordings analyzed, each with its one-line finding; closed items with their fix evidence; the `ack_deferred` / `manual_stuck` / needs-attention list; any circuit-breaker or stale-reclaim note; and always the plan path with the handoff line:
 
-  `<rendered lfg invocation for docs/plans/feedback-sweep-plan.md>`
+  `<rendered lfg invocation for <root>/plans/feedback-sweep-plan.md>`

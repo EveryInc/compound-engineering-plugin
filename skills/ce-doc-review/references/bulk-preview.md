@@ -78,7 +78,7 @@ Skipping (2):
 ## Per-finding line format
 
 - **Shape:** `[<severity>] <section> — <one-line summary>`, the summary drawn from the persona's `why_it_matters` first sentence (observable-consequence-first, paraphrased tight if long). Add section numbering only when several findings hit the same named section.
-- **Self-contained identifiers** — when the summary references a document-defined identifier (a requirement or unit ID such as `R4`, `U3`), pair it at first mention with a short plain-language handle drawn from the document (e.g., `R4 (the auth-token requirement)`) — never a bare identifier as the summary's only description of what it names. Keep the ID itself. Per the self-contained-rendered-lines rule in `references/synthesis-and-presentation.md`.
+- **Self-contained identifiers** — the one-line summary obeys the shared rendering floor (`references/rendering-floor.md`): it is consequence-first and applies the opaque-token policy to all three classes (navigation anchors like `R4`/`U3` keep the ID and gloss at first mention; provenance anchors like tickets/PRs appear only when the event drives the decision; mechanism symbols like functions/files translate to their role). A summary whose only description of a referenced item is a bare identifier of any class is not acceptable. The floor is the single source.
 
 When a finding has no `why_it_matters` (rare — malformed persona output), fall back to its title, and note the gap in the completion report's Coverage section if it affects more than a few findings.
 

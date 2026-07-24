@@ -106,7 +106,7 @@ describe("unified plan artifact contract", () => {
   })
 
   test("brainstorm writes requirements-only unified plan skeletons under docs/plans", () => {
-    expect(brainstormSections).toContain("docs/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan")
+    expect(brainstormSections).toContain("<root>/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan")
     expect(brainstormSections).toContain("artifact_readiness: requirements-only")
     expect(brainstormSections).toContain("product_contract_source: ce-brainstorm")
     // Requirements-only is slimmed for standalone readability: no Goal Launch
@@ -115,7 +115,7 @@ describe("unified plan artifact contract", () => {
     expect(brainstormSections).toContain("Do **not** emit a `## Goal Launch Block` or `## Reader Index`")
     expect(brainstormSections).toMatch(/omits empty\s+`Planning Contract`/)
 
-    expect(brainstormSkill).toContain("docs/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan")
+    expect(brainstormSkill).toContain("<root>/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan")
     expect(brainstormSkill).toContain("artifact_readiness: requirements-only")
     expect(brainstormSkill).toContain("product_contract_source: ce-brainstorm")
     expect(brainstormSkill).toContain("Do **not** emit a Goal Launch Block or Reader Index")
@@ -178,7 +178,7 @@ describe("unified plan artifact contract", () => {
     expect(planSkill).toContain("enriches that same artifact")
     expect(planSkill).toContain("this run enriches that same file in place")
     expect(planSkill).toContain("Search `docs/brainstorms/`")
-    expect(planSkill).toContain("create a new unified plan in `docs/plans/`")
+    expect(planSkill).toContain("create a new unified plan in `<root>/plans/`")
     expect(planSkill).toContain("product_contract_source: ce-plan-bootstrap")
     expect(planSkill).toContain("artifact_readiness: implementation-ready")
     expect(planSkill).toContain("Definition of Done")
@@ -351,7 +351,7 @@ describe("unified plan artifact contract", () => {
     expect(docReviewTemplate).toContain("product_contract_source:ce-brainstorm")
     expect(docReviewTemplate).toContain("product_contract_source:ce-plan-bootstrap")
 
-    expect(codeReview).toContain("docs/plans/*.{md,html}")
+    expect(codeReview).toContain("<root>/plans/*.{md,html}")
     expect(codeReview).toContain("Product Contract` -> `### Requirements")
     expect(codeReview).toContain("readiness before checking completeness")
     expect(codeReview).toContain("must not trigger implementation-unit completeness findings")
@@ -361,7 +361,7 @@ describe("unified plan artifact contract", () => {
   })
 
   test("docs and adjacent handoffs use the new convention", () => {
-    expect(ideate).toContain("requirements-only unified plan under `docs/plans/`")
+    expect(ideate).toContain("requirements-only unified plan under `<root>/plans/`")
     expect(agents).toContain("New `ce-brainstorm` outputs are requirements-only unified plans")
     expect(agents).toContain("Historical `docs/brainstorms/*-requirements.*` files remain readable legacy inputs")
   })
@@ -442,7 +442,7 @@ describe("unified plan artifact contract", () => {
   test("ce-code-review discovery/extraction covers HTML and Product Contract requirements", () => {
     // Codex #972 P2: discovery must scan .html and extraction must read
     // Product Contract > Requirements, matching the completeness contract.
-    expect(codeReview).toContain("docs/plans/*.{md,html}")
+    expect(codeReview).toContain("<root>/plans/*.{md,html}")
     expect(codeReview).toMatch(/unified `Product Contract` -> `### Requirements`/)
     expect(codeReview).toMatch(/requirements-only artifact[\s\S]{0,80}product intent only/i)
   })

@@ -23,6 +23,18 @@ This is **diff-scoped** browser QA, not whole-app exploration: you test what *th
 
   If not installed, stop and tell the user to install `agent-browser`: print the rendered `ce-setup` invocation for the current install command, followed by the rendered `ce-dogfood <original arguments>` invocation to retry. This workflow cannot function without it.
 
+## Artifact Root
+
+This skill writes dogfood reports under `<root>/dogfood-reports/` and personas under `<root>/personas/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it. A write to `<root>/...` and a read of `<root>/solutions/` both count as composing a `<root>/` path, so either one triggers resolution; only a run that touches no `<root>/` path at all -- a scratch-only or no-repo flow -- skips it.
+
+<!-- ce-docs-root:start -->
+**Resolve the CE artifact root `<root>` before composing any artifact path.**
+
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml`; first non-empty value wins (`<repo-root>` = `git rev-parse --show-toplevel`). Unset -> `<root>` is `docs`, exactly as before.
+- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
+- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
+<!-- ce-docs-root:end -->
+
 ## Workflow
 
 ### Phase 0: Scope and Get on the Right Branch
@@ -37,12 +49,12 @@ Parse the arguments you were invoked with: a PR number, a branch name, or blank 
 3. **Decide isolation; let `ce-worktree` own the worktree mechanics.** The only call this skill makes is *whether to ask for isolation at all*:
    - **Blank / current-branch target:** do **not** isolate — dogfood in place. You are already on the branch under test, the fix-commits belong on it, and git cannot check the same branch out in a second worktree anyway.
    - **A PR or a different named branch:** offer isolation (platform's blocking question tool); unattended, isolate without asking. On **yes**, invoke `ce-worktree` to isolate **that target ref** and act on its verdict; the primary checkout is never switched. On **no**, check the target out in place (`gh pr checkout <number>` for a PR, `git checkout <branch>` for a branch) — if uncommitted changes would be disturbed, confirm first, and unattended isolate instead of disturbing them.
-4. **Resume if a prior run exists.** Look for an existing report at `docs/dogfood-reports/*-<branch-slug>-dogfood.md` (branch-slug rule under Resumability). If one is found with unfinished scenarios, ask whether to resume it or start fresh; unattended, resume it. To resume, re-hydrate the task list from its matrix: `Pass`/`Fixed`/`Skipped` stay done; `Pending` and `in_progress` become the remaining auto-runnable work. `Blocked (needs human verify)` and `Blocked (human decision)` are **not** auto-runnable — they wait on a person, so surface them to the user rather than silently re-queuing them.
+4. **Resume if a prior run exists.** Look for an existing report at `<root>/dogfood-reports/*-<branch-slug>-dogfood.md` (branch-slug rule under Resumability). If one is found with unfinished scenarios, ask whether to resume it or start fresh; unattended, resume it. To resume, re-hydrate the task list from its matrix: `Pass`/`Fixed`/`Skipped` stay done; `Pending` and `in_progress` become the remaining auto-runnable work. `Blocked (needs human verify)` and `Blocked (human decision)` are **not** auto-runnable — they wait on a person, so surface them to the user rather than silently re-queuing them.
 
 ### Resumability
 
 - **The task list** (the harness's task tool) is the live to-do — one task per matrix scenario.
-- **The report doc** at `docs/dogfood-reports/<YYYY-MM-DD>-<branch-slug>-dogfood.md` is the durable checkpoint and the source of truth for resuming, since tasks are session-scoped. `<branch-slug>` is the branch name lowercased with every run of non-alphanumeric characters (slashes included) collapsed to a single `-` (e.g. `feature/Foo_Bar` -> `feature-foo-bar`). **Create it as soon as the matrix exists (end of Phase 2) by instantiating `references/dogfood-report-template.md`** so the checkpoint carries the template-owned section shape, then fill in every scenario at `Pending` and update it as each scenario is judged.
+- **The report doc** at `<root>/dogfood-reports/<YYYY-MM-DD>-<branch-slug>-dogfood.md` is the durable checkpoint and the source of truth for resuming, since tasks are session-scoped. `<branch-slug>` is the branch name lowercased with every run of non-alphanumeric characters (slashes included) collapsed to a single `-` (e.g. `feature/Foo_Bar` -> `feature-foo-bar`). **Create it as soon as the matrix exists (end of Phase 2) by instantiating `references/dogfood-report-template.md`** so the checkpoint carries the template-owned section shape, then fill in every scenario at `Pending` and update it as each scenario is judged.
 
 ### Phase 1: Analyze Changes
 
@@ -53,7 +65,7 @@ git diff --name-only <trunk>...HEAD   # what changed
 git diff <trunk>...HEAD               # how it changed
 ```
 
-**Ground in the product's personas and vision.** Look for persona and vision context so flows can be judged from real users' eyes, not just "does it work." Check, in order: `STRATEGY.md` (its "Who it's for" section names the primary persona and their job-to-be-done), `VISION.md`, and any persona docs (e.g. `docs/personas/`, `PERSONAS.md`). Capture the 1-3 primary personas and what each cares about. If none exist, infer a reasonable primary persona from the product and the diff, and say so in the report.
+**Ground in the product's personas and vision.** Look for persona and vision context so flows can be judged from real users' eyes, not just "does it work." Check, in order: `STRATEGY.md` (its "Who it's for" section names the primary persona and their job-to-be-done), `VISION.md`, and any persona docs (e.g. `<root>/personas/`, `PERSONAS.md`). Capture the 1-3 primary personas and what each cares about. If none exist, infer a reasonable primary persona from the product and the diff, and say so in the report.
 
 ### Phase 2: Map the Flows, Then Build the Matrix
 
@@ -138,6 +150,6 @@ Keep iterating until every task is `completed` or in a terminal `Blocked` state.
 
 ### Phase 6: Write the Report Artifact
 
-When the matrix is green (or every remaining item is explicitly blocked), **finalize** the report doc, then surface a short summary in chat with the file path.
+When the matrix is green (or every remaining item is explicitly blocked), **finalize** the report doc at `<root>/dogfood-reports/<YYYY-MM-DD>-<branch-slug>-dogfood.md` in the repo under test, then surface a short summary in chat with the file path.
 
 **Finalize against `references/dogfood-report-template.md`** — every section it names must be present and filled from the run's actual evidence. Do not reconstruct the section list from memory, as that drifts from the template.

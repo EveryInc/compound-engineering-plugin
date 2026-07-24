@@ -14,7 +14,7 @@ Use for: `build_error`, `test_failure`, `runtime_error`, `performance_issue`, `d
 ---
 title: [Clear problem title]
 date: [YYYY-MM-DD]
-category: [docs/solutions subdirectory]
+category: [solutions subdirectory]
 module: [Module or area]
 problem_type: [schema enum]
 component: [schema enum]
@@ -62,7 +62,7 @@ Use for: `best_practice`, `documentation_gap`, `workflow_issue`, `developer_expe
 ---
 title: [Clear, descriptive title]
 date: [YYYY-MM-DD]
-category: [docs/solutions subdirectory]
+category: [solutions subdirectory]
 module: [Module or area]
 problem_type: [schema enum]
 component: [schema enum]

@@ -64,6 +64,93 @@ read_flat_config_value() {
   printf '%s' "$value"
 }
 
+# Resolve the symlink-followed absolute path of $1 without relying on `realpath -m`
+# (absent on stock macOS/BSD). Resolves the existing prefix with `cd`/`pwd -P`,
+# then re-appends any not-yet-created tail — enough to catch a symlink in the
+# existing portion escaping the repository, which is the only way a relative
+# value can escape.
+resolve_real_best_effort() {
+  local target="$1" tail="" existing base
+  existing="$target"
+  while [ ! -e "$existing" ] && [ "$existing" != "/" ] && [ "$existing" != "." ] && [ "$existing" != "$(dirname "$existing")" ]; do
+    tail="/$(basename "$existing")$tail"
+    existing="$(dirname "$existing")"
+  done
+  if [ -d "$existing" ]; then
+    base="$(cd "$existing" 2>/dev/null && pwd -P)" || return 1
+  elif [ -e "$existing" ]; then
+    base="$(cd "$(dirname "$existing")" 2>/dev/null && pwd -P)/$(basename "$existing")" || return 1
+  else
+    return 1
+  fi
+  printf '%s' "${base}${tail}"
+}
+
+# Resolve docs_root per Artifact Root Resolution: config.local.yaml wins over the
+# tracked config.yaml, first non-empty value; unset -> default root `docs`; a
+# configured value is validated and rejected (never silently defaulted) when it
+# is absolute, escapes the repository via path or symlink, resolves to the repo
+# root or inside .git/, or names an existing non-directory. Sets docs_root_status
+# (default|configured|invalid), docs_root_value, docs_root_source, docs_root_error.
+resolve_docs_root() {
+  local repo_root="$1"
+  local local_cfg="$repo_root/.compound-engineering/config.local.yaml"
+  local tracked_cfg="$repo_root/.compound-engineering/config.yaml"
+  local value="" source="" repo_real real
+
+  docs_root_error=""
+  if [ -f "$local_cfg" ]; then
+    value=$(read_flat_config_value "$local_cfg" "docs_root")
+    [ -n "$value" ] && source="config.local.yaml"
+  fi
+  if [ -z "$value" ] && [ -f "$tracked_cfg" ]; then
+    value=$(read_flat_config_value "$tracked_cfg" "docs_root")
+    [ -n "$value" ] && source="config.yaml"
+  fi
+
+  if [ -z "$value" ]; then
+    docs_root_status="default"; docs_root_value="docs"; docs_root_source="default"; return
+  fi
+
+  docs_root_value="$value"; docs_root_source="$source"; docs_root_status="invalid"
+  case "$value" in
+    /*) docs_root_error="absolute paths are not allowed; use a repo-relative path"; return ;;
+  esac
+  # Reject any `..` path component up front. resolve_real_best_effort only
+  # collapses `..` within the existing prefix (via cd/pwd -P); a `..` that
+  # traverses a not-yet-created segment would otherwise survive literally and
+  # escape the repo, hit the repo root, or reach .git/ while still string-prefix
+  # matching. A legitimate repo-relative artifact root never needs `..`.
+  case "/$value/" in
+    */../*) docs_root_error="path traversal ('..') is not allowed; use a plain repo-relative path"; return ;;
+  esac
+  repo_real="$(cd "$repo_root" 2>/dev/null && pwd -P)" || { docs_root_error="could not resolve the repository root"; return; }
+  real="$(resolve_real_best_effort "$repo_root/$value")" || { docs_root_error="could not resolve the path"; return; }
+  case "$real/" in
+    "$repo_real/"*) ;;
+    *) docs_root_error="resolves outside the repository ($real)"; return ;;
+  esac
+  [ "$real" = "$repo_real" ] && { docs_root_error="resolves to the repository root itself"; return; }
+  case "$real/" in
+    "$repo_real/.git/"*) docs_root_error="resolves inside .git/"; return ;;
+  esac
+  if [ -e "$real" ] && [ ! -d "$real" ]; then
+    docs_root_error="names an existing non-directory"; return
+  fi
+  # Reject when an intermediate component is an existing non-directory (e.g.
+  # `afile/nested` where `afile` is a file): the leaf-only check above passes
+  # because `$real` itself does not exist, but `mkdir -p` would fail. Walk up to
+  # the deepest existing ancestor and require it be a directory.
+  probe="$real"
+  while [ ! -e "$probe" ] && [ "$probe" != "/" ] && [ "$probe" != "$(dirname "$probe")" ]; do
+    probe="$(dirname "$probe")"
+  done
+  if [ -e "$probe" ] && [ ! -d "$probe" ]; then
+    docs_root_error="an intermediate path component is not a directory"; return
+  fi
+  docs_root_status="configured"
+}
+
 # Report whether a retired top-level key is still present without interpreting
 # its value. Detection is intentionally separate from routing so legacy scalar
 # settings can receive a migration diagnostic without remaining supported.
@@ -193,10 +280,16 @@ work_engine_detail=""
 work_engine_preferences_note=""
 work_engine_preferences_note_level="detail"
 work_engine_migration_note=""
+docs_root_status="skip"
+docs_root_value=""
+docs_root_source=""
+docs_root_error=""
 project_issues=0
 
 if [ "$in_repo" = "yes" ]; then
   repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
+  resolve_docs_root "$repo_root"
+  [ "$docs_root_status" = "invalid" ] && project_issues=$((project_issues + 1))
   legacy_cfg="missing"
   [ -f "$repo_root/compound-engineering.local.md" ] && legacy_cfg="present"
 
@@ -375,6 +468,15 @@ if [ "$in_repo" = "yes" ]; then
     fi
   else
     skip "No local config yet (.compound-engineering/config.local.yaml)"
+  fi
+
+  if [ "$docs_root_status" = "default" ]; then
+    ok "Artifact root: docs/ (default — docs_root not set)"
+  elif [ "$docs_root_status" = "configured" ]; then
+    ok "Artifact root: ${docs_root_value}/ (from ${docs_root_source})"
+  elif [ "$docs_root_status" = "invalid" ]; then
+    warn "Invalid docs_root '${docs_root_value}' in ${docs_root_source}: ${docs_root_error}"
+    detail "CE artifacts will not be written until docs_root is corrected or removed."
   fi
 
   if [ "$work_engine_cfg" = "native" ]; then

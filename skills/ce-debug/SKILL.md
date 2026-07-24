@@ -23,6 +23,18 @@ Default is **interactive** — use the Phase 2 fix-choice gate and the Phase 4 h
 3. **One change at a time.** Test one hypothesis, change one thing. If you're changing multiple things to "see if it helps," stop — that is shotgun debugging.
 4. **When stuck, diagnose why — don't just try harder.**
 
+## Artifact Root
+
+This skill may record residuals under `<root>/residual-review-findings/` and compound learnings under `<root>/solutions/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it. A write to `<root>/...` and a read of `<root>/solutions/` both count as composing a `<root>/` path, so either one triggers resolution; only a run that touches no `<root>/` path at all -- a scratch-only or no-repo flow -- skips it.
+
+<!-- ce-docs-root:start -->
+**Resolve the CE artifact root `<root>` before composing any artifact path.**
+
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml`; first non-empty value wins (`<repo-root>` = `git rev-parse --show-toplevel`). Unset -> `<root>` is `docs`, exactly as before.
+- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
+- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
+<!-- ce-docs-root:end -->
+
 ## Execution Flow
 
 Run the phases below in order. The only skip is Phase 0's trivial-bug fast-path.
@@ -224,4 +236,4 @@ Options:
 
 #### Learning capture
 
-Most bugs are localized mechanical fixes whose only "lesson" is the bug itself; compounding those clutters `docs/solutions/` without adding value, so skip silently by default. Offer `ce-compound` when the root cause reveals a wrong assumption about a shared dependency, framework, or convention that other code is likely to repeat, or when the pattern appears in 3+ locations. If you cannot state the lesson in one sentence, skip rather than offer. If the user accepts and a PR is already open, commit the resulting learning doc to the same branch and push so the PR picks it up.
+Most bugs are localized mechanical fixes whose only "lesson" is the bug itself; compounding those clutters `<root>/solutions/` without adding value, so skip silently by default. Offer `ce-compound` when the root cause reveals a wrong assumption about a shared dependency, framework, or convention that other code is likely to repeat, or when the pattern appears in 3+ locations. If you cannot state the lesson in one sentence, skip rather than offer. If the user accepts and a PR is already open, commit the resulting learning doc to the same branch and push so the PR picks it up.

@@ -86,7 +86,7 @@ Detail lines for Pre-existing and history-dependent P0/P1 findings may include t
 
 ### Learnings & Past Solutions
 
-- [Known Pattern] `docs/solutions/export-pagination.md` -- previous export pagination fix applies to this endpoint
+- [Known Pattern] `<root>/solutions/export-pagination.md` -- previous export pagination fix applies to this endpoint
 
 ### Agent-Native Gaps
 

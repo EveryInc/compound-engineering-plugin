@@ -534,7 +534,7 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/Production-file presence alone[\s\S]*non-behavioral edits do not select/i)
     expect(content).toMatch(/maintainability-reviewer.*(large|structural|refactor)/i)
     expect(content).toMatch(/agent-native-reviewer.*agent-facing/i)
-    expect(content).toMatch(/learnings-researcher.*docs\/solutions/i)
+    expect(content).toMatch(/learnings-researcher.*<root>\/solutions/i)
 
     expect(catalog).toContain("## Core and standards gate")
     expect(catalog).toContain("## Generic conditional")
@@ -898,7 +898,7 @@ describe("ce-code-review contract", () => {
 
       // Accept-and-proceed path threads findings into the PR description.
       expect(workflow).toContain("Known Residuals")
-      expect(workflow).toContain("docs/residual-review-findings/<branch-or-head-sha>.md")
+      expect(workflow).toContain("<root>/residual-review-findings/<branch-or-head-sha>.md")
       expect(workflow).toContain("If the user later chooses the no-PR `ce-commit` path")
       expect(workflow).toContain("must not live only in the transient session")
     }
@@ -936,7 +936,7 @@ describe("ce-code-review contract", () => {
     expect(lfg).toContain("never the PR body")
     expect(lfg).not.toContain("gh pr edit PR_NUMBER --body-file BODY_FILE")
     expect(lfg).toContain("## Residual Review Findings")
-    expect(lfg).toContain("docs/residual-review-findings/<branch-or-head-sha>.md")
+    expect(lfg).toContain("<root>/residual-review-findings/<branch-or-head-sha>.md")
     expect(lfg).toContain("first configured remote")
     expect(lfg).toContain("git push --set-upstream <remote> HEAD")
     expect(lfg).not.toContain("git push --set-upstream origin HEAD")

@@ -17,7 +17,7 @@ This template describes the Phase 4 interactive presentation — what the user s
 ```markdown
 ## Document Review Results
 
-**Document:** docs/plans/2026-03-15-feat-user-auth-plan.md
+**Document:** <root>/plans/2026-03-15-feat-user-auth-plan.md
 **Type:** plan
 **Reviewers:** coherence, feasibility, security-lens, scope-guardian
 - security-lens -- plan adds public API endpoint with auth flow
@@ -105,7 +105,7 @@ Restated: 2 (residual/deferred items suppressed as duplicates of actionable find
 ## Section Rules
 
 - **Summary line**: always present after the reviewer list — "Applied N fixes. K items need attention (X errors, Y omissions). Z FYI observations." Omit any zero clause except the FYI clause (it's informative that none surfaced).
-- **Self-contained references**: When a fix line or table cell references an identifier the reviewed document defines (requirement/unit IDs such as `R6`, `U3`), pair its first mention within that finding with a short plain-language handle from the document (e.g., `R6 (suppress peer panels on low-stakes calls)`) — never a bare identifier as the finding's only description of what it names.
+- **Self-contained references**: every fix line and table cell obeys the shared rendering floor (`references/rendering-floor.md`) — the floor is the single source, so do not restate a weaker per-surface rule here. The `Issue` cell leads with the consequence (what goes wrong, for whom) and applies the floor's opaque-token policy to all three classes — navigation anchors (document IDs like `R6`, `U3`: keep the ID, gloss at first mention, e.g. `R6 (suppress peer panels on low-stakes calls)`), provenance anchors (tickets/PRs: gloss only when the event drives the decision, else omit), and mechanism symbols (functions/files/lines: translate to their role) — at most two anchors per cell. A cell whose only description of a referenced item is a bare identifier of any class is not acceptable.
 - **Severity sections**: include only levels that have actionable findings (`gated_auto` or `manual`), split into **Errors** then **Omissions**. Omit every empty section, sub-header, and optional block (Applied fixes, FYI Observations, Residual Concerns, Deferred Questions).
 - **Compact rendering**: when the combined FYI + Residual + Deferred count is **5 or more**, collapse each of those three sections to a one-line summary plus a tight bullet list — no table, no per-item elaboration. Actionable findings stay fully rendered regardless.
 - **Coverage**: always include, all counts post-synthesis. `Auto` counts `safe_auto` at anchor `100`, `Proposed` counts `gated_auto` at anchor `75`/`100`, `Decisions` counts `manual` at anchor `75`/`100`, `FYI` counts any finding at anchor `50`, and `Residual` counts this persona's raw `residual_risks`. Findings at anchors `0`/`25` were dropped by synthesis and appear in no column.

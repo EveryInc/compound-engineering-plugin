@@ -6,6 +6,8 @@ For runtime behavior and contributor reference, the `SKILL.md` in each skill's s
 
 Checkout-local defaults shared across skills are documented in [Compound Engineering configuration](./configuration.md).
 
+Artifact paths shown throughout these pages (`docs/plans/`, `docs/solutions/`, `docs/ideation/`, and the rest) are the **defaults**. A project can relocate every CE artifact folder under one repo-relative root with `docs_root`; when it is set, read the shown paths as `<your-docs_root>/plans/`, `<your-docs_root>/solutions/`, and so on. See [Artifact root](./configuration.md#artifact-root).
+
 ---
 
 ## The compound-engineering core loop

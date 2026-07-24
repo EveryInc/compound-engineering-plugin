@@ -5,7 +5,7 @@ This file is loaded when ce-brainstorm detects a non-software task (Phase 0). It
 This route is intentionally outside the software unified-plan artifact contract.
 Do not write `artifact_contract: ce-unified-plan/v1`,
 `artifact_readiness: requirements-only`, or a requirements-only plan under
-`docs/plans/` from this route. If the user wants a durable next artifact, hand
+`<root>/plans/` from this route. If the user wants a durable next artifact, hand
 the synthesis to `ce-plan`, which can create an appropriate universal or
 knowledge-work plan without pretending it is an implementation-ready code
 artifact.

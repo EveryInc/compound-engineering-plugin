@@ -39,6 +39,18 @@ Substitute `<branch>` with the current branch from `git branch --show-current`, 
 
 ---
 
+## Artifact Root
+
+When PR concept-teaching archival is on, this skill writes an explainer under `<root>/explainers/`. Resolve `<root>` once before that write and use it everywhere a `<root>/` path appears below.
+
+<!-- ce-docs-root:start -->
+**Resolve the CE artifact root `<root>` before composing any artifact path.**
+
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml`; first non-empty value wins (`<repo-root>` = `git rev-parse --show-toplevel`). Unset -> `<root>` is `docs`, exactly as before.
+- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
+- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
+<!-- ce-docs-root:end -->
+
 ## Step 1: Resolve branch and PR state
 
 Default branch: strip the `origin/` prefix from the `origin/HEAD` result. If that command exited non-zero (no `origin/HEAD` set) or returned bare `HEAD`, try `gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'`; if both fail, fall back to `main`.
@@ -107,7 +119,7 @@ If the working tree is clean and all commits are already pushed, this step is a 
 
 **Explainer archival** — full workflow only, with `pr_teaching_archive` on, a composed `## New concepts` section, and the apply confirmed (new-PR create, or existing-PR rewrite accepted); a declined rewrite skips archival entirely so no unlinked doc commit is left behind. Immediately before the `gh` call, resolving all paths from the repo root gathered in Context (never the CWD):
 
-1. `git check-ignore -q docs/explainers/YYYY-MM-DD-<concept-slug>.md` — works on not-yet-created paths. If the path is ignored, print a one-line warning and skip archival entirely, writing nothing (never `git add -f`).
+1. `git check-ignore -q <root>/explainers/YYYY-MM-DD-<concept-slug>.md` — works on not-yet-created paths. If the path is ignored, print a one-line warning and skip archival entirely, writing nothing (never `git add -f`).
 2. Write one file per taught concept with YAML frontmatter `title`, `date`, `input_shape: concept`, `subject`, and the teaching content.
 3. `git add` those files only (never `-A`), commit with `docs(explainer): teach <concept>[, <concept>]`, and push.
 4. Splice a head-branch blob URL per doc into the `## New concepts` section before applying. Build it for the repo's actual host — e.g. `gh browse -n -b <head-branch> -- <path>` — do not hardcode `github.com`, or the link 404s on GHE.

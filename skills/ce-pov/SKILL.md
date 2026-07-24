@@ -26,6 +26,18 @@ Write user-facing messages for the person deciding what to do. Lead with the dec
 
 When you must ask the user a question, use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. Ask one question at a time.
 
+## Artifact Root
+
+This skill scans prior decisions under `<root>/solutions/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it. A write to `<root>/...` and a read of `<root>/solutions/` both count as composing a `<root>/` path, so either one triggers resolution; only a run that touches no `<root>/` path at all -- a scratch-only or no-repo flow -- skips it; pass the resolved path to any scout, not the config.
+
+<!-- ce-docs-root:start -->
+**Resolve the CE artifact root `<root>` before composing any artifact path.**
+
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml`; first non-empty value wins (`<repo-root>` = `git rev-parse --show-toplevel`). Unset -> `<root>` is `docs`, exactly as before.
+- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
+- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
+<!-- ce-docs-root:end -->
+
 ## Execution Flow
 
 ### Phase 0: Frame and Classify
@@ -44,11 +56,11 @@ When you must ask the user a question, use the platform's blocking question tool
 
 ### Phase 1: Ground (bounded inline reads by default; delegate noisy search)
 
-Ground the question against the authoritative sources yourself, with bounded reads instead of dispatching scouts: dependency manifests and lockfiles for the incumbent, its call sites and the surfaces a change would touch, `docs/solutions/` + ADRs + design docs for a prior decision, the issue tracker and PR prose when an interface is reachable, and the web for maturity, pitfalls, and migration reality. `references/grounding-checklist.md` holds the non-obvious asks for each leg. Use the project's active instructions already in context.
+Ground the question against the authoritative sources yourself, with bounded reads instead of dispatching scouts: dependency manifests and lockfiles for the incumbent, its call sites and the surfaces a change would touch, `<root>/solutions/` + ADRs + design docs for a prior decision, the issue tracker and PR prose when an interface is reachable, and the web for maturity, pitfalls, and migration reality. `references/grounding-checklist.md` holds the non-obvious asks for each leg. Use the project's active instructions already in context.
 
 Delegate a leg to a subagent only when its search would be broad enough to flood this context; unscoped or noisy grounding still dispatches. Send scouts directly to candidate-specific current evidence, seeded with the checklist asks plus the framed question (subject + intent), the named incumbent, the tier, and the resolved `<scratch-dir>` — a fresh subagent inherits none of this conversation — and have each write its dossier there and return the path plus a 3-5 line gist, which you read on demand rather than inlining raw search. If the candidate cannot be scoped from the frame and existing context, allow one targeted root or workspace probe.
 
-A conversation claim is a pointer to check, never self-verifying: an unverified assertion still requires the bounded read or a scout before it counts. The prior-decision scan (`docs/solutions/`, ADRs, design docs) stays mandatory on either path.
+A conversation claim is a pointer to check, never self-verifying: an unverified assertion still requires the bounded read or a scout before it counts. The prior-decision scan (`<root>/solutions/`, ADRs, design docs) stays mandatory on either path.
 
 **Keep the provenance buckets separate** for Phase 2: *observed-project-facts* and *verified-external-facts* (these count as grounding) vs. *conversation-claims* and *unconfirmed-assumptions* (these do not until a bounded read of the authoritative source or a scout corroborates them). Never block on a surface you cannot reach — no tracker interface, no web tools — record it, and let it lower the verdict's stated confidence or trip the external floor (Phase 2) when the external leg is entirely absent.
 

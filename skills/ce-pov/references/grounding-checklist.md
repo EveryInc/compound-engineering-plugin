@@ -9,12 +9,12 @@ The non-obvious asks for each grounding leg (SKILL.md Phase 1). Use it for your 
 - **Compatibility** — language/runtime version, peer-dependency constraints, and the candidate's license against the project's license and its existing dependency licenses.
 - **Cost signals** — for a replacement, how many call sites/modules use the incumbent (a count from a content search, not an exhaustive list) and the surfaces a swap would touch; for net-new, how large the wiring is. `TODO`/`FIXME`/`HACK`/`workaround` markers and error-handling boilerplate near the incumbent signal the cost of *not* changing.
 - **Convention fit** — an existing abstraction the candidate competes with, or the place and pattern it must fit into.
-- **Prior decision (mandatory)** — `docs/solutions/`, ADRs, and design docs for a past adopt / reject / defer on this candidate or the job it does; quote it with its `file:line`. This needs only file reads, so it runs regardless of tracker access.
+- **Prior decision (mandatory)** — `<root>/solutions/`, ADRs, and design docs for a past adopt / reject / defer on this candidate or the job it does; quote it with its `file:line`. This needs only file reads, so it runs regardless of tracker access.
 - **Non-code project** — with no code surface, ground in the working folder's documents, decks, and data the same way.
 
 ## Precedent and activity leg
 
-- Prior decisions live in **closed issues, PR descriptions, and review threads** — especially a PR **closed without merging** ("tried X, backed it out") — as well as `docs/solutions/` and ADRs. This is often the highest-value finding: it stops re-litigating a settled question.
+- Prior decisions live in **closed issues, PR descriptions, and review threads** — especially a PR **closed without merging** ("tried X, backed it out") — as well as `<root>/solutions/` and ADRs. This is often the highest-value finding: it stops re-litigating a settled question.
 - Search the tracker and PRs **by topic and incumbent name**, and read issue and PR **descriptions and comments** for rationale. **Never read PR diffs** — the decision context lives in the prose, not the line changes; read the code directly when you need implementation detail.
 - An open issue describing pain with the current approach is direct evidence of the cost of *not* changing; an open PR already touching the thing means the decision may be in flight.
 - No reachable tracker or code-host interface (a connector/MCP tool, a documented CLI such as `gh`, or a documented API — discover it before assuming none exists) is a capability gap, not an error: note the skip and continue on the local decision record.

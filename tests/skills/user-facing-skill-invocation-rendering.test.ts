@@ -44,8 +44,8 @@ const rendererCases = [
   },
   {
     file: "skills/ce-sweep/SKILL.md",
-    defaults: ["/lfg docs/plans/feedback-sweep-plan.md"],
-    codex: ["$lfg docs/plans/feedback-sweep-plan.md"],
+    defaults: ["/lfg <root>/plans/feedback-sweep-plan.md"],
+    codex: ["$lfg <root>/plans/feedback-sweep-plan.md"],
   },
   {
     file: "skills/ce-sweep/references/interview.md",
@@ -94,7 +94,7 @@ describe("user-facing skill invocation rendering", () => {
 
     const sweep = readRepoFile("skills/ce-sweep/SKILL.md")
     expect(sweep.indexOf("User-runnable invocation rendering", sweep.indexOf("#### 2i. Wrap-up"))).toBeGreaterThan(-1)
-    expect(sweep).toContain("<rendered lfg invocation for docs/plans/feedback-sweep-plan.md>")
+    expect(sweep).toContain("<rendered lfg invocation for <root>/plans/feedback-sweep-plan.md>")
 
     const handoff = readRepoFile("skills/ce-handoff/SKILL.md")
     expect(handoff.indexOf("User-runnable invocation rendering")).toBeLessThan(

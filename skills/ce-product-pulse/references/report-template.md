@@ -56,7 +56,7 @@ The block below is the literal content to write. Replace every `{{placeholder}}`
 - {{3-5 items max; trim if thin}}
 
 ---
-_Source windows: analytics [{{start}} -> {{end}}], tracing [{{start}} -> {{end}}], payments [{{start}} -> {{end}}]. Trailing buffer: 15m. Saved to `docs/pulse-reports/{{YYYY-MM-DD}}_{{HH-MM}}.md`._
+_Source windows: analytics [{{start}} -> {{end}}], tracing [{{start}} -> {{end}}], payments [{{start}} -> {{end}}]. Trailing buffer: 15m. Saved to `<root>/pulse-reports/{{YYYY-MM-DD}}_{{HH-MM}}.md`._
 ~~~
 
 The filename and the in-file timestamp use the same wall-clock time.

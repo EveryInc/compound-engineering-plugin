@@ -14,6 +14,18 @@ Match each skill name referenced below against the host's available-skills list 
 
 Before step 1, use the platform's task-tracking capability when available to publish a short view of the remaining pipeline at the level of user-meaningful outcomes. Before invoking a child skill, replace or clear LFG's view so only the child skill's task surface is visible; after it returns, recreate or refresh LFG's remaining pipeline work before invoking the next child. If no task-tracking capability is available, continue without it.
 
+## Artifact Root
+
+This pipeline records the plan under `<root>/plans/` and review residuals under `<root>/residual-review-findings/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it. A write to `<root>/...` and a read of `<root>/solutions/` both count as composing a `<root>/` path, so either one triggers resolution; only a run that touches no `<root>/` path at all -- a scratch-only or no-repo flow -- skips it.
+
+<!-- ce-docs-root:start -->
+**Resolve the CE artifact root `<root>` before composing any artifact path.**
+
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml`; first non-empty value wins (`<repo-root>` = `git rev-parse --show-toplevel`). Unset -> `<root>` is `docs`, exactly as before.
+- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
+- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
+<!-- ce-docs-root:end -->
+
 ## Per-stage routing carriers
 
 Before step 1, interpret whether the invoking conversation expresses **semantic intent to assign a pipeline stage** — planning or implementation — to a specific model or harness. This is judgment, not keyword or prompt-token matching: an explicit instruction such as "plan with fable" or "use Codex for implementation" creates an assignment, while a plain mention of a model or harness in feature content or quoted text does not. Two pipeline stages are routable, each with its own carrier:
@@ -46,7 +58,7 @@ When the implementation instruction instead names an ordered fallback list, do n
 
    Before invoking, compose a **settled-decisions brief** from the invoking conversation and pass it with those arguments: direction (1-2 lines); settled decisions, each with four required fields — the decision, its provenance class (`user-directed` or `user-approved`), the rejected alternative, and a one-line reason; open areas; and a standing report-conflicts line. Scope topically to the feature being shipped, and leave a decision open rather than importing it as settled when its rejected alternative cannot be stated. If the conversation contains no settled decisions, skip it.
 
-   CHECKPOINT — verify, then continue. If ce-plan reported the task is non-software and cannot be processed in pipeline mode, stop the pipeline and inform the user that LFG requires software tasks. If ce-plan returned a blocked report containing `settled-decision-invalidated`, stop the pipeline and inform the user with the reason — do not retry. Otherwise, verify that the `ce-plan` workflow produced a plan file in `docs/plans/`. If no plan file was created, invoke `ce-plan` again with those same arguments. The retry reuses the composed brief verbatim — never recompose it. Do NOT proceed to step 2 until a written plan exists. **Record the plan file path** — it will be passed to ce-work in step 2 and ce-code-review in step 4.
+   CHECKPOINT — verify, then continue. If ce-plan reported the task is non-software and cannot be processed in pipeline mode, stop the pipeline and inform the user that LFG requires software tasks. If ce-plan returned a blocked report containing `settled-decision-invalidated`, stop the pipeline and inform the user with the reason — do not retry. Otherwise, verify that the `ce-plan` workflow produced a plan file in `<root>/plans/`. If no plan file was created, invoke `ce-plan` again with those same arguments. The retry reuses the composed brief verbatim — never recompose it. Do NOT proceed to step 2 until a written plan exists. **Record the plan file path** — it will be passed to ce-work in step 2 and ce-code-review in step 4.
 
    Read the plan metadata before continuing. If the plan has `artifact_contract: ce-unified-plan/v1`, proceed only when it has `artifact_readiness: implementation-ready` and `execution: code`. Stop the pipeline for `artifact_readiness: requirements-only`, `execution: knowledge-work`, or any unrecognized readiness value. LFG never launches `/goal` directly; when goal-mode or dynamic workflows are appropriate, `ce-work` owns that implementation engine choice and must not run the shipping tail itself. With the plan file recorded, continue to step 2.
 
@@ -90,7 +102,7 @@ When the implementation instruction instead names an ordered fallback list, do n
 
    Compose a `## Residual Review Findings` markdown section from that return — one bullet per item with severity, file:line, title, and either the tracker ticket URL (`filed`), the failure reason (`failed`), or the finding inlined verbatim (`no_sink`) — plus one bullet for each `settled_conflict`-stamped finding from step 4 (naming the conflicting KTD, even though the finding is report-only) and each proceeded-and-flagged `settled_decision_conflicts` entry from step 2 (the KTD, the evidence, and how it was routed).
 
-   **Durable record — never the PR body**, which duplicates GitHub's own tracking and goes stale as items resolve. Create/replace `docs/residual-review-findings/<branch-or-head-sha>.md` with the composed section (ticket links included) and the source run context. Stage only that file, commit `docs(review): record residual review findings`, and push **when a remote is configured** (per the shipping precondition): if an upstream exists, `git push`; else if a remote exists, resolve a writable one (prefer `origin`, otherwise the first configured remote) and `git push --set-upstream <remote> HEAD`; if there is no remote at all, the local commit is the durable sink.
+   **Durable record — never the PR body**, which duplicates GitHub's own tracking and goes stale as items resolve. Create/replace `<root>/residual-review-findings/<branch-or-head-sha>.md` with the composed section (ticket links included) and the source run context. Stage only that file, commit `docs(review): record residual review findings`, and push **when a remote is configured** (per the shipping precondition): if an upstream exists, `git push`; else if a remote exists, resolve a writable one (prefer `origin`, otherwise the first configured remote) and `git push --set-upstream <remote> HEAD`; if there is no remote at all, the local commit is the durable sink.
 
    Do not output DONE until the residuals are durable (tracker tickets filed and/or the record file committed). Never block DONE on tracker filing failures once the record file exists. A push that fails when a remote exists is a stop-and-report; never retry a push, or block DONE, when no remote exists. Then continue to step 7.
 

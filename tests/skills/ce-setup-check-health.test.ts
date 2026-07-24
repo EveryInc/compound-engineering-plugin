@@ -481,3 +481,128 @@ describe("ce-setup check-health", () => {
     }
   })
 })
+
+describe("ce-setup check-health docs_root resolution", () => {
+  async function repoWithConfigs(
+    files: { local?: string; tracked?: string; extra?: (root: string) => Promise<void> },
+  ): Promise<string> {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-docsroot-"))
+    await initGitRepo(root)
+    await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+    if (files.local !== undefined) {
+      await writeFile(path.join(root, ".compound-engineering", "config.local.yaml"), files.local)
+      await writeFile(path.join(root, ".gitignore"), ".compound-engineering/*.local.yaml\n")
+    }
+    if (files.tracked !== undefined) {
+      await writeFile(path.join(root, ".compound-engineering", "config.yaml"), files.tracked)
+    }
+    if (files.extra) await files.extra(root)
+    return root
+  }
+
+  async function run(files: Parameters<typeof repoWithConfigs>[0]): Promise<RunResult> {
+    const root = await repoWithConfigs(files)
+    try {
+      return await runCheckHealth(root, "/usr/bin:/bin")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  }
+
+  test("reports the default root when docs_root is unset (AE1)", async () => {
+    const result = await run({ local: "# nothing set\n" })
+    expect(result.stdout).toContain("Artifact root: docs/ (default")
+  })
+
+  test("reads docs_root from the tracked config.yaml layer", async () => {
+    const result = await run({ tracked: "docs_root: .ce-artifacts\n" })
+    expect(result.stdout).toContain("Artifact root: .ce-artifacts/ (from config.yaml)")
+  })
+
+  test("config.local.yaml overrides the tracked layer", async () => {
+    const result = await run({ local: "docs_root: from-local\n", tracked: "docs_root: from-tracked\n" })
+    expect(result.stdout).toContain("Artifact root: from-local/ (from config.local.yaml)")
+    expect(result.stdout).not.toContain("from-tracked")
+  })
+
+  test("rejects an absolute value without defaulting (fail-closed)", async () => {
+    const result = await run({ local: "docs_root: /etc\n" })
+    expect(result.stdout).toContain("Invalid docs_root '/etc'")
+    expect(result.stdout).toContain("absolute paths are not allowed")
+    expect(result.stdout).toContain("project issue(s) found")
+  })
+
+  test("rejects a value that escapes the repository (AE3)", async () => {
+    // `../outside` is caught by the up-front `..` traversal reject (a stricter,
+    // earlier gate than the containment check); either way it fails closed.
+    const result = await run({ local: "docs_root: ../outside\n" })
+    expect(result.stdout).toContain("Invalid docs_root '../outside'")
+    expect(result.stdout).toContain("path traversal ('..') is not allowed")
+    expect(result.stdout).not.toContain("Artifact root:")
+  })
+
+  test("rejects `..` traversal through a non-existing segment (escape / repo-root / .git bypass)", async () => {
+    // A `..` that traverses a not-yet-created path segment is NOT collapsed by
+    // the existing-prefix symlink resolution, so without an explicit reject it
+    // would escape the repo, hit the repo root, or reach .git/ while still
+    // string-prefix matching the containment check. All must fail closed.
+    for (const value of ["notexist/../../etc", "notexist/..", "notexist/../.git", "a/b/../c"]) {
+      const result = await run({ local: `docs_root: ${value}\n` })
+      expect(result.stdout, `${value} must be rejected`).toContain("path traversal ('..') is not allowed")
+      expect(result.stdout, `${value} must not resolve`).not.toContain("Artifact root:")
+    }
+  })
+
+  test("accepts a legitimate multi-segment repo-relative root", async () => {
+    const result = await run({ local: "docs_root: .compound-engineering/artifacts\n" })
+    expect(result.stdout).toContain("Artifact root: .compound-engineering/artifacts/")
+    expect(result.stdout).not.toContain("Invalid docs_root")
+  })
+
+  test("rejects the repository root itself", async () => {
+    const result = await run({ local: "docs_root: .\n" })
+    expect(result.stdout).toContain("resolves to the repository root itself")
+  })
+
+  test("rejects a path inside .git/", async () => {
+    const result = await run({ local: "docs_root: .git/foo\n" })
+    expect(result.stdout).toContain("resolves inside .git/")
+  })
+
+  test("rejects an existing non-directory", async () => {
+    const result = await run({
+      local: "docs_root: afile\n",
+      extra: async (root) => writeFile(path.join(root, "afile"), "x"),
+    })
+    expect(result.stdout).toContain("names an existing non-directory")
+  })
+
+  test("rejects a symlink whose real path escapes the repository", async () => {
+    const result = await run({
+      local: "docs_root: esclink/x\n",
+      extra: async (root) => {
+        await Bun.$`ln -s /tmp esclink`.cwd(root).quiet()
+      },
+    })
+    expect(result.stdout).toContain("Invalid docs_root")
+    expect(result.stdout).toContain("outside the repository")
+  })
+
+  test("rejects a docs_root whose intermediate component is an existing file", async () => {
+    // `afile/nested` where `afile` is a file: the leaf-only non-directory check
+    // passes (nested doesn't exist), but mkdir -p would fail, so /ce-setup must
+    // not report it healthy.
+    const result = await run({
+      local: "docs_root: afile/nested\n",
+      extra: async (root) => writeFile(path.join(root, "afile"), "x"),
+    })
+    expect(result.stdout).toContain("an intermediate path component is not a directory")
+    expect(result.stdout).not.toContain("Artifact root:")
+  })
+
+  test("accepts a valid repo-relative root that does not yet exist (AE4)", async () => {
+    const result = await run({ local: "docs_root: .ce-artifacts/nested\n" })
+    expect(result.stdout).toContain("Artifact root: .ce-artifacts/nested/ (from config.local.yaml)")
+    expect(result.stdout).not.toContain("Invalid docs_root")
+  })
+})

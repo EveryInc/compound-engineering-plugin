@@ -59,6 +59,63 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(scope.lite_eligible).toBe(false)
   })
 
+  test("scope helper resolves the learnings corpus under a configured docs_root", () => {
+    const { dir, base } = fixtureRepo()
+    // Corpus lives under a relocated root, not the default docs/.
+    mkdirSync(path.join(dir, ".ce-artifacts", "solutions"), { recursive: true })
+    mkdirSync(path.join(dir, "docs", "solutions"), { recursive: true })
+
+    // Default root sees the legacy docs/solutions corpus.
+    const dflt = JSON.parse(run("python3", [SCOPE_SCRIPT, "--base", base], dir).stdout)
+    expect(dflt.has_learnings_corpus).toBe(true)
+
+    // Configured root targets its own solutions dir.
+    const configured = JSON.parse(
+      run("python3", [SCOPE_SCRIPT, "--base", base, "--docs-root", ".ce-artifacts"], dir).stdout,
+    )
+    expect(configured.has_learnings_corpus).toBe(true)
+
+    // A configured root with no corpus reports absent, without reading docs/.
+    const empty = JSON.parse(
+      run("python3", [SCOPE_SCRIPT, "--base", base, "--docs-root", ".ce-empty"], dir).stdout,
+    )
+    expect(empty.has_learnings_corpus).toBe(false)
+  })
+
+  test("scope helper treats an absolute or escaping docs_root as no corpus, not a crash", () => {
+    const { dir, base } = fixtureRepo()
+    mkdirSync(path.join(dir, "docs", "solutions"), { recursive: true })
+    for (const badRoot of ["/etc", "../outside", ".git/hooks"]) {
+      const result = run("python3", [SCOPE_SCRIPT, "--base", base, "--docs-root", badRoot], dir)
+      expect(result.status).toBe(0) // read-only signal generator: degrade, never fail the scope calc
+      expect(JSON.parse(result.stdout).has_learnings_corpus).toBe(false)
+    }
+  })
+
+  test("scope helper resolves docs_root against the git toplevel, not the cwd subdirectory", () => {
+    const { dir, base } = fixtureRepo()
+    mkdirSync(path.join(dir, ".ce-artifacts", "solutions"), { recursive: true })
+    const subdir = path.join(dir, "packages", "inner")
+    mkdirSync(subdir, { recursive: true })
+    // Run from a subdirectory: docs_root is repo-relative, so the corpus must
+    // still resolve under the repo root, not <subdir>/.ce-artifacts/solutions.
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base, "--docs-root", ".ce-artifacts"], subdir)
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout).has_learnings_corpus).toBe(true)
+  })
+
+  test("scope helper falls back to the default root for an unsubstituted or empty docs_root", () => {
+    const { dir, base } = fixtureRepo()
+    mkdirSync(path.join(dir, "docs", "solutions"), { recursive: true })
+    // A caller that forgets to substitute the <root> placeholder, or passes an
+    // empty value, must still find the default docs/solutions corpus.
+    for (const value of ["<root>", ""]) {
+      const result = run("python3", [SCOPE_SCRIPT, "--base", base, "--docs-root", value], dir)
+      expect(result.status).toBe(0)
+      expect(JSON.parse(result.stdout).has_learnings_corpus).toBe(true)
+    }
+  })
+
   test("scope helper fails closed when a remote head endpoint is empty", () => {
     const { dir, base } = fixtureRepo()
     writeFileSync(path.join(dir, "service.ts"), "export const value = 2\n")

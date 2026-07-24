@@ -10,7 +10,7 @@ argument-hint: "[feature idea or problem to explore] [output:html]"
 
 Brainstorming helps answer **WHAT** to build through collaborative dialogue. It precedes `ce-plan`, which enriches the same unified plan artifact with **HOW** to build it.
 
-The durable output of this workflow is a **requirements-only unified plan**. In other workflows this might be called a lightweight PRD or feature brief. In compound engineering, keep the workflow name `brainstorm`, but write the first version of the plan artifact under `docs/plans/` with `artifact_readiness: requirements-only` so planning does not need to invent product behavior, scope boundaries, or success criteria.
+The durable output of this workflow is a **requirements-only unified plan**. In other workflows this might be called a lightweight PRD or feature brief. In compound engineering, keep the workflow name `brainstorm`, but write the first version of the plan artifact under `<root>/plans/` with `artifact_readiness: requirements-only` so planning does not need to invent product behavior, scope boundaries, or success criteria.
 
 This skill does not implement code. It explores, clarifies, and documents decisions for later planning or execution.
 
@@ -35,6 +35,18 @@ These rules apply to every brainstorm, including the universal (non-software) fl
 4. **Default to the platform's blocking question tool** - Use `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). These tools include a free-text fallback, so well-chosen options scaffold the answer without confining it. This default holds for opening and elicitation questions too, not only narrowing. Fall back to numbered options in chat only when no blocking tool exists in the harness (including `ToolSearch` returning no match for it) or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. This roster is stated once here; later phases and references say only "the platform's blocking question tool". **Unattended runs:** when no user can answer (headless `-p`, pipeline, or `disable-model-invocation` context), take the option you would have recommended, record it as an explicit assumption in the artifact, and continue — never end the turn waiting on a question nobody will see. **Exception — visual-probe gate:** on an inherently-visual topic (Phase 0.3 tripwire), the first shape/behavior/state/layout/flow/diagram decision is governed by `references/visual-probes.md`, which takes precedence over this rule. See the Phase 1.3 gate.
 5. **Use an open-ended question only when the question is genuinely open** - Drop the blocking tool when the answer is inherently narrative, when presented options would steer a diagnostic or introspective answer, or when you cannot write 3-4 genuinely distinct, plausibly-correct options without padding. The test: if you'd be straining to fill the option slots, the question is open — ask it open-ended. Rule 1 still applies: one question per turn.
 6. **Open-ended questions earn their place only when they're specific enough to elicit a substantive answer** - Apply Rule 5 silently: just ask the question, never narrate the form choice. The question must give the user something concrete to anchor on. Good: *"What's the most concrete thing someone's already done about this — paid for it, built a workaround, quit a tool over it?"* — it names what counts as an answer. Too thin: *"What's your take?"* — nothing to bite into, and framings that imply a short answer ("briefly", yes/no) waste the open question the same way.
+
+## Artifact Root
+
+This skill writes requirements-only plans under `<root>/plans/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it. A write to `<root>/...` and a read of `<root>/solutions/` both count as composing a `<root>/` path, so either one triggers resolution; only a run that touches no `<root>/` path at all -- a scratch-only or no-repo flow -- skips it.
+
+<!-- ce-docs-root:start -->
+**Resolve the CE artifact root `<root>` before composing any artifact path.**
+
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml`; first non-empty value wins (`<repo-root>` = `git rev-parse --show-toplevel`). Unset -> `<root>` is `docs`, exactly as before.
+- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
+- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
+<!-- ce-docs-root:end -->
 
 ## Output Guidance
 
@@ -78,7 +90,9 @@ The `output:` preference does NOT auto-propagate to `ce-plan` on handoff — ce-
 
 #### 0.1 Resume Existing Work When Appropriate
 
-If the user references an existing brainstorm topic or document, or there is an obvious recent matching unified plan in `docs/plans/` with `artifact_contract: ce-unified-plan/v1`, `artifact_readiness: requirements-only`, and `product_contract_source: ce-brainstorm`:
+This resume scan needs `<root>/plans/`, so it applies only to a repo-backed run. If there is no git repository, or resolving `<root>` fails (a bad `docs_root`), skip the scan and continue — do not fail the run here, since Phase 0.1b may route non-software work to `references/universal-brainstorming.md`, whose contract does not write a unified plan under `<root>/plans/`.
+
+Only when that gate passes — a repo-backed run whose `<root>` resolved — evaluate this resume condition; never resolve `<root>` here on a run the gate told you to skip. When it applies, if the user references an existing brainstorm topic or document, or there is an obvious recent matching unified plan in `<root>/plans/` with `artifact_contract: ce-unified-plan/v1`, `artifact_readiness: requirements-only`, and `product_contract_source: ce-brainstorm`:
 - Read the document
 - Confirm with the user before resuming: "Found an existing requirements-only plan for [topic]. Should I continue from this, or start fresh?"
 - If resuming, summarize the current state briefly, continue from its existing decisions and outstanding questions, and update the existing document instead of creating a duplicate
@@ -272,7 +286,7 @@ Session-settled decisions render in the scoping synthesis as `Carrying forward:`
 
 ### Phase 3: Capture the Requirements-Only Unified Plan
 
-Write or update a requirements-only unified plan only when the conversation produced durable decisions worth preserving — see `references/brainstorm-sections.md` "Decide whether a doc is warranted at all" for the criteria and the bug-fix stress test. Skip document creation when the user only needs brief alignment and the decisions can flow downstream (ce-plan, commit message, docs/solutions/) without a brainstorm artifact in the middle.
+Write or update a requirements-only unified plan only when the conversation produced durable decisions worth preserving — see `references/brainstorm-sections.md` "Decide whether a doc is warranted at all" for the criteria and the bug-fix stress test. Skip document creation when the user only needs brief alignment and the decisions can flow downstream (ce-plan, commit message, <root>/solutions/) without a brainstorm artifact in the middle.
 
 When a doc is warranted, compose it using:
 
@@ -285,7 +299,7 @@ Session-settled decisions land in the Product Contract's Key Decisions section c
 
 **Write tight.** A section being material is not license to pad it. Hold every kept section to the prose-economy discipline in `references/brainstorm-sections.md`.
 
-Write to `docs/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.<md|html>` — extension follows `OUTPUT_FORMAT`. Include `artifact_contract: ce-unified-plan/v1`, `artifact_readiness: requirements-only`, and `product_contract_source: ce-brainstorm`. Title is `<Name> - Plan` (matching the H1; no conventional-commit prefix). Keep the doc light and standalone-readable: a Goal Capsule (objective, product authority, open blockers) and the Product Contract. Do **not** emit a Goal Launch Block or Reader Index. See `references/brainstorm-sections.md` — which owns the artifact content rules, including repo-relative file paths inside the doc.
+Write to `<root>/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.<md|html>` — extension follows `OUTPUT_FORMAT`. Include `artifact_contract: ce-unified-plan/v1`, `artifact_readiness: requirements-only`, and `product_contract_source: ce-brainstorm`. Title is `<Name> - Plan` (matching the H1; no conventional-commit prefix). Keep the doc light and standalone-readable: a Goal Capsule (objective, product authority, open blockers) and the Product Contract. Do **not** emit a Goal Launch Block or Reader Index. See `references/brainstorm-sections.md` — which owns the artifact content rules, including repo-relative file paths inside the doc.
 
 **Ready for Planning Check.** After writing the file, reread it once against the four checks in `references/brainstorm-sections.md` (Complete, Consistent, Focused, Usable by planning) and fix what fails in place. Do not declare the artifact written or enter Phase 4 while any check fails. Report the artifact with its absolute path so the reference is clickable.
 

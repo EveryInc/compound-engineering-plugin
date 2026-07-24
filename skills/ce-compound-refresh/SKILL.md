@@ -1,12 +1,12 @@
 ---
 name: ce-compound-refresh
-description: Refresh docs/solutions learnings against the current codebase. Use when auditing stale, overlapping, superseded, or drifted learnings; avoid general refactor, debugging, or code review unless docs/solutions is explicit.
+description: Refresh the repo's captured learnings against the current codebase. Use when auditing stale, overlapping, superseded, or drifted learnings; avoid general refactor, debugging, or code review unless the learnings store is explicit.
 argument-hint: "[optional: scope hint — directory, filename, module, or keyword]"
 ---
 
 # Compound Refresh
 
-Maintain the quality of `docs/solutions/` over time. This workflow reviews existing learnings against the current codebase, then refreshes any derived pattern docs that depend on them.
+Maintain the quality of `<root>/solutions/` over time. This workflow reviews existing learnings against the current codebase, then refreshes any derived pattern docs that depend on them.
 
 ## How to Operate
 
@@ -16,7 +16,19 @@ Attempt every action the classification calls for. If a write succeeds, record i
 
 ## CONCEPTS.md bootstrap requests
 
-If invoked specifically to create or bootstrap `CONCEPTS.md` (e.g., "create a CONCEPTS.md", "build the concept map", "set up shared vocabulary"), seed the repo-wide concept map instead of running the docs/solutions classification: read `references/concepts-vocabulary.md` and follow its **Seed goal** and **Scope of a seed** (repo-wide) rules — seed the project's core domain nouns from the declared domain model (schema, core types, primary models, top-level domain docs), each meeting the qualifying bar, with the codebase setting the count. Write the preamble (see Vocabulary Capture), cluster per the organization rules, run the Discoverability Check so the project's instruction file surfaces the new file, and commit — do not leave the bootstrap uncommitted. A normal refresh run seeds and reconciles `CONCEPTS.md` as well, so there is nothing to disambiguate.
+If invoked specifically to create or bootstrap `CONCEPTS.md` (e.g., "create a CONCEPTS.md", "build the concept map", "set up shared vocabulary"), seed the repo-wide concept map instead of running the `<root>/solutions` classification: read `references/concepts-vocabulary.md` and follow its **Seed goal** and **Scope of a seed** (repo-wide) rules — seed the project's core domain nouns from the declared domain model (schema, core types, primary models, top-level domain docs), each meeting the qualifying bar, with the codebase setting the count. Write the preamble (see Vocabulary Capture), cluster per the organization rules, run the Discoverability Check so the project's instruction file surfaces the new file, and commit — do not leave the bootstrap uncommitted. A normal refresh run seeds and reconciles `CONCEPTS.md` as well, so there is nothing to disambiguate.
+
+## Artifact Root
+
+This skill reviews and refreshes learnings under `<root>/solutions/`. Resolve `<root>` when you first compose a `<root>/solutions/` path (per the block below); pass the resolved `<root>/solutions/` path to any subagent, not the config.
+
+<!-- ce-docs-root:start -->
+**Resolve the CE artifact root `<root>` before composing any artifact path.**
+
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml`; first non-empty value wins (`<repo-root>` = `git rev-parse --show-toplevel`). Unset -> `<root>` is `docs`, exactly as before.
+- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
+- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
+<!-- ce-docs-root:end -->
 
 ## Refresh Order
 
@@ -46,18 +58,18 @@ For each candidate artifact, classify it into one of five outcomes:
 4. **Use Replace only when there is a real replacement:** a recently solved, verified fix in the current conversation; concrete replacement context from the user; a current approach found by codebase investigation; or strong successor evidence in newer docs, pattern docs, PRs, or issues.
 5. **Delete when the code is gone** — and only after the checks under **Before deleting** below. Don't default to Keep just because the general advice still sounds "sound".
 6. **Evaluate document-set design, not just accuracy.** If two or more docs overlap heavily, decide whether they should stay separate, be cross-scoped more clearly, or be consolidated into one canonical document.
-7. **Delete, don't archive.** There is no `_archived/` directory — git history is the archive, and `git log --diff-filter=D -- docs/solutions/` finds a deleted doc. If `docs/solutions/_archived/` exists, list its files in the report and recommend restore, delete, or consolidate.
+7. **Delete, don't archive.** There is no `_archived/` directory — git history is the archive, and `git log --diff-filter=D -- <root>/solutions/` finds a deleted doc. If `<root>/solutions/_archived/` exists, list its files in the report and recommend restore, delete, or consolidate.
 
 ## Scope Selection
 
-Find all `.md` files under `docs/solutions/`, excluding `README.md` files and anything under `_archived/`.
+Find all `.md` files under `<root>/solutions/`, excluding `README.md` files and anything under `_archived/`.
 
-If a scope argument was provided, narrow with it: match it against subdirectory names under `docs/solutions/`, then learning frontmatter (`module`, `component`, `tags`), then filenames, then file contents — take the first that produces results. If a provided scope hint matches nothing, report the miss and exit; do not silently widen to every doc.
+If a scope argument was provided, narrow with it: match it against subdirectory names under `<root>/solutions/`, then learning frontmatter (`module`, `component`, `tags`), then filenames, then file contents — take the first that produces results. If a provided scope hint matches nothing, report the miss and exit; do not silently widen to every doc.
 
 If no candidate docs are found, report:
 
 ```text
-No candidate docs found in docs/solutions/.
+No candidate docs found in <root>/solutions/.
 Run `ce-compound` after solving problems to start building your knowledge base.
 ```
 
@@ -92,7 +104,7 @@ The critical distinction is whether the drift is **cosmetic** (references moved 
 
 ## Investigate Pattern Docs
 
-After the underlying learning docs, investigate any relevant pattern docs under `docs/solutions/patterns/`. Evaluate whether the generalized rule still holds given the refreshed state of the learnings it depends on; a pattern doc with no clear supporting learnings is a stale signal. The same five outcomes apply — base any replacement on the refreshed learning set, and do not invent new rules from guesswork.
+After the underlying learning docs, investigate any relevant pattern docs under `<root>/solutions/patterns/`. Evaluate whether the generalized rule still holds given the refreshed state of the learnings it depends on; a pattern doc with no clear supporting learnings is a stale signal. The same five outcomes apply — base any replacement on the refreshed learning set, and do not invent new rules from guesswork.
 
 ## Document-Set Analysis
 
@@ -203,9 +215,9 @@ List **Keep** outcomes under a reviewed-without-edits section so the result is v
 
 ## Discoverability Check
 
-Check whether the project's root agent-instructions file (e.g., `AGENTS.md`; if one file only `@`-includes another, the substantive one is the target) would lead an agent to discover `docs/solutions/`: that a searchable store of documented solutions exists, enough about its structure to search it (category organization, frontmatter fields like `module`, `tags`, `problem_type`), and that it is relevant when working in a documented area. This is a semantic assessment, not a string match — if an agent would reasonably find and use the store after reading the file, it passes. If no such file exists, skip.
+Check whether the project's root agent-instructions file (e.g., `AGENTS.md`; if one file only `@`-includes another, the substantive one is the target) would lead an agent to discover `<root>/solutions/`: that a searchable store of documented solutions exists, enough about its structure to search it (category organization, frontmatter fields like `module`, `tags`, `problem_type`), and that it is relevant when working in a documented area. This is a semantic assessment, not a string match — if an agent would reasonably find and use the store after reading the file, it passes. If no such file exists, skip.
 
-If the check does not pass, add the smallest addition that communicates those things, matching the file's style — a line in the closest related section (architecture tree, directory listing, docs or conventions block) is almost always better than a new section. Keep the tone informational, not imperative: "relevant when implementing or debugging in documented areas", not "always search before implementing" — imperative directives cause redundant reads when a workflow already includes a dedicated search step.
+If the check does not pass, add the smallest addition that communicates those things, matching the file's style — a line in the closest related section (architecture tree, directory listing, docs or conventions block) is almost always better than a new section. Keep the tone informational, not imperative: "relevant when implementing or debugging in documented areas", not "always search before implementing" — imperative directives cause redundant reads when a workflow already includes a dedicated search step. **Write the resolved concrete path, never the literal `<root>` placeholder** — the instruction file is read by agents without this plugin (and by people), who cannot resolve it.
 
 Run the same check for `CONCEPTS.md` when it exists at the repo root (e.g., a directory-listing line: `CONCEPTS.md  # shared domain vocabulary — read when orienting to the codebase or before discussing domain concepts`). Skip it entirely when `CONCEPTS.md` does not exist — never nag for an artifact the project has not adopted.
 

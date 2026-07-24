@@ -59,6 +59,8 @@ After all mutations in this run have settled (initial write, deepening synthesis
 
 **Summary line above the menu (always):** Print a single concise line summarizing the headless review state — e.g., `Doc review applied 3 fixes. 2 decisions, 1 proposed fix, 4 FYI observations remain (1 at P1).` When no fixes were applied and no findings remain, print `Doc review clean — no fixes needed.` When the envelope carries `skipped_reason: output_format_html` (HTML run, per Phase 5.3.8 format gate), print `Doc review skipped — ce-doc-review is markdown-only today; the HTML plan was not reviewed.` When it carries `skipped_reason: skill_unreachable`, print `Doc review skipped — ce-doc-review could not be invoked (<skipped_detail>); it did not run.` If a review that actually began failed, print `Doc review failed after starting — <actual error>; the plan was not fully reviewed.` This line establishes what the autofix pass did (or didn't) so the user has the context to choose between the menu options below. Never describe a pre-entry harness or delegation failure as a downstream skill timeout.
 
+**Render returned findings in their decision-first structure — do not re-narrate.** The headless envelope `ce-doc-review` returned already follows its shared rendering floor: each finding leads with a recommendation and a one-sentence consequence that names no opaque identifier, with mechanism capped at two sentences and two glossed anchors. When surfacing those findings alongside the menu, present them in that returned structure (Recommendation / Consequence if unchanged / Change / Basis). Do not compress a finding into a denser single-paragraph narration, and do not reintroduce bare document IDs, ticket or PR numbers, or code symbols the envelope already glossed or moved to trace — that recreates the illegibility the floor exists to remove. The summary line above is the only re-narration; the findings themselves pass through verbatim.
+
 **Question:** "Plan ready at `<absolute path to plan>`. What would you like to do next?"
 
 **Options:**
@@ -110,7 +112,7 @@ Based on selection (the bare per-option routing is also stated inline in the SKI
 - **Decide on the review's open items** -> Invoke the `ce-doc-review` skill again under the cross-skill invocation rule, passing the plan path **without** `mode:headless` so the interactive routing question and walkthrough fire. The headless pass already applied `safe_auto` fixes and recorded its findings in the session, so the interactive pass picks up where headless stopped — its R29 suppression rule prevents prior-round Skipped/Deferred entries from re-raising. If the skill cannot be invoked, say that it did not run and return to the menu. After it returns, re-render this menu with the refreshed counts so the user can pick what to do next.
 - **Create Issue** -> Follow the Issue Creation section below
 - **Publish to Proof — shareable link** -> Invoke the `ce-proof` skill under the cross-skill invocation rule to publish the plan. If it cannot be invoked, say that publishing did not start and return to the menu. Pass:
-  - source file: `docs/plans/<plan_filename>.md`
+  - source file: `<root>/plans/<plan_filename>.md`
   - doc title: `Plan: <plan title from frontmatter>`
   - identity: `ai:compound-engineering` / `Compound Engineering`
 

@@ -168,6 +168,14 @@ Keep anything that introduces genuinely new signal; when in doubt, keep. Record 
 
 ## Phase 4: Apply and Present
 
+**Rendering floor (applies to every finding, every mode — read before rendering anything).** Read
+`references/rendering-floor.md` now. It is the single source of truth for the decision-first field
+order (Recommendation → Consequence-if-unchanged → Change → Basis → Trace-on-request), the
+domain-agnostic opaque-token policy (navigation anchors, provenance anchors, mechanism symbols; at
+most two anchors per block), and the code-span budget. Every surface below — the headless envelope,
+the interactive template, and the bulk preview — maps its own layout onto that floor. Do not restate
+a weaker per-surface rule; the floor is authoritative.
+
 **User-facing vocabulary rule (all user-visible Phase 4 output, both modes, including free-text narration).** Internal enum values stay in the schema and synthesis prose; the user sees "fixes" (`safe_auto`), "proposed fixes" (`gated_auto`), "decisions" (`manual` at anchor `75`/`100`), and "FYI observations" (anchor `50`). Write "fixes applied", never "safe_auto fixes applied". The only exception is the rendered tables' `Tier` column, which surfaces the enum deliberately.
 
 ### Apply safe_auto fixes
@@ -190,7 +198,22 @@ After safe_auto fixes apply, remaining findings split into buckets:
 - FYI-subsection findings → surface in the presentation only, no routing
 - Zero actionable findings remaining → skip the routing question; flow directly to Phase 5 terminal question
 
-**Self-contained rendered lines (both modes, including the Applied-fixes list).** Rendered output is read by someone who does not have the document open and has not internalized its internal ID scheme. When a rendered line — an applied fix, proposed fix, decision, FYI observation, residual concern, or deferred question — references an identifier the document itself defines (a requirement ID, unit ID, or similar shorthand such as `R6`, `U3`, `KTD2`), pair the identifier at its first mention within that finding's rendered block with a short plain-language handle for what it names, drawn from the document (e.g., `R6 (suppress peer panels on low-stakes calls)`, not bare `R6`). Resolve the handle at render time against the document already in context from Phase 1 — findings arrive carrying the bare identifier, so the handle is looked up here, not transported from the persona that raised the finding. Render-time lookup is also what keeps the handle accurate after an Apply has edited or renumbered the item it names. If the document is no longer in context, re-read the referenced section before rendering rather than emitting the bare identifier. Keep the identifier — it anchors the finding for anyone editing the document — and keep the handle to a few words; do not inline the full requirement or unit text. A line whose only description of a referenced item is the bare identifier is not acceptable rendered output. Universally understood section names (`Requirements`, `Open Questions`) need no handle.
+**Self-contained rendered lines (both modes, including the Applied-fixes list).** Every rendered line —
+an applied fix, proposed fix, decision, FYI observation, residual concern, or deferred question —
+obeys the shared rendering floor's (`references/rendering-floor.md`) opaque-token policy across **all
+three** token classes, not document IDs alone. A requirement or unit ID (`R6`, `U3`) is a navigation
+anchor (keep the ID, gloss at first mention); a ticket or PR number (`ESP-3373`, `PR #1776`) is a
+provenance anchor (gloss only when the event changes the decision, else move to trace); a function,
+file, variable, or line reference the document names (`clearMuxStatus`, `codebookTranscriptMode.ts:46`)
+is a mechanism symbol (translate to its role; keep the exact symbol only when precise scope drives the
+decision). At most two anchors per finding — counted across all its rendered lines, matching the floor's
+per-block budget — each resolved at render time against the document in context so it stays accurate
+after an Apply renumbers the item. The floor's full decision-first field order
+(Recommendation → Consequence → Change → Basis) applies to **actionable findings** — proposed fixes and
+decisions. FYI observations, residual concerns, and deferred questions carry no recommendation or fix,
+so they render as a single consequence / concern / question line under the token policy, not the full
+field order. A line whose only description of a referenced item is a bare identifier — of any class — is
+not acceptable rendered output.
 
 **Headless mode:** ask no questions. Output every finding as this structured text envelope for the caller to parse.
 
@@ -203,26 +226,30 @@ Applied N fixes:
 
 Proposed fixes (concrete fix, requires user confirmation):
 
-[P0] Section: <section> — <title> (<reviewer>, confidence <anchor>)
-  Why: <why_it_matters>
-  Suggested fix: <suggested_fix>
+[P0] Section: <section> — <consequence-first title> (<reviewer>, confidence <anchor>)
+  Recommendation: <Apply | Defer | Skip>
+  Consequence if unchanged: <one sentence, no opaque identifier>
+  Change: <suggested_fix as intent language>
+  Basis: <at most two sentences of mechanism, opaque tokens glossed, at most two anchors>
 
 Decisions (requires user judgment):
 
-[P1] Section: <section> — <title> (<reviewer>, confidence <anchor>)
-  Why: <why_it_matters>
-  Suggested fix: <suggested_fix or "none">
+[P1] Section: <section> — <consequence-first title> (<reviewer>, confidence <anchor>)
+  Recommendation: <Apply | Defer | Skip>
+  Consequence if unchanged: <one sentence, no opaque identifier>
+  Change: <suggested_fix as intent language, or "none">
+  Basis: <at most two sentences of mechanism, opaque tokens glossed, at most two anchors>
 
   Dependents (would resolve if this root is rejected):
-    [P2] Section: <section> — <title> (<reviewer>, confidence <anchor>)
-      Why: <why_it_matters>
-    [P2] Section: <section> — <title> (<reviewer>, confidence <anchor>)
-      Why: <why_it_matters>
+    [P2] Section: <section> — <consequence-first title> (<reviewer>, confidence <anchor>)
+      Consequence if unchanged: <one sentence, no opaque identifier>
+    [P2] Section: <section> — <consequence-first title> (<reviewer>, confidence <anchor>)
+      Consequence if unchanged: <one sentence, no opaque identifier>
 
 FYI observations (anchor 50, no decision required):
 
-[P3] Section: <section> — <title> (<reviewer>, confidence <anchor>)
-  Why: <why_it_matters>
+[P3] Section: <section> — <consequence-first title> (<reviewer>, confidence <anchor>)
+  Consequence if unchanged: <one sentence, no opaque identifier>
 
 Residual concerns:
 - <concern> (<source>)
@@ -239,7 +266,7 @@ Review complete
 
 Omit any section with zero items. When a root has dependents, render the root at its normal position in the severity-sorted list and nest its dependents as an indented `Dependents (...)` sub-block immediately below — never re-listed at their own severity position. End with `Review complete`.
 
-**Compact rendering (high-count mode).** When the combined count of FYI observations, residual concerns, and deferred questions is 5 or more, collapse each to a one-line count plus a tight bullet list with no per-item `Why`. Proposed fixes and Decisions stay fully rendered regardless. Same rule as interactive mode, so both modes produce the same shape.
+**Compact rendering (high-count mode).** When the combined count of FYI observations, residual concerns, and deferred questions is 5 or more, collapse each to a one-line count plus a tight bullet list — FYI observations use their consequence line, residual concerns and deferred questions their concern or question text — with no per-item elaboration. Proposed fixes and Decisions stay fully rendered regardless. Same rule as interactive mode, so both modes produce the same shape.
 
 **Interactive mode:**
 
@@ -276,13 +303,7 @@ The persona-side rule in `subagent-template.md` ("Do not emit findings to note p
 
 ### Protected Artifacts
 
-During synthesis, discard any finding that recommends deleting or removing files in:
-
-- `docs/brainstorms/`
-- `docs/plans/`
-- `docs/solutions/`
-
-These are pipeline artifacts and must not be flagged for removal.
+During synthesis, discard any finding that recommends deleting or removing a CE pipeline artifact: any file **under** a `plans/`, `solutions/`, `ideation/`, `explainers/`, `residual-review-findings/`, `pulse-reports/`, `dogfood-reports/`, `feedback-sweep/`, or `personas/` directory (or the legacy `brainstorms/` one) **whose immediate parent is the artifact root**. The artifact root is a directory named `docs` — the default, and where unmigrated legacy artifacts stay even after a project sets `docs_root` — or the configured `docs_root` when this run resolved it. Matching by that parent covers nested category files (`solutions/<category>/foo.md`) while leaving a same-named directory elsewhere — a skill's own `references/personas/` prompt assets, whose parent is `references` — as ordinary code whose deletion finding stands. A review that never resolved a configured root still protects the `docs`-parented tree (default and legacy); a configured-root artifact seen by such a run is the one honest gap.
 
 ## Phase 5: Next Action — Terminal Question
 

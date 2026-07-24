@@ -6,7 +6,7 @@ The mechanism is unchanged in this mode: run Phase 2 from `references/divergent-
 
 ## What differs
 
-- **No repo reads, ever.** Grounding is user-context synthesis + web research (learnings is skipped by default — the CWD's `docs/solutions/` is engineering patterns that rarely transfer). Verification reads and the basis verifier work against the user-supplied context and web research, not repo files. `direct:` bases quote the user's material or a cited source.
+- **No repo reads, ever.** Grounding is user-context synthesis + web research (learnings is skipped by default — the CWD's `<root>/solutions/` is engineering patterns that rarely transfer). Verification reads and the basis verifier work against the user-supplied context and web research, not repo files. `direct:` bases quote the user's material or a cited source.
 - **Most of these subjects are atomic.** For a name, a tagline, or a plot the candidate *is* the deliverable, so Phase 1.5 usually skips decomposition (`Decomposition skipped — atomic subject`). Multi-part subjects still decompose — "brand strategy for a launch" → positioning; visual identity; voice; launch channels; pricing/packaging. Skip when 3 orthogonal axes do not emerge.
 - **Match the tone to the stakes.** Business decisions (pricing, positioning, roadmap) lead with constraints and tradeoffs; creative work (naming, narrative, visual concepts) leads with energy and range; personal decisions lead with values before mechanics.
 - **The meeting-test floor translates.** "Would this warrant team discussion" becomes "is this worth talking through" in the topic's own domain — the floor itself still applies.
@@ -15,4 +15,4 @@ The mechanism is unchanged in this mode: run Phase 2 from `references/divergent-
 
 ## Wrap-up
 
-Run Phase 4 and the Phase 5 menu from `references/post-ideation-workflow.md` unchanged: auto-write the deliverable (`OUTPUT_FORMAT` sets the extension; `docs/ideation/` when it already exists, otherwise the run's scratch dir, never the user's CWD), present the concise ranked summary, and offer the same four options with the first slot format-keyed — **Open in browser** under `OUTPUT_FORMAT=html`, **Publish to Proof** under `md` — then Brainstorm one idea (with the terminal framing above), Discuss or refine the ideas first, and Done.
+Run Phase 4 and the Phase 5 menu from `references/post-ideation-workflow.md` unchanged: auto-write the deliverable (`OUTPUT_FORMAT` sets the extension; `<root>/ideation/` when it already exists, otherwise the run's scratch dir, never the user's CWD), present the concise ranked summary, and offer the same four options with the first slot format-keyed — **Open in browser** under `OUTPUT_FORMAT=html`, **Publish to Proof** under `md` — then Brainstorm one idea (with the terminal framing above), Discuss or refine the ideas first, and Done.

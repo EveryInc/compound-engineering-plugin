@@ -1,12 +1,12 @@
 ---
 name: ce-compound
-description: Document a recently solved problem or durable project vocabulary in docs/solutions/ or CONCEPTS.md. Use when capturing a learning after work.
+description: Document a recently solved problem as a durable repo learning, or capture project vocabulary in CONCEPTS.md. Use when capturing a learning after work.
 argument-hint: "[optional: brief context] [mode:headless] [depth:lightweight|full]"
 ---
 
 # /ce-compound
 
-Coordinate multiple subagents working in parallel to document a recently solved problem, capturing it in `docs/solutions/` with YAML frontmatter for searchability while context is fresh.
+Coordinate multiple subagents working in parallel to document a recently solved problem, capturing it in `<root>/solutions/` with YAML frontmatter for searchability while context is fresh.
 
 ## Usage
 
@@ -63,6 +63,18 @@ These files are the durable contract for the workflow. Read them on-demand at th
 
 When spawning subagents, pass the relevant file contents into the task prompt so they have the contract without needing cross-skill paths.
 
+## Artifact Root
+
+This skill writes and reads learnings under `<root>/solutions/`. Resolve `<root>` when you first compose a `<root>/solutions/` path (per the block below); when passing search or write scope to a subagent, pass the resolved `<root>/solutions/` path, not the config.
+
+<!-- ce-docs-root:start -->
+**Resolve the CE artifact root `<root>` before composing any artifact path.**
+
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml`; first non-empty value wins (`<repo-root>` = `git rev-parse --show-toplevel`). Unset -> `<root>` is `docs`, exactly as before.
+- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
+- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
+<!-- ce-docs-root:end -->
+
 ## Execution Strategy
 
 `ce-compound` decides mode and session-history depth itself — never ask the user for either. The only interactive prompt in the whole workflow is the Discoverability Check consent, because that one edits a tracked instruction file.
@@ -83,7 +95,7 @@ When spawning subagents, pass the relevant file contents into the task prompt so
 **The primary deliverable is ONE file - the final documentation.**
 
 Phase 1 subagents write their full structured output to a per-run scratch artifact under `<run-dir>/` and return only a compact confirmation containing the artifact path. The orchestrator Reads those artifacts back in Phase 2 assembly; the scratch files are not additional deliverables. **Only the orchestrator writes product files.** Subagents must not touch `docs/`, project instruction files, or any tracked path. There are three write-target classes; only the first two are unconditional:
-- **`docs/solutions/...`** — the primary deliverable (always).
+- **`<root>/solutions/...`** — the primary deliverable (always).
 - **`CONCEPTS.md`** — create or update in Phase 2.4 (Vocabulary Capture) when a qualifying domain term surfaces (every mode that reaches vocabulary capture may refine an existing file; creating it when absent is expected, not a violation of this rule).
 - **A project instruction file** (AGENTS.md or CLAUDE.md) — a small edit when the Discoverability Check finds a gap, **only in interactive Full mode after consent**. Headless and lightweight never apply this edit (they report or tip instead), so a caller that handed off headless after an approval gate never sees an unreviewed change to the repo's operating contract.
 
@@ -110,7 +122,7 @@ echo "$RUN_DIR";
 
 **Resolve current vocabulary and conventions before dispatching subagents.** Use the project's active instructions and conventions already in your context. If `CONCEPTS.md` exists, read its relevant terms and pass them to the Context Analyzer.
 
-**CRITICAL — glob `docs/solutions/` fresh every run.** The current vocabulary and conventions above do not substitute for the live-tree search in step 3.
+**CRITICAL — glob `<root>/solutions/` fresh every run.** The current vocabulary and conventions above do not substitute for the live-tree search in step 3.
 
 **Auto memory.** If the auto-memory block injected into your system prompt (Claude Code only) holds notes relevant to this problem, pass them to the Context Analyzer and Solution Extractor as supplementary — never primary — evidence, and tag anything of theirs that reaches the doc with "(auto memory [claude])". Absent block, absent platform, or nothing relevant: proceed unchanged.
 
@@ -135,7 +147,7 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
    - Identifies problem type, component, and track-appropriate fields:
      - **Bug track**: symptoms, root_cause, resolution_type
      - **Knowledge track**: applies_when (symptoms/root_cause/resolution_type optional)
-   - Reads `references/yaml-schema.md` for category mapping into `docs/solutions/`
+   - Reads `references/yaml-schema.md` for category mapping into `<root>/solutions/`
    - Suggests a filename using the pattern `[sanitized-problem-slug].md` — no date suffix, even if existing files in the target directory have one; the `date:` frontmatter field is the canonical creation date
    - Writes to `context.json`: YAML frontmatter skeleton (must include `category:` field mapped from problem_type), category directory path, suggested filename, and which track applies. Returns only the artifact path.
    - Does not invent enum values, categories, or frontmatter fields from memory; reads the schema and mapping files above
@@ -151,14 +163,14 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
    - Sections, in order — **bug track**: Problem, Symptoms, What Didn't Work, Solution (with before/after code), Why This Works, Prevention (with concrete config, test, or lint examples). **Knowledge track**: Context, Guidance, Why This Matters, When to Apply, Examples. `assets/resolution-template.md` carries the same structure for the assembly step
 
 #### 3. **Related Docs Finder**
-   - Searches `docs/solutions/` for related documentation
+   - Searches `<root>/solutions/` for related documentation
    - Identifies cross-references and links
    - Finds related GitHub issues
    - Flags any related learning or pattern docs that may now be stale, contradicted, or overly broad
    - **Assesses overlap** with the new doc across problem statement, root cause, solution approach, referenced files, and prevention rules. Score **High** (essentially the same problem solved again), **Moderate** (same area, different angle or solution), or **Low** (related but distinct)
    - Writes to `related.json`: Links, relationships, refresh candidates, and overlap assessment (score + which dimensions matched). Returns only the artifact path.
 
-   **Search strategy.** Grep the frontmatter fields (`title`, `tags`, `module`, `component`) for keywords from the problem context before reading any file — narrowed to the matching `docs/solutions/<category>/` when the category is clear — and read full bodies only for strong matches. Return distilled links and relationships, not raw file contents.
+   **Search strategy.** Grep the frontmatter fields (`title`, `tags`, `module`, `component`) for keywords from the problem context before reading any file — narrowed to the matching `<root>/solutions/<category>/` when the category is clear — and read full bodies only for strong matches. Return distilled links and relationships, not raw file contents.
 
    **GitHub issue search:**
 
@@ -251,8 +263,8 @@ The orchestrating agent (main conversation) performs these steps:
    - If findings are thin or "no relevant prior sessions," proceed without session context
 4. Assemble complete markdown file from the collected pieces, reading `assets/resolution-template.md` for the section structure of new docs
 5. Validate YAML frontmatter against `references/schema.yaml`, including the YAML-safety quoting rule for array items (see `references/yaml-schema.md` > YAML Safety Rules)
-6. Create directory if needed: `mkdir -p docs/solutions/[category]/`
-7. Write the file: either the updated existing doc or the new `docs/solutions/[category]/[filename].md`
+6. Create directory if needed: `mkdir -p <root>/solutions/[category]/`
+7. Write the file: either the updated existing doc or the new `<root>/solutions/[category]/[filename].md`
 8. **Validate parser-safety of the written frontmatter** — it catches silent corruption the prose rules miss: malformed `---` delimiters, and unquoted ` #` (YAML truncates the value as a comment) or `: ` (strict YAML may read a nested mapping) in scalar values. Run the bundled validator through an existence guard, so a platform where it is not on disk falls back to a manual check rather than silently skipping the protection:
 
    ```bash
@@ -314,7 +326,7 @@ Name the narrowest useful scope with the recommendation — a specific doc filen
 
 ### Discoverability Check
 
-After the learning is written and the refresh decision is made, check whether the project's instruction files would lead an agent to discover and search `docs/solutions/` before starting work in a documented area. This runs every time — the knowledge store only compounds value when agents can find it.
+After the learning is written and the refresh decision is made, check whether the project's instruction files would lead an agent to discover and search `<root>/solutions/` before starting work in a documented area. This runs every time — the knowledge store only compounds value when agents can find it.
 
 1. Identify which root-level instruction files exist (AGENTS.md, CLAUDE.md, or both) and which holds the substantive content — one may be a shim that only `@`-includes the other. The substantive file is the assessment and edit target; ignore shims. If neither file exists, skip this check entirely.
 2. Assess whether an agent reading it would learn three things:
@@ -322,13 +334,13 @@ After the learning is written and the refresh decision is made, check whether th
    - Enough about its structure to search effectively (category organization, YAML frontmatter fields like `module`, `tags`, `problem_type`)
    - When to search it (before implementing features, debugging issues, or making decisions in documented areas — learnings may cover bugs, best practices, workflow patterns, or other institutional knowledge)
 
-   This is a semantic assessment, not a string match: the information may be spread across sections or never name the exact path `docs/solutions/`. If an agent would reasonably discover and use the knowledge store after reading the file, the check passes and no action is needed.
+   This is a semantic assessment, not a string match: the information may be spread across sections or never name the exact path `<root>/solutions/`. If an agent would reasonably discover and use the knowledge store after reading the file, the check passes and no action is needed.
 
-3. If it does not pass, draft the smallest addition that communicates the three things, matching the file's style. A line in an existing section (architecture tree, directory listing, documentation or conventions block) is almost always better than a new headed section. Describe the knowledge store itself, not the plugin. Keep the tone informational, not imperative — "relevant when implementing or debugging in documented areas" rather than "always search before implementing", which causes redundant reads when a workflow already has a dedicated search step. Calibration example, not a template:
+3. If it does not pass, draft the smallest addition that communicates the three things, matching the file's style. A line in an existing section (architecture tree, directory listing, documentation or conventions block) is almost always better than a new headed section. Describe the knowledge store itself, not the plugin. Keep the tone informational, not imperative — "relevant when implementing or debugging in documented areas" rather than "always search before implementing", which causes redundant reads when a workflow already has a dedicated search step. **Write the resolved concrete root, never the literal `<root>` placeholder** — the instruction file is read by people and by agents without this plugin, who cannot resolve it. Calibration example, not a template (substitute the resolved root):
    ```
-   docs/solutions/  # documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (module, tags, problem_type)
+   <root>/solutions/  # documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (module, tags, problem_type)
    ```
-4. **In full interactive mode**, show the proposed change and where it would go, say why it matters (fresh sessions, other tools, and collaborators without the plugin won't know to check `docs/solutions/`), then get consent with the platform's blocking question tool before editing: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi. Fall back to presenting the proposal in chat only when the harness has no blocking tool or the call errors; never silently skip the question. In lightweight mode (interactive or headless), output a one-liner note and move on. In full headless mode, **do not edit instruction files** — surface the gap in the terminal report as `Instruction-file edit: gap noted, not applied`, since headless scope is documentation capture, not project-config edits.
+4. **In full interactive mode**, show the proposed change and where it would go, say why it matters (fresh sessions, other tools, and collaborators without the plugin won't know to check `<root>/solutions/`), then get consent with the platform's blocking question tool before editing: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi. Fall back to presenting the proposal in chat only when the harness has no blocking tool or the call errors; never silently skip the question. In lightweight mode (interactive or headless), output a one-liner note and move on. In full headless mode, **do not edit instruction files** — surface the gap in the terminal report as `Instruction-file edit: gap noted, not applied`, since headless scope is documentation capture, not project-config edits.
 5. **If `CONCEPTS.md` exists at repo root, run the same check for it** — same target file, same placement judgment, same per-mode interaction shape — assessing whether an agent would discover the project's shared domain vocabulary (example line: `CONCEPTS.md  # shared domain vocabulary (entities, named processes, status concepts) — relevant when orienting to the codebase`). **Skip this step entirely if `CONCEPTS.md` does not exist** — never nag for an artifact the project has not adopted.
 
 ### Phase 3: Optional Enhancement
@@ -357,12 +369,12 @@ The orchestrator (main conversation) performs ALL of the following in one sequen
 
 1. **Extract from conversation**: Identify the problem and solution from conversation history. Also scan the "user's auto-memory" block injected into your system prompt, if present (Claude Code only) -- use any relevant notes as supplementary context alongside conversation history. Tag any memory-sourced content incorporated into the final doc with "(auto memory [claude])". Before asserting how code behaves (enum values, status semantics, limits, defaults), Read the defining line at the current tree — soften or attribute any claim you cannot verify. Cite PR numbers over bare commit SHAs, and phrase unmerged fixes as pending
 2. **Classify**: Read `references/schema.yaml` and `references/yaml-schema.md`, then determine track (bug vs knowledge), category, and filename
-3. **Write minimal doc**: Before writing, check whether the exact proposed `docs/solutions/[category]/[filename].md` path exists. If it exists, read it: update it only when it covers the same problem, preserving its path and frontmatter structure and adding `last_updated: YYYY-MM-DD`; otherwise choose a distinct, descriptive filename and re-check that exact path is absent before writing. This is exact-path collision handling only — do not run Full mode's semantic overlap research or dispatch subagents. Create or update the doc using the appropriate track template from `assets/resolution-template.md`, with:
+3. **Write minimal doc**: Before writing, check whether the exact proposed `<root>/solutions/[category]/[filename].md` path exists. If it exists, read it: update it only when it covers the same problem, preserving its path and frontmatter structure and adding `last_updated: YYYY-MM-DD`; otherwise choose a distinct, descriptive filename and re-check that exact path is absent before writing. This is exact-path collision handling only — do not run Full mode's semantic overlap research or dispatch subagents. Create or update the doc using the appropriate track template from `assets/resolution-template.md`, with:
    - YAML frontmatter with track-appropriate fields, applying the YAML-safety quoting rule for array items (see `references/yaml-schema.md` > YAML Safety Rules)
    - Bug track: Problem, root cause, solution with key code snippets, one prevention tip
    - Knowledge track: Context, guidance with key examples, one applicability note
 4. **Vocabulary capture (update-only)**: if `CONCEPTS.md` exists at repo root, read `references/concepts-vocabulary.md`, then scan the new doc and the conversation for qualifying terms and add/refine entries silently (same criteria as Phase 2.4). Do **not** bootstrap or seed in lightweight mode — if `CONCEPTS.md` does not exist, defer creation to a Full run, which owns seeding. Record the outcome in the output (e.g., "Vocabulary: 1 entry refined" or "scanned, no qualifying terms"). If you refined `CONCEPTS.md` and the project's active instructions and conventions already in your context do not surface it, add the discoverability tip to the output below — lightweight **tips**, it does not edit instruction files (an interactive Full run owns that edit after consent; headless Full also tips/reports only).
-5. **Read-only discoverability check**: Using the project's active instructions and conventions already in your context, assess whether they surface `docs/solutions/` against the three criteria under **Discoverability Check** above. Do not open, offer to edit, or edit instruction files; Lightweight only reports the result. Record one of:
+5. **Read-only discoverability check**: Using the project's active instructions and conventions already in your context, assess whether they surface `<root>/solutions/` against the three criteria under **Discoverability Check** above. Do not open, offer to edit, or edit instruction files; Lightweight only reports the result. Record one of:
    - `no gap` when active project instructions surface the knowledge store
    - `gap noted — instruction-file tip emitted` when active project instructions exist but do not surface it
    - `not applicable — no active project instructions` when no project instructions are active; emit no discoverability tip
@@ -377,10 +389,10 @@ The orchestrator (main conversation) performs ALL of the following in one sequen
 ✓ Documentation complete (lightweight mode)
 
 File created:
-- docs/solutions/[category]/[filename].md
+- <root>/solutions/[category]/[filename].md
 
 [If discoverability check found instruction files don't surface the knowledge store:]
-Tip: Your AGENTS.md/CLAUDE.md doesn't surface docs/solutions/ to agents —
+Tip: Your AGENTS.md/CLAUDE.md doesn't surface <root>/solutions/ to agents —
 a brief mention helps all agents discover these learnings.
 
 [If CONCEPTS.md was refined this run and isn't surfaced in the instruction files:]
@@ -409,7 +421,7 @@ For `depth:lightweight`, use this lower-overhead report after the Lightweight Mo
 ```
 ✓ Documentation complete (headless lightweight mode)
 
-File: docs/solutions/<category>/<filename>.md  (created | updated)
+File: <root>/solutions/<category>/<filename>.md  (created | updated)
 Track: <bug | knowledge>
 Category: <category>
 Grounding: <mechanical check clean | N flags adjudicated>
@@ -426,7 +438,7 @@ For `depth:full` or backward-compatible headless calls with no depth token, use 
 ```
 ✓ Documentation complete (headless mode)
 
-File: docs/solutions/<category>/<filename>.md  (created | updated)
+File: <root>/solutions/<category>/<filename>.md  (created | updated)
 Track: <bug | knowledge>
 Category: <category>
 Overlap: <none | low | moderate — see <path> | high — existing doc updated>
@@ -471,7 +483,7 @@ Enhancement:
   ✓ Code simplification review: Code examples are appropriately minimal
 
 Files written:
-- docs/solutions/performance-issues/n-plus-one-brief-generation.md (created)
+- <root>/solutions/performance-issues/n-plus-one-brief-generation.md (created)
 - CONCEPTS.md (created with 3 entries: BriefSystem, EmailQueue, Brief Status)
 
 This documentation will be searchable for future reference when similar
@@ -487,10 +499,10 @@ Refresh recommendation: none
 ```
 ✓ Documentation updated (existing doc refreshed with current context)
 
-Overlap detected: docs/solutions/performance-issues/n-plus-one-queries.md
+Overlap detected: <root>/solutions/performance-issues/n-plus-one-queries.md
   Matched dimensions: problem statement, root cause, solution, referenced files
   Action: Updated existing doc with fresher code examples and prevention tips
 
 File updated:
-- docs/solutions/performance-issues/n-plus-one-queries.md (added last_updated: 2026-03-24)
+- <root>/solutions/performance-issues/n-plus-one-queries.md (added last_updated: 2026-03-24)
 ```

@@ -158,7 +158,7 @@ vs. genuine skip cases:
 
 When skipping the plan doc, the work proceeds directly to `ce-work` or to
 implementation, and any decisions made along the way land in the commit
-message or `docs/solutions/` if they're worth carrying forward.
+message or `<root>/solutions/` if they're worth carrying forward.
 
 ## Implementation-ready hard floor
 
