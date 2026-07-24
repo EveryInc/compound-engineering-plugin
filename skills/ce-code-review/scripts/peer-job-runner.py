@@ -1175,7 +1175,14 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
     while True:
         rc = proc.poll()
         if rc is not None:
-            state, reason = classify_exit(rc, result_path, conf)
+            # If cmd_reap raced the poll sleep and killed the worker itself,
+            # honor the reap marker over classify_exit (which would record
+            # "failed" for a non-zero kill exit). Classification is fixed by
+            # the request, not by how the worker happened to die.
+            if _reap_requested(flag, job_dir):
+                state, reason = "timeout", "reaped on request before completion"
+            else:
+                state, reason = classify_exit(rc, result_path, conf)
             break
         if _reap_requested(flag, job_dir):
             # Classification is fixed BEFORE the kill: even if the worker
