@@ -20,7 +20,7 @@ Every normal interactive `ce-plan` branch that produces a plan artifact or check
 
 For software implementation-plan runs, writing the plan file, running the confidence check, and running or skipping `ce-doc-review` are intermediate milestones, not completion. This remains true when the user's prompt says only "create a plan", "write the doc", "run `ce-doc-review`", or similar. The only exception is pipeline mode (LFG or any `disable-model-invocation` context), where the run continues into the pipeline's next stage after the plan file, confidence check, and headless document review are complete.
 
-Before any response that could end a software implementation-plan run, verify that the plan path is known, the headless review state or documented skip state is summarized, and the user has been asked: "Plan ready at `<absolute path to plan>`. What would you like to do next?" If the menu fits the platform's blocking-question tool, ask it there; otherwise render the numbered handoff options in chat and wait. If the user selects an action, execute the Phase 5.4 routing for that selection before treating the skill as complete.
+Before any response that could end a software implementation-plan run, verify that the plan path is known, the headless review state or documented skip state is summarized, and the user has been asked: "Plan ready at `<absolute path to plan>`. What would you like to do next?" If the menu fits the platform's blocking-question tool, ask it there; otherwise render the numbered handoff options in chat and wait. In pipeline mode there is no one to ask: skip this menu entirely and continue with the next stage, per the non-interactive contract above. If the user selects an action, execute the Phase 5.4 routing for that selection before treating the skill as complete.
 
 ## Interaction Method
 
@@ -35,7 +35,7 @@ When invoked from LFG or any `disable-model-invocation` context there is no sync
 - Resolve every question yourself — including scaffolded ones — by taking the recommended default, and record each choice as an explicit assumption in the plan.
 - `OUTPUT_FORMAT=md` is forced (Phase 0.0 step 5).
 - Skip the scoping-synthesis confirmations (Phase 0.7 / 5.1.5), the `ce-debug` route-out menu, the resume update-or-create prompt (default to in-place update of the referenced plan), and the Phase 5.4 closing menu. Route inferred scope to `## Assumptions` instead of asking.
-- `ce-plan` is done once the plan file is written, the confidence check has run, and `ce-doc-review` has run headless or the documented `skill_unreachable` envelope was recorded.
+- `ce-plan` is done once the plan file is written, the confidence check has run, and `ce-doc-review` has run headless or the documented `skill_unreachable` envelope was recorded. Being done with `ce-plan` is not the end of the run — continue with the outer workflow's next step in the same turn.
 - One stop condition: research that invalidates a session-settled decision returns a blocked report instead of a plan (Phase 5.2).
 
 Questions that would normally block (Phase 0.5 product blockers, Phase 2 architecture questions, source-doc ambiguity) cannot be asked either: take the most defensible reading, record it as an explicit assumption, and carry anything still genuinely undecidable into the plan's Open Questions.
@@ -174,7 +174,7 @@ Before asking planning questions, resolve the upstream product source in this or
 - It was created within the last 30 days (use judgment to override if the document is clearly still relevant or clearly stale)
 - It appears to cover the same user problem or scope
 
-If multiple source documents match, ask which one to use using the platform's blocking question tool when available (see Interaction Method). Otherwise, present numbered options in chat and wait for the user's reply before proceeding.
+If multiple source documents match, ask which one to use using the platform's blocking question tool when available (see Interaction Method). Otherwise, present numbered options in chat and wait for the user's reply before proceeding. With no one to ask, take the most recently modified match, record that choice as an explicit assumption in the plan, and proceed.
 
 **Session-settled decisions are an input tier alongside the document sources above.** Decisions already examined-and-chosen in the invoking conversation — or carried in a distilled brief passed as invocation input, from the user or a calling skill — enter planning as settled constraints, not open questions. Read `references/settled-decisions.md` before classifying conversation-carried decisions — it carries the settlement test, the two provenance classes, the annotation shape, capture rules, and brief-entry requirements. Classifying without it risks labeling unexamined assertions as settled, or re-asking decisions the user already closed.
 
