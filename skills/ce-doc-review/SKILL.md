@@ -33,7 +33,7 @@ If `mode:headless` is not present, run in default interactive mode with the rout
 
 ## Artifact Root
 
-This skill reviews a document at a path it is handed and, in interactive mode with no path given, discovers the most recent plan under `<root>/plans/`. Resolve `<root>` once at the start of the run and use it everywhere a `<root>/` path appears below. It reviews a document at any path; it never needs `<root>` to review a doc the caller named.
+This skill reviews a document at a path it is handed and, in interactive mode with no path given, discovers the most recent plan under `<root>/plans/`. Resolve `<root>` (per the block below) **only in that no-path discovery branch** — the sole place it composes a `<root>/` path. A review of an explicitly-named document reads that path directly and never resolves `<root>`; do not run root resolution at the start of every run, since a valid headless or absolute-path review (e.g. `/tmp/plan.md`, possibly outside any git repo) must not depend on a repo root or CE config it does not need.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**
