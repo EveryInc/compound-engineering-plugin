@@ -45,7 +45,7 @@ export function transformContentForCodex(
 
     // For namespaced calls like "compound-engineering:research:repo-research-analyst",
     // use only the final segment as the skill name when no custom agent target exists.
-    const finalSegment = agentName.includes(":") ? agentName.split(":").pop()! : agentName
+    const finalSegment = agentName.split(":").pop()!
     const skillName = normalizeCodexName(finalSegment)
     return trimmedArgs
       ? `${prefix}Use the $${skillName} skill to: ${trimmedArgs}`
