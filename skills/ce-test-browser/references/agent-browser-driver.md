@@ -6,6 +6,8 @@ Read this file only after the main skill selects `agent-browser` because no qual
 
 Verify the direct CLI is installed with `command -v agent-browser`. If it is missing, tell the user: "`agent-browser` is not installed. Use the `ce-setup` skill to print the current install command, then install `agent-browser` and retry." Then stop. An installed discovery skill does not imply that the CLI or its browser runtime is installed.
 
+In an unattended run (`mode:pipeline`) there is no one to install it: record every planned route as `Skip` with reason `agent-browser not installed`, report the overall result as `PARTIAL`, and continue with the run's next stage. A missing optional driver is a skipped step, never a stopped run.
+
 Before running browser actions, load the workflow and troubleshooting content that matches the installed CLI — it is the authoritative, version-correct command reference:
 
 ```bash
