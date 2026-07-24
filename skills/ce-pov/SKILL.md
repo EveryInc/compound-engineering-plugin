@@ -28,7 +28,7 @@ When you must ask the user a question, use the platform's blocking question tool
 
 ## Artifact Root
 
-This skill scans prior decisions under `<root>/solutions/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it (a run that composes no `<root>/` path -- including a read-only scan of `<root>/solutions/` -- never needs a root); pass the resolved path to any scout, not the config.
+This skill scans prior decisions under `<root>/solutions/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it. A write to `<root>/...` and a read of `<root>/solutions/` both count as composing a `<root>/` path, so either one triggers resolution; only a run that touches no `<root>/` path at all -- a scratch-only or no-repo flow -- skips it; pass the resolved path to any scout, not the config.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**

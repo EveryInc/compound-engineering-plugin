@@ -14,7 +14,7 @@ Before step 1, use the platform's task-tracking capability when available to pub
 
 ## Artifact Root
 
-This pipeline records the plan under `<root>/plans/` and review residuals under `<root>/residual-review-findings/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it (a run that composes no `<root>/` path -- including a read-only scan of `<root>/solutions/` -- never needs a root).
+This pipeline records the plan under `<root>/plans/` and review residuals under `<root>/residual-review-findings/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it. A write to `<root>/...` and a read of `<root>/solutions/` both count as composing a `<root>/` path, so either one triggers resolution; only a run that touches no `<root>/` path at all -- a scratch-only or no-repo flow -- skips it.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**
