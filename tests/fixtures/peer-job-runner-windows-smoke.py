@@ -92,6 +92,15 @@ class WindowsPeerJobSmoke(unittest.TestCase):
         with open(os.path.join(job_dir, "pid"), encoding="utf-8") as f:
             return json.load(f)
 
+    def _out_log(self, job_id: str, limit=2000) -> str:
+        """Worker stdout+stderr, so a dead worker fails loudly, not silently."""
+        path = os.path.join(self._job_dir(job_id), "out.log")
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                return f.read()[-limit:]
+        except OSError as exc:
+            return f"<no out.log: {exc}>"
+
     def test_happy_path_start_wait_result_reap(self):
         result_path = os.path.join(self.root, "artifact.json")
         worker = [
@@ -139,27 +148,40 @@ class WindowsPeerJobSmoke(unittest.TestCase):
 
     def test_detach_survival_past_start_call(self):
         marker = os.path.join(self.root, "still-writing.txt")
-        worker = [
-            sys.executable,
-            "-c",
-            (
-                "import time;"
-                f"p={marker!r};"
-                "for i in range(20):"
-                " open(p,'a',encoding='utf-8').write(str(i)+'\\n');"
-                " time.sleep(0.25)"
-            ),
-        ]
+        # A script file, not `python -c`: a loop cannot follow `;` on one line,
+        # so the one-liner form dies with SyntaxError before writing anything.
+        worker_py = os.path.join(self.root, "detach_worker.py")
+        with open(worker_py, "w", encoding="utf-8") as f:
+            f.write(
+                "import time\n"
+                f"p = {marker!r}\n"
+                "for i in range(20):\n"
+                "    with open(p, 'a', encoding='utf-8') as fh:\n"
+                "        fh.write(str(i) + '\\n')\n"
+                "    time.sleep(0.25)\n"
+            )
         t0 = time.monotonic()
         started = self._run(
-            ["start", "--skill", "ce-doc-review", "--run-id", "run1", "--", *worker]
+            [
+                "start",
+                "--skill",
+                "ce-doc-review",
+                "--run-id",
+                "run1",
+                "--",
+                sys.executable,
+                worker_py,
+            ]
         )
         start_ms = (time.monotonic() - t0) * 1000
         self.assertEqual(started.returncode, 0, started.stderr)
         self.assertLess(start_ms, 5000, f"start took {start_ms:.0f}ms — not detached")
         job_id = started.stdout.strip()
         time.sleep(0.8)
-        self.assertTrue(os.path.isfile(marker), "worker should outlive start")
+        self.assertTrue(
+            os.path.isfile(marker),
+            f"worker should outlive start; out.log:\n{self._out_log(job_id)}",
+        )
         with open(marker, encoding="utf-8") as f:
             lines_mid = f.readlines()
         self.assertGreaterEqual(len(lines_mid), 1)
