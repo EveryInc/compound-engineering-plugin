@@ -69,6 +69,7 @@ Proceed to Phase 2 only if one or more repo-local project issues exist:
 - `.compound-engineering/config.local.yaml` exists but is not safely gitignored
 - `.compound-engineering/config.local.example.yaml` is missing or outdated
 - the health report marks the `ce-work` skill implementation engine unavailable or invalid, detects retired scalar routing keys, or reports malformed dormant `work_engine_preferences`
+- the health report marks `docs_root` invalid (`Invalid docs_root ...`) — CE artifacts will not be written until it is fixed
 
 If no project issues exist, report:
 
@@ -117,6 +118,10 @@ If the user approves, copy `references/config-template.yaml` to `<repo-root>/.co
 ### Step 6a: Repair Invalid CE Work Preferences
 
 When the health report marks the CE Work implementation engine unavailable or invalid, detects retired scalar routing keys, or reports malformed dormant `work_engine_preferences`, do not guess the intended recipients. Explain the exact reported problem, derive a valid ordered `work_engine_preferences` block from the user's stated harness/model order (or remove malformed dormant preferences and use `work_engine_mode: off` when they want native-by-default), remove any retired scalar routing keys, and show the complete replacement block. Edit only those CE Work keys after the user approves the preview; preserve every unrelated local setting. Re-run the health check and require it to report either native or the intended normalized ordered list before setup is complete.
+
+### Step 6b: Repair Invalid `docs_root`
+
+When the health report marks `docs_root` invalid, explain the exact reason it gave (absolute, escapes the repo, `..` traversal, repo root, `.git/`, or a non-directory component) and the consequence: CE artifacts will not be written until it is fixed, because `docs_root` fails closed rather than silently falling back to `docs`. `docs_root` may live in the tracked `.compound-engineering/config.yaml` or the local `config.local.yaml` — repair it in whichever file set it. Offer to either correct the value to a valid repo-relative directory the user names, or remove the `docs_root` key to fall back to the default `docs`. Edit only that key after the user approves; preserve every unrelated setting. Re-run the health check and require it to report a resolved artifact root before setup is complete.
 
 ### Step 7: Ensure Local Config Is Gitignored
 
