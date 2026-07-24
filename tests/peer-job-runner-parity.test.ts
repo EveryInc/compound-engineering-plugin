@@ -45,7 +45,9 @@ describe("peer-job-runner shared-asset parity", () => {
       PEER_WORKERS.map(async (worker) => {
         const body = await readFile(path.join(PLUGIN_ROOT, worker), "utf8")
         expect(body).toContain('wait "$_HEARTBEAT_PID" 2>/dev/null || true')
-        const match = body.match(/start_heartbeat\(\) \{[\s\S]*?\n\}\n(?=\nrun_codex_cmd\(\))/)
+        // Tolerate CRLF checkouts (\r?\n) — Windows runners often set
+        // core.autocrlf=true; the heartbeat body itself must still match.
+        const match = body.match(/start_heartbeat\(\) \{[\s\S]*?\r?\n\}\r?\n(?=\r?\nrun_codex_cmd\(\))/)
         expect(match).not.toBeNull()
         return match![0]
       }),

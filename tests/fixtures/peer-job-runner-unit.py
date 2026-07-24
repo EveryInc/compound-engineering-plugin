@@ -18,12 +18,15 @@ import json
 import os
 import stat as stat_mod
 import subprocess
+import sys
 import tempfile
 import time
 import types
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
+
+IS_WINDOWS = sys.platform == "win32"
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 RUNNER_PATH = os.environ.get("PEER_JOB_RUNNER") or os.path.normpath(
@@ -89,6 +92,9 @@ def run_main(argv):
 
 
 class OwnershipCheck(unittest.TestCase):
+    # These tests patch os.fstat.st_uid. On Windows ownership uses the file
+    # owner SID on the opened HANDLE, so a uid mismatch mock is inert.
+    @unittest.skipIf(IS_WINDOWS, "uid ownership mock is POSIX-only")
     def test_status_reports_unreadable_on_uid_mismatch(self):
         job_dir, _ = make_done_job()
         with mock.patch("os.fstat", uid_mismatch_fstat()):
@@ -97,6 +103,7 @@ class OwnershipCheck(unittest.TestCase):
         self.assertNotIn("done", out)
         self.assertNotIn("SECRET", out + err)
 
+    @unittest.skipIf(IS_WINDOWS, "uid ownership mock is POSIX-only")
     def test_result_refuses_when_job_state_not_ours(self):
         job_dir, _ = make_done_job()
         with mock.patch("os.fstat", uid_mismatch_fstat()):
@@ -105,6 +112,7 @@ class OwnershipCheck(unittest.TestCase):
         self.assertEqual(out, "")
         self.assertNotIn("SECRET", out + err)
 
+    @unittest.skipIf(IS_WINDOWS, "uid ownership mock is POSIX-only")
     def test_result_refuses_when_result_file_not_ours(self):
         job_dir, result = make_done_job()
         st = os.stat(result)
@@ -134,7 +142,10 @@ class CollisionClaim(unittest.TestCase):
             id2, _ = MOD.claim_job_dir(jobs_root)
         self.assertEqual(id1, "fixed")
         self.assertEqual(id2, "fresh")
-        self.assertEqual(stat_mod.S_IMODE(os.stat(dir1).st_mode), 0o700)
+        # Windows ignores Unix mode bits on mkdir; ACL privacy is covered by
+        # the Windows smoke / ownership path, not st_mode.
+        if not IS_WINDOWS:
+            self.assertEqual(stat_mod.S_IMODE(os.stat(dir1).st_mode), 0o700)
 
     def test_claim_is_bounded_when_ids_never_free(self):
         jobs_root = tempfile.mkdtemp(prefix="peer-claim-")
@@ -176,6 +187,8 @@ class PosixDetachPreflight(unittest.TestCase):
         # invocation path. Native Windows now takes the supported detach path
         # (guarded by IS_WINDOWS, which is False here), so this exercises only the
         # embedded/non-win32-without-fork case. (#1184 closed; tracker is #1243.)
+        if not hasattr(os, "fork") or not hasattr(os, "setsid"):
+            self.skipTest("os.fork/os.setsid unavailable — cannot delete them")
         real_fork, real_setsid = os.fork, os.setsid
         del os.fork
         del os.setsid
@@ -198,6 +211,7 @@ class PosixDetachPreflight(unittest.TestCase):
 
 
 class PidRunningZombie(unittest.TestCase):
+    @unittest.skipUnless(hasattr(os, "fork"), "os.fork is POSIX-only")
     def test_zombie_leader_counts_as_not_running(self):
         # A just-exited leader is briefly a <defunct> zombie: os.kill(pid, 0)
         # still succeeds, but the worker is gone. _pid_running must report it

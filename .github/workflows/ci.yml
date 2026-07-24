@@ -86,6 +86,12 @@ jobs:
     runs-on: windows-latest
 
     steps:
+      # Keep LF in the working tree so newline-anchored parity regexes match.
+      # Default Windows runners often have core.autocrlf=true (see
+      # docs/solutions/developer-experience/windows-crlf-checkout-breaks-newline-anchored-tests.md).
+      - name: Disable autocrlf for LF checkout
+        run: git config --global core.autocrlf false
+
       - uses: actions/checkout@v6
 
       - name: Setup Python
