@@ -1386,6 +1386,13 @@ def cmd_start(args, worker_argv) -> int:
         if resolved is None:
             problem = "was not found on PATH"
             resolved = argv0
+        elif IS_WINDOWS and resolved.lower().endswith((".sh", ".bash")):
+            # Same shell requirement as the path-separator branch: a PATH hit
+            # on a bare `foo.sh` must not detach when bash/sh is missing.
+            if shutil.which("bash") is None and shutil.which("sh") is None:
+                problem = (
+                    "is a shell script but neither bash nor sh is on PATH"
+                )
     argv = [resolved] + list(worker_argv[1:])
 
     conf = cfg(args.skill)
