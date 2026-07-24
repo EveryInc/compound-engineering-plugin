@@ -2,24 +2,11 @@
 
 #### Inline fast pass (emit before the reviewer queue)
 
-To surface findings in seconds, **immediately before the first foreground reviewer dispatch** the orchestrator does a quick first-principles scan of the diff it already holds — emit the fast-pass block as text, then begin the deterministic reviewer queue without an intervening wait.
+**Immediately before the first foreground reviewer dispatch**, scan the diff you already hold for **high-signal, obvious** issues a careful first read catches: data/SQL safety, injection (shell/SQL/LLM-output trust boundary), broken control flow, a missing `await`/unhandled promise, a swapped argument or off-by-one, an enum/status added without updating its sibling switch, a null deref the diff makes reachable. Quote the verbatim motivating line for each, same bar as a persona finding; do not do deep analysis or chase subtle concerns. Then start the reviewer queue without an intervening wait — never block dispatch on the scan.
 
-Scan only for **high-signal, obvious** issues a careful first read catches: data/SQL safety, injection (shell/SQL/LLM-output trust boundary), broken control flow, a missing `await`/unhandled promise, a swapped argument or off-by-one, an enum/status added without updating its sibling switch, a null deref on a value the diff makes reachable. Do **not** do deep analysis, read beyond the diff (except a quick Grep for enum completeness), or chase subtle concerns. Quote the verbatim motivating line for each, same bar as a persona finding.
+Show the fast pass only when it finds an urgent P0/P1 candidate, under a clearly preliminary header (e.g. `### Fast pass (preliminary — deep review in progress)`) as a short list of `severity — file:line — what`, plus one line stating they are unverified and will be deduplicated into the final report. Keep P2/P3 candidates internal until the final report. Do **not** assign stable `#` numbers here. In `mode:agent` emit no preliminary block — the JSON report is the only review output in that mode — but still seed the scan's findings into Stage 5.
 
-Show the preliminary fast pass only when it finds an urgent P0/P1 candidate. Present those under a clearly preliminary header (e.g. `### Fast pass (preliminary — deep review in progress)`) as a short list of `severity — file:line — what`, with one line stating they are unverified and will be deduplicated into the final report. Keep P2/P3 candidates internal until the final report, where validation and deduplication provide the needed context. If there are no P0/P1 candidates, emit only a brief "No urgent fast-pass findings; deep review continues" progress line. Do **not** assign stable `#` numbers here.
-
-The fast pass enters Stage 5 as a pseudo-reviewer named `fast-pass`, with two hard constraints because it is the orchestrator's own read, **not** an independent reviewer (it shares the session model and its blind spots with the orchestrator and the session-model personas):
-
-- **Cap every `fast-pass` finding at anchor 50.** At anchor 50 it surfaces on its own only when P0 (P0+50 survives the gate); otherwise it reaches the actionable tier only by deduping onto an independent persona finding that carries its own ≥75 anchor.
-- **`fast-pass` never counts toward cross-reviewer promotion** (Stage 5 step 3). A `fast-pass`+persona fingerprint match is noted in the Reviewer column but does **not** bump the anchor — only independent reviewers corroborate.
-
-Do not feed `fast-pass` candidates into the persona or validator prompts — those agents review the raw diff independently, and seeding them would manufacture the false agreement this cap exists to prevent. If the fast pass finds nothing obvious, emit one line saying so and proceed; never block dispatch on it.
-
-When Stage 3c selected the lite roster, the fast pass still runs.
-
-**Reconcile the preliminary block in the final report.** A preliminary fast-pass item that did not survive (deduped away, demoted at the gate, or dropped by validation) must be accounted for, not left dangling — add a one-line "Preliminary fast-pass items withdrawn: <n> (<reason>)" note so a user who saw a scary preliminary finding learns it was cleared. Mark any final finding that survived from `fast-pass` alone (no persona corroboration) so its weaker provenance is visible.
-
-**`mode:agent`:** do **not** emit the preliminary block — that mode's response must be a single raw JSON object with nothing before it. Still run the scan internally and seed its findings into Stage 5 dedup as `fast-pass`.
+The fast pass enters Stage 5 as pseudo-reviewer `fast-pass`. It is the orchestrator's own read, not an independent reviewer, so the helper caps it at anchor 50 and never counts it toward cross-reviewer promotion. Do not feed its candidates into the persona or validator prompts — those agents review the raw diff independently, and seeding them would manufacture the false agreement the cap prevents. It still runs under the Stage 3c lite roster. In the final report, account for any preliminary item that did not survive with a one-line "Preliminary fast-pass items withdrawn: <n> (<reason>)" note, and mark a surviving `fast-pass`-only finding so its weaker provenance is visible.
 
 #### Model tiering
 

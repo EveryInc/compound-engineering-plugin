@@ -1,20 +1,9 @@
 # HTML Rendering
 
-This is a format-rendering reference — it describes how to render any
-artifact in HTML, independent of which skill is producing it.
-
-It is paired with a section contract (`plan-sections.md`,
-`brainstorm-sections.md`, etc.) that describes *what* the artifact contains.
-This reference describes *how* HTML specifically presents it. The same
-content rendered by different skills shares the same HTML principles.
-
-The HTML artifact is the *only* artifact the skill produces for that run —
-output mode is exclusive (markdown OR HTML, never both). Downstream
-consumers that read HTML today (`ce-work`, human readers) do so directly;
-the agent-consumability rules below make that work. `ce-doc-review` is
-*not* currently an HTML consumer — its mutation mechanics are markdown-only,
-so the ce-plan handoff gates the 5.3.8 doc-review pass to `OUTPUT_FORMAT=md`
-runs and skips it for HTML.
+This is a format-rendering reference — how to render an artifact in HTML,
+independent of which skill is producing it. It is paired with a section
+contract (`plan-sections.md`, `brainstorm-sections.md`, etc.) that describes
+*what* the artifact contains; this describes *how* HTML presents it.
 
 ## Hard invariants
 
@@ -149,12 +138,10 @@ Specific cases:
   (Inter, Geist, Cal Sans, Roboto…); when unsure whether a face is open,
   do not try. Honor the DESIGN.md's declared roles (`body` / `display` /
   `mono`) and never promote a display/decorative face into a body or
-  small-text role. Net: reproduce the brand's serif-vs-sans structure and
-  weight voice, not necessarily its exact faces.
+  small-text role.
 - **Typography-scale mismatch.** DESIGN.md typography tokens are usually
   sized for product UI — marketing pages, app screens, hero sections —
-  with display headings at 48-80px. A long-form doc needs body at ~14-16px
-  and headings at ~1.2-1.6× body. When the size scale looks
+  with display headings at 48-80px. When the size scale looks
   product-scaled (the common case), use the **family**, **weight**, and
   **OpenType feature** assignments (these carry the design language) and
   pick the agent's own size scale for the doc surface. Apply DESIGN.md
@@ -184,24 +171,13 @@ artifact based on content.
 Long-form text is unreadable at full viewport width — past ~80 characters
 per line the eye loses the return sweep and scanning slows. As a
 fallback-default (precedence tier 4, overridden by in-session direction or
-DESIGN.md), center the document in a content container and hold prose to a
-comfortable measure.
-
-- **Page container.** A centered column with a max-width in the ~820-960px
-  band (`margin-inline: auto`) keeps the doc off the far edges of wide
-  monitors while leaving room for the format's richer shapes.
-- **Prose measure.** Hold running paragraphs to roughly 65-80 characters
-  (`max-width: ~70ch` on text blocks). The named test: read a paragraph at
-  full window width on a wide display — if the return sweep to the next
-  line is effortful, the measure is too wide.
-- **Let wide content break out.** Tables, diagrams, and side-by-side
-  columns may use the full container width (or wider) when the content
-  needs it — the measure constraint is for prose, not for everything.
-
-Express the constraint in `ch`/`rem` rather than a single hardcoded pixel
-value so it survives font-size and DESIGN.md overrides. DESIGN.md or an
-in-session instruction overrides these values; this is the fallback when no
-layout preference exists.
+DESIGN.md): center the document in a container with a max-width in the
+~820-960px band (`margin-inline: auto`), and hold running prose to roughly
+65-80 characters (`max-width: ~70ch` on text blocks). Tables, diagrams, and
+side-by-side columns may break out to the full container width or wider —
+the measure constraint is for prose, not for everything. Express it in
+`ch`/`rem` rather than a hardcoded pixel value so it survives font-size and
+DESIGN.md overrides.
 
 ### Markdown source is content, not design
 
@@ -224,8 +200,7 @@ governs. If they diverge, the visualization is wrong.
 When the doc has a Sources & References (or equivalent reference-index)
 section, hyperlink each entry to its canonical destination so readers
 can open it directly. A long bare-text list of paths and ticket IDs is
-the format's biggest unforced UX miss — the reader has to copy-paste
-every entry into a browser or IDE.
+the format's biggest unforced UX miss.
 
 Resolve the repo's GitHub URL once at compose time:
 
@@ -313,9 +288,7 @@ whole pill, like a soft-tint badge), never by an accent on one edge. A
 colored stripe or arc on a single side of a pill reads as broken and
 asymmetric — as if a border half-failed to render — so avoid it. The same
 holds for any element, not just chips: differentiate by a full tint, not
-a colored stripe on one edge. If an ID chip should stand out from metric
-chips, vary its fill/text color uniformly, not its edge treatment, and
-keep every chip in the row a visual set.
+a colored stripe on one edge.
 
 ### No JS framework runtimes
 
@@ -337,10 +310,8 @@ contracts — the agent picks shapes that fit the content.
   flat-table default: when requirements span distinct concerns, group them
   under bold inline headers (or per-group sections) first, then apply the
   5+ table default *within* each group rather than flattening the whole
-  section into one table. Each row has the R-ID as visible text in
-  its own column. Consider adding a "covered by" column for reverse
-  traceability when ID-anchored items have downstream references in
-  the same doc.
+  section into one table. Each row has the R-ID as visible text in its own
+  column. Consider adding a "covered by" column for reverse traceability.
 - **Implementation Units** — repeating `<article>` cards with a stable
   ID chip (visible "U1" text), a metadata strip (`<dl>` with field
   labels and values for Goal, Files, Dependencies), and secondary
@@ -348,33 +319,25 @@ contracts — the agent picks shapes that fit the content.
   inside `<details>` collapsibles, **default-closed**. At 3+ units the
   default-closed rule is load-bearing — rendering all units fully
   expanded turns the doc into one continuous scroll where the reader
-  can't see the unit list at a glance. The metadata strip is the
-  primary always-visible surface; subsection labels (`<summary>`) are
-  clickable affordances for readers to expand on demand. A single unit
-  with no secondary content can skip `<details>` entirely; the rule
-  fires when content exists to hide. The `<dl>` strip is for *descriptive*
-  fields (Goal, Files, Dependencies). A *directive* field — `Execution
-  note` is the canonical case, carrying a procedural instruction the
-  implementer must act on (e.g. "start with a failing integration test") —
-  does not belong in the strip, where it renders as a passive pair styled
-  like a date and gets skimmed past. Render it as an advisory callout (see
-  Tinted callout cards) so its visual weight matches its actionability. The
-  test: descriptive value -> metadata pair; something the reader must act
-  on -> callout.
-- **Key Technical Decisions** — repeating cards with the decision ID,
-  bold decision title (often with inline code for technical
-  identifiers), and prose rationale. Flat cards (not collapsibles) —
-  these are reference material readers scan, not drill into. A
-  `session-settled:` annotation renders as visible text in the card —
-  never an attribute or hidden markup — stem preserved verbatim so
-  grep works on the HTML artifact.
-- **Risks** — cards with a color-coded status eyebrow (e.g., "RISK ·
-  MITIGATED" / "OPEN · DEFERRED FOLLOW-UP") and prose body. Communicate
-  status through the eyebrow's color plus an optional subtle full-card
+  can't see the unit list at a glance. A single unit with no secondary
+  content can skip `<details>` entirely. The `<dl>` strip is for
+  *descriptive* fields (Goal, Files, Dependencies). A *directive* field —
+  `Execution note` is the canonical case, carrying a procedural
+  instruction the implementer must act on (e.g. "start with a failing
+  integration test") — renders as an advisory callout (see Tinted callout
+  cards), not a `<dl>` pair, where it would read as a passive value styled
+  like a date and get skimmed past. The test: descriptive value ->
+  metadata pair; something the reader must act on -> callout.
+- **Key Technical Decisions** — flat cards (not collapsibles; these are
+  reference material readers scan, not drill into) with the decision ID,
+  bold decision title (often with inline code for technical identifiers),
+  and prose rationale. A `session-settled:` annotation renders as visible
+  text in the card — never an attribute or hidden markup — stem preserved
+  verbatim so grep works on the HTML artifact.
+- **Risks** and **Scope Boundaries** — cards with a color-coded status
+  eyebrow (e.g., "RISK · MITIGATED" / "OPEN · DEFERRED FOLLOW-UP", or
+  in-scope vs deferred vs outside) plus an optional subtle full-card
   tint — not a colored stripe on one edge (see "Chips and pills").
-- **Scope Boundaries** — callout cards distinguished (in-scope vs deferred
-  vs outside) by a colored eyebrow/label plus a subtle full-card tint when
-  the distinction is meaningful — not a one-edge colored stripe.
 
 The agent picks more elaborate or simpler shapes based on what each
 specific artifact's content needs.
@@ -385,27 +348,20 @@ When the section contract calls for a diagram (architecture, sequence,
 flowchart, state machine, swim lane, data-flow, quantitative
 comparison), HTML renders it as **inline SVG**. The agent picks the
 shape that conveys the content fastest — there is no fixed catalog of
-"approved" diagram types. If the content is quantitative comparison
-across categories, a bar chart is the right shape; if it's component
-relationships, a topology diagram; if it's process flow across
-participants, a swim lane; etc.
+"approved" diagram types.
 
 **Conceptual diagrams are not wireframes.** The wireframe affordance below
-is scoped to *UI-shaped requirements* and is excluded for non-visual
-systems. That exclusion is about wireframes only —
-a brainstorm about a data model, schema, agent workflow, or migration is
-still free to use a conceptual diagram (a before/after field map, a
+is scoped to *UI-shaped requirements*; that exclusion is about wireframes
+only. A brainstorm about a data model, schema, agent workflow, or migration
+is still free to use a conceptual diagram (a before/after field map, a
 source-of-truth fan-out, a state diagram). Don't let the wireframe
 exclusion suppress a conceptual diagram the content warrants.
 
-**Diagrams complement prose; they never replace it.** A diagram is an
-accelerant placed next to the prose it illustrates, not a substitute. The
-IDed prose stays complete and standalone — a reader who ignores every
-diagram still gets the full content in text, and a text-reading downstream
-agent (which does not parse SVG geometry) is never left with a relationship
-that exists only in the picture. This extends the prose-is-authoritative
-rule above: prose governs not only on disagreement but on completeness, so
-adding a diagram is not license to thin the prose it depicts.
+**Diagrams complement prose; they never replace it.** The IDed prose stays
+complete and standalone — a reader who ignores every diagram still gets the
+full content in text, and a text-reading downstream agent (which does not
+parse SVG geometry) is never left with a relationship that exists only in the
+picture. Adding a diagram is not license to thin the prose it depicts.
 
 ### Layout legibility for hand-authored SVG
 
@@ -423,9 +379,7 @@ labeled arrow, each shape edge, and each text label:
   narrow enough not to bleed into glyph strokes (a halo whose width
   approaches the glyph's own stroke width muddies the text color), wide
   enough to mask the underlying stroke (at least its stroke width
-  plus a hairline). Verify by inspecting rendered text at the target
-  font size — if glyphs look thicker or more colored-toward-halo than
-  the same text outside the diagram, the halo is too wide.
+  plus a hairline).
 - **Labels inside skewed or rotated shapes sit in the shape's true
   interior, not its bounding box.** A parallelogram, isometric face, or
   rotated rect has an interior offset from its bounding box, so a
@@ -447,8 +401,7 @@ labeled arrow, each shape edge, and each text label:
   connection across a multi-component layout, prefer reordering boxes
   so A and D are adjacent, numbered step badges next to each
   participant that the caption ties together, or a short
-  labeled-channel notation — rather than one curve crossing multiple
-  unrelated elements.
+  labeled-channel notation.
 - **Differentiate diagram shapes by geometry first, by fill semantics
   second.** Geometry (diamond = decision, rect = step, oval =
   start/end, parallelogram = data) carries the role unambiguously.
@@ -478,15 +431,13 @@ When a brainstorm requirement describes a user-facing visual surface (UI
 feature, screen layout, screen flow, component placement), the HTML
 rendering may include a wireframe mockup. The trigger is the
 **requirement**, not the document: any requirement (or requirements group)
-with a UI/layout shape can carry a wireframe, whether or not the brainstorm
-as a whole is "a visual product" — a backend-heavy brainstorm with one
-screen change still earns a wireframe for that requirement. It still applies
-to brainstorm **requirements** output — the requirements-only unified plan
+with a UI/layout shape can carry a wireframe — a backend-heavy brainstorm
+with one screen change still earns a wireframe for that requirement. Scope
+is brainstorm **requirements** output — the requirements-only unified plan
 `ce-brainstorm` writes (now under `<root>/plans/`), not an implementation-ready
-plan (`ce-plan`'s enriched output) — and only to UI-shaped requirements — a
+plan (`ce-plan`'s enriched output) — and only UI-shaped requirements: a
 non-visual requirement (API design, data model, agent workflow,
-infrastructure) takes a conceptual diagram instead, not a
-wireframe.
+infrastructure) takes a conceptual diagram instead.
 
 When a wireframe is included:
 
@@ -503,10 +454,8 @@ When a wireframe is included:
   "directional, not the spec" note adjacent to it. Required wording (or
   close paraphrase): *"Directional only — illustrates the intended
   user-facing shape. Exact colors, spacing, copy, and component choices
-  are placeholders for review, not requirements."*
-
-Without this caption the wireframe risks being read as a binding visual
-spec, which the affordance is explicitly designed to avoid.
+  are placeholders for review, not requirements."* Without it the
+  wireframe reads as a binding visual spec.
 
 ## Affordance idioms
 
@@ -515,24 +464,17 @@ These are examples, not requirements — the agent picks what each
 artifact's content warrants. Other affordances not listed here are
 fine when the content suggests them.
 
-- **Sticky TOC sidebar with active-section indicator** — available when
-  the agent judges navigation will materially help and the
-  implementation is reliable: two-column layout on desktop, collapsed
-  to top-of-page on mobile, paired with a small inline
-  `IntersectionObserver` script that toggles `.active` on the matching
-  nav anchor. Trade-off: a broken sticky TOC (layout collisions,
-  active-section state drift, dark-mode CSS issues) is worse than a
-  static top-of-doc TOC. For most long docs, default-closed `<details>`
-  on repeating cards (see Implementation Units anatomy) already cuts
-  the visible scroll length enough that a static TOC works — reach for
-  sticky only when collapsibles alone don't solve the navigation
-  problem.
+- **Sticky TOC sidebar with active-section indicator** — two-column layout
+  on desktop, collapsed to top-of-page on mobile, paired with a small
+  inline `IntersectionObserver` script that toggles `.active` on the
+  matching nav anchor. Reach for it only when collapsibles alone don't
+  solve the navigation problem: a broken sticky TOC (layout collisions,
+  active-section state drift, dark-mode CSS issues) is worse than a static
+  top-of-doc TOC.
 - **Within-section sub-nav** for sections containing 6+ repeating cards
   (Implementation Units, KTDs, Risks at large counts). A short list of
   card-anchor links (`<ul>` of `<a href="#u1">U1. ...</a>`) rendered at
   the top of the section gives readers a jump table — no JS needed.
-  Lower-complexity alternative to the sticky TOC for the specific case
-  of long card sections.
 - **Eyebrow labels** (small-caps tag above section titles) for
   editorial polish, especially when section titles are narrative
   rather than literal.
@@ -555,19 +497,16 @@ fine when the content suggests them.
 Downstream agents that read HTML today (`ce-work`, a skill re-reading its
 own prior artifact on a resume run, future consumers) reason over the HTML
 as text — the way they reason over markdown, not via DOM extraction or a
-script-style parse. `ce-doc-review` is not a current HTML consumer (see
-opening note).
+script-style parse. `ce-doc-review` is not a current HTML consumer; its
+mutation mechanics are markdown-only.
 
-These rules are why such a consumer can locate one item (a single
-requirement, unit, idea, or other ID-bearing entry) and reason over it from
-source alone — its title, every labeled field, and any diagram's meaning —
-with no hidden machine-readable copy to fall back on. The semantic structure
-*is* the extraction contract: it is what makes the single-source-of-truth
-invariant (no `data-*` or JSON metadata mirror) safe rather than lossy.
-Weakening it — `<article>` item boundaries collapsed into `<div>` soup, a
-field label demoted to an attribute, one item's content scattered across
-distant parts of the doc — breaks that reasoning even when the rendered page
-looks identical. Compose so semantic understanding is reachable in source:
+The semantic structure *is* the extraction contract: it is what makes the
+single-source-of-truth invariant (no `data-*` or JSON metadata mirror) safe
+rather than lossy. Weakening it — `<article>` item boundaries collapsed into
+`<div>` soup, a field label demoted to an attribute, one item's content
+scattered across distant parts of the doc — breaks that reasoning even when
+the rendered page looks identical. Compose so semantic understanding is
+reachable in source:
 
 - **Use semantic HTML over `<div>` soup.** `<article>` per unit card,
   `<dl>` for metadata pairs, `<table>` for tabular content, `<details>`
@@ -612,18 +551,13 @@ Before returning the artifact, scan it for common slips:
 - **Source / composition signal** is present as a visible footer at
   the bottom of the doc (composition timestamp + source identifier).
 - **Repeating cards with 3+ instances put secondary content inside
-  default-closed `<details>`.** Fully-expanded unit cards in a long
-  Implementation Units section is a failure mode — the reader can't see
-  the unit list at a glance. Verify by skimming the rendered units:
-  each `<article>` should render as its ID + title + metadata strip
-  with collapsibles below, not as one long block.
+  default-closed `<details>`.**
 - **Within-section sub-nav** is present for sections with 6+ repeating
   cards.
 - **Body `<strong>`** is not colored with accent palette.
 - **No one-edge colored accent** (a colored stripe/arc on a single side)
   on chips, pills, or callout cards — differentiate by uniform fill +
-  colored eyebrow/label instead. A one-sided stripe reads as
-  broken/unintentional; chips in a row must be a uniform visual set.
+  colored eyebrow/label instead.
 - **`<details>`** inside repeating cards have no `open` attribute.
 - **Diagram labels** are legible — no arrow paths crossing text,
   halo width appropriate for font size.

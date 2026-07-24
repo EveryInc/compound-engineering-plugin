@@ -11,7 +11,6 @@ while (tasks remain):
   - Mark task as in-progress
   - Read any referenced files from the plan or discovered during Phase 0
   - **If the unit's work is already present and matches the plan's intent** (files exist with the expected capability, or the unit's `Verification` criteria are already satisfied by the current code), the work has likely shipped on a prior branch or session. Verify it matches, mark the task complete, and move on. Do not silently reimplement.
-  - Look for similar patterns in codebase
   - Find existing test files for implementation files being changed (Test Discovery — see below)
   - Choose the evidence strategy for this task before changing behavior: use an existing failing test, update or strengthen an existing test, add a new failing test, add characterization coverage, or record a deliberate no-test exception with replacement verification
   - For behavior-bearing changes, default to test-first or characterization-first when the current code and test surface make that practical, even if the plan has no `Execution note`
@@ -26,15 +25,13 @@ while (tasks remain):
   - Evaluate for incremental commit (see below)
 ```
 
-For a parallel wave, the loop pauses at a host-owned integration stop after every canonical result. Inspect the actual result rather than its declared scope, re-run the independence judgment against the advancing tree, and recompute readiness from committed prerequisites. Affected dependents remain queued. An unaffected sibling may continue only after any failed apply or verification has been restored exactly and the prior integration lock released. Re-dispatch a stale or colliding result on the new base, resolve it explicitly, or finish it serially; never treat a conflict-free apply as semantic proof. Repeated collision or broad edits disable further parallel waves for the run.
+For a parallel wave, the loop pauses at the host-owned integration stop after every canonical result (the integration sequence lives in `SKILL.md` Phase 1 Step 4): inspect the actual result rather than its declared scope, and never treat a conflict-free apply as semantic proof. Repeated collision or broad unplanned edits disable further parallel waves for the run.
 
-When a unit carries an `Execution note`, honor its intent rather than matching a fixed vocabulary. For notes that ask for proof-first work, write or identify the relevant failing test before implementation for that unit. For notes that ask for characterization, capture existing behavior before changing it. For notes that point away from unit coverage, run the named replacement verification and record why ordinary tests were not the right proof. For units without an `Execution note`, make the same decision from code and test discovery: upgrade to proof-first or characterization-first when behavior changes and the seam is practical; proceed pragmatically only when the task is non-behavioral or the exception is deliberate.
+When a unit carries an `Execution note`, honor its intent rather than matching a fixed vocabulary. For units without one, make the same decision from code and test discovery: upgrade to proof-first or characterization-first when behavior changes and the seam is practical; proceed pragmatically only when the task is non-behavioral or the exception is deliberate.
 
 Guardrails for execution evidence:
 - Do not write the test and implementation in the same step when working proof-first
-- Do not skip verifying that a new or changed test fails for the expected reason before implementing the fix or feature
-- Do not over-implement beyond the current behavior slice when working proof-first
-- Do not add a duplicate regression test when an existing test is the right home; update or strengthen that test instead, then observe the failure before changing code
+- Do not add a duplicate regression test when an existing test is the right home; update or strengthen that test instead
 - Skip proof-first discipline for trivial renames, pure configuration, pure styling, generated artifacts, and manual-only surfaces, but record the reason and replacement verification while continuing execution
 
 **Test Discovery** — Before implementing changes to a file, find its existing test files (search for test/spec files that import, reference, or share naming patterns with the implementation file). When a plan specifies test scenarios or test files, start there, then check for additional test coverage the plan may not have enumerated. Changes to implementation files should be accompanied by corresponding test updates — new tests for new behavior, modified tests for changed behavior, removed or updated tests for deleted behavior.

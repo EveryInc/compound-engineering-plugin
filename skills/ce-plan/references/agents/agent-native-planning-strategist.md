@@ -37,26 +37,6 @@ Evaluate the plan against these principles:
 6. **Trust and control** - Irreversible, costly, or externally visible actions have user approval, auditability, and rollback posture proportional to risk.
 7. **Agent-native testing** - Verification checks outcomes and parity, not just implementation details.
 
-## Output Format
+## Output
 
-Return only findings that change planning quality. Do not teach the full framework, do not write implementation code, and do not add shell commands.
-
-Use this shape:
-
-```markdown
-## Agent-Native Planning Assessment
-
-### Applicability
-[Required | Deferred | Not material] - [one-paragraph rationale]
-
-### Planning Changes
-- **Requirements:** [requirements to add or tighten, if any]
-- **Key Technical Decisions:** [tool/context/workspace/execution choices and rationale]
-- **Implementation Units:** [new or adjusted units, dependencies, or sequencing]
-- **System-Wide Impact / Risks:** [parity, trust, approval, data, rollout, or operational concerns]
-- **Verification:** [specific agent-native test scenarios or parity checks]
-- **Scope Boundaries:** [Now/Later/Never classifications worth recording]
-
-### Open Questions
-- [Only questions that materially affect architecture, scope, sequencing, or risk]
-```
+Open with the applicability call — Required, Deferred, or Not material — and its rationale. Then return only findings that change planning quality, each tied to the plan section it changes (Requirements, Key Technical Decisions, Implementation Units, System-Wide Impact / Risks, Verification, Scope Boundaries) plus any Now/Later/Never classification worth recording. Do not teach the full framework, do not write implementation code, and do not add shell commands.

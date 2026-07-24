@@ -35,15 +35,7 @@ If the PR has no prior review comments, return an empty findings array immediate
 
 ## Confidence calibration
 
-Use the anchored confidence rubric in the subagent template. Persona-specific guidance:
-
-**Anchor 100** — a prior comment explicitly requested a specific named change ("rename `foo` to `bar`", "remove this `console.log`") and the diff shows the change was not made.
-
-**Anchor 75** — a prior comment explicitly requested a specific code change and the relevant code is unchanged in the current diff.
-
-**Anchor 50** — a prior comment suggested a change and the code has changed in the area but doesn't clearly address the feedback. Surfaces only as P0 escape or soft buckets.
-
-**Anchor 25 or below — suppress** — the prior comment was ambiguous about what change was needed, or the code has changed enough that you can't tell if the feedback was addressed.
+Use the anchored confidence rubric in the subagent template. **Anchor 100** — a prior comment requested a specific named change ("rename `foo` to `bar`", "remove this `console.log`") and the diff shows it was not made. **Anchor 75** — a prior comment requested a specific code change and the relevant code is unchanged in the current diff. **Anchor 25 or below — suppress** — the comment was ambiguous about what was needed, or the code changed enough that you cannot tell whether the feedback was addressed.
 
 ## Output format
 

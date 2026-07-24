@@ -40,7 +40,7 @@
 #
 # .env parsing contract: surrounding double or single quotes are stripped.
 # Inline comments (# ...) are truncated after trimming whitespace. Both are
-# intentional for real-world .env files. See dev-server-detection.md.
+# intentional for real-world .env files; do not "simplify" them away.
 
 set -u
 

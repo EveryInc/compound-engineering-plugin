@@ -38,15 +38,7 @@ Structural findings need a **concrete reframe** in `suggested_fix` when possible
 
 ## Confidence calibration
 
-Use the anchored confidence rubric in the subagent template. Persona-specific guidance:
-
-**Anchor 100** — mechanical: dead code on an unreachable branch; explicit `any` or `@ts-ignore` in new code; file line count crosses 1k in the diff; duplicate helper next to an existing canonical function you can name.
-
-**Anchor 75** — objectively visible in the diff: new wrapper with no added behavior; special-case branch in a busy shared function; refactor that adds indirection without reducing concepts; type cast bypassing a check you can point to.
-
-**Anchor 50** — judgment-based naming, boundary placement, or whether extraction helped — **suppress unless severity is P1** (critical structural regression you could not fully verify still surfaces as P1 at 50 per synthesis rules).
-
-**Anchor 25 or below — suppress.**
+Use the anchored confidence rubric in the subagent template. **Anchor 100** — mechanical: dead code on an unreachable branch; explicit `any` or `@ts-ignore` in new code; a file crossing 1k lines in the diff; a duplicate of a canonical helper you can name. **Anchor 75** — objectively visible in the diff: a wrapper with no added behavior, a special-case branch in a busy shared function, a refactor adding indirection without reducing concepts, a type cast bypassing a check you can point to. **Anchor 50** — judgment-based naming, boundary placement, or whether extraction helped: **suppress unless severity is P1** (a critical structural regression you could not fully verify still surfaces at P1). **Anchor 25 or below — suppress.**
 
 ## What you don't flag
 

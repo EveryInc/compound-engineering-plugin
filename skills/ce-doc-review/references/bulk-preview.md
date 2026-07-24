@@ -8,21 +8,19 @@ Interactive mode only.
 
 ## When the preview fires
 
-Three call sites:
+Three call sites, all before anything executes:
 
-1. **Routing option B (top-level best-judgment)** — after the user picks `Auto-resolve with best judgment — apply per-finding edits the agent can defend, surface the rest` from the routing question, but before any action executes. Scope: every pending `gated_auto` or `manual` finding at confidence anchor `75` or `100`.
-2. **Routing option C (top-level Append-to-Open-Questions)** — after the user picks `Append findings to the doc's Open Questions section and proceed` but before any append runs. Scope: every pending `gated_auto` or `manual` finding at confidence anchor `75` or `100`. Every finding appears under `Appending to Open Questions (N):` regardless of the agent's natural recommendation, because option C is batch-defer.
-3. **Walk-through `Auto-resolve with best judgment on the rest`** — after the user picks `Auto-resolve with best judgment on the rest` from a per-finding question, but before the remaining findings are resolved. Scope: the current finding and everything not yet decided. Already-decided findings from the walk-through are not included in the preview.
+1. **Routing option B (top-level best-judgment).** Scope: every pending `gated_auto` or `manual` finding at confidence anchor `75` or `100`.
+2. **Routing option C (top-level Append-to-Open-Questions).** Same scope, but every finding appears under `Appending to Open Questions (N):` regardless of its recommendation — option C is batch-defer.
+3. **Walk-through `Auto-resolve with best judgment on the rest`.** Scope: the current finding plus everything not yet decided; already-decided findings are excluded from the preview and its counts.
 
-In all three cases the user confirms with `Proceed` or backs out with `Cancel`. No per-item decisions inside the preview — per-item decisioning is the walk-through's role.
+In all three cases the user confirms with `Proceed` or backs out with `Cancel`. No per-item decisions inside the preview — that is the walk-through's role.
 
 ---
 
 ## Withdrawal revalidation (before composing the plan)
 
-The walk-through's withdrawal rule (`references/walkthrough.md`, "Withdrawing findings the user's earlier answers resolved") is not confined to the one-by-one loop — it applies to every finding this preview is about to act on. Before sorting findings into Applying / Appending / Skipping buckets, judge each in-scope finding against the decisions already settled: for the `Auto-resolve with best judgment on the rest` path (option D), the earlier walk-through answers the user already gave; for any path, a finding resolved by another finding's Apply in the same plan. A finding those decisions already resolve or contradict does not belong in an action bucket — it is withdrawn, not applied, deferred, or skipped.
-
-Route each such finding to the `Withdrawing (N):` bucket instead. A staged-Apply-triggered withdrawal remains provisional here too: if that Apply is in this same plan and later fails at execution, revert the withdrawal per the walk-through's provisional rule. Do not silently drop a withdrawn finding — the bucket shows the user what earlier answers retired, so they can Cancel if the agent misread them.
+The walk-through's withdrawal rule (`references/walkthrough.md`, "Withdrawing findings the user's earlier answers resolved") applies to every finding this preview is about to act on, not just the one-by-one loop. Before sorting findings into buckets, judge each in-scope finding against what is already settled — earlier walk-through answers on the option-D path, and on any path a finding another Apply in this same plan resolves. Route each such finding to the `Withdrawing (N):` bucket rather than an action bucket, and never drop it silently: the bucket is how the user sees what was retired and can Cancel if the agent misread them. A staged-Apply-triggered withdrawal stays provisional here too — if that Apply later fails at execution, revert the withdrawal.
 
 ---
 
@@ -71,22 +69,18 @@ Skipping (2):
 
 ## Scope summary wording by path
 
-- **Routing option B (top-level best-judgment):** header reads `Auto-resolve plan — N findings:`.
-- **Routing option C (top-level Append-to-Open-Questions):** header reads `Append plan — N findings as Open Questions entries:`. Every finding lands in the `Appending to Open Questions (N):` bucket.
-- **Walk-through `Auto-resolve with best judgment on the rest`:** header reads `Auto-resolve plan — N remaining findings (K already decided):`. Already-decided findings from the walk-through are not included in the preview or in the bucket counts. The `K already decided` counter communicates that the walk-through was partially completed.
+- **Routing option B:** `Auto-resolve plan — N findings:`
+- **Routing option C:** `Append plan — N findings as Open Questions entries:`
+- **Walk-through `Auto-resolve with best judgment on the rest`:** `Auto-resolve plan — N remaining findings (K already decided):`
 
 ---
 
 ## Per-finding line format
 
-Each line uses the compressed form of the framing-quality guidance from the subagent template (observable-consequence-first, no internal section numbering unless needed to locate). The one-line summary is drawn from the persona-produced `why_it_matters` by taking the first sentence (and, when the first sentence is too long for the preview width, paraphrasing it tightly to fit).
-
-- **Shape:** `[<severity>] <section> — <one-line summary>`
-- **Width target:** keep lines near 80 columns so the preview renders cleanly in narrow terminals. Truncate with ellipsis when necessary.
-- **No section numbering** unless the reader needs it to locate the issue (when multiple findings hit the same named section).
+- **Shape:** `[<severity>] <section> — <one-line summary>`, the summary drawn from the persona's `why_it_matters` first sentence (observable-consequence-first, paraphrased tight if long). Add section numbering only when several findings hit the same named section.
 - **Self-contained identifiers** — the one-line summary obeys the shared rendering floor (`references/rendering-floor.md`): it is consequence-first and applies the opaque-token policy to all three classes (navigation anchors like `R4`/`U3` keep the ID and gloss at first mention; provenance anchors like tickets/PRs appear only when the event drives the decision; mechanism symbols like functions/files translate to their role). A summary whose only description of a referenced item is a bare identifier of any class is not acceptable. The floor is the single source.
 
-When no `why_it_matters` is available for a finding (rare — only if persona output was malformed), fall back to the finding's title directly. Note the gap in the completion report's Coverage section if it affects more than a few findings in the same run.
+When a finding has no `why_it_matters` (rare — malformed persona output), fall back to its title, and note the gap in the completion report's Coverage section if it affects more than a few findings.
 
 ---
 
@@ -116,31 +110,20 @@ Options (exactly two, in all three cases):
 
 ## Cancel semantics
 
-- **From routing option B Cancel:** return the user to the routing question (the four-option menu). Do not edit the document, do not append any Open Questions entries, do not record any state.
-- **From routing option C Cancel:** same — return to the routing question, no side effects.
-- **From walk-through `Auto-resolve with best judgment on the rest` Cancel:** return the user to the current finding's per-finding question (not to the routing question). The walk-through continues from where it was, with prior decisions intact.
-
-In every case, `Cancel` changes no on-disk or in-memory state.
+`Cancel` changes no on-disk or in-memory state. From routing option B or C it returns the user to the routing question; from the walk-through's `Auto-resolve with best judgment on the rest` it returns to the current finding's per-finding question, with prior decisions intact.
 
 ---
 
 ## Proceed semantics
 
-When the user picks `Proceed`:
+When the user picks `Proceed`, execute each finding's bucketed action: Apply findings join the in-memory Apply set for the single end-of-batch document-edit pass (see `walkthrough.md`, including the Apply decisions the user already made in a partially-completed walk-through), Defer findings route through `references/open-questions-defer.md`, Skip is recorded as no-action, and each finding in the `Withdrawing` bucket is recorded `withdrawn` with the decision that retired it (no edit, no append; provisional when a staged Apply retired it). Routing option C appends every finding and makes no other document edits. When everything completes or fails, emit the unified completion report.
 
-- **Routing option B (top-level best-judgment):** for each finding in the plan, execute the recommended action. Apply findings go into the Apply set for a single end-of-batch document-edit pass (see `walkthrough.md` for the Apply batching rules). Defer findings route through `references/open-questions-defer.md`. Skip findings are recorded as no-action. After all actions complete, emit the unified completion report (see `walkthrough.md`).
-- **Routing option C (top-level Append-to-Open-Questions):** every finding routes through `references/open-questions-defer.md` for Open Questions append. No document edits apply (beyond the Open Questions section additions themselves). After all appends complete (or fail), emit the unified completion report.
-- **Walk-through `Auto-resolve with best judgment on the rest`:** same as routing option B, but scoped to the findings the user hadn't decided on. Apply findings join the in-memory Apply set with the ones the user already picked during the walk-through; all dispatch together in the single end-of-walk-through Apply pass.
-- **Withdrawing bucket (any path):** each finding in this bucket is recorded `withdrawn` in the decision list, annotated with the decision that retired it — no document edit, no Open Questions append. It carries into the completion report's Withdrawn bucket and follows the same durability rule as a walk-through withdrawal (provisional when retired by a staged Apply that has not yet landed).
-
-Failure during `Proceed` (e.g., an Open Questions append fails for one finding during a batch Defer) follows the failure path defined in `references/open-questions-defer.md` — surface the failure inline with Retry / Fall back / Convert to Skip, continue with the rest of the plan, and capture the failure in the completion report's failure section.
+Failure during `Proceed` (e.g., one Open Questions append fails during a batch Defer) follows the failure path in `references/open-questions-defer.md` — surface it inline with Retry / Fall back / Convert to Skip, continue with the rest of the plan, and capture it in the completion report's failure section.
 
 ---
 
 ## Edge cases
 
-- **Zero findings in a bucket:** omit the bucket header. A preview with only Apply and Skip does not show an empty `Appending to Open Questions (0):` line — the same holds for `Withdrawing (0):`, which is the common case when no earlier decision settled a remaining finding.
-- **All findings in one bucket:** preview still shows the bucket header; Proceed / Cancel still offered. This is the common case for routing option C (every finding under `Appending to Open Questions`).
-- **N=1 preview (only one finding in scope):** the preview still uses the grouped format, just with a single-line bucket. `Proceed` / `Cancel` still apply.
-- **Open Questions append unavailable** (document is read-only, append flow reports no-go): routing option C is not offered upstream (see `references/open-questions-defer.md` unavailability handling). Best-judgment (option B) and walk-through `Auto-resolve with best judgment on the rest` can still run — they may contain per-finding Defer recommendations from synthesis. Before rendering any best-judgment-shaped preview, downgrade every Defer recommendation to Skip when the session's cached append-availability is false, and surface the downgrade on the preview itself (e.g., a `Skipping — append unavailable (N):` bucket, or a note in the header: `N Defer recommendations downgraded to Skip — document is read-only.`).
-- **Walk-through `Auto-resolve with best judgment on the rest` with zero remaining findings:** the walk-through's own logic suppresses `Auto-resolve with best judgment on the rest` as an option when N=1 and otherwise, so the preview should never be invoked with zero remaining findings. If it is, render `Auto-resolve plan — 0 remaining findings` and fall through to Proceed with no-op.
+- **Empty buckets:** omit the bucket header (including `Withdrawing (0):`, the common case). A single-bucket or single-finding preview still uses the grouped format and still offers Proceed / Cancel.
+- **Open Questions append unavailable** (read-only document, append flow reports no-go): routing option C is not offered upstream (see `references/open-questions-defer.md`), but option B and the walk-through path still run and may carry Defer recommendations. Before rendering a best-judgment-shaped preview, downgrade every Defer recommendation to Skip when the session's cached append-availability is false, and surface the downgrade on the preview (a `Skipping — append unavailable (N):` bucket, or a header note: `N Defer recommendations downgraded to Skip — document is read-only.`).
+- **Zero remaining findings:** the walk-through suppresses `Auto-resolve with best judgment on the rest` in this case, so the preview should not fire. If it does, render `Auto-resolve plan — 0 remaining findings` and Proceed as a no-op.

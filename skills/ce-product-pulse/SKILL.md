@@ -26,15 +26,9 @@ Ask one question at a time. Reserve multi-select for first-run configuration onl
 
 ## Lookback Window
 
-The **lookback window** is the time range this skill was invoked with (e.g. `24h`, `7d`) — present in the current prompt or conversation, whether the user gave it directly or a calling skill passed it.
+The **lookback window** is the time range this skill was invoked with (e.g. `24h`, `7d`) — present in the current prompt or conversation, whether the user gave it directly or a calling skill passed it. Interpret the argument as a trailing time window.
 
-Interpret the argument as a time window. Common forms:
-
-- `24h`, `48h`, `72h` - trailing hours
-- `7d`, `30d` - trailing days
-- `1h` - short-window (useful during launches)
-
-If the argument is empty, default to `pulse_lookback_default` from config (resolved in Phase 0); if that is also unset, fall through to the hard default of `24h`. If the argument is unparseable, ask the user to clarify.
+If the argument is empty, default to `pulse_lookback_default` from config (resolved in Phase 0); if that is also unset, fall through to the hard default of `24h`.
 
 Apply a **15-minute trailing buffer** to the window's upper bound. Many analytics and tracing tools have ingestion lag; querying right up to `now` under-reports the most recent events. For a `24h` window, query `[now - 24h - 15m, now - 15m]`.
 
@@ -55,10 +49,10 @@ This skill writes pulse reports under `<root>/pulse-reports/`. Resolve `<root>` 
 1. **Read it like a founder.** No hardcoded thresholds. Do not label things "bad" or "good" by default - present the numbers and let the reader judge.
 2. **Single page.** Target 30-40 lines of terminal output. If the report is getting long, cut.
 3. **No PII in saved reports.** Do not include user emails, account IDs, or message content in the report written to disk.
-4. **Parallel where safe, serial where it matters.** Analytics and tracing queries run in parallel. Database queries run serially to avoid load.
-5. **Memory through saved reports.** Every run writes to `<root>/pulse-reports/` so past pulses are browseable as a timeline.
-6. **Read-only database access only.** If a database is used as a data source, the connection must be read-only. The interview refuses to accept read-write credentials. Database access is optional - many products complete the pulse with analytics and tracing alone.
-7. **Strategy-seeded when available.** If `STRATEGY.md` exists, the interview reads it before asking questions and carries forward the product name and key metrics as seeds. The goal of data-source setup is to wire up whatever connections are needed to actually measure those metrics.
+4. **Memory through saved reports.** Every run writes to `<root>/pulse-reports/` so past pulses are browseable as a timeline.
+5. **Read-only database access only.** If a database is used as a data source, the connection must be read-only; the interview refuses read-write credentials. Database access is optional - many products complete the pulse with analytics and tracing alone.
+6. **Strategy-seeded when available.** If `STRATEGY.md` exists, the interview reads it before asking questions and carries forward the product name and key metrics as seeds. The goal of data-source setup is to wire up whatever connections are needed to actually measure those metrics.
+7. **Usage and system performance only.** Pulse does not report "what shipped" - that lives in the issue tracker and commit history - and does not replace tracing or analytics dashboards; deep investigation still uses the native tools.
 
 ## Execution Flow
 
@@ -70,7 +64,7 @@ This skill writes pulse reports under `<root>/pulse-reports/`. Resolve `<root>` 
 - `pulse_product_name` -- string, used in report titles. Required for routing: if unset, skill is unconfigured.
 - `pulse_lookback_default` -- one of `1h`, `24h`, `7d`, `30d` (default: `24h`)
 - `pulse_primary_event` -- string, the engagement event name
-- `pulse_value_event` -- string, the value-realization event name
+- `pulse_value_event` -- string, the value-realization event name; may equal `pulse_primary_event`, or be `same-as-engagement` / `not-defined`
 - `pulse_completion_events` -- comma-separated string of 0-3 event names
 - `pulse_quality_scoring` -- `true` or default `false` (AI products only)
 - `pulse_quality_dimension` -- string scored 1-5 when `pulse_quality_scoring` is true; ignored otherwise
@@ -115,15 +109,15 @@ Run the interview in this order:
 5. Quality scoring (opt-in, AI products only)
 6. Data sources - wire up connections for each agreed metric and event. Nudge toward MCP. Reject read-write database access. DB entirely optional.
 7. System performance - a short recommended setup for top errors and latency. Users rarely have strong opinions here; present defaults and accept.
-8. Default lookback window
+8. Default lookback window (24h for daily ops, 7d for weekly review, 1h for launches)
 
-Apply the pushback rules in `references/interview.md` for each section. Treat every metric, event, and signal the user proposes against the **SMART bar** (specific, measurable, actionable, relevant, timely) spelled out in `references/interview.md` under "Overall Rules" - push back on anything vague, vanity, or unactionable.
+Apply the pushback rules in `references/interview.md` for each section, including the **SMART bar** in "Overall Rules" - push back on anything vague, vanity, or unactionable.
 
 If the user offers read-write database access, refuse and offer the alternatives documented in `references/interview.md` section 6.
 
-Write the captured config to `<repo-root>/.compound-engineering/config.local.yaml` as flat `pulse_*` keys, using the schema in `references/interview.md` under "Config file shape". Resolve the repo root with `git rev-parse --show-toplevel`. To write: (1) if the file or directory does not exist, create `.compound-engineering/` and write the YAML file; (2) if the file exists, merge new keys into the existing YAML, preserving any non-pulse keys (e.g., `plan_*`) untouched. If `.compound-engineering/config.local.yaml` is not already covered by the repo's `.gitignore`, offer to add the entry before writing. Show the resulting pulse block to the user in chat and offer one round of edits.
+Write the captured config to `<repo-root>/.compound-engineering/config.local.yaml` as flat `pulse_*` keys, using the write rules in `references/interview.md` under "Config File Shape". Resolve the repo root with `git rev-parse --show-toplevel`. To write: (1) if the file or directory does not exist, create `.compound-engineering/` and write the YAML file; (2) if the file exists, merge new keys into the existing YAML, preserving any non-pulse keys (e.g., `plan_*`) untouched. If `.compound-engineering/config.local.yaml` is not already covered by the repo's `.gitignore`, offer to add the entry before writing. Show the resulting pulse block to the user in chat and offer one round of edits.
 
-After the config is written, run the **scheduling recommendation** from `references/interview.md` section 9: offer to set up a recurring run so the user gets the pulse on a cadence instead of having to remember to run it. Accept yes/no/later. If yes, hand off to whichever scheduling primitive the current harness exposes — the in-plugin `schedule` skill if it is installed, otherwise note that scheduling is platform-specific (cron, GitHub Actions, the host's own automation) and emit a brief hint covering what would need to run. Do not schedule inline. Then proceed to Phase 2.
+After the config is written, run the **scheduling recommendation** from `references/interview.md` section 9: offer to set up a recurring run so the user gets the pulse on a cadence instead of having to remember to run it. Accept yes or no. If yes, hand off to whichever scheduling primitive the current harness exposes — the in-plugin `schedule` skill if it is installed, otherwise note that scheduling is platform-specific (cron, GitHub Actions, the host's own automation) and emit a brief hint covering what would need to run. Never schedule inline or automatically; any scheduling handoff requires explicit confirmation. Then proceed to Phase 2.
 
 ### Phase 2: Run the Pulse
 
@@ -147,42 +141,14 @@ If `pulse_quality_scoring` is `true` (AI products only), sample up to 10 session
 
 **Scoring discipline:** Default to 4 or 5 when the session looks normal. Reserve 1-3 for sessions with a clear failure mode (product gave wrong answer, user got stuck, error surfaced). If every session is scoring 3, the bar is too strict; if every session is scoring 5, the bar is too loose.
 
-**No PII in the score summary.** Capture a count distribution (e.g., "8x 5, 1x 4, 1x 2") and a short anonymized note on any session scored below 4. Do not include message content or user identifiers in the saved report.
+Capture a count distribution (e.g., "8x 5, 1x 4, 1x 2") and a short anonymized note on any session scored below 4 - no message content or user identifiers.
 
 #### 2.3 Assemble the Report
 
-Read `references/report-template.md`. Fill in the template using the query results. Four sections, in order:
-
-1. **Headlines** - 2-3 lines summarizing the window
-2. **Usage** - primary engagement, value realization, completions, quality sample
-3. **System performance** - latency (p50/p95/p99) and top 5 errors by count with one-line explanation each
-4. **Followups** - 1-5 things worth investigating
-
-Keep the total to 30-40 lines. If a section is thin, leave it thin; do not pad.
+Read `references/report-template.md` and fill it in using the query results. Keep the total to 30-40 lines. If a section is thin, leave it thin; do not pad.
 
 #### 2.4 Write the Report
 
 Save to `<root>/pulse-reports/YYYY-MM-DD_HH-MM.md` using the local time of the run. Create `<root>/pulse-reports/` if it does not exist.
 
-Surface the Headlines and top Followup in chat. Provide the full file path so the user can open the saved report.
-
-### Phase 3: Routine Hook
-
-First-run setup already offered scheduling (see Phase 1.1 end). Phase 3 is a lighter re-surface for ad-hoc runs:
-
-- If the argument was a known schedule keyword (`daily`, `hourly`, `weekly`), note that this run is ad-hoc and suggest scheduling via the harness's available primitive (the in-plugin `schedule` skill where present; otherwise a platform-native option) for recurring runs.
-- If no schedule is on file and this is the third or later pulse run the user has done, mention once that scheduling is available. Don't nag on every run.
-
-Never schedule automatically. Any scheduling handoff requires explicit confirmation.
-
-## What This Skill Does Not Do
-
-- Does not report "what shipped." Shipped work lives in the issue tracker and commit history, not here. Pulse is strictly about user experience and system performance.
-- Does not set thresholds or alert the user. The reader interprets.
-- Does not persist PII in saved reports.
-- Does not mutate the database or any external system. All queries are read-only.
-- Does not replace tracing dashboards or analytics tools. It consolidates a single-page read; deep investigation still uses the native tools.
-
-## Learn More
-
-The "read like a founder" posture and the single-page constraint are deliberate. Dashboards with 40 metrics produce attention sprawl; one page with the right four sections forces the reader to notice what matters. The saved-reports folder is designed to be a team's working memory, not a data warehouse - past pulses are grepable, diffable, and disposable.
+Surface the Headlines and top Followup in chat with the saved file path; the file is the artifact, so do not paste the full report into chat.

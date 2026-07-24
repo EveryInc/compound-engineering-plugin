@@ -80,15 +80,7 @@ Flag missing verification for risky transforms as **P2** `manual` with sample SQ
 
 ## Confidence calibration
 
-Use the anchored confidence rubric in the subagent template.
-
-**Anchor 100** — mechanical: `DROP COLUMN`, `NOT NULL` without backfill, schema drift column with no matching migration, verifiable swapped mapping in code.
-
-**Anchor 75** — migration DDL or drift visible in the diff; concrete orphaned reference you can name.
-
-**Anchor 50** — inferred data impact from app code without visible migration handling. Surfaces only as P0 escape per synthesis rules.
-
-**Anchor 25 or below — suppress.**
+Use the anchored confidence rubric in the subagent template. **Anchor 100** — mechanical: `DROP COLUMN`, `NOT NULL` without backfill, a schema-drift column with no matching migration, a verifiable swapped mapping in code. **Anchor 75** — migration DDL or drift visible in the diff, or a concrete orphaned reference you can name. **Anchor 25 or below — suppress.**
 
 ## What you don't flag
 

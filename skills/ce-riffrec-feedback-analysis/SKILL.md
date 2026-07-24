@@ -15,17 +15,16 @@ Route to the matching reference based on the input. Read only that reference; do
 - **Quick bug report** — input is a short recording (under ~60 seconds), the user describes a single specific issue, or asks for "quick", "small", or "just transcribe". Read `references/quick-bug-report.md`. Emit one concise bug report; skip the full artifact set and brainstorm handoff.
 - **Extensive analysis** — input is a longer recording, contains multiple issues / requirements / workflow walkthroughs, or the user wants requirements or brainstorm material. Read `references/extensive-analysis.md`. Always continue into the `ce-brainstorm` skill.
 
-When the input is ambiguous (e.g., a zip arrived without context), inspect the recording length and event count before choosing. If still unclear, ask the user which path applies before running anything heavy.
+When the input is ambiguous (e.g., a zip arrived without context), inspect the recording length and event count before choosing. If still unclear, ask the user which path applies before running anything heavy; with no answer available, take the quick path and offer escalation.
 
 ## Common rules
 
 - Keep raw recordings, audio chunks, zip contents, session dumps, and extracted screenshots local-only by default. Do not commit `raw/` or `frames/` directories unless the user explicitly asks and privacy is acceptable.
-- Text/metadata artifacts (requirements kickoff material, analysis summaries, problem analyses, source manifests) may be committed when they are needed for traceability and contain no sensitive data.
 - Use repo-relative screenshot paths in any committed doc so later agents can open the evidence without absolute local paths.
 
 ## Analyzer entrypoint
 
-All non-setup paths share the same analyzer, which ships in this skill's `scripts/` directory. The Bash tool's working directory is the user's project, not the skill directory, so a bare `scripts/<name>` path will not resolve. Invoke it by the skill's own absolute path: set `SKILL_DIR` to the directory you loaded this `ce-riffrec-feedback-analysis` SKILL.md from, in the same command (shell state does not persist between Bash calls):
+All non-setup paths share the same analyzer, which ships in this skill's `scripts/` directory. Set `SKILL_DIR` to the directory you loaded this SKILL.md from, inline in the same command (shell state does not persist between Bash calls):
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
@@ -34,4 +33,4 @@ python "$SKILL_DIR/scripts/analyze_riffrec_zip.py" /path/to/input
 
 Accepted inputs: a Riffrec `.zip`, an `.mp4` / `.mov` / `.webm` video, an `.m4a` / `.mp3` / `.wav` audio file, or a meeting-notes `.md`. Use `--output-dir <dir>` to control where artifacts land. In repos with `docs/brainstorms/`, the default remains `docs/brainstorms/riffrec-feedback/` as a documented evidence/kickoff-artifact exception; it is not the durable `ce-brainstorm` output convention. The quick path overrides the output dir to a temp location so nothing pollutes the repo.
 
-The Compound Engineering output format used by the extensive path is documented in `references/compound-engineering-feedback-format.md`.
+The generated `analysis.md` and `requirements-kickoff.md` already carry the Compound Engineering shape — refine them in place rather than re-authoring them from a template.

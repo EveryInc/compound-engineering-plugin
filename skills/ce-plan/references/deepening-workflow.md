@@ -2,213 +2,66 @@
 
 This file contains the confidence-check execution path (5.3.3-5.3.7). Load it only when the deepening gate at 5.3.2 determines that deepening is warranted.
 
-## 5.3.3 Score Confidence Gaps
+## 5.3.3 Pick the Sections to Strengthen
 
-Use a checklist-first, risk-weighted scoring pass.
+Read the plan and pick the 2-5 weakest sections — the ones a reader could not act on as written. Prefer sections not already strengthened when the plan carries a `deepened:` date.
 
-For each section, compute:
-- **Trigger count** - number of checklist problems that apply
-- **Risk bonus** - add 1 if the topic is high-risk and this section is materially relevant to that risk
-- **Critical-section bonus** - add 1 for `Key Technical Decisions`, `Implementation Units`, `System-Wide Impact`, `Risks & Dependencies`, or `Open Questions` in `Standard` or `Deep` plans
+These gaps are specific to this artifact and easy to miss on a read-through, so check for them explicitly:
 
-Treat a section as a candidate if:
-- it hits **2+ total points**, or
-- it hits **1+ point** in a high-risk domain and the section is materially important
-
-Choose only the top **2-5** sections by score. If deepening a lightweight plan (high-risk exception), cap at **1-2** sections.
-
-If the plan already has a `deepened:` date:
-- Prefer sections that have not yet been substantially strengthened, if their scores are comparable
-- Revisit an already-deepened section only when it still scores clearly higher than alternatives
-
-**Section Checklists:**
-
-**Requirements**
-- Requirements are vague or disconnected from implementation units
-- Success criteria are missing or not reflected downstream
-- Units do not clearly advance the traced requirements
-- Origin requirements are not clearly carried forward
-- Origin A/F/AE IDs (when supplied by the upstream brainstorm) are not preserved where planning decisions touch them, or are referenced inconsistently across Requirements, units, and test scenarios
-
-**Context & Research / Sources & References**
-- Relevant repo patterns are named but never used in decisions or implementation units
-- Cited learnings or references do not materially shape the plan
-- High-risk work lacks appropriate external or internal grounding
-- Research is generic instead of tied to this repo or this plan
-
-**Key Technical Decisions**
-- A decision is stated without rationale
-- Rationale does not explain tradeoffs or rejected alternatives
-- The decision does not connect back to scope, requirements, or origin context
-- An obvious design fork exists but the plan never addresses why one path won
-- Agent/tool/workflow features lack an explicit decision about action parity, context parity, shared workspace, tool granularity, or approval posture
-
-**Open Questions**
-- Product blockers are hidden as assumptions
-- Planning-owned questions are incorrectly deferred to implementation
-- Resolved questions have no clear basis in repo context, research, or origin decisions
-- Deferred items are too vague to be useful later
-
-**High-Level Technical Design (when present)**
-- The sketch uses the wrong medium for the work
-- The sketch contains implementation code rather than pseudo-code
-- The non-prescriptive framing is missing or weak
-- The sketch does not connect to the key technical decisions or implementation units
-
-**High-Level Technical Design (when absent)** *(Standard or Deep plans only)*
-- The work involves DSL design, API surface design, multi-component integration, complex data flow, or state-heavy lifecycle
-- Key technical decisions would be easier to validate with a visual or pseudo-code representation
-- The approach section of implementation units is thin and a higher-level technical design would provide context
-
-**Implementation Units**
-- Dependency order is unclear or likely wrong
-- File paths or test file paths are missing where they should be explicit
-- Units are too large, too vague, or broken into micro-steps
-- Approach notes are thin or do not name the pattern to follow
-- Test scenarios are vague (don't name inputs and expected outcomes), skip applicable categories (e.g., no error paths for a unit with failure modes, no integration scenarios for a unit crossing layers), or are disproportionate to the unit's complexity
-- Feature-bearing units have blank or missing test scenarios (feature-bearing units require actual test scenarios; the `Test expectation: none` annotation is only valid for non-feature-bearing units)
-- Verification outcomes are vague or not expressed as observable results
-- Agent-relevant units do not include agent-native verification: parity checks, context-injection checks, tool-result checks, approval/failure behavior, or checkpoint/resume where applicable
 - Existing U-IDs were renumbered after a unit was reordered, split, or deleted (U-IDs are stable: never renumber existing IDs; gaps from deletions are preserved; new units take the next unused number)
-- A unit realizing an origin Key Flow does not cite the F-ID, or a unit enforcing an origin Acceptance Example does not cite the AE-ID, when origin supplies them
-
-**System-Wide Impact**
-- Affected interfaces, callbacks, middleware, entry points, or parity surfaces are missing
-- Failure propagation is underexplored
-- State lifecycle, caching, or data integrity risks are absent where relevant
-- Integration coverage is weak for cross-layer work
-- Agent-facing tools, prompts, runtime context, shared workspaces, approval gates, or human-only boundaries are missing when the feature affects agent-capable systems
-
-**Risks & Dependencies / Documentation / Operational Notes**
-- Risks are listed without mitigation
-- Rollout, monitoring, migration, or support implications are missing when warranted
-- External dependency assumptions are weak or unstated
-- Security, privacy, performance, or data risks are absent where they obviously apply
-
-Use the plan's own `Context & Research` and `Sources & References` as evidence. If those sections cite a pattern, learning, or risk that never affects decisions, implementation units, or verification, treat that as a confidence gap.
+- A feature-bearing unit has blank or missing test scenarios (the `Test expectation: none` annotation is only valid for non-feature-bearing units)
+- `Context & Research` or `Sources & References` cites a pattern, learning, or risk that never affects a decision, unit, or verification step
+- An origin R/F/AE that affects implementation is referenced nowhere — or a unit realizing an origin Key Flow / enforcing an Acceptance Example does not cite the F-ID / AE-ID when origin supplies them
 
 ## 5.3.4 Report and Dispatch Targeted Research
 
-Before dispatching agents, report what sections are being strengthened and why:
+Before dispatching, report what sections are being strengthened and why:
 
 ```text
 Strengthening [section names] — [brief reason for each, e.g., "decision rationale is thin", "cross-boundary effects aren't mapped"]
 ```
 
-For each selected section, choose the smallest useful agent set. Do **not** run every agent. Use at most **1-3 agents per section** and usually no more than **8 agents total**.
+Dispatch **one focused lens per selected section**, in parallel where the platform supports it; run them sequentially otherwise. A lens is a generic subagent seeded with a short plan summary, the exact section text, why the section was selected, the plan's risk profile, and the lens question below. Instruct it to return only findings that would change the plan — no implementation code, no shell commands. Do not stack multiple lenses on one section because several sound relevant. Omit the `mode` parameter when dispatching so the user's configured permission settings apply.
 
-The names below are skill-local prompt asset file stems under `references/agents/`, not standalone agent types. For each selected name, read `references/agents/<name>.md` and seed a generic subagent with that prompt content plus the section context described below. Do not use `subagent_type`, typed `Agent` names, or platform-level CE agent registration.
+| Section | Lens | The question the lens answers |
+|---|---|---|
+| Requirements / Open Questions | flow completeness | which user flow, state transition, or handoff is unspecified, and what breaks if it stays that way (`references/agents/spec-flow-analyzer.md`) |
+| Context & Research / Sources | institutional memory | what has this team already learned or decided about this, and which cited source is doing no work (`references/agents/learnings-researcher.md`) |
+| Context & Research / Sources | external grounding | what do the official docs or current practice say that the plan gets wrong (`references/agents/framework-docs-researcher.md`, `references/agents/best-practices-researcher.md`, or `references/agents/web-researcher.md` for an unsettled external option set the recommendations depend on) |
+| Key Technical Decisions | architectural integrity | which boundary, coupling, or seam does this decision damage, and what would have to be true for the rejected alternative to win |
+| Key Technical Decisions / HTD / Units | agent-native | which user-facing capability gains no agent-accessible equivalent here (`references/agents/agent-native-planning-strategist.md`) |
+| High-Level Technical Design | design fidelity | does the sketch match the decisions and units, in the right medium, without implementation code |
+| Implementation Units / Verification | repo reality | which named file, pattern, or sequencing assumption does the codebase contradict (`references/agents/repo-research-analyst.md`, Scope: `patterns`) |
+| Implementation Units | consistency | which existing pattern is this duplicating or diverging from without a reason |
+| System-Wide Impact | data integrity | which invariant breaks mid-deploy, and what read-only query proves it didn't |
+| System-Wide Impact / Risks | security | which credible threat path does the proposed surface open, and what mitigation or test closes it |
+| Risks & Dependencies / Operational | scale and rollout | at what data volume or load does this stop working, and which rollout, monitoring, or rollback step is missing |
+| Risks / Key Technical Decisions | historical rationale | why did the code get this way, and which prior attempt failed (only when the plan turns on history) |
 
-**Deterministic Section-to-Agent Mapping:**
+Where the table names a `references/agents/*.md` prompt asset, read that file and seed the subagent with it. Those are skill-local prompt assets, not standalone agent types — do not use `subagent_type`, typed `Agent` names, or platform-level CE agent registration. For a lens with no file, the lens question plus the section text is the prompt.
 
-**Requirements / Open Questions classification**
-- `spec-flow-analyzer` for missing user flows, edge cases, and handoff gaps
-- `repo-research-analyst` (Scope: `architecture, patterns`) for repo-grounded patterns, conventions, and implementation reality checks
+**Data-integrity lens — migration failures worth naming, because they pass tests and fail in production:** swapped or inverted ID/enum mappings; a new `NOT NULL` column with no backfill; a rename or drop inside the deploy window, before all code paths stop reading the old name; a dual-write that leaves the new or old column NULL so rollback loses data; an index added to a hot table without concurrent/online creation; silent truncation or precision loss from a type change (`text` -> `varchar(n)`, float -> integer). For each risk it raises, the lens names the invariant, the failure path, and the read-only query or rollback that protects it.
 
-**Context & Research / Sources & References gaps**
-- `learnings-researcher` for institutional knowledge and past solved problems
-- `framework-docs-researcher` for official framework or library behavior
-- `best-practices-researcher` for current external patterns and industry guidance
-- `web-researcher` for landscape/prior-art gaps — competitor patterns, market signals, or an unsettled external option set (which library/provider/approach) that recommendations depend on
-- Add `git-history-analyzer` only when historical rationale or prior art is materially missing
+**Historical-rationale lens:** the current year is 2026 — use that when interpreting commit dates. Files in `<root>/plans/` and `<root>/solutions/` are intentional, permanent artifacts; never recommend removing them or call them unnecessary because a workflow generated them.
 
-**Key Technical Decisions**
-- `architecture-strategist` for design integrity, boundaries, and architectural tradeoffs
-- `agent-native-planning-strategist` when the decision involves agents, prompts, tools, MCP, workflow automation, action/context parity, shared workspace, approval gates, or agent execution lifecycle
-- Add `framework-docs-researcher` or `best-practices-researcher` when the decision needs external grounding beyond repo evidence
+## 5.3.5 Run Targeted Research
 
-**High-Level Technical Design**
-- `architecture-strategist` for validating that the technical design accurately represents the intended approach and identifying gaps
-- `repo-research-analyst` (Scope: `architecture, patterns`) for grounding the technical design in existing repo patterns and conventions
-- `agent-native-planning-strategist` when the technical design includes agent orchestration, MCP/tools, prompt-defined behavior, shared workspace, checkpoint/resume, approvals, or agent-to-UI communication
-- Add `best-practices-researcher` when the technical design involves a DSL, API surface, or pattern that benefits from external validation
+Prefer local repo and institutional evidence first. Use external research only when the gap cannot be closed responsibly from repo context or already-cited sources. If a selected section can be improved by reading the origin document more carefully, do that before dispatching anything.
 
-**Implementation Units / Verification**
-- `repo-research-analyst` (Scope: `patterns`) for concrete file targets, patterns to follow, and repo-specific sequencing clues
-- `pattern-recognition-specialist` for consistency, duplication risks, and alignment with existing patterns
-- `agent-native-planning-strategist` when units should cover agent-accessible domain actions, tool/context changes, prompt changes, or parity testing
-- Add `spec-flow-analyzer` when sequencing depends on user flow or handoff completeness
-
-**System-Wide Impact**
-- `architecture-strategist` for cross-boundary effects, interface surfaces, and architectural knock-on impact
-- `agent-native-planning-strategist` for action parity, context parity, shared workspace, tool granularity, approval boundaries, and agent execution lifecycle in agent-capable systems
-- Add the specific specialist that matches the risk:
-  - `performance-oracle` for scalability, latency, throughput, and resource-risk analysis
-  - `security-sentinel` for auth, validation, exploit surfaces, and security boundary review
-  - `data-integrity-guardian` for migrations, persistent state safety, consistency, and data lifecycle risks
-
-**Risks & Dependencies / Operational Notes**
-- Use the specialist that matches the actual risk:
-  - `security-sentinel` for security, auth, privacy, and exploit risk
-  - `data-integrity-guardian` for migrations, backfills, persistent data safety, constraints, transaction boundaries, and production data transformation risk (plan context — not the PR-review `data-migration-reviewer` persona)
-  - `deployment-verification-agent` for rollout checklists, rollback planning, and launch verification
-  - `performance-oracle` for capacity, latency, and scaling concerns
-
-**Agent Prompt Shape:**
-
-For each selected section, pass:
-- The scope prefix from the mapping above when the agent supports scoped invocation
-- A short plan summary
-- The exact section text
-- Why the section was selected, including which checklist triggers fired
-- The plan depth and risk profile
-- A specific question to answer
-
-Instruct the agent to return:
-- findings that change planning quality
-- stronger rationale, sequencing, verification, risk treatment, or references
-- no implementation code
-- no shell commands
-
-## 5.3.5 Choose Research Execution Mode
-
-Use the lightest mode that will work:
-
-- **Direct mode** - Default. Use when the selected section set is small and the parent can safely read the agent outputs inline.
-- **Artifact-backed mode** - Use only when the selected research scope is large enough that inline returns would create unnecessary context pressure.
-
-Signals that justify artifact-backed mode:
-- More than 5 agents are likely to return meaningful findings
-- The selected section excerpts are long enough that repeating them in multiple agent outputs would be wasteful
-- The topic is high-risk and likely to attract bulky source-backed analysis
-
-If artifact-backed mode is not clearly warranted, stay in direct mode.
-
-Artifact-backed mode uses a per-run OS-temp scratch directory. Create it once before dispatching sub-agents and capture its **absolute path** — pass that absolute path to each sub-agent so they write to it directly. Do not use `.context/`; the artifacts are per-run throwaway that are cleaned up when deepening ends (see 5.3.6b), matching the repo Scratch Space convention for one-shot artifacts. Do not pass unresolved shell-variable strings to sub-agents; they need the resolved absolute path.
-
-```bash
-SCRATCH_DIR="$(mktemp -d -t ce-plan-deepen-XXXXXX)"
-echo "$SCRATCH_DIR"
-```
-
-Refer to the echoed absolute path as `<scratch-dir>` throughout the rest of this workflow.
-
-## 5.3.6 Run Targeted Research
-
-Launch the selected local prompt assets as generic subagents in parallel using the execution mode chosen above. If the current platform does not support parallel dispatch, run them sequentially instead. Omit the `mode` parameter when dispatching so the user's configured permission settings apply.
-
-Prefer local repo and institutional evidence first. Use external research only when the gap cannot be closed responsibly from repo context or already-cited sources.
-
-If a selected section can be improved by reading the origin document more carefully, do that before dispatching external agents.
-
-**Direct mode:** Have each selected prompt-seeded subagent return its findings directly to the parent. Keep the return payload focused: strongest findings only, the evidence or sources that matter, the concrete planning improvement implied by the finding.
-
-**Artifact-backed mode:** For each selected prompt-seeded subagent, pass the absolute `<scratch-dir>` path captured earlier and instruct the subagent to write one compact artifact file inside that directory, then return only a short completion summary. Each artifact should contain: target section, why selected, 3-7 findings, source-backed rationale, the specific plan change implied by each finding. No implementation code, no shell commands.
-
-If an artifact is missing or clearly malformed, re-run that prompt-seeded subagent or fall back to direct-mode reasoning for that section.
+Each lens returns its findings directly to the parent. Keep the return payload focused: strongest findings only, the evidence or sources that matter, the concrete planning improvement implied by each finding.
 
 If agent outputs conflict:
 - Prefer repo-grounded and origin-grounded evidence over generic advice
 - Prefer official framework documentation over secondary best-practice summaries when the conflict is about library behavior
 - If a real tradeoff remains, record it explicitly in the plan
 
-## 5.3.6b Interactive Finding Review (Interactive Mode Only)
+## 5.3.6 Interactive Finding Review (Interactive Mode Only)
 
 Skip this step in auto mode — proceed directly to 5.3.7.
 
 In interactive mode, present each agent's findings to the user before integration. For each agent that returned findings:
 
-1. **Summarize the agent and its target section** — e.g., "The architecture-strategist reviewed Key Technical Decisions and found:"
+1. **Summarize the lens and its target section** — e.g., "The architectural-integrity lens reviewed Key Technical Decisions and found:"
 2. **Present the findings concisely** — bullet the key points, not the raw agent output. Include enough context for the user to evaluate: what the agent found, what evidence supports it, and what plan change it implies.
 3. **Ask the user** using the platform's blocking question tool when available (see Interaction Method):
    - **Accept** — integrate these findings into the plan
@@ -223,7 +76,7 @@ Findings against `session-settled:`-labeled KTDs are presented like any other �
 
 After all agents have been reviewed, carry only the accepted findings forward to 5.3.7.
 
-If the user accepted no findings, report "No findings accepted — plan unchanged." Then proceed directly to Phase 5.4 (skip document-review and synthesis — the plan was not modified). This interactive-mode-only skip does not apply in auto mode; auto mode always proceeds through 5.3.7 and 5.3.8. No explicit scratch cleanup needed — `$SCRATCH_DIR` is OS temp and will be cleaned up by the OS; leaving it in place preserves the rejected agent artifacts for debugging.
+If the user accepted no findings, report "No findings accepted — plan unchanged." Then proceed directly to Phase 5.4 (skip document-review and synthesis — the plan was not modified). This interactive-mode-only skip does not apply in auto mode; auto mode always proceeds through 5.3.7 and 5.3.8.
 
 If findings were accepted and the plan was modified, proceed through 5.3.7 and 5.3.8 as normal — document-review acts as a quality gate on the changes.
 
@@ -231,7 +84,7 @@ If findings were accepted and the plan was modified, proceed through 5.3.7 and 5
 
 Strengthen only the selected sections. Keep the plan coherent and preserve its overall structure.
 
-**In interactive mode:** Only integrate findings the user accepted in 5.3.6b. If some findings from different agents touch the same section, reconcile them coherently but do not reintroduce rejected findings.
+**In interactive mode:** Only integrate findings the user accepted in 5.3.6. If some findings from different agents touch the same section, reconcile them coherently but do not reintroduce rejected findings.
 
 **Session-settled KTD stability.** Deepening may append rationale or a conflict call-out to a `session-settled:`-labeled Key Technical Decision, but never removes the annotation or inverts the decision. Contradiction evidence routes through the severity ladder: nothing found — proceed silently; suboptimal-but-workable — proceed as settled and attach a conflict call-out to the KTD; invalidating — stop as blocked per the SKILL.md Phase 5.2 pipeline contract.
 

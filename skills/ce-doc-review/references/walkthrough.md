@@ -10,7 +10,7 @@ Interactive mode only.
 
 After `safe_auto` fixes apply and synthesis produces the remaining finding set, the orchestrator asks a four-option routing question before any walk-through or bulk action runs.
 
-Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension)). In Claude Code, the tool should already be loaded from the Interactive-mode pre-load step in `SKILL.md` — if it isn't, call `ToolSearch` with query `select:AskUserQuestion` now. Fall back to presenting the options as a numbered list only when the harness genuinely lacks a blocking tool — `ToolSearch` returns no match, the tool call explicitly fails, or the runtime mode does not expose it (e.g., Codex edit modes without `request_user_input`). A pending schema load is not a fallback trigger. Never silently skip the question. Rendering the routing question as narrative text without the numbered-list fallback is a bug.
+Use the platform's blocking question tool (in Claude Code, `AskUserQuestion`, already loaded by the pre-load step in `SKILL.md`). Fall back to presenting the options as a numbered list only when the harness genuinely lacks a blocking tool or the call errors — a pending schema load is not a fallback trigger. Never silently skip the question.
 
 **Stem:** `What should the agent do with the remaining N findings?`
 
@@ -23,7 +23,7 @@ C. Append findings to the doc's Open Questions section and proceed
 D. Report only — take no further action
 ```
 
-The per-finding `(recommended)` labeling lives inside the walk-through (option A) and the bulk preview (options B/C), where it's applied per-finding from synthesis step 3.5b's `recommended_action`. The routing question itself does not recommend one of A/B/C/D because the right route depends on user intent (engage / trust / triage / skim), not on the finding-set shape — a rule that mapped finding-set shape to routing recommendation (e.g., "most findings are Apply-shaped → recommend best-judgment") would pressure users toward automated paths in ways that conflict with the user-intent framing.
+The per-finding `(recommended)` labeling lives inside the walk-through (option A) and the bulk preview (options B/C), where it's applied per-finding from synthesis step 3.5b's `recommended_action`. The routing question itself recommends nothing: the right route depends on user intent (engage / trust / triage / skim), not on the finding-set shape.
 
 If all remaining findings are FYI-subsection-only (no `gated_auto` or `manual` findings at confidence anchor `75` or `100`), skip the routing question entirely and flow to the Phase 5 terminal question.
 
@@ -115,7 +115,7 @@ Substitutions:
   - **Raw code blocks** — only for short (≤5-line) genuinely additive content where no before-state exists. Above 5 lines, switch to a summary.
   - **No diff blocks.** Document mutations render as prose.
 - **`If this is left as-is`** — one sentence naming the concrete downstream cost of not acting: what breaks, for whom, at what point. This is the line the user's decision turns on when they have not read the document as closely as the review did, so it must be evaluable on its own — no identifier the user would have to look up, no appeal to a claim only the reviewer can verify. When the honest answer is that the cost is small or speculative, say so plainly rather than inflating it.
-- **Conflict-context line (when applicable)** — when contributing personas implied different actions for this finding and synthesis step 3.6 broke the tie, surface that briefly. Example: `Coherence recommends Apply; scope-guardian recommends Skip. Agent's recommendation: Skip.` The orchestrator's recommendation — the post-tie-break value — is what the menu labels "recommended."
+- **Conflict-context line (when applicable)** — when contributing personas implied different actions for this finding and synthesis step 3.5b broke the tie, surface that briefly. Example: `Coherence recommends Apply; scope-guardian recommends Skip. Agent's recommendation: Skip.` The orchestrator's recommendation — the post-tie-break value — is what the menu labels "recommended."
 
 ### Question stem (short, decision-focused)
 
@@ -139,16 +139,7 @@ After the user answers and before printing the next finding's terminal block, em
 
 ### Options (four; adapted as noted)
 
-These four options are the **complete, exclusive set** for the regular per-finding question. Fixed order — never reorder, never add, never substitute. In particular, **`Acknowledge` is NOT one of these options** — it appears only in the no-fix sub-question described under "Per-finding routing" below, which fires only when the user picks Apply on a finding that lacks a `suggested_fix`. Importing `Acknowledge` into the regular menu (in place of D, or as a fifth option) is a bug — it silently drops the `Auto-resolve with best judgment on the rest` workflow shortcut, and surfacing `Acknowledge` outside the no-fix path mislabels the user's choice in the completion report's bucket counts.
-
-```
-A. Apply the proposed fix
-B. Defer — append to the doc's Open Questions section
-C. Skip — don't apply, don't append
-D. Auto-resolve with best judgment on the rest
-```
-
-**Mark the post-tie-break recommendation with `(recommended)` on its option label.** Required, not optional. Only A, B, or C can carry it — synthesis emits `recommended_action` as Apply/Defer/Skip, which maps to A/B/C. D (`Auto-resolve with best judgment on the rest`) is a workflow shortcut for bulk execution across remaining findings, not a finding-level resolution action, so it is never marked `(recommended)`.
+These four options, in this order, are the regular per-finding question. `Acknowledge` is not one of them — it belongs only to the no-fix sub-question below.
 
 ```
 A. Apply the proposed fix  (recommended)
@@ -157,7 +148,7 @@ C. Skip — don't apply, don't append
 D. Auto-resolve with best judgment on the rest
 ```
 
-When reviewers disagreed or evidence cuts against the default, still mark one option — whichever synthesis produced — and surface the disagreement in the conflict-context line.
+**Mark the post-tie-break recommendation with `(recommended)` on its option label** — required, and only ever on A, B, or C, since synthesis emits `recommended_action` as Apply/Defer/Skip. D is a workflow shortcut for bulk execution, not a finding-level resolution, so it never carries the marker. When reviewers disagreed or evidence cuts against the default, still mark the option synthesis produced and surface the disagreement in the conflict-context line.
 
 ### Adaptations
 
@@ -182,11 +173,9 @@ For each finding's answer:
 
 ### No-fix sub-question (Apply picked on a finding with no `suggested_fix`)
 
-This sub-question — and the `Acknowledge without applying` option in particular — is **exclusive to the no-fix path**. It fires only after the user picks Apply on a finding whose merged record has no `suggested_fix`. Do not surface this sub-question, or its `Acknowledge` option, in the regular per-finding menu. The regular menu's fourth option is always `Auto-resolve with best judgment on the rest` (per "Options" above), never `Acknowledge`.
+Synthesis 3.5b already demotes the recommendation to Defer for a finding with no `suggested_fix`, but the menu still lets the user pick Apply. When they do, do not add the finding to the Apply set — the execution pass has no edit payload, so it would either fail the batch or record a misleading "applied" outcome.
 
-Synthesis step 3.5b demotes the default recommendation from Apply to Defer for any merged finding without a `suggested_fix`, so `(recommended)` never lands on Apply for these findings. But the menu still lets the user pick Apply manually. When that happens, do not add the finding to the Apply set — the execution pass has no edit payload to apply, which would either fail the batch or record a misleading "applied" outcome.
-
-Fire a blocking sub-question using the platform's question tool. The stem explains why Apply is not executable in one line, then offers three self-contained options. Position indicator stays on the current finding while the sub-question is open.
+Fire a blocking sub-question. The stem explains why Apply is not executable in one line, then offers three self-contained options. Position indicator stays on the current finding while the sub-question is open.
 
 **Stem:** `Apply isn't executable for this finding — the review surfaced the issue without a concrete fix. How should the agent proceed?`
 
@@ -202,7 +191,7 @@ C. Acknowledge without applying — record the decision, no document edit
 
 - **A. Defer to Open Questions** — invoke the append flow from `references/open-questions-defer.md` as though the user had originally picked Defer. Failure-path handling is identical (Retry / Fall back / Convert to Skip). On success, record the append location in the decision list (annotated `redirected from Apply — no suggested_fix`) and advance.
 - **B. Skip** — record Skip in the decision list (annotated `redirected from Apply — no suggested_fix`). Advance. No side effects.
-- **C. Acknowledge without applying** — record the finding in the decision list as `acknowledged` (annotated `Apply picked but no suggested_fix — no edit dispatched`). Do not add to the Apply set. Advance. The completion report surfaces Acknowledged as its own dedicated bucket with its own count, its own per-finding action label, and its own position in the report ordering (`Applied / Deferred / Skipped / Acknowledged`) — see "Minimum required fields" and "Report ordering" in the unified completion report section below for the full contract. The acknowledgement reason is surfaced on each per-finding line. For round-to-round suppression (distinct from report display), Acknowledged decisions carry forward in the multi-round decision primer as a rejected-class decision alongside Skip and Defer so round-N+1 synthesis suppresses re-raises via R29 — semantically the user saw the finding, chose not to act, and wants it recorded, which is equivalent to Skip for suppression purposes but remains its own bucket in the report.
+- **C. Acknowledge without applying** — record the finding in the decision list as `acknowledged` (annotated `Apply picked but no suggested_fix — no edit dispatched`). Do not add to the Apply set. Advance. Acknowledged is its own bucket in the completion report, with the acknowledgement reason on each per-finding line; for round-to-round suppression it carries forward in the decision primer as rejected-class alongside Skip and Defer.
 
 **Availability adaptation.** When `references/open-questions-defer.md` has cached `append_available: false` for the session, omit option A and surface one line in the stem explaining why (e.g., `Defer unavailable — document is read-only in this environment.`). The menu becomes Skip / Acknowledge without applying, with Skip labeled `(recommended)`.
 
@@ -212,39 +201,21 @@ C. Acknowledge without applying — record the decision, no document edit
 
 ## Withdrawing findings the user's earlier answers resolved
 
-Earlier decisions carry information forward. Apply stages a fix that does not execute until end-of-walk-through, so later findings are still being presented against the pre-edit document. Skip and Defer settle a premise. Freeform text, an `Other` answer, or per-option notes may assert a fact the document does not state — the no-freeform-authoring rule below forbids the user hand-writing a *fix*, not supplying information.
+Earlier decisions carry information forward: Apply stages a fix that does not execute until end-of-walk-through, Skip and Defer settle a premise, and freeform text or per-option notes may assert a fact the document does not state (supplying information is allowed; hand-writing a *fix* is not — see the override rule below). Synthesis's premise chains (step 3.5c) do not cover this — they are built on the rejection test, which is why Apply does not cascade.
 
-Synthesis's premise chains (step 3.5c) do not cover this: they are built on the rejection test, which is why Apply does not cascade under "Cascading root decisions" above.
+**When a finding's turn arrives, judge it against everything the user has said so far.** If earlier answers already resolve or contradict it, do not render its terminal block or fire its question. Say succinctly, in plain user-facing language, what the finding was and which earlier answer settled it — enough that the user can tell it was handled rather than lost, and can object if the agent read them wrong. Then advance. Evaluate lazily, at the point the finding would have been presented — do not scan ahead after every answer.
 
-**When a finding's turn arrives, judge it against everything the user has said so far.** If earlier answers already resolve or contradict it, do not render its terminal block or fire its question. Say succinctly, in plain user-facing language, what the finding was and which earlier answer settled it — enough that the user can tell it was handled rather than lost, and can object if the agent read them wrong. Follow the one-line shape of "Confirmation between findings" above. Then advance to the next finding, or to the completion report if none remain.
+**The cascade opt-out wins.** When the user answered a root's cascade prompt with `Decide each dependent individually`, do not auto-withdraw that root's dependents on the strength of the root decision — they explicitly asked to see each one. A *different* earlier answer may still withdraw one of them.
 
-Evaluate lazily, at the point the finding would have been presented — do not scan ahead after every answer.
+Record each as `withdrawn` in the decision list, noting which decision retired it. Withdrawn is its own completion-report bucket. It carries forward in the decision primer as rejected-class — alongside Skip, Defer, and Acknowledge — **only when a user decision durably settled it**: a settled premise (Skip/Defer) or a user-asserted fact.
 
-**The cascade opt-out wins.** When the user answered a root's cascade prompt (see "Cascading root decisions" above) with `Decide each dependent individually`, do not auto-withdraw that root's dependents on the strength of the root decision — they explicitly asked to see each one, and a dependent's premise dissolving under the root's rejection is exactly the cascade the opt-out declined. Give those dependents their own walk-through entries. A *different* earlier answer may still withdraw one of them; only the root whose cascade they opted out of is excluded as a trigger.
-
-Record each as `withdrawn` in the decision list, noting which decision retired it. Withdrawn is its own completion-report bucket. It carries forward in the decision primer as a rejected-class decision — alongside Skip, Defer, and Acknowledge — **only when a user decision durably settled it**: a settled premise (Skip/Defer) or a user-asserted fact. Those are user judgments that the finding needn't be actioned, so R29 should suppress a round N+1 re-raise since the document itself never changed.
-
-**An Apply-triggered withdrawal never carries forward as rejected-class.** It is a *prediction* that a staged fix will resolve the finding, not a user judgment that it needn't be. The Apply runs only at end-of-walk-through, and its landing is neither certain nor proof of semantic resolution — it can fail outright, or land in the wrong place and leave the withdrawn finding's evidence untouched (R30 verifies the applied fix's own fingerprint, not the withdrawn finding's). So round N+1 re-synthesis, not R29, is the check: if the fix genuinely resolved the finding, fresh personas won't regenerate it against the edited document; if it didn't — whether the Apply failed or landed ineffectively — the finding resurfaces for the user instead of being silently suppressed. When such an Apply fails outright during execution (write error, or the defensive no-fix fallback), also list its reverted withdrawals in the completion report's failure section as returned to scope, so the user sees them in-run rather than only next round.
+**An Apply-triggered withdrawal never carries forward as rejected-class.** It is a *prediction* that a staged fix will resolve the finding, and the Apply runs only at end-of-walk-through: it can fail outright, or land in the wrong place and leave the withdrawn finding's evidence untouched (R30 verifies the applied fix's own fingerprint, not the withdrawn finding's). Round N+1 re-synthesis, not R29, is the check, so a fix that failed or landed ineffectively resurfaces the finding instead of silently suppressing it. When such an Apply fails during execution, also list its reverted withdrawals in the completion report's failure section as returned to scope.
 
 ---
 
 ## Override rule
 
 "Override" means the user picks a different preset action (Defer or Skip in place of Apply, or Apply in place of the agent's recommendation). No inline freeform custom-fix authoring — the walk-through is a decision loop, not a pair-editing surface. A user who wants a variant of the proposed fix picks Skip and hand-edits outside the flow; if they also want the finding tracked, they can Defer first and edit afterward.
-
----
-
-## State
-
-Walk-through state is **in-memory only**. The orchestrator maintains:
-
-- An Apply set (finding ids the user picked Apply on)
-- A decision list (every answered finding with its action and any metadata like `append_location` for Deferred or `reason` for Skipped)
-- The current position in the findings list
-
-Nothing is written to disk per-decision except the in-doc Open Questions appends (which are external side effects — those cannot be rolled back). An interrupted walk-through (user cancels the prompt, session compacts, network dies) discards all in-memory state. Apply decisions have not been dispatched yet (they batch at end-of-walk-through), so they are cleanly lost with no document changes.
-
-Cross-session persistence is out of scope. Mirrors `ce-code-review`'s walk-through state rules.
 
 ---
 
@@ -262,38 +233,13 @@ After execution completes (or after `Auto-resolve with best judgment on the rest
 
 ## Unified completion report
 
-Every terminal path of Interactive mode emits the same completion report structure. This covers:
+Every terminal path of Interactive mode emits the same report — walk-through completed, walk-through bailed via `Auto-resolve with best judgment on the rest → Proceed`, top-level best-judgment (routing option B), top-level Append-to-Open-Questions (routing option C), and zero findings after `safe_auto` (the degenerate case below). In order:
 
-- Walk-through completed (all findings answered)
-- Walk-through bailed via `Auto-resolve with best judgment on the rest → Proceed`
-- Top-level best-judgment (routing option B) completed
-- Top-level Append-to-Open-Questions (routing option C) completed
-- Zero findings after `safe_auto` (routing question was skipped — the completion summary is a one-line degenerate case of this structure)
+- **Failures first, above the per-finding list** so they are not missed: any Apply that failed (document write error, or the defensive no-fix fallback) and any Open-Questions append that failed.
+- **Per-finding entries** for everything the flow touched, grouped by action bucket in the order `Applied / Deferred / Skipped / Acknowledged / Withdrawn`, omitting empty buckets. Each line carries title, severity, and action, plus the append location for Deferred, a one-line reason for Skipped, the acknowledgement reason for Acknowledged, and the retiring decision for Withdrawn (e.g., `Resolved by the applied fix on "Scope Boundaries"`).
+- **Summary counts by action** (e.g., `4 applied, 2 deferred, 2 skipped`), then Coverage (FYI observations, residual concerns), then the end-of-review verdict carried over from Phase 4.
 
-### Minimum required fields
-
-- **Per-finding entries:** for every finding the flow touched, a line with — at minimum — title, severity, the action taken (Applied / Deferred / Skipped / Acknowledged / Withdrawn), the append location for Deferred entries, a one-line reason for Skipped entries (grounded in the finding's confidence anchor or the one-line `why_it_matters` snippet), the acknowledgement reason for Acknowledged entries (e.g., `Apply picked but no suggested_fix available`), and for Withdrawn entries the decision that retired them (e.g., `Resolved by the applied fix on "Scope Boundaries"`).
-- **Summary counts by action:** totals per bucket (e.g., `4 applied, 2 deferred, 2 skipped`). Include an `acknowledged` count when any entries land in that bucket; omit the label when the count is zero.
-- **Failures called out explicitly:** any Apply that failed (e.g., document write error, or the defensive no-fix fallback skipping an Apply-set entry), any Open-Questions append that failed. Failures surface above the per-finding list so they are not missed.
-- **End-of-review verdict:** carried over from Phase 4's Coverage section.
-
-### Report ordering
-
-Failures first (above the per-finding list), then per-finding entries grouped by action bucket in the order `Applied / Deferred / Skipped / Acknowledged / Withdrawn`, then summary counts, then Coverage (FYI observations, residual concerns), then the verdict. Omit any bucket whose count is zero.
-
-### Zero-findings degenerate case
-
-When the routing question was skipped because no `gated_auto` / `manual` findings at confidence anchor `75` or `100` remained after `safe_auto`, the completion report collapses to its summary-counts + verdict form with one added line — the count of `safe_auto` fixes applied. The summary wording:
-
-No FYI or residual concerns:
-
-```
-All findings resolved — 3 fixes applied.
-
-Verdict: Ready.
-```
-
-FYI or residual concerns remain:
+**Zero-findings degenerate case.** When the routing question was skipped because nothing actionable remained after `safe_auto`, the report collapses to summary counts + verdict plus the applied-fix count:
 
 ```
 All actionable findings resolved — 3 fixes applied. (2 FYI observations, 1 residual concern remain in the report.)
@@ -301,8 +247,4 @@ All actionable findings resolved — 3 fixes applied. (2 FYI observations, 1 res
 Verdict: Ready.
 ```
 
----
-
-## Execution posture
-
-The walk-through is operationally read-only with respect to the project except for three permitted writes: the in-memory Apply set / decision list (managed by the orchestrator), the in-doc Open Questions appends (external side effects managed by `references/open-questions-defer.md`), and the end-of-walk-through batch document edits (the orchestrator's final Apply pass). Persona agents remain strictly read-only. Unlike `ce-code-review`, there is no fixer subagent — the orchestrator owns the document edit directly.
+Drop the parenthetical when no FYI or residual concerns remain.

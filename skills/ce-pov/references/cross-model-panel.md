@@ -8,11 +8,6 @@ note, or the ordinary POV contract's explicit grounding blocker.
 
 ## 1. Resolve the subject, host, and participants
 
-Resolve conversational shorthand before spending: "the approach," "these
-options," and "the three options presented" mean the single unambiguous
-referent in the active conversation. Ask one focused clarification only when
-multiple plausible referents would materially change the POV.
-
 Keep four identities separate for the host and every peer:
 
 - **target** — the user-facing choice (`codex`, `claude`, `grok`, `cursor`, or
@@ -56,20 +51,17 @@ when the request never says `oracle`. A request for ce-pov's take alone does not
   conventions, then the declared default order; announce the selection and run
   it. Invoking `oracle` authorizes this ordinary read-only consultation against
   the current project.
-- **Explicit unnamed cross-check:** bypass the correction-cost gate and use the
-  count rule below; announce the selected peers and run them.
+- **Explicit unnamed cross-check:** bypass the correction-cost gate, select as
+  for bare `oracle`; announce the selected peers and run them.
 - **No explicit cross-check:** after ce-pov independently forms its POV, offer
   only when meaningful downstream work will build on the take before an error
   surfaces, or it feeds a shared, public, security, or data commitment.
   Adoption Tier 1 is ineligible; Tier 2/3 are eligible. Warm invocations never
   offer.
 
-For the count rule: zero reachable means solo plus one availability line. One
-or more auto-selected peers means one concise progress line naming the selected
-targets before dispatch.
-Cursor-default counts automatically only when its serving family can be
-attested as different from the host; it remains eligible when explicitly named
-or configured as a preference.
+Cursor-default is auto-selected only when its serving family can be attested as
+different from the host; it remains eligible when explicitly named or configured
+as a preference.
 
 **Prior-opinion subjects.** When the subject is an already-formed position —
 ce-pov's own prior POV or the user's stated view — that position is the subject
@@ -89,11 +81,8 @@ Normalize the allowed read scope once as:
 
 Pass that identical representation to every peer prompt and route adapter. The
 default is the repository root. A narrower user- or host-supplied scope is
-binding and is never broadened. Peers launched on the same host inspect existing
-subject files and supporting evidence directly from this shared working tree;
-point them to those files instead of copying their contents into the payload.
-Pass material inline only when it exists solely in the conversation or is
-otherwise unavailable in the workspace.
+binding and is never broadened. Peers launched on the same host read subject
+material directly from this shared working tree (Section 4).
 
 Treat include and exclude path patterns as cooperative unless the concrete
 adapter turns them into filesystem controls. Never present prompt-only patterns,
@@ -182,12 +171,9 @@ and carry the user's stated goal — including its intensity — when it bears o
 decision. State in the payload that rejecting every supplied option, or the
 framing itself, is a valid position. When ce-pov authored the subject in-session,
 present the options symmetrically in the payload's own words even though the full
-subject document remains attached. When the subject is itself an already-formed
-position (Section 1), the strip list above applies only to fresh host framing
-generated in response to the summons: the position's own premises, labels, and
-advocacy ship intact as the subject artifact, and only host meta-judgment formed
-about it after the summons waits for reconcile — peers still return their own
-independent verdict. For `skeptic` mode, include
+subject document remains attached. For a prior-opinion subject (Section 1) the
+strip list applies only to host framing generated after the summons, never to the
+position itself, which ships intact as the subject artifact. For `skeptic` mode, include
 ce-pov's position because critiquing it is the task. Reconciliation payloads
 follow Section 5 and deliberately include already-formed positions.
 
@@ -279,21 +265,17 @@ exchanges. A user-supplied pass or round limit overrides it: "one pass" or "one
 round" means no reconcile exchange, while a larger explicit limit replaces the
 default cap. Never reinterpret a smaller user limit as a suggestion.
 
-For each reconcile exchange:
-
-1. Revalidate repository-scope identity. Restart or return incomplete on change.
-2. Have ce-pov reconsider every current position and its evidence.
-3. Identify only disputed project claims that could change the decision. Verify
-   them against the allowed scope and classify each as `verified`,
-   `contradicted`, or `unverifiable`, with source locations when available.
-4. Build one common evidence delta. Send the identical complete delta to every
-   surviving peer—never route-specific truncation—along with the full original
-   subject and every surviving voice's current position and reasoning, capped at
-   five succinct source-attributed evidence bullets per voice.
-5. Re-resolve every fixed route under Section 3, then dispatch a fresh stateless
-   round. The same recipients need no question; an unexpected new recipient or
-   intermediary does. A failed peer is dropped for later rounds; do not reuse its
-   older position as if it participated.
+For each reconcile exchange: revalidate repository-scope identity (restart or
+return incomplete on change), reconsider every current position and its
+evidence, then verify only the disputed project claims that
+could change the decision against the allowed scope, classifying each as
+`verified`, `contradicted`, or `unverifiable` with source locations when
+available. Send one identical common evidence delta to every surviving peer —
+never route-specific truncation — along with the full original subject and every
+surviving voice's current position and reasoning, capped at five succinct
+source-attributed evidence bullets per voice, over a freshly resolved fixed route
+per Section 3. A failed peer is dropped for later rounds; do not reuse its older
+position as if it participated.
 
 After fold-in, stop on the first matching enum:
 

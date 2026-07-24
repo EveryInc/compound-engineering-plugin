@@ -1,7 +1,5 @@
 # Strategy Template
 
-Loaded by `SKILL.md` after the interview is complete. Fill it in using the captured answers and write to `STRATEGY.md`.
-
 ## Rules for filling in
 
 - Use the user's own language where possible. Do not paraphrase into generic PM-speak.
@@ -43,7 +41,7 @@ last_updated: {{YYYY-MM-DD}}
 - **{{metric 2 name}}** - {{...}}
 - **{{metric 3 name}}** - {{...}}
 
-<!-- 3-5 total. Stop at 5. -->
+<!-- 3-5 total. Stop at 5. Record which metrics matter and where they live, not what they read today. -->
 
 ## Tracks
 
@@ -75,15 +73,3 @@ _Why it serves the approach:_ {{one line}}
 
 <!-- Optional. Delete the section if unused. -->
 ~~~
-
-## Post-write checklist
-
-Before confirming the write, scan the draft for:
-
-- [ ] Frontmatter present at the top with `name` and `last_updated` keys.
-- [ ] `last_updated` carries today's date in ISO format (YYYY-MM-DD).
-- [ ] No section has more than 4 sentences except Tracks (where each track has its own short block).
-- [ ] No placeholders remain (`{{...}}`).
-- [ ] Optional sections with no content have been deleted, not left empty.
-- [ ] Metric count is between 3 and 5. Track count is between 2 and 4.
-- [ ] Target problem and Our approach are connected - one clearly responds to the other.

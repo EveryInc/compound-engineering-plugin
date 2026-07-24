@@ -1,6 +1,6 @@
 # Evaluation Rubric
 
-The **orchestrator** applies this to decide each item's verdict **before** any fix is dispatched. This is the legitimacy gate: judgment happens here, in the one context that holds every thread at once -- not inside an isolated fixer that has lost the author's design intent. Read the actual code when a verdict turns on it; never decide validity from the comment text alone.
+Judge every item yourself before any fix is dispatched, holding the whole batch -- so you can dedup file reads, catch a systematically-wrong reviewer across threads, and weigh the author's design intent. Subagents implement approved fixes only. Read the actual code when a verdict turns on it; never decide validity from the comment text alone.
 
 The output of applying this rubric is a verdict per item, sorted into:
 - **fix-list** -- `fixed` / `fixed-differently` intent; dispatched to fixers.
@@ -39,11 +39,11 @@ Divert from fixing only on a concrete signal:
 - **The fix would make the code worse** -- it violates a project rule in the active instructions/conventions, adds dead defensive code, suppresses errors that should propagate, introduces premature abstraction, or restates code in comments -> `declined`, citing the specific harm.
 - **The change buys nothing real** -- a cosmetic preference or immaterial edit with no benefit to correctness, clarity, or maintainability -> `replied`, briefly saying why no change is warranted. Small *real* improvements still get fixed; the skip bar is "no benefit," not "minor."
 - **The change is risky and you can't bound it** -- it touches a hot path, a boundary other code relies on, or thinly-tested code, and the benefit doesn't justify the risk. Risk isn't proportional to size; a one-line edit can carry it. First de-risk: read the callers (you may want a fixer to add a test and run it). If material risk remains after that read, -> `needs-human`.
-- **The fix would undo a *deliberate* design choice (evidence-gated, rare)** -- the finding is otherwise correct and low-risk, but implementing it would reverse a design/product decision the author made on purpose, *and* competent engineers could reasonably disagree about which is right. This does **not** fire just because a change alters behavior -- every fix alters behavior. It fires **only when both** of these hold, and you can name them:
+- **The fix would undo a *deliberate* design choice (evidence-gated, rare)** -- the finding is otherwise correct and low-risk, but implementing it would reverse a design/product decision the author made on purpose, *and* competent engineers could reasonably disagree about which is right. It fires **only when both** of these hold, and you can name them:
   1. **Positive evidence of intent** -- a concrete artifact showing the current behavior is a choice, not an accident: a comment/docstring stating it, a test asserting it, a PR/commit rationale, or a sentinel/guard that only makes sense as a decision. "The code currently does X" is **not** evidence (all code does something). If you cannot point to a specific artifact, there is no deliberate choice to protect -> **fix it**.
   2. **Genuine disagreement** -- a competent reviewer could reasonably have chosen the other way; it is a judgment/product call, not a clear improvement the author simply missed.
 
-  When both hold -> `needs-human` with `decision_context` contrasting the reviewer's ask, the intent artifact, and the tradeoff. When they don't, it is an ordinary fix. **Still fix these (they do NOT trip it):** renames, a guard the reviewer pinpoints, dead-code removal, an off-by-one, a missing null check, style, semantics-preserving perf, or correcting a choice that the evidence shows was a *mistake* rather than a decision. This guard exists so an autonomous caller (`ce-babysit-pr`) never silently reverses an intended behavior -- it is **not** a license to escalate ordinary feedback. Default remains to fix; "this might be intentional" is not evidence, and uncertainty resolves to fixing (or a brief `replied` question), not escalating.
+  When both hold -> `needs-human` with `decision_context` contrasting the reviewer's ask, the intent artifact, and the tradeoff. When they don't, it is an ordinary fix: "this might be intentional" is not evidence, and uncertainty resolves to fixing (or a brief `replied` question), not escalating. This guard exists so an autonomous caller (`ce-babysit-pr`) never silently reverses an intended behavior.
 - **It's a question, not a change request** ("why X?", "is this intentional?") -- answerable from the code -> `replied`; depends on a product/business call you can't determine -> `needs-human`.
 
 ## Outdated threads (`isOutdated=true`)
@@ -62,51 +62,11 @@ Do the investigation work before escalating. Don't punt with "this is complex." 
 
 ## Reply text for reply-list and human-list items
 
-Compose these now -- you have the evidence. Quote the specific sentence being addressed, not the whole comment if it's long.
+Compose these now -- you have the evidence. Every reply opens by quoting the specific sentence being addressed, not the whole comment if it's long. Then:
 
-For `replied` (a question, discussion, or a correct-but-immaterial point you're not changing):
-```markdown
-> [quote the relevant part of the reviewer's comment]
+- `replied` -- answer the question, explain the design decision, or briefly say why no change is warranted.
+- `not-addressing` -- lead with "Not addressing:" and the evidence (e.g. "null check already exists at line 85").
+- `declined` -- lead with "Declined:" and the specific harm (e.g. "adds a defensive null check the type system already guarantees").
+- `needs-human` -- the **reply_text** posts as the user, so write it as the PR author would ("Good question -- this is a tradeoff between X and Y; going to think it through before making a call"). No AI boilerplate like "Flagging for human review."
 
-[Direct answer to the question, explanation of the design decision, or brief reason no change is warranted]
-```
-
-For `not-addressing`:
-```markdown
-> [quote the relevant part of the reviewer's comment]
-
-Not addressing: [reason with evidence, e.g., "null check already exists at line 85"]
-```
-
-For `declined`:
-```markdown
-> [quote the relevant part of the reviewer's comment]
-
-Declined: [specific harm cited, e.g., "this would add a defensive null check the type system already guarantees" or "violates the no-premature-abstraction rule in the project's conventions"]
-```
-
-For `needs-human`, the **reply_text** posted to the thread sounds natural -- it's posted as the user, so avoid AI boilerplate like "Flagging for human review." Write it as the PR author would:
-```markdown
-> [quote the relevant part of the reviewer's comment]
-
-[Natural acknowledgment, e.g., "Good question -- this is a tradeoff between X and Y. Going to think through this before making a call." or "Need to align with the team on this one -- [brief why]."]
-```
-
-The **decision_context** (presented to the user, not posted) is where the depth goes:
-```markdown
-## What the reviewer said
-[Quoted feedback -- the specific ask or concern]
-
-## What I found
-[What you investigated and discovered. Reference specific files, lines, and code.]
-
-## Why this needs your decision
-[The specific ambiguity. Not "this is complex" -- what exactly are the competing concerns?]
-
-## Options
-(a) [First option] -- [tradeoff: what you gain, what you lose or risk]
-(b) [Second option] -- [tradeoff]
-
-## My lean
-[A recommendation and why, or what additional context would tip the decision.]
-```
+The **decision_context** (presented to the user, not posted) is where the depth goes: the quoted ask, what you found (name the specific files, lines, and code), the exact competing concerns that make it a decision rather than "this is complex", concrete options with their tradeoffs, and your lean or what additional context would tip it.

@@ -8,17 +8,8 @@ the format-specific references (`markdown-rendering.md`, `html-rendering.md`).
 ## The outcome
 
 A great brainstorm produces the first version of the same plan artifact that
-`ce-plan` later enriches. It enables three audiences to act:
-
-- **The planning agent** (`ce-plan` or a human) produces an implementation
-  plan without inventing user behavior, scope boundaries, or success
-  criteria — the brainstorm answered those.
-- **The reviewer** sees the framing choices, distinguishes pinned from open,
-  and catches scope gaps before planning.
-- **The future reader** traces why the proposed thing matters, who it's for,
-  and what success looks like.
-
-Sections earn their place by serving one of these audiences. Omit padding.
+`ce-plan` later enriches. Sections earn their place by serving one of its three
+audiences — the planning agent, the reviewer, the future reader. Omit padding.
 
 ## Unified plan skeleton contract
 
@@ -82,17 +73,14 @@ Conversely, a brainstorm about a multi-actor feature with contested scope
 and several behavioral conditions probably does need a doc — the planning
 agent needs the structured content the dialogue produced.
 
-## Match depth to content
-
-When a doc IS warranted, depth matches what the dialogue produced. A
-brainstorm with sparse content produces a sparse doc; one with rich content
-produces a rich doc. Don't add ceremony to make a slim brainstorm look
-substantial.
+When a doc IS warranted, depth matches what the dialogue produced: a sparse
+brainstorm produces a sparse doc. Don't add ceremony to make a slim brainstorm
+look substantial.
 
 ## Prose economy
 
-Match-depth-to-content sizes *which* sections appear and how deep each goes.
-This sizes *how the kept prose reads*. A section can be material and still be
+Depth sizes *which* sections appear and how deep each goes. This sizes *how
+the kept prose reads*. A section can be material and still be
 written loosely — the failure mode is a material section padded into a wall of
 text where contradictions hide and a downstream agent loses the thread. Length
 that earns its place is fine; wordiness around that length is not.
@@ -146,33 +134,29 @@ lives outside the doc.
 
 ## Ready for Planning Check
 
-Run this against the written artifact before declaring it written or presenting
-the Phase 4 handoff:
+Reread the written artifact once, as `ce-plan` would, before declaring it
+written or presenting the Phase 4 handoff:
 
-1. **Complete** — no placeholders, `TBD`s, or half-written sections remain;
-   every Outstanding Question is classified as `Resolve Before Planning` or
-   `Deferred to Planning`. When the coherent-work gate split a broader request,
+1. **Complete** — no placeholders or `TBD`s; every Outstanding Question is
+   classified as `Resolve Before Planning` or `Deferred to Planning`.
+   When the coherent-work gate split a broader request,
    the `work-relationships` section is present and carries the marker for the
    resolved output format: `<!-- ce-section: work-relationships -->` in Markdown
    or `data-ce-section="work-relationships"` on its wrapping `<section>` in HTML.
-2. **Consistent** — Goal Capsule, Requirements, Key Flows, Acceptance Examples,
-   Scope Boundaries, and the `work-relationships` section do not contradict one
-   another. Could a reader find a contradiction in each section in one pass? A
-   sentence with more than one parenthetical or a requirement that specifies two
-   outcomes, or a rule stated in full in more than one section, fails this check
-   — split it, defer the fork, or replace the duplicate with its owning ID.
+2. **Consistent** — no two sections contradict each other, and
+   a rule stated in full in more than one section fails this check — replace
+   the duplicate with its owning ID.
 3. **Focused** — the Product Contract owns one coherent work unit. Surrounding
-   work appears only as context, deferred work, or an explicit non-goal; it does
-   not leak into active Requirements, Flows, or Acceptance Examples.
+   work appears only as context, deferred work, or an explicit non-goal.
 4. **Usable by planning** — `ce-plan` can decide how to build the current work
    without inventing product behavior, scope, actors, or success criteria.
 
-Fix a failed check in place when the correction preserves settled intent, then
-rerun the failed checks. When a fix would choose or change product behavior or
-scope, ask one targeted question and update the artifact after the answer. If
-the user is unavailable, keep the artifact blocked rather than letting planning
-invent the answer. Do not emit this checklist into the Product Contract; the
-corrected artifact is the output.
+Fix a failed check in place when the correction preserves settled intent. When
+a fix would choose or change product behavior or
+scope, ask one targeted question and update the artifact after the answer; when no user can answer,
+record the choice as an explicit assumption under `Resolve Before Planning`
+rather than deciding it silently. Do not emit this checklist into the Product
+Contract; the corrected artifact is the output.
 
 ## Product Contract hard floor
 
@@ -286,14 +270,10 @@ worse than omitting it.
   before/after of one changed line is decoration. One visual per load-bearing
   concept, never decoration or ceremony.
 
-  **Diagrams complement prose; they never replace it.** A diagram is an
-  on-ramp to the prose it illustrates, not a substitute. The IDed prose
+  **Diagrams complement prose; they never replace it.** The IDed prose
   (Requirements, Key Decisions, Acceptance Examples) stays complete and
-  standalone — a reader who ignores every diagram still gets the full
-  content in text, and a downstream agent that reads the artifact as linear
-  text is never left with a relationship that exists only in an SVG. Adding
-  a before/after diagram is not license to thin the requirement or decision
-  prose it depicts.
+  standalone — a reader who ignores every diagram still gets the full content
+  in text, and no relationship exists only inside an SVG.
 
 - **Acceptance Examples** — include when any requirement has a
   state-dependent or conditional shape ("When X, Y") where prose alone leaves
@@ -331,20 +311,10 @@ worse than omitting it.
 
 ## Agent agency
 
-The catalog is a floor, not a ceiling. When the brainstorm's content doesn't
-fit any catalog section, introduce a new one — don't force the content into
-a section it doesn't belong in. Content drives section choices, not vice
-versa.
-
-The agent also picks per artifact:
-
-- Whether Acceptance Examples render as a separate section or embed in each
-  requirement
-- How much depth each present section gets
-
-(Requirements grouping is covered above in the Hard Floor item — group by
-concern by default, rendering a flat list only when all requirements are
-about the same thing, with continuous R-IDs across groups.)
+The catalog is a floor, not a ceiling: when content doesn't fit any catalog
+section, introduce a new one rather than forcing it into a section it doesn't
+belong in. You also pick per artifact whether Acceptance Examples render as
+their own section or embed in each requirement.
 
 ## Brainstorm metadata fields
 
@@ -413,20 +383,12 @@ Same shape as plan rules.
 
 ## Discipline: Summary vs Problem Frame
 
-When both sections are present, they earn separate sections only by holding
-to different purposes:
-
-| Section | Question it answers | Time direction | Length |
-|---|---|---|---|
-| `## Summary` | What is this doc proposing? | Forward-looking | 1-3 lines |
-| `## Problem Frame` | Why does this proposal exist? | Backward-looking / situational | Paragraphs |
-
-- **Summary doesn't need problem context.** A reader scanning Summary gets
-  the proposal at a glance.
-- **Problem Frame doesn't restate the proposal.** It establishes the
-  situation, the specific moment of pain, and the cost shape — then stops.
-  The remedy lives in Summary; restating it in Problem Frame is the
-  duplication that makes the two sections feel redundant.
+When both are present they earn separate sections only by holding to different
+purposes. `## Summary` answers what the doc proposes — forward-looking, 1-3
+lines, no problem context needed. `## Problem Frame` answers why the proposal
+exists — backward-looking, paragraphs: the situation, the specific moment of
+pain, the cost shape, then stop. The remedy lives in Summary; restating it in
+Problem Frame is the duplication that makes the two feel redundant.
 
 ## Rendering
 

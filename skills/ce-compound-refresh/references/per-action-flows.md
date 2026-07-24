@@ -1,6 +1,6 @@
 # Per-Action Flows
 
-Read this reference when executing Phase 4. Find the section matching the action classified in Phase 2 and confirmed in Phase 3 (Keep, Update, Consolidate, Replace, or Delete) and follow that flow.
+Read this reference when executing an action. Find the section matching the classified action (Keep, Update, Consolidate, Replace, or Delete) and follow that flow.
 
 ## Keep Flow
 
@@ -8,29 +8,11 @@ No file edit by default. Summarize why the learning remains trustworthy.
 
 ## Update Flow
 
-Apply in-place edits only when the solution is still substantively correct.
-
-Examples of valid in-place updates:
-
-- Rename `app/models/auth_token.rb` reference to `app/models/session_token.rb`
-- Update `module: AuthToken` to `module: SessionToken`
-- Fix outdated links to related docs
-- Refresh implementation notes after a directory move
-
-Examples that should **not** be in-place updates:
-
-- Fixing a typo with no effect on understanding
-- Rewording prose for style alone
-- Small cleanup that does not materially improve accuracy or usability
-- The old fix is now an anti-pattern
-- The system architecture changed enough that the old guidance is misleading
-- The troubleshooting path is materially different
-
-Those cases require **Replace**, not Update.
+Apply in-place edits only when the solution is still substantively correct: renaming an `app/models/auth_token.rb` reference to `app/models/session_token.rb` is Update; "the old fix is now an anti-pattern" is **Replace**.
 
 ## Consolidate Flow
 
-The orchestrator handles consolidation directly (no subagent needed — the docs are already read and the merge is a focused edit). Process Consolidate candidates by topic cluster. For each cluster identified in Phase 1.75:
+The orchestrator handles consolidation directly (no subagent needed — the docs are already read and the merge is a focused edit). Process Consolidate candidates by topic cluster. For each cluster identified during document-set analysis:
 
 1. **Confirm the canonical doc** — the broader, more current, more accurate doc in the cluster.
 2. **Extract unique content** from the subsumed doc(s) — anything the canonical doc does not already cover. This might be specific edge cases, additional prevention rules, or alternative debugging approaches.
@@ -76,13 +58,6 @@ Do not let replacement subagents invent frontmatter fields, enum values, or sect
    fi
    ```
 
-   - **If the script ran:** exit 0 means parser-safe; exit 1 means stderr names the offending field(s) — quote the value(s), re-write the doc, and re-run until exit 0. Do not declare success while validation fails.
-   - **If the script did not run** (else branch): apply the validator's checks by hand, matching its exact scope — checking more broadly risks edits the validator would not require. Fix any violation by quoting the whole value before continuing:
-     1. The opening and closing frontmatter delimiters are each a line whose content is `---` (trailing whitespace is fine; `----` or `---extra` is not a valid delimiter).
-     2. For each **top-level** mapping entry (`key: value`, no leading indentation) whose value is **not already quoted or structured** (does not start with `"`, `'`, `[`, `{`, `|`, or `>`): the value must contain no unquoted ` #` (space-then-hash — YAML treats it as a comment and silently truncates) and no unquoted `: ` (colon-then-space — strict YAML may read it as a nested mapping). Quote the whole value if either appears.
-     Nested values, array items, and already-quoted values are out of scope here (array-item quoting is handled by the schema/YAML-safety step above). Then note in the completion output that the bundled script validator was unavailable on this platform and the checks were applied manually.
-
-   The validator does not enforce schema rules and does not flag YAML reserved-indicator characters (those produce loud parser errors downstream rather than silent corruption — out of scope). Uses Python 3 stdlib only (no PyYAML or other deps).
 4. **Run the mechanical claims check on the successor doc.** The bundled `scripts/validate-doc-claims.py` flags cited repo paths missing from the tree, commit SHAs that do not resolve or are unreachable, relative doc links that do not resolve, and dangling drafting scaffold ("Learning 3", unresolved `{{...}}` tokens):
 
    ```bash
@@ -95,7 +70,7 @@ Do not let replacement subagents invent frontmatter fields, enum values, or sect
    fi
    ```
 
-   Exit 1 flags are **adjudication input, not failures** — a successor doc describing removed code legitimately cites paths that no longer exist. Resolve each flag by fixing the citation, annotating it as historical, or confirming it intentional; always fix scaffold flags. If the script is not resolvable on this platform, scan the body for those same patterns manually and say so in the report.
+   Exit 1 flags are **adjudication input, not failures** — a successor doc describing removed code legitimately cites paths that no longer exist. Resolve each flag by fixing the citation, annotating it as historical, or confirming it intentional; always fix scaffold flags.
 5. After the subagent completes, the orchestrator deletes the old learning file. The new learning's frontmatter may include `supersedes: [old learning filename]` for traceability, but this is optional — the git history and commit message provide the same information.
 
 **When evidence is insufficient:**
@@ -109,8 +84,8 @@ Do not let replacement subagents invent frontmatter fields, enum values, or sect
 
 Delete only when a learning is clearly obsolete, redundant (with no unique content to merge), or its problem domain is gone. Do not delete a document just because it is old — age alone is not a signal.
 
-Before unlinking the file, run a final inbound-link check across the repo's markdown content to catch any references missed during Phase 1 investigation. Prefer the platform's native content-search tool (e.g., Grep in Claude Code) for efficiency; use ranged or context-line reads around matches rather than loading whole files.
+Before unlinking the file, run a final inbound-link check across the repo's markdown content to catch any references missed during investigation.
 
-Each match is a citation that will dangle after delete. Cleanup is mechanical — Phase 2 already classified the citations and confirmed Delete was right. Don't re-litigate.
+Each match is a citation that will dangle after delete. Cleanup is mechanical — the citations were already classified and Delete already confirmed. Don't re-litigate.
 
-If any citation surfaces here that wasn't seen in Phase 1 and is anything other than unambiguously decorative (substantive or mixed/unclear), stop and reclassify: autofix mode stale-marks; interactive mode asks the user whether Replace fits. Only proceed with cleanup when all late-discovered citations are unambiguously decorative.
+If a citation surfaces here that was not seen during investigation and is anything other than unambiguously decorative (substantive or mixed/unclear), stop and reclassify: stale-mark it, or ask whether Replace fits when a human is present. Only proceed with cleanup when all late-discovered citations are unambiguously decorative.

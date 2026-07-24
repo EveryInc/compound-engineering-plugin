@@ -26,7 +26,7 @@ When the Phase 0.3 tripwire flagged an inherently-visual topic, the offer must f
 
 Ask once at the decision point. Do not enable a session-wide mode.
 
-Use the platform's blocking question tool for the opt-in when available (`AskUserQuestion`, `request_user_input`, `ask_user`, or equivalent). Use a plain chat question only when no interactive question tool exists or the tool errors. The opt-in should have two clear options:
+Use the platform's blocking question tool for the opt-in when available. Use a plain chat question only when no interactive question tool exists or the tool errors. The opt-in should have two clear options:
 
 - Visual sketch — create rough options in a local browser
 - Text description — keep the decision in chat

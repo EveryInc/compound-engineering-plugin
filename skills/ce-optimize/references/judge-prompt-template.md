@@ -2,13 +2,6 @@
 
 This template is used by the orchestrator to dispatch batched LLM-as-judge evaluation calls. Each judge sub-agent evaluates a batch of sampled output items and returns structured JSON scores.
 
-The orchestrator:
-1. Reads the experiment's output
-2. Selects samples per the stratification config (using fixed seed)
-3. Groups samples into batches of `judge.batch_size`
-4. Dispatches `ceil(sample_size / batch_size)` parallel sub-agents using this template
-5. Aggregates returned JSON scores
-
 ---
 
 ## Item Evaluation Template
@@ -16,7 +9,7 @@ The orchestrator:
 ```
 You are a quality judge evaluating output items for an optimization experiment.
 
-Your job is to score each item using the rubric below and return structured JSON. Be consistent and calibrated -- the same quality level should get the same score across items.
+Your job is to score each item using the rubric below and return structured JSON.
 
 <rubric>
 {rubric}
@@ -42,10 +35,8 @@ Example output format (adapt field names to match the rubric):
 ]
 
 Rules:
-- Evaluate each item independently
-- Score based on the rubric, not on how other items in this batch scored
+- Score each item against the rubric independently, not relative to how other items in this batch scored
 - If an item is empty or has only 1 element when it should have more, score it based on what is present
-- For very large items (many elements), focus on a representative subset and note if quality varies across the item
 - Every item in the batch MUST appear in your output
 </output-contract>
 ```
@@ -90,21 +81,3 @@ Rules:
 - Every singleton in the batch MUST appear in your output
 </output-contract>
 ```
-
-## Variable Reference
-
-| Variable | Source | Description |
-|----------|--------|-------------|
-| `{rubric}` | Spec `metric.judge.rubric` | User-defined scoring rubric |
-| `{items_json}` | Sampled output items | JSON array of items to evaluate (one batch worth) |
-| `{singleton_rubric}` | Spec `metric.judge.singleton_rubric` | User-defined rubric for singleton evaluation |
-| `{singletons_json}` | Sampled singleton items | JSON array of singleton items to evaluate |
-| `{cluster_summaries}` | Experiment output | Summary of existing clusters (titles/themes) for singleton reference |
-
-## Notes
-
-- Designed for Haiku by default -- prompts are concise and well-structured for smaller models
-- The rubric is part of the immutable measurement harness -- the experiment agent cannot modify it
-- The `ambiguous` flag on items helps the orchestrator identify noisy evaluations without forcing bad scores
-- For singleton evaluation, the orchestrator provides cluster summaries (not full contents) to keep judge context lean
-- Each sub-agent evaluates one batch independently -- sub-agents do not see each other's results

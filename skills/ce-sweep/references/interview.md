@@ -8,14 +8,9 @@ This interview is **interactive only**. The caller refuses first-run setup in he
 
 ## Interaction Method
 
-Ask **one question at a time** using the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors — never silently skip a question or assume a default without surfacing it.
+Ask **one question at a time** with the harness's blocking question tool (SKILL.md's Interaction Method names them per platform). Fall back to numbered options in chat only when no blocking tool exists or the call errors.
 
-## Overall Rules
-
-1. **One source at a time, fully.** Sections 1-3 form a per-source loop: for each source, capture its identity, its acknowledgment actions plus standing approval, and its sensitivity flag before moving to the next source. Do not batch these across sources — a user answering "approve writes" needs to know *which* source they are approving.
-2. **Standing approval is consent, captured verbatim.** Section 2's approval question authorizes source-side writes (Slack reactions, GitHub labels) on every future run with no per-run confirmation. Record the literal yes/no. A "no" is not a failure — it leaves that source read-only.
-3. **Defaults are shown, not silently applied.** Every question with a default states the default in the question. The user accepts or overrides; you never pick for them.
-4. **Capture in the user's own terms.** Config ids, emoji names, and label names are read by the whole team and used verbatim by the connectors — record exactly what the user gives.
+**One source at a time, fully.** Sections 1-3 form a per-source loop: for each source, capture its identity, its acknowledgment actions plus standing approval, and its sensitivity flag before moving to the next source. Do not batch these across sources — a user answering "approve writes" needs to know *which* source they are approving. Config ids, emoji names, and label names go into config verbatim as the user gives them.
 
 ---
 
@@ -125,7 +120,7 @@ Let the user override the path if they want a different location. If they pick m
 **Ask:** "Is this a multi-agent setup where several checkouts push the sweep state to a shared docs branch? Answer yes only if more than one machine or agent commits and pushes to the same branch. Default is no — a single checkout committing locally."
 
 - **No** (default) -> `sweep_shared_branch: false`. The single-writer lease serializes overlapping sweeps within one checkout.
-- **Yes** -> `sweep_shared_branch: true`. Explain: the lease becomes **push-gated** — before any source-side write, the sweep commits and pushes the lease acquisition on the shared branch and confirms its writer won, making the lease a repo-wide mutex across machines.
+- **Yes** -> `sweep_shared_branch: true`. The lease becomes push-gated: it is pushed before any source-side write, making it a repo-wide mutex across machines.
 
 **Capture:** `sweep_shared_branch` (`true` | `false`).
 
@@ -133,20 +128,16 @@ Let the user override the path if they want a different location. If they pick m
 
 ## 7. Legacy import (optional)
 
-Offer to seed state from an existing legacy feedback-tracking file so prior work is not re-ingested and already-acknowledged items are not acknowledged again.
-
-**Ask:** "Do you have an existing feedback state file to import — for example a prior dogfood tracker like `<root>/dogfood-reports/cora-v2-alpha-feedback-state.yml`? Importing carries over its cursors and items so the first sweep skips what's already been processed. Skip if this is a clean start."
+**Ask:** "Do you have an existing feedback state file to import — for example a prior dogfood tracker like `<root>/dogfood-reports/cora-v2-alpha-feedback-state.yml` — so the first sweep skips what's already been processed? Skip if this is a clean start."
 
 - **No / skip** -> proceed to section 8.
-- **Yes** -> ask for the file path. Then build a `--source-map`: for each legacy channel/source id in the file, pair it with the configured source id from section 1 (the short name the live connector reads by), as a JSON object like `{"C0AQLMQBGBD":"slack-alpha"}`. This is load-bearing — without it, an imported `C0AQLMQBGBD` cursor lands under `C0AQLMQBGBD` while the connector reads under `slack-alpha`, orphaning the cursor and re-ingesting everything on the first sweep. Run the import from **this skill's directory**; set `SKILL_DIR` inline to the absolute path of the directory containing the `SKILL.md` you loaded:
+- **Yes** -> ask for the file path, then run the import. `--source-map` pairs each legacy source id with the configured source id from section 1 and is load-bearing: without it an imported `C0AQLMQBGBD` cursor lands under `C0AQLMQBGBD` while the connector reads under `slack-alpha`, orphaning the cursor and re-ingesting everything. Omit it only when the legacy ids already equal the configured ids. Report the returned `cursors_imported` / `items_imported` counts.
 
   ```bash
   SKILL_DIR="<absolute path of this skill's directory>";
   PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
   "$PY" "$SKILL_DIR/scripts/sweep-state.py" import-legacy --state <sweep_state_path> --file <legacy-path> --source-map '{"<legacy-id>":"<config-source-id>"}'
   ```
-
-  where `<sweep_state_path>` is the value captured in section 4 and `<legacy-path>` is the file the user named. Omit `--source-map` only when the legacy ids already equal the configured source ids. Report the `cursors_imported` and `items_imported` counts the command returns. The import is additive and best-effort: it maps what matches known shapes and skips the rest. It does **not** re-ingest source content and does **not** re-acknowledge imported items — mapped cursors carry forward so already-processed items stay processed.
 
 ---
 
@@ -199,9 +190,3 @@ sweep_lease_ttl_minutes: 60                       # single-writer lease stalenes
 sweep_shared_branch: false                        # true: push-gated lease for shared-docs-branch topology
 ~~~
 
-Notes:
-
-- Each `feedback_sources` entry carries: `type` (`slack` | `github-issues` | `email`), `id` (short handle), `target` (channel ID / `owner/repo` / mailbox hint), `ack_action` and `closeout_action` (emoji/label names; omit both for email), `sensitive` (`true` withholds body/quote from committed state and plan text), and `approved` (standing approval for source-side writes; `false` keeps the source read-only with `ack_deferred` items).
-- `feedback_sources` is a generic key — other skills may read this list.
-- `sweep_lease_ttl_minutes` is not asked in the interview; it is written with its default of `60` and left as a tunable the user can edit.
-- Email sources are read-only: omit `ack_action`/`closeout_action`, and record `approved: false`.

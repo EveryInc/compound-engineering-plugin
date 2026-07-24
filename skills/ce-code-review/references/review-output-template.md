@@ -1,10 +1,14 @@
 # Code Review Output Template
 
-This is the **canonical skeleton** for *which sections appear and in what order* — copy the section structure; the example below shows one good rendering, not the only permitted layout. Shape each finding for the reader's next action per *Presentation direction* in SKILL.md Stage 6 (what & where / why it matters / what response it needs / how sure; let the shape serve the finding type). Findings are grouped by severity, not by reviewer.
+This is the **canonical skeleton** for *which sections appear and in what order* — copy the section structure; the example below shows one good rendering, not the only permitted layout. Shape each finding for the reader's next action per *Presentation direction* in `references/finish-review.md` Stage 6 (what & where / why it matters / what response it needs / how sure). Findings are grouped by severity, not by reviewer.
 
-**Hard constraints (non-negotiable; the rest is judgment):** ASCII-safe only — no box-drawing or per-item horizontal-rule separators (`────`), no Unicode arrows or middot; use `->`. Don't paste file contents or re-print the diff — cite `file:line`. Stable `#` numbering, reused wherever a finding reappears. The Verdict and Actionable list are present, last, and self-sufficient.
+**Hard constraints (non-negotiable; the rest is judgment):**
 
-**If you use a markdown table, escape literal pipe characters in cells.** Any `|` inside a finding title, issue description, code snippet, regex pattern, or delimited-string example (e.g. cache key examples like `userName + "\|" + groups`) must be written as `\|` so column boundaries are determined only by unescaped pipes. Unescaped pipes split the cell across columns and corrupt the row's `Reviewer` and `Confidence` values (and `Route` in the Actionable Findings table).
+- ASCII-safe only — no box-drawing or per-item horizontal-rule separators (`────`), no Unicode arrows or middot; use `->`. The single report-level `---` before the verdict stays.
+- **Escape literal `|` in table cells as `\|`.** Any pipe inside a finding title, issue description, code snippet, regex alternation, or delimited-string example (e.g. a cache key like `userName + "\|" + groups`) splits the row and corrupts the `Reviewer`/`Confidence` (and `Route`) values.
+- Stable `#` numbering, reused wherever a finding reappears.
+- Don't paste file contents or re-print the diff — cite `file:line`.
+- The Verdict and Actionable list are present, last, and self-sufficient.
 
 ## Example
 
@@ -110,57 +114,24 @@ Detail lines for Pre-existing and history-dependent P0/P1 findings may include t
 > **Fix order:** P0 auth bypass -> P1 memory/pagination -> P2 error handling if straightforward
 ```
 
-## Anti-patterns
+## Rendering rules beyond the example
 
-Do NOT produce output like this. The following is wrong:
-
-```markdown
-Findings
-
-Sev: P1
-File: foo.go:42
-Issue: Some problem description
-Reviewer(s): adversarial
-Confidence: 75
-Route: advisory -> human
-────────────────────────────────────────
-Sev: P2
-File: bar.go:99
-Issue: Another problem
-```
-
-This fails because of the **box-drawing `────` separators between items**, no stable finding numbers, no severity-grouped `###` headers, no `## Code Review Results` title, and a verdict not set apart. The `────` rules and missing structure are the problem — `Field:`-prefixed lines are not themselves banned, but here they carry no stable numbers and bury depth. Prefer a terse table or a keyed list; put depth in a per-finding detail line (`- **#N** — …`), not in box-drawn blocks.
-
-## Formatting Rules
-
-- **ASCII-safe only** -- never box-drawing characters or per-item horizontal-rule separators (`────`) between entries (the report-level `---` before the verdict is still required), no Unicode arrows or middot; use `->`. Tables are a good default but not mandatory -- let the shape serve the finding type (SKILL.md Stage 6); stay consistent within a section
-- **Escape literal `|` in table cells** -- any `|` inside a finding title, issue description, code snippet, regex pattern, or delimited-string example must be written as `\|`. Unescaped pipes are parsed as column separators and corrupt the row's `Reviewer` and `Confidence` columns (and `Route` in the Actionable Findings table). Applies especially to cache-key delimiter examples, regex alternations, and logical-OR operators quoted inside findings.
 - **Severity-grouped sections** -- `### P0 -- Critical`, `### P1 -- High`, `### P2 -- Moderate`, `### P3 -- Low`. Omit empty severity levels.
 - **Stable sequential finding numbers** -- assign finding numbers once after sorting, continue them across severity sections, and reuse those same numbers when findings are repeated in Actionable Findings. Do not restart at `1` for each severity or route bucket.
-- **Always include file:line location** for code review issues
-- **Reviewer column** shows which persona(s) flagged the issue. Multiple reviewers = cross-reviewer agreement.
-- **Confidence column** shows the finding's anchor as an integer (`50`, `75`, or `100`). Never render as a float.
+- **Confidence** renders as the integer anchor (`50`, `75`, `100`), never a float. The `Reviewer` cell lists every persona that flagged it; multiple reviewers mean cross-reviewer agreement.
 - **No `Route` column in the per-severity tables** -- the synthesized route (``<autofix_class> -> <owner>``) appears only in the Actionable Findings table and the `mode:agent` JSON. The scannable severity tables are 5 columns: `# | File | Issue | Reviewer | Confidence`.
-- **Detail line (per finding, as needed)** -- keep the scannable line short (the symptom + `file:line`, not the mechanism); put the why-it-matters + fix/options in a per-finding detail line keyed by stable `#`: `- **#N** — <why it matters + what response it needs>`. Add it whenever the one-liner isn't self-sufficient -- usually P0/P1; P2/P3 are often terse-only. This keyed detail is the home for depth -- don't paste code or restate the diff, and match weight to weight.
-- **Header includes** scope, intent, and reviewer team with per-conditional justifications
-- **Mode line** -- include `markdown report-only`, `markdown local-apply`, or `agent report-only`
+- **Detail line (per finding, as needed)** -- keep the scannable line short (the symptom + `file:line`, not the mechanism); put the why-it-matters + fix/options in a per-finding detail line keyed by stable `#`: `- **#N** — <why it matters + what response it needs>`. Add it whenever the one-liner isn't self-sufficient -- usually P0/P1; P2/P3 are often terse-only. This keyed detail is the home for depth -- don't paste code or restate the diff.
 - **Triage Groups section (when groups exist)** -- pipe table `| Group | Findings | Context | Preferred Resolution | Why |` rendered after Applied and before the severity tables. The `Findings` cell lists stable `#`s (e.g. `#2, #3`); every referenced `#` must appear in a severity table below. Groups are a triage lens over the findings -- they never replace the severity tables, merge findings, or renumber them. Omit when `grouping:off` is active or no groups survived Stage 5b/5c pruning.
 - **Applied section (explicit local apply only)** -- when Stage 5c was authorized and applied fixes, list them first, before the severity tables, as `# | File | Fix | Reviewer` followed by a one-line validation outcome (e.g. "suite 214 pass, lint clean") and the **commit status** — committed as an isolated review-labeled fix commit (`fix(review): …`, or the repo's nearest convention when `review` isn't an allowed scope) when the working tree was clean before the review, or left uncommitted (for the user's commit) when it was already dirty. A fix spanning multiple files is **one row with one `#`** (e.g. `controller.rb:88 (+test)`) -- never duplicate the number across rows. Flag green-but-unverifiable edits (auth/contract/concurrency) inline in the `Fix` cell, e.g. `(security-posture — verify in diff)`. Applied findings keep their stable `#` and appear only here, not in the severity tables. Omit when local apply was not authorized or nothing was applied
-- **Actionable Findings section** -- include when the actionable queue is non-empty (findings for the caller to handle)
-- **Pre-existing section** -- separate table, no confidence column (these are informational)
-- **Learnings & Past Solutions section** -- results from the `learnings-researcher` local prompt asset, with links to <root>/solutions/ files
-- **Agent-Native Gaps section** -- results from the `agent-native-reviewer` local prompt asset. Omit if no gaps found.
-- **Deployment Notes section** -- key checklist items from the `deployment-verification-agent` local prompt asset. Omit if the prompt did not run. Schema drift surfaces as `data-migration` findings — no separate section.
 - **Coverage section** -- suppressed count, removable surface (only when deletion-oriented maintainability findings exist; approximate net lines/files removable if applied -- a dead-weight signal, never a reduction target, omit otherwise), residual risks, testing gaps, failed reviewers
-- **Summary uses blockquotes** for verdict, reasoning, and fix order
-- **Horizontal rule** (`---`) separates findings from verdict
-- **`###` headers** for each section -- never plain text headers
+- **Mode line** -- include `markdown report-only`, `markdown local-apply`, or `agent report-only`
+- Every section uses a `###` header; the verdict block uses blockquotes after the `---` rule. Omit the optional sections (Pre-existing, Learnings, Agent-Native Gaps, Deployment Notes) when their source produced nothing.
 
 ## Agent mode (JSON)
 
-When `mode:agent` is active, **do not** emit the markdown table report above. Emit **one parseable JSON object** as the primary response and write the same payload to `review.json` under the resolved `<run-dir>`.
+When `mode:agent` is active, **do not** emit the markdown table report above. Emit one parseable JSON object instead, and write the same payload to `review.json` under the resolved `<run-dir>`.
 
-The contract is defined in SKILL.md under **`### JSON output format (`mode:agent` only)`**. Minimum fields: `status`, `verdict`, `scope`, `intent`, `reviewers`, `findings`, `actionable_findings`, `artifact_path`, `run_id`.
+The contract is defined in `references/finish-review.md` under **`### JSON output format (`mode:agent` only)`**. Minimum fields: `status`, `verdict`, `scope`, `intent`, `reviewers`, `findings`, `actionable_findings`, `artifact_path`, `run_id`.
 
 Key differences from the human-facing markdown format:
 

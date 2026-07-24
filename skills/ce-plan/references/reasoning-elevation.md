@@ -2,9 +2,9 @@
 
 Elevation dispatches the one reasoning-heaviest step to a **user-chosen model**, so a user on a cheaper session model still gets a high-reasoning result without switching their whole session. It runs on **any harness**: the host serves the chosen model natively where it can, otherwise the Claude CLI is invoked, otherwise the step runs inline on the session model. The elevated call is read-only and verifies its own brief.
 
-The elevated steps: **ce-plan** — interpret research findings and author the plan, folded into one interpret-then-author call. **ce-brainstorm** — generate approaches. The ce-brainstorm integration-check consult is deferred and is NOT wired in this version. Everything else — dialogue, research, orchestration — stays on the session model, which remains the orchestrator and relays the elevated output.
+The elevated steps: **ce-plan** — interpret research findings and author the plan, folded into one interpret-then-author call. **ce-brainstorm** — generate approaches. Everything else — dialogue, research, orchestration — stays on the session model, which remains the orchestrator and relays the elevated output.
 
-This engine loads and runs the same on every harness. There is no host gate that suppresses it — model choice is legitimate everywhere. Model names arrive from config or the prompt at runtime, so this skill's always-loaded `SKILL.md` never needs to name one.
+This engine loads and runs the same on every harness. There is no host gate that suppresses it — model choice is legitimate everywhere.
 
 ## Activation resolution (runs on every harness)
 

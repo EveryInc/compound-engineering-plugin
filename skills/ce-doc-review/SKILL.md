@@ -10,22 +10,14 @@ Review requirements or plan documents through multi-persona analysis. Dispatches
 
 ## Interactive mode rules
 
-- **Pre-load the platform question tool before any question fires.** In Claude Code, `AskUserQuestion` is a deferred tool — its schema is not available at session start. At the start of Interactive-mode work (before the routing question, per-finding walk-through questions, bulk-preview Proceed/Cancel, and Phase 5 terminal question), call `ToolSearch` with query `select:AskUserQuestion` to load the schema. Load it once, eagerly, at the top of the Interactive flow — do not wait for the first question site. On Codex, Gemini, and Pi this preload is not required.
-- **The numbered-list fallback applies only when the harness genuinely lacks a blocking question tool** — `ToolSearch` returns no match, the tool call explicitly fails, or the runtime mode does not expose it (e.g., Codex edit modes where `request_user_input` is unavailable). A pending schema load is not a fallback trigger; call `ToolSearch` first per the pre-load rule. In genuine-fallback cases, present options as a numbered list and wait for the user's reply — never silently skip the question. Rendering a question as narrative text because the tool feels inconvenient, because the model is in report-formatting mode, or because the instruction was buried in a long skill is a bug. A question that calls for a user decision must either fire the tool or fall back loudly.
+- **Pre-load the platform question tool before any question fires.** In Claude Code, `AskUserQuestion` is a deferred tool whose schema is not available at session start: call `ToolSearch` with query `select:AskUserQuestion` once, at the top of the Interactive flow, before the routing question. On Codex, Gemini, and Pi this preload is not required.
+- **The numbered-list fallback applies only when the harness genuinely lacks a blocking question tool** — `ToolSearch` returns no match, the tool call explicitly fails, or the runtime mode does not expose it (e.g., Codex edit modes where `request_user_input` is unavailable). A pending schema load is not a fallback trigger. In genuine-fallback cases, present options as a numbered list and wait for the user's reply — never silently skip a question that calls for a user decision.
 
 ## Phase 0: Detect Mode
 
-Check the invocation arguments for `mode:headless`. Arguments may contain a document path, `mode:headless`, or both. Tokens starting with `mode:` are flags, not file paths — strip them from the arguments and use the remaining token (if any) as the document path for Phase 1.
+If the invocation arguments contain `mode:headless`, set **headless mode** for the rest of the workflow; the remaining argument (if any) is the document path for Phase 1.
 
-If `mode:headless` is present, set **headless mode** for the rest of the workflow.
-
-**Headless mode** changes the interaction model, not the classification boundaries. Apply the same judgment about which tier each finding belongs in. Only the delivery of non-`safe_auto` findings changes:
-
-- `safe_auto` fixes are applied silently (same as interactive)
-- `gated_auto`, `manual`, and FYI findings are returned as structured text for the caller to handle — no blocking-question prompts, no interactive routing
-- Phase 5 returns immediately with "Review complete" (no routing question, no terminal question)
-
-The caller receives findings with their original classifications intact and decides what to do with them.
+**Headless mode** changes the interaction model, not the classification boundaries: apply the same tier judgment, apply `safe_auto` fixes silently as usual, return everything else as the structured text envelope in `references/synthesis-and-presentation.md` (no blocking questions, no interactive routing), and have Phase 5 return "Review complete" immediately.
 
 **Headless argument contract:** Require `mode:headless <document-path>`, for example `mode:headless <path-to-doc>.md`.
 
@@ -165,7 +157,7 @@ Add activated conditional personas:
 
 ### Dispatch
 
-Dispatch generic subagents using **bounded parallelism** with the platform's subagent primitive (e.g., `Agent` in Claude Code, `spawn_agent` in Codex) where available; otherwise run the work inline or serially. Omit the `mode` parameter so the user's configured permission settings apply. Respect the current harness's active-subagent limit: queue selected reviewers, dispatch only as many as the harness accepts, and fill freed slots as reviewers complete. Treat active-agent/thread/concurrency-limit spawn errors as backpressure, not reviewer failure: leave the reviewer queued and retry after a slot frees. Record a reviewer as failed only after a successful dispatch times out/fails, or when dispatch fails for a non-capacity reason.
+Dispatch generic subagents using **bounded parallelism** with the platform's subagent primitive (e.g., `Agent` in Claude Code, `spawn_agent` in Codex) where available; otherwise run the work inline or serially. Omit the `mode` parameter so the user's configured permission settings apply. Respect the current harness's active-subagent limit: dispatch only as many as the harness accepts, queue the remainder, and launch queued reviewers as active ones complete. Treat active-agent/thread/concurrency-limit spawn errors as backpressure, not reviewer failure: leave the reviewer queued and retry after a slot frees. Record a reviewer as failed only after a successful dispatch times out/fails, or when dispatch fails for a non-capacity reason.
 
 For each selected reviewer, read the matching skill-local prompt asset at `references/personas/<reviewer-name>.md` and pass its full content as `{persona_file}`. Do not dispatch standalone agents by type/name and do not rely on platform-level custom-agent registration.
 
@@ -205,38 +197,27 @@ Round 1 — no prior decisions.
 </prior-decisions>
 ```
 
-On round 2+ (after one or more prior rounds in the current interactive session), accumulate prior-round decisions and render them as:
+On round 2+ (after one or more prior rounds in the current interactive session), accumulate every prior-round decision and render them grouped by round and by bucket (applied / rejected) inside the same `<prior-decisions>` block:
 
 ```
 <prior-decisions>
 Round 1 — applied (N entries):
-- {section}: "{title}" ({reviewer}, {confidence})
-  Evidence: "{evidence_snippet}"
+- {section}: "{title}" ({reviewer}, {confidence}) — {action and reason}
+  Evidence: "{first evidence quote}"
 
 Round 1 — rejected (M entries):
-- {section}: "{title}" — Skipped because {reason}
-  Evidence: "{evidence_snippet}"
-- {section}: "{title}" — Deferred to Open Questions because {reason or "no reason provided"}
-  Evidence: "{evidence_snippet}"
-- {section}: "{title}" — Acknowledged without applying because {reason or "no suggested_fix — user acknowledged"}
-  Evidence: "{evidence_snippet}"
-- {section}: "{title}" — Withdrawn because {triggering decision}
-  Evidence: "{evidence_snippet}"
-
-Round 2 — applied (N entries):
-...
+- {section}: "{title}" ({reviewer}, {confidence}) — {action and reason}
+  Evidence: "{first evidence quote}"
 </prior-decisions>
 ```
 
-Each entry carries an `Evidence:` line because synthesis R29 (rejected-finding suppression) and R30 (fix-landed verification) both use an evidence-substring overlap check as part of their matching predicate — without the evidence snippet in the primer, the orchestrator cannot compute the `>50%` overlap test and has to fall back to fingerprint-only matching, which either re-surfaces rejected findings or suppresses too aggressively. The `{evidence_snippet}` is the first evidence quote from the finding, truncated to the first ~120 characters (preserving whole words at the boundary) and with internal quotes escaped. If a finding has multiple evidence entries, use the first one; the rest live in the run artifact and are not needed for the overlap check.
+Keep the `Evidence:` line: synthesis R29 and R30 match on evidence overlap, so an entry without its evidence quote degrades to fingerprint-only matching.
 
-Accumulate across all rounds in the current session. Skip, Defer, and Acknowledge actions all count as "rejected" for suppression purposes — each signals the user decided the finding wasn't worth actioning this round (Acknowledge is the no-fix-guard variant: the user saw a finding with no `suggested_fix`, chose not to defer or skip explicitly, and recorded acknowledgement instead; for round-to-round suppression that is semantically equivalent to Skip). **Withdraw is conditional** (it is the revalidation variant: an earlier decision resolved or contradicted the finding; see "Withdrawing findings the user's earlier answers resolved" in `references/walkthrough.md`): it counts as rejected-class **only when a user decision retired it — a settled premise (Skip/Defer) or a user-asserted fact. An Apply-triggered Withdraw never does** (its resolution depends on the staged edit both landing and semantically resolving the finding, which round N+1 re-synthesis checks — not R29; suppressing it would hide a fix that failed or landed ineffectively). Applied findings stay on the applied list so round-N+1 personas can verify fixes landed (see R30 in `references/synthesis-and-presentation.md`).
+Skip, Defer, and Acknowledge all count as "rejected" for suppression purposes. **Withdraw counts as rejected-class only when a user decision retired it** — a settled premise (Skip/Defer) or a user-asserted fact. An Apply-triggered Withdraw never does: its resolution depends on the staged edit landing, which round N+1 re-synthesis checks rather than R29 (see "Withdrawing findings the user's earlier answers resolved" in `references/walkthrough.md`). Applied findings stay on the applied list so round-N+1 personas can verify fixes landed (see R30 in `references/synthesis-and-presentation.md`).
 
-Cross-session persistence is out of scope. A later review of the same document starts with a fresh round 1 and no carried primer, even if prior sessions deferred findings into the document's Open Questions section.
+Cross-session persistence is out of scope: a later review of the same document starts with a fresh round 1 and no carried primer.
 
 **Error handling:** If a subagent fails or times out, proceed with findings from subagents that completed. Note the failed reviewer in the Coverage section. Do not block the entire review on a single reviewer failure.
-
-**Dispatch limit:** Even at maximum (7 agents), use bounded parallel dispatch. If the harness cap is lower than the selected team size, queue the remainder and launch them as active reviewers complete.
 
 ### Cross-Model Judgment Pass
 

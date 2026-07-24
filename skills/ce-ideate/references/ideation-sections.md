@@ -74,44 +74,24 @@ ranked titles (anchor links to each card) at the top of the section, per
 the rendering reference's within-section sub-nav affordance.
 
 **Illustrative visuals — decide on the idea's shape, not on how clear the
-prose reads.** A well-placed visual can make a direction land faster for a
-human scanning a set of candidates. Decide per survivor — none, a few, or
-most may warrant one; there is no quota and no cap.
+prose reads.** Decide per survivor; there is no quota and no cap. Ask what
+the idea *hinges on*: a relationship between parts, a flow or sequence, a
+before/after contrast, an analogy mapping (especially cross-domain ideas),
+a quantitative comparison → draw it, showing the *basis* or the
+*why-it-matters* rather than restating the title. A single proposition with
+nothing structural to show (a rename, a copy change, a drop-in library
+swap) → no visual; one there is decoration.
 
-Watch one trap when you make this call: the prose always conveys the idea
-(that is the hard rule below), and as a text-native reasoner you will tend
-to read your own prose, judge it "clear," and conclude no visual is needed
-— which quietly under-produces the visuals that actually help a reader. So
-"the prose is already clear" is never the reason to skip. The real
-question is what the idea *hinges on*, and whether that has a shape a
-picture carries faster than a sentence.
+Two traps in making this call:
 
-**Concrete-vs-abstract is the wrong axis.** Don't reach for a visual
-because an idea feels big or conceptual, and don't skip one because it
-feels small or concrete. A new-feature *concept* is often the best
-candidate — the reader has to picture an unfamiliar arrangement — while
-many concrete changes (an error fix, a drop-in dependency swap) have
-nothing structural to draw. Ask what the idea hinges on, not how abstract
-it is.
-
-- **Hinges on a structure → lean toward a visual.** A relationship
-  between parts, a flow or sequence, a before/after contrast, a
-  structural arrangement, an analogy mapping (especially cross-domain
-  ideas), a quantitative comparison. A picture lands these faster than a
-  sentence even when the prose is perfectly clear — and it should show
-  the *basis* or the *why-it-matters*, not restate the title. New-feature
-  concepts frequently live here.
-- **A single point with nothing structural to show → no visual.** A
-  renamed thing, a copy change, "handle the null case," a drop-in library
-  swap — there is no shape a diagram would add; one here is decoration.
-  Size and abstraction don't decide this: a sweeping concept can still be
-  one proposition ("ship dark mode"), and a small concrete fix can still
-  re-route how two parts talk (real shape, worth drawing).
-
-Decoration — a visual with no shape to show, or one that just restates the
-title — is the failure mode, and it is slop whether it appears once or
-five times. A visual that genuinely shows the idea's shape is never slop,
-however many ideas warrant one.
+- As a text-native reasoner you will read your own prose, judge it
+  "clear," and conclude no visual is needed — which quietly under-produces
+  the visuals that help a human scanning candidates. "The prose is already
+  clear" is never the reason to skip.
+- Concrete-vs-abstract is the wrong axis. A new-feature *concept* is often
+  the best candidate (the reader has to picture an unfamiliar
+  arrangement), while a sweeping concept can be one proposition ("ship
+  dark mode") and a small concrete fix can re-route how two parts talk.
 
 Two constraints on any visual you do add:
 

@@ -10,7 +10,7 @@ Run metric-driven iterative optimization. Define a goal, build measurement scaff
 
 ## Interaction Method
 
-Use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
+Use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi. Fall back to numbered options in chat when no blocking tool exists in the harness or the call errors — not because a schema load is required. If no human is attached (headless or piped run), take the safest default, state the assumption, and keep going.
 
 ## Input
 
@@ -30,96 +30,11 @@ This skill reads learnings under `<root>/solutions/`. Resolve `<root>` when you 
 - **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
 <!-- ce-docs-root:end -->
 
-## Optimization Spec Schema
+## State
 
-Reference the spec schema for validation:
+All run state lives under `.context/compound-engineering/ce-optimize/<spec-name>/`: `spec.yaml`, `experiment-log.yaml` (append-only during the loop; update `best` in place), `strategy-digest.md`, plus a `result.yaml` marker in each experiment worktree. `.context/` is gitignored — results do not travel with the branch, commits, or a PR; export them if the user needs a durable artifact.
 
-`references/optimize-spec-schema.yaml`
-
-## Experiment Log Schema
-
-Reference the experiment log schema for state management:
-
-`references/experiment-log-schema.yaml`
-
-## Quick Start
-
-For a first run, optimize for signal and safety, not maximum throughput:
-
-- Start from `references/example-hard-spec.yaml` when the metric is objective and cheap to measure
-- Use `references/example-judge-spec.yaml` only when actual quality requires semantic judgment
-- Prefer `execution.mode: serial` and `execution.max_concurrent: 1`
-- Cap the first run with `stopping.max_iterations: 4` and `stopping.max_hours: 1`
-- Avoid new dependencies until the baseline and measurement harness are trusted
-- For judge mode, start with `sample_size: 10`, `batch_size: 5`, and `max_total_cost_usd: 5`
-
-For a friendly overview of what this skill is for, when to use hard metrics vs LLM-as-judge, and example kickoff prompts, see:
-
-`references/usage-guide.md`
-
----
-
-## Persistence Discipline
-
-**CRITICAL: The experiment log on disk is the single source of truth. The conversation context is NOT durable storage. Results that exist only in the conversation WILL be lost.**
-
-The files under `.context/compound-engineering/ce-optimize/<spec-name>/` are local scratch state. They are ignored by git, so they survive local resumes on the same machine but are not preserved by commits, branches, or pushes unless the user exports them separately.
-
-Every piece of state that matters MUST live on disk, not in the agent's memory.
-
-**If you produce a results table in the conversation without writing those results to disk first, you have a bug.** The conversation is for the user's benefit. The experiment log file is for durability.
-
-### Core Rules
-
-1. **Write each experiment result to disk IMMEDIATELY after measurement** — not after the batch, not after evaluation, IMMEDIATELY. Append the experiment entry to the experiment log file the moment its metrics are known, before evaluating the next experiment. This is the #1 crash-safety rule.
-
-2. **VERIFY every critical write** — after writing the experiment log, read the file back and confirm the entry is present. This catches silent write failures. Do not proceed to the next experiment until verification passes.
-
-3. **Re-read from disk at every phase boundary and before every decision** — never trust in-memory state across phase transitions, batch boundaries, or after any operation that might have taken significant time. Re-read the experiment log and strategy digest from disk.
-
-4. **The experiment log is append-only during Phase 3** — never rewrite the full file. Append new experiment entries. Update the `best` section in place only when a new best is found. This prevents data loss if a write is interrupted.
-
-5. **Per-experiment result markers for crash recovery** — each experiment writes a `result.yaml` marker in its worktree immediately after measurement. On resume, scan for these markers to recover experiments that were measured but not yet logged.
-
-6. **Strategy digest is written after every batch, before generating new hypotheses** — the agent reads the digest (not its memory) when deciding what to try next.
-
-7. **Never present results to the user without writing them to disk first** — the pattern is: measure -> write to disk -> verify -> THEN show the user. Not the reverse.
-
-### Mandatory Disk Checkpoints
-
-These are non-negotiable write-then-verify steps. At each checkpoint, the agent MUST write the specified file and then read it back to confirm the write succeeded.
-
-| Checkpoint | File Written | Phase |
-|---|---|---|
-| CP-0: Spec saved | `spec.yaml` | Phase 0, after user approval |
-| CP-1: Baseline recorded | `experiment-log.yaml` (initial with baseline) | Phase 1, after baseline measurement |
-| CP-2: Hypothesis backlog saved | `experiment-log.yaml` (hypothesis_backlog section) | Phase 2, after hypothesis generation |
-| CP-3: Each experiment result | `experiment-log.yaml` (append experiment entry) | Phase 3.3, immediately after each measurement |
-| CP-4: Batch summary | `experiment-log.yaml` (outcomes + best) + `strategy-digest.md` | Phase 3.5, after batch evaluation |
-| CP-5: Final summary | `experiment-log.yaml` (final state) | Phase 4, at wrap-up |
-
-**Format of a verification step:**
-1. Write the file using the native file-write tool
-2. Read the file back using the native file-read tool
-3. Confirm the expected content is present
-4. If verification fails, retry the write. If it fails twice, alert the user.
-
-### File Locations (all under `.context/compound-engineering/ce-optimize/<spec-name>/`)
-
-| File | Purpose | Written When |
-|------|---------|-------------|
-| `spec.yaml` | Optimization spec (immutable during run) | Phase 0 (CP-0) |
-| `experiment-log.yaml` | Full history of all experiments | Initialized at CP-1, appended at CP-3, updated at CP-4 |
-| `strategy-digest.md` | Compressed learnings for hypothesis generation | Written at CP-4 after each batch |
-| `<worktree>/result.yaml` | Per-experiment crash-recovery marker | Immediately after measurement, before CP-3 |
-
-### On Resume
-
-When Phase 0.4 detects an existing run:
-1. Read the experiment log from disk — this is the ground truth
-2. Scan worktree directories for `result.yaml` markers not yet in the log
-3. Recover any measured-but-unlogged experiments
-4. Continue from where the log left off
+Append each experiment entry to `experiment-log.yaml` the moment its metrics are known, before evaluating the next experiment — long runs get compacted and restarted, and an unwritten result is a lost result. Write the worktree `result.yaml` marker at the same moment so a crash between measurement and log-append is recoverable. On resume, the log on disk is ground truth; scan worktrees for `result.yaml` markers not yet in it.
 
 ---
 
@@ -213,10 +128,10 @@ Check whether the input is:
    - What command runs the measurement?
    - What files can be modified? What is immutable?
    - Any constraints or dependencies?
-   - If this is the first run: recommend `execution.mode: serial`, `execution.max_concurrent: 1`, `stopping.max_iterations: 4`, and `stopping.max_hours: 1`
+   - If this is the first run: recommend `execution.mode: serial`, `execution.max_concurrent: 1`, `stopping.max_iterations: 4`, `stopping.max_hours: 1`, and no new dependencies until the baseline and measurement harness are trusted
    - If `type: judge`: recommend `sample_size: 10`, `batch_size: 5`, and `max_total_cost_usd: 5` until the rubric and harness are trusted
-6. Write the spec to `.context/compound-engineering/ce-optimize/<spec-name>/spec.yaml`
-7. Present the spec to the user for approval before proceeding
+6. Write the spec to `.context/compound-engineering/ce-optimize/<spec-name>/spec.yaml`, modeled on `references/example-hard-spec.yaml` (objective, cheap metric) or `references/example-judge-spec.yaml` (quality requires semantic judgment)
+7. Present the spec to the user for approval before proceeding. If no human is attached, record the spec as assumed-approved and continue.
 
 ### 0.3 Search Prior Learnings
 
@@ -253,12 +168,7 @@ mkdir -p .context/compound-engineering/ce-optimize/<spec-name>/
 
 **This phase is a HARD GATE. The user must approve baseline and parallel readiness before Phase 2.**
 
-**Bundled scripts.** Phases 1 and 3 call helper scripts that ship in this skill's `scripts/` directory (`measure.sh`, `parallel-probe.sh`, `experiment-worktree.sh`). The Bash tool's working directory is the user's project, not the skill directory, so a bare `scripts/<name>` path will not resolve — invoke each by the skill's own absolute path. Every runnable block below already sets `SKILL_DIR` inline (shell state does not persist between Bash tool calls, so each block must carry it); just replace the `<absolute path …>` placeholder with the directory you loaded this `ce-optimize` SKILL.md from before running. The shape:
-
-```bash
-SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
-bash "$SKILL_DIR/scripts/<name>"
-```
+**Bundled scripts.** Phases 1 and 3 call `measure.sh`, `parallel-probe.sh`, and `experiment-worktree.sh` from this skill's `scripts/` directory. Every runnable block below sets `SKILL_DIR` inline because shell state does not persist between Bash tool calls; replace the `<absolute path …>` placeholder with the directory you loaded this SKILL.md from.
 
 ### 1.1 Clean-Tree Gate
 
@@ -292,7 +202,7 @@ Filter the output against the scope paths. If any in-scope files have uncommitte
 2. Build an evaluation script (e.g., `evaluate.py`, `evaluate.sh`, or equivalent)
 3. Add the evaluation script path to `scope.immutable` -- the experiment agent must not modify it
 4. Run it once and validate the output
-5. Present the harness and its output to the user for review
+5. Report the harness path and its output
 
 ### 1.3 Establish Baseline
 
@@ -336,21 +246,16 @@ SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
 bash "$SKILL_DIR/scripts/experiment-worktree.sh" count
 ```
 
-If count + `execution.max_concurrent` would exceed 12:
-- Warn the user
-- Suggest cleaning up existing worktrees or reducing `max_concurrent`
-- Do NOT block -- the user may proceed at their own risk
+If count + `execution.max_concurrent` would exceed 12, warn and suggest cleaning up worktrees or reducing `max_concurrent`. Do NOT block — the user may proceed at their own risk.
 
-### 1.6 Write Baseline to Disk (CP-1)
+### 1.6 Write Baseline to Disk
 
-**MANDATORY CHECKPOINT.** Before presenting results to the user, write the initial experiment log with baseline metrics to disk:
+Write the initial experiment log with baseline metrics before reporting results:
 
 1. Create the experiment log file at `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml`
 2. Include all required top-level sections from `references/experiment-log-schema.yaml`: `spec`, `run_id`, `started_at`, `baseline`, `experiments`, and `best`
 3. Seed `experiments` as an empty array and seed `best` from the baseline snapshot (use `iteration: 0`, baseline metrics, and baseline judge scores if present) so later phases have a valid current-best state to compare against
 4. Optionally seed `hypothesis_backlog: []` here as well so the log shape is stable before Phase 2 populates it
-5. **Verify**: read the file back and confirm the required sections are present and the baseline values match
-6. Only THEN present results to the user
 
 ### 1.7 User Approval Gate
 
@@ -372,7 +277,7 @@ Do NOT proceed to Phase 2 until the user explicitly approves.
 
 If primary type is `judge` and `max_total_cost_usd` is null, call that out as uncapped spend and require explicit approval before proceeding.
 
-**State re-read:** After gate approval, re-read the spec and baseline from disk. Do not carry stale in-memory values forward.
+If no human is attached, do not halt here: proceed when the harness validated, the probe found no blockers, and judge spend is capped (or the primary type is `hard`) — recording those as assumed approvals. Stop and report instead when a blocker is open or judge spend is uncapped.
 
 ---
 
@@ -406,13 +311,13 @@ Collect all unique new dependencies across all hypotheses.
 If any hypotheses require new dependencies:
 1. Present the full dependency list to the user via the platform question tool
 2. Ask for bulk approval
-3. Mark each hypothesis's `dep_status` as `approved` or `needs_approval`
+3. Mark each hypothesis's `dep_status` as `approved` or `needs_approval`. If no human is attached, leave every new dependency `needs_approval` and continue with the rest of the backlog.
 
 Hypotheses with unapproved dependencies remain in the backlog but are skipped during batch selection. They are re-presented at wrap-up for potential approval.
 
-### 2.4 Record Hypothesis Backlog (CP-2)
+### 2.4 Record Hypothesis Backlog
 
-**MANDATORY CHECKPOINT.** Write the initial backlog to the experiment log file and verify:
+Write the initial backlog to the experiment log file:
 ```yaml
 hypothesis_backlog:
   - description: "Remove template boilerplate before embedding"
@@ -451,8 +356,6 @@ For each hypothesis in the batch, dispatch according to `execution.mode`. In `se
 
 **Bounded dispatch.** Do not assume the host will accept all concurrent subagents at once; the active-subagent cap varies by host and profile and is independent of `execution.max_concurrent` (which caps worktrees, a separate budget). Queue the selected experiments, dispatch only as many as the host accepts, and when a capacity or active-agent-limit error appears, treat it as backpressure — retry the queued experiment after a slot frees rather than marking it failed. Mark an experiment failed only when dispatch fails for a non-capacity reason or a successfully dispatched experiment errors/times out.
 
-The Phase 3 blocks below each set `SKILL_DIR` inline as well (the loaded `ce-optimize` skill directory; see the Bundled scripts note in Phase 1) — shell state does not persist from Phase 1, so each block carries its own assignment.
-
 **Worktree backend:**
 1. Create experiment worktree:
    ```bash
@@ -469,19 +372,7 @@ The Phase 3 blocks below each set `SKILL_DIR` inline as well (the loaded `ce-opt
    - Rolling window of last 10 experiments (concise summaries)
 4. Dispatch a subagent with the filled prompt, working in the experiment worktree
 
-**Codex backend:**
-1. Check environment guard -- do NOT delegate if already inside a Codex sandbox:
-   ```bash
-   # If these exist, we're already in Codex -- fall back to subagent
-   test -n "${CODEX_SANDBOX:-}" || test -n "${CODEX_SESSION_ID:-}" || test ! -w .git
-   ```
-2. Fill the experiment prompt template
-3. Write the filled prompt to a temp file
-4. Dispatch via Codex:
-   ```bash
-   cat /tmp/optimize-exp-XXXXX.txt | codex exec --skip-git-repo-check - 2>&1
-   ```
-5. Security posture: use the user's selection (ask once per session if not set in spec)
+**Codex backend:** fill the same prompt template, write it to a temp file, and dispatch with `cat <file> | codex exec --skip-git-repo-check -` under the `execution.codex_security` posture. Skip Codex and fall back to subagent dispatch when already inside a Codex sandbox (`CODEX_SANDBOX` or `CODEX_SESSION_ID` set, or `.git` not writable).
 
 ### 3.3 Collect and Persist Results
 
@@ -519,11 +410,7 @@ For each completed experiment, **immediately**:
 6. **If gates pass AND primary type is `hard`**:
    - Use the metric value directly from the measurement output
 
-7. **IMMEDIATELY append to experiment log on disk (CP-3)** — do not defer this to batch evaluation. Write the experiment entry (iteration, hypothesis, outcome, metrics, learnings) to `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml` right now. Use the transitional outcome `measured` once the experiment has valid metrics but has not yet been compared to the current best. Update the outcome to `kept`, `reverted`, or another terminal state in the evaluation step, but the raw metrics are on disk and safe from context compaction.
-
-8. **VERIFY the write (CP-3 verification)** — read the experiment log back from disk and confirm the entry just written is present. If verification fails, retry the write. Do NOT proceed to the next experiment until this entry is confirmed on disk.
-
-**Why immediately + verify?** The agent's context window is NOT a durable store. Context compaction, session crashes, and restarts are expected during long runs — results that exist only in the agent's memory are lost. The verification step catches silent write failures that would otherwise lose data.
+7. **IMMEDIATELY append to the experiment log on disk** — do not defer this to batch evaluation. Write the experiment entry (iteration, hypothesis, outcome, metrics, learnings) to `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml` right now. Use the transitional outcome `measured` once the experiment has valid metrics but has not yet been compared to the current best. Update the outcome to `kept`, `reverted`, or another terminal state in the evaluation step, but the raw metrics are on disk and safe from context compaction.
 
 ### 3.4 Evaluate Batch
 
@@ -555,33 +442,25 @@ After all experiments in the batch have been measured:
 
 6. **Revert all others**: cleanup worktrees, log as `reverted`
 
-### 3.5 Update State (CP-4)
+### 3.5 Update State
 
-**MANDATORY CHECKPOINT.** By this point, individual experiment results are already on disk (written in step 3.3). This step updates aggregate state and verifies.
+Individual experiment results are already on disk (written in step 3.3). This step updates aggregate state.
 
-1. **Re-read the experiment log from disk** — do not trust in-memory state. The log is the source of truth.
+1. **Finalize outcomes** — update experiment entries from step 3.4 evaluation (mark `kept`, `reverted`, `runner_up_kept`, etc.). Write these outcome updates to disk immediately.
 
-2. **Finalize outcomes** — update experiment entries from step 3.4 evaluation (mark `kept`, `reverted`, `runner_up_kept`, etc.). Write these outcome updates to disk immediately.
+2. **Update the `best` section** in the experiment log if a new best was found. Write to disk.
 
-3. **Update the `best` section** in the experiment log if a new best was found. Write to disk.
-
-4. **Write strategy digest** to `.context/compound-engineering/ce-optimize/<spec-name>/strategy-digest.md`:
+3. **Write strategy digest** to `.context/compound-engineering/ce-optimize/<spec-name>/strategy-digest.md`:
    - Categories tried so far (with success/failure counts)
    - Key learnings from this batch and overall
    - Exploration frontier: what categories and approaches remain untried
    - Current best metrics and improvement from baseline
 
-5. **Generate new hypotheses** based on learnings:
+4. **Generate new hypotheses** based on learnings:
    - Re-read the strategy digest from disk (not from memory)
    - Read the rolling window (last 10 experiments from the log on disk)
    - Do NOT read the full experiment log -- use the digest for broad context
-   - Add new hypotheses to the backlog and write the updated backlog to disk
-
-6. **Write updated hypothesis backlog to disk** — the backlog section of the experiment log must reflect newly added hypotheses and removed (tested) ones.
-
-**CP-4 Verification:** Read the experiment log back from disk. Confirm: (a) all experiment outcomes from this batch are finalized, (b) the `best` section reflects the current best, (c) the hypothesis backlog is updated. Read `strategy-digest.md` back and confirm it exists. Only THEN proceed to the next batch or stopping criteria check.
-
-**Checkpoint: at this point, all state for this batch is on disk. If the agent crashes and restarts, it can resume from the experiment log without loss.**
+   - Write the updated backlog to disk, reflecting newly added hypotheses and removed (tested) ones
 
 ### 3.6 Check Stopping Criteria
 
@@ -596,22 +475,9 @@ Stop the loop if ANY of these are true:
 
 If no stopping criterion is met, proceed to the next batch (step 3.1).
 
-### 3.7 Cross-Cutting Concerns
+### 3.7 Error Handling
 
-**Codex failure cascade**: Track consecutive Codex delegation failures. After 3 consecutive failures, auto-disable Codex for remaining experiments and fall back to subagent dispatch. Log the switch.
-
-**Error handling**: If an experiment's measurement command crashes, times out, or produces malformed output:
-- Log as outcome `error` or `timeout` with the error message
-- Revert the experiment (cleanup worktree)
-- The loop continues with remaining experiments in the batch
-
-**Progress reporting**: After each batch, report:
-- Batch N of estimated M (based on backlog size)
-- Experiments run this batch and total
-- Current best metric and improvement from baseline
-- Cumulative judge cost (if applicable)
-
-**Crash recovery**: See Persistence Discipline section. Per-experiment `result.yaml` markers are written in step 3.3. Individual experiment results are appended to the log immediately in step 3.3. Batch-level state (outcomes, best, digest) is written in step 3.5. On resume (Phase 0.4), the log on disk is the ground truth — scan for any `result.yaml` markers not yet reflected in the log.
+If an experiment's measurement command crashes, times out, or produces malformed output, log outcome `error` or `timeout` with the message, revert that experiment (cleanup worktree), and continue with the remaining experiments in the batch.
 
 ---
 
@@ -626,30 +492,7 @@ If any hypotheses were deferred due to unapproved dependencies:
 
 ### 4.2 Summarize Results
 
-Present a comprehensive summary:
-
-```
-Optimization: <spec-name>
-Duration: <wall-clock time>
-Total experiments: <count>
-  Kept: <count> (including <runner_up_kept_count> runner-up merges)
-  Reverted: <count>
-  Degenerate: <count>
-  Errors: <count>
-  Deferred: <count>
-
-Baseline -> Final:
-  <primary_metric>: <baseline_value> -> <final_value> (<delta>)
-  <gate_metrics>: ...
-  <diagnostics>: ...
-
-Judge cost: $<total_judge_cost_usd> (if applicable)
-
-Key improvements:
-  1. <kept experiment 1 hypothesis> (+<delta>)
-  2. <kept experiment 2 hypothesis> (+<delta>)
-  ...
-```
+Report duration, experiment counts by terminal outcome, baseline -> final on the primary metric and gates, cumulative judge spend, and the kept hypotheses with their deltas.
 
 ### 4.3 Preserve and Offer Next Steps
 
@@ -658,22 +501,8 @@ The experiment log and strategy digest remain in local `.context/...` scratch sp
 
 Present post-completion options via the platform question tool:
 
-1. **Run `ce-code-review`** on the cumulative diff (baseline to final). Load the `ce-code-review` skill on the optimization branch (interactive or `mode:agent`). To land eligible fixes before the next option, apply the mechanical-apply bar below.
-
-   **Mechanical-apply bar:** apply any finding with a concrete `suggested_fix` that is a clear, reversible improvement; push back (keep, don't apply) when the reviewer is wrong, noting why. Defer anything whose right fix needs a design or product decision (architecture direction, contract shape, behavior change needing sign-off) and any finding with no concrete fix to act on — surface what was deferred. Confirm evidence still matches at `file:line` before editing. After applying, run tests (at least targeted tests for what changed; broader suite for multi-file edits). Do not commit or push from this step — leave the diff on the optimization branch for the Create PR option.
+1. **Run `ce-code-review`** on the cumulative diff (baseline to final). Load the `ce-code-review` skill on the optimization branch (interactive or `mode:agent`). Review is report-only for callers — apply authority is yours: land findings with a concrete `suggested_fix` that are clear and reversible, push back when the reviewer is wrong, and defer anything whose right fix needs a design or product decision. Do not commit or push from this step — leave the diff on the optimization branch for the Create PR option.
 2. **Run `ce-compound`** to document the winning strategy as an institutional learning.
 3. **Create PR** from the optimization branch to the default branch.
-4. **Continue** with more experiments: re-enter Phase 3 with the current state. State re-read first.
+4. **Continue** with more experiments: re-enter Phase 3 with the current state.
 5. **Done** -- leave the optimization branch for manual review.
-
-### 4.4 Cleanup
-
-Clean up scratch space:
-```bash
-# Keep the experiment log for local resume/audit on this machine
-# Remove temporary batch artifacts
-rm -f .context/compound-engineering/ce-optimize/<spec-name>/strategy-digest.md
-```
-
-Do NOT delete the experiment log if the user may resume locally or wants a local audit trail. If they need a durable shared artifact, summarize or export the results into a tracked path before cleanup.
-Do NOT delete experiment worktrees that are still being referenced.

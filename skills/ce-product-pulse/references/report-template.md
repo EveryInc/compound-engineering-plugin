@@ -7,8 +7,9 @@ Loaded by `SKILL.md` at Phase 2.3 after queries have returned. Fill the template
 - Use real numbers, not ranges or hedges. If a number is uncertain, note the source inline.
 - Percent deltas compare the current window to the previous equal-length window (e.g., for `24h`, compare to the prior `24h`). If no comparison is possible, omit the delta rather than inventing one.
 - No hardcoded thresholds. Do not label things "high" or "low" or color anything red unless the reader asked for threshold-based annotation at setup.
-- No PII. No emails, no account IDs, no message content.
+- No PII. No emails, no account IDs, no message content - including inside error signatures and followups.
 - Headlines are the top of the page. If a reader only reads the first 3 lines, they should know the most important thing that happened.
+- Top errors: 5 by count, or whatever count setup recorded instead. Do not pad or trim beyond what the query returned.
 - If `STRATEGY.md` exists, re-read its `## Key metrics` section before assembling the report. For each strategy metric, decide what to render:
   - If the metric name appears in `pulse_excluded_metrics`, omit it from the report.
   - If the metric name appears in `pulse_pending_metrics`, include it in the Usage section marked `no data (instrumentation pending)`.
@@ -16,7 +17,7 @@ Loaded by `SKILL.md` at Phase 2.3 after queries have returned. Fill the template
 
 ## Template
 
-The block below is the literal content to write. Replace every `{{placeholder}}` with query output. Delete lines whose data isn't available for this run.
+The block below is the literal content to write. Replace every `{{placeholder}}` with query output. Delete lines - or an entire section, such as `## System performance` when no tracing tool is configured - whose data isn't available for this run.
 
 ~~~markdown
 # {{product_name}} Pulse - {{window}} - {{YYYY-MM-DD HH:MM}} {{TZ}}
@@ -58,32 +59,4 @@ The block below is the literal content to write. Replace every `{{placeholder}}`
 _Source windows: analytics [{{start}} -> {{end}}], tracing [{{start}} -> {{end}}], payments [{{start}} -> {{end}}]. Trailing buffer: 15m. Saved to `<root>/pulse-reports/{{YYYY-MM-DD}}_{{HH-MM}}.md`._
 ~~~
 
-## Variations
-
-- **No system performance tool configured:** omit the entire `## System performance` section. The report stays Headlines / Usage / Followups.
-- **Quality scoring not opted in:** omit the quality sample line.
-- **Single-source setup (analytics only):** omit the tracing and payments source windows from the footer.
-- **Error count customized at setup** (e.g., top 3 instead of top 5): follow the configured count. Do not pad or trim beyond what the query returned.
-
-## Post-write checklist
-
-Before saving and surfacing to chat:
-
-- [ ] Total length is 30-40 lines (give or take 5).
-- [ ] Headlines exist and lead with the most notable item.
-- [ ] No hardcoded thresholds ("high error rate", "low conversion").
-- [ ] No PII. Scan error signatures and followups for user emails, IDs, or message snippets.
-- [ ] Top 5 errors (or the configured count), not top 10. Trim if the query returned more.
-- [ ] Strategy metrics carried forward from config are rendered in Usage, or marked `no data`.
-- [ ] Followups are specific - each one should be actionable as a sentence.
-- [ ] Filename and in-file timestamp use the same wall-clock time.
-
-## What to surface in chat
-
-After writing the file, post back:
-
-- The Headlines section verbatim
-- The top Followup, if action looks urgent
-- The saved file path so the user can open the full report
-
-Do not paste the full report into chat - the file is the artifact.
+The filename and the in-file timestamp use the same wall-clock time.

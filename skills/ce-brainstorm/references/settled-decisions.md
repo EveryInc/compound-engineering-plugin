@@ -1,6 +1,6 @@
 # Session-Settled Decisions
 
-Protocol and schema for carrying decisions the user already made in the invoking conversation, so this skill augments them instead of re-litigating them. This file is byte-duplicated between `ce-plan` and `ce-brainstorm` (skills cannot share files); any edit must land in both copies and is guarded by `tests/settled-decisions-parity.test.ts`.
+Protocol and schema for carrying decisions the user already made in the invoking conversation, so this skill augments them instead of re-litigating them.
 
 ## The settlement test
 

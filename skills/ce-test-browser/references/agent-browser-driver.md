@@ -4,15 +4,11 @@ Read this file only after the main skill selects `agent-browser` because no qual
 
 ## Bootstrap
 
-Verify the direct CLI is installed:
+Verify the direct CLI is installed with `command -v agent-browser`. If it is missing, tell the user: "`agent-browser` is not installed. Use the `ce-setup` skill to print the current install command, then install `agent-browser` and retry." Then stop. An installed discovery skill does not imply that the CLI or its browser runtime is installed.
 
-```bash
-command -v agent-browser >/dev/null 2>&1 && echo "Ready" || echo "NOT INSTALLED"
-```
+In an unattended run (`mode:pipeline`) there is no one to install it: record every planned route as `Skip` with reason `agent-browser not installed`, report the overall result as `PARTIAL`, and continue with the run's next stage. A missing optional driver is a skipped step, never a stopped run.
 
-If it is missing, tell the user: "`agent-browser` is not installed. Use the `ce-setup` skill to print the current install command, then install `agent-browser` and retry." Then stop. An installed discovery skill does not imply that the CLI or its browser runtime is installed.
-
-Before running browser actions, load the workflow and troubleshooting content that matches the installed CLI:
+Before running browser actions, load the workflow and troubleshooting content that matches the installed CLI — it is the authoritative, version-correct command reference:
 
 ```bash
 agent-browser skills get core
@@ -20,28 +16,9 @@ agent-browser skills get core
 
 If the CLI exists but cannot launch its browser, follow the current core troubleshooting instructions and report the exact launch failure. Do not misreport a missing browser runtime or launch error as a missing CLI.
 
-## Commands Used by This Skill
+## Command surface
 
-Add `--headed` to commands when manual mode selected a visible browser. Pipeline mode defaults this fallback driver to headless.
+Take the commands from the core docs above. Two notes for this skill's use of them:
 
-```bash
-# Navigate and inspect
-agent-browser open <url>
-agent-browser snapshot -i
-
-# Interact using refs from the latest snapshot
-agent-browser click @e1
-agent-browser fill @e1 "text"
-agent-browser type @e1 "text"
-agent-browser press Enter
-
-# Capture evidence
-agent-browser screenshot out.png
-agent-browser screenshot --full out-full.png
-
-# Navigation and waits
-agent-browser back
-agent-browser wait @e1
-```
-
-Use the installed core documentation for console-error inspection and any command not shown here. Do not switch to another browser driver after the first route is tested.
+- `agent-browser open <url>` followed by `agent-browser snapshot -i` is what yields the `@e1`-style refs that `click`, `fill`, `type`, and `wait` consume. Refs come from the latest snapshot, never from guessed selectors.
+- Add `--headed` only when the user asked to watch the run; otherwise headless.

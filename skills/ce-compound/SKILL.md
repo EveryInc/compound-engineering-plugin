@@ -6,13 +6,7 @@ argument-hint: "[optional: brief context] [mode:headless] [depth:lightweight|ful
 
 # /ce-compound
 
-Coordinate multiple subagents working in parallel to document a recently solved problem.
-
-## Purpose
-
-Captures problem solutions while context is fresh, creating structured documentation in `<root>/solutions/` with YAML frontmatter for searchability and future reference. Uses parallel subagents.
-
-**Why "compound"?** Each documented solution compounds your team's knowledge. The first time you solve a problem takes research. Document it, and the next occurrence takes minutes. Knowledge compounds.
+Coordinate multiple subagents working in parallel to document a recently solved problem, capturing it in `<root>/solutions/` with YAML frontmatter for searchability while context is fresh.
 
 ## Usage
 
@@ -25,6 +19,8 @@ Captures problem solutions while context is fresh, creating structured documenta
 /ce-compound mode:headless depth:full [context]        # Full non-interactive run
 ```
 
+Document a fix that is verified working. If the problem is still open or the fix is unverified, say so and stop — there is nothing durable to capture yet.
+
 **One learning per run.** The workflow's grounding, overlap detection, and cross-referencing all assume a single solved problem. When a session produced multiple distinct learnings, run the skill once per learning, sequentially — each run grounds fresh against the tree. Do not batch several learnings through one run and stitch cross-references between the drafts afterward; drafting-context numbering ("Learning 3") leaking into written docs is the failure this rule prevents.
 
 ## CONCEPTS.md bootstrap requests
@@ -33,16 +29,16 @@ If invoked specifically to create or bootstrap `CONCEPTS.md` from scratch rather
 
 ## Mode Detection
 
-Enter headless mode when **either** holds: the arguments you were invoked with contain the `mode:headless` token, **or** the invocation makes non-interactive intent unmistakable — a caller or standing instruction asking to run `ce-compound` "headless", "non-interactively", "unattended", or "without prompts/questions". The token is the explicit form; a clear natural-language request for a non-interactive run is equivalent. Bare "automatically" or "auto-run" is **not** on its own a headless signal — it speaks to *invoking* the skill, not to suppressing its prompts — so an ambiguous or absent signal defaults to interactive. Tokens starting with `mode:` or `depth:` are flags, not context — strip them before treating the remainder as the brief context hint.
+Enter headless mode when **either** holds: the arguments you were invoked with contain the `mode:headless` token, **or** the invocation makes non-interactive intent unmistakable — a caller or standing instruction asking to run `ce-compound` "headless", "non-interactively", "unattended", or "without prompts/questions". Bare "automatically" or "auto-run" is **not** on its own a headless signal — it speaks to *invoking* the skill, not to suppressing its prompts — so an ambiguous or absent signal defaults to interactive. Tokens starting with `mode:` or `depth:` are flags, not context — strip them before treating the remainder as the brief context hint.
 
-Depth is an explicit headless-only selector. In headless mode, accept at most one depth token: `depth:lightweight` routes directly to Lightweight Mode, while `depth:full` routes to Full Mode with its automatic session-history probe. `mode:headless` without a `depth:` token remains backward compatible and runs Full Mode. Headless lightweight asks no blocking questions and launches no subagents. If the invocation contains an unknown `depth:` token, multiple `depth:` tokens, or a `depth:` token without headless intent, do not guess; emit the headless failure report with the reason and end with `Documentation skipped`.
+Depth is an explicit headless-only selector, at most one token: `depth:lightweight` routes directly to Lightweight Mode, while `depth:full` routes to Full Mode with its automatic session-history probe. `mode:headless` without a `depth:` token remains backward compatible and runs Full Mode. Headless lightweight asks no blocking questions and launches no subagents. If the invocation contains an unknown `depth:` token, multiple `depth:` tokens, or a `depth:` token without headless intent, do not guess; emit the headless failure report with the reason and end with `Documentation skipped`.
 
 | Mode | When | Behavior |
 |------|------|----------|
 | **Interactive** (default) | No headless token or clear non-interactive intent | Auto-pick Full vs Lightweight and report the choice; run session history as an automatic probe (Full only); prompt for Discoverability Check consent; end with a plain summary (no "What's next?" menu) |
-| **Headless** | `mode:headless` token present, or the invocation makes non-interactive intent unmistakable | No blocking questions. Run the explicitly requested depth, defaulting to **Full mode** with the automatic session-history probe. If the Discoverability Check finds a gap, report it without editing instruction files. Skip Phase 3 specialized reviews. End with a structured terminal report — no "What's next?" menu. |
+| **Headless** | `mode:headless` token present, or the invocation makes non-interactive intent unmistakable | No blocking questions. Run the explicitly requested depth, defaulting to **Full mode** with the automatic session-history probe. If the Discoverability Check finds a gap, report it without editing instruction files. Skip Phase 3. End with a structured terminal report — no "What's next?" menu. |
 
-Headless mode is intended for automations and skill-to-skill invocation where no human is present to answer questions. Once detected, headless mode applies for the entire run.
+Headless mode is for automations and skill-to-skill invocation where no human is present to answer questions; once detected it applies for the entire run.
 
 ## Session context
 
@@ -58,8 +54,8 @@ These files are the durable contract for the workflow. Read them on-demand at th
 - `references/schema.yaml` — canonical frontmatter fields and enum values (read when validating YAML)
 - `references/yaml-schema.md` — category mapping from problem_type to directory (read when classifying)
 - `references/concepts-vocabulary.md` — CONCEPTS.md format and inclusion rules (read in Phase 2.4 when domain terms surface)
-- `references/agents/session-historian.md` — skill-local synthesis prompt for optional session-history compounding context (read only when the user opts into session history)
-- `references/grounding-validation.md` — grounding-validation protocol: flag adjudication rules and the semantic validator prompt (read in Phase 2.45)
+- `references/agents/session-historian.md` — skill-local synthesis prompt for session-history findings (read only when the probe escalates in Phase 1 step 4)
+- `references/grounding-validation.md` — grounding-validation protocol: flag adjudication rules and the semantic claim check (read in Phase 2.45)
 - `assets/resolution-template.md` — section structure for new docs (read when assembling)
 - `scripts/session-history/` — session discovery and extraction scripts bundled into this skill so session-history support is fully self-contained
 - `scripts/validate-frontmatter.py` — frontmatter parser-safety validator (run in Phase 2 step 8 through the existence guard documented there; set `SKILL_DIR` to this skill's directory, with a manual-checklist fallback if the script is missing)
@@ -81,17 +77,15 @@ This skill writes and reads learnings under `<root>/solutions/`. Resolve `<root>
 
 ## Execution Strategy
 
-`ce-compound` does not ask the user which mode to run or whether to search session history. Both are decisions the agent is better positioned to make: mode depends on context budget the agent can observe, and session-history value is unknowable a priori to *either* party (the payoff is an unrelated earlier session the current agent was never in), so it is resolved by a cheap probe rather than a question. The only interactive prompt in the whole workflow is the Discoverability Check consent, because that one edits a tracked instruction file.
+`ce-compound` decides mode and session-history depth itself — never ask the user for either. The only interactive prompt in the whole workflow is the Discoverability Check consent, because that one edits a tracked instruction file.
 
-**Mode selection (Full vs Lightweight) — decide it, don't ask it.**
-
-- Default to **Full**: the complete workflow (research, cross-referencing, overlap detection, grounding validation). This is the right choice for essentially every documented learning — its token cost is small next to the engineering work that produced the learning and is dwarfed by the value of a doc that compounds.
-- Choose **Lightweight** (single-pass, no subagents — see Lightweight Mode) ONLY under real context pressure: the session is near its context limit, or the fix is trivial enough that cross-referencing would add nothing. These are conditions the agent can observe and the user cannot, which is exactly why this is not a question.
-- State the chosen mode and a one-line reason as the first line of the completion output (e.g., "Ran Full mode." / "Ran Lightweight mode — session context was tight."). If Lightweight was the wrong call for the user's taste, re-running is a rare, cheap correction — cheaper than taxing every run with a prompt.
+- Default to **Full**: the complete workflow (research, cross-referencing, overlap detection, grounding validation).
+- Choose **Lightweight** (single-pass, no subagents — see Lightweight Mode) ONLY under real context pressure: the session is near its context limit, or the fix is trivial enough that cross-referencing would add nothing.
+- State the chosen mode and a one-line reason as the first line of the completion output (e.g., "Ran Full mode." / "Ran Lightweight mode — session context was tight.").
 
 **In headless mode**, skip automatic mode selection. Run the depth selected during Mode Detection: `depth:lightweight` enters Lightweight Mode; `depth:full` or no depth token enters Full Mode, including the automatic session-history probe (Phase 1 step 4).
 
-**Session history — an automatic probe in Full mode, never a question.** The point of searching prior sessions is that an *unrelated* earlier session may hold related problem-solving; neither the agent nor the user can know that a priori, so asking is pointless. Instead, Full mode always runs the cheap discovery+metadata probe (Phase 1 step 4) — it runs in parallel with the research subagents, so it is near-free on wall-clock — and escalates to the expensive extraction+synthesis only when the probe surfaces genuinely relevant candidate sessions. Lightweight mode skips session history entirely; headless Full runs the same automatic probe, since it prompts for nothing and so keeps headless non-interactive. This support exists only inside the compounding workflow; there is no standalone session-history product surface.
+**Session history — an automatic probe in Full mode, never a question.** The payoff is an *unrelated* earlier session neither party can predict, so it is resolved by a probe rather than a prompt: Full mode always runs the cheap discovery+metadata pass (Phase 1 step 4) and escalates to the expensive extraction+synthesis only when the probe surfaces genuinely relevant candidates. Lightweight mode skips session history entirely; headless Full runs the same automatic probe, since it prompts for nothing.
 
 ---
 
@@ -100,36 +94,13 @@ This skill writes and reads learnings under `<root>/solutions/`. Resolve `<root>
 <critical_requirement>
 **The primary deliverable is ONE file - the final documentation.**
 
-Phase 1 subagents write their full structured output to a per-run scratch artifact under `<run-dir>/` and return only a compact confirmation containing the artifact path. The orchestrator Reads those artifacts back in Phase 2 assembly. This is scratch space, identical in spirit to `ce-code-review`'s per-reviewer run artifacts; it does not make the scratch files additional deliverables. **Only the orchestrator writes product files** — the final solution doc and the maintenance side effects below. Subagents must not touch `docs/`, project instruction files, or any tracked path. Beyond the Phase 2 solution doc, the orchestrator may also write maintenance side effects — not additional deliverables, and creating one when absent is expected, not a violation of this rule. There are three write-target classes; only the first two are unconditional:
+Phase 1 subagents write their full structured output to a per-run scratch artifact under `<run-dir>/` and return only a compact confirmation containing the artifact path. The orchestrator Reads those artifacts back in Phase 2 assembly; the scratch files are not additional deliverables. **Only the orchestrator writes product files.** Subagents must not touch `docs/`, project instruction files, or any tracked path. There are three write-target classes; only the first two are unconditional:
 - **`<root>/solutions/...`** — the primary deliverable (always).
-- **`CONCEPTS.md`** — create or update in Phase 2.4 (Vocabulary Capture) when a qualifying domain term surfaces (Full mode; every mode that reaches vocabulary capture may refine an existing file).
-- **A project instruction file** (AGENTS.md or CLAUDE.md) — a small edit when the Discoverability Check finds a gap, **only in interactive Full mode after consent**. Headless and lightweight never apply this edit (they report or tip instead). Callers that hand off headless after an approval gate must not see an unreviewed change to the repo's operating contract.
+- **`CONCEPTS.md`** — create or update in Phase 2.4 (Vocabulary Capture) when a qualifying domain term surfaces (every mode that reaches vocabulary capture may refine an existing file; creating it when absent is expected, not a violation of this rule).
+- **A project instruction file** (AGENTS.md or CLAUDE.md) — a small edit when the Discoverability Check finds a gap, **only in interactive Full mode after consent**. Headless and lightweight never apply this edit (they report or tip instead), so a caller that handed off headless after an approval gate never sees an unreviewed change to the repo's operating contract.
 
-`CONCEPTS.md` and the instruction-file edit ensure future agents can discover and ground in the knowledge store; neither makes the documentation any less the single deliverable.
-
-**Why the scratch artifact (issue #956):** a subagent asked to return a long prose body as its inline response intermittently returns an executive summary instead ("Doc body complete — six sections filled. Returning above."), and the original prose is then unrecoverable from the orchestrator side. Writing to disk first means the full output always survives; the inline confirmation is just a pointer, and the orchestrator falls back to whatever the subagent did return inline only when the artifact is missing.
+**Why the scratch artifact (issue #956):** a subagent asked to return a long prose body as its inline response intermittently returns an executive summary instead ("Doc body complete — six sections filled. Returning above."), and the original prose is then unrecoverable from the orchestrator side. Writing to disk first means the full output always survives.
 </critical_requirement>
-
-### Phase 0.5: Auto Memory Scan
-
-Before launching Phase 1 subagents, check the auto-memory block injected into your system prompt for notes relevant to the problem being documented.
-
-1. Look for a block labeled "user's auto-memory" (Claude Code only) already present in your system prompt context — MEMORY.md's entries are inlined there
-2. If the block is absent, empty, or this is a non-Claude-Code platform, skip this step and proceed to Phase 1 unchanged
-3. Scan the entries for anything related to the problem being documented -- use semantic judgment, not keyword matching
-4. If relevant entries are found, prepare a labeled excerpt block:
-
-```
-## Supplementary notes from auto memory
-Treat as additional context, not primary evidence. Conversation history
-and codebase findings take priority over these notes.
-
-[relevant entries here]
-```
-
-5. Pass this block as additional context to the Context Analyzer and Solution Extractor task prompts in Phase 1. If any memory notes end up in the final documentation (e.g., as part of the investigation steps or root cause analysis), tag them with "(auto memory [claude])" so their origin is clear to future readers.
-
-If no relevant entries are found, proceed to Phase 1 without passing memory context.
 
 ### Phase 1: Research
 
@@ -153,6 +124,8 @@ echo "$RUN_DIR";
 
 **CRITICAL — glob `<root>/solutions/` fresh every run.** The current vocabulary and conventions above do not substitute for the live-tree search in step 3.
 
+**Auto memory.** If the auto-memory block injected into your system prompt (Claude Code only) holds notes relevant to this problem, pass them to the Context Analyzer and Solution Extractor as supplementary — never primary — evidence, and tag anything of theirs that reaches the doc with "(auto memory [claude])". Absent block, absent platform, or nothing relevant: proceed unchanged.
+
 Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagent prompt. Each subagent **writes its full structured output** to its own file under `{run_dir}/`, **confirms the write succeeded** (the file exists and is non-empty), and then **returns only a one-line confirmation containing the artifact path** — not the prose body inline. Artifact filenames by subagent:
 
 - **Context Analyzer** → `{run_dir}/context.json` (frontmatter skeleton, category path, filename, track)
@@ -160,22 +133,20 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
 - **Related Docs Finder** → `{run_dir}/related.json` (links, refresh candidates, overlap assessment)
 - **Session History** synthesis subagent (when run) → `{run_dir}/session-history.md` (prose findings)
 
-**Return the full output inline whenever the artifact write did not succeed.** This covers both cases where the orchestrator's Phase 2 inline fallback would otherwise have nothing to read: (a) `{run_id}` is empty or did not resolve (non-Claude-Code platforms where the pre-resolution failed), so there is no path to write to; and (b) `{run_id}` resolved but the write itself failed — tool permission denied, absolute-path writes unavailable, disk error, or the post-write existence check came back empty. In either case the subagent must return its complete structured output inline instead of a path, because the path would point at a file that does not exist. Return only the bare path when — and only when — the write is confirmed on disk. The artifact pattern is a reliability improvement, not a hard requirement; the orchestrator handles a missing artifact in Phase 2 by using the inline return.
+**Return the full output inline whenever the artifact write did not succeed** — either `{run_id}` is empty or did not resolve (so there is no path to write to), or `{run_id}` resolved but the write itself failed (permission denied, absolute-path writes unavailable, disk error, empty post-write check). A bare path would point at a file that does not exist and leave Phase 2's fallback with nothing to read. Return only the bare path when the write is confirmed on disk.
 
 **Dispatch order:**
 - Launch `Context Analyzer`, `Solution Extractor`, and `Related Docs Finder` in parallel (background)
-- **Then** run the internal session-history discovery/extraction/synthesis flow (see step 4 below) in Full mode, including headless — skipped only in lightweight. Its cheap discovery+metadata probe always runs; it escalates to extraction+synthesis only on a relevance hit (see step 4's Escalation gate). This flow is synchronous from this orchestrator's main-context turn, but the already-dispatched background subagents continue running in parallel underneath, so the wall-clock benefit is preserved (`max(session-history, slowest background subagent)`, not their sum). Running session history before the parallel block would serialize it in front of the research subagents and regress wall-clock time.
+- **Then** run the internal session-history discovery/extraction/synthesis flow (see step 4 below) in Full mode, including headless — skipped only in lightweight. Its cheap discovery+metadata probe always runs; it escalates to extraction+synthesis only on a relevance hit (see step 4's Escalation gate). Running session history before the parallel block would serialize it in front of the research subagents.
 
 <parallel_tasks>
 
 #### 1. **Context Analyzer**
-   - Extracts conversation history
    - Reads `references/schema.yaml` for enum validation and **track classification**
    - Determines the track (bug or knowledge) from the problem_type
    - Identifies problem type, component, and track-appropriate fields:
      - **Bug track**: symptoms, root_cause, resolution_type
      - **Knowledge track**: applies_when (symptoms/root_cause/resolution_type optional)
-   - Incorporates auto memory excerpts (if provided by the orchestrator) as supplementary evidence
    - Reads `references/yaml-schema.md` for category mapping into `<root>/solutions/`
    - Suggests a filename using the pattern `[sanitized-problem-slug].md` — no date suffix, even if existing files in the target directory have one; the `date:` frontmatter field is the canonical creation date
    - Writes to `context.json`: YAML frontmatter skeleton (must include `category:` field mapped from problem_type), category directory path, suggested filename, and which track applies. Returns only the artifact path.
@@ -186,51 +157,20 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
    - Reads `references/schema.yaml` for track classification (bug vs knowledge)
    - Adapts output structure based on the problem_type track
    - **Writes the full doc-body prose** (all track-appropriate sections below) to `solution.md` and returns only the artifact path. This is the subagent most prone to the issue #956 summary-collapse, so its prose must land on disk rather than only in the inline return.
-   - Incorporates auto memory excerpts (if provided by the orchestrator) as supplementary evidence -- conversation history and the verified fix take priority; if memory notes contradict the conversation, note the contradiction as cautionary context
+   - Auto memory excerpts (when the orchestrator passed any) are supplementary — conversation history and the verified fix take priority; if memory notes contradict the conversation, note the contradiction as cautionary context
    - **Grounds code-behavior claims in source, not conversation memory.** Before asserting how code behaves (enum values, status semantics, limits, defaults), Read the defining line at the current tree and cite `file:line` alongside the claim. A claim that cannot be verified against the tree is softened or attributed ("per this session's conclusion…"), never stated as fact
    - **Writes merge-state claims for time.** Cite PR numbers rather than bare commit SHAs — SHAs are rewritten by rebase/squash merges and may not exist on other checkouts. A "fixed in X" claim requires the fix to be reachable from the current tree; otherwise phrase it as pending ("fix opened in #1608, unmerged as of this writing")
-
-   **Bug track output sections:**
-
-   - **Problem**: 1-2 sentence description of the issue
-   - **Symptoms**: Observable symptoms (error messages, behavior)
-   - **What Didn't Work**: Failed investigation attempts and why they failed
-   - **Solution**: The actual fix with code examples (before/after when applicable)
-   - **Why This Works**: Root cause explanation and why the solution addresses it
-   - **Prevention**: Strategies to avoid recurrence, best practices, and test cases. Include concrete code examples where applicable (e.g., gem configurations, test assertions, linting rules)
-
-   **Knowledge track output sections:**
-
-   - **Context**: What situation, gap, or friction prompted this guidance
-   - **Guidance**: The practice, pattern, or recommendation with code examples when useful
-   - **Why This Matters**: Rationale and impact of following or not following this guidance
-   - **When to Apply**: Conditions or situations where this applies
-   - **Examples**: Concrete before/after or usage examples showing the practice in action
+   - Sections, in order — **bug track**: Problem, Symptoms, What Didn't Work, Solution (with before/after code), Why This Works, Prevention (with concrete config, test, or lint examples). **Knowledge track**: Context, Guidance, Why This Matters, When to Apply, Examples. `assets/resolution-template.md` carries the same structure for the assembly step
 
 #### 3. **Related Docs Finder**
    - Searches `<root>/solutions/` for related documentation
    - Identifies cross-references and links
    - Finds related GitHub issues
    - Flags any related learning or pattern docs that may now be stale, contradicted, or overly broad
-   - **Assesses overlap** with the new doc being created across five dimensions: problem statement, root cause, solution approach, referenced files, and prevention rules. Score as:
-     - **High**: 4-5 dimensions match — essentially the same problem solved again
-     - **Moderate**: 2-3 dimensions match — same area but different angle or solution
-     - **Low**: 0-1 dimensions match — related but distinct
+   - **Assesses overlap** with the new doc across problem statement, root cause, solution approach, referenced files, and prevention rules. Score **High** (essentially the same problem solved again), **Moderate** (same area, different angle or solution), or **Low** (related but distinct)
    - Writes to `related.json`: Links, relationships, refresh candidates, and overlap assessment (score + which dimensions matched). Returns only the artifact path.
 
-   **Search strategy (grep-first filtering for efficiency):**
-
-   1. Extract keywords from the problem context: module names, technical terms, error messages, component types
-   2. If the problem category is clear, narrow search to the matching `<root>/solutions/<category>/` directory
-   3. Use the native content-search tool (e.g., Grep in Claude Code) to pre-filter candidate files BEFORE reading any content. Run multiple searches in parallel, case-insensitive, targeting frontmatter fields. These are template patterns -- substitute actual keywords:
-      - `title:.*<keyword>`
-      - `tags:.*(<keyword1>|<keyword2>)`
-      - `module:.*<module name>`
-      - `component:.*<component>`
-   4. If search returns >25 candidates, re-run with more specific patterns. If <3, broaden to full content search
-   5. Read only frontmatter (first 30 lines) of candidate files to score relevance
-   6. Fully read only strong/moderate matches
-   7. Return distilled links and relationships, not raw file contents
+   **Search strategy.** Grep the frontmatter fields (`title`, `tags`, `module`, `component`) for keywords from the problem context before reading any file — narrowed to the matching `<root>/solutions/<category>/` when the category is clear — and read full bodies only for strong matches. Return distilled links and relationships, not raw file contents.
 
    **GitHub issue search:**
 
@@ -243,7 +183,7 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
    - Run session discovery, branch/keyword filtering, scan-window selection, deep-dive selection, and per-session extraction directly inside this skill using `scripts/session-history/`.
    - Read the skill-local synthesis prompt at `references/agents/session-historian.md`, then dispatch a generic subagent using that prompt content. Do not dispatch a standalone agent by type/name.
 
-   **Session-history payload — keep tight.** A long, keyword-rich payload licenses widening. Use this shape:
+   **Session-history payload — keep tight** (a long, keyword-rich payload licenses widening the search). Use this shape:
 
    - **Session context** (only if the values resolved cleanly above; otherwise omit): repo name, current git branch.
    - **Time window**: explicit `7 days` unless the documented problem clearly spans a longer arc.
@@ -259,11 +199,11 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
      - Related context
      ```
 
-   Do not append additional context blocks, exclusion lists, or topic-keyword bullets — verbose payloads give the session-history flow license to keep widening the search and rapidly compound wall time. If keyword search is needed, the internal flow owns that decision based on the topic.
+   Do not append additional context blocks, exclusion lists, or topic-keyword bullets. If keyword search is needed, the internal flow owns that decision based on the topic.
    - Returns: structured digest of findings from prior sessions, or "no relevant prior sessions" if none found.
    - **Session history is the final Phase 1 input, not a workflow stop.** When it returns, proceed directly to Phase 2 with its output as the last input — do not emit a summary and do not pause for the user. A "no relevant prior sessions" return is still a valid input; the documentation gets written without session context.
 
-   **Script resolution.** Set `SKILL_DIR` to the absolute path of the directory containing the SKILL.md you just read, and run the bundled scripts from `"$SKILL_DIR/scripts/session-history/"`. Set `SKILL_DIR` inline in each bash block below (shell state does not persist between commands). If the bundled scripts are genuinely not present on disk under `"$SKILL_DIR/scripts/session-history/"`, skip session history visibly with: "Session history bundled scripts were not found in this skill's directory; skipping the session-history probe for this run." Continue Phase 2 without session context.
+   **Script resolution.** Set `SKILL_DIR` to the absolute path of the directory containing the SKILL.md you just read — inline in each bash block below, since shell state does not persist between commands. If the bundled scripts are not on disk there, the guard prints its not-found notice: surface that line, skip the probe, and continue Phase 2 without session context.
 
    **Discovery pipeline.** Infer the scan window from the problem topic, starting with 7 days. Run discovery and metadata extraction:
 
@@ -277,7 +217,7 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
 
    Pi sessions are included when present under `~/.pi/agent/sessions/`; they carry `cwd` like Codex but no git branch. If `_meta.files_processed` is `0`, return `no relevant prior sessions`. If the first pass finds no relevant branch matches, or if processing Codex or Pi sessions, derive 2-4 keywords from the topic and re-run metadata extraction with `--keyword K1,K2,...`. Keep at most 5 sessions across Claude Code, Codex, Cursor, and Pi, ranked by branch match, keyword match count, file size over 30KB, and recency. Exclude the current session.
 
-   **Escalation gate.** The discovery+metadata pass above is the cheap probe and always runs in Full mode. Escalate to the extraction and synthesis stages below **only** when at least one retained candidate clears the relevance bar: a current-branch match, or ≥2 topic-keyword matches. If no candidate clears the bar (including the `_meta.files_processed` is `0` case), stop here, record `no relevant prior sessions` as the session-history input, and skip extraction and synthesis. This gate is what keeps the always-on probe cheap — the expensive synthesis is paid for only when a prior session is genuinely relevant.
+   **Escalation gate.** The discovery+metadata pass above is the cheap probe and always runs in Full mode. Escalate to the extraction and synthesis stages below **only** when at least one retained candidate clears the relevance bar: a current-branch match, or ≥2 topic-keyword matches. If no candidate clears the bar (including the `_meta.files_processed` is `0` case), stop here, record `no relevant prior sessions` as the session-history input, and skip extraction and synthesis.
 
    **Extraction pipeline.** Create `SCRATCH=$(mktemp -d -t ce-compound-sessions-XXXXXX)`. For each selected session, write extracted content to scratch files:
 
@@ -299,7 +239,7 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
    - the output schema above
    - the filter rule above
 
-   The subagent reads only the scratch paths, **writes its prose findings to `{run_dir}/session-history.md`, and returns only that artifact path once the write is confirmed** (same #956 reliability rationale — session-history findings are long-form prose prone to summary-collapse). If `{run_id}` did not resolve or the artifact write failed, it returns the prose inline instead (per the inline-fallback rule above). If synthesis fails, note the failure and continue without session context.
+   The subagent reads only the scratch paths, **writes its prose findings to `{run_dir}/session-history.md`, and returns only that artifact path once the write is confirmed** — same #956 rationale, with the same inline fallback when the write did not succeed. If synthesis fails, note the failure and continue without session context.
 
 ### Phase 2: Assembly & Write
 
@@ -309,7 +249,7 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
 
 The orchestrating agent (main conversation) performs these steps:
 
-1. **Collect Phase 1 results from the run artifacts.** For each Phase 1 subagent, `Read` its artifact file under `{run_dir}/` (`context.json`, `solution.md`, `related.json`, and `session-history.md` when session history ran). The artifact holds the subagent's full output. **Fall back to the subagent's inline return only when its artifact file is absent or empty** (e.g., `{run_id}` did not resolve, or the subagent failed to write). The artifact is authoritative when present — this is what makes the workflow resilient to the issue #956 summary-collapse, where the inline return is only an executive summary.
+1. **Collect Phase 1 results from the run artifacts.** For each Phase 1 subagent, `Read` its artifact file under `{run_dir}/` (`context.json`, `solution.md`, `related.json`, and `session-history.md` when session history ran). The artifact is authoritative when present; **fall back to the subagent's inline return only when its artifact file is absent or empty.**
 2. **Check the overlap assessment** from the Related Docs Finder before deciding what to write:
 
    | Overlap | Action |
@@ -318,7 +258,7 @@ The orchestrating agent (main conversation) performs these steps:
    | **Moderate** — same problem area but different angle, root cause, or solution | **Create the new doc** normally. Flag the overlap for Phase 2.5 to recommend consolidation review. |
    | **Low or none** | **Create the new doc** normally. |
 
-   The reason to update rather than create: two docs describing the same problem and solution will inevitably drift apart. The newer context is fresher and more trustworthy, so fold it into the existing doc rather than creating a second one that immediately needs consolidation.
+   Update rather than create because two docs describing the same problem inevitably drift apart.
 
    When updating an existing doc, preserve its file path and frontmatter structure. Update the solution, code examples, prevention tips, and any stale references. Add a `last_updated: YYYY-MM-DD` field to the frontmatter. Do not change the title unless the problem framing has materially shifted.
 
@@ -343,13 +283,8 @@ The orchestrating agent (main conversation) performs these steps:
    fi
    ```
 
-   - **If the script ran:** exit 0 means parser-safe; exit 1 means stderr names the offending field(s) — quote the value(s), re-write the doc, and re-run until exit 0. Do not declare success while validation fails.
-   - **If the script did not run** (else branch): apply the validator's checks by hand, matching its exact scope — checking more broadly risks edits the validator would not require. Fix any violation by quoting the whole value before continuing:
-     1. The opening and closing frontmatter delimiters are each a line whose content is `---` (trailing whitespace is fine; `----` or `---extra` is not a valid delimiter).
-     2. For each **top-level** mapping entry (`key: value`, no leading indentation) whose value is **not already quoted or structured** (does not start with `"`, `'`, `[`, `{`, `|`, or `>`): the value must contain no unquoted ` #` (space-then-hash — YAML treats it as a comment and silently truncates) and no unquoted `: ` (colon-then-space — strict YAML may read it as a nested mapping). Quote the whole value if either appears.
-     Nested values, array items, and already-quoted values are out of scope here (array-item quoting is handled by the schema/YAML-safety step above). Then state in the completion output that the bundled script validator was unavailable on this platform and the checks were applied manually.
-
-   The validator does not enforce schema rules and does not flag YAML reserved-indicator characters (those produce loud parser errors downstream rather than silent corruption — out of scope). Uses Python 3 stdlib only (no PyYAML or other deps).
+   - **If the script ran:** exit 0 means parser-safe; exit 1 names the offending field(s) on stderr — quote the value(s), re-write the doc, and re-run until exit 0. Do not declare success while validation fails.
+   - **If it did not run:** apply the same checks by hand at the same scope, and say in the completion output that they were manual. Each delimiter line's content is exactly `---`; each **top-level**, unquoted, unstructured value (does not start with `"`, `'`, `[`, `{`, `|`, `>`) must contain no ` #` and no `: ` — quote the whole value if either appears. Nested values and array items are out of scope here (array-item quoting is the schema/YAML-safety step above).
 
 When creating a new doc, preserve the section order from `assets/resolution-template.md` unless the user explicitly asks for a different structure.
 
@@ -361,7 +296,7 @@ When creating a new doc, preserve the section order from `assets/resolution-temp
 
 Then, applying those criteria, scan the new doc **and** the surrounding conversation for qualifying domain terms. If `CONCEPTS.md` exists at repo root, add missing qualifying terms and refine existing entries when new precision surfaced. If it does not exist and at least one qualifying term surfaced, create it.
 
-**Verify behavior assertions against source before writing them.** When an entry asserts how code behaves (states, transitions, limits, semantics), Read the defining source at the current tree first — an entry drafted from a session-level summary is exactly how wrong semantics enter the glossary. Phase 2.45 re-checks these entries, but the cheap fix is to not write the error.
+**Ground behavior assertions in source the same way the Phase 1 extractor does** — an entry drafted from a session-level summary is exactly how wrong semantics enter the glossary.
 
 **Seed the learning's area at creation — don't write a lone term.** When `CONCEPTS.md` does not yet exist, alongside the surfaced term also seed the core domain nouns of the area this learning touched, following the **Seed goal** and **Scope of a seed** rules in `references/concepts-vocabulary.md`. The seed is scoped to the learning's area (the modules and domain the fix touched) and defines only terms investigated here — it does not reach for repo-wide nouns. This anchors the surfaced term so it does not dangle against undefined siblings. A repo-wide concept map is `ce-compound-refresh`'s bootstrap path, not this one.
 
@@ -379,7 +314,7 @@ If no terms qualified after applying the reference's criteria, record that outco
 
 ### Phase 2.45: Grounding Validation
 
-The doc (and any `CONCEPTS.md` entries from Phase 2.4) is about to become permanent, trusted knowledge. Validate its claims against the tree before it compounds. **Read `references/grounding-validation.md` now** — it holds the adjudication rules and the validator prompt; the steps below are only the trigger.
+The doc (and any `CONCEPTS.md` entries from Phase 2.4) is about to become permanent, trusted knowledge. Validate its claims against the tree before it compounds. **Read `references/grounding-validation.md` now** — it holds the adjudication rules; the steps below are only the trigger.
 
 1. **Mechanical claims check (every mode, including headless).** Optionally run `git fetch --quiet` first (best-effort — skip silently offline; the network is never a correctness dependency). Then run the bundled validator against the written doc:
 
@@ -395,120 +330,44 @@ The doc (and any `CONCEPTS.md` entries from Phase 2.4) is about to become perman
 
    Exit 0 means nothing flagged. Exit 1 means flags to **adjudicate, not auto-fix** — each flagged path, SHA, link, or scaffold pattern is fixed, annotated as historical, or confirmed intentional per the reference's adjudication table. A doc may legitimately cite a path deleted by the very fix it documents; a flag is a question, not a failure. If the script cannot be resolved on this platform, apply the reference's manual checklist and say so in the output — never silently skip.
 
-2. **Semantic grounding validator (Full mode, including headless Full; lightweight skips it).** Dispatch one read-only generic subagent built from the prompt template in the reference, covering the written doc plus any `CONCEPTS.md` entries added or edited this run. It verifies code-behavior claims by quoting the defining source line, merge-state claims against remote truth (`gh` primary, git reachability fallback), and internal completeness of countable assertions. Apply its verdicts per the reference (fix contradicted claims from the quoted evidence; soften or drop unverifiable ones; mark offline merge-state checks as degraded), then re-run the mechanical check if the body changed.
+2. **Semantic grounding validator (Full mode, including headless Full; lightweight skips it).** Check the claims yourself in this loop — do not dispatch a subagent for it. Across the written doc and any `CONCEPTS.md` entries added or edited this run: every code-behavior claim is quoted from the current tree with `file:line`, every merge claim cites a PR you checked (`gh` primary, git reachability fallback), and every count matches what the doc actually enumerates. Fix what the quoted evidence contradicts, soften or drop what you cannot verify, mark merge-state claims checked offline as degraded, then re-run the mechanical check if the body changed.
 
 ### Phase 2.5: Selective Refresh Check
 
-After writing the new learning, decide whether this new solution is evidence that older docs should be refreshed.
+`ce-compound-refresh` is **not** a default follow-up. It is warranted when this learning contradicts, supersedes, or moderately overlaps an existing learning or pattern doc — or when the work was a refactor, migration, rename, or upgrade that likely invalidated references in older docs. Superficial overlap, docs still consistent with the new learning, or a hunch with weak evidence: none needed.
 
-`ce-compound-refresh` is **not** a default follow-up. Use it selectively when the new learning suggests an older learning or pattern doc may now be inaccurate.
-
-It makes sense to invoke `ce-compound-refresh` when one or more of these are true:
-
-1. A related learning or pattern doc recommends an approach that the new fix now contradicts
-2. The new fix clearly supersedes an older documented solution
-3. The current work involved a refactor, migration, rename, or dependency upgrade that likely invalidated references in older docs
-4. A pattern doc now looks overly broad, outdated, or no longer supported by the refreshed reality
-5. The Related Docs Finder surfaced high-confidence refresh candidates in the same problem space
-6. The Related Docs Finder reported **moderate overlap** with an existing doc — there may be consolidation opportunities that benefit from a focused review
-
-It does **not** make sense to invoke `ce-compound-refresh` when:
-
-1. No related docs were found
-2. Related docs still appear consistent with the new learning
-3. The overlap is superficial and does not change prior guidance
-4. Refresh would require a broad historical review with weak evidence
-
-Use these rules:
-
-- If there is **one obvious stale candidate**, invoke `ce-compound-refresh` with a narrow scope hint after the new learning is written
-- If there are **multiple candidates in the same area**, ask the user whether to run a targeted refresh for that module, category, or pattern set
-- If context is already tight or you are in lightweight mode, do not expand into a broad refresh automatically; instead recommend `ce-compound-refresh` as the next step with a scope hint
-- **In headless mode**, never invoke `ce-compound-refresh` and never ask the user. Surface the recommended scope hint in the terminal report's "Refresh recommendation" line and let the caller decide
+Name the narrowest useful scope with the recommendation — a specific doc filename, a module or component name, a solutions category, or a pattern topic (e.g. `ce-compound-refresh payments`). Never invoke it without an argument unless the user explicitly wants a broad sweep, and never expand into a refresh sweep from here; in headless mode, do not invoke it at all — the scope hint goes in the terminal report's "Refresh recommendation" line for the caller to decide.
 
 **User-runnable refresh rendering.** When recommending rather than directly invoking `ce-compound-refresh`, default to `/ce-compound-refresh <scope>`; use `$ce-compound-refresh <scope>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only. Agent-to-agent invocation remains semantic.
-
-When invoking or recommending `ce-compound-refresh`, be explicit about the argument to pass. Prefer the narrowest useful scope:
-
-- **Specific file** when one learning or pattern doc is the likely stale artifact
-- **Module or component name** when several related docs may need review
-- **Category name** when the drift is concentrated in one solutions area
-- **Pattern filename or pattern topic** when the stale guidance lives in `<root>/solutions/patterns/`
-
-Examples:
-
-- `ce-compound-refresh plugin-versioning-requirements`
-- `ce-compound-refresh payments`
-- `ce-compound-refresh performance-issues`
-- `ce-compound-refresh critical-patterns`
-
-A single scope hint may still expand to multiple related docs when the change is cross-cutting within one domain, category, or pattern area.
-
-Do not invoke `ce-compound-refresh` without an argument unless the user explicitly wants a broad sweep.
-
-Always capture the new learning first. Refresh is a targeted maintenance follow-up, not a prerequisite for documentation.
 
 ### Discoverability Check
 
 After the learning is written and the refresh decision is made, check whether the project's instruction files would lead an agent to discover and search `<root>/solutions/` before starting work in a documented area. This runs every time — the knowledge store only compounds value when agents can find it.
 
-1. Identify which root-level instruction files exist (AGENTS.md, CLAUDE.md, or both). Read the file(s) and determine which holds the substantive content — one file may just be a shim that `@`-includes the other (e.g., `CLAUDE.md` containing only `@AGENTS.md`, or vice versa). The substantive file is the assessment and edit target; ignore shims. If neither file exists, skip this check entirely.
-2. Assess whether an agent reading the instruction files would learn three things:
+1. Identify which root-level instruction files exist (AGENTS.md, CLAUDE.md, or both) and which holds the substantive content — one may be a shim that only `@`-includes the other. The substantive file is the assessment and edit target; ignore shims. If neither file exists, skip this check entirely.
+2. Assess whether an agent reading it would learn three things:
    - That a searchable knowledge store of documented solutions exists
    - Enough about its structure to search effectively (category organization, YAML frontmatter fields like `module`, `tags`, `problem_type`)
    - When to search it (before implementing features, debugging issues, or making decisions in documented areas — learnings may cover bugs, best practices, workflow patterns, or other institutional knowledge)
 
-   This is a semantic assessment, not a string match. The information could be a line in an architecture section, a bullet in a gotchas section, spread across multiple places, or expressed without ever using the exact path `<root>/solutions/`. Use judgment — if an agent would reasonably discover and use the knowledge store after reading the file, the check passes.
+   This is a semantic assessment, not a string match: the information may be spread across sections or never name the exact path `<root>/solutions/`. If an agent would reasonably discover and use the knowledge store after reading the file, the check passes and no action is needed.
 
-3. If the spirit is already met, no action needed — move on.
-4. If not:
-   a. Based on the file's existing structure, tone, and density, identify where a mention fits naturally. Before creating a new section, check whether the information could be a single line in the closest related section — an architecture tree, a directory listing, a documentation section, or a conventions block. A line added to an existing section is almost always better than a new headed section. Only add a new section as a last resort when the file has clear sectioned structure and nothing is even remotely related.
-   b. Draft the smallest addition that communicates the three things. Match the file's existing style and density. The addition should describe the knowledge store itself, not the plugin — an agent without the plugin should still find value in it.
-
-      Keep the tone informational, not imperative. Express timing as description, not instruction — "relevant when implementing or debugging in documented areas" rather than "check before implementing or debugging." Imperative directives like "always search before implementing" cause redundant reads when a workflow already includes a dedicated search step. The goal is awareness: agents learn the folder exists and what's in it, then use their own judgment about when to consult it.
-
-      **Substitute the concrete root in what you write.** The examples below show `<root>/solutions/`, but the instruction file is read by agents without this plugin (and by people), who cannot resolve `<root>`. When you insert the text, replace `<root>` with the resolved concrete path — the actual artifact directory, which is the default `docs` root's `solutions/` unless a `docs_root` is configured — never the literal placeholder.
-
-      Examples of calibration (not templates — adapt to the file):
-
-      When there's an existing directory listing or architecture section — add a line:
-      ```
-      <root>/solutions/  # documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (module, tags, problem_type)
-      ```
-
-      When nothing in the file is a natural fit — a small headed section is appropriate:
-      ```
-      ## Documented Solutions
-
-      `<root>/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
-      ```
-   c. In full interactive mode, explain to the user why this matters — agents working in this repo (including fresh sessions, other tools, or collaborators without the plugin) won't know to check `<root>/solutions/` unless the instruction file surfaces it. Show the proposed change and where it would go, then use the platform's blocking question tool to get consent before making the edit: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting the proposal in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. In lightweight mode (interactive or headless), output a one-liner note and move on. In full headless mode, **do not edit instruction files** — surface the gap in the terminal report as `Instruction-file edit: gap noted, not applied` (headless scope is documentation capture, not project-config edits; a human-invoked interactive run applies the edit with consent)
-
-5. **If `CONCEPTS.md` exists at repo root, run a parallel discoverability check for it.** Assess whether the instruction file would lead an agent to discover the project's shared domain vocabulary. Use the same workflow as the `<root>/solutions/` check above: same target file, same edit-placement judgment, same consent-then-edit interaction shape per mode. A line in an existing section is almost always better than a new headed section. Example calibration when nothing else fits:
-
+3. If it does not pass, draft the smallest addition that communicates the three things, matching the file's style. A line in an existing section (architecture tree, directory listing, documentation or conventions block) is almost always better than a new headed section. Describe the knowledge store itself, not the plugin. Keep the tone informational, not imperative — "relevant when implementing or debugging in documented areas" rather than "always search before implementing", which causes redundant reads when a workflow already has a dedicated search step. **Write the resolved concrete root, never the literal `<root>` placeholder** — the instruction file is read by people and by agents without this plugin, who cannot resolve it. Calibration example, not a template (substitute the resolved root):
    ```
-   CONCEPTS.md  # shared domain vocabulary (entities, named processes, status concepts) — relevant when orienting to the codebase or discussing domain concepts
+   <root>/solutions/  # documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (module, tags, problem_type)
    ```
-
-   **Skip this step entirely if `CONCEPTS.md` does not exist** — never nag for an artifact the project has not adopted. When skipped, this step produces no output and no edit.
+4. **In full interactive mode**, show the proposed change and where it would go, say why it matters (fresh sessions, other tools, and collaborators without the plugin won't know to check `<root>/solutions/`), then get consent with the platform's blocking question tool before editing: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi. Fall back to presenting the proposal in chat only when the harness has no blocking tool or the call errors; never silently skip the question. In lightweight mode (interactive or headless), output a one-liner note and move on. In full headless mode, **do not edit instruction files** — surface the gap in the terminal report as `Instruction-file edit: gap noted, not applied`, since headless scope is documentation capture, not project-config edits.
+5. **If `CONCEPTS.md` exists at repo root, run the same check for it** — same target file, same placement judgment, same per-mode interaction shape — assessing whether an agent would discover the project's shared domain vocabulary (example line: `CONCEPTS.md  # shared domain vocabulary (entities, named processes, status concepts) — relevant when orienting to the codebase`). **Skip this step entirely if `CONCEPTS.md` does not exist** — never nag for an artifact the project has not adopted.
 
 ### Phase 3: Optional Enhancement
 
 **WAIT for Phase 2 to complete before proceeding.**
 
-**Skip Phase 3 entirely in headless mode** to bound token usage — the caller does not have a human-in-the-loop to act on reviewer findings, and downstream automations can run specialized reviewers themselves if they want that pass.
+**Skip Phase 3 entirely in headless mode** to bound token usage — the caller has no human in the loop to act on findings.
 
-<parallel_tasks>
+If the doc's examples make performance, security, or data-migration claims, verify those specific claims against the source rather than dispatching a domain reviewer at a markdown draft.
 
-Based on problem type, optionally dispatch generic subagents seeded with local prompt assets from `references/agents/` to review the documentation. Do not dispatch standalone agents by type/name.
-
-- **performance_issue** → `references/agents/performance-oracle.md`
-- **security_issue** → `references/agents/security-sentinel.md`
-- **database_issue** → `references/agents/data-integrity-guardian.md`
-- Any code-heavy issue → preserve code simplification as a **read-only documentation review**. Inspect the solution draft's code examples and explanatory claims inline, or dispatch a generic subagent seeded with a local prompt only to return suggestions. Do **not** invoke `ce-simplify-code` from this phase and do not mutate product code unless the user explicitly asks for a separate code-simplification pass. Do not use the deleted `code-simplicity-reviewer`.
-  Example: review the solution draft's examples for speculative abstractions, redundant wrappers, dead branches, and just-in-case parameters. Apply edits only to the documentation/examples being written by `ce-compound`; leave any branch code changes untouched.
-
-</parallel_tasks>
+For a code-heavy doc, keep code simplification as a **read-only documentation review**: inspect the solution draft's code examples and explanatory claims for speculative abstractions, redundant wrappers, dead branches, and just-in-case parameters, and apply edits only to the documentation/examples `ce-compound` is writing. Do **not** invoke `ce-simplify-code` from this phase and do not mutate product code unless the user explicitly asks for a separate code-simplification pass.
 
 ---
 
@@ -535,9 +394,9 @@ The orchestrator (main conversation) performs ALL of the following in one sequen
    - `no gap` when active project instructions surface the knowledge store
    - `gap noted — instruction-file tip emitted` when active project instructions exist but do not surface it
    - `not applicable — no active project instructions` when no project instructions are active; emit no discoverability tip
-6. **Mechanical claims check**: run `scripts/validate-doc-claims.py` against the written doc exactly as in Phase 2.45 step 1 (same `SKILL_DIR` anchor, same adjudicate-not-auto-fix rule — read `references/grounding-validation.md` for the adjudication table when it flags anything). Lightweight skips only the semantic validator subagent, not this deterministic check.
+6. **Mechanical claims check**: run `scripts/validate-doc-claims.py` against the written doc exactly as in Phase 2.45 step 1 (same `SKILL_DIR` anchor, same adjudicate-not-auto-fix rule — read `references/grounding-validation.md` for the adjudication table when it flags anything). Lightweight skips only the semantic claim check, not this deterministic one.
 7. **Frontmatter parser-safety check**: validate the written doc exactly as in Phase 2 step 8, using the same bundled-script existence guard and manual fallback checklist. Fix any violation and repeat the check; do not report success until the written frontmatter is parser-safe.
-8. **Skip specialized agent reviews** (Phase 3) and the semantic grounding validator (Phase 2.45 step 2) to conserve context
+8. **Skip Phase 3** and the semantic grounding validator (Phase 2.45 step 2) to conserve context
 
 **User-runnable retry rendering.** In the lightweight completion output below, default to `/ce-compound`; use `$ce-compound` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
 
@@ -557,86 +416,21 @@ Tip: Your AGENTS.md/CLAUDE.md doesn't surface CONCEPTS.md —
 a one-line mention helps agents find the shared vocabulary.
 
 Note: This was created in lightweight mode. For richer documentation
-(cross-references, detailed prevention strategies, specialized reviews,
-semantic grounding validation), re-run <rendered invocation> in a fresh session.
+(cross-references, detailed prevention strategies, semantic grounding
+validation), re-run <rendered invocation> in a fresh session.
 ```
 
 **No subagents are launched. No parallel tasks. The solution doc is the one deliverable** (Phase 2.4's update-only vocabulary capture may also refine an existing `CONCEPTS.md`).
 
-In lightweight mode, the overlap check is skipped (no Related Docs Finder subagent). This means lightweight mode may create a doc that overlaps with an existing one. That is acceptable — `ce-compound-refresh` will catch it later. Only suggest `ce-compound-refresh` if there is an obvious narrow refresh target. Do not broaden into a large refresh sweep from a lightweight session.
+Skipping the overlap check means lightweight may create a doc that overlaps an existing one. That is acceptable — `ce-compound-refresh` will catch it later. Suggest it only for an obvious narrow refresh target; do not broaden into a sweep from a lightweight session.
 
 ---
-
-## What It Captures
-
-- **Problem symptom**: Exact error messages, observable behavior
-- **Investigation steps tried**: What didn't work and why
-- **Root cause analysis**: Technical explanation
-- **Working solution**: Step-by-step fix with code examples
-- **Prevention strategies**: How to avoid in future
-- **Cross-references**: Links to related issues and docs
-
-## Preconditions
-
-<preconditions enforcement="advisory">
-  <check condition="problem_solved">
-    Problem has been solved (not in-progress)
-  </check>
-  <check condition="solution_verified">
-    Solution has been verified working
-  </check>
-  <check condition="non_trivial">
-    Non-trivial problem (not simple typo or obvious error)
-  </check>
-</preconditions>
-
-## What It Creates
-
-**Organized documentation:**
-
-- File: `<root>/solutions/[category]/[filename].md`
-
-**Categories auto-detected from problem:**
-
-Bug track:
-- build-errors/
-- test-failures/
-- runtime-errors/
-- performance-issues/
-- database-issues/
-- security-issues/
-- ui-bugs/
-- integration-issues/
-- logic-errors/
-
-Knowledge track:
-- architecture-patterns/ — architectural or structural patterns (agent/skill/pipeline/workflow shape decisions)
-- design-patterns/ — reusable non-architectural design approaches (content generation, interaction patterns, prompt shapes)
-- tooling-decisions/ — language, library, or tool choices with durable rationale
-- conventions/ — team-agreed way of doing something, captured so it survives turnover
-- workflow-issues/
-- developer-experience/
-- documentation-gaps/
-- best-practices/ — fallback only, use when no narrower knowledge-track value applies
-
-## Common Mistakes to Avoid
-
-| ❌ Wrong | ✅ Correct |
-|----------|-----------|
-| Subagents write product files into `docs/` or edit tracked paths | Subagents write only scratch artifacts under `<run-dir>/` and return the path; orchestrator writes the one final doc |
-| Subagent returns a long prose body only as its inline response | Subagent writes full output to its run artifact; orchestrator Reads it back (inline return is fallback only) |
-| Research and assembly run in parallel | Research completes → then assembly runs |
-| Multiple files created during workflow | One solution doc written or updated: `<root>/solutions/[category]/[filename].md` (plus optional maintenance writes: a `CONCEPTS.md` create/update from Phase 2.4, and — interactive Full only, after consent — a small instruction-file edit for discoverability) |
-| Headless Discoverability Check edits AGENTS.md/CLAUDE.md | Headless Full reports `Instruction-file edit: gap noted, not applied`; headless Lightweight emits a discoverability tip; only interactive Full applies the edit after consent |
-| Creating a new doc when an existing doc covers the same problem | Check overlap assessment; update the existing doc when overlap is high |
-| Asserting code behavior or merge-state from conversation memory | Read the defining source line before asserting; cite PR numbers over SHAs; soften unverifiable claims (Phase 1 extractor rules, re-checked in Phase 2.45) |
-| Batching several learnings through one run and stitching cross-references between drafts | One learning per run; run the skill sequentially for each additional learning |
 
 ## Success Output
 
 ### Headless mode
 
-Emit a structured terminal report and end the turn. No "What's next?" question, no blocking prompt. End with `Documentation complete` as the terminal signal so callers can detect completion.
+Emit a structured terminal report. No "What's next?" question, no blocking prompt. End the report with `Documentation complete`.
 
 For `depth:lightweight`, use this lower-overhead report after the Lightweight Mode workflow:
 
@@ -672,7 +466,7 @@ Refresh recommendation: <none | scope hint for /ce-compound-refresh>
 Documentation complete
 ```
 
-When no doc was written (e.g., headless invoked on a session where the problem is not yet solved), emit a structured failure instead and end with `Documentation skipped` so callers can distinguish success from no-op:
+When no doc was written (e.g., headless invoked on a session where the problem is not yet solved), emit a structured failure instead and end with `Documentation skipped`:
 
 ```
 ✗ Documentation skipped (headless mode)
@@ -699,10 +493,9 @@ Subagent Results:
 
 Grounding Validation:
   ✓ Mechanical check: 14 paths, 2 SHAs, 3 links checked — 1 flag annotated as historical
-  ✓ Semantic validator: 9 claims verified, 1 merge-state claim softened to pending
+  ✓ Semantic check: 9 claims verified, 1 merge-state claim softened to pending
 
-Specialized Agent Reviews (Auto-Triggered):
-  ✓ performance-oracle: Validated query optimization approach
+Enhancement:
   ✓ Code simplification review: Code examples are appropriately minimal
 
 Files written:
@@ -715,7 +508,7 @@ issues occur in the Email Processing or Brief System modules.
 Refresh recommendation: none
 ```
 
-**End the turn after the summary — `ce-compound` does not present a "What's next?" menu.** The doc is written and any cross-references the workflow found are already in it. Cross-doc maintenance (fixing references in *other* docs, consolidation) is deferred to `ce-compound-refresh` via the `Refresh recommendation` line above — the skill designed for it — not auto-applied here, which would edit tracked docs beyond the one deliverable. If the user wants to view the file or take a follow-up action, they will ask. (Interactive mode only.)
+**Do not present a "What's next?" menu after the summary.** The doc is written and any cross-references the workflow found are already in it. Cross-doc maintenance (fixing references in *other* docs, consolidation) is deferred to `ce-compound-refresh` via the `Refresh recommendation` line above — the skill designed for it — not auto-applied here, which would edit tracked docs beyond the one deliverable. If the user wants to view the file or take a follow-up action, they will ask. (Interactive mode only.)
 
 **Alternate interactive output (when updating an existing doc due to high overlap):** in headless mode, this case is communicated via the `Overlap: high — existing doc updated` line of the headless terminal report above, not as a separate output block.
 
@@ -729,58 +522,3 @@ Overlap detected: <root>/solutions/performance-issues/n-plus-one-queries.md
 File updated:
 - <root>/solutions/performance-issues/n-plus-one-queries.md (added last_updated: 2026-03-24)
 ```
-
-## The Compounding Philosophy
-
-This creates a compounding knowledge system:
-
-1. First time you solve "N+1 query in brief generation" → Research (30 min)
-2. Document the solution → <root>/solutions/performance-issues/n-plus-one-briefs.md (5 min)
-3. Next time similar issue occurs → Quick lookup (2 min)
-4. Knowledge compounds → Team gets smarter
-
-The feedback loop:
-
-```
-Build → Test → Find Issue → Research → Improve → Document → Validate → Deploy
-    ↑                                                                      ↓
-    └──────────────────────────────────────────────────────────────────────┘
-```
-
-**Each unit of engineering work should make subsequent units of work easier—not harder.**
-
-## Auto-Invoke
-
-<auto_invoke> <trigger_phrases> - "that worked" - "it's fixed" - "working now" - "problem solved" </trigger_phrases>
-
-<manual_override> Invoke `ce-compound` with optional context to document immediately without waiting for auto-detection. </manual_override> </auto_invoke>
-
-## Output
-
-Writes the final learning directly into `<root>/solutions/`.
-
-## Applicable Specialized Local Prompts
-
-Based on problem type, these local prompt assets can enhance documentation:
-
-### Code Quality & Review
-- **Read-only code simplification review**: Checks solution examples and documentation claims for unnecessary complexity without mutating product code
-- **references/agents/pattern-recognition-specialist.md**: Identifies anti-patterns or repeating issues
-
-### Specific Domain Experts
-- **references/agents/performance-oracle.md**: Analyzes performance_issue category solutions
-- **references/agents/security-sentinel.md**: Reviews security_issue solutions for vulnerabilities
-- **references/agents/data-integrity-guardian.md**: Reviews database_issue migrations and queries
-
-### Enhancement & Research
-- **references/agents/best-practices-researcher.md**: Enriches solution with industry best practices
-- **references/agents/framework-docs-researcher.md**: Links to framework/library documentation references
-
-### When to Invoke
-- **Auto-triggered** (optional): Generic subagents seeded with local prompts can run post-documentation for enhancement
-- **Manual trigger**: User can run surviving skills such as `ce-simplify-code` after `ce-compound` completes for deeper code review and mutation
-
-## Related Commands
-
-- `/research [topic]` - Deep investigation (searches <root>/solutions/ for patterns)
-- `ce-plan` - Planning workflow (references documented solutions)

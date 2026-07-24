@@ -22,18 +22,11 @@ allowed-tools:
 
 ## Interaction Method
 
-Default to the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Never silently skip a question you owe the user; if no blocking tool exists in the harness, the run is headless (see Mode). Ask one question at a time — the decision round (2h) may group by category but still asks one blocking question per category.
+Ask one question at a time with the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). The decision round (2h) may group by category but still asks one blocking question per category.
 
 ## Mode
 
-Parse a `mode:headless` token from anywhere in the arguments, strip it, and treat the remaining tokens (`setup`, `reconfigure`) per Phase 0.
-
-**Headless** (token present) never prompts:
-- Ambiguous product decisions defer into the plan's Outstanding Questions section instead of asking.
-- The circuit breaker (2c) defers instead of asking.
-- Setup cannot run headless: if routing lands on the interview while headless, report `first run requires interactive setup` and stop.
-
-**Fail safe.** If the harness exposes no usable blocking-question tool, behave as headless even when the token is absent — never block a run waiting on input that cannot arrive.
+A `mode:headless` token anywhere in the arguments (strip it; treat the remaining tokens per Phase 0) — or any run where the harness exposes no blocking-question tool — never prompts: ambiguous product decisions and the circuit breaker (2c) defer into the plan's Outstanding Questions instead of asking, and first-run setup is refused (Phase 1).
 
 ## Artifact Root
 
@@ -60,9 +53,9 @@ This skill records swept feedback under `<root>/feedback-sweep/`. Resolve `<root
 
 **Config keys read here:**
 - `feedback_sources` — list of source entries; each carries a `type` (`slack`, `github-issues`, `email`), its target, the standing-approved ack action, an optional close-out action, and an optional `sensitive: true`. Presence of this key means the skill is configured.
-- `sweep_state_path` — path to the state file, established at setup; fallback `<root>/feedback-sweep/state.yml`. A repo-internal path means committed mode (the state file is committed each run and must not be gitignored); a path outside the repo (e.g. under `/tmp`) means machine-local mode (the state file is never committed — only the plan is).
+- `sweep_state_path` — path to the state file, established at setup; fallback `<root>/feedback-sweep/state.yml`. A repo-internal path is committed each run and must not be gitignored; a path outside the repo (e.g. under `/tmp`) is machine-local and never committed.
 - `sweep_lease_ttl_minutes` — single-writer lease staleness threshold; default `60`. Passed to `lease-acquire` in 2a.
-- `sweep_shared_branch` — `true` when the state file lives on a shared branch multiple checkouts push to (see 2a topology); default `false`.
+- `sweep_shared_branch` — `true` when several checkouts push this state file to a shared branch (see 2a); default `false`.
 - `sweep_ack_cap` — integer circuit-breaker threshold; default `25`.
 
 ### Phase 1: First-Run Setup
@@ -89,17 +82,17 @@ Run the phases in order.
 #### 2a. Acquire lease + validate
 
 `lease-acquire --state <state> --writer <writer> --ttl-minutes <sweep_lease_ttl_minutes>`:
-- `LOCKED` — another live writer holds it. Record the outcome and stop: `run-record --state <state> --writer <writer> --outcome aborted-locked --counts '{}' --timestamp <ISO now>`, report that a concurrent sweep is running, and exit. (This record is safe against the mid-sweep holder: the engine serializes every state write with an OS advisory lock, so it cannot clobber the holder's concurrent upserts — see `references/state-schema.md`.)
+- `LOCKED` — another live writer holds it. Record the outcome and stop: `run-record --state <state> --writer <writer> --outcome aborted-locked --counts '{}' --timestamp <ISO now>`, report that a concurrent sweep is running, and exit. (This record is safe against the mid-sweep holder: every state write is serialized by an OS advisory lock, so it cannot clobber the holder's concurrent upserts.)
 - `STALE-RECLAIMED` — an expired lease was taken over; proceed, and note the takeover in the final summary.
 - `OK` — proceed.
 
-**Shared-branch topology** (`sweep_shared_branch: true`): before any source-side write, `git add` the state file, commit, and push it. A rejected push means another writer won the branch — fetch and rebase, re-run `lease-acquire`, and if the lease is still not yours, back off (record `aborted-locked` and stop). Only once your lease is pushed and confirmed do you touch a source.
+**Shared-branch topology** (`sweep_shared_branch: true`): commit and push the lease acquisition **before any source-side write** — a lease pushed only at end-of-run serializes nothing. A rejected push means another writer won the branch: fetch, rebase, re-run `lease-acquire`, and if the lease is still not yours, record `aborted-locked` and stop.
 
 Then `validate --state <state>` (a lease-agnostic repair): note in the summary any ids it downgrades from `closed` to `fix_pending`.
 
 #### 2b. Fetch each source
 
-For each entry in `feedback_sources`, dispatch a generic subagent at the **extraction tier** (`references/model-tiers.md`) seeded with:
+For each entry in `feedback_sources`, dispatch a generic subagent — set a cheaper model only if the harness exposes one, otherwise inherit; with no subagent primitive, fetch inline — seeded with:
 - the matching persona file contents (`references/sources/<type>.md`),
 - the source's config entry verbatim,
 - the current cursor from `cursor-get --state <state> --source <source-id>`.
@@ -143,7 +136,7 @@ Pass absolute artifact paths beneath `$MEDIA_DIR` to subagents.
 
 For each new item carrying `media`:
 - Download attachments into `$MEDIA_DIR`; raw media is never committed. A download failure -> set the item `needs_download` and continue.
-- Dispatch one generic subagent per recording, in parallel, at the **generation tier**, using `references/subagent-template.md` filled from `references/agents/media-analyzer.md`. Fill the template's `{skill_dir}` slot with the same absolute ce-sweep skill directory you resolve for your own `SKILL_DIR` Bash calls (a fresh subagent does not inherit your shell state, so it cannot run the bundled analyzer without being told the path). Pass the absolute media PATHS, a scratch artifact path, and the item's `sensitive` flag; collect the compact 1-2 line summary each returns. A subagent failure -> set the item `needs_analysis`, retain the media, and continue.
+- Dispatch one generic subagent per recording, in parallel, with the contents of `references/agents/media-analyzer.md` plus: the item id, its origin ref, the item's `sensitive` flag, the absolute media PATHS, a scratch artifact path to write the finding to, and this skill directory's absolute path (a fresh subagent does not inherit your shell state, so it cannot run the bundled analyzer without being told the path). Collect the compact 1-2 line summary each returns. A subagent failure -> set the item `needs_analysis`, retain the media, and continue. With no subagent primitive, analyze inline, still writing each finding to its scratch artifact path.
 - Track attempts on the item (a `media_attempts` count upserted on each try). After 3 failed attempts across runs (`needs_download`/`needs_analysis`), set the item `manual_stuck` and list it separately — out of the routine nag.
 
 #### 2f. Fix verification
@@ -157,11 +150,9 @@ For each `fix_pending` item, resolve its claimed fix ref and verify it merged to
 
 #### 2g. Plan reconciliation
 
-Read `references/plan-template.md` and follow it. Target the stable path `<root>/plans/feedback-sweep-plan.md`.
+Read `references/plan-template.md` and follow its reconciliation rules (rotation check, machine-region-only rewrite, R-ID stability, draining, untrusted-content block). Target the stable path `<root>/plans/feedback-sweep-plan.md`.
 
-**Rotation check first.** If the file exists and its frontmatter is NOT both `product_contract_source: ce-sweep` and `artifact_readiness: requirements-only`, archive it untouched to a dated sibling `<root>/plans/feedback-sweep-plan-YYYY-MM-DD.md` and write a fresh plan from the template. Never overwrite an unrelated plan in place.
-
-Rewrite ONLY the machine-owned region — the `date` frontmatter key, `### Summary`, the `<!-- sweep-items:start -->` / `<!-- sweep-items:end -->` marker region, and `### Outstanding Questions` (matching the template's reconciliation rules); never read or write inside the human-owned notes region. Append new actionable items with their state ids, drain items that are now `closed`, and land any headless-deferred decisions in the Outstanding Questions section.
+Append new actionable items with their state ids, drain items that are now `closed`, and land any headless-deferred decisions in the Outstanding Questions section.
 
 #### 2h. Decision round
 

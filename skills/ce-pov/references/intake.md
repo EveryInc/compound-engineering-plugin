@@ -1,10 +1,6 @@
 # Establish the Frame Before Grounding
 
-Load this when the frame isn't clear from the prompt — a bare link, a bare topic, or a warm invocation with no stated question (SKILL.md Phase 0). The job is to figure out what POV the user actually wants *before* spending the scout fan-out, by orienting on what they gave you and proposing — **never guessing**.
-
-## Why this gate exists
-
-The same subject supports very different verdicts. A link to a new sign-in method could mean "should we **adopt** it?", "should we **migrate** to it, and how costly?", "how does it **compare** to what we have?", or "I just have a **question** about it." Guessing "migrate" sends all three scouts after migration cost and answers a question the user never asked. The frame determines what the scouts even look for, so settle it first.
+Load this when the frame isn't clear from the prompt — a bare link, a bare topic, or a warm invocation with no stated question (SKILL.md Phase 0). The job is to figure out what POV the user actually wants *before* spending the grounding pass, by orienting on what they gave you and proposing — **never guessing**.
 
 ## Step 1 — Orient on what was provided (cheap, pre-grounding)
 
@@ -13,8 +9,9 @@ The same subject supports very different verdicts. A link to a new sign-in metho
 - **A document path** → read its headings to learn its purpose and shape; do not review it for findings yet.
 - **An approach set** → identify the options already on the table; do not invent additional options during orientation.
 - **A paste or provided context** → read it.
+- **A warm invocation with no clear question** → the conversation is the material you orient on: infer the decision from it, then propose/confirm it below.
 
-This is orientation, not grounding — keep it to one read/fetch. The project and external grounding (the scouts) come *after* the frame is set.
+This is orientation, not grounding — keep it to one read/fetch. The project and external grounding come *after* the frame is set.
 
 ## Step 2 — Determine the POV intent
 
@@ -37,8 +34,4 @@ The subject is usually recoverable; the **intent** is the ambiguous part. Classi
 
 ## Discipline
 
-`ce-pov` is not `ce-brainstorm`. **One** orientation read, **at most one** clarifying question, then go. If the user already stated the intent, skip straight to the one-line frame — do not interrogate. The cost of one cheap question is trivial; the cost of grounding the wrong frame is the whole run.
-
-## Warm invocations
-
-A warm invocation with no clear question is this same gate — the conversation is the material you orient on. Infer the decision from it, propose/confirm it, then proceed. For the rest of the warm contract (guest output, provenance buckets), see `references/invocation.md`.
+`ce-pov` is not `ce-brainstorm`. **One** orientation read, **at most one** clarifying question, then go. If the user already stated the intent, skip straight to the one-line frame — do not interrogate.

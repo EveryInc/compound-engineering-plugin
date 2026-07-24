@@ -2,16 +2,15 @@
 
 This file is loaded when ce-plan detects a non-software task (Phase 0.1b). It replaces the software-specific phases (0.2 through 5.1) with a domain-agnostic planning workflow.
 
-## Before starting: verify classification
+## Before starting
 
-The detection stub in SKILL.md routes here for anything that isn't clearly software. Verify the classification is correct before proceeding:
+**Commit to the task — do not bail because it looks like a "lookup" or "research question."** The user invoked the planning tool on purpose. Two exits and one guard:
 
-- **Is this actually a software task?** The key distinction is task-type, not topic-domain. A study guide about Rust is non-software (producing educational content). A Rust library refactor is software (modifying code). If this is actually software, return to Phase 0.2 in the main SKILL.md.
-- **Is this a trivial single-fact lookup?** Only a question answerable from one fact with no research, retrieval, or judgment skips planning — answer it directly and stop, in the user's terms. Do not narrate that it "isn't a planning task" or explain the routing; that is process exhaust (see Veil of value below). Examples: "zsh: command not found: brew", "what's the capital of France." A question that needs multiple steps, any retrieval, or synthesis to answer well does **not** qualify: it is an answer-seeking task (see Disposition below), not a quick-help exit. When unsure, do not exit.
+- **Trivial single-fact lookup:** only a question answerable from one fact with no research, retrieval, or judgment skips planning — answer it directly and stop, in the user's terms, without narrating the routing (see Veil of value below). Examples: "zsh: command not found: brew", "what's the capital of France." A question needing multiple steps, any retrieval, or synthesis does **not** qualify — that is answer-seeking work, not a quick-help exit. When unsure, do not exit.
 - **Pipeline mode?** If invoked from `lfg` or any `disable-model-invocation` context: tell the user this is a non-software task, `lfg` requires the software-only `ce-work` path, and they should invoke `ce-plan` directly for non-software planning. For this user-runnable output, default to `/ce-plan`; use `$ce-plan` only on Codex or a host explicitly documented as dollar-prefixed. Render only the invocation as inline code and output one form only, then stop.
 - **Unified artifact guard.** Universal-planning outputs are not software implementation plans. Do not label them `artifact_contract: ce-unified-plan/v1` and do not produce a `/goal` launch block unless the deliverable itself is a complete software implementation plan with Product Contract, Planning Contract, Implementation Units, Verification Contract, and Definition of Done.
 
-Once past these checks, commit to the task — do not bail because it looks like a "lookup" or "research question." The user invoked the planning tool on purpose. Then choose the disposition below.
+If the task turns out to be software after all (building or modifying code, not investigating it), return to Phase 0.2 in the main SKILL.md. Otherwise choose the disposition below.
 
 ---
 
@@ -50,21 +49,9 @@ Answer in chat. Do **not** write a plan file and do **not** run the Step 3 save/
 
 ### Veil of value: what to surface, what to hide
 
-The plan-of-attack and the answer are for the caller; the skill's internal machinery is not. Edit for relevance the way an expert consultant does — they tell you their thinking about your problem, not which template their back office applied.
-
 - **Surface** (question-domain — reads as value): the approach to the user's actual question, in the user's terms.
 - **Hide** (skill-domain — process exhaust): which skill, mode, or phase is running; whether a plan file was or wasn't written; the routing or disposition decision itself.
 - **Never hide** (audit content — affects trust in the answer): caveats, gaps, and uncertainty. "I could only pull his last ~100 stars, so this is partial" or "this is my read, not a hard signal" is not junk — it is what a good assistant surfaces. The veil hides plumbing, never the limits of the answer.
-
-Register example, for "how often does he star things — is this a big deal?":
-
-> Wrong: "Quick note first: `ce-plan` builds implementation plans, so I ignored the template and just answered the question. Here's what the data says..."
-
-Leaks the skill's name, narrates an internal routing decision, apologizes for deviating — the caller sees the seams of the tool.
-
-> Right: "Let me size this up — I'll check how active a starrer he is overall, his recent cadence, and the kinds of repos he tends to star, then weigh where this one lands. [gathers data] Yes, this is a real signal: ..."
-
-Same underlying process; none of the machinery surfaces. The caller sees thinking about their question.
 
 ---
 
