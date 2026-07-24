@@ -249,6 +249,21 @@ describe("transformContentForCodex", () => {
       expect(transformContentForCodex(line, emptyTargets)).toBe(line)
     })
 
+    test("preserves full URL spans while transforming commands outside them", () => {
+      const targets: CodexInvocationTargets = {
+        promptTargets: {},
+        skillTargets: { "ce-work": "ce-work" },
+      }
+      expect(
+        transformContentForCodex(
+          "See https://example.com/#!/ce-plan or https://example.com?next=(/unknown-cmd, then /ce-work",
+          targets,
+        ),
+      ).toBe(
+        "See https://example.com/#!/ce-plan or https://example.com?next=(/unknown-cmd, then the ce-work skill",
+      )
+    })
+
     test("ignores slashes preceded by a word character", () => {
       expect(
         transformContentForCodex("paths like a/b and foo/bar", emptyTargets),
