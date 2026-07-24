@@ -102,6 +102,7 @@ The commands in this reference are the executable contract. Do not inspect or gr
 After local reviewers complete, the one status read is exactly:
 
 ```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
 PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
 "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" status "<job-id>" --json
 ```
