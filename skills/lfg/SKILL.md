@@ -6,6 +6,8 @@ argument-hint: "[feature description; optionally assign planning and/or implemen
 
 Run the steps below in order; plan before implementing. A gate below is a checkpoint: verify the named condition, then continue in the same run. It is not a place to stop and wait.
 
+Each step's skill invocation is mandatory unless that step states its own skip condition (steps 3, 6, 7 and 9 do). Task size is not a skip condition anywhere else. Doing the work inline because the unit looks small still skips the plan artifact, the review, and the evidence later steps read, so the run reports success while producing none of them. Each skill decides its own internal delegation; whether the step runs at all is not that skill's call, or yours. If a step's skill genuinely cannot be invoked, say which one and why, then continue: never substitute your own inline version and record the step as done.
+
 Match each skill name referenced below against the host's available-skills list verbatim — some hosts namespace them (`compound-engineering:ce-plan`), others do not.
 
 ## Task Visibility
