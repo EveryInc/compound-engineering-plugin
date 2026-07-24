@@ -437,6 +437,22 @@ describe("transformContentForCodex", () => {
       )
     })
 
+    test("preserves agent-like references inside URLs while transforming outside mentions", () => {
+      const targets: CodexInvocationTargets = {
+        promptTargets: {},
+        skillTargets: {},
+        agentTargets: { "security-reviewer": "security-reviewer" },
+      }
+      expect(
+        transformContentForCodex(
+          "See https://example.com/@security-reviewer or https://example.com?assignee=@security-reviewer, then @security-reviewer",
+          targets,
+        ),
+      ).toBe(
+        "See https://example.com/@security-reviewer or https://example.com?assignee=@security-reviewer, then custom agent `security-reviewer`",
+      )
+    })
+
     test("leaves longer hyphenated agent-like tokens unchanged", () => {
       const targets: CodexInvocationTargets = {
         promptTargets: {},

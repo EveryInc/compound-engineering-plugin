@@ -38,15 +38,18 @@ For `@`-references, there was no boundary check at all, so any `@` followed by a
 
 ## Solution
 
-Move both exclusions into the regex patterns themselves instead of the replacement callbacks.
+Handle each exclusion at its owning layer: preserve HTTP(S) spans once around all free-form rewrites, and keep mention-token boundaries in the `@` regex.
 
-Slash commands now use a URL-first alternative that consumes full HTTP(S) URL spans before the command alternative can inspect their embedded routes:
+`transformOutsideHttpUrls()` splits the content into URL and non-URL spans. Backticked-agent, slash-command, path, and `@`-agent rewrites run only on the non-URL spans:
 
 ```typescript
-const slashCommandPattern = /https?:\/\/\S+|(?<![:\w>}\]\)\/])\/([a-z][a-z0-9_:-]*?)(?=[\s,."')\]}`]|$)/gi
+result = transformOutsideHttpUrls(result, (segment) => {
+  // Apply the free-form Codex rewrites to segment.
+  return transformed
+})
 ```
 
-When the URL alternative matches, `commandName` is absent and the callback returns the full span unchanged. This handles ordinary paths as well as query and fragment variants without enumerating every punctuation character that may precede an embedded route.
+This handles ordinary paths, query/fragment variants, and agent-like URL tokens without enumerating every punctuation character that may precede an embedded route or mention.
 
 `@`-agent references now require token boundaries before the `@` and after the recognized name:
 
@@ -56,15 +59,15 @@ const agentRefPattern = /(?<!\w)@([a-z][a-z0-9-]*-(?:agent|reviewer|researcher|a
 
 ## Why This Works
 
-The URL alternative appears first, so the regex engine consumes each complete non-whitespace HTTP(S) token before it can find a slash-command candidate inside that token. Slash commands elsewhere in the same string still reach the command alternative and transform normally.
+The shared wrapper copies each complete non-whitespace HTTP(S) token unchanged and applies every free-form rewrite only to the text between URLs. Commands, paths, and agent mentions elsewhere in the same string still transform normally.
 
 A `@` that follows a word character is part of an email handle, username, or other compound token, not a stand-alone agent mention. The `(?<!\w)` lookbehind ensures only boundary `@` symbols are considered, while `(?![\w-])` prevents partial matches inside longer identifiers.
 
 ## Prevention
 
-- When writing regexes for command or mention syntax that will run against free-form text, put the contextual exclusions in the pattern (lookbehind/lookahead) rather than in post-match guards.
+- Put token-local exclusions in the pattern, but protect shared lexical regions such as URLs once at the layer that owns all affected rewrites.
 - Test common embedding cases early: URLs, markdown links, HTML attributes, quoted strings, email addresses, and parentheses.
-- Keep the negative lookbehind character class up to date with every character that can legitimately precede the same token (`/`, word chars, closing brackets, punctuation).
+- When one protected context affects multiple sequential transforms, test that every stage preserves it and that equivalent syntax outside the context still transforms.
 
 ## Related
 
