@@ -211,16 +211,27 @@ path as `--result-path` to `peer-job-runner.py start`, so `done` is keyed to the
 artifact and `result <job-id>` reads it without guessing the filename or the
 host's provider key.
 
+**Interpreter.** The commands below run a bundled Python script. Resolve the
+interpreter in the *same* shell call as the command -- each tool call is a fresh
+shell, so a `$PY` set in an earlier call does not persist. Do not hardcode
+`python3`: on native Windows it resolves to a Microsoft Store stub that exits
+without running Python, and that stub still satisfies `command -v`, so probe
+execution rather than presence.
+
+```bash
+PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+```
+
 Record every job id and the epoch after the final start. Poll all jobs in
 bounded slices with
-`python3 "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 --json <job-ids...>`.
+`"$PY" "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 --json <job-ids...>`.
 Job ids or job-directory paths are positional. `--skill`, `--run-id`, and
 `--label` are start-only; never pass them to `wait`. Do not add a separate shell
 sleep: `wait` itself provides the bounded polling delay. Use one aggregate
 deadline of 610 seconds after the final start; never begin a wait that can cross
 it. At the deadline, reap each nonterminal job in a short call, then make one
 final
-`python3 "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 10 --json <job-ids...>`
+`"$PY" "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 10 --json <job-ids...>`
 call. Classify every started job from its terminal state; `done` alone does not
 prove a usable artifact exists.
 

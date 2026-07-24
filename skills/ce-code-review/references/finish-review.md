@@ -8,7 +8,8 @@ Input is one JSON array of reviewer-return objects. Output is one object with `f
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-python3 "$SKILL_DIR/scripts/findings-mechanics.py" < "$RUN_DIR/raw-returns.json" > "$RUN_DIR/mechanical-findings.json"
+PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+"$PY" "$SKILL_DIR/scripts/findings-mechanics.py" < "$RUN_DIR/raw-returns.json" > "$RUN_DIR/mechanical-findings.json"
 ```
 
 Before the first helper run, load every available per-reviewer artifact and build a source-detail map keyed by reviewer plus the helper fingerprint: normalized `file`, string `line`, and whitespace-normalized lowercase `title`. The map owns each source finding's `why_it_matters` and `evidence`; compact returns are merge inputs, not final report objects.
