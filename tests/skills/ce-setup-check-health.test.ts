@@ -588,6 +588,18 @@ describe("ce-setup check-health docs_root resolution", () => {
     expect(result.stdout).toContain("outside the repository")
   })
 
+  test("rejects a docs_root whose intermediate component is an existing file", async () => {
+    // `afile/nested` where `afile` is a file: the leaf-only non-directory check
+    // passes (nested doesn't exist), but mkdir -p would fail, so /ce-setup must
+    // not report it healthy.
+    const result = await run({
+      local: "docs_root: afile/nested\n",
+      extra: async (root) => writeFile(path.join(root, "afile"), "x"),
+    })
+    expect(result.stdout).toContain("an intermediate path component is not a directory")
+    expect(result.stdout).not.toContain("Artifact root:")
+  })
+
   test("accepts a valid repo-relative root that does not yet exist (AE4)", async () => {
     const result = await run({ local: "docs_root: .ce-artifacts/nested\n" })
     expect(result.stdout).toContain("Artifact root: .ce-artifacts/nested/ (from config.local.yaml)")

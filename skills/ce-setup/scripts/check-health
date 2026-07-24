@@ -137,6 +137,17 @@ resolve_docs_root() {
   if [ -e "$real" ] && [ ! -d "$real" ]; then
     docs_root_error="names an existing non-directory"; return
   fi
+  # Reject when an intermediate component is an existing non-directory (e.g.
+  # `afile/nested` where `afile` is a file): the leaf-only check above passes
+  # because `$real` itself does not exist, but `mkdir -p` would fail. Walk up to
+  # the deepest existing ancestor and require it be a directory.
+  probe="$real"
+  while [ ! -e "$probe" ] && [ "$probe" != "/" ] && [ "$probe" != "$(dirname "$probe")" ]; do
+    probe="$(dirname "$probe")"
+  done
+  if [ -e "$probe" ] && [ ! -d "$probe" ]; then
+    docs_root_error="an intermediate path component is not a directory"; return
+  fi
   docs_root_status="configured"
 }
 

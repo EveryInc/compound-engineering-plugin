@@ -21,7 +21,7 @@ Invocation origin is not observable or relevant: apply the same source-resolutio
 
 ## Artifact Root
 
-This skill discovers plans under `<root>/plans/` and may write review residuals under `<root>/residual-review-findings/`. Resolve `<root>` once at the start of the run and use it everywhere a `<root>/` path appears below; pass the resolved path to any subagent, not the config.
+This skill discovers plans under `<root>/plans/` and may write review residuals under `<root>/residual-review-findings/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it (a run that writes no artifact never needs a root); pass the resolved path to any subagent, not the config.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**

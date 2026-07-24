@@ -37,7 +37,7 @@ Parse a `mode:headless` token from anywhere in the arguments, strip it, and trea
 
 ## Artifact Root
 
-This skill records swept feedback under `<root>/feedback-sweep/`. Resolve `<root>` once at the start of the run and use it everywhere a `<root>/` path appears below.
+This skill records swept feedback under `<root>/feedback-sweep/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it (a run that writes no artifact never needs a root).
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**

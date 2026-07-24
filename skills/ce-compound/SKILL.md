@@ -69,7 +69,7 @@ When spawning subagents, pass the relevant file contents into the task prompt so
 
 ## Artifact Root
 
-This skill writes and reads learnings under `<root>/solutions/`. Resolve `<root>` once at the start of the run and use it everywhere `<root>/solutions/` appears below; when passing search or write scope to a subagent, pass the resolved `<root>/solutions/` path, not the config.
+This skill writes and reads learnings under `<root>/solutions/`. Resolve `<root>` when you first compose a `<root>/solutions/` path (per the block below); when passing search or write scope to a subagent, pass the resolved `<root>/solutions/` path, not the config.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**

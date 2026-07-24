@@ -25,7 +25,7 @@ Default is **interactive** — investigate, then use the Phase 2 fix-choice gate
 
 ## Artifact Root
 
-This skill may record residuals under `<root>/residual-review-findings/` and compound learnings under `<root>/solutions/`. Resolve `<root>` once at the start of the run and use it everywhere a `<root>/` path appears below.
+This skill may record residuals under `<root>/residual-review-findings/` and compound learnings under `<root>/solutions/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it (a run that writes no artifact never needs a root).
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**

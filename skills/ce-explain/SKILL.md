@@ -35,7 +35,7 @@ Dispatch is tiered by task shape, never hardcoded to a model name:
 
 ## Artifact Root
 
-This skill writes explainers under `<root>/explainers/` and may read learnings under `<root>/solutions/`. Resolve `<root>` once at the start of the run and use it everywhere a `<root>/` path appears below; pass the resolved path to any subagent, not the config.
+This skill writes an explainer under `<root>/explainers/` only when it archives one to the repo, and may read learnings under `<root>/solutions/`. Resolve `<root>` (per the block below) only when you actually compose such a path — a scratch-only or external-concept explainer writes to its run directory and never needs it, so do not resolve or create a root at the start of every run. Pass the resolved path to any subagent when you do resolve it, not the config.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**

@@ -39,7 +39,7 @@ If no argument is provided, proceed with open-ended ideation.
 
 ## Artifact Root
 
-This skill writes ideation artifacts under `<root>/ideation/` and reads learnings under `<root>/solutions/`. Resolve `<root>` once at the start of the run and use it everywhere a `<root>/` path appears below; pass the resolved path to any subagent, not the config.
+This skill writes ideation artifacts under `<root>/ideation/` in repo mode and reads learnings under `<root>/solutions/`. Resolve `<root>` (per the block below) only when you compose such a path — the no-repo / elsewhere flow writes to a temp directory and never needs it, so do not resolve or create a root before mode classification. Pass the resolved path to any subagent when you do resolve it, not the config.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**

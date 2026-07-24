@@ -30,7 +30,7 @@ This workflow drives the browser exclusively through the `agent-browser` CLI. Do
 
 ## Artifact Root
 
-This skill writes dogfood reports under `<root>/dogfood-reports/` and personas under `<root>/personas/`. Resolve `<root>` once at the start of the run and use it everywhere a `<root>/` path appears below.
+This skill writes dogfood reports under `<root>/dogfood-reports/` and personas under `<root>/personas/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it (a run that writes no artifact never needs a root).
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**

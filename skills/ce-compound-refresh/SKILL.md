@@ -51,7 +51,7 @@ The goal is not to force the user through a checklist. The goal is to help them 
 
 ## Artifact Root
 
-This skill reviews and refreshes learnings under `<root>/solutions/`. Resolve `<root>` once at the start of the run and use it everywhere `<root>/solutions/` appears below; pass the resolved `<root>/solutions/` path to any subagent, not the config.
+This skill reviews and refreshes learnings under `<root>/solutions/`. Resolve `<root>` when you first compose a `<root>/solutions/` path (per the block below); pass the resolved `<root>/solutions/` path to any subagent, not the config.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**
