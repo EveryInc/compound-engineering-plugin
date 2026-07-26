@@ -15,6 +15,7 @@ const assets = new Map([
   ["references/dispatch-roles.json", "dispatch-roles.json"],
   ["references/execution-routing.md", "execution-routing.md"],
 ])
+const identityRelative = "references/ce-routing-consumer.json"
 
 async function consumers(): Promise<string[]> {
   const schema = JSON.parse(await readFile(path.join(routingRoot, "settings-schema.json"), "utf8")) as {
@@ -44,6 +45,7 @@ async function syncFixture(consumer: string): Promise<{ root: string; sync: stri
     settings: { sample: { consumers: [consumer], writers: [] } },
   }))
   await writeFile(path.join(fixtureRouting, "dispatch-roles.json"), JSON.stringify({ roles: {} }))
+  await writeFile(path.join(fixtureRouting, "consumer-identity.json"), '{"version":1,"consumer":"ce-setup"}\n')
   for (const source of assets.values()) {
     if (source === "settings-schema.json" || source === "dispatch-roles.json") continue
     await writeFile(path.join(fixtureRouting, source), `canonical:${source}\n`)
@@ -73,23 +75,27 @@ async function runSync(sync: string, mode: "--write" | "--check") {
 
 describe("routing runtime asset parity", () => {
   test("every catalog-derived consumer has all canonical bytes", async () => {
-    for (const consumer of await consumers()) {
+    await Promise.all((await consumers()).map(async (consumer) => {
       await access(path.join(skillsRoot, consumer, "SKILL.md"))
-      for (const [relative, canonical] of assets) {
+      await Promise.all([...assets].map(async ([relative, canonical]) => {
         const [expected, actual] = await Promise.all([
           readFile(path.join(routingRoot, canonical)),
           readFile(path.join(skillsRoot, consumer, relative)),
         ])
         expect(actual, `${consumer}/${relative} drifted`).toEqual(expected)
-      }
-    }
+      }))
+      expect(JSON.parse(await readFile(path.join(skillsRoot, consumer, identityRelative), "utf8"))).toEqual({
+        version: 1,
+        consumer,
+      })
+    }))
   })
 
   test("no non-consumer carries an orphan generated asset", async () => {
     const expected = new Set(await consumers())
     const entries = await readdir(skillsRoot, { withFileTypes: true })
     for (const entry of entries.filter((item) => item.isDirectory() && !expected.has(item.name))) {
-      for (const relative of assets.keys()) {
+      for (const relative of [...assets.keys(), identityRelative]) {
         await expect(access(path.join(skillsRoot, entry.name, relative))).rejects.toBeDefined()
       }
     }
@@ -193,6 +199,10 @@ describe("routing runtime asset parity", () => {
       expect(await readFile(path.join(fixture.skillRoot, "references", "execution-routing.md"), "utf8")).toBe(
         "canonical:execution-routing.md\n",
       )
+      expect(JSON.parse(await readFile(path.join(fixture.skillRoot, identityRelative), "utf8"))).toEqual({
+        version: 1,
+        consumer: "ce-safe",
+      })
     } finally {
       await rm(fixture.root, { recursive: true, force: true })
     }

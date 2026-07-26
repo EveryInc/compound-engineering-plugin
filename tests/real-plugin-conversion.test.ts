@@ -34,6 +34,7 @@ const ROUTING_ASSETS = [
   ["references/dispatch-roles.json", "dispatch-roles.json"],
   ["references/execution-routing.md", "execution-routing.md"],
 ] as const
+const ROUTING_IDENTITY = "references/ce-routing-consumer.json"
 
 const PLUGIN_NAMES = ["compound-engineering"] as const
 type PluginName = (typeof PLUGIN_NAMES)[number]
@@ -424,6 +425,10 @@ for (const pluginName of PLUGIN_NAMES) {
             const actual = readFileSync(installedPath)
             expect(actual, `${install.label}:${skillName}/${relativePath} differs from its canonical source`).toEqual(expected)
           }
+          expect(readJson(path.join(install.skillsRoot, skillName, ROUTING_IDENTITY))).toEqual({
+            version: 1,
+            consumer: skillName,
+          })
         }
 
         if (install.label === "claude-native") continue

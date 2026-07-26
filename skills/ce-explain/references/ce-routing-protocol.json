@@ -2,7 +2,24 @@
   "version": 1,
   "protocol": "ce-routing/v1",
   "operations": ["inspect", "resolve_batch", "finalize_attempt", "patch_source"],
+  "attempt_lock_protocol": "ce-routing-attempt-lock/v1",
+  "adapter_outcomes": ["ok", "unavailable", "failed"],
+  "task_binding_fields": {
+    "profile": ["profile", "policy"],
+    "direct": ["policy", "candidates"]
+  },
+  "finalize_request_fields": [
+    "snapshot",
+    "attempt_lock",
+    "attempt",
+    "outcome",
+    "report",
+    "prior_attempts"
+  ],
   "receipt_fields": [
+    "snapshot_id",
+    "binding_digest",
+    "attempt_lock_digest",
     "role",
     "class",
     "profile",
@@ -17,6 +34,7 @@
     "model_actual",
     "effort_requested",
     "effort_actual",
+    "adapter_outcome",
     "identity_status",
     "attempts",
     "fallback_reason",
@@ -45,6 +63,8 @@
     "ROUTE_UNAVAILABLE",
     "IDENTITY_REQUIRED",
     "IDENTITY_MISMATCH",
+    "ATTEMPT_FAILED",
+    "ATTEMPT_LOCK_INVALID",
     "RETRY_UNSAFE",
     "WRITE_CONFLICT",
     "WRITE_UNSAFE",

@@ -14,6 +14,8 @@ const assetMap = new Map([
   ["references/dispatch-roles.json", "dispatch-roles.json"],
   ["references/execution-routing.md", "execution-routing.md"],
 ])
+const identityRelative = "references/ce-routing-consumer.json"
+const identitySource = "consumer-identity.json"
 
 type SettingsSchema = {
   settings: Record<string, { consumers: string[]; writers: string[] }>
@@ -21,6 +23,11 @@ type SettingsSchema = {
 
 type RoleCatalog = {
   roles: Record<string, { owner: string }>
+}
+
+type ConsumerIdentity = {
+  version: number
+  consumer: string
 }
 
 const consumerPattern = /^(?:ce-[a-z0-9]+(?:-[a-z0-9]+)*|lfg)$/
@@ -38,6 +45,10 @@ function consumerRoot(consumer: string): string {
     throw new Error(`unsafe routing consumer path: ${consumer}`)
   }
   return root
+}
+
+function consumerIdentity(consumer: string): Buffer {
+  return Buffer.from(`${JSON.stringify({ version: 1, consumer }, null, 2)}\n`)
 }
 
 async function directoryState(root: string, target: string, create: boolean): Promise<boolean> {
@@ -147,6 +158,10 @@ async function main(): Promise<void> {
   const consumerSet = new Set(consumers)
   const canonical = new Map<string, Buffer>()
   for (const [relative, source] of assetMap) canonical.set(relative, await readFile(path.join(routingRoot, source)))
+  const identity = JSON.parse(await readFile(path.join(routingRoot, identitySource), "utf8")) as ConsumerIdentity
+  if (identity.version !== 1 || identity.consumer !== "ce-setup") {
+    throw new Error("canonical routing consumer identity must be ce-setup/v1")
+  }
 
   const problems: string[] = []
   for (const consumer of consumers) {
@@ -170,13 +185,27 @@ async function main(): Promise<void> {
         problems.push(`${consumer}/${relative}: ${error?.message ?? "unsafe generated asset"}`)
       }
     }
+    const identityDestination = path.resolve(skillRoot, identityRelative)
+    const expectedIdentity = consumerIdentity(consumer)
+    try {
+      if (mode === "--write") await atomicWrite(skillRoot, identityDestination, expectedIdentity)
+      else {
+        const state = await destinationState(skillRoot, identityDestination, false)
+        if (state === "missing") problems.push(`${consumer}/${identityRelative}: missing generated asset`)
+        else if (!(await safeRead(identityDestination)).equals(expectedIdentity)) {
+          problems.push(`${consumer}/${identityRelative}: stale generated asset`)
+        }
+      }
+    } catch (error: any) {
+      problems.push(`${consumer}/${identityRelative}: ${error?.message ?? "unsafe generated asset"}`)
+    }
   }
 
   const skillEntries = await readdir(skillsRoot, { withFileTypes: true })
   for (const entry of skillEntries) {
     if (!entry.isDirectory() || consumerSet.has(entry.name)) continue
     const skillRoot = consumerRoot(entry.name)
-    for (const relative of assetMap.keys()) {
+    for (const relative of [...assetMap.keys(), identityRelative]) {
       const destination = path.resolve(skillRoot, relative)
       try {
         const state = await destinationState(skillRoot, destination, false)

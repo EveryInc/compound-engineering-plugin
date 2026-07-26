@@ -4353,10 +4353,25 @@ describe("ce-work unit workspace controller", () => {
           role: "ce-work.implementation-worker",
           source_layer: "task",
           source: "current-task",
-          profile: "current-task-implementation",
+          profile: "current-task",
           policy: "require",
           candidates: [{ harness: "opencode", model: "openai/gpt-economy", effort: "low", ordinal: 0 }],
         },
+        resolver_snapshot: {
+          intents: [{
+            role: "ce-work.implementation-worker",
+            source: "current-task",
+            binding: {
+              policy: "require",
+              candidates: [{ harness: "opencode", model: "openai/gpt-economy", effort: "low" }],
+            },
+          }],
+        },
+        resolver_attempt_locks: [{
+          protocol: "ce-routing-attempt-lock/v1",
+          candidate_ordinal: 0,
+          candidate: { harness: "opencode", model: "openai/gpt-economy", effort: "low", ordinal: 0 },
+        }],
       },
     })
     expect(existsSync(runs)).toBe(false)
@@ -4454,7 +4469,7 @@ describe("ce-work unit workspace controller", () => {
     expect(git(f.repo, "status", "--porcelain")).toBe("")
   })
 
-  test("normalizes merged legacy work-engine preferences and keeps their declared native fallback", () => {
+  test("consumes resolver-normalized work-engine compatibility and keeps its declared native fallback", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
     const home = routingHome(`work_engine_mode: prefer
@@ -4466,16 +4481,27 @@ work_engine_preferences:
     const initialized = initWithRouting(runs, "run-legacy-routing", f, home)
     expect(initialized.word).toBe("READY")
     expect(initialized.body.routing).toMatchObject({
-      compatibility: {
-        applied: true,
-        mode: "prefer",
-        mode_source: "global",
-        preferences_source: "global",
-      },
       binding: {
         profile: "legacy-work-engine",
         policy: "prefer",
         source_layer: "global-legacy-work-engine",
+      },
+      generalized_binding: {
+        profile: "legacy-work-engine",
+        policy: "prefer",
+        source_layer: "global-legacy-work-engine",
+      },
+      resolver_snapshot: {
+        compatibility: {
+          values: {
+            work_engine_mode: "prefer",
+            work_engine_preferences: [{ harness: "codex", model: "gpt-5-mini" }],
+          },
+          provenance: {
+            work_engine_mode: { layer: "global", authority_trusted: true },
+            work_engine_preferences: { layer: "global", authority_trusted: true },
+          },
+        },
       },
     })
     expect(initialized.body.routing.binding.candidates).toEqual([
@@ -4607,7 +4633,9 @@ work_engine_preferences:
   classes:
     implementation: { profile: strict, policy: require }
 `)
-    expect(initWithRouting(runs, "run-strict-matched", f, home).word).toBe("READY")
+    const initialized = initWithRouting(runs, "run-strict-matched", f, home)
+    expect(initialized.word).toBe("READY")
+    const initializedSnapshotId = initialized.body.routing.resolver_snapshot.id
     expect(lockRoutingAttempt(runs, "run-strict-matched", "U", "attempt-1", 0, "codex").word).toBe("ATTEMPT_LOCKED")
     const prepared = ctl(
       runs, "prepare", "--run-id", "run-strict-matched", "--unit-id", "U",
@@ -4644,9 +4672,12 @@ work_engine_preferences:
         routing_finalization: {
           action: "accept",
           receipt: {
+            snapshot_id: initializedSnapshotId,
+            adapter_outcome: "ok",
             identity_status: "verified",
             model_actual: "gpt-5-mini",
             effort_actual: "low",
+            attempts: [{ outcome: "ok", terminal_status: "accept" }],
           },
         },
       }],
@@ -4654,7 +4685,12 @@ work_engine_preferences:
     expect(status.routing.receipts).toEqual([
       expect.objectContaining({
         action: "accept",
-        receipt: expect.objectContaining({ model_actual: "gpt-5-mini", effort_actual: "low" }),
+        receipt: expect.objectContaining({
+          snapshot_id: initializedSnapshotId,
+          adapter_outcome: "ok",
+          model_actual: "gpt-5-mini",
+          effort_actual: "low",
+        }),
       }),
     ])
   })
@@ -4709,6 +4745,72 @@ work_engine_preferences:
       route: "claude",
       model_requested: "sonnet",
       routing_lock: { candidate_ordinal: 1, recipient: { route: "claude", target: "claude" } },
+    })
+
+    writeFileSync(path.join(retried.body.workspace, "retry.txt"), "second recipient\n")
+    const retryJob = fakeDoneJob(
+      runs, "run-ordered", "U", "second packet", "job-ordered-second", "completed", ["retry.txt"],
+      { model_actual: "sonnet", model_receipt_status: "verified" },
+    )
+    ctl(
+      runs, "record-job", "--run-id", "run-ordered", "--unit-id", "U",
+      "--attempt-id", "attempt-2", "--job-id", retryJob,
+    )
+    expect(ctl(runs, "terminalize", "--run-id", "run-ordered", "--unit-id", "U").word).toBe("INTEGRATION_PENDING")
+    expect(ctl(
+      runs, "integrate", "--run-id", "run-ordered", "--unit-id", "U",
+      "--commit-message", "feat(test): accept second recipient", "--", "true",
+    ).word).toBe("UNIT_COMMITTED")
+    const receipt = ctl(runs, "status", "--run-id", "run-ordered").body.units.U.attempts[1].routing_finalization.receipt
+    expect(receipt.attempts.map((attempt: any) => attempt.outcome)).toEqual(["failed", "ok"])
+    expect(receipt.attempts.map((attempt: any) => attempt.terminal_status)).toEqual(["next_candidate", "accept"])
+  })
+
+  test("carries preflight unavailable candidates into resolver finalization history", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`routing:
+  profiles:
+    ordered:
+      candidates:
+        - { harness: codex, model: gpt-5-mini }
+        - { harness: claude, model: sonnet }
+  classes:
+    implementation: { profile: ordered, policy: prefer }
+`)
+    expect(initWithRouting(runs, "run-preflight-unavailable", f, home).word).toBe("READY")
+    expect(lockRoutingAttempt(
+      runs, "run-preflight-unavailable", "U", "attempt-1", 1, "claude", [],
+      [{ ordinal: 0, status: "unavailable", reason: "codex is not installed" }],
+    ).word).toBe("ATTEMPT_LOCKED")
+    const prepared = ctl(
+      runs, "prepare", "--run-id", "run-preflight-unavailable", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("preflight fallback packet"),
+    ).body
+    writeFileSync(path.join(prepared.workspace, "preflight.txt"), "fallback recipient\n")
+    const job = fakeDoneJob(
+      runs, "run-preflight-unavailable", "U", "preflight fallback packet", "job-preflight-fallback", "completed",
+      ["preflight.txt"], { model_actual: "sonnet", model_receipt_status: "verified" },
+    )
+    ctl(
+      runs, "record-job", "--run-id", "run-preflight-unavailable", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    expect(ctl(
+      runs, "terminalize", "--run-id", "run-preflight-unavailable", "--unit-id", "U",
+    ).word).toBe("INTEGRATION_PENDING")
+    expect(ctl(
+      runs, "integrate", "--run-id", "run-preflight-unavailable", "--unit-id", "U",
+      "--commit-message", "feat(test): accept preflight fallback", "--", "true",
+    ).word).toBe("UNIT_COMMITTED")
+    const receipt = ctl(
+      runs, "status", "--run-id", "run-preflight-unavailable",
+    ).body.units.U.attempts[0].routing_finalization.receipt
+    expect(receipt.attempts.map((attempt: any) => attempt.outcome)).toEqual(["unavailable", "ok"])
+    expect(receipt.attempts[0]).toMatchObject({
+      identity_status: "unavailable",
+      fallback_reason: "route_unavailable",
+      terminal_status: "next_candidate",
     })
   })
 

@@ -5,10 +5,10 @@ Load this reference only when the owning skill is about to read Compound Enginee
 ## Resolve
 
 1. Materialize the roles the owning workflow already selected. Do not activate an optional role because it has a route.
-2. Build one `ce-routing/v1` `resolve_batch` request for the selected wave. A first-wave request includes stable role IDs, runtime instance metadata, the current harness and serving family when known, and normalized current-task routing intent. A child or recovery request includes the exact full parent snapshot envelope (the prior `snapshot` object) as `parent_snapshot`; it may also include `parent_snapshot_id`, but that ID must match the envelope. An ID-only parent request is rejected with `CONTEXT_STALE`.
+2. Build one `ce-routing/v1` `resolve_batch` request for the selected wave. A first-wave request includes stable role IDs, runtime instance metadata, the current harness and serving family when known, and normalized current-task routing intent. A task intent may name a configured `{profile, policy}` or carry an exact data-only `{policy, candidates}` binding when the current task names a direct recipient; the resolver validates and freezes either form before dispatch. The resolver reads generalized and owning legacy recipient settings together, normalizes their precedence into each resolution, and freezes field-level compatibility provenance plus the role instances in the snapshot. A child or recovery request includes the exact full parent snapshot envelope (the prior `snapshot` object) as `parent_snapshot`; it may also include `parent_snapshot_id`, but that ID must match the envelope. An ID-only parent request is rejected with `CONTEXT_STALE`.
 3. Write the request to an effective-user-private temporary file. From this skill's directory, invoke the co-located resolver with `python3 -I -S "$SKILL_DIR/scripts/ce-routing.py" --request-file <request-path>`. The `SKILL_DIR` assignment and invocation must be in the same shell call.
 4. Treat malformed config, unknown roles/profiles, unsafe sources, context conflicts, and required-route failures as blockers for the affected dispatch. Do not ask for a fallback.
-5. Freeze the returned snapshot for the top-level run. Nested work and recovery pass the full frozen envelope rather than rereading live config. The resolver validates its protocol, content-derived ID, source/routing provenance, intents, and request context before resolving from it.
+5. Freeze the returned snapshot and each candidate-specific `attempt_lock` for the top-level run. Nested work and recovery pass the full frozen envelope rather than rereading live config. The resolver validates its protocol, content-derived ID, source/routing/compatibility provenance, intents, role instances, and request context before resolving from it.
 
 The resolver is a local control-plane read. Authorizing that exact command does not grant the worker shell, file, network, or mutation capabilities.
 
@@ -23,11 +23,17 @@ The resolver is a local control-plane read. Authorizing that exact command does 
 
 ## Finalize
 
-Call `finalize_attempt` with the frozen binding, exact boolean attempt state, adapter-owned serving evidence, and `prior_attempts` from the preceding receipt when the ordinal is greater than zero, before consuming or integrating output.
+Finalize profile candidate attempts only. A top-level `ce-default` binding has no candidate attempt lock and preserves the owning skill's built-in path without a finalization call; an explicit `ce-default` candidate inside a profile remains lock-bound and is finalized normally.
+
+Call `finalize_attempt` with the exact self-validating `snapshot`, candidate `attempt_lock`, boolean attempt state, typed adapter `outcome` (`ok`, `unavailable`, or `failed`), adapter-owned serving evidence, and complete `prior_attempts` from the preceding receipt when the ordinal is greater than zero. Do not send a binding: finalization re-resolves role, instance, class, policy, candidate ordinal, selectors, and binding digest from the snapshot before output may be consumed or integrated.
 
 - `accept` permits the owning workflow to consume the result.
 - `next_candidate` permits a fresh host-owned qualification and authorization decision.
 - `block` stops the affected dispatch with the returned diagnostic.
-- A successful preferred attempt with missing identity evidence is `accepted_unverified`; a known mismatch may advance only while retry-safe. Required concrete model or effort fields reject missing or mismatched evidence.
+- Only an `ok` preferred attempt with missing identity evidence is `accepted_unverified`. Preferred `unavailable`, `failed`, or known-mismatch attempts may advance only while terminal, unintegrated, and backed by complete lock-bound history; required attempts block.
 
 Emit the redacted route receipt with the owning workflow's normal output. Persist it only when that workflow already owns durable state; otherwise retain it only for the current summary.
+
+## Write Identity
+
+`patch_source` also verifies that the request `writer` equals the immutable consumer identity generated beside this resolver copy. Global writes remain `ce-setup`-only; project writers remain limited to schema-owned keys. A request string cannot make one installed skill act as another writer.

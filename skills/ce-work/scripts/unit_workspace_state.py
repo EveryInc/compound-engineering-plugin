@@ -36,6 +36,7 @@ ROUTING_PROTOCOL = "ce-routing/v1"
 CE_WORK_ROUTING_PROTOCOL = "ce-work-routing/v1"
 ROUTING_ROLE = "ce-work.implementation-worker"
 ATTEMPT_LOCK_PROTOCOL = "ce-work-attempt-lock/v1"
+RESOLVER_ATTEMPT_LOCK_PROTOCOL = "ce-routing-attempt-lock/v1"
 PLAN_CHECKPOINT_MESSAGE = "docs(ce-work): checkpoint selected implementation plan"
 _uid_getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
 _EFFECTIVE_UID = _uid_getter() if _uid_getter is not None else None
@@ -543,6 +544,23 @@ def validate_routing_state(doc: dict) -> None:
         raise TrustFailure("manifest routing binding is not the CE Work implementation role")
     if routing.get("source_revisions") != resolver_snapshot.get("source_revisions"):
         raise TrustFailure("manifest routing source revisions differ from the resolver snapshot")
+    resolver_locks = routing.get("resolver_attempt_locks")
+    candidates = binding.get("candidates")
+    if not isinstance(resolver_locks, list) or not isinstance(candidates, list) or len(resolver_locks) != len(candidates):
+        raise TrustFailure("manifest resolver attempt-lock collection is malformed")
+    for ordinal, lock in enumerate(resolver_locks):
+        if (
+            not isinstance(lock, dict)
+            or lock.get("protocol") != RESOLVER_ATTEMPT_LOCK_PROTOCOL
+            or lock.get("snapshot_id") != resolver_snapshot.get("id")
+            or lock.get("role") != ROUTING_ROLE
+            or lock.get("class") != "implementation"
+            or lock.get("policy") != binding.get("policy")
+            or lock.get("candidate_ordinal") != ordinal
+            or lock.get("candidate") != candidates[ordinal]
+            or not isinstance(lock.get("lock_digest"), str)
+        ):
+            raise TrustFailure("manifest resolver attempt lock differs from the frozen routing state")
     if routing.get("binding_digest") != digest_bytes(canonical_json_bytes(binding)):
         raise TrustFailure("manifest routing binding digest is invalid")
     frozen_material = {
@@ -635,71 +653,6 @@ def _routing_resolver(request: dict, *, accepted_exit_codes: set[int] | None = N
             {"routing_error": error, "resolver_exit": proc.returncode},
         )
     return response, proc.returncode
-
-
-def _binding_rank(source_layer: object) -> int:
-    return {
-        "task": 0,
-        "project-role": 10,
-        "project-legacy-work-engine": 20,
-        "project-class": 30,
-        "global-role": 40,
-        "global-legacy-work-engine": 50,
-        "global-class": 60,
-        "builtin": 70,
-    }.get(source_layer, 100)
-
-
-def _legacy_work_engine_binding(response: dict) -> tuple[dict | None, dict]:
-    settings = response.get("settings")
-    if not isinstance(settings, dict):
-        raise Operational("BLOCKED", "routing resolver omitted effective settings")
-    effective = settings.get("effective")
-    provenance = settings.get("provenance")
-    if not isinstance(effective, dict) or not isinstance(provenance, dict):
-        raise Operational("BLOCKED", "routing resolver settings provenance is malformed")
-    mode = effective.get("work_engine_mode")
-    preferences = effective.get("work_engine_preferences")
-    mode_provenance = provenance.get("work_engine_mode", {})
-    preferences_provenance = provenance.get("work_engine_preferences", {})
-    mode_layer = mode_provenance.get("layer") if isinstance(mode_provenance, dict) else None
-    preferences_layer = preferences_provenance.get("layer") if isinstance(preferences_provenance, dict) else None
-    compatibility = {
-        "applied": False,
-        "mode": mode,
-        "mode_source": mode_layer,
-        "preferences_source": preferences_layer,
-    }
-    if mode not in {"prefer", "require"} or not isinstance(preferences, list) or not preferences:
-        return None, compatibility
-    candidates = []
-    for ordinal, candidate in enumerate(preferences):
-        if not isinstance(candidate, dict):
-            raise Operational("BLOCKED", "effective work_engine_preferences is malformed")
-        projected = copy.deepcopy(candidate)
-        projected["ordinal"] = ordinal
-        candidates.append(projected)
-    if mode == "prefer":
-        candidates.append({"kind": "ce-default", "ordinal": len(candidates)})
-    layer = "project" if "project" in {mode_layer, preferences_layer} else "global"
-    source_authority = all(
-        bool(item.get("authority_trusted"))
-        for item in (mode_provenance, preferences_provenance)
-        if isinstance(item, dict) and item.get("layer") != "builtin"
-    )
-    binding = {
-        "kind": "profile",
-        "explicit_reset": False,
-        "source_layer": f"{layer}-legacy-work-engine",
-        "source_authority": source_authority,
-        "source": "merged-effective-settings",
-        "role": ROUTING_ROLE,
-        "class": "implementation",
-        "profile": "legacy-work-engine",
-        "policy": mode,
-        "candidates": candidates,
-    }
-    return binding, compatibility
 
 
 def _direct_implementation_binding(value: object) -> dict | None:
@@ -799,6 +752,22 @@ def resolve_implementation_routing(request_bytes: bytes, repo: str) -> dict:
         raise Operational("REFUSED", "implementation_intent cannot be combined with another applicable task routing intent")
     resolver_request = copy.deepcopy(request)
     resolver_request.pop("implementation_intent", None)
+    if direct_binding is not None:
+        resolver_request["intents"] = copy.deepcopy(intents) + [{
+            "role": ROUTING_ROLE,
+            "source": direct_binding.get("source", "current-task"),
+            "binding": (
+                "ce-default"
+                if direct_binding.get("kind") == "ce-default"
+                else {
+                    "policy": direct_binding["policy"],
+                    "candidates": [
+                        {key: value for key, value in candidate.items() if key != "ordinal"}
+                        for candidate in direct_binding["candidates"]
+                    ],
+                }
+            ),
+        }]
     response, _ = _routing_resolver(resolver_request)
     resolutions = response.get("resolutions")
     if not isinstance(resolutions, list) or len(resolutions) != len(roles):
@@ -810,13 +779,14 @@ def resolve_implementation_routing(request_bytes: bytes, repo: str) -> dict:
     if any(canonical_json_bytes(binding) != canonical_json_bytes(first_binding) for binding in bindings[1:]):
         raise Operational("BLOCKED", "implementation instances resolved to conflicting bindings")
 
+    first_resolution = resolutions[0]
+    resolver_attempt_locks = first_resolution.get("attempt_locks")
+    candidates = first_binding.get("candidates")
+    if not isinstance(resolver_attempt_locks, list) or not isinstance(candidates, list) or len(resolver_attempt_locks) != len(candidates):
+        raise Operational("BLOCKED", "routing resolver returned incomplete implementation attempt locks")
+    binding = copy.deepcopy(first_binding)
     generalized = copy.deepcopy(first_binding)
-    compatibility_binding, compatibility = _legacy_work_engine_binding(response)
-    binding = direct_binding or generalized
-    if direct_binding is None and generalized.get("explicit_reset") is not True and compatibility_binding is not None:
-        if _binding_rank(compatibility_binding.get("source_layer")) < _binding_rank(generalized.get("source_layer")):
-            binding = compatibility_binding
-            compatibility["applied"] = True
+    compatibility = copy.deepcopy(first_resolution.get("compatibility", {}))
 
     snapshot = response.get("snapshot")
     sources = response.get("sources")
@@ -844,6 +814,7 @@ def resolve_implementation_routing(request_bytes: bytes, repo: str) -> dict:
         "binding_digest": binding_digest,
         "generalized_binding": generalized,
         "compatibility": compatibility,
+        "resolver_attempt_locks": copy.deepcopy(resolver_attempt_locks),
         "attempt_locks": {},
         "receipts": [],
     }
@@ -1356,6 +1327,92 @@ def _resolver_serving_report(candidate: dict, result: dict) -> dict:
     return report
 
 
+def _resolver_adapter_outcome(attempt: dict, result: dict) -> str:
+    terminal_status = result.get("terminal_status")
+    if terminal_status in {"unavailable", "failed"}:
+        return terminal_status
+    return "ok" if attempt.get("process_state") == "done" else "failed"
+
+
+def _resolver_history_entry(routing: dict, ordinal: int, outcome: str) -> dict:
+    locks = routing["resolver_attempt_locks"]
+    if ordinal < 0 or ordinal >= len(locks):
+        raise TrustFailure("routing attempt history ordinal is outside the frozen resolver binding")
+    identity, reason = {
+        "unavailable": ("unavailable", "route_unavailable"),
+        "failed": ("failed", "attempt_failed"),
+    }[outcome]
+    return {
+        "ordinal": ordinal,
+        "outcome": outcome,
+        "identity_status": identity,
+        "terminal": True,
+        "integrated": False,
+        "fallback_reason": reason,
+        "terminal_status": "next_candidate",
+        "attempt_lock_digest": locks[ordinal]["lock_digest"],
+    }
+
+
+def _resolver_prior_attempts(unit: dict, routing: dict, ordinal: int) -> list[dict]:
+    if ordinal == 0:
+        return []
+    history: dict[int, dict] = {}
+
+    def remember(item: object) -> None:
+        if not isinstance(item, dict) or not isinstance(item.get("ordinal"), int):
+            raise TrustFailure("stored resolver attempt history is malformed")
+        item_ordinal = item["ordinal"]
+        existing = history.get(item_ordinal)
+        if existing is not None and existing != item:
+            raise TrustFailure("stored resolver attempt history conflicts")
+        history[item_ordinal] = copy.deepcopy(item)
+
+    local_locks = routing.get("attempt_locks", {}).get(unit.get("unit_id"), {})
+    if not isinstance(local_locks, dict):
+        raise TrustFailure("routing attempt-lock history is malformed")
+    attempts = unit.get("attempts")
+    if not isinstance(attempts, list):
+        raise TrustFailure("unit attempt history is malformed")
+    attempts_by_id = {
+        attempt.get("attempt_id"): attempt
+        for attempt in attempts
+        if isinstance(attempt, dict) and isinstance(attempt.get("attempt_id"), str)
+    }
+    for attempt_id, local_lock in local_locks.items():
+        if not isinstance(local_lock, dict):
+            raise TrustFailure("routing attempt-lock history entry is malformed")
+        for row in local_lock.get("preflight", []):
+            if not isinstance(row, dict) or row.get("status") != "unavailable" or not isinstance(row.get("ordinal"), int):
+                raise TrustFailure("routing preflight history entry is malformed")
+            remember(_resolver_history_entry(routing, row["ordinal"], "unavailable"))
+
+        prior = attempts_by_id.get(attempt_id)
+        if not isinstance(prior, dict):
+            continue
+        finalization = prior.get("routing_finalization")
+        receipt = finalization.get("receipt") if isinstance(finalization, dict) else None
+        receipt_attempts = receipt.get("attempts") if isinstance(receipt, dict) else None
+        if isinstance(receipt_attempts, list):
+            for item in receipt_attempts:
+                remember(item)
+            continue
+        candidate_ordinal = local_lock.get("candidate_ordinal")
+        if (
+            isinstance(candidate_ordinal, int)
+            and candidate_ordinal < ordinal
+            and prior.get("process_state") in TERMINAL_PROCESS - {"done"}
+        ):
+            terminal_receipt = prior.get("terminal_receipt")
+            terminal_status = terminal_receipt.get("terminal_status") if isinstance(terminal_receipt, dict) else None
+            outcome = terminal_status if terminal_status in {"unavailable", "failed"} else "failed"
+            remember(_resolver_history_entry(routing, candidate_ordinal, outcome))
+
+    if set(history) != set(range(ordinal)):
+        raise Operational("BLOCKED", "routed attempt lacks complete resolver-bound prior attempt history")
+    return [history[index] for index in range(ordinal)]
+
+
 def finalize_routing_attempt(run_id: str, unit_id: str, *, require_result: bool = True) -> dict | None:
     with locked_manifest(run_id) as doc:
         validate_repo(doc)
@@ -1370,22 +1427,31 @@ def finalize_routing_attempt(run_id: str, unit_id: str, *, require_result: bool 
         existing = attempt.get("routing_finalization")
         result, result_digest = routing_result_evidence(unit, attempt, required=require_result)
         if isinstance(existing, dict):
-            if existing.get("result_sha256") != result_digest or existing.get("attempt_lock_digest") != lock["lock_digest"]:
+            resolver_lock = routing["resolver_attempt_locks"][lock["candidate_ordinal"]]
+            if (
+                existing.get("result_sha256") != result_digest
+                or existing.get("attempt_lock_digest") != lock["lock_digest"]
+                or existing.get("resolver_attempt_lock_digest") != resolver_lock["lock_digest"]
+            ):
                 raise Operational("BLOCKED", "stored routing finalization no longer matches terminal evidence")
             return copy.deepcopy(existing)
-        binding = copy.deepcopy(routing["binding"])
+        resolver_lock = copy.deepcopy(routing["resolver_attempt_locks"][lock["candidate_ordinal"]])
         candidate = lock["candidate"]
+        outcome = _resolver_adapter_outcome(attempt, result)
         request = {
             "protocol": ROUTING_PROTOCOL,
             "op": "finalize_attempt",
             "cwd": doc["repository"]["toplevel"],
-            "binding": binding,
+            "snapshot": copy.deepcopy(routing["resolver_snapshot"]),
+            "attempt_lock": resolver_lock,
             "attempt": {
                 "ordinal": lock["candidate_ordinal"],
                 "terminal": attempt.get("process_state") in TERMINAL_PROCESS,
                 "integrated": integration_effect_started(unit),
             },
-            "report": _resolver_serving_report(candidate, result),
+            "outcome": outcome,
+            "report": _resolver_serving_report(candidate, result) if outcome == "ok" else {},
+            "prior_attempts": _resolver_prior_attempts(unit, routing, lock["candidate_ordinal"]),
         }
         manifest_revision = doc["revision"]
     response, _ = _routing_resolver(request, accepted_exit_codes={0, 4})
@@ -1401,6 +1467,7 @@ def finalize_routing_attempt(run_id: str, unit_id: str, *, require_result: bool 
         "next_candidate": copy.deepcopy(response.get("next_candidate")),
         "result_sha256": result_digest,
         "attempt_lock_digest": lock["lock_digest"],
+        "resolver_attempt_lock_digest": resolver_lock["lock_digest"],
         "binding_digest": routing["binding_digest"],
     }
     with locked_manifest(run_id, write=True) as doc:

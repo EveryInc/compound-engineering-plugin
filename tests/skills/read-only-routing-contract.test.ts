@@ -47,6 +47,43 @@ async function fixture() {
   return { root, home, project }
 }
 
+async function resolveRole(
+  f: Awaited<ReturnType<typeof fixture>>,
+  role: string,
+  policy: "prefer" | "require",
+  instance: Record<string, unknown> = { id: "peer", ordinal: 0 },
+) {
+  await writeFile(
+    path.join(f.home, "config.yaml"),
+    `routing:\n  profiles:\n    test-route:\n      candidates:\n        - { harness: claude, model: opus }\n        - { harness: codex, model: gpt-5.6-luna }\n  roles:\n    ${role}: { profile: test-route, policy: ${policy} }\n`,
+    { mode: 0o600 },
+  )
+  return runResolver({
+    protocol: "ce-routing/v1",
+    op: "resolve_batch",
+    cwd: f.project,
+    intents: [],
+    roles: [{ role, instance }],
+  }, f.project, f.home)
+}
+
+function finalizeRequest(
+  resolved: Awaited<ReturnType<typeof runResolver>>,
+  outcome: "ok" | "unavailable" | "failed",
+  report: Record<string, unknown>,
+  attempt: Record<string, unknown>,
+) {
+  return {
+    protocol: "ce-routing/v1",
+    op: "finalize_attempt",
+    snapshot: resolved.body.snapshot,
+    attempt_lock: resolved.body.resolutions[0].attempt_locks[0],
+    attempt,
+    outcome,
+    report,
+  }
+}
+
 describe("specialized read-only routing contract", () => {
   test("every owning reference freezes resolution before qualification and finalizes before consumption", async () => {
     for (const relative of references) {
@@ -76,11 +113,11 @@ describe("specialized read-only routing contract", () => {
     expect(body).toMatch(/exact legacy no-routing behavior.*do not elevate/i)
   })
 
-  test("legacy settings come only from merged inspect output", async () => {
+  test("legacy settings come only from the frozen resolve_batch compatibility output", async () => {
     for (const relative of references) {
       const body = await readFile(path.join(ROOT, relative), "utf8")
-      expect(body, relative).toContain("inspect")
-      expect(body, relative).toContain("settings.effective")
+      expect(body, relative).toContain("resolution.compatibility")
+      expect(body, relative).not.toMatch(/^\s*\d+\.\s+(?:\*\*)?(?:run|inspect).*\binspect\b/im)
       expect(body, relative).not.toMatch(/read .*\.compound-engineering\/config\.local\.yaml/i)
     }
   })
@@ -119,11 +156,6 @@ describe("specialized read-only routing contract", () => {
       )
       await chmod(path.join(f.home, "config.yaml"), 0o600)
 
-      const inspected = await runResolver(
-        { protocol: "ce-routing/v1", op: "inspect", cwd: f.project },
-        f.project,
-        f.home,
-      )
       const resolved = await runResolver(
         {
           protocol: "ce-routing/v1",
@@ -136,11 +168,15 @@ describe("specialized read-only routing contract", () => {
         f.home,
       )
 
-      expect(inspected.exitCode).toBe(0)
-      expect(inspected.body.settings.effective.plan_model).toBe("opus")
       expect(resolved.exitCode).toBe(0)
       expect(resolved.body.resolutions[0].binding.profile).toBe("strong")
-      expect(resolved.body.sources.global.revision).toBe(inspected.body.sources.global.revision)
+      expect(resolved.body.resolutions[0].compatibility).toMatchObject({
+        kind: "plan-model",
+        applied: false,
+        reason: "higher-route",
+        values: { plan_model: "opus" },
+        provenance: { plan_model: { layer: "global", authority_trusted: true } },
+      })
       expect(resolved.body.snapshot.id).toMatch(/^cesnap-v1:/)
     } finally {
       await rm(f.root, { recursive: true, force: true })
@@ -155,28 +191,13 @@ describe("specialized read-only routing contract", () => {
   ])("finalize_attempt: %s", async (_name, policy, terminal, integrated, report, action, identity) => {
     const f = await fixture()
     try {
-      const result = await runResolver(
-        {
-          protocol: "ce-routing/v1",
-          op: "finalize_attempt",
-          cwd: f.project,
-          binding: {
-            role: "ce-code-review.adversarial-reviewer",
-            class: "review",
-            profile: "peer",
-            source_layer: "global-role",
-            policy,
-            candidates: [
-              { harness: "claude", model: "opus", ordinal: 0 },
-              { harness: "codex", model: "gpt-5.6-luna", ordinal: 1 },
-            ],
-          },
-          attempt: { ordinal: 0, terminal, integrated },
-          report,
-        },
-        f.project,
-        f.home,
-      )
+      const resolved = await resolveRole(f, "ce-code-review.adversarial-reviewer", policy as "prefer" | "require")
+      const result = await runResolver(finalizeRequest(
+        resolved,
+        "ok",
+        report,
+        { ordinal: 0, terminal, integrated },
+      ), f.project, f.home)
       expect(result.body.action).toBe(action)
       expect(result.body.receipt.identity_status).toBe(identity)
     } finally {
@@ -190,28 +211,13 @@ describe("specialized read-only routing contract", () => {
   ])("a mismatched preferred attempt cannot advance when terminal=%s integrated=%s", async (terminal, integrated) => {
     const f = await fixture()
     try {
-      const result = await runResolver(
-        {
-          protocol: "ce-routing/v1",
-          op: "finalize_attempt",
-          cwd: f.project,
-          binding: {
-            role: "ce-pov.panel-peer",
-            class: "reasoning",
-            profile: "panel",
-            source_layer: "global-class",
-            policy: "prefer",
-            candidates: [
-              { harness: "claude", model: "opus", ordinal: 0 },
-              { harness: "codex", model: "gpt-5.6-sol", ordinal: 1 },
-            ],
-          },
-          attempt: { ordinal: 0, terminal, integrated },
-          report: { model_actual: "other" },
-        },
-        f.project,
-        f.home,
-      )
+      const resolved = await resolveRole(f, "ce-pov.panel-peer", "prefer")
+      const result = await runResolver(finalizeRequest(
+        resolved,
+        "ok",
+        { model_actual: "other" },
+        { ordinal: 0, terminal, integrated },
+      ), f.project, f.home)
       expect(result.exitCode).toBe(4)
       expect(result.body.error.code).toBe("RETRY_UNSAFE")
     } finally {

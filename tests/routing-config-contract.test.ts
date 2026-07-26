@@ -78,13 +78,34 @@ describe("routing configuration contract", () => {
     const protocol = JSON.parse(await readFile(protocolPath, "utf8")) as {
       protocol: string
       operations: string[]
+      attempt_lock_protocol: string
+      adapter_outcomes: string[]
+      finalize_request_fields: string[]
+      task_binding_fields: Record<string, string[]>
       receipt_fields: string[]
       error_codes: string[]
     }
 
     expect(protocol.protocol).toBe("ce-routing/v1")
     expect(protocol.operations).toEqual(["inspect", "resolve_batch", "finalize_attempt", "patch_source"])
+    expect(protocol.attempt_lock_protocol).toBe("ce-routing-attempt-lock/v1")
+    expect(protocol.adapter_outcomes).toEqual(["ok", "unavailable", "failed"])
+    expect(protocol.finalize_request_fields).toEqual([
+      "snapshot",
+      "attempt_lock",
+      "attempt",
+      "outcome",
+      "report",
+      "prior_attempts",
+    ])
+    expect(protocol.task_binding_fields).toEqual({
+      profile: ["profile", "policy"],
+      direct: ["policy", "candidates"],
+    })
     for (const field of [
+      "snapshot_id",
+      "binding_digest",
+      "attempt_lock_digest",
       "role",
       "class",
       "profile",
@@ -96,6 +117,7 @@ describe("routing configuration contract", () => {
       "effort_requested",
       "model_requested",
       "model_actual",
+      "adapter_outcome",
       "identity_status",
       "attempts",
       "terminal_status",
@@ -108,6 +130,8 @@ describe("routing configuration contract", () => {
       "REFERENCE_UNKNOWN",
       "IDENTITY_REQUIRED",
       "IDENTITY_MISMATCH",
+      "ATTEMPT_FAILED",
+      "ATTEMPT_LOCK_INVALID",
       "RETRY_UNSAFE",
       "WRITE_CONFLICT",
     ]) {
@@ -153,6 +177,7 @@ describe("routing configuration contract", () => {
     expect(body).toMatch(/full.*snapshot envelope|snapshot envelope.*full/i)
     expect(body).toMatch(/ID-only.*CONTEXT_STALE/i)
     expect(body).toContain("prior_attempts")
+    expect(body).toMatch(/top-level `ce-default` binding.*no candidate attempt lock/i)
   })
 })
 

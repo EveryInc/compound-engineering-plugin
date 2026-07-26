@@ -78,23 +78,22 @@ the count, replaces a named peer, changes `independent` versus `skeptic`, or
 alters the round cap. Once the branch above fixes participants, and before any
 payload or prompt is assembled:
 
-1. Run the co-located resolver's `inspect` operation once. Read legacy
-   `cross_model_peer` only from `settings.effective` and its provenance; never
-   reopen or parse project/global settings at this seam. Normalize a named or
-   conversational peer as current-task route intent and a non-null merged value
-   as private `legacy` route intent.
-2. Issue one `ce-routing/v1` `resolve_batch` with one instance of stable role
-   `ce-pov.panel-peer` per already-selected peer. Use the grounding snapshot as
-   `parent_snapshot_id` when present; otherwise freeze this first snapshot.
-   Retain its source revisions, bindings, ordered candidates, and participant
-   association for every initial and reconcile round.
-3. Current-task exact names win. Otherwise explicit generalized task/role
-   bindings or `ce-default` resets win. A project legacy intent outranks
-   project/global class defaults; a global legacy intent outranks a global class
-   default; narrower generalized role or project-class bindings remain higher.
-   Legacy preference synthesizes policy `prefer`: that target, the remaining
-   shipped discovery order, then solo CE-default. With no routing or legacy
-   preference, preserve the prior participant and route behavior byte-for-byte.
+1. Issue one `ce-routing/v1` `resolve_batch` with normalized named/conversational
+   intent and one instance of stable role `ce-pov.panel-peer` per already-selected
+   peer. Pass the full grounding snapshot envelope when present; otherwise freeze this first snapshot.
+   Retain its source revisions, bindings, candidate attempt
+   locks, ordered candidates, and participant association for every round.
+2. Read legacy `cross_model_peer` only from each `resolution.compatibility`,
+   including field-level provenance and the `applied` decision. Do not run a
+   separate `inspect` or parse project/global settings; generalized and legacy
+   inputs were read in the same frozen snapshot and never enter peer text.
+3. Consume each returned binding. The resolver applies task, project role,
+   owning project compatibility, project class, global role, owning global
+   compatibility, global class, then built-in precedence; a narrower
+   `ce-default` reset stops lower inheritance. Legacy preference is already
+   normalized to that target, remaining shipped discovery order, then solo
+   CE-default. With no generalized route and no applied compatibility route,
+   preserve prior participant/route behavior.
 
 For a named peer, a profile candidate is eligible only when it preserves that
 exact target; an incompatible candidate is unavailable rather than a
@@ -283,18 +282,17 @@ interface. Accept only schema-shaped artifacts with non-empty `position` and
 responses require `movement: initial`; reconcile responses require `moved` or
 `held` plus what changed or why the new evidence was insufficient.
 
-Keep every usable artifact quarantined and call `finalize_attempt` with its
-frozen binding and `{ordinal, terminal:true, integrated:false}` before consuming
-the position. Normalize evidence for the resolver: matched family evidence uses
-the candidate's requested model token while retaining the raw served ID in the
-adapter record; literal `unverified` omits the corresponding actual field; known
-mismatch passes the actual value. Do the same for effort. `accept` admits the
-voice. A successful preferred attempt with absent identity evidence records
-`accepted_unverified`. `next_candidate` is legal only for a known mismatch while
-retry-safe: discard/delete the old artifact, freshly sanction and disclose the
-next declared recipient/material, and launch a new job. `block` discards output
-and records the required route failure without prompting. Required unavailable,
-mismatched, or unverified requested model/effort never enters convergence.
+Keep every artifact quarantined and convert adapter state to typed outcome `ok`,
+`unavailable`, or `failed`. Call `finalize_attempt` with the exact snapshot,
+candidate `attempt_lock`, outcome, terminal/integrated booleans, complete prior
+receipt history, and identity evidence before consuming any position; never send a binding. For `ok`, matched
+family evidence uses the requested token while retaining the raw served ID,
+literal `unverified` omits the actual field, and mismatch passes the actual value.
+`accept` admits the voice. Only a successful preferred `ok` attempt with absent
+identity evidence records `accepted_unverified`. `next_candidate` is legal only
+for unavailable, failed, or known-mismatch terminal unintegrated attempts with
+complete lock-bound history: discard output, freshly sanction/disclose the next
+recipient/material, and launch a new job. Required failures block without prompt.
 
 Expose the redacted `finalize_attempt` receipt in the panel record: role/class,
 profile/source, policy, requested selectors, actual or unverified identity,

@@ -26,6 +26,29 @@ CONFIG_REVISION = re.compile(r"^cecfg-v1:(?:absent|[0-9a-f]{64})$")
 SNAPSHOT_ID = re.compile(r"^cesnap-v1:[0-9a-f]{64}$")
 FALLBACK_TOKEN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 MAX_ATTEMPT_HISTORY = 128
+ATTEMPT_LOCK_PROTOCOL = "ce-routing-attempt-lock/v1"
+ADAPTER_OUTCOMES = ("ok", "unavailable", "failed")
+COMPATIBILITY_KEYS = (
+    "plan_model",
+    "brainstorm_model",
+    "cross_model_peer",
+    "work_engine_mode",
+    "work_engine_preferences",
+)
+COMPATIBILITY_ROLE_SPECS = {
+    "ce-plan.plan-author": ("plan-model", ("plan_model",)),
+    "ce-brainstorm.approach-generator": ("brainstorm-model", ("brainstorm_model",)),
+    "ce-code-review.adversarial-reviewer": ("cross-model-peer", ("cross_model_peer",)),
+    "ce-doc-review.product-lens-peer": ("cross-model-peer", ("cross_model_peer",)),
+    "ce-doc-review.security-lens-peer": ("cross-model-peer", ("cross_model_peer",)),
+    "ce-doc-review.adversarial-document-peer": ("cross-model-peer", ("cross_model_peer",)),
+    "ce-doc-review.whole-doc-peer": ("cross-model-peer", ("cross_model_peer",)),
+    "ce-pov.panel-peer": ("cross-model-peer", ("cross_model_peer",)),
+    "ce-work.implementation-worker": (
+        "work-engine",
+        ("work_engine_mode", "work_engine_preferences"),
+    ),
+}
 O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
 GIT_LOCAL_ENV_VARS = {
@@ -92,6 +115,16 @@ def load_json_asset(canonical_name, generated_name):
     if not isinstance(value, dict):
         raise RoutingError("ASSET_INVALID", "routing asset root must be an object", asset=generated_name)
     return value
+
+
+def load_consumer_identity():
+    value = load_json_asset("consumer-identity.json", "ce-routing-consumer.json")
+    if value.get("version") != 1 or set(value) != {"version", "consumer"}:
+        raise RoutingError("ASSET_INVALID", "routing consumer identity has an invalid shape")
+    consumer = value.get("consumer")
+    if not isinstance(consumer, str) or not NAME_TOKEN.fullmatch(consumer):
+        raise RoutingError("ASSET_INVALID", "routing consumer identity is malformed")
+    return consumer
 
 
 def validate_role_catalog(value):
@@ -769,6 +802,21 @@ def validate_binding(value, schema, setting):
     return {"profile": profile, "policy": value["policy"]}
 
 
+def validate_intent_binding(value, schema):
+    if not isinstance(value, dict) or set(value) != {"policy", "candidates"}:
+        return validate_binding(value, schema, "intent.binding")
+    if value["policy"] not in ("prefer", "require"):
+        raise RoutingError("SETTING_INVALID", "intent.binding policy must be prefer or require", setting="intent.binding")
+    candidates = value["candidates"]
+    if not isinstance(candidates, list) or not candidates:
+        raise RoutingError("SETTING_INVALID", "intent.binding candidates must be a non-empty list", setting="intent.binding")
+    source = {"authority_trusted": True, "diagnostics": []}
+    candidates = [validate_candidate(item, schema, source, "intent.binding.candidates") for item in candidates]
+    if "ce-default" in candidates and candidates[-1] != "ce-default":
+        raise RoutingError("SETTING_INVALID", "ce-default must be the final intent candidate", setting="intent.binding")
+    return {"policy": value["policy"], "candidates": candidates}
+
+
 def validate_routing(value, schema, roles, source):
     if value is None:
         return None
@@ -994,6 +1042,190 @@ def merge_settings(global_source, project_source, schema):
     return effective, provenance, authority, routing_state
 
 
+def freeze_compatibility(effective, provenance):
+    return {
+        "values": {key: copy.deepcopy(effective[key]) for key in COMPATIBILITY_KEYS},
+        "provenance": {key: copy.deepcopy(provenance[key]) for key in COMPATIBILITY_KEYS},
+    }
+
+
+def validate_snapshot_compatibility(value, source_revisions, routing_state, schema):
+    if not isinstance(value, dict) or set(value) != {"values", "provenance"}:
+        raise RoutingError("CONTEXT_STALE", "parent snapshot compatibility state is malformed", exit_code=4)
+    values = value["values"]
+    provenance = value["provenance"]
+    if (
+        not isinstance(values, dict)
+        or not isinstance(provenance, dict)
+        or set(values) != set(COMPATIBILITY_KEYS)
+        or set(provenance) != set(COMPATIBILITY_KEYS)
+    ):
+        raise RoutingError("CONTEXT_STALE", "parent snapshot compatibility fields are malformed", exit_code=4)
+
+    normalized_values = {}
+    normalized_provenance = {}
+    for key in COMPATIBILITY_KEYS:
+        item = provenance[key]
+        if not isinstance(item, dict) or set(item) != {"layer", "revision", "authority_trusted"}:
+            raise RoutingError("CONTEXT_STALE", "parent snapshot compatibility provenance is malformed", exit_code=4)
+        layer = item["layer"]
+        if layer == "builtin":
+            if item["revision"] is not None or item["authority_trusted"] is not False:
+                raise RoutingError("CONTEXT_STALE", "parent snapshot builtin provenance is inconsistent", exit_code=4)
+            if values[key] != schema["settings"][key].get("default"):
+                raise RoutingError("CONTEXT_STALE", "parent snapshot builtin compatibility value is inconsistent", exit_code=4)
+        elif layer in ("global", "project"):
+            if (
+                item["revision"] != source_revisions[layer]
+                or type(item["authority_trusted"]) is not bool
+                or item["authority_trusted"] != routing_state["layers"][layer]["authority_trusted"]
+            ):
+                raise RoutingError("CONTEXT_STALE", "parent snapshot compatibility provenance is inconsistent", exit_code=4)
+        else:
+            raise RoutingError("CONTEXT_STALE", "parent snapshot compatibility layer is malformed", exit_code=4)
+        source = {"authority_trusted": item["authority_trusted"], "diagnostics": []}
+        try:
+            normalized_values[key] = validate_value(
+                copy.deepcopy(values[key]),
+                schema["settings"][key],
+                schema,
+                source,
+                key,
+            )
+        except RoutingError as exc:
+            raise RoutingError("CONTEXT_STALE", "parent snapshot compatibility value is invalid", exit_code=4) from exc
+        normalized_provenance[key] = copy.deepcopy(item)
+    return {"values": normalized_values, "provenance": normalized_provenance}
+
+
+def compatibility_metadata(role, compatibility):
+    role_spec = COMPATIBILITY_ROLE_SPECS.get(role)
+    if role_spec is None:
+        return None
+    kind, keys = role_spec
+    return {
+        "kind": kind,
+        "applied": False,
+        "reason": "inactive",
+        "values": {key: copy.deepcopy(compatibility["values"][key]) for key in keys},
+        "provenance": {key: copy.deepcopy(compatibility["provenance"][key]) for key in keys},
+    }
+
+
+def compatibility_layer(keys, compatibility):
+    layers = {compatibility["provenance"][key]["layer"] for key in keys}
+    if "project" in layers:
+        return "project"
+    if "global" in layers:
+        return "global"
+    return None
+
+
+def require_compatibility_authority(role, keys, compatibility):
+    for key in keys:
+        provenance = compatibility["provenance"][key]
+        if provenance["layer"] == "project" and not provenance["authority_trusted"]:
+            raise RoutingError(
+                "AUTHORITY_UNTRUSTED",
+                "recipient-bearing compatibility setting requires trusted project provenance",
+                exit_code=4,
+                role=role,
+                setting=key,
+            )
+
+
+def append_unique_candidate(candidates, candidate):
+    if not any(canonical_json(item) == canonical_json(candidate) for item in candidates):
+        candidates.append(candidate)
+
+
+def materialize_candidates(candidates):
+    normalized = []
+    for ordinal, candidate in enumerate(candidates):
+        if candidate == "ce-default":
+            normalized.append({"kind": "ce-default", "ordinal": ordinal})
+        else:
+            current = copy.deepcopy(candidate)
+            current["ordinal"] = ordinal
+            normalized.append(current)
+    return normalized
+
+
+def elevation_compatibility_candidates(model, host, schema):
+    candidates = []
+    allowed_harnesses = set(schema["structured_types"]["execution_candidate"]["fields"]["harness"]["values"])
+    host_harness = host.get("harness") if isinstance(host, dict) else None
+    if host_harness in allowed_harnesses:
+        append_unique_candidate(candidates, {"harness": host_harness, "model": model})
+    append_unique_candidate(candidates, {"harness": "claude", "model": model, "effort": "high"})
+    candidates.append("ce-default")
+    return candidates
+
+
+def peer_compatibility_candidates(target):
+    order = [target] + [item for item in ("codex", "claude", "grok", "composer") if item != target]
+    candidates = []
+    for harness in order:
+        append_unique_candidate(candidates, {"harness": harness})
+    candidates.append("ce-default")
+    return candidates
+
+
+def compatibility_binding(role, class_name, compatibility, host, schema):
+    kind, keys = COMPATIBILITY_ROLE_SPECS[role]
+    values = compatibility["values"]
+    policy = "prefer"
+    profile = "legacy-{}".format(kind)
+    candidates = None
+    if kind == "plan-model":
+        model = values["plan_model"]
+        if model is not None:
+            candidates = elevation_compatibility_candidates(model, host, schema)
+    elif kind == "brainstorm-model":
+        model = values["brainstorm_model"]
+        if model is not None:
+            candidates = elevation_compatibility_candidates(model, host, schema)
+    elif kind == "cross-model-peer":
+        target = values["cross_model_peer"]
+        if target is not None:
+            candidates = peer_compatibility_candidates(target)
+    else:
+        mode = values["work_engine_mode"]
+        preferences = values["work_engine_preferences"]
+        if mode in ("prefer", "require") and isinstance(preferences, list) and preferences:
+            policy = mode
+            candidates = copy.deepcopy(preferences)
+            if mode == "prefer":
+                candidates.append("ce-default")
+    if candidates is None:
+        return None
+
+    layer = compatibility_layer(keys, compatibility)
+    if layer is None:
+        return None
+    require_compatibility_authority(role, keys, compatibility)
+    authority = all(
+        compatibility["provenance"][key]["authority_trusted"]
+        for key in keys
+        if compatibility["provenance"][key]["layer"] != "builtin"
+    )
+    binding = {
+        "kind": "profile",
+        "explicit_reset": False,
+        "source_layer": "{}-legacy-{}".format(layer, kind),
+        "source_authority": authority,
+        "source": "compatibility:{}".format(kind),
+        "role": role,
+        "class": class_name,
+        "profile": profile,
+        "profile_source_layer": layer,
+        "profile_source_authority": authority,
+        "policy": policy,
+        "candidates": materialize_candidates(candidates),
+    }
+    return binding
+
+
 def bind_from_layer(value, source_layer, role, class_name, routing_state, binding_provenance):
     if value in (None, "inherit"):
         return None
@@ -1011,6 +1243,20 @@ def bind_from_layer(value, source_layer, role, class_name, routing_state, bindin
             "profile_source_authority": None,
             "policy": None,
             "candidates": [],
+        }
+    if source_layer == "task" and set(value) == {"policy", "candidates"}:
+        return {
+            "kind": "profile",
+            "explicit_reset": False,
+            "source_layer": "task",
+            "source_authority": True,
+            "role": role,
+            "class": class_name,
+            "profile": "current-task",
+            "profile_source_layer": "task",
+            "profile_source_authority": True,
+            "policy": value["policy"],
+            "candidates": materialize_candidates(value["candidates"]),
         }
     profile_name = value["profile"]
     profiles = routing_state["profiles"]
@@ -1034,14 +1280,6 @@ def bind_from_layer(value, source_layer, role, class_name, routing_state, bindin
             binding_source=source_layer,
             profile_source=profile_provenance["layer"],
         )
-    candidates = []
-    for ordinal, candidate in enumerate(profiles[profile_name]["candidates"]):
-        if candidate == "ce-default":
-            candidates.append({"kind": "ce-default", "ordinal": ordinal})
-        else:
-            current = copy.deepcopy(candidate)
-            current["ordinal"] = ordinal
-            candidates.append(current)
     return {
         "kind": "profile",
         "explicit_reset": False,
@@ -1053,7 +1291,7 @@ def bind_from_layer(value, source_layer, role, class_name, routing_state, bindin
         "profile_source_layer": profile_provenance["layer"],
         "profile_source_authority": profile_provenance["authority_trusted"],
         "policy": value["policy"],
-        "candidates": candidates,
+        "candidates": materialize_candidates(profiles[profile_name]["candidates"]),
     }
 
 
@@ -1075,19 +1313,48 @@ def intent_binding(intents, role, class_name, schema):
             raise RoutingError("CONTEXT_CONFLICT", "equal-authority task routing intents conflict", exit_code=4)
     if not matched:
         return None
-    return validate_binding(matched[0]["binding"], schema, "intent.binding"), matched[0].get("source", "current-task")
+    return validate_intent_binding(matched[0]["binding"], schema), matched[0].get("source", "current-task")
 
 
-def resolve_role(role_request, intents, routing_state, roles, schema):
-    if not isinstance(role_request, dict) or not isinstance(role_request.get("role"), str):
-        raise RoutingError("REQUEST_INVALID", "each role request must name a role", exit_code=2)
+def normalize_role_request(role_request):
+    if (
+        not isinstance(role_request, dict)
+        or set(role_request) - {"role", "instance"}
+        or not isinstance(role_request.get("role"), str)
+    ):
+        raise RoutingError("REQUEST_INVALID", "each role request must name only a role and instance", exit_code=2)
+    instance = role_request.get("instance", {})
+    if not isinstance(instance, dict):
+        raise RoutingError("REQUEST_INVALID", "role instance metadata must be an object", exit_code=2)
+    return {"role": role_request["role"], "instance": copy.deepcopy(instance)}
+
+
+def resolved_role(role, class_name, instance, binding, compatibility, reason):
+    result = {
+        "role": role,
+        "class": class_name,
+        "instance": copy.deepcopy(instance),
+        "binding": binding,
+    }
+    if compatibility is not None:
+        compatibility = copy.deepcopy(compatibility)
+        compatibility["applied"] = reason == "applied"
+        compatibility["reason"] = reason
+        result["compatibility"] = compatibility
+    return result
+
+
+def resolve_role(role_request, intents, routing_state, compatibility_state, host, roles, schema):
+    role_request = normalize_role_request(role_request)
     role = role_request["role"]
+    instance = role_request["instance"]
     catalog = roles["roles"].get(role)
     if catalog is None:
         raise RoutingError("ROLE_UNKNOWN", "unknown dispatch role '{}'".format(role), exit_code=4, role=role)
     class_name = catalog.get("class")
     if class_name not in roles["classes"]:
         raise RoutingError("ROLE_UNCLASSIFIED", "dispatch role lacks a valid class", exit_code=4, role=role)
+    compatibility = compatibility_metadata(role, compatibility_state)
     task = intent_binding(intents, role, class_name, schema)
     if task is not None:
         binding, source_name = task
@@ -1101,37 +1368,54 @@ def resolve_role(role_request, intents, routing_state, roles, schema):
         )
         if resolved is not None:
             resolved["source"] = source_name
-            return {"role": role, "class": class_name, "instance": role_request.get("instance", {}), "binding": resolved}
+            return resolved_role(role, class_name, instance, resolved, compatibility, "higher-route")
     global_layer = routing_state["layers"]["global"]
     project_layer = routing_state["layers"]["project"]
-    layers = (
-        (project_layer["roles"].get(role), "project-role", project_layer),
-        (project_layer["classes"].get(class_name), "project-class", project_layer),
-        (global_layer["roles"].get(role), "global-role", global_layer),
-        (global_layer["classes"].get(class_name), "global-class", global_layer),
+    compatibility_spec = COMPATIBILITY_ROLE_SPECS.get(role)
+    compatibility_source = (
+        compatibility_layer(compatibility_spec[1], compatibility_state)
+        if compatibility_spec is not None
+        else None
     )
-    for value, source_layer, provenance in layers:
+    ordered = (
+        ("binding", project_layer["roles"].get(role), "project-role", project_layer),
+        ("compatibility", None, "project", None),
+        ("binding", project_layer["classes"].get(class_name), "project-class", project_layer),
+        ("binding", global_layer["roles"].get(role), "global-role", global_layer),
+        ("compatibility", None, "global", None),
+        ("binding", global_layer["classes"].get(class_name), "global-class", global_layer),
+    )
+    for entry_kind, value, source_layer, provenance in ordered:
+        if entry_kind == "compatibility":
+            if compatibility_source != source_layer:
+                continue
+            resolved = compatibility_binding(
+                role,
+                class_name,
+                compatibility_state,
+                host,
+                schema,
+            )
+            if resolved is not None:
+                return resolved_role(role, class_name, instance, resolved, compatibility, "applied")
+            continue
         resolved = bind_from_layer(value, source_layer, role, class_name, routing_state, provenance)
         if resolved is not None:
-            return {"role": role, "class": class_name, "instance": role_request.get("instance", {}), "binding": resolved}
-    return {
+            return resolved_role(role, class_name, instance, resolved, compatibility, "higher-route")
+    binding = {
+        "kind": "ce-default",
+        "explicit_reset": False,
+        "source_layer": "builtin",
+        "source_authority": True,
         "role": role,
         "class": class_name,
-        "instance": role_request.get("instance", {}),
-        "binding": {
-            "kind": "ce-default",
-            "explicit_reset": False,
-            "source_layer": "builtin",
-            "source_authority": True,
-            "role": role,
-            "class": class_name,
-            "profile": None,
-            "profile_source_layer": None,
-            "profile_source_authority": None,
-            "policy": None,
-            "candidates": [],
-        },
+        "profile": None,
+        "profile_source_layer": None,
+        "profile_source_authority": None,
+        "policy": None,
+        "candidates": [],
     }
+    return resolved_role(role, class_name, instance, binding, compatibility, "inactive")
 
 
 def base_state(request, schema, roles):
@@ -1140,6 +1424,7 @@ def base_state(request, schema, roles):
         raise RoutingError("REQUEST_INVALID", "cwd must be an absolute path", exit_code=2)
     global_source, project_source, repo = load_sources(cwd, schema, roles)
     effective, provenance, authority, routing_state = merge_settings(global_source, project_source, schema)
+    compatibility = freeze_compatibility(effective, provenance)
     return {
         "cwd": cwd,
         "repo": repo,
@@ -1149,6 +1434,7 @@ def base_state(request, schema, roles):
         "provenance": provenance,
         "authority": authority,
         "routing_state": routing_state,
+        "compatibility": compatibility,
     }
 
 
@@ -1192,19 +1478,37 @@ def effective_routing_from_state(routing_state):
     }
 
 
-def snapshot_payload(context, source_revisions, intents, routing_state, parent_snapshot_id):
+def snapshot_payload(context, source_revisions, intents, routing_state, compatibility, role_requests, parent_snapshot_id):
     return {
         "protocol": PROTOCOL,
         "context": copy.deepcopy(context),
         "source_revisions": copy.deepcopy(source_revisions),
         "intents": copy.deepcopy(intents),
         "routing": copy.deepcopy(routing_state),
+        "compatibility": copy.deepcopy(compatibility),
+        "roles": copy.deepcopy(role_requests),
         "parent_snapshot_id": parent_snapshot_id,
     }
 
 
-def make_snapshot(context, source_revisions, intents, routing_state, parent_snapshot_id=None):
-    payload = snapshot_payload(context, source_revisions, intents, routing_state, parent_snapshot_id)
+def make_snapshot(
+    context,
+    source_revisions,
+    intents,
+    routing_state,
+    compatibility,
+    role_requests,
+    parent_snapshot_id=None,
+):
+    payload = snapshot_payload(
+        context,
+        source_revisions,
+        intents,
+        routing_state,
+        compatibility,
+        role_requests,
+        parent_snapshot_id,
+    )
     return {"id": digest("cesnap-v1", payload), **payload}
 
 
@@ -1281,7 +1585,17 @@ def validate_snapshot_routing(value, source_revisions, schema, roles):
 
 
 def validate_parent_snapshot(value, schema, roles):
-    fields = {"id", "protocol", "context", "source_revisions", "intents", "routing", "parent_snapshot_id"}
+    fields = {
+        "id",
+        "protocol",
+        "context",
+        "source_revisions",
+        "intents",
+        "routing",
+        "compatibility",
+        "roles",
+        "parent_snapshot_id",
+    }
     if not isinstance(value, dict) or set(value) != fields:
         raise RoutingError("CONTEXT_STALE", "parent snapshot envelope is malformed", exit_code=4)
     if value["protocol"] != PROTOCOL:
@@ -1296,7 +1610,7 @@ def validate_parent_snapshot(value, schema, roles):
         raise RoutingError("CONTEXT_STALE", "parent snapshot cwd is malformed", exit_code=4)
     if context["repo"] is not None and (not isinstance(context["repo"], str) or not os.path.isabs(context["repo"])):
         raise RoutingError("CONTEXT_STALE", "parent snapshot repository context is malformed", exit_code=4)
-    if context["host"] is not None and not isinstance(context["host"], dict):
+    if context["host"] is not None and not valid_host_context(context["host"]):
         raise RoutingError("CONTEXT_STALE", "parent snapshot host context is malformed", exit_code=4)
     source_revisions = value["source_revisions"]
     if not isinstance(source_revisions, dict) or set(source_revisions) != {"global", "project"}:
@@ -1307,7 +1621,30 @@ def validate_parent_snapshot(value, schema, roles):
     if not isinstance(intents, list) or any(not isinstance(intent, dict) for intent in intents):
         raise RoutingError("CONTEXT_STALE", "parent snapshot intents are malformed", exit_code=4)
     routing_state = validate_snapshot_routing(value["routing"], source_revisions, schema, roles)
-    normalized_payload = snapshot_payload(context, source_revisions, intents, routing_state, parent_id)
+    compatibility = validate_snapshot_compatibility(
+        value["compatibility"],
+        source_revisions,
+        routing_state,
+        schema,
+    )
+    role_requests = value["roles"]
+    if not isinstance(role_requests, list) or not role_requests:
+        raise RoutingError("CONTEXT_STALE", "parent snapshot roles are malformed", exit_code=4)
+    try:
+        normalized_roles = [normalize_role_request(item) for item in role_requests]
+        for item in normalized_roles:
+            resolve_role(item, intents, routing_state, compatibility, context["host"], roles, schema)
+    except RoutingError as exc:
+        raise RoutingError("CONTEXT_STALE", "parent snapshot role resolution is invalid", exit_code=4) from exc
+    normalized_payload = snapshot_payload(
+        context,
+        source_revisions,
+        intents,
+        routing_state,
+        compatibility,
+        normalized_roles,
+        parent_id,
+    )
     expected_id = digest("cesnap-v1", normalized_payload)
     if not isinstance(value["id"], str) or value["id"] != expected_id:
         raise RoutingError("CONTEXT_STALE", "parent snapshot ID does not match its contents", exit_code=4)
@@ -1321,10 +1658,76 @@ def request_cwd(request):
     return os.path.realpath(cwd)
 
 
+def valid_host_context(value):
+    return isinstance(value, dict) and all(
+        field not in value or isinstance(value[field], str)
+        for field in ("harness", "serving_family")
+    )
+
+
+def resolution_binding_digest(resolution):
+    return digest(
+        "cebind-v1",
+        {
+            "role": resolution["role"],
+            "class": resolution["class"],
+            "instance": resolution["instance"],
+            "binding": resolution["binding"],
+        },
+    )
+
+
+def make_attempt_lock(snapshot, resolution, resolution_ordinal, candidate):
+    material = {
+        "protocol": ATTEMPT_LOCK_PROTOCOL,
+        "snapshot_id": snapshot["id"],
+        "resolution_ordinal": resolution_ordinal,
+        "role": resolution["role"],
+        "class": resolution["class"],
+        "instance": copy.deepcopy(resolution["instance"]),
+        "binding_digest": resolution_binding_digest(resolution),
+        "policy": resolution["binding"].get("policy"),
+        "candidate_ordinal": candidate["ordinal"],
+        "candidate": copy.deepcopy(candidate),
+    }
+    return {**material, "lock_digest": digest("ceattempt-v1", material)}
+
+
+def decorate_resolutions(snapshot, resolutions):
+    decorated = []
+    for resolution_ordinal, resolution in enumerate(resolutions):
+        current = copy.deepcopy(resolution)
+        current["resolution_ordinal"] = resolution_ordinal
+        current["binding_digest"] = resolution_binding_digest(resolution)
+        candidates = resolution["binding"].get("candidates", [])
+        current["attempt_locks"] = [
+            make_attempt_lock(snapshot, resolution, resolution_ordinal, candidate)
+            for candidate in candidates
+        ]
+        decorated.append(current)
+    return decorated
+
+
+def frozen_settings(routing_state, compatibility):
+    effective = {"routing": effective_routing_from_state(routing_state)}
+    effective.update(copy.deepcopy(compatibility["values"]))
+    provenance = {
+        "routing": {
+            "layer": "frozen",
+            "global_revision": routing_state["layers"]["global"]["revision"],
+            "project_revision": routing_state["layers"]["project"]["revision"],
+            "profiles": copy.deepcopy(routing_state["profile_provenance"]),
+        },
+    }
+    provenance.update(copy.deepcopy(compatibility["provenance"]))
+    return {"effective": effective, "provenance": provenance, "authority": {}}
+
+
 def resolve_batch_op(request, schema, roles):
     role_requests = request.get("roles")
     if not isinstance(role_requests, list) or not role_requests:
         raise RoutingError("REQUEST_INVALID", "resolve_batch requires intents and a non-empty roles list", exit_code=2)
+    role_requests = [normalize_role_request(item) for item in role_requests]
     cwd = request_cwd(request)
     parent_value = request.get("parent_snapshot")
     requested_parent_id = request.get("parent_snapshot_id")
@@ -1349,12 +1752,26 @@ def resolve_batch_op(request, schema, roles):
             raise RoutingError("CONTEXT_STALE", "request source revisions do not match the parent snapshot", exit_code=4)
         intents = parent["intents"]
         routing_state = parent["routing"]
-        resolutions = [resolve_role(item, intents, routing_state, roles, schema) for item in role_requests]
+        compatibility = parent["compatibility"]
+        resolutions = [
+            resolve_role(
+                item,
+                intents,
+                routing_state,
+                compatibility,
+                parent["context"]["host"],
+                roles,
+                schema,
+            )
+            for item in role_requests
+        ]
         snapshot = make_snapshot(
             parent["context"],
             parent["source_revisions"],
             intents,
             routing_state,
+            compatibility,
+            role_requests,
             parent_snapshot_id=parent["id"],
         )
         frozen_sources = {
@@ -1372,19 +1789,8 @@ def resolve_batch_op(request, schema, roles):
             "op": "resolve_batch",
             "snapshot": snapshot,
             "sources": frozen_sources,
-            "settings": {
-                "effective": {"routing": effective_routing_from_state(routing_state)},
-                "provenance": {
-                    "routing": {
-                        "layer": "frozen",
-                        "global_revision": parent["source_revisions"]["global"],
-                        "project_revision": parent["source_revisions"]["project"],
-                        "profiles": copy.deepcopy(routing_state["profile_provenance"]),
-                    },
-                },
-                "authority": {},
-            },
-            "resolutions": resolutions,
+            "settings": frozen_settings(routing_state, compatibility),
+            "resolutions": decorate_resolutions(snapshot, resolutions),
             "diagnostics": [],
         }, 0
 
@@ -1392,10 +1798,25 @@ def resolve_batch_op(request, schema, roles):
     if not isinstance(intents, list):
         raise RoutingError("REQUEST_INVALID", "resolve_batch intents must be a list", exit_code=2)
     host = request.get("host")
-    if host is not None and not isinstance(host, dict):
-        raise RoutingError("REQUEST_INVALID", "resolve_batch host must be an object", exit_code=2)
+    if host is not None and not valid_host_context(host):
+        raise RoutingError(
+            "REQUEST_INVALID",
+            "resolve_batch host must be an object with string harness and serving_family fields",
+            exit_code=2,
+        )
     state = base_state(request, schema, roles)
-    resolutions = [resolve_role(item, intents, state["routing_state"], roles, schema) for item in role_requests]
+    resolutions = [
+        resolve_role(
+            item,
+            intents,
+            state["routing_state"],
+            state["compatibility"],
+            host,
+            roles,
+            schema,
+        )
+        for item in role_requests
+    ]
     source_revisions = {
         "global": state["global"]["revision"],
         "project": state["project"]["revision"],
@@ -1405,6 +1826,8 @@ def resolve_batch_op(request, schema, roles):
         source_revisions,
         intents,
         state["routing_state"],
+        state["compatibility"],
+        role_requests,
     )
     return {
         "ok": True,
@@ -1420,7 +1843,7 @@ def resolve_batch_op(request, schema, roles):
             "provenance": state["provenance"],
             "authority": state["authority"],
         },
-        "resolutions": resolutions,
+        "resolutions": decorate_resolutions(snapshot, resolutions),
         "diagnostics": state["global"]["diagnostics"] + state["project"]["diagnostics"],
     }, 0
 
@@ -1439,7 +1862,79 @@ def identity_status(candidate, report):
     return "verified"
 
 
-def validate_prior_attempts(value, ordinal, candidates):
+def validate_serving_report(value):
+    if not isinstance(value, dict) or set(value) - {"model_actual", "effort_actual"}:
+        raise RoutingError("REQUEST_INVALID", "finalize_attempt report fields are invalid", exit_code=2)
+    for field, pattern in (("model_actual", MODEL_TOKEN), ("effort_actual", EFFORT_TOKEN)):
+        if field in value and (not isinstance(value[field], str) or not pattern.fullmatch(value[field])):
+            raise RoutingError("REQUEST_INVALID", "finalize_attempt {} is invalid".format(field), exit_code=2)
+    return copy.deepcopy(value)
+
+
+def validate_finalize_lock(request, schema, roles):
+    if "binding" in request:
+        raise RoutingError(
+            "REQUEST_INVALID",
+            "finalize_attempt derives its binding from the frozen snapshot",
+            exit_code=2,
+        )
+    snapshot = validate_parent_snapshot(request.get("snapshot"), schema, roles)
+    cwd = request.get("cwd")
+    if cwd is not None and (
+        not isinstance(cwd, str)
+        or not os.path.isabs(cwd)
+        or os.path.realpath(cwd) != snapshot["context"]["cwd"]
+    ):
+        raise RoutingError("CONTEXT_STALE", "finalize cwd does not match the frozen snapshot", exit_code=4)
+    lock = request.get("attempt_lock")
+    lock_fields = {
+        "protocol",
+        "snapshot_id",
+        "resolution_ordinal",
+        "role",
+        "class",
+        "instance",
+        "binding_digest",
+        "policy",
+        "candidate_ordinal",
+        "candidate",
+        "lock_digest",
+    }
+    if not isinstance(lock, dict) or set(lock) != lock_fields:
+        raise RoutingError("ATTEMPT_LOCK_INVALID", "finalize attempt lock is malformed", exit_code=4)
+    resolution_ordinal = lock["resolution_ordinal"]
+    if (
+        lock.get("protocol") != ATTEMPT_LOCK_PROTOCOL
+        or lock.get("snapshot_id") != snapshot["id"]
+        or type(resolution_ordinal) is not int
+        or resolution_ordinal < 0
+        or resolution_ordinal >= len(snapshot["roles"])
+    ):
+        raise RoutingError("ATTEMPT_LOCK_INVALID", "attempt lock does not belong to this snapshot", exit_code=4)
+    resolution = resolve_role(
+        snapshot["roles"][resolution_ordinal],
+        snapshot["intents"],
+        snapshot["routing"],
+        snapshot["compatibility"],
+        snapshot["context"]["host"],
+        roles,
+        schema,
+    )
+    ordinal = lock["candidate_ordinal"]
+    candidates = resolution["binding"].get("candidates")
+    if type(ordinal) is not int or not isinstance(candidates, list) or ordinal < 0 or ordinal >= len(candidates):
+        raise RoutingError("ATTEMPT_LOCK_INVALID", "attempt lock candidate ordinal is invalid", exit_code=4)
+    expected = make_attempt_lock(snapshot, resolution, resolution_ordinal, candidates[ordinal])
+    if lock != expected:
+        raise RoutingError(
+            "ATTEMPT_LOCK_INVALID",
+            "attempt lock role, instance, policy, candidate, binding, or digest was changed",
+            exit_code=4,
+        )
+    return snapshot, resolution, candidates[ordinal], expected
+
+
+def validate_prior_attempts(value, ordinal, attempt_locks):
     if value is None:
         value = []
     if not isinstance(value, list) or len(value) > MAX_ATTEMPT_HISTORY or len(value) != ordinal:
@@ -1449,43 +1944,79 @@ def validate_prior_attempts(value, ordinal, candidates):
             exit_code=2,
         )
     normalized = []
-    fields = {"ordinal", "identity_status", "terminal", "integrated", "fallback_reason", "terminal_status"}
+    fields = {
+        "ordinal",
+        "outcome",
+        "identity_status",
+        "terminal",
+        "integrated",
+        "fallback_reason",
+        "terminal_status",
+        "attempt_lock_digest",
+    }
     for expected_ordinal, item in enumerate(value):
         if not isinstance(item, dict) or set(item) != fields:
             raise RoutingError("REQUEST_INVALID", "prior attempt history entry is malformed", exit_code=2)
         prior_ordinal = item["ordinal"]
-        if type(prior_ordinal) is not int or prior_ordinal != expected_ordinal or prior_ordinal >= len(candidates):
+        if type(prior_ordinal) is not int or prior_ordinal != expected_ordinal or prior_ordinal >= len(attempt_locks):
             raise RoutingError("REQUEST_INVALID", "prior attempt history ordinal is invalid", exit_code=2)
         if type(item["terminal"]) is not bool or type(item["integrated"]) is not bool:
             raise RoutingError("REQUEST_INVALID", "prior attempt booleans must be true or false", exit_code=2)
         if not item["terminal"] or item["integrated"] or item["terminal_status"] != "next_candidate":
             raise RoutingError("REQUEST_INVALID", "prior attempt history is not retry-safe", exit_code=2)
-        if item["identity_status"] not in ("mismatched", "unavailable", "failed"):
-            raise RoutingError("REQUEST_INVALID", "prior attempt identity status is invalid", exit_code=2)
+        outcome = item["outcome"]
+        expected = {
+            "ok": ("mismatched", "identity_mismatch"),
+            "unavailable": ("unavailable", "route_unavailable"),
+            "failed": ("failed", "attempt_failed"),
+        }.get(outcome)
+        if expected is None or item["identity_status"] != expected[0]:
+            raise RoutingError("REQUEST_INVALID", "prior attempt outcome or identity status is invalid", exit_code=2)
         reason = item["fallback_reason"]
-        if not isinstance(reason, str) or not FALLBACK_TOKEN.fullmatch(reason):
+        if not isinstance(reason, str) or not FALLBACK_TOKEN.fullmatch(reason) or reason != expected[1]:
             raise RoutingError("REQUEST_INVALID", "prior attempt fallback reason is invalid", exit_code=2)
+        expected_lock_digest = attempt_locks[expected_ordinal]["lock_digest"]
+        if item["attempt_lock_digest"] != expected_lock_digest:
+            raise RoutingError("REQUEST_INVALID", "prior attempt history belongs to another route lock", exit_code=2)
         normalized.append(copy.deepcopy(item))
     return normalized
 
 
-def receipt(binding, candidate, report, status, action, attempt, prior_attempts):
-    fallback_reason = "identity_mismatch" if action == "next_candidate" else None
+def fallback_reason(outcome, status, action):
+    if action != "next_candidate":
+        return None
+    if outcome == "unavailable":
+        return "route_unavailable"
+    if outcome == "failed":
+        return "attempt_failed"
+    if status == "mismatched":
+        return "identity_mismatch"
+    return None
+
+
+def receipt(snapshot, resolution, lock, candidate, outcome, report, status, action, attempt, prior_attempts):
+    binding = resolution["binding"]
+    current_fallback = fallback_reason(outcome, status, action)
     attempts = prior_attempts + [{
         "ordinal": attempt["ordinal"],
+        "outcome": outcome,
         "identity_status": status,
         "terminal": attempt["terminal"],
         "integrated": attempt["integrated"],
-        "fallback_reason": fallback_reason,
+        "fallback_reason": current_fallback,
         "terminal_status": action,
+        "attempt_lock_digest": lock["lock_digest"],
     }]
     cumulative_fallback = next(
         (item["fallback_reason"] for item in reversed(attempts) if item["fallback_reason"] is not None),
         None,
     )
     return {
-        "role": binding.get("role"),
-        "class": binding.get("class"),
+        "snapshot_id": snapshot["id"],
+        "binding_digest": lock["binding_digest"],
+        "attempt_lock_digest": lock["lock_digest"],
+        "role": resolution["role"],
+        "class": resolution["class"],
         "profile": binding.get("profile"),
         "source_layer": binding.get("source_layer"),
         "source_authority": binding.get("source_authority"),
@@ -1498,6 +2029,7 @@ def receipt(binding, candidate, report, status, action, attempt, prior_attempts)
         "model_actual": report.get("model_actual"),
         "effort_requested": candidate.get("effort"),
         "effort_actual": report.get("effort_actual"),
+        "adapter_outcome": outcome,
         "identity_status": "accepted_unverified" if status == "unverified" and action == "accept" else status,
         "attempts": attempts,
         "fallback_reason": cumulative_fallback,
@@ -1505,37 +2037,42 @@ def receipt(binding, candidate, report, status, action, attempt, prior_attempts)
     }
 
 
-def finalize_attempt_op(request):
-    binding = request.get("binding")
+def finalize_attempt_op(request, schema, roles):
     attempt = request.get("attempt")
-    report = request.get("report", {})
-    if not isinstance(binding, dict) or not isinstance(attempt, dict) or not isinstance(report, dict):
-        raise RoutingError("REQUEST_INVALID", "finalize_attempt requires binding, attempt, and report objects", exit_code=2)
+    outcome = request.get("outcome")
+    if not isinstance(attempt, dict) or set(attempt) != {"ordinal", "terminal", "integrated"}:
+        raise RoutingError("REQUEST_INVALID", "finalize_attempt requires exact attempt and report objects", exit_code=2)
+    report = validate_serving_report(request.get("report", {}))
+    if outcome not in ADAPTER_OUTCOMES:
+        raise RoutingError("REQUEST_INVALID", "finalize_attempt outcome must be ok, unavailable, or failed", exit_code=2)
+    snapshot, resolution, candidate, lock = validate_finalize_lock(request, schema, roles)
+    binding = resolution["binding"]
     candidates = binding.get("candidates")
     ordinal = attempt.get("ordinal")
-    if not isinstance(candidates, list) or type(ordinal) is not int or ordinal < 0 or ordinal >= len(candidates):
-        raise RoutingError("REQUEST_INVALID", "attempt ordinal is outside the candidate list", exit_code=2)
-    candidate = candidates[ordinal]
-    if not isinstance(candidate, dict) or (
-        "ordinal" in candidate
-        and (type(candidate["ordinal"]) is not int or candidate["ordinal"] != ordinal)
-    ):
-        raise RoutingError("REQUEST_INVALID", "candidate ordinal does not match the attempt", exit_code=2)
+    if type(ordinal) is not int or ordinal != lock["candidate_ordinal"]:
+        raise RoutingError("ATTEMPT_LOCK_INVALID", "attempt ordinal does not match its immutable lock", exit_code=4)
     terminal = attempt.get("terminal")
     integrated = attempt.get("integrated")
     if type(terminal) is not bool or type(integrated) is not bool:
         raise RoutingError("REQUEST_INVALID", "attempt terminal and integrated must be booleans", exit_code=2)
     if not terminal or integrated:
         raise RoutingError("RETRY_UNSAFE", "cannot finalize an in-flight or integrated attempt", exit_code=4)
-    prior_attempts = validate_prior_attempts(request.get("prior_attempts"), ordinal, candidates)
-    if candidate.get("kind") == "ce-default":
+    attempt_locks = [
+        make_attempt_lock(snapshot, resolution, lock["resolution_ordinal"], item)
+        for item in candidates
+    ]
+    prior_attempts = validate_prior_attempts(request.get("prior_attempts"), ordinal, attempt_locks)
+    policy = binding.get("policy")
+    if policy not in ("prefer", "require"):
+        raise RoutingError("REQUEST_INVALID", "frozen binding policy must be prefer or require", exit_code=2)
+    if outcome != "ok":
+        status = outcome
+        action = "next_candidate" if policy == "prefer" and ordinal + 1 < len(candidates) else "block"
+    elif candidate.get("kind") == "ce-default":
         status = "ce-default"
         action = "accept"
     else:
         status = identity_status(candidate, report)
-        policy = binding.get("policy")
-        if policy not in ("prefer", "require"):
-            raise RoutingError("REQUEST_INVALID", "binding policy must be prefer or require", exit_code=2)
         if policy == "require" and status != "verified":
             action = "block"
         elif policy == "prefer" and status == "mismatched":
@@ -1547,14 +2084,32 @@ def finalize_attempt_op(request):
         "protocol": PROTOCOL,
         "op": "finalize_attempt",
         "action": action,
-        "receipt": receipt(binding, candidate, report, status, action, attempt, prior_attempts),
+        "receipt": receipt(
+            snapshot,
+            resolution,
+            lock,
+            candidate,
+            outcome,
+            report,
+            status,
+            action,
+            attempt,
+            prior_attempts,
+        ),
     }
     if action == "next_candidate":
         result["next_candidate"] = candidates[ordinal + 1]
+        result["next_attempt_lock"] = attempt_locks[ordinal + 1]
     if action == "block":
+        error_code = {
+            "mismatched": "IDENTITY_MISMATCH",
+            "unverified": "IDENTITY_REQUIRED",
+            "unavailable": "ROUTE_UNAVAILABLE",
+            "failed": "ATTEMPT_FAILED",
+        }.get(status, "IDENTITY_REQUIRED")
         result["error"] = {
-            "code": "IDENTITY_MISMATCH" if status == "mismatched" else "IDENTITY_REQUIRED",
-            "message": "serving identity did not satisfy the frozen route policy",
+            "code": error_code,
+            "message": "adapter outcome or serving identity did not satisfy the frozen route policy",
         }
     return result, 4 if action == "block" else 0
 
@@ -1815,7 +2370,7 @@ def atomic_write(path, data, source, cap):
                     os.unlink(tmp_name, dir_fd=parent_fd)
 
 
-def validate_patch_writer(writer, layer, updates, removals, schema):
+def validate_patch_writer(writer, consumer, layer, updates, removals, schema):
     if not isinstance(writer, str) or not NAME_TOKEN.fullmatch(writer):
         raise RoutingError("REQUEST_INVALID", "patch_source requires a stable writer", exit_code=2)
     known_writers = {
@@ -1825,6 +2380,14 @@ def validate_patch_writer(writer, layer, updates, removals, schema):
     }
     if writer not in known_writers:
         raise RoutingError("REQUEST_INVALID", "patch_source writer is unknown", exit_code=2)
+    if writer != consumer:
+        raise RoutingError(
+            "WRITE_UNSAFE",
+            "patch_source writer does not match the executing skill",
+            exit_code=5,
+            writer=writer,
+            consumer=consumer,
+        )
     if layer == "global" and writer != "ce-setup":
         raise RoutingError("WRITE_UNSAFE", "only ce-setup may write global configuration", exit_code=5, writer=writer)
     if set(updates) & set(removals):
@@ -1847,7 +2410,7 @@ def validate_patch_writer(writer, layer, updates, removals, schema):
             )
 
 
-def patch_source_op(request, schema, roles):
+def patch_source_op(request, schema, roles, consumer):
     layer = request.get("layer")
     if layer not in ("global", "project"):
         raise RoutingError("REQUEST_INVALID", "patch_source layer must be global or project", exit_code=2)
@@ -1864,7 +2427,7 @@ def patch_source_op(request, schema, roles):
         or len(removals) != len(set(removals))
     ):
         raise RoutingError("REQUEST_INVALID", "patch_source request is malformed", exit_code=2)
-    validate_patch_writer(writer, layer, updates, removals, schema)
+    validate_patch_writer(writer, consumer, layer, updates, removals, schema)
     cwd = request.get("cwd")
     if not isinstance(cwd, str) or not os.path.isabs(cwd):
         raise RoutingError("REQUEST_INVALID", "cwd must be an absolute path", exit_code=2)
@@ -1899,6 +2462,7 @@ def patch_source_op(request, schema, roles):
         "protocol": PROTOCOL,
         "op": "patch_source",
         "writer": writer,
+        "consumer": consumer,
         "layer": layer,
         "path": path,
         "previous_revision": expected,
@@ -1931,16 +2495,16 @@ def parse_request(limit, request_file):
     return request
 
 
-def execute(request, schema, roles):
+def execute(request, schema, roles, consumer):
     op = request.get("op")
     if op == "inspect":
         return inspect_op(request, schema, roles)
     if op == "resolve_batch":
         return resolve_batch_op(request, schema, roles)
     if op == "finalize_attempt":
-        return finalize_attempt_op(request)
+        return finalize_attempt_op(request, schema, roles)
     if op == "patch_source":
-        return patch_source_op(request, schema, roles)
+        return patch_source_op(request, schema, roles, consumer)
     raise RoutingError("REQUEST_INVALID", "unknown routing operation", exit_code=2)
 
 
@@ -1953,10 +2517,11 @@ def main():
         require_runtime()
         schema = load_json_asset("settings-schema.json", "ce-routing-schema.json")
         roles = validate_role_catalog(load_json_asset("dispatch-roles.json", "dispatch-roles.json"))
+        consumer = load_consumer_identity()
         if schema.get("protocol") != PROTOCOL:
             raise RoutingError("ASSET_INVALID", "routing asset version mismatch")
         request = parse_request(schema["limits"]["request_bytes"], args.request_file)
-        response, exit_code = execute(request, schema, roles)
+        response, exit_code = execute(request, schema, roles, consumer)
     except RoutingError as exc:
         response = exc.response()
         exit_code = exc.exit_code

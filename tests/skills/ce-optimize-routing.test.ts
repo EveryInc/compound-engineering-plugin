@@ -48,6 +48,45 @@ async function fixture() {
   return { root, home, project }
 }
 
+async function resolveRole(
+  f: Awaited<ReturnType<typeof fixture>>,
+  role: string,
+  policy: "prefer" | "require",
+  candidates: Array<Record<string, unknown>>,
+) {
+  await writeFile(
+    path.join(f.home, "config.yaml"),
+    `routing:\n  profiles:\n    test-route:\n      candidates:\n${candidates.map((candidate) => `        - ${JSON.stringify(candidate)}`).join("\n")}\n  roles:\n    ${role}: { profile: test-route, policy: ${policy} }\n`,
+    { mode: 0o600 },
+  )
+  return runResolver({
+    protocol: "ce-routing/v1",
+    op: "resolve_batch",
+    cwd: f.project,
+    intents: [],
+    roles: [{ role, instance: { id: role, ordinal: 0 } }],
+  }, f.project, f.home)
+}
+
+function finalizeRequest(
+  resolved: Awaited<ReturnType<typeof runResolver>>,
+  ordinal: number,
+  report: Record<string, unknown>,
+  attempt: Record<string, unknown> = { ordinal, terminal: true, integrated: false },
+  priorAttempts?: Record<string, unknown>[],
+) {
+  return {
+    protocol: "ce-routing/v1",
+    op: "finalize_attempt",
+    snapshot: resolved.body.snapshot,
+    attempt_lock: resolved.body.resolutions[0].attempt_locks[ordinal],
+    attempt,
+    outcome: "ok",
+    report,
+    ...(priorAttempts === undefined ? {} : { prior_attempts: priorAttempts }),
+  }
+}
+
 describe("ce-optimize routing", () => {
   test("resolves weaker authors and stronger judges independently from one snapshot", async () => {
     const f = await fixture()
@@ -149,20 +188,8 @@ describe("ce-optimize routing", () => {
   ])("%s", async (_name, role, report, action, identityStatus) => {
     const f = await fixture()
     try {
-      const result = await runResolver({
-        protocol: "ce-routing/v1",
-        op: "finalize_attempt",
-        binding: {
-          role,
-          class: role.endsWith("semantic-judge") ? "verification" : "implementation",
-          profile: "strict",
-          source_layer: "global-role",
-          policy: "require",
-          candidates: [{ harness: "opencode", model: "openai/strong", ordinal: 0 }],
-        },
-        attempt: { ordinal: 0, terminal: true, integrated: false },
-        report,
-      }, f.project, f.home)
+      const resolved = await resolveRole(f, role, "require", [{ harness: "opencode", model: "openai/strong" }])
+      const result = await runResolver(finalizeRequest(resolved, 0, report), f.project, f.home)
 
       expect(result.body.action).toBe(action)
       expect(result.body.receipt.identity_status).toBe(identityStatus)
@@ -175,24 +202,15 @@ describe("ce-optimize routing", () => {
   test("prefer advances only after terminal unintegrated output", async () => {
     const f = await fixture()
     try {
-      const binding = {
-        role: "ce-optimize.experiment-author",
-        class: "implementation",
-        profile: "authors",
-        source_layer: "global-role",
-        policy: "prefer",
-        candidates: [
-          { harness: "opencode", model: "openai/first", ordinal: 0 },
-          { harness: "opencode", model: "openai/second", ordinal: 1 },
-        ],
-      }
-      const safe = await runResolver({
-        protocol: "ce-routing/v1",
-        op: "finalize_attempt",
-        binding,
-        attempt: { ordinal: 0, terminal: true, integrated: false },
-        report: { model_actual: "openai/wrong" },
-      }, f.project, f.home)
+      const resolved = await resolveRole(f, "ce-optimize.experiment-author", "prefer", [
+        { harness: "opencode", model: "openai/first" },
+        { harness: "opencode", model: "openai/second" },
+      ])
+      const safe = await runResolver(
+        finalizeRequest(resolved, 0, { model_actual: "openai/wrong" }),
+        f.project,
+        f.home,
+      )
       expect(safe.exitCode).toBe(0)
       expect(safe.body.action).toBe("next_candidate")
       expect(safe.body.next_candidate.model).toBe("openai/second")
@@ -201,13 +219,11 @@ describe("ce-optimize routing", () => {
         { ordinal: 0, terminal: false, integrated: false },
         { ordinal: 0, terminal: true, integrated: true },
       ]) {
-        const unsafe = await runResolver({
-          protocol: "ce-routing/v1",
-          op: "finalize_attempt",
-          binding,
-          attempt,
-          report: { model_actual: "openai/wrong" },
-        }, f.project, f.home)
+        const unsafe = await runResolver(
+          finalizeRequest(resolved, 0, { model_actual: "openai/wrong" }, attempt),
+          f.project,
+          f.home,
+        )
         expect(unsafe.exitCode).toBe(4)
         expect(unsafe.body.error.code).toBe("RETRY_UNSAFE")
       }
@@ -281,6 +297,9 @@ describe("ce-optimize routing", () => {
     const skill = await readFile(SKILL_PATH, "utf8")
 
     expect(skill).toContain("finalize_attempt")
+    expect(skill).toContain("attempt_lock")
+    expect(skill).toMatch(/typed adapter outcome/i)
+    expect(skill).toMatch(/never send a binding/i)
     expect(skill).toContain("accepted_unverified")
     expect(skill).toMatch(/require.*without prompt/is)
     expect(skill).toMatch(/quarantin|isolated output/i)

@@ -14,9 +14,9 @@ type RunResult = {
 
 async function runResolver(
   request: Record<string, unknown>,
-  options: { cwd: string; home: string; env?: Record<string, string> },
+  options: { cwd: string; home: string; env?: Record<string, string>; resolverPath?: string },
 ): Promise<RunResult> {
-  const proc = Bun.spawn(["python3", "-I", "-S", resolver], {
+  const proc = Bun.spawn(["python3", "-I", "-S", options.resolverPath ?? resolver], {
     cwd: options.cwd,
     env: {
       PATH: process.env.PATH ?? "/usr/bin:/bin",
@@ -76,6 +76,10 @@ async function installedResolver(
     path.join(references, "dispatch-roles.json"),
     `${JSON.stringify(roleCatalog)}\n`,
   )
+  await copyFile(
+    path.join(repoRoot, "scripts", "routing", "consumer-identity.json"),
+    path.join(references, "ce-routing-consumer.json"),
+  )
   return path.join(scripts, "ce-routing.py")
 }
 
@@ -90,6 +94,54 @@ function baseBinding(policy = "prefer") {
       { harness: "codex", model: "gpt-5-mini", ordinal: 0 },
       { harness: "claude", model: "sonnet", ordinal: 1 },
     ],
+  }
+}
+
+async function resolvedBinding(
+  f: { project: string; home: string },
+  options: {
+    role?: string
+    policy?: "prefer" | "require"
+    candidates?: Array<Record<string, unknown> | "ce-default">
+    instance?: Record<string, unknown>
+    host?: Record<string, string>
+  } = {},
+) {
+  const role = options.role ?? "ce-work.implementation-worker"
+  const policy = options.policy ?? "prefer"
+  const candidates = options.candidates ?? baseBinding(policy).candidates.map(({ ordinal: _ordinal, ...candidate }) => candidate)
+  await writeFile(
+    path.join(f.home, "config.yaml"),
+    `routing:\n  profiles:\n    test-route:\n      candidates:\n${candidates.map((candidate) => `        - ${JSON.stringify(candidate)}`).join("\n")}\n  roles:\n    ${role}: { profile: test-route, policy: ${policy} }\n`,
+    { mode: 0o600 },
+  )
+  return runResolver({
+    protocol: "ce-routing/v1",
+    op: "resolve_batch",
+    cwd: f.project,
+    host: options.host,
+    intents: [],
+    roles: [{ role, instance: options.instance ?? { id: "test-instance", ordinal: 0 } }],
+  }, { cwd: f.project, home: f.home })
+}
+
+function finalizeRequest(
+  resolved: RunResult,
+  ordinal: number,
+  outcome: "ok" | "unavailable" | "failed",
+  report: Record<string, unknown> = {},
+  attempt: Record<string, unknown> = { ordinal, terminal: true, integrated: false },
+  priorAttempts?: Record<string, unknown>[],
+) {
+  return {
+    protocol: "ce-routing/v1",
+    op: "finalize_attempt",
+    snapshot: resolved.body.snapshot,
+    attempt_lock: resolved.body.resolutions[0].attempt_locks[ordinal],
+    attempt,
+    outcome,
+    report,
+    ...(priorAttempts === undefined ? {} : { prior_attempts: priorAttempts }),
   }
 }
 
@@ -192,6 +244,85 @@ describe("routing resolver", () => {
     }
   })
 
+  test("freezes direct task candidates for lock-bound finalization", async () => {
+    const f = await fixture()
+    try {
+      await writeFile(path.join(f.home, "config.yaml"), "plan_model: fable\n", { mode: 0o600 })
+      const resolved = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        host: { harness: "opencode", serving_family: "openai" },
+        intents: [{
+          role: "ce-plan.plan-author",
+          source: "current-task-model",
+          binding: {
+            policy: "prefer",
+            candidates: [
+              { harness: "opencode", model: "opus" },
+              "ce-default",
+            ],
+          },
+        }],
+        roles: [{ role: "ce-plan.plan-author", instance: { id: "author" } }],
+      }, { cwd: f.project, home: f.home })
+
+      expect(resolved.exitCode).toBe(0)
+      expect(resolved.body.resolutions[0]).toMatchObject({
+        compatibility: { applied: false, reason: "higher-route" },
+        binding: {
+          profile: "current-task",
+          source: "current-task-model",
+          source_layer: "task",
+          policy: "prefer",
+          candidates: [
+            { harness: "opencode", model: "opus", ordinal: 0 },
+            { kind: "ce-default", ordinal: 1 },
+          ],
+        },
+      })
+      expect(resolved.body.resolutions[0].attempt_locks).toHaveLength(2)
+
+      const finalized = await runResolver(
+        finalizeRequest(resolved, 0, "ok", { model_actual: "opus" }),
+        { cwd: f.project, home: f.home },
+      )
+      expect(finalized.exitCode).toBe(0)
+      expect(finalized.body.action).toBe("accept")
+      expect(finalized.body.receipt).toMatchObject({
+        profile: "current-task",
+        model_requested: "opus",
+        identity_status: "verified",
+      })
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("rejects a direct task binding whose CE-default candidate is not final", async () => {
+    const f = await fixture()
+    try {
+      const result = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        intents: [{
+          role: "ce-plan.plan-author",
+          binding: {
+            policy: "prefer",
+            candidates: ["ce-default", { harness: "claude", model: "opus" }],
+          },
+        }],
+        roles: [{ role: "ce-plan.plan-author" }],
+      }, { cwd: f.project, home: f.home })
+
+      expect(result.exitCode).not.toBe(0)
+      expect(result.body.error.code).toBe("SETTING_INVALID")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
   test.each([
     ["missing prefer evidence", "prefer", {}, "accept", "accepted_unverified"],
     ["mismatched prefer evidence", "prefer", { model_actual: "other" }, "next_candidate", "mismatched"],
@@ -200,24 +331,11 @@ describe("routing resolver", () => {
   ])("finalizes %s deterministically", async (_name, policy, report, action, identityStatus) => {
     const f = await fixture()
     try {
-      const result = await runResolver({
-        protocol: "ce-routing/v1",
-        op: "finalize_attempt",
-        cwd: f.project,
-        binding: {
-          role: "ce-work.implementation-worker",
-          class: "implementation",
-          profile: "economy",
-          policy,
-          source_layer: "global-class",
-          candidates: [
-            { harness: "codex", model: "gpt-5-mini", ordinal: 0 },
-            { harness: "claude", model: "sonnet", ordinal: 1 },
-          ],
-        },
-        attempt: { ordinal: 0, terminal: true, integrated: false },
-        report,
-      }, { cwd: f.project, home: f.home })
+      const resolved = await resolvedBinding(f, { policy: policy as "prefer" | "require" })
+      const result = await runResolver(
+        { ...finalizeRequest(resolved, 0, "ok", report), cwd: f.project },
+        { cwd: f.project, home: f.home },
+      )
 
       expect(result.exitCode).toBe(action === "block" ? 4 : 0)
       expect(result.body.action).toBe(action)
@@ -227,27 +345,75 @@ describe("routing resolver", () => {
     }
   })
 
-  test("refuses retry after integration", async () => {
+  test("does not accept unavailable preferred output as unverified success", async () => {
     const f = await fixture()
     try {
+      await writeFile(path.join(f.home, "config.yaml"), `routing:\n  profiles:\n    preferred:\n      candidates:\n        - { harness: codex, model: gpt-5-mini }\n        - { harness: claude, model: sonnet }\n  roles:\n    ce-work.implementation-worker: { profile: preferred, policy: prefer }\n`, { mode: 0o600 })
+      const resolved = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        intents: [],
+        roles: [{ role: "ce-work.implementation-worker", instance: { id: "U1" } }],
+      }, { cwd: f.project, home: f.home })
+
       const result = await runResolver({
         protocol: "ce-routing/v1",
         op: "finalize_attempt",
         cwd: f.project,
-        binding: {
-          role: "ce-work.implementation-worker",
-          class: "implementation",
-          profile: "economy",
-          policy: "prefer",
-          source_layer: "global-class",
-          candidates: [
-            { harness: "codex", model: "gpt-5-mini", ordinal: 0 },
-            { harness: "claude", model: "sonnet", ordinal: 1 },
-          ],
-        },
-        attempt: { ordinal: 0, terminal: true, integrated: true },
-        report: { model_actual: "other" },
+        snapshot: resolved.body.snapshot,
+        attempt_lock: resolved.body.resolutions[0].attempt_locks[0],
+        attempt: { ordinal: 0, terminal: true, integrated: false },
+        outcome: "unavailable",
+        report: {},
       }, { cwd: f.project, home: f.home })
+
+      expect(result.exitCode).toBe(0)
+      expect(result.body.action).toBe("next_candidate")
+      expect(result.body.receipt.identity_status).toBe("unavailable")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test.each([
+    ["preferred unavailable", "prefer", "unavailable", "next_candidate", "unavailable", 0],
+    ["preferred failed", "prefer", "failed", "next_candidate", "failed", 0],
+    ["required unavailable", "require", "unavailable", "block", "unavailable", 4],
+    ["required failed", "require", "failed", "block", "failed", 4],
+  ])("finalizes typed adapter outcome: %s", async (_name, policy, outcome, action, identity, exitCode) => {
+    const f = await fixture()
+    try {
+      const resolved = await resolvedBinding(f, { policy: policy as "prefer" | "require" })
+      const result = await runResolver(
+        finalizeRequest(resolved, 0, outcome as "unavailable" | "failed"),
+        { cwd: f.project, home: f.home },
+      )
+
+      expect(result.exitCode).toBe(exitCode)
+      expect(result.body.action).toBe(action)
+      expect(result.body.receipt.adapter_outcome).toBe(outcome)
+      expect(result.body.receipt.identity_status).toBe(identity)
+      expect(result.body.receipt.identity_status).not.toBe("accepted_unverified")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("refuses retry after integration", async () => {
+    const f = await fixture()
+    try {
+      const resolved = await resolvedBinding(f)
+      const result = await runResolver(
+        finalizeRequest(
+          resolved,
+          0,
+          "ok",
+          { model_actual: "other" },
+          { ordinal: 0, terminal: true, integrated: true },
+        ),
+        { cwd: f.project, home: f.home },
+      )
 
       expect(result.exitCode).toBe(4)
       expect(result.body.error.code).toBe("RETRY_UNSAFE")
@@ -419,6 +585,191 @@ describe("routing resolver", () => {
     }
   })
 
+  test("normalizes owning legacy recipients into one frozen resolve_batch snapshot", async () => {
+    const f = await fixture()
+    try {
+      const configPath = path.join(f.home, "config.yaml")
+      await writeFile(configPath, `plan_model: opus\nbrainstorm_model: fable\ncross_model_peer: composer\nwork_engine_mode: prefer\nwork_engine_preferences:\n  - { harness: codex, model: gpt-5-mini }\n`, { mode: 0o600 })
+      const roles = [
+        { role: "ce-plan.plan-author", instance: { id: "author" } },
+        { role: "ce-brainstorm.approach-generator", instance: { id: "approaches" } },
+        { role: "ce-code-review.adversarial-reviewer", instance: { id: "peer" } },
+        { role: "ce-work.implementation-worker", instance: { id: "implementation" } },
+        { role: "ce-plan.repo-research-analyst", instance: { id: "non-owner" } },
+      ]
+      const parent = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        host: { harness: "opencode", serving_family: "openai" },
+        intents: [],
+        roles,
+      }, { cwd: f.project, home: f.home })
+
+      expect(parent.exitCode).toBe(0)
+      expect(parent.body.snapshot.compatibility.values).toMatchObject({
+        plan_model: "opus",
+        brainstorm_model: "fable",
+        cross_model_peer: "composer",
+        work_engine_mode: "prefer",
+      })
+      expect(parent.body.resolutions[0]).toMatchObject({
+        compatibility: { kind: "plan-model", applied: true, provenance: { plan_model: { layer: "global", authority_trusted: true } } },
+        binding: { profile: "legacy-plan-model", source_layer: "global-legacy-plan-model", policy: "prefer" },
+      })
+      expect(parent.body.resolutions[0].binding.candidates).toEqual([
+        { harness: "opencode", model: "opus", ordinal: 0 },
+        { harness: "claude", model: "opus", effort: "high", ordinal: 1 },
+        { kind: "ce-default", ordinal: 2 },
+      ])
+      expect(parent.body.resolutions[1].binding.profile).toBe("legacy-brainstorm-model")
+      expect(parent.body.resolutions[2].binding.candidates[0]).toEqual({ harness: "composer", ordinal: 0 })
+      expect(parent.body.resolutions[3].binding.candidates).toEqual([
+        { harness: "codex", model: "gpt-5-mini", ordinal: 0 },
+        { kind: "ce-default", ordinal: 1 },
+      ])
+      expect(parent.body.resolutions[4].binding).toMatchObject({ kind: "ce-default", source_layer: "builtin" })
+      expect(parent.body.resolutions[4]).not.toHaveProperty("compatibility")
+
+      const claudeHost = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        host: { harness: "claude", serving_family: "anthropic" },
+        intents: [],
+        roles: [roles[0]],
+      }, { cwd: f.project, home: f.home })
+      expect(claudeHost.body.resolutions[0].binding.candidates).toEqual([
+        { harness: "claude", model: "opus", ordinal: 0 },
+        { harness: "claude", model: "opus", effort: "high", ordinal: 1 },
+        { kind: "ce-default", ordinal: 2 },
+      ])
+
+      await writeFile(configPath, `plan_model: sonnet\nbrainstorm_model: sonnet\ncross_model_peer: codex\nwork_engine_mode: require\nwork_engine_preferences:\n  - { harness: claude, model: sonnet }\n`, { mode: 0o600 })
+      const child = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        parent_snapshot: parent.body.snapshot,
+        roles: [roles[0], roles[3]],
+      }, { cwd: f.project, home: f.home })
+
+      expect(child.exitCode).toBe(0)
+      expect(child.body.resolutions[0].binding.candidates[0].model).toBe("opus")
+      expect(child.body.resolutions[1].binding).toMatchObject({
+        policy: "prefer",
+        candidates: [{ harness: "codex", model: "gpt-5-mini", ordinal: 0 }, { kind: "ce-default", ordinal: 1 }],
+      })
+      expect(child.body.settings.provenance.plan_model.layer).toBe("global")
+      expect(child.body.snapshot.parent_snapshot_id).toBe(parent.body.snapshot.id)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("rejects malformed host identity without an internal failure", async () => {
+    const f = await fixture()
+    try {
+      await writeFile(path.join(f.home, "config.yaml"), "plan_model: opus\n", { mode: 0o600 })
+      const result = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        host: { harness: [] },
+        intents: [],
+        roles: [{ role: "ce-plan.plan-author" }],
+      }, { cwd: f.project, home: f.home })
+
+      expect(result.exitCode).toBe(2)
+      expect(result.body.error.code).toBe("REQUEST_INVALID")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("preserves generalized precedence and narrower project resets around compatibility routes", async () => {
+    const f = await fixture()
+    try {
+      const globalPath = path.join(f.home, "config.yaml")
+      const projectDir = path.join(f.project, ".compound-engineering")
+      const projectPath = path.join(projectDir, "config.local.yaml")
+      await mkdir(projectDir, { recursive: true })
+      await writeFile(globalPath, `cross_model_peer: codex\nwork_engine_mode: prefer\nwork_engine_preferences:\n  - { harness: codex, model: economy }\nrouting:\n  profiles:\n    strong:\n      candidates:\n        - { harness: claude, model: strong }\n  classes:\n    review: { profile: strong, policy: require }\n    implementation: { profile: strong, policy: require }\n`, { mode: 0o600 })
+      const resolve = () => runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        intents: [],
+        roles: [
+          { role: "ce-code-review.adversarial-reviewer", instance: { id: "peer" } },
+          { role: "ce-work.implementation-worker", instance: { id: "work" } },
+        ],
+      }, { cwd: f.project, home: f.home })
+
+      const globalCompatibility = await resolve()
+      expect(globalCompatibility.body.resolutions.map((item: any) => item.binding.source_layer)).toEqual([
+        "global-legacy-cross-model-peer",
+        "global-legacy-work-engine",
+      ])
+
+      await writeFile(globalPath, `cross_model_peer: codex\nwork_engine_mode: prefer\nwork_engine_preferences:\n  - { harness: codex, model: economy }\nrouting:\n  profiles:\n    strong:\n      candidates:\n        - { harness: claude, model: strong }\n  roles:\n    ce-code-review.adversarial-reviewer: { profile: strong, policy: require }\n    ce-work.implementation-worker: { profile: strong, policy: require }\n`, { mode: 0o600 })
+      const globalRole = await resolve()
+      expect(globalRole.body.resolutions.map((item: any) => item.binding.source_layer)).toEqual([
+        "global-role",
+        "global-role",
+      ])
+
+      await writeFile(projectPath, `routing:\n  classes:\n    review: ce-default\n    implementation: ce-default\n`, { mode: 0o600 })
+      const projectReset = await resolve()
+      expect(projectReset.body.resolutions.map((item: any) => item.binding)).toEqual([
+        expect.objectContaining({ kind: "ce-default", explicit_reset: true, source_layer: "project-class" }),
+        expect.objectContaining({ kind: "ce-default", explicit_reset: true, source_layer: "project-class" }),
+      ])
+
+      await writeFile(projectPath, `cross_model_peer: claude\nwork_engine_mode: require\nwork_engine_preferences:\n  - { harness: claude, model: project-worker }\nrouting:\n  classes:\n    review: { profile: strong, policy: require }\n    implementation: { profile: strong, policy: require }\n`, { mode: 0o600 })
+      const projectCompatibility = await resolve()
+      expect(projectCompatibility.body.resolutions.map((item: any) => item.binding.source_layer)).toEqual([
+        "project-legacy-cross-model-peer",
+        "project-legacy-work-engine",
+      ])
+
+      await writeFile(projectPath, `cross_model_peer: null\nwork_engine_mode: off\nwork_engine_preferences: []\nrouting:\n  classes:\n    review: { profile: strong, policy: require }\n    implementation: { profile: strong, policy: require }\n`, { mode: 0o600 })
+      const projectMasks = await resolve()
+      expect(projectMasks.body.resolutions.map((item: any) => item.binding.source_layer)).toEqual([
+        "project-class",
+        "project-class",
+      ])
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test.each([
+    ["plan model", "plan_model: opus\n", "ce-plan.plan-author", "plan_model"],
+    ["peer target", "cross_model_peer: codex\n", "ce-code-review.adversarial-reviewer", "cross_model_peer"],
+    ["work engine", "work_engine_mode: prefer\nwork_engine_preferences:\n  - { harness: codex }\n", "ce-work.implementation-worker", "work_engine_mode"],
+  ])("rejects untrusted recipient-bearing project compatibility: %s", async (_name, config, role, setting) => {
+    const f = await fixture()
+    try {
+      await writeFile(path.join(f.project, ".gitignore"), "")
+      const projectDir = path.join(f.project, ".compound-engineering")
+      await mkdir(projectDir, { recursive: true })
+      await writeFile(path.join(projectDir, "config.local.yaml"), config, { mode: 0o600 })
+      const result = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        intents: [],
+        roles: [{ role, instance: { id: "untrusted" } }],
+      }, { cwd: f.project, home: f.home })
+
+      expect(result.exitCode).toBe(4)
+      expect(result.body.error).toMatchObject({ code: "AUTHORITY_UNTRUSTED", role, setting })
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
   test("requires trusted binding and profile provenance for recipient-bearing routes", async () => {
     const f = await fixture()
     try {
@@ -500,7 +851,11 @@ describe("routing resolver", () => {
           feedback_sources: [{ type: "slack", id: "slack-alpha", target: "C0123", approved: true }],
         },
         remove: [],
-      }, { cwd: f.project, home: f.home })
+      }, {
+        cwd: f.project,
+        home: f.home,
+        resolverPath: path.join(repoRoot, "skills", "ce-sweep", "scripts", "ce-routing.py"),
+      })
       expect(patched.exitCode).toBe(0)
 
       const after = await runResolver(
@@ -547,6 +902,69 @@ describe("routing resolver", () => {
       }, { cwd: f.project, home: f.home })
       expect(foreignProject.exitCode).toBe(5)
       expect(foreignProject.body.error.code).toBe("WRITE_UNSAFE")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("binds patch_source writer identity to each generated resolver copy", async () => {
+    const f = await fixture()
+    const productPulseResolver = path.join(repoRoot, "skills", "ce-product-pulse", "scripts", "ce-routing.py")
+    try {
+      const inspected = await runResolver(
+        { protocol: "ce-routing/v1", op: "inspect", cwd: f.project },
+        { cwd: f.project, home: f.home, resolverPath: productPulseResolver },
+      )
+      const impersonation = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "patch_source",
+        cwd: f.project,
+        writer: "ce-setup",
+        layer: "global",
+        expected_revision: inspected.body.sources.global.revision,
+        set: { plan_output: "html" },
+        remove: [],
+      }, { cwd: f.project, home: f.home, resolverPath: productPulseResolver })
+      expect(impersonation.exitCode).toBe(5)
+      expect(impersonation.body.error).toMatchObject({
+        code: "WRITE_UNSAFE",
+        writer: "ce-setup",
+        consumer: "ce-product-pulse",
+      })
+
+      const owned = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "patch_source",
+        cwd: f.project,
+        writer: "ce-product-pulse",
+        layer: "project",
+        expected_revision: inspected.body.sources.project.revision,
+        set: { pulse_product_name: "Trusted Pulse" },
+        remove: [],
+      }, { cwd: f.project, home: f.home, resolverPath: productPulseResolver })
+      expect(owned.exitCode).toBe(0)
+      expect(owned.body).toMatchObject({ writer: "ce-product-pulse", consumer: "ce-product-pulse" })
+
+      const after = await runResolver(
+        { protocol: "ce-routing/v1", op: "inspect", cwd: f.project },
+        { cwd: f.project, home: f.home, resolverPath: productPulseResolver },
+      )
+      const foreignKey = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "patch_source",
+        cwd: f.project,
+        writer: "ce-product-pulse",
+        layer: "project",
+        expected_revision: after.body.sources.project.revision,
+        set: { sweep_ack_cap: 10 },
+        remove: [],
+      }, { cwd: f.project, home: f.home, resolverPath: productPulseResolver })
+      expect(foreignKey.exitCode).toBe(5)
+      expect(foreignKey.body.error).toMatchObject({
+        code: "WRITE_UNSAFE",
+        writer: "ce-product-pulse",
+        setting: "sweep_ack_cap",
+      })
     } finally {
       await rm(f.root, { recursive: true, force: true })
     }
@@ -718,17 +1136,15 @@ describe("routing resolver", () => {
   test("finalize_attempt rejects all nonterminal or integrated states and exactness violations", async () => {
     const f = await fixture()
     try {
+      const resolved = await resolvedBinding(f, { policy: "require" })
       for (const attempt of [
         { ordinal: 0, terminal: false, integrated: false },
         { ordinal: 0, terminal: true, integrated: true },
       ]) {
-        const result = await runResolver({
-          protocol: "ce-routing/v1",
-          op: "finalize_attempt",
-          binding: baseBinding("require"),
-          attempt,
-          report: { model_actual: "gpt-5-mini" },
-        }, { cwd: f.project, home: f.home })
+        const result = await runResolver(
+          finalizeRequest(resolved, 0, "ok", { model_actual: "gpt-5-mini" }, attempt),
+          { cwd: f.project, home: f.home },
+        )
         expect(result.exitCode).toBe(4)
         expect(result.body.error.code).toBe("RETRY_UNSAFE")
       }
@@ -736,15 +1152,121 @@ describe("routing resolver", () => {
       for (const attempt of [
         { ordinal: 0, terminal: 1, integrated: false },
         { ordinal: 0, terminal: true, integrated: 0 },
-        { ordinal: true, terminal: true, integrated: false },
       ]) {
-        const result = await runResolver({
-          protocol: "ce-routing/v1",
-          op: "finalize_attempt",
-          binding: baseBinding(),
-          attempt,
-          report: {},
-        }, { cwd: f.project, home: f.home })
+        const result = await runResolver(
+          finalizeRequest(resolved, 0, "ok", {}, attempt),
+          { cwd: f.project, home: f.home },
+        )
+        expect(result.exitCode).toBe(2)
+        expect(result.body.error.code).toBe("REQUEST_INVALID")
+      }
+      const wrongOrdinal = await runResolver(
+        finalizeRequest(resolved, 0, "ok", {}, { ordinal: true, terminal: true, integrated: false }),
+        { cwd: f.project, home: f.home },
+      )
+      expect(wrongOrdinal.exitCode).toBe(4)
+      expect(wrongOrdinal.body.error.code).toBe("ATTEMPT_LOCK_INVALID")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("finalization rejects mutable bindings and snapshot/role/instance/policy/candidate lock tampering", async () => {
+    const f = await fixture()
+    try {
+      const resolved = await resolvedBinding(f, {
+        role: "ce-code-review.adversarial-reviewer",
+        instance: { id: "adversarial", ordinal: 7 },
+      })
+      const valid = finalizeRequest(resolved, 0, "ok", { model_actual: "gpt-5-mini" })
+      const suppliedBinding = await runResolver(
+        { ...valid, binding: baseBinding() },
+        { cwd: f.project, home: f.home },
+      )
+      expect(suppliedBinding.exitCode).toBe(2)
+      expect(suppliedBinding.body.error.code).toBe("REQUEST_INVALID")
+
+      const lockMutations: Array<(lock: Record<string, any>) => void> = [
+        (lock) => { lock.snapshot_id = `cesnap-v1:${"0".repeat(64)}` },
+        (lock) => { lock.role = "ce-pov.panel-peer" },
+        (lock) => { lock.instance.id = "other-instance" },
+        (lock) => { lock.policy = "require" },
+        (lock) => { lock.candidate.model = "other-model" },
+        (lock) => { lock.candidate_ordinal = 1 },
+        (lock) => { lock.binding_digest = `cebind-v1:${"0".repeat(64)}` },
+        (lock) => { lock.lock_digest = `ceattempt-v1:${"0".repeat(64)}` },
+      ]
+      for (const mutate of lockMutations) {
+        const request = structuredClone(valid)
+        mutate(request.attempt_lock)
+        const result = await runResolver(request, { cwd: f.project, home: f.home })
+        expect(result.exitCode).toBe(4)
+        expect(result.body.error.code).toBe("ATTEMPT_LOCK_INVALID")
+      }
+
+      const other = await resolvedBinding(f, {
+        role: "ce-code-review.adversarial-reviewer",
+        instance: { id: "other-instance", ordinal: 7 },
+      })
+      const replay = await runResolver(
+        { ...valid, snapshot: other.body.snapshot },
+        { cwd: f.project, home: f.home },
+      )
+      expect(replay.exitCode).toBe(4)
+      expect(replay.body.error.code).toBe("ATTEMPT_LOCK_INVALID")
+
+      const wrongCwd = await runResolver(
+        { ...valid, cwd: f.root },
+        { cwd: f.project, home: f.home },
+      )
+      expect(wrongCwd.exitCode).toBe(4)
+      expect(wrongCwd.body.error.code).toBe("CONTEXT_STALE")
+
+      const changedSnapshot = structuredClone(resolved.body.snapshot)
+      changedSnapshot.roles[0].instance.id = "snapshot-tamper"
+      const stale = await runResolver(
+        { ...valid, snapshot: changedSnapshot },
+        { cwd: f.project, home: f.home },
+      )
+      expect(stale.exitCode).toBe(4)
+      expect(stale.body.error.code).toBe("CONTEXT_STALE")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("redacts frozen instance metadata from finalization receipts", async () => {
+    const f = await fixture()
+    try {
+      const secretPath = "/private/routing/prompt.md"
+      const resolved = await resolvedBinding(f, {
+        instance: { id: "redacted-instance", material_path: secretPath },
+      })
+      const result = await runResolver(
+        finalizeRequest(resolved, 0, "ok", { model_actual: "gpt-5-mini" }),
+        { cwd: f.project, home: f.home },
+      )
+
+      expect(result.exitCode).toBe(0)
+      expect(result.body.receipt).not.toHaveProperty("instance")
+      expect(JSON.stringify(result.body)).not.toContain(secretPath)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("rejects malformed serving identity evidence", async () => {
+    const f = await fixture()
+    try {
+      const resolved = await resolvedBinding(f)
+      for (const report of [
+        { model_actual: { leaked: "provider output" } },
+        { effort_actual: "high\nprivate" },
+      ]) {
+        const result = await runResolver(
+          finalizeRequest(resolved, 0, "ok", report),
+          { cwd: f.project, home: f.home },
+        )
         expect(result.exitCode).toBe(2)
         expect(result.body.error.code).toBe("REQUEST_INVALID")
       }
@@ -756,31 +1278,27 @@ describe("routing resolver", () => {
   test("finalize_attempt carries validated cumulative attempt history", async () => {
     const f = await fixture()
     try {
-      const first = await runResolver({
-        protocol: "ce-routing/v1",
-        op: "finalize_attempt",
-        binding: baseBinding(),
-        attempt: { ordinal: 0, terminal: true, integrated: false },
-        report: { model_actual: "wrong-model" },
-      }, { cwd: f.project, home: f.home })
+      const resolved = await resolvedBinding(f)
+      const first = await runResolver(
+        finalizeRequest(resolved, 0, "ok", { model_actual: "wrong-model" }),
+        { cwd: f.project, home: f.home },
+      )
       expect(first.body.action).toBe("next_candidate")
       expect(first.body.receipt.attempts).toEqual([{
         ordinal: 0,
+        outcome: "ok",
         identity_status: "mismatched",
         terminal: true,
         integrated: false,
         fallback_reason: "identity_mismatch",
         terminal_status: "next_candidate",
+        attempt_lock_digest: resolved.body.resolutions[0].attempt_locks[0].lock_digest,
       }])
 
-      const second = await runResolver({
-        protocol: "ce-routing/v1",
-        op: "finalize_attempt",
-        binding: baseBinding(),
-        prior_attempts: first.body.receipt.attempts,
-        attempt: { ordinal: 1, terminal: true, integrated: false },
-        report: { model_actual: "sonnet" },
-      }, { cwd: f.project, home: f.home })
+      const second = await runResolver(
+        finalizeRequest(resolved, 1, "ok", { model_actual: "sonnet" }, undefined, first.body.receipt.attempts),
+        { cwd: f.project, home: f.home },
+      )
       expect(second.exitCode).toBe(0)
       expect(second.body.action).toBe("accept")
       expect(second.body.receipt.attempts).toHaveLength(2)
@@ -795,50 +1313,116 @@ describe("routing resolver", () => {
       })
       expect(second.body.receipt.fallback_reason).toBe("identity_mismatch")
 
-      const missing = await runResolver({
-        protocol: "ce-routing/v1",
-        op: "finalize_attempt",
-        binding: baseBinding(),
-        attempt: { ordinal: 1, terminal: true, integrated: false },
-        report: { model_actual: "sonnet" },
-      }, { cwd: f.project, home: f.home })
+      const missing = await runResolver(
+        finalizeRequest(resolved, 1, "ok", { model_actual: "sonnet" }),
+        { cwd: f.project, home: f.home },
+      )
       expect(missing.exitCode).toBe(2)
       expect(missing.body.error.code).toBe("REQUEST_INVALID")
 
-      const malformed = await runResolver({
-        protocol: "ce-routing/v1",
-        op: "finalize_attempt",
-        binding: baseBinding(),
-        prior_attempts: [{ ...first.body.receipt.attempts[0], terminal: false }],
-        attempt: { ordinal: 1, terminal: true, integrated: false },
-        report: { model_actual: "sonnet" },
-      }, { cwd: f.project, home: f.home })
+      const malformed = await runResolver(
+        finalizeRequest(
+          resolved,
+          1,
+          "ok",
+          { model_actual: "sonnet" },
+          undefined,
+          [{ ...first.body.receipt.attempts[0], terminal: false }],
+        ),
+        { cwd: f.project, home: f.home },
+      )
       expect(malformed.exitCode).toBe(2)
       expect(malformed.body.error.code).toBe("REQUEST_INVALID")
+
+      for (const prior of [
+        [{ ...first.body.receipt.attempts[0], fallback_reason: "attempt_failed" }],
+        [{ ...first.body.receipt.attempts[0], outcome: "invented", identity_status: null }],
+      ]) {
+        const altered = await runResolver(
+          finalizeRequest(resolved, 1, "ok", { model_actual: "sonnet" }, undefined, prior),
+          { cwd: f.project, home: f.home },
+        )
+        expect(altered.exitCode).toBe(2)
+        expect(altered.body.error.code).toBe("REQUEST_INVALID")
+      }
 
       const manyCandidates = Array.from({ length: 130 }, (_, ordinal) => ({
         harness: "codex",
         model: `model-${ordinal}`,
-        ordinal,
       }))
-      const tooMuchHistory = Array.from({ length: 129 }, (_, ordinal) => ({
-        ordinal,
-        identity_status: "failed",
-        terminal: true,
-        integrated: false,
-        fallback_reason: "attempt_failed",
-        terminal_status: "next_candidate",
-      }))
-      const unbounded = await runResolver({
-        protocol: "ce-routing/v1",
-        op: "finalize_attempt",
-        binding: { ...baseBinding(), candidates: manyCandidates },
-        prior_attempts: tooMuchHistory,
-        attempt: { ordinal: 129, terminal: true, integrated: false },
-        report: { model_actual: "model-129" },
-      }, { cwd: f.project, home: f.home })
+      const manyResolved = await resolvedBinding(f, { candidates: manyCandidates })
+      const tooMuchHistory = Array.from({ length: 129 }, (_, ordinal) => ({ ordinal }))
+      const unbounded = await runResolver(
+        finalizeRequest(manyResolved, 129, "ok", { model_actual: "model-129" }, undefined, tooMuchHistory),
+        { cwd: f.project, home: f.home },
+      )
       expect(unbounded.exitCode).toBe(2)
       expect(unbounded.body.error.code).toBe("REQUEST_INVALID")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("requires complete lock-bound history across unavailable, failed, and successful attempts", async () => {
+    const f = await fixture()
+    try {
+      const candidates = [
+        { harness: "codex", model: "first" },
+        { harness: "claude", model: "second" },
+        { harness: "grok", model: "third" },
+      ]
+      const resolved = await resolvedBinding(f, { candidates, instance: { id: "history-owner" } })
+      const first = await runResolver(
+        finalizeRequest(resolved, 0, "unavailable"),
+        { cwd: f.project, home: f.home },
+      )
+      expect(first.body.action).toBe("next_candidate")
+      expect(first.body.receipt.attempts[0]).toMatchObject({
+        outcome: "unavailable",
+        identity_status: "unavailable",
+        fallback_reason: "route_unavailable",
+      })
+
+      const second = await runResolver(
+        finalizeRequest(resolved, 1, "failed", {}, undefined, first.body.receipt.attempts),
+        { cwd: f.project, home: f.home },
+      )
+      expect(second.body.action).toBe("next_candidate")
+      expect(second.body.receipt.attempts.map((item: any) => item.outcome)).toEqual(["unavailable", "failed"])
+
+      const third = await runResolver(
+        finalizeRequest(
+          resolved,
+          2,
+          "ok",
+          { model_actual: "third" },
+          undefined,
+          second.body.receipt.attempts,
+        ),
+        { cwd: f.project, home: f.home },
+      )
+      expect(third.exitCode).toBe(0)
+      expect(third.body.action).toBe("accept")
+      expect(third.body.receipt.attempts.map((item: any) => item.outcome)).toEqual([
+        "unavailable",
+        "failed",
+        "ok",
+      ])
+
+      const other = await resolvedBinding(f, { candidates, instance: { id: "history-replay-target" } })
+      const replay = await runResolver(
+        finalizeRequest(
+          other,
+          2,
+          "ok",
+          { model_actual: "third" },
+          undefined,
+          second.body.receipt.attempts,
+        ),
+        { cwd: f.project, home: f.home },
+      )
+      expect(replay.exitCode).toBe(2)
+      expect(replay.body.error.code).toBe("REQUEST_INVALID")
     } finally {
       await rm(f.root, { recursive: true, force: true })
     }

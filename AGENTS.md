@@ -105,7 +105,7 @@ cat .claude-plugin/plugin.json | jq .
 
 ### Routing Assets and Claims
 
-- Canonical routing sources live under `scripts/routing/`. Consumer skills receive generated, byte-identical `ce-routing.py`, settings schema, protocol, dispatch catalog, and execution-routing reference copies. Update canonical sources and run the synchronizer; never hand-edit one generated skill copy.
+- Canonical routing sources live under `scripts/routing/`. Consumer skills receive generated, byte-identical `ce-routing.py`, settings schema, protocol, dispatch catalog, and execution-routing reference copies plus a deterministic per-consumer identity asset that binds write operations to that skill. Update canonical sources and run the synchronizer; never hand-edit one generated skill copy.
 - Each consumer skill must remain independently installable. Runtime code resolves only co-located assets and must not depend on the repository-root `scripts/routing/` tree.
 - `tests/real-plugin-conversion.test.ts` converts the real plugin to every implemented writer target, reinstalls it, compares representative consumer bytes, and runs copied resolvers outside the checkout. A passing recursive-copy proof is the reason not to add target-specific routing copy code.
 - Keep host support claims evidence-scoped. Deterministic fakes prove selector and receipt contracts; only a recorded live run proves a particular installed host, authentication state, model selector, or serving receipt.
