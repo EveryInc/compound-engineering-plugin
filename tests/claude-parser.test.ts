@@ -27,6 +27,25 @@ const [
   invalidMcpPathRoot,
 ] = fixtures.map((fixture) => fixture.root)
 const tempRoots: string[] = []
+const manifestScanIgnoredDirs = new Set([
+  ".git",
+  ".worktrees",
+  "node_modules",
+])
+
+async function findClaudePluginManifests(root: string, relative = ""): Promise<string[]> {
+  const manifests: string[] = []
+  for (const entry of await fs.readdir(path.join(root, relative), { withFileTypes: true })) {
+    if (entry.isDirectory() && manifestScanIgnoredDirs.has(entry.name)) continue
+    const child = path.join(relative, entry.name)
+    if (entry.isDirectory()) {
+      manifests.push(...await findClaudePluginManifests(root, child))
+    } else if (entry.isFile() && child.endsWith(path.join(".claude-plugin", "plugin.json"))) {
+      manifests.push(child)
+    }
+  }
+  return manifests
+}
 
 afterAll(() => {
   for (const fixture of fixtures) fixture.cleanup()
@@ -52,12 +71,7 @@ async function makeMinimalPluginRoot(): Promise<string> {
 
 describe("loadClaudePlugin", () => {
   test("repository tree exposes only the root Claude plugin manifest", async () => {
-    const manifests: string[] = []
-    const glob = new Bun.Glob("**/.claude-plugin/plugin.json")
-
-    for await (const manifest of glob.scan({ cwd: compoundPluginRoot, dot: true, onlyFiles: true })) {
-      manifests.push(manifest)
-    }
+    const manifests = await findClaudePluginManifests(compoundPluginRoot)
 
     expect(manifests.sort()).toEqual([".claude-plugin/plugin.json"])
   })
