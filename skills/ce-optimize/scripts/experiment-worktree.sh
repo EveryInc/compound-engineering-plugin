@@ -6,8 +6,8 @@
 #
 # Usage:
 #   experiment-worktree.sh create <spec_name> <exp_index> <base_branch> [--routed|--legacy-no-routing] [shared_file ...]
-#   experiment-worktree.sh cleanup <spec_name> <exp_index> [--result-recorded]
-#   experiment-worktree.sh cleanup-all <spec_name> [--result-recorded]
+#   experiment-worktree.sh cleanup <spec_name> <exp_index>
+#   experiment-worktree.sh cleanup-all <spec_name>
 #   experiment-worktree.sh count
 #
 # Worktrees are created at: .worktrees/optimize-<spec>-exp-<NNN>/
@@ -27,6 +27,8 @@ GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
 GIT_ROOT=$(cd "$GIT_ROOT" && pwd -P)
 
 WORKTREE_DIR="$GIT_ROOT/.worktrees"
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+CONTROLLER="$SCRIPT_DIR/optimize-controller.py"
 
 fail() {
   echo -e "${RED}Error: $*${NC}" >&2
@@ -155,9 +157,20 @@ validate_destination_path() {
   done
 }
 
-has_result_marker() {
+require_terminal_lease() {
   local worktree_path="${1:?Error: worktree path required}"
-  [[ -e "$worktree_path/result.yaml" || -L "$worktree_path/result.yaml" ]]
+  local response
+  local status
+
+  set +e
+  response=$(python3 -I -S "$CONTROLLER" worktree-status --worktree "$worktree_path" 2>&1)
+  local controller_exit=$?
+  set -e
+  status="${response%%$'\n'*}"
+  if [[ "$controller_exit" -ne 0 || "$status" != "RESET_ALLOWED" ]]; then
+    fail "controller lease does not prove terminal completed/abandoned state for $worktree_path (${status:-unavailable})"
+    return
+  fi
 }
 
 reject_routed_dotenv() {
@@ -222,11 +235,7 @@ reset_worktree_to_base() {
     return 1
   fi
 
-  if has_result_marker "$worktree_path"; then
-    echo -e "${RED}Error: Existing experiment has a result marker: $worktree_path/result.yaml${NC}" >&2
-    echo -e "${RED}Recover and checkpoint that result before cleanup; never reset a measured experiment.${NC}" >&2
-    return 1
-  fi
+  require_terminal_lease "$worktree_path"
 
   echo -e "${YELLOW}Resetting existing experiment worktree to base: $branch_name -> $base_branch${NC}" >&2
   git -C "$worktree_path" reset --hard "$base_branch" >/dev/null
@@ -297,6 +306,7 @@ create_worktree() {
           return 1
         fi
 
+        require_terminal_lease "$worktree_path"
         echo -e "${YELLOW}Resetting existing experiment branch to base: $branch_name -> $base_branch${NC}" >&2
         git branch -f "$branch_name" "$base_branch" >/dev/null
         git worktree add "$worktree_path" "$branch_name" --quiet
@@ -350,12 +360,11 @@ create_worktree() {
 cleanup_worktree() {
   local spec_name="${1:?Error: spec_name required}"
   local exp_index="${2:?Error: exp_index required}"
-  local result_recorded="${3:-}"
 
   ensure_worktree_root_safe
   validate_identity "$spec_name" "$exp_index"
-  if [[ -n "$result_recorded" && "$result_recorded" != "--result-recorded" ]]; then
-    fail "unknown cleanup option: $result_recorded"
+  if [[ -n "${3:-}" ]]; then
+    fail "cleanup accepts no override; controller terminal state is required"
     return
   fi
 
@@ -367,10 +376,7 @@ cleanup_worktree() {
   local worktree_path="$WORKTREE_DIR/$worktree_name"
 
   if [[ -d "$worktree_path" ]]; then
-    if has_result_marker "$worktree_path" && [[ "$result_recorded" != "--result-recorded" ]]; then
-      fail "result.yaml exists; append and verify its CP-3 log checkpoint, then retry with --result-recorded"
-      return
-    fi
+    require_terminal_lease "$worktree_path"
     git worktree remove "$worktree_path" --force 2>/dev/null || {
       # If worktree remove fails, try manual cleanup
       rm -rf "$worktree_path" 2>/dev/null || true
@@ -387,11 +393,10 @@ cleanup_worktree() {
 # Clean up all experiment worktrees for a spec
 cleanup_all() {
   local spec_name="${1:?Error: spec_name required}"
-  local result_recorded="${2:-}"
   ensure_worktree_root_safe
   validate_identity "$spec_name" "0"
-  if [[ -n "$result_recorded" && "$result_recorded" != "--result-recorded" ]]; then
-    fail "unknown cleanup-all option: $result_recorded"
+  if [[ -n "${2:-}" ]]; then
+    fail "cleanup-all accepts no override; controller terminal state is required"
     return
   fi
   local prefix="optimize-${spec_name}-exp-"
@@ -410,8 +415,8 @@ cleanup_all() {
       # Extract index from name
       local index_str="${worktree_name#"$prefix"}"
 
-      if has_result_marker "$worktree_path" && [[ "$result_recorded" != "--result-recorded" ]]; then
-        echo -e "${YELLOW}Retained measured worktree pending CP-3 acknowledgment: $worktree_name${NC}" >&2
+      if ! require_terminal_lease "$worktree_path"; then
+        echo -e "${YELLOW}Retained worktree without a controller-verified terminal checkpoint: $worktree_name${NC}" >&2
         retained=$((retained + 1))
         continue
       fi
@@ -438,7 +443,7 @@ cleanup_all() {
 
   echo -e "${GREEN}Cleaned up $count experiment worktree(s) for $spec_name${NC}" >&2
   if [[ "$retained" -gt 0 ]]; then
-    fail "$retained measured worktree(s) retained; recover their result markers or pass --result-recorded after CP-3 verification"
+    fail "$retained worktree(s) retained; complete or explicitly abandon their controller attempts"
     return
   fi
 }
@@ -483,14 +488,14 @@ Experiment Worktree Manager
 
 Usage:
   experiment-worktree.sh create <spec_name> <exp_index> <base_branch> [--routed|--legacy-no-routing] [shared_file ...]
-  experiment-worktree.sh cleanup <spec_name> <exp_index> [--result-recorded]
-  experiment-worktree.sh cleanup-all <spec_name> [--result-recorded]
+  experiment-worktree.sh cleanup <spec_name> <exp_index>
+  experiment-worktree.sh cleanup-all <spec_name>
   experiment-worktree.sh count
 
 Commands:
   create       Create a secure worktree; --legacy-no-routing restores v3.20.0 .env* discovery
-  cleanup      Remove one worktree; result markers require --result-recorded
-  cleanup-all  Remove all worktrees; result markers require --result-recorded
+  cleanup      Remove one worktree after a controller-verified terminal checkpoint
+  cleanup-all  Remove terminally checkpointed worktrees; retain live/unknown attempts
   count        Count total active worktrees (for budget checking)
 
 Worktrees:  .worktrees/optimize-<spec>-exp-<NNN>/

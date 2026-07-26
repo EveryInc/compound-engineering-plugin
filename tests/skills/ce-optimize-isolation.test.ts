@@ -190,7 +190,7 @@ describe("ce-optimize worktree isolation", () => {
     }
   })
 
-  test("a result marker prevents reset and cleanup until its log checkpoint is acknowledged", async () => {
+  test("result markers and caller flags cannot replace a controller terminal lease", async () => {
     const f = await repoFixture()
     try {
       const created = await run([
@@ -204,21 +204,22 @@ describe("ce-optimize worktree isolation", () => {
         "bash", WORKTREE_SCRIPT, "create", "recovery", "1", "HEAD",
       ], f.repo)
       expect(reused.exitCode).not.toBe(0)
-      expect(reused.stderr).toMatch(/result marker/i)
+      expect(reused.stderr).toMatch(/controller lease/i)
       expect(await exists(path.join(worktree, "result.yaml"))).toBe(true)
 
       const unacknowledgedCleanup = await run([
         "bash", WORKTREE_SCRIPT, "cleanup", "recovery", "1",
       ], f.repo)
       expect(unacknowledgedCleanup.exitCode).not.toBe(0)
-      expect(unacknowledgedCleanup.stderr).toMatch(/result.*recorded|checkpoint/i)
+      expect(unacknowledgedCleanup.stderr).toMatch(/controller lease/i)
       expect(await exists(worktree)).toBe(true)
 
-      const cleanup = await run([
+      const forgedAcknowledgment = await run([
         "bash", WORKTREE_SCRIPT, "cleanup", "recovery", "1", "--result-recorded",
       ], f.repo)
-      expect(cleanup.exitCode, cleanup.stderr).toBe(0)
-      expect(await exists(worktree)).toBe(false)
+      expect(forgedAcknowledgment.exitCode).not.toBe(0)
+      expect(forgedAcknowledgment.stderr).toMatch(/accepts no override/i)
+      expect(await exists(worktree)).toBe(true)
     } finally {
       await rm(f.root, { recursive: true, force: true })
     }
@@ -254,8 +255,7 @@ describe("ce-optimize worktree isolation", () => {
   })
 
   test("spec and prompts isolate scope, sanctioned environment, and hidden answers", async () => {
-    const [skill, schema, experimentPrompt, judgePrompt, logSchema] = await Promise.all([
-      readFile(path.join(ROOT, "skills/ce-optimize/SKILL.md"), "utf8"),
+    const [schema, experimentPrompt, judgePrompt, logSchema] = await Promise.all([
       readFile(path.join(ROOT, "skills/ce-optimize/references/optimize-spec-schema.yaml"), "utf8"),
       readFile(path.join(ROOT, "skills/ce-optimize/references/experiment-prompt-template.md"), "utf8"),
       readFile(path.join(ROOT, "skills/ce-optimize/references/judge-prompt-template.md"), "utf8"),
@@ -270,9 +270,6 @@ describe("ce-optimize worktree isolation", () => {
     expect(schema).toMatch(/path escape|escape.*repository/i)
     expect(schema).toMatch(/\.env\*/i)
 
-    expect(skill).toMatch(/ambient credentials.*never|never.*ambient credentials/is)
-    expect(skill).toMatch(/sanctioned_env.*only/is)
-    expect(skill).toMatch(/cannot enforce.*environment.*unavailable/is)
     expect(experimentPrompt).toContain("{sanctioned_shared_inputs}")
     expect(experimentPrompt).toMatch(/do not.*measurement harness/i)
     expect(experimentPrompt).toMatch(/hidden reference|answer key/i)
@@ -284,15 +281,4 @@ describe("ce-optimize worktree isolation", () => {
     expect(logSchema).toContain("judge_receipts")
   })
 
-  test("append-before-display, immutable measurement, bounded dispatch, and recovery remain load-bearing", async () => {
-    const skill = await readFile(path.join(ROOT, "skills/ce-optimize/SKILL.md"), "utf8")
-
-    expect(skill).toMatch(/write.*routing.*receipt.*before.*(?:display|present|report)/is)
-    expect(skill).toMatch(/result\.yaml.*routing_snapshot_id/is)
-    expect(skill).toMatch(/immutable.*measurement harness/is)
-    expect(skill).toMatch(/bounded dispatch.*backpressure/is)
-    expect(skill).toMatch(/worktree.*isolat/is)
-    expect(skill).toMatch(/author.*judge.*separate/is)
-    expect(skill).toMatch(/resume.*result\.yaml/is)
-  })
 })

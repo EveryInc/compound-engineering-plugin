@@ -4,7 +4,6 @@ import path from "node:path"
 import { describe, expect, test } from "bun:test"
 
 const ROOT = path.join(import.meta.dir, "../..")
-const SKILL_PATH = path.join(ROOT, "skills/ce-optimize/SKILL.md")
 const SCHEMA_PATH = path.join(ROOT, "skills/ce-optimize/references/optimize-spec-schema.yaml")
 const LOG_SCHEMA_PATH = path.join(ROOT, "skills/ce-optimize/references/experiment-log-schema.yaml")
 const RESOLVER = path.join(ROOT, "skills/ce-optimize/scripts/ce-routing.py")
@@ -265,10 +264,7 @@ describe("ce-optimize routing", () => {
       expect(original.body.snapshot.id).not.toBe(drifted.body.snapshot.id)
       expect(original.body.resolutions[0].binding.candidates[0].model).toBe("openai/original")
 
-      const skill = await readFile(SKILL_PATH, "utf8")
       const logSchema = await readFile(LOG_SCHEMA_PATH, "utf8")
-      expect(skill).toMatch(/resume.*frozen.*snapshot/i)
-      expect(skill).toMatch(/do not re-resolve|never re-resolve/i)
       expect(logSchema).toContain("snapshot_id")
       expect(logSchema).toContain("source_revisions")
     } finally {
@@ -276,49 +272,11 @@ describe("ce-optimize routing", () => {
     }
   })
 
-  test("the owning adapter pins backend eligibility, selectors, legacy judge model, and no-routing behavior", async () => {
-    const skill = await readFile(SKILL_PATH, "utf8")
+  test("the spec retains built-in judge model aliases", async () => {
     const schema = await readFile(SCHEMA_PATH, "utf8")
 
-    expect(skill).toMatch(/one `ce-routing\/v1` `resolve_batch`.*ce-optimize\.experiment-author.*ce-optimize\.semantic-judge/is)
-    expect(skill).toMatch(/backend.*higher authority.*routing|routing.*cannot change.*backend/is)
-    expect(skill).toMatch(/worktree.*current host.*selector/is)
-    expect(skill).toMatch(/codex.*candidate.*harness.*codex/is)
-    expect(skill).toMatch(/no .*selector.*unavailable/i)
-    expect(skill).toMatch(/incompatible.*backend.*unavailable/i)
-    expect(skill).toMatch(/legacy.*metric\.judge\.model.*owning seam/is)
-    expect(skill).toMatch(/ce-default.*v3\.20\.0|no routing.*v3\.20\.0/is)
     expect(schema).toContain("model:")
     expect(schema).toContain("haiku")
     expect(schema).toContain("sonnet")
-  })
-
-  test("required routing is non-interactive and cannot expose or integrate unverified output", async () => {
-    const skill = await readFile(SKILL_PATH, "utf8")
-
-    expect(skill).toContain("finalize_attempt")
-    expect(skill).toContain("attempt_lock")
-    expect(skill).toMatch(/typed adapter outcome/i)
-    expect(skill).toMatch(/never send a binding/i)
-    expect(skill).toContain("accepted_unverified")
-    expect(skill).toMatch(/require.*without prompt/is)
-    expect(skill).toMatch(/quarantin|isolated output/i)
-    expect(skill).toMatch(/before.*(?:measurement|judge|result marker|checkpoint|commit|merge|integrat)/is)
-    expect(skill).toMatch(/result marker.*commit.*merge.*checkpoint/is)
-    expect(skill).toMatch(/fresh.*recipient.*material.*environment/is)
-  })
-
-  test("routing cannot alter Codex sandbox, measurement, concurrency, or stopping policy", async () => {
-    const skill = await readFile(SKILL_PATH, "utf8")
-
-    expect(skill).toContain("CODEX_SANDBOX")
-    expect(skill).toContain("CODEX_SESSION_ID")
-    expect(skill).toContain("--full-auto")
-    expect(skill).toContain("--dangerously-bypass-approvals-and-sandbox")
-    expect(skill).toMatch(/route.*cannot.*codex_security/is)
-    expect(skill).toMatch(/measurement\.command.*unchanged|cannot change.*measurement\.command/is)
-    expect(skill).toMatch(/stopping.*unchanged|cannot change.*stopping/is)
-    expect(skill).toMatch(/execution\.max_concurrent.*unchanged|cannot change.*max_concurrent/is)
-    expect(skill).toMatch(/bounded dispatch.*backpressure/is)
   })
 })

@@ -46,11 +46,14 @@ structure:
   routing_context:
     type: object
     required: true
-    description: "Private frozen execution-routing state. Persist before the first author or judge dispatch and reuse unchanged on resume; never put it in recipient prompts."
+    description: "Redacted projection of private controller state. The controller manifest, not this log copy, is authoritative for resume and dispatch."
     children:
       version:
         type: string
-        const: "ce-routing-context/v1"
+        const: "ce-optimize-controller/v1"
+      controller_run_id:
+        type: string
+        description: "Private controller run selected for this optimization log"
       snapshot_id:
         type: string
         description: "Opaque cesnap-v1 identifier returned by the one resolve_batch for this run"
@@ -59,14 +62,16 @@ structure:
         description: "Global/project revisions observed when the snapshot was frozen; later config drift does not change this run"
       constraints_digest:
         type: string
-        description: "sha256:<lowercase-hex> over canonical compact UTF-8 JSON with recursively sorted keys for the approved backend, mutable/immutable scope, measurement, judge separation, concurrency, security posture, shared inputs/environment, and stopping criteria"
-      author_binding:
+        description: "Lowercase SHA-256 over canonical compact UTF-8 JSON with recursively sorted keys for the approved backend, mutable/immutable scope, measurement, judge separation, concurrency, security posture, shared inputs/environment, and stopping criteria"
+      measurement_digest:
+        type: string
+        description: "Lowercase SHA-256 over the frozen measurement command, working directory, and timeout"
+      binding_digests:
         type: object
-        description: "Frozen ce-optimize.experiment-author binding and ordered candidates"
-      judge_binding:
+        description: "Per-role content-derived binding digests; candidate contents remain in private controller state"
+      attempt_lock_digests:
         type: object
-        nullable: true
-        description: "Independent frozen ce-optimize.semantic-judge binding for judge specs; null for hard-metric runs"
+        description: "Per-role ordered resolver attempt-lock digests"
       legacy_judge_model:
         type: string
         nullable: true
@@ -243,11 +248,29 @@ experiment_entry:
       type: object
       description: "Redacted finalize_attempt receipt for ce-optimize.experiment-author. Measurement and result-marker creation are forbidden until this receipt accepts the isolated output."
 
+    author_attempt_lock_digest:
+      type: string
+      description: "Controller attempt lock that binds this experiment instance, recipient, backend, worktree, spec, measurement, and scopes"
+
     judge_receipts:
       type: array
       description: "Independent redacted finalize_attempt receipts for semantic-judge batches. Scores are not aggregated or persisted until each corresponding receipt accepts its quarantined output."
       items:
         type: object
+
+    judge_attempt_lock_digests:
+      type: array
+      description: "Controller attempt locks for the distinct semantic-judge instances"
+      items:
+        type: string
+
+    result_marker_digest:
+      type: string
+      description: "Digest of the controller-owned measurement marker"
+
+    checkpoint_digest:
+      type: string
+      description: "Digest acknowledged by the controller only after CP-3 append/read-back"
 
     gates:
       type: object
@@ -323,18 +346,16 @@ experiment_entry:
 # RESULT MARKER
 # ============================================================================
 #
-# Each <worktree>/result.yaml contains at least:
-# - iteration
-# - routing_snapshot_id (must equal routing_context.snapshot_id)
-# - author_receipt_digest
-# - measured_at
-# - raw metrics
+# The private controller result-marker.json and its <worktree>/result.yaml mirror
+# contain at least: run/attempt IDs, routing snapshot ID, resolver/controller lock
+# digests, author receipt digest, constraints/measurement digests, process exit,
+# raw-output digests, timestamp, and a content-derived marker digest.
 #
-# The marker is written only after author identity finalization and orchestrator-
-# owned measurement. Reuse/reset refuses a worktree with a marker. Cleanup may
-# remove it only after CP-3 append/read-back succeeds and the caller supplies the
-# explicit --result-recorded acknowledgment. Resume rejects a marker with a
-# different snapshot or constraints digest instead of recovering it into this run.
+# The controller writes the marker only after accepted author identity and its
+# own frozen measurement process. A worktree mirror alone has no authority.
+# Reuse/reset/cleanup requires a controller-verified completed or explicitly
+# abandoned checkpoint; caller flags and experiment-log claims cannot override
+# a live, unknown, quarantined, or crashed attempt lease.
 
 # ============================================================================
 # STRATEGY DIGEST (separate file)

@@ -14,7 +14,7 @@ Inspired by Karpathy's autoresearch, generalized for multi-file code changes and
 |----------|--------|
 | What does it do? | Defines an optimization spec, establishes a baseline, runs parallel experiments measured against gates and/or an LLM judge, keeps the best, iterates until a stopping criterion fires |
 | When to use it | Clustering, search, prompts, build performance — any measurable outcome where the right change isn't obvious and many approaches are worth trying |
-| What it produces | A `optimize/<spec-name>` git branch with kept experiments merged in, plus an experiment log, frozen routing context/event journal, and strategy digest in `.context/compound-engineering/ce-optimize/<spec-name>/` |
+| What it produces | A `optimize/<spec-name>` git branch with kept experiments, an experiment log/strategy digest in `.context/...`, and effective-user-private controller routing/process/receipt/lease state under `/tmp/compound-engineering-<uid>/ce-optimize/<run-id>/` |
 | What's next | `/ce-code-review` on the cumulative diff; `/ce-compound` to capture the winning strategy; create a PR |
 
 ---
@@ -60,7 +60,7 @@ For optimization-shaped problems, the common failure modes:
 - **Worktree-isolated parallel experiments** — independent variants run concurrently in their own worktrees, each on its own branch
 - **File-disjoint runner-up cherry-picks** — multiple winning experiments that touched different files are combined and re-measured to find compounding improvements
 - **Strategy digest** — compressed learnings from each batch feed into hypothesis generation for the next
-- **Crash recovery** — per-experiment `result.yaml` markers in worktrees enable resume after any kind of interruption
+- **Crash recovery** — controller-owned process receipts and result markers enable resume without trusting a worker-authored `result.yaml`
 
 ---
 
@@ -87,7 +87,7 @@ For problems like clustering, search relevance, or prompt quality where hard met
 
 ### 3. Persistence discipline — disk is the source of truth
 
-Multi-hour runs cannot trust in-memory state. The skill enforces six mandatory disk checkpoints (CP-0 through CP-5): spec saved, baseline recorded, hypothesis backlog written, each experiment result appended **immediately** after measurement, batch summaries with strategy digest, final state. After every write, the file is read back to verify — silent write failures are caught, not propagated.
+Multi-hour runs cannot trust in-memory state. The skill enforces six mandatory disk checkpoints (CP-0 through CP-5): controller-frozen spec/routing, baseline, hypothesis backlog, each experiment result appended **immediately** after controller-owned measurement, batch summaries, and final state. After every write, the file is read back to verify. Routing, process, receipt, marker, quarantine, checkpoint, and worktree-lease authority stays in the private controller state rather than the conversation or experiment log.
 
 > **If you produce a results table without writing those results to disk first, you have a bug.** Conversation context is for the user; the experiment log file is for durability.
 
@@ -107,7 +107,7 @@ After each batch, a strategy digest is written to disk: categories tried with su
 
 ### 7. Crash recovery and resume
 
-Every experiment writes a `result.yaml` marker in its worktree immediately after measurement, before the orchestrator updates the main log. On resume (Phase 0.4), the skill scans worktrees for markers not yet in the log and recovers any measured-but-unlogged experiments. The optimization branch survives; the experiment log on disk survives; you pick up where you left off.
+The controller writes a private `result-marker.json` and bound worktree `result.yaml` mirror immediately after its frozen measurement, before the orchestrator updates the main log. On resume, the skill accepts only controller-validated markers not yet in the log. A worktree marker, process exit, or caller claim alone cannot authorize recovery, reset, cleanup, or recipient fallback.
 
 ### 8. Hard-gate before Phase 2
 
@@ -115,15 +115,17 @@ Phase 1 is a hard gate — the skill establishes baseline metrics, validates the
 
 ### 9. Independent author and semantic-judge routing
 
-Generalized CE routing can select models independently for two stable roles: `ce-optimize.experiment-author` (implementation) and `ce-optimize.semantic-judge` (verification). A judge run resolves both in one frozen snapshot, persists that snapshot before dispatch, and reuses it on resume even if global or project configuration later changes. Hard-metric runs resolve only the author and do not activate a judge.
+Generalized CE routing can select models independently for two stable roles: `ce-optimize.experiment-author` (implementation) and `ce-optimize.semantic-judge` (verification). A narrow host-owned controller resolves active roles in one request, persists the complete self-validating snapshot/source revisions/binding and attempt-lock digests before dispatch, and validates them on resume without rereading live configuration. Hard-metric runs resolve only the author and do not activate a judge.
 
-Routing changes model identity only through the backend already selected by the optimization spec. A worktree run stays on its current host's worktree-subagent adapter; a Codex run stays on `codex exec`. Profiles cannot switch backend, alter mutable/immutable scope, change the measurement command, weaken `codex_security`, increase concurrency, modify judging/stopping policy, or bypass checkpoints. A configured selector the selected backend cannot serve is unavailable rather than encoded into a prompt.
+Routing changes model identity only through the backend already selected by the optimization spec. A worktree run stays on its current host's worktree-subagent adapter; a Codex run stays on controller-confined `codex exec`. Profiles cannot switch backend, alter mutable/immutable scope, change the measurement command, weaken `codex_security`, increase concurrency, modify judging/stopping policy, or bypass checkpoints. A configured selector the selected backend cannot serve is unavailable rather than encoded into a prompt.
 
-Author output remains isolated until its serving identity is finalized, then scope and immutable-harness checks run before measurement. Judge output is finalized separately before parsing or aggregation. Required unavailable, mismatched, or unverified identity blocks without a question or integration. A preferred alternative is eligible only after terminal unintegrated output is discarded and the next recipient/material/environment is freshly sanctioned; no recipient changes after measurement, a result marker, checkpoint, commit, or merge.
+Every role/experiment-or-judge instance is locked before dispatch to its exact recipient, backend, worktree, spec/measurement/scope digests, and resolver lock. The controller derives typed outcome, terminal/integrated state, prior history, and serving evidence from owning adapter/host receipts. Author output remains quarantined until finalization and scope checks accept it; judge output is finalized separately before parsing. Required unavailable, mismatched, or unverified identity blocks. Preferred fallback requires controller-verified terminal unintegrated discarded output and fresh material/environment.
 
-The author and judge never share a session, workspace, prompt, mutable authority, or receipt. Judges receive only rubric plus sampled candidate output, with hidden reference answers withheld. Extra worktree inputs must be canonical, symlink-free, explicitly listed in `parallel.shared_files`, and immutable. `.env*`, undeclared files, and ambient credentials are not copied or inherited; recipient environment names come only from explicitly approved `execution.sanctioned_env`. If an adapter cannot enforce those boundaries for a newly selected recipient, that route is unavailable.
+The author and judge never share a session, workspace, prompt, mutable authority, attempt lock, or receipt. Judges receive only rubric plus sampled candidate output and cannot receive an experiment worktree. Codex authors/judges run through a self-contained Landlock adapter with an empty environment, isolated HOME/XDG/temp/backend roots, and explicitly staged private JSON auth. Real home, `.env*`, ambient tokens, SSH/cloud stores, hidden references, controller state, and unrelated absolute paths are inaccessible. Executable, wrapper, auth, confinement, or receipt substitution fails before integration.
 
-With no generalized route or with `ce-default`, the author backend, legacy worktree environment behavior, and `metric.judge.model` behavior remain v3.20.0-compatible. Canonical path, symlink, and result-marker protections apply to every run; the credential-minimized recipient boundary applies whenever a profile selects a new recipient.
+Experiment worktrees also carry durable controller leases. Existing worktrees and branches cannot be reset or cleaned while any bound attempt is live, dispatching, unknown after a crash, quarantined, or missing an explicit terminal checkpoint. Only controller-verified `completed` or `abandoned` state permits reuse; `result.yaml` and caller flags have no override authority.
+
+With no generalized route or with `ce-default`, author/judge model selection, backend choice, worktree adapter compatibility, and `metric.judge.model` behavior remain built-in-compatible. Controller attempt locks, Codex credential minimization/confinement, canonical paths, and lease/result-marker protections apply to every run; CE-default does not bypass process or filesystem safety.
 
 See [Compound Engineering configuration](./configuration.md#execution-routing) for profile syntax, precedence, policy, attempt-safe fallback, receipts, and host capability limits.
 
@@ -217,10 +219,10 @@ A cheap, hard, fast check that catches obviously broken solutions. "All items in
 The hypothesis generation phase collects all unique new dependencies and asks for bulk approval before the loop starts. Hypotheses with unapproved deps are skipped and re-presented at wrap-up.
 
 **Can it run on Codex instead of subagents?**
-Yes — `execution.backend: codex` dispatches each experiment through `codex exec` with the spec's unchanged `codex_security` posture. For a configured profile, nested Codex execution, unavailable Git access/model selection, or an unenforceable credential-minimized environment makes the route unavailable; routing never switches the run to a worktree subagent. CE-default/no-routing retains the v3.20.0 fallback behavior.
+Yes — `execution.backend: codex` dispatches each experiment only through the Optimize controller, which invokes the exact Codex executable under Landlock with the spec's unchanged `codex_security` posture. Missing confinement/auth, nested Codex execution, unavailable Git/model selection, or executable substitution makes the route unavailable; routing never switches the approved backend. CE-default/no-routing preserves built-in model fallback but not an unsafe ambient environment.
 
 **What gets preserved after the run?**
-The optimization branch (`optimize/<spec-name>`) with all kept-experiment commits is preserved. The experiment log, `routing-context.json`, `routing-events.jsonl`, and strategy digest stay in `.context/compound-engineering/ce-optimize/<spec-name>/` for local resume and audit (`.context/` is gitignored, so they don't travel with the branch).
+The optimization branch (`optimize/<spec-name>`) with kept commits is preserved. The experiment log and strategy digest stay in `.context/compound-engineering/ce-optimize/<spec-name>/`; private controller state and its event journal stay in the effective-user temp root for local resume/audit. Neither local state surface travels with the branch.
 
 ---
 
