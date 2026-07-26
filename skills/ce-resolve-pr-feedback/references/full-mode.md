@@ -85,10 +85,14 @@ If the fix-list is empty (all verdicts are reply/needs-human), skip steps 4-6 an
 
 ## 4. Fix (PARALLEL — fix-list only)
 
+<!-- ce-dispatch-exclude:fix-list-gate -->
 Dispatch fixers **only** for fix-list items. Reply-list and human-list items never reach a subagent.
 
 ### Dispatch
 
+**Routing batch: `ce-resolve-pr-feedback.full-fixers`.** Once the central legitimacy gate has fixed the existing fix-list and file-conflict waves, and before the fixer prompt asset is read or assembled, load `references/execution-routing.md` and resolve every already-selected fix-list instance of `ce-resolve-pr-feedback.feedback-fixer` together in one `ce-routing/v1` `resolve_batch` against one frozen snapshot, with one request entry per fixer. Routing cannot add reply-list or human-list items, and later file-conflict waves reuse the frozen context.
+
+<!-- ce-dispatch-site:ce-resolve-pr-feedback.full-fixers -->
 Read [references/agents/pr-comment-resolver.md](agents/pr-comment-resolver.md) and spawn a generic subagent seeded with that fixer prompt for each fix-list item. Do not dispatch a standalone agent by type/name. The fixer is a pure executor: the validity judgment is already done, so it implements and returns — it does not re-judge worthwhileness.
 
 Each fixer receives:

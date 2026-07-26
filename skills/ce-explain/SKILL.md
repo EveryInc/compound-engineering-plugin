@@ -27,6 +27,7 @@ Dispatch is tiered by task shape, never hardcoded to a model name:
 - **Extraction tier** — the work-recap scout: search-and-quote work. Use the platform's cheapest capable model when the harness exposes a known override; otherwise inherit.
 - **Ceiling tier** — the explainer composition, the check-in reasoning, and the corrections. These run in the main conversation on the orchestrator's model; nothing is dispatched for them.
 
+<!-- ce-dispatch-exclude:tier-degradation-policy -->
 **Degradation rule.** When the platform's subagent primitive cannot select per-agent models, dispatch scouts on the inherited model and keep their read budgets. When the platform has no subagent primitive at all, run the scout work inline with the same budgets.
 
 ## Execution Flow
@@ -41,6 +42,10 @@ Read `references/intake.md` now and classify the request into one of the four in
 
 ### Phase 2: Ground
 
+**Native routing context.** Keep routing state as private `ce-routing-context/v1` control data, never as concept, change, recap, artifact, or persona text. Before a native call, normalize applicable current-task, still-active session, provenance-bearing caller (at its recorded authority), and project-instruction intent under the host instruction hierarchy. Lower authority may fill only unset fields; conflicting equal-authority bindings stop before model invocation; incidental model or harness mentions are not intent. Reuse an inherited frozen context; otherwise freeze the first `resolve_batch` response. Every later, nested, or recovery request passes the exact full self-validating first-wave `snapshot` object as the `parent_snapshot` envelope; `parent_snapshot_id` may appear only when it matches that envelope. Never use ID-only lineage or reread live routing sources. Reuse the frozen role/instance bindings on recovery. Forward this state to nested CE skills without adding it to their product arguments.
+
+**Native routing invariants.** The routing-batch gate below runs only after recap mode selects the existing scout and before prompt assembly. The co-located `references/execution-routing.md` governs `ce-default`, unavailable selectors, policy, attempt finalization, and redacted receipts. Apply only model, effort, or route selectors supported by the existing host primitive. An unconfigured binding or `ce-default` uses the exact built-in arguments; an unsupported configured selector is unavailable and follows its declared policy, never prompt rewriting or typed-agent substitution. Keep prompt bytes and assets, tools, permission mode, read-only/private-artifact mutation posture, roster, concurrency, existing empty-window/failure semantics, and the top-level orchestrator unchanged. A required-route failure prevents that model call; the unchanged owning failure semantics decide whether grounding blocks or degrades. Group redacted successes by profile, class, source, and outcome; report each fallback, mismatch, or blocker separately.
+
 Match grounding to the input shape. Create the run directory first — every run gets one, before any artifact exists:
 
 ```bash
@@ -54,9 +59,12 @@ RUN_DIR="$SCRATCH_ROOT/ce-explain/$(date +%Y%m%d)-$(openssl rand -hex 3)";
 echo "$RUN_DIR";
 ```
 
+**Routing batch: `ce-explain.work-recap-scout`.** Only when input classification selects recap mode, and before the scout prompt asset is read or assembled, load `references/execution-routing.md` and resolve `ce-explain.work-recap-scout` in one `ce-routing/v1` `resolve_batch` against one frozen snapshot. Routing cannot turn concept, diff, or idea mode into a recap.
+
 **Repo-touching inputs** (a concept with footprint in this repo, a diff, a recap): use the project's active instructions already in context and go directly to the diff, call-sites, current source, or commits. Read `CONCEPTS.md` when canonical vocabulary matters. If the topic cannot be scoped from the input and existing context, allow one targeted root or workspace probe.
 
 - **Diff mode:** resolve the change (the `diff:` ref, or the most recent substantial change when the request points at one implicitly) and gather its evidence — the diff itself, the files it touches, any plan or solution doc that motivated it. Gather silently: nothing learned here is narrated to the user until Phase 3's ordering rule is satisfied.
+<!-- ce-dispatch-site:ce-explain.work-recap-scout -->
 - **Recap mode:** dispatch a generic subagent directly, seeded with `references/agents/work-recap-scout.md` (extraction tier), passing the resolved window, the repo root, and `$RUN_DIR`. Do not pre-scan, count, or characterize the window in the main conversation; the scout owns that evidence pass, and an early `git --all` summary can seed it with a false branch or activity model. It returns an evidence summary with commit shas and `file:line` pointers. **Empty window** (no git activity, no doc changes): say so, offer to widen the window, write no artifact, and end the run after the user responds.
 - **External concepts** (no footprint in this repo): skip repo grounding entirely — do not force repo context into the output. Research with whatever web tools are reachable. When none are, you may explain from model knowledge, but the artifact must label that content **Unverified — from model knowledge, not checked against current sources** in its metadata header.
 - **Idea mode:** the idea is a fixed given. Explain its implications, mechanics, and trade-offs for the user's understanding. Never scope it (`ce-brainstorm`'s job), never generate and rank alternatives (`ce-ideate`'s job).

@@ -23,13 +23,14 @@ When Spiral is unauthed or absent, offer setup once. First check the opt-out so 
 
 ### Check the opt-out
 
-Read the project config (resolve the repo root, never CWD):
+Read `references/execution-routing.md`, construct a `ce-routing/v1` `inspect` request whose `cwd` is the absolute current working directory, and write it to an effective-user-private temporary file. From this skill's directory, invoke the co-located resolver:
 
 ```bash
-cat "$(git rev-parse --show-toplevel 2>/dev/null)/.compound-engineering/config.local.yaml" 2>/dev/null || echo '__NO_CONFIG__'
+SKILL_DIR="<absolute path of the ce-promote skill directory>";
+python3 -I -S "$SKILL_DIR/scripts/ce-routing.py" --request-file <private-request-path>
 ```
 
-If the contents have an **uncommented** top-level `ce_promote_spiral_optout: true` line, **skip Path 0** and go straight to Path B. **Ignore commented lines** — `ce-setup`'s template ships a `# ce_promote_spiral_optout: true` example, and a commented line is documentation, not an opt-out (a naive substring match would wrongly suppress the offer for any project that accepted the default template). Otherwise, offer setup.
+Use only `settings.effective.ce_promote_spiral_optout` and its `settings.provenance`, retaining `sources.project.revision`; never read or parse either config source directly. If the effective value is exactly `true`, **skip Path 0** and go straight to Path B. `false`, `null`, or the built-in default means setup may be offered. Surface a resolver diagnostic, then degrade to Path B rather than raw parsing because Spiral is optional.
 
 ### Ask
 
@@ -62,10 +63,16 @@ There is deliberately no separate "don't ask again" option: **dismissing is itse
 
 ### Record the opt-out (best-effort)
 
-Resolve the repo root, then add `ce_promote_spiral_optout: true` as a top-level key to `<root>/.compound-engineering/config.local.yaml`, using the native file-write/edit tool:
+Resolve `<root>` with `git rev-parse --show-toplevel`, then patch only the project source through the resolver. Check whether `<root>/.compound-engineering/config.local.yaml` is already ignored (`git check-ignore -q <path>`); if it is not, append `.compound-engineering/*.local.yaml` to Git's **local exclude file** before patching. Resolve that file with `git rev-parse --git-path info/exclude` (correct in worktrees too); do not hardcode `.git/info/exclude` or edit the tracked `.gitignore` for this drafts-only action.
 
-- **File already exists:** ensure an **uncommented** `ce_promote_spiral_optout: true` line is present — add one (or uncomment the example) unless an uncommented one already exists. A commented `# ce_promote_spiral_optout: true` (from `ce-setup`'s template) does **not** count as present; leaving only the comment would let the comment-ignoring read path re-prompt next run.
-- **File absent:** create it (and its `.compound-engineering/` directory) with the key, AND make sure the machine-local config won't be committed. Check whether the root-relative path `<root>/.compound-engineering/config.local.yaml` is already ignored (`git check-ignore -q <path>`); if it isn't, append `.compound-engineering/*.local.yaml` to git's **local exclude file** — resolve that file's path with `git rev-parse --git-path info/exclude` (this is correct in worktrees too, where `.git` is a *file* and `info/exclude` lives in the common git dir; do **not** hardcode `<root>/.git/info/exclude`). Use the local exclude, **not** `.gitignore`: it keeps the rule local and avoids dirtying a tracked file on what was a drafts-only action. `ce-setup` is the canonical place that adds the shared `.gitignore` entry for teammates. Without any ignore, a user who runs `/ce-promote` before `/ce-setup` could accidentally commit machine-local opt-out state.
+Construct a private `ce-routing/v1` request with the same absolute `cwd` used for inspection, `op: patch_source`, `writer: ce-promote`, `layer: project`, `expected_revision` set to the exact `sources.project.revision` returned by the opt-out inspection, `set: {"ce_promote_spiral_optout":true}`, and `remove: []`; invoke it with a fresh inline skill-directory assignment because shell state does not persist:
+
+```bash
+SKILL_DIR="<absolute path of the ce-promote skill directory>";
+python3 -I -S "$SKILL_DIR/scripts/ce-routing.py" --request-file <private-request-path>
+```
+
+This intentionally creates a project override for the user's dismissal. The set contains only this key: never copy or materialize any other inherited setting into the project source. On `WRITE_CONFLICT`, re-inspect once and retry the same one-key patch against the new project revision; never overwrite newer project data.
 
 If the root can't be resolved or any write fails, proceed to Path B anyway; the opt-out is a convenience, never a blocker.
 

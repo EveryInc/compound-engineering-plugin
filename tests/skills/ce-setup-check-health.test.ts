@@ -1,4 +1,4 @@
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "fs/promises"
+import { copyFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "fs/promises"
 import os from "os"
 import path from "path"
 import { describe, expect, test } from "bun:test"
@@ -17,13 +17,29 @@ type RunResult = {
   stderr: string
 }
 
+function testConfigPaths(root: string): { home: string; xdg: string; global: string } {
+  const home = path.join(root, ".ce-setup-test-home")
+  const xdg = path.join(root, ".ce-setup-test-xdg")
+  return { home, xdg, global: path.join(xdg, "compound-engineering") }
+}
+
+async function writeGlobalConfig(root: string, body: string): Promise<string> {
+  const configDir = testConfigPaths(root).global
+  const configPath = path.join(configDir, "config.yaml")
+  await mkdir(configDir, { recursive: true, mode: 0o700 })
+  await writeFile(configPath, body, { mode: 0o600 })
+  return configPath
+}
+
 async function runCheckHealth(cwd: string, pathValue: string): Promise<RunResult> {
+  const configPaths = testConfigPaths(cwd)
   const proc = Bun.spawn(["bash", checkHealthScript], {
     cwd,
     env: {
-      ...process.env,
-      HOME: cwd,
+      HOME: configPaths.home,
+      LANG: "C.UTF-8",
       PATH: pathValue,
+      XDG_CONFIG_HOME: configPaths.xdg,
     },
     stderr: "pipe",
     stdout: "pipe",
@@ -118,17 +134,32 @@ describe("ce-setup check-health", () => {
     expect(template).not.toContain("fable_nudge")
   })
 
-  test("routes retired and malformed dormant engine settings into preference repair", async () => {
+  test("routes repairable engine settings through scoped compare-and-swap writes", async () => {
     const skill = await readFile(path.join(repoRoot, "skills", "ce-setup", "SKILL.md"), "utf8")
     const step3 = skill.match(/### Step 3:[\s\S]*?(?=### Step 4:)/)?.[0] ?? ""
     const step6a = skill.match(/### Step 6a:[\s\S]*?(?=### Step 7:)/)?.[0] ?? ""
 
     for (const section of [step3, step6a]) {
       expect(section).toContain("retired scalar routing keys")
-      expect(section).toContain("malformed dormant `work_engine_preferences`")
     }
-    expect(step6a).toContain("remove any retired scalar routing keys")
-    expect(step6a).toContain("remove malformed dormant preferences")
+    expect(step3).toContain("malformed dormant `work_engine_preferences`")
+    expect(step6a).toContain("patch_source")
+    expect(step6a).toContain("do not guess")
+    expect(step6a).toContain("make no automatic repair")
+  })
+
+  test("keeps project as the default writer and gates global compare-and-swap writes", async () => {
+    const skill = await readFile(path.join(repoRoot, "skills", "ce-setup", "SKILL.md"), "utf8")
+
+    expect(skill).toContain("The project layer is the default writer target")
+    expect(skill).toMatch(/global layer only when the user explicitly asks/i)
+    expect(skill).toContain("patch_source")
+    expect(skill).toContain("sources.project.revision")
+    expect(skill).toContain("sources.global.revision")
+    expect(skill).toContain("expected_revision")
+    expect(skill).toMatch(/writer[^\n]*ce-setup/)
+    expect(skill).toContain("WRITE_CONFLICT")
+    expect(skill).toMatch(/Never copy inherited `settings\.effective` values/)
   })
 
   test("documents the cross-model configuration and lifecycle without overstating worktree isolation", async () => {
@@ -204,6 +235,214 @@ describe("ce-setup check-health", () => {
       expect(result.exitCode).toBe(0)
       expect(result.stdout).toContain("Local config is not safely gitignored")
       expect(result.stdout).toContain("1 project issue(s) found")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("reports global-only effective settings without creating a local file", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.example.yaml"))
+      const globalPath = await writeGlobalConfig(root, "plan_output: html\n")
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain(`Global source: ${globalPath} (present)`)
+      expect(result.stdout).toContain("Project source:")
+      expect(result.stdout).toContain("config.local.yaml (absent)")
+      expect(result.stdout).toMatch(/revision=cecfg-v1:[0-9a-f]{64}; trusted=yes; authority_trusted=yes/)
+      expect(result.stdout).toMatch(/plan_output = "html" \[source=global; revision=cecfg-v1:[0-9a-f]{64}; authority_trusted=yes\]/)
+      expect(result.stdout).not.toContain(path.join(os.homedir(), ".config", "compound-engineering"))
+      expect(await Bun.file(path.join(root, ".compound-engineering", "config.local.yaml")).exists()).toBe(false)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("preserves global values under a sparse project override", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await writeGlobalConfig(root, "plan_output: html\nbrainstorm_output: html\n")
+      await initConfiguredRepo(root, "plan_output: md\n")
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toMatch(/plan_output = "md" \[source=project;/)
+      expect(result.stdout).toMatch(/brainstorm_output = "html" \[source=global;/)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("reports an explicit project null as a clearing override", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await writeGlobalConfig(root, "pulse_product_name: Spiral\n")
+      await initConfiguredRepo(root, "pulse_product_name: null\n")
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toMatch(/pulse_product_name = null \[source=project;/)
+      expect(result.stdout).not.toContain("pulse_product_name = \"Spiral\"")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test.each([
+    ["Global", "global"],
+    ["Project", "project"],
+  ])("surfaces malformed %s configuration without partial settings", async (scope, malformedLayer) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      if (malformedLayer === "global") {
+        await initGitRepo(root)
+        await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+        await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.example.yaml"))
+        await writeGlobalConfig(root, "plan_output: md\nplan_output: html\n")
+      } else {
+        await writeGlobalConfig(root, "brainstorm_output: html\n")
+        await initConfiguredRepo(root, "plan_output: md\nplan_output: html\n")
+      }
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain(`${scope} CE configuration inspection failed [YAML_DUPLICATE_KEY]`)
+      expect(result.stdout).toContain("No effective settings were reported")
+      expect(result.stdout).not.toContain("settings.effective:")
+      expect(result.stdout).not.toContain("Traceback")
+      expect(result.stderr).not.toContain("Traceback")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("surfaces an unsafe project source with resolver provenance", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.example.yaml"))
+      await writeFile(path.join(root, ".gitignore"), ".compound-engineering/*.local.yaml\n")
+      const target = path.join(root, "unsafe-config.yaml")
+      await writeFile(target, "plan_output: html\n")
+      await symlink(target, path.join(root, ".compound-engineering", "config.local.yaml"))
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("Project CE configuration inspection failed [CONFIG_UNSAFE]")
+      expect(result.stdout).toContain("reason=symlink")
+      expect(result.stdout).not.toContain("settings.effective:")
+      expect(result.stderr).not.toContain("Traceback")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("inspects global settings outside a repository", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      const globalPath = await writeGlobalConfig(root, "plan_output: html\n")
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain(`Global source: ${globalPath} (present)`)
+      expect(result.stdout).toContain("Project source: not applicable outside a Git repository")
+      expect(result.stdout).toMatch(/plan_output = "html" \[source=global;/)
+      expect(result.stdout).toContain("Not inside a git repository")
+      expect(result.stdout).toContain("CE settings healthy")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("reports trusted global authority from the effective view", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await writeGlobalConfig(
+        root,
+        "feedback_sources:\n  - { type: slack, id: slack-alpha, target: C0123, approved: true }\n",
+      )
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain('"approved":true')
+      expect(result.stdout).toMatch(/feedback_sources = .*\[source=global; revision=cecfg-v1:[0-9a-f]{64}; authority_trusted=yes\]/)
+      expect(result.stdout).toContain("effective authority: feedback_sources=approved")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("reports effective routing counts and normalized global CE Work state", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await writeGlobalConfig(
+        root,
+        `work_engine_mode: prefer
+work_engine_preferences:
+  - { harness: codex, model: gpt-5-mini }
+routing:
+  profiles:
+    economy:
+      candidates:
+        - { harness: codex, model: gpt-5-mini }
+  classes:
+    implementation: { profile: economy, policy: prefer }
+  roles:
+    ce-code-review.security-reviewer: { profile: economy, policy: require }
+`,
+      )
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("Effective routing: 1 profile(s), 1 class binding(s), 1 role binding(s)")
+      expect(result.stdout).toMatch(/Dispatch role coverage: [1-9][0-9]* registered, 0 unclassified/)
+      expect(result.stdout).toContain("CE Work implementation engine: prefer -> codex@gpt-5-mini")
+      expect(result.stdout).toMatch(/work_engine_mode = "prefer" \[source=global;/)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("does not require jq for effective settings inspection", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await writeGlobalConfig(root, "plan_output: html\n")
+      const bin = path.join(root, "bin")
+      await mkdir(bin)
+      for (const tool of ["bash", "git", "python3"]) {
+        const executable = Bun.which(tool)
+        if (!executable) throw new Error(`${tool} is required for this test`)
+        await symlink(executable, path.join(bin, tool))
+      }
+
+      const result = await runCheckHealth(root, bin)
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toMatch(/plan_output = "html" \[source=global;/)
+      expect(result.stdout).toContain("jq -- unavailable")
+      expect(result.stderr).toBe("")
     } finally {
       await rm(root, { recursive: true, force: true })
     }
@@ -322,7 +561,7 @@ describe("ce-setup check-health", () => {
     }
   })
 
-  test("invalid mode falls through to native and is reported", async () => {
+  test("invalid mode fails closed without guessing native state", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
 
     try {
@@ -331,8 +570,11 @@ describe("ce-setup check-health", () => {
       const result = await runCheckHealth(root, "/usr/bin:/bin")
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain("invalid mode 'sometimes' ignored; native is the default")
-      expect(result.stdout).toContain("1 project issue(s) found")
+      expect(result.stdout).toContain("Project CE configuration inspection failed [SETTING_INVALID]")
+      expect(result.stdout).toContain("invalid value for work_engine_mode")
+      expect(result.stdout).toContain("setting=work_engine_mode")
+      expect(result.stdout).not.toContain("CE Work implementation engine:")
+      expect(result.stdout).not.toContain("Traceback")
     } finally {
       await rm(root, { recursive: true, force: true })
     }
@@ -369,7 +611,7 @@ describe("ce-setup check-health", () => {
         "retired config key(s) work_engine_target, work_engine_model detected; migrate routing to work_engine_preferences entries with harness and optional model fields, then remove the retired keys",
       )
       expect(result.stdout).not.toContain("prefer requires work_engine_preferences")
-      expect(result.stdout).toContain("1 project issue(s) found")
+      expect(result.stdout).toContain("1 CE settings issue(s) found")
     } finally {
       await rm(root, { recursive: true, force: true })
     }
@@ -389,7 +631,7 @@ describe("ce-setup check-health", () => {
       expect(result.exitCode).toBe(0)
       expect(result.stdout).toContain("CE Work implementation engine: prefer -> codex@default")
       expect(result.stdout).toContain("retired config key(s) work_engine_target detected")
-      expect(result.stdout).toContain("1 project issue(s) found")
+      expect(result.stdout).toContain("1 CE settings issue(s) found")
     } finally {
       await rm(root, { recursive: true, force: true })
     }
@@ -406,11 +648,12 @@ describe("ce-setup check-health", () => {
         const result = await runCheckHealth(root, "/usr/bin:/bin")
 
         expect(result.exitCode).toBe(0)
-        expect(result.stdout).toContain(
-          "invalid dormant work_engine_preferences: model 'composer' has no harness in work_engine_preferences",
-        )
+        expect(result.stdout).toContain("Project CE configuration inspection failed [SETTING_INVALID]")
+        expect(result.stdout).toContain("work_engine_preferences entry is missing 'harness'")
+        expect(result.stdout).toContain("setting=work_engine_preferences")
         expect(result.stdout).not.toContain("ordered preferences ignored while standing mode is off")
-        expect(result.stdout).toContain("1 project issue(s) found")
+        expect(result.stdout).not.toContain("CE Work implementation engine:")
+        expect(result.stdout).not.toContain("Traceback")
       } finally {
         await rm(root, { recursive: true, force: true })
       }
@@ -426,8 +669,10 @@ describe("ce-setup check-health", () => {
       const result = await runCheckHealth(root, "/usr/bin:/bin")
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain("invalid harness 'mystery-harness' in work_engine_preferences")
+      expect(result.stdout).toContain("invalid value for work_engine_preferences.harness")
+      expect(result.stdout).toContain("setting=work_engine_preferences.harness")
       expect(result.stdout).not.toContain("require -> mystery-harness@default")
+      expect(result.stdout).not.toContain("Traceback")
     } finally {
       await rm(root, { recursive: true, force: true })
     }
@@ -442,7 +687,9 @@ describe("ce-setup check-health", () => {
       const result = await runCheckHealth(root, "/usr/bin:/bin")
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain("model 'composer' has no harness in work_engine_preferences")
+      expect(result.stdout).toContain("work_engine_preferences entry is missing 'harness'")
+      expect(result.stdout).toContain("setting=work_engine_preferences")
+      expect(result.stdout).not.toContain("CE Work implementation engine:")
     } finally {
       await rm(root, { recursive: true, force: true })
     }
@@ -474,8 +721,10 @@ describe("ce-setup check-health", () => {
       const result = await runCheckHealth(root, "/usr/bin:/bin")
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain(`invalid model '${model}' in work_engine_preferences`)
+      expect(result.stdout).toContain("invalid work_engine_preferences.model")
+      expect(result.stdout).toContain("setting=work_engine_preferences.model")
       expect(result.stdout).not.toContain(`prefer -> cursor@${model}`)
+      expect(result.stdout).not.toContain("Traceback")
     } finally {
       await rm(root, { recursive: true, force: true })
     }

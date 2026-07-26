@@ -41,5 +41,51 @@ describe("cross-model receipt-kernel parity", () => {
     for (let i = 1; i < kernels.length; i++) {
       expect(kernels[i]).toBe(kernels[0])
     }
+    expect(kernels[0]).toContain("MODEL_IDENTITY_STATUS")
+    expect(kernels[0]).toContain("matched")
+    expect(kernels[0]).toContain("mismatched")
+    expect(kernels[0]).toContain("unverified")
+    expect(kernels[0]).toContain("fable")
+    expect(kernels[0]).toContain("claude-*")
+  })
+
+  test("candidate qualification and credential-minimized environments stay identical", async () => {
+    const bodies = await Promise.all(
+      SCRIPTS.map((rel) => readFile(path.join(PLUGIN_ROOT, rel), "utf8")),
+    )
+    const block = (body: string, start: string, end: string) => {
+      const begin = body.indexOf(start)
+      const finish = body.indexOf(end, begin)
+      expect(begin).toBeGreaterThan(-1)
+      expect(finish).toBeGreaterThan(begin)
+      return body.slice(begin, finish)
+    }
+    const selectorKernels = bodies.map((body) =>
+      block(body, "safe_selector_token()", "route_receipt_supported()"))
+    const environmentKernels = bodies.map((body) =>
+      block(body, "build_min_env()", "\n}\n"))
+
+    for (const kernels of [selectorKernels, environmentKernels]) {
+      for (let i = 1; i < kernels.length; i++) expect(kernels[i]).toBe(kernels[0])
+    }
+    expect(selectorKernels[0]).toContain("candidate_model_compatible")
+    expect(environmentKernels[0]).toContain("env -i")
+    for (const configDir of ["CODEX_HOME", "CLAUDE_CONFIG_DIR", "GROK_CONFIG_HOME", "CURSOR_CONFIG_DIR"]) {
+      expect(environmentKernels[0]).toContain(configDir)
+    }
+    for (const credential of ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"]) {
+      expect(environmentKernels[0]).not.toContain(credential)
+    }
+  })
+
+  test("every peer artifact exposes model and effort evidence separately from independence", async () => {
+    for (const rel of SCRIPTS) {
+      const body = await readFile(path.join(PLUGIN_ROOT, rel), "utf8")
+      expect(body).toContain("model_identity_status")
+      expect(body).toContain("model_actual")
+      expect(body).toContain("effort_requested")
+      expect(body).toContain("effort_actual")
+      expect(body).toContain("independence_verified")
+    }
   })
 })

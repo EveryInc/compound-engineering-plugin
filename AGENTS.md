@@ -87,7 +87,7 @@ When changing plugin content:
 
 - Update substantive docs like `README.md` when the plugin behavior, inventory, or usage changes.
 - When adding a user-facing skill, document it: create a `docs/skills/<skill-name>.md` page (purpose, novel mechanics, when to use, chain position — follow the shape of the existing pages) and add a catalog row under the right category in `docs/skills/README.md`, alongside the root `README.md` inventory row and the skill-count bump in `tests/release-metadata.test.ts`. Keep these in sync when a skill's purpose or inventory changes. This is convention, not yet validated by a test, so it is easy to miss — most skills have a page; the few that don't (e.g. `lfg`, `ce-dogfood-beta`) are the exception, not the rule.
-- When adding, removing, renaming, or changing the meaning/default/consumer of a `.compound-engineering/config.local.yaml` option, update `skills/ce-setup/references/config-template.yaml`, its byte-identical `.compound-engineering/config.local.example.yaml` copy, the centralized `docs/skills/configuration.md` reference, and the affected consumer skill docs in the same change. Keep local config as optional checkout-local defaults; durable team instructions belong in the project's normal agent-instructions mechanism.
+- When adding, removing, renaming, or changing the meaning/default/consumer of a Compound Engineering setting, update `scripts/routing/settings-schema.json`, `skills/ce-setup/references/config-template.yaml`, its byte-identical `.compound-engineering/config.local.example.yaml` copy, the centralized `docs/skills/configuration.md` reference, and the affected consumer skill docs in the same change. The user-global source is CE-owned; project config remains optional, machine-local, and gitignored. Durable team instructions belong in the project's normal agent-instructions mechanism.
 - Do not hand-bump release-owned versions in plugin or marketplace manifests.
 - Do not hand-add release entries to `CHANGELOG.md` or treat it as the canonical source for new releases.
 - Run `bun run release:validate` if agents, commands, skills, MCP servers, or release-owned descriptions/counts may have changed.
@@ -102,6 +102,13 @@ bun run release:validate
 cat .claude-plugin/marketplace.json | jq .
 cat .claude-plugin/plugin.json | jq .
 ```
+
+### Routing Assets and Claims
+
+- Canonical routing sources live under `scripts/routing/`. Consumer skills receive generated, byte-identical `ce-routing.py`, settings schema, protocol, dispatch catalog, and execution-routing reference copies. Update canonical sources and run the synchronizer; never hand-edit one generated skill copy.
+- Each consumer skill must remain independently installable. Runtime code resolves only co-located assets and must not depend on the repository-root `scripts/routing/` tree.
+- `tests/real-plugin-conversion.test.ts` converts the real plugin to every implemented writer target, reinstalls it, compares representative consumer bytes, and runs copied resolvers outside the checkout. A passing recursive-copy proof is the reason not to add target-specific routing copy code.
+- Keep host support claims evidence-scoped. Deterministic fakes prove selector and receipt contracts; only a recorded live run proves a particular installed host, authentication state, model selector, or serving receipt.
 
 ## Runtime vs Authoring Context
 
@@ -189,6 +196,8 @@ PR CI (`.github/workflows/ci.yml`) is the merge gate. It runs, in order: PR-titl
 | Skill *prose behavior* (routing judgment, restraint, cross-model peer outcomes) | `skill-creator` eval, local / PR evidence | Not a CI job; non-deterministic and needs a model |
 
 That split is intentional. See `docs/solutions/skill-design/portable-agent-skill-authoring.md` ("Evaluate proportionally"). Mechanical checks belong in CI; behavioral agent evals are best-effort evidence, not an exhaustive CI matrix.
+
+Evaluator-owned fixtures under `tests/fixtures/routing/behavioral/` contain fresh-context inputs and expected invariants, not golden model output. Never inject the expected invariants into the agent under test, and never treat fixture presence or a deterministic parser check as behavioral evidence. Record the actual host/model/receipt posture and leave unavailable live-host checks explicit.
 
 ### Right-size new mechanical guards
 

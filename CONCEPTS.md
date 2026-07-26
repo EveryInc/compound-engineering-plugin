@@ -76,6 +76,30 @@ A semantic cost class for a dispatched sub-agent — extraction (cheapest capabl
 
 When a platform cannot select models per agent, every role runs on the inherited model and cost control falls back to structure: read budgets and output caps.
 
+### Dispatch role
+A stable, Skill-qualified identity for one kind of CE-created model dispatch, independent of the model, provider, prompt filename, or individual work item that serves it. The owning Skill still selects the worker and prompt; the role identity lets configuration and receipts address how that work executes.
+
+### Route class
+A CE-owned broad grouping of Dispatch roles by work purpose: implementation, review, reasoning, research, or verification. A class supplies a configurable execution default without implying tools, permissions, mutation authority, or persona selection.
+
+### Execution profile
+A user-defined, reusable ordered set of model, effort, harness, or intermediary candidates that a Dispatch role may request. Profiles contain routing data only, never prompts, commands, CLI flags, permissions, or workflow logic.
+
+### Route binding
+The resolved association between a Dispatch role or Route class and an Execution profile plus its `prefer` or `require` policy. `inherit` continues to a lower configuration layer; `ce-default` stops inheritance and restores the owning Skill's built-in execution behavior.
+
+### Effective settings snapshot
+The immutable merged view of one user-global config source, one optional project-local source, and normalized task-scoped intent used by a top-level CE run. It carries source revisions and resolved bindings so nested work and recovery reuse the same decision instead of rereading changed files mid-run.
+
+### Routing attempt
+One locked execution candidate applied to one Dispatch role instance. Its recipient, intermediary, material scope, environment, and permissions are fixed before egress. A preferred route may start another attempt only after the prior attempt is terminal, has no integrated effect, and the next candidate is independently authorized; an in-flight or integrated attempt cannot change recipients.
+
+### Route receipt
+The redacted host-owned record of how a Dispatch role was resolved and served: role, class, profile, configuration source, policy, requested execution, actual execution, serving evidence, attempts, fallback reasons, and terminal status. It is a control-plane summary, not a prompt or credential log, and extends rather than replaces the narrower Model identity receipt.
+
+### Configuration authority
+The trust attached to a setting's source, kept separate from the setting's value. A safely user-owned global file may carry standing authority; an untracked, safely ignored project file may carry narrower machine-local authority; tracked or otherwise untrusted project data cannot manufacture it. Host permissions, project instructions, egress approval, and each owning Skill's tool and mutation posture remain higher authority.
+
 ### Evidence dossier
 A bulk evidence artifact — verbatim quotes with source pointers, gathered by a cheap scout agent — written to scratch storage instead of returned inline, so the orchestrator carries only a short gist and downstream agents read the full dossier themselves.
 

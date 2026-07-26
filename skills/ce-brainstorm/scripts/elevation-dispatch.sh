@@ -31,7 +31,34 @@ RUN_SUCCEEDED=false
 
 log() { printf '[elevation] %s\n' "$*" >&2; }
 
-EFFORT="high"   # settled: elevation runs at high effort
+EFFORT="${CE_ROUTING_CANDIDATE_EFFORT:-high}"
+
+safe_model_token() {
+  local value="$1"
+  [ -n "$value" ] && [ "${#value}" -le 128 ] || return 1
+  case "$value" in [A-Za-z0-9]*) ;; *) return 1 ;; esac
+  case "$value" in *[!A-Za-z0-9._:/-]*) return 1 ;; esac
+}
+
+safe_effort_token() {
+  local value="$1"
+  [ -n "$value" ] && [ "${#value}" -le 64 ] || return 1
+  case "$value" in [A-Za-z0-9]*) ;; *) return 1 ;; esac
+  case "$value" in *[!A-Za-z0-9._-]*) return 1 ;; esac
+}
+
+validate_candidate_selectors() { # <model>
+  local model="$1" harness="${CE_ROUTING_CANDIDATE_HARNESS:-}" route="${CE_ROUTING_CANDIDATE_ROUTE:-}"
+  safe_model_token "$model" || return 1
+  safe_effort_token "$EFFORT" || return 1
+  case "$EFFORT" in low|medium|high) ;; *) return 1 ;; esac
+  if [ -n "$harness$route${CE_ROUTING_CANDIDATE_MODEL:-}${CE_ROUTING_CANDIDATE_EFFORT:-}" ]; then
+    [ "$harness" = "claude" ] || return 1
+    case "$route" in ""|claude) ;; *) return 1 ;; esac
+    [ -n "${CE_ROUTING_CANDIDATE_MODEL:-}" ] || return 1
+    [ "$CE_ROUTING_CANDIDATE_MODEL" = "$model" ] || return 1
+  fi
+}
 
 # Read-only tool posture (R7): the available built-in set, not a denylist. The
 # elevated step reads the repo (Read/Glob/Grep) and may check current facts on
@@ -59,6 +86,7 @@ build_cmd() {   # <model> <handoff-dir> -> sets CMD array (claude CLI, streaming
   # --no-session-persistence: this is a one-shot background model call, so the
   # prompt and scratch-file references must not be saved as a resumable session
   # on disk (matches the other scripted Claude peer routes in this repo).
+  # ce-dispatch-site:reasoning-elevation.cli
   CMD=(claude -p --model "$1" --effort "$EFFORT"
        --output-format stream-json --verbose
        --safe-mode --no-session-persistence --disable-slash-commands --strict-mcp-config
@@ -68,11 +96,24 @@ build_cmd() {   # <model> <handoff-dir> -> sets CMD array (claude CLI, streaming
        --max-turns "${ELEVATION_MAX_TURNS:-30}")
 }
 
+build_min_env() {
+  MIN_ENV=(env -i "PATH=$PATH" "PYTHONDONTWRITEBYTECODE=1")
+  [ -n "${HOME:-}" ] && MIN_ENV+=("HOME=$HOME")
+  [ -n "${USER:-}" ] && MIN_ENV+=("USER=$USER")
+  [ -n "${TMPDIR:-}" ] && MIN_ENV+=("TMPDIR=$TMPDIR")
+  [ -n "${LANG:-}" ] && MIN_ENV+=("LANG=$LANG")
+  [ -n "${LC_ALL:-}" ] && MIN_ENV+=("LC_ALL=$LC_ALL")
+  [ -n "${XDG_CONFIG_HOME:-}" ] && MIN_ENV+=("XDG_CONFIG_HOME=$XDG_CONFIG_HOME")
+  # Preserve the CLI's native auth-store pointer, never ambient API/OAuth keys.
+  [ -n "${CLAUDE_CONFIG_DIR:-}" ] && MIN_ENV+=("CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR")
+}
+
 # Test hook: print the argv the worker would exec, without calling a model.
 # Accepts an optional handoff dir ($3) so the emitted argv shows the scoped
 # --add-dir; without it the flag is omitted (no dir to grant).
 if [ "${1:-}" = "--emit-adapter" ]; then
   [ -n "${2:-}" ] || { log "--emit-adapter requires <model>"; exit 2; }
+  validate_candidate_selectors "$2" || { log "candidate selectors are unsafe or incompatible with the Claude elevation adapter"; exit 2; }
   build_cmd "$2" "${3:-}"
   printf '%s\0' "${CMD[@]}"
   exit 0
@@ -81,6 +122,7 @@ fi
 MODEL="${1:?model required}"
 PROMPT_FILE="${2:?prompt-file required}"
 RESULT_PATH="${3:?result-path required}"
+validate_candidate_selectors "$MODEL" || { log "candidate selectors are unsafe or incompatible with the Claude elevation adapter"; exit 2; }
 [ -f "$PROMPT_FILE" ] || { log "prompt file not found: $PROMPT_FILE"; exit 2; }
 
 # The orchestrator co-locates the prompt and every evidence file in one private
@@ -99,7 +141,7 @@ HANDOFF_DIR="$(cd "$HANDOFF_DIR" 2>/dev/null && pwd || printf '%s' "$HANDOFF_DIR
 # `done`, the envelope's status:failed is read, and it degrades to inline.
 if ! command -v jq >/dev/null 2>&1; then
   log "jq not found on PATH; cannot parse the elevated result — degrading to inline"
-  printf '{"status":"failed","requested_model":"%s","evidence":"jq unavailable on PATH"}' "$MODEL" > "$RESULT_PATH" 2>/dev/null || true
+  printf '{"status":"failed","requested_model":"%s","model_identity_status":"unverified","effort_requested":"%s","effort_actual":"unverified","evidence":"jq unavailable on PATH"}' "$MODEL" "$EFFORT" > "$RESULT_PATH" 2>/dev/null || true
   exit 0
 fi
 
@@ -203,7 +245,7 @@ run_codex_cmd() {
   RUN_SUCCEEDED=false
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
   set -m
-  command "${CMD[@]}" < "$PROMPT_FILE" > "$PEERLOG" 2>&1 &
+  command "${MIN_ENV[@]}" "${CMD[@]}" < "$PROMPT_FILE" > "$PEERLOG" 2>&1 &
   local pid=$!
   ACTIVE_PEER_PID="$pid"
   [ "$prev" = 0 ] && set +m
@@ -229,6 +271,7 @@ run_codex_cmd() {
 
 # --- main -------------------------------------------------------------------
 build_cmd "$MODEL" "$HANDOFF_DIR"
+build_min_env
 run_codex_cmd
 
 # The stream-json terminal event is the LAST line whose type is "result". Match
@@ -252,23 +295,27 @@ HAS_OUTPUT="$(printf '%s' "$EVENT" | jq -r 'if (.result // "") == "" then "no" e
 if [ "$RUN_SUCCEEDED" = true ] && [ "$HAS_OUTPUT" = "yes" ] \
    && [ "$SUBTYPE" = "success" ] && [ "$IS_ERROR" != "true" ]; then
   RECEIPT="$(classify_receipt "$MODEL" "$SERVED")"
+  case "$RECEIPT" in matched) MODEL_IDENTITY_STATUS=matched ;; mismatch) MODEL_IDENTITY_STATUS=mismatched ;; *) MODEL_IDENTITY_STATUS=unverified ;; esac
   # Build the envelope by piping the event THROUGH jq, which reads .result
   # internally — never pass the plan text as an argv --arg, which would exceed
   # ARG_MAX for a large Deep plan.
   tmp="${RESULT_PATH}.tmp.$$"
   if printf '%s' "$EVENT" | jq --arg m "$MODEL" --arg s "$SERVED" --arg r "$RECEIPT" \
-       '{status:"ok", requested_model:$m, served_model:$s, receipt:$r, output:.result}' \
+       --arg identity "$MODEL_IDENTITY_STATUS" --arg effort "$EFFORT" \
+       '{status:"ok", requested_model:$m, served_model:$s, receipt:$r,
+         model_identity_status:$identity, effort_requested:$effort,
+         effort_actual:"unverified", output:.result}' \
        > "$tmp" 2>/dev/null; then
     mv -f "$tmp" "$RESULT_PATH"
     log "elevated step complete: requested=$MODEL served=$SERVED receipt=$RECEIPT"
   else
     rm -f "$tmp"
-    write_result "$(jq -n --arg m "$MODEL" '{status:"failed", requested_model:$m, evidence:"result envelope build failed"}')"
+    write_result "$(jq -n --arg m "$MODEL" --arg e "$EFFORT" '{status:"failed", requested_model:$m, model_identity_status:"unverified", effort_requested:$e, effort_actual:"unverified", evidence:"result envelope build failed"}')"
     log "elevated step: result envelope build failed"
   fi
 else
-  write_result "$(jq -n --arg m "$MODEL" --arg e "$(bounded_failure_evidence)" \
-    '{status:"failed", requested_model:$m, evidence:$e}')"
+  write_result "$(jq -n --arg m "$MODEL" --arg effort "$EFFORT" --arg e "$(bounded_failure_evidence)" \
+    '{status:"failed", requested_model:$m, model_identity_status:"unverified", effort_requested:$effort, effort_actual:"unverified", evidence:$e}')"
   log "elevated step failed; wrote failure envelope"
 fi
 rm -f "$PEERLOG"

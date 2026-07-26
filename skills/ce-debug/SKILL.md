@@ -191,6 +191,10 @@ Do not suggest brainstorm for bugs that are large but have a clear fix — size 
 
 #### Smart escalation
 
+**Native routing context.** Keep routing state as private `ce-routing-context/v1` control data, never as feature, plan, finding, artifact, or persona text. Before a native call, normalize applicable current-task, still-active session, provenance-bearing caller (at its recorded authority), and project-instruction intent under the host instruction hierarchy. Lower authority may fill only unset fields; conflicting equal-authority bindings stop before model invocation; incidental model or harness mentions are not intent. Reuse an inherited frozen context; otherwise freeze the first `resolve_batch` response. Every later, nested, or recovery request passes the exact full self-validating first-wave `snapshot` object as the `parent_snapshot` envelope; `parent_snapshot_id` may appear only when it matches that envelope. Never use ID-only lineage or reread live routing sources. Reuse the frozen role/instance bindings on recovery. Forward this state to nested CE skills without adding it to their product arguments.
+
+**Native routing invariants.** The routing-batch gate below runs only after the existing hypothesis roster is selected and before prompt assembly. The co-located `references/execution-routing.md` governs `ce-default`, unavailable selectors, policy, attempt finalization, and redacted receipts. Apply only model, effort, or route selectors supported by the existing host primitive. An unconfigured binding or `ce-default` uses the exact built-in arguments; an unsupported configured selector is unavailable and follows its declared policy, never prompt rewriting or typed-agent substitution. Keep prompt bytes, tools, permission mode, read-only mutation posture, roster, fan-out and concurrency, existing failure semantics, and the top-level orchestrator unchanged. A required-route failure prevents that model call; the unchanged owning failure semantics decide whether diagnosis blocks or degrades. Group redacted successes by profile, class, source, and outcome; report each fallback, mismatch, or blocker separately.
+
 If 2-3 hypotheses are exhausted without confirmation, diagnose why:
 
 | Pattern | Diagnosis | Next move |
@@ -200,6 +204,9 @@ If 2-3 hypotheses are exhausted without confirmation, diagnose why:
 | Works locally, fails in CI/prod | Environment problem | Focus on env differences, config, dependencies, timing |
 | Fix works but prediction was wrong | Symptom fix, not root cause | The real cause is still active — keep investigating |
 
+**Routing batch: `ce-debug.hypothesis-investigation`.** Only when the existing independence/evidence-bottleneck gate selects parallel probes, and before any hypothesis prompt is assembled, load `references/execution-routing.md` and resolve every already-selected hypothesis instance of `ce-debug.hypothesis-investigator` together in one `ce-routing/v1` `resolve_batch` against one frozen snapshot, with one request entry per hypothesis. Routing cannot create hypotheses or make dependent probes parallel.
+
+<!-- ce-dispatch-site:ce-debug.hypothesis-investigation -->
 **Parallel investigation option:** When hypotheses are evidence-bottlenecked across clearly independent subsystems, dispatch read-only sub-agents in parallel, each with an explicit hypothesis and structured evidence-return format. No code edits by sub-agents, and skip this when hypotheses depend on each other's outcomes. If the platform does not support parallel sub-agent dispatch, run the same hypothesis probes sequentially in ranked-likelihood order instead — the parallelism is a latency optimization, not a correctness requirement.
 
 Present the diagnosis to the user before proceeding.

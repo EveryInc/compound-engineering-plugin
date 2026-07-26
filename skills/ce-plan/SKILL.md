@@ -75,7 +75,16 @@ After intake determines that `ce-plan` will perform a material multi-stage run, 
 
 Determine `OUTPUT_FORMAT` before any other phase fires. Output mode is **exclusive** — the plan is written as either markdown (`.md`) OR HTML (`.html`), never both. Precedence: in-prompt request > user-stated preference > config > default (`md`), with a hard pipeline-mode override.
 
-**Read config.** Resolve `<repo-root>` at runtime by running `git rev-parse --show-toplevel` with the shell tool. Then read `<repo-root>/.compound-engineering/config.local.yaml` with the native file-read tool. If the root cannot be resolved (not a git repo) or the file does not exist, fall through to the defaults below.
+Resolve `<repo-root>` with `git rev-parse --show-toplevel` when available for later workflow paths; do not use it to read settings.
+
+**Load effective settings.** Read `references/execution-routing.md`, construct a `ce-routing/v1` `inspect` request whose `cwd` is the absolute current working directory, and write it to an effective-user-private temporary file. From this skill's directory, invoke the co-located resolver (the assignment and command stay in one shell call):
+
+```bash
+SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
+python3 -I -S "$SKILL_DIR/scripts/ce-routing.py" --request-file <private-request-path>
+```
+
+Use only the response's `settings.effective` values and matching `settings.provenance`; do not read or parse either config source directly. This supplies merged global/project values even outside a repository, while provenance identifies whether each value is built in, global, or project-local. A resolver diagnostic is a configuration blocker, not permission to fall back to raw parsing.
 
 Resolution steps:
 
@@ -83,7 +92,7 @@ Resolution steps:
    - `output:` alone (no value) → no-op, fall through to step 2.
    - `output:<unknown>` (e.g., `output:pdf`) → drop the token, fall through to step 2, and remember to emit a one-line note above the post-generation menu after final resolution: `Ignored unknown output: value '<value>' — using <resolved_format> instead.` where `<resolved_format>` is the value `OUTPUT_FORMAT` actually resolved to after the remaining precedence steps. Do not hardcode `md` in the note — that misleads users when config has set HTML.
 2. **User-stated preference.** If this prompt holds no format request, honor an output-format preference (markdown vs HTML) the user established earlier — earlier in this session, in your memory, or written into their active instructions — that is already in your context (match `md`/`html` case-insensitively). A remembered preference is more current than the rarely-edited config, so it **overrides** the config in step 3. Do not open or search instruction files to find it — act only on a preference already present in your context; if none is, fall through to the config.
-3. **Config.** If steps 1-2 did not resolve and the config file read above has an **active (non-commented)** `plan_output:` key whose value matches `md` or `html` (case-insensitive), use it. Missing, invalid, or commented values fall through silently. Critical: lines starting with `#` are YAML comments and must be ignored — the shipped config template includes commented examples like `# plan_output: html` to document the option, and matching those as active settings would silently force HTML mode on every run without the user having opted in.
+3. **Config.** If steps 1-2 did not resolve, use `settings.effective.plan_output` when it is `md` or `html`. A resolved `null` falls through to the built-in default; the resolver has already applied global/project precedence, validation, and comment handling.
 4. **Default.** Otherwise `OUTPUT_FORMAT=md`.
 5. **Pipeline override.** When invoked from LFG or any `disable-model-invocation` context, force `OUTPUT_FORMAT=md` regardless of steps 1-4. `ce-work` and other automated downstream consumers parse markdown reliably; HTML in pipeline runs is unnecessary friction.
 
@@ -98,7 +107,7 @@ Resolution steps:
 
 1. **In-prompt request.** `confirm:auto` skips the gate for this run; `confirm:ask` forces it on for this run. Honor an equivalent plain-language instruction the same way ("just write it, don't ask me to confirm" → skip; "ask me before writing the plan" → ask). Consume and strip the token **only** for the two recognized values `confirm:auto` and `confirm:ask`. A bare `confirm:` or any other value (e.g., `confirm:delete-account`) is **not** a flag — leave it verbatim in the feature description and fall through (this is narrower than `output:`, which strips unknown values: `confirm` has only two valid values, and a description can legitimately begin with a word like "confirm:").
 2. **User-stated preference.** Honor a scoping-confirmation preference the user established earlier — earlier in this session, in your memory, or written into their active instructions — that is already in your context (e.g., a remembered "stop asking me to confirm plan scope"). A remembered preference overrides the config key. Do not open or search instruction files to find it — act only on a preference already present in your context.
-3. **Config.** An **active (non-commented)** `plan_skip_scoping_confirm:` key matching `true`/`false`. Commented (`#`-prefixed) or invalid values fall through silently.
+3. **Config.** Use `settings.effective.plan_skip_scoping_confirm` when it is a boolean. A resolved `null` falls through to the built-in default.
 4. **Default.** Otherwise `ask` — the gate fires per the existing tier rules.
 
 Pipeline / `disable-model-invocation` runs already skip the chat confirmation (headless mode), so this setting is moot there.
@@ -284,6 +293,10 @@ Fires **only in solo invocation** — when Phase 0.2 found no upstream Product C
 
 ### Phase 1: Gather Context
 
+**Native routing context.** Keep routing state as private `ce-routing-context/v1` control data, never as feature, plan, finding, artifact, or persona text. Before the first native call, normalize applicable current-task, still-active session, provenance-bearing caller (at its recorded authority), and project-instruction intent under the host instruction hierarchy. Lower authority may fill only unset fields; conflicting equal-authority bindings stop before model invocation; incidental model or harness mentions are not intent. Reuse an inherited frozen context; otherwise freeze the first `resolve_batch` response. Every later, nested, or recovery request passes the exact full self-validating first-wave `snapshot` object as the `parent_snapshot` envelope; `parent_snapshot_id` may appear only when it matches that envelope. Never use ID-only lineage or reread live routing sources. Reuse the frozen role/instance bindings on recovery. Forward this state to nested CE skills without adding it to their product arguments.
+
+**Native routing invariants.** Each routing-batch gate below runs only after the existing roster is selected and before prompt assembly. The co-located `references/execution-routing.md` governs `ce-default`, unavailable selectors, policy, attempt finalization, and redacted receipts. Apply only model, effort, or route selectors supported by the existing host primitive. An unconfigured binding or `ce-default` uses the exact built-in arguments; an unsupported configured selector is unavailable and follows its declared policy, never prompt rewriting or typed-agent substitution. Keep prompt bytes and assets, tools, permission mode, mutation posture, roster, fan-out and concurrency, existing mandatory-versus-additive failure semantics, and the top-level orchestrator unchanged. A required-route failure prevents that model call; the unchanged owning failure semantics decide whether the workflow blocks or degrades. Group redacted successes by profile, class, source, and outcome; report each fallback, mismatch, or blocker separately.
+
 All specialist research and deepening prompts used in this phase are skill-local prompt assets under `references/agents/`. When dispatching one, read the matching file and seed a generic subagent with that prompt content plus the task-specific context below. Do not dispatch standalone agents by type/name.
 
 Model tiering lives in this caller, not in prompt assets. Local prompt files have no frontmatter. Use the platform's mid-tier model for external/organizational research prompts such as `slack-researcher` and `web-researcher` when the current harness exposes a known override; otherwise omit the override and inherit. Use inherited model for high-judgment architecture, migration, and planning-deepening prompts unless the harness has an established cheaper capable tier.
@@ -299,11 +312,17 @@ Prepare a concise planning context summary (a paragraph or two) to pass as input
 
 Pass the project's active instructions and the planning context summary to `repo-research-analyst`, and send it directly to the requested current scopes. If the feature cannot be scoped from that context, allow one targeted root or workspace probe. Read an exact dependency or runtime version when the plan or an external-doc query materially depends on it.
 
+**Routing batch: `ce-plan.local-research`.** Once the existing always-on local roster is fixed and before either prompt is assembled, load `references/execution-routing.md` and resolve `ce-plan.repo-research-analyst` and `ce-plan.learnings-researcher` together in one `ce-routing/v1` `resolve_batch` against one frozen snapshot.
+
+<!-- ce-dispatch-site:ce-plan.local-research -->
 Run these agents in parallel:
 
 - `references/agents/repo-research-analyst.md` — scope: **patterns**. Pass the planning context summary so it can go directly to current feature patterns and owning code.
 - `references/agents/learnings-researcher.md` — pass the planning context summary.
 
+**Routing batch: `ce-plan.agent-native-triage`.** Only if the existing triage gate selects this optional role, and before its prompt asset is read or assembled, load `references/execution-routing.md` and resolve `ce-plan.agent-native-planning-strategist` in one `ce-routing/v1` `resolve_batch` against the frozen snapshot. Routing cannot cause the triage role to be selected.
+
+<!-- ce-dispatch-site:ce-plan.agent-native-triage -->
 **Agent-native planning triage** (conditional) — consider broadly, dispatch selectively. Dispatch a generic subagent with `references/agents/agent-native-planning-strategist.md` in parallel with the local research agents when the request, origin document, or repo research indicates any of:
 
 - agent, assistant, chat, workflow automation, MCP, plugin, skill, tool registry, prompt, or autonomous-loop work
@@ -323,6 +342,9 @@ Collect:
 
 **Slack context** (opt-in) — never auto-dispatch. Route by condition:
 
+**Routing batch: `ce-plan.slack-research`.** Only when the existing tools-plus-user-request gate selects Slack research, and before its prompt asset is read or assembled, load `references/execution-routing.md` and resolve `ce-plan.slack-researcher` in one `ce-routing/v1` `resolve_batch` against the frozen snapshot. A configured route never opts the user into Slack research.
+
+<!-- ce-dispatch-site:ce-plan.slack-research -->
 - **Tools available + user asked**: Dispatch a generic subagent with `references/agents/slack-researcher.md` and the planning context summary in parallel with other Phase 1.1 agents. If the origin document has a Slack context section, pass it verbatim so the researcher focuses on gaps. Include findings in consolidation.
 - **Tools available + user didn't ask**: Note in output: "Slack tools detected. Ask me to search Slack for organizational context at any point, or include it in your next prompt."
 - **No tools + user asked**: Note in output: "Slack context was requested but no Slack tools are available. Install and authenticate the Slack plugin to enable organizational context search."
@@ -393,6 +415,9 @@ Announce the decision and the intent briefly before continuing. Examples:
 
 #### 1.3 External Research (Conditional)
 
+**Routing batch: `ce-plan.external-research`.** After the existing intent classifier selects the researcher subset, and before any selected prompt asset is read or assembled, load `references/execution-routing.md`. Implementation-guidance and Landscape runs resolve only their selected IDs from `ce-plan.best-practices-researcher`, `ce-plan.framework-docs-researcher`, and `ce-plan.web-researcher` in one `ce-routing/v1` `resolve_batch` against the frozen snapshot. For Mixed, resolve only `ce-plan.web-researcher` in the first batch; after its shortlist selects any material follow-up roles, resolve only those roles in a second batch. Every later batch passes the exact full first-wave `snapshot` object as the `parent_snapshot` envelope and includes `parent_snapshot_id` only if it matches that envelope. Never use ID-only lineage or reread live routing sources, and reuse the frozen bindings on recovery. Do not include a researcher that the classifier did not select or make the Mixed waves parallel.
+
+<!-- ce-dispatch-site:ce-plan.external-research -->
 If Step 1.2 indicates external research is useful, dispatch by the **intent** classified in Stage 2, using the platform's subagent primitive (`Agent`/`Task` in Claude Code, `spawn_agent` in Codex) where available; otherwise run the work inline or serially. Read the selected prompt asset from `references/agents/` and seed a generic subagent with it. For `web-researcher.md`, pass a focus hint plus the planning context summary and do **not** pass codebase content — it operates externally.
 
 - **Implementation-guidance** — run in parallel:
@@ -433,6 +458,9 @@ This ensures flow analysis (Phase 1.5) runs and the confidence check (Phase 5.3)
 
 #### 1.5 Flow and Edge-Case Analysis (Conditional)
 
+**Routing batch: `ce-plan.spec-flow-analysis`.** Only when the existing depth/completeness gate selects flow analysis, and before its prompt asset is read or assembled, load `references/execution-routing.md` and resolve `ce-plan.spec-flow-analyzer` in one `ce-routing/v1` `resolve_batch` against the frozen snapshot. Routing cannot activate this optional verifier.
+
+<!-- ce-dispatch-site:ce-plan.spec-flow-analysis -->
 For **Standard** or **Deep** plans, or when user flow completeness is still unclear, run:
 
 - `references/agents/spec-flow-analyzer.md` with the planning context summary and research findings.

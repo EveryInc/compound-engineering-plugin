@@ -146,6 +146,11 @@ function run(
     ensureDirtyTree(cwd)
   }
   const effectiveEnv = { ...env }
+  // The repository may contain a large unrelated dirty worktree while this
+  // focused adapter suite runs. Keep ordinary fixtures inline; tests that own
+  // the oversized-diff branch override these values explicitly.
+  effectiveEnv.CROSS_MODEL_INLINE_MAX_TOKENS ??= "10000000"
+  effectiveEnv.CROSS_MODEL_INLINE_MAX_FILES ??= "100000"
   if (!("CROSS_MODEL_DRY_RUN" in effectiveEnv) && !("CROSS_MODEL_FIXED_ROUTE" in effectiveEnv)) {
     const target = args[1]
     const grokAvailable = target === "grok" && Boolean(spawnSync("command", ["-v", "grok"], {
@@ -205,6 +210,57 @@ describe("cross-model-adversarial-review route safety", () => {
     }
   })
 
+  test("generalized candidate selectors are route-bound and token-safe", () => {
+    const selected = emitAdapter("claude", SCRIPT, {
+      CE_ROUTING_CANDIDATE_HARNESS: "claude",
+      CE_ROUTING_CANDIDATE_ROUTE: "claude",
+      CE_ROUTING_CANDIDATE_MODEL: "sonnet",
+      CE_ROUTING_CANDIDATE_EFFORT: "medium",
+    })
+    expect(selected).toContain("--model sonnet")
+    expect(selected).toContain("--effort medium")
+
+    const cursor = emitAdapter("cursor", SCRIPT, {
+      CE_ROUTING_CANDIDATE_HARNESS: "cursor",
+      CE_ROUTING_CANDIDATE_ROUTE: "cursor",
+      CE_ROUTING_CANDIDATE_MODEL: "cursor-review-model",
+    })
+    expect(cursor).toContain("--model cursor-review-model")
+
+    for (const env of [
+      {
+        CE_ROUTING_CANDIDATE_HARNESS: "codex",
+        CE_ROUTING_CANDIDATE_ROUTE: "claude",
+      },
+      {
+        CE_ROUTING_CANDIDATE_HARNESS: "claude",
+        CE_ROUTING_CANDIDATE_ROUTE: "claude",
+        CE_ROUTING_CANDIDATE_MODEL: "opus;touch-x",
+      },
+      {
+        CE_ROUTING_CANDIDATE_HARNESS: "claude",
+        CE_ROUTING_CANDIDATE_ROUTE: "claude",
+        CE_ROUTING_CANDIDATE_MODEL: "gpt-5.6-sol",
+      },
+      {
+        CE_ROUTING_CANDIDATE_HARNESS: "claude",
+        CE_ROUTING_CANDIDATE_ROUTE: "claude",
+        CE_ROUTING_CANDIDATE_MODEL: "claude-opus/gpt-5.6-sol",
+      },
+      {
+        CE_ROUTING_CANDIDATE_HARNESS: "cursor",
+        CE_ROUTING_CANDIDATE_ROUTE: "cursor",
+        CE_ROUTING_CANDIDATE_EFFORT: "high",
+      },
+    ]) {
+      const rejected = spawnSync("bash", [SCRIPT, "--emit-adapter", "claude"], {
+        encoding: "utf8",
+        env: { ...process.env, ...env },
+      })
+      expect(rejected.status).toBe(2)
+    }
+  })
+
   test("live dispatch without a host-sanctioned fixed route fails closed", () => {
     const invoked = path.join(mkTempRoot("xmodel-cr-invoked-"), "marker")
     const { env } = sandbox(["claude"], `#!/bin/sh\n: > '${invoked}'\n`)
@@ -222,7 +278,7 @@ describe("cross-model-adversarial-review route safety", () => {
     const markers = mkTempRoot("xmodel-cr-fixed-target-")
     const body = `#!/bin/sh
 name="\${0##*/}"
-: > "\${MARKER_DIR}/\${name}"
+: > "${markers}/$name"
 cat >/dev/null
 printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"residual_risks":[],"testing_gaps":[]}}'
 `
@@ -230,7 +286,6 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     const runDir = makeRunDir()
     const r = run(["codex", "claude,cursor", "HEAD", runDir], runDir, {
       ...env,
-      MARKER_DIR: markers,
       CROSS_MODEL_FIXED_ROUTE: "cursor",
       CROSS_MODEL_MAX_PEERS: "1",
     })
@@ -244,8 +299,8 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     const promptCapture = path.join(captureRoot, "prompt.txt")
     const argvCapture = path.join(captureRoot, "argv.txt")
     const body = `#!/bin/sh
-printf '%s\n' "$*" > "\${ARGV_CAPTURE}"
-cat > "\${PROMPT_CAPTURE}"
+printf '%s\n' "$*" > '${argvCapture}'
+cat > '${promptCapture}'
 printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"residual_risks":[],"testing_gaps":[]}}'
 `
     const { env } = sandbox(["claude"], body)
@@ -256,8 +311,6 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     )
     const r = run(["codex", "claude", "HEAD~1", runDir], runDir, {
       ...env,
-      PROMPT_CAPTURE: promptCapture,
-      ARGV_CAPTURE: argvCapture,
       CROSS_MODEL_INLINE_MAX_TOKENS: "1",
     })
 
@@ -561,6 +614,9 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(Array.isArray(out.findings)).toBe(true)
     expect(out.cross_model_route).toBe("claude")
     expect(out.independence_verified).toBe(true)
+    expect(out.model_identity_status).toBe("unverified")
+    expect(out.effort_requested).toBe("high")
+    expect(out.effort_actual).toBe("unverified")
   })
 
   test("drops the return when findings is not an array", () => {
@@ -603,7 +659,46 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(out.cross_model_route).toBe("claude")
     expect(out.model_requested).toBe("opus")
     expect(out.model_actual).toBe("claude-opus-4-8-20260115")
+    expect(out.model_identity_status).toBe("matched")
     expect(r.stderr).not.toContain("model mismatch")
+  })
+
+  test("a generalized candidate drives the live fake adapter and receipt", () => {
+    const captureRoot = mkTempRoot("xmodel-cr-routed-")
+    const capture = path.join(captureRoot, "argv")
+    const envCapture = path.join(captureRoot, "env")
+    const claudeConfig = path.join(captureRoot, "claude-config")
+    const apiSecret = "SENTINEL-code-review-api-secret"
+    const stub = `#!/bin/sh
+printf '%s' "$*" > '${capture}'
+env > '${envCapture}'
+cat >/dev/null
+printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[]},"modelUsage":{"claude-fable-5-20260701":{"inputTokens":3}}}'
+`
+    const { env } = sandbox(["claude"], stub)
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      CE_ROUTING_CANDIDATE_HARNESS: "claude",
+      CE_ROUTING_CANDIDATE_ROUTE: "claude",
+      CE_ROUTING_CANDIDATE_MODEL: "fable",
+      CE_ROUTING_CANDIDATE_EFFORT: "medium",
+      USER: "code-review-keychain-user",
+      CLAUDE_CONFIG_DIR: claudeConfig,
+      ANTHROPIC_API_KEY: apiSecret,
+    })
+    expect(r.files).toContain("adversarial-claude.json")
+    expect(readFileSync(capture, "utf8")).toContain("--model fable --effort medium")
+    const childEnv = readFileSync(envCapture, "utf8")
+    expect(childEnv).toContain("USER=code-review-keychain-user")
+    expect(childEnv).toContain(`CLAUDE_CONFIG_DIR=${claudeConfig}`)
+    expect(childEnv).not.toContain("ANTHROPIC_API_KEY=")
+    expect(childEnv).not.toContain(apiSecret)
+    const out = JSON.parse(readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"))
+    expect(out.model_requested).toBe("fable")
+    expect(out.model_actual).toBe("claude-fable-5-20260701")
+    expect(out.model_identity_status).toBe("matched")
+    expect(out.effort_requested).toBe("medium")
   })
 
   test("multi-key receipt: prefers the requested-family key over the alphabetically-first auxiliary key (R7)", () => {
@@ -638,6 +733,7 @@ describe("cross-model-adversarial-review normalization", () => {
     )
     expect(out.model_requested).toBe("opus")
     expect(out.model_actual).toBe("claude-haiku-4-5-20251001")
+    expect(out.model_identity_status).toBe("mismatched")
     expect(r.stderr).toContain("WARNING: model mismatch - requested opus, backend served claude-haiku-4-5-20251001")
   })
 
@@ -653,6 +749,7 @@ describe("cross-model-adversarial-review normalization", () => {
     )
     expect(out.model_requested).toBe("opus")
     expect(out.model_actual).toBe("unverified")
+    expect(out.model_identity_status).toBe("unverified")
     expect(r.stderr).toContain("model receipt absent/unparseable on claude route; recording unverified")
   })
 
@@ -875,13 +972,10 @@ describe("cross-model-adversarial-review argv integrity", () => {
     const capRoot = mkTempRoot("xmodel-cr-cap-")
     const capFile = path.join(capRoot, "schema-arg.txt")
     const recordStub =
-      `#!/bin/sh\ncat >/dev/null\nprev=\nfor a in "$@"; do if [ "$prev" = "--json-schema" ]; then printf '%s' "$a" > "$SCHEMA_CAPTURE"; fi; prev="$a"; done\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[]}}'\n`
+      `#!/bin/sh\ncat >/dev/null\nprev=\nfor a in "$@"; do if [ "$prev" = "--json-schema" ]; then printf '%s' "$a" > '${capFile}'; fi; prev="$a"; done\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[]}}'\n`
     const { env } = sandbox(["claude"], recordStub)
     const runDir = makeRunDir()
-    run(["codex", "claude", "HEAD", runDir], runDir, {
-      ...env,
-      SCHEMA_CAPTURE: capFile,
-    })
+    run(["codex", "claude", "HEAD", runDir], runDir, env)
     const captured = readFileSync(capFile, "utf8")
     expect(captured).toContain('"$schema"')
     expect(captured).toContain("testing_gaps")
@@ -892,13 +986,10 @@ describe("cross-model-adversarial-review argv integrity", () => {
     const capRoot = mkTempRoot("xmodel-cr-cap-")
     const capFile = path.join(capRoot, "cursor-stdin.txt")
     const recordStub =
-      `#!/bin/sh\ncat > "$PROMPT_CAPTURE"\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[]}}'\n`
+      `#!/bin/sh\ncat > '${capFile}'\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[]}}'\n`
     const { env } = sandbox(["cursor-agent"], recordStub)
     const runDir = makeRunDir()
-    const r = run(["claude", "composer", "HEAD", runDir], runDir, {
-      ...env,
-      PROMPT_CAPTURE: capFile,
-    })
+    const r = run(["claude", "composer", "HEAD", runDir], runDir, env)
     expect(r.files).toContain("adversarial-composer.json")
     const prompt = readFileSync(capFile, "utf8")
     expect(prompt).toContain("adversarial")

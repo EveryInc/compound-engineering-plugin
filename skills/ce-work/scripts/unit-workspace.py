@@ -8,7 +8,7 @@ import json
 import os
 import sys
 
-from unit_workspace_state import Operational, TrustFailure, cmd_checkpoint_plan, cmd_init
+from unit_workspace_state import Operational, TrustFailure, cmd_checkpoint_plan, cmd_init, cmd_lock_attempt, cmd_resolve_routing
 from unit_workspace_jobs import cmd_authorize_dispatch, cmd_prepare, cmd_record_job, cmd_sync_job, cmd_terminalize
 from unit_workspace_integration import (
     cmd_integration_acquire,
@@ -38,9 +38,22 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--prompt-digest")
     p.add_argument("--binding-json", default="{}")
     p.add_argument("--egress-json", default="{}")
+    p.add_argument("--routing-request")
 
     p = sub.add_parser("checkpoint-plan")
     p.add_argument("--run-id", required=True)
+
+    p = sub.add_parser("resolve-routing")
+    p.add_argument("--repo", required=True)
+    p.add_argument("--routing-request", required=True)
+
+    p = sub.add_parser("lock-attempt")
+    p.add_argument("--run-id", required=True)
+    p.add_argument("--unit-id", required=True)
+    p.add_argument("--attempt-id", required=True)
+    p.add_argument("--candidate-ordinal", type=int, required=True)
+    p.add_argument("--egress-json", required=True)
+    p.add_argument("--preflight-json", default="[]")
 
     p = sub.add_parser("prepare")
     p.add_argument("--run-id", required=True)
@@ -167,6 +180,8 @@ def build_parser() -> argparse.ArgumentParser:
 COMMANDS = {
     "init": cmd_init,
     "checkpoint-plan": cmd_checkpoint_plan,
+    "resolve-routing": cmd_resolve_routing,
+    "lock-attempt": cmd_lock_attempt,
     "prepare": cmd_prepare,
     "authorize-dispatch": cmd_authorize_dispatch,
     "record-job": cmd_record_job,

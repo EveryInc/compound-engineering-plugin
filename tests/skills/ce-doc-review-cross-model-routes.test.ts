@@ -200,6 +200,30 @@ describe("cross-model-doc-review route safety (R17)", () => {
     }
   })
 
+  test("generalized candidate selectors are route-bound and token-safe", () => {
+    const selected = emitAdapter("codex", {
+      CE_ROUTING_CANDIDATE_HARNESS: "codex",
+      CE_ROUTING_CANDIDATE_ROUTE: "codex",
+      CE_ROUTING_CANDIDATE_MODEL: "gpt-5.6-sol",
+      CE_ROUTING_CANDIDATE_EFFORT: "high",
+    })
+    expect(selected).toContain("-m gpt-5.6-sol")
+    expect(selected).toContain('model_reasoning_effort="high"')
+
+    for (const model of ["composer-2.5-fast;unsafe", "gpt-5.6-sol"]) {
+      const rejected = spawnSync("bash", [SCRIPT, "--emit-adapter", "composer"], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          CE_ROUTING_CANDIDATE_HARNESS: "composer",
+          CE_ROUTING_CANDIDATE_ROUTE: "composer",
+          CE_ROUTING_CANDIDATE_MODEL: model,
+        },
+      })
+      expect(rejected.status).toBe(2)
+    }
+  })
+
   test("live dispatch without a host-sanctioned fixed route fails closed", () => {
     const invoked = path.join(mkTempRoot("xmodel-dr-invoked-"), "marker")
     const { env } = sandbox(["claude"], `#!/bin/sh\n: > '${invoked}'\n`)
@@ -218,7 +242,7 @@ describe("cross-model-doc-review route safety (R17)", () => {
     const markers = mkTempRoot("xmodel-dr-fixed-target-")
     const body = `#!/bin/sh
 name="\${0##*/}"
-: > "\${MARKER_DIR}/\${name}"
+: > "${markers}/$name"
 cat >/dev/null
 printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"residual_risks":[],"deferred_questions":[]}}'
 `
@@ -227,7 +251,6 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     const runDir = makeRunDir()
     const r = run(["codex", "claude,cursor", "adversarial", doc, "plan", "none", runDir], runDir, {
       ...env,
-      MARKER_DIR: markers,
       CROSS_MODEL_FIXED_ROUTE: "cursor",
       CROSS_MODEL_MAX_PEERS: "1",
     })
@@ -527,6 +550,9 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     // The artifact records the actual route so the egress disclosure can reconcile it.
     expect(out.cross_model_route).toBe("claude")
     expect(out.independence_verified).toBe(true)
+    expect(out.model_identity_status).toBe("unverified")
+    expect(out.effort_requested).toBe("high")
+    expect(out.effort_actual).toBe("unverified")
   })
 
   test("drops the return when findings is not an array", () => {
@@ -575,7 +601,47 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     expect(out.cross_model_route).toBe("claude")
     expect(out.model_requested).toBe("opus")
     expect(out.model_actual).toBe("claude-opus-4-8-20260115")
+    expect(out.model_identity_status).toBe("matched")
     expect(r.stderr).not.toContain("model mismatch")
+  })
+
+  test("a generalized candidate drives the live fake adapter and receipt", () => {
+    const captureRoot = mkTempRoot("xmodel-doc-routed-")
+    const capture = path.join(captureRoot, "argv")
+    const envCapture = path.join(captureRoot, "env")
+    const claudeConfig = path.join(captureRoot, "claude-config")
+    const apiSecret = "SENTINEL-doc-review-api-secret"
+    const stub = `#!/bin/sh
+printf '%s' "$*" > '${capture}'
+env > '${envCapture}'
+cat >/dev/null
+printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[]},"modelUsage":{"claude-sonnet-4-7-20260701":{"inputTokens":3}}}'
+`
+    const { env } = sandbox(["claude"], stub)
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "adversarial", doc, "plan", "none", runDir], runDir, {
+      ...env,
+      CE_ROUTING_CANDIDATE_HARNESS: "claude",
+      CE_ROUTING_CANDIDATE_ROUTE: "claude",
+      CE_ROUTING_CANDIDATE_MODEL: "sonnet",
+      CE_ROUTING_CANDIDATE_EFFORT: "medium",
+      USER: "doc-review-keychain-user",
+      CLAUDE_CONFIG_DIR: claudeConfig,
+      ANTHROPIC_API_KEY: apiSecret,
+    })
+    expect(r.files).toContain("adversarial-claude.json")
+    expect(readFileSync(capture, "utf8")).toContain("--model sonnet --effort medium")
+    const childEnv = readFileSync(envCapture, "utf8")
+    expect(childEnv).toContain("USER=doc-review-keychain-user")
+    expect(childEnv).toContain(`CLAUDE_CONFIG_DIR=${claudeConfig}`)
+    expect(childEnv).not.toContain("ANTHROPIC_API_KEY=")
+    expect(childEnv).not.toContain(apiSecret)
+    const out = JSON.parse(readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"))
+    expect(out.model_requested).toBe("sonnet")
+    expect(out.model_actual).toBe("claude-sonnet-4-7-20260701")
+    expect(out.model_identity_status).toBe("matched")
+    expect(out.effort_requested).toBe("medium")
   })
 
   test("multi-key receipt: prefers the requested-family key over the alphabetically-first auxiliary key (R7)", () => {
@@ -612,6 +678,7 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     )
     expect(out.model_requested).toBe("opus")
     expect(out.model_actual).toBe("claude-haiku-4-5-20251001")
+    expect(out.model_identity_status).toBe("mismatched")
     expect(r.stderr).toContain("WARNING: model mismatch - requested opus, backend served claude-haiku-4-5-20251001")
   })
 
@@ -628,6 +695,7 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     )
     expect(out.model_requested).toBe("opus")
     expect(out.model_actual).toBe("unverified")
+    expect(out.model_identity_status).toBe("unverified")
     expect(r.stderr).toContain("model receipt absent/unparseable on claude route; recording unverified")
   })
 
@@ -836,14 +904,11 @@ describe("cross-model-doc-review argv integrity (multiline --json-schema)", () =
     const capRoot = mkTempRoot("xmodel-cap-")
     const capFile = path.join(capRoot, "schema-arg.txt")
     const recordStub =
-      `#!/bin/sh\ncat >/dev/null\nprev=\nfor a in "$@"; do if [ "$prev" = "--json-schema" ]; then printf '%s' "$a" > "$SCHEMA_CAPTURE"; fi; prev="$a"; done\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[]}}'\n`
+      `#!/bin/sh\ncat >/dev/null\nprev=\nfor a in "$@"; do if [ "$prev" = "--json-schema" ]; then printf '%s' "$a" > '${capFile}'; fi; prev="$a"; done\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[]}}'\n`
     const { env } = sandbox(["claude"], recordStub)
     const doc = makeDoc()
     const runDir = makeRunDir()
-    run(["codex", "claude", "adversarial", doc, "plan", "none", runDir], runDir, {
-      ...env,
-      SCHEMA_CAPTURE: capFile,
-    })
+    run(["codex", "claude", "adversarial", doc, "plan", "none", runDir], runDir, env)
     const captured = readFileSync(capFile, "utf8")
     // A split would leave --json-schema holding just "{"; the presence of both the
     // first ("$schema") and a late field (deferred_questions) proves one whole token.
@@ -858,15 +923,12 @@ describe("cross-model-doc-review argv integrity (multiline --json-schema)", () =
     const capFile = path.join(capRoot, "cursor-stdin.txt")
     // Stub captures STDIN (not argv) — the prompt must arrive on stdin.
     const recordStub =
-      `#!/bin/sh\ncat > "$PROMPT_CAPTURE"\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[]}}'\n`
+      `#!/bin/sh\ncat > '${capFile}'\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[]}}'\n`
     const { env } = sandbox(["cursor-agent"], recordStub)
     const doc = makeDoc("# Plan\nUNIQUE_DOC_MARKER_9x7\n")
     const runDir = makeRunDir()
     // host=claude, candidates=composer -> composer route via cursor-agent.
-    const r = run(["claude", "composer", "adversarial", doc, "plan", "none", runDir], runDir, {
-      ...env,
-      PROMPT_CAPTURE: capFile,
-    })
+    const r = run(["claude", "composer", "adversarial", doc, "plan", "none", runDir], runDir, env)
     expect(r.files).toContain("adversarial-composer.json")
     expect(readFileSync(capFile, "utf8")).toContain("UNIQUE_DOC_MARKER_9x7")
   })

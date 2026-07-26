@@ -57,6 +57,32 @@ route_model() {
   esac
 }
 
+route_effort() {
+  local route="$1"
+  if [ -n "${EFFORT_REQUESTED:-}" ]; then
+    printf '%s' "$EFFORT_REQUESTED"
+    return
+  fi
+  if [ -n "${CE_ROUTING_CANDIDATE_EFFORT:-}" ]; then
+    printf '%s' "$CE_ROUTING_CANDIDATE_EFFORT"
+    return
+  fi
+  case "$route" in
+    codex|cursor|composer|grok-cursor) printf 'auto' ;;
+    claude|grok-cli) printf 'high' ;;
+  esac
+}
+
+validate_route_effort() {
+  case "$1:$(route_effort "$1")" in
+    codex:auto|codex:minimal|codex:low|codex:medium|codex:high|codex:xhigh) ;;
+    claude:low|claude:medium|claude:high) ;;
+    grok-cli:low|grok-cli:medium|grok-cli:high) ;;
+    cursor:auto|composer:auto|grok-cursor:auto) ;;
+    *) return 1 ;;
+  esac
+}
+
 validate_model_override() {
   local route="$1" override="${CE_WORK_MODEL_OVERRIDE:-}" override_target="${CE_WORK_MODEL_OVERRIDE_TARGET:-}" target override_lower
   [ -n "$override" ] || { [ -z "$override_target" ]; return; }
@@ -86,25 +112,31 @@ validate_model_override() {
 adapter_argv() {
   case "$1" in
     codex)
+      local codex_effort
+      codex_effort="$(route_effort codex)"
+      # ce-dispatch-site:ce-work.implementation-cli-codex
       printf '%s\0' codex exec --ignore-user-config --ignore-rules --ephemeral \
         -s workspace-write -C "$WORKSPACE" --json -o "$RAW_RESULT"
       [ "$(route_model codex)" = auto ] || printf '%s\0' -m "$(route_model codex)"
+      [ "$codex_effort" = auto ] || printf '%s\0' -c "model_reasoning_effort=\"$codex_effort\""
       printf '%s\0' -
       ;;
     claude)
       local claude_model
       claude_model="$(route_model claude)"
+      # ce-dispatch-site:ce-work.implementation-cli-claude
       printf '%s\0' claude -p --safe-mode --no-session-persistence \
         --permission-mode bypassPermissions --tools Read,Write,Edit,Bash \
         --allowed-tools 'Bash(*)' \
-        --effort high --output-format stream-json --verbose
+        --effort "$(route_effort claude)" --output-format stream-json --verbose
       [ "$claude_model" = auto ] || printf '%s\0' --model "$claude_model"
       ;;
     grok-cli)
       local grok_model
       grok_model="$(route_model grok-cli)"
+      # ce-dispatch-site:ce-work.implementation-cli-grok
       printf '%s\0' grok --prompt-file "$PROMPT_FILE" --cwd "$WORKSPACE" \
-        --effort high --permission-mode acceptEdits \
+        --effort "$(route_effort grok-cli)" --permission-mode acceptEdits \
         --tools Read,Write,Edit --disable-web-search --no-memory --no-subagents \
         --no-plan --max-turns 50 --output-format streaming-json --verbatim
       [ "$grok_model" = auto ] || printf '%s\0' --model "$grok_model"
@@ -112,15 +144,18 @@ adapter_argv() {
     cursor)
       local cursor_model
       cursor_model="$(route_model cursor)"
+      # ce-dispatch-site:ce-work.implementation-cli-cursor
       printf '%s\0' cursor-agent -p --output-format stream-json --stream-partial-output \
         --force --sandbox enabled --trust --workspace "$WORKSPACE"
       [ "$cursor_model" = auto ] || printf '%s\0' --model "$cursor_model"
       ;;
     composer)
+      # ce-dispatch-site:ce-work.implementation-cli-composer
       printf '%s\0' cursor-agent -p --output-format stream-json --stream-partial-output \
         --force --sandbox enabled --trust --workspace "$WORKSPACE" --model "$(route_model composer)"
       ;;
     grok-cursor)
+      # ce-dispatch-site:ce-work.implementation-cli-grok-cursor
       printf '%s\0' cursor-agent -p --output-format stream-json --stream-partial-output \
         --force --sandbox enabled --trust --workspace "$WORKSPACE" --model "$(route_model grok-cursor)"
       ;;
@@ -135,6 +170,10 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   ROUTE="${2:-}"
   validate_model_override "$ROUTE" || {
     printf "model override '%s' not compatible with route '%s'\n" "${CE_WORK_MODEL_OVERRIDE:-}" "$ROUTE" >&2
+    exit 2
+  }
+  validate_route_effort "$ROUTE" || {
+    printf "effort '%s' not compatible with route '%s'\n" "$(route_effort "$ROUTE")" "$ROUTE" >&2
     exit 2
   }
   adapter_argv "$ROUTE" >/dev/null 2>&1 || { printf "unknown route '%s'\n" "$ROUTE" >&2; exit 2; }
@@ -191,8 +230,8 @@ import json, os, re, stat, sys
 source, expected_packet_digest, output = sys.argv[1:]
 required = {
     "schema_version", "run_id", "unit_id", "attempt_id", "route", "target", "harness",
-    "intermediaries", "model_requested", "restriction_posture",
-    "restrictions", "activity_posture", "packet_digest",
+    "intermediaries", "model_requested", "effort_requested", "restriction_posture",
+    "restrictions", "activity_posture", "packet_digest", "routing_lock",
 }
 contracts = {
     "codex": ("codex", "codex", [], "adapter-enforced"),
@@ -225,6 +264,13 @@ def model_allowed(route, model):
     if route == "grok-cursor":
         return bool(re.fullmatch(r"cursor-grok-[A-Za-z0-9._-]+", model))
     return False
+
+def effort_allowed(route, effort):
+    if route == "codex":
+        return effort in {"auto", "minimal", "low", "medium", "high", "xhigh"}
+    if route in {"claude", "grok-cli"}:
+        return effort in {"low", "medium", "high"}
+    return effort == "auto"
 
 try:
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
@@ -280,6 +326,48 @@ try:
         fail("authorization restrictions must be a string list")
     if not model_allowed(route, value["model_requested"]):
         fail("authorization model is incompatible with the fixed route")
+    if not effort_allowed(route, value["effort_requested"]):
+        fail("authorization effort is incompatible with the fixed route")
+    routing_lock = value["routing_lock"]
+    if routing_lock is not None:
+        lock_required = {
+            "protocol", "snapshot_id", "source_revisions", "binding_digest", "unit_id", "attempt_id",
+            "candidate_ordinal", "candidate", "recipient", "adapter_family", "mutation_posture",
+            "environment_posture", "identity_gate", "material_scope", "restrictions", "egress",
+            "preflight", "state", "locked_at", "lock_digest",
+        }
+        if not isinstance(routing_lock, dict) or set(routing_lock) != lock_required:
+            fail("routing attempt lock schema is invalid")
+        if routing_lock["protocol"] != "ce-work-attempt-lock/v1":
+            fail("routing attempt lock protocol is invalid")
+        if routing_lock["unit_id"] != value["unit_id"] or routing_lock["attempt_id"] != value["attempt_id"]:
+            fail("routing attempt lock identity differs from authorization")
+        if routing_lock["state"] != "locked" or routing_lock["mutation_posture"] != "isolated-write":
+            fail("routing attempt mutation state is invalid")
+        if routing_lock["environment_posture"] != "credential-minimized":
+            fail("routing attempt environment posture is invalid")
+        recipient = routing_lock["recipient"]
+        if not isinstance(recipient, dict) or (
+            recipient.get("route"), recipient.get("target"), recipient.get("harness"), recipient.get("intermediaries")
+        ) != (route, target, harness, intermediaries):
+            fail("routing attempt recipient differs from authorization")
+        candidate = routing_lock["candidate"]
+        if not isinstance(candidate, dict) or candidate.get("ordinal") != routing_lock["candidate_ordinal"]:
+            fail("routing attempt candidate is invalid")
+        expected_model = candidate.get("model")
+        if expected_model is not None and expected_model != value["model_requested"]:
+            fail("routing attempt model differs from authorization")
+        if candidate.get("effort") is not None and candidate.get("effort") != value["effort_requested"]:
+            fail("routing attempt effort differs from authorization")
+        if value["unit_id"] not in routing_lock["material_scope"]:
+            fail("routing attempt material scope omits the unit")
+        lock_material = dict(routing_lock)
+        observed_lock_digest = lock_material.pop("lock_digest")
+        calculated_lock_digest = __import__("hashlib").sha256(
+            json.dumps(lock_material, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        if observed_lock_digest != calculated_lock_digest:
+            fail("routing attempt lock digest is invalid")
     packet_digest = value["packet_digest"]
     if not isinstance(packet_digest, str) or not re.fullmatch(r"[0-9a-f]{64}", packet_digest):
         fail("authorization packet_digest is not lowercase SHA-256")
@@ -288,7 +376,7 @@ try:
     authorization_digest = __import__("hashlib").sha256(b"".join(chunks)).hexdigest()
     fields = (
         authorization_digest, value["run_id"], value["unit_id"], value["attempt_id"],
-        route, target, harness, value["model_requested"], value["activity_posture"], posture,
+        route, target, harness, value["model_requested"], value["effort_requested"], value["activity_posture"], posture,
     )
     out = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
@@ -304,7 +392,7 @@ AUTH_EXIT=$?
 
 AUTH_FIELDS=()
 while IFS= read -r -d '' field; do AUTH_FIELDS+=("$field"); done < "$AUTH_VALUES"
-[ "${#AUTH_FIELDS[@]}" -eq 10 ] || { log "controller authorization projection is incomplete"; exit 2; }
+[ "${#AUTH_FIELDS[@]}" -eq 11 ] || { log "controller authorization projection is incomplete"; exit 2; }
 OBSERVED_AUTH_DIGEST="${AUTH_FIELDS[0]}"
 RUN_ID="${AUTH_FIELDS[1]}"
 UNIT_ID="${AUTH_FIELDS[2]}"
@@ -313,8 +401,9 @@ ROUTE="${AUTH_FIELDS[4]}"
 AUTH_TARGET="${AUTH_FIELDS[5]}"
 AUTH_HARNESS="${AUTH_FIELDS[6]}"
 MODEL_REQUESTED="${AUTH_FIELDS[7]}"
-ACTIVITY_POSTURE="${AUTH_FIELDS[8]}"
-RESTRICTION_POSTURE="${AUTH_FIELDS[9]}"
+EFFORT_REQUESTED="${AUTH_FIELDS[8]}"
+ACTIVITY_POSTURE="${AUTH_FIELDS[9]}"
+RESTRICTION_POSTURE="${AUTH_FIELDS[10]}"
 RUNNER_JOB_ID="${CE_PEER_JOB_ID:-}"
 [[ "$RUNNER_JOB_ID" =~ ^[A-Za-z0-9._-]{1,128}$ && "$RUNNER_JOB_ID" =~ [A-Za-z0-9_-] ]] || {
   log "runner job identity is missing or unsafe"
@@ -611,9 +700,9 @@ publish_unavailable() {
     }
     LOG_RETAINED=1
   fi
-  python3 - "$ROUTE" "$TARGET" "$HARNESS" "$MODEL_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$reason" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$terminal_status" "$actual_route" <<'PY' | write_result_receipt
+  python3 - "$ROUTE" "$TARGET" "$HARNESS" "$MODEL_REQUESTED" "$EFFORT_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$reason" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$terminal_status" "$actual_route" <<'PY' | write_result_receipt
 import json, sys
-route, target, harness, requested, packet_digest, log, reason, activity, restriction, terminal_status, actual_route = sys.argv[1:]
+route, target, harness, requested, effort, packet_digest, log, reason, activity, restriction, terminal_status, actual_route = sys.argv[1:]
 value = {
   "schema_version": 1, "terminal_status": terminal_status,
   "summary": "External route failed after launch" if terminal_status == "failed" else "External route unavailable",
@@ -621,6 +710,7 @@ value = {
   "requested_route": route, "actual_route": actual_route or None, "target": target, "harness": harness,
   "intermediaries": ["cursor"] if route in ("composer", "grok-cursor") else [],
   "model_requested": requested, "model_actual": "unverified", "model_receipt_status": "unverified",
+  "effort_requested": effort, "effort_actual": "unverified", "effort_receipt_status": "unverified",
   "packet_digest": packet_digest,
   "activity_posture": activity, "restriction_posture": restriction,
   "failure_reason": reason, "raw_log": log,
@@ -769,9 +859,9 @@ SOURCE="$RAW_STDOUT"
 set +e
 CE_WORK_REDACT_FILE="${CE_WORK_REDACT_FILE:-}" python3 - \
   "$SOURCE" "$RAW_STDOUT" "$ROUTE" "$TARGET" "$HARNESS" \
-  "$MODEL_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$MODEL_DISPLAY_HINT" <<'PY' | write_result_receipt
+  "$MODEL_REQUESTED" "$EFFORT_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$MODEL_DISPLAY_HINT" <<'PY' | write_result_receipt
 import json, os, re, sys
-source, stream, route, target, harness, requested, packet_digest, log, activity, restriction, display_hint = sys.argv[1:]
+source, stream, route, target, harness, requested, effort_requested, packet_digest, log, activity, restriction, display_hint = sys.argv[1:]
 
 def redactions():
     p=os.environ.get("CE_WORK_REDACT_FILE", "")
@@ -837,6 +927,7 @@ if valid:
         or (worker["terminal_status"]!="scope_expansion" and worker.get("scope_expansion") is None)))
 
 served="unverified"
+effort_actual="unverified"
 if source == stream:
     stream_text=raw
 else:
@@ -846,7 +937,10 @@ for line in stream_text.splitlines():
     try: event=json.loads(line)
     except Exception: continue
     if isinstance(event,dict) and event.get("model") and (event.get("subtype")=="init" or event.get("type") in ("init","system")):
-        served=normalize_served_model(event["model"]); break
+        served=normalize_served_model(event["model"])
+        if event.get("effort") is not None:
+            effort_actual=normalize_served_model(event["effort"])
+        break
 
 if served == "unverified": receipt="unverified"
 elif requested == "auto": receipt="verified"
@@ -865,12 +959,18 @@ else:
         normalized=lambda value: re.sub(r"[^a-z0-9]", "", value.lower())
         receipt="verified" if actual.startswith(family) or actual==req or normalized(actual)==normalized(req) else "mismatch"
 
+if effort_requested == "auto": effort_receipt="verified" if effort_actual != "unverified" else "unverified"
+elif effort_actual == "unverified": effort_receipt="unverified"
+else: effort_receipt="verified" if effort_actual.lower() == effort_requested.lower() else "mismatch"
+
 intermediaries=["cursor"] if route in ("composer","grok-cursor") else []
 base={
   "schema_version":1,
   "requested_route":route, "actual_route":route, "target":target, "harness":harness,
   "intermediaries":intermediaries, "model_requested":requested, "model_actual":served,
   "model_receipt_status":receipt, "activity_posture":activity,
+  "effort_requested":effort_requested, "effort_actual":effort_actual,
+  "effort_receipt_status":effort_receipt,
   "packet_digest":packet_digest,
   "restriction_posture":restriction,
   "failure_reason":None, "raw_log":log,

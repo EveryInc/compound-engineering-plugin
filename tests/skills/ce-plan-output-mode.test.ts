@@ -129,24 +129,17 @@ describe("ce-plan output:html mode", () => {
     ).toBe(true)
   })
 
-  test("config matching rule ignores commented YAML lines (active-key principle)", () => {
-    // Codex review (2026-05-13, thread PRRT_kwDOP_gZVc6B6OgB) flagged that the
-    // prior phrasing — "contains `plan_output: md|html`" — would match the
-    // commented examples shipped in the config template (`# plan_output: html`),
-    // silently forcing every user into HTML mode. The fix is principle-level:
-    // require an ACTIVE (non-commented) key, and name the failure mode so a
-    // future maintainer doesn't loosen it back. We check the principle is
-    // present, not a specific phrasing.
+  test("config resolution uses the merged resolver view", () => {
     const phaseStart = SKILL_BODY.indexOf("#### 0.0")
     const phaseRegion = SKILL_BODY.slice(phaseStart, phaseStart + 4500)
-    expect(
-      /active.*non-commented|non-commented.*key|lines starting with `#`.*comments|ignore commented/i.test(phaseRegion),
-      "Phase 0.0 config matching must require an ACTIVE (non-commented) `plan_output:` key, not a raw-text 'contains' match. Without this, the shipped config template's commented examples would silently force HTML mode.",
-    ).toBe(true)
-    expect(
-      /# plan_output: html|commented examples|shipped config template/i.test(phaseRegion),
-      "Phase 0.0 must cite the specific failure mode (the shipped template's commented `# plan_output: html` example) so the rationale survives future edits.",
-    ).toBe(true)
+
+    expect(phaseRegion).toContain("references/execution-routing.md")
+    expect(phaseRegion).toContain("python3 -I -S")
+    expect(phaseRegion).toContain("$SKILL_DIR/scripts/ce-routing.py")
+    expect(phaseRegion).toMatch(/`inspect` request/)
+    expect(phaseRegion).toContain("settings.effective")
+    expect(phaseRegion).toContain("settings.provenance")
+    expect(phaseRegion).not.toMatch(/active \(non-commented\)|native file-read tool/i)
   })
 
   test("unknown-value fallback note reflects final resolved mode, not a hardcoded md", () => {
@@ -186,7 +179,8 @@ describe("ce-plan output:html mode", () => {
 
   test("Phase 0.0 points at format-rendering refs based on resolved value", () => {
     const phaseStart = SKILL_BODY.indexOf("#### 0.0")
-    const phaseRegion = SKILL_BODY.slice(phaseStart, phaseStart + 4500)
+    const phaseEnd = SKILL_BODY.indexOf("#### 0.1", phaseStart)
+    const phaseRegion = SKILL_BODY.slice(phaseStart, phaseEnd)
     expect(
       /references\/markdown-rendering\.md|markdown-rendering\.md/i.test(phaseRegion),
       "Phase 0.0 must point at markdown-rendering.md for md output mode.",

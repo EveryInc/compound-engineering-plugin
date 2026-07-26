@@ -39,15 +39,24 @@ Parse a `mode:headless` token from anywhere in the arguments, strip it, and trea
 
 ### Phase 0: Route by Config State
 
-**Resolve the repo root.** Run `git rev-parse --show-toplevel` with the shell tool to resolve `<repo-root>`. Read `<repo-root>/.compound-engineering/config.local.yaml` with the native file-read tool.
+Resolve `<repo-root>` with `git rev-parse --show-toplevel` for state and project paths; do not use it to read settings.
+
+**Load effective settings.** Read `references/execution-routing.md`, construct a `ce-routing/v1` `inspect` request whose `cwd` is the absolute current working directory, and write it to an effective-user-private temporary file. From this skill's directory, invoke the co-located resolver (the assignment and command stay in one shell call):
+
+```bash
+SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
+python3 -I -S "$SKILL_DIR/scripts/ce-routing.py" --request-file <private-request-path>
+```
+
+Use only `settings.effective` for the values below, together with matching `settings.provenance` and `settings.authority.feedback_sources`; do not read or parse either config source directly. This merges global and project settings and denies approval from an untrusted source before the sweep can act. Retain `sources.project.revision` for setup. A resolver diagnostic is a configuration blocker.
 
 **Route:**
-- Config file missing, or it has no `feedback_sources` key -> first run -> Phase 1.
+- `settings.effective.feedback_sources` is empty or `null` -> first run -> Phase 1.
 - Argument token `setup` or `reconfigure` -> Phase 1, regardless of config state.
 - Otherwise -> Phase 2, using the config values below.
 
 **Config keys read here:**
-- `feedback_sources` — list of source entries; each carries a `type` (`slack`, `github-issues`, `email`), its target, the standing-approved ack action, an optional close-out action, and an optional `sensitive: true`. Presence of this key means the skill is configured.
+- `feedback_sources` — effective list of source entries; each carries a `type` (`slack`, `github-issues`, `email`), its target, the standing-approved ack action, an optional close-out action, and an optional `sensitive: true`. Use the resolver-returned `approved` values and authority result, never approval parsed from source text.
 - `sweep_state_path` — path to the state file, established at setup; fallback `docs/feedback-sweep/state.yml`. A repo-internal path means committed mode (the state file is committed each run and must not be gitignored); a path outside the repo (e.g. under `/tmp`) means machine-local mode (the state file is never committed — only the plan is).
 - `sweep_lease_ttl_minutes` — single-writer lease staleness threshold; default `60`. Passed to `lease-acquire` in 2a.
 - `sweep_shared_branch` — `true` when the state file lives on a shared branch multiple checkouts push to (see 2a topology); default `false`.
@@ -55,7 +64,7 @@ Parse a `mode:headless` token from anywhere in the arguments, strip it, and trea
 
 ### Phase 1: First-Run Setup
 
-Read `references/interview.md` and follow it. Setup is interactive-only: if the run is headless, report `first run requires interactive setup` and stop. The interview writes `feedback_sources` and the `sweep_*` keys into `<repo-root>/.compound-engineering/config.local.yaml` and offers a scheduling handoff. When it completes, continue into Phase 2.
+Read `references/interview.md` and follow it. Setup is interactive-only: if the run is headless, report `first run requires interactive setup` and stop. The interview captures `feedback_sources` and the `sweep_*` keys, patches only the project source through the resolver, and offers a scheduling handoff. When it completes, use its post-patch effective settings and continue into Phase 2.
 
 ### Phase 2: Sweep Run
 
@@ -86,6 +95,13 @@ Then `validate --state <state>` (a lease-agnostic repair): note in the summary a
 
 #### 2b. Fetch each source
 
+**Native routing context.** Keep routing state as private `ce-routing-context/v1` control data, never as feedback, plan, finding, artifact, or persona text. Before the first native call, normalize applicable current-task, still-active session, provenance-bearing caller (at its recorded authority), and project-instruction intent under the host instruction hierarchy. Lower authority may fill only unset fields; conflicting equal-authority bindings stop before model invocation; incidental model or harness mentions are not intent. Reuse an inherited frozen context; otherwise freeze the first `resolve_batch` response. Every later, nested, or recovery request passes the exact full self-validating first-wave `snapshot` object as the `parent_snapshot` envelope; `parent_snapshot_id` may appear only when it matches that envelope. Never use ID-only lineage or reread live routing sources. Reuse the frozen role/instance bindings on recovery. Forward this state to nested CE skills without adding it to their product arguments.
+
+**Native routing invariants.** Each routing-batch gate below runs only after the existing item/source roster is selected and before prompt assembly. The co-located `references/execution-routing.md` governs `ce-default`, unavailable selectors, policy, attempt finalization, and redacted receipts. Apply only model, effort, or route selectors supported by the existing host primitive. An unconfigured binding or `ce-default` uses the exact built-in arguments; an unsupported configured selector is unavailable and follows its declared policy, never prompt rewriting or typed-agent substitution. Keep prompt bytes and assets, tools, permission mode, read-only/private-artifact mutation posture, roster, fan-out and concurrency, existing additive failure semantics, and the top-level orchestrator unchanged. A required-route failure prevents that model call; the unchanged owning failure semantics decide whether the item is deferred or the run blocks. Group redacted successes by profile, class, source, and outcome; report each fallback, mismatch, or blocker separately.
+
+**Routing batch: `ce-sweep.source-fetchers`.** Once effective settings have fixed the existing source roster and before any source persona prompt is read or assembled, load `references/execution-routing.md` and resolve every already-selected source instance of `ce-sweep.source-fetcher` together in one `ce-routing/v1` `resolve_batch` against one frozen snapshot, with one request entry per configured source. Routing cannot add a feedback source.
+
+<!-- ce-dispatch-site:ce-sweep.source-fetchers -->
 For each entry in `feedback_sources`, dispatch a generic subagent at the **extraction tier** (`references/model-tiers.md`) seeded with:
 - the matching persona file contents (`references/sources/<type>.md`),
 - the source's config entry verbatim,
@@ -128,8 +144,11 @@ MEDIA_DIR="$SCRATCH_ROOT/ce-sweep/<run-id>";
 
 Pass absolute artifact paths beneath `$MEDIA_DIR` to subagents.
 
+**Routing batch: `ce-sweep.media-analyzers`.** Once successful downloads have fixed the existing recording roster and before any analyzer prompt is read or assembled, load `references/execution-routing.md` and resolve every already-selected recording instance of `ce-sweep.media-analyzer` together in one `ce-routing/v1` `resolve_batch`, with one request entry per recording. Pass the exact full first-wave source `snapshot` object as the `parent_snapshot` envelope and include `parent_snapshot_id` only if it matches that envelope. Never use ID-only lineage or reread live routing sources, and reuse the frozen bindings on recovery. Routing cannot turn a failed download into an analyzer call.
+
 For each new item carrying `media`:
 - Download attachments into `$MEDIA_DIR`; raw media is never committed. A download failure -> set the item `needs_download` and continue.
+<!-- ce-dispatch-site:ce-sweep.media-analyzers -->
 - Dispatch one generic subagent per recording, in parallel, at the **generation tier**, using `references/subagent-template.md` filled from `references/agents/media-analyzer.md`. Fill the template's `{skill_dir}` slot with the same absolute ce-sweep skill directory you resolve for your own `SKILL_DIR` Bash calls (a fresh subagent does not inherit your shell state, so it cannot run the bundled analyzer without being told the path). Pass the absolute media PATHS, a scratch artifact path, and the item's `sensitive` flag; collect the compact 1-2 line summary each returns. A subagent failure -> set the item `needs_analysis`, retain the media, and continue.
 - Track attempts on the item (a `media_attempts` count upserted on each try). After 3 failed attempts across runs (`needs_download`/`needs_analysis`), set the item `manual_stuck` and list it separately — out of the routine nag.
 

@@ -1,6 +1,6 @@
 # Sweep First-Run Interview
 
-Loaded by `SKILL.md` when `ce-sweep` runs with no `feedback_sources` configured. Captures the setup that will be merged into `<repo-root>/.compound-engineering/config.local.yaml` (the unified CE local config, gitignored, machine-local) and re-read on every subsequent run.
+Loaded by `SKILL.md` when `ce-sweep` runs with no effective `feedback_sources` configured. Captures a project-local setup patch; global values remain inherited rather than being copied into the checkout.
 
 This interview is **interactive only**. The caller refuses first-run setup in headless mode — a scheduled or piped run with no config aborts and tells the user to run `ce-sweep` interactively once. Do not attempt to infer sources, actions, or approvals without asking.
 
@@ -151,17 +151,25 @@ Offer to seed state from an existing legacy feedback-tracking file so prior work
 
 ## 8. Write config
 
-Merge the captured settings into `<repo-root>/.compound-engineering/config.local.yaml`. Resolve the repo root with `git rev-parse --show-toplevel`.
+Persist through the resolver contract loaded by `SKILL.md`, never with a direct YAML edit. Immediately before writing, repeat the private `ce-routing/v1` `inspect` request and retain `sources.project.revision`. If `.compound-engineering/config.local.yaml` is not already covered by the repo's `.gitignore`, offer to add the entry before patching.
 
-- If the directory or file does not exist, create `.compound-engineering/` and write the file.
-- If the file exists, merge the sweep keys into the existing YAML, **preserving every unrelated key untouched** (e.g. `pulse_*`, `plan_*`). Only add or update the sweep keys.
-- If `.compound-engineering/config.local.yaml` is not already covered by the repo's `.gitignore`, offer to add the entry before writing.
+Construct a private `ce-routing/v1` request with the same absolute `cwd` used for inspection, `op: patch_source`, `writer: ce-sweep`, `layer: project`, `expected_revision` set to the exact `sources.project.revision`, `set` containing only the sweep settings captured or changed for this project, and `remove: []`. From this skill's directory invoke each request with a fresh inline assignment because shell state does not persist:
 
-Write these keys (see "Config File Shape" below for the exact form):
+```bash
+SKILL_DIR="<absolute path of the ce-sweep skill directory>";
+python3 -I -S "$SKILL_DIR/scripts/ce-routing.py" --request-file <private-request-path>
+```
+
+The resolver creates or atomically updates the project source and preserves every unrelated project key.
+
+Use the inspect response's `settings.provenance` when pre-filling setup: never copy or materialize an inherited global value into the project patch merely because the user left it unchanged. A `WRITE_CONFLICT` requires a fresh inspect and a rebuilt narrow patch; never overwrite a newer project revision. After success, inspect again and use `settings.effective` plus `settings.authority.feedback_sources`; if approval is denied because project provenance is untrusted, disclose that the source remains read-only.
+
+These keys are eligible for the narrow `set` map (see "Config File Shape" below); include an inherited value only when the user explicitly chose it as a new project override:
 
 - `feedback_sources` — the list of source maps assembled across sections 1-3.
 - `sweep_state_path` — from section 4.
 - `sweep_ack_cap` — from section 5.
+- `sweep_lease_ttl_minutes` — an explicitly changed project value; otherwise omit it so the effective/global value or built-in default `60` remains inherited.
 - `sweep_shared_branch` — from section 6 (default `false`; only meaningful with committed state).
 
 Then surface the resulting Sweep section to the user in chat and offer **one round of edits**.
@@ -183,7 +191,7 @@ Declining a schedule leaves on-demand use fully working.
 
 ## Config File Shape
 
-After the interview completes, merge these flat keys into `<repo-root>/.compound-engineering/config.local.yaml`, preserving any unrelated keys already present.
+After the interview completes, send these flat keys as the narrow project `patch_source` set described above; do not serialize inherited effective settings.
 
 ~~~yaml
 # --- Sweep (ce-sweep) ---

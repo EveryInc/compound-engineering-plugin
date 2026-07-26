@@ -15,6 +15,7 @@
 # - The `best` section is updated after each batch if a new best is found
 # - The `hypothesis_backlog` is updated after each batch
 # - The agent re-reads this file from disk at every phase boundary
+# - Routing receipts/blockers are appended and verified before they are displayed
 #
 # The orchestrator does NOT read the full log each iteration -- it uses a
 # rolling window (last 10 experiments) + a strategy digest file for
@@ -41,6 +42,70 @@ structure:
     type: string
     format: "ISO 8601 timestamp"
     required: true
+
+  routing_context:
+    type: object
+    required: true
+    description: "Private frozen execution-routing state. Persist before the first author or judge dispatch and reuse unchanged on resume; never put it in recipient prompts."
+    children:
+      version:
+        type: string
+        const: "ce-routing-context/v1"
+      snapshot_id:
+        type: string
+        description: "Opaque cesnap-v1 identifier returned by the one resolve_batch for this run"
+      source_revisions:
+        type: object
+        description: "Global/project revisions observed when the snapshot was frozen; later config drift does not change this run"
+      constraints_digest:
+        type: string
+        description: "sha256:<lowercase-hex> over canonical compact UTF-8 JSON with recursively sorted keys for the approved backend, mutable/immutable scope, measurement, judge separation, concurrency, security posture, shared inputs/environment, and stopping criteria"
+      author_binding:
+        type: object
+        description: "Frozen ce-optimize.experiment-author binding and ordered candidates"
+      judge_binding:
+        type: object
+        nullable: true
+        description: "Independent frozen ce-optimize.semantic-judge binding for judge specs; null for hard-metric runs"
+      legacy_judge_model:
+        type: string
+        nullable: true
+        description: "Normalized metric.judge.model compatibility value used only by built-in/ce-default judge execution"
+
+  route_events:
+    type: array
+    required: true
+    description: "Append-only redacted preflight, finalization, fallback, and blocker events imported from routing-events.jsonl at CP-1 and then appended here before display"
+    items:
+      type: object
+      children:
+        sequence:
+          type: integer
+          description: "Monotonically increasing event number"
+        timestamp:
+          type: string
+          format: "ISO 8601 timestamp"
+        snapshot_id:
+          type: string
+        role:
+          type: string
+          enum: [ce-optimize.experiment-author, ce-optimize.semantic-judge]
+        instance:
+          type: string
+          description: "Experiment iteration or judge batch identifier"
+        candidate_ordinal:
+          type: integer
+          nullable: true
+        action:
+          type: string
+          enum: [preflight_unavailable, accept, next_candidate, block]
+        receipt:
+          type: object
+          nullable: true
+          description: "Redacted finalize_attempt receipt; never includes prompt, paths, material values, credentials, or raw output"
+        diagnostic:
+          type: string
+          nullable: true
 
   baseline:
     type: object
@@ -170,6 +235,20 @@ experiment_entry:
           summary:
             type: string
 
+    routing_snapshot_id:
+      type: string
+      description: "Snapshot that authorized this experiment; must equal routing_context.snapshot_id"
+
+    author_receipt:
+      type: object
+      description: "Redacted finalize_attempt receipt for ce-optimize.experiment-author. Measurement and result-marker creation are forbidden until this receipt accepts the isolated output."
+
+    judge_receipts:
+      type: array
+      description: "Independent redacted finalize_attempt receipts for semantic-judge batches. Scores are not aggregated or persisted until each corresponding receipt accepts its quarantined output."
+      items:
+        type: object
+
     gates:
       type: object
       description: "Gate metric values from the measurement command"
@@ -239,6 +318,23 @@ experiment_entry:
 #
 # Only 'kept' and 'runner_up_kept' produce a commit on the optimization branch.
 # Only 'deferred_needs_approval' items are re-presented at wrap-up for approval.
+
+# ============================================================================
+# RESULT MARKER
+# ============================================================================
+#
+# Each <worktree>/result.yaml contains at least:
+# - iteration
+# - routing_snapshot_id (must equal routing_context.snapshot_id)
+# - author_receipt_digest
+# - measured_at
+# - raw metrics
+#
+# The marker is written only after author identity finalization and orchestrator-
+# owned measurement. Reuse/reset refuses a worktree with a marker. Cleanup may
+# remove it only after CP-3 append/read-back succeeds and the caller supplies the
+# explicit --result-recorded acknowledgment. Resume rejects a marker with a
+# different snapshot or constraints digest instead of recovering it into this run.
 
 # ============================================================================
 # STRATEGY DIGEST (separate file)

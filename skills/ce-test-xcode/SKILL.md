@@ -205,4 +205,5 @@ After testing:
 
 ## Integration with ce-code-review
 
+<!-- ce-dispatch-exclude:caller-owned-dispatch -->
 When reviewing PRs that touch iOS code, the `ce-code-review` workflow can spawn an agent to run this skill, build on the simulator, test key screens, and check for crashes.

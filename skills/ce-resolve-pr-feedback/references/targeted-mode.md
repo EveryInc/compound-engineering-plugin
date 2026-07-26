@@ -39,6 +39,9 @@ If this prints anything, stop. Tell the user they have an unsubmitted review on 
 
 **Then act on the verdict:**
 
+**Routing batch: `ce-resolve-pr-feedback.targeted-fixer`.** Only when the central legitimacy gate returns `fixed` or `fixed-differently`, and before the fixer prompt asset is read or assembled, load `references/execution-routing.md` and resolve `ce-resolve-pr-feedback.feedback-fixer` in one `ce-routing/v1` `resolve_batch` against one frozen snapshot. Routing cannot turn a reply, decline, or `needs-human` verdict into a fixer call.
+
+<!-- ce-dispatch-site:ce-resolve-pr-feedback.targeted-fixer -->
 - **`fixed` / `fixed-differently`** — read `references/agents/pr-comment-resolver.md` and spawn a single generic subagent seeded with that fixer prompt to implement it. Do not dispatch a standalone agent by type/name. Pass the file/location fields (resolved location or anchor if outdated), the comment text, and your note on what to change and why it's valid. The fixer is a pure executor.
 - **`replied` / `not-addressing` / `declined`** — no subagent. Compose the reply text per the rubric and proceed to reply/resolve.
 - **`needs-human`** — compose `decision_context` and the natural-sounding reply per the rubric, leave the thread open (don't resolve), and present the decision to the user (use the platform's blocking question tool as in Full Mode step 9). The shared reply step below posts the reply once — do not post it here.

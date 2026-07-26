@@ -1,0 +1,28 @@
+{
+  "schema": "ce-routing-behavioral-fixture/v1",
+  "id": "isolated-optimization",
+  "owning_skill": "ce-optimize",
+  "purpose": "Optimization routes experiment authors and semantic judges independently without weakening the selected backend or measurement boundary.",
+  "input": {
+    "user_prompt": "Run the existing qualitative optimization spec and resume from its persisted state if present.",
+    "global_config_yaml": "routing:\n  profiles:\n    economy-author:\n      candidates:\n        - { harness: opencode, model: economy-author-model }\n    strong-judge:\n      candidates:\n        - { harness: opencode, model: strong-judge-model, effort: high }\n  roles:\n    ce-optimize.experiment-author: { profile: economy-author, policy: require }\n    ce-optimize.semantic-judge: { profile: strong-judge, policy: require }\n",
+    "project_config_yaml": null,
+    "host": {
+      "name": "opencode",
+      "capabilities": ["worktree-subagents", "per-dispatch-model-selector", "served-model-receipt"]
+    },
+    "repository_state": ["validated judge spec", "worktree backend selected", "immutable measurement harness", "no sanctioned environment variables"]
+  },
+  "expected_invariants": [
+    "Author and judge bindings come from one frozen snapshot but execute in separate sessions with separate prompts, workspaces, authority, and receipts.",
+    "The worktree backend, mutable and immutable paths, measurement command, concurrency, checkpoints, and stopping rule remain unchanged.",
+    "Author output stays isolated until identity finalization and scope checks; judge output is finalized before parsing or aggregation.",
+    "No .env file, undeclared shared input, ambient credential, or hidden reference answer reaches either newly selected recipient."
+  ],
+  "forbidden_outcomes": [
+    "Switching the spec from worktree execution to Codex or another backend.",
+    "Allowing an experiment to judge itself.",
+    "Measuring or checkpointing required-route output before verified identity acceptance.",
+    "Re-resolving changed configuration during resume instead of using the persisted snapshot."
+  ]
+}

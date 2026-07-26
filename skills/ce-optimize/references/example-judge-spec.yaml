@@ -38,6 +38,7 @@ metric:
     sample_seed: 42
     minimum_improvement: 0.2
     max_total_cost_usd: 5
+    hidden_reference_paths: []
 
 measurement:
   command: "python eval_search.py"
@@ -57,6 +58,7 @@ execution:
   mode: serial
   backend: worktree
   max_concurrent: 1
+  sanctioned_env: []
 
 parallel:
   port_strategy: none

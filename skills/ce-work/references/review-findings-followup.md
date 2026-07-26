@@ -62,13 +62,14 @@ Surface what was deferred and why; never silently drop.
 
 The orchestrator **does not investigate findings** (no pre-read of cited files to judge complexity or inline vs subagent). That would spend the context window you are trying to protect.
 
+<!-- ce-dispatch-exclude:workflow-summary -->
 **Orchestrator owns:** parse review output → **eligibility filter on JSON fields only** → build batches → dispatch fix subagents → review diffs → tests → commit → Residual Work Gate.
 
 **Fix subagents own:** read `file:line`, confirm evidence still matches, apply or skip with reason, return summary.
 
 ### Default: batched fix subagents
 
-After eligibility filtering, **dispatch subagents for all remaining applicable findings** unless the optional inline shortcut below applies. Do not classify findings by complexity in the parent thread.
+After eligibility filtering, **send all remaining applicable findings through subagent batching** unless the optional inline shortcut below applies. Do not classify findings by complexity in the parent thread.
 
 **Batching (primary rule — group by file):**
 
@@ -77,6 +78,11 @@ After eligibility filtering, **dispatch subagents for all remaining applicable f
 3. **Parallel waves:** batches with **disjoint file sets** may run in parallel (same worktree / shared-directory rules as Phase 1 Step 4 in `ce-work` SKILL.md).
 4. **Same file, many findings:** keep one subagent per file. If the prompt would exceed a comfortable size (~8 findings), split into **serial** subagent passes on that file (first batch highest severity, then next batch after merge or after the prior agent returns).
 5. **Cross-file coupling:** do not merge unrelated files into one subagent just to reduce agent count — file grouping is the default. Only co-batch multiple files when findings explicitly reference the same small edit surface (rare); when in doubt, separate by file.
+
+**Routing batch: `ce-work.review-fix-batches`.** Once eligibility filtering and the existing file-grouping rules have fixed the current batch wave, and before any batch prompt is assembled, load `references/execution-routing.md` and resolve every already-selected batch instance of `ce-work.review-fixer` together in one `ce-routing/v1` `resolve_batch`, with one request entry per batch. When a prior native snapshot exists, pass the exact full first-wave `snapshot` object as the `parent_snapshot` envelope and include `parent_snapshot_id` only if it matches that envelope; otherwise this is the first native batch and its response becomes the frozen snapshot. Never use ID-only lineage or reread live routing sources, and reuse the frozen binding on recovery. Routing cannot add a deferred finding, regroup files, or make coupled batches parallel.
+
+<!-- ce-dispatch-site:ce-work.review-fix-batches -->
+Dispatch one subagent for each routed batch using the existing wave schedule.
 
 **Subagent prompt (per batch):** the assigned findings only (`#`, severity, file, line, title, `suggested_fix`, `requires_verification`; add `why_it_matters` from `{reviewer}.json` in the run artifact when useful), plus:
 - Work through assigned `#` in severity order; at each `file:line`, skip with a one-line reason if evidence no longer matches
@@ -93,6 +99,9 @@ Use **only** when **all** of the following hold:
 - Exactly **one** eligible finding after JSON filtering, **and**
 - The orchestrator **already** has that file's relevant region in context from Phase 2 work this session (no new Read/Grep expedition)
 
+**Routing batch: `ce-work.review-fix-single`.** Only when the existing inline-shortcut gate does not apply to the one eligible finding, and before its fixer prompt is assembled, load `references/execution-routing.md` and resolve `ce-work.review-fixer` in one `ce-routing/v1` `resolve_batch`. When a prior native snapshot exists, pass the exact full first-wave `snapshot` object as the `parent_snapshot` envelope and include `parent_snapshot_id` only if it matches that envelope; otherwise this is the first native batch and its response becomes the frozen snapshot. Never use ID-only lineage or reread live routing sources, and reuse the frozen binding on recovery. Routing cannot disable an eligible inline shortcut or create a finding.
+
+<!-- ce-dispatch-site:ce-work.review-fix-single -->
 Otherwise dispatch a subagent — even for a single finding. When unsure, dispatch.
 
 ### Summary (required)

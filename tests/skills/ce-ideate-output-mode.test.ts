@@ -85,16 +85,16 @@ describe("ce-ideate output mode (html default)", () => {
     ).toBe(true)
   })
 
-  test("config matching rule ignores commented YAML lines (active-key principle)", () => {
+  test("config resolution uses the merged resolver view", () => {
     const region = phase00Region()
-    expect(
-      /active.*non-commented|non-commented.*key|lines starting with `#`.*comments|ignore commented/i.test(region),
-      "Phase 0.0 config matching must require an ACTIVE (non-commented) `ideate_output:` key, not a raw-text 'contains' match.",
-    ).toBe(true)
-    expect(
-      /# ideate_output: md|commented example|shipped config template/i.test(region),
-      "Phase 0.0 must cite the shipped template's commented `# ideate_output:` example so the rationale survives future edits.",
-    ).toBe(true)
+
+    expect(region).toContain("references/execution-routing.md")
+    expect(region).toContain("python3 -I -S")
+    expect(region).toContain("$SKILL_DIR/scripts/ce-routing.py")
+    expect(region).toMatch(/`inspect` request/)
+    expect(region).toContain("settings.effective")
+    expect(region).toContain("settings.provenance")
+    expect(region).not.toMatch(/active \(non-commented\)|native file-read tool/i)
   })
 
   test("unknown-value fallback note reflects final resolved mode, not a hardcoded format", () => {

@@ -43,6 +43,7 @@ execution:
   mode: serial
   backend: worktree
   max_concurrent: 1
+  sanctioned_env: []
 
 parallel:
   port_strategy: none

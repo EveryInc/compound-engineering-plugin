@@ -132,7 +132,7 @@ required_fields:
               - haiku
               - sonnet
             default: haiku
-            description: "Model to use for judge evaluation. Haiku is cheaper and faster; Sonnet is more nuanced."
+            description: "Legacy built-in judge model. The owning ce-optimize adapter normalizes this value at dispatch; ce-default and unconfigured routing preserve it exactly, while an applicable generalized semantic-judge profile may select another model through the already-selected backend."
           sample_size:
             type: integer
             default: 10
@@ -174,6 +174,12 @@ required_fields:
             type: number
             default: 5
             description: "Stop judge evaluation when cumulative judge spend reaches this cap. This is a first-run safety default; raise it only after the rubric and harness are trustworthy. Set to null only with explicit user approval."
+          hidden_reference_paths:
+            type: array
+            default: []
+            description: "Canonical repository-relative, host-only answer/reference files used by the orchestrator after scoring. They must be ignored/untracked, absent from experiment worktrees, and never included in author prompts, judge prompts, sampled items, or parallel.shared_files."
+            items:
+              type: string
 
   measurement:
     type: object
@@ -234,7 +240,7 @@ required_fields:
     required_children:
       mutable:
         type: array
-        description: "Files and directories the agent MAY modify during experiments"
+        description: "Canonical repository-relative files and directories the agent MAY modify during experiments. Absolute paths, '..', non-normalized paths, symlink components, and repository escapes are invalid."
         items:
           type: string
           description: "File path or directory (relative to repo root). Directories match all files within."
@@ -244,7 +250,7 @@ required_fields:
           - "config/clustering.yaml"
       immutable:
         type: array
-        description: "Files and directories the agent MUST NOT modify. The measurement harness should always be listed here."
+        description: "Canonical repository-relative files and directories the agent MUST NOT modify. Absolute paths, '..', non-normalized paths, symlink components, and repository escapes are invalid. The measurement harness and every parallel.shared_files input should be covered here."
         items:
           type: string
         example:
@@ -287,6 +293,13 @@ optional_fields:
           - yolo                                     # --dangerously-bypass-approvals-and-sandbox
         default: null
         description: "Codex security posture. If null, user is asked once per session."
+      sanctioned_env:
+        type: array
+        default: []
+        description: "Environment variable names explicitly approved for an experiment author recipient. Start the recipient environment empty and add only these names plus adapter-required non-secret process basics. Ambient credentials are never inherited. Each non-empty list requires recipient-specific approval before dispatch."
+        items:
+          type: string
+          pattern: "^[A-Za-z_][A-Za-z0-9_]{0,127}$"
 
   parallel:
     type: object
@@ -311,7 +324,7 @@ optional_fields:
       shared_files:
         type: array
         default: []
-        description: "Files that must be copied into each experiment worktree (e.g., SQLite databases)"
+        description: "Explicitly sanctioned canonical repository-relative files that must be copied into each experiment worktree (e.g., ignored SQLite databases). Every entry must be covered by scope.immutable. Undeclared files, symlinks, path escapes, hidden_reference_paths, and every .env* path are rejected rather than copied."
         items:
           type: string
       exclusive_resources:
@@ -390,3 +403,11 @@ validation_rules:
   - "If metric.judge.singleton_sample > 0, metric.judge.singleton_rubric must be present"
   - "If metric.primary.type is 'judge' and metric.judge.max_total_cost_usd is null, the user should explicitly approve uncapped spend"
   - "stopping must have at least one non-default criterion or use defaults"
+  - "Resolve every scope.mutable and scope.immutable entry against the canonical repository root before worktree creation; reject absolute paths, empty or '.' entries, '..' traversal, non-normalized spellings, symlink components or targets, non-regular special files, and path escape outside the repository"
+  - "Canonical scope.mutable and scope.immutable paths must not overlap; every measurement harness file must remain covered by scope.immutable, and measurement.working_directory must remain canonical and unchanged for the run"
+  - "measurement.working_directory and every parallel.shared_files entry must resolve canonically beneath the repository without symlink traversal"
+  - "Every parallel.shared_files entry must be explicitly listed, covered by scope.immutable, and free of nested symlinks and .env* material; undeclared shared inputs are invalid"
+  - "No .env* path is an eligible shared input, including .env.example and nested .env files"
+  - "execution.sanctioned_env names must match ^[A-Za-z_][A-Za-z0-9_]{0,127}$; no ambient variable is forwarded merely because it exists"
+  - "metric.judge.hidden_reference_paths must be canonical host-only paths, ignored/untracked and absent from scope.mutable, scope.immutable, parallel.shared_files, experiment worktrees, sampled item payloads, and all recipient prompts"
+  - "execution.backend, execution.mode, execution.max_concurrent, execution.codex_security, measurement, metric/judge separation, scope, parallel policy, and stopping are optimization constraints; routing data cannot set or replace them"

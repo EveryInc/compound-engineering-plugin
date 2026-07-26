@@ -26,6 +26,15 @@ const cliEntry = path.join(repoRoot, "src", "index.ts")
 const IMPLEMENTED_TARGETS = ["opencode", "codex", "pi", "antigravity"] as const
 type Target = (typeof IMPLEMENTED_TARGETS)[number]
 
+const ROUTING_CONSUMER_SKILLS = ["ce-work", "ce-code-review", "ce-optimize"] as const
+const ROUTING_ASSETS = [
+  ["scripts/ce-routing.py", "config-resolver.py"],
+  ["references/ce-routing-schema.json", "settings-schema.json"],
+  ["references/ce-routing-protocol.json", "protocol-schema.json"],
+  ["references/dispatch-roles.json", "dispatch-roles.json"],
+  ["references/execution-routing.md", "execution-routing.md"],
+] as const
+
 const PLUGIN_NAMES = ["compound-engineering"] as const
 type PluginName = (typeof PLUGIN_NAMES)[number]
 
@@ -191,6 +200,18 @@ function targetInvocation(target: Target, tempRoot: string): { args: string[]; r
   }
 }
 
+function convertedSkillsRoot(target: Target, root: string, pluginName: PluginName): string {
+  switch (target) {
+    case "opencode":
+      return path.join(root, ".opencode", "skills")
+    case "codex":
+      return path.join(root, "skills", pluginName)
+    case "pi":
+    case "antigravity":
+      return path.join(root, "skills")
+  }
+}
+
 async function runConvert(pluginName: PluginName, target: Target, tempRoot: string, fakeHome: string): Promise<void> {
   const { args, root } = targetInvocation(target, tempRoot)
   const env: Record<string, string | undefined> = { ...process.env, HOME: fakeHome }
@@ -199,7 +220,7 @@ async function runConvert(pluginName: PluginName, target: Target, tempRoot: stri
   delete env.OPENCODE_CONFIG_DIR
 
   const proc = Bun.spawn([
-    "bun",
+    process.execPath,
     "run",
     cliEntry,
     "convert",
@@ -269,6 +290,10 @@ for (const pluginName of PLUGIN_NAMES) {
       const fakeHome = path.join(outputRoot, "home")
       await fs.mkdir(fakeHome)
 
+      await Promise.all(IMPLEMENTED_TARGETS.map((target) => runConvert(pluginName, target, outputRoot, fakeHome)))
+
+      // Re-run against the same roots to exercise managed reinstall paths. A
+      // generated runtime asset must not disappear after the first install.
       await Promise.all(IMPLEMENTED_TARGETS.map((target) => runConvert(pluginName, target, outputRoot, fakeHome)))
 
       // Sandbox safety: with explicit output flags, no target may fall back to
@@ -375,6 +400,55 @@ for (const pluginName of PLUGIN_NAMES) {
       const manifest = readJson(path.join(root, "plugin.json"))
       expect(manifest.name).toBe(pluginName)
       expect(typeof manifest.version).toBe("string")
+    })
+
+    test("native and converted consumer skills contain self-contained routing assets", async () => {
+      const runtimeRoot = await fs.mkdtemp(path.join(os.tmpdir(), `routing-copy-${pluginName}-`))
+      tempRoots.push(runtimeRoot)
+      const runtimeCwd = path.join(runtimeRoot, "standalone-project")
+      await fs.mkdir(runtimeCwd)
+
+      const installs = [
+        { label: "claude-native", skillsRoot: path.join(repoRoot, "skills") },
+        ...IMPLEMENTED_TARGETS.map((target) => ({
+          label: target,
+          skillsRoot: convertedSkillsRoot(target, getConversion(pluginName, target).root, pluginName),
+        })),
+      ]
+
+      for (const install of installs) {
+        for (const skillName of ROUTING_CONSUMER_SKILLS) {
+          for (const [relativePath, canonicalName] of ROUTING_ASSETS) {
+            const expected = readFileSync(path.join(repoRoot, "scripts", "routing", canonicalName))
+            const installedPath = path.join(install.skillsRoot, skillName, relativePath)
+            const actual = readFileSync(installedPath)
+            expect(actual, `${install.label}:${skillName}/${relativePath} differs from its canonical source`).toEqual(expected)
+          }
+        }
+
+        if (install.label === "claude-native") continue
+
+        const resolver = path.join(install.skillsRoot, "ce-work", "scripts", "ce-routing.py")
+        expect(readFileSync(resolver, "utf8"), `${install.label} resolver embeds the source checkout path`).not.toContain(repoRoot)
+        const proc = Bun.spawn(["python3", "-I", "-S", resolver], {
+          cwd: runtimeCwd,
+          env: {
+            PATH: process.env.PATH ?? "/usr/bin:/bin",
+            HOME: path.join(runtimeRoot, "home"),
+            COMPOUND_ENGINEERING_HOME: path.join(runtimeRoot, "missing-global-config"),
+          },
+          stdin: new Blob([JSON.stringify({ protocol: "ce-routing/v1", op: "inspect", cwd: runtimeCwd })]),
+          stdout: "pipe",
+          stderr: "pipe",
+        })
+        const [exitCode, stdout, stderr] = await Promise.all([
+          proc.exited,
+          new Response(proc.stdout).text(),
+          new Response(proc.stderr).text(),
+        ])
+        expect(exitCode, `${install.label} copied resolver failed without the source root: ${stderr}`).toBe(0)
+        expect(JSON.parse(stdout).ok, `${install.label} copied resolver returned an error`).toBe(true)
+      }
     })
 
     test("every emitted .json parses and every emitted .md has parseable frontmatter", () => {

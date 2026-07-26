@@ -1,0 +1,970 @@
+{
+  "version": 1,
+  "classes": ["implementation", "review", "reasoning", "research", "verification"],
+  "roles": {
+    "ce-plan.repo-research-analyst": { "class": "research", "owner": "ce-plan", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-plan.learnings-researcher": { "class": "research", "owner": "ce-plan", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-plan.agent-native-planning-strategist": { "class": "reasoning", "owner": "ce-plan", "adapter_family": "native-generic-subagent", "built_in_tier": "ceiling" },
+    "ce-plan.slack-researcher": { "class": "research", "owner": "ce-plan", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-plan.best-practices-researcher": { "class": "research", "owner": "ce-plan", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-plan.framework-docs-researcher": { "class": "research", "owner": "ce-plan", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-plan.web-researcher": { "class": "research", "owner": "ce-plan", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-plan.spec-flow-analyzer": { "class": "verification", "owner": "ce-plan", "adapter_family": "native-generic-subagent", "built_in_tier": "ceiling" },
+    "ce-plan.git-history-analyzer": { "class": "research", "owner": "ce-plan", "adapter_family": "native-generic-subagent", "built_in_tier": "ceiling" },
+    "ce-plan.architecture-strategist": { "class": "reasoning", "owner": "ce-plan", "adapter_family": "native-generic-subagent", "built_in_tier": "ceiling" },
+    "ce-plan.pattern-recognition-specialist": { "class": "review", "owner": "ce-plan", "adapter_family": "native-generic-subagent", "built_in_tier": "ceiling" },
+    "ce-plan.performance-oracle": { "class": "review", "owner": "ce-plan", "adapter_family": "native-generic-subagent", "built_in_tier": "ceiling" },
+    "ce-plan.security-sentinel": { "class": "review", "owner": "ce-plan", "adapter_family": "native-generic-subagent", "built_in_tier": "ceiling" },
+    "ce-plan.data-integrity-guardian": { "class": "review", "owner": "ce-plan", "adapter_family": "native-generic-subagent", "built_in_tier": "ceiling" },
+    "ce-plan.deployment-verification-agent": { "class": "verification", "owner": "ce-plan", "adapter_family": "native-generic-subagent", "built_in_tier": "ceiling" },
+    "ce-plan.universal-researcher": { "class": "research", "owner": "ce-plan", "adapter_family": "native-generic-subagent", "built_in_tier": "extraction" },
+    "ce-plan.plan-author": { "class": "reasoning", "owner": "ce-plan", "adapter_family": "read-only-elevation", "built_in_tier": "skill-default" },
+
+    "ce-brainstorm.grounding-scout": { "class": "research", "owner": "ce-brainstorm", "adapter_family": "native-generic-subagent", "built_in_tier": "extraction" },
+    "ce-brainstorm.slack-researcher": { "class": "research", "owner": "ce-brainstorm", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-brainstorm.approach-generator": { "class": "reasoning", "owner": "ce-brainstorm", "adapter_family": "read-only-elevation", "built_in_tier": "skill-default" },
+    "ce-brainstorm.claim-verifier": { "class": "verification", "owner": "ce-brainstorm", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+
+    "ce-ideate.grounding-context": { "class": "research", "owner": "ce-ideate", "adapter_family": "native-generic-subagent", "built_in_tier": "extraction" },
+    "ce-ideate.learnings-researcher": { "class": "research", "owner": "ce-ideate", "adapter_family": "native-generic-subagent", "built_in_tier": "extraction" },
+    "ce-ideate.web-researcher": { "class": "research", "owner": "ce-ideate", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-ideate.issue-intelligence-scanner": { "class": "research", "owner": "ce-ideate", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-ideate.issue-intelligence-clusterer": { "class": "reasoning", "owner": "ce-ideate", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-ideate.slack-researcher": { "class": "research", "owner": "ce-ideate", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-ideate.user-research-distiller": { "class": "research", "owner": "ce-ideate", "adapter_family": "native-generic-subagent", "built_in_tier": "extraction" },
+    "ce-ideate.axis-evidence-scout": { "class": "research", "owner": "ce-ideate", "adapter_family": "native-generic-subagent", "built_in_tier": "extraction" },
+    "ce-ideate.ideation-generator": { "class": "reasoning", "owner": "ce-ideate", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-ideate.basis-verifier": { "class": "verification", "owner": "ce-ideate", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-ideate.deep-critic": { "class": "review", "owner": "ce-ideate", "adapter_family": "native-generic-subagent", "built_in_tier": "ceiling" },
+
+    "ce-code-review.trivial-pr-classifier": { "class": "reasoning", "owner": "ce-code-review", "adapter_family": "native-generic-subagent", "built_in_tier": "extraction" },
+    "ce-code-review.correctness-reviewer": { "class": "review", "owner": "ce-code-review", "adapter_family": "native-generic-subagent", "built_in_tier": "ceiling" },
+    "ce-code-review.security-reviewer": { "class": "review", "owner": "ce-code-review", "adapter_family": "native-generic-subagent", "built_in_tier": "ceiling" },
+    "ce-code-review.adversarial-reviewer": { "class": "review", "owner": "ce-code-review", "adapter_family": "read-only-external-peer", "built_in_tier": "ceiling" },
+    "ce-code-review.project-standards-reviewer": { "class": "review", "owner": "ce-code-review", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-code-review.testing-reviewer": { "class": "review", "owner": "ce-code-review", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-code-review.maintainability-reviewer": { "class": "review", "owner": "ce-code-review", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-code-review.agent-native-reviewer": { "class": "review", "owner": "ce-code-review", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-code-review.performance-reviewer": { "class": "review", "owner": "ce-code-review", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-code-review.api-contract-reviewer": { "class": "review", "owner": "ce-code-review", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-code-review.data-migration-reviewer": { "class": "review", "owner": "ce-code-review", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-code-review.reliability-reviewer": { "class": "review", "owner": "ce-code-review", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-code-review.previous-comments-reviewer": { "class": "review", "owner": "ce-code-review", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-code-review.julik-frontend-races-reviewer": { "class": "review", "owner": "ce-code-review", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-code-review.swift-ios-reviewer": { "class": "review", "owner": "ce-code-review", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-code-review.learnings-researcher": { "class": "research", "owner": "ce-code-review", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-code-review.deployment-verification-agent": { "class": "verification", "owner": "ce-code-review", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-code-review.finding-validator": { "class": "verification", "owner": "ce-code-review", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+
+    "ce-doc-review.coherence-reviewer": { "class": "review", "owner": "ce-doc-review", "adapter_family": "native-generic-subagent", "built_in_tier": "extraction" },
+    "ce-doc-review.design-lens-reviewer": { "class": "review", "owner": "ce-doc-review", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-doc-review.scope-guardian-reviewer": { "class": "review", "owner": "ce-doc-review", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-doc-review.feasibility-reviewer": { "class": "review", "owner": "ce-doc-review", "adapter_family": "native-generic-subagent", "built_in_tier": "ceiling" },
+    "ce-doc-review.product-lens-reviewer": { "class": "review", "owner": "ce-doc-review", "adapter_family": "native-generic-subagent", "built_in_tier": "ceiling" },
+    "ce-doc-review.security-lens-reviewer": { "class": "review", "owner": "ce-doc-review", "adapter_family": "native-generic-subagent", "built_in_tier": "ceiling" },
+    "ce-doc-review.adversarial-document-reviewer": { "class": "review", "owner": "ce-doc-review", "adapter_family": "native-generic-subagent", "built_in_tier": "ceiling" },
+    "ce-doc-review.product-lens-peer": { "class": "review", "owner": "ce-doc-review", "adapter_family": "read-only-external-peer", "built_in_tier": "skill-default" },
+    "ce-doc-review.security-lens-peer": { "class": "review", "owner": "ce-doc-review", "adapter_family": "read-only-external-peer", "built_in_tier": "skill-default" },
+    "ce-doc-review.adversarial-document-peer": { "class": "review", "owner": "ce-doc-review", "adapter_family": "read-only-external-peer", "built_in_tier": "skill-default" },
+    "ce-doc-review.whole-doc-peer": { "class": "review", "owner": "ce-doc-review", "adapter_family": "read-only-external-peer", "built_in_tier": "skill-default" },
+
+    "ce-pov.project-grounding-scout": { "class": "research", "owner": "ce-pov", "adapter_family": "native-generic-subagent", "built_in_tier": "extraction" },
+    "ce-pov.precedent-activity-scout": { "class": "research", "owner": "ce-pov", "adapter_family": "native-generic-subagent", "built_in_tier": "extraction" },
+    "ce-pov.external-evidence-researcher": { "class": "research", "owner": "ce-pov", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-pov.panel-peer": { "class": "reasoning", "owner": "ce-pov", "adapter_family": "read-only-external-peer", "built_in_tier": "skill-default" },
+
+    "ce-simplify-code.code-reuse-reviewer": { "class": "review", "owner": "ce-simplify-code", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-simplify-code.code-quality-reviewer": { "class": "review", "owner": "ce-simplify-code", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-simplify-code.efficiency-reviewer": { "class": "review", "owner": "ce-simplify-code", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-debug.hypothesis-investigator": { "class": "research", "owner": "ce-debug", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-sweep.source-fetcher": { "class": "research", "owner": "ce-sweep", "adapter_family": "native-generic-subagent", "built_in_tier": "extraction" },
+    "ce-sweep.media-analyzer": { "class": "research", "owner": "ce-sweep", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-explain.work-recap-scout": { "class": "research", "owner": "ce-explain", "adapter_family": "native-generic-subagent", "built_in_tier": "extraction" },
+
+    "ce-compound.context-analyzer": { "class": "reasoning", "owner": "ce-compound", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-compound.solution-extractor": { "class": "reasoning", "owner": "ce-compound", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-compound.related-docs-finder": { "class": "research", "owner": "ce-compound", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-compound.session-historian": { "class": "research", "owner": "ce-compound", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-compound.semantic-grounding-validator": { "class": "verification", "owner": "ce-compound", "adapter_family": "native-generic-subagent", "built_in_tier": "generation" },
+    "ce-compound.performance-oracle": { "class": "review", "owner": "ce-compound", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-compound.security-sentinel": { "class": "review", "owner": "ce-compound", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-compound.data-integrity-guardian": { "class": "review", "owner": "ce-compound", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-compound.code-example-reviewer": { "class": "review", "owner": "ce-compound", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-compound-refresh.investigator": { "class": "research", "owner": "ce-compound-refresh", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-compound-refresh.replacement-writer": { "class": "implementation", "owner": "ce-compound-refresh", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-resolve-pr-feedback.feedback-fixer": { "class": "implementation", "owner": "ce-resolve-pr-feedback", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+
+    "ce-work.implementation-worker": { "class": "implementation", "owner": "ce-work", "adapter_family": "write-capable-isolated-implementation", "built_in_tier": "inherit" },
+    "ce-work.figma-design-verifier": { "class": "verification", "owner": "ce-work", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-work.review-fixer": { "class": "implementation", "owner": "ce-work", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+
+    "ce-optimize.learnings-researcher": { "class": "research", "owner": "ce-optimize", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-optimize.repo-research-analyst": { "class": "research", "owner": "ce-optimize", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" },
+    "ce-optimize.experiment-author": { "class": "implementation", "owner": "ce-optimize", "adapter_family": "isolated-optimization-experiment", "built_in_tier": "skill-default" },
+    "ce-optimize.semantic-judge": { "class": "verification", "owner": "ce-optimize", "adapter_family": "isolated-optimization-experiment", "built_in_tier": "skill-default" },
+    "ce-riffrec-feedback-analysis.source-mapper": { "class": "research", "owner": "ce-riffrec-feedback-analysis", "adapter_family": "native-generic-subagent", "built_in_tier": "inherit" }
+  },
+  "sites": {
+    "ce-brainstorm.grounding-scout": {
+      "file": "skills/ce-brainstorm/SKILL.md",
+      "roles": ["ce-brainstorm.grounding-scout"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "extraction"
+    },
+    "ce-brainstorm.slack-researcher": {
+      "file": "skills/ce-brainstorm/SKILL.md",
+      "roles": ["ce-brainstorm.slack-researcher"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "inherit",
+      "prompt_assets": {
+        "ce-brainstorm.slack-researcher": ["skills/ce-brainstorm/references/agents/slack-researcher.md"]
+      }
+    },
+    "ce-brainstorm.claim-verifier": {
+      "file": "skills/ce-brainstorm/SKILL.md",
+      "roles": ["ce-brainstorm.claim-verifier"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "generation"
+    },
+    "ce-brainstorm.approach-native": {
+      "file": "skills/ce-brainstorm/references/reasoning-elevation.md",
+      "source_marker": "reasoning-elevation.native",
+      "roles": ["ce-brainstorm.approach-generator"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "skill-default"
+    },
+    "ce-brainstorm.approach-cli": {
+      "file": "skills/ce-brainstorm/scripts/elevation-dispatch.sh",
+      "source_marker": "reasoning-elevation.cli",
+      "roles": ["ce-brainstorm.approach-generator"],
+      "adapter_family": "read-only-elevation",
+      "posture": "read-only",
+      "built_in_tier": "skill-default"
+    },
+
+    "ce-code-review.trivial-pr-classifier": {
+      "file": "skills/ce-code-review/SKILL.md",
+      "roles": ["ce-code-review.trivial-pr-classifier"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "extraction"
+    },
+    "ce-code-review.local-reviewers": {
+      "file": "skills/ce-code-review/references/dispatch-reviewers.md",
+      "roles": [
+        "ce-code-review.correctness-reviewer",
+        "ce-code-review.security-reviewer",
+        "ce-code-review.adversarial-reviewer",
+        "ce-code-review.project-standards-reviewer",
+        "ce-code-review.testing-reviewer",
+        "ce-code-review.maintainability-reviewer",
+        "ce-code-review.agent-native-reviewer",
+        "ce-code-review.performance-reviewer",
+        "ce-code-review.api-contract-reviewer",
+        "ce-code-review.data-migration-reviewer",
+        "ce-code-review.reliability-reviewer",
+        "ce-code-review.previous-comments-reviewer",
+        "ce-code-review.julik-frontend-races-reviewer",
+        "ce-code-review.swift-ios-reviewer",
+        "ce-code-review.learnings-researcher",
+        "ce-code-review.deployment-verification-agent"
+      ],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only-with-private-artifact",
+      "built_in_tier": {
+        "ce-code-review.correctness-reviewer": "ceiling",
+        "ce-code-review.security-reviewer": "ceiling",
+        "ce-code-review.adversarial-reviewer": "ceiling",
+        "ce-code-review.project-standards-reviewer": "generation",
+        "ce-code-review.testing-reviewer": "generation",
+        "ce-code-review.maintainability-reviewer": "generation",
+        "ce-code-review.agent-native-reviewer": "generation",
+        "ce-code-review.performance-reviewer": "generation",
+        "ce-code-review.api-contract-reviewer": "generation",
+        "ce-code-review.data-migration-reviewer": "generation",
+        "ce-code-review.reliability-reviewer": "generation",
+        "ce-code-review.previous-comments-reviewer": "generation",
+        "ce-code-review.julik-frontend-races-reviewer": "generation",
+        "ce-code-review.swift-ios-reviewer": "generation",
+        "ce-code-review.learnings-researcher": "generation",
+        "ce-code-review.deployment-verification-agent": "generation"
+      },
+      "prompt_assets": {
+        "ce-code-review.correctness-reviewer": ["skills/ce-code-review/references/personas/correctness-reviewer.md"],
+        "ce-code-review.security-reviewer": ["skills/ce-code-review/references/personas/security-reviewer.md"],
+        "ce-code-review.adversarial-reviewer": ["skills/ce-code-review/references/personas/adversarial-reviewer.md"],
+        "ce-code-review.project-standards-reviewer": ["skills/ce-code-review/references/personas/project-standards-reviewer.md"],
+        "ce-code-review.testing-reviewer": ["skills/ce-code-review/references/personas/testing-reviewer.md"],
+        "ce-code-review.maintainability-reviewer": ["skills/ce-code-review/references/personas/maintainability-reviewer.md"],
+        "ce-code-review.agent-native-reviewer": ["skills/ce-code-review/references/personas/agent-native-reviewer.md"],
+        "ce-code-review.performance-reviewer": ["skills/ce-code-review/references/personas/performance-reviewer.md"],
+        "ce-code-review.api-contract-reviewer": ["skills/ce-code-review/references/personas/api-contract-reviewer.md"],
+        "ce-code-review.data-migration-reviewer": ["skills/ce-code-review/references/personas/data-migration-reviewer.md"],
+        "ce-code-review.reliability-reviewer": ["skills/ce-code-review/references/personas/reliability-reviewer.md"],
+        "ce-code-review.previous-comments-reviewer": ["skills/ce-code-review/references/personas/previous-comments-reviewer.md"],
+        "ce-code-review.julik-frontend-races-reviewer": ["skills/ce-code-review/references/personas/julik-frontend-races-reviewer.md"],
+        "ce-code-review.swift-ios-reviewer": ["skills/ce-code-review/references/personas/swift-ios-reviewer.md"],
+        "ce-code-review.learnings-researcher": ["skills/ce-code-review/references/personas/learnings-researcher.md"],
+        "ce-code-review.deployment-verification-agent": ["skills/ce-code-review/references/personas/deployment-verification-agent.md"]
+      }
+    },
+    "ce-code-review.finding-validator": {
+      "file": "skills/ce-code-review/references/finish-review.md",
+      "roles": ["ce-code-review.finding-validator"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "inherit",
+      "prompt_assets": {
+        "ce-code-review.finding-validator": ["skills/ce-code-review/references/validator-batch-template.md"]
+      }
+    },
+    "ce-code-review.adversarial-cli-codex": {
+      "file": "skills/ce-code-review/scripts/cross-model-adversarial-review.sh",
+      "roles": ["ce-code-review.adversarial-reviewer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only",
+      "built_in_tier": "ceiling"
+    },
+    "ce-code-review.adversarial-cli-claude": {
+      "file": "skills/ce-code-review/scripts/cross-model-adversarial-review.sh",
+      "roles": ["ce-code-review.adversarial-reviewer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only",
+      "built_in_tier": "ceiling"
+    },
+    "ce-code-review.adversarial-cli-grok": {
+      "file": "skills/ce-code-review/scripts/cross-model-adversarial-review.sh",
+      "roles": ["ce-code-review.adversarial-reviewer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only",
+      "built_in_tier": "ceiling"
+    },
+    "ce-code-review.adversarial-cli-grok-cursor": {
+      "file": "skills/ce-code-review/scripts/cross-model-adversarial-review.sh",
+      "roles": ["ce-code-review.adversarial-reviewer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only",
+      "built_in_tier": "ceiling"
+    },
+    "ce-code-review.adversarial-cli-cursor": {
+      "file": "skills/ce-code-review/scripts/cross-model-adversarial-review.sh",
+      "roles": ["ce-code-review.adversarial-reviewer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only",
+      "built_in_tier": "ceiling"
+    },
+    "ce-code-review.adversarial-cli-composer": {
+      "file": "skills/ce-code-review/scripts/cross-model-adversarial-review.sh",
+      "roles": ["ce-code-review.adversarial-reviewer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only",
+      "built_in_tier": "ceiling"
+    },
+
+    "ce-doc-review.local-reviewers": {
+      "file": "skills/ce-doc-review/SKILL.md",
+      "source_marker": "document-review.local-reviewers",
+      "roles": [
+        "ce-doc-review.coherence-reviewer",
+        "ce-doc-review.design-lens-reviewer",
+        "ce-doc-review.scope-guardian-reviewer",
+        "ce-doc-review.feasibility-reviewer",
+        "ce-doc-review.product-lens-reviewer",
+        "ce-doc-review.security-lens-reviewer",
+        "ce-doc-review.adversarial-document-reviewer"
+      ],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": {
+        "ce-doc-review.coherence-reviewer": "extraction",
+        "ce-doc-review.design-lens-reviewer": "generation",
+        "ce-doc-review.scope-guardian-reviewer": "generation",
+        "ce-doc-review.feasibility-reviewer": "ceiling",
+        "ce-doc-review.product-lens-reviewer": "ceiling",
+        "ce-doc-review.security-lens-reviewer": "ceiling",
+        "ce-doc-review.adversarial-document-reviewer": "ceiling"
+      },
+      "prompt_assets": {
+        "ce-doc-review.coherence-reviewer": ["skills/ce-doc-review/references/personas/coherence-reviewer.md"],
+        "ce-doc-review.design-lens-reviewer": ["skills/ce-doc-review/references/personas/design-lens-reviewer.md"],
+        "ce-doc-review.scope-guardian-reviewer": ["skills/ce-doc-review/references/personas/scope-guardian-reviewer.md"],
+        "ce-doc-review.feasibility-reviewer": ["skills/ce-doc-review/references/personas/feasibility-reviewer.md"],
+        "ce-doc-review.product-lens-reviewer": ["skills/ce-doc-review/references/personas/product-lens-reviewer.md"],
+        "ce-doc-review.security-lens-reviewer": ["skills/ce-doc-review/references/personas/security-lens-reviewer.md"],
+        "ce-doc-review.adversarial-document-reviewer": ["skills/ce-doc-review/references/personas/adversarial-document-reviewer.md"]
+      }
+    },
+    "ce-doc-review.repeat-local-reviewers": {
+      "file": "skills/ce-doc-review/references/synthesis-and-presentation.md",
+      "roles": [
+        "ce-doc-review.coherence-reviewer",
+        "ce-doc-review.design-lens-reviewer",
+        "ce-doc-review.scope-guardian-reviewer",
+        "ce-doc-review.feasibility-reviewer",
+        "ce-doc-review.product-lens-reviewer",
+        "ce-doc-review.security-lens-reviewer",
+        "ce-doc-review.adversarial-document-reviewer"
+      ],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": {
+        "ce-doc-review.coherence-reviewer": "extraction",
+        "ce-doc-review.design-lens-reviewer": "generation",
+        "ce-doc-review.scope-guardian-reviewer": "generation",
+        "ce-doc-review.feasibility-reviewer": "ceiling",
+        "ce-doc-review.product-lens-reviewer": "ceiling",
+        "ce-doc-review.security-lens-reviewer": "ceiling",
+        "ce-doc-review.adversarial-document-reviewer": "ceiling"
+      }
+    },
+    "ce-doc-review.peer-cli-codex": {
+      "file": "skills/ce-doc-review/scripts/cross-model-doc-review.sh",
+      "roles": ["ce-doc-review.product-lens-peer", "ce-doc-review.security-lens-peer", "ce-doc-review.adversarial-document-peer", "ce-doc-review.whole-doc-peer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only-empty-workspace",
+      "built_in_tier": "skill-default",
+      "prompt_assets": {
+        "ce-doc-review.product-lens-peer": ["skills/ce-doc-review/references/personas/product-lens-reviewer.md"],
+        "ce-doc-review.security-lens-peer": ["skills/ce-doc-review/references/personas/security-lens-reviewer.md"],
+        "ce-doc-review.adversarial-document-peer": ["skills/ce-doc-review/references/personas/adversarial-document-reviewer.md"],
+        "ce-doc-review.whole-doc-peer": ["skills/ce-doc-review/references/personas/whole-doc-reviewer.md"]
+      }
+    },
+    "ce-doc-review.peer-cli-claude": {
+      "file": "skills/ce-doc-review/scripts/cross-model-doc-review.sh",
+      "roles": ["ce-doc-review.product-lens-peer", "ce-doc-review.security-lens-peer", "ce-doc-review.adversarial-document-peer", "ce-doc-review.whole-doc-peer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only-empty-workspace",
+      "built_in_tier": "skill-default"
+    },
+    "ce-doc-review.peer-cli-grok": {
+      "file": "skills/ce-doc-review/scripts/cross-model-doc-review.sh",
+      "roles": ["ce-doc-review.product-lens-peer", "ce-doc-review.security-lens-peer", "ce-doc-review.adversarial-document-peer", "ce-doc-review.whole-doc-peer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only-empty-workspace",
+      "built_in_tier": "skill-default"
+    },
+    "ce-doc-review.peer-cli-grok-cursor": {
+      "file": "skills/ce-doc-review/scripts/cross-model-doc-review.sh",
+      "roles": ["ce-doc-review.product-lens-peer", "ce-doc-review.security-lens-peer", "ce-doc-review.adversarial-document-peer", "ce-doc-review.whole-doc-peer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only-empty-workspace",
+      "built_in_tier": "skill-default"
+    },
+    "ce-doc-review.peer-cli-cursor": {
+      "file": "skills/ce-doc-review/scripts/cross-model-doc-review.sh",
+      "roles": ["ce-doc-review.product-lens-peer", "ce-doc-review.security-lens-peer", "ce-doc-review.adversarial-document-peer", "ce-doc-review.whole-doc-peer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only-empty-workspace",
+      "built_in_tier": "skill-default"
+    },
+    "ce-doc-review.peer-cli-composer": {
+      "file": "skills/ce-doc-review/scripts/cross-model-doc-review.sh",
+      "roles": ["ce-doc-review.product-lens-peer", "ce-doc-review.security-lens-peer", "ce-doc-review.adversarial-document-peer", "ce-doc-review.whole-doc-peer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only-empty-workspace",
+      "built_in_tier": "skill-default"
+    },
+
+    "ce-plan.local-research": {
+      "file": "skills/ce-plan/SKILL.md",
+      "roles": ["ce-plan.repo-research-analyst", "ce-plan.learnings-researcher"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "inherit",
+      "prompt_assets": {
+        "ce-plan.repo-research-analyst": ["skills/ce-plan/references/agents/repo-research-analyst.md"],
+        "ce-plan.learnings-researcher": ["skills/ce-plan/references/agents/learnings-researcher.md"]
+      }
+    },
+    "ce-plan.agent-native-triage": {
+      "file": "skills/ce-plan/SKILL.md",
+      "roles": ["ce-plan.agent-native-planning-strategist"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "ceiling",
+      "prompt_assets": {
+        "ce-plan.agent-native-planning-strategist": ["skills/ce-plan/references/agents/agent-native-planning-strategist.md"]
+      }
+    },
+    "ce-plan.slack-research": {
+      "file": "skills/ce-plan/SKILL.md",
+      "roles": ["ce-plan.slack-researcher"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "generation",
+      "prompt_assets": {
+        "ce-plan.slack-researcher": ["skills/ce-plan/references/agents/slack-researcher.md"]
+      }
+    },
+    "ce-plan.external-research": {
+      "file": "skills/ce-plan/SKILL.md",
+      "roles": ["ce-plan.best-practices-researcher", "ce-plan.framework-docs-researcher", "ce-plan.web-researcher"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "generation",
+      "prompt_assets": {
+        "ce-plan.best-practices-researcher": ["skills/ce-plan/references/agents/best-practices-researcher.md"],
+        "ce-plan.framework-docs-researcher": ["skills/ce-plan/references/agents/framework-docs-researcher.md"],
+        "ce-plan.web-researcher": ["skills/ce-plan/references/agents/web-researcher.md"]
+      }
+    },
+    "ce-plan.spec-flow-analysis": {
+      "file": "skills/ce-plan/SKILL.md",
+      "roles": ["ce-plan.spec-flow-analyzer"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "ceiling",
+      "prompt_assets": {
+        "ce-plan.spec-flow-analyzer": ["skills/ce-plan/references/agents/spec-flow-analyzer.md"]
+      }
+    },
+    "ce-plan.deepening-research": {
+      "file": "skills/ce-plan/references/deepening-workflow.md",
+      "roles": [
+        "ce-plan.repo-research-analyst",
+        "ce-plan.learnings-researcher",
+        "ce-plan.agent-native-planning-strategist",
+        "ce-plan.best-practices-researcher",
+        "ce-plan.framework-docs-researcher",
+        "ce-plan.web-researcher",
+        "ce-plan.spec-flow-analyzer",
+        "ce-plan.git-history-analyzer",
+        "ce-plan.architecture-strategist",
+        "ce-plan.pattern-recognition-specialist",
+        "ce-plan.performance-oracle",
+        "ce-plan.security-sentinel",
+        "ce-plan.data-integrity-guardian",
+        "ce-plan.deployment-verification-agent"
+      ],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": {
+        "ce-plan.repo-research-analyst": "inherit",
+        "ce-plan.learnings-researcher": "inherit",
+        "ce-plan.agent-native-planning-strategist": "ceiling",
+        "ce-plan.best-practices-researcher": "generation",
+        "ce-plan.framework-docs-researcher": "generation",
+        "ce-plan.web-researcher": "generation",
+        "ce-plan.spec-flow-analyzer": "ceiling",
+        "ce-plan.git-history-analyzer": "ceiling",
+        "ce-plan.architecture-strategist": "ceiling",
+        "ce-plan.pattern-recognition-specialist": "ceiling",
+        "ce-plan.performance-oracle": "ceiling",
+        "ce-plan.security-sentinel": "ceiling",
+        "ce-plan.data-integrity-guardian": "ceiling",
+        "ce-plan.deployment-verification-agent": "ceiling"
+      },
+      "prompt_assets": {
+        "ce-plan.git-history-analyzer": ["skills/ce-plan/references/agents/git-history-analyzer.md"],
+        "ce-plan.architecture-strategist": ["skills/ce-plan/references/agents/architecture-strategist.md"],
+        "ce-plan.pattern-recognition-specialist": ["skills/ce-plan/references/agents/pattern-recognition-specialist.md"],
+        "ce-plan.performance-oracle": ["skills/ce-plan/references/agents/performance-oracle.md"],
+        "ce-plan.security-sentinel": ["skills/ce-plan/references/agents/security-sentinel.md"],
+        "ce-plan.data-integrity-guardian": ["skills/ce-plan/references/agents/data-integrity-guardian.md"],
+        "ce-plan.deployment-verification-agent": ["skills/ce-plan/references/agents/deployment-verification-agent.md"]
+      }
+    },
+    "ce-plan.universal-plan-research": {
+      "file": "skills/ce-plan/references/universal-planning.md",
+      "roles": ["ce-plan.universal-researcher"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "extraction"
+    },
+    "ce-plan.plan-author-native": {
+      "file": "skills/ce-plan/references/reasoning-elevation.md",
+      "source_marker": "reasoning-elevation.native",
+      "roles": ["ce-plan.plan-author"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "skill-default"
+    },
+    "ce-plan.plan-author-cli": {
+      "file": "skills/ce-plan/scripts/elevation-dispatch.sh",
+      "source_marker": "reasoning-elevation.cli",
+      "roles": ["ce-plan.plan-author"],
+      "adapter_family": "read-only-elevation",
+      "posture": "read-only",
+      "built_in_tier": "skill-default"
+    },
+
+    "ce-ideate.repo-grounding": {
+      "file": "skills/ce-ideate/SKILL.md",
+      "roles": ["ce-ideate.grounding-context"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "extraction"
+    },
+    "ce-ideate.repo-learnings": {
+      "file": "skills/ce-ideate/SKILL.md",
+      "roles": ["ce-ideate.learnings-researcher"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "extraction",
+      "prompt_assets": {
+        "ce-ideate.learnings-researcher": ["skills/ce-ideate/references/agents/learnings-researcher.md"]
+      }
+    },
+    "ce-ideate.issue-scan": {
+      "file": "skills/ce-ideate/SKILL.md",
+      "roles": ["ce-ideate.issue-intelligence-scanner"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only-with-private-artifact",
+      "built_in_tier": "inherit",
+      "prompt_assets": {
+        "ce-ideate.issue-intelligence-scanner": ["skills/ce-ideate/references/agents/issue-intelligence-analyst.md"]
+      }
+    },
+    "ce-ideate.issue-cluster": {
+      "file": "skills/ce-ideate/SKILL.md",
+      "roles": ["ce-ideate.issue-intelligence-clusterer"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only-with-private-artifact",
+      "built_in_tier": "inherit",
+      "prompt_assets": {
+        "ce-ideate.issue-intelligence-clusterer": ["skills/ce-ideate/references/agents/issue-intelligence-analyst.md"]
+      }
+    },
+    "ce-ideate.elsewhere-grounding": {
+      "file": "skills/ce-ideate/SKILL.md",
+      "roles": ["ce-ideate.grounding-context"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "extraction"
+    },
+    "ce-ideate.elsewhere-learnings": {
+      "file": "skills/ce-ideate/SKILL.md",
+      "roles": ["ce-ideate.learnings-researcher"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "extraction"
+    },
+    "ce-ideate.web-research": {
+      "file": "skills/ce-ideate/SKILL.md",
+      "roles": ["ce-ideate.web-researcher"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "generation",
+      "prompt_assets": {
+        "ce-ideate.web-researcher": ["skills/ce-ideate/references/agents/web-researcher.md"]
+      }
+    },
+    "ce-ideate.user-research-distillation": {
+      "file": "skills/ce-ideate/SKILL.md",
+      "roles": ["ce-ideate.user-research-distiller"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only-with-private-artifact",
+      "built_in_tier": "extraction"
+    },
+    "ce-ideate.slack-research": {
+      "file": "skills/ce-ideate/SKILL.md",
+      "roles": ["ce-ideate.slack-researcher"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "inherit",
+      "prompt_assets": {
+        "ce-ideate.slack-researcher": ["skills/ce-ideate/references/agents/slack-researcher.md"]
+      }
+    },
+    "ce-ideate.axis-evidence-scouts": {
+      "file": "skills/ce-ideate/SKILL.md",
+      "roles": ["ce-ideate.axis-evidence-scout"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only-with-private-artifact",
+      "built_in_tier": "extraction"
+    },
+    "ce-ideate.ideation-fleet": {
+      "file": "skills/ce-ideate/references/divergent-ideation.md",
+      "roles": ["ce-ideate.ideation-generator"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "dynamic-generation-and-ceiling"
+    },
+    "ce-ideate.ideation-fleet-variants": {
+      "file": "skills/ce-ideate/references/divergent-ideation.md",
+      "roles": ["ce-ideate.ideation-generator"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "dynamic-generation-or-ceiling"
+    },
+    "ce-ideate.ideation-axis-recovery": {
+      "file": "skills/ce-ideate/references/divergent-ideation.md",
+      "roles": ["ce-ideate.ideation-generator"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "frame-native"
+    },
+    "ce-ideate.adversarial-filter": {
+      "file": "skills/ce-ideate/references/post-ideation-workflow.md",
+      "roles": ["ce-ideate.basis-verifier", "ce-ideate.deep-critic"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": {
+        "ce-ideate.basis-verifier": "generation",
+        "ce-ideate.deep-critic": "ceiling"
+      }
+    },
+    "ce-ideate.universal-ideation-fleet": {
+      "file": "skills/ce-ideate/references/universal-ideation.md",
+      "roles": ["ce-ideate.ideation-generator"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "dynamic-generation-and-ceiling"
+    },
+    "ce-ideate.universal-basis-verifier": {
+      "file": "skills/ce-ideate/references/universal-ideation.md",
+      "roles": ["ce-ideate.basis-verifier"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "generation"
+    },
+
+    "ce-pov.grounding-scouts": {
+      "file": "skills/ce-pov/SKILL.md",
+      "roles": ["ce-pov.project-grounding-scout", "ce-pov.precedent-activity-scout", "ce-pov.external-evidence-researcher"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only-with-private-artifact",
+      "built_in_tier": {
+        "ce-pov.project-grounding-scout": "extraction",
+        "ce-pov.precedent-activity-scout": "extraction",
+        "ce-pov.external-evidence-researcher": "generation"
+      },
+      "prompt_assets": {
+        "ce-pov.project-grounding-scout": ["skills/ce-pov/references/agents/project-grounding-scout.md"],
+        "ce-pov.precedent-activity-scout": ["skills/ce-pov/references/agents/precedent-activity-scout.md"],
+        "ce-pov.external-evidence-researcher": ["skills/ce-pov/references/agents/external-evidence-researcher.md"]
+      }
+    },
+    "ce-pov.panel-cli-codex": {
+      "file": "skills/ce-pov/scripts/cross-model-pov.sh",
+      "roles": ["ce-pov.panel-peer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only",
+      "built_in_tier": "skill-default",
+      "prompt_assets": {
+        "ce-pov.panel-peer": ["skills/ce-pov/references/agents/pov-peer.md"]
+      }
+    },
+    "ce-pov.panel-cli-claude": {
+      "file": "skills/ce-pov/scripts/cross-model-pov.sh",
+      "roles": ["ce-pov.panel-peer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only",
+      "built_in_tier": "skill-default"
+    },
+    "ce-pov.panel-cli-grok": {
+      "file": "skills/ce-pov/scripts/cross-model-pov.sh",
+      "roles": ["ce-pov.panel-peer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only",
+      "built_in_tier": "skill-default"
+    },
+    "ce-pov.panel-cli-grok-cursor": {
+      "file": "skills/ce-pov/scripts/cross-model-pov.sh",
+      "roles": ["ce-pov.panel-peer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only",
+      "built_in_tier": "skill-default"
+    },
+    "ce-pov.panel-cli-cursor": {
+      "file": "skills/ce-pov/scripts/cross-model-pov.sh",
+      "roles": ["ce-pov.panel-peer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only",
+      "built_in_tier": "skill-default"
+    },
+    "ce-pov.panel-cli-composer": {
+      "file": "skills/ce-pov/scripts/cross-model-pov.sh",
+      "roles": ["ce-pov.panel-peer"],
+      "adapter_family": "read-only-external-peer",
+      "posture": "read-only",
+      "built_in_tier": "skill-default"
+    },
+
+    "ce-compound.research-subagents": {
+      "file": "skills/ce-compound/SKILL.md",
+      "roles": ["ce-compound.context-analyzer", "ce-compound.solution-extractor", "ce-compound.related-docs-finder"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "private-artifact-write",
+      "built_in_tier": "inherit"
+    },
+    "ce-compound.session-history": {
+      "file": "skills/ce-compound/SKILL.md",
+      "roles": ["ce-compound.session-historian"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "private-artifact-write",
+      "built_in_tier": "inherit",
+      "prompt_assets": {
+        "ce-compound.session-historian": ["skills/ce-compound/references/agents/session-historian.md"]
+      }
+    },
+    "ce-compound.grounding-validator": {
+      "file": "skills/ce-compound/SKILL.md",
+      "roles": ["ce-compound.semantic-grounding-validator"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "generation"
+    },
+    "ce-compound.specialist-reviewers": {
+      "file": "skills/ce-compound/SKILL.md",
+      "roles": ["ce-compound.performance-oracle", "ce-compound.security-sentinel", "ce-compound.data-integrity-guardian"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "inherit",
+      "prompt_assets": {
+        "ce-compound.performance-oracle": ["skills/ce-compound/references/agents/performance-oracle.md"],
+        "ce-compound.security-sentinel": ["skills/ce-compound/references/agents/security-sentinel.md"],
+        "ce-compound.data-integrity-guardian": ["skills/ce-compound/references/agents/data-integrity-guardian.md"]
+      }
+    },
+    "ce-compound.code-example-review": {
+      "file": "skills/ce-compound/SKILL.md",
+      "roles": ["ce-compound.code-example-reviewer"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "inherit"
+    },
+    "ce-compound-refresh.investigator": {
+      "file": "skills/ce-compound-refresh/SKILL.md",
+      "roles": ["ce-compound-refresh.investigator"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "inherit"
+    },
+    "ce-compound-refresh.replacement-writer": {
+      "file": "skills/ce-compound-refresh/references/per-action-flows.md",
+      "roles": ["ce-compound-refresh.replacement-writer"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "write-capable",
+      "built_in_tier": "inherit"
+    },
+    "ce-debug.hypothesis-investigation": {
+      "file": "skills/ce-debug/SKILL.md",
+      "roles": ["ce-debug.hypothesis-investigator"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "inherit"
+    },
+    "ce-explain.work-recap-scout": {
+      "file": "skills/ce-explain/SKILL.md",
+      "roles": ["ce-explain.work-recap-scout"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only-with-private-artifact",
+      "built_in_tier": "extraction",
+      "prompt_assets": {
+        "ce-explain.work-recap-scout": ["skills/ce-explain/references/agents/work-recap-scout.md"]
+      }
+    },
+    "ce-resolve-pr-feedback.full-fixers": {
+      "file": "skills/ce-resolve-pr-feedback/references/full-mode.md",
+      "roles": ["ce-resolve-pr-feedback.feedback-fixer"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "write-capable",
+      "built_in_tier": "inherit",
+      "prompt_assets": {
+        "ce-resolve-pr-feedback.feedback-fixer": ["skills/ce-resolve-pr-feedback/references/agents/pr-comment-resolver.md"]
+      }
+    },
+    "ce-resolve-pr-feedback.targeted-fixer": {
+      "file": "skills/ce-resolve-pr-feedback/references/targeted-mode.md",
+      "roles": ["ce-resolve-pr-feedback.feedback-fixer"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "write-capable",
+      "built_in_tier": "inherit"
+    },
+    "ce-riffrec-feedback-analysis.source-mapping": {
+      "file": "skills/ce-riffrec-feedback-analysis/references/extensive-analysis.md",
+      "roles": ["ce-riffrec-feedback-analysis.source-mapper"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "inherit"
+    },
+    "ce-simplify-code.reviewers": {
+      "file": "skills/ce-simplify-code/SKILL.md",
+      "roles": ["ce-simplify-code.code-reuse-reviewer", "ce-simplify-code.code-quality-reviewer", "ce-simplify-code.efficiency-reviewer"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "generation",
+      "prompt_assets": {
+        "ce-simplify-code.code-reuse-reviewer": ["skills/ce-simplify-code/references/personas/code-reuse-reviewer.md"],
+        "ce-simplify-code.code-quality-reviewer": ["skills/ce-simplify-code/references/personas/code-quality-reviewer.md"],
+        "ce-simplify-code.efficiency-reviewer": ["skills/ce-simplify-code/references/personas/efficiency-reviewer.md"]
+      }
+    },
+    "ce-sweep.source-fetchers": {
+      "file": "skills/ce-sweep/SKILL.md",
+      "roles": ["ce-sweep.source-fetcher"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "extraction",
+      "prompt_assets": {
+        "ce-sweep.source-fetcher": [
+          "skills/ce-sweep/references/sources/slack.md",
+          "skills/ce-sweep/references/sources/github-issues.md",
+          "skills/ce-sweep/references/sources/email.md"
+        ]
+      }
+    },
+    "ce-sweep.media-analyzers": {
+      "file": "skills/ce-sweep/SKILL.md",
+      "roles": ["ce-sweep.media-analyzer"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only-with-private-artifact",
+      "built_in_tier": "generation",
+      "prompt_assets": {
+        "ce-sweep.media-analyzer": ["skills/ce-sweep/references/agents/media-analyzer.md"]
+      }
+    },
+
+    "ce-work.native-implementation": {
+      "file": "skills/ce-work/SKILL.md",
+      "roles": ["ce-work.implementation-worker"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "write-capable",
+      "built_in_tier": "inherit"
+    },
+    "ce-work.external-implementation": {
+      "file": "skills/ce-work/references/cross-model-execution.md",
+      "roles": ["ce-work.implementation-worker"],
+      "adapter_family": "write-capable-isolated-implementation",
+      "posture": "isolated-write",
+      "built_in_tier": "inherit"
+    },
+    "ce-work.review-fix-batches": {
+      "file": "skills/ce-work/references/review-findings-followup.md",
+      "roles": ["ce-work.review-fixer"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "write-capable",
+      "built_in_tier": "inherit"
+    },
+    "ce-work.review-fix-single": {
+      "file": "skills/ce-work/references/review-findings-followup.md",
+      "roles": ["ce-work.review-fixer"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "write-capable",
+      "built_in_tier": "inherit"
+    },
+    "ce-work.figma-design-verification": {
+      "file": "skills/ce-work/SKILL.md",
+      "roles": ["ce-work.figma-design-verifier"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "inherit",
+      "prompt_assets": {
+        "ce-work.figma-design-verifier": ["skills/ce-work/references/agents/figma-design-sync.md"]
+      }
+    },
+    "ce-work.implementation-cli-codex": {
+      "file": "skills/ce-work/scripts/cross-model-work.sh",
+      "roles": ["ce-work.implementation-worker"],
+      "adapter_family": "write-capable-isolated-implementation",
+      "posture": "isolated-write",
+      "built_in_tier": "inherit",
+      "prompt_assets": {
+        "ce-work.implementation-worker": ["skills/ce-work/references/agents/implementation-worker.md"]
+      }
+    },
+    "ce-work.implementation-cli-claude": {
+      "file": "skills/ce-work/scripts/cross-model-work.sh",
+      "roles": ["ce-work.implementation-worker"],
+      "adapter_family": "write-capable-isolated-implementation",
+      "posture": "isolated-write",
+      "built_in_tier": "inherit"
+    },
+    "ce-work.implementation-cli-grok": {
+      "file": "skills/ce-work/scripts/cross-model-work.sh",
+      "roles": ["ce-work.implementation-worker"],
+      "adapter_family": "write-capable-isolated-implementation",
+      "posture": "isolated-write",
+      "built_in_tier": "inherit"
+    },
+    "ce-work.implementation-cli-cursor": {
+      "file": "skills/ce-work/scripts/cross-model-work.sh",
+      "roles": ["ce-work.implementation-worker"],
+      "adapter_family": "write-capable-isolated-implementation",
+      "posture": "isolated-write",
+      "built_in_tier": "inherit"
+    },
+    "ce-work.implementation-cli-composer": {
+      "file": "skills/ce-work/scripts/cross-model-work.sh",
+      "roles": ["ce-work.implementation-worker"],
+      "adapter_family": "write-capable-isolated-implementation",
+      "posture": "isolated-write",
+      "built_in_tier": "inherit"
+    },
+    "ce-work.implementation-cli-grok-cursor": {
+      "file": "skills/ce-work/scripts/cross-model-work.sh",
+      "roles": ["ce-work.implementation-worker"],
+      "adapter_family": "write-capable-isolated-implementation",
+      "posture": "isolated-write",
+      "built_in_tier": "inherit"
+    },
+
+    "ce-optimize.learnings-research": {
+      "file": "skills/ce-optimize/SKILL.md",
+      "roles": ["ce-optimize.learnings-researcher"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "inherit",
+      "prompt_assets": {
+        "ce-optimize.learnings-researcher": ["skills/ce-optimize/references/agents/learnings-researcher.md"]
+      }
+    },
+    "ce-optimize.repo-research": {
+      "file": "skills/ce-optimize/SKILL.md",
+      "roles": ["ce-optimize.repo-research-analyst"],
+      "adapter_family": "native-generic-subagent",
+      "posture": "read-only",
+      "built_in_tier": "inherit",
+      "prompt_assets": {
+        "ce-optimize.repo-research-analyst": ["skills/ce-optimize/references/agents/repo-research-analyst.md"]
+      }
+    },
+    "ce-optimize.worktree-experiment": {
+      "file": "skills/ce-optimize/SKILL.md",
+      "roles": ["ce-optimize.experiment-author"],
+      "adapter_family": "isolated-optimization-experiment",
+      "posture": "isolated-write",
+      "built_in_tier": "skill-default",
+      "prompt_assets": {
+        "ce-optimize.experiment-author": ["skills/ce-optimize/references/experiment-prompt-template.md"]
+      }
+    },
+    "ce-optimize.codex-experiment": {
+      "file": "skills/ce-optimize/SKILL.md",
+      "roles": ["ce-optimize.experiment-author"],
+      "adapter_family": "isolated-optimization-experiment",
+      "posture": "isolated-write",
+      "built_in_tier": "skill-default"
+    },
+    "ce-optimize.baseline-judge": {
+      "file": "skills/ce-optimize/SKILL.md",
+      "roles": ["ce-optimize.semantic-judge"],
+      "adapter_family": "isolated-optimization-experiment",
+      "posture": "read-only-evaluation",
+      "built_in_tier": "skill-default",
+      "prompt_assets": {
+        "ce-optimize.semantic-judge": ["skills/ce-optimize/references/judge-prompt-template.md"]
+      }
+    },
+    "ce-optimize.judge-batches": {
+      "file": "skills/ce-optimize/SKILL.md",
+      "roles": ["ce-optimize.semantic-judge"],
+      "adapter_family": "isolated-optimization-experiment",
+      "posture": "read-only-evaluation",
+      "built_in_tier": "skill-default"
+    },
+    "ce-optimize.singleton-judges": {
+      "file": "skills/ce-optimize/SKILL.md",
+      "roles": ["ce-optimize.semantic-judge"],
+      "adapter_family": "isolated-optimization-experiment",
+      "posture": "read-only-evaluation",
+      "built_in_tier": "skill-default"
+    }
+  }
+}

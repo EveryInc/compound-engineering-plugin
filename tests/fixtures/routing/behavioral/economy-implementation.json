@@ -1,0 +1,29 @@
+{
+  "schema": "ce-routing-behavioral-fixture/v1",
+  "id": "economy-implementation",
+  "owning_skill": "ce-work",
+  "purpose": "A strong top-level session delegates selected implementation units to an economy profile without surrendering orchestration or shipping ownership.",
+  "input": {
+    "user_prompt": "Implement docs/plans/example-ready-plan.md and keep the normal CE Work shipping tail.",
+    "global_config_yaml": "routing:\n  profiles:\n    economy:\n      candidates:\n        - { harness: codex, model: economy-model, effort: low }\n        - ce-default\n  classes:\n    implementation: { profile: economy, policy: prefer }\n",
+    "project_config_yaml": null,
+    "host": {
+      "name": "claude",
+      "top_level_model": "strong-orchestrator",
+      "capabilities": ["generic-subagents", "external-write-adapter", "served-model-receipt"]
+    },
+    "repository_state": ["clean feature branch", "implementation-ready plan with two independent units", "focused tests available"]
+  },
+  "expected_invariants": [
+    "Only already-selected ce-work.implementation-worker dispatches use the economy binding.",
+    "The top-level session model, plan interpretation, unit selection, verification, canonical commits, review, and shipping tail remain host-owned.",
+    "Each worker receives the same bounded unit packet and mutation boundary it would receive without routing.",
+    "The result reports role, class, profile, source, requested execution, served execution or unverified status, and any fallback reason."
+  ],
+  "forbidden_outcomes": [
+    "Changing the active top-level model.",
+    "Sending the full conversation or unrelated repository material to the worker.",
+    "Letting the worker commit canonically, push, open a PR, or choose another recipient.",
+    "Using undeclared native fallback after a started attempt that is not terminal and unintegrated."
+  ]
+}

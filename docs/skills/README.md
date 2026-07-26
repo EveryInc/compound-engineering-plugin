@@ -4,7 +4,7 @@ End-user-facing documentation for compound-engineering plugin skills. Each page 
 
 For runtime behavior and contributor reference, the `SKILL.md` in each skill's source folder under `skills/` is authoritative.
 
-Checkout-local defaults shared across skills are documented in [Compound Engineering configuration](./configuration.md).
+User-global defaults, optional project overrides, and execution routing shared across skills are documented in [Compound Engineering configuration](./configuration.md).
 
 ---
 
@@ -125,7 +125,7 @@ Invoked when a specific need arises — not part of any chain.
 | [`/ce-dogfood`](./ce-dogfood.md) | Hands-off diff-scoped browser QA of the active branch — maps flows, autonomously fixes small breakages with regression tests and commits, writes a durable report (manual invocation only) |
 | [`/ce-test-browser`](./ce-test-browser.md) | End-to-end browser tests using a host-native browser with `agent-browser` fallback |
 | [`/ce-test-xcode`](./ce-test-xcode.md) | Build and test iOS apps on simulator using XcodeBuildMCP — screenshots, logs, human verification |
-| [`/ce-setup`](./ce-setup.md) | Diagnose optional tool capabilities and bootstrap safe project-local config |
+| [`/ce-setup`](./ce-setup.md) | Inspect effective global/project settings and routing health, diagnose optional tools, and bootstrap safe project config |
 | [`/ce-handoff`](./ce-handoff.md) | Create a session handoff at the default temp store or a requested destination, then discover or orient from a selected source — no automatic continuation |
 
 ---

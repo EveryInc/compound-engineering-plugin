@@ -162,6 +162,79 @@ function initWithPrompt(
   }
 }
 
+function routingRequestFile(
+  fixture: ReturnType<typeof makeRepo>,
+  intents: Record<string, unknown>[] = [],
+  host: Record<string, string> = { harness: "opencode", serving_family: "openai" },
+  implementationIntent?: Record<string, unknown> | "ce-default",
+): string {
+  const request = path.join(tmp("ce-work-routing-request-"), "request.json")
+  writeFileSync(request, `${JSON.stringify({
+    protocol: "ce-routing/v1",
+    op: "resolve_batch",
+    cwd: fixture.repo,
+    host,
+    intents,
+    roles: [{ role: "ce-work.implementation-worker", instance: { id: "implementation", ordinal: 0 } }],
+    ...(implementationIntent === undefined ? {} : { implementation_intent: implementationIntent }),
+  })}\n`, { mode: 0o600 })
+  return request
+}
+
+function routingHome(config: string): string {
+  const home = path.join(tmp("ce-work-routing-home-"), "compound-engineering")
+  mkdirSync(home, { mode: 0o700 })
+  if (config) writeFileSync(path.join(home, "config.yaml"), config, { mode: 0o600 })
+  return home
+}
+
+function initWithRouting(
+  runsRoot: string,
+  runId: string,
+  fixture: ReturnType<typeof makeRepo>,
+  home: string,
+  intents: Record<string, unknown>[] = [],
+) {
+  return ctlWithEnv(
+    runsRoot,
+    { COMPOUND_ENGINEERING_HOME: home },
+    "init",
+    "--run-id", runId,
+    "--repo", fixture.repo,
+    "--plan", fixture.plan,
+    "--plan-digest", fixture.digest,
+    "--routing-request", routingRequestFile(fixture, intents),
+  )
+}
+
+function lockRoutingAttempt(
+  runsRoot: string,
+  runId: string,
+  unitId: string,
+  attemptId: string,
+  ordinal: number,
+  route: string,
+  intermediaries: string[] = [],
+  preflight: Record<string, unknown>[] = [],
+) {
+  return ctl(
+    runsRoot,
+    "lock-attempt",
+    "--run-id", runId,
+    "--unit-id", unitId,
+    "--attempt-id", attemptId,
+    "--candidate-ordinal", String(ordinal),
+    "--egress-json", JSON.stringify({
+      sanction_source: "test",
+      route,
+      intermediaries,
+      exposed_material: [unitId],
+      restrictions: [],
+    }),
+    "--preflight-json", JSON.stringify(preflight),
+  )
+}
+
 function authorizeDispatch(
   runsRoot: string,
   runId: string,
@@ -254,6 +327,7 @@ function fakeDoneJob(
   id = "job-1",
   terminalStatus: "completed" | "blocked" | "scope_expansion" = "completed",
   changedFiles: string[] = [],
+  receiptOverrides: Record<string, unknown> = {},
 ) {
   const dir = path.join(runsRoot, runId, "jobs", id)
   mkdirSync(dir, { recursive: true, mode: 0o700 })
@@ -264,6 +338,7 @@ function fakeDoneJob(
   const resultDir = path.join(unitRoot, "result")
   const resultPath = path.join(resultDir, "implementation-result.json")
   const logPath = path.join(resultDir, "adapter.log")
+  const authorization = JSON.parse(readFileSync(path.join(unitRoot, "authorization.json"), "utf8"))
   const meta = {
     job_id: id,
     skill: "ce-work",
@@ -293,19 +368,23 @@ function fakeDoneJob(
     scope_expansion: terminalStatus === "scope_expansion"
       ? { requested_paths: ["shared.ts"], reason: "required by unit" }
       : null,
-    requested_route: "codex",
-    actual_route: "codex",
-    target: "codex",
-    harness: "codex",
-    intermediaries: [],
-    model_requested: "auto",
+    requested_route: authorization.route,
+    actual_route: authorization.route,
+    target: authorization.target,
+    harness: authorization.harness,
+    intermediaries: authorization.intermediaries,
+    model_requested: authorization.model_requested,
     model_actual: "unverified",
     model_receipt_status: "unverified",
-    activity_posture: "incremental",
-    restriction_posture: "adapter-enforced",
+    effort_requested: authorization.effort_requested ?? "auto",
+    effort_actual: "unverified",
+    effort_receipt_status: "unverified",
+    activity_posture: authorization.activity_posture,
+    restriction_posture: authorization.restriction_posture,
     failure_reason: null,
     raw_log: logPath,
     packet_digest: digest,
+    ...receiptOverrides,
   })}\n`, { mode: 0o600 })
   chmodSync(resultPath, 0o600)
   return id
@@ -696,10 +775,12 @@ describe("ce-work unit workspace controller", () => {
       harness: "codex",
       intermediaries: [],
       model_requested: "auto",
+      effort_requested: "auto",
       restriction_posture: "adapter-enforced",
       restrictions: [],
       activity_posture: "hard-only",
       packet_digest: packetDigest("authorized packet"),
+      routing_lock: null,
     })
     expect(prepared.body.authorization_digest).toBe(packetDigest(readFileSync(prepared.body.authorization_path, "utf8")))
     writeFileSync(source, "substituted packet")
@@ -4237,7 +4318,562 @@ describe("ce-work unit workspace controller", () => {
     expect(readFileSync(path.join(f.repo, "U-retry-corrected.txt"), "utf8")).toBe("corrected\n")
   })
 
-  test("require blocks headless fallback and needs an explicit interactive choice", () => {
+  test("resolves an economy native implementation override without changing the orchestrator or checkout", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`routing:
+  profiles:
+    external:
+      candidates:
+        - { harness: codex, model: gpt-5-mini }
+  classes:
+    implementation: { profile: external, policy: require }
+`)
+    const request = routingRequestFile(
+      f,
+      [],
+      { harness: "opencode", serving_family: "openai" },
+      {
+        source: "current-task",
+        policy: "require",
+        candidates: [{ harness: "opencode", model: "openai/gpt-economy", effort: "low" }],
+      },
+    )
+    const resolved = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "resolve-routing", "--repo", f.repo, "--routing-request", request,
+    )
+
+    expect(resolved.word).toBe("ROUTED")
+    expect(resolved.body).toMatchObject({
+      canonical_unchanged: true,
+      routing: {
+        binding: {
+          role: "ce-work.implementation-worker",
+          source_layer: "task",
+          source: "current-task",
+          profile: "current-task-implementation",
+          policy: "require",
+          candidates: [{ harness: "opencode", model: "openai/gpt-economy", effort: "low", ordinal: 0 }],
+        },
+      },
+    })
+    expect(existsSync(runs)).toBe(false)
+    expect(git(f.repo, "status", "--porcelain")).toBe("")
+
+    const conflict = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "resolve-routing", "--repo", f.repo, "--routing-request", routingRequestFile(
+        f,
+        [{ role: "ce-work.implementation-worker", source: "other-task-intent", binding: "ce-default" }],
+        { harness: "opencode", serving_family: "openai" },
+        {
+          source: "current-task",
+          policy: "require",
+          candidates: [{ harness: "opencode", model: "openai/gpt-economy", effort: "low" }],
+        },
+      ),
+    )
+    expect(conflict.word).toBe("REFUSED")
+    expect(conflict.stderr).toContain("cannot be combined")
+  })
+
+  test("freezes generalized routing and reuses it after configuration changes", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`routing:
+  profiles:
+    economy:
+      candidates:
+        - { harness: codex, model: gpt-5-mini, effort: low }
+        - ce-default
+  classes:
+    implementation: { profile: economy, policy: prefer }
+`)
+
+    const initialized = initWithRouting(runs, "run-generalized", f, home)
+    expect(initialized.word).toBe("READY")
+    expect(initialized.body.routing).toMatchObject({
+      protocol: "ce-work-routing/v1",
+      binding: {
+        role: "ce-work.implementation-worker",
+        class: "implementation",
+        profile: "economy",
+        policy: "prefer",
+        source_layer: "global-class",
+      },
+      source_revisions: {
+        global: expect.stringMatching(/^cecfg-v1:/),
+        project: "cecfg-v1:absent",
+      },
+    })
+    const snapshotId = initialized.body.routing.snapshot_id
+    const sourceRevisions = initialized.body.routing.source_revisions
+
+    expect(lockRoutingAttempt(runs, "run-generalized", "U", "attempt-1", 0, "codex").word).toBe("ATTEMPT_LOCKED")
+    expect(lockRoutingAttempt(runs, "run-generalized", "U", "attempt-1", 0, "codex").body.resumed).toBe(true)
+    const changedReplay = lockRoutingAttempt(
+      runs,
+      "run-generalized",
+      "U",
+      "attempt-1",
+      0,
+      "codex",
+      [],
+      [{ ordinal: 0, status: "unavailable", reason: "changed replay" }],
+    )
+    expect(changedReplay.word).toBe("REFUSED")
+    expect(changedReplay.stderr).toContain("different immutable inputs")
+    const prepared = ctl(
+      runs, "prepare", "--run-id", "run-generalized", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("generalized packet"),
+    )
+    expect(prepared.word).toBe("PREPARED")
+    expect(JSON.parse(readFileSync(prepared.body.authorization_path, "utf8"))).toMatchObject({
+      route: "codex",
+      model_requested: "gpt-5-mini",
+      effort_requested: "low",
+      routing_lock: {
+        snapshot_id: snapshotId,
+        candidate_ordinal: 0,
+        recipient: { route: "codex", target: "codex", intermediaries: [] },
+        mutation_posture: "isolated-write",
+        environment_posture: "credential-minimized",
+      },
+    })
+
+    writeFileSync(path.join(home, "config.yaml"), "routing: [now-invalid]\n", { mode: 0o600 })
+    const resumed = ctl(runs, "resume", "--run-id", "run-generalized")
+    expect(resumed.word).toBe("RESUMED")
+    const status = ctl(runs, "status", "--run-id", "run-generalized").body
+    expect(status.routing.snapshot_id).toBe(snapshotId)
+    expect(status.routing.source_revisions).toEqual(sourceRevisions)
+    expect(status.routing.binding.profile).toBe("economy")
+    expect(git(f.repo, "status", "--porcelain")).toBe("")
+  })
+
+  test("normalizes merged legacy work-engine preferences and keeps their declared native fallback", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`work_engine_mode: prefer
+work_engine_preferences:
+  - harness: codex
+    model: gpt-5-mini
+`)
+
+    const initialized = initWithRouting(runs, "run-legacy-routing", f, home)
+    expect(initialized.word).toBe("READY")
+    expect(initialized.body.routing).toMatchObject({
+      compatibility: {
+        applied: true,
+        mode: "prefer",
+        mode_source: "global",
+        preferences_source: "global",
+      },
+      binding: {
+        profile: "legacy-work-engine",
+        policy: "prefer",
+        source_layer: "global-legacy-work-engine",
+      },
+    })
+    expect(initialized.body.routing.binding.candidates).toEqual([
+      { harness: "codex", model: "gpt-5-mini", ordinal: 0 },
+      { kind: "ce-default", ordinal: 1 },
+    ])
+  })
+
+  test("honors a task CE-default reset without creating recovery or canonical state", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`routing:
+  profiles:
+    economy:
+      candidates:
+        - { harness: codex, model: gpt-5-mini }
+  classes:
+    implementation: { profile: economy, policy: require }
+`)
+    const reset = initWithRouting(runs, "run-reset", f, home, [{
+      role: "ce-work.implementation-worker",
+      source: "current-task",
+      binding: "ce-default",
+    }])
+
+    expect(reset.word).toBe("NATIVE")
+    expect(reset.body.routing.binding).toMatchObject({
+      kind: "ce-default",
+      explicit_reset: true,
+      source_layer: "task",
+    })
+    expect(existsSync(path.join(runs, "run-reset"))).toBe(false)
+    expect(git(f.repo, "status", "--porcelain")).toBe("")
+  })
+
+  test("collapses the current host default to native without creating controller state", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`routing:
+  profiles:
+    local:
+      candidates:
+        - { harness: opencode }
+  classes:
+    implementation: { profile: local, policy: require }
+`)
+    const request = routingRequestFile(f)
+    const resolved = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "resolve-routing", "--repo", f.repo, "--routing-request", request,
+    )
+
+    expect(resolved.word).toBe("NATIVE")
+    expect(resolved.body.routing.binding).toMatchObject({
+      profile: "local",
+      policy: "require",
+      candidates: [{ harness: "opencode", ordinal: 0 }],
+    })
+    const initialized = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "init", "--run-id", "run-same-host", "--repo", f.repo,
+      "--plan", f.plan, "--plan-digest", f.digest, "--routing-request", request,
+    )
+    expect(initialized.word).toBe("NATIVE")
+    expect(existsSync(path.join(runs, "run-same-host"))).toBe(false)
+    expect(git(f.repo, "status", "--porcelain")).toBe("")
+  })
+
+  test("quarantines required output until serving identity is verified", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`routing:
+  profiles:
+    strict:
+      candidates:
+        - { harness: codex, model: gpt-5-mini }
+  classes:
+    implementation: { profile: strict, policy: require }
+`)
+    expect(initWithRouting(runs, "run-strict-unverified", f, home).word).toBe("READY")
+    expect(lockRoutingAttempt(runs, "run-strict-unverified", "U", "attempt-1", 0, "codex").word).toBe("ATTEMPT_LOCKED")
+    const prepared = ctl(
+      runs, "prepare", "--run-id", "run-strict-unverified", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("strict packet"),
+    ).body
+    writeFileSync(path.join(prepared.workspace, "quarantined.txt"), "must not integrate\n")
+    const job = fakeDoneJob(runs, "run-strict-unverified", "U", "strict packet")
+    ctl(
+      runs, "record-job", "--run-id", "run-strict-unverified", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    expect(ctl(
+      runs, "terminalize", "--run-id", "run-strict-unverified", "--unit-id", "U",
+    ).word).toBe("INTEGRATION_PENDING")
+
+    const beforeHead = git(f.repo, "rev-parse", "HEAD")
+    const blocked = ctl(
+      runs, "integrate", "--run-id", "run-strict-unverified", "--unit-id", "U",
+      "--commit-message", "feat(test): must not land", "--", "true",
+    )
+    expect(blocked.word).toBe("BLOCKED")
+    expect(blocked.stderr).toContain("required serving identity")
+    expect(blocked.body).toMatchObject({
+      policy: "require",
+      identity_status: "unverified",
+      canonical_unchanged: true,
+    })
+    expect(git(f.repo, "rev-parse", "HEAD")).toBe(beforeHead)
+    expect(git(f.repo, "status", "--porcelain")).toBe("")
+    expect(existsSync(path.join(f.repo, "quarantined.txt"))).toBe(false)
+    expect(existsSync(prepared.workspace)).toBe(true)
+    const fallback = ctl(
+      runs, "claim-fallback", "--run-id", "run-strict-unverified", "--unit-id", "U",
+      "--caller-mode", "interactive",
+    )
+    expect(fallback.word, fallback.stderr).toBe("BLOCKED")
+  })
+
+  test("integrates a strict routed result only after matching model and effort finalization", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`routing:
+  profiles:
+    strict:
+      candidates:
+        - { harness: codex, model: gpt-5-mini, effort: low }
+  classes:
+    implementation: { profile: strict, policy: require }
+`)
+    expect(initWithRouting(runs, "run-strict-matched", f, home).word).toBe("READY")
+    expect(lockRoutingAttempt(runs, "run-strict-matched", "U", "attempt-1", 0, "codex").word).toBe("ATTEMPT_LOCKED")
+    const prepared = ctl(
+      runs, "prepare", "--run-id", "run-strict-matched", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("strict matched packet"),
+    ).body
+    writeFileSync(path.join(prepared.workspace, "matched.txt"), "verified implementation\n")
+    const job = fakeDoneJob(
+      runs, "run-strict-matched", "U", "strict matched packet", "job-strict-matched", "completed", ["matched.txt"],
+      {
+        model_actual: "gpt-5-mini",
+        model_receipt_status: "verified",
+        effort_actual: "low",
+        effort_receipt_status: "verified",
+      },
+    )
+    ctl(
+      runs, "record-job", "--run-id", "run-strict-matched", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    expect(ctl(
+      runs, "terminalize", "--run-id", "run-strict-matched", "--unit-id", "U",
+    ).word).toBe("INTEGRATION_PENDING")
+
+    const integrated = ctl(
+      runs, "integrate", "--run-id", "run-strict-matched", "--unit-id", "U",
+      "--commit-message", "feat(test): accept strict route", "--", "true",
+    )
+    expect(integrated.word).toBe("UNIT_COMMITTED")
+    expect(readFileSync(path.join(f.repo, "matched.txt"), "utf8")).toBe("verified implementation\n")
+    const status = ctl(runs, "status", "--run-id", "run-strict-matched").body
+    expect(status.units.U).toMatchObject({
+      state: "cleaned",
+      attempts: [{
+        routing_finalization: {
+          action: "accept",
+          receipt: {
+            identity_status: "verified",
+            model_actual: "gpt-5-mini",
+            effort_actual: "low",
+          },
+        },
+      }],
+    })
+    expect(status.routing.receipts).toEqual([
+      expect.objectContaining({
+        action: "accept",
+        receipt: expect.objectContaining({ model_actual: "gpt-5-mini", effort_actual: "low" }),
+      }),
+    ])
+  })
+
+  test("advances prefer only to the next declared recipient after terminal unintegrated failure", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`routing:
+  profiles:
+    ordered:
+      candidates:
+        - { harness: codex, model: gpt-5-mini }
+        - { harness: claude, model: sonnet }
+        - ce-default
+  classes:
+    implementation: { profile: ordered, policy: prefer }
+`)
+    expect(initWithRouting(runs, "run-ordered", f, home).word).toBe("READY")
+    expect(lockRoutingAttempt(runs, "run-ordered", "U", "attempt-1", 0, "codex").word).toBe("ATTEMPT_LOCKED")
+    ctl(
+      runs, "prepare", "--run-id", "run-ordered", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("first packet"),
+    )
+    const job = fakeRunningJob(runs, "run-ordered", "U", "first packet", "job-ordered-first")
+    ctl(
+      runs, "record-job", "--run-id", "run-ordered", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    terminalizeFakeJob(runs, "run-ordered", job, "failed")
+    ctl(runs, "sync-job", "--run-id", "run-ordered", "--unit-id", "U")
+
+    const advanced = ctl(
+      runs, "claim-fallback", "--run-id", "run-ordered", "--unit-id", "U",
+      "--caller-mode", "headless",
+    )
+    expect(advanced.word).toBe("NEXT_CANDIDATE")
+    expect(advanced.body).toMatchObject({
+      start_native: false,
+      next_candidate: { ordinal: 1, harness: "claude", model: "sonnet" },
+    })
+    expect(ctl(
+      runs, "cleanup", "--run-id", "run-ordered", "--unit-id", "U",
+      "--abandon", "--expect-job", job,
+    ).word).toBe("CLEANED")
+    expect(lockRoutingAttempt(runs, "run-ordered", "U", "attempt-2", 1, "claude").word).toBe("ATTEMPT_LOCKED")
+    const retried = ctl(
+      runs, "prepare", "--run-id", "run-ordered", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("second packet"), "--attempt-id", "attempt-2",
+    )
+    expect(retried.word).toBe("PREPARED")
+    expect(JSON.parse(readFileSync(retried.body.authorization_path, "utf8"))).toMatchObject({
+      route: "claude",
+      model_requested: "sonnet",
+      routing_lock: { candidate_ordinal: 1, recipient: { route: "claude", target: "claude" } },
+    })
+  })
+
+  test("collapses a declared next same-host candidate to native after terminal failure", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`routing:
+  profiles:
+    local-second:
+      candidates:
+        - { harness: codex, model: gpt-5-mini }
+        - { harness: opencode }
+  classes:
+    implementation: { profile: local-second, policy: prefer }
+`)
+    expect(initWithRouting(runs, "run-local-second", f, home).word).toBe("READY")
+    expect(lockRoutingAttempt(runs, "run-local-second", "U", "attempt-1", 0, "codex").word).toBe("ATTEMPT_LOCKED")
+    ctl(
+      runs, "prepare", "--run-id", "run-local-second", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("external first"),
+    )
+    const job = fakeRunningJob(runs, "run-local-second", "U", "external first", "job-local-second")
+    ctl(
+      runs, "record-job", "--run-id", "run-local-second", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    terminalizeFakeJob(runs, "run-local-second", job, "failed")
+    ctl(runs, "sync-job", "--run-id", "run-local-second", "--unit-id", "U")
+
+    const fallback = ctl(
+      runs, "claim-fallback", "--run-id", "run-local-second", "--unit-id", "U",
+      "--caller-mode", "headless",
+    )
+    expect(fallback.word).toBe("FALLBACK_AUTHORIZED")
+    expect(fallback.body).toMatchObject({
+      start_native: true,
+      claim: {
+        kind: "same-host-native",
+        candidate_ordinal: 1,
+        next_candidate: { harness: "opencode", ordinal: 1 },
+      },
+    })
+    expect(ctl(
+      runs, "cleanup", "--run-id", "run-local-second", "--unit-id", "U",
+      "--abandon", "--expect-job", job,
+    ).word).toBe("CLEANED")
+
+    writeFileSync(path.join(f.repo, "native.txt"), "declared same-host implementation\n")
+    git(f.repo, "add", "native.txt")
+    git(f.repo, "commit", "-m", "feat(test): complete declared same-host route")
+    expect(ctl(
+      runs, "complete-fallback", "--run-id", "run-local-second", "--unit-id", "U",
+      "--accepted-head", git(f.repo, "rev-parse", "HEAD"),
+      "--evidence-digest", "c".repeat(64), "--summary", "native checks passed",
+    ).word).toBe("FALLBACK_COMPLETED")
+  })
+
+  test("advances a preferred identity mismatch only after quarantining and abandoning its transport", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`routing:
+  profiles:
+    ordered:
+      candidates:
+        - { harness: codex, model: gpt-5-mini, effort: low }
+        - { harness: claude, model: sonnet }
+  classes:
+    implementation: { profile: ordered, policy: prefer }
+`)
+    expect(initWithRouting(runs, "run-mismatch", f, home).word).toBe("READY")
+    expect(lockRoutingAttempt(runs, "run-mismatch", "U", "attempt-1", 0, "codex").word).toBe("ATTEMPT_LOCKED")
+    const prepared = ctl(
+      runs, "prepare", "--run-id", "run-mismatch", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("mismatch packet"),
+    ).body
+    writeFileSync(path.join(prepared.workspace, "mismatch.txt"), "must remain isolated\n")
+    const job = fakeDoneJob(
+      runs, "run-mismatch", "U", "mismatch packet", "job-mismatch", "completed", ["mismatch.txt"],
+      {
+        model_actual: "gpt-5-mini",
+        model_receipt_status: "verified",
+        effort_actual: "high",
+        effort_receipt_status: "mismatch",
+      },
+    )
+    ctl(
+      runs, "record-job", "--run-id", "run-mismatch", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    const terminalized = ctl(runs, "terminalize", "--run-id", "run-mismatch", "--unit-id", "U")
+    expect(terminalized.word, terminalized.stderr).toBe("INTEGRATION_PENDING")
+
+    const blocked = ctl(
+      runs, "integrate", "--run-id", "run-mismatch", "--unit-id", "U",
+      "--commit-message", "feat(test): must remain quarantined", "--", "true",
+    )
+    expect(blocked.word).toBe("BLOCKED")
+    expect(blocked.body).toMatchObject({
+      policy: "prefer",
+      identity_status: "mismatched",
+      action: "next_candidate",
+      canonical_unchanged: true,
+    })
+    expect(existsSync(path.join(f.repo, "mismatch.txt"))).toBe(false)
+
+    const advanced = ctl(
+      runs, "claim-fallback", "--run-id", "run-mismatch", "--unit-id", "U",
+      "--caller-mode", "headless",
+    )
+    expect(advanced.word).toBe("NEXT_CANDIDATE")
+    expect(advanced.body.next_candidate).toMatchObject({ ordinal: 1, harness: "claude", model: "sonnet" })
+    expect(ctl(
+      runs, "cleanup", "--run-id", "run-mismatch", "--unit-id", "U",
+      "--abandon", "--expect-transport", terminalized.body.transport.commit,
+    ).word).toBe("CLEANED")
+    expect(lockRoutingAttempt(runs, "run-mismatch", "U", "attempt-2", 1, "claude").word).toBe("ATTEMPT_LOCKED")
+  })
+
+  test("rejects forged terminal evidence and independently denies an unsanctioned recipient", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`routing:
+  profiles:
+    strict:
+      candidates:
+        - { harness: codex, model: gpt-5-mini }
+  classes:
+    implementation: { profile: strict, policy: require }
+`)
+    expect(initWithRouting(runs, "run-forged-receipt", f, home).word).toBe("READY")
+    expect(lockRoutingAttempt(
+      runs, "run-forged-receipt", "denied", "attempt-1", 0, "codex", ["cursor"],
+    ).word).toBe("REFUSED")
+    expect(ctl(runs, "status", "--run-id", "run-forged-receipt").body.units).toEqual({})
+
+    expect(lockRoutingAttempt(runs, "run-forged-receipt", "U", "attempt-1", 0, "codex").word).toBe("ATTEMPT_LOCKED")
+    const prepared = ctl(
+      runs, "prepare", "--run-id", "run-forged-receipt", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("forged receipt packet"),
+    ).body
+    writeFileSync(path.join(prepared.workspace, "forged.txt"), "quarantined\n")
+    const job = fakeDoneJob(
+      runs, "run-forged-receipt", "U", "forged receipt packet", "job-forged", "completed", ["forged.txt"],
+      { model_actual: "gpt-5-mini", model_receipt_status: "verified" },
+    )
+    ctl(
+      runs, "record-job", "--run-id", "run-forged-receipt", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    ctl(runs, "terminalize", "--run-id", "run-forged-receipt", "--unit-id", "U")
+    const resultPath = path.join(prepared.result_dir, "implementation-result.json")
+    const forged = JSON.parse(readFileSync(resultPath, "utf8"))
+    forged.model_actual = "gpt-forged"
+    writeFileSync(resultPath, `${JSON.stringify(forged)}\n`, { mode: 0o600 })
+
+    const beforeHead = git(f.repo, "rev-parse", "HEAD")
+    expect(ctl(
+      runs, "integrate", "--run-id", "run-forged-receipt", "--unit-id", "U",
+      "--commit-message", "feat(test): forged result", "--", "true",
+    ).word).toBe("BLOCKED")
+    expect(git(f.repo, "rev-parse", "HEAD")).toBe(beforeHead)
+    expect(git(f.repo, "status", "--porcelain")).toBe("")
+  })
+
+  test("require blocks native fallback non-interactively for every caller mode", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
     initWithBinding(runs, "run-require", f, "require")
@@ -4248,30 +4884,13 @@ describe("ce-work unit workspace controller", () => {
     ctl(runs, "resume", "--run-id", "run-require")
 
     expect(ctl(runs, "claim-fallback", "--run-id", "run-require", "--unit-id", "U", "--caller-mode", "headless").word).toBe("BLOCKED")
-    expect(ctl(runs, "claim-fallback", "--run-id", "run-require", "--unit-id", "U", "--caller-mode", "interactive").word).toBe("CHOICE_REQUIRED")
-    const confirmed = ctl(runs, "claim-fallback", "--run-id", "run-require", "--unit-id", "U", "--caller-mode", "interactive", "--confirm-native")
-    expect(confirmed.word).toBe("FALLBACK_AUTHORIZED")
-    expect(confirmed.body.start_native).toBe(true)
-    expect(confirmed.body.claim).toMatchObject({
-      mode: "require",
-      caller_mode: "interactive",
-      confirmed_native: true,
-    })
-    writeFileSync(path.join(f.repo, "required-native.txt"), "accepted native implementation\n")
-    git(f.repo, "add", "required-native.txt")
-    git(f.repo, "commit", "-m", "required native implementation")
-    const nativeHead = git(f.repo, "rev-parse", "HEAD")
+    expect(ctl(runs, "claim-fallback", "--run-id", "run-require", "--unit-id", "U", "--caller-mode", "interactive").word).toBe("BLOCKED")
     expect(ctl(
-      runs, "complete-fallback", "--run-id", "run-require", "--unit-id", "U",
-      "--accepted-head", nativeHead, "--evidence-digest", "b".repeat(64), "--summary", "native checks passed",
-    ).word).toBe("FALLBACK_COMPLETED")
-    expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).body.run_id).toBe("run-require")
-    expect(ctl(
-      runs, "verify-run", "--run-id", "run-require",
-      "--verification-summary", "required fallback plan gate passed",
-      "--", "python3", "-c", "raise SystemExit(0)",
-    ).word).toBe("RUN_VERIFIED")
-    expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("NOT_FOUND")
+      runs, "claim-fallback", "--run-id", "run-require", "--unit-id", "U",
+      "--caller-mode", "interactive", "--confirm-native",
+    ).word).toBe("BLOCKED")
+    expect(git(f.repo, "rev-parse", "HEAD")).toBe(f.base)
+    expect(git(f.repo, "status", "--porcelain")).toBe("")
   })
 
   test("refuses ambiguous job adoption and preserves output on canonical divergence", () => {

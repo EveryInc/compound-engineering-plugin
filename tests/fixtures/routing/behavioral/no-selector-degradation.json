@@ -1,0 +1,29 @@
+{
+  "schema": "ce-routing-behavioral-fixture/v1",
+  "id": "no-selector-degradation",
+  "owning_skill": "ce-work",
+  "purpose": "A host without a per-dispatch selector follows declared preference policy without encoding routing in the prompt.",
+  "input": {
+    "user_prompt": "Implement the small ready plan using the normal CE Work workflow.",
+    "global_config_yaml": "routing:\n  profiles:\n    preferred-author:\n      candidates:\n        - { harness: pi, model: unavailable-selector-model }\n        - ce-default\n  classes:\n    implementation: { profile: preferred-author, policy: prefer }\n",
+    "project_config_yaml": null,
+    "host": {
+      "name": "pi",
+      "capabilities": ["generic-subagents"],
+      "missing_capabilities": ["per-dispatch-model-selector", "served-model-receipt"]
+    },
+    "repository_state": ["clean feature branch", "small implementation-ready plan"]
+  },
+  "expected_invariants": [
+    "The configured model candidate is reported unavailable because the adapter lacks a supported selector.",
+    "The explicit final ce-default candidate restores the exact built-in dispatch path without a question.",
+    "The worker prompt, tools, permission mode, workspace posture, and top-level session model remain unchanged.",
+    "The receipt records the unavailable candidate, reason, explicit reset path, and built-in result."
+  ],
+  "forbidden_outcomes": [
+    "Adding model instructions to the worker prompt.",
+    "Replacing the generic worker with a typed persona to approximate the requested model.",
+    "Claiming the preferred model ran without serving evidence.",
+    "Falling back when ce-default is absent from a generalized preferred profile."
+  ]
+}

@@ -71,6 +71,38 @@ Cursor-default counts automatically only when its serving family can be
 attested as different from the host; it remains eligible when explicitly named
 or configured as a preference.
 
+### Freeze execution routing after participation is fixed
+
+Routing executes the selected peer persona; it never summons the panel, changes
+the count, replaces a named peer, changes `independent` versus `skeptic`, or
+alters the round cap. Once the branch above fixes participants, and before any
+payload or prompt is assembled:
+
+1. Run the co-located resolver's `inspect` operation once. Read legacy
+   `cross_model_peer` only from `settings.effective` and its provenance; never
+   reopen or parse project/global settings at this seam. Normalize a named or
+   conversational peer as current-task route intent and a non-null merged value
+   as private `legacy` route intent.
+2. Issue one `ce-routing/v1` `resolve_batch` with one instance of stable role
+   `ce-pov.panel-peer` per already-selected peer. Use the grounding snapshot as
+   `parent_snapshot_id` when present; otherwise freeze this first snapshot.
+   Retain its source revisions, bindings, ordered candidates, and participant
+   association for every initial and reconcile round.
+3. Current-task exact names win. Otherwise explicit generalized task/role
+   bindings or `ce-default` resets win. A project legacy intent outranks
+   project/global class defaults; a global legacy intent outranks a global class
+   default; narrower generalized role or project-class bindings remain higher.
+   Legacy preference synthesizes policy `prefer`: that target, the remaining
+   shipped discovery order, then solo CE-default. With no routing or legacy
+   preference, preserve the prior participant and route behavior byte-for-byte.
+
+For a named peer, a profile candidate is eligible only when it preserves that
+exact target; an incompatible candidate is unavailable rather than a
+replacement. For auto-selected peers, generalized candidates may supply the
+execution targets for the already-fixed slots. `ce-default` uses the old route
+discovery and editorial model mapping. The same frozen snapshot is reused on
+recovery and reconciliation; live configuration is never reread mid-panel.
+
 **Prior-opinion subjects.** When the subject is an already-formed position —
 ce-pov's own prior POV or the user's stated view — that position is the subject
 artifact and ships in the payload; peers answer the underlying question with
@@ -115,22 +147,34 @@ do not reconstruct the scratch root in this reference. Create each payload under
 `umask 077`, then `chmod 600 "$PAYLOAD_PATH"` before dispatch; do not rely on
 the ambient umask or a mode flag alone.
 
-## 3. Resolve and announce one fixed route
+## 3. Qualify and announce one fixed route per selected peer
 
 Routing is adaptable only inside hard boundaries. The requested target plus
 safety, authority, independence, read scope, and egress rules are durable;
-concrete model IDs, CLI flags, and availability are adapter defaults.
+concrete model IDs, CLI flags, and availability are adapter defaults. Qualify
+each peer's frozen candidates in declared order. Freeze `resolve_batch` before adapter
+qualification or material egress. Candidate `harness`, `route`, `model`,
+and `effort` are data interpreted only by the bundled adapter; never put
+selectors in payload text or shell-evaluate them.
+
+Map Codex to `codex`, Claude to `claude`, native Grok to `grok-cli`, separately
+sanctioned Grok-via-Cursor to `grok-cursor`, Cursor without a model to `cursor`,
+Composer or a Composer-family Cursor model to `composer`, and another explicit
+safe Cursor model to `cursor --model`. Unsupported harnesses or effort selectors,
+unsafe tokens, unavailable CLIs, same-family automatic peers, and missing host
+selectors are unavailable.
 
 For each peer:
 
 1. Probe current route and model capabilities without giving the process project
    content or repository access.
-2. Try the declared preferred mapping first.
-3. If that default is observed unavailable, obsolete, or incompatible, choose
+2. Try the frozen candidate's declared preferred mapping first; CE-default uses
+   the prior editorial mapping.
+3. If an adapter-owned default is observed unavailable, obsolete, or incompatible, choose
    only the closest compatible equivalent in the same requested target, model
    family, and reasoning tier. Record the observed local fact and substitute.
-   An explicit user model request cannot become another model.
-4. Resolve one concrete target, model choice, harness route, provider, and every
+   An explicit candidate or user model request cannot become another model.
+4. Resolve one concrete target, model choice, effort, harness route, provider, and every
    intermediary. Confirm every actual recipient is in the egress allowlist.
 5. Announce the selected target and route in ordinary language before dispatch.
 
@@ -140,14 +184,19 @@ and do not call a route usable until it returns a valid artifact. Classify a
 failed run from its structured diagnostics rather than guessing from a generic
 terminal state.
 
-The dispatched worker runs only the fixed route. It must return failure to the
-host rather than automatically hopping to another provider or intermediary. If
-a retry would add an unexpected recipient or intermediary, resolve it at the
-host, explain the change, and ask before starting a new fixed-route job. An
-active user, project, or organization instruction that separately gates external
-consultation also requires approval. Otherwise the explicit peer, cross-check,
-or `oracle` invocation is the authority to proceed. A named peer that cannot run
-within these rules is reported, never silently replaced or dropped.
+Before dispatch, independently sanction the target, intermediary, exact
+repository/material scope, and a credential-minimized environment. A profile is
+not egress authority. The dispatched worker runs only the fixed route and must
+return failure to the host rather than hopping providers. An unavailable `require` candidate
+blocks that panel voice without prompting or substitution; the panel's ordinary
+partial/solo degradation still owns the overall POV. An unavailable `prefer`
+candidate may advance before dispatch. Once work starts, the recipient is fixed.
+A preferred candidate may advance only after a terminal unintegrated attempt and
+fresh recipient, intermediary, material, and environment sanction. If a retry
+would add an unexpected recipient or intermediary, ask before dispatch unless an
+active higher-authority instruction already supplies that approval. Never switch
+an in-flight recipient or consume discarded output. A named peer that
+cannot run within these rules is reported, never silently replaced or dropped.
 
 The pre-dispatch update should say who will inspect the subject and that the
 review is read-only. Do not recite scope mechanics, promise that repository
@@ -198,12 +247,16 @@ partial-panel degradation rule.
 Use `scripts/cross-model-pov.sh` from this skill's directory to run one resolved
 fixed route per peer, and `scripts/peer-job-runner.py` for detached lifecycle
 control. Follow the worker's current usage rather than reconstructing provider
-arguments. Pass the fixed target/route, any host-resolved same-family model
-override, the canonical scope and identity, payload path, and round output
-directory. Pass the actual repository root separately from any narrower read
-root, and pre-create the round output directory as private scratch outside the
-repository. For named peers, start one job per exact target; for a selected panel,
-start one job per selected peer. Start all jobs before waiting.
+arguments. Pass the fixed target/route, any eligible host-resolved same-family
+default-model override, the canonical scope and identity, payload path, and round
+output directory. Also pass the frozen candidate as
+`CE_ROUTING_CANDIDATE_HARNESS`, `CE_ROUTING_CANDIDATE_ROUTE`, optional
+`CE_ROUTING_CANDIDATE_MODEL`, and optional `CE_ROUTING_CANDIDATE_EFFORT`; the
+script validates route compatibility and token safety before invoking the CLI.
+Pass the actual repository root separately from any narrower read root, and
+pre-create the round output directory as private scratch outside the repository.
+For named peers, start one job per exact target; for a selected panel, start one
+job per selected peer. Start all jobs before waiting.
 
 Each worker writes `<run-dir>/pov-<target>.json`, where `<target>` is the resolved
 route target with `grok-cli`/`grok-cursor` collapsing to `grok`. Pass exactly that
@@ -230,10 +283,28 @@ interface. Accept only schema-shaped artifacts with non-empty `position` and
 responses require `movement: initial`; reconcile responses require `moved` or
 `held` plus what changed or why the new evidence was insufficient.
 
-Attribute from the receipt, never expectation. Record target, actual
+Keep every usable artifact quarantined and call `finalize_attempt` with its
+frozen binding and `{ordinal, terminal:true, integrated:false}` before consuming
+the position. Normalize evidence for the resolver: matched family evidence uses
+the candidate's requested model token while retaining the raw served ID in the
+adapter record; literal `unverified` omits the corresponding actual field; known
+mismatch passes the actual value. Do the same for effort. `accept` admits the
+voice. A successful preferred attempt with absent identity evidence records
+`accepted_unverified`. `next_candidate` is legal only for a known mismatch while
+retry-safe: discard/delete the old artifact, freshly sanction and disclose the
+next declared recipient/material, and launch a new job. `block` discards output
+and records the required route failure without prompting. Required unavailable,
+mismatched, or unverified requested model/effort never enters convergence.
+
+Expose the redacted `finalize_attempt` receipt in the panel record: role/class,
+profile/source, policy, requested selectors, actual or unverified identity,
+attempts, fallback reason, and terminal status. Omit payloads, paths, credential
+values, raw provider output, and private snapshot data. Attribute from the
+receipt, never expectation. Record target, actual
 harness/intermediary route, requested model, served model, and
 `independence_verified` separately. A served model of `unverified` remains
-unverified. If a job yields no usable artifact, use bounded `peer skip evidence`
+unverified. Serving identity and independence are separate: neither proves the
+other. If a job yields no usable artifact, use bounded `peer skip evidence`
 from its log to state an observed quota, authentication, or route failure; never
 invent a cause. An authentication-shaped peer failure (`not logged in`, `please
 log in`, 401, or CLI text prompting login) describes only the peer's execution
@@ -267,7 +338,8 @@ For each reconcile exchange:
    surviving peer—never route-specific truncation—along with the full original
    subject and every surviving voice's current position and reasoning, capped at
    five succinct source-attributed evidence bullets per voice.
-5. Re-resolve every fixed route under Section 3, then dispatch a fresh stateless
+5. Re-qualify each fixed route from its frozen candidate list under Section 3,
+   without rerunning `inspect` or `resolve_batch`, then dispatch a fresh stateless
    round. The same recipients need no question; an unexpected new recipient or
    intermediary does. A failed peer is dropped for later rounds; do not reuse its
    older position as if it participated.
@@ -339,7 +411,12 @@ skeptic degrades like any unavailable peer.
 
 A peer never blocks a POV. Mid-round failure drops only that voice; an
 oversized canonical payload drops routes that cannot accept the identical
-payload; no surviving peer yields the solo POV plus the availability note.
+payload; no surviving peer yields the solo POV plus the availability note. For
+a frozen binding, an unavailable or failed preferred candidate may advance only
+under Section 3's terminal-unintegrated and fresh-sanction gates. A required
+candidate failure blocks that voice without prompting or substitution and is
+reported in the partial/solo panel note; it does not convert the read-only POV
+itself into a mutation or an unrelated workflow blocker.
 
 Distinguish a route-level failure from a dispatch-infrastructure failure. A
 route that runs and returns no usable artifact is dropped as above. But if the

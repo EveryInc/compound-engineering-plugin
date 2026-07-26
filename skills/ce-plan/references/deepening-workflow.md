@@ -97,7 +97,7 @@ Strengthening [section names] — [brief reason for each, e.g., "decision ration
 
 For each selected section, choose the smallest useful agent set. Do **not** run every agent. Use at most **1-3 agents per section** and usually no more than **8 agents total**.
 
-The names below are skill-local prompt asset file stems under `references/agents/`, not standalone agent types. For each selected name, read `references/agents/<name>.md` and seed a generic subagent with that prompt content plus the section context described below. Do not use `subagent_type`, typed `Agent` names, or platform-level CE agent registration.
+The names below are skill-local prompt asset file stems under `references/agents/`, not standalone agent types. Select names here, but do not read `references/agents/<name>.md` until the routing gate in 5.3.6 resolves the exact wave. Do not use `subagent_type`, typed `Agent` names, or platform-level CE agent registration.
 
 **Deterministic Section-to-Agent Mapping:**
 
@@ -185,7 +185,9 @@ Refer to the echoed absolute path as `<scratch-dir>` throughout the rest of this
 
 ## 5.3.6 Run Targeted Research
 
-Launch the selected local prompt assets as generic subagents in parallel using the execution mode chosen above. If the current platform does not support parallel dispatch, run them sequentially instead. Omit the `mode` parameter when dispatching so the user's configured permission settings apply.
+**Routing batch: `ce-plan.deepening-research`.** Once section scoring and the section-to-agent mapping fix the exact section/role instances, and before any selected prompt asset is read or assembled, load `references/execution-routing.md` and resolve only the selected stable IDs from `ce-plan.repo-research-analyst`, `ce-plan.learnings-researcher`, `ce-plan.agent-native-planning-strategist`, `ce-plan.best-practices-researcher`, `ce-plan.framework-docs-researcher`, `ce-plan.web-researcher`, `ce-plan.spec-flow-analyzer`, `ce-plan.git-history-analyzer`, `ce-plan.architecture-strategist`, `ce-plan.pattern-recognition-specialist`, `ce-plan.performance-oracle`, `ce-plan.security-sentinel`, `ce-plan.data-integrity-guardian`, and `ce-plan.deployment-verification-agent` together in one `ce-routing/v1` `resolve_batch`, with one request entry per already-selected section/role instance. Pass the exact full first-wave `snapshot` object as the `parent_snapshot` envelope; include `parent_snapshot_id` only if it matches that envelope. Never use ID-only lineage or reread live routing sources, and reuse the frozen bindings on recovery. Routing cannot select a section or role, change direct versus artifact-backed mode, or alter parallel/sequential and failure semantics.
+<!-- ce-dispatch-site:ce-plan.deepening-research -->
+Read each selected local prompt asset, then launch the selected generic subagents in parallel using the execution mode chosen above. If the current platform does not support parallel dispatch, run them sequentially instead. Omit the `mode` parameter when dispatching so the user's configured permission settings apply.
 
 Prefer local repo and institutional evidence first. Use external research only when the gap cannot be closed responsibly from repo context or already-cited sources.
 

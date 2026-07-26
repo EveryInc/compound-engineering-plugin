@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import os
 import re
 import shutil
@@ -22,9 +23,9 @@ def cmd_status(args) -> tuple[str, dict]:
             unit = doc["units"].get(args.unit_id)
             if not unit:
                 raise Operational("REFUSED", "unknown unit")
-            body = {"run_id": args.run_id, "revision": doc["revision"], "source": source, "unit": unit, "integration_lock": doc.get("integration_lock"), "verifications": doc.get("verifications", []), "blockers": doc.get("blockers", [])}
+            body = {"run_id": args.run_id, "revision": doc["revision"], "source": source, "routing": doc.get("routing"), "unit": unit, "integration_lock": doc.get("integration_lock"), "verifications": doc.get("verifications", []), "blockers": doc.get("blockers", [])}
         else:
-            body = {"run_id": args.run_id, "revision": doc["revision"], "source": source, "units": doc["units"], "integration_lock": doc.get("integration_lock"), "verifications": doc.get("verifications", []), "blockers": doc.get("blockers", []), "recovery_path": run_dir(args.run_id)}
+            body = {"run_id": args.run_id, "revision": doc["revision"], "source": source, "routing": doc.get("routing"), "units": doc["units"], "integration_lock": doc.get("integration_lock"), "verifications": doc.get("verifications", []), "blockers": doc.get("blockers", []), "recovery_path": run_dir(args.run_id)}
     return "STATUS", body
 
 
@@ -534,9 +535,31 @@ def cmd_resume(args) -> tuple[str, dict]:
 
 
 def fallback_basis(doc: dict, unit: dict) -> tuple[str, dict]:
+    attempt = find_attempt(unit)
+    finalization = attempt.get("routing_finalization")
+    if isinstance(finalization, dict) and finalization.get("action") in {"block", "next_candidate"}:
+        if (
+            unit.get("state") != "integration-pending"
+            or attempt.get("process_state") != "done"
+            or not unit.get("transport", {}).get("commit")
+            or integration_effect_started(unit)
+        ):
+            raise Operational("BLOCKED", "routing finalization is not terminal and unintegrated")
+        routing = doc.get("routing")
+        if not isinstance(routing, dict):
+            raise TrustFailure("routing finalization has no frozen routing state")
+        lock = routing_attempt_lock(doc, unit["unit_id"], attempt.get("attempt_id"))
+        _result, result_digest = routing_result_evidence(unit, attempt, required=True)
+        if (
+            finalization.get("result_sha256") != result_digest
+            or finalization.get("attempt_lock_digest") != lock["lock_digest"]
+            or finalization.get("binding_digest") != routing["binding_digest"]
+        ):
+            raise Operational("BLOCKED", "routing finalization evidence changed before recipient advancement")
+        reason = attempt.get("fallback", {}).get("reason")
+        return str(reason or "serving identity mismatch"), attempt
     if unit.get("state") == "integration-pending" and unit.get("transport", {}).get("commit"):
         raise Operational("REFUSED", "pinned worker transport must be reconciled rather than bypassed by fallback")
-    attempt = find_attempt(unit)
     process_state = attempt.get("process_state")
     if process_state == "done" and attempt.get("terminal_validation_failure"):
         validate_terminal_validation_failure(doc["run_id"], unit, attempt)
@@ -607,6 +630,15 @@ def cmd_claim_fallback(args) -> tuple[str, dict]:
         fallback.setdefault("completed", None)
         claimed = fallback.get("claimed")
         if claimed:
+            if claimed.get("kind") == "next-candidate":
+                return "NEXT_CANDIDATE", {
+                    "unit_id": args.unit_id,
+                    "start_native": False,
+                    "reason": claimed["reason"],
+                    "next_candidate": claimed["next_candidate"],
+                    "claim": claimed,
+                    "resumed": True,
+                }
             return "FALLBACK_ALREADY_AUTHORIZED", {
                 "unit_id": args.unit_id,
                 "start_native": False,
@@ -625,22 +657,121 @@ def cmd_claim_fallback(args) -> tuple[str, dict]:
                 and not dependency_advanced_head(doc, unit, claim_snapshot["head"])
             ):
                 raise Operational("BLOCKED", "native fallback must start from the latest recorded wave head")
-        mode = doc.get("binding", {}).get("mode")
-        if mode == "require":
-            if args.caller_mode == "headless":
-                raise Operational("BLOCKED", "required external route terminated; headless callers cannot choose native fallback", {"unit_id": args.unit_id, "reason": reason})
-            if not args.confirm_native:
-                raise Operational("CHOICE_REQUIRED", "required external route terminated; ask whether to continue natively", {"unit_id": args.unit_id, "reason": reason})
-        elif mode != "prefer":
+        routing = doc.get("routing")
+        if isinstance(routing, dict):
+            binding = routing.get("binding")
+            if not isinstance(binding, dict) or binding.get("kind") != "profile":
+                raise Operational("REFUSED", "frozen routing binding does not authorize fallback")
+            mode = binding.get("policy")
+            lock = routing_attempt_lock(doc, args.unit_id, attempt.get("attempt_id"))
+            if integration_effect_started(unit):
+                raise Operational(
+                    "BLOCKED",
+                    "recipient advancement is forbidden after cherry-pick or another integrated effect",
+                    {"unit_id": args.unit_id, "reason": reason, "canonical_unchanged": False},
+                )
+            if mode == "require":
+                detail = {
+                    "unit_id": args.unit_id,
+                    "reason": reason,
+                    "policy": "require",
+                    "profile": binding.get("profile"),
+                    "snapshot_id": routing.get("snapshot_id"),
+                    "canonical_unchanged": claim_snapshot.get("status_empty") is True,
+                    "recovery_path": unit.get("recovery_path"),
+                }
+                raise Operational(
+                    "BLOCKED",
+                    "required implementation route terminated; native weakening is not authorized",
+                    detail,
+                )
+            if mode != "prefer":
+                raise Operational("REFUSED", f"binding policy {mode!r} does not authorize recipient advancement")
+            candidates = binding.get("candidates")
+            next_ordinal = lock["candidate_ordinal"] + 1
+            if not isinstance(candidates, list) or next_ordinal >= len(candidates):
+                raise Operational(
+                    "BLOCKED",
+                    "preferred implementation route exhausted its declared candidates; no undeclared native fallback is authorized",
+                    {
+                        "unit_id": args.unit_id,
+                        "reason": reason,
+                        "profile": binding.get("profile"),
+                        "snapshot_id": routing.get("snapshot_id"),
+                        "canonical_unchanged": claim_snapshot.get("status_empty") is True,
+                    },
+                )
+            next_candidate = candidates[next_ordinal]
+            if not isinstance(next_candidate, dict):
+                raise TrustFailure("next frozen routing candidate is malformed")
+            finalization = attempt.get("routing_finalization")
+            if (
+                isinstance(finalization, dict)
+                and finalization.get("action") == "next_candidate"
+                and finalization.get("next_candidate") != next_candidate
+            ):
+                raise TrustFailure("routing finalization next candidate differs from the frozen binding")
+            same_host_native = candidate_is_same_host_default(next_candidate, routing.get("host"))
+            if next_candidate.get("kind") != "ce-default" and not same_host_native:
+                claim = {
+                    "at": now_iso(),
+                    "kind": "next-candidate",
+                    "reason": reason,
+                    "caller_mode": args.caller_mode,
+                    "mode": mode,
+                    "confirmed_native": False,
+                    "canonical_head": claim_snapshot["head"],
+                    "candidate_ordinal": next_ordinal,
+                    "next_candidate": copy.deepcopy(next_candidate),
+                    "prior_attempt_lock_digest": lock["lock_digest"],
+                }
+                fallback.update({"eligible": False, "reason": reason, "claimed": claim})
+                event(doc, "routing-next-candidate", args.unit_id, {
+                    "reason": reason,
+                    "candidate_ordinal": next_ordinal,
+                })
+                return "NEXT_CANDIDATE", {
+                    "unit_id": args.unit_id,
+                    "start_native": False,
+                    "reason": reason,
+                    "next_candidate": next_candidate,
+                    "claim": claim,
+                    "resumed": False,
+                }
+            claim_kind = "same-host-native" if same_host_native and next_candidate.get("kind") != "ce-default" else "native"
+            native_candidate = copy.deepcopy(next_candidate)
+        else:
+            mode = doc.get("binding", {}).get("mode")
+            if mode == "require":
+                raise Operational(
+                    "BLOCKED",
+                    "required implementation route terminated; native weakening is not authorized",
+                    {
+                        "unit_id": args.unit_id,
+                        "reason": reason,
+                        "policy": "require",
+                        "canonical_unchanged": claim_snapshot.get("status_empty") is True,
+                        "recovery_path": unit.get("recovery_path"),
+                    },
+                )
+            if mode != "prefer":
+                raise Operational("REFUSED", f"binding mode {mode!r} does not authorize native fallback")
+            claim_kind = "legacy-native"
+            native_candidate = None
+        if mode != "prefer":
             raise Operational("REFUSED", f"binding mode {mode!r} does not authorize native fallback")
         claim = {
             "at": now_iso(),
+            "kind": claim_kind,
             "reason": reason,
             "caller_mode": args.caller_mode,
             "mode": mode,
-            "confirmed_native": bool(args.confirm_native),
+            "confirmed_native": False,
             "canonical_head": claim_snapshot["head"],
         }
+        if native_candidate is not None:
+            claim["candidate_ordinal"] = native_candidate.get("ordinal")
+            claim["next_candidate"] = native_candidate
         fallback.update({"eligible": False, "reason": reason, "claimed": claim})
         event(doc, "native-fallback-authorized", args.unit_id, {"reason": reason, "mode": mode, "caller_mode": args.caller_mode})
         return "FALLBACK_AUTHORIZED", {"unit_id": args.unit_id, "start_native": True, "reason": reason, "claim": claim}

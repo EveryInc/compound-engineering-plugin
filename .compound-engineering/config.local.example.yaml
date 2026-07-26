@@ -108,6 +108,26 @@
 #     model: "gpt-5.6"
 #   - harness: claude             # configured default model
 
+# --- Generalized execution routing ---
+# Profiles are reusable ordered execution candidates. CE owns role/class
+# membership; configuration selects execution only and never changes prompts,
+# tools, permissions, persona selection, or mutation authority. Bindings accept
+# `inherit`, `ce-default`, or a profile plus `prefer`/`require` policy.
+#
+# routing:
+#   profiles:
+#     economy:
+#       candidates:
+#         - { harness: codex, model: "gpt-5-mini", effort: low }
+#     strong:
+#       candidates:
+#         - { harness: claude, model: opus, effort: high }
+#   classes:
+#     implementation: { profile: economy, policy: prefer }
+#     review: { profile: strong, policy: require }
+#   roles:
+#     ce-code-review.security-reviewer: ce-default
+
 # --- ce-promote ---
 # Written automatically when you decline the Spiral setup offer in /ce-promote.
 # Suppresses that one-time setup nudge in this project. Remove the key to re-enable.

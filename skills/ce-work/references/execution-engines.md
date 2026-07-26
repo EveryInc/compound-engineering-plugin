@@ -1,29 +1,33 @@
 # Execution Engines
 
-`ce-work` has four implementation engines: inline/subagent, goal-mode, dynamic-workflow, and cross-model execution. The engine decides *how* implementation runs; it never changes *who* owns the shipping tail (see "Tail ownership" below). Native inline/subagent execution is dormant-by-default compatibility: it remains selected unless applicable live intent, a caller binding, or an enabled standing preference selects the fourth engine.
+`ce-work` has four implementation engines: inline/subagent, goal-mode, dynamic-workflow, and cross-model execution. The engine decides *how* implementation runs; it never changes *who* owns the shipping tail (see "Tail ownership" below). Every implementation path consumes one frozen `ce-work.implementation-worker` binding before an implementation write. With no routing intent or settings, that binding is CE-default and preserves the v3.20.0 engine behavior exactly.
 
 Engine selection applies only to code execution. Knowledge-work keeps its carve-out. Legacy plans and bare code prompts may select cross-model execution, but otherwise retain the inline/subagent flow in `SKILL.md`; goal-mode and dynamic-workflow selection remains specific to implementation-ready unified plans.
 
-Invocation origin supplies no routing authority and may not be detectable. Resolve the same inputs whether `ce-work` was explicitly invoked or selected by the host: current-task intent, still-active session intent, typed caller binding, active project instructions, enabled checkout configuration, then native execution.
+Invocation origin supplies no routing authority and may not be detectable. Resolve the same inputs whether `ce-work` was explicitly invoked or selected by the host: current-task intent, still-active session intent, provenance-bearing caller data, active project instructions, merged project/global settings, then built-in behavior.
 
-## Resolve cross-model routing before the capability probe
+## Freeze implementation routing before the capability probe
 
-Resolve one implementation binding from applicable authority and scope; do not reduce routing to keyword matching or a closed state machine. Obey the host's instruction hierarchy first. Within the same authority, prefer narrower and more current intent, using these sources:
+You may read the plan and active-unit metadata needed to materialize the existing implementation wave. Before assembling a unit packet, creating a worktree, dispatching a native worker, testing, or changing the canonical checkout, normalize applicable live/session/caller/project-instruction intent into at most one current-task implementation intent. Obey the host instruction hierarchy; lower authority may fill an unset field but cannot change a recipient, policy, restriction, or source chosen above it. Within equal authority, narrower and more current intent wins:
 
 1. an explicit assignment or constraint in the current task;
 2. a still-active session preference or constraint;
 3. a typed caller binding at its recorded provenance (for example, an LFG current-task assignment retains current-task authority at the `ce-work` seam);
 4. the project's active instructions and conventions already in context;
-5. enabled per-checkout configuration; then
-6. native execution.
+5. merged project/global settings; then
+6. CE built-in behavior.
 
 Lower sources may fill an unspecified detail but cannot contradict or broaden a higher source. Incidental mentions in feature prose, quoted material, examples, comparisons, filenames, or discussion do not activate routing. If two applicable instructions of equal authority genuinely conflict on recipient or egress, surface the conflict instead of guessing.
 
-A live request such as "use Codex" is preference-strength by default. Interpret unambiguous strict intent such as "must use Codex" or "only use Codex" as requirement-strength; intent is the contract, not any single keyword. The resolved mode is `prefer` or `require`.
+A live request such as "use Codex" is preference-strength by default. Interpret unambiguous strict intent such as "must use Codex" or "only use Codex" as requirement-strength; intent is the contract, not any single keyword. Convert the winner to data-only ordered candidates plus `prefer` or `require`; do not place routing prose in the worker packet.
 
-Live or contextual intent may name one route or an ordered fallback list (for example, "prefer Cursor with Grok, then Codex"). Preserve that order and normalize each harness/model candidate with the same rules as standing configuration. A typed caller binding remains a single already-selected candidate; do not widen its exact four-field grammar into a list.
+Live or contextual intent may name one route or an ordered fallback list (for example, "prefer Cursor with Grok, then Codex"). Preserve that order. A typed caller binding remains a single candidate; do not widen its exact four-field grammar into a list.
 
-For example, current-task strict Composer resolves to Composer with `require` even when a caller Codex binding and config Cursor preference are both present. Without that task instruction, a caller Codex binding sourced from the current LFG task keeps that provenance. Without applicable live or caller intent, the ordered config candidates apply only when standing mode is enabled.
+For example, current-task strict Composer resolves to Composer with `require` even when a caller Codex binding and config Cursor preference are both present. Without that task instruction, a caller Codex binding sourced from the current LFG task keeps that provenance. Conflicting equal-authority recipients block before invocation; incidental model text remains inert.
+
+Build one private `ce-routing/v1` `resolve_batch` request for role `ce-work.implementation-worker`, with one entry per selected implementation instance, the current harness/serving family, runtime instance metadata, the normalized task intent, and a parent snapshot only when inheriting one. A direct candidate assignment that cannot name a configured profile travels in the request's CE Work-only `implementation_intent` control field with exactly `source`, `policy`, and `candidates`; do not also send another applicable task intent. The controller removes that extension before calling the co-located resolver and freezes it above config output. From this skill's directory, set `SKILL_DIR` to the loaded skill path and invoke `python3 -I -S "$SKILL_DIR/scripts/unit-workspace.py" resolve-routing --repo <canonical-checkout> --routing-request <private-request>` in the same shell call. The read-only gate returns one adapter-normalized binding without creating run state.
+
+The result freezes the resolver snapshot, source revisions, final binding, and binding digest. Reuse it for native waves. If an external adapter is selected, pass the same private request to controller `init`; its returned persisted snapshot is authoritative and must match the pre-write decision. Recovery uses that stored snapshot and recipient even when live config changes; never resolve a replacement route on resume.
 
 ### Typed caller binding
 
@@ -36,6 +40,8 @@ An automatic caller may pass an `implementation_engine` object with exactly thes
 
 Accept this carrier only at the `ce-work` seam, beside `mode:return-to-caller`; its fields never enter planning or review input. On string-only skill hosts the initial envelope is `mode:return-to-caller implementation_engine:<compact-json> <plan-path>`, where `<compact-json>` is that exact four-field object with no formatting whitespace (for example `implementation_engine:{"mode":"prefer","target":"codex","model":null,"source":"lfg-current-turn"}`). The original no-carrier form stays `mode:return-to-caller <plan-path>`. Once resolved, preserve the binding and source in the durable run receipt. Downstream consumers and workers may narrow its authority or restrictions but never broaden them.
 
+Normalize the carrier to one `implementation_intent` candidate before `resolve_batch`: `mode` becomes policy, `target` maps to its harness/route family, `model` remains data, and `source` remains provenance. The four-field compatibility object is never the controller's final routing authority.
+
 Return-to-caller recovery may add a separate `implementation_run:<safe-id>` carrier after the optional engine carrier and before the unchanged plan path. It is not an `implementation_engine` field and is accepted only for recovery. A safe id matches `^[A-Za-z0-9._-]{1,128}$` and contains at least one non-period character. Carrierless recovery is `mode:return-to-caller implementation_run:run-123 <plan-path>`; engine-bound recovery is `mode:return-to-caller implementation_engine:<compact-json> implementation_run:run-123 <plan-path>`. Reject malformed or duplicate carriers instead of treating them as plan text. The run id selects durable state; it never authorizes a fresh dispatch or a different route.
 
 ### Target and identity vocabulary
@@ -46,7 +52,7 @@ When the target resolves to the current host's default execution route and no di
 
 ### Per-checkout configuration
 
-Standing configuration uses one mode plus an ordered route list:
+Generalized `routing.roles.ce-work.implementation-worker` or the `implementation` class supplies normal project/global candidates. The shipped narrow settings remain compatibility inputs from the same merged effective settings response:
 
 ```yaml
 work_engine_mode: prefer
@@ -63,13 +69,15 @@ work_engine_preferences:
 - `harness`: `codex | claude | grok | cursor`
 - optional `model`: a model id or family understood by that harness; omission means its configured default
 
-Do not put CLI commands or flags in configuration. The list expresses implementation intent; the skill's adapter recipes and local inspection determine how to invoke it. Composer is therefore `{ harness: cursor, model: composer }`, while `{ harness: cursor }` means Cursor's configured default.
+Do not parse these files separately. When enabled, the adapter normalizes the merged effective `work_engine_mode` and `work_engine_preferences` into the same binding shape. A role route wins over the legacy setting at one layer; the legacy CE Work-specific setting wins over that layer's broader implementation class route. Project beats global. `ce-default` reset always stops inheritance. Legacy `prefer` appends its shipped built-in fallback explicitly; legacy `require` has no native weakening path.
+
+Do not put CLI commands or flags in configuration. Composer remains `{ harness: cursor, model: composer }`, while `{ harness: cursor }` means Cursor's configured default.
 
 Normalize a qualified candidate to the controller's fixed route: Codex -> `codex`, Claude -> `claude`, native Grok -> `grok-cli`, Cursor with no model -> `cursor`, a Composer-family Cursor model -> `composer`, a Grok-family Cursor model -> `grok-cursor`, and another explicit Cursor model -> `cursor` with that controller-authorized model selector. A model selector is data, never shell syntax; if it cannot be represented by the fixed adapter's safe model token, the candidate is unavailable.
 
-Traverse each ordered candidate during preflight. If a candidate is equivalent to the current host and its current/default model, continue to the next candidate rather than shelling out to self; an explicit different model in the same harness is still a distinct candidate. If a candidate is unavailable before egress, record why and continue to the next candidate. The first qualified candidate becomes the fixed recipient. After dispatch begins, the recipient is locked by the cross-model contract and list traversal stops.
+Traverse ordered `prefer` candidates during host-owned qualification. A candidate equivalent to the current host's default collapses to native execution rather than shelling out to self; an explicit different same-harness model remains distinct. Record every preflight-unavailable candidate in order. Before external egress, call controller `lock-attempt` with the selected ordinal and independently authorized recipient, intermediaries, exact material scope, restrictions, and credential-minimized environment. The lock is immutable for that unit attempt.
 
-`off` disables only the standing preference. It does not cancel applicable live intent or a typed caller binding. An enabled mode without a valid candidate list is unavailable rather than guessed. When the list is exhausted, `prefer` falls back natively with every attempted route and reason disclosed; `require` follows the interactive/headless blocker rule. Standing configuration supplies defaults, not permission to change recipient or broaden authority.
+`off` disables only the legacy standing preference. It does not cancel live intent, a caller binding, or generalized routing. An enabled mode without a valid list is unavailable rather than guessed. A generalized `prefer` route uses only declared candidates; built-in fallback requires an explicit final `ce-default` (the compatibility adapter adds it for legacy `prefer`), while a declared same-host default candidate collapses to native as that candidate. `require` never prompts or accepts confirmation to weaken the route: unavailable, mismatched, or unverified required execution returns an actionable blocker and leaves canonical state unchanged.
 
 ## Step 1: Probe host capability
 

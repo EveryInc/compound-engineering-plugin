@@ -62,7 +62,16 @@ Do not proceed until you have a feature description from the user.
 
 Determine `OUTPUT_FORMAT` before any other phase fires. Output mode is **exclusive** — the requirements-only unified plan is written as either markdown (`.md`) OR HTML (`.html`), never both. Precedence: in-prompt request > user-stated preference > config > default (`md`), with a hard pipeline-mode override.
 
-**Read config.** Resolve `<repo-root>` at runtime by running `git rev-parse --show-toplevel` with the shell tool. Then read `<repo-root>/.compound-engineering/config.local.yaml` with the native file-read tool. If the root cannot be resolved (not a git repo) or the file does not exist, fall through to the defaults below.
+Resolve `<repo-root>` with `git rev-parse --show-toplevel` when available for later workflow paths; do not use it to read settings.
+
+**Load effective settings.** Read `references/execution-routing.md`, construct a `ce-routing/v1` `inspect` request whose `cwd` is the absolute current working directory, and write it to an effective-user-private temporary file. From this skill's directory, invoke the co-located resolver (the assignment and command stay in one shell call):
+
+```bash
+SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
+python3 -I -S "$SKILL_DIR/scripts/ce-routing.py" --request-file <private-request-path>
+```
+
+Use only the response's `settings.effective` values and matching `settings.provenance`; do not read or parse either config source directly. This supplies merged global/project values even outside a repository, while provenance identifies whether each value is built in, global, or project-local. A resolver diagnostic is a configuration blocker, not permission to fall back to raw parsing.
 
 Resolution steps:
 
@@ -70,7 +79,7 @@ Resolution steps:
    - `output:` alone (no value) → no-op, fall through to step 2.
    - `output:<unknown>` (e.g., `output:pdf`) → drop the token, fall through to step 2, and remember to emit a one-line note above the post-generation menu after final resolution: `Ignored unknown output: value '<value>' — using <resolved_format> instead.` where `<resolved_format>` is the value `OUTPUT_FORMAT` actually resolved to after the remaining precedence steps. Do not hardcode `md` in the note — that misleads users when config has set HTML.
 2. **User-stated preference.** If this prompt holds no format request, honor an output-format preference (markdown vs HTML) the user established earlier — earlier in this session, in your memory, or written into their active instructions — that is already in your context (match `md`/`html` case-insensitively). A remembered preference is more current than the rarely-edited config, so it **overrides** the config in step 3. Do not open or search instruction files to find it — act only on a preference already present in your context; if none is, fall through to the config.
-3. **Config.** If steps 1-2 did not resolve and the config file read above has an **active (non-commented)** `brainstorm_output:` key whose value matches `md` or `html` (case-insensitive), use it. Missing, invalid, or commented values fall through silently. Critical: lines starting with `#` are YAML comments and must be ignored — the shipped config template includes commented examples like `# brainstorm_output: html` to document the option, and matching those as active settings would silently force HTML mode on every run without the user having opted in.
+3. **Config.** If steps 1-2 did not resolve, use `settings.effective.brainstorm_output` when it is `md` or `html`. A resolved `null` falls through to the built-in default; the resolver has already applied global/project precedence, validation, and comment handling.
 4. **Default.** Otherwise `OUTPUT_FORMAT=md`.
 5. **Pipeline override.** When invoked from LFG or any `disable-model-invocation` context, force `OUTPUT_FORMAT=md` regardless of steps 1-4. Downstream consumers (`ce-plan`, `ce-work`) parse markdown reliably; HTML in pipeline runs is unnecessary friction.
 
@@ -181,6 +190,10 @@ The list is a view for the user, not an instruction to you. It does not change w
 
 ### Phase 1: Understand the Idea
 
+**Native routing context.** Keep routing state as private `ce-routing-context/v1` control data, never as feature, plan, finding, artifact, or persona text. Before the first native call, normalize applicable current-task, still-active session, provenance-bearing caller (at its recorded authority), and project-instruction intent under the host instruction hierarchy. Lower authority may fill only unset fields; conflicting equal-authority bindings stop before model invocation; incidental model or harness mentions are not intent. Reuse an inherited frozen context; otherwise freeze the first `resolve_batch` response. Every later, nested, or recovery request passes the exact full self-validating first-wave `snapshot` object as the `parent_snapshot` envelope; `parent_snapshot_id` may appear only when it matches that envelope. Never use ID-only lineage or reread live routing sources. Reuse the frozen role/instance bindings on recovery. Forward this state to nested CE skills without adding it to their product arguments.
+
+**Native routing invariants.** Each routing-batch gate below runs only after the existing roster is selected and before prompt assembly. The co-located `references/execution-routing.md` governs `ce-default`, unavailable selectors, policy, attempt finalization, and redacted receipts. Apply only model, effort, or route selectors supported by the existing host primitive. An unconfigured binding or `ce-default` uses the exact built-in arguments; an unsupported configured selector is unavailable and follows its declared policy, never prompt rewriting or typed-agent substitution. Keep prompt bytes and assets, tools, permission mode, mutation posture, roster, fan-out and concurrency, existing mandatory-versus-additive failure semantics, and the top-level orchestrator unchanged. A required-route failure prevents that model call; the unchanged owning failure semantics decide whether the workflow blocks or degrades. Group redacted successes by profile, class, source, and outcome; report each fallback, mismatch, or blocker separately.
+
 #### 1.1 Existing Context Scan
 
 Scan the repo before substantive brainstorming. Match depth to scope:
@@ -204,6 +217,9 @@ SCRATCH_DIR="$SCRATCH_ROOT/ce-brainstorm/<run-id>";
 echo "$SCRATCH_DIR";
 ```
 
+**Routing batch: `ce-brainstorm.grounding-scout`.** Once Standard/Deep topic scanning selects the existing scout and before the inline scout prompt is assembled, load `references/execution-routing.md` and resolve `ce-brainstorm.grounding-scout` in one `ce-routing/v1` `resolve_batch` against one frozen snapshot. Routing cannot add the scout to Lightweight runs.
+
+<!-- ce-dispatch-site:ce-brainstorm.grounding-scout -->
 Then dispatch one extraction-tier sub-agent via the platform's subagent primitive where available (a Task/Agent-style dispatch on harnesses that expose one); otherwise run the work inline or serially. In harnesses that support background dispatch, proceed to Phase 1.2/1.3 **without waiting**: the scout runs during the user's think-time on the opening questions. Scout prompt:
 
 > Gather grounding for a requirements brainstorm about **{topic}** in this repo. Search first with the native file-search and content-search tools, then read targeted sections — budget ~20 reads, preferring ranges over whole files. Find: whether something similar already exists, the most relevant existing artifacts (brainstorms, plans, specs, feature docs), adjacent examples of similar behavior, and the current state of anything the topic would touch (tables, routes, config, dependencies). Write a **grounding dossier** to `{scratch-dir}/grounding.md`: at most 150 lines of verbatim quotes and short code snippets, each with a `file:line` pointer. Extraction only — quote what the repo says; do not interpret or propose. If the topic has little footprint, write less rather than padding. Return only a gist: 3-5 lines summarizing what the dossier holds, plus its absolute path.
@@ -218,6 +234,9 @@ If the scan and scout surface nothing relevant, say so and continue. Two rules g
 
 **Slack context** (opt-in, Standard and Deep only) — never auto-dispatch. Route by condition:
 
+**Routing batch: `ce-brainstorm.slack-researcher`.** Only when the existing tools-plus-user-request gate selects Slack research, and before its local prompt is read or assembled, load `references/execution-routing.md` and resolve `ce-brainstorm.slack-researcher` in one `ce-routing/v1` `resolve_batch` against the frozen snapshot. A configured route never opts the user into Slack research.
+
+<!-- ce-dispatch-site:ce-brainstorm.slack-researcher -->
 - **Tools available + user asked**: Read `references/agents/slack-researcher.md` and dispatch a generic subagent seeded with that local prompt plus a brief summary of the brainstorm topic alongside Phase 1.1 work. Do not dispatch a standalone agent by type/name. Incorporate findings into constraint and context awareness.
 - **Tools available + user didn't ask**: Note in output: "Slack tools detected. Ask me to search Slack for organizational context at any point, or include it in your next prompt."
 - **No tools + user asked**: Note in output: "Slack context was requested but no Slack tools are available. Install and authenticate the Slack plugin to enable organizational context search."
@@ -300,6 +319,9 @@ Session-settled decisions render in the scoping synthesis as `Carrying forward:`
 
 #### 2.6 Claim Verification (inside the Path B confirmation wait)
 
+**Routing batch: `ce-brainstorm.claim-verifier`.** Only when Path B and the existing checkable-claims gate select verification, and before the verifier prompt is assembled, load `references/execution-routing.md` and resolve `ce-brainstorm.claim-verifier` in one `ce-routing/v1` `resolve_batch` against the frozen snapshot. Routing cannot add verification to Path A or claim-free runs.
+
+<!-- ce-dispatch-site:ce-brainstorm.claim-verifier -->
 When the upcoming Product Contract will assert checkable claims about the repo — absence claims ("no retry logic exists"), references to specific files, config, or dependencies, anything planning would build on — dispatch one generation-tier verifier at the same moment the Path B confirmation question goes up, so it runs during the user's think-time. Pass it the claim list (one line each), the grounding dossier path if one exists, and this instruction: verify each claim directly against the codebase — budget ~15 targeted reads — and return a per-claim verdict: **confirmed** (with `file:line`), **refuted** (with the contradicting evidence), or **unverifiable**. Do not block the confirmation question on the verifier.
 
 Consume the verdicts at Phase 3: correct refuted claims before writing, label unverifiable ones as explicit assumptions. A fresh-context verifier replaces self-graded verification — the author confirming its own claims is anchored; the verifier never saw the dialogue.

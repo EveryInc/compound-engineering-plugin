@@ -65,6 +65,7 @@ These files are the durable contract for the workflow. Read them on-demand at th
 - `scripts/validate-frontmatter.py` — frontmatter parser-safety validator (run in Phase 2 step 8 through the existence guard documented there; resolves only on Claude Code via `${CLAUDE_SKILL_DIR}`, with a manual-checklist fallback elsewhere)
 - `scripts/validate-doc-claims.py` — mechanical claims validator: cited paths, commit SHAs, relative links, dangling drafting scaffold (run in Phase 2.45 via the `SKILL_DIR` anchor)
 
+<!-- ce-dispatch-exclude:subagent-payload-policy -->
 When spawning subagents, pass the relevant file contents into the task prompt so they have the contract without needing cross-skill paths.
 
 ## Execution Strategy
@@ -121,6 +122,13 @@ If no relevant entries are found, proceed to Phase 1 without passing memory cont
 
 ### Phase 1: Research
 
+**Native routing context.** Keep routing state as private `ce-routing-context/v1` control data, never as conversation, solution, finding, artifact, or persona text. Before the first native call, normalize applicable current-task, still-active session, provenance-bearing caller (at its recorded authority), and project-instruction intent under the host instruction hierarchy. Lower authority may fill only unset fields; conflicting equal-authority bindings stop before model invocation; incidental model or harness mentions are not intent. Reuse an inherited frozen context; otherwise freeze the first `resolve_batch` response. Every later, nested, or recovery request passes the exact full self-validating first-wave `snapshot` object as the `parent_snapshot` envelope; `parent_snapshot_id` may appear only when it matches that envelope. Never use ID-only lineage or reread live routing sources. Reuse the frozen role/instance bindings on recovery. Forward this state to nested CE skills without adding it to their product arguments.
+
+**Native routing invariants.** Each routing-batch gate below runs only after the existing roster is selected and before prompt assembly. The co-located `references/execution-routing.md` governs `ce-default`, unavailable selectors, policy, attempt finalization, and redacted receipts. Apply only model, effort, or route selectors supported by the existing host primitive. An unconfigured binding or `ce-default` uses the exact built-in arguments; an unsupported configured selector is unavailable and follows its declared policy, never prompt rewriting or typed-agent substitution. Keep prompt bytes and assets, tools, permission mode, mutation posture, roster, fan-out and concurrency, existing mandatory-versus-additive failure semantics, and the top-level orchestrator unchanged. A required-route failure prevents that model call; the unchanged owning failure semantics decide whether documentation capture blocks or degrades. Group redacted successes by profile, class, source, and outcome; report each fallback, mismatch, or blocker separately.
+
+**Routing batch: `ce-compound.research-subagents`.** Once Full mode fixes the existing three-role research roster and before any research task prompt is assembled, load `references/execution-routing.md` and resolve `ce-compound.context-analyzer`, `ce-compound.solution-extractor`, and `ce-compound.related-docs-finder` together in one `ce-routing/v1` `resolve_batch` against one frozen snapshot. Lightweight mode keeps all three absent.
+
+<!-- ce-dispatch-site:ce-compound.research-subagents -->
 Launch research subagents. Each writes its full output to a per-run scratch artifact and returns only the artifact path to the orchestrator.
 
 **Run ID and run dir (before dispatching any subagent):** generate a unique run identifier and create the run directory. This scopes every Phase 1 artifact file to the same directory so the orchestrator can Read them back in Phase 2.
@@ -226,9 +234,12 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
 
 </parallel_tasks>
 
+**Routing batch: `ce-compound.session-history`.** Only when the existing relevance gate selects synthesis, and before its prompt asset is read or assembled, load `references/execution-routing.md` and resolve `ce-compound.session-historian` in one `ce-routing/v1` `resolve_batch`. Pass the exact full first-wave research `snapshot` object as the `parent_snapshot` envelope and include `parent_snapshot_id` only if it matches that envelope. Never use ID-only lineage or reread live routing sources, and reuse the frozen binding on recovery. Routing cannot escalate a discovery miss.
+
 #### 4. **Session History** (internal flow after launching the parallel block — automatic in Full mode, including headless)
    - **Skip entirely** in lightweight mode. In Full mode (including headless) it always runs as a two-stage probe: the cheap discovery+metadata pass (below) always executes, and the expensive extraction+synthesis executes only when the probe clears the relevance gate (see **Escalation gate** below).
    - Run session discovery, branch/keyword filtering, scan-window selection, deep-dive selection, and per-session extraction directly inside this skill using `scripts/session-history/`.
+<!-- ce-dispatch-site:ce-compound.session-history -->
    - Read the skill-local synthesis prompt at `references/agents/session-historian.md`, then dispatch a generic subagent using that prompt content. Do not dispatch a standalone agent by type/name.
 
    **Session-history payload — keep tight.** A long, keyword-rich payload licenses widening. Use this shape:
@@ -370,6 +381,9 @@ The doc (and any `CONCEPTS.md` entries from Phase 2.4) is about to become perman
 
    Exit 0 means nothing flagged. Exit 1 means flags to **adjudicate, not auto-fix** — each flagged path, SHA, link, or scaffold pattern is fixed, annotated as historical, or confirmed intentional per the reference's adjudication table. A doc may legitimately cite a path deleted by the very fix it documents; a flag is a question, not a failure. If the script cannot be resolved on this platform, apply the reference's manual checklist and say so in the output — never silently skip.
 
+**Routing batch: `ce-compound.grounding-validator`.** Only when Full mode selects semantic validation, and before the validator prompt is assembled, load `references/execution-routing.md` and resolve `ce-compound.semantic-grounding-validator` in one `ce-routing/v1` `resolve_batch` against the frozen snapshot. Routing cannot add semantic validation to Lightweight mode.
+
+<!-- ce-dispatch-site:ce-compound.grounding-validator -->
 2. **Semantic grounding validator (Full mode, including headless Full; lightweight skips it).** Dispatch one read-only generic subagent built from the prompt template in the reference, covering the written doc plus any `CONCEPTS.md` entries added or edited this run. It verifies code-behavior claims by quoting the defining source line, merge-state claims against remote truth (`gh` primary, git reachability fallback), and internal completeness of countable assertions. Apply its verdicts per the reference (fix contradicted claims from the quoted evidence; soften or drop unverifiable ones; mark offline merge-state checks as degraded), then re-run the mechanical check if the body changed.
 
 ### Phase 2.5: Selective Refresh Check
@@ -473,11 +487,16 @@ After the learning is written and the refresh decision is made, check whether th
 
 <parallel_tasks>
 
+**Routing batch: `ce-compound.specialist-reviewers`.** Once the existing problem-type gates select the specialist subset, and before any selected prompt asset is read or assembled, load `references/execution-routing.md` and resolve the selected IDs from `ce-compound.performance-oracle`, `ce-compound.security-sentinel`, and `ce-compound.data-integrity-guardian` together in one `ce-routing/v1` `resolve_batch` against the frozen snapshot. Routing cannot add a specialist for an unmatched problem type.
+
+<!-- ce-dispatch-site:ce-compound.specialist-reviewers -->
 Based on problem type, optionally dispatch generic subagents seeded with local prompt assets from `references/agents/` to review the documentation. Do not dispatch standalone agents by type/name.
 
 - **performance_issue** → `references/agents/performance-oracle.md`
 - **security_issue** → `references/agents/security-sentinel.md`
 - **database_issue** → `references/agents/data-integrity-guardian.md`
+**Routing batch: `ce-compound.code-example-review`.** Only when the existing code-heavy gate selects a generic code-example review rather than inline inspection, and before its local prompt is assembled, load `references/execution-routing.md` and resolve `ce-compound.code-example-reviewer` in one `ce-routing/v1` `resolve_batch` against the frozen snapshot. Routing cannot choose the subagent branch over inline review.
+<!-- ce-dispatch-site:ce-compound.code-example-review -->
 - Any code-heavy issue → preserve code simplification as a **read-only documentation review**. Inspect the solution draft's code examples and explanatory claims inline, or dispatch a generic subagent seeded with a local prompt only to return suggestions. Do **not** invoke `ce-simplify-code` from this phase and do not mutate product code unless the user explicitly asks for a separate code-simplification pass. Do not use the deleted `code-simplicity-reviewer`.
   Example: review the solution draft's examples for speculative abstractions, redundant wrappers, dead branches, and just-in-case parameters. Apply edits only to the documentation/examples being written by `ce-compound`; leave any branch code changes untouched.
 
@@ -499,6 +518,7 @@ The orchestrator (main conversation) performs ALL of the following in one sequen
 
 1. **Extract from conversation**: Identify the problem and solution from conversation history. Also scan the "user's auto-memory" block injected into your system prompt, if present (Claude Code only) -- use any relevant notes as supplementary context alongside conversation history. Tag any memory-sourced content incorporated into the final doc with "(auto memory [claude])". Before asserting how code behaves (enum values, status semantics, limits, defaults), Read the defining line at the current tree — soften or attribute any claim you cannot verify. Cite PR numbers over bare commit SHAs, and phrase unmerged fixes as pending
 2. **Classify**: Read `references/schema.yaml` and `references/yaml-schema.md`, then determine track (bug vs knowledge), category, and filename
+<!-- ce-dispatch-exclude:lightweight-no-dispatch -->
 3. **Write minimal doc**: Before writing, check whether the exact proposed `docs/solutions/[category]/[filename].md` path exists. If it exists, read it: update it only when it covers the same problem, preserving its path and frontmatter structure and adding `last_updated: YYYY-MM-DD`; otherwise choose a distinct, descriptive filename and re-check that exact path is absent before writing. This is exact-path collision handling only — do not run Full mode's semantic overlap research or dispatch subagents. Create or update the doc using the appropriate track template from `assets/resolution-template.md`, with:
    - YAML frontmatter with track-appropriate fields, applying the YAML-safety quoting rule for array items (see `references/yaml-schema.md` > YAML Safety Rules)
    - Bug track: Problem, root cause, solution with key code snippets, one prevention tip

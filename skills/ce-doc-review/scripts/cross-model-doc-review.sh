@@ -88,6 +88,76 @@ M_GROK="grok-4.5"              # grok CLI             (--effort high)
 M_GROK_CURSOR="cursor-grok-4.5-high"  # fixed cursor-agent Grok route (current id)
 M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is the ceiling)
 
+route_effort() {
+  if [ -n "${CE_ROUTING_CANDIDATE_EFFORT:-}" ]; then
+    printf '%s' "$CE_ROUTING_CANDIDATE_EFFORT"
+    return 0
+  fi
+  case "$1" in
+    codex) printf 'xhigh' ;;
+    claude|grok-cli) printf 'high' ;;
+    grok-cursor) printf 'model-implied-high' ;;
+    composer) printf 'fast' ;;
+    cursor) printf 'unverified' ;;
+  esac
+}
+
+safe_selector_token() { # <value> <max> <allowed-kind>
+  local value="$1" max="$2" kind="$3"
+  [ -n "$value" ] && [ "${#value}" -le "$max" ] || return 1
+  case "$value" in [A-Za-z0-9]*) ;; *) return 1 ;; esac
+  if [ "$kind" = effort ]; then
+    case "$value" in *[!A-Za-z0-9._-]*) return 1 ;; esac
+  else
+    case "$value" in *[!A-Za-z0-9._:/-]*) return 1 ;; esac
+  fi
+}
+
+candidate_model_compatible() { # <fixed-route> <model>
+  local route="$1" model="$2" model_lower
+  if [ "$route" = cursor ]; then
+    model_lower="$(printf '%s' "$model" | tr '[:upper:]' '[:lower:]')"
+    case "$model_lower" in composer|composer-*|grok|grok-*|cursor-grok-*) return 1 ;; esac
+    return 0
+  fi
+  case "$model" in *[!A-Za-z0-9._-]*) return 1 ;; esac
+  case "$route:$model" in
+    codex:auto|codex:gpt-?*|codex:o[0-9]*|claude:auto|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-?*|grok-cli:auto|grok-cli:grok-?*|grok-cursor:cursor-grok-?*|composer:composer-?*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+candidate_selectors_active() {
+  [ -n "${CE_ROUTING_CANDIDATE_HARNESS:-}${CE_ROUTING_CANDIDATE_ROUTE:-}${CE_ROUTING_CANDIDATE_MODEL:-}${CE_ROUTING_CANDIDATE_EFFORT:-}" ]
+}
+
+validate_candidate_selectors() { # <fixed-route>
+  local route="$1" harness="${CE_ROUTING_CANDIDATE_HARNESS:-}" requested_route="${CE_ROUTING_CANDIDATE_ROUTE:-}"
+  candidate_selectors_active || return 0
+  case "$harness" in codex|claude|grok|cursor|composer) ;; *) return 1 ;; esac
+  [ -z "$requested_route" ] || { safe_selector_token "$requested_route" 128 route && [ "$requested_route" = "$route" ]; } || return 1
+  [ -z "${CE_ROUTING_CANDIDATE_MODEL:-}" ] || { safe_selector_token "$CE_ROUTING_CANDIDATE_MODEL" 128 model && candidate_model_compatible "$route" "$CE_ROUTING_CANDIDATE_MODEL"; } || return 1
+  [ -z "${CE_ROUTING_CANDIDATE_EFFORT:-}" ] || safe_selector_token "$CE_ROUTING_CANDIDATE_EFFORT" 64 effort || return 1
+  case "$route:$harness" in
+    codex:codex|claude:claude|grok-cli:grok|grok-cursor:grok|grok-cursor:cursor|cursor:cursor|composer:composer|composer:cursor) ;;
+    *) return 1 ;;
+  esac
+  case "$route:${CE_ROUTING_CANDIDATE_EFFORT:-}" in
+    codex:|codex:minimal|codex:low|codex:medium|codex:high|codex:xhigh) ;;
+    claude:|claude:low|claude:medium|claude:high) ;;
+    grok-cli:|grok-cli:low|grok-cli:medium|grok-cli:high) ;;
+    grok-cursor:|cursor:|composer:) ;;
+    *) return 1 ;;
+  esac
+}
+
+route_receipt_supported() {
+  case "$1" in
+    claude) printf 'true' ;;
+    *) printf 'false' ;;
+  esac
+}
+
 # --- model-identity receipt (R7/R8) -----------------------------------------
 # "Which model ran" is a claim that needs a serving-side receipt. Only the
 # claude CLI reports one today: its JSON envelope carries a modelUsage object
@@ -98,15 +168,21 @@ M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is t
 # ce-code-review and ce-doc-review (kernel parity).
 expected_model_prefix() {   # <requested-alias> -> expected served-id prefix
   case "$1" in
+    fable)  printf 'claude-fable-' ;;
     opus)   printf 'claude-opus-' ;;
     sonnet) printf 'claude-sonnet-' ;;
     haiku)  printf 'claude-haiku-' ;;
+    claude-*) printf '%s' "$1" ;;
   esac
 }
 
 route_model() {   # <route> -> the M_* constant that route requests
   local target
   target="$(route_target "$1")"
+  if [ -n "${CE_ROUTING_CANDIDATE_MODEL:-}" ]; then
+    printf '%s' "$CE_ROUTING_CANDIDATE_MODEL"
+    return 0
+  fi
   if [ -n "${CROSS_MODEL_MODEL_OVERRIDE:-}" ] &&
      [ "${CROSS_MODEL_MODEL_OVERRIDE_TARGET:-}" = "$target" ] &&
      [ "$target" != "cursor" ]; then
@@ -147,8 +223,10 @@ target_serving_family() {
 }
 
 MODEL_ACTUAL="unverified"
+MODEL_IDENTITY_STATUS="unverified"
 extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODEL_ACTUAL
   MODEL_ACTUAL="unverified"
+  MODEL_IDENTITY_STATUS="unverified"
   [ "$1" = "claude" ] || return 0
   local requested actual prefix matched
   requested="$(route_model claude)"
@@ -164,9 +242,12 @@ extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODE
     # first modelUsage key matching the expected family prefix (jq-native, no
     # external `head`: the route sandbox may not carry coreutils on PATH).
     matched="$(jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(startswith($p)))) // empty' "$PEERLOG" 2>/dev/null)"
+  else
+    matched="$(jq -r --arg requested "$requested" 'first((.modelUsage // {} | keys[] | select(. == $requested))) // empty' "$PEERLOG" 2>/dev/null)"
   fi
   if [ -n "$matched" ]; then
     MODEL_ACTUAL="$matched"
+    MODEL_IDENTITY_STATUS="matched"
     return 0
   fi
   actual="$(jq -r '.modelUsage // empty | keys[0] // empty' "$PEERLOG" 2>/dev/null)"
@@ -175,6 +256,7 @@ extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODE
     return 0
   fi
   MODEL_ACTUAL="$actual"
+  MODEL_IDENTITY_STATUS="mismatched"
   log "WARNING: model mismatch - requested $requested, backend served $actual; reconcile must surface this"
 }
 
@@ -191,8 +273,9 @@ extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODE
 adapter_argv() {
   case "$1" in
     codex)
+      # ce-dispatch-site:ce-doc-review.peer-cli-codex
       printf '%s\0' codex exec - -C "$PEER_WORKDIR" --skip-git-repo-check -s read-only \
-        -o "$RAW_OUT" -m "$(route_model codex)" -c 'model_reasoning_effort="xhigh"' -c 'hide_agent_reasoning=false'
+        -o "$RAW_OUT" -m "$(route_model codex)" -c "model_reasoning_effort=\"$(route_effort codex)\"" -c 'hide_agent_reasoning=false'
       ;;
     claude)
       # --tools "" disables ALL built-in tools (allowlist deny-all, no denylist gap
@@ -201,26 +284,33 @@ adapter_argv() {
       # The run cd's into the empty per-peer workspace (claude has no cwd flag), so
       # the peer has no repo -- or sibling peer's fold-in artifact -- in reach.
       # R17 tool-less isolation.
-      printf '%s\0' claude -p --model "$(route_model claude)" --effort high --permission-mode dontAsk \
+      # ce-dispatch-site:ce-doc-review.peer-cli-claude
+      printf '%s\0' claude -p --model "$(route_model claude)" --effort "$(route_effort claude)" --permission-mode dontAsk \
         --safe-mode --disable-slash-commands --tools "" \
         --max-turns 15 --no-session-persistence --json-schema "$SCHEMA_REF" --output-format json
       ;;
     grok-cli)
-      printf '%s\0' grok --prompt-file "$PROMPT_FILE" --model "$(route_model grok-cli)" --effort high \
+      # ce-dispatch-site:ce-doc-review.peer-cli-grok
+      printf '%s\0' grok --prompt-file "$PROMPT_FILE" --model "$(route_model grok-cli)" --effort "$(route_effort grok-cli)" \
         --cwd "$PEER_WORKDIR" --permission-mode dontAsk \
         --deny Read --deny Edit --deny Write --deny Bash --deny Task --deny 'mcp__*' \
         --disable-web-search --no-subagents --max-turns 15 \
         --json-schema "$SCHEMA_REF" --output-format json
       ;;
     grok-cursor)
+      # ce-dispatch-site:ce-doc-review.peer-cli-grok-cursor
       printf '%s\0' cursor-agent -p --model "$(route_model grok-cursor)" --mode ask --trust \
         --sandbox enabled --workspace "$PEER_WORKDIR" --output-format json
       ;;
     cursor)
-      printf '%s\0' cursor-agent -p --mode ask --trust \
+      # ce-dispatch-site:ce-doc-review.peer-cli-cursor
+      printf '%s\0' cursor-agent -p
+      [ -z "${CE_ROUTING_CANDIDATE_MODEL:-}" ] || printf '%s\0' --model "$(route_model cursor)"
+      printf '%s\0' --mode ask --trust \
         --sandbox enabled --workspace "$PEER_WORKDIR" --output-format json
       ;;
     composer)
+      # ce-dispatch-site:ce-doc-review.peer-cli-composer
       printf '%s\0' cursor-agent -p --model "$(route_model composer)" --mode ask --trust \
         --sandbox enabled --workspace "$PEER_WORKDIR" --output-format json
       ;;
@@ -251,6 +341,7 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   OUT="<run-dir>/<lens>-<provider>.json"
   PROMPT_FILE="<prompt-file>"; SCHEMA_REF="<schema>"
   route="${2:-}"
+  validate_candidate_selectors "$route" 2>/dev/null || { echo "routing candidate selectors are unsafe or incompatible with route '$route'" >&2; exit 2; }
   validate_model_override "$route" 2>/dev/null || { echo "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
   # adapter_argv emits NUL-delimited argv (can't be captured in a shell var), so
   # validate the route first, then render for humans with NUL -> space.
@@ -414,6 +505,9 @@ if [ -n "${CROSS_MODEL_DRY_RUN:-}" ]; then
   exit 0
 fi
 
+[ -n "${CROSS_MODEL_FIXED_ROUTE:-}" ] || skip "host must resolve one fixed route before egress; skipping"
+validate_candidate_selectors "$CROSS_MODEL_FIXED_ROUTE" || skip "routing candidate selectors are unsafe or incompatible with fixed route '$CROSS_MODEL_FIXED_ROUTE'; skipping before egress"
+
 # --- compose the peer prompt from the canonical persona (single source) ----
 # The full findings schema is embedded so the peer knows every required field.
 # The document content is embedded directly inside the <review-context> block,
@@ -504,6 +598,27 @@ build_cmd() {
   while IFS= read -r -d '' tok; do CMD+=("$tok"); done < <(adapter_argv "$1")
 }
 
+build_min_env() {
+  local route="$1"
+  MIN_ENV=(env -i "PATH=$PATH" "PYTHONDONTWRITEBYTECODE=1")
+  [ -n "${HOME:-}" ] && MIN_ENV+=("HOME=$HOME")
+  [ -n "${USER:-}" ] && MIN_ENV+=("USER=$USER")
+  [ -n "${TMPDIR:-}" ] && MIN_ENV+=("TMPDIR=$TMPDIR")
+  [ -n "${LANG:-}" ] && MIN_ENV+=("LANG=$LANG")
+  [ -n "${LC_ALL:-}" ] && MIN_ENV+=("LC_ALL=$LC_ALL")
+  [ -n "${XDG_CONFIG_HOME:-}" ] && MIN_ENV+=("XDG_CONFIG_HOME=$XDG_CONFIG_HOME")
+  # Keep only the fixed route's CLI-native auth-store pointer. Ambient API and
+  # OAuth credential variables are intentionally absent from the provider.
+  case "$route" in
+    codex) [ -n "${CODEX_HOME:-}" ] && MIN_ENV+=("CODEX_HOME=$CODEX_HOME") ;;
+    claude) [ -n "${CLAUDE_CONFIG_DIR:-}" ] && MIN_ENV+=("CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR") ;;
+    grok-cli) [ -n "${GROK_CONFIG_HOME:-}" ] && MIN_ENV+=("GROK_CONFIG_HOME=$GROK_CONFIG_HOME") ;;
+    grok-cursor|cursor|composer)
+      [ -n "${CURSOR_CONFIG_DIR:-}" ] && MIN_ENV+=("CURSOR_CONFIG_DIR=$CURSOR_CONFIG_DIR")
+      ;;
+  esac
+}
+
 # --- liveness heartbeat -----------------------------------------------------
 # The peer CLI streams into $PEERLOG (private), so nothing reaches this script's
 # own stdout/stderr during a long model call. An outer supervisor that watches
@@ -539,7 +654,7 @@ run_codex_cmd() {   # CMD already built for the codex route; streams to PEERLOG,
   RUN_SUCCEEDED=false
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
   set -m
-  "${CMD[@]}" < "$PROMPT_FILE" > "$PEERLOG" 2>&1 &
+  command "${MIN_ENV[@]}" "${CMD[@]}" < "$PROMPT_FILE" > "$PEERLOG" 2>&1 &
   local pid=$!
   ACTIVE_PEER_PID="$pid"
   [ "$prev" = 0 ] && set +m
@@ -578,9 +693,9 @@ run_timeout_cmd() {   # $1 = stdin file ("" -> /dev/null). CMD already built.
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
   set -m
   if [ -n "$TO_BIN" ]; then
-    ( cd "$PEER_WORKDIR" && exec "$TO_BIN" -k 10 "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
+    ( cd "$PEER_WORKDIR" && exec "${MIN_ENV[@]}" "$TO_BIN" -k 10 "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
   else
-    ( cd "$PEER_WORKDIR" && exec perl -e 'alarm shift; exec @ARGV' "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
+    ( cd "$PEER_WORKDIR" && exec "${MIN_ENV[@]}" perl -e 'alarm shift; exec @ARGV' "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
   fi
   local pid=$!
   ACTIVE_PEER_PID="$pid"
@@ -633,9 +748,9 @@ attempt_route() {   # <provider> <route>
   local provider="$1" route="$2" note
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT"
   build_cmd "$route"
+  build_min_env "$route"
   case "$route" in
-    codex)                 note="$(route_model "$route") (effort xhigh)" ;;
-    claude|grok-cli)       note="$(route_model "$route") (effort high)" ;;
+    codex|claude|grok-cli) note="$(route_model "$route") (effort $(route_effort "$route"))" ;;
     grok-cursor|composer)  note="$(route_model "$route")" ;;
     cursor)                note="auto (serving model unverified)" ;;
   esac
@@ -721,6 +836,8 @@ run_provider() {   # <provider>
          --arg target "$provider" --arg harness "$(route_harness "$ACTUAL_ROUTE")" \
          --arg family "$_target_family" --argjson independent "$_independent" \
          --arg mreq "$(route_model "$ACTUAL_ROUTE")" --arg mact "$MODEL_ACTUAL" \
+         --arg identity "$MODEL_IDENTITY_STATUS" --arg ereq "$(route_effort "$ACTUAL_ROUTE")" \
+         --argjson receipt "$(route_receipt_supported "$ACTUAL_ROUTE")" \
          'if (.findings|type)=="array"
           then { reviewer: $r,
                  cross_model_route: $route,
@@ -728,9 +845,13 @@ run_provider() {   # <provider>
                  cross_model_harness: $harness,
                  serving_family: $family,
                  independence_verified: $independent,
-                 model_requested: $mreq,
-                 model_actual: $mact,
-                 findings: [ .findings[] | if (.autofix_class? == "safe_auto") then .autofix_class = "gated_auto" else . end ],
+                  model_requested: $mreq,
+                  model_actual: $mact,
+                  model_identity_status: $identity,
+                  effort_requested: $ereq,
+                  effort_actual: "unverified",
+                  receipt_supported: $receipt,
+                  findings: [ .findings[] | if (.autofix_class? == "safe_auto") then .autofix_class = "gated_auto" else . end ],
                  residual_risks: (.residual_risks // []),
                  deferred_questions: (.deferred_questions // []) }
           else empty end' \

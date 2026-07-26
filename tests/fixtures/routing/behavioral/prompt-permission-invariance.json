@@ -1,0 +1,31 @@
+{
+  "schema": "ce-routing-behavioral-fixture/v1",
+  "id": "prompt-permission-invariance",
+  "owning_skill": "ce-code-review",
+  "purpose": "A paired baseline/routed review proves routing changes selectors and receipts only.",
+  "input": {
+    "user_prompt": "Run the full report-only code review for this branch.",
+    "comparison_runs": [
+      { "name": "baseline", "global_config_yaml": "" },
+      { "name": "routed", "global_config_yaml": "routing:\n  profiles:\n    review-route:\n      candidates:\n        - { harness: codex, model: routed-review-model, effort: high }\n        - ce-default\n  classes:\n    review: { profile: review-route, policy: prefer }\n" }
+    ],
+    "project_config_yaml": null,
+    "host": {
+      "name": "claude",
+      "capabilities": ["generic-subagents", "per-dispatch-model-selector"]
+    },
+    "repository_state": ["fixed diff fixture", "fixed project instructions", "no external peer selected", "no local-apply authority"]
+  },
+  "expected_invariants": [
+    "Baseline and routed runs select the same reviewer roster in the same required/optional posture.",
+    "Each corresponding persona receives byte-identical prompt assets, diff material, and output contract.",
+    "Tools, permission mode, mutation authority, concurrency, backpressure behavior, and synthesis are identical.",
+    "Only supported model, effort, or route selector arguments and redacted routing receipts differ."
+  ],
+  "forbidden_outcomes": [
+    "Injecting routing, model, fallback, or receipt text into a persona prompt.",
+    "Adding a reviewer because a role has a configured binding.",
+    "Passing a broader permission mode or tool set to obtain the configured route.",
+    "Treating wording differences as acceptable when the prompt bytes can be compared directly."
+  ]
+}

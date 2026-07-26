@@ -732,6 +732,30 @@ def cmd_integrate(args) -> tuple[str, dict]:
     if not args.commit_message.strip() or len(args.commit_message.encode()) > 1024:
         raise Operational("REFUSED", "commit message must be non-empty and at most 1024 bytes")
 
+    route_finalization = finalize_routing_attempt(args.run_id, args.unit_id)
+    if route_finalization is not None and route_finalization.get("action") != "accept":
+        detail = routing_blocker_detail(args.run_id, args.unit_id, route_finalization)
+        required = detail.get("policy") == "require"
+        if required:
+            reason = "required serving identity was not verified; isolated output remains quarantined"
+        elif route_finalization.get("action") == "next_candidate":
+            reason = "preferred serving identity mismatch requires a separately authorized next candidate"
+        else:
+            reason = "preferred serving identity mismatch exhausted declared candidates; isolated output remains quarantined"
+        with locked_manifest(args.run_id, write=True) as doc:
+            if not any(
+                blocker.get("unit_id") == args.unit_id
+                and blocker.get("snapshot_id") == detail.get("snapshot_id")
+                and blocker.get("reason") == reason
+                for blocker in doc.get("blockers", [])
+            ):
+                doc["blockers"].append({"at": now_iso(), "reason": reason, **detail})
+                event(doc, "routing-integration-blocked", args.unit_id, {
+                    "action": route_finalization.get("action"),
+                    "identity_status": detail.get("identity_status"),
+                })
+        raise Operational("BLOCKED", reason, detail)
+
     token = None
     before = None
     verification_log = None
@@ -748,6 +772,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
         with locked_manifest(args.run_id) as doc:
             repo = doc["repository"]["toplevel"]
             transport = doc["units"][args.unit_id]["transport"]["commit"]
+        validate_routing_finalization_evidence(args.run_id, args.unit_id)
         _preflight_ignored_artifacts(repo, _ignored_paths(repo))
         pre_fold_directory_snapshot = _directory_snapshot(repo)
         git(repo, "cherry-pick", "--no-commit", transport)

@@ -119,6 +119,7 @@ The point is not ceremony. The point is leverage. A good brainstorm makes the pl
 **Learn more**
 
 - [Skill documentation catalog](docs/skills/README.md)
+- [Global settings and execution routing](docs/skills/configuration.md)
 - [Compound engineering: how Every codes with agents](https://every.to/chain-of-thought/compound-engineering-how-every-codes-with-agents)
 - [The story behind compounding engineering](https://every.to/source-code/my-ai-had-already-fixed-the-code-before-i-saw-it)
 
@@ -203,9 +204,17 @@ The first pass tightens recent branch changes before review. The targeted pass i
 
 ## Getting Started
 
-After installing, run `/ce-setup` in any project. It checks repo-local config, reports optional tool capabilities, and helps keep machine-local CE settings safely gitignored.
+After installing, run `/ce-setup` in any project. It inspects effective user-global and project settings, reports optional tool and routing capabilities, and helps keep machine-local project settings safely gitignored. Global defaults need no project file and apply across checkouts and supported harnesses.
 
 The `compound-engineering` plugin currently ships 31 skills and 0 standalone agents. Specialist review, research, and workflow behavior lives inside the owning skills as skill-local prompt assets.
+
+### Global Settings and Execution Routing
+
+Compound Engineering reads one global config from `$COMPOUND_ENGINEERING_HOME/config.yaml`, `$XDG_CONFIG_HOME/compound-engineering/config.yaml`, or `$HOME/.config/compound-engineering/config.yaml`, in that order. An optional `.compound-engineering/config.local.yaml` selectively overrides it for one checkout. Missing keys inherit, scalars and lists replace, named routing maps merge, and `null` masks a broader non-routing value.
+
+Routing lets you define reusable execution profiles and bind them to CE-owned classes (`implementation`, `review`, `reasoning`, `research`, `verification`) or individual skill-qualified roles. It changes supported model, effort, or route selectors only. CE still chooses the personas and prompt bytes and retains tools, permissions, mutation boundaries, verification, and workflow ownership. `inherit` continues to a broader route; `ce-default` explicitly restores built-in behavior. Preferred fallback follows only declared candidates and is safe only between terminal, unintegrated attempts; required routes block without prompting when availability or concrete serving identity cannot be verified.
+
+Native and converted consumer skills carry their own resolver, settings schema, protocol, role catalog, and execution reference, so they do not call back into this repository at runtime. Actual selector and serving-receipt support varies by host and installed version; deterministic tests prove packaging and adapter contracts, not live provider availability. See the [configuration reference](docs/skills/configuration.md) for profiles, precedence, trust and egress boundaries, redacted receipts, legacy settings, writer ownership, and the explicit live-host evidence gaps.
 
 ### Full Skill Inventory
 
@@ -235,7 +244,7 @@ The `compound-engineering` plugin currently ships 31 skills and 0 standalone age
 | [`/ce-promote`](docs/skills/ce-promote.md) | Draft user-facing announcement copy |
 | [`/ce-test-browser`](docs/skills/ce-test-browser.md) | Run browser tests on PR-affected pages |
 | [`/ce-test-xcode`](docs/skills/ce-test-xcode.md) | Build and test iOS apps on simulator |
-| [`/ce-setup`](docs/skills/ce-setup.md) | Diagnose optional tool capabilities and project config |
+| [`/ce-setup`](docs/skills/ce-setup.md) | Inspect effective global/project settings and routing health, diagnose optional tools, and maintain safe project config |
 | [`/ce-handoff`](docs/skills/ce-handoff.md) | Create a session handoff at the default temp store or a requested destination, then resume from a selected source |
 | [`/ce-simplify-code`](docs/skills/ce-simplify-code.md) | Simplify recent code changes |
 | [`/ce-polish`](docs/skills/ce-polish.md) | Start a dev server and iterate on UX polish |

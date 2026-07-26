@@ -48,7 +48,7 @@ After the merge, run the mechanical claims check on the canonical doc (step 4 of
 
 Process Replace candidates **one at a time, sequentially**. Each replacement is written by a subagent to protect the main context window.
 
-When a replacement is needed, read the documentation contract files and pass their contents into the replacement subagent's task prompt:
+When a replacement is needed, use the documentation contract files below. Do not read them until the occurrence-local routing gate has resolved the selected replacement writer:
 
 - `references/schema.yaml` — frontmatter fields and enum values
 - `references/yaml-schema.md` — category mapping
@@ -58,6 +58,9 @@ Do not let replacement subagents invent frontmatter fields, enum values, or sect
 
 **When evidence is sufficient:**
 
+**Routing batch: `ce-compound-refresh.replacement-writer`.** Only when the existing action classifier selects Replace and after it selects the one sequential replacement but before the support files or prompt are read or assembled, load `references/execution-routing.md` and resolve `ce-compound-refresh.replacement-writer` in one `ce-routing/v1` `resolve_batch`. When an investigation-subagent batch ran, pass the exact full first-wave `snapshot` object as the `parent_snapshot` envelope and include `parent_snapshot_id` only if it matches that envelope; when investigation stayed on the main thread, this is the first native batch and its response becomes the frozen snapshot. Never use ID-only lineage or reread live routing sources, and reuse the frozen binding on recovery. Routing cannot turn Keep, Update, Consolidate, or Mark Stale into Replace and cannot make replacement writers concurrent.
+After routing, read the three support files and pass their contents into the fixed replacement writer's task prompt.
+<!-- ce-dispatch-site:ce-compound-refresh.replacement-writer -->
 1. Spawn a single subagent to write the replacement learning. Pass it:
    - The old learning's full content
    - A summary of the investigation evidence (what changed, what the current code does, why the old guidance is misleading)

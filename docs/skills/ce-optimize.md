@@ -14,7 +14,7 @@ Inspired by Karpathy's autoresearch, generalized for multi-file code changes and
 |----------|--------|
 | What does it do? | Defines an optimization spec, establishes a baseline, runs parallel experiments measured against gates and/or an LLM judge, keeps the best, iterates until a stopping criterion fires |
 | When to use it | Clustering, search, prompts, build performance — any measurable outcome where the right change isn't obvious and many approaches are worth trying |
-| What it produces | A `optimize/<spec-name>` git branch with kept experiments merged in, plus an experiment log and strategy digest in `.context/compound-engineering/ce-optimize/<spec-name>/` |
+| What it produces | A `optimize/<spec-name>` git branch with kept experiments merged in, plus an experiment log, frozen routing context/event journal, and strategy digest in `.context/compound-engineering/ce-optimize/<spec-name>/` |
 | What's next | `/ce-code-review` on the cumulative diff; `/ce-compound` to capture the winning strategy; create a PR |
 
 ---
@@ -113,6 +113,20 @@ Every experiment writes a `result.yaml` marker in its worktree immediately after
 
 Phase 1 is a hard gate — the skill establishes baseline metrics, validates the measurement harness, runs a parallelism readiness probe, checks the worktree budget, and surfaces the judge cost estimate (or flags uncapped spend) for explicit approval before any experiments dispatch. No surprise cost or runaway loops.
 
+### 9. Independent author and semantic-judge routing
+
+Generalized CE routing can select models independently for two stable roles: `ce-optimize.experiment-author` (implementation) and `ce-optimize.semantic-judge` (verification). A judge run resolves both in one frozen snapshot, persists that snapshot before dispatch, and reuses it on resume even if global or project configuration later changes. Hard-metric runs resolve only the author and do not activate a judge.
+
+Routing changes model identity only through the backend already selected by the optimization spec. A worktree run stays on its current host's worktree-subagent adapter; a Codex run stays on `codex exec`. Profiles cannot switch backend, alter mutable/immutable scope, change the measurement command, weaken `codex_security`, increase concurrency, modify judging/stopping policy, or bypass checkpoints. A configured selector the selected backend cannot serve is unavailable rather than encoded into a prompt.
+
+Author output remains isolated until its serving identity is finalized, then scope and immutable-harness checks run before measurement. Judge output is finalized separately before parsing or aggregation. Required unavailable, mismatched, or unverified identity blocks without a question or integration. A preferred alternative is eligible only after terminal unintegrated output is discarded and the next recipient/material/environment is freshly sanctioned; no recipient changes after measurement, a result marker, checkpoint, commit, or merge.
+
+The author and judge never share a session, workspace, prompt, mutable authority, or receipt. Judges receive only rubric plus sampled candidate output, with hidden reference answers withheld. Extra worktree inputs must be canonical, symlink-free, explicitly listed in `parallel.shared_files`, and immutable. `.env*`, undeclared files, and ambient credentials are not copied or inherited; recipient environment names come only from explicitly approved `execution.sanctioned_env`. If an adapter cannot enforce those boundaries for a newly selected recipient, that route is unavailable.
+
+With no generalized route or with `ce-default`, the author backend, legacy worktree environment behavior, and `metric.judge.model` behavior remain v3.20.0-compatible. Canonical path, symlink, and result-marker protections apply to every run; the credential-minimized recipient boundary applies whenever a profile selects a new recipient.
+
+See [Compound Engineering configuration](./configuration.md#execution-routing) for profile syntax, precedence, policy, attempt-safe fallback, receipts, and host capability limits.
+
 ---
 
 ## Quick Example
@@ -203,10 +217,10 @@ A cheap, hard, fast check that catches obviously broken solutions. "All items in
 The hypothesis generation phase collects all unique new dependencies and asks for bulk approval before the loop starts. Hypotheses with unapproved deps are skipped and re-presented at wrap-up.
 
 **Can it run on Codex instead of subagents?**
-Yes — `execution.backend: codex` dispatches each experiment to a Codex sandbox via `codex exec`. Falls back to subagent dispatch if Codex sandboxing isn't usable from the current context (already inside a Codex sandbox, no write permission to `.git`).
+Yes — `execution.backend: codex` dispatches each experiment through `codex exec` with the spec's unchanged `codex_security` posture. For a configured profile, nested Codex execution, unavailable Git access/model selection, or an unenforceable credential-minimized environment makes the route unavailable; routing never switches the run to a worktree subagent. CE-default/no-routing retains the v3.20.0 fallback behavior.
 
 **What gets preserved after the run?**
-The optimization branch (`optimize/<spec-name>`) with all kept-experiment commits is preserved. The experiment log and strategy digest stay in `.context/compound-engineering/ce-optimize/<spec-name>/` for local resume and audit (`.context/` is gitignored, so they don't travel with the branch).
+The optimization branch (`optimize/<spec-name>`) with all kept-experiment commits is preserved. The experiment log, `routing-context.json`, `routing-events.jsonl`, and strategy digest stay in `.context/compound-engineering/ce-optimize/<spec-name>/` for local resume and audit (`.context/` is gitignored, so they don't travel with the branch).
 
 ---
 

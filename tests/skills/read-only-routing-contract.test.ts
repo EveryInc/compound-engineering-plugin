@@ -1,0 +1,221 @@
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+import { describe, expect, test } from "bun:test"
+
+const ROOT = path.join(import.meta.dir, "../..")
+const RESOLVER = path.join(ROOT, "skills/ce-plan/scripts/ce-routing.py")
+
+const references = [
+  "skills/ce-plan/references/reasoning-elevation.md",
+  "skills/ce-code-review/references/cross-model-review.md",
+  "skills/ce-doc-review/references/cross-model-review.md",
+  "skills/ce-pov/references/cross-model-panel.md",
+] as const
+
+async function runResolver(
+  request: Record<string, unknown>,
+  cwd: string,
+  home: string,
+) {
+  const proc = Bun.spawn(["python3", "-I", "-S", RESOLVER], {
+    cwd,
+    env: {
+      PATH: process.env.PATH ?? "/usr/bin:/bin",
+      HOME: home,
+      COMPOUND_ENGINEERING_HOME: home,
+    },
+    stdin: new Blob([JSON.stringify(request)]),
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  const [exitCode, stdout] = await Promise.all([
+    proc.exited,
+    new Response(proc.stdout).text(),
+  ])
+  return { exitCode, body: JSON.parse(stdout) as Record<string, any> }
+}
+
+async function fixture() {
+  const root = await mkdtemp(path.join(os.tmpdir(), "ce-read-only-routing-"))
+  const home = path.join(root, "home")
+  const project = path.join(root, "project")
+  await mkdir(home, { recursive: true, mode: 0o700 })
+  await mkdir(project, { recursive: true })
+  await Bun.$`git init -q`.cwd(project)
+  await writeFile(path.join(project, ".gitignore"), ".compound-engineering/*.local.yaml\n")
+  return { root, home, project }
+}
+
+describe("specialized read-only routing contract", () => {
+  test("every owning reference freezes resolution before qualification and finalizes before consumption", async () => {
+    for (const relative of references) {
+      const body = await readFile(path.join(ROOT, relative), "utf8")
+      expect(body, relative).toContain("resolve_batch")
+      expect(body, relative).toContain("finalize_attempt")
+      expect(body, relative).toMatch(/freeze.*snapshot/i)
+      expect(body, relative).toMatch(/before.*(?:qualif|adapter)/i)
+      expect(body, relative).toMatch(/before.*consum/i)
+      expect(body, relative).toMatch(/terminal.*unintegrated/i)
+      expect(body, relative).toMatch(/fresh.*recipient.*material/i)
+      expect(body, relative).toMatch(/without prompt|never prompt/i)
+      expect(body, relative).toContain("ce-default")
+      expect(body, relative).toContain("accepted_unverified")
+      expect(body, relative).toMatch(/no (?:generalized )?rout|no routing/i)
+    }
+  })
+
+  test("elevation keeps native override, external CLI, and no-selector degradation distinct", async () => {
+    const body = await readFile(
+      path.join(ROOT, "skills/ce-plan/references/reasoning-elevation.md"),
+      "utf8",
+    )
+    expect(body).toContain("Native in-harness dispatch")
+    expect(body).toContain("Claude CLI")
+    expect(body).toMatch(/no model or effort selector.*unavailable/i)
+    expect(body).toMatch(/exact legacy no-routing behavior.*do not elevate/i)
+  })
+
+  test("legacy settings come only from merged inspect output", async () => {
+    for (const relative of references) {
+      const body = await readFile(path.join(ROOT, relative), "utf8")
+      expect(body, relative).toContain("inspect")
+      expect(body, relative).toContain("settings.effective")
+      expect(body, relative).not.toMatch(/read .*\.compound-engineering\/config\.local\.yaml/i)
+    }
+  })
+
+  test("routing cannot activate an unselected read-only persona", async () => {
+    const codeReview = await readFile(path.join(ROOT, references[1]), "utf8")
+    const docReview = await readFile(path.join(ROOT, references[2]), "utf8")
+    const pov = await readFile(path.join(ROOT, references[3]), "utf8")
+
+    expect(codeReview).toMatch(/adversarial persona.*selected/i)
+    expect(docReview).toMatch(/only when that lens was activated/i)
+    expect(pov).toMatch(/never summons the panel/i)
+    for (const body of [codeReview, docReview, pov]) {
+      expect(body).toMatch(/quarantined/i)
+      expect(body).toMatch(/discard/i)
+    }
+  })
+
+  test("merged legacy intent and generalized role resolution share a deterministic source snapshot", async () => {
+    const f = await fixture()
+    try {
+      await writeFile(
+        path.join(f.home, "config.yaml"),
+        [
+          "plan_model: opus",
+          "routing:",
+          "  profiles:",
+          "    strong:",
+          "      candidates:",
+          "        - { harness: claude, model: sonnet, effort: high }",
+          "  roles:",
+          "    ce-plan.plan-author: { profile: strong, policy: prefer }",
+          "",
+        ].join("\n"),
+        { mode: 0o600 },
+      )
+      await chmod(path.join(f.home, "config.yaml"), 0o600)
+
+      const inspected = await runResolver(
+        { protocol: "ce-routing/v1", op: "inspect", cwd: f.project },
+        f.project,
+        f.home,
+      )
+      const resolved = await runResolver(
+        {
+          protocol: "ce-routing/v1",
+          op: "resolve_batch",
+          cwd: f.project,
+          intents: [],
+          roles: [{ role: "ce-plan.plan-author", instance: { id: "author", ordinal: 0 } }],
+        },
+        f.project,
+        f.home,
+      )
+
+      expect(inspected.exitCode).toBe(0)
+      expect(inspected.body.settings.effective.plan_model).toBe("opus")
+      expect(resolved.exitCode).toBe(0)
+      expect(resolved.body.resolutions[0].binding.profile).toBe("strong")
+      expect(resolved.body.sources.global.revision).toBe(inspected.body.sources.global.revision)
+      expect(resolved.body.snapshot.id).toMatch(/^cesnap-v1:/)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test.each([
+    ["preferred unverified success", "prefer", true, false, {}, "accept", "accepted_unverified"],
+    ["preferred terminal mismatch", "prefer", true, false, { model_actual: "other" }, "next_candidate", "mismatched"],
+    ["required unverified success", "require", true, false, {}, "block", "unverified"],
+    ["required mismatch", "require", true, false, { model_actual: "other" }, "block", "mismatched"],
+  ])("finalize_attempt: %s", async (_name, policy, terminal, integrated, report, action, identity) => {
+    const f = await fixture()
+    try {
+      const result = await runResolver(
+        {
+          protocol: "ce-routing/v1",
+          op: "finalize_attempt",
+          cwd: f.project,
+          binding: {
+            role: "ce-code-review.adversarial-reviewer",
+            class: "review",
+            profile: "peer",
+            source_layer: "global-role",
+            policy,
+            candidates: [
+              { harness: "claude", model: "opus", ordinal: 0 },
+              { harness: "codex", model: "gpt-5.6-luna", ordinal: 1 },
+            ],
+          },
+          attempt: { ordinal: 0, terminal, integrated },
+          report,
+        },
+        f.project,
+        f.home,
+      )
+      expect(result.body.action).toBe(action)
+      expect(result.body.receipt.identity_status).toBe(identity)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test.each([
+    [false, false],
+    [true, true],
+  ])("a mismatched preferred attempt cannot advance when terminal=%s integrated=%s", async (terminal, integrated) => {
+    const f = await fixture()
+    try {
+      const result = await runResolver(
+        {
+          protocol: "ce-routing/v1",
+          op: "finalize_attempt",
+          cwd: f.project,
+          binding: {
+            role: "ce-pov.panel-peer",
+            class: "reasoning",
+            profile: "panel",
+            source_layer: "global-class",
+            policy: "prefer",
+            candidates: [
+              { harness: "claude", model: "opus", ordinal: 0 },
+              { harness: "codex", model: "gpt-5.6-sol", ordinal: 1 },
+            ],
+          },
+          attempt: { ordinal: 0, terminal, integrated },
+          report: { model_actual: "other" },
+        },
+        f.project,
+        f.home,
+      )
+      expect(result.exitCode).toBe(4)
+      expect(result.body.error.code).toBe("RETRY_UNSAFE")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+})

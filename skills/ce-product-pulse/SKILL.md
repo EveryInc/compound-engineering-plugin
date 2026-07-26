@@ -16,7 +16,7 @@ allowed-tools:
 
 `ce-product-pulse` queries the product's data sources for a given time window and produces a compact, single-page report covering usage, performance, errors, and followups. The report is saved to `docs/pulse-reports/` and the key points are surfaced in chat.
 
-The skill does not mutate the product, the database, or any external system. Its only writes are pulse settings appended to `.compound-engineering/config.local.yaml` (the unified CE local config, gitignored, machine-local) and the report file (`docs/pulse-reports/...`). MCP and other data-source tools are invoked read-only; if a tool offers write modes, do not use them.
+The skill does not mutate the product, the database, or any external system. Its only writes are pulse settings patched into the project-local Compound Engineering source and the report file (`docs/pulse-reports/...`). MCP and other data-source tools are invoked read-only; if a tool offers write modes, do not use them.
 
 ## Interaction Method
 
@@ -52,7 +52,16 @@ Apply a **15-minute trailing buffer** to the window's upper bound. Many analytic
 
 ### Phase 0: Route by Config State
 
-**Read config.** Resolve `<repo-root>` at runtime by running `git rev-parse --show-toplevel` with the shell tool. Then read `<repo-root>/.compound-engineering/config.local.yaml` with the native file-read tool (e.g., Read in Claude Code, read_file in Codex). If the root cannot be resolved or the file does not exist, treat this as a first run. Otherwise extract values for the `pulse_*` keys listed under "Config keys" below.
+Resolve `<repo-root>` with `git rev-parse --show-toplevel` for strategy, report, and project-ignore paths; do not use it to read settings.
+
+**Load effective settings.** Read `references/execution-routing.md`, construct a `ce-routing/v1` `inspect` request whose `cwd` is the absolute current working directory, and write it to an effective-user-private temporary file. From this skill's directory, invoke the co-located resolver (the assignment and command stay in one shell call):
+
+```bash
+SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
+python3 -I -S "$SKILL_DIR/scripts/ce-routing.py" --request-file <private-request-path>
+```
+
+Use the `pulse_*` values only from `settings.effective`, retaining their `settings.provenance` entries and `sources.project.revision`; do not read or parse either config source directly. The effective view already merges global and project settings. A resolver diagnostic is a configuration blocker.
 
 **Config keys:**
 - `pulse_product_name` -- string, used in report titles. Required for routing: if unset, skill is unconfigured.
@@ -72,7 +81,7 @@ Apply a **15-minute trailing buffer** to the window's upper bound. Many analytic
 
 **Routing:**
 
-- **`pulse_product_name` is unset (or config file missing)** -> First run. Go to Phase 1 (interview), then Phase 2.
+- **`settings.effective.pulse_product_name` is unset or `null`** -> First run. Go to Phase 1 (interview), then Phase 2.
 - **`pulse_product_name` is set** -> Skip to Phase 2.
 
 If the argument was `setup`, `reconfigure`, or `edit config`, go to Phase 1 regardless of config state.
@@ -92,7 +101,7 @@ If `STRATEGY.md` does not exist, note that explicitly in chat: no strategy doc o
 
 #### 1.1 Interview
 
-Read `references/interview.md`. This load is non-optional - the pushback rules, anti-pattern examples, and metric-to-source mapping logic live there.
+Read `references/interview.md`. This load is non-optional - the pushback rules, anti-pattern examples, and metric-to-source mapping logic live there. Use that reference for interview content and the `pulse_*` data shape only; the resolver-owned persistence step below supersedes any direct config-file write wording in the reference.
 
 Run the interview in this order:
 
@@ -109,13 +118,22 @@ Apply the pushback rules in `references/interview.md` for each section. Treat ev
 
 If the user offers read-write database access, refuse and offer the alternatives documented in `references/interview.md` section 6.
 
-Write the captured config to `<repo-root>/.compound-engineering/config.local.yaml` as flat `pulse_*` keys, using the schema in `references/interview.md` under "Config file shape". Resolve the repo root with `git rev-parse --show-toplevel`. To write: (1) if the file or directory does not exist, create `.compound-engineering/` and write the YAML file; (2) if the file exists, merge new keys into the existing YAML, preserving any non-pulse keys (e.g., `plan_*`) untouched. If `.compound-engineering/config.local.yaml` is not already covered by the repo's `.gitignore`, offer to add the entry before writing. Show the resulting pulse block to the user in chat and offer one round of edits.
+Persist the interview through the co-located resolver only. Immediately before writing, repeat the private `inspect` request from Phase 0 and take its `sources.project.revision`. Build a second private `ce-routing/v1` request with the same absolute `cwd`, `op: patch_source`, `writer: ce-product-pulse`, `layer: project`, `expected_revision` set to that exact `sources.project.revision`, `set` containing only the `pulse_*` values explicitly captured or changed for this project, and `remove: []`. Invoke each request with a fresh inline skill-directory assignment because shell state does not persist:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
+python3 -I -S "$SKILL_DIR/scripts/ce-routing.py" --request-file <private-request-path>
+```
+
+The resolver creates or atomically updates the project source and preserves unrelated project keys.
+
+Use `settings.provenance` to distinguish inherited seeds from project values: never copy or materialize an inherited global value into the project `set` map merely because the interview displayed or accepted it unchanged. If the project config is not ignored, offer the existing `.gitignore` entry before patching. A `WRITE_CONFLICT` requires a fresh inspect and a rebuilt narrow patch; never overwrite a newer revision. Re-inspect after a successful patch, show the resulting effective pulse values and their source to the user, and offer one round of edits through another revision-checked project patch.
 
 After the config is written, run the **scheduling recommendation** from `references/interview.md` section 9: offer to set up a recurring run so the user gets the pulse on a cadence instead of having to remember to run it. Accept yes/no/later. If yes, hand off to whichever scheduling primitive the current harness exposes — the in-plugin `schedule` skill if it is installed, otherwise note that scheduling is platform-specific (cron, GitHub Actions, the host's own automation) and emit a brief hint covering what would need to run. Do not schedule inline. Then proceed to Phase 2.
 
 ### Phase 2: Run the Pulse
 
-If Phase 1 ran (first run, or `setup`/`reconfigure` argument), re-read `.compound-engineering/config.local.yaml` from the repo root using the native file-read tool to pick up any edits accepted during the Phase 1 review step. Otherwise, use the `pulse_*` values already extracted in Phase 0. Apply hard defaults for any unset settings (see Phase 0 "Config keys").
+If Phase 1 ran (first run, or `setup`/`reconfigure` argument), use the post-patch `inspect` response's `settings.effective` values. Otherwise, use the effective `pulse_*` values already resolved in Phase 0. Apply the hard defaults above when an effective value is `null`.
 
 #### 2.1 Dispatch Queries
 

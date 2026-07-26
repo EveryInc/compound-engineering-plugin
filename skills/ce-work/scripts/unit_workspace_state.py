@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import copy
 import contextlib
 import fcntl
 import hashlib
@@ -31,6 +32,10 @@ from pathlib import Path
 
 
 SCHEMA_VERSION = 1
+ROUTING_PROTOCOL = "ce-routing/v1"
+CE_WORK_ROUTING_PROTOCOL = "ce-work-routing/v1"
+ROUTING_ROLE = "ce-work.implementation-worker"
+ATTEMPT_LOCK_PROTOCOL = "ce-work-attempt-lock/v1"
 PLAN_CHECKPOINT_MESSAGE = "docs(ce-work): checkpoint selected implementation plan"
 _uid_getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
 _EFFECTIVE_UID = _uid_getter() if _uid_getter is not None else None
@@ -518,8 +523,52 @@ def validate_source(doc: dict) -> None:
             raise TrustFailure("manifest source kind is invalid")
 
 
+def validate_routing_state(doc: dict) -> None:
+    routing = doc.get("routing")
+    if routing is None:
+        return
+    if not isinstance(routing, dict) or routing.get("protocol") != CE_WORK_ROUTING_PROTOCOL:
+        raise TrustFailure("manifest routing protocol is malformed")
+    binding = routing.get("binding")
+    resolver_snapshot = routing.get("resolver_snapshot")
+    request_digest = routing.get("request_sha256")
+    if (
+        not isinstance(binding, dict)
+        or not isinstance(resolver_snapshot, dict)
+        or not isinstance(request_digest, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", request_digest)
+    ):
+        raise TrustFailure("manifest frozen routing state is malformed")
+    if binding.get("role") != ROUTING_ROLE or binding.get("class") != "implementation":
+        raise TrustFailure("manifest routing binding is not the CE Work implementation role")
+    if routing.get("source_revisions") != resolver_snapshot.get("source_revisions"):
+        raise TrustFailure("manifest routing source revisions differ from the resolver snapshot")
+    if routing.get("binding_digest") != digest_bytes(canonical_json_bytes(binding)):
+        raise TrustFailure("manifest routing binding digest is invalid")
+    frozen_material = {
+        "resolver_snapshot": resolver_snapshot,
+        "binding": binding,
+        "request_sha256": request_digest,
+        "host": routing.get("host"),
+    }
+    expected_snapshot = "cework-snapshot-v1:" + digest_bytes(canonical_json_bytes(frozen_material))
+    if routing.get("snapshot_id") != expected_snapshot:
+        raise TrustFailure("manifest routing snapshot identity is invalid")
+    locks = routing.get("attempt_locks")
+    if not isinstance(locks, dict):
+        raise TrustFailure("manifest routing attempt-lock collection is malformed")
+    for unit_id, attempts in locks.items():
+        if not isinstance(unit_id, str) or not SAFE_ID.fullmatch(unit_id) or not isinstance(attempts, dict):
+            raise TrustFailure("manifest routing attempt-lock unit is malformed")
+        for attempt_id, lock in attempts.items():
+            if not isinstance(attempt_id, str) or not SAFE_ID.fullmatch(attempt_id):
+                raise TrustFailure("manifest routing attempt-lock id is malformed")
+            validate_attempt_lock(lock, routing, unit_id, attempt_id)
+
+
 def validate_repo(doc: dict) -> dict:
     validate_source(doc)
+    validate_routing_state(doc)
     recorded = doc["repository"]
     current = repo_info(recorded["toplevel"])
     for key in ("toplevel", "git_dir", "common_dir", "common_dev", "common_ino", "identity_digest"):
@@ -557,13 +606,256 @@ def parse_json_arg(raw: str, label: str) -> dict:
     return value
 
 
+def canonical_json_bytes(value: object) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _routing_resolver(request: dict, *, accepted_exit_codes: set[int] | None = None) -> tuple[dict, int]:
+    resolver = os.path.realpath(os.path.join(os.path.dirname(__file__), "ce-routing.py"))
+    accepted = {0} if accepted_exit_codes is None else accepted_exit_codes
+    proc = subprocess.run(
+        [sys.executable, "-I", "-S", resolver],
+        input=canonical_json_bytes(request),
+        capture_output=True,
+        env=sanitized_git_environment({"PYTHONDONTWRITEBYTECODE": "1"}),
+        check=False,
+    )
+    try:
+        response = json.loads(proc.stdout.decode("utf-8", "strict"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise Operational("BLOCKED", "co-located routing resolver returned malformed output") from exc
+    if not isinstance(response, dict):
+        raise Operational("BLOCKED", "co-located routing resolver returned a non-object response")
+    if proc.returncode not in accepted:
+        error = response.get("error") if isinstance(response.get("error"), dict) else {}
+        message = error.get("message") if isinstance(error.get("message"), str) else "routing resolution failed"
+        raise Operational(
+            "BLOCKED",
+            message,
+            {"routing_error": error, "resolver_exit": proc.returncode},
+        )
+    return response, proc.returncode
+
+
+def _binding_rank(source_layer: object) -> int:
+    return {
+        "task": 0,
+        "project-role": 10,
+        "project-legacy-work-engine": 20,
+        "project-class": 30,
+        "global-role": 40,
+        "global-legacy-work-engine": 50,
+        "global-class": 60,
+        "builtin": 70,
+    }.get(source_layer, 100)
+
+
+def _legacy_work_engine_binding(response: dict) -> tuple[dict | None, dict]:
+    settings = response.get("settings")
+    if not isinstance(settings, dict):
+        raise Operational("BLOCKED", "routing resolver omitted effective settings")
+    effective = settings.get("effective")
+    provenance = settings.get("provenance")
+    if not isinstance(effective, dict) or not isinstance(provenance, dict):
+        raise Operational("BLOCKED", "routing resolver settings provenance is malformed")
+    mode = effective.get("work_engine_mode")
+    preferences = effective.get("work_engine_preferences")
+    mode_provenance = provenance.get("work_engine_mode", {})
+    preferences_provenance = provenance.get("work_engine_preferences", {})
+    mode_layer = mode_provenance.get("layer") if isinstance(mode_provenance, dict) else None
+    preferences_layer = preferences_provenance.get("layer") if isinstance(preferences_provenance, dict) else None
+    compatibility = {
+        "applied": False,
+        "mode": mode,
+        "mode_source": mode_layer,
+        "preferences_source": preferences_layer,
+    }
+    if mode not in {"prefer", "require"} or not isinstance(preferences, list) or not preferences:
+        return None, compatibility
+    candidates = []
+    for ordinal, candidate in enumerate(preferences):
+        if not isinstance(candidate, dict):
+            raise Operational("BLOCKED", "effective work_engine_preferences is malformed")
+        projected = copy.deepcopy(candidate)
+        projected["ordinal"] = ordinal
+        candidates.append(projected)
+    if mode == "prefer":
+        candidates.append({"kind": "ce-default", "ordinal": len(candidates)})
+    layer = "project" if "project" in {mode_layer, preferences_layer} else "global"
+    source_authority = all(
+        bool(item.get("authority_trusted"))
+        for item in (mode_provenance, preferences_provenance)
+        if isinstance(item, dict) and item.get("layer") != "builtin"
+    )
+    binding = {
+        "kind": "profile",
+        "explicit_reset": False,
+        "source_layer": f"{layer}-legacy-work-engine",
+        "source_authority": source_authority,
+        "source": "merged-effective-settings",
+        "role": ROUTING_ROLE,
+        "class": "implementation",
+        "profile": "legacy-work-engine",
+        "policy": mode,
+        "candidates": candidates,
+    }
+    return binding, compatibility
+
+
+def _direct_implementation_binding(value: object) -> dict | None:
+    if value is None:
+        return None
+    if value == "ce-default":
+        return {
+            "kind": "ce-default",
+            "explicit_reset": True,
+            "source_layer": "task",
+            "source_authority": True,
+            "source": "current-task",
+            "role": ROUTING_ROLE,
+            "class": "implementation",
+            "profile": None,
+            "policy": None,
+            "candidates": [],
+        }
+    if not isinstance(value, dict) or set(value) != {"source", "policy", "candidates"}:
+        raise Operational(
+            "REFUSED",
+            "implementation_intent must be ce-default or exactly source, policy, and candidates",
+        )
+    source = value.get("source")
+    policy = value.get("policy")
+    candidates = value.get("candidates")
+    if not isinstance(source, str) or not source or "\0" in source or len(source.encode()) > 256:
+        raise Operational("REFUSED", "implementation_intent source must be a non-empty bounded string")
+    if policy not in {"prefer", "require"}:
+        raise Operational("REFUSED", "implementation_intent policy must be prefer or require")
+    if not isinstance(candidates, list) or not candidates:
+        raise Operational("REFUSED", "implementation_intent candidates must be a non-empty list")
+    allowed_harnesses = {"claude", "opencode", "codex", "cursor", "grok", "composer", "pi", "antigravity"}
+    projected = []
+    for ordinal, candidate in enumerate(candidates):
+        if candidate == "ce-default":
+            if ordinal != len(candidates) - 1:
+                raise Operational("REFUSED", "implementation_intent CE-default must be the final candidate")
+            projected.append({"kind": "ce-default", "ordinal": ordinal})
+            continue
+        if not isinstance(candidate, dict) or "harness" not in candidate or set(candidate) - {"harness", "model", "effort", "route"}:
+            raise Operational("REFUSED", "implementation_intent candidate fields are invalid")
+        if candidate.get("harness") not in allowed_harnesses:
+            raise Operational("REFUSED", "implementation_intent candidate harness is invalid")
+        for field in ("model", "effort", "route"):
+            token = candidate.get(field)
+            if token is not None and (
+                not isinstance(token, str)
+                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]*", token)
+            ):
+                raise Operational("REFUSED", f"implementation_intent candidate {field} is unsafe")
+        row = copy.deepcopy(candidate)
+        row["ordinal"] = ordinal
+        projected.append(row)
+    return {
+        "kind": "profile",
+        "explicit_reset": False,
+        "source_layer": "task",
+        "source_authority": True,
+        "source": source,
+        "role": ROUTING_ROLE,
+        "class": "implementation",
+        "profile": "current-task-implementation",
+        "policy": policy,
+        "candidates": projected,
+    }
+
+
+def resolve_implementation_routing(request_bytes: bytes, repo: str) -> dict:
+    try:
+        request = json.loads(request_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise Operational("REFUSED", "routing request must be UTF-8 JSON") from exc
+    if not isinstance(request, dict):
+        raise Operational("REFUSED", "routing request root must be an object")
+    if request.get("protocol") != ROUTING_PROTOCOL or request.get("op") != "resolve_batch":
+        raise Operational("REFUSED", "routing request must be a ce-routing/v1 resolve_batch operation")
+    request_cwd = request.get("cwd")
+    if not isinstance(request_cwd, str) or os.path.realpath(request_cwd) != os.path.realpath(repo):
+        raise Operational("REFUSED", "routing request cwd must equal the canonical checkout")
+    roles = request.get("roles")
+    if not isinstance(roles, list) or not roles or any(
+        not isinstance(item, dict) or item.get("role") != ROUTING_ROLE for item in roles
+    ):
+        raise Operational("REFUSED", f"routing request may resolve only {ROUTING_ROLE}")
+    host = request.get("host", {})
+    if not isinstance(host, dict) or any(not isinstance(key, str) or not isinstance(value, str) for key, value in host.items()):
+        raise Operational("REFUSED", "routing request host identity must be a string mapping")
+    direct_binding = _direct_implementation_binding(request.get("implementation_intent"))
+    intents = request.get("intents", [])
+    if direct_binding is not None and isinstance(intents, list) and any(
+        isinstance(intent, dict)
+        and (intent.get("role") is None or intent.get("role") == ROUTING_ROLE)
+        and (intent.get("class") is None or intent.get("class") == "implementation")
+        for intent in intents
+    ):
+        raise Operational("REFUSED", "implementation_intent cannot be combined with another applicable task routing intent")
+    resolver_request = copy.deepcopy(request)
+    resolver_request.pop("implementation_intent", None)
+    response, _ = _routing_resolver(resolver_request)
+    resolutions = response.get("resolutions")
+    if not isinstance(resolutions, list) or len(resolutions) != len(roles):
+        raise Operational("BLOCKED", "routing resolver returned an incomplete implementation batch")
+    bindings = [item.get("binding") for item in resolutions if isinstance(item, dict)]
+    if len(bindings) != len(resolutions) or any(not isinstance(binding, dict) for binding in bindings):
+        raise Operational("BLOCKED", "routing resolver returned a malformed implementation binding")
+    first_binding = bindings[0]
+    if any(canonical_json_bytes(binding) != canonical_json_bytes(first_binding) for binding in bindings[1:]):
+        raise Operational("BLOCKED", "implementation instances resolved to conflicting bindings")
+
+    generalized = copy.deepcopy(first_binding)
+    compatibility_binding, compatibility = _legacy_work_engine_binding(response)
+    binding = direct_binding or generalized
+    if direct_binding is None and generalized.get("explicit_reset") is not True and compatibility_binding is not None:
+        if _binding_rank(compatibility_binding.get("source_layer")) < _binding_rank(generalized.get("source_layer")):
+            binding = compatibility_binding
+            compatibility["applied"] = True
+
+    snapshot = response.get("snapshot")
+    sources = response.get("sources")
+    if not isinstance(snapshot, dict) or not isinstance(sources, dict):
+        raise Operational("BLOCKED", "routing resolver omitted snapshot provenance")
+    source_revisions = snapshot.get("source_revisions")
+    if not isinstance(source_revisions, dict):
+        raise Operational("BLOCKED", "routing resolver snapshot omitted source revisions")
+    binding_digest = digest_bytes(canonical_json_bytes(binding))
+    frozen_material = {
+        "resolver_snapshot": snapshot,
+        "binding": binding,
+        "request_sha256": digest_bytes(request_bytes),
+        "host": host,
+    }
+    return {
+        "protocol": CE_WORK_ROUTING_PROTOCOL,
+        "snapshot_id": "cework-snapshot-v1:" + digest_bytes(canonical_json_bytes(frozen_material)),
+        "resolver_snapshot": snapshot,
+        "source_revisions": source_revisions,
+        "sources": sources,
+        "host": copy.deepcopy(host),
+        "request_sha256": digest_bytes(request_bytes),
+        "binding": binding,
+        "binding_digest": binding_digest,
+        "generalized_binding": generalized,
+        "compatibility": compatibility,
+        "attempt_locks": {},
+        "receipts": [],
+    }
+
+
 ROUTE_CONTRACTS = {
-    "codex": {"target": "codex", "harness": "codex", "intermediaries": [], "default_model": "auto", "restriction_posture": "adapter-enforced"},
-    "claude": {"target": "claude", "harness": "claude", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
-    "grok-cli": {"target": "grok", "harness": "grok", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
-    "cursor": {"target": "cursor", "harness": "cursor-agent", "intermediaries": [], "default_model": "auto", "restriction_posture": "adapter-enforced"},
-    "composer": {"target": "composer", "harness": "cursor-agent", "intermediaries": ["cursor"], "default_model": "composer-2.5-fast", "restriction_posture": "adapter-enforced"},
-    "grok-cursor": {"target": "grok", "harness": "cursor-agent", "intermediaries": ["cursor"], "default_model": "cursor-grok-4.5-high", "restriction_posture": "adapter-enforced"},
+    "codex": {"target": "codex", "harness": "codex", "intermediaries": [], "default_model": "auto", "default_effort": "auto", "restriction_posture": "adapter-enforced"},
+    "claude": {"target": "claude", "harness": "claude", "intermediaries": [], "default_model": "auto", "default_effort": "high", "restriction_posture": "cooperative"},
+    "grok-cli": {"target": "grok", "harness": "grok", "intermediaries": [], "default_model": "auto", "default_effort": "high", "restriction_posture": "cooperative"},
+    "cursor": {"target": "cursor", "harness": "cursor-agent", "intermediaries": [], "default_model": "auto", "default_effort": "auto", "restriction_posture": "adapter-enforced"},
+    "composer": {"target": "composer", "harness": "cursor-agent", "intermediaries": ["cursor"], "default_model": "composer-2.5-fast", "default_effort": "auto", "restriction_posture": "adapter-enforced"},
+    "grok-cursor": {"target": "grok", "harness": "cursor-agent", "intermediaries": ["cursor"], "default_model": "cursor-grok-4.5-high", "default_effort": "auto", "restriction_posture": "adapter-enforced"},
 }
 
 
@@ -585,6 +877,138 @@ def route_model_allowed(route: str, model: str) -> bool:
     if route == "grok-cursor":
         return bool(re.fullmatch(r"cursor-grok-[A-Za-z0-9._-]+", model))
     return False
+
+
+def route_effort_allowed(route: str, effort: str) -> bool:
+    if route == "codex":
+        return effort in {"auto", "minimal", "low", "medium", "high", "xhigh"}
+    if route in {"claude", "grok-cli"}:
+        return effort in {"low", "medium", "high"}
+    return effort == "auto"
+
+
+def candidate_fixed_route(candidate: dict) -> tuple[str, dict]:
+    if not isinstance(candidate, dict) or candidate.get("kind") == "ce-default":
+        raise Operational("REFUSED", "CE-default is native behavior, not an external route")
+    harness = candidate.get("harness")
+    model = candidate.get("model")
+    requested_route = candidate.get("route")
+    if requested_route is not None:
+        if requested_route not in ROUTE_CONTRACTS:
+            raise Operational("ROUTE_UNAVAILABLE", f"CE Work has no fixed write adapter for route {requested_route!r}")
+        route = requested_route
+    elif harness == "codex":
+        route = "codex"
+    elif harness == "claude":
+        route = "claude"
+    elif harness == "grok":
+        route = "grok-cli"
+    elif harness == "composer":
+        route = "composer"
+    elif harness == "cursor":
+        lowered = str(model or "").lower()
+        if lowered == "composer" or lowered.startswith("composer-"):
+            route = "composer"
+        elif lowered == "grok" or lowered.startswith(("grok-", "cursor-grok-")):
+            route = "grok-cursor"
+        else:
+            route = "cursor"
+    else:
+        raise Operational("ROUTE_UNAVAILABLE", f"CE Work has no isolated external adapter for harness {harness!r}")
+    contract = ROUTE_CONTRACTS[route]
+    allowed_harnesses = {
+        "codex": {"codex"},
+        "claude": {"claude"},
+        "grok-cli": {"grok"},
+        "cursor": {"cursor"},
+        "composer": {"cursor", "composer"},
+        "grok-cursor": {"cursor", "grok"},
+    }[route]
+    if harness not in allowed_harnesses:
+        raise Operational("ROUTE_UNAVAILABLE", "candidate harness is incompatible with its requested fixed route")
+    requested_model = model or contract["default_model"]
+    if not route_model_allowed(route, requested_model):
+        raise Operational("ROUTE_UNAVAILABLE", "candidate model is incompatible with the fixed write adapter")
+    requested_effort = candidate.get("effort") or contract["default_effort"]
+    if not route_effort_allowed(route, requested_effort):
+        raise Operational("ROUTE_UNAVAILABLE", "candidate effort is unsupported by the fixed write adapter")
+    return route, contract
+
+
+def candidate_is_same_host_default(candidate: dict, host: object) -> bool:
+    if not isinstance(host, dict) or not isinstance(candidate, dict):
+        return False
+    if candidate.get("kind") == "ce-default":
+        return True
+    return (
+        candidate.get("harness") == host.get("harness")
+        and candidate.get("model") is None
+        and candidate.get("effort") is None
+        and candidate.get("route") is None
+    )
+
+
+def routing_starts_native(routing: dict) -> bool:
+    binding = routing.get("binding")
+    if not isinstance(binding, dict):
+        return False
+    if binding.get("kind") == "ce-default":
+        return True
+    candidates = binding.get("candidates")
+    return bool(
+        isinstance(candidates, list)
+        and candidates
+        and candidate_is_same_host_default(candidates[0], routing.get("host"))
+    )
+
+
+def _validate_egress_sanction(egress: dict, unit_id: str, contract: dict, word: str = "REFUSED") -> None:
+    source = egress.get("sanction_source")
+    if not isinstance(source, str) or not source or "\0" in source or len(source.encode()) > 256:
+        raise Operational(word, "egress sanction source must be a non-empty bounded string")
+    material = egress.get("exposed_material")
+    if not isinstance(material, list) or unit_id not in material or any(
+        not isinstance(item, str) or not item or "\0" in item or len(item.encode()) > 1024 for item in material
+    ):
+        raise Operational(word, "egress material scope must explicitly include the locked unit")
+    if egress.get("intermediaries") != contract["intermediaries"]:
+        raise Operational(word, "egress intermediaries do not match the selected recipient")
+
+
+def _attempt_lock_digest(lock: dict) -> str:
+    material = {key: value for key, value in lock.items() if key != "lock_digest"}
+    return digest_bytes(canonical_json_bytes(material))
+
+
+def validate_attempt_lock(lock: object, routing: dict, unit_id: str, attempt_id: str) -> dict:
+    if not isinstance(lock, dict) or lock.get("protocol") != ATTEMPT_LOCK_PROTOCOL:
+        raise TrustFailure("routing attempt lock protocol is malformed")
+    if lock.get("unit_id") != unit_id or lock.get("attempt_id") != attempt_id:
+        raise TrustFailure("routing attempt lock identity is malformed")
+    if lock.get("snapshot_id") != routing.get("snapshot_id") or lock.get("binding_digest") != routing.get("binding_digest"):
+        raise TrustFailure("routing attempt lock does not belong to the frozen binding")
+    if lock.get("lock_digest") != _attempt_lock_digest(lock):
+        raise TrustFailure("routing attempt lock digest is invalid")
+    binding = routing.get("binding")
+    ordinal = lock.get("candidate_ordinal")
+    candidates = binding.get("candidates") if isinstance(binding, dict) else None
+    if not isinstance(ordinal, int) or not isinstance(candidates, list) or ordinal < 0 or ordinal >= len(candidates):
+        raise TrustFailure("routing attempt candidate ordinal is invalid")
+    if lock.get("candidate") != candidates[ordinal]:
+        raise TrustFailure("routing attempt candidate differs from the frozen binding")
+    return lock
+
+
+def routing_attempt_lock(doc: dict, unit_id: str, attempt_id: str) -> dict:
+    routing = doc.get("routing")
+    if not isinstance(routing, dict):
+        raise Operational("REFUSED", "run has no generalized routing snapshot")
+    locks = routing.get("attempt_locks")
+    unit_locks = locks.get(unit_id) if isinstance(locks, dict) else None
+    lock = unit_locks.get(attempt_id) if isinstance(unit_locks, dict) else None
+    if lock is None:
+        raise Operational("REFUSED", "prepare requires a frozen routing attempt lock")
+    return validate_attempt_lock(lock, routing, unit_id, attempt_id)
 
 
 def fixed_route_contract(binding: dict, egress: dict, word: str = "BLOCKED") -> dict:
@@ -620,6 +1044,158 @@ def fixed_route_contract(binding: dict, egress: dict, word: str = "BLOCKED") -> 
     return contract
 
 
+def _candidate_scalar_binding(binding: dict, candidate: dict, contract: dict) -> dict:
+    source = binding.get("source") or binding.get("source_layer")
+    if not isinstance(source, str) or not source:
+        source = "resolved-routing"
+    return {
+        "mode": binding.get("policy"),
+        "target": contract["target"],
+        "model": candidate.get("model"),
+        "source": source,
+    }
+
+
+def cmd_lock_attempt(args) -> tuple[str, dict]:
+    unit_id = safe_id(args.unit_id, "unit id")
+    attempt_id = safe_id(args.attempt_id, "attempt id")
+    try:
+        preflight = json.loads(args.preflight_json)
+    except ValueError as exc:
+        raise Operational("REFUSED", "invalid preflight JSON") from exc
+    if not isinstance(preflight, list):
+        raise Operational("REFUSED", "preflight must be a JSON list")
+    egress = parse_json_arg(args.egress_json, "egress")
+
+    with locked_manifest(args.run_id, write=True) as doc:
+        validate_repo(doc)
+        routing = doc.get("routing")
+        if not isinstance(routing, dict):
+            raise Operational("REFUSED", "run has no generalized routing snapshot")
+        binding = routing.get("binding")
+        if not isinstance(binding, dict) or binding.get("kind") != "profile":
+            raise Operational("REFUSED", "CE-default routing does not create an external attempt")
+        candidates = binding.get("candidates")
+        ordinal = args.candidate_ordinal
+        if not isinstance(candidates, list) or ordinal < 0 or ordinal >= len(candidates):
+            raise Operational("REFUSED", "candidate ordinal is outside the frozen binding")
+        candidate = candidates[ordinal]
+        if not isinstance(candidate, dict):
+            raise TrustFailure("frozen routing candidate is malformed")
+        if candidate_is_same_host_default(candidate, routing.get("host")):
+            raise Operational("REFUSED", "same-host default candidate must collapse to native execution")
+
+        locks = routing.setdefault("attempt_locks", {})
+        unit_locks = locks.setdefault(unit_id, {})
+        existing_lock = unit_locks.get(attempt_id)
+        if existing_lock is not None:
+            validated = validate_attempt_lock(existing_lock, routing, unit_id, attempt_id)
+            if (
+                ordinal != validated.get("candidate_ordinal")
+                or egress != validated.get("egress")
+                or preflight != validated.get("preflight")
+            ):
+                raise Operational("REFUSED", "attempt lock already exists with different immutable inputs")
+            return "ATTEMPT_LOCKED", {
+                "run_id": args.run_id,
+                "unit_id": unit_id,
+                "attempt_id": attempt_id,
+                "attempt_lock": validated,
+                "resumed": True,
+            }
+
+        unit = doc.get("units", {}).get(unit_id)
+        expected_from_fallback = None
+        if unit is not None:
+            attempts = unit.get("attempts")
+            if not isinstance(attempts, list) or not attempts or not isinstance(attempts[-1], dict):
+                raise TrustFailure("unit attempt history is malformed")
+            previous = attempts[-1]
+            fallback = previous.get("fallback")
+            claim = fallback.get("claimed") if isinstance(fallback, dict) else None
+            if isinstance(claim, dict) and claim.get("kind") == "next-candidate":
+                expected_from_fallback = claim.get("candidate_ordinal")
+                cleanup = unit.get("cleanup")
+                if not (
+                    unit.get("state") == "cleaned"
+                    and isinstance(cleanup, dict)
+                    and cleanup.get("abandoned") is True
+                    and cleanup.get("artifact_cleanup", {}).get("complete") is True
+                ):
+                    raise Operational("REFUSED", "next recipient remains locked until prior output is exactly abandoned and cleaned")
+            elif any(item.get("attempt_id") != attempt_id for item in attempts):
+                raise Operational("REFUSED", "a new routed attempt requires a recorded next-candidate claim")
+        if expected_from_fallback is not None:
+            if ordinal != expected_from_fallback:
+                raise Operational("REFUSED", "attempt does not select the controller-authorized next candidate")
+            if preflight:
+                raise Operational("REFUSED", "post-start recipient advancement cannot rewrite preflight history")
+        else:
+            expected_ordinals = list(range(ordinal))
+            observed_ordinals = []
+            for row in preflight:
+                if not isinstance(row, dict) or set(row) != {"ordinal", "status", "reason"}:
+                    raise Operational("REFUSED", "preflight rows require exactly ordinal, status, and reason")
+                if row.get("status") != "unavailable":
+                    raise Operational("REFUSED", "preflight may skip only unavailable candidates")
+                if not isinstance(row.get("reason"), str) or not row["reason"] or len(row["reason"].encode()) > 1024:
+                    raise Operational("REFUSED", "preflight reason must be a non-empty bounded string")
+                observed_ordinals.append(row.get("ordinal"))
+            if observed_ordinals != expected_ordinals:
+                raise Operational("REFUSED", "selected candidate must account for every earlier candidate in order")
+            if any(candidates[index].get("kind") == "ce-default" for index in expected_ordinals):
+                raise Operational("REFUSED", "candidate selection cannot skip CE-default")
+
+        route, contract = candidate_fixed_route(candidate)
+        scalar_binding = _candidate_scalar_binding(binding, candidate, contract)
+        fixed_route_contract(scalar_binding, egress, "REFUSED")
+        _validate_egress_sanction(egress, unit_id, contract)
+        recipient = {
+            "route": route,
+            "target": contract["target"],
+            "harness": contract["harness"],
+            "intermediaries": list(contract["intermediaries"]),
+        }
+        requested_model = candidate.get("model")
+        requested_effort = candidate.get("effort")
+        strict_identity = binding.get("policy") == "require" and (requested_model is not None or requested_effort is not None)
+        lock = {
+            "protocol": ATTEMPT_LOCK_PROTOCOL,
+            "snapshot_id": routing["snapshot_id"],
+            "source_revisions": copy.deepcopy(routing["source_revisions"]),
+            "binding_digest": routing["binding_digest"],
+            "unit_id": unit_id,
+            "attempt_id": attempt_id,
+            "candidate_ordinal": ordinal,
+            "candidate": copy.deepcopy(candidate),
+            "recipient": recipient,
+            "adapter_family": "write-capable-isolated-implementation",
+            "mutation_posture": "isolated-write",
+            "environment_posture": "credential-minimized",
+            "identity_gate": "post-dispatch-quarantine" if strict_identity else "normal-receipt",
+            "material_scope": copy.deepcopy(egress["exposed_material"]),
+            "restrictions": copy.deepcopy(egress.get("restrictions", [])),
+            "egress": copy.deepcopy(egress),
+            "preflight": copy.deepcopy(preflight),
+            "state": "locked",
+            "locked_at": now_iso(),
+        }
+        lock["lock_digest"] = _attempt_lock_digest(lock)
+        unit_locks[attempt_id] = lock
+        event(doc, "routing-attempt-locked", unit_id, {
+            "attempt_id": attempt_id,
+            "candidate_ordinal": ordinal,
+            "route": route,
+        })
+        return "ATTEMPT_LOCKED", {
+            "run_id": args.run_id,
+            "unit_id": unit_id,
+            "attempt_id": attempt_id,
+            "attempt_lock": lock,
+            "resumed": False,
+        }
+
+
 def attempt_authorization(
     doc: dict,
     activity_posture: str,
@@ -627,8 +1203,22 @@ def attempt_authorization(
     attempt_id: str,
     packet_digest: str,
 ) -> dict:
-    binding = doc.get("binding")
-    egress = doc.get("egress")
+    routing = doc.get("routing")
+    routing_lock = None
+    if isinstance(routing, dict):
+        routing_lock = routing_attempt_lock(doc, unit_id, attempt_id)
+        candidate = routing_lock["candidate"]
+        route = routing_lock["recipient"]["route"]
+        contract = ROUTE_CONTRACTS[route]
+        binding = _candidate_scalar_binding(routing["binding"], candidate, contract)
+        egress = routing_lock["egress"]
+        effort = candidate.get("effort") or contract["default_effort"]
+    else:
+        binding = doc.get("binding")
+        egress = doc.get("egress")
+        route = egress.get("route") if isinstance(egress, dict) else None
+        contract = ROUTE_CONTRACTS.get(route)
+        effort = contract["default_effort"] if contract else "auto"
     contract = fixed_route_contract(binding, egress)
     route = egress.get("route")
     intermediaries = egress.get("intermediaries")
@@ -644,10 +1234,12 @@ def attempt_authorization(
         "harness": contract["harness"],
         "intermediaries": list(contract["intermediaries"]),
         "model_requested": model or contract["default_model"],
+        "effort_requested": effort,
         "restriction_posture": contract["restriction_posture"],
         "restrictions": list(restrictions),
         "activity_posture": activity_posture,
         "packet_digest": packet_digest,
+        "routing_lock": copy.deepcopy(routing_lock),
     }
 
 
@@ -685,8 +1277,226 @@ def event(doc: dict, kind: str, unit_id: str | None = None, detail: dict | None 
     doc.setdefault("events", []).append(row)
 
 
+def _state_attempt(unit: dict) -> dict:
+    attempts = unit.get("attempts")
+    if not isinstance(attempts, list) or not attempts or not isinstance(attempts[-1], dict):
+        raise TrustFailure("unit attempt history is malformed")
+    return attempts[-1]
+
+
+def integration_effect_started(unit: dict) -> bool:
+    integration = unit.get("integration")
+    if not isinstance(integration, dict):
+        return False
+    return any(integration.get(key) is not None for key in (
+        "pre_fold", "expected_apply", "applied", "verification", "canonical_commit",
+    )) or unit.get("state") in {"integrated", "verified", "committed", "cleaned"}
+
+
+def routing_result_evidence(unit: dict, attempt: dict, *, required: bool) -> tuple[dict, str | None]:
+    result_path = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result", "implementation-result.json")
+    if not os.path.lexists(result_path):
+        if required:
+            raise Operational("BLOCKED", "routed attempt has no terminal serving receipt")
+        return {}, None
+    raw = read_private(result_path, 6 * 1024 * 1024)
+    result_digest = digest_bytes(raw)
+    terminal = attempt.get("terminal_receipt")
+    if required and not isinstance(terminal, dict):
+        raise Operational("BLOCKED", "routed attempt has no validated terminal receipt")
+    if isinstance(terminal, dict) and terminal.get("result_sha256") != result_digest:
+        raise Operational("BLOCKED", "terminal serving receipt changed after controller validation")
+    try:
+        result = json.loads(raw)
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise Operational("BLOCKED", "terminal serving receipt is malformed") from exc
+    if not isinstance(result, dict):
+        raise Operational("BLOCKED", "terminal serving receipt is not an object")
+    authorization = attempt.get("authorization")
+    if not isinstance(authorization, dict):
+        raise Operational("BLOCKED", "routed attempt has no controller-issued authorization")
+    for field in ("model_requested", "effort_requested"):
+        if result.get(field) != authorization.get(field):
+            raise Operational("BLOCKED", f"terminal serving receipt {field} differs from authorization")
+    for kind in ("model", "effort"):
+        status = result.get(f"{kind}_receipt_status")
+        actual = result.get(f"{kind}_actual")
+        if status not in {"verified", "mismatch", "unverified"}:
+            raise Operational("BLOCKED", f"terminal {kind} receipt status is invalid")
+        if (
+            not isinstance(actual, str)
+            or not actual
+            or len(actual.encode()) > 128
+            or any(ord(char) < 0x20 or ord(char) == 0x7F for char in actual)
+        ):
+            raise Operational("BLOCKED", f"terminal {kind} identity is invalid")
+        if (status == "unverified") != (actual == "unverified"):
+            raise Operational("BLOCKED", f"terminal {kind} identity is inconsistent with its receipt status")
+    return result, result_digest
+
+
+def _resolver_serving_report(candidate: dict, result: dict) -> dict:
+    report: dict[str, object] = {}
+    requested_model = candidate.get("model")
+    model_status = result.get("model_receipt_status")
+    if requested_model is not None:
+        if model_status == "verified":
+            report["model_actual"] = requested_model
+        elif model_status == "mismatch":
+            actual = result.get("model_actual")
+            report["model_actual"] = actual if isinstance(actual, str) and actual else "mismatched"
+    requested_effort = candidate.get("effort")
+    effort_status = result.get("effort_receipt_status")
+    if requested_effort is not None:
+        if effort_status == "verified":
+            report["effort_actual"] = requested_effort
+        elif effort_status == "mismatch":
+            actual_effort = result.get("effort_actual")
+            report["effort_actual"] = actual_effort if isinstance(actual_effort, str) and actual_effort else "mismatched"
+    return report
+
+
+def finalize_routing_attempt(run_id: str, unit_id: str, *, require_result: bool = True) -> dict | None:
+    with locked_manifest(run_id) as doc:
+        validate_repo(doc)
+        routing = doc.get("routing")
+        if not isinstance(routing, dict):
+            return None
+        unit = doc.get("units", {}).get(unit_id)
+        if not isinstance(unit, dict):
+            raise Operational("REFUSED", "unknown unit")
+        attempt = _state_attempt(unit)
+        lock = routing_attempt_lock(doc, unit_id, attempt.get("attempt_id"))
+        existing = attempt.get("routing_finalization")
+        result, result_digest = routing_result_evidence(unit, attempt, required=require_result)
+        if isinstance(existing, dict):
+            if existing.get("result_sha256") != result_digest or existing.get("attempt_lock_digest") != lock["lock_digest"]:
+                raise Operational("BLOCKED", "stored routing finalization no longer matches terminal evidence")
+            return copy.deepcopy(existing)
+        binding = copy.deepcopy(routing["binding"])
+        candidate = lock["candidate"]
+        request = {
+            "protocol": ROUTING_PROTOCOL,
+            "op": "finalize_attempt",
+            "cwd": doc["repository"]["toplevel"],
+            "binding": binding,
+            "attempt": {
+                "ordinal": lock["candidate_ordinal"],
+                "terminal": attempt.get("process_state") in TERMINAL_PROCESS,
+                "integrated": integration_effect_started(unit),
+            },
+            "report": _resolver_serving_report(candidate, result),
+        }
+        manifest_revision = doc["revision"]
+    response, _ = _routing_resolver(request, accepted_exit_codes={0, 4})
+    routing_receipt = copy.deepcopy(response.get("receipt"))
+    if isinstance(routing_receipt, dict):
+        routing_receipt["model_actual"] = result.get("model_actual")
+        routing_receipt["effort_actual"] = result.get("effort_actual")
+    finalization = {
+        "at": now_iso(),
+        "action": response.get("action"),
+        "receipt": routing_receipt,
+        "error": copy.deepcopy(response.get("error")),
+        "next_candidate": copy.deepcopy(response.get("next_candidate")),
+        "result_sha256": result_digest,
+        "attempt_lock_digest": lock["lock_digest"],
+        "binding_digest": routing["binding_digest"],
+    }
+    with locked_manifest(run_id, write=True) as doc:
+        validate_repo(doc)
+        unit = doc["units"].get(unit_id)
+        if not isinstance(unit, dict):
+            raise Operational("REFUSED", "unknown unit")
+        attempt = _state_attempt(unit)
+        current = attempt.get("routing_finalization")
+        if isinstance(current, dict):
+            if current != finalization:
+                raise Operational("BLOCKED", "routing attempt was finalized concurrently with different evidence")
+            return copy.deepcopy(current)
+        if doc["revision"] != manifest_revision:
+            current_lock = routing_attempt_lock(doc, unit_id, attempt.get("attempt_id"))
+            if current_lock["lock_digest"] != lock["lock_digest"]:
+                raise Operational("BLOCKED", "routing attempt lock changed during finalization")
+        attempt["routing_finalization"] = finalization
+        doc["routing"].setdefault("receipts", []).append(copy.deepcopy(finalization))
+        if finalization["action"] in {"block", "next_candidate"}:
+            fallback = attempt.setdefault("fallback", {})
+            fallback.setdefault("claimed", None)
+            fallback["eligible"] = finalization["action"] == "next_candidate" and fallback.get("claimed") is None
+            fallback["reason"] = (
+                finalization.get("error", {}).get("message")
+                if isinstance(finalization.get("error"), dict)
+                else "serving identity mismatch"
+            )
+        event(doc, "routing-attempt-finalized", unit_id, {
+            "attempt_id": attempt.get("attempt_id"),
+            "action": finalization["action"],
+            "identity_status": finalization.get("receipt", {}).get("identity_status") if isinstance(finalization.get("receipt"), dict) else None,
+        })
+    return finalization
+
+
+def validate_routing_finalization_evidence(run_id: str, unit_id: str) -> dict | None:
+    with locked_manifest(run_id) as doc:
+        routing = doc.get("routing")
+        if not isinstance(routing, dict):
+            return None
+        unit = doc.get("units", {}).get(unit_id)
+        if not isinstance(unit, dict):
+            raise Operational("REFUSED", "unknown unit")
+        attempt = _state_attempt(unit)
+        finalization = attempt.get("routing_finalization")
+        if not isinstance(finalization, dict) or finalization.get("action") != "accept":
+            raise Operational("BLOCKED", "routed output has no accepted serving-identity finalization")
+        lock = routing_attempt_lock(doc, unit_id, attempt.get("attempt_id"))
+        _result, result_digest = routing_result_evidence(unit, attempt, required=True)
+        if (
+            result_digest != finalization.get("result_sha256")
+            or lock["lock_digest"] != finalization.get("attempt_lock_digest")
+            or routing["binding_digest"] != finalization.get("binding_digest")
+        ):
+            raise Operational("BLOCKED", "accepted routing evidence changed before integration")
+        return copy.deepcopy(finalization)
+
+
+def routing_blocker_detail(run_id: str, unit_id: str, finalization: dict) -> dict:
+    receipt = finalization.get("receipt") if isinstance(finalization.get("receipt"), dict) else {}
+    with locked_manifest(run_id) as doc:
+        unit = doc["units"][unit_id]
+        routing = doc["routing"]
+        canonical_unchanged = not integration_effect_started(unit) and not status_paths(doc["repository"]["toplevel"])
+        return {
+            "unit_id": unit_id,
+            "snapshot_id": routing["snapshot_id"],
+            "profile": routing["binding"].get("profile"),
+            "source_layer": routing["binding"].get("source_layer"),
+            "policy": routing["binding"].get("policy"),
+            "identity_status": receipt.get("identity_status"),
+            "requested_model": receipt.get("model_requested"),
+            "actual_model": receipt.get("model_actual"),
+            "requested_effort": receipt.get("effort_requested"),
+            "actual_effort": receipt.get("effort_actual"),
+            "action": finalization.get("action"),
+            "next_candidate": finalization.get("next_candidate"),
+            "canonical_unchanged": canonical_unchanged,
+            "recovery_path": unit.get("recovery_path"),
+        }
+
+
+def cmd_resolve_routing(args) -> tuple[str, dict]:
+    info = repo_info(args.repo)
+    request_path = os.path.realpath(os.path.abspath(args.routing_request))
+    if os.path.commonpath([info["toplevel"], request_path]) == info["toplevel"]:
+        raise Operational("REFUSED", "routing request must be private control data outside the canonical repository")
+    request_bytes = read_external_packet(args.routing_request, "routing request")
+    routing = resolve_implementation_routing(request_bytes, info["toplevel"])
+    word = "NATIVE" if routing_starts_native(routing) else "ROUTED"
+    return word, {"repository": info["toplevel"], "routing": routing, "canonical_unchanged": True}
+
+
 def cmd_init(args) -> tuple[str, dict]:
-    root = ensure_root()
+    root = runs_root()
     rid = safe_id(args.run_id, "run id")
     info = repo_info(args.repo)
     if args.plan:
@@ -720,13 +1530,23 @@ def cmd_init(args) -> tuple[str, dict]:
     actual_digest = source_record["digest"]
     if actual_digest != supplied_digest:
         raise Operational("REFUSED", f"selected {source_kind} digest does not match content")
-    binding = parse_json_arg(args.binding_json, "binding")
-    egress = parse_json_arg(args.egress_json, "egress")
-    fixed_route_contract(binding, egress, "REFUSED")
+    routing_request_path = getattr(args, "routing_request", None)
+    routing_request_bytes = None
+    binding = None
+    egress = None
+    if routing_request_path:
+        if args.binding_json != "{}" or args.egress_json != "{}":
+            raise Operational("REFUSED", "generalized routing cannot be combined with legacy binding or egress arguments")
+        request_path = os.path.realpath(os.path.abspath(routing_request_path))
+        if os.path.commonpath([info["toplevel"], request_path]) == info["toplevel"]:
+            raise Operational("REFUSED", "routing request must be private control data outside the canonical repository")
+        routing_request_bytes = read_external_packet(routing_request_path, "routing request")
+    else:
+        binding = parse_json_arg(args.binding_json, "binding")
+        egress = parse_json_arg(args.egress_json, "egress")
+        fixed_route_contract(binding, egress, "REFUSED")
     rd = os.path.join(root, rid)
-    try:
-        os.mkdir(rd, 0o700)
-    except FileExistsError:
+    if os.path.lexists(rd):
         try:
             existing = os.lstat(rd)
         except OSError as exc:
@@ -754,7 +1574,14 @@ def cmd_init(args) -> tuple[str, dict]:
                 or existing_source.get("digest") != actual_digest
             ):
                 raise Operational("BLOCKED", "run id already belongs to another repository or source")
-            if existing.get("binding") != binding or existing.get("egress") != egress:
+            if routing_request_bytes is not None:
+                recorded_routing = existing.get("routing")
+                if not isinstance(recorded_routing, dict) or recorded_routing.get("request_sha256") != digest_bytes(routing_request_bytes):
+                    raise Operational(
+                        "BLOCKED",
+                        "run id routing intent differs from the frozen snapshot; resume with the recorded context or choose a new run id",
+                    )
+            elif existing.get("routing") is not None or existing.get("binding") != binding or existing.get("egress") != egress:
                 raise Operational(
                     "BLOCKED",
                     "run id binding or egress sanction differs from the recorded fixed contract; resume with the recorded contract or choose a new run id",
@@ -766,7 +1593,25 @@ def cmd_init(args) -> tuple[str, dict]:
                 "source_kind": source_kind,
                 "source_digest": actual_digest,
                 "recovery_path": rd,
+                "routing": copy.deepcopy(existing.get("routing")),
             }
+    routing = None
+    if routing_request_bytes is not None:
+        routing = resolve_implementation_routing(routing_request_bytes, info["toplevel"])
+        if routing_starts_native(routing):
+            return "NATIVE", {
+                "run_id": None,
+                "source_kind": source_kind,
+                "source_digest": actual_digest,
+                "recovery_path": None,
+                "routing": routing,
+            }
+    root = ensure_root()
+    rd = os.path.join(root, rid)
+    try:
+        os.mkdir(rd, 0o700)
+    except FileExistsError as exc:
+        raise Operational("BLOCKED", "run directory was concurrently claimed; retry init to reconcile it") from exc
     validate_private_dir(rd)
     for child in ("units", "jobs", "packets", "source"):
         ensure_private_dir(os.path.join(rd, child))
@@ -791,6 +1636,7 @@ def cmd_init(args) -> tuple[str, dict]:
         },
         "binding": binding,
         "egress": egress,
+        "routing": routing,
         "integration_lock": None,
         "units": {},
         "verification_attempts": [],
@@ -806,6 +1652,7 @@ def cmd_init(args) -> tuple[str, dict]:
         "source_kind": source_kind,
         "source_digest": actual_digest,
         "recovery_path": rd,
+        "routing": copy.deepcopy(routing),
     }
 
 

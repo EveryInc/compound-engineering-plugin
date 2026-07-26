@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "protocol": "ce-routing/v1",
+  "limits": {
+    "config_bytes": 262144,
+    "request_bytes": 262144,
+    "max_depth": 16,
+    "max_nodes": 4096,
+    "max_collection_entries": 1024,
+    "max_scalar_bytes": 16384
+  },
+  "retired": {
+    "plan_use_fable": "plan_model",
+    "brainstorm_use_fable": "brainstorm_model",
+    "fable_nudge": "plan_model",
+    "work_engine_target": "work_engine_preferences",
+    "work_engine_model": "work_engine_preferences"
+  },
+  "settings": {
+    "pulse_product_name": { "type": "string", "default": null, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-product-pulse"], "writers": ["ce-product-pulse", "ce-setup"] },
+    "pulse_lookback_default": { "type": "enum", "values": ["1h", "24h", "7d", "30d"], "default": "24h", "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-product-pulse"], "writers": ["ce-product-pulse", "ce-setup"] },
+    "pulse_primary_event": { "type": "string", "default": null, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-product-pulse"], "writers": ["ce-product-pulse", "ce-setup"] },
+    "pulse_value_event": { "type": "string", "default": null, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-product-pulse"], "writers": ["ce-product-pulse", "ce-setup"] },
+    "pulse_completion_events": { "type": "string", "default": null, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-product-pulse"], "writers": ["ce-product-pulse", "ce-setup"] },
+    "pulse_quality_scoring": { "type": "boolean", "default": false, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-product-pulse"], "writers": ["ce-product-pulse", "ce-setup"] },
+    "pulse_quality_dimension": { "type": "string", "default": null, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-product-pulse"], "writers": ["ce-product-pulse", "ce-setup"] },
+    "pulse_analytics_source": { "type": "string", "default": null, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-product-pulse"], "writers": ["ce-product-pulse", "ce-setup"] },
+    "pulse_tracing_source": { "type": "string", "default": null, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-product-pulse"], "writers": ["ce-product-pulse", "ce-setup"] },
+    "pulse_payments_source": { "type": "string", "default": null, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-product-pulse"], "writers": ["ce-product-pulse", "ce-setup"] },
+    "pulse_db_enabled": { "type": "boolean", "default": false, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-product-pulse"], "writers": ["ce-product-pulse", "ce-setup"] },
+    "pulse_metric_sources": { "type": "string", "default": null, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-product-pulse"], "writers": ["ce-product-pulse", "ce-setup"] },
+    "pulse_pending_metrics": { "type": "string", "default": null, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-product-pulse"], "writers": ["ce-product-pulse", "ce-setup"] },
+    "pulse_excluded_metrics": { "type": "string", "default": null, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-product-pulse"], "writers": ["ce-product-pulse", "ce-setup"] },
+    "plan_output": { "type": "enum", "values": ["md", "html"], "casefold": true, "default": "md", "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-plan"], "writers": ["ce-setup"] },
+    "brainstorm_output": { "type": "enum", "values": ["md", "html"], "casefold": true, "default": "md", "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-brainstorm"], "writers": ["ce-setup"] },
+    "ideate_output": { "type": "enum", "values": ["md", "html"], "casefold": true, "default": "html", "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-ideate"], "writers": ["ce-setup"] },
+    "plan_model": { "type": "model-token", "default": null, "merge": "replace", "nullable": true, "authority": "recipient", "consumers": ["ce-plan"], "writers": ["ce-setup"] },
+    "brainstorm_model": { "type": "model-token", "default": null, "merge": "replace", "nullable": true, "authority": "recipient", "consumers": ["ce-brainstorm"], "writers": ["ce-setup"] },
+    "pr_teaching_section": { "type": "boolean", "default": true, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-commit-push-pr"], "writers": ["ce-setup"] },
+    "pr_teaching_archive": { "type": "boolean", "default": false, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-commit-push-pr"], "writers": ["ce-setup"] },
+    "auto_babysit": { "type": "boolean", "default": true, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-commit-push-pr"], "writers": ["ce-setup"] },
+    "plan_skip_scoping_confirm": { "type": "boolean", "default": false, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-plan"], "writers": ["ce-setup"] },
+    "cross_model_peer": { "type": "enum", "values": ["codex", "claude", "grok", "cursor", "composer"], "default": null, "merge": "replace", "nullable": true, "authority": "recipient", "consumers": ["ce-code-review", "ce-doc-review", "ce-pov"], "writers": ["ce-setup"] },
+    "work_engine_mode": { "type": "enum", "values": ["off", "prefer", "require"], "default": "off", "merge": "replace", "nullable": true, "authority": "recipient", "consumers": ["ce-work", "lfg"], "writers": ["ce-setup"] },
+    "work_engine_preferences": { "type": "list", "items": "execution_candidate", "default": [], "merge": "replace", "nullable": true, "authority": "recipient", "consumers": ["ce-work", "lfg"], "writers": ["ce-setup"] },
+    "ce_promote_spiral_optout": { "type": "boolean", "default": null, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-promote"], "writers": ["ce-promote", "ce-setup"] },
+    "feedback_sources": { "type": "list", "items": "feedback_source", "default": [], "merge": "replace", "nullable": true, "authority": "standing-action", "consumers": ["ce-sweep"], "writers": ["ce-sweep", "ce-setup"] },
+    "sweep_state_path": { "type": "string", "default": "docs/feedback-sweep/state.yml", "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-sweep"], "writers": ["ce-sweep", "ce-setup"] },
+    "sweep_ack_cap": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 25, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-sweep"], "writers": ["ce-sweep", "ce-setup"] },
+    "sweep_lease_ttl_minutes": { "type": "integer", "minimum": 1, "maximum": 10080, "default": 60, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-sweep"], "writers": ["ce-sweep", "ce-setup"] },
+    "sweep_shared_branch": { "type": "boolean", "default": false, "merge": "replace", "nullable": true, "authority": "none", "consumers": ["ce-sweep"], "writers": ["ce-sweep", "ce-setup"] },
+    "routing": { "type": "routing", "default": null, "merge": "routing-merge", "nullable": true, "authority": "recipient", "consumers": ["ce-plan", "ce-brainstorm", "ce-ideate", "ce-code-review", "ce-doc-review", "ce-pov", "ce-simplify-code", "ce-debug", "ce-sweep", "ce-explain", "ce-compound", "ce-compound-refresh", "ce-resolve-pr-feedback", "ce-work", "ce-optimize", "ce-riffrec-feedback-analysis", "lfg"], "writers": ["ce-setup"] }
+  },
+  "structured_types": {
+    "execution_candidate": {
+      "required": ["harness"],
+      "fields": {
+        "harness": { "type": "enum", "values": ["claude", "opencode", "codex", "cursor", "grok", "composer", "pi", "antigravity"] },
+        "model": { "type": "model-token", "nullable": true },
+        "effort": { "type": "effort-token", "nullable": true },
+        "route": { "type": "route-token", "nullable": true }
+      }
+    },
+    "feedback_source": {
+      "required": ["type", "id", "target"],
+      "fields": {
+        "type": { "type": "enum", "values": ["slack", "github-issues", "email"] },
+        "id": { "type": "id-token" },
+        "target": { "type": "string" },
+        "ack_action": { "type": "string", "nullable": true },
+        "closeout_action": { "type": "string", "nullable": true },
+        "sensitive": { "type": "boolean", "default": false },
+        "approved": { "type": "boolean", "default": false, "authority": "standing-action" }
+      }
+    },
+    "route_binding": {
+      "sentinels": ["inherit", "ce-default"],
+      "required": ["profile", "policy"],
+      "fields": {
+        "profile": { "type": "profile-name" },
+        "policy": { "type": "enum", "values": ["prefer", "require"] }
+      }
+    }
+  }
+}

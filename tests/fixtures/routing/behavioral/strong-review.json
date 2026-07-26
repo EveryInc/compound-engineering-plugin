@@ -1,0 +1,28 @@
+{
+  "schema": "ce-routing-behavioral-fixture/v1",
+  "id": "strong-review",
+  "owning_skill": "ce-code-review",
+  "purpose": "Review-class routing strengthens execution identity while CE keeps roster and prompt authority.",
+  "input": {
+    "user_prompt": "Review the current branch in report-only mode.",
+    "global_config_yaml": "routing:\n  profiles:\n    strong-review:\n      candidates:\n        - { harness: opencode, model: strong-review-model, effort: high }\n  classes:\n    review: { profile: strong-review, policy: require }\n  roles:\n    ce-code-review.security-reviewer: ce-default\n",
+    "project_config_yaml": null,
+    "host": {
+      "name": "opencode",
+      "capabilities": ["generic-subagents", "per-dispatch-model-selector", "served-model-receipt"]
+    },
+    "repository_state": ["authentication and input-validation diff", "tests changed", "no local-apply authority"]
+  },
+  "expected_invariants": [
+    "The risk-selected reviewer roster matches a no-routing baseline; routing does not add or remove a persona.",
+    "Review-class roles request the strong profile while the security role uses its explicit ce-default reset.",
+    "Persona prompt bytes, reviewed diff, tools, report-only posture, concurrency, and synthesis rules match the baseline.",
+    "Receipts distinguish requested and served identity and do not count unverified identity as satisfying require."
+  ],
+  "forbidden_outcomes": [
+    "Selecting security review merely because it has a role override.",
+    "Editing reviewer prompts to mention a model, effort, route, or fallback.",
+    "Granting local mutation or applying findings.",
+    "Treating a requested model label or model self-report as serving evidence."
+  ]
+}

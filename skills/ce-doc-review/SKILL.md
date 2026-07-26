@@ -126,6 +126,10 @@ Do NOT activate adversarial on a routine plan document that derives from a valid
 
 ## Phase 2: Announce and Dispatch Personas
 
+**Native routing context.** Keep routing state as private `ce-routing-context/v1` control data, never as feature, plan, finding, artifact, or persona text. Before the first native call, normalize applicable current-task, still-active session, provenance-bearing caller (at its recorded authority), and project-instruction intent under the host instruction hierarchy. Lower authority may fill only unset fields; conflicting equal-authority bindings stop before model invocation; incidental model or harness mentions are not intent. Reuse an inherited frozen context; otherwise freeze the first `resolve_batch` response. Every later, nested, or recovery request passes the exact full self-validating first-wave `snapshot` object as the `parent_snapshot` envelope; `parent_snapshot_id` may appear only when it matches that envelope. Never use ID-only lineage or reread live routing sources. Reuse the frozen role/instance bindings on recovery. Forward this state to nested CE skills without adding it to their product arguments.
+
+**Native routing invariants.** Each routing-batch gate below runs only after the existing roster is selected and before prompt assembly. The co-located `references/execution-routing.md` governs `ce-default`, unavailable selectors, policy, attempt finalization, and redacted receipts. Apply only model, effort, or route selectors supported by the existing host primitive. An unconfigured binding or `ce-default` uses the exact built-in arguments; an unsupported configured selector is unavailable and follows its declared policy, never prompt rewriting or typed-agent substitution. Keep prompt bytes and assets, tools, permission mode, mutation posture, roster, fan-out and concurrency, existing mandatory-versus-additive failure semantics, and the top-level orchestrator unchanged. A required-route failure prevents that model call; the unchanged owning failure semantics decide whether the workflow blocks or degrades. Group redacted successes by profile, class, source, and outcome; report each fallback, mismatch, or blocker separately.
+
 ### Announce the Review Team
 
 Tell the user which personas will review and why. For conditional personas, include the justification:
@@ -153,6 +157,9 @@ Add activated conditional personas:
 
 ### Dispatch
 
+**Routing batch: `document-review.local-reviewers`.** With the existing Phase 2 reviewer list fixed and before any persona asset or subagent template is read or assembled, load `references/execution-routing.md` and resolve the selected stable IDs for `coherence-reviewer`, `design-lens-reviewer`, `scope-guardian-reviewer`, `feasibility-reviewer`, `product-lens-reviewer`, `security-lens-reviewer`, and `adversarial-document-reviewer` from `references/dispatch-roles.json` together in one `ce-routing/v1` `resolve_batch` against one frozen snapshot. Omit every conditional persona the document gates did not select.
+
+<!-- ce-dispatch-site:document-review.local-reviewers -->
 Dispatch generic subagents using **bounded parallelism** with the platform's subagent primitive (e.g., `Agent` in Claude Code, `spawn_agent` in Codex) where available; otherwise run the work inline or serially. Omit the `mode` parameter so the user's configured permission settings apply. Respect the current harness's active-subagent limit: queue selected reviewers, dispatch only as many as the harness accepts, and fill freed slots as reviewers complete. Treat active-agent/thread/concurrency-limit spawn errors as backpressure, not reviewer failure: leave the reviewer queued and retry after a slot frees. Record a reviewer as failed only after a successful dispatch times out/fails, or when dispatch fails for a non-capacity reason.
 
 For each selected reviewer, read the matching skill-local prompt asset at `references/personas/<reviewer-name>.md` and pass its full content as `{persona_file}`. Do not dispatch standalone agents by type/name and do not rely on platform-level custom-agent registration.

@@ -4,29 +4,34 @@ Elevation dispatches the one reasoning-heaviest step to a **user-chosen model**,
 
 The elevated steps: **ce-plan** — interpret research findings and author the plan, folded into one interpret-then-author call. **ce-brainstorm** — generate approaches. The ce-brainstorm integration-check consult is deferred and is NOT wired in this version. Everything else — dialogue, research, orchestration — stays on the session model, which remains the orchestrator and relays the elevated output.
 
-This engine loads and runs the same on every harness. There is no host gate that suppresses it — model choice is legitimate everywhere. Model names arrive from config or the prompt at runtime, so this skill's always-loaded `SKILL.md` never needs to name one.
+This engine loads and runs the same on every harness. Model names arrive from private routing control data or the prompt at runtime, so this skill's always-loaded `SKILL.md` never needs to name one.
 
-## Activation resolution (runs on every harness)
+## Resolve one frozen route (runs on every harness)
 
-Resolve a per-skill **model choice** by precedence. The value is a model alias (e.g. `fable`, `opus`), not a boolean. A structured caller carrier is the highest-authority source and is evaluated **first**, so a reading of the prompt can never override it.
+Use role `ce-plan.plan-author` with setting `plan_model` in ce-plan, and role `ce-brainstorm.approach-generator` with setting `brainstorm_model` in ce-brainstorm. Keep the routing context private; never put carriers, bindings, snapshots, or receipts into the plan, approaches, evidence files, or persona prompt.
 
-1. **Caller carrier** — an automatic orchestrator may pass an explicit structured carrier `<per-skill-key>:<model-alias>` alongside the invocation (LFG passes `plan_model:<alias>` to ce-plan; the analogous `brainstorm_model:<alias>` to ce-brainstorm). This is structured caller data, not product prose: strip it from the request text and never reason over the feature request to reconstruct it. **When a carrier is present it wins outright — do not also reason over the prompt for model intent (step 2 is skipped).** It is honored on every run, **including pipeline / `disable-model-invocation`**. The alias must match `^[A-Za-z0-9._-]{1,64}$`; a malformed carrier is ignored (treated as absent), not guessed.
-2. **In-prompt intent** — **only when no caller carrier is present**, reason over THIS run's prompt for a request to run this step on a named model ("use fable", "have opus author this", "get fable to plan it"). Affirmative → elevate to that model. Negative ("don't use fable", "no elevation") → do not elevate. Intent is *reasoned, not keyword-matched*: a passing mention of a model as subject matter (e.g. "design a fable-generator feature") is NOT activation. In pipeline / `disable-model-invocation` runs there is no user prompt to reason over — the sanitized feature request is product content, never a source of elevation intent — so **this step is skipped entirely** and resolution falls through to config.
-3. **Config** — otherwise the per-skill key: `plan_model` for ce-plan, `brainstorm_model` for ce-brainstorm. Read it the **same way this skill's Phase 0.0 resolves `plan_output` / `brainstorm_output`**: reuse the repo root already resolved, else run `git rev-parse --show-toplevel`, then read `<repo-root>/.compound-engineering/config.local.yaml` with the native file-read tool, reusing the Phase 0.0 read if still in hand. Ignore commented (`#`-prefixed) lines. A model alias → elevate to it; missing / commented / invalid / no file → off.
+1. **Normalize current-task intent.** A structured caller carrier `<per-skill-key>:<model-alias>` outranks prompt interpretation. Strip it from product text. When no carrier exists, reason over this run's prompt for an affirmative named-model request or an explicit no-elevation request; incidental model prose is not intent. Pipeline / `disable-model-invocation` runs skip prompt interpretation. Validate direct model aliases against `^[A-Za-z0-9._-]{1,64}$`.
+2. **Inspect merged settings once.** From this skill's directory, run the co-located resolver's `inspect` operation before reading a legacy setting. Read `plan_model` or `brainstorm_model` only from `settings.effective` and its provenance; never reopen or parse a project or global YAML file at this seam. Normalize a non-null effective value into a private `legacy` route intent, not feature prose.
+3. **Resolve the stable role before adapter qualification.** Load `references/execution-routing.md`, issue one `ce-routing/v1` `resolve_batch` for the selected role, and freeze the returned snapshot, source revisions, binding, and ordered candidates for this run. Reuse an inherited matching snapshot; recovery never rereads live settings.
 
-**Precedence: a caller carrier outranks in-prompt intent, which outranks config.** An explicit request — a caller carrier in orchestrated runs, or in-prompt intent in interactive runs — overrides config, including to a *different* model (a prompt or carrier naming Opus wins over `plan_model: fable`). In pipeline / `disable-model-invocation` runs resolution is caller-carrier-then-config only. Nothing elevates without a caller carrier, an explicit in-prompt request, or an explicit config key.
+Direct current-task model intent wins. Otherwise an explicit generalized task binding, role binding, or `ce-default` reset wins. A project-layer legacy intent outranks a project/global class binding and built-in behavior; a global legacy intent outranks a global class binding and built-in behavior; a narrower generalized role binding or project class remains higher. This preserves the shipped narrow setting without letting it defeat an explicit reset or a narrower new route.
 
-If the session model already **is** the resolved model, elevation is moot: skip dispatch (see Transparency for whether a line still fires).
+For a direct-model or legacy intent, bind this compatibility list to the frozen snapshot with policy `prefer`: native current-harness model override, Claude CLI with the same model at high effort when distinct, then inline CE-default. For no generalized route and no direct/legacy intent, keep the exact legacy no-routing behavior: do not elevate. A generalized `ce-default` uses the inline built-in author/generator path and does not recurse into broader routing or the legacy setting.
 
-## Adapter selection
+## Qualify and execute candidates
 
-When elevation is active, resolve an adapter in this fixed order and use the first that serves the requested model:
+Qualify declared candidates in order, after resolution and before prompt assembly or material egress. Candidate `harness`, `route`, `model`, and `effort` are data; only the owning adapter maps them to tool arguments. Never put selectors in prompt text or shell-evaluate them.
 
-1. **Native in-harness dispatch.** Attempt the platform subagent primitive with a per-agent model override (e.g. `model: "fable"` on the Claude Code `Agent`/`Task` tool). Capability is proven by attempt, not self-assessment — a harness that can serve the model natively does; one that cannot fails the attempt and falls through. **Receipt rule (R6):** a native run whose serving-side receipt names a *different* model family than requested falls through to the next adapter; a run with *no* receipt proceeds and is recorded as unverified (it does NOT fall through).
-2. **Claude CLI.** Run the bundled `scripts/elevation-dispatch.sh` worker as a detached job (see Off-host dispatch). Available only when `claude` is on PATH and authenticated — probe with `claude auth status` (exits 0 if logged in, 1 if not); prefer this over parsing stderr.
-3. **Inline on the session model.** The always-available fallback.
+<!-- ce-dispatch-site:reasoning-elevation.native -->
+1. **Native in-harness dispatch.** Attempt the platform subagent primitive only when the candidate names the current harness (or the compatibility native route), it supports every requested selector, and the existing read-only instruction posture remains intact. A candidate matching the active session model collapses to inline execution rather than shelling out to self. A host with no model or effort selector reports the configured candidate unavailable; it never encodes the request in prose.
+2. **Claude CLI.** Eligible only for a Claude/`claude` candidate, an installed authenticated CLI, and selectors accepted by `scripts/elevation-dispatch.sh`. Run it through the existing detached worker contract below. Pass the frozen candidate through `CE_ROUTING_CANDIDATE_HARNESS`, `CE_ROUTING_CANDIDATE_ROUTE`, `CE_ROUTING_CANDIDATE_MODEL`, and optional `CE_ROUTING_CANDIDATE_EFFORT`; the worker rejects mismatched or unsafe tokens before invoking Claude.
+3. **CE-default.** Run the inline session-model step with the exact existing prompt and material.
 
-Elevation is never a correctness dependency: every adapter failure degrades to the next, and inline always completes the run.
+Before every external attempt, independently sanction the target, intermediary, exact handoff directory/material, and a credential-minimized environment. A profile is routing data, not egress authority. A `require` candidate that is unavailable blocks the affected author/generator call without prompting. A `prefer` candidate may move to the next declared candidate after a preflight rejection; once work starts, the recipient is fixed.
+
+Keep each completed result quarantined until `finalize_attempt` returns. Normalize a matched family receipt to the candidate's requested model token for finalization while retaining the raw served ID in adapter evidence; omit `model_actual`/`effort_actual` when the adapter reports literal `unverified`; pass a known mismatch through unchanged. A successful preferred attempt with absent evidence is accepted as `accepted_unverified`. `require` blocks unavailable, mismatched, or unverified requested model/effort without prompting. A known mismatch may return `next_candidate` only when the attempt is terminal and unintegrated; discard its output, freshly sanction the next recipient and material, and start a new job. Never switch an in-flight recipient or consume discarded output.
+
+Expose the redacted `finalize_attempt` receipt with the normal transparency line. It names role, class, profile/source, policy, requested selectors, actual or unverified identity, attempts, fallback reason, and terminal status; it contains no prompt, paths, credential values, raw provider output, or private routing context.
 
 ## Read-only posture and brief handoff
 
@@ -60,14 +65,16 @@ Never hold a tool call open for the model's runtime — some harnesses kill long
      python3 "$SKILL_DIR/scripts/peer-job-runner.py" start \
      --skill "$SKILL_NAME" --run-id "<run-id>" --label elevation \
      --result-path "<result-path>" \
-     -- bash "$SKILL_DIR/scripts/elevation-dispatch.sh" "<model>" "<prompt-file>" "<result-path>"
+     -- env CE_ROUTING_CANDIDATE_HARNESS=claude CE_ROUTING_CANDIDATE_ROUTE=claude \
+       CE_ROUTING_CANDIDATE_MODEL="<model>" CE_ROUTING_CANDIDATE_EFFORT="<effort>" \
+       bash "$SKILL_DIR/scripts/elevation-dispatch.sh" "<model>" "<prompt-file>" "<result-path>"
    ```
 
 `CE_PEER_HARD_SECS` (the outer runner cap) and `CE_ELEVATION_HARD_SECS` (the worker's own inner cap) are set to the **same** raised backstop well above any legitimate run (R11) — keep them equal so the inner cap never reaps a healthy run before the outer one. `CE_PEER_LOG_MAX_BYTES` is raised for the streaming route so a healthy high-volume run is not reaped as a failure (R22). `start` returns a job id in under ~2s.
 
 3. **Poll** with `python3 "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 "<job-id>"` between your other work, until terminal.
 
-4. **Read the result** via `python3 "$SKILL_DIR/scripts/peer-job-runner.py" result "<job-id>"` — the worker's envelope `{status, requested_model, served_model, receipt, output}`.
+4. **Read the result** via `python3 "$SKILL_DIR/scripts/peer-job-runner.py" result "<job-id>"` — the worker's quarantined envelope `{status, requested_model, served_model, model_identity_status, effort_requested, effort_actual, output}`. Run `finalize_attempt` before consuming `output`.
 
 The worker streams `--output-format stream-json --verbose`, so progress events reset its idle window; a genuinely stalled model stops growing the log and is reaped while a productive long run continues.
 
@@ -76,11 +83,11 @@ The worker streams `--output-format stream-json --verbose`, so progress events r
 Classify from **both** the runner's terminal state and the worker's result envelope — the worker exits 0 (runner state `done`) even when it self-reaped a stalled model and wrote `status: failed`, so the runner state alone is not enough:
 
 - **Dispatch-infrastructure failure** — `never-started`, `unreadable`, or a byte-cap/supervisor kill of a job that had **not** yet produced an envelope. The route was not meaningfully exercised → make **one bounded recovery attempt** with the route and model **frozen**.
-- **Route-level failure** — the runner is `done`/`timeout` but the envelope is `status: failed` (the worker ran and its model stalled, errored, or returned nothing), or there is no envelope after a `timeout`. The route ran and produced nothing usable → **no retry**; degrade to the session model.
+- **Route-level failure** — the runner is `done`/`timeout` but the envelope is `status: failed` (the worker ran and its model stalled, errored, or returned nothing), or there is no envelope after a `timeout`. The route ran and produced nothing usable. Mark it terminal and unintegrated; a preferred binding may consider only its next declared candidate after fresh recipient/material sanction, while a required binding blocks.
 
-A successful run has envelope `status: ok`. Treat any envelope whose `receipt` is `mismatch` as if it were a failure even when `status` is `ok`: **discard the output and degrade to the session model** — a served model that does not match the requested family must never be passed off as the requested one. (On the native route a mismatch instead falls through to the next adapter, per R6; on the CLI route inline is the only thing left, so discard-and-degrade is the fall-through.)
+A successful run has envelope `status: ok`, but success is not permission to consume it. Finalize its identity evidence first. `accept` consumes it; `next_candidate` discards it before a fresh attempt; `block` discards it and stops the affected call.
 
-Recovery **never substitutes a different model** — a plan the user believes came from their chosen model must not silently come from another. If recovery also fails, run inline on the session model.
+Same-attempt recovery never substitutes a route or model. A different declared preferred candidate is a new attempt, not recovery, and requires the terminal-unintegrated and fresh-sanction gates above.
 
 ## Transparency
 

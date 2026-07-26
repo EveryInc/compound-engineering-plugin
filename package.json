@@ -22,6 +22,8 @@
     "cleanup": "bun run src/index.ts cleanup",
     "list": "bun run src/index.ts list",
     "cli:install": "bun run src/index.ts install",
+    "routing:sync": "bun run scripts/routing/sync-assets.ts --write",
+    "routing:check": "bun run scripts/routing/sync-assets.ts --check",
     "test": "bun test",
     "plugin:validate": "claude plugin validate --strict .claude-plugin/marketplace.json && claude plugin validate --strict .claude-plugin/plugin.json",
     "release:preview": "bun run scripts/release/preview.ts",

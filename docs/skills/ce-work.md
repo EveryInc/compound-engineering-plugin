@@ -189,7 +189,7 @@ When another workflow owns the post-implementation shipping gates (final simplif
 /ce-work mode:return-to-caller <plan path>
 ```
 
-This mode keeps `ce-work` on implementation and local verification. Mid-implementation "Simplify as You Go" still runs during Phase 2. After that, `ce-work` returns a structured envelope with changed files, completed units, verification evidence, and blockers, sets `standalone_shipping_skipped: true`, and does not run the standalone shipping tail. The caller remains responsible for every post-implementation gate.
+This mode keeps `ce-work` on implementation and local verification. Mid-implementation "Simplify as You Go" still runs during Phase 2. After that, `ce-work` returns a structured envelope with changed files, completed units, verification evidence, the frozen routing snapshot/binding and per-attempt receipts when applicable, and blockers; it sets `standalone_shipping_skipped: true` and does not run the standalone shipping tail. The caller remains responsible for every post-implementation gate.
 
 ## Choose the Implementation Author
 
@@ -203,13 +203,28 @@ Native execution is the default. You can assign implementation to a target in th
 /ce-work use Codex to add retry limits to the existing webhook sender
 ```
 
-The first three are preferences: `ce-work` attempts the route and continues natively with prominent requested-versus-actual disclosure if it is unavailable. The fourth is a requirement: an interactive standalone run asks before weakening it, while a headless or automatic caller returns a blocker without prompting. Intent matters, not a particular keyword.
+The first three are preferences: `ce-work` follows only their declared candidate order and can return to built-in behavior only when the resolved route includes `ce-default`. The fourth is a requirement: an unavailable or unverifiable route returns a blocker without prompting in both attended and headless runs. Intent matters, not a particular keyword.
 
-Routing uses normal instruction authority plus scope, not keyword matching. An explicit current task wins; a still-active session preference remains applicable; an implementation-only caller binding keeps its recorded provenance; active project/user instructions already in context can supply a default; and per-checkout config is the final preference before native execution. More specific live intent may replace or narrow config, while an incidental model mention in feature prose, quoted text, examples, or filenames does nothing.
+Routing uses normal instruction authority plus scope, not keyword matching. An explicit current task wins; a still-active session preference remains applicable; an implementation-only caller binding keeps its recorded provenance; active project/user instructions already in context can supply a default; then merged project/global role and implementation-class routes apply before built-in behavior. More specific live intent may replace or narrow config, while an incidental model mention in feature prose, quoted text, examples, or filenames does nothing.
+
+The recommended configuration is a generalized profile bound to the implementation class or specifically to `ce-work.implementation-worker`:
+
+```yaml
+routing:
+  profiles:
+    economy:
+      candidates:
+        - { harness: codex, model: gpt-5-mini, effort: low }
+        - ce-default
+  classes:
+    implementation: { profile: economy, policy: prefer }
+```
+
+`ce-default` is explicit: it stops inheritance when used as a binding, or authorizes the built-in implementation path when it is the final preferred candidate. A same-host default candidate collapses to native execution instead of shelling out to the current host.
 
 The last example is deliberately planless. `ce-work` first scopes the request against the repository and tests, then gives Codex only the bounded private brief/unit packet. The host remains responsible for inspecting the actual change, authoritative verification, canonical commits, and the shipping tail.
 
-Put an ordered, host-relative preference list in the gitignored `.compound-engineering/config.local.yaml`:
+The shipped `work_engine_mode` and `work_engine_preferences` list remains a compatibility input and is read from the same merged global/project settings view:
 
 ```yaml
 work_engine_mode: prefer       # off | prefer | require
@@ -221,13 +236,13 @@ work_engine_preferences:
   - harness: claude
 ```
 
-The [central configuration reference](./configuration.md#implementation-routing) explains how this checkout-local default interacts with current-task, session, and project instructions.
+The [central configuration reference](./configuration.md#execution-routing) explains how this compatibility input and generalized routing interact with current-task, session, project-instruction, project-config, and global-config sources.
 
 Each candidate has a `harness` (`codex`, `claude`, `grok`, or `cursor`) and an optional `model`. Omitting `model` means that harness's configured default. Composer is a model family reached through Cursor, so it is written as `harness: cursor` plus `model: composer`. Keep CLI flags and commands out of config; the list describes the desired author, while `ce-work` starts from its qualified adapter recipe and can inspect the installed CLI's help/version when a compatible invocation has drifted.
 
-The list is intentionally host-relative. In Codex, the example skips an equivalent Codex route only if its requested model is also the current/default model; otherwise that explicit model is a distinct candidate. In Claude Code it can try Cursor first, then Codex, and skip the final Claude default. `ce-work` walks the list only during preflight, records why a candidate is skipped or unavailable, and locks the first qualified recipient before egress. It never hops to another list entry after dispatch starts.
+The list is intentionally host-relative. In Codex, the example collapses an equivalent Codex default to native only when no distinct model, effort, or route was requested; an explicit different same-harness model remains distinct. `ce-work` records preflight-unavailable candidates and locks the first qualified recipient before egress. After dispatch, it can advance only after authoritative terminal, unintegrated failure or identity rejection, exact abandonment, and a fresh sanction for the next declared candidate.
 
-`off`, a commented or missing mode, and an invalid mode preserve the native default. `off` affects only standing config; it does not cancel applicable live intent or a caller binding. `prefer` tries ordered candidates in direct and `lfg` runs, then falls back natively with disclosure when the list is exhausted. `require` asks only in an interactive standalone run; under `lfg` or another headless caller it blocks. An enabled mode without a valid candidate list is unavailable rather than guessed.
+`off` or a commented/missing mode preserves built-in behavior for this compatibility setting; malformed configuration fails closed. `off` does not cancel applicable live intent or generalized routing. Compatibility `prefer` appends its shipped built-in fallback explicitly. Compatibility `require` has no weakening path and blocks without prompting. An enabled mode without a valid candidate list is unavailable rather than guessed.
 
 Harness, requested model, executable route, and served model remain separate facts. Direct prompts and LFG's transient carrier may still use `cursor` for Cursor's configured default or `composer` as shorthand for a Composer-family model through Cursor. A Grok model reached through Cursor is a separately disclosed intermediary. A candidate is usable only after its unattended fixed-recipient, write-capable isolated-workspace route has qualified and the necessary CLI/authentication is available. `ce-work` tries the documented mapping first, may adapt only within the requested harness/model family while preserving deterministic restrictions, and never claims a served model without a trustworthy receipt.
 
@@ -239,7 +254,7 @@ Each external unit starts from a clean recorded SHA in a detached linked worktre
 
 Every CE Work runner start pins `CE_PEER_HARD_SECS=7200`, giving the detached job a two-hour hard cap independently of the shared runner's shorter default. Route-qualified incremental activity uses `CE_PEER_IDLE_SECS=600`; that progress-reset window detects a stall and is not a wall-clock maximum. Silent terminal-only or otherwise untrustworthy activity uses `CE_PEER_IDLE_SECS=0` and relies on the hard cap. Progress reports the run id, active unit/route, elapsed time, latest meaningful activity, activity posture, worker terminal state, integration, verification, commit, cleanup, blockers, and recovery path rather than streaming the full transcript.
 
-Worker output becomes one complete synthetic transport commit, including committed and residual edits, untracked/binary files, deletes, renames, and mode changes. After the host inspects its actual scope, one fail-stop controller transaction acquires the integration lock, revalidates the canonical checkout, applies without committing, runs authoritative tests, reconciles test side effects, creates one host-owned canonical commit, and records cleanup. A failed pre-commit step cannot fall through into a later commit; it restores the exact pre-fold checkout before another unit or fallback may start. Unknown canonical movement blocks integration.
+Worker output becomes one complete synthetic transport commit, including committed and residual edits, untracked/binary files, deletes, renames, and mode changes. After the host inspects its actual scope, one fail-stop controller transaction first finalizes the locked route against adapter-owned model/effort evidence. Missing or mismatched required identity leaves output quarantined before canonical mutation. Accepted output then acquires the integration lock, revalidates the canonical checkout, applies without committing, runs authoritative tests, reconciles test side effects, creates one host-owned canonical commit, and records cleanup. A failed pre-commit step cannot fall through into a later commit; it restores the exact pre-fold checkout before another unit or fallback may start. Unknown canonical movement blocks integration.
 
 After all delegated units land, plan-wide verification also runs through the controller rather than as a loose shell tail. The controller begins from a clean canonical snapshot, captures the real exit status, suppresses Python bytecode, removes artifacts created by the gate, proves the starting snapshot again, and records a resumable receipt. A failing gate keeps its private log and blocks completion.
 

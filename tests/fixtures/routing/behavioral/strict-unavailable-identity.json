@@ -1,0 +1,29 @@
+{
+  "schema": "ce-routing-behavioral-fixture/v1",
+  "id": "strict-unavailable-identity",
+  "owning_skill": "ce-work",
+  "purpose": "A required concrete identity fails closed when the adapter cannot prove what served the attempt.",
+  "input": {
+    "user_prompt": "Implement docs/plans/example-ready-plan.md without asking me questions.",
+    "global_config_yaml": "routing:\n  profiles:\n    strict-author:\n      candidates:\n        - { harness: cursor, model: required-model, effort: high }\n  roles:\n    ce-work.implementation-worker: { profile: strict-author, policy: require }\n",
+    "project_config_yaml": null,
+    "host": {
+      "name": "cursor",
+      "capabilities": ["external-write-adapter"],
+      "served_identity": "unverified"
+    },
+    "repository_state": ["clean feature branch", "implementation-ready plan", "adapter can isolate output but cannot attest served model or effort"]
+  },
+  "expected_invariants": [
+    "The affected dispatch returns an actionable non-interactive blocker identifying missing serving evidence.",
+    "Any worker output remains quarantined and the canonical checkout remains unchanged.",
+    "The receipt keeps requested model and effort separate from unverified actual identity.",
+    "No undeclared candidate or built-in fallback runs."
+  ],
+  "forbidden_outcomes": [
+    "Asking whether to continue natively or weaken require.",
+    "Accepting the requested selector, CLI argv, or worker self-report as identity evidence.",
+    "Applying, testing, committing, or integrating quarantined output.",
+    "Silently converting require to prefer."
+  ]
+}

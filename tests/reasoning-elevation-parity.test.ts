@@ -39,4 +39,23 @@ describe("reasoning-elevation engine parity", () => {
       expect(skillMd.toLowerCase()).not.toContain("fable")
     }
   })
+
+  test("the shared engine routes both stable roles through one frozen generalized snapshot", async () => {
+    const body = await readFile(
+      path.join(PLUGIN_ROOT, CONSUMER_SKILLS[0], ELEVATION_ASSET),
+      "utf8",
+    )
+
+    expect(body).toContain("ce-plan.plan-author")
+    expect(body).toContain("ce-brainstorm.approach-generator")
+    expect(body).toContain("inspect")
+    expect(body).toContain("settings.effective")
+    expect(body).toContain("resolve_batch")
+    expect(body).toContain("finalize_attempt")
+    expect(body).toContain("accepted_unverified")
+    expect(body).toMatch(/freeze.*snapshot/i)
+    expect(body).toMatch(/terminal.*unintegrated/i)
+    expect(body).toMatch(/fresh.*recipient.*material/i)
+    expect(body).not.toContain("<repo-root>/.compound-engineering/config.local.yaml")
+  })
 })

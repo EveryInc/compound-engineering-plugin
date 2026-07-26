@@ -97,8 +97,9 @@ describe("ce-work native characterization", () => {
 
     expect(engineGate).toContain("**Native dispatch (inline/subagent engines only)**")
     expect(engineGate).toContain("must not re-enter this ordinary subagent dispatch")
-    expect(engineGate).toContain("**A successful controller `init` locks that unit to the selected cross-model engine.**")
-    expect(engineGate).toContain("Never reclassify it as trivial, abandon it for speed, or implement it natively")
+    expect(engineGate).toContain("**A successful external controller `init` freezes the run; `lock-attempt` freezes each recipient.**")
+    expect(engineGate).toContain("Never reclassify it as trivial or implement natively")
+    expect(engineGate).toContain("`claim-fallback` authorizes an explicit `ce-default` or the exact next declared candidate is the same-host default")
     expect(engineGate).toContain("**After each serial inline/subagent unit:**")
     expect(engineGate).toContain("**After a parallel inline/subagent batch")
   })
@@ -123,10 +124,10 @@ describe("ce-work cross-model engine contract", () => {
     const engineGate = sliceSection(skill, "4. **Choose Execution Engine, then Strategy**", "### Phase 2: Execute")
 
     expect(engineGate).toContain("cross-model execution")
-    expect(engineGate).toContain("native execution remains the default")
+    expect(engineGate).toContain("`ce-default` preserves the prior inline/subagent, goal-mode, or dynamic-workflow choice")
     expect(engineGate).toContain("Route resolution is a mandatory pre-write gate")
-    expect(engineGate).toContain(".compound-engineering/config.local.yaml")
-    expect(engineGate).toContain("Do not infer native execution merely because no typed carrier was supplied")
+    expect(engineGate).toContain("unit-workspace.py\" resolve-routing")
+    expect(engineGate).toContain("merged global/project settings")
     expect(engines).toContain("still-active session")
     expect(engines).toContain("active instructions and conventions already in context")
     expect(engines).toContain("recorded provenance")
@@ -138,9 +139,9 @@ describe("ce-work cross-model engine contract", () => {
     expect(engines).toContain("optional `model`")
     expect(engines).toContain("configured default")
     expect(engines).toContain("ordered candidate")
-    expect(engines).toContain("continue to the next candidate")
+    expect(engines).toContain("Traverse ordered `prefer` candidates")
     expect(engines).toContain("equivalent to the current host")
-    expect(engines).toContain("`off` disables only the standing preference")
+    expect(engines).toContain("`off` disables only the legacy standing preference")
     expect(engines).toContain("strict Composer")
     expect(engines).toContain("caller Codex")
     expect(engines).toContain("config Cursor")
@@ -182,12 +183,12 @@ describe("ce-work cross-model engine contract", () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
     const triage = sliceSection(skill, "### Phase 0: Input Triage", "### Phase 1: Quick Start")
 
-    expect(triage).toContain("Every non-recovery code path must resolve its implementation engine before execution")
-    expect(triage).toContain("carrierless Return-to-Caller Mode")
-    expect(triage).toContain(".compound-engineering/config.local.yaml")
-    expect(triage).toContain("pre-controller discovery is read-only")
+    expect(triage).toContain("Every non-recovery code path must resolve implementation before mutation")
+    expect(triage).toContain("with or without a typed carrier")
+    expect(triage).toContain("co-located merged-settings resolver")
+    expect(triage).toContain("pre-routing discovery is read-only")
     expect(triage).toContain("Do not run baseline, test, build, format, install, or generation commands")
-    expect(triage).toContain("prove the canonical Git snapshot is byte-for-byte unchanged")
+    expect(triage).toContain("prove the canonical Git snapshot unchanged")
   })
 
   test("keeps the caller carrier implementation-only and exactly four fields", async () => {
@@ -264,8 +265,8 @@ describe("ce-work cross-model engine contract", () => {
 
     expect(protocol).toContain("Preference-strength")
     expect(protocol).toContain("Requirement-strength")
-    expect(protocol).toContain("automatic or headless")
-    expect(protocol).toContain("must not prompt")
+    expect(protocol).toContain("attended and headless")
+    expect(protocol).toContain("Never ask for or accept confirmation")
     expect(protocol).toContain("fixed recipient")
     expect(protocol).toContain("every intermediary")
     expect(protocol).toContain("material exposed")
@@ -308,10 +309,15 @@ describe("ce-work cross-model engine contract", () => {
 
     for (const receipt of [
       "implementation_engine_binding",
+      "routing_snapshot_id",
+      "routing_source_revisions",
+      "routing_binding",
       "requested_route",
       "actual_route",
       "requested_model",
       "actual_model",
+      "requested_effort",
+      "actual_effort",
       "fallback_reason",
       "run_id",
       "source_kind",
@@ -332,35 +338,38 @@ describe("ce-work cross-model engine contract", () => {
     const serial = sliceSection(protocol, "## Serial external-unit protocol", "## Preserve tail ownership")
 
     for (const command of [
-      "unit-workspace.py` `init",
-      "unit-workspace.py` `checkpoint-plan",
-      "unit-workspace.py` `prepare",
+      "unit-workspace.py resolve-routing",
+      "unit-workspace.py init",
+      "checkpoint-plan",
+      "unit-workspace.py lock-attempt",
+      "prepare",
       "unit-workspace.py` `authorize-dispatch",
       "peer-job-runner.py` `start --no-sweep --input-digest <controller-packet-digest>",
       "cross-model-work.sh",
-      "unit-workspace.py` `record-job",
+      "record-job",
       "unit-workspace.py` `terminalize",
       "unit-workspace.py integrate",
       "unit-workspace.py verify-run",
-      "unit-workspace.py` `integration-acquire",
-      "unit-workspace.py` `preflight",
+      "finalize_attempt",
+      "integration-acquire",
+      "preflight",
       "git cherry-pick --no-commit",
-      "unit-workspace.py` `mark-applied",
-      "unit-workspace.py` `mark-verified",
-      "unit-workspace.py` `mark-committed",
-      "unit-workspace.py` `cleanup",
-      "unit-workspace.py` `integration-release",
+      "mark-applied",
+      "mark-verified",
+      "mark-committed",
+      "cleanup",
+      "release",
     ]) {
       expect(serial).toContain(command)
     }
     expect(serial).toContain("cross-model-work.sh <authorization_path> <workspace> <unit-packet> <expected-packet-sha256> <result-dir>")
     expect(serial).toContain("controller-returned `authorization_path`")
-    expect(serial).toContain("controller-returned `attempt_id`")
+    expect(serial).toContain("`run_id`, `unit_id`, and `attempt_id`")
     expect(serial).toContain("invoke the returned adapter path directly")
     expect(serial).toContain("without a `bash`, `sh`, or `env` prefix")
     expect(serial).toContain("runner label must equal the unit id exactly")
     expect(serial).toContain("<controller-result-dir>/implementation-result.json")
-    expect(serial).toContain("Do not pre-create the run directory")
+    expect(serial).toContain("do not pre-create it")
     expect(serial).toContain("`git -C <canonical-checkout>`")
     expect(serial).toContain("new verification artifacts")
     expect(serial).toContain("authoritative command's exit status")
@@ -381,32 +390,30 @@ describe("ce-work cross-model engine contract", () => {
     expect(serial).toContain("A second job for the attempt is refused")
     expect(serial).toContain("actual runner metadata and exact worker argv")
     expect(serial).toContain("authorization digest, workspace, packet path and digest, and result directory")
-    expect(serial).toContain("hand-authored or cross-attempt authorization")
     expect(serial).toContain("exact route, model, and intermediary contract")
     expect(serial).toMatch(/before prompt construction or external CLI start/i)
     expect(serial).toContain("`--emit-adapter` mode remains introspection only")
     expect(serial).not.toContain("CE_WORK_MODEL_OVERRIDE")
     expect(serial).not.toContain("CE_WORK_MODEL_OVERRIDE_TARGET")
     expect(serial).toContain("one bounded unit packet")
-    expect(serial).toContain("exact plural keys `route`, `intermediaries`, and `restrictions`")
-    expect(serial).toContain("direct `codex`, `claude`, `grok-cli`, and `cursor` routes use `intermediaries: []`")
-    expect(serial).toContain("Write the packet source directly to OS temp outside the canonical checkout")
-    expect(serial).toContain("never draft it inside the repository and move or copy it later")
-    expect(serial).toContain("quoting `$(...)` as a direct argument does not expand it")
-    expect(serial).toContain("-- bash -o pipefail -c")
+    expect(serial).toContain("exact plural keys are `route`, `intermediaries`, `exposed_material`, and `restrictions`")
+    expect(serial).toContain("direct `codex`, `claude`, `grok-cli`, and `cursor` use `intermediaries: []`")
+    expect(serial).toContain("Write its source directly to OS temp outside the checkout")
+    expect(serial).toContain("never draft it in the repository and move it later")
+    expect(serial).toContain("pipefail-capable shell")
     expect(serial).toContain("separate host tool calls")
     expect(serial).toContain("Never generate or run a shell script")
     expect(serial).toContain("`start` must return")
     expect(serial).toContain("one state-changing controller transition")
     expect(serial).toContain("single fail-stop `integrate` transaction")
-    expect(serial).toContain("Do not manually chain")
+    expect(serial).toContain("do not manually chain")
     expect(serial).toContain("60 seconds")
     expect(serial).toContain("A nonzero controller, runner, verification, or Git exit ends that host tool call")
     expect(serial).toContain("every bare-job-id runner `status`, `wait`, `result`, or `reap` call must carry `--skill ce-work`")
     expect(serial).toContain("inspect the actual transport diff")
     expect(serial).toContain("generated byproduct")
     expect(serial).toContain("before `mark-verified`")
-    expect(serial).toContain("authoritative canonical verification")
+    expect(serial).toContain("authoritative verification")
     expect(serial).toContain("restore")
     expect(serial).toContain("before fallback, retry, or another unit")
     expect(serial).toContain("plan-wide Verification Contract gates")
@@ -423,20 +430,20 @@ describe("ce-work cross-model engine contract", () => {
     expect(protocol).toContain("completed run is observation-only")
     expect(protocol).toContain("must not rerun a Verification Contract gate")
     expect(protocol).toContain("must not redispatch, reapply, recommit, or run either owning tail")
-    expect(protocol).toContain("unit-workspace.py` `claim-fallback")
-    expect(protocol).toContain("unit-workspace.py` `complete-fallback")
-    expect(protocol).toContain("exactly one native fallback")
+    expect(protocol).toContain("call `claim-fallback`")
+    expect(protocol).toContain("call `complete-fallback`")
+    expect(protocol).toContain("for explicit `ce-default` or the exact next declared same-host default")
     expect(protocol).toContain("FALLBACK_ALREADY_AUTHORIZED")
-    expect(protocol).toContain("FALLBACK_COMPLETED")
     expect(protocol).toContain("`RUN_VERIFIED`")
     expect(protocol).toContain("CHOICE_REQUIRED")
-    expect(protocol).toContain("headless `require` remains blocked")
+    expect(protocol).toContain("`require` always blocks")
+    expect(protocol).toContain("without `CHOICE_REQUIRED` or a confirmation escape hatch")
     expect(protocol).toContain("exact restoration")
     expect(protocol).toContain("expected post-apply tree and changed-path set")
     expect(protocol).toContain("unknown dirt blocks without destructive restoration")
     expect(protocol).toContain("status`, `reap`, and `cleanup")
-    expect(protocol).toContain("same scalar `run_id`")
-    expect(protocol).toContain("a fresh `attempt_id`")
+    expect(protocol).toContain("same scalar run id")
+    expect(protocol).toContain("a fresh attempt id")
     expect(protocol).toContain("block selection")
     expect(protocol).toContain("Do not dispatch a new third run")
   })
@@ -474,7 +481,7 @@ describe("ce-work cross-model engine contract", () => {
     expect(protocol).toContain("detached **sibling**")
     expect(protocol).toContain("/tmp/compound-engineering-<effective-uid>/ce-work/<run-id>/")
     expect(protocol).toContain("never a nested worktree")
-    expect(protocol).toContain("plan-only state is checkpointable, not a route blocker")
+    expect(protocol).toContain("selected plan may be the only dirty path")
     expect(protocol).toContain("`hard-only` is the normal posture")
     expect(protocol).toContain("disable idle timeout")
     expect(protocol).toContain("never infer failure or fallback merely from absent incremental activity")

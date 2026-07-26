@@ -88,6 +88,8 @@ When research is recommended, do it — don't just offer. Stale recommendations 
 
 **Research decomposition pattern:**
 1. Identify 2-5 independent research questions based on the task. Good questions target facts the model is least confident about: current prices, hours, availability, recent changes, seasonal specifics.
+**Routing batch: `ce-plan.universal-plan-research`.** Once the existing research-need and decomposition steps fix the question wave, and before any research prompt is assembled, load `references/execution-routing.md` and resolve every already-selected question instance of `ce-plan.universal-researcher` together in one `ce-routing/v1` `resolve_batch`, with one request entry per selected research question. If an inherited native snapshot exists, pass its exact full self-validating object as the `parent_snapshot` envelope and include `parent_snapshot_id` only if it matches; otherwise this response becomes the first frozen snapshot. Never use ID-only lineage or reread live routing sources, and reuse the frozen bindings on recovery. Routing cannot create a research question, change the 2-5 cap, or alter parallelism and collation.
+<!-- ce-dispatch-site:ce-plan.universal-plan-research -->
 2. Dispatch parallel research. Prefer user-named surfaces first per Core Principle 8 in SKILL.md; fall back to web search for questions those surfaces don't cover.
 3. Collate findings into a brief research summary before proceeding to planning.
 

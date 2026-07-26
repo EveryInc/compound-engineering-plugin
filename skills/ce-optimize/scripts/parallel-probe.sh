@@ -19,20 +19,27 @@
 
 set -euo pipefail
 
-PROJECT_DIR="${1:?Error: project_directory argument required}"
-MEASUREMENT_CMD="${2:-}"
-MEASUREMENT_WORKDIR="${3:-.}"
-
-shift 3 2>/dev/null || shift $# 2>/dev/null || true
+PROJECT_INPUT="${1:?Error: project_directory argument required}"
+shift
+MEASUREMENT_CMD="${1:-}"
+if [[ $# -gt 0 ]]; then shift; fi
+MEASUREMENT_WORKDIR="${1:-.}"
+if [[ $# -gt 0 ]]; then shift; fi
 SHARED_FILES=()
 if [[ $# -gt 0 ]]; then
   SHARED_FILES=("$@")
 fi
 
-cd "$PROJECT_DIR" || {
+if [[ ! -d "$PROJECT_INPUT" ]]; then
   echo '{"mode":"serial","blockers":[{"type":"error","description":"Cannot access project directory","suggestion":"Check path"}]}'
   exit 0
+fi
+
+PROJECT_DIR=$(cd "$PROJECT_INPUT" && pwd -P) || {
+  echo '{"mode":"serial","blockers":[{"type":"error","description":"Cannot canonicalize project directory","suggestion":"Check path"}]}'
+  exit 0
 }
+cd "$PROJECT_DIR"
 
 if ! command -v python3 >/dev/null 2>&1; then
   echo '{"mode":"serial","blockers":[{"type":"missing_dependency","description":"python3 is required for structured probe output","suggestion":"Install python3 or skip the probe and review parallel-readiness manually"}],"blocker_count":1}'
@@ -41,29 +48,124 @@ fi
 
 BLOCKERS="[]"
 SCAN_PATHS=()
+UNSAFE_PATH=0
 
 add_blocker() {
   local type="$1"
   local desc="$2"
   local suggestion="$3"
-  BLOCKERS=$(echo "$BLOCKERS" | python3 -c "
-import json, sys
-b = json.load(sys.stdin)
-b.append({'type': '$type', 'description': '''$desc''', 'suggestion': '''$suggestion'''})
-print(json.dumps(b))
-" 2>/dev/null || echo "$BLOCKERS")
+  BLOCKERS=$(python3 - "$BLOCKERS" "$type" "$desc" "$suggestion" <<'PY'
+import json
+import sys
+
+blockers = json.loads(sys.argv[1])
+blockers.append({
+    "type": sys.argv[2],
+    "description": sys.argv[3],
+    "suggestion": sys.argv[4],
+})
+print(json.dumps(blockers, separators=(",", ":")))
+PY
+  )
 }
 
 add_scan_path() {
   local candidate="$1"
+  local component
+  local cursor="$PROJECT_DIR"
+  local canonical
+  local nested
+  local components=()
 
   if [[ -z "$candidate" ]]; then
+    add_blocker "unsafe_path" "Declared probe path is empty" "Use a canonical repository-relative path"
+    UNSAFE_PATH=1
     return
   fi
 
-  if [[ -e "$candidate" ]]; then
-    SCAN_PATHS+=("$candidate")
+  if [[ "$candidate" == "." ]]; then
+    SCAN_PATHS+=("$PROJECT_DIR")
+    return
   fi
+
+  if [[ "$candidate" == /* || "$candidate" == *$'\n'* || "$candidate" == *$'\r'* ]]; then
+    add_blocker "unsafe_path" "Probe path must be repository-relative: $candidate" "Remove absolute paths and control characters"
+    UNSAFE_PATH=1
+    return
+  fi
+
+  IFS='/' read -r -a components <<< "$candidate"
+  for component in "${components[@]}"; do
+    if [[ -z "$component" || "$component" == "." || "$component" == ".." ]]; then
+      add_blocker "unsafe_path" "Probe path escapes or is not canonical: $candidate" "Use a normalized path beneath the project root"
+      UNSAFE_PATH=1
+      return
+    fi
+    if [[ "$component" == .env* ]]; then
+      add_blocker "unsafe_path" ".env* material is not a probe or shared input: $candidate" "Remove .env* from declared inputs"
+      UNSAFE_PATH=1
+      return
+    fi
+    cursor="$cursor/$component"
+    if [[ -L "$cursor" ]]; then
+      add_blocker "unsafe_path" "Probe path contains a symlink: $candidate" "Use the canonical non-symlink path within the project"
+      UNSAFE_PATH=1
+      return
+    fi
+  done
+
+  if [[ ! -e "$cursor" ]]; then
+    add_blocker "unsafe_path" "Declared probe path does not exist: $candidate" "Fix or remove the declared path"
+    UNSAFE_PATH=1
+    return
+  fi
+
+  if [[ -d "$cursor" ]]; then
+    canonical=$(cd "$cursor" && pwd -P)
+    nested=$(find "$cursor" -maxdepth 4 -type l -print -quit 2>/dev/null || true)
+    if [[ -n "$nested" ]]; then
+      add_blocker "unsafe_path" "Probe directory contains a symlink: $candidate" "Remove symlinked inputs or run serially after review"
+      UNSAFE_PATH=1
+      return
+    fi
+    nested=$(find "$cursor" -maxdepth 4 -name '.env*' -print -quit 2>/dev/null || true)
+    if [[ -n "$nested" ]]; then
+      add_blocker "unsafe_path" "Probe directory contains .env* material: $candidate" "Remove .env* from routed measurement/shared scope"
+      UNSAFE_PATH=1
+      return
+    fi
+    nested=$(find "$cursor" -maxdepth 4 ! -type f ! -type d -print -quit 2>/dev/null || true)
+    if [[ -n "$nested" ]]; then
+      add_blocker "unsafe_path" "Probe directory contains non-regular material: $candidate" "Use only regular files and directories"
+      UNSAFE_PATH=1
+      return
+    fi
+  elif [[ -f "$cursor" ]]; then
+    canonical=$(cd "$(dirname "$cursor")" && pwd -P)/$(basename "$cursor")
+  else
+    add_blocker "unsafe_path" "Probe path is not a regular file or directory: $candidate" "Use a regular in-repository input"
+    UNSAFE_PATH=1
+    return
+  fi
+
+  case "$canonical" in
+    "$PROJECT_DIR"|"$PROJECT_DIR"/*) SCAN_PATHS+=("$canonical") ;;
+    *)
+      add_blocker "unsafe_path" "Probe path resolves outside the project: $candidate" "Use a canonical in-project path"
+      UNSAFE_PATH=1
+      ;;
+  esac
+}
+
+path_is_declared() {
+  local target="$1"
+  local declared
+  for declared in "${SCAN_PATHS[@]}"; do
+    if [[ "$target" == "$declared" || "$target" == "$declared"/* ]]; then
+      return 0
+    fi
+  done
+  return 1
 }
 
 add_scan_path "$MEASUREMENT_WORKDIR"
@@ -74,10 +176,6 @@ if [[ ${#SHARED_FILES[@]} -gt 0 ]]; then
   done
 fi
 
-if [[ ${#SCAN_PATHS[@]} -eq 0 ]]; then
-  SCAN_PATHS=(".")
-fi
-
 # Check 1: Hardcoded ports in measurement command
 if [[ -n "$MEASUREMENT_CMD" ]]; then
   # Look for common port patterns in the command itself
@@ -86,18 +184,18 @@ if [[ -n "$MEASUREMENT_CMD" ]]; then
   fi
 fi
 
-# Check 2: SQLite databases in the measurement workdir or declared shared files
-SQLITE_FILES=$(find "${SCAN_PATHS[@]}" -maxdepth 4 -type f \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) ! -path '*/.git/*' ! -path '*/node_modules/*' ! -path '*/.claude/*' ! -path '*/.context/*' ! -path '*/.worktrees/*' 2>/dev/null | head -10 || true)
-if [[ -n "$SQLITE_FILES" ]]; then
-  FILE_COUNT=$(echo "$SQLITE_FILES" | wc -l | tr -d ' ')
-  add_blocker "shared_file" "Found $FILE_COUNT SQLite database file(s)" "Copy database files into each experiment worktree"
-fi
+if [[ ${#SCAN_PATHS[@]} -gt 0 ]]; then
+  # Check 2: SQLite databases in the measurement workdir or declared shared files
+  SQLITE_FILE=$(find "${SCAN_PATHS[@]}" -maxdepth 4 -type f \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) ! -path '*/.git/*' ! -path '*/node_modules/*' ! -path '*/.claude/*' ! -path '*/.context/*' ! -path '*/.worktrees/*' -print -quit 2>/dev/null || true)
+  if [[ -n "$SQLITE_FILE" ]] && path_is_declared "$SQLITE_FILE"; then
+    add_blocker "shared_file" "Found a SQLite database in declared probe scope" "Copy each required database through parallel.shared_files or run serially"
+  fi
 
-# Check 3: Lock/PID files in the measurement workdir or declared shared files
-LOCK_FILES=$(find "${SCAN_PATHS[@]}" -maxdepth 4 -type f \( -name '*.lock' -o -name '*.pid' \) ! -path '*/.git/*' ! -path '*/node_modules/*' ! -path '*/.claude/*' ! -path '*/.context/*' ! -path '*/.worktrees/*' ! -name 'package-lock.json' ! -name 'yarn.lock' ! -name 'bun.lock' ! -name 'bun.lockb' ! -name 'Gemfile.lock' ! -name 'poetry.lock' ! -name 'Cargo.lock' 2>/dev/null | head -10 || true)
-if [[ -n "$LOCK_FILES" ]]; then
-  FILE_COUNT=$(echo "$LOCK_FILES" | wc -l | tr -d ' ')
-  add_blocker "lock_file" "Found $FILE_COUNT lock/PID file(s) that may cause contention" "Ensure measurement command cleans up lock files, or run in serial mode"
+  # Check 3: Lock/PID files in the measurement workdir or declared shared files
+  LOCK_FILE=$(find "${SCAN_PATHS[@]}" -maxdepth 4 -type f \( -name '*.lock' -o -name '*.pid' \) ! -path '*/.git/*' ! -path '*/node_modules/*' ! -path '*/.claude/*' ! -path '*/.context/*' ! -path '*/.worktrees/*' ! -name 'package-lock.json' ! -name 'yarn.lock' ! -name 'bun.lock' ! -name 'bun.lockb' ! -name 'Gemfile.lock' ! -name 'poetry.lock' ! -name 'Cargo.lock' -print -quit 2>/dev/null || true)
+  if [[ -n "$LOCK_FILE" ]] && path_is_declared "$LOCK_FILE"; then
+    add_blocker "lock_file" "Found a lock/PID file in declared probe scope" "Ensure the measurement command cleans it up, or run serially"
+  fi
 fi
 
 # Check 4: Exclusive resource hints in the measurement command
@@ -106,22 +204,37 @@ if [[ -n "$MEASUREMENT_CMD" ]] && echo "$MEASUREMENT_CMD" | grep -qiE '(cuda|gpu
 fi
 
 # Determine mode
-BLOCKER_COUNT=$(echo "$BLOCKERS" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
+BLOCKER_COUNT=$(python3 - "$BLOCKERS" <<'PY'
+import json
+import sys
+print(len(json.loads(sys.argv[1])))
+PY
+)
 
-if [[ "$BLOCKER_COUNT" == "0" ]]; then
+if [[ "$UNSAFE_PATH" == "1" ]]; then
+  MODE="serial"
+elif [[ "$BLOCKER_COUNT" == "0" ]]; then
   MODE="parallel"
-elif echo "$BLOCKERS" | python3 -c "import json,sys; b=json.load(sys.stdin); exit(0 if any(x['type']=='exclusive_resource' for x in b) else 1)" 2>/dev/null; then
+elif python3 - "$BLOCKERS" <<'PY'
+import json
+import sys
+raise SystemExit(0 if any(item["type"] == "exclusive_resource" for item in json.loads(sys.argv[1])) else 1)
+PY
+then
   MODE="serial"
 else
   MODE="user-decision"
 fi
 
 # Output JSON result
-python3 -c "
+python3 - "$MODE" "$BLOCKERS" <<'PY'
 import json
+import sys
+
+blockers = json.loads(sys.argv[2])
 print(json.dumps({
-    'mode': '$MODE',
-    'blockers': $BLOCKERS,
-    'blocker_count': $BLOCKER_COUNT
+    "mode": sys.argv[1],
+    "blockers": blockers,
+    "blocker_count": len(blockers),
 }, indent=2))
-"
+PY

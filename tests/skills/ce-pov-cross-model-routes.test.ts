@@ -115,6 +115,37 @@ describe("ce-pov cross-model route safety", () => {
     expect(emit("grok-cursor")).toContain("--model cursor-grok-4.5-high")
   })
 
+  test("generalized candidate selectors are route-bound and token-safe", () => {
+    const selected = emit("claude", {
+      ...process.env,
+      CE_ROUTING_CANDIDATE_HARNESS: "claude",
+      CE_ROUTING_CANDIDATE_ROUTE: "claude",
+      CE_ROUTING_CANDIDATE_MODEL: "sonnet",
+      CE_ROUTING_CANDIDATE_EFFORT: "medium",
+    })
+    expect(selected).toContain("--model sonnet")
+    expect(selected).toContain("--effort medium")
+
+    for (const [route, env] of [
+      ["grok-cli", {
+        CE_ROUTING_CANDIDATE_HARNESS: "grok",
+        CE_ROUTING_CANDIDATE_ROUTE: "grok-cursor",
+        CE_ROUTING_CANDIDATE_MODEL: "grok-4.5",
+      }],
+      ["cursor", {
+        CE_ROUTING_CANDIDATE_HARNESS: "cursor",
+        CE_ROUTING_CANDIDATE_ROUTE: "cursor",
+        CE_ROUTING_CANDIDATE_MODEL: "composer-2.5-fast",
+      }],
+    ] as const) {
+      const rejected = spawnSync("bash", [SCRIPT, "--emit-adapter", route], {
+        encoding: "utf8",
+        env: { ...process.env, ...env },
+      })
+      expect(rejected.status).toBe(2)
+    }
+  })
+
   test("same-family model override changes only model-specific routes", () => {
     const composer = emit("composer", {
       ...process.env,
@@ -205,8 +236,49 @@ describe("ce-pov output gate and receipts", () => {
     expect(out.serving_family).toBe("claude")
     expect(out.model_requested).toBe("opus")
     expect(out.model_actual).toBe("claude-opus-4-8-20260115")
+    expect(out.model_identity_status).toBe("matched")
+    expect(out.effort_requested).toBe("high")
+    expect(out.effort_actual).toBe("unverified")
     expect(out.movement).toBe("initial")
     expect(out.independence_verified).toBe(true)
+  })
+
+  test("a generalized candidate drives the live fake adapter and receipt", () => {
+    const captureRoot = temp("pov-routed-capture-")
+    const capture = path.join(captureRoot, "argv")
+    const envCapture = path.join(captureRoot, "env")
+    const claudeConfig = path.join(captureRoot, "claude-config")
+    const apiSecret = "SENTINEL-pov-api-secret"
+    const response = '{"structured_output":{"voice":"peer","position":"Choose A","reasoning":"Evidence","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"},"modelUsage":{"claude-sonnet-4-7-20260701":{"inputTokens":3}}}'
+    const { env } = sandbox(["claude"], `#!/bin/sh
+printf '%s' "$*" > '${capture}'
+env > '${envCapture}'
+cat >/dev/null
+printf '%s' '${response}'
+`)
+    const dir = runDir()
+    const result = run(["codex", "claude", payload(), dir], dir, {
+      ...env,
+      CE_ROUTING_CANDIDATE_HARNESS: "claude",
+      CE_ROUTING_CANDIDATE_ROUTE: "claude",
+      CE_ROUTING_CANDIDATE_MODEL: "sonnet",
+      CE_ROUTING_CANDIDATE_EFFORT: "medium",
+      USER: "pov-keychain-user",
+      CLAUDE_CONFIG_DIR: claudeConfig,
+      ANTHROPIC_API_KEY: apiSecret,
+    })
+    expect(result.files).toContain("pov-claude.json")
+    expect(readFileSync(capture, "utf8")).toContain("--model sonnet --effort medium")
+    const childEnv = readFileSync(envCapture, "utf8")
+    expect(childEnv).toContain("USER=pov-keychain-user")
+    expect(childEnv).toContain(`CLAUDE_CONFIG_DIR=${claudeConfig}`)
+    expect(childEnv).not.toContain("ANTHROPIC_API_KEY=")
+    expect(childEnv).not.toContain(apiSecret)
+    const out = JSON.parse(readFileSync(path.join(dir, "pov-claude.json"), "utf8"))
+    expect(out.model_requested).toBe("sonnet")
+    expect(out.model_actual).toBe("claude-sonnet-4-7-20260701")
+    expect(out.model_identity_status).toBe("matched")
+    expect(out.effort_requested).toBe("medium")
   })
 
   test("recovers a raw schema-shaped POV without a structured-output envelope", () => {
@@ -231,6 +303,7 @@ describe("ce-pov output gate and receipts", () => {
     expect(out.position).toBe("Choose B")
     expect(out.reasoning).toBe("The boundary is clearer")
     expect(out.model_actual).toBe("unverified")
+    expect(out.model_identity_status).toBe("unverified")
     expect(out.serving_family).toBe("unknown")
     expect(out.independence_verified).toBe(false)
   })
@@ -252,7 +325,7 @@ describe("ce-pov output gate and receipts", () => {
   })
 
   test("an explicitly named peer can run with unknown host family but is not independent", () => {
-    const response = '{"structured_output":{"voice":"peer","position":"Hold","reasoning":"Need evidence","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"}}'
+    const response = '{"structured_output":{"voice":"peer","position":"Hold","reasoning":"Need evidence","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"},"modelUsage":{"claude-opus-4-8-20260115":{"inputTokens":3}}}'
     const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${response}'\n`)
     const dir = runDir()
     const result = run(["unknown", "claude", payload(), dir], dir, {
@@ -261,6 +334,8 @@ describe("ce-pov output gate and receipts", () => {
     })
     expect(result.files).toContain("pov-claude.json")
     const out = JSON.parse(readFileSync(path.join(dir, "pov-claude.json"), "utf8"))
+    expect(out.model_identity_status).toBe("matched")
+    expect(out.model_actual).toBe("claude-opus-4-8-20260115")
     expect(out.independence_verified).toBe(false)
   })
 

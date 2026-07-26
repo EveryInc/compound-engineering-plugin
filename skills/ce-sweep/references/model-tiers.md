@@ -1,5 +1,6 @@
 # Model Tiers
 
+<!-- ce-dispatch-exclude:tier-guidance-reference -->
 Read this when dispatching a sub-agent (a source-persona fetch subagent or a media-analyzer subagent). Sub-agent dispatch is tiered by task shape, never hardcoded to a model name:
 
 - **Extraction tier** — the source-persona fetch subagents: retrieval and quoting work (pulling items and their media paths out of a source connector). Use the platform's cheapest capable model when the current harness exposes a known override. "Capable" is part of the spec — escalate to the generation tier when the source is large or the connector obscure.

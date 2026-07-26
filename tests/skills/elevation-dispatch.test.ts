@@ -157,6 +157,43 @@ describe("elevation-dispatch worker", () => {
     for (const flag of NEVER_FLAGS) expect(argv).not.toContain(flag)
   })
 
+  test("applies only token-safe generalized Claude model and effort selectors", () => {
+    const selected = spawnSync(
+      "bash",
+      [WORKER, "--emit-adapter", "sonnet", "/fake/handoff/xyz"],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          CE_ROUTING_CANDIDATE_HARNESS: "claude",
+          CE_ROUTING_CANDIDATE_ROUTE: "claude",
+          CE_ROUTING_CANDIDATE_MODEL: "sonnet",
+          CE_ROUTING_CANDIDATE_EFFORT: "medium",
+        },
+      },
+    )
+    expect(selected.status).toBe(0)
+    const argv = (selected.stdout ?? "").split("\0").filter(Boolean)
+    expect(argv.slice(0, 4)).toEqual(["claude", "-p", "--model", "sonnet"])
+    expect(argv.slice(argv.indexOf("--effort"), argv.indexOf("--effort") + 2)).toEqual([
+      "--effort",
+      "medium",
+    ])
+
+    for (const env of [
+      { CE_ROUTING_CANDIDATE_HARNESS: "codex", CE_ROUTING_CANDIDATE_MODEL: "sonnet" },
+      { CE_ROUTING_CANDIDATE_HARNESS: "claude", CE_ROUTING_CANDIDATE_MODEL: "sonnet;touch-x" },
+      { CE_ROUTING_CANDIDATE_HARNESS: "claude", CE_ROUTING_CANDIDATE_MODEL: "sonnet", CE_ROUTING_CANDIDATE_EFFORT: "ultra high" },
+    ]) {
+      const rejected = spawnSync(
+        "bash",
+        [WORKER, "--emit-adapter", "sonnet", "/fake/handoff/xyz"],
+        { encoding: "utf8", env: { ...process.env, ...env } },
+      )
+      expect(rejected.status).toBe(2)
+    }
+  })
+
   test("a matching receipt yields a matched envelope with the output", () => {
     const stub =
       "#!/bin/sh\n" +
@@ -166,6 +203,9 @@ describe("elevation-dispatch worker", () => {
     expect(result.output).toBe("PLAN BODY")
     expect(result.served_model).toBe("claude-fable-5")
     expect(result.receipt).toBe("matched")
+    expect(result.model_identity_status).toBe("matched")
+    expect(result.effort_requested).toBe("high")
+    expect(result.effort_actual).toBe("unverified")
   })
 
   test("grants read access to only the prompt's own dir, not the whole temp root", () => {
@@ -193,6 +233,42 @@ describe("elevation-dispatch worker", () => {
     expect(realpathSync(m![1])).toBe(realpathSync(scratch))
     expect(argv).not.toMatch(/--add-dir \/tmp(\s|$)/)
     expect((argv.match(/--add-dir/g) || []).length).toBe(1)
+  })
+
+  test("uses CLI-native auth without forwarding ambient credential variables", () => {
+    const scratch = mkTempRoot("elevation-min-env-")
+    const promptFile = path.join(scratch, "brief.md")
+    const resultPath = path.join(scratch, "result.json")
+    const envCapture = path.join(scratch, "env.txt")
+    const claudeConfig = path.join(scratch, "claude-config")
+    const apiSecret = "SENTINEL-elevation-api-secret"
+    const oauthSecret = "SENTINEL-elevation-oauth-secret"
+    writeFileSync(promptFile, "author the plan")
+    const stub =
+      "#!/bin/sh\n" +
+      `env > "${envCapture}"\n` +
+      `printf '%s\\n' '${RESULT_LINE("OK", { "claude-fable-5": {} })}'\n`
+    const { env } = sandbox(stub)
+    const r = spawnSync("bash", [WORKER, "fable", promptFile, resultPath], {
+      encoding: "utf8",
+      env: {
+        CE_ELEVATION_POLL_SECS: "0.2",
+        ...env,
+        USER: "elevation-keychain-user",
+        CLAUDE_CONFIG_DIR: claudeConfig,
+        ANTHROPIC_API_KEY: apiSecret,
+        CLAUDE_CODE_OAUTH_TOKEN: oauthSecret,
+      },
+    })
+
+    expect(r.status).toBe(0)
+    const childEnv = readFileSync(envCapture, "utf8")
+    expect(childEnv).toContain("USER=elevation-keychain-user")
+    expect(childEnv).toContain(`CLAUDE_CONFIG_DIR=${claudeConfig}`)
+    expect(childEnv).not.toContain("ANTHROPIC_API_KEY=")
+    expect(childEnv).not.toContain("CLAUDE_CODE_OAUTH_TOKEN=")
+    expect(childEnv).not.toContain(apiSecret)
+    expect(childEnv).not.toContain(oauthSecret)
   })
 
   test("missing jq exits 0 with a failure envelope, so the runner still emits it", () => {

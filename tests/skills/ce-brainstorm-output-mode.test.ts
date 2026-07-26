@@ -73,21 +73,17 @@ describe("ce-brainstorm output:html mode", () => {
     ).toBe(true)
   })
 
-  test("config matching rule ignores commented YAML lines (active-key principle)", () => {
-    // Parity with ce-plan side. Same Codex review found that "contains
-    // `brainstorm_output: md|html`" would match the commented examples in
-    // the shipped config template. The fix is principle-level: require an
-    // ACTIVE (non-commented) key.
+  test("config resolution uses the merged resolver view", () => {
     const phaseStart = SKILL_BODY.indexOf("#### 0.0")
     const phaseRegion = SKILL_BODY.slice(phaseStart, phaseStart + 4500)
-    expect(
-      /active.*non-commented|non-commented.*key|lines starting with `#`.*comments|ignore commented/i.test(phaseRegion),
-      "Phase 0.0 config matching must require an ACTIVE (non-commented) `brainstorm_output:` key, not a raw-text 'contains' match.",
-    ).toBe(true)
-    expect(
-      /# brainstorm_output: html|commented examples|shipped config template/i.test(phaseRegion),
-      "Phase 0.0 must cite the specific failure mode (the shipped template's commented `# brainstorm_output: html` example) so the rationale survives future edits.",
-    ).toBe(true)
+
+    expect(phaseRegion).toContain("references/execution-routing.md")
+    expect(phaseRegion).toContain("python3 -I -S")
+    expect(phaseRegion).toContain("$SKILL_DIR/scripts/ce-routing.py")
+    expect(phaseRegion).toMatch(/`inspect` request/)
+    expect(phaseRegion).toContain("settings.effective")
+    expect(phaseRegion).toContain("settings.provenance")
+    expect(phaseRegion).not.toMatch(/active \(non-commented\)|native file-read tool/i)
   })
 
   test("unknown-value fallback note reflects final resolved mode, not a hardcoded md", () => {
@@ -107,7 +103,8 @@ describe("ce-brainstorm output:html mode", () => {
     // `plan_output` config independently. The SKILL.md should make this
     // explicit so users with mismatched config aren't surprised.
     const phaseStart = SKILL_BODY.indexOf("#### 0.0")
-    const phaseRegion = SKILL_BODY.slice(phaseStart, phaseStart + 4500)
+    const phaseEnd = SKILL_BODY.indexOf("#### 0.1", phaseStart)
+    const phaseRegion = SKILL_BODY.slice(phaseStart, phaseEnd)
     expect(
       /does NOT auto-propagate|does not auto-propagate|re-resolves its own/i.test(phaseRegion),
       "ce-brainstorm SKILL.md must state that the output: preference does not auto-propagate to ce-plan on handoff (ce-plan re-resolves its own plan_output independently).",

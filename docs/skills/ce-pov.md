@@ -199,6 +199,8 @@ Target names distinguish models from harnesses, and are intentionally not aliase
 
 Cursor Auto is labeled unverified unless a serving-model receipt exists, and without that proof it does not count as independent cross-model corroboration.
 
+The compatible `cross_model_peer` setting and generalized `ce-pov.panel-peer` role binding resolve from the merged global/project view. Routing never summons a panel that `ce-pov` did not select; see [Compound Engineering configuration](./configuration.md#execution-routing).
+
 Concrete model IDs and CLI flags are preferred adapter defaults, not permanent product promises. If the landscape changes, ce-pov tries the declared mapping first, then may discover the closest compatible equivalent within the same requested target and hard safety/egress boundaries. It discloses the substitution and actual route; an explicitly named model or newly receiving intermediary never changes silently.
 
 ---
