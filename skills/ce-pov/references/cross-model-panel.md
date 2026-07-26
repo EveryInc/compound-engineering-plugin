@@ -192,9 +192,10 @@ partial/solo degradation still owns the overall POV. An unavailable `prefer`
 candidate may advance before dispatch. Once work starts, the recipient is fixed.
 A preferred candidate may advance only after a terminal unintegrated attempt and
 fresh recipient, intermediary, material, and environment sanction. If a retry
-would add an unexpected recipient or intermediary, ask before dispatch unless an
-active higher-authority instruction already supplies that approval. Never switch
-an in-flight recipient or consume discarded output. A named peer that
+would add an unsanctioned recipient or intermediary, classify that candidate
+unavailable without prompting; continue only when the resolver advances to
+another already sanctioned candidate, otherwise block that panel voice. Never
+switch an in-flight recipient or consume discarded output. A named peer that
 cannot run within these rules is reported, never silently replaced or dropped.
 
 The pre-dispatch update should say who will inspect the subject and that the

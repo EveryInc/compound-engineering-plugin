@@ -26,6 +26,8 @@ function temp(prefix: string): string {
 afterAll(() => roots.forEach((dir) => rmSync(dir, { recursive: true, force: true })))
 
 const SCRIPT = path.join(__dirname, "../../skills/ce-pov/scripts/cross-model-pov.sh")
+const SKILL_BODY = readFileSync(path.join(__dirname, "../../skills/ce-pov/SKILL.md"), "utf8")
+const PANEL_BODY = readFileSync(path.join(__dirname, "../../skills/ce-pov/references/cross-model-panel.md"), "utf8")
 const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer"] as const
 const NEVER_FLAGS = ["--yolo", "--force", "-f", "--always-approve", "--dangerously-skip-permissions"]
 const REAL_TOOLS = [
@@ -88,6 +90,12 @@ function emit(route: string, env: NodeJS.ProcessEnv = process.env) {
 }
 
 describe("ce-pov cross-model route safety", () => {
+  test("preferred retries never prompt for new egress authority", () => {
+    expect(SKILL_BODY).toMatch(/unsanctioned recipient or intermediary is unavailable.*without asking/is)
+    expect(PANEL_BODY).toMatch(/classify that candidate\s+unavailable without prompting/is)
+    expect(PANEL_BODY).not.toMatch(/ask before dispatch/i)
+  })
+
   test("all routes preserve read/write/exec denial and avoid never-use flags", () => {
     for (const route of ROUTES) {
       const command = emit(route)

@@ -113,6 +113,18 @@ describe("specialized read-only routing contract", () => {
     expect(body).toMatch(/exact legacy no-routing behavior.*do not elevate/i)
   })
 
+  test("strict elevation never degrades to inline execution", async () => {
+    for (const relative of [
+      "skills/ce-plan/references/reasoning-elevation.md",
+      "skills/ce-brainstorm/references/reasoning-elevation.md",
+    ]) {
+      const body = await readFile(path.join(ROOT, relative), "utf8")
+      expect(body, relative).toMatch(/required route never silently becomes inline/i)
+      expect(body, relative).toMatch(/required binding stops.*without prompting or inline execution/is)
+      expect(body, relative).not.toMatch(/requested but unavailable[^\n]*run the step inline/i)
+    }
+  })
+
   test("legacy settings come only from the frozen resolve_batch compatibility output", async () => {
     for (const relative of references) {
       const body = await readFile(path.join(ROOT, relative), "utf8")

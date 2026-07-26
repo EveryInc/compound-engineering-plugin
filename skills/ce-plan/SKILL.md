@@ -705,7 +705,7 @@ Fires **whenever Phase 0.2 resolved an upstream Product Contract source** — a 
 
 #### 5.2 Write Plan File
 
-**Model elevation.** Before authoring the plan, load `references/reasoning-elevation.md` and follow it. It resolves whether a model was chosen for the interpret-findings-then-author step — from this run's prompt, a stripped `plan_model:<alias>` caller carrier (e.g. passed by LFG, honored even in pipeline mode), or the `plan_model` config key — and if so dispatches that one step to the chosen model on any harness, with a read-only verifying handoff and transparent fallback to your session model. When no model is chosen it is a no-op; proceed normally. It runs the same on every harness — do not gate it on the host.
+**Model elevation.** Before authoring the plan, load `references/reasoning-elevation.md` and follow it. It resolves whether a model was chosen for the interpret-findings-then-author step — from this run's prompt, a stripped `plan_model:<alias>` caller carrier (e.g. passed by LFG, honored even in pipeline mode), or the `plan_model` config key — and if so dispatches that one step through the frozen read-only route. Inline session-model fallback occurs only when the binding reaches CE-default; an unavailable required route blocks without prompting. When no model is chosen it is a no-op; proceed normally. It runs the same on every harness — do not gate it on the host.
 
 **REQUIRED: Write the plan file to disk before presenting any options.**
 
