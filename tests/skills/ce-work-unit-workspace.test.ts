@@ -23,6 +23,7 @@ setDefaultTimeout(30_000)
 
 const SCRIPT = path.join(__dirname, "../../skills/ce-work/scripts/unit-workspace.py")
 const ADAPTER = path.join(__dirname, "../../skills/ce-work/scripts/cross-model-work.sh")
+const CONFINEMENT_ADAPTER = realpathSync(path.join(__dirname, "../../skills/ce-work/scripts/landlock-confinement.py"))
 const roots: string[] = []
 
 function tmp(prefix: string): string {
@@ -188,6 +189,18 @@ function routingHome(config: string): string {
   return home
 }
 
+function authManifest(route: string): string {
+  const root = tmp("ce-work-auth-")
+  const auth = path.join(root, "auth.json")
+  const manifest = path.join(root, "manifest.json")
+  writeFileSync(auth, '{"token":"fake"}\n', { mode: 0o600 })
+  writeFileSync(manifest, `${JSON.stringify({
+    route,
+    files: [{ source: auth, destination: "auth.json" }],
+  })}\n`, { mode: 0o600 })
+  return manifest
+}
+
 function initWithRouting(
   runsRoot: string,
   runId: string,
@@ -242,6 +255,16 @@ function authorizeDispatch(
   prepared: any,
   overrides: Record<string, string> = {},
 ) {
+  if (!prepared.route_executable) {
+    const route = JSON.parse(readFileSync(prepared.authorization_path, "utf8")).route
+    const executableName = route === "grok-cli"
+      ? "grok"
+      : ["cursor", "composer", "grok-cursor"].includes(route) ? "cursor-agent" : route
+    const bin = tmp("ce-work-authorize-bin-")
+    prepared.route_executable = path.join(bin, executableName)
+    writeFileSync(prepared.route_executable, "#!/bin/sh\nexit 0\n", { mode: 0o755 })
+    chmodSync(prepared.route_executable, 0o755)
+  }
   const values = {
     runId,
     unitId,
@@ -253,6 +276,7 @@ function authorizeDispatch(
     packetDigest: prepared.packet_digest,
     resultDir: prepared.result_dir,
     adapter: ADAPTER,
+    routeExecutable: prepared.route_executable,
     ...overrides,
   }
   const jobId = values.jobId ?? `job-auth-${Math.random().toString(16).slice(2)}`
@@ -281,6 +305,7 @@ function authorizeDispatch(
     "--packet", values.packet,
     "--packet-digest", values.packetDigest,
     "--result-dir", values.resultDir,
+    "--route-executable", values.routeExecutable,
   )
 }
 
@@ -765,7 +790,7 @@ describe("ce-work unit workspace controller", () => {
     expect(readFileSync(prepared.body.packet_path, "utf8")).toBe("authorized packet")
     const authorizationText = readFileSync(prepared.body.authorization_path, "utf8")
     const authorization = JSON.parse(authorizationText)
-    expect(authorization).toEqual({
+    expect(authorization).toMatchObject({
       schema_version: 1,
       run_id: "run-authority",
       unit_id: "U",
@@ -781,6 +806,22 @@ describe("ce-work unit workspace controller", () => {
       activity_posture: "hard-only",
       packet_digest: packetDigest("authorized packet"),
       routing_lock: null,
+      environment: {
+        schema_version: 1,
+        posture: "credential-minimized",
+        authentication: "unavailable",
+        material: [],
+      },
+      confinement: {
+        protocol: "ce-work-landlock/v1",
+        adapter_path: CONFINEMENT_ADAPTER,
+        abi: expect.any(Number),
+        read_only_paths: expect.any(Array),
+        read_write_paths: [
+          prepared.body.workspace,
+          path.join(runs, "run-authority", "units", "U", "environment", "attempt-1"),
+        ],
+      },
     })
     expect(prepared.body.authorization_digest).toBe(packetDigest(readFileSync(prepared.body.authorization_path, "utf8")))
     writeFileSync(source, "substituted packet")
@@ -881,7 +922,7 @@ describe("ce-work unit workspace controller", () => {
 
     const revision = ctl(runs, "status", "--run-id", "run-handshake").body.revision
     const authorized = authorizeDispatch(runs, "run-handshake", "U-a", first)
-    expect(authorized.word).toBe("AUTHORIZED")
+    expect(authorized.word, authorized.stderr).toBe("AUTHORIZED")
     expect(authorized.body).toMatchObject({
       run_id: "run-handshake",
       unit_id: "U-a",
@@ -901,6 +942,40 @@ describe("ce-work unit workspace controller", () => {
 
     init(runs, "run-hand-authored", f)
     expect(authorizeDispatch(runs, "run-hand-authored", "fake-unit", first).word).toBe("REFUSED")
+  })
+
+  test("rejects route executable substitution after dispatch authorization", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-executable-substitution"
+    init(runs, runId, f)
+    const prepared = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U", "--base", f.base,
+      "--packet", packetFile("packet"),
+    ).body
+    const first = authorizeDispatch(runs, runId, "U", prepared, { jobId: "job-executable-substitution" })
+    expect(first.word, first.stderr).toBe("AUTHORIZED")
+    const status = ctl(runs, "status", "--run-id", runId, "--unit-id", "U").body.unit
+    const confinementPath = status.attempts[0].dispatch_authorization_receipt.confinement_path
+    const forgedConfinement = JSON.parse(readFileSync(confinementPath, "utf8"))
+    forgedConfinement.adapter.sha256 = "0".repeat(64)
+    const forgedPath = path.join(tmp("ce-work-forged-confinement-"), "confinement.json")
+    const forgedBytes = `${JSON.stringify(forgedConfinement)}\n`
+    writeFileSync(forgedPath, forgedBytes, { mode: 0o600 })
+    const forgedLaunch = spawnSync(
+      forgedConfinement.interpreter.path,
+      [CONFINEMENT_ADAPTER, "--config", forgedPath, "--digest", packetDigest(forgedBytes), "--", prepared.route_executable],
+      { encoding: "utf8" },
+    )
+    expect(forgedLaunch.status).toBe(2)
+    expect(forgedLaunch.stderr).toContain("confinement file digest changed")
+
+    writeFileSync(prepared.route_executable, "#!/bin/sh\nexit 7\n", { mode: 0o755 })
+    chmodSync(prepared.route_executable, 0o755)
+
+    const substituted = authorizeDispatch(runs, runId, "U", prepared, { jobId: "job-executable-substitution" })
+    expect(substituted.word).toBe("BLOCKED")
+    expect(substituted.stderr).toContain("confinement config differs")
   })
 
   test("rejects a swapped result directory before reading terminal receipt or raw log", () => {
@@ -1070,7 +1145,7 @@ describe("ce-work unit workspace controller", () => {
     expect(authorized.word).toBe("AUTHORIZED")
     expect(authorized.body.resumed).toBe(false)
     const pristineStatus = ctl(runs, "status", "--run-id", runId, "--unit-id", "U-prebound-pristine").body.unit
-    expect(pristineStatus.attempts[0].dispatch_authorization_receipt).toEqual({
+    expect(pristineStatus.attempts[0].dispatch_authorization_receipt).toMatchObject({
       attempt_id: "attempt-1",
       job_id: pristineJob,
       authorization_path: pristine.authorization_path,
@@ -4510,6 +4585,124 @@ work_engine_preferences:
     ])
   })
 
+  test("keeps trusted project legacy require above a lower global CE-default reset", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, ".gitignore"), ".compound-engineering/config.local.yaml\n")
+    git(f.repo, "add", ".gitignore")
+    git(f.repo, "commit", "-m", "ignore local CE config")
+    f.base = git(f.repo, "rev-parse", "HEAD")
+    const projectConfigDir = path.join(f.repo, ".compound-engineering")
+    mkdirSync(projectConfigDir)
+    writeFileSync(path.join(projectConfigDir, "config.local.yaml"), `work_engine_mode: require
+work_engine_preferences:
+  - harness: codex
+    model: gpt-5-mini
+`, { mode: 0o600 })
+    const home = routingHome(`routing:
+  roles:
+    ce-work.implementation-worker: ce-default
+`)
+
+    const resolved = ctlWithEnv(
+      path.join(tmp("ce-work-runs-"), "ce-work"),
+      { COMPOUND_ENGINEERING_HOME: home },
+      "resolve-routing", "--repo", f.repo, "--routing-request", routingRequestFile(f),
+    )
+
+    expect(resolved.word, resolved.stderr).toBe("ROUTED")
+    expect(resolved.body.routing.binding).toMatchObject({
+      profile: "legacy-work-engine",
+      policy: "require",
+      source_layer: "project-legacy-work-engine",
+      source_authority: true,
+      candidates: [{ harness: "codex", model: "gpt-5-mini", ordinal: 0 }],
+    })
+  })
+
+  test("rejects untrusted project work-engine compatibility before CE Work can return ROUTED", () => {
+    const f = makeRepo()
+    const projectConfigDir = path.join(f.repo, ".compound-engineering")
+    mkdirSync(projectConfigDir)
+    writeFileSync(path.join(projectConfigDir, "config.local.yaml"), `work_engine_mode: require
+work_engine_preferences:
+  - harness: codex
+`, { mode: 0o600 })
+
+    const resolved = ctlWithEnv(
+      path.join(tmp("ce-work-runs-"), "ce-work"),
+      { COMPOUND_ENGINEERING_HOME: routingHome("") },
+      "resolve-routing", "--repo", f.repo, "--routing-request", routingRequestFile(f),
+    )
+
+    expect(resolved.word).toBe("BLOCKED")
+    expect(resolved.body.routing_error).toMatchObject({ code: "AUTHORITY_UNTRUSTED" })
+    expect(resolved.stderr).toContain("trusted project provenance")
+  })
+
+  test("normalizes the documented Cursor Composer alias without widening other harness families", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const composerHome = routingHome(`routing:
+  profiles:
+    composer:
+      candidates:
+        - { harness: cursor, model: composer }
+  classes:
+    implementation: { profile: composer, policy: require }
+`)
+    expect(initWithRouting(runs, "run-composer-alias", f, composerHome).word).toBe("READY")
+    expect(lockRoutingAttempt(
+      runs, "run-composer-alias", "U", "attempt-1", 0, "composer", ["cursor"],
+    ).word).toBe("ATTEMPT_LOCKED")
+    const prepared = ctl(
+      runs, "prepare", "--run-id", "run-composer-alias", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("composer packet"),
+      "--auth-manifest", authManifest("composer"),
+    )
+    expect(prepared.word, prepared.stderr).toBe("PREPARED")
+    expect(JSON.parse(readFileSync(prepared.body.authorization_path, "utf8"))).toMatchObject({
+      route: "composer",
+      target: "composer",
+      model_requested: "composer-2.5-fast",
+    })
+
+    const mismatched = routingHome(`routing:
+  profiles:
+    mismatch:
+      candidates:
+        - { harness: codex, model: composer-next-fast }
+  classes:
+    implementation: { profile: mismatch, policy: require }
+`)
+    const mismatchRuns = path.join(tmp("ce-work-runs-"), "ce-work")
+    expect(initWithRouting(mismatchRuns, "run-composer-mismatch", f, mismatched).word).toBe("READY")
+    const rejected = lockRoutingAttempt(
+      mismatchRuns, "run-composer-mismatch", "U", "attempt-1", 0, "codex",
+    )
+    expect(rejected.word).toBe("ROUTE_UNAVAILABLE")
+    expect(rejected.stderr).toContain("model is incompatible")
+  })
+
+  test("refuses tracked .env material before creating an external workspace", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, ".env.production"), "SENTINEL=secret\n", { mode: 0o600 })
+    git(f.repo, "add", ".env.production")
+    git(f.repo, "commit", "-m", "add tracked environment fixture")
+    f.base = git(f.repo, "rev-parse", "HEAD")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    expect(init(runs, "run-env-boundary", f).word).toBe("READY")
+
+    const prepared = ctl(
+      runs, "prepare", "--run-id", "run-env-boundary", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("must not expose env"),
+      "--auth-manifest", authManifest("codex"),
+    )
+
+    expect(prepared.word).toBe("ROUTE_UNAVAILABLE")
+    expect(prepared.stderr).toContain("tracked .env material")
+    expect(existsSync(path.join(runs, "run-env-boundary", "units", "U", "workspace"))).toBe(false)
+  })
+
   test("honors a task CE-default reset without creating recovery or canonical state", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
@@ -4695,7 +4888,7 @@ work_engine_preferences:
     ])
   })
 
-  test("advances prefer only to the next declared recipient after terminal unintegrated failure", () => {
+  test("integrates ordinal-1 after terminal ordinal-0 failure with lock-bound prior history", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
     const home = routingHome(`routing:

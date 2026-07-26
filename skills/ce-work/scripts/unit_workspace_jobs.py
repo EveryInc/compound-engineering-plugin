@@ -7,8 +7,290 @@ import json
 import os
 import re
 import stat
+from pathlib import PurePosixPath
 
 from unit_workspace_state import *
+
+
+MAX_AUTH_MANIFEST_BYTES = 64 * 1024
+MAX_AUTH_FILES = 4
+MAX_AUTH_FILE_BYTES = 1024 * 1024
+MAX_AUTH_REDACTION_BYTES = MAX_AUTH_FILES * MAX_AUTH_FILE_BYTES
+ROUTE_EXECUTABLES = {
+    "codex": "codex",
+    "claude": "claude",
+    "grok-cli": "grok",
+    "cursor": "cursor-agent",
+    "composer": "cursor-agent",
+    "grok-cursor": "cursor-agent",
+}
+
+
+def _tracked_env_material(repo: str) -> bool:
+    tracked = git(repo, "ls-files", "-z").split(b"\0")
+    return any(os.path.basename(os.fsdecode(path)).startswith(".env") for path in tracked if path)
+
+
+def _safe_auth_destination(value: object) -> str:
+    if not isinstance(value, str) or not value or len(value.encode()) > 256 or "\\" in value:
+        raise Operational("ROUTE_UNAVAILABLE", "authenticated config destination is invalid")
+    path = PurePosixPath(value)
+    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+        raise Operational("ROUTE_UNAVAILABLE", "authenticated config destination must be a safe relative path")
+    if path.name.startswith(".env"):
+        raise Operational("ROUTE_UNAVAILABLE", ".env material cannot enter the implementation environment")
+    return path.as_posix()
+
+
+def _read_auth_file(path: object, repo: str) -> bytes:
+    if not isinstance(path, str) or not os.path.isabs(path):
+        raise Operational("ROUTE_UNAVAILABLE", "authenticated config source must be an absolute file path")
+    if os.path.commonpath([repo, os.path.realpath(path)]) == repo:
+        raise Operational("ROUTE_UNAVAILABLE", "authenticated config source must be outside the canonical repository")
+    if os.path.basename(path).startswith(".env"):
+        raise Operational("ROUTE_UNAVAILABLE", ".env material cannot enter the implementation environment")
+    try:
+        fd = os.open(path, os.O_RDONLY | O_NOFOLLOW)
+    except OSError as exc:
+        raise Operational("ROUTE_UNAVAILABLE", f"cannot safely open authorized backend config: {exc}") from exc
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise Operational("ROUTE_UNAVAILABLE", "authorized backend config must be a regular non-link file")
+        uid_getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
+        effective_uid = uid_getter() if uid_getter is not None else None
+        if effective_uid is not None and info.st_uid != effective_uid:
+            raise Operational("ROUTE_UNAVAILABLE", "authorized backend config is not owned by the current user")
+        if stat.S_IMODE(info.st_mode) & 0o077:
+            raise Operational("ROUTE_UNAVAILABLE", "authorized backend config must not be group- or world-accessible")
+        if info.st_size > MAX_AUTH_FILE_BYTES:
+            raise Operational("ROUTE_UNAVAILABLE", "authorized backend config exceeds the per-file size limit")
+        data = bytearray()
+        while len(data) <= MAX_AUTH_FILE_BYTES:
+            chunk = os.read(fd, min(65536, MAX_AUTH_FILE_BYTES + 1 - len(data)))
+            if not chunk:
+                break
+            data.extend(chunk)
+        if len(data) > MAX_AUTH_FILE_BYTES:
+            raise Operational("ROUTE_UNAVAILABLE", "authorized backend config exceeds the per-file size limit")
+        return bytes(data)
+    finally:
+        os.close(fd)
+
+
+def _ensure_private_tree(path: str, root: str) -> None:
+    relative = os.path.relpath(path, root)
+    current = root
+    for part in [] if relative == "." else relative.split(os.sep):
+        current = os.path.join(current, part)
+        ensure_private_dir(current)
+
+
+def _json_secret_values(data: bytes) -> set[bytes]:
+    try:
+        value = json.loads(data.decode("utf-8", "strict"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise Operational(
+            "ROUTE_UNAVAILABLE",
+            "authenticated config must be JSON so credential redaction can be enforced",
+        ) from exc
+    values: set[bytes] = set()
+
+    def collect(current: object) -> None:
+        if isinstance(current, dict):
+            for child in current.values():
+                collect(child)
+        elif isinstance(current, list):
+            for child in current:
+                collect(child)
+        elif isinstance(current, str) and current:
+            values.add(current.encode("utf-8"))
+
+    collect(value)
+    return values
+
+
+def prepare_credential_environment(
+    unit_root: str,
+    attempt_id: str,
+    route: str,
+    manifest_path: str | None,
+    repo: str,
+) -> dict:
+    environment_root = os.path.join(unit_root, "environment", attempt_id)
+    ensure_private_dir(unit_root)
+    _ensure_private_tree(environment_root, unit_root)
+    paths = {
+        "home": os.path.join(environment_root, "home"),
+        "xdg_config_home": os.path.join(environment_root, "xdg", "config"),
+        "xdg_data_home": os.path.join(environment_root, "xdg", "data"),
+        "xdg_cache_home": os.path.join(environment_root, "xdg", "cache"),
+        "tmpdir": os.path.join(environment_root, "tmp"),
+        "route_config_home": os.path.join(environment_root, "backend-config"),
+    }
+    for path in paths.values():
+        _ensure_private_tree(path, unit_root)
+
+    material = []
+    redaction_values: set[bytes] = set()
+    if manifest_path is not None:
+        manifest_absolute = os.path.abspath(manifest_path)
+        if os.path.commonpath([repo, os.path.realpath(manifest_absolute)]) == repo:
+            raise Operational("ROUTE_UNAVAILABLE", "authenticated config manifest must be outside the canonical repository")
+        try:
+            manifest = json.loads(read_private(manifest_absolute, MAX_AUTH_MANIFEST_BYTES))
+        except TrustFailure as exc:
+            raise Operational("ROUTE_UNAVAILABLE", "authenticated config manifest is not a private regular file") from exc
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise Operational("ROUTE_UNAVAILABLE", "authenticated config manifest is malformed JSON") from exc
+        if not isinstance(manifest, dict) or set(manifest) != {"route", "files"} or manifest.get("route") != route:
+            raise Operational("ROUTE_UNAVAILABLE", "authenticated config manifest does not match the selected route")
+        files = manifest.get("files")
+        if not isinstance(files, list) or not files or len(files) > MAX_AUTH_FILES:
+            raise Operational("ROUTE_UNAVAILABLE", f"authenticated config manifest must authorize 1-{MAX_AUTH_FILES} files")
+        destinations: set[str] = set()
+        for item in files:
+            if not isinstance(item, dict) or set(item) != {"source", "destination"}:
+                raise Operational("ROUTE_UNAVAILABLE", "authenticated config manifest file entries are invalid")
+            destination = _safe_auth_destination(item.get("destination"))
+            if destination in destinations:
+                raise Operational("ROUTE_UNAVAILABLE", "authenticated config manifest repeats a destination")
+            destinations.add(destination)
+            data = _read_auth_file(item.get("source"), repo)
+            redaction_values.update(_json_secret_values(data))
+            target = os.path.join(paths["route_config_home"], *PurePosixPath(destination).parts)
+            _ensure_private_tree(os.path.dirname(target), unit_root)
+            if os.path.lexists(target):
+                if read_private(target, MAX_AUTH_FILE_BYTES) != data:
+                    raise Operational("BLOCKED", "controller-owned authenticated config differs from the authorized bytes")
+            else:
+                create_private(target, data)
+            material.append({"path": destination, "sha256": digest_bytes(data)})
+
+    redactions_path = os.path.join(environment_root, "credential-redactions")
+    redactions = b"\n".join(sorted(redaction_values, key=lambda value: (-len(value), value)))
+    if redactions:
+        redactions += b"\n"
+    if os.path.lexists(redactions_path):
+        if read_private(redactions_path, MAX_AUTH_REDACTION_BYTES) != redactions:
+            raise Operational("BLOCKED", "controller-owned credential redactions differ from staged auth material")
+    else:
+        create_private(redactions_path, redactions)
+
+    return {
+        "schema_version": 1,
+        "posture": "credential-minimized",
+        "authentication": "staged" if material else "unavailable",
+        **paths,
+        "material": material,
+        "redactions_path": redactions_path,
+        "redactions_sha256": digest_bytes(redactions),
+    }
+
+
+def _path_identity(path: str, *, include_digest: bool = False) -> dict:
+    canonical = os.path.realpath(path)
+    try:
+        info = os.stat(canonical, follow_symlinks=False)
+    except OSError as exc:
+        raise Operational("ROUTE_UNAVAILABLE", f"confinement root is unavailable: {exc}") from exc
+    if stat.S_ISDIR(info.st_mode):
+        kind = "directory"
+    elif stat.S_ISREG(info.st_mode) or stat.S_ISCHR(info.st_mode) or stat.S_ISBLK(info.st_mode):
+        kind = "file"
+    else:
+        raise Operational("ROUTE_UNAVAILABLE", "confinement root is not a supported file or directory")
+    identity = {"path": canonical, "kind": kind, "device": info.st_dev, "inode": info.st_ino}
+    if include_digest:
+        if kind != "file" or not stat.S_ISREG(info.st_mode):
+            raise Operational("ROUTE_UNAVAILABLE", "confinement digest requires a regular file")
+        identity["sha256"] = digest_regular_file(canonical)
+    return identity
+
+
+def _route_runtime_root(executable: str) -> str:
+    parts = executable.split(os.sep)
+    if "node_modules" in parts:
+        index = parts.index("node_modules")
+        package_end = index + 2
+        if len(parts) > index + 1 and parts[index + 1].startswith("@"):
+            package_end += 1
+        if len(parts) >= package_end:
+            return os.sep.join(parts[:package_end]) or os.sep
+    return os.path.dirname(executable)
+
+
+def prepare_dispatch_confinement(authorization: dict, unit: dict, route_executable: str, attempt_id: str) -> tuple[str, str, dict]:
+    confinement = authorization.get("confinement")
+    expected_fields = {
+        "protocol", "adapter_path", "adapter_sha256", "interpreter_path", "interpreter_sha256",
+        "abi", "read_only_paths", "read_write_paths",
+    }
+    if not isinstance(confinement, dict) or set(confinement) != expected_fields:
+        raise Operational("BLOCKED", "attempt has no exact controller-issued confinement capability")
+    current = host_confinement_capability()
+    if {key: confinement.get(key) for key in current} != current:
+        raise Operational("ROUTE_UNAVAILABLE", "Landlock confinement capability changed after attempt authorization")
+    expected_writable = [
+        unit["workspace"]["path"],
+        os.path.join(os.path.dirname(unit["workspace"]["path"]), "environment", attempt_id),
+    ]
+    if confinement.get("read_write_paths") != expected_writable:
+        raise Operational("BLOCKED", "confinement writable roots differ from the recorded attempt")
+
+    route = authorization.get("route")
+    expected_name = ROUTE_EXECUTABLES.get(route)
+    if (
+        not isinstance(route_executable, str)
+        or not os.path.isabs(route_executable)
+        or os.path.basename(route_executable) != expected_name
+    ):
+        raise Operational("ROUTE_UNAVAILABLE", "fixed route executable path does not match the selected route")
+    executable = os.path.realpath(route_executable)
+    executable_identity = _path_identity(executable, include_digest=True)
+    if not os.access(executable, os.X_OK):
+        raise Operational("ROUTE_UNAVAILABLE", "fixed route executable is not executable")
+    for writable in expected_writable:
+        if os.path.commonpath([os.path.realpath(writable), executable]) == os.path.realpath(writable):
+            raise Operational("ROUTE_UNAVAILABLE", "fixed route executable is inside a recipient-writable root")
+
+    read_only_paths = list(confinement["read_only_paths"])
+    runtime_root = os.path.realpath(_route_runtime_root(executable))
+    if runtime_root not in read_only_paths:
+        read_only_paths.append(runtime_root)
+    read_only = []
+    seen = set()
+    for path in read_only_paths:
+        identity = _path_identity(path)
+        if identity["path"] not in seen:
+            read_only.append(identity)
+            seen.add(identity["path"])
+    read_write = [_path_identity(path) for path in expected_writable]
+    adapter_identity = _path_identity(confinement["adapter_path"], include_digest=True)
+    if adapter_identity["sha256"] != confinement["adapter_sha256"]:
+        raise Operational("ROUTE_UNAVAILABLE", "Landlock confinement adapter digest changed")
+    interpreter_identity = _path_identity(confinement["interpreter_path"], include_digest=True)
+    if interpreter_identity["sha256"] != confinement["interpreter_sha256"]:
+        raise Operational("ROUTE_UNAVAILABLE", "Landlock confinement interpreter digest changed")
+    config = {
+        "schema_version": 1,
+        "protocol": CONFINEMENT_PROTOCOL,
+        "adapter": adapter_identity,
+        "interpreter": interpreter_identity,
+        "abi": confinement["abi"],
+        "executable": executable_identity,
+        "read_only": read_only,
+        "read_write": read_write,
+    }
+    config_bytes = (json.dumps(config, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    config_digest = digest_bytes(config_bytes)
+    config_path = os.path.join(os.path.dirname(unit["workspace"]["path"]), f"confinement-{attempt_id}.json")
+    if os.path.lexists(config_path):
+        if read_private(config_path, MAX_JSON_BYTES) != config_bytes:
+            raise Operational("BLOCKED", "controller-owned confinement config differs from the authorized dispatch")
+    else:
+        create_private(config_path, config_bytes)
+    return config_path, config_digest, config
 
 
 def _valid_retry_commit_id(value: object) -> bool:
@@ -94,12 +376,27 @@ def cmd_prepare(args) -> tuple[str, dict]:
             raise Operational("BLOCKED", "canonical HEAD does not equal requested unit base")
         if status_paths(repo):
             raise Operational("BLOCKED", "canonical checkout is dirty; external workspace unavailable")
+        if _tracked_env_material(repo):
+            raise Operational(
+                "ROUTE_UNAVAILABLE",
+                "tracked .env material cannot be exposed to an external implementation workspace",
+            )
         existing = doc["units"].get(uid)
         unit_root = os.path.join(run_dir(args.run_id), "units", uid)
         workspace = os.path.join(unit_root, "workspace")
         packet_path = os.path.join(unit_root, "packet.md")
         authorization_path = os.path.join(unit_root, "authorization.json")
-        authorization = attempt_authorization(doc, args.activity_posture, uid, attempt_id, packet_digest)
+        environment_root = os.path.join(unit_root, "environment", attempt_id)
+        authorization = attempt_authorization(
+            doc, args.activity_posture, uid, attempt_id, packet_digest, {}, workspace, environment_root,
+        )
+        authorization["environment"] = prepare_credential_environment(
+            unit_root,
+            attempt_id,
+            authorization["route"],
+            args.auth_manifest,
+            repo,
+        )
         authorization_bytes = (json.dumps(authorization, sort_keys=True, separators=(",", ":")) + "\n").encode()
         authorization_digest = digest_bytes(authorization_bytes)
         contract_wave_base = existing.get("wave", {}).get("base") if existing else base
@@ -204,6 +501,7 @@ def cmd_prepare(args) -> tuple[str, dict]:
         "authorization_path": authorization_path,
         "authorization_digest": authorization_digest,
         "authorization_retained": True,
+        "confinement_retained": False,
         "adapter": os.path.realpath(os.path.join(os.path.dirname(__file__), "cross-model-work.sh")),
         "terminal_receipt": None,
     }
@@ -589,7 +887,7 @@ def _validate_authorized_failed_job(
         raise Operational("BLOCKED", "runner job metadata identity mismatch")
     validate_runner_contract(run_id, unit, meta)
     expected_result_dir = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result")
-    expected_dispatch = {
+    expected_dispatch_base = {
         "attempt_id": attempt.get("attempt_id"),
         "job_id": job_id,
         "authorization_path": attempt.get("authorization_path"),
@@ -600,8 +898,32 @@ def _validate_authorized_failed_job(
         "result_dir": expected_result_dir,
         "result_dir_identity": unit.get("result_dir_identity"),
     }
-    if attempt.get("dispatch_authorization_receipt") != expected_dispatch:
+    dispatch = attempt.get("dispatch_authorization_receipt")
+    dynamic_fields = {"route_executable", "confinement_path", "confinement_digest", "confinement_adapter"}
+    if (
+        not isinstance(dispatch, dict)
+        or set(dispatch) != set(expected_dispatch_base) | dynamic_fields
+        or any(dispatch.get(key) != value for key, value in expected_dispatch_base.items())
+        or not isinstance(dispatch.get("route_executable"), dict)
+        or not isinstance(dispatch.get("confinement_adapter"), dict)
+        or not isinstance(dispatch.get("confinement_path"), str)
+        or not isinstance(dispatch.get("confinement_digest"), str)
+        or not re.fullmatch(r"[0-9a-f]{64}", dispatch["confinement_digest"])
+    ):
         raise Operational("BLOCKED", "failed receipt is not bound to the exact authorized dispatch")
+    confinement_bytes = read_private(dispatch["confinement_path"], MAX_JSON_BYTES)
+    if digest_bytes(confinement_bytes) != dispatch["confinement_digest"]:
+        raise Operational("BLOCKED", "failed receipt confinement config changed after dispatch authorization")
+    try:
+        confinement = json.loads(confinement_bytes)
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise Operational("BLOCKED", "failed receipt confinement config is malformed") from exc
+    if (
+        not isinstance(confinement, dict)
+        or confinement.get("executable") != dispatch["route_executable"]
+        or confinement.get("adapter") != dispatch["confinement_adapter"]
+    ):
+        raise Operational("BLOCKED", "failed receipt confinement identity differs from dispatch authorization")
 
 
 def _authorized_failed_terminal_receipt(
@@ -769,6 +1091,9 @@ def cmd_authorize_dispatch(args) -> tuple[str, dict]:
         expected_workspace = unit["workspace"]["path"]
         if os.path.abspath(args.workspace) != expected_workspace:
             raise Operational("BLOCKED", "workspace path does not match the recorded unit")
+        confinement_path, confinement_digest, confinement_config = prepare_dispatch_confinement(
+            authorization, unit, args.route_executable, attempt_id,
+        )
         expected_dispatch_authorization_receipt = {
             "attempt_id": attempt_id,
             "job_id": job_id,
@@ -779,6 +1104,10 @@ def cmd_authorize_dispatch(args) -> tuple[str, dict]:
             "packet_digest": unit["packet_digest"],
             "result_dir": os.path.join(os.path.dirname(expected_workspace), "result"),
             "result_dir_identity": unit.get("result_dir_identity"),
+            "route_executable": confinement_config["executable"],
+            "confinement_path": confinement_path,
+            "confinement_digest": confinement_digest,
+            "confinement_adapter": confinement_config["adapter"],
         }
         recorded_dispatch_authorization_receipt = attempt.get("dispatch_authorization_receipt")
         if recorded_dispatch_authorization_receipt is not None and (
@@ -809,6 +1138,7 @@ def cmd_authorize_dispatch(args) -> tuple[str, dict]:
         if not resumed:
             attempt["job_id"] = job_id
             attempt["dispatch_authorization_receipt"] = expected_dispatch_authorization_receipt
+            attempt["confinement_retained"] = True
             unit["state"] = "authoring"
             event(doc, "job-bound", unit_id, {
                 "attempt_id": attempt_id,
@@ -823,6 +1153,10 @@ def cmd_authorize_dispatch(args) -> tuple[str, dict]:
         "resumed": resumed,
         "authorization_digest": expected_authorization_digest,
         "packet_digest": unit["packet_digest"],
+        "route_executable": confinement_config["executable"]["path"],
+        "confinement_path": confinement_path,
+        "confinement_digest": confinement_digest,
+        "confinement_adapter": confinement_config["adapter"]["path"],
     }
 
 

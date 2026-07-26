@@ -60,6 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--unit-id", required=True)
     p.add_argument("--base", required=True)
     p.add_argument("--packet", required=True)
+    p.add_argument("--auth-manifest")
     p.add_argument("--attempt-id", default="attempt-1")
     p.add_argument("--activity-posture", choices=("incremental", "hard-only"), default="hard-only")
     p.add_argument("--dependency", action="append", default=[])
@@ -83,6 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--packet", required=True)
     p.add_argument("--packet-digest", required=True)
     p.add_argument("--result-dir", required=True)
+    p.add_argument("--route-executable", required=True)
 
     for name in ("sync-job", "terminalize", "reap"):
         p = sub.add_parser(name)

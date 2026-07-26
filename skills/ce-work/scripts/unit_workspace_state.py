@@ -37,6 +37,7 @@ CE_WORK_ROUTING_PROTOCOL = "ce-work-routing/v1"
 ROUTING_ROLE = "ce-work.implementation-worker"
 ATTEMPT_LOCK_PROTOCOL = "ce-work-attempt-lock/v1"
 RESOLVER_ATTEMPT_LOCK_PROTOCOL = "ce-routing-attempt-lock/v1"
+CONFINEMENT_PROTOCOL = "ce-work-landlock/v1"
 PLAN_CHECKPOINT_MESSAGE = "docs(ce-work): checkpoint selected implementation plan"
 _uid_getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
 _EFFECTIVE_UID = _uid_getter() if _uid_getter is not None else None
@@ -850,6 +851,15 @@ def route_model_allowed(route: str, model: str) -> bool:
     return False
 
 
+def normalized_route_model(route: str, model: object) -> str:
+    contract = ROUTE_CONTRACTS[route]
+    if model is None or (
+        route == "composer" and isinstance(model, str) and model.lower() == "composer"
+    ):
+        return contract["default_model"]
+    return str(model)
+
+
 def route_effort_allowed(route: str, effort: str) -> bool:
     if route == "codex":
         return effort in {"auto", "minimal", "low", "medium", "high", "xhigh"}
@@ -897,7 +907,7 @@ def candidate_fixed_route(candidate: dict) -> tuple[str, dict]:
     }[route]
     if harness not in allowed_harnesses:
         raise Operational("ROUTE_UNAVAILABLE", "candidate harness is incompatible with its requested fixed route")
-    requested_model = model or contract["default_model"]
+    requested_model = normalized_route_model(route, model)
     if not route_model_allowed(route, requested_model):
         raise Operational("ROUTE_UNAVAILABLE", "candidate model is incompatible with the fixed write adapter")
     requested_effort = candidate.get("effort") or contract["default_effort"]
@@ -951,6 +961,116 @@ def _attempt_lock_digest(lock: dict) -> str:
     return digest_bytes(canonical_json_bytes(material))
 
 
+def confinement_adapter_path() -> str:
+    return os.path.realpath(os.path.join(os.path.dirname(__file__), "landlock-confinement.py"))
+
+
+def digest_regular_file(path: str) -> str:
+    try:
+        fd = os.open(path, os.O_RDONLY | O_NOFOLLOW)
+    except OSError as exc:
+        raise Operational("ROUTE_UNAVAILABLE", f"cannot safely open confinement executable: {exc}") from exc
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise Operational("ROUTE_UNAVAILABLE", "confinement executable is not a regular file")
+        digest = hashlib.sha256()
+        while True:
+            chunk = os.read(fd, 65536)
+            if not chunk:
+                break
+            digest.update(chunk)
+        return digest.hexdigest()
+    finally:
+        os.close(fd)
+
+
+def _landlock_read_only_paths() -> list[str]:
+    candidates = (
+        "/usr/bin", "/usr/lib", "/usr/lib64", "/usr/local/bin", "/usr/local/lib",
+        "/lib", "/lib64", "/usr/share/ca-certificates", "/usr/share/locale",
+        "/usr/share/zoneinfo", "/etc/ssl/certs", "/etc/hosts", "/etc/resolv.conf",
+        "/etc/nsswitch.conf", "/etc/gai.conf", "/etc/passwd", "/etc/group",
+        "/etc/localtime", "/dev/null", "/dev/urandom", "/dev/random",
+    )
+    paths: list[str] = []
+    for candidate in candidates:
+        if not os.path.exists(candidate):
+            continue
+        canonical = os.path.realpath(candidate)
+        if canonical not in paths:
+            paths.append(canonical)
+    return paths
+
+
+def host_confinement_capability() -> dict:
+    adapter = confinement_adapter_path()
+    adapter_digest = digest_regular_file(adapter)
+    interpreter = os.path.realpath(sys.executable)
+    interpreter_digest = digest_regular_file(interpreter)
+    try:
+        probe = subprocess.run(
+            [interpreter, adapter, "--probe"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise Operational("ROUTE_UNAVAILABLE", f"Landlock confinement probe failed: {exc}") from exc
+    if probe.returncode != 0:
+        reason = probe.stderr.strip() or f"probe exited {probe.returncode}"
+        raise Operational("ROUTE_UNAVAILABLE", f"Landlock confinement is unavailable: {reason}")
+    try:
+        receipt = json.loads(probe.stdout)
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise Operational("ROUTE_UNAVAILABLE", "Landlock confinement probe returned malformed evidence") from exc
+    if (
+        not isinstance(receipt, dict)
+        or set(receipt) != {"protocol", "abi"}
+        or receipt.get("protocol") != CONFINEMENT_PROTOCOL
+        or not isinstance(receipt.get("abi"), int)
+        or receipt["abi"] < 1
+    ):
+        raise Operational("ROUTE_UNAVAILABLE", "Landlock confinement probe returned incompatible evidence")
+    return {
+        "protocol": CONFINEMENT_PROTOCOL,
+        "adapter_path": adapter,
+        "adapter_sha256": adapter_digest,
+        "interpreter_path": interpreter,
+        "interpreter_sha256": interpreter_digest,
+        "abi": receipt["abi"],
+        "read_only_paths": _landlock_read_only_paths(),
+    }
+
+
+def validate_confinement_capability(value: object) -> dict:
+    required = {
+        "protocol", "adapter_path", "adapter_sha256", "interpreter_path", "interpreter_sha256",
+        "abi", "read_only_paths",
+    }
+    if not isinstance(value, dict) or set(value) != required or value.get("protocol") != CONFINEMENT_PROTOCOL:
+        raise TrustFailure("routing attempt confinement capability is malformed")
+    if (
+        not isinstance(value.get("adapter_path"), str)
+        or not os.path.isabs(value["adapter_path"])
+        or not isinstance(value.get("adapter_sha256"), str)
+        or not re.fullmatch(r"[0-9a-f]{64}", value["adapter_sha256"])
+        or not isinstance(value.get("interpreter_path"), str)
+        or not os.path.isabs(value["interpreter_path"])
+        or not isinstance(value.get("interpreter_sha256"), str)
+        or not re.fullmatch(r"[0-9a-f]{64}", value["interpreter_sha256"])
+        or not isinstance(value.get("abi"), int)
+        or value["abi"] < 1
+        or not isinstance(value.get("read_only_paths"), list)
+        or not value["read_only_paths"]
+        or any(not isinstance(path, str) or not os.path.isabs(path) for path in value["read_only_paths"])
+    ):
+        raise TrustFailure("routing attempt confinement capability is malformed")
+    return value
+
+
 def validate_attempt_lock(lock: object, routing: dict, unit_id: str, attempt_id: str) -> dict:
     if not isinstance(lock, dict) or lock.get("protocol") != ATTEMPT_LOCK_PROTOCOL:
         raise TrustFailure("routing attempt lock protocol is malformed")
@@ -967,6 +1087,7 @@ def validate_attempt_lock(lock: object, routing: dict, unit_id: str, attempt_id:
         raise TrustFailure("routing attempt candidate ordinal is invalid")
     if lock.get("candidate") != candidates[ordinal]:
         raise TrustFailure("routing attempt candidate differs from the frozen binding")
+    validate_confinement_capability(lock.get("confinement"))
     return lock
 
 
@@ -1006,7 +1127,7 @@ def fixed_route_contract(binding: dict, egress: dict, word: str = "BLOCKED") -> 
     model = binding.get("model")
     if model is not None and (not isinstance(model, str) or not model):
         raise Operational(word, "binding model must be null or a non-empty string")
-    requested_model = model or contract["default_model"]
+    requested_model = normalized_route_model(route, model)
     if not route_model_allowed(route, requested_model):
         raise Operational(word, "binding model is not compatible with the sanctioned fixed route")
     restrictions = egress.get("restrictions", [])
@@ -1015,14 +1136,14 @@ def fixed_route_contract(binding: dict, egress: dict, word: str = "BLOCKED") -> 
     return contract
 
 
-def _candidate_scalar_binding(binding: dict, candidate: dict, contract: dict) -> dict:
+def _candidate_scalar_binding(binding: dict, candidate: dict, route: str, contract: dict) -> dict:
     source = binding.get("source") or binding.get("source_layer")
     if not isinstance(source, str) or not source:
         source = "resolved-routing"
     return {
         "mode": binding.get("policy"),
         "target": contract["target"],
-        "model": candidate.get("model"),
+        "model": normalized_route_model(route, candidate.get("model")),
         "source": source,
     }
 
@@ -1118,7 +1239,7 @@ def cmd_lock_attempt(args) -> tuple[str, dict]:
                 raise Operational("REFUSED", "candidate selection cannot skip CE-default")
 
         route, contract = candidate_fixed_route(candidate)
-        scalar_binding = _candidate_scalar_binding(binding, candidate, contract)
+        scalar_binding = _candidate_scalar_binding(binding, candidate, route, contract)
         fixed_route_contract(scalar_binding, egress, "REFUSED")
         _validate_egress_sanction(egress, unit_id, contract)
         recipient = {
@@ -1143,6 +1264,7 @@ def cmd_lock_attempt(args) -> tuple[str, dict]:
             "adapter_family": "write-capable-isolated-implementation",
             "mutation_posture": "isolated-write",
             "environment_posture": "credential-minimized",
+            "confinement": host_confinement_capability(),
             "identity_gate": "post-dispatch-quarantine" if strict_identity else "normal-receipt",
             "material_scope": copy.deepcopy(egress["exposed_material"]),
             "restrictions": copy.deepcopy(egress.get("restrictions", [])),
@@ -1173,6 +1295,9 @@ def attempt_authorization(
     unit_id: str,
     attempt_id: str,
     packet_digest: str,
+    environment: dict,
+    workspace: str,
+    environment_root: str,
 ) -> dict:
     routing = doc.get("routing")
     routing_lock = None
@@ -1181,15 +1306,17 @@ def attempt_authorization(
         candidate = routing_lock["candidate"]
         route = routing_lock["recipient"]["route"]
         contract = ROUTE_CONTRACTS[route]
-        binding = _candidate_scalar_binding(routing["binding"], candidate, contract)
+        binding = _candidate_scalar_binding(routing["binding"], candidate, route, contract)
         egress = routing_lock["egress"]
         effort = candidate.get("effort") or contract["default_effort"]
+        confinement_capability = validate_confinement_capability(routing_lock.get("confinement"))
     else:
         binding = doc.get("binding")
         egress = doc.get("egress")
         route = egress.get("route") if isinstance(egress, dict) else None
         contract = ROUTE_CONTRACTS.get(route)
         effort = contract["default_effort"] if contract else "auto"
+        confinement_capability = host_confinement_capability()
     contract = fixed_route_contract(binding, egress)
     route = egress.get("route")
     intermediaries = egress.get("intermediaries")
@@ -1204,12 +1331,17 @@ def attempt_authorization(
         "target": contract["target"],
         "harness": contract["harness"],
         "intermediaries": list(contract["intermediaries"]),
-        "model_requested": model or contract["default_model"],
+        "model_requested": normalized_route_model(route, model),
         "effort_requested": effort,
         "restriction_posture": contract["restriction_posture"],
         "restrictions": list(restrictions),
         "activity_posture": activity_posture,
         "packet_digest": packet_digest,
+        "environment": copy.deepcopy(environment),
+        "confinement": {
+            **copy.deepcopy(confinement_capability),
+            "read_write_paths": [workspace, environment_root],
+        },
         "routing_lock": copy.deepcopy(routing_lock),
     }
 

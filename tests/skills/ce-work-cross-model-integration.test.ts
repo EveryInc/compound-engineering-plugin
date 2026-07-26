@@ -43,6 +43,18 @@ function packetFile(content: string): string {
   return packet
 }
 
+function authManifest(route = "codex"): string {
+  const root = temp("ce-work-auth-")
+  const auth = path.join(root, "auth.json")
+  const manifest = path.join(root, "manifest.json")
+  writeFileSync(auth, '{"token":"fake"}\n', { mode: 0o600 })
+  writeFileSync(manifest, `${JSON.stringify({
+    route,
+    files: [{ source: auth, destination: "auth.json" }],
+  })}\n`, { mode: 0o600 })
+  return manifest
+}
+
 function control(runs: string, ...args: string[]) {
   const stdout = run(process.cwd(), ["python3", CONTROLLER, ...args], {
     ...process.env,
@@ -155,6 +167,7 @@ describe("ce-work serial cross-model transaction", () => {
       "--unit-id", "U-scope",
       "--base", base,
       "--packet", packetFile("U-scope packet"),
+      "--auth-manifest", authManifest(),
       "--attempt-id", "attempt-1",
       "--activity-posture", "incremental",
     ).body
@@ -256,6 +269,7 @@ printf '%s\n' '{"terminal_status":"scope_expansion","summary":"shared contract n
       "--unit-id", "U-redact",
       "--base", base,
       "--packet", packetFile("U-redact packet"),
+      "--auth-manifest", authManifest(),
       "--attempt-id", "attempt-1",
       "--activity-posture", "incremental",
     ).body
@@ -342,7 +356,7 @@ printf '%s\n' '${JSON.stringify({
     expect(serialized.match(/\[REDACTED\]/g)).toHaveLength(6)
   }, 30_000)
 
-  test("missing fixed-route CLI records an authoritative unavailable receipt for fallback disclosure", () => {
+  test("missing fixed-route CLI fails before egress and authorizes prefer fallback", () => {
     const root = temp("ce-work-unavailable-")
     const repo = path.join(root, "repo")
     const peerRoot = path.join(root, "jobs")
@@ -371,7 +385,7 @@ printf '%s\n' '${JSON.stringify({
     ).word).toBe("READY")
     const prepared = control(
       runs, "prepare", "--run-id", "unavailable-run", "--unit-id", "U",
-      "--base", base, "--packet", packetFile("unavailable packet"),
+      "--base", base, "--packet", packetFile("unavailable packet"), "--auth-manifest", authManifest(),
     ).body
     const limitedPath = "/usr/bin:/bin"
     const runnerEnv = {
@@ -407,22 +421,17 @@ printf '%s\n' '${JSON.stringify({
     const status = control(runs, "status", "--run-id", "unavailable-run", "--unit-id", "U").body.unit
     expect(status.state).toBe("authoring")
     expect(status.transport.commit).toBeNull()
-    expect(status.attempts[0].terminal_receipt).toMatchObject({
-      terminal_status: "unavailable",
-      requested_route: "codex",
-      actual_route: null,
-      failure_reason: "fixed route executable 'codex' is unavailable",
-      packet_digest: prepared.packet_digest,
-    })
+    expect(status.attempts[0].terminal_receipt).toBeNull()
+    expect(status.attempts[0].dispatch_authorization_receipt).toBeNull()
     const terminal = controlFailure(runs, "terminalize", "--run-id", "unavailable-run", "--unit-id", "U")
     expect(terminal.word).toBe("BLOCKED")
-    expect(terminal.body.failure_reason).toBe("fixed route executable 'codex' is unavailable")
+    expect(terminal.stderr).toContain("worker is not authoritatively done (failed)")
 
     const fallback = control(
       runs, "claim-fallback", "--run-id", "unavailable-run", "--unit-id", "U", "--caller-mode", "headless",
     )
     expect(fallback.word).toBe("FALLBACK_AUTHORIZED")
-    expect(fallback.body.reason).toBe("fixed route executable 'codex' is unavailable")
+    expect(fallback.body.reason).toBe("failed")
 
     const spoofed = control(
       runs, "prepare", "--run-id", "unavailable-run", "--unit-id", "U-spoofed",
@@ -959,6 +968,7 @@ class FeatureTest(unittest.TestCase):
       "--unit-id", "U4a",
       "--base", base,
       "--packet", packet,
+      "--auth-manifest", authManifest(),
       "--attempt-id", "attempt-1",
       "--activity-posture", "incremental",
     )
@@ -979,11 +989,9 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 printf 'committed\n' > existing.txt
-git add existing.txt
-git -c user.name=Worker -c user.email=worker@example.test commit -m 'worker intermediate' >/dev/null
 printf 'residual\n' > existing.txt
 python3 -c 'open("binary.bin", "wb").write(bytes([0,255,1]))'
-git mv delete.txt renamed.txt
+mv delete.txt renamed.txt
 printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":["existing.txt","binary.bin","renamed.txt"],"evidence":["fake"],"scope_expansion":null}' > "$result"
 `)
     chmodSync(fakeCodex, 0o755)

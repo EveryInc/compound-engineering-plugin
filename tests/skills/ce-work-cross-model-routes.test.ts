@@ -44,10 +44,9 @@ function fixture() {
   const root = temp("ce-work-route-")
   const canonical = path.join(root, "canonical")
   const packet = path.join(root, "packet.md")
-  const capture = path.join(root, "capture")
   const runs = path.join(root, "runs")
+  const capture = path.join(runs, "route-run", "units", "U3", "workspace", ".capture")
   mkdirSync(canonical)
-  mkdirSync(capture)
   writeFileSync(packet, "Implement U3 only.\n")
   spawnSync("git", ["init", "-q", canonical])
   spawnSync("git", ["-C", canonical, "config", "user.email", "test@example.com"])
@@ -66,6 +65,7 @@ function fixture() {
     packetSource: packet,
     capture,
     runs,
+    authManifest: null as string | null,
     prepared: null as null | { authorization_path: string; workspace: string; packet_path: string; result_dir: string },
   }
 }
@@ -152,14 +152,27 @@ function run(
       "--egress-json", JSON.stringify({ sanction_source: "test", route, intermediaries: [...contract.intermediaries], exposed_material: [unitId], restrictions: [] }),
     )
     const base = spawnSync("git", ["-C", f.canonical, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim()
-    f.prepared = invoke(
+    if (f.authManifest === null) {
+      const auth = path.join(f.root, `${route}-auth.json`)
+      const manifest = path.join(f.root, `${route}-auth-manifest.json`)
+      writeFileSync(auth, '{"token":"fake"}\n', { mode: 0o600 })
+      writeFileSync(manifest, `${JSON.stringify({
+        route,
+        files: [{ source: auth, destination: "auth.json" }],
+      })}\n`, { mode: 0o600 })
+      f.authManifest = manifest
+    }
+    const prepareArgs = [
       "prepare", "--run-id", runId, "--unit-id", unitId, "--attempt-id", attemptId,
       "--base", base, "--packet", f.packetSource, "--activity-posture", "incremental",
-    )
+    ]
+    if (f.authManifest) prepareArgs.push("--auth-manifest", f.authManifest)
+    f.prepared = invoke(...prepareArgs)
     f.workspace = f.prepared.workspace
     f.packet = f.prepared.packet_path
     f.resultDir = f.prepared.result_dir
   }
+  mkdirSync(f.capture, { recursive: true })
   let authorization = f.prepared.authorization_path
   if (forgedAuthorization) {
     const forged = { ...JSON.parse(readFileSync(authorization, "utf8")), ...authorizationOverrides }
@@ -245,13 +258,29 @@ describe("ce-work fixed write routes", () => {
         ...(route === "grok-cursor" ? { CE_WORK_CURSOR_INTERMEDIARY_SANCTIONED: "1" } : {}),
       },
     )
-    expect(result.code).toBe(0)
+    const adapterLog = existsSync(path.join(f.resultDir, "adapter.log"))
+      ? readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")
+      : ""
+    expect(result.code, `${result.stderr}\n${adapterLog}\n${JSON.stringify(result.result)}`).toBe(0)
     expect(readFileSync(path.join(f.capture, "pwd"), "utf8")).toBe(realpathSync(f.workspace))
     expect(readFileSync(path.join(f.capture, "stdin"), "utf8")).toContain("Implement U3 only.")
     if (route === "cursor" || route === "composer" || route === "grok-cursor") {
       expect(readFileSync(path.join(f.capture, "argv"), "utf8")).not.toContain("Implement U3 only.")
     }
-    expect(readFileSync(path.join(f.capture, "env"), "utf8")).toContain("PYTHONDONTWRITEBYTECODE=1")
+    const dispatchEnv = readFileSync(path.join(f.capture, "env"), "utf8")
+    const environmentRoot = path.join(f.runs, "route-run", "units", "U3", "environment", "attempt-1")
+    const configVariable = route === "codex"
+      ? "CODEX_HOME"
+      : route === "claude"
+        ? "CLAUDE_CONFIG_DIR"
+        : route === "grok-cli"
+          ? "GROK_CONFIG_HOME"
+          : "CURSOR_CONFIG_DIR"
+    expect(dispatchEnv).toContain("PYTHONDONTWRITEBYTECODE=1")
+    expect(dispatchEnv).toContain(`HOME=${path.join(environmentRoot, "home")}`)
+    expect(dispatchEnv).toContain(`XDG_CONFIG_HOME=${path.join(environmentRoot, "xdg", "config")}`)
+    expect(dispatchEnv).toContain(`${configVariable}=${path.join(environmentRoot, "backend-config")}`)
+    if (process.env.HOME) expect(dispatchEnv).not.toContain(process.env.HOME)
     expect(readFileSync(path.join(f.workspace, "result.txt"), "utf8")).toBe("READY\n")
     expect(result.result.terminal_status).toBe("completed")
     expect(result.result.requested_route).toBe(route)
@@ -328,16 +357,127 @@ describe("ce-work fixed write routes", () => {
       { model_requested: "claude-sonnet-5-low" },
     )
 
-    expect(result.code).toBe(0)
+    expect(result.code, result.stderr).toBe(0)
     const probeEnv = readFileSync(path.join(f.capture, "probe-env"), "utf8")
     const dispatchEnv = readFileSync(path.join(f.capture, "env"), "utf8")
     for (const observed of [probeEnv, dispatchEnv]) {
-      expect(observed).toContain(`CURSOR_CONFIG_DIR=${cursorConfig}`)
+      expect(observed).toContain(`CURSOR_CONFIG_DIR=${path.join(f.runs, "route-run", "units", "U3", "environment", "attempt-1", "backend-config")}`)
+      expect(observed).not.toContain(cursorConfig)
       expect(observed).not.toContain("OPENAI_API_KEY=")
       expect(observed).not.toContain(apiSecret)
     }
     expect(result.result.model_actual).toBe("Sonnet 5 1M Low")
     expect(result.result.model_receipt_status).toBe("verified")
+  })
+
+  test("stages only explicitly authorized backend auth into an isolated home", () => {
+    const f = fixture()
+    const hostHome = path.join(f.root, "real-home")
+    const hostXdg = path.join(hostHome, ".config")
+    const codexStore = path.join(hostHome, ".codex")
+    mkdirSync(path.join(hostHome, ".ssh"), { recursive: true })
+    mkdirSync(path.join(hostHome, ".aws"), { recursive: true })
+    mkdirSync(path.join(hostXdg, "unrelated-cli"), { recursive: true })
+    mkdirSync(codexStore, { recursive: true })
+    const unrelatedSentinel = "SENTINEL-unrelated-credential"
+    const authorizedToken = "SENTINEL-authorized-codex-token"
+    const refreshedToken = "SENTINEL-refreshed-codex-token"
+    for (const file of [
+      path.join(hostHome, ".ssh", "id_ed25519"),
+      path.join(hostHome, ".aws", "credentials"),
+      path.join(hostXdg, "unrelated-cli", "credentials.json"),
+      path.join(hostHome, ".env.local"),
+      path.join(codexStore, "unrelated-session.json"),
+    ]) writeFileSync(file, `${unrelatedSentinel}\n`, { mode: 0o600 })
+    const authFile = path.join(codexStore, "auth.json")
+    writeFileSync(authFile, `${JSON.stringify({ token: authorizedToken })}\n`, { mode: 0o600 })
+    const manifest = path.join(f.root, "codex-auth-manifest.json")
+    writeFileSync(manifest, `${JSON.stringify({
+      route: "codex",
+      files: [{ source: authFile, destination: "auth.json" }],
+    })}\n`, { mode: 0o600 })
+    f.authManifest = manifest
+
+    const bin = temp("ce-work-bin-")
+    writeFileSync(path.join(bin, "codex"), `#!/bin/sh
+set -eu
+printf '%s\n' "$@" > '${f.capture}/argv'
+env | sort > '${f.capture}/env'
+cat > '${f.capture}/stdin'
+for candidate in \
+  "$HOME/.ssh/id_ed25519" \
+  "$HOME/.aws/credentials" \
+  "$XDG_CONFIG_HOME/unrelated-cli/credentials.json" \
+  "$HOME/.env.local" \
+  "$CODEX_HOME/unrelated-session.json" \
+  '${hostHome}/.ssh/id_ed25519' \
+  '${hostHome}/.aws/credentials' \
+  '${hostXdg}/unrelated-cli/credentials.json' \
+  '${hostHome}/.env.local' \
+  '${codexStore}/unrelated-session.json'
+do
+  cat "$candidate" 2>/dev/null || true
+done > '${f.capture}/unrelated-readable'
+ls -A '${hostHome}' > '${f.capture}/host-home-listing' 2>/dev/null || true
+cat "$CODEX_HOME/auth.json" > '${f.capture}/authorized-readable'
+printf '%s\n' '${JSON.stringify({ token: refreshedToken })}' > "$CODEX_HOME/auth.json"
+printf '%s\n' '${refreshedToken}' >&2
+result=''
+previous=''
+for arg in "$@"; do
+  if [ "$previous" = '-o' ]; then result="$arg"; fi
+  previous="$arg"
+done
+printf '%s\n' '{"terminal_status":"completed","summary":"implemented ${authorizedToken} ${refreshedToken}","changed_files":[],"evidence":["fake"],"scope_expansion":null}' > "$result"
+`)
+    chmodSync(path.join(bin, "codex"), 0o755)
+
+    const result = run("codex", f, {
+      ...process.env,
+      PATH: `${bin}:${process.env.PATH}`,
+      HOME: hostHome,
+      XDG_CONFIG_HOME: hostXdg,
+      CODEX_HOME: codexStore,
+      SSH_AUTH_SOCK: path.join(f.root, "ssh-agent.sock"),
+      AWS_SHARED_CREDENTIALS_FILE: path.join(hostHome, ".aws", "credentials"),
+      GOOGLE_APPLICATION_CREDENTIALS: path.join(hostHome, "google.json"),
+    })
+
+    const adapterLog = existsSync(path.join(f.resultDir, "adapter.log"))
+      ? readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")
+      : ""
+    expect(result.code, `${result.stderr}\n${adapterLog}\n${JSON.stringify(result.result)}`).toBe(0)
+    const dispatchEnv = readFileSync(path.join(f.capture, "env"), "utf8")
+    const observedHome = dispatchEnv.match(/^HOME=(.+)$/m)?.[1]
+    const observedXdg = dispatchEnv.match(/^XDG_CONFIG_HOME=(.+)$/m)?.[1]
+    expect(observedHome).toStartWith(path.join(f.runs, "route-run", "units", "U3", "environment", "attempt-1"))
+    expect(observedXdg).toStartWith(path.join(f.runs, "route-run", "units", "U3", "environment", "attempt-1"))
+    expect(dispatchEnv).not.toContain(hostHome)
+    expect(dispatchEnv).not.toContain(hostXdg)
+    expect(dispatchEnv).not.toContain("SSH_AUTH_SOCK=")
+    expect(dispatchEnv).not.toContain("AWS_SHARED_CREDENTIALS_FILE=")
+    expect(dispatchEnv).not.toContain("GOOGLE_APPLICATION_CREDENTIALS=")
+    expect(readFileSync(path.join(f.capture, "unrelated-readable"), "utf8")).toBe("")
+    expect(readFileSync(path.join(f.capture, "host-home-listing"), "utf8")).toBe("")
+    expect(readFileSync(path.join(f.capture, "authorized-readable"), "utf8")).toContain(authorizedToken)
+    expect(readFileSync(path.join(f.capture, "argv"), "utf8")).not.toContain(authorizedToken)
+    expect(readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")).not.toContain(authorizedToken)
+    expect(readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")).not.toContain(refreshedToken)
+    expect(JSON.stringify(result.result)).not.toContain(authorizedToken)
+    expect(JSON.stringify(result.result)).not.toContain(refreshedToken)
+    expect(result.result.summary).toBe("implemented [REDACTED] [REDACTED]")
+  })
+
+  test("refuses dispatch before egress when isolated backend authentication was not staged", () => {
+    const f = fixture()
+    f.authManifest = ""
+    const bin = fakeBin("codex", f.capture)
+    const result = run("codex", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
+
+    expect(result.code).toBe(2)
+    expect(result.result.terminal_status).toBe("unavailable")
+    expect(result.result.failure_reason).toContain("authenticated config was not staged")
+    expect(existsSync(path.join(f.capture, "argv"))).toBe(false)
   })
 
   test("Claude dispatch preserves USER for Keychain auth without forwarding credential variables", () => {
@@ -537,18 +677,28 @@ printf '%02048d' 0
     expect(statSync(path.join(noisy.resultDir, "adapter.log")).size).toBeLessThanOrEqual(256)
   })
 
-  test.each(["claude", "grok-cli"] as const)("%s is unavailable when enforceable confinement is required", (route) => {
+  test.each(["claude", "grok-cli"] as const)("%s uses host-enforced confinement despite cooperative CLI posture", (route) => {
     const f = fixture()
-    const bin = fakeBin(route, f.capture)
+    const secret = path.join(f.root, "cooperative-route-secret")
+    writeFileSync(secret, "SENTINEL-cooperative-route-secret\n", { mode: 0o600 })
+    const bin = temp("ce-work-bin-")
+    const executable = route === "grok-cli" ? "grok" : "claude"
+    writeFileSync(path.join(bin, executable), `#!/bin/sh
+set -eu
+cat > '${f.capture}/stdin'
+cat '${secret}' > '${f.capture}/host-secret-readable' 2>/dev/null || true
+[ '${route}' = 'grok-cli' ] || printf '%s\n' '{"type":"system","subtype":"init","model":"claude-fable-5"}'
+printf '%s\n' '{"terminal_status":"completed","summary":"confined","changed_files":[],"evidence":[],"scope_expansion":null}'
+`)
+    chmodSync(path.join(bin, executable), 0o755)
     const result = run(route, f, {
       ...process.env,
       PATH: `${bin}:${process.env.PATH}`,
-      CE_WORK_REQUIRE_ENFORCED_CONFINEMENT: "1",
     })
-    expect(result.code).toBe(2)
-    expect(result.result.terminal_status).toBe("unavailable")
-    expect(result.result.failure_reason).toContain("cooperative")
-    expect(existsSync(path.join(f.capture, "argv"))).toBe(false)
+    expect(result.code).toBe(0)
+    expect(result.result.terminal_status).toBe("completed")
+    expect(result.result.restriction_posture).toBe("cooperative")
+    expect(readFileSync(path.join(f.capture, "host-secret-readable"), "utf8")).toBe("")
   })
 })
 
@@ -612,7 +762,7 @@ describe("ce-work adapter results, identity, and secret handling", () => {
   })
 
   test.each(["adapter-log", "result-dir"] as const)(
-    "refuses a worker-substituted %s symlink without touching its outside target",
+    "confines a worker-substituted %s symlink before it can touch the outside target",
     (substitution) => {
       const f = fixture()
       const bin = temp("ce-work-bin-")
@@ -636,8 +786,8 @@ printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[
 
       const result = run("claude", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
 
-      expect(result.code).toBe(2)
-      expect(result.stderr).toContain("adapter log retention refused")
+      expect(result.code).toBe(1)
+      expect(readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")).toContain("Permission denied")
       expect(readFileSync(outsideLog, "utf8")).toBe("outside evidence\n")
       expect(statSync(outsideLog).mode & 0o777).toBe(0o644)
     },
@@ -647,46 +797,25 @@ printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[
     ["normal", 0],
     ["launched-route failure", 7],
   ] as const)(
-    "the %s receipt path fails closed when an exited cooperative route swaps the result dir after log retention",
+    "the %s receipt path ignores a route-local Python shim",
     (_receiptPath, routeExit) => {
       const f = fixture()
       const bin = temp("ce-work-bin-")
-      const expectedResultDir = path.join(f.runs, "route-run", "units", "U3", "result")
-      const originalResultDir = `${expectedResultDir}.original`
       const outsideDir = path.join(f.root, "outside")
       const outsideResult = path.join(outsideDir, "implementation-result.json")
-      const publishStarted = path.join(f.capture, "receipt-publication-started")
-      const swapDone = path.join(f.capture, "result-dir-swap-done")
-      const python3 = spawnSync("which", ["python3"], { encoding: "utf8" }).stdout.trim()
+      const intercepted = path.join(f.capture, "python-shim-intercepted")
       mkdirSync(outsideDir)
       writeFileSync(outsideResult, '{"sentinel":"outside"}\n', { mode: 0o644 })
       chmodSync(outsideResult, 0o644)
 
       writeFileSync(path.join(bin, "python3"), `#!/bin/sh
-set -eu
-case "\${2:-}" in
-  *"result receipt publication refused"*)
-    : > '${publishStarted}'
-    attempts=0
-    while [ ! -e '${swapDone}' ]; do
-      attempts=$((attempts + 1))
-      [ "$attempts" -lt 500 ] || exit 97
-      sleep 0.01
-    done
-    ;;
-esac
-exec '${python3}' "$@"
+: > '${intercepted}'
+exit 97
 `)
       chmodSync(path.join(bin, "python3"), 0o755)
       writeFileSync(path.join(bin, "claude"), `#!/bin/sh
 set -eu
 cat > '${f.capture}/stdin'
-(
-  while [ ! -e '${publishStarted}' ]; do sleep 0.01; done
-  mv '${expectedResultDir}' '${originalResultDir}'
-  ln -s '${outsideDir}' '${expectedResultDir}'
-  : > '${swapDone}'
-) </dev/null >/dev/null 2>&1 &
 printf '%s\n' '{"type":"system","subtype":"init","model":"claude-fable-5"}'
 printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[],"evidence":[],"scope_expansion":null}'
 exit ${routeExit}
@@ -695,12 +824,11 @@ exit ${routeExit}
 
       const result = run("claude", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
 
-      expect(result.code).toBe(2)
-      expect(result.stderr).toContain("result receipt publication refused")
+      expect(result.code).toBe(routeExit === 0 ? 0 : 1)
+      expect(existsSync(intercepted)).toBe(false)
       expect(readFileSync(outsideResult, "utf8")).toBe('{"sentinel":"outside"}\n')
       expect(statSync(outsideResult).mode & 0o777).toBe(0o644)
-      expect(existsSync(path.join(originalResultDir, "implementation-result.json"))).toBe(false)
-      expect(readFileSync(path.join(originalResultDir, "adapter.log"), "utf8")).toContain("terminal_status")
+      expect(statSync(f.resultDir).isDirectory()).toBe(true)
     },
   )
 

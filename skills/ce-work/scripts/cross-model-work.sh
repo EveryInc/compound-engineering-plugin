@@ -18,8 +18,13 @@ umask 077
 
 M_GROK_CURSOR="cursor-grok-4.5-high"
 M_COMPOSER="composer-2.5-fast"
+HOST_PYTHON="/usr/bin/python3"
+ROUTE_SEARCH_PATH="${PATH:-}"
+PATH="/usr/bin:/bin"
+export PATH
 
 log() { printf '[cross-model-work] %s\n' "$*" >&2; }
+[ -x "$HOST_PYTHON" ] || { log "fixed host Python interpreter is unavailable"; exit 2; }
 
 route_target() {
   case "$1" in
@@ -224,14 +229,14 @@ trap 'rm -rf "$SCRATCH"' EXIT
 # dispatch capability. Read it once through a no-follow descriptor, validate
 # its exact route/model/packet contract, and derive every dispatch identity
 # field from those bytes before constructing a prompt or invoking a model CLI.
-python3 - "$AUTHORIZATION" "$EXPECTED_PACKET_DIGEST" "$AUTH_VALUES" <<'PY'
+"$HOST_PYTHON" - "$AUTHORIZATION" "$EXPECTED_PACKET_DIGEST" "$AUTH_VALUES" <<'PY'
 import json, os, re, stat, sys
 
 source, expected_packet_digest, output = sys.argv[1:]
 required = {
     "schema_version", "run_id", "unit_id", "attempt_id", "route", "target", "harness",
     "intermediaries", "model_requested", "effort_requested", "restriction_posture",
-    "restrictions", "activity_posture", "packet_digest", "routing_lock",
+    "restrictions", "activity_posture", "packet_digest", "routing_lock", "environment", "confinement",
 }
 contracts = {
     "codex": ("codex", "codex", [], "adapter-enforced"),
@@ -328,12 +333,133 @@ try:
         fail("authorization model is incompatible with the fixed route")
     if not effort_allowed(route, value["effort_requested"]):
         fail("authorization effort is incompatible with the fixed route")
+    environment = value["environment"]
+    environment_paths = {
+        "home", "xdg_config_home", "xdg_data_home", "xdg_cache_home", "tmpdir", "route_config_home",
+    }
+    environment_required = {
+        "schema_version", "posture", "authentication", "material", "redactions_path",
+        "redactions_sha256", *environment_paths,
+    }
+    if not isinstance(environment, dict) or set(environment) != environment_required:
+        fail("authorization environment schema is invalid")
+    if environment["schema_version"] != 1 or environment["posture"] != "credential-minimized":
+        fail("authorization environment posture is invalid")
+    if environment["authentication"] not in {"staged", "unavailable"}:
+        fail("authorization authentication posture is invalid")
+    unit_root = os.path.dirname(os.path.abspath(source))
+    for key in environment_paths:
+        path = environment[key]
+        if not isinstance(path, str) or not os.path.isabs(path) or os.path.commonpath([unit_root, path]) != unit_root or path == unit_root:
+            fail(f"authorization environment {key} escaped the controller unit root")
+        directory_fd = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0))
+        try:
+            directory = os.fstat(directory_fd)
+            geteuid = getattr(os, "geteuid", None)
+            if not stat.S_ISDIR(directory.st_mode) or (geteuid is not None and directory.st_uid != geteuid()) or stat.S_IMODE(directory.st_mode) != 0o700:
+                fail(f"authorization environment {key} is not a private controller directory")
+        finally:
+            os.close(directory_fd)
+    material = environment["material"]
+    if not isinstance(material, list) or len(material) > 4:
+        fail("authorization environment material is invalid")
+    expected_material = {}
+    for item in material:
+        if not isinstance(item, dict) or set(item) != {"path", "sha256"}:
+            fail("authorization environment material entry is invalid")
+        relative = item["path"]
+        if (
+            not isinstance(relative, str) or not relative or os.path.isabs(relative)
+            or "\\" in relative or any(part in {"", ".", ".."} for part in relative.split("/"))
+            or os.path.basename(relative).startswith(".env")
+            or not isinstance(item["sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
+            or relative in expected_material
+        ):
+            fail("authorization environment material entry is unsafe")
+        expected_material[relative] = item["sha256"]
+    observed_material = {}
+    config_root = environment["route_config_home"]
+    for current, directories, files in os.walk(config_root, followlinks=False):
+        for name in directories:
+            child = os.path.join(current, name)
+            child_info = os.lstat(child)
+            if stat.S_ISLNK(child_info.st_mode) or not stat.S_ISDIR(child_info.st_mode) or stat.S_IMODE(child_info.st_mode) != 0o700:
+                fail("authorization backend config contains an unsafe directory")
+        for name in files:
+            child = os.path.join(current, name)
+            flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+            child_fd = os.open(child, flags)
+            try:
+                child_info = os.fstat(child_fd)
+                geteuid = getattr(os, "geteuid", None)
+                if not stat.S_ISREG(child_info.st_mode) or (geteuid is not None and child_info.st_uid != geteuid()) or stat.S_IMODE(child_info.st_mode) != 0o600:
+                    fail("authorization backend config contains an unsafe file")
+                digest = __import__("hashlib").sha256()
+                while True:
+                    part = os.read(child_fd, 65536)
+                    if not part:
+                        break
+                    digest.update(part)
+            finally:
+                os.close(child_fd)
+            relative = os.path.relpath(child, config_root).replace(os.sep, "/")
+            observed_material[relative] = digest.hexdigest()
+    if observed_material != expected_material:
+        fail("authorization backend config differs from staged material")
+    if (environment["authentication"] == "staged") != bool(material):
+        fail("authorization authentication posture differs from staged material")
+    redactions_path = environment["redactions_path"]
+    if (
+        not isinstance(redactions_path, str) or not os.path.isabs(redactions_path)
+        or os.path.commonpath([unit_root, redactions_path]) != unit_root
+        or not isinstance(environment["redactions_sha256"], str)
+        or not re.fullmatch(r"[0-9a-f]{64}", environment["redactions_sha256"])
+    ):
+        fail("authorization credential redactions are invalid")
+    redactions_fd = os.open(redactions_path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        redactions_info = os.fstat(redactions_fd)
+        geteuid = getattr(os, "geteuid", None)
+        if not stat.S_ISREG(redactions_info.st_mode) or (geteuid is not None and redactions_info.st_uid != geteuid()) or stat.S_IMODE(redactions_info.st_mode) != 0o600:
+            fail("authorization credential redactions are not private")
+        redactions_digest = __import__("hashlib").sha256()
+        while True:
+            part = os.read(redactions_fd, 65536)
+            if not part:
+                break
+            redactions_digest.update(part)
+    finally:
+        os.close(redactions_fd)
+    if redactions_digest.hexdigest() != environment["redactions_sha256"]:
+        fail("authorization credential redactions differ from staged auth material")
+    confinement = value["confinement"]
+    confinement_required = {
+        "protocol", "adapter_path", "adapter_sha256", "interpreter_path", "interpreter_sha256",
+        "abi", "read_only_paths", "read_write_paths",
+    }
+    if not isinstance(confinement, dict) or set(confinement) != confinement_required:
+        fail("authorization confinement schema is invalid")
+    if confinement["protocol"] != "ce-work-landlock/v1" or not isinstance(confinement["abi"], int) or confinement["abi"] < 1:
+        fail("authorization confinement capability is invalid")
+    if (
+        not isinstance(confinement["adapter_path"], str) or not os.path.isabs(confinement["adapter_path"])
+        or not isinstance(confinement["adapter_sha256"], str)
+        or not re.fullmatch(r"[0-9a-f]{64}", confinement["adapter_sha256"])
+        or not isinstance(confinement["interpreter_path"], str) or not os.path.isabs(confinement["interpreter_path"])
+        or not isinstance(confinement["interpreter_sha256"], str)
+        or not re.fullmatch(r"[0-9a-f]{64}", confinement["interpreter_sha256"])
+        or not isinstance(confinement["read_only_paths"], list) or not confinement["read_only_paths"]
+        or any(not isinstance(path, str) or not os.path.isabs(path) for path in confinement["read_only_paths"])
+        or not isinstance(confinement["read_write_paths"], list) or len(confinement["read_write_paths"]) != 2
+        or any(not isinstance(path, str) or not os.path.isabs(path) for path in confinement["read_write_paths"])
+    ):
+        fail("authorization confinement roots are invalid")
     routing_lock = value["routing_lock"]
     if routing_lock is not None:
         lock_required = {
             "protocol", "snapshot_id", "source_revisions", "binding_digest", "unit_id", "attempt_id",
             "candidate_ordinal", "candidate", "recipient", "adapter_family", "mutation_posture",
-            "environment_posture", "identity_gate", "material_scope", "restrictions", "egress",
+            "environment_posture", "confinement", "identity_gate", "material_scope", "restrictions", "egress",
             "preflight", "state", "locked_at", "lock_digest",
         }
         if not isinstance(routing_lock, dict) or set(routing_lock) != lock_required:
@@ -355,6 +481,8 @@ try:
         if not isinstance(candidate, dict) or candidate.get("ordinal") != routing_lock["candidate_ordinal"]:
             fail("routing attempt candidate is invalid")
         expected_model = candidate.get("model")
+        if route == "composer" and isinstance(expected_model, str) and expected_model.lower() == "composer":
+            expected_model = "composer-2.5-fast"
         if expected_model is not None and expected_model != value["model_requested"]:
             fail("routing attempt model differs from authorization")
         if candidate.get("effort") is not None and candidate.get("effort") != value["effort_requested"]:
@@ -377,6 +505,11 @@ try:
     fields = (
         authorization_digest, value["run_id"], value["unit_id"], value["attempt_id"],
         route, target, harness, value["model_requested"], value["effort_requested"], value["activity_posture"], posture,
+        environment["authentication"], environment["home"], environment["xdg_config_home"],
+        environment["xdg_data_home"], environment["xdg_cache_home"], environment["tmpdir"],
+        environment["route_config_home"], environment["redactions_path"],
+        confinement["adapter_path"], confinement["adapter_sha256"], str(confinement["abi"]),
+        confinement["interpreter_path"], confinement["interpreter_sha256"],
     )
     out = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
@@ -392,7 +525,7 @@ AUTH_EXIT=$?
 
 AUTH_FIELDS=()
 while IFS= read -r -d '' field; do AUTH_FIELDS+=("$field"); done < "$AUTH_VALUES"
-[ "${#AUTH_FIELDS[@]}" -eq 11 ] || { log "controller authorization projection is incomplete"; exit 2; }
+[ "${#AUTH_FIELDS[@]}" -eq 24 ] || { log "controller authorization projection is incomplete"; exit 2; }
 OBSERVED_AUTH_DIGEST="${AUTH_FIELDS[0]}"
 RUN_ID="${AUTH_FIELDS[1]}"
 UNIT_ID="${AUTH_FIELDS[2]}"
@@ -404,23 +537,76 @@ MODEL_REQUESTED="${AUTH_FIELDS[7]}"
 EFFORT_REQUESTED="${AUTH_FIELDS[8]}"
 ACTIVITY_POSTURE="${AUTH_FIELDS[9]}"
 RESTRICTION_POSTURE="${AUTH_FIELDS[10]}"
+AUTHENTICATION_POSTURE="${AUTH_FIELDS[11]}"
+ISOLATED_HOME="${AUTH_FIELDS[12]}"
+ISOLATED_XDG_CONFIG_HOME="${AUTH_FIELDS[13]}"
+ISOLATED_XDG_DATA_HOME="${AUTH_FIELDS[14]}"
+ISOLATED_XDG_CACHE_HOME="${AUTH_FIELDS[15]}"
+ISOLATED_TMPDIR="${AUTH_FIELDS[16]}"
+ROUTE_CONFIG_HOME="${AUTH_FIELDS[17]}"
+AUTO_REDACTIONS="${AUTH_FIELDS[18]}"
+CONFINEMENT_ADAPTER="${AUTH_FIELDS[19]}"
+CONFINEMENT_ADAPTER_DIGEST="${AUTH_FIELDS[20]}"
+CONFINEMENT_ABI="${AUTH_FIELDS[21]}"
+CONFINEMENT_INTERPRETER="${AUTH_FIELDS[22]}"
+CONFINEMENT_INTERPRETER_DIGEST="${AUTH_FIELDS[23]}"
+BOOTSTRAP_SCRATCH="$SCRATCH"
+SCRATCH="$(mktemp -d "$ISOLATED_TMPDIR/adapter-XXXXXX")" || exit 2
+chmod 700 "$SCRATCH"
+PROMPT_FILE="$SCRATCH/prompt.md"
+RAW_STDOUT="$SCRATCH/stdout.log"
+RAW_STDERR="$SCRATCH/stderr.log"
+RAW_RESULT="$SCRATCH/result.raw"
+RAW_LIMIT_MARKER="$SCRATCH/raw-output-limit"
+PACKET_SNAPSHOT="$SCRATCH/unit-packet"
+AUTH_VALUES="$SCRATCH/authorization-values"
+RESULT_FILE="$RESULT_DIR/implementation-result.json"
+LOG_FILE="$RESULT_DIR/adapter.log"
+AMBIENT_REDACTIONS="${CE_WORK_REDACT_FILE:-}"
+CE_WORK_REDACT_FILE="$SCRATCH/credential-redactions"
+{
+  [ -z "$AMBIENT_REDACTIONS" ] || [ ! -f "$AMBIENT_REDACTIONS" ] || cat "$AMBIENT_REDACTIONS"
+  cat "$AUTO_REDACTIONS"
+} > "$CE_WORK_REDACT_FILE"
+chmod 600 "$CE_WORK_REDACT_FILE"
+rm -rf "$BOOTSTRAP_SCRATCH"
+trap 'rm -rf "$SCRATCH"' EXIT
 RUNNER_JOB_ID="${CE_PEER_JOB_ID:-}"
 [[ "$RUNNER_JOB_ID" =~ ^[A-Za-z0-9._-]{1,128}$ && "$RUNNER_JOB_ID" =~ [A-Za-z0-9_-] ]] || {
   log "runner job identity is missing or unsafe"
   exit 2
 }
+case "$ROUTE" in
+  codex) BINARY=codex ;;
+  claude) BINARY=claude ;;
+  grok-cli) BINARY=grok ;;
+  cursor|composer|grok-cursor) BINARY=cursor-agent ;;
+esac
+ROUTE_EXECUTABLE="$(ROUTE_SEARCH_PATH="$ROUTE_SEARCH_PATH" "$HOST_PYTHON" - "$BINARY" <<'PY'
+import os, shutil, sys
+
+resolved = shutil.which(sys.argv[1], path=os.environ.get("ROUTE_SEARCH_PATH", ""))
+if resolved:
+    print(os.path.abspath(resolved))
+PY
+)"
+if [ -z "$ROUTE_EXECUTABLE" ]; then
+  log "fixed route executable '$BINARY' is unavailable"
+  exit 2
+fi
 
 # A valid JSON file is not itself dispatch authority. Prove the exact no-follow
 # snapshot and every raw controller-returned path back to the controller before
 # prompt construction. Only its AUTHORIZED status permits external egress.
 CONTROLLER="$SKILL_ROOT/scripts/unit-workspace.py"
-AUTH_RESPONSE="$(python3 "$CONTROLLER" authorize-dispatch \
+AUTH_RESPONSE="$("$HOST_PYTHON" "$CONTROLLER" authorize-dispatch \
   --authorization "$DISPATCH_AUTHORIZATION" \
   --authorization-digest "$OBSERVED_AUTH_DIGEST" \
   --workspace "$DISPATCH_WORKSPACE" \
   --packet "$DISPATCH_PACKET" \
   --packet-digest "$EXPECTED_PACKET_DIGEST" \
   --result-dir "$DISPATCH_RESULT_DIR" \
+  --route-executable "$ROUTE_EXECUTABLE" \
   --run-id "$RUN_ID" --unit-id "$UNIT_ID" --attempt-id "$ATTEMPT_ID" --job-id "$RUNNER_JOB_ID" 2>&1)"
 CONTROLLER_EXIT=$?
 AUTH_STATUS="${AUTH_RESPONSE%%$'\n'*}"
@@ -429,6 +615,41 @@ if [ "$CONTROLLER_EXIT" -ne 0 ] || [ "$AUTH_STATUS" != "AUTHORIZED" ]; then
   log "controller dispatch authorization failed"
   exit 2
 fi
+DISPATCH_VALUES="$SCRATCH/dispatch-values"
+AUTH_RESPONSE="$AUTH_RESPONSE" "$HOST_PYTHON" - "$DISPATCH_VALUES" "$CONFINEMENT_ADAPTER" "$CONFINEMENT_ADAPTER_DIGEST" "$CONFINEMENT_ABI" <<'PY'
+import json, os, re, sys
+
+output, expected_adapter, expected_adapter_digest, expected_abi = sys.argv[1:]
+lines = os.environ.get("AUTH_RESPONSE", "").splitlines()
+if len(lines) != 2 or lines[0] != "AUTHORIZED":
+    raise SystemExit(2)
+value = json.loads(lines[1])
+required = {"route_executable", "confinement_path", "confinement_digest", "confinement_adapter"}
+if not required.issubset(value):
+    raise SystemExit(2)
+if (
+    value["confinement_adapter"] != expected_adapter
+    or not os.path.isabs(value["route_executable"])
+    or not os.path.isabs(value["confinement_path"])
+    or not re.fullmatch(r"[0-9a-f]{64}", value["confinement_digest"])
+    or not re.fullmatch(r"[0-9a-f]{64}", expected_adapter_digest)
+    or not expected_abi.isdigit()
+):
+    raise SystemExit(2)
+fd = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+try:
+    fields = (value["route_executable"], value["confinement_path"], value["confinement_digest"])
+    os.write(fd, b"\0".join(field.encode() for field in fields) + b"\0")
+finally:
+    os.close(fd)
+PY
+[ "$?" -eq 0 ] || { log "controller confinement authorization was malformed"; exit 2; }
+DISPATCH_FIELDS=()
+while IFS= read -r -d '' field; do DISPATCH_FIELDS+=("$field"); done < "$DISPATCH_VALUES"
+[ "${#DISPATCH_FIELDS[@]}" -eq 3 ] || { log "controller confinement projection is incomplete"; exit 2; }
+BINARY_PATH="${DISPATCH_FIELDS[0]}"
+CONFINEMENT_CONFIG="${DISPATCH_FIELDS[1]}"
+CONFINEMENT_CONFIG_DIGEST="${DISPATCH_FIELDS[2]}"
 
 # Canonicalize operational paths only after the handshake. The controller
 # compares the raw paths it returned, including platform compatibility symlinks.
@@ -439,7 +660,7 @@ case "$RESULT_DIR/" in "$WORKSPACE/"*) log "result dir must be outside the worke
 case "$PACKET" in "$WORKSPACE"/*) log "unit packet must be outside the worker workspace"; exit 2 ;; esac
 git -C "$WORKSPACE" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { log "workspace is not a Git worktree"; exit 2; }
 chmod 700 "$RESULT_DIR" 2>/dev/null || { log "result dir could not be made private"; exit 2; }
-RESULT_DIR_IDENTITY="$(python3 - "$RESULT_DIR" <<'PY'
+RESULT_DIR_IDENTITY="$("$HOST_PYTHON" - "$RESULT_DIR" <<'PY'
 import os, stat, sys
 
 path = sys.argv[1]
@@ -456,7 +677,7 @@ PY
 )" || { log "result dir identity could not be captured"; exit 2; }
 
 write_adapter_log() {
-  python3 -c '
+  "$HOST_PYTHON" -c '
 import os, stat, sys
 
 path, expected = sys.argv[1:]
@@ -494,7 +715,7 @@ except OSError as error:
 }
 
 write_result_receipt() {
-  python3 -c '
+  "$HOST_PYTHON" -c '
 import os, secrets, stat, sys
 
 path, expected = sys.argv[1:]
@@ -556,7 +777,7 @@ finally:
 # Read the packet once through a no-follow descriptor, hash those exact bytes,
 # and build the prompt from the private snapshot. The controller-provided
 # digest is therefore bound to the content that actually crosses the route.
-OBSERVED_PACKET_DIGEST="$(python3 - "$PACKET" "$PACKET_SNAPSHOT" "$MAX_PACKET_BYTES" <<'PY'
+OBSERVED_PACKET_DIGEST="$("$HOST_PYTHON" - "$PACKET" "$PACKET_SNAPSHOT" "$MAX_PACKET_BYTES" <<'PY'
 import hashlib, os, stat, sys
 
 source, snapshot, raw_cap = sys.argv[1:]
@@ -596,7 +817,7 @@ PY
 }
 
 redact_stream() {
-  CE_WORK_REDACT_FILE="${CE_WORK_REDACT_FILE:-}" python3 -c '
+  CE_WORK_REDACT_FILE="${CE_WORK_REDACT_FILE:-}" "$HOST_PYTHON" -c '
 import os, sys
 p = os.environ.get("CE_WORK_REDACT_FILE", "")
 if p:
@@ -660,7 +881,7 @@ except BrokenPipeError:
 }
 
 cap_stream() {
-  python3 -c '
+  "$HOST_PYTHON" -c '
 import os, sys
 
 remaining = int(sys.argv[1])
@@ -700,7 +921,7 @@ publish_unavailable() {
     }
     LOG_RETAINED=1
   fi
-  python3 - "$ROUTE" "$TARGET" "$HARNESS" "$MODEL_REQUESTED" "$EFFORT_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$reason" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$terminal_status" "$actual_route" <<'PY' | write_result_receipt
+  "$HOST_PYTHON" - "$ROUTE" "$TARGET" "$HARNESS" "$MODEL_REQUESTED" "$EFFORT_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$reason" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$terminal_status" "$actual_route" <<'PY' | write_result_receipt
 import json, sys
 route, target, harness, requested, effort, packet_digest, log, reason, activity, restriction, terminal_status, actual_route = sys.argv[1:]
 value = {
@@ -720,47 +941,96 @@ sys.stdout.write("\n")
 PY
 }
 
-if [ "${CE_WORK_REQUIRE_ENFORCED_CONFINEMENT:-}" = "1" ]; then
-  case "$ROUTE" in
-    claude|grok-cli)
-      publish_unavailable "route offers cooperative workspace restriction, not required enforceable confinement" || exit 2
-      exit 2
-      ;;
-  esac
-fi
-
-case "$ROUTE" in
-  codex) BINARY=codex ;;
-  claude) BINARY=claude ;;
-  grok-cli) BINARY=grok ;;
-  cursor|composer|grok-cursor) BINARY=cursor-agent ;;
-esac
-if ! command -v "$BINARY" >/dev/null 2>&1; then
-  publish_unavailable "fixed route executable '$BINARY' is unavailable" || exit 2
+if [ "$AUTHENTICATION_POSTURE" != staged ]; then
+  publish_unavailable "authenticated config was not staged inside the isolated route environment" || exit 2
   exit 2
 fi
 
 ARGS=()
 while IFS= read -r -d '' token; do ARGS+=("$token"); done < <(adapter_argv "$ROUTE")
+ARGS[0]="$BINARY_PATH"
 
-MIN_ENV=(env -i "PATH=$PATH" "PYTHONDONTWRITEBYTECODE=1")
-[ -n "${HOME:-}" ] && MIN_ENV+=("HOME=$HOME")
+SAFE_PATH="$(dirname "$BINARY_PATH"):/usr/local/bin:/usr/bin:/bin"
+MIN_ENV=(env -i "PATH=$SAFE_PATH" "PYTHONDONTWRITEBYTECODE=1")
+MIN_ENV+=("HOME=$ISOLATED_HOME")
 [ -n "${USER:-}" ] && MIN_ENV+=("USER=$USER")
-[ -n "${TMPDIR:-}" ] && MIN_ENV+=("TMPDIR=$TMPDIR")
+MIN_ENV+=("TMPDIR=$ISOLATED_TMPDIR")
 [ -n "${LANG:-}" ] && MIN_ENV+=("LANG=$LANG")
 [ -n "${LC_ALL:-}" ] && MIN_ENV+=("LC_ALL=$LC_ALL")
-[ -n "${XDG_CONFIG_HOME:-}" ] && MIN_ENV+=("XDG_CONFIG_HOME=$XDG_CONFIG_HOME")
-# Preserve route-specific config-directory pointers so existing CLI-native login
-# remains reachable. Credential-bearing API-key variables are intentionally not
-# forwarded; the worker gets paths to the CLI's own auth store, not secrets.
+MIN_ENV+=("XDG_CONFIG_HOME=$ISOLATED_XDG_CONFIG_HOME")
+MIN_ENV+=("XDG_DATA_HOME=$ISOLATED_XDG_DATA_HOME")
+MIN_ENV+=("XDG_CACHE_HOME=$ISOLATED_XDG_CACHE_HOME")
 case "$ROUTE" in
-  codex) [ -n "${CODEX_HOME:-}" ] && MIN_ENV+=("CODEX_HOME=$CODEX_HOME") ;;
-  claude) [ -n "${CLAUDE_CONFIG_DIR:-}" ] && MIN_ENV+=("CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR") ;;
-  grok-cli) [ -n "${GROK_CONFIG_HOME:-}" ] && MIN_ENV+=("GROK_CONFIG_HOME=$GROK_CONFIG_HOME") ;;
+  codex) MIN_ENV+=("CODEX_HOME=$ROUTE_CONFIG_HOME") ;;
+  claude) MIN_ENV+=("CLAUDE_CONFIG_DIR=$ROUTE_CONFIG_HOME") ;;
+  grok-cli) MIN_ENV+=("GROK_CONFIG_HOME=$ROUTE_CONFIG_HOME") ;;
   cursor|composer|grok-cursor)
-    [ -n "${CURSOR_CONFIG_DIR:-}" ] && MIN_ENV+=("CURSOR_CONFIG_DIR=$CURSOR_CONFIG_DIR")
+    MIN_ENV+=("CURSOR_CONFIG_DIR=$ROUTE_CONFIG_HOME")
     ;;
 esac
+
+refresh_credential_redactions() {
+  "$HOST_PYTHON" - "$ROUTE_CONFIG_HOME" "$CE_WORK_REDACT_FILE" <<'PY'
+import json, os, stat, sys
+
+config_root, redactions_path = sys.argv[1:]
+values = set()
+try:
+    with open(redactions_path, "rb") as source:
+        values.update(value for value in source.read().splitlines() if value)
+    observed_files = 0
+    for current, directories, files in os.walk(config_root, followlinks=False):
+        for name in directories:
+            info = os.lstat(os.path.join(current, name))
+            if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o700:
+                raise OSError("backend config directory changed")
+        for name in files:
+            observed_files += 1
+            if observed_files > 4:
+                raise OSError("backend config file count exceeded")
+            path = os.path.join(current, name)
+            fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+            try:
+                info = os.fstat(fd)
+                if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600 or info.st_size > 1024 * 1024:
+                    raise OSError("backend config file is no longer private and bounded")
+                data = bytearray()
+                while len(data) <= 1024 * 1024:
+                    part = os.read(fd, min(65536, 1024 * 1024 + 1 - len(data)))
+                    if not part:
+                        break
+                    data.extend(part)
+                if len(data) > 1024 * 1024:
+                    raise OSError("backend config file exceeded its size limit")
+            finally:
+                os.close(fd)
+            document = json.loads(data.decode("utf-8", "strict"))
+            pending = [document]
+            while pending:
+                value = pending.pop()
+                if isinstance(value, dict):
+                    pending.extend(value.values())
+                elif isinstance(value, list):
+                    pending.extend(value)
+                elif isinstance(value, str) and value:
+                    values.add(value.encode())
+    temporary = redactions_path + ".new"
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    try:
+        data = b"\n".join(sorted(values, key=lambda value: (-len(value), value)))
+        if data:
+            data += b"\n"
+        view = memoryview(data)
+        while view:
+            view = view[os.write(fd, view):]
+    finally:
+        os.close(fd)
+    os.replace(temporary, redactions_path)
+except (OSError, UnicodeDecodeError, ValueError) as error:
+    print(f"credential redaction refresh refused: {error}", file=sys.stderr)
+    raise SystemExit(2)
+PY
+}
 
 # Cursor reports a human display label in its init receipt, not necessarily the
 # model key passed on argv. Capture the current catalog label before dispatch so
@@ -771,9 +1041,15 @@ MODEL_DISPLAY_HINT=""
 if [ "$MODEL_REQUESTED" != auto ]; then
   case "$ROUTE" in
     cursor|composer|grok-cursor)
-      MODEL_DISPLAY_HINT="$({ "${MIN_ENV[@]}" "$BINARY" --list-models 2>/dev/null || true; } | awk -F ' - ' -v key="$MODEL_REQUESTED" '$1 == key { sub(/^[^ ]+ - /, ""); print; exit }')"
+      MODEL_DISPLAY_HINT="$({ "${MIN_ENV[@]}" "$CONFINEMENT_INTERPRETER" "$CONFINEMENT_ADAPTER" \
+        --config "$CONFINEMENT_CONFIG" --digest "$CONFINEMENT_CONFIG_DIGEST" -- \
+        "$BINARY_PATH" --list-models 2>/dev/null || true; } | awk -F ' - ' -v key="$MODEL_REQUESTED" '$1 == key { sub(/^[^ ]+ - /, ""); print; exit }')"
       ;;
   esac
+fi
+if ! refresh_credential_redactions; then
+  publish_unavailable "staged authentication changed unsafely during the confined model probe" || exit 2
+  exit 2
 fi
 
 ACTIVITY_POLL_SECS="${CE_WORK_ACTIVITY_POLL_SECS:-15}"
@@ -806,7 +1082,9 @@ terminate_route() {
 trap 'terminate_route' TERM INT
 
 set +e
-(cd "$WORKSPACE" && exec "${MIN_ENV[@]}" "${ARGS[@]}" < "$PROMPT_FILE" > "$RAW_STDOUT" 2> "$RAW_STDERR") &
+(cd "$WORKSPACE" && exec "${MIN_ENV[@]}" "$CONFINEMENT_INTERPRETER" "$CONFINEMENT_ADAPTER" \
+  --config "$CONFINEMENT_CONFIG" --digest "$CONFINEMENT_CONFIG_DIGEST" -- \
+  "${ARGS[@]}" < "$PROMPT_FILE" > "$RAW_STDOUT" 2> "$RAW_STDERR") &
 ACTIVE_ROUTE_PID=$!
 (
   previous=0
@@ -834,6 +1112,11 @@ ACTIVE_ROUTE_PID=""
 ACTIVITY_PID=""
 RAW_BYTES="$(raw_byte_count)"
 [ "$RAW_BYTES" -gt "$MAX_RAW_BYTES" ] && : > "$RAW_LIMIT_MARKER"
+if ! refresh_credential_redactions; then
+  rm -f "$RAW_STDOUT" "$RAW_STDERR" "$RAW_RESULT" "$RAW_LIMIT_MARKER"
+  publish_unavailable "staged authentication changed unsafely during the confined route" || exit 2
+  exit 2
+fi
 {
   cat "$RAW_STDOUT"
   cat "$RAW_STDERR"
@@ -857,7 +1140,7 @@ fi
 SOURCE="$RAW_STDOUT"
 [ "$ROUTE" = codex ] && SOURCE="$RAW_RESULT"
 set +e
-CE_WORK_REDACT_FILE="${CE_WORK_REDACT_FILE:-}" python3 - \
+CE_WORK_REDACT_FILE="${CE_WORK_REDACT_FILE:-}" "$HOST_PYTHON" - \
   "$SOURCE" "$RAW_STDOUT" "$ROUTE" "$TARGET" "$HARNESS" \
   "$MODEL_REQUESTED" "$EFFORT_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$MODEL_DISPLAY_HINT" <<'PY' | write_result_receipt
 import json, os, re, sys
@@ -993,7 +1276,7 @@ PUBLISH_EXIT="${NORMALIZE_STATUSES[1]}"
 if [ "$PUBLISH_EXIT" -ne 0 ]; then exit 2; fi
 if [ "$NORMALIZE_EXIT" -ne 0 ]; then exit 1; fi
 
-TERMINAL_STATUS="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["terminal_status"])' "$RESULT_FILE")"
+TERMINAL_STATUS="$("$HOST_PYTHON" -c 'import json,sys; print(json.load(open(sys.argv[1]))["terminal_status"])' "$RESULT_FILE")"
 case "$TERMINAL_STATUS" in
   completed|blocked|scope_expansion) exit 0 ;;
   *) exit 1 ;;

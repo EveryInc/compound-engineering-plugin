@@ -954,11 +954,19 @@ def remove_finalized_artifacts(run_id: str, unit_id: str) -> None:
             raise Operational("REFUSED", "artifact pruning requires a finalized unit with recorded cleanup")
         attempt_job_ids = [attempt.get("job_id") for attempt in unit.get("attempts", []) if attempt.get("job_id")]
         authorization_paths = [attempt.get("authorization_path") for attempt in unit.get("attempts", []) if attempt.get("authorization_path")]
+        confinement_paths = [
+            attempt.get("dispatch_authorization_receipt", {}).get("confinement_path")
+            for attempt in unit.get("attempts", [])
+            if isinstance(attempt.get("dispatch_authorization_receipt"), dict)
+            and attempt["dispatch_authorization_receipt"].get("confinement_path")
+        ]
         packet_path = unit.get("packet", {}).get("path")
         result_dir = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result")
+        environment_dir = os.path.join(os.path.dirname(unit["workspace"]["path"]), "environment")
         root = run_dir(run_id)
-    paths = [(packet_path, "file"), (result_dir, "dir")]
+    paths = [(packet_path, "file"), (result_dir, "dir"), (environment_dir, "dir")]
     paths.extend((authorization_path, "file") for authorization_path in authorization_paths)
+    paths.extend((confinement_path, "file") for confinement_path in confinement_paths)
     paths.extend((runner_job_dir(run_id, job_id), "dir") for job_id in attempt_job_ids)
     for candidate, kind in paths:
         if not candidate or not os.path.lexists(candidate):
@@ -978,6 +986,7 @@ def remove_finalized_artifacts(run_id: str, unit_id: str) -> None:
         for attempt in unit.get("attempts", []):
             attempt["bulky_artifacts_retained"] = False
             attempt["authorization_retained"] = False
+            attempt["confinement_retained"] = False
         unit["cleanup"]["artifact_cleanup"] = {"at": now_iso(), "complete": True}
         event(doc, "finalized-artifacts-pruned", unit_id, {"job_count": len(attempt_job_ids)})
 
