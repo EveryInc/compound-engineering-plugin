@@ -205,6 +205,8 @@ Concrete model IDs and CLI flags are preferred adapter defaults, not permanent p
 
 External peers launch only from the canonical repository root through ce-pov's co-located clean Python launcher. Before Bash starts, it removes shell startup hooks, exported functions, ambient API/OAuth credentials, provider config pointers, and ambient home/config roots; provider and interpreter discovery then rejects project-local executables and every shebang argument that could select, preload, or evaluate code. Each provider receives empty private home, temp, XDG, and provider-config roots under per-peer scratch. No credential or configuration file is copied, so routes requiring model-readable local auth/config degrade unavailable; credential-free or externally brokered authentication remains eligible. Codex also receives fixed overrides selecting its built-in OpenAI provider and disabling hook, plugin/app, subagent, skill-MCP-install, and MCP-server surfaces.
 
+Cursor-family peers (`Cursor`, `Composer`, and Grok-via-Cursor) also use that empty private scratch as `cursor-agent`'s cwd and workspace, without project trust. The canonical prompt names the repository/read root as an explicit cooperative outside-workspace read request, while `--sandbox enabled` and headless ask mode remain active. This prevents project `.cursor` rules, MCP servers, hooks, and permissions from auto-loading. Some Cursor sandboxes may deny the outside-workspace read; when that happens the peer is reported unavailable/incomplete rather than relaunching in, or trusting, the repository.
+
 ---
 
 ## FAQ

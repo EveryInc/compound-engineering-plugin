@@ -106,7 +106,7 @@ describe("ce-pov cross-model panel contract", () => {
     expect(phaseThree).toContain("authorizes the panel protocol's normal read-only consultation")
     expect(phaseThree).toContain("Announce the selected peers before dispatch")
     expect(phaseThree).toMatch(/unsanctioned recipient or intermediary.*unavailable.*without asking/)
-    expect(phaseThree).toContain("shared working tree")
+    expect(phaseThree).toContain("declared repository scope")
   })
 
   test("forms an independent solo POV before the panel and emits only after it finishes", async () => {
@@ -244,11 +244,11 @@ describe("ce-pov cross-model panel contract", () => {
     expect(invocation).toContain("not a revision prompt")
   })
 
-  test("grounds initial peers in the subject and shared tree without a host-curated project floor", async () => {
+  test("grounds initial peers in the subject and declared read root without a host-curated project floor", async () => {
     const peer = await skillFile("references/agents/pov-peer.md")
     const prose = compact(peer)
 
-    expect(prose).toMatch(/supplied subject.*shared working tree/)
+    expect(prose).toMatch(/supplied subject.*repository read root/)
     expect(prose).toContain("Do not require or infer a host-curated project summary")
     expect(prose).not.toContain("verified project floor")
     expect(prose).not.toContain("shared project floor")
@@ -283,6 +283,22 @@ describe("ce-pov cross-model panel contract", () => {
     expect(scopePrompt).toContain("cooperative-unless-adapter-supported")
     expect(scopePrompt).toContain("INCLUDE_PATHS")
     expect(scopePrompt).toContain("EXCLUDE_PATHS")
+  })
+
+  test("pins Cursor project isolation and fail-closed outside-workspace reads", async () => {
+    const [skill, panel, docs] = await Promise.all([
+      skillFile("SKILL.md"),
+      skillFile("references/cross-model-panel.md"),
+      readFile(path.join(ROOT, "docs/skills/ce-pov.md"), "utf8"),
+    ])
+    const prose = compact(`${skill}\n${panel}\n${docs}`)
+
+    expect(prose).toContain("empty private")
+    expect(prose).toContain("outside-workspace")
+    expect(prose).toContain("--sandbox enabled")
+    expect(prose).toMatch(/rules, MCP.*hooks.*permissions.*auto-load/i)
+    expect(prose).toMatch(/denial.*unavailable\/incomplete|read denial.*unavailable/i)
+    expect(prose).toMatch(/never widen|rather than widening/i)
   })
 
   test("pins fail-closed host attestation and classified skip evidence", async () => {

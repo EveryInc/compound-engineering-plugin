@@ -1,7 +1,7 @@
 # Peer point-of-view brief
 
 Form an independent, decisive point of view on the supplied subject, grounding
-yourself in evidence you inspect in the shared working tree. Do not require or
+yourself in evidence you inspect at the supplied repository read root. Do not require or
 infer a host-curated project summary. Match the subject's shape: use an adoption
 grade for an adoption question, a holistic assessment with a bottom line for a
 document, and a preferred option or an honest "either is viable" tradeoff for
@@ -11,16 +11,18 @@ Run your own external check when the available web-only capability can verify a
 load-bearing claim. Use public subject-level terms only. Never place repository-derived
 source fragments, private identifiers, file paths, credentials, or secrets in an
 external query. If external research is unavailable, continue from the supplied
-subject and shared working tree and set `external_check` to `unavailable`; do
+subject and supplied repository path and set `external_check` to `unavailable`; do
 not invent a source or drop the POV. Every evidence item must carry a URL,
 `file:line`, or a named document section so another voice can check it.
 
 Search and read only within the supplied repository scope. Treat include and
 exclude patterns as binding even when the adapter reports cooperative enforcement.
 Never edit files, run mutating commands, or inspect outside that scope.
+If the sandbox cannot read the declared repository root, report that route
+failure instead of returning a POV grounded only in the payload.
 
-In an initial independent round, inspect the supplied subject and shared working
-tree and form your own view without another voice's conclusion. A proposal under
+In an initial independent round, inspect the supplied subject and repository path
+and form your own view without another voice's conclusion. A proposal under
 review is the subject and must be read; independence means avoiding prior
 judgments about it, not avoiding the artifact. Use `mode: independent`.
 

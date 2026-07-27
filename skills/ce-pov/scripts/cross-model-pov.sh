@@ -5,7 +5,7 @@
 # process and writes its POV as JSON into the run dir.
 # Every peer receives the canonical POV persona, schema, and a caller-prepared
 # subject payload. The peer also receives the caller-declared repository read
-# scope; private prompt/result scratch stays outside that repository.
+# scope in its prompt; private prompt/result scratch stays outside that repository.
 #
 # Independence is by PROVIDER, not CLI brand. A provider is reached by a ROUTE:
 # its dedicated CLI, or (for the fixed grok-cursor / composer routes) cursor-agent. All
@@ -27,7 +27,7 @@
 #                   different recipient.
 #   <subject-payload> framed question plus any conversation-only subject material.
 #                     Point to repository files instead of copying their contents;
-#                     the peer grounds itself from the shared working tree.
+#                     the peer grounds itself through the declared read path.
 #   <run-dir>         existing private dir outside the repository; output ->
 #                     <run-dir>/pov-<target>.json, where <target> is the resolved
 #                     <fixed-route> target (grok-cli/grok-cursor both collapse to
@@ -533,7 +533,9 @@ extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODE
 # Peer routes write to RAW_OUT only; the final fold-in file (OUT) is published after normalize so an orphaned
 # peer process cannot leave an un-normalized return. NEVER emit: codex without
 # `-s read-only`; grok `--always-approve` / `--permission-mode bypassPermissions`;
-# cursor-agent `-f` / `--force` / `--yolo`.
+# cursor-agent `--trust` / `-f` / `--force` / `--yolo`. Cursor-family routes
+# keep their project context in PEER_WORKDIR and request READ_ROOT cooperatively
+# through the prompt; repository-controlled Cursor config must never auto-load.
 adapter_argv() {
   case "$1" in
     codex)
@@ -568,22 +570,22 @@ adapter_argv() {
     grok-cursor)
       # ce-dispatch-site:ce-pov.panel-cli-grok-cursor
       emit_provider_prefix grok-cursor
-      printf '%s\0' -p --model "$(route_model grok-cursor)" --mode ask --trust \
-        --sandbox enabled --workspace "$READ_ROOT" --output-format json
+      printf '%s\0' -p --model "$(route_model grok-cursor)" --mode ask \
+        --sandbox enabled --workspace "$PEER_WORKDIR" --output-format json
       ;;
     cursor)
       # ce-dispatch-site:ce-pov.panel-cli-cursor
       emit_provider_prefix cursor
       printf '%s\0' -p
       [ -z "${CE_ROUTING_CANDIDATE_MODEL:-}" ] || printf '%s\0' --model "$(route_model cursor)"
-      printf '%s\0' --mode ask --trust \
-        --sandbox enabled --workspace "$READ_ROOT" --output-format json
+      printf '%s\0' --mode ask \
+        --sandbox enabled --workspace "$PEER_WORKDIR" --output-format json
       ;;
     composer)
       # ce-dispatch-site:ce-pov.panel-cli-composer
       emit_provider_prefix composer
-      printf '%s\0' -p --model "$(route_model composer)" --mode ask --trust \
-        --sandbox enabled --workspace "$READ_ROOT" --output-format json
+      printf '%s\0' -p --model "$(route_model composer)" --mode ask \
+        --sandbox enabled --workspace "$PEER_WORKDIR" --output-format json
       ;;
     *) return 1 ;;
   esac
@@ -742,7 +744,7 @@ log "fixed cross-model POV route: target=$TARGET route=$FIXED_ROUTE (host $HOST_
 # --- compose the peer prompt from the canonical persona (single source) ----
 # The payload is prepared by ce-pov and embeds the framed question plus any
 # conversation-only subject material needed for this round. Repository evidence
-# stays in the shared working tree for the peer to inspect directly.
+# stays at the declared absolute read root for the peer to request directly.
 SCRATCH_PARENT="${CROSS_MODEL_SCRATCH_PARENT:-/tmp}"
 [ -d "$SCRATCH_PARENT" ] || mkdir -p "$SCRATCH_PARENT" 2>/dev/null || skip "private scratch parent '$SCRATCH_PARENT' unavailable"
 SCRATCH_PARENT="$(cd "$SCRATCH_PARENT" && pwd -P)" || skip "cannot resolve private scratch parent"
@@ -790,6 +792,7 @@ trap 'cleanup_private_scratch' EXIT
   printf '\n\nSet the top-level "voice" field to "peer" (it will be namespaced to the provider on fold-in).\n'
   printf '\n<repository-read-scope enforcement="cooperative-unless-adapter-supported">\n'
   printf 'root: %s\nincludes: %s\nexcludes: %s\n' "$READ_ROOT" "${INCLUDE_PATHS:-<all>}" "${EXCLUDE_PATHS:-<none>}"
+  printf 'The repository is outside the Cursor-family scratch workspace. Request reads by this absolute root only. If the sandbox denies that access, report the route unavailable instead of answering from the payload alone.\n'
   printf '</repository-read-scope>\n'
   printf '\n<subject-payload>\n'
   cat "$PAYLOAD_PATH"
@@ -928,11 +931,13 @@ run_codex_cmd() {   # CMD already built for the codex route; streams to PEERLOG,
   ACTIVE_PEER_PID=""
 }
 
-run_timeout_cmd() {   # $1 = stdin file ("" -> /dev/null). CMD already built.
+run_timeout_cmd() {   # $1 = stdin file ("" -> /dev/null), $2 = route. CMD already built.
   RUN_SUCCEEDED=false
-  # Run from the declared read root. Private prompt/output paths are absolute and
-  # remain outside the repository; route adapters separately carry the same root.
-  local stdin_file="${1:-}"; [ -n "$stdin_file" ] || stdin_file=/dev/null
+  # Cursor-family project discovery is rooted in private scratch. Other routes
+  # retain their declared read-root cwd; private prompt/output paths are absolute.
+  local stdin_file="${1:-}" route="${2:-}" workdir="$READ_ROOT"
+  [ -n "$stdin_file" ] || stdin_file=/dev/null
+  case "$route" in grok-cursor|cursor|composer) workdir="$PEER_WORKDIR" ;; esac
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
   set -m
   if ! revalidate_provider; then
@@ -941,9 +946,9 @@ run_timeout_cmd() {   # $1 = stdin file ("" -> /dev/null). CMD already built.
     return 0
   fi
   if [ -n "$TO_BIN" ]; then
-    ( cd "$READ_ROOT" && exec "${MIN_ENV[@]}" "$TO_BIN" -k 10 "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
+    ( cd "$workdir" && exec "${MIN_ENV[@]}" "$TO_BIN" -k 10 "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
   else
-    ( cd "$READ_ROOT" && exec "${MIN_ENV[@]}" perl -e 'alarm shift; exec @ARGV' "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
+    ( cd "$workdir" && exec "${MIN_ENV[@]}" perl -e 'alarm shift; exec @ARGV' "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
   fi
   local pid=$!
   ACTIVE_PEER_PID="$pid"
@@ -1046,14 +1051,14 @@ attempt_route() {   # <provider> <route>
         recover_pov_json "$PEERLOG" "$RAW_OUT" && log "recovered codex JSON from stdout (-o file unavailable)"
       fi
       ;;
-    grok-cli)    run_timeout_cmd ""            ; [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # grok reads --prompt-file
-    claude)      run_timeout_cmd "$PROMPT_FILE"; [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # claude -p reads stdin
+    grok-cli)    run_timeout_cmd "" "$route"             ; [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # grok reads --prompt-file
+    claude)      run_timeout_cmd "$PROMPT_FILE" "$route" ; [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # claude -p reads stdin
     grok-cursor|cursor|composer)
       # cursor-agent reads the prompt from stdin (verified). Use stdin, NOT a
       # positional argv token: the composed prompt (persona + schema + template +
       # full subject payload, up to CROSS_MODEL_MAX_PAYLOAD_CHARS) can exceed ARG_MAX and fail
       # the exec with E2BIG on low-limit hosts, whereas stdin has no size limit.
-      run_timeout_cmd "$PROMPT_FILE"; [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;
+      run_timeout_cmd "$PROMPT_FILE" "$route"; [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;
   esac
   if [ "$RUN_SUCCEEDED" != true ]; then
     rm -f "$RAW_OUT"

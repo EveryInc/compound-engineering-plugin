@@ -115,23 +115,30 @@ never capitulated to.
 
 Normalize the allowed read scope once as:
 
-- one repository-relative workspace root; and
+- one repository read root; and
 - optional ordered include and exclude path patterns.
 
-Pass that identical representation to every peer prompt and route adapter. The
-default is the repository root. A narrower user- or host-supplied scope is
+Pass that identical representation to every peer prompt and each adapter that
+can enforce it. The default is the repository root. A narrower user- or host-supplied scope is
 binding and is never broadened. Peers launched on the same host inspect existing
-subject files and supporting evidence directly from this shared working tree;
+subject files and supporting evidence through this declared repository path;
 point them to those files instead of copying their contents into the payload.
 Pass material inline only when it exists solely in the conversation or is
-otherwise unavailable in the workspace.
+otherwise unavailable at the declared read root.
 
 Treat include and exclude path patterns as cooperative unless the concrete
 adapter turns them into filesystem controls. Never present prompt-only patterns,
 a working directory, or a read-only flag as a confidentiality boundary, and
 never promise that secrets inside the readable scope are inaccessible. Peers may
 search and read within the declared scope but may not mutate the project or
-intentionally inspect outside it.
+intentionally inspect outside it. Cursor-family routes (`cursor`, `composer`, and
+`grok-cursor`) keep `cursor-agent` project context and cwd in empty private
+scratch, omit `--trust`, retain `--sandbox enabled`, and name the external
+absolute read root only in the canonical prompt. Their repository read is
+therefore cooperative and may be denied by the concrete sandbox. Such a denial
+makes that voice unavailable/incomplete; never widen the workspace to the
+repository, enable project trust, or consume a payload-only answer as an
+independent artifact.
 
 Before initial dispatch, capture one **repository-scope identity**: the committed
 revision plus a digest of dirty and untracked content inside the normalized
@@ -210,9 +217,9 @@ unless the user supplied a recognizable name.
 
 Prepare one complete canonical payload containing the framed question, subject
 shape, normalized read scope, repository-scope identity, mode, paths to subject
-material already in the workspace, and required conversational material that is
-not available there. Let peers inspect and ground against the shared working
-tree. Do not duplicate readable files or add a host-curated architecture summary
+material already under that read root, and required conversational material that is
+not available there. Let peers inspect and ground against the declared read
+root. Do not duplicate readable files or add a host-curated architecture summary
 merely to brief the peer.
 
 For an initial `independent` round, exclude ce-pov's position and every other
@@ -284,6 +291,14 @@ filesystem remain eligible.
 Codex starts with its working directory in private scratch rather than the repository,
 while the prompt and read-only sandbox carry the absolute declared read root; this
 prevents repository `.codex/config.toml` files from becoming an active config layer.
+Every Cursor-family route likewise starts headless (`-p`) with cwd and
+`--workspace` set to its empty private scratch directory. It keeps `--mode ask`
+and `--sandbox enabled`, never passes `--trust`, and receives the repository only
+as an explicit absolute path in the canonical prompt. This prevents project
+rules, MCP configuration, hooks, and permissions under `.cursor/` from becoming
+an active config layer. If that sandbox cannot read the outside-workspace path,
+the route is unavailable/incomplete rather than retried with repository workspace
+or trust.
 Pass the actual repository root separately from any narrower read root, and
 pre-create the round output directory as private scratch outside the repository.
 For named peers, start one job per exact target; for a selected panel, start one
