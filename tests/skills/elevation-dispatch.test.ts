@@ -235,37 +235,30 @@ describe("elevation-dispatch worker", () => {
     expect(existsSync(invoked)).toBe(false)
   })
 
-  test("rejects provider identity substitution after qualification", () => {
-    const invoked = path.join(mkTempRoot("elevation-substitution-"), "replacement-invoked")
+  test("project-local helper shims never run when a safe provider is later on PATH", () => {
+    const project = mkTempRoot("elevation-helper-project-")
+    mkdirSync(path.join(project, ".git"))
+    const hostileBin = path.join(project, "bin")
+    mkdirSync(hostileBin)
+    const marker = path.join(project, "helper-invoked")
+    for (const helper of ["mktemp", "wc", "tr", "cat", "jq"]) {
+      const shim = path.join(hostileBin, helper)
+      writeFileSync(shim, `#!/bin/sh\n: > '${marker}'\nexit 99\n`)
+      chmodSync(shim, 0o755)
+    }
     const safeResponse = RESULT_LINE("SAFE", { "claude-fable-5": {} })
-    const { bin, env } = sandbox(`#!/bin/sh\nprintf '%s\\n' '${safeResponse}'\n`)
-    const provider = path.join(bin, "claude")
-    const realMktemp = REAL_TOOL_PATHS.find(([tool]) => tool === "mktemp")?.[1]
-    expect(realMktemp).toBeTruthy()
-    rmSync(path.join(bin, "mktemp"))
-    writeFileSync(path.join(bin, "mktemp"), `#!/bin/sh
-out="$('${realMktemp}' "$@")" || exit $?
-replacement='${provider}.replacement'
-printf '%s\n' '#!/bin/sh' ': > "${invoked}"' 'exit 0' > "$replacement"
-chmod 755 "$replacement"
-mv -f "$replacement" '${provider}'
-printf '%s' "$out"
-`)
-    chmodSync(path.join(bin, "mktemp"), 0o755)
+    const safe = sandbox(`#!/bin/sh\nprintf '%s\\n' '${safeResponse}'\n`)
 
-    const scratch = mkTempRoot("elevation-substitution-run-")
-    const promptFile = path.join(scratch, "brief.md")
-    const resultPath = path.join(scratch, "result.json")
-    writeFileSync(promptFile, "author the plan")
-    const r = spawnSync("bash", [WORKER, "fable", promptFile, resultPath], {
-      encoding: "utf8",
-      env: { CE_ELEVATION_POLL_SECS: "0.2", ...env },
-    })
+    const { result } = runWorker(
+      "fable",
+      "#!/bin/sh\nexit 99\n",
+      { PATH: `${hostileBin}:${safe.bin}` },
+      [],
+      project,
+    )
 
-    expect(r.status).toBe(0)
-    expect(JSON.parse(readFileSync(resultPath, "utf8")).status).toBe("failed")
-    expect(r.stderr).toContain("provider executable identity changed")
-    expect(existsSync(invoked)).toBe(false)
+    expect(result).toMatchObject({ status: "ok", output: "SAFE" })
+    expect(existsSync(marker)).toBe(false)
   })
 
   test("accepts a safe external symlink launcher after validating its final target", () => {
@@ -291,6 +284,61 @@ printf '%s' "$out"
       status: "ok",
       output: "SYMLINK SAFE",
     })
+  })
+
+  test("binds an env shebang interpreter from discovery PATH without invoking a malicious provider sibling", () => {
+    const root = mkTempRoot("elevation-env-chain-")
+    const interpreterBin = path.join(root, "interpreters")
+    const providerBin = path.join(root, "provider")
+    mkdirSync(interpreterBin)
+    mkdirSync(providerBin)
+    const safeMarker = path.join(root, "safe-interpreter")
+    const maliciousMarker = path.join(root, "malicious-interpreter")
+    const interpreter = path.join(interpreterBin, "ce-safe-node")
+    writeFileSync(interpreter, `#!/bin/sh\n: > '${safeMarker}'\n[ "\${1:-}" = "--safe-flag" ] && shift\nexec /bin/sh "$@"\n`)
+    chmodSync(interpreter, 0o755)
+    const malicious = path.join(providerBin, "ce-safe-node")
+    writeFileSync(malicious, `#!/bin/sh\n: > '${maliciousMarker}'\nexit 99\n`)
+    chmodSync(malicious, 0o755)
+    const provider = path.join(providerBin, "claude")
+    writeFileSync(
+      provider,
+      `#!/usr/bin/env -S ce-safe-node --safe-flag\nprintf '%s\\n' '${RESULT_LINE("ENV SAFE", { "claude-fable-5": {} })}'\n`,
+    )
+    chmodSync(provider, 0o755)
+
+    const { result } = runWorker(
+      "fable",
+      "#!/bin/sh\nexit 99\n",
+      { PATH: `${interpreterBin}:${providerBin}:${process.env.PATH ?? "/usr/bin:/bin"}` },
+    )
+
+    expect(result).toMatchObject({ status: "ok", output: "ENV SAFE" })
+    expect(existsSync(safeMarker)).toBe(true)
+    expect(existsSync(maliciousMarker)).toBe(false)
+  })
+
+  test("rejects unsupported env shebang forms before invoking the provider", () => {
+    const { bin, env } = sandbox("#!/bin/sh\nexit 99\n")
+    const invoked = path.join(path.dirname(bin), "unsupported-invoked")
+    writeFileSync(
+      path.join(bin, "claude"),
+      `#!/usr/bin/env sh unsupported-without-split\n: > '${invoked}'\n`,
+    )
+    chmodSync(path.join(bin, "claude"), 0o755)
+    const scratch = mkTempRoot("elevation-unsupported-shebang-")
+    const promptFile = path.join(scratch, "brief.md")
+    const resultPath = path.join(scratch, "result.json")
+    writeFileSync(promptFile, "author the plan")
+
+    const result = spawnSync("bash", [WORKER, "fable", promptFile, resultPath], {
+      encoding: "utf8",
+      env: { CE_ELEVATION_POLL_SECS: "0.2", ...env },
+    })
+
+    expect(result.stderr).toContain("unsupported /usr/bin/env shebang form")
+    expect(JSON.parse(readFileSync(resultPath, "utf8")).status).toBe("failed")
+    expect(existsSync(invoked)).toBe(false)
   })
 
   test("rejects a provider below a group-writable external ancestor", () => {
@@ -351,7 +399,7 @@ printf '%s' "$out"
       "#!/bin/sh\n" +
       `env > "${envCapture}"\n` +
       `printf '%s\\n' '${RESULT_LINE("OK", { "claude-fable-5": {} })}'\n`
-    const { bin, env } = sandbox(stub)
+    const { env } = sandbox(stub)
     const r = spawnSync("bash", [WORKER, "fable", promptFile, resultPath], {
       encoding: "utf8",
       env: {
@@ -369,7 +417,7 @@ printf '%s' "$out"
     expect(childEnv).toContain("USER=elevation-keychain-user")
     expect(childEnv).toContain(`CLAUDE_CONFIG_DIR=${claudeConfig}`)
     expect(childEnv.split("\n").find((line) => line.startsWith("PATH="))).toBe(
-      `PATH=${bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/homebrew/bin`,
+      "PATH=/usr/bin:/bin",
     )
     expect(childEnv).not.toContain("ANTHROPIC_API_KEY=")
     expect(childEnv).not.toContain("CLAUDE_CODE_OAUTH_TOKEN=")
@@ -377,17 +425,12 @@ printf '%s' "$out"
     expect(childEnv).not.toContain(oauthSecret)
   })
 
-  test("missing jq exits 0 with a failure envelope, so the runner still emits it", () => {
-    // jq is optional (ce-setup). The worker must NOT exit nonzero here: the
-    // runner classifies a nonzero exit as `failed`, and its `result` command
-    // then refuses to emit the artifact — the recovery flow could never read
-    // this envelope. Exit 0 makes the job `done` so status:failed degrades
-    // cleanly to inline.
+  test("trusted jq remains functional when it is absent from caller PATH", () => {
     const stub =
       "#!/bin/sh\n" + `printf '%s\\n' '${RESULT_LINE("PLAN BODY", null)}'\n`
     const { result, status } = runWorker("fable", stub, {}, ["jq"])
     expect(status).toBe(0)
-    expect(result.status).toBe("failed")
+    expect(result.status).toBe("ok")
     expect(result.requested_model).toBe("fable")
   })
 

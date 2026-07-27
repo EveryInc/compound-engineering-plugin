@@ -180,8 +180,8 @@ function isDispatchLine(lines: string[], index: number, extension: string): bool
   if (!trimmed || trimmed.startsWith("<!--") || (extension === ".sh" && trimmed.startsWith("#"))) return false
   if (extension === ".md" && trimmed.startsWith("|")) return false
   if (extension === ".sh" && (
-    /\bCMD=\("\$\{PROVIDER_EXECUTABLE:-<qualified-claude>\}"\s+-p\b/.test(line)
-    || /^\s*printf\b.*\bprovider_argv0 (?:codex|claude|grok-cli|grok-cursor|cursor|composer)\)/.test(line)
+    /^\s*CMD=\("\$\{PROVIDER_CMD_PREFIX\[@\]\}"\s+-p\b/.test(line)
+    || /^\s*emit_provider_prefix (?:codex|claude|grok-cli|grok-cursor|cursor|composer)\s*$/.test(line)
   )) return true
   if (modelCli.test(line) && (/^\s*(?:CMD=\(|printf\b|cat\b)/.test(line)
     || /^\s*(?:codex(?:\s+--search)?\s+exec|claude\s+-p|grok\s+--prompt-file|cursor-agent\s+-p)/.test(line))) return true

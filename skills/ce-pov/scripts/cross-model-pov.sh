@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # cross-model-pov.sh
 #
 # Runs one pre-sanctioned different-model route in a read-only, least-privilege
@@ -53,6 +53,15 @@
 
 set -uo pipefail
 
+# Caller PATH is untrusted discovery data only. Establish the helper boundary
+# before the first external command; provider/interpreter lookup receives the
+# captured value explicitly and provider execution never inherits it.
+DISCOVERY_PATH="${PATH:-}"
+TRUSTED_HELPER_PATH="/usr/bin:/bin"
+HELPER_DISCOVERY_PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+PATH="$TRUSTED_HELPER_PATH"
+export PATH
+
 # Survive SIGHUP when the orchestrator backgrounds this script and the parent
 # shell exits (common on Cursor/Codex Bash tools). Without this, a detached
 # codex process group can still write raw `-o` JSON while this script dies
@@ -77,27 +86,35 @@ cleanup_private_scratch() {
 log()  { printf '[cross-model-pov] %s\n' "$*" >&2; }
 skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no output
 
-PROVIDER_EXECUTABLE=""
-PROVIDER_LOOKUP=""
 PROVIDER_IDENTITY=""
-PROVIDER_MIN_PATH=""
+PROVIDER_CMD_PREFIX=()
+JQ_IDENTITY=""
+JQ_CMD_PREFIX=()
 SYSTEM_PYTHON="/usr/bin/python3"
+SYSTEM_ENV="/usr/bin/env"
 
-# Resolve the fixed route's provider once. Validate the PATH launcher and its
-# canonical target, then bind target bytes and ownership/mode/ancestry metadata
-# so a later replacement cannot discard this adapter's read-only flags.
-provider_identity() { # <qualify|verify> <lookup-path> [expected-identity]
-  [ -x "$SYSTEM_PYTHON" ] || return 1
-  "$SYSTEM_PYTHON" -I -S - "$@" <<'PY'
+# Resolve an executable and every shebang interpreter once, then bind each
+# canonical file plus ownership/mode/ancestry metadata. Fixed system binaries
+# run the validator in an empty environment, outside caller PATH influence.
+provider_identity() { # <qualify|verify> <name> <discovery-path> [expected-identity]
+  [ -x "$SYSTEM_ENV" ] && [ -x "$SYSTEM_PYTHON" ] || return 1
+  "$SYSTEM_ENV" -i "PATH=$TRUSTED_HELPER_PATH" "PYTHONDONTWRITEBYTECODE=1" \
+    "$SYSTEM_PYTHON" -I -S - "$@" <<'PY'
 import hashlib
 import json
 import os
+import shlex
 import stat
 import sys
 
-mode, lookup = sys.argv[1:3]
-expected = sys.argv[3] if len(sys.argv) > 3 else ""
+mode, name, discovery = sys.argv[1:4]
+expected = sys.argv[4] if len(sys.argv) > 4 else ""
 uid = os.geteuid()
+MAX_DISCOVERY = 65536
+MAX_CHAIN_DEPTH = 6
+MAX_SHEBANG = 1024
+MAX_SHEBANG_ARGS = 8
+MAX_ARG = 256
 
 def fail(message):
     print(message, file=sys.stderr)
@@ -148,42 +165,122 @@ def inspect(path, executable=False):
             fail("provider target is not a regular executable")
     return records
 
-lookup = os.path.abspath(lookup)
-if os.sep not in lookup or not os.path.lexists(lookup):
-    fail("provider lookup did not return a filesystem path")
-target = os.path.realpath(lookup)
-if project_owner(lookup) is not None or project_owner(target) is not None:
-    fail("provider executable is project/worktree-owned")
+if not discovery or len(discovery) > MAX_DISCOVERY or "\0" in discovery:
+    fail("executable discovery PATH is missing or oversized")
 
-launcher_records = inspect(lookup)
-target_records = inspect(target, executable=True)
-flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
-try:
-    fd = os.open(target, flags)
-except OSError as exc:
-    fail(f"provider target cannot be opened safely: {exc}")
-try:
-    before = os.fstat(fd)
-    digest = hashlib.sha256()
-    while True:
-        chunk = os.read(fd, 1024 * 1024)
-        if not chunk:
-            break
-        digest.update(chunk)
-    after = os.fstat(fd)
-finally:
-    os.close(fd)
+def discover(command):
+    if not command or os.sep in command:
+        fail("interpreter command must be a simple name")
+    for directory in discovery.split(os.pathsep):
+        candidate = os.path.abspath(os.path.join(directory or ".", command))
+        if os.path.lexists(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    fail(f"executable not found in discovery PATH: {command}")
+
+nodes = []
+stack = set()
 bound = lambda value: (value.st_dev, value.st_ino, value.st_uid, stat.S_IMODE(value.st_mode), value.st_size, value.st_mtime_ns)
-if bound(before) != bound(after) or not stat.S_ISREG(after.st_mode):
-    fail("provider target changed while it was qualified")
 
-payload = {
-    "lookup": lookup,
-    "target": target,
-    "launcher": launcher_records,
-    "target_ancestry": target_records,
-    "file": [*bound(after), digest.hexdigest()],
-}
+def bind_file(lookup):
+    lookup = os.path.abspath(lookup)
+    if not os.path.lexists(lookup):
+        fail(f"executable path is missing: {lookup}")
+    target = os.path.realpath(lookup)
+    if project_owner(lookup) is not None or project_owner(target) is not None:
+        fail("executable is project/worktree-owned")
+    launcher_records = inspect(lookup)
+    target_records = inspect(target, executable=True)
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(target, flags)
+    except OSError as exc:
+        fail(f"executable target cannot be opened safely: {exc}")
+    prefix = bytearray()
+    try:
+        before = os.fstat(fd)
+        digest = hashlib.sha256()
+        while True:
+            chunk = os.read(fd, 1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+            if len(prefix) <= MAX_SHEBANG:
+                prefix.extend(chunk[: MAX_SHEBANG + 1 - len(prefix)])
+        after = os.fstat(fd)
+    finally:
+        os.close(fd)
+    if bound(before) != bound(after) or not stat.S_ISREG(after.st_mode):
+        fail("executable target changed while it was qualified")
+    nodes.append({
+        "lookup": lookup,
+        "target": target,
+        "launcher": launcher_records,
+        "target_ancestry": target_records,
+        "file": [*bound(after), digest.hexdigest()],
+    })
+    return target, bytes(prefix)
+
+def shebang_tokens(prefix):
+    if not prefix.startswith(b"#!"):
+        return None
+    newline = prefix.find(b"\n")
+    if newline < 0 or newline > MAX_SHEBANG:
+        fail("unsupported or oversized executable shebang")
+    raw = prefix[2:newline].rstrip(b"\r")
+    try:
+        line = raw.decode("utf-8", "strict")
+        tokens = shlex.split(line, posix=True)
+    except (UnicodeDecodeError, ValueError) as exc:
+        fail(f"malformed executable shebang: {exc}")
+    if not tokens or len(tokens) > MAX_SHEBANG_ARGS + 2:
+        fail("malformed or over-argument executable shebang")
+    if any(not token or len(token) > MAX_ARG or "\0" in token for token in tokens):
+        fail("unsafe executable shebang argument")
+    return tokens
+
+def resolve(lookup, depth=0):
+    if depth > MAX_CHAIN_DEPTH:
+        fail("executable interpreter chain is too deep")
+    target, prefix = bind_file(lookup)
+    if target in stack:
+        fail("executable interpreter chain contains a cycle")
+    tokens = shebang_tokens(prefix)
+    if tokens is None:
+        return [target]
+    interpreter, args = tokens[0], tokens[1:]
+    if not os.path.isabs(interpreter):
+        fail("shebang interpreter must be absolute")
+    stack.add(target)
+    try:
+        if interpreter in ("/usr/bin/env", "/bin/env"):
+            resolve(interpreter, depth + 1)
+            split = False
+            if args and args[0] in ("-S", "--split-string"):
+                split = True
+                args = args[1:]
+            elif args and args[0].startswith("--split-string="):
+                split = True
+                args = [args[0].split("=", 1)[1], *args[1:]]
+            elif args and args[0] == "--":
+                args = args[1:]
+            if not args or (len(args) > 1 and not split):
+                fail("unsupported /usr/bin/env shebang form")
+            command, command_args = args[0], args[1:]
+            if len(command_args) > MAX_SHEBANG_ARGS:
+                fail("over-argument /usr/bin/env shebang")
+            command_lookup = command if os.path.isabs(command) else discover(command)
+            if os.sep in command and not os.path.isabs(command):
+                fail("relative interpreter path is unsupported")
+            return [*resolve(command_lookup, depth + 1), *command_args, target]
+        if len(args) > 1:
+            fail("absolute shebang supports at most one interpreter argument")
+        return [*resolve(interpreter, depth + 1), *args, target]
+    finally:
+        stack.remove(target)
+
+lookup = discover(name)
+argv = resolve(lookup)
+payload = {"name": name, "discovery": discovery, "nodes": nodes, "argv": argv}
 identity = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 if mode == "verify":
     if identity != expected:
@@ -192,26 +289,40 @@ if mode == "verify":
 if mode != "qualify":
     fail("invalid provider identity operation")
 
-fixed = [os.path.dirname(lookup), "/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/sbin", "/bin", "/opt/homebrew/bin"]
-minimal_path = os.pathsep.join(dict.fromkeys(fixed))
-sys.stdout.buffer.write(target.encode() + b"\0" + identity.encode() + b"\0" + minimal_path.encode() + b"\0")
+sys.stdout.buffer.write(lookup.encode() + b"\0" + identity.encode() + b"\0")
+for token in argv:
+    sys.stdout.buffer.write(token.encode() + b"\0")
 PY
 }
 
 qualify_provider() { # <name>
-  local lookup field fields=()
-  lookup="$(command -v -- "$1" 2>/dev/null)" || return 1
-  while IFS= read -r -d '' field; do fields+=("$field"); done < <(provider_identity qualify "$lookup")
-  [ "${#fields[@]}" -eq 3 ] || return 1
-  PROVIDER_LOOKUP="$lookup"
-  PROVIDER_EXECUTABLE="${fields[0]}"
+  local field fields=()
+  while IFS= read -r -d '' field; do fields+=("$field"); done < <(provider_identity qualify "$1" "$DISCOVERY_PATH")
+  [ "${#fields[@]}" -ge 3 ] || return 1
   PROVIDER_IDENTITY="${fields[1]}"
-  PROVIDER_MIN_PATH="${fields[2]}"
+  PROVIDER_CMD_PREFIX=("${fields[@]:2}")
 }
 
 revalidate_provider() {
-  provider_identity verify "$PROVIDER_LOOKUP" "$PROVIDER_IDENTITY"
+  provider_identity verify "$(route_provider_name "$FIXED_ROUTE")" "$DISCOVERY_PATH" "$PROVIDER_IDENTITY"
 }
+
+qualify_json_helper() {
+  local field fields=()
+  while IFS= read -r -d '' field; do fields+=("$field"); done < <(provider_identity qualify jq "$HELPER_DISCOVERY_PATH")
+  [ "${#fields[@]}" -ge 3 ] || return 1
+  JQ_IDENTITY="${fields[1]}"
+  JQ_CMD_PREFIX=("${fields[@]:2}")
+}
+
+json_tool() {
+  provider_identity verify jq "$HELPER_DISCOVERY_PATH" "$JQ_IDENTITY" || return 1
+  "${JQ_CMD_PREFIX[@]}" "$@"
+}
+
+# Keep shared receipt kernels byte-identical while routing their jq calls through
+# the qualified absolute helper rather than ambient PATH.
+jq() { json_tool "$@"; }
 
 route_provider_name() {
   case "$1" in
@@ -221,11 +332,11 @@ route_provider_name() {
   esac
 }
 
-provider_argv0() {
-  if [ -n "$PROVIDER_EXECUTABLE" ]; then
-    printf '%s' "$PROVIDER_EXECUTABLE"
+emit_provider_prefix() {
+  if [ "${#PROVIDER_CMD_PREFIX[@]}" -gt 0 ]; then
+    printf '%s\0' "${PROVIDER_CMD_PREFIX[@]}"
   else
-    printf '<qualified-%s>' "$(route_provider_name "$1")"
+    printf '<qualified-%s>\0' "$(route_provider_name "$1")"
   fi
 }
 
@@ -423,7 +534,8 @@ adapter_argv() {
   case "$1" in
     codex)
       # ce-dispatch-site:ce-pov.panel-cli-codex
-      printf '%s\0' "$(provider_argv0 codex)" --search exec - -C "$READ_ROOT" --skip-git-repo-check -s read-only \
+      emit_provider_prefix codex
+      printf '%s\0' --search exec - -C "$READ_ROOT" --skip-git-repo-check -s read-only \
         -o "$RAW_OUT" -m "$(route_model codex)" -c "model_reasoning_effort=\"$(route_effort codex)\"" -c 'hide_agent_reasoning=false'
       ;;
     claude)
@@ -431,13 +543,15 @@ adapter_argv() {
       # and bounded public web checks. Mutating tools, Bash, MCP, and subagents are
       # absent from the allowlist.
       # ce-dispatch-site:ce-pov.panel-cli-claude
-      printf '%s\0' "$(provider_argv0 claude)" -p --model "$(route_model claude)" --effort "$(route_effort claude)" --permission-mode dontAsk \
+      emit_provider_prefix claude
+      printf '%s\0' -p --model "$(route_model claude)" --effort "$(route_effort claude)" --permission-mode dontAsk \
         --safe-mode --disable-slash-commands --tools Read,Glob,Grep,WebSearch,WebFetch \
         --max-turns 15 --no-session-persistence --json-schema "$SCHEMA_REF" --output-format json
       ;;
     grok-cli)
       # ce-dispatch-site:ce-pov.panel-cli-grok
-      printf '%s\0' "$(provider_argv0 grok-cli)" --prompt-file "$PROMPT_FILE" --model "$(route_model grok-cli)" --effort "$(route_effort grok-cli)" \
+      emit_provider_prefix grok-cli
+      printf '%s\0' --prompt-file "$PROMPT_FILE" --model "$(route_model grok-cli)" --effort "$(route_effort grok-cli)" \
         --cwd "$READ_ROOT" --permission-mode dontAsk \
         --deny Edit --deny Write --deny Bash --deny Task --deny 'mcp__*' \
         --no-subagents --max-turns 15 \
@@ -445,19 +559,22 @@ adapter_argv() {
       ;;
     grok-cursor)
       # ce-dispatch-site:ce-pov.panel-cli-grok-cursor
-      printf '%s\0' "$(provider_argv0 grok-cursor)" -p --model "$(route_model grok-cursor)" --mode ask --trust \
+      emit_provider_prefix grok-cursor
+      printf '%s\0' -p --model "$(route_model grok-cursor)" --mode ask --trust \
         --sandbox enabled --workspace "$READ_ROOT" --output-format json
       ;;
     cursor)
       # ce-dispatch-site:ce-pov.panel-cli-cursor
-      printf '%s\0' "$(provider_argv0 cursor)" -p
+      emit_provider_prefix cursor
+      printf '%s\0' -p
       [ -z "${CE_ROUTING_CANDIDATE_MODEL:-}" ] || printf '%s\0' --model "$(route_model cursor)"
       printf '%s\0' --mode ask --trust \
         --sandbox enabled --workspace "$READ_ROOT" --output-format json
       ;;
     composer)
       # ce-dispatch-site:ce-pov.panel-cli-composer
-      printf '%s\0' "$(provider_argv0 composer)" -p --model "$(route_model composer)" --mode ask --trust \
+      emit_provider_prefix composer
+      printf '%s\0' -p --model "$(route_model composer)" --mode ask --trust \
         --sandbox enabled --workspace "$READ_ROOT" --output-format json
       ;;
     *) return 1 ;;
@@ -534,7 +651,7 @@ case "$RUN_DIR_RESOLVED/" in "$REPO_ROOT/"*) skip "run-dir must be outside the r
 [ -d "$RUN_DIR_RESOLVED" ] || skip "run-dir '$RUN_DIR' must already exist"
 RUN_DIR="$RUN_DIR_RESOLVED"
 chmod 700 "$RUN_DIR" 2>/dev/null || skip "run-dir '$RUN_DIR' could not be made private"
-command -v jq >/dev/null 2>&1 || skip "jq not installed; skipping"
+qualify_json_helper || skip "jq unavailable from the trusted helper path; skipping"
 INCLUDE_PATHS="${CROSS_MODEL_INCLUDE_PATHS:-}"
 EXCLUDE_PATHS="${CROSS_MODEL_EXCLUDE_PATHS:-}"
 
@@ -572,7 +689,7 @@ in_csv() { case ",$2," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
 # objects fail the fixed route and return control to the host without publishing
 # a cross-check artifact.
 out_missing_or_invalid() {
-  [ ! -s "$RAW_OUT" ] || ! jq -e \
+  [ ! -s "$RAW_OUT" ] || ! json_tool -e \
     '(.voice|type)=="string" and (.voice|length)>0 and (.position|type)=="string" and (.position|length)>0 and (.reasoning|type)=="string" and (.reasoning|length)>0 and (.evidence|type)=="array" and (.external_check=="ran" or .external_check=="unavailable") and (.mode=="independent" or .mode=="skeptic") and (.movement=="initial" or .movement=="moved" or .movement=="held")' \
     "$RAW_OUT" >/dev/null 2>&1
 }
@@ -811,8 +928,9 @@ run_timeout_cmd() {   # $1 = stdin file ("" -> /dev/null). CMD already built.
 
 # Recover a POV object from raw stdout or from a string nested in a CLI envelope.
 recover_pov_json() {   # <logfile> <outfile>
-  command -v python3 >/dev/null 2>&1 || return 1
-  python3 - "$1" "$2" <<'PY' 2>/dev/null
+  [ -x "$SYSTEM_PYTHON" ] || return 1
+  "$SYSTEM_ENV" -i "PATH=$TRUSTED_HELPER_PATH" "PYTHONDONTWRITEBYTECODE=1" \
+    "$SYSTEM_PYTHON" -I -S - "$1" "$2" <<'PY' 2>/dev/null
 import sys, json
 txt = open(sys.argv[1], encoding="utf-8", errors="replace").read()
 best = None
@@ -846,21 +964,21 @@ PY
 
 # Parse a schema-shaped object out of a headless CLI JSON envelope (claude/grok/cursor).
 parse_structured() {   # <logfile> <outfile>
-  jq -e '.structured_output' "$1" > "$2" 2>/dev/null && return 0
-  jq -r '.result // empty' "$1" 2>/dev/null | jq -e '.' > "$2" 2>/dev/null && return 0
+  json_tool -e '.structured_output' "$1" > "$2" 2>/dev/null && return 0
+  json_tool -r '.result // empty' "$1" 2>/dev/null | json_tool -e '.' > "$2" 2>/dev/null && return 0
   recover_pov_json "$1" "$2"
 }
 
 bounded_failure_evidence() {   # <logfile>; prefer structured diagnostics, then bounded head+tail
   local path="$1" human ancillary evidence
-  human="$(jq -r '
+  human="$(json_tool -r '
     [
       (.result? | select(type == "string" and length > 0)),
       (.message? | select(type == "string" and length > 0)),
       (.error?.message? | select(type == "string" and length > 0))
     ] | unique | join(" | ")
   ' "$path" 2>/dev/null)"
-  ancillary="$(jq -r '
+  ancillary="$(json_tool -r '
     [
       (if .api_error_status? != null then "api_error_status=\(.api_error_status)" else empty end),
       (.terminal_reason? | select(type == "string" and length > 0) | "terminal_reason=" + .)
@@ -883,7 +1001,6 @@ attempt_route() {   # <provider> <route>
   local provider="$1" route="$2" note
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT"
   build_cmd "$route"
-  PATH="$PROVIDER_MIN_PATH"
   build_min_env "$route"
   case "$route" in
     codex|claude|grok-cli) note="$(route_model "$route") (effort $(route_effort "$route"))" ;;
@@ -942,7 +1059,7 @@ run_fixed_route() {
     esac
     independence=false
     [ "$HOST_PROVIDER" != "unknown" ] && [ "$serving_family" != "unknown" ] && [ "$HOST_PROVIDER" != "$serving_family" ] && independence=true
-    if jq --arg v "peer-$provider" --arg route "$ACTUAL_ROUTE" \
+    if json_tool --arg v "peer-$provider" --arg route "$ACTUAL_ROUTE" \
          --arg target "$provider" --arg harness "$(route_harness "$ACTUAL_ROUTE")" \
          --arg family "$serving_family" \
          --arg mreq "$(route_model "$ACTUAL_ROUTE")" --arg mact "$MODEL_ACTUAL" \
@@ -977,7 +1094,7 @@ run_fixed_route() {
     fi
     rm -f "$RAW_OUT"
   fi
-  if [ -s "$OUT" ] && jq -e \
+  if [ -s "$OUT" ] && json_tool -e \
     '(.voice|type)=="string" and (.position|type)=="string" and (.position|length)>0 and (.reasoning|type)=="string" and (.reasoning|length)>0 and (.evidence|type)=="array" and (.external_check=="ran" or .external_check=="unavailable") and (.mode=="independent" or .mode=="skeptic") and (.movement=="initial" or .movement=="moved" or .movement=="held") and (.independence_verified|type)=="boolean"' \
     "$OUT" >/dev/null 2>&1; then
     log "wrote peer POV to $OUT (voice peer-$provider)"

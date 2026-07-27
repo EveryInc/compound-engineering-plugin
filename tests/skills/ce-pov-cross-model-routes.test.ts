@@ -8,6 +8,7 @@ import {
   readFileSync,
   realpathSync,
   readdirSync,
+  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -259,7 +260,7 @@ describe("ce-pov output gate and receipts", () => {
     const claudeConfig = path.join(captureRoot, "claude-config")
     const apiSecret = "SENTINEL-pov-api-secret"
     const response = '{"structured_output":{"voice":"peer","position":"Choose A","reasoning":"Evidence","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"},"modelUsage":{"claude-sonnet-4-7-20260701":{"inputTokens":3}}}'
-    const { bin, env } = sandbox(["claude"], `#!/bin/sh
+    const { env } = sandbox(["claude"], `#!/bin/sh
 printf '%s' "$*" > '${capture}'
 env > '${envCapture}'
 cat >/dev/null
@@ -282,7 +283,7 @@ printf '%s' '${response}'
     expect(childEnv).toContain("USER=pov-keychain-user")
     expect(childEnv).toContain(`CLAUDE_CONFIG_DIR=${claudeConfig}`)
     expect(childEnv.split("\n").find((line) => line.startsWith("PATH="))).toBe(
-      `PATH=${bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/homebrew/bin`,
+      "PATH=/usr/bin:/bin",
     )
     expect(childEnv).not.toContain("ANTHROPIC_API_KEY=")
     expect(childEnv).not.toContain(apiSecret)
@@ -418,23 +419,44 @@ printf '%s' '${response}'
     expect(readdirSync(scratchParent)).toEqual([])
   })
 
-  test("workspace creation failure skips the provider without publishing an artifact", () => {
-    const { bin, env } = sandbox(["claude"])
-    const invoked = path.join(temp("pov-invoked-"), "claude")
-    const realMktemp = realTools().find(([tool]) => tool === "mktemp")?.[1]
-    expect(realMktemp).toBeTruthy()
-    writeFileSync(path.join(bin, "claude"), `#!/bin/sh\n: > '${invoked}'\nexit 0\n`)
-    rmSync(path.join(bin, "mktemp"))
-    writeFileSync(path.join(bin, "mktemp"), `#!/bin/sh\nif [ "\${1:-}" = "-d" ]; then exit 1; fi\nexec '${realMktemp}' "$@"\n`)
-    chmodSync(path.join(bin, "claude"), 0o755)
-    chmodSync(path.join(bin, "mktemp"), 0o755)
-
+  test("project-local helper shims never run when a safe provider is later on PATH", () => {
+    const project = temp("pov-helper-project-")
+    mkdirSync(path.join(project, ".git"))
+    const hostileBin = path.join(project, "bin")
+    mkdirSync(hostileBin)
+    const marker = path.join(project, "helper-invoked")
+    for (const helper of ["mktemp", "wc", "tr", "cat", "jq"]) {
+      const shim = path.join(hostileBin, helper)
+      writeFileSync(shim, `#!/bin/sh\n: > '${marker}'\nexit 99\n`)
+      chmodSync(shim, 0o755)
+    }
+    const response = '{"structured_output":{"voice":"peer","position":"Hold","reasoning":"Evidence","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"},"modelUsage":{"claude-opus-4-8-20260115":{}}}'
+    const safe = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${response}'\n`)
     const dir = runDir()
-    const result = run(["codex", "claude", payload(), dir], dir, env)
+    const result = run(["codex", "claude", payload(), dir], dir, {
+      ...safe.env,
+      PATH: `${hostileBin}:${safe.bin}`,
+    }, project)
     expect(result.code).toBe(0)
-    expect(existsSync(invoked)).toBe(false)
+    expect(result.files).toContain("pov-claude.json")
+    expect(existsSync(marker)).toBe(false)
+  })
+
+  test("an unavailable private scratch parent skips before provider invocation", () => {
+    const invoked = path.join(temp("pov-scratch-failure-"), "provider-invoked")
+    const { env } = sandbox(["claude"], `#!/bin/sh\n: > '${invoked}'\nexit 0\n`)
+    const scratchParent = path.join(temp("pov-scratch-file-"), "not-a-directory")
+    writeFileSync(scratchParent, "occupied")
+    const dir = runDir()
+
+    const result = run(["codex", "claude", payload(), dir], dir, {
+      ...env,
+      CROSS_MODEL_SCRATCH_PARENT: scratchParent,
+    })
+
     expect(result.files).not.toContain("pov-claude.json")
-    expect(result.stderr).toContain("workspace isolation unavailable")
+    expect(result.stderr).toContain("private scratch parent")
+    expect(existsSync(invoked)).toBe(false)
   })
 })
 
@@ -460,33 +482,46 @@ describe("ce-pov fixed route and egress allowlist", () => {
     expect(existsSync(invoked)).toBe(false)
   })
 
-  test("rejects provider identity substitution after qualification", () => {
-    const invoked = path.join(temp("pov-substitution-"), "replacement-invoked")
+  test("detects interpreter substitution after provider-chain qualification", async () => {
+    const root = temp("pov-interpreter-substitution-")
+    const interpreterBin = path.join(root, "interpreters")
+    const providerBin = path.join(root, "providers")
+    mkdirSync(interpreterBin)
+    mkdirSync(providerBin)
+    const invoked = path.join(root, "replacement-invoked")
     const response = '{"structured_output":{"voice":"peer","position":"Hold","reasoning":"Evidence","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"}}'
-    const { bin, env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${response}'\n`)
-    const provider = path.join(bin, "claude")
-    const realMktemp = realTools().find(([tool]) => tool === "mktemp")?.[1]
-    expect(realMktemp).toBeTruthy()
-    rmSync(path.join(bin, "mktemp"))
-    writeFileSync(path.join(bin, "mktemp"), `#!/bin/sh
-out="$('${realMktemp}' "$@")" || exit $?
-replacement='${provider}.replacement'
-printf '%s\n' '#!/bin/sh' ': > "${invoked}"' 'exit 0' > "$replacement"
-chmod 755 "$replacement"
-mv -f "$replacement" '${provider}'
-printf '%s' "$out"
-`)
-    chmodSync(path.join(bin, "mktemp"), 0o755)
+    const interpreter = path.join(interpreterBin, "ce-safe-node")
+    writeFileSync(interpreter, '#!/bin/sh\nexec /bin/sh "$@"\n')
+    chmodSync(interpreter, 0o755)
+    const provider = path.join(providerBin, "claude")
+    writeFileSync(provider, `#!/usr/bin/env ce-safe-node\ncat >/dev/null\nprintf '%s' '${response}'\n`)
+    chmodSync(provider, 0o755)
     const dir = runDir()
     const scratchParent = temp("pov-substitution-scratch-")
-
-    const result = run(["codex", "claude", payload(), dir], dir, {
-      ...env,
-      CROSS_MODEL_SCRATCH_PARENT: scratchParent,
+    const largePayload = payload("x".repeat(32 * 1024 * 1024))
+    const child = spawn("bash", [SCRIPT, "codex", "claude", largePayload, dir], {
+      env: {
+        ...process.env,
+        PATH: `${interpreterBin}:${providerBin}:${process.env.PATH ?? "/usr/bin:/bin"}`,
+        CROSS_MODEL_MAX_PAYLOAD_CHARS: String(40 * 1024 * 1024),
+        CROSS_MODEL_SCRATCH_PARENT: scratchParent,
+      },
+      stdio: ["ignore", "ignore", "pipe"],
     })
+    let stderr = ""
+    child.stderr?.setEncoding("utf8")
+    child.stderr?.on("data", (chunk) => { stderr += chunk })
+    const deadline = Date.now() + 10_000
+    while (readdirSync(scratchParent).length === 0 && Date.now() < deadline) await Bun.sleep(1)
+    expect(readdirSync(scratchParent).length).toBe(1)
+    const replacement = `${interpreter}.replacement`
+    writeFileSync(replacement, `#!/bin/sh\n: > '${invoked}'\nexit 0\n`)
+    chmodSync(replacement, 0o755)
+    renameSync(replacement, interpreter)
+    await new Promise<void>((resolve) => child.once("exit", () => resolve()))
 
-    expect(result.files).not.toContain("pov-claude.json")
-    expect(result.stderr).toContain("provider executable identity changed")
+    expect(readdirSync(dir)).not.toContain("pov-claude.json")
+    expect(stderr).toContain("provider executable identity changed")
     expect(existsSync(invoked)).toBe(false)
   })
 
