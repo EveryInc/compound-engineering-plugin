@@ -15,7 +15,11 @@ do not let a candidate or worker construct this file. `sanctioned_env` is an
 explicit name-to-value map and cannot include home/path/XDG overrides, token or
 secret names, SSH/cloud variables, dynamic-loader names, shell startup hooks, or
 language runtime/loader hooks. The normalized `measurement` includes the exact
-stability mode, repeat count, aggregation, and noise threshold. `experiment_log`
+stability mode, repeat count, aggregation, noise threshold, `mutable_outputs`,
+and controller-derived `metric_names`. Derive metric names from every gate and
+diagnostic plus the hard primary metric when applicable. Mutable outputs default
+to empty and may name only absent disposable directories with existing canonical
+parents and no overlap with candidate, immutable, or shared-input scope. `experiment_log`
 is the canonical repository-relative CP-3 path. The `judge` object
 records the owning adapter (`host` or `codex`) in addition to the unchanged
 rubric/sampling contract; this records runtime mechanics and does not activate
@@ -108,7 +112,8 @@ checkout, `.env*`, SSH/cloud stores, or controller results. Wrapper,
 interpreter, policy, or receipt substitution blocks.
 
 The controller records launch authority before releasing a one-use barrier.
-The confined adapter is a Linux child subreaper, denies socket creation, and
+The confined adapter is a Linux child subreaper, validates the seccomp audit
+architecture, denies native/compat socket creation plus `io_uring_setup`, and
 kills/reaps all descendants, including double-forked or `setsid` children,
 before terminal evidence. A controller crash leaves recoverable process state;
 it never turns unknown execution into abandonment or worktree-reuse authority.
@@ -146,11 +151,21 @@ worktree through `experiment-worktree.sh`; its reset gate consults all private
 attempt leases. Then independently sanction and lock the exact next ordinal.
 Do not reuse prompt, auth root, environment, worktree dirt, or receipt.
 
+Run the Phase 1 baseline only through `measure.sh <run-id>` (or the equivalent
+controller `baseline --run-id <run-id>` operation) after CP-0. It uses the same
+Landlock, network, timeout, repeat, and descendant supervisor as experiment
+measurement against the read-only canonical repository. No provider config
+pointer, staged auth root, sanctioned route environment, or raw child output is
+persisted. Only exact declared metric keys with finite numeric/boolean scalar
+values can enter the baseline receipt.
+
 After an accepted author result, run the frozen measurement only through
 `measure --run-id <run-id> --attempt-id <attempt-id>`. The controller owns the
-launch barrier and descendant supervisor, applies sanctioned values only to the
-already-confined child, executes the exact frozen repeats, deterministically
-aggregates them, and writes one bound `result-marker.json` plus `result.yaml`.
+launch barrier and descendant supervisor, uses a distinct credential-free
+environment, keeps the full candidate/worktree/input scope read-only, grants
+writes only to private scratch and declared disposable output roots, executes
+the exact frozen repeats, deterministically aggregates exact declared scalar
+metrics, and writes one bound `result-marker.json` plus `result.yaml`.
 Append and verify CP-3 before calling `checkpoint --run-id <run-id>
 --attempt-id <attempt-id> --checkpoint-path <approved-experiment-log>`.
 The controller opens that exact path without following the final component,

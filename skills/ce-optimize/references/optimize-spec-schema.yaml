@@ -187,7 +187,7 @@ required_fields:
     required_children:
       command:
         type: string
-        description: "Shell command that runs the evaluation and outputs JSON to stdout. The JSON must contain keys matching all gate names and diagnostic names."
+        description: "Shell command that runs the evaluation and outputs one JSON object to stdout. Keys must exactly match the controller-declared measurement metric names; values must be finite numbers or booleans."
         example: "python evaluate.py"
     optional_children:
       timeout_seconds:
@@ -204,6 +204,12 @@ required_fields:
         type: string
         default: "."
         description: "Working directory for the measurement command, relative to the repo root"
+      mutable_outputs:
+        type: array
+        default: []
+        description: "Absent disposable repository-relative directories the measurement may create build output within. Each path needs an existing canonical parent, cannot contain symlinks or overlap candidate/immutable/shared-input scope, and is removed after each supervised measurement. The repository/worktree is otherwise read-only."
+        items:
+          type: string
       stability:
         type: object
         default: { mode: "stable" }
@@ -395,6 +401,8 @@ validation_rules:
   - "metric.degenerate_gates must have at least one entry"
   - "measurement.command must be a non-empty string"
   - "Normalize measurement.stability before CP-0 to exactly mode, repeat_count, aggregation, and noise_threshold; stable mode uses repeat_count 1, repeat mode uses a positive fixed count, and the controller performs all repeats and aggregation before one marker"
+  - "Derive the controller-only measurement.metric_names list before CP-0 from every degenerate gate and diagnostic name plus metric.primary.name only for hard primary metrics; measurement JSON keys must equal that list exactly and every value must be a finite number or boolean scalar"
+  - "measurement.mutable_outputs defaults to empty; each entry must be a canonical repository-relative absent directory with an existing canonical parent, no symlink component, and no overlap with scope.mutable, scope.immutable, parallel.shared_files, or another protected input"
   - "scope.mutable must have at least one entry"
   - "scope.immutable must have at least one entry"
   - "Gate check operators must be one of: >=, <=, >, <, ==, !="
@@ -409,7 +417,7 @@ validation_rules:
   - "measurement.working_directory and every parallel.shared_files entry must resolve canonically beneath the repository without symlink traversal"
   - "Every parallel.shared_files entry must be explicitly listed, covered by scope.immutable, and free of nested symlinks and .env* material; undeclared shared inputs are invalid"
   - "No .env* path is an eligible shared input, including .env.example and nested .env files"
-  - "execution.sanctioned_env names must match ^[A-Za-z_][A-Za-z0-9_]{0,127}$; LD_*, DYLD_*, BASH_ENV, ENV, SHELLOPTS, PYTHON*, NODE_OPTIONS, and every other loader/interpreter/startup hook or credential variable are forbidden; no ambient variable is forwarded merely because it exists"
+  - "execution.sanctioned_env names must match ^[A-Za-z_][A-Za-z0-9_]{0,127}$; LD_*, DYLD_*, BASH_ENV, ENV, SHELLOPTS, PYTHON*, NODE_OPTIONS, and every other loader/interpreter/startup hook or credential variable are forbidden; no ambient variable is forwarded merely because it exists, and no sanctioned route value is forwarded to measurement"
   - "metric.judge.hidden_reference_paths must be canonical host-only paths, ignored/untracked and absent from scope.mutable, scope.immutable, parallel.shared_files, experiment worktrees, sampled item payloads, and all recipient prompts"
   - "execution.backend, execution.mode, execution.max_concurrent, execution.codex_security, measurement, metric/judge separation, scope, parallel policy, and stopping are optimization constraints; routing data cannot set or replace them"
   - "Derive one canonical repository-relative experiment_log path for controller constraints; checkpoint authority comes only from the controller reopening those exact bytes and verifying the corresponding CP-3 row"

@@ -61,7 +61,7 @@ The approved optimization spec remains higher authority than routing. A route ca
 
 Every author and judge attempt is locked before dispatch and bound to role, experiment/judge instance, recipient, backend, worktree, approved spec and constraints digests, exact measurement command/digest, mutable/immutable scopes, execution policy, and stopping criteria. Required output remains quarantined until identity and scope verification accepts it. The controller derives adapter outcome, terminal/integrated state, serving model/effort evidence, and cumulative prior history from its own process/host receipts, result markers, and checkpoints; callers and workers do not supply these fields to finalization.
 
-All Codex author or judge commands and every controller measurement run through the controller's co-located Linux Landlock/network-denial adapter with a fresh empty environment, isolated HOME/XDG/temp/backend roots, and only explicit private JSON backend auth. Real home, ambient tokens, `.env*`, SSH/cloud stores, hidden references, canonical checkout, controller results, unrelated paths, and network sockets remain inaccessible. A launch barrier records authority before child code runs, and a child subreaper kills/reaps double-forked or `setsid` descendants before terminal evidence. If the exact executable, interpreter, confinement, auth, environment, or receipt boundary cannot be preserved, preflight is unavailable. The semantic judge remains a distinct instance with no experiment worktree or mutable authority and receives only rubric plus sampled candidate output.
+All Codex author or judge commands and every controller measurement run through the controller's co-located Linux Landlock/network-denial adapter. Author/judge routes receive isolated HOME/XDG/temp/backend roots and only explicit private JSON backend auth. Measurement instead receives a separate credential-free HOME/XDG/temp/scratch root with no provider config pointer, staged auth root, or sanctioned route environment. Its whole repository/worktree is read-only; only that private scratch root and absent, explicitly declared disposable `measurement.mutable_outputs` directories are writable. A launch barrier records authority before child code runs, and a child subreaper kills/reaps double-forked or `setsid` descendants before terminal evidence. If the exact executable, interpreter, confinement, auth, environment, or receipt boundary cannot be preserved, preflight is unavailable. The semantic judge remains a distinct instance with no experiment worktree or mutable authority and receives only rubric plus sampled candidate output.
 
 The controller appends each redacted event before returning it. Import and verify events in `routing-events.jsonl`/`route_events` sequence before display, and preserve existing bounded dispatch and backpressure; routing never changes queue membership or concurrency.
 
@@ -302,32 +302,30 @@ Git status is only an operator preview. Before every attempt lock, the controlle
 ### 1.2 Build or Validate Measurement Harness
 
 **If user provides a measurement harness** (the `measurement.command` already exists):
-1. Run it once via the measurement script:
+1. Derive the frozen `measurement.metric_names` controller constraint from every degenerate gate and diagnostic name, plus `metric.primary.name` only for a hard primary metric. Duplicate, missing, or extra names are invalid. Keep `measurement.mutable_outputs` empty unless the command requires an absent disposable repository-relative build-output directory; each declared directory must have an existing canonical parent and cannot overlap candidate, immutable, or shared-input scope.
+2. Run the frozen baseline via the controller wrapper after CP-0:
    ```bash
    SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
-   bash "$SKILL_DIR/scripts/measure.sh" "<measurement.command>" <timeout_seconds> "<measurement.working_directory or .>"
+   bash "$SKILL_DIR/scripts/measure.sh" "<run-id>"
    ```
-2. Validate the JSON output:
-   - Contains keys for all degenerate gate metric names
-   - Contains keys for all diagnostic metric names
-   - Values are numeric or boolean as expected
-3. If validation fails, report what is missing and ask the user to fix the harness
+3. Accept only a `BASELINED` controller receipt whose metric keys exactly equal the frozen declaration and whose values are finite JSON numbers or booleans. Strings, arrays, objects, nulls, undeclared keys, missing keys, raw child output, or failed descendant containment produce `BASELINE_FAILED` and cannot enter CP-1.
+4. If validation fails, report the controller error and ask the user to fix the harness.
 
 **If agent must build the harness:**
 1. Analyze the codebase to understand the current approach and what should be measured
 2. Build an evaluation script (e.g., `evaluate.py`, `evaluate.sh`, or equivalent)
 3. Add the evaluation script path to `scope.immutable` -- the experiment agent must not modify it
-4. Run it once and validate the output
+4. Freeze the updated spec/constraints through a fresh CP-0 with no prior dispatch, then run the controller baseline and validate its receipt
 5. Present the harness and its output to the user for review
 
 ### 1.3 Establish Baseline
 
-Run the measurement harness on the current code.
+Use the `measure.sh <run-id>` controller receipt from 1.2 as the baseline. Do not invoke the measurement command directly or run it again.
 
 **If stability mode is `repeat`:**
-1. Run the harness `repeat_count` times
-2. Aggregate results using the configured aggregation method (median, mean, min, max)
-3. Calculate variance across runs
+1. Verify the controller receipt records exactly `repeat_count` supervised executions
+2. Use only its configured aggregate (median, mean, min, max)
+3. Inspect its spread evidence
 4. If variance exceeds `noise_threshold`, warn the user and suggest increasing `repeat_count`
 
 Record the baseline in the experiment log:

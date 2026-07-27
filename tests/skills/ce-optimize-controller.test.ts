@@ -5,8 +5,10 @@ import { describe, expect, test } from "bun:test"
 
 const ROOT = path.join(import.meta.dir, "../..")
 const CONTROLLER = path.join(ROOT, "skills/ce-optimize/scripts/optimize-controller.py")
+const LANDLOCK = path.join(ROOT, "skills/ce-optimize/scripts/optimize-landlock.py")
 const CONTROLLER_PROTOCOL = path.join(ROOT, "skills/ce-optimize/references/controller-protocol.md")
 const WORKTREE = path.join(ROOT, "skills/ce-optimize/scripts/experiment-worktree.sh")
+const MEASURE = path.join(ROOT, "skills/ce-optimize/scripts/measure.sh")
 
 type Result = { exitCode: number; word: string; body: any; stderr: string }
 
@@ -48,7 +50,7 @@ async function fixture(options: {
   models?: string[]
   noRouting?: boolean
   fakeMode?: "receipt" | "forged" | "sleep" | "scope" | "measurementEscape" | "setsid"
-  measurementMode?: "normal" | "repeat" | "sleep" | "setsid"
+  measurementMode?: "normal" | "repeat" | "sleep" | "setsid" | "credential" | "string" | "undeclared" | "transient" | "baselineEscape" | "rawNetwork" | "mutableOutput"
   judge?: boolean
   backend?: "codex" | "worktree"
 } = {}) {
@@ -74,7 +76,58 @@ async function fixture(options: {
       ? "import json, time\ntime.sleep(1)\nprint(json.dumps({'score': 1}))\n"
       : measurementMode === "setsid"
         ? "import json, os, pathlib, time\nchild = os.fork()\nif child == 0:\n os.setsid()\n grandchild = os.fork()\n if grandchild == 0:\n  time.sleep(1)\n  pathlib.Path('late-measure').write_text('escaped\\n')\n  os._exit(0)\n os._exit(0)\nos.waitpid(child, 0)\nprint(json.dumps({'score': 1}))\n"
-      : "import json\ntry:\n import candidate\n score = candidate.score()\nexcept ImportError:\n score = 1\nprint(json.dumps({'score': score}))\n"
+        : measurementMode === "credential"
+          ? `import json, os, pathlib
+target = pathlib.Path(${JSON.stringify(path.join(controllerRoot, "run/attempts/attempt-credential/worker-env/codex-home/auth.json"))})
+try:
+ target.read_text()
+ readable = True
+except Exception:
+ readable = False
+print(json.dumps({'score': 1 if not readable and 'CODEX_HOME' not in os.environ else -1}))
+`
+          : measurementMode === "string"
+            ? "import json\nprint(json.dumps({'score': 'secret-bytes'}))\n"
+            : measurementMode === "undeclared"
+              ? "import json\nprint(json.dumps({'score': 1, 'forged': 999}))\n"
+              : measurementMode === "transient"
+                ? "import json, pathlib\np = pathlib.Path('mutable.txt')\noriginal = p.read_text()\np.write_text('forged\\n')\np.write_text(original)\nprint(json.dumps({'score': 999}))\n"
+                : measurementMode === "baselineEscape"
+                  ? `import ctypes, errno, json, os, pathlib, socket, time
+denied = 0
+try: pathlib.Path(${JSON.stringify(outside)}).read_text()
+except Exception: denied += 1
+try: pathlib.Path(${JSON.stringify(outside)}).write_text('changed')
+except Exception: denied += 1
+try: socket.socket()
+except Exception: denied += 1
+child = os.fork()
+if child == 0:
+ os.setsid()
+ grandchild = os.fork()
+ if grandchild == 0:
+  time.sleep(1)
+  pathlib.Path(os.environ['CE_OPTIMIZE_SCRATCH'], 'late-baseline').write_text('escaped')
+  os._exit(0)
+ os._exit(0)
+os.waitpid(child, 0)
+print(json.dumps({'score': 1 if denied == 3 else -1}))
+`
+                  : measurementMode === "rawNetwork"
+                    ? `import ctypes, errno, json, platform
+machine = platform.machine().lower()
+numbers = [41, 53, 425, 0x40000029, 0x40000035, 0x40000066, 0x400001a9] if machine in {'x86_64', 'amd64'} else [198, 199, 425]
+libc = ctypes.CDLL(None, use_errno=True)
+denied = 0
+for number in numbers:
+ ctypes.set_errno(0)
+ result = libc.syscall(number, 2, 1, 0, 0, 0, 0)
+ if result == -1 and ctypes.get_errno() == errno.EPERM: denied += 1
+print(json.dumps({'score': 1 if denied == len(numbers) else -1}))
+`
+                    : measurementMode === "mutableOutput"
+                      ? "import json, pathlib\np = pathlib.Path('build-output/value.txt')\np.write_text('temporary\\n')\nprint(json.dumps({'score': 1}))\n"
+                      : "import json\ntry:\n import candidate\n score = candidate.score()\nexcept ImportError:\n score = 1\nprint(json.dumps({'score': score}))\n"
   await writeFile(path.join(repo, "measure.py"), measureSource)
   await writeFile(path.join(repo, ".gitignore"), "ignored.dat\n")
   await checked(["git", "add", "mutable.txt", "measure.py", ".gitignore"], repo, {})
@@ -169,6 +222,8 @@ else:
     codex_security: "full-auto",
     measurement: {
       command: "python3 measure.py",
+      metric_names: ["score"],
+      mutable_outputs: [],
       working_directory: ".",
       timeout_seconds: 10,
       stability: { mode: "stable", repeat_count: 1, aggregation: "median", noise_threshold: 0.02 },
@@ -275,6 +330,13 @@ describe("ce-optimize controller", () => {
     const protocol = await readFile(CONTROLLER_PROTOCOL, "utf8")
     expect(protocol).toContain('--instance-id "experiment-<experiment-number>" --ordinal <candidate-ordinal>')
     expect(protocol).toMatch(/candidate ordinal starts\s+at 0 and is never the experiment number/i)
+  })
+
+  test("fails closed instead of claiming network confinement on an unsupported architecture", async () => {
+    const source = "import importlib.util,sys; spec=importlib.util.spec_from_file_location('landlock',sys.argv[1]); module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module); module.platform.machine=lambda:'unsupported-test'; module.seccomp_architecture()"
+    const result = await run(["python3", "-I", "-S", "-c", source, LANDLOCK], ROOT, {})
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toMatch(/unsupported seccomp architecture/i)
   })
 
   test("freezes one self-validating role snapshot and ignores live config drift on resume", async () => {
@@ -690,6 +752,133 @@ describe("ce-optimize controller", () => {
       const measured = await checked(["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", "attempt-escape"], f.repo, f.env)
       expect(measured.body.metrics).toEqual({ score: 1 })
       expect(measured.body.exit_code).toBe(0)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("runs the Phase 1 baseline through read/write/network/descendant confinement", async () => {
+    const f = await fixture({ measurementMode: "baselineEscape" })
+    try {
+      await start(f)
+      const baseline = await checked(["bash", MEASURE, "run"], f.repo, f.env)
+      expect(baseline.word).toBe("BASELINED")
+      expect(baseline.body).toMatchObject({ metrics: { score: 1 }, exit_code: 0, repeat_count: 1 })
+      expect(await readFile(path.join(f.root, "outside-secret"), "utf8")).toBe("hidden-outside\n")
+      await Bun.sleep(1200)
+      await expect(stat(path.join(f.controllerRoot, "run/baseline/environment/scratch/late-baseline"))).rejects.toThrow()
+      const evidence = JSON.parse(await readFile(path.join(f.controllerRoot, "run/baseline/supervisor-measurement-1.json"), "utf8"))
+      expect(evidence).toMatchObject({ mode: "measurement", all_descendants_gone: true })
+      expect(evidence.runs[0]).not.toHaveProperty("stdout_b64")
+      expect(evidence.runs[0]).not.toHaveProperty("stderr_b64")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("enforces the frozen timeout during Phase 1 baseline supervision", async () => {
+    const f = await fixture()
+    try {
+      await writeFile(path.join(f.repo, "measure.py"), "import json, time\ntime.sleep(5)\nprint(json.dumps({'score': 1}))\n")
+      const constraints = JSON.parse(await readFile(f.constraints, "utf8"))
+      constraints.measurement.timeout_seconds = 1
+      await writeFile(f.constraints, JSON.stringify(constraints), { mode: 0o600 })
+      await start(f)
+      const started = Date.now()
+      const baseline = await run(["bash", MEASURE, "run"], f.repo, f.env)
+      expect(baseline.exitCode).toBe(4)
+      expect(baseline.word).toBe("BASELINE_FAILED")
+      expect(baseline.body).toMatchObject({ metrics: {}, exit_code: 124 })
+      expect(Date.now() - started).toBeLessThan(4000)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("keeps staged provider auth and config pointers outside measurement", async () => {
+    const f = await fixture({ measurementMode: "credential" })
+    try {
+      const worktree = await prepareAcceptedAuthor(f, "credential", "attempt-credential")
+      const measured = await checked(["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", "attempt-credential"], f.repo, f.env)
+      expect(measured.body.metrics).toEqual({ score: 1 })
+      const config = JSON.parse(await readFile(path.join(f.controllerRoot, "run/attempts/attempt-credential/confinement-measurement.json"), "utf8"))
+      expect(config.child_env).not.toHaveProperty("CODEX_HOME")
+      expect(config.child_env).not.toHaveProperty("SAFE_INPUT")
+      expect(config.read_write.map((entry: any) => entry.path)).not.toContain(path.join(f.controllerRoot, "run/attempts/attempt-credential/worker-env"))
+      expect(await readFile(path.join(worktree, "mutable.txt"), "utf8")).toBe("baseline\n")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test.each(["string", "undeclared"] as const)("rejects %s measurement metrics without persisting raw values", async (measurementMode) => {
+    const f = await fixture({ measurementMode })
+    try {
+      await start(f)
+      const baseline = await run(["bash", MEASURE, "run"], f.repo, f.env)
+      expect(baseline.exitCode).toBe(4)
+      expect(baseline.word).toBe("BASELINE_FAILED")
+      expect(baseline.body.metrics).toEqual({})
+      const evidence = await readFile(path.join(f.controllerRoot, "run/baseline/supervisor-measurement-1.json"), "utf8")
+      expect(evidence).not.toContain("secret-bytes")
+      expect(evidence).not.toContain("forged")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("denies transient candidate modification before forged metrics are accepted", async () => {
+    const f = await fixture({ measurementMode: "transient" })
+    try {
+      const worktree = await prepareAcceptedAuthor(f, "transient", "attempt-transient")
+      const measured = await run(["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", "attempt-transient"], f.repo, f.env)
+      expect(measured.exitCode).toBe(4)
+      expect(measured.word).toBe("MEASUREMENT_FAILED")
+      expect(measured.body.metrics).toEqual({})
+      expect(await readFile(path.join(worktree, "mutable.txt"), "utf8")).toBe("baseline\n")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("denies raw socket, socketcall, socketpair, x32, and io_uring setup syscalls", async () => {
+    const f = await fixture({ measurementMode: "rawNetwork" })
+    try {
+      await start(f)
+      const baseline = await checked(["bash", MEASURE, "run"], f.repo, f.env)
+      expect(baseline.body.metrics).toEqual({ score: 1 })
+      const state = JSON.parse(await readFile(path.join(f.controllerRoot, "run/state.json"), "utf8"))
+      expect(state.measurement_confinement.network).toBe("seccomp-deny-network-v2")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("limits mutable measurement output to absent disposable roots and removes them", async () => {
+    const f = await fixture({ measurementMode: "mutableOutput" })
+    try {
+      const constraints = JSON.parse(await readFile(f.constraints, "utf8"))
+      constraints.measurement.mutable_outputs = ["build-output"]
+      await writeFile(f.constraints, JSON.stringify(constraints), { mode: 0o600 })
+      await start(f)
+      const baseline = await checked(["bash", MEASURE, "run"], f.repo, f.env)
+      expect(baseline.body.metrics).toEqual({ score: 1 })
+      await expect(stat(path.join(f.repo, "build-output"))).rejects.toThrow()
+
+      const invalid = await fixture()
+      try {
+        const invalidConstraints = JSON.parse(await readFile(invalid.constraints, "utf8"))
+        invalidConstraints.measurement.mutable_outputs = ["measure.py"]
+        await writeFile(invalid.constraints, JSON.stringify(invalidConstraints), { mode: 0o600 })
+        const refused = await run([
+          "python3", "-I", "-S", CONTROLLER, "start", "--run-id", "run",
+          "--repo", invalid.repo, "--spec", invalid.spec, "--constraints", invalid.constraints,
+        ], invalid.repo, invalid.env)
+        expect(refused.exitCode).toBe(4)
+        expect(refused.stderr).toMatch(/mutable_outputs.*overlap/i)
+      } finally {
+        await rm(invalid.root, { recursive: true, force: true })
+      }
     } finally {
       await rm(f.root, { recursive: true, force: true })
     }

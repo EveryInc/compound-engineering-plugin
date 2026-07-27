@@ -264,6 +264,9 @@ describe("ce-optimize worktree isolation", () => {
 
     expect(schema).toContain("sanctioned_env")
     expect(schema).toContain("hidden_reference_paths")
+    expect(schema).toContain("mutable_outputs")
+    expect(schema).toContain("measurement.metric_names")
+    expect(schema).toMatch(/finite numbers or booleans|numeric\/boolean scalar/i)
     expect(schema).toMatch(/scope\.mutable.*scope\.immutable.*canonical|canonical.*scope\.mutable.*scope\.immutable/is)
     expect(schema).toMatch(/shared_files.*immutable/is)
     expect(schema).toMatch(/symlink/i)

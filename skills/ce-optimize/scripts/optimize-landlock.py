@@ -37,6 +37,15 @@ BPF_K = 0x00
 BPF_RET = 0x06
 SECCOMP_RET_ALLOW = 0x7FFF0000
 SECCOMP_RET_ERRNO = 0x00050000
+SECCOMP_RET_KILL_PROCESS = 0x80000000
+
+AUDIT_ARCH = {
+    "x86_64": 0xC000003E,
+    "amd64": 0xC000003E,
+    "aarch64": 0xC00000B7,
+    "arm64": 0xC00000B7,
+    "riscv64": 0xC00000F3,
+}
 
 ACCESS_EXECUTE = 1 << 0
 ACCESS_WRITE_FILE = 1 << 1
@@ -203,7 +212,7 @@ def load_config(path: str, expected_digest: str) -> dict:
     if value["abi"] != landlock_abi():
         fail("Landlock ABI changed after authorization")
     validate_entry(value["executable"])
-    if value["mode"] not in {"route", "measurement"} or value["network"] != "seccomp-deny-socket":
+    if value["mode"] not in {"route", "measurement"} or value["network"] != "seccomp-deny-network-v2":
         fail("confinement execution mode is invalid")
     if not isinstance(value["child_env"], dict) or any(
         not isinstance(name, str) or not isinstance(item, str) or "\x00" in item
@@ -213,9 +222,17 @@ def load_config(path: str, expected_digest: str) -> dict:
     if value["mode"] == "measurement":
         measurement = value["measurement"]
         if not isinstance(measurement, dict) or set(measurement) != {
-            "command", "timeout_seconds", "stability",
+            "command", "metric_names", "timeout_seconds", "stability",
         }:
             fail("measurement policy is invalid")
+        names = measurement["metric_names"]
+        if (
+            not isinstance(names, list)
+            or not names
+            or len(set(names)) != len(names)
+            or any(not isinstance(name, str) for name in names)
+        ):
+            fail("measurement metric declaration is invalid")
     elif value["measurement"] is not None:
         fail("route confinement cannot carry measurement policy")
     evidence = validate_entry(value["supervisor_evidence"])
@@ -285,22 +302,31 @@ class SockFprog(ctypes.Structure):
     _fields_ = [("len", ctypes.c_ushort), ("filter", ctypes.POINTER(SockFilter))]
 
 
-def socket_syscall() -> int:
+def seccomp_architecture() -> tuple[int, tuple[int, ...]]:
     machine = platform.machine().lower()
     if machine in {"x86_64", "amd64"}:
-        return 41
+        # Native socket/socketpair, legacy socketcall, io_uring_setup, and the
+        # x32 syscall-number variants are denied. A later exec into another
+        # audit architecture is killed by the arch check below.
+        return AUDIT_ARCH[machine], (41, 53, 425, 0x40000029, 0x40000035, 0x40000066, 0x400001A9)
     if machine in {"aarch64", "arm64", "riscv64"}:
-        return 198
+        return AUDIT_ARCH[machine], (198, 199, 425)
     fail(f"unsupported seccomp architecture: {machine or 'unknown'}")
 
 
 def apply_network_seccomp() -> None:
-    filters = (SockFilter * 4)(
+    audit_arch, denied = seccomp_architecture()
+    instructions = [
+        SockFilter(BPF_LD | BPF_W | BPF_ABS, 0, 0, 4),
+        SockFilter(BPF_JMP | BPF_JEQ | BPF_K, 1, 0, audit_arch),
+        SockFilter(BPF_RET | BPF_K, 0, 0, SECCOMP_RET_KILL_PROCESS),
         SockFilter(BPF_LD | BPF_W | BPF_ABS, 0, 0, 0),
-        SockFilter(BPF_JMP | BPF_JEQ | BPF_K, 0, 1, socket_syscall()),
-        SockFilter(BPF_RET | BPF_K, 0, 0, SECCOMP_RET_ERRNO | errno.EPERM),
-        SockFilter(BPF_RET | BPF_K, 0, 0, SECCOMP_RET_ALLOW),
-    )
+    ]
+    for number in denied:
+        instructions.append(SockFilter(BPF_JMP | BPF_JEQ | BPF_K, 0, 1, number))
+        instructions.append(SockFilter(BPF_RET | BPF_K, 0, 0, SECCOMP_RET_ERRNO | errno.EPERM))
+    instructions.append(SockFilter(BPF_RET | BPF_K, 0, 0, SECCOMP_RET_ALLOW))
+    filters = (SockFilter * len(instructions))(*instructions)
     program = SockFprog(len(filters), ctypes.cast(filters, ctypes.POINTER(SockFilter)))
     if libc().prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ctypes.byref(program), 0, 0) != 0:
         code = ctypes.get_errno()
@@ -322,9 +348,12 @@ def probe() -> None:
             apply_network_seccomp()
             with open("/usr/bin/env", "rb"):
                 pass
-            result = libc().syscall(socket_syscall(), 2, 1, 0)
-            if result >= 0 or ctypes.get_errno() != errno.EPERM:
-                os._exit(5)
+            _, denied = seccomp_architecture()
+            for number in denied:
+                ctypes.set_errno(0)
+                result = libc().syscall(number, 2, 1, 0, 0, 0, 0)
+                if result >= 0 or ctypes.get_errno() != errno.EPERM:
+                    os._exit(5)
             try:
                 with open("/etc/hosts", "rb"):
                     pass
@@ -339,7 +368,7 @@ def probe() -> None:
     print(json.dumps({
         "protocol": "ce-optimize-landlock/v1",
         "abi": abi,
-        "network": "seccomp-deny-socket",
+        "network": "seccomp-deny-network-v2",
     }, sort_keys=True))
 
 
@@ -456,6 +485,17 @@ def run_once(command: list[str], child_env: dict[str, str], timeout: int | None,
     }
 
 
+def validate_measurement_output(value: object, metric_names: list[str]) -> dict[str, int | float | bool]:
+    if not isinstance(value, dict) or set(value) != set(metric_names):
+        raise ValueError("measurement output keys differ from the declared metrics")
+    for name, metric in value.items():
+        if type(metric) not in {int, float, bool}:
+            raise ValueError(f"measurement metric {name} is not a numeric/boolean scalar")
+        if type(metric) is float and not math.isfinite(metric):
+            raise ValueError(f"measurement metric {name} is not finite")
+    return value
+
+
 def aggregate_values(values: list[object], method: str) -> object:
     first = values[0]
     if type(first) in {int, float} and all(type(value) in {int, float} for value in values):
@@ -467,11 +507,7 @@ def aggregate_values(values: list[object], method: str) -> object:
         if method == "median":
             return statistics.median(numbers)
         return min(numbers) if method == "min" else max(numbers)
-    if isinstance(first, bool) and all(value is first for value in values):
-        return first
-    if isinstance(first, dict) and all(isinstance(value, dict) and set(value) == set(first) for value in values):
-        return {key: aggregate_values([value[key] for value in values], method) for key in sorted(first)}
-    if all(value == first for value in values):
+    if type(first) is bool and all(value is first for value in values):
         return first
     fail("repeated measurement output contains non-aggregatable values")
 
@@ -481,8 +517,6 @@ def spread_values(values: list[object]) -> object:
     if type(first) in {int, float}:
         numbers = [float(value) for value in values]
         return max(numbers) - min(numbers)
-    if isinstance(first, dict):
-        return {key: spread_values([value[key] for value in values]) for key in sorted(first)}
     return 0
 
 
@@ -517,20 +551,33 @@ def supervise(config: dict, command: list[str], evidence_fd: int, config_digest:
         parsed = []
         if all(run["exit_code"] == 0 and run["all_descendants_gone"] for run in runs):
             try:
-                parsed = [json.loads(run["stdout"]) for run in runs]
+                parsed = [
+                    validate_measurement_output(json.loads(run["stdout"]), policy["metric_names"])
+                    for run in runs
+                ]
             except (UnicodeDecodeError, ValueError):
                 parsed = []
         if parsed and all(isinstance(value, dict) for value in parsed):
-            aggregate = aggregate_values(parsed, policy["stability"]["aggregation"])
-            spread = spread_values(parsed)
+            aggregate = {
+                key: aggregate_values([value[key] for value in parsed], policy["stability"]["aggregation"])
+                for key in sorted(policy["metric_names"])
+            }
+            spread = {key: spread_values([value[key] for value in parsed]) for key in sorted(policy["metric_names"])}
         else:
             aggregate = None
             spread = None
-    encoded_runs = [{
-        **{key: value for key, value in run.items() if key not in {"stdout", "stderr"}},
-        "stdout_b64": base64.b64encode(run["stdout"]).decode(),
-        "stderr_b64": base64.b64encode(run["stderr"]).decode(),
-    } for run in runs]
+    if config["mode"] == "route":
+        encoded_runs = [{
+            **{key: value for key, value in run.items() if key not in {"stdout", "stderr"}},
+            "stdout_b64": base64.b64encode(run["stdout"]).decode(),
+            "stderr_b64": base64.b64encode(run["stderr"]).decode(),
+        } for run in runs]
+    else:
+        encoded_runs = [{
+            **{key: value for key, value in run.items() if key not in {"stdout", "stderr"}},
+            "stdout_digest": hashlib.sha256(run["stdout"]).hexdigest(),
+            "stderr_digest": hashlib.sha256(run["stderr"]).hexdigest(),
+        } for run in runs]
     os.close(children_fd)
     evidence = {
         "protocol": "ce-optimize-supervisor/v1",

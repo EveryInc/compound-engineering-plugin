@@ -24,6 +24,7 @@ measurement:
   command: "python evaluate.py"
   timeout_seconds: 300
   working_directory: "tools/eval"
+  mutable_outputs: []
   stability:
     mode: repeat
     repeat_count: 3

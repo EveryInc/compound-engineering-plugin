@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -24,6 +25,7 @@ PROTOCOL = "ce-optimize-controller/v1"
 LOCK_PROTOCOL = "ce-optimize-attempt/v1"
 SAFE_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 SAFE_TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/:+-]{0,127}$")
+SAFE_METRIC = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]{0,127}$")
 MAX_FILE = 2 * 1024 * 1024
 ROLE_NAMES = {
     "author": "ce-optimize.experiment-author",
@@ -222,6 +224,7 @@ def load_manifest(run_id: str) -> dict:
     for attempt in value["attempts"].values():
         validate_attempt_lock(value, attempt)
         validate_attempt_runtime(value, attempt)
+    validate_baseline_runtime(value)
     validate_event_journal(value)
     return value
 
@@ -360,12 +363,23 @@ def validate_constraints(value: dict, repo: str) -> dict:
     if value["codex_security"] not in {None, "full-auto", "yolo"}:
         raise Refused("codex_security must be null, full-auto, or yolo")
     measurement = value["measurement"]
-    if not isinstance(measurement, dict) or set(measurement) != {"command", "working_directory", "timeout_seconds", "stability"}:
-        raise Refused("measurement must contain command, working_directory, timeout_seconds, and stability")
+    measurement_fields = {
+        "command", "metric_names", "mutable_outputs", "working_directory", "timeout_seconds", "stability",
+    }
+    if not isinstance(measurement, dict) or set(measurement) != measurement_fields:
+        raise Refused(f"measurement must contain exactly: {', '.join(sorted(measurement_fields))}")
     if not isinstance(measurement["command"], str) or not measurement["command"]:
         raise Refused("measurement command must be non-empty")
     if type(measurement["timeout_seconds"]) is not int or measurement["timeout_seconds"] < 1:
         raise Refused("measurement timeout must be a positive integer")
+    metric_names = measurement["metric_names"]
+    if (
+        not isinstance(metric_names, list)
+        or not metric_names
+        or len(set(metric_names)) != len(metric_names)
+        or any(not isinstance(name, str) or not SAFE_METRIC.fullmatch(name) for name in metric_names)
+    ):
+        raise Refused("measurement metric_names must be unique safe scalar metric names")
     workdir = measurement["working_directory"]
     if not isinstance(workdir, str) or os.path.isabs(workdir) or ".." in Path(workdir).parts:
         raise Refused("measurement working directory must be repository-relative")
@@ -396,13 +410,45 @@ def validate_constraints(value: dict, repo: str) -> dict:
         for immutable in normalized["scope"]["immutable"]
     ):
         raise Refused("mutable and immutable scope must not overlap")
+    normalized["measurement"]["mutable_outputs"] = relative_scope(
+        repo, measurement["mutable_outputs"], "measurement mutable_outputs",
+    )
+    outputs = normalized["measurement"]["mutable_outputs"]
+    if any(".git" in Path(output).parts for output in outputs):
+        raise Refused("measurement mutable_outputs cannot enter Git control state")
+    if len(set(outputs)) != len(outputs) or any(
+        path_in_scope(left, [right]) or path_in_scope(right, [left])
+        for index, left in enumerate(outputs)
+        for right in outputs[index + 1:]
+    ):
+        raise Refused("measurement mutable_outputs must be unique and non-overlapping")
+    protected = normalized["scope"]["mutable"] + normalized["scope"]["immutable"]
+    if any(
+        path_in_scope(output, [item]) or path_in_scope(item, [output])
+        for output in normalized["measurement"]["mutable_outputs"]
+        for item in protected
+    ):
+        raise Refused("measurement mutable_outputs must not overlap candidate or immutable scope")
     normalized["shared_files"] = relative_scope(repo, value["shared_files"], "shared_files")
     if any(not path_in_scope(item, normalized["scope"]["immutable"]) for item in normalized["shared_files"]):
         raise Refused("every shared file must be covered by immutable scope")
+    if any(
+        path_in_scope(output, [item]) or path_in_scope(item, [output])
+        for output in normalized["measurement"]["mutable_outputs"]
+        for item in normalized["shared_files"]
+    ):
+        raise Refused("measurement mutable_outputs must not overlap shared inputs")
     experiment_log = value["experiment_log"]
     if not isinstance(experiment_log, str):
         raise Refused("experiment_log must be a repository-relative path")
     normalized["experiment_log"] = relative_scope(repo, [experiment_log], "experiment_log")[0]
+    if any(
+        output == "result.yaml"
+        or path_in_scope(output, [normalized["experiment_log"]])
+        or path_in_scope(normalized["experiment_log"], [output])
+        for output in outputs
+    ):
+        raise Refused("measurement mutable_outputs cannot overlap controller-owned outputs")
     execution = value["execution"]
     if not isinstance(execution, dict) or set(execution) != {"mode", "max_concurrent"}:
         raise Refused("execution must contain mode and max_concurrent")
@@ -476,7 +522,7 @@ def confinement_capability() -> dict:
         raise Refused("Linux Landlock/network confinement is unavailable")
     try:
         capability = json.loads(result.stdout)
-        if set(capability) != {"protocol", "abi", "network"} or capability["network"] != "seccomp-deny-socket":
+        if set(capability) != {"protocol", "abi", "network"} or capability["network"] != "seccomp-deny-network-v2":
             raise ValueError("unexpected capability")
     except (TypeError, ValueError) as exc:
         raise Refused("Landlock probe receipt is malformed") from exc
@@ -580,6 +626,8 @@ def command_start(args: argparse.Namespace) -> tuple[str, dict]:
         if os.path.lexists(path):
             raise Refused("run directory exists without controller state; choose a new run id")
         ensure_private_dir(path)
+        baseline_root = ensure_private_dir(os.path.join(path, "baseline"))
+        baseline_environment_root = prepare_measurement_environment(os.path.join(baseline_root, "environment"))
         routing = resolve_routing(path, repo, host, requested["judge_enabled"], intents)
         snapshot = routing["snapshot"]
         resolutions = routing["resolutions"]
@@ -600,6 +648,9 @@ def command_start(args: argparse.Namespace) -> tuple[str, dict]:
             **requested,
             "routing": frozen,
             "attempts": {},
+            "baseline_environment_root": baseline_environment_root,
+            "baseline_measurement": {"state": "not-started", "pid": None, "exit_code": None, "generation": 0},
+            "baseline_result": None,
             "event_sequence": 0,
             "created_at": int(time.time()),
         }
@@ -617,6 +668,8 @@ def public_status(document: dict) -> dict:
         "attempt_lock_digests": document["routing"]["attempt_lock_digests"],
         "constraints_digest": document["constraints_digest"],
         "measurement_digest": document["measurement_digest"],
+        "baseline_measurement": document["baseline_measurement"],
+        "baseline_result": document["baseline_result"],
         "attempts": document["attempts"],
         "state_digest": document["state_digest"],
     }
@@ -939,6 +992,7 @@ def command_lock_attempt(args: argparse.Namespace) -> tuple[str, dict]:
         ensure_private_dir(os.path.join(worker_env, "home"))
         for name in ("xdg-config", "xdg-data", "xdg-cache", "tmp"):
             ensure_private_dir(os.path.join(worker_env, name))
+        measurement_environment_root = prepare_measurement_environment(os.path.join(attempt_root, "measurement-environment"))
         preflight_error = None
         executable = None
         executable_identity = None
@@ -1012,6 +1066,7 @@ def command_lock_attempt(args: argparse.Namespace) -> tuple[str, dict]:
             "confinement": confinement,
             "auth_material": auth_material,
             "environment_root": worker_env,
+            "measurement_environment_root": measurement_environment_root,
             "filesystem_baseline_digest": digest(inventory),
         }
         attempt = {
@@ -1058,7 +1113,7 @@ def validate_attempt_lock(document: dict, attempt: dict) -> None:
             "snapshot_id", "source_revisions", "binding_digest", "resolver_attempt_lock", "candidate", "recipient",
             "backend", "worktree", "spec_digest", "constraints_digest", "measurement", "measurement_digest",
             "mutable_scope", "immutable_scope", "execution", "stopping", "judge", "executable", "confinement",
-            "auth_material", "environment_root", "filesystem_baseline_digest",
+             "auth_material", "environment_root", "measurement_environment_root", "filesystem_baseline_digest",
         )
     }
     if attempt.get("lock_digest") != digest(fields):
@@ -1113,6 +1168,10 @@ def validate_attempt_runtime(document: dict, attempt: dict) -> None:
         if attempt.get("integrated") is not True:
             raise Refused("result marker exists without integrated controller state")
         marker_value = read_json(expected, private=True)
+        if marker_value.get("exit_code") == 0:
+            validate_metrics(marker_value.get("metrics"), attempt["measurement"]["metric_names"])
+        elif marker_value.get("metrics") != {}:
+            raise Refused("failed measurement marker retained unsafe metrics")
         supervisor_path = attempt.get("measurement_process", {}).get("supervisor_evidence", {}).get("path")
         if supervisor_path is not None and marker_value.get("supervisor_digest") != digest_file(supervisor_path):
             raise Refused("measurement supervisor evidence changed")
@@ -1132,6 +1191,32 @@ def validate_attempt_runtime(document: dict, attempt: dict) -> None:
             validate_checkpoint_projection(raw, attempt["attempt_id"], projection)
     elif final_state is not None:
         raise Refused("attempt has terminal state without a checkpoint")
+
+
+def validate_baseline_runtime(document: dict) -> None:
+    process = document.get("baseline_measurement")
+    if not isinstance(process, dict) or process.get("state") not in {
+        "not-started", "launch-authorized", "running", "launch-cancelled", "done",
+    }:
+        raise Refused("baseline measurement process state is malformed")
+    expected_root = os.path.join(run_dir(document["run_id"]), "baseline", "environment")
+    if document.get("baseline_environment_root") != expected_root or os.path.realpath(expected_root) != expected_root:
+        raise Refused("baseline measurement environment root changed")
+    result = document.get("baseline_result")
+    if process["state"] == "done":
+        if not isinstance(result, dict) or result.get("protocol") != "ce-optimize-baseline/v1":
+            raise Refused("terminal baseline measurement has no result")
+        if result.get("exit_code") == 0:
+            validate_metrics(result.get("metrics"), document["constraints"]["measurement"]["metric_names"])
+        elif result.get("metrics") != {}:
+            raise Refused("failed baseline retained unsafe metrics")
+        evidence, _ = read_supervisor_evidence(document, "baseline_measurement")
+        if result.get("supervisor_digest") != digest_file(process["supervisor_evidence"]["path"]):
+            raise Refused("baseline supervisor evidence changed")
+        if len(evidence["runs"]) != document["constraints"]["measurement"]["stability"]["repeat_count"]:
+            raise Refused("baseline repeat evidence changed")
+    elif result is not None:
+        raise Refused("baseline result exists without terminal process state")
 
 
 def serving_evidence(stdout: bytes) -> dict:
@@ -1166,6 +1251,70 @@ def child_environment(attempt: dict, document: dict) -> dict[str, str]:
     return value
 
 
+def prepare_measurement_environment(path: str) -> str:
+    root = ensure_private_dir(path)
+    for name in ("home", "xdg-config", "xdg-data", "xdg-cache", "tmp", "scratch"):
+        ensure_private_dir(os.path.join(root, name))
+    return root
+
+
+def measurement_environment(root: str) -> dict[str, str]:
+    return {
+        **SAFE_CHILD_ENV,
+        "HOME": os.path.join(root, "home"),
+        "XDG_CONFIG_HOME": os.path.join(root, "xdg-config"),
+        "XDG_DATA_HOME": os.path.join(root, "xdg-data"),
+        "XDG_CACHE_HOME": os.path.join(root, "xdg-cache"),
+        "TMPDIR": os.path.join(root, "tmp"),
+        "CE_OPTIMIZE_SCRATCH": os.path.join(root, "scratch"),
+    }
+
+
+def validate_metrics(value: object, names: list[str]) -> dict:
+    if not isinstance(value, dict) or set(value) != set(names):
+        raise Refused("measurement output keys differ from the declared metrics")
+    for name, metric in value.items():
+        if type(metric) not in {int, float, bool}:
+            raise Refused(f"measurement metric {name} is not a numeric/boolean scalar")
+        if type(metric) is float and (metric != metric or metric in {float("inf"), float("-inf")}):
+            raise Refused(f"measurement metric {name} is not finite")
+    return value
+
+
+def prepare_mutable_outputs(workspace: str, paths: list[str]) -> list[str]:
+    created = []
+    try:
+        for relative in paths:
+            target = os.path.join(workspace, relative)
+            if os.path.lexists(target):
+                raise Refused(f"measurement mutable output must be absent before launch: {relative}")
+            cursor = workspace
+            for part in Path(relative).parts[:-1]:
+                cursor = os.path.join(cursor, part)
+                if os.path.lexists(cursor) and os.path.islink(cursor):
+                    raise Refused(f"measurement mutable output contains a symlink: {relative}")
+            parent = os.path.dirname(target)
+            if not os.path.isdir(parent) or os.path.realpath(parent) != parent:
+                raise Refused(f"measurement mutable output parent must be an existing canonical directory: {relative}")
+            os.mkdir(target, mode=0o700)
+            created.append(target)
+    except BaseException:
+        cleanup_mutable_outputs(created)
+        raise
+    return created
+
+
+def cleanup_mutable_outputs(paths: list[str]) -> None:
+    for target in reversed(paths):
+        if not os.path.lexists(target):
+            continue
+        info = os.lstat(target)
+        if stat.S_ISDIR(info.st_mode) and not stat.S_ISLNK(info.st_mode):
+            shutil.rmtree(target)
+        else:
+            os.unlink(target)
+
+
 def validate_staged_auth(attempt: dict) -> None:
     config_root = os.path.join(attempt["environment_root"], "codex-home")
     expected = {item["destination"]: item["sha256"] for item in attempt["auth_material"]}
@@ -1196,8 +1345,8 @@ def system_read_roots(executable: str) -> list[str]:
     return values
 
 
-def reserve_supervisor_evidence(attempt: dict, name: str) -> dict:
-    path = os.path.join(run_dir(attempt["run_id"]), "attempts", attempt["attempt_id"], name)
+def reserve_supervisor_evidence(root: str, name: str) -> dict:
+    path = os.path.join(root, name)
     fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
     try:
         os.fchmod(fd, 0o600)
@@ -1219,18 +1368,17 @@ def make_confinement(
     interpreter = os.path.realpath(sys.executable)
     adapter_identity = path_identity(adapter, include_digest=True)
     interpreter_identity = path_identity(interpreter, include_digest=True)
-    capability = attempt["confinement"] if mode == "route" else document["measurement_confinement"]
+    capability = attempt["confinement"]
     if adapter_identity != capability["adapter"] or interpreter_identity != capability["interpreter"]:
         raise Refused("confinement adapter or interpreter changed after attempt lock")
     read_only = [path_identity(path, include_digest=os.path.isfile(path)) for path in system_read_roots(executable)]
     read_write = [path_identity(attempt["environment_root"])]
-    if mode == "route" and attempt["role"] == "author":
-        read_write.append(path_identity(attempt["worktree"]))
-    elif mode == "measurement":
+    if attempt["role"] == "author":
         read_write.append(path_identity(attempt["worktree"]))
     elif attempt["worktree"]:
         read_only.append(path_identity(attempt["worktree"]))
-    evidence = reserve_supervisor_evidence(attempt, evidence_name)
+    evidence_root = os.path.join(run_dir(attempt["run_id"]), "attempts", attempt["attempt_id"])
+    evidence = reserve_supervisor_evidence(evidence_root, evidence_name)
     config = {
         "schema_version": 1,
         "protocol": "ce-optimize-landlock/v1",
@@ -1243,15 +1391,61 @@ def make_confinement(
         "mode": mode,
         "child_env": child_environment(attempt, document),
         "supervisor_evidence": evidence,
-        "measurement": None if mode == "route" else {
-            "command": attempt["measurement"]["command"],
-            "timeout_seconds": attempt["measurement"]["timeout_seconds"],
-            "stability": attempt["measurement"]["stability"],
-        },
-        "network": "seccomp-deny-socket",
+        "measurement": None,
+        "network": "seccomp-deny-network-v2",
         "stdin": path_identity(stdin_path, include_digest=True) if stdin_path else None,
     }
     path = os.path.join(run_dir(attempt["run_id"]), "attempts", attempt["attempt_id"], f"confinement-{mode}.json")
+    write_json(path, config)
+    return path, digest_file(path), evidence
+
+
+def make_measurement_confinement(
+    document: dict,
+    *,
+    workspace: str,
+    environment_root: str,
+    evidence_root: str,
+    evidence_name: str,
+    mutable_outputs: list[str],
+) -> tuple[str, str, dict]:
+    adapter = os.path.join(os.path.dirname(os.path.realpath(__file__)), "optimize-landlock.py")
+    interpreter = os.path.realpath(sys.executable)
+    capability = document["measurement_confinement"]
+    if (
+        path_identity(adapter, include_digest=True) != capability["adapter"]
+        or path_identity(interpreter, include_digest=True) != capability["interpreter"]
+    ):
+        raise Refused("measurement confinement adapter or interpreter changed after run start")
+    shell = os.path.realpath("/bin/bash")
+    read_only = [path_identity(path, include_digest=os.path.isfile(path)) for path in system_read_roots(shell)]
+    read_only.append(path_identity(workspace))
+    read_write = [path_identity(environment_root)]
+    read_write.extend(path_identity(path) for path in mutable_outputs)
+    evidence = reserve_supervisor_evidence(evidence_root, evidence_name)
+    measurement = document["constraints"]["measurement"]
+    config = {
+        "schema_version": 1,
+        "protocol": "ce-optimize-landlock/v1",
+        "adapter": capability["adapter"],
+        "interpreter": capability["interpreter"],
+        "abi": capability["abi"],
+        "executable": path_identity(shell, include_digest=True),
+        "read_only": read_only,
+        "read_write": read_write,
+        "mode": "measurement",
+        "child_env": measurement_environment(environment_root),
+        "supervisor_evidence": evidence,
+        "measurement": {
+            "command": measurement["command"],
+            "metric_names": measurement["metric_names"],
+            "timeout_seconds": measurement["timeout_seconds"],
+            "stability": measurement["stability"],
+        },
+        "network": "seccomp-deny-network-v2",
+        "stdin": None,
+    }
+    path = os.path.join(evidence_root, "confinement-measurement.json")
     write_json(path, config)
     return path, digest_file(path), evidence
 
@@ -1282,10 +1476,20 @@ def read_supervisor_evidence(attempt: dict, process_key: str) -> tuple[dict, lis
     for run in evidence["runs"]:
         if not isinstance(run, dict) or type(run.get("exit_code")) is not int:
             raise Refused("supervisor run evidence is malformed")
-        try:
-            decoded.append((base64.b64decode(run["stdout_b64"], validate=True), base64.b64decode(run["stderr_b64"], validate=True)))
-        except (KeyError, ValueError) as exc:
-            raise Refused("supervisor output evidence is malformed") from exc
+        if evidence.get("mode") == "measurement":
+            if (
+                not isinstance(run.get("stdout_digest"), str)
+                or not isinstance(run.get("stderr_digest"), str)
+                or "stdout_b64" in run
+                or "stderr_b64" in run
+            ):
+                raise Refused("measurement supervisor persisted unsafe raw output")
+            decoded.append((b"", b""))
+        else:
+            try:
+                decoded.append((base64.b64decode(run["stdout_b64"], validate=True), base64.b64decode(run["stderr_b64"], validate=True)))
+            except (KeyError, ValueError) as exc:
+                raise Refused("supervisor output evidence is malformed") from exc
     return evidence, decoded
 
 
@@ -1324,6 +1528,7 @@ def mark_measurement_launch_cancelled(document: dict, attempt: dict) -> None:
     if evidence.get("launch_cancelled") is not True or evidence.get("mode") != "measurement":
         raise Refused("measurement launch cancellation evidence is invalid")
     process = attempt["measurement_process"]
+    cleanup_mutable_outputs(process.get("mutable_outputs", []))
     process.update({"state": "launch-cancelled", "exit_code": 125, "finished_at": int(time.time())})
     append_event(document, "measurement-launch-cancelled", attempt["attempt_id"], {
         "generation": process.get("generation", 0),
@@ -1767,6 +1972,165 @@ def command_abandon(args: argparse.Namespace) -> tuple[str, dict]:
         return "ABANDONED", {"attempt_id": attempt_id, "checkpoint": document["attempts"][attempt_id]["checkpoint"]}
 
 
+def mark_baseline_launch_cancelled(document: dict) -> None:
+    evidence, _ = read_supervisor_evidence(document, "baseline_measurement")
+    if evidence.get("launch_cancelled") is not True or evidence.get("mode") != "measurement":
+        raise Refused("baseline launch cancellation evidence is invalid")
+    process = document["baseline_measurement"]
+    cleanup_mutable_outputs(process.get("mutable_outputs", []))
+    process.update({"state": "launch-cancelled", "exit_code": 125, "finished_at": int(time.time())})
+    append_event(document, "baseline-launch-cancelled", None, {
+        "generation": process.get("generation", 0),
+        "origin": evidence["cancellation_origin"],
+    })
+
+
+def finish_baseline(document: dict) -> tuple[str, dict]:
+    evidence, outputs = read_supervisor_evidence(document, "baseline_measurement")
+    measurement = document["constraints"]["measurement"]
+    policy = measurement["stability"]
+    if evidence["mode"] != "measurement" or len(outputs) != policy["repeat_count"]:
+        raise Refused("baseline supervisor did not execute the exact frozen repeat count")
+    exit_code = next((run["exit_code"] for run in evidence["runs"] if run["exit_code"] != 0), 0)
+    aggregate = evidence.get("aggregate")
+    try:
+        aggregate = validate_metrics(aggregate, measurement["metric_names"])
+    except Refused:
+        exit_code = exit_code or 125
+        aggregate = {}
+    cleanup_mutable_outputs(document["baseline_measurement"].get("mutable_outputs", []))
+    if digest(filesystem_inventory(document["repo"])) != document["baseline_measurement"]["filesystem_inventory_digest"]:
+        exit_code = 125
+        aggregate = {}
+    result = {
+        "protocol": "ce-optimize-baseline/v1",
+        "run_id": document["run_id"],
+        "routing_snapshot_id": document["routing"]["snapshot_id"],
+        "spec_digest": document["spec_digest"],
+        "constraints_digest": document["constraints_digest"],
+        "measurement_digest": document["measurement_digest"],
+        "stability": policy,
+        "repeat_count": len(evidence["runs"]),
+        "repeat_digests": [run["stdout_digest"] for run in evidence["runs"]],
+        "metrics": aggregate,
+        "metrics_digest": digest(aggregate),
+        "spread": evidence.get("spread") if aggregate else None,
+        "exit_code": exit_code,
+        "stdout_digest": digest(aggregate),
+        "stderr_digest": digest([run["stderr_digest"] for run in evidence["runs"]]),
+        "supervisor_digest": digest_file(document["baseline_measurement"]["supervisor_evidence"]["path"]),
+        "measured_at": int(time.time()),
+    }
+    document["baseline_measurement"].update({"state": "done", "exit_code": exit_code, "finished_at": int(time.time())})
+    document["baseline_result"] = result
+    append_event(document, "baseline-terminal", None, {"metrics_digest": result["metrics_digest"], "exit_code": exit_code})
+    return ("BASELINED" if exit_code == 0 else "BASELINE_FAILED"), result
+
+
+def command_baseline(args: argparse.Namespace) -> tuple[str, dict]:
+    run_id = safe_id(args.run_id, "run id")
+    with run_lock(run_id):
+        document = load_manifest(run_id)
+        process_state = document["baseline_measurement"]
+        if process_state["state"] in {"launch-authorized", "running"}:
+            evidence, _ = read_supervisor_evidence(document, "baseline_measurement")
+            if evidence.get("launch_cancelled") is True:
+                mark_baseline_launch_cancelled(document)
+                save_manifest(document)
+            else:
+                word, result = finish_baseline(document)
+                save_manifest(document)
+                return word, result
+        if document["baseline_measurement"]["state"] == "launch-cancelled":
+            generation = document["baseline_measurement"].get("generation", 0)
+            document["baseline_measurement"] = {
+                "state": "not-started", "pid": None, "exit_code": None, "generation": generation,
+            }
+        if document["baseline_measurement"]["state"] != "not-started" or document["baseline_result"] is not None:
+            raise Refused("run already has baseline measurement lifecycle state")
+        measurement = document["constraints"]["measurement"]
+        working = os.path.realpath(os.path.join(document["repo"], measurement["working_directory"]))
+        if os.path.commonpath([document["repo"], working]) != document["repo"] or not os.path.isdir(working):
+            raise Refused("baseline working directory escapes the repository")
+        inventory_digest = digest(filesystem_inventory(document["repo"]))
+        mutable_outputs = prepare_mutable_outputs(document["repo"], measurement["mutable_outputs"])
+        generation = document["baseline_measurement"].get("generation", 0) + 1
+        evidence_root = os.path.join(run_dir(run_id), "baseline")
+        try:
+            confinement_path, confinement_digest, supervisor = make_measurement_confinement(
+                document,
+                workspace=document["repo"],
+                environment_root=document["baseline_environment_root"],
+                evidence_root=evidence_root,
+                evidence_name=f"supervisor-measurement-{generation}.json",
+                mutable_outputs=mutable_outputs,
+            )
+        except BaseException:
+            cleanup_mutable_outputs(mutable_outputs)
+            raise
+        shell = os.path.realpath("/bin/bash")
+        barrier_read, barrier_write = os.pipe()
+        argv = [
+            sys.executable, "-I", "-S", os.path.join(os.path.dirname(os.path.realpath(__file__)), "optimize-landlock.py"),
+            "--config", confinement_path, "--digest", confinement_digest, "--barrier-fd", str(barrier_read), "--", shell,
+        ]
+        document["baseline_measurement"] = {
+            "state": "launch-authorized", "pid": None, "exit_code": None,
+            "argv_digest": digest(argv), "confinement_digest": confinement_digest,
+            "supervisor_evidence": supervisor, "mutable_outputs": mutable_outputs,
+            "filesystem_inventory_digest": inventory_digest,
+            "generation": generation, "started_at": int(time.time()),
+        }
+        append_event(document, "baseline-intent", None, {"measurement_digest": document["measurement_digest"]})
+        save_manifest(document)
+    try:
+        if launch_fault("baseline", "pre-spawn"):
+            raise OSError("injected baseline Popen failure")
+        process = subprocess.Popen(
+            argv,
+            cwd=working,
+            env=SAFE_CHILD_ENV,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=None,
+            pass_fds=(barrier_read,),
+            start_new_session=True,
+        )
+    except OSError as exc:
+        close_fd(barrier_read)
+        close_fd(barrier_write)
+        with run_lock(run_id):
+            document = load_manifest(run_id)
+            current = document["baseline_measurement"]
+            if current["state"] != "launch-authorized" or current.get("pid") is not None:
+                raise Refused("baseline process state changed before launch cancellation") from exc
+            record_pre_spawn_cancellation(current, "measurement")
+            mark_baseline_launch_cancelled(document)
+            save_manifest(document)
+        raise Refused("baseline launch failed before spawn; cancellation recorded") from exc
+    close_fd(barrier_read)
+    if launch_fault("baseline", "post-spawn-pre-pid"):
+        os._exit(86)
+    with run_lock(run_id):
+        document = load_manifest(run_id)
+        current = document["baseline_measurement"]
+        if current["state"] != "launch-authorized" or current["pid"] is not None:
+            close_fd(barrier_write)
+            raise Refused("baseline authority changed before PID recording")
+        current["state"] = "running"
+        current["pid"] = process.pid
+        append_event(document, "baseline-started", None, {"pid": process.pid})
+        save_manifest(document)
+    os.write(barrier_write, b"1")
+    close_fd(barrier_write)
+    process.wait()
+    with run_lock(run_id):
+        document = load_manifest(run_id)
+        word, result = finish_baseline(document)
+        save_manifest(document)
+        return word, result
+
+
 def finish_measurement(document: dict, attempt: dict) -> tuple[str, dict]:
     evidence, outputs = read_supervisor_evidence(attempt, "measurement_process")
     policy = attempt["measurement"]["stability"]
@@ -1778,14 +2142,17 @@ def finish_measurement(document: dict, attempt: dict) -> tuple[str, dict]:
             exit_code = run["exit_code"]
             break
     aggregate = evidence.get("aggregate")
-    if not isinstance(aggregate, dict):
+    try:
+        aggregate = validate_metrics(aggregate, attempt["measurement"]["metric_names"])
+    except Refused:
         exit_code = exit_code or 125
         aggregate = {}
+    cleanup_mutable_outputs(attempt["measurement_process"].get("mutable_outputs", []))
     current_inventory = filesystem_inventory(attempt["worktree"])
     if current_inventory != attempt["author_output_inventory"]:
         exit_code = 125
+        aggregate = {}
     stdout = canonical_json(aggregate) + b"\n"
-    stderr = b"".join(stderr for _, stderr in outputs)
     metrics_digest = digest(aggregate)
     marker = {
         "protocol": "ce-optimize-result-marker/v1",
@@ -1800,7 +2167,7 @@ def finish_measurement(document: dict, attempt: dict) -> tuple[str, dict]:
         "filesystem_inventory_digest": attempt["author_output_inventory_digest"],
         "stability": policy,
         "repeat_count": len(outputs),
-        "repeat_digests": [digest_bytes(value) for value, _ in outputs],
+        "repeat_digests": [run["stdout_digest"] for run in evidence["runs"]],
         "metrics": aggregate,
         "metrics_digest": metrics_digest,
         "spread": evidence.get("spread"),
@@ -1810,7 +2177,7 @@ def finish_measurement(document: dict, attempt: dict) -> tuple[str, dict]:
         ),
         "exit_code": exit_code,
         "stdout_digest": digest_bytes(stdout),
-        "stderr_digest": digest_bytes(stderr),
+        "stderr_digest": digest([run["stderr_digest"] for run in evidence["runs"]]),
         "supervisor_digest": digest_file(attempt["measurement_process"]["supervisor_evidence"]["path"]),
         "measured_at": int(time.time()),
     }
@@ -1819,7 +2186,6 @@ def finish_measurement(document: dict, attempt: dict) -> tuple[str, dict]:
     write_json(marker_path, marker)
     write_json(os.path.join(attempt["worktree"], "result.yaml"), marker)
     atomic_write(os.path.join(run_dir(document["run_id"]), "attempts", attempt["attempt_id"], "measurement.stdout"), stdout)
-    atomic_write(os.path.join(run_dir(document["run_id"]), "attempts", attempt["attempt_id"], "measurement.stderr"), stderr)
     attempt["measurement_process"].update({"state": "done", "exit_code": exit_code, "finished_at": int(time.time())})
     attempt["result_marker"] = {"path": marker_path, "digest": digest_file(marker_path), "exit_code": exit_code}
     attempt["integrated"] = True
@@ -1872,12 +2238,21 @@ def command_measure(args: argparse.Namespace) -> tuple[str, dict]:
             raise Refused("measurement working directory escapes the worktree")
         if filesystem_inventory(attempt["worktree"]) != attempt["author_output_inventory"]:
             raise Refused("accepted author filesystem changed before measurement")
-        shell = os.path.realpath("/bin/bash")
         generation = attempt["measurement_process"].get("generation", 0) + 1
-        confinement_path, confinement_digest, supervisor = make_confinement(
-            attempt, document, mode="measurement", executable=shell,
-            evidence_name=f"supervisor-measurement-{generation}.json",
-        )
+        mutable_outputs = prepare_mutable_outputs(attempt["worktree"], attempt["measurement"]["mutable_outputs"])
+        try:
+            confinement_path, confinement_digest, supervisor = make_measurement_confinement(
+                document,
+                workspace=attempt["worktree"],
+                environment_root=attempt["measurement_environment_root"],
+                evidence_root=os.path.join(run_dir(run_id), "attempts", attempt_id),
+                evidence_name=f"supervisor-measurement-{generation}.json",
+                mutable_outputs=mutable_outputs,
+            )
+        except BaseException:
+            cleanup_mutable_outputs(mutable_outputs)
+            raise
+        shell = os.path.realpath("/bin/bash")
         barrier_read, barrier_write = os.pipe()
         argv = [
             sys.executable, "-I", "-S", os.path.join(os.path.dirname(os.path.realpath(__file__)), "optimize-landlock.py"),
@@ -1886,7 +2261,8 @@ def command_measure(args: argparse.Namespace) -> tuple[str, dict]:
         attempt["measurement_process"] = {
             "state": "launch-authorized", "pid": None, "exit_code": None,
             "argv_digest": digest(argv), "confinement_digest": confinement_digest,
-            "supervisor_evidence": supervisor, "generation": generation, "started_at": int(time.time()),
+            "supervisor_evidence": supervisor, "mutable_outputs": mutable_outputs,
+            "generation": generation, "started_at": int(time.time()),
         }
         append_event(document, "measurement-intent", attempt_id, {"measurement_digest": document["measurement_digest"]})
         save_manifest(document)
@@ -2202,6 +2578,9 @@ def build_parser() -> argparse.ArgumentParser:
     status = commands.add_parser("status")
     status.add_argument("--run-id", required=True)
     status.set_defaults(handler=lambda args: ("STATUS", public_status(load_manifest(args.run_id))))
+    baseline = commands.add_parser("baseline")
+    baseline.add_argument("--run-id", required=True)
+    baseline.set_defaults(handler=command_baseline)
     lock = commands.add_parser("lock-attempt")
     lock.add_argument("--run-id", required=True)
     lock.add_argument("--attempt-id", required=True)
@@ -2264,7 +2643,7 @@ def main() -> None:
         word, body = args.handler(args)
         print(word)
         print(json.dumps(body, sort_keys=True))
-        if word in {"RESET_DENIED", "BLOCK", "BLOCKED"}:
+        if word in {"RESET_DENIED", "BLOCK", "BLOCKED", "BASELINE_FAILED", "MEASUREMENT_FAILED"}:
             raise SystemExit(4)
     except Refused as exc:
         print(f"optimize-controller: {exc}", file=sys.stderr)
