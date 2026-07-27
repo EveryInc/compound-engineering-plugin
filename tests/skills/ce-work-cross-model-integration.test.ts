@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process"
 import {
   chmodSync,
   cpSync,
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -43,18 +44,6 @@ function packetFile(content: string): string {
   const packet = path.join(temp("ce-work-packet-"), "unit.md")
   writeFileSync(packet, content, { mode: 0o600 })
   return packet
-}
-
-function authManifest(route = "codex"): string {
-  const root = temp("ce-work-auth-")
-  const auth = path.join(root, "auth.json")
-  const manifest = path.join(root, "manifest.json")
-  writeFileSync(auth, '{"token":"fake"}\n', { mode: 0o600 })
-  writeFileSync(manifest, `${JSON.stringify({
-    route,
-    files: [{ source: auth, destination: "auth.json" }],
-  })}\n`, { mode: 0o600 })
-  return manifest
 }
 
 function control(runs: string, ...args: string[]) {
@@ -163,16 +152,22 @@ function fakeDoneJob(runs: string, runId: string, unitId: string, packetContent:
     const dispatch = status.attempts.at(-1).dispatch_authorization_receipt
     writeFileSync(dispatch.supervisor_evidence.route.path, `${JSON.stringify({
     schema_version: 1,
-    protocol: "ce-work-subreaper/v1",
+    protocol: "ce-work-subreaper/v2",
     slot: "route",
     config_sha256: dispatch.confinement_digest,
     supervisor_pid: 2000000001,
+    supervisor_pgid: 2000000001,
+    supervisor_sid: 2000000001,
     leader_pid: 2000000002,
     leader_exit: 0,
     interrupted_signal: null,
+    initial_descendants: [],
     descendants_observed: [],
     term_sent: [],
     kill_sent: [],
+    term_grace_ms: 1000,
+    kill_grace_ms: 3000,
+    containment_elapsed_ms: 0,
     all_descendants_gone: true,
     })}\n`, { mode: 0o600 })
   }
@@ -220,7 +215,6 @@ describe("ce-work serial cross-model transaction", () => {
       "--unit-id", "U-scope",
       "--base", base,
       "--packet", packetFile("U-scope packet"),
-      "--auth-manifest", authManifest(),
       "--attempt-id", "attempt-1",
       "--activity-posture", "incremental",
     ).body
@@ -287,6 +281,104 @@ printf '%s\n' '{"terminal_status":"scope_expansion","summary":"shared contract n
     })
   }, 30_000)
 
+  test("timeout contains a double-forked setsid writer before fallback or cleanup", () => {
+    const root = temp("ce-work-timeout-containment-")
+    const repo = path.join(root, "repo")
+    const peerRoot = path.join(root, "jobs")
+    const runs = path.join(peerRoot, "ce-work")
+    mkdirSync(repo)
+    git(repo, "init", "-b", "main")
+    git(repo, "config", "user.name", "CE Work Host")
+    git(repo, "config", "user.email", "host@example.test")
+    mkdirSync(path.join(repo, "docs", "plans"), { recursive: true })
+    const plan = path.join(repo, "docs", "plans", "plan.md")
+    writeFileSync(plan, "# Plan\n")
+    writeFileSync(path.join(repo, "seed.txt"), "seed\n")
+    git(repo, "add", ".")
+    git(repo, "commit", "-m", "seed")
+    const base = git(repo, "rev-parse", "HEAD")
+    const planDigest = createHash("sha256").update(readFileSync(plan)).digest("hex")
+    expect(control(
+      runs, "init", "--run-id", "timeout-run", "--repo", repo, "--plan", plan,
+      "--plan-digest", planDigest,
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U-timeout"],"restrictions":[]}',
+    ).word).toBe("READY")
+    const prepared = control(
+      runs, "prepare", "--run-id", "timeout-run", "--unit-id", "U-timeout",
+      "--base", base, "--packet", packetFile("timeout packet"),
+    ).body
+    const marker = path.join(prepared.workspace, "late-timeout-write.txt")
+    const fakeBin = path.join(root, "fake-bin")
+    mkdirSync(fakeBin)
+    writeFileSync(path.join(fakeBin, "codex"), `#!/bin/sh
+set -eu
+/usr/bin/python3 - '${marker}' <<'PY'
+import os, signal, sys, time
+if os.fork() == 0:
+    os.setsid()
+    if os.fork() != 0:
+        os._exit(0)
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    time.sleep(5)
+    with open(sys.argv[1], "w") as stream:
+        stream.write("escaped\\n")
+    os._exit(0)
+time.sleep(30)
+PY
+`)
+    chmodSync(path.join(fakeBin, "codex"), 0o755)
+    const resultPath = path.join(prepared.result_dir, "implementation-result.json")
+    const runnerEnv = {
+      ...process.env,
+      CE_PEER_JOBS_ROOT: peerRoot,
+      CE_WORK_RUNS_ROOT: runs,
+      PATH: `${fakeBin}:${process.env.PATH}`,
+      CE_PEER_POLL_SECS: "0.05",
+      CE_PEER_IDLE_SECS: "0",
+      CE_PEER_HARD_SECS: "0.5",
+      CE_PEER_GRACE_SECS: "0.1",
+    }
+    const jobId = run(repo, [
+      "python3", RUNNER, "start", "--skill", "ce-work", "--run-id", "timeout-run",
+      "--label", "U-timeout", "--input-digest", prepared.packet_digest,
+      "--result-path", resultPath, "--no-sweep", "--", prepared.launcher, ADAPTER,
+      prepared.authorization_path, prepared.workspace, prepared.packet_path,
+      prepared.packet_digest, prepared.result_dir,
+    ], runnerEnv)
+    expect(control(
+      runs, "record-job", "--run-id", "timeout-run", "--unit-id", "U-timeout",
+      "--attempt-id", "attempt-1", "--job-id", jobId,
+    ).word).toBe("AUTHORING")
+    expect(run(repo, [
+      "python3", RUNNER, "wait", "--skill", "ce-work", "--max-secs", "15", jobId,
+    ], runnerEnv)).toBe("timeout")
+    expect(control(runs, "sync-job", "--run-id", "timeout-run", "--unit-id", "U-timeout").body.process_state).toBe("timeout")
+    Bun.sleepSync(5500)
+    const status = control(runs, "status", "--run-id", "timeout-run", "--unit-id", "U-timeout").body.unit
+    const evidence = JSON.parse(readFileSync(status.attempts[0].dispatch_authorization_receipt.supervisor_evidence.route.path, "utf8"))
+    expect(existsSync(marker), JSON.stringify(evidence)).toBe(false)
+    expect(evidence).toMatchObject({
+      protocol: "ce-work-subreaper/v2",
+      interrupted_signal: 15,
+      all_descendants_gone: true,
+      term_grace_ms: 1000,
+      kill_grace_ms: 3000,
+    })
+    expect(evidence.initial_descendants.length).toBeGreaterThan(0)
+    expect(evidence.kill_sent.length).toBeGreaterThan(0)
+    expect(evidence.supervisor_pgid).toBe(evidence.supervisor_pid)
+    expect(evidence.supervisor_sid).toBe(evidence.supervisor_pid)
+    expect(control(
+      runs, "claim-fallback", "--run-id", "timeout-run", "--unit-id", "U-timeout",
+      "--caller-mode", "headless",
+    ).word).toBe("FALLBACK_AUTHORIZED")
+    expect(control(
+      runs, "cleanup", "--run-id", "timeout-run", "--unit-id", "U-timeout",
+      "--abandon", "--expect-job", jobId,
+    ).word).toBe("CLEANED")
+  }, 30_000)
+
   test("structured receipts redact secrets before JSON encoding", () => {
     const root = temp("ce-work-structured-redaction-")
     const repo = path.join(root, "repo")
@@ -322,7 +414,6 @@ printf '%s\n' '{"terminal_status":"scope_expansion","summary":"shared contract n
       "--unit-id", "U-redact",
       "--base", base,
       "--packet", packetFile("U-redact packet"),
-      "--auth-manifest", authManifest(),
       "--attempt-id", "attempt-1",
       "--activity-posture", "incremental",
     ).body
@@ -438,7 +529,7 @@ printf '%s\n' '${JSON.stringify({
     ).word).toBe("READY")
     const prepared = control(
       runs, "prepare", "--run-id", "unavailable-run", "--unit-id", "U",
-      "--base", base, "--packet", packetFile("unavailable packet"), "--auth-manifest", authManifest(),
+      "--base", base, "--packet", packetFile("unavailable packet"),
     ).body
     const limitedPath = "/usr/bin:/bin"
     const runnerEnv = {
@@ -1021,7 +1112,6 @@ class FeatureTest(unittest.TestCase):
       "--unit-id", "U4a",
       "--base", base,
       "--packet", packet,
-      "--auth-manifest", authManifest(),
       "--attempt-id", "attempt-1",
       "--activity-posture", "incremental",
     )

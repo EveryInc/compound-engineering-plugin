@@ -353,16 +353,22 @@ function writeSupervisorEvidence(runsRoot: string, runId: string, unitId: string
   const evidencePath = dispatch.supervisor_evidence.route.path
   writeFileSync(evidencePath, `${JSON.stringify({
     schema_version: 1,
-    protocol: "ce-work-subreaper/v1",
+    protocol: "ce-work-subreaper/v2",
     slot: "route",
     config_sha256: dispatch.confinement_digest,
     supervisor_pid: 2000000001,
+    supervisor_pgid: 2000000001,
+    supervisor_sid: 2000000001,
     leader_pid: 2000000002,
     leader_exit: 0,
     interrupted_signal: null,
+    initial_descendants: [],
     descendants_observed: [],
     term_sent: [],
     kill_sent: [],
+    term_grace_ms: 1000,
+    kill_grace_ms: 3000,
+    containment_elapsed_ms: 0,
     all_descendants_gone: true,
   })}\n`, { mode: 0o600 })
   chmodSync(evidencePath, 0o600)
@@ -889,7 +895,7 @@ describe("ce-work unit workspace controller", () => {
       environment: {
         schema_version: 1,
         posture: "credential-minimized",
-        authentication: "unavailable",
+        authentication: "external-or-none",
         material: [],
       },
       confinement: {
@@ -973,6 +979,43 @@ describe("ce-work unit workspace controller", () => {
       runs, "cleanup", "--run-id", "run-authority", "--unit-id", "U",
       "--abandon", "--expect-job", job,
     ).word).toBe("CLEANED")
+  })
+
+  test("blocks exact staged-secret bytes in workspace and results before transport", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-staged-secret-leak"
+    const secret = "SENTINEL-exact\nstaged-secret"
+    const authRoot = tmp("ce-work-staged-secret-")
+    const auth = path.join(authRoot, "auth.json")
+    const manifest = path.join(authRoot, "manifest.json")
+    writeFileSync(auth, `${JSON.stringify({ token: secret })}\n`, { mode: 0o600 })
+    writeFileSync(manifest, `${JSON.stringify({
+      route: "codex",
+      files: [{ source: auth, destination: "auth.json" }],
+    })}\n`, { mode: 0o600 })
+
+    init(runs, runId, f)
+    const prepared = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U", "--base", f.base,
+      "--packet", packetFile("secret scan packet"), "--auth-manifest", manifest,
+    ).body
+    const job = fakeDoneJob(runs, runId, "U", "secret scan packet", "job-staged-secret")
+    expect(ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    ).word).toBe("AUTHORING")
+    writeFileSync(path.join(prepared.workspace, "leaked.txt"), `prefix ${secret} suffix\n`)
+    writeFileSync(path.join(prepared.result_dir, "adapter.log"), `log ${secret}\n`, { mode: 0o600 })
+
+    const terminal = ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U")
+    expect(terminal.word).toBe("BLOCKED")
+    expect(terminal.stderr).toContain("staged authentication secret bytes")
+    expect(terminal.stderr).toContain("workspace/leaked.txt")
+    expect(terminal.stderr).toContain("result/adapter.log")
+    const status = ctl(runs, "status", "--run-id", runId, "--unit-id", "U").body.unit
+    expect(status.transport.commit).toBeNull()
+    expect(status.transport.ref).toBeNull()
   })
 
   test("authorizes dispatch only for the exact recorded run unit attempt and paths", () => {
@@ -3658,6 +3701,7 @@ describe("ce-work unit workspace controller", () => {
     ).body
     const authorized = authorizeDispatch(runs, runId, unitId, prepared)
     const job = authorized.body.job_id
+    writeSupervisorEvidence(runs, runId, unitId)
     const reason = "result exceeded byte cap (5242881 > 5242880 bytes)"
     terminalizeFakeJob(runs, runId, job, "failed")
     writeFileSync(path.join(runs, runId, "jobs", job, "reason"), `${reason}\n`, { mode: 0o600 })
@@ -4181,6 +4225,62 @@ describe("ce-work unit workspace controller", () => {
     expect(ctl(runs, "cleanup", "--run-id", "run-reap", "--unit-id", "U", "--abandon", "--expect-job", "wrong-job").word).toBe("REFUSED")
     expect(ctl(runs, "cleanup", "--run-id", "run-reap", "--unit-id", "U", "--abandon", "--expect-job", job).word).toBe("CLEANED")
     expect(ctl(runs, "claim-fallback", "--run-id", "run-reap", "--unit-id", "U", "--caller-mode", "headless").word).toBe("FALLBACK_ALREADY_AUTHORIZED")
+  })
+
+  test("blocks fallback and cleanup without authentic descendant-containment evidence", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-containment-required"
+    init(runs, runId, f)
+    const prepared = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U", "--base", f.base,
+      "--packet", packetFile("containment packet"),
+    ).body
+    const job = fakeRunningJob(runs, runId, "U", "containment packet", "job-containment-required")
+    expect(authorizeDispatch(runs, runId, "U", prepared, { jobId: job }).word).toBe("AUTHORIZED")
+    expect(ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    ).word).toBe("AUTHORING")
+    terminalizeFakeJob(runs, runId, job, "timeout")
+
+    const absentFallback = ctl(
+      runs, "claim-fallback", "--run-id", runId, "--unit-id", "U", "--caller-mode", "headless",
+    )
+    expect(absentFallback.word).toBe("BLOCKED")
+    expect(absentFallback.stderr).toContain("supervisor evidence")
+    const absentCleanup = ctl(
+      runs, "cleanup", "--run-id", runId, "--unit-id", "U", "--abandon", "--expect-job", job,
+    )
+    expect(absentCleanup.word).toBe("BLOCKED")
+    expect(absentCleanup.stderr).toContain("supervisor evidence")
+
+    const status = ctl(runs, "status", "--run-id", runId, "--unit-id", "U").body.unit
+    const dispatch = status.attempts[0].dispatch_authorization_receipt
+    writeFileSync(dispatch.supervisor_evidence.route.path, `${JSON.stringify({
+      schema_version: 1,
+      protocol: "ce-work-subreaper/v1",
+      slot: "route",
+      config_sha256: dispatch.confinement_digest,
+      supervisor_pid: 2000000001,
+      leader_pid: 2000000002,
+      leader_exit: 143,
+      interrupted_signal: 15,
+      descendants_observed: [],
+      term_sent: [],
+      kill_sent: [],
+      all_descendants_gone: true,
+    })}\n`, { mode: 0o600 })
+    const forgedFallback = ctl(
+      runs, "claim-fallback", "--run-id", runId, "--unit-id", "U", "--caller-mode", "headless",
+    )
+    expect(forgedFallback.word).toBe("BLOCKED")
+    expect(forgedFallback.stderr).toContain("did not prove descendant containment")
+    const forgedCleanup = ctl(
+      runs, "cleanup", "--run-id", runId, "--unit-id", "U", "--abandon", "--expect-job", job,
+    )
+    expect(forgedCleanup.word).toBe("BLOCKED")
+    expect(existsSync(prepared.workspace)).toBe(true)
   })
 
   test("retries an abandoned unit under the same run while preserving attempt history", () => {

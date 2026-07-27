@@ -20,6 +20,8 @@ LANDLOCK_CREATE_RULESET_VERSION = 1
 LANDLOCK_RULE_PATH_BENEATH = 1
 PR_SET_NO_NEW_PRIVS = 38
 PR_SET_CHILD_SUBREAPER = 36
+TERM_GRACE_MS = 1000
+KILL_GRACE_MS = 3000
 
 ACCESS_EXECUTE = 1 << 0
 ACCESS_WRITE_FILE = 1 << 1
@@ -313,74 +315,113 @@ def probe() -> None:
     print(json.dumps({"protocol": "ce-work-landlock/v1", "abi": abi}, sort_keys=True))
 
 
-def child_pids(children_fd: int) -> list[int]:
+def child_pids(children_fd: int, *, strict: bool = True) -> list[int]:
     try:
         os.lseek(children_fd, 0, os.SEEK_SET)
         data = os.read(children_fd, 1024 * 1024).decode("ascii", "strict").strip()
     except OSError as exc:
-        fail(f"cannot inspect subreaper descendants: {exc}")
+        if strict:
+            fail(f"cannot inspect subreaper descendants: {exc}")
+        return []
     try:
         return [int(value) for value in data.split()] if data else []
     except ValueError:
-        fail("subreaper descendant evidence is malformed")
+        if strict:
+            fail("subreaper descendant evidence is malformed")
+        return []
 
 
-def reap_available() -> None:
+def descendant_pids(children_fd: int) -> list[int]:
+    descendants: list[int] = []
+    queued = child_pids(children_fd)
+    seen: set[int] = set()
+    while queued:
+        pid = queued.pop(0)
+        if pid in seen:
+            continue
+        seen.add(pid)
+        descendants.append(pid)
+        try:
+            fd = os.open(f"/proc/{pid}/task/{pid}/children", os.O_RDONLY)
+        except (FileNotFoundError, ProcessLookupError, PermissionError):
+            continue
+        try:
+            queued.extend(child_pids(fd, strict=False))
+        finally:
+            os.close(fd)
+    return descendants
+
+
+def reap_available(reaped: dict[int, int]) -> None:
     while True:
         try:
-            pid, _ = os.waitpid(-1, os.WNOHANG)
+            pid, status = os.waitpid(-1, os.WNOHANG)
         except ChildProcessError:
             return
         if pid <= 0:
             return
+        reaped[pid] = status
 
 
-def contain_descendants(children_fd: int) -> dict:
+def contain_descendants(children_fd: int) -> tuple[dict, dict[int, int]]:
+    started = time.monotonic()
     observed: set[int] = set()
     term_sent: set[int] = set()
     kill_sent: set[int] = set()
-    deadline = time.monotonic() + 2
+    reaped: dict[int, int] = {}
+    initial = descendant_pids(children_fd)
+    observed.update(initial)
+    pending = initial
+    deadline = time.monotonic() + TERM_GRACE_MS / 1000
     while time.monotonic() < deadline:
-        reap_available()
-        children = child_pids(children_fd)
-        observed.update(children)
-        for pid in children:
+        for pid in reversed(pending):
             try:
                 os.kill(pid, signal.SIGTERM)
                 term_sent.add(pid)
             except ProcessLookupError:
                 pass
-        if not children:
-            break
         time.sleep(0.05)
-    for pid in child_pids(children_fd):
+        reap_available(reaped)
+        pending = descendant_pids(children_fd)
+        observed.update(pending)
+        if not pending:
+            break
+    pending = descendant_pids(children_fd)
+    for pid in reversed(pending):
         observed.add(pid)
         try:
             os.kill(pid, signal.SIGKILL)
             kill_sent.add(pid)
         except ProcessLookupError:
             pass
-    deadline = time.monotonic() + 5
+    deadline = time.monotonic() + KILL_GRACE_MS / 1000
     while time.monotonic() < deadline:
-        reap_available()
-        children = child_pids(children_fd)
-        observed.update(children)
-        if not children:
+        reap_available(reaped)
+        pending = descendant_pids(children_fd)
+        observed.update(pending)
+        if not pending:
             break
-        for pid in children:
+        for pid in reversed(pending):
             try:
                 os.kill(pid, signal.SIGKILL)
                 kill_sent.add(pid)
             except ProcessLookupError:
                 pass
         time.sleep(0.05)
-    reap_available()
-    return {
+    reap_available(reaped)
+    remaining = descendant_pids(children_fd)
+    observed.update(remaining)
+    evidence = {
+        "initial_descendants": sorted(initial),
         "descendants_observed": sorted(observed),
         "term_sent": sorted(term_sent),
         "kill_sent": sorted(kill_sent),
-        "all_descendants_gone": not child_pids(children_fd),
+        "term_grace_ms": TERM_GRACE_MS,
+        "kill_grace_ms": KILL_GRACE_MS,
+        "containment_elapsed_ms": int((time.monotonic() - started) * 1000),
+        "all_descendants_gone": not remaining,
     }
+    return evidence, reaped
 
 
 def open_supervisor_evidence(entry: dict) -> int:
@@ -407,6 +448,8 @@ def publish_supervisor_evidence(fd: int, evidence: dict) -> None:
 
 
 def supervise(command: list[str], evidence_fd: int, children_fd: int, config_digest: str, slot: str) -> int:
+    if os.getpgrp() != os.getpid():
+        os.setsid()
     result = libc().prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0)
     if result != 0:
         code = ctypes.get_errno()
@@ -430,29 +473,26 @@ def supervise(command: list[str], evidence_fd: int, children_fd: int, config_dig
     status = None
     while status is None and interrupted["signal"] is None:
         try:
-            waited, observed = os.waitpid(leader, 0)
+            waited, observed = os.waitpid(leader, os.WNOHANG)
             if waited == leader:
                 status = observed
         except InterruptedError:
             continue
-    if interrupted["signal"] is not None:
-        try:
-            os.kill(leader, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        try:
-            _, status = os.waitpid(leader, 0)
-        except ChildProcessError:
-            status = 128 + int(interrupted["signal"])
-    containment = contain_descendants(children_fd)
+        if status is None and interrupted["signal"] is None:
+            time.sleep(0.05)
+    containment, reaped = contain_descendants(children_fd)
+    if status is None:
+        status = reaped.get(leader)
     os.close(children_fd)
     exit_code = os.waitstatus_to_exitcode(status) if status is not None else 125
     evidence = {
         "schema_version": 1,
-        "protocol": "ce-work-subreaper/v1",
+        "protocol": "ce-work-subreaper/v2",
         "slot": slot,
         "config_sha256": config_digest,
         "supervisor_pid": os.getpid(),
+        "supervisor_pgid": os.getpgrp(),
+        "supervisor_sid": os.getsid(0),
         "leader_pid": leader,
         "leader_exit": exit_code,
         "interrupted_signal": interrupted["signal"],

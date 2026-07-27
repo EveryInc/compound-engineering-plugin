@@ -572,6 +572,7 @@ def fallback_basis(doc: dict, unit: dict) -> tuple[str, dict]:
             raise Operational("BLOCKED", "canonical checkout diverged or is dirty; native fallback is not safe")
         return "terminal-validation-failure", attempt
     if process_state in TERMINAL_PROCESS - {"done"} or (process_state == "never-started" and attempt.get("job_id")):
+        validate_terminal_containment(doc["run_id"], unit, attempt)
         snap = semantic_snapshot(doc["repository"]["toplevel"])
         allowed_heads = set(unit.get("wave", {}).get("allowed_heads", []))
         if (
@@ -1085,6 +1086,7 @@ def cmd_cleanup(args) -> tuple[str, dict]:
                 else:
                     if attempt.get("process_state") not in terminal_failures:
                         raise Operational("REFUSED", "transport-free cleanup requires an authoritative failed or reaped job")
+                    validate_terminal_containment(args.run_id, unit, attempt)
                     observed = process_evidence(runner_job_dir(args.run_id, attempt["job_id"]))["process_state"]
                     if observed != attempt["process_state"] or observed not in terminal_failures:
                         raise Operational("BLOCKED", "terminal job evidence changed; refusing cleanup")

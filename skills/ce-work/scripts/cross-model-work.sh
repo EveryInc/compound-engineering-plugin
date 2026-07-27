@@ -397,7 +397,7 @@ try:
         fail("authorization environment schema is invalid")
     if environment["schema_version"] != 1 or environment["posture"] != "credential-minimized":
         fail("authorization environment posture is invalid")
-    if environment["authentication"] not in {"staged", "unavailable"}:
+    if environment["authentication"] not in {"staged", "external-or-none"}:
         fail("authorization authentication posture is invalid")
     unit_root = os.path.dirname(os.path.abspath(source))
     for key in environment_paths:
@@ -1049,8 +1049,8 @@ sys.stdout.write("\n")
 PY
 }
 
-if [ "$AUTHENTICATION_POSTURE" != staged ]; then
-  publish_unavailable "authenticated config was not staged inside the isolated route environment" || exit 2
+if [ "$AUTHENTICATION_POSTURE" = staged ]; then
+  publish_unavailable "staged authentication would expose secret bytes to model-controlled tool descendants; use credential-free or externally brokered authentication" || exit 2
   exit 2
 fi
 

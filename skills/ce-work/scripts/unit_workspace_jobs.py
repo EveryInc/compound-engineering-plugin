@@ -7,6 +7,7 @@ import json
 import os
 import pwd
 import re
+import signal
 import stat
 import tempfile
 from pathlib import PurePosixPath
@@ -18,6 +19,7 @@ MAX_AUTH_MANIFEST_BYTES = 64 * 1024
 MAX_AUTH_FILES = 4
 MAX_AUTH_FILE_BYTES = 1024 * 1024
 MAX_AUTH_REDACTION_BYTES = MAX_AUTH_FILES * MAX_AUTH_FILE_BYTES
+MAX_SECRET_LEAK_PATHS = 20
 ROUTE_EXECUTABLES = {
     "codex": "codex",
     "claude": "claude",
@@ -182,7 +184,7 @@ def prepare_credential_environment(
     return {
         "schema_version": 1,
         "posture": "credential-minimized",
-        "authentication": "staged" if material else "unavailable",
+        "authentication": "staged" if material else "external-or-none",
         **paths,
         "material": material,
         "redactions_path": redactions_path,
@@ -931,7 +933,7 @@ def terminal_receipt(
     }
 
 
-def _validate_supervisor_evidence(dispatch: dict) -> dict:
+def _validate_supervisor_evidence(dispatch: dict, *, allow_interrupted: bool = False) -> dict:
     evidence = dispatch.get("supervisor_evidence")
     if not isinstance(evidence, dict) or set(evidence) != {"probe", "route"}:
         raise Operational("BLOCKED", "dispatch has no exact supervisor evidence reservation")
@@ -947,32 +949,42 @@ def _validate_supervisor_evidence(dispatch: dict) -> dict:
     except (UnicodeDecodeError, ValueError) as exc:
         raise Operational("BLOCKED", "route supervisor evidence is malformed") from exc
     required = {
-        "schema_version", "protocol", "slot", "config_sha256", "supervisor_pid", "leader_pid",
-        "leader_exit", "interrupted_signal", "descendants_observed", "term_sent", "kill_sent",
+        "schema_version", "protocol", "slot", "config_sha256", "supervisor_pid", "supervisor_pgid",
+        "supervisor_sid", "leader_pid",
+        "leader_exit", "interrupted_signal", "initial_descendants", "descendants_observed",
+        "term_sent", "kill_sent", "term_grace_ms", "kill_grace_ms", "containment_elapsed_ms",
         "all_descendants_gone",
     }
-    pid_lists = ("descendants_observed", "term_sent", "kill_sent")
+    pid_lists = ("initial_descendants", "descendants_observed", "term_sent", "kill_sent")
+    interrupted_signal = receipt.get("interrupted_signal") if isinstance(receipt, dict) else None
     if (
         not isinstance(receipt, dict)
         or set(receipt) != required
         or receipt.get("schema_version") != 1
-        or receipt.get("protocol") != "ce-work-subreaper/v1"
+        or receipt.get("protocol") != "ce-work-subreaper/v2"
         or receipt.get("slot") != "route"
         or receipt.get("config_sha256") != dispatch.get("confinement_digest")
         or type(receipt.get("supervisor_pid")) is not int
         or receipt["supervisor_pid"] <= 0
+        or receipt.get("supervisor_pgid") != receipt["supervisor_pid"]
+        or receipt.get("supervisor_sid") != receipt["supervisor_pid"]
         or type(receipt.get("leader_pid")) is not int
         or receipt["leader_pid"] <= 0
         or receipt["leader_pid"] == receipt["supervisor_pid"]
         or type(receipt.get("leader_exit")) is not int
         or receipt.get("all_descendants_gone") is not True
-        or receipt.get("interrupted_signal") is not None
+        or interrupted_signal not in ({None, signal.SIGTERM, signal.SIGINT} if allow_interrupted else {None})
+        or receipt.get("term_grace_ms") != 1000
+        or receipt.get("kill_grace_ms") != 3000
+        or type(receipt.get("containment_elapsed_ms")) is not int
+        or receipt["containment_elapsed_ms"] < 0
         or any(
             not isinstance(receipt.get(key), list)
             or any(type(pid) is not int or pid <= 0 for pid in receipt[key])
             or receipt[key] != sorted(set(receipt[key]))
             for key in pid_lists
         )
+        or not set(receipt["initial_descendants"]).issubset(receipt["descendants_observed"])
         or not set(receipt["term_sent"]).issubset(receipt["descendants_observed"])
         or not set(receipt["kill_sent"]).issubset(receipt["descendants_observed"])
     ):
@@ -991,6 +1003,7 @@ def _validate_authorized_job(
     *,
     expected_states: set[str],
     require_supervisor: bool,
+    allow_interrupted_supervisor: bool = False,
 ) -> dict | None:
     job_id = attempt.get("job_id")
     if not isinstance(job_id, str):
@@ -1059,7 +1072,10 @@ def _validate_authorized_job(
         raise Operational("BLOCKED", "confinement adapter identity changed after dispatch")
     if _path_identity(dispatch["confinement_interpreter"]["path"], include_digest=True) != dispatch["confinement_interpreter"]:
         raise Operational("BLOCKED", "confinement interpreter identity changed after dispatch")
-    return _validate_supervisor_evidence(dispatch) if require_supervisor else None
+    return _validate_supervisor_evidence(
+        dispatch,
+        allow_interrupted=allow_interrupted_supervisor,
+    ) if require_supervisor else None
 
 
 def validate_authorized_successful_job(run_id: str, unit: dict, attempt: dict) -> dict:
@@ -1074,6 +1090,30 @@ def validate_authorized_successful_job(run_id: str, unit: dict, attempt: dict) -
         raise Operational("BLOCKED", "successful route has no descendant-containment receipt")
     if supervisor["leader_exit"] != 0:
         raise Operational("BLOCKED", "successful route supervisor recorded a nonzero leader exit")
+    return supervisor
+
+
+def validate_terminal_containment(run_id: str, unit: dict, attempt: dict) -> dict | None:
+    if not isinstance(attempt.get("dispatch_authorization_receipt"), dict):
+        return None
+    recorded = attempt.get("terminal_receipt")
+    if (
+        attempt.get("process_state") == "failed"
+        and isinstance(recorded, dict)
+        and recorded.get("terminal_status") == "unavailable"
+    ):
+        unavailable_terminal_receipt(run_id, unit, attempt)
+        return None
+    supervisor = _validate_authorized_job(
+        run_id,
+        unit,
+        attempt,
+        expected_states=TERMINAL_PROCESS,
+        require_supervisor=True,
+        allow_interrupted_supervisor=True,
+    )
+    if supervisor is None:
+        raise Operational("BLOCKED", "terminal route has no descendant-containment receipt")
     return supervisor
 
 
@@ -1542,6 +1582,98 @@ def diff_changes_gitlink(raw: bytes) -> bool:
     return False
 
 
+def _staged_secret_values(attempt: dict) -> list[bytes]:
+    authorization = attempt.get("authorization")
+    environment = authorization.get("environment") if isinstance(authorization, dict) else None
+    if not isinstance(environment, dict) or environment.get("authentication") != "staged":
+        return []
+    config_root = environment.get("route_config_home")
+    material = environment.get("material")
+    if not isinstance(config_root, str) or not isinstance(material, list) or not material:
+        raise Operational("BLOCKED", "staged authentication has no exact secret-scan source")
+    values: set[bytes] = set()
+    for item in material:
+        if not isinstance(item, dict) or set(item) != {"path", "sha256"}:
+            raise Operational("BLOCKED", "staged authentication secret-scan source is malformed")
+        relative = _safe_auth_destination(item["path"])
+        raw = read_private(os.path.join(config_root, *PurePosixPath(relative).parts), MAX_AUTH_FILE_BYTES)
+        if digest_bytes(raw) != item["sha256"]:
+            raise Operational("BLOCKED", "staged authentication secret-scan source changed after authorization")
+        values.update(_json_secret_values(raw))
+    return sorted(values, key=lambda value: (-len(value), value))
+
+
+def _contains_exact_secret(fd: int, secrets: list[bytes]) -> bool:
+    overlap = max(len(secret) for secret in secrets) - 1
+    pending = b""
+    while True:
+        chunk = os.read(fd, 65536)
+        if not chunk:
+            return any(secret in pending for secret in secrets)
+        candidate = pending + chunk
+        if any(secret in candidate for secret in secrets):
+            return True
+        pending = candidate[-overlap:] if overlap else b""
+
+
+def _scan_secret_directory(root_fd: int, label: str, secrets: list[bytes], leaks: list[str], *, skip_git: bool) -> None:
+    for name in os.listdir(root_fd):
+        if skip_git and name == ".git":
+            continue
+        display = f"{label}/{name}"
+        info = os.stat(name, dir_fd=root_fd, follow_symlinks=False)
+        if stat.S_ISDIR(info.st_mode):
+            child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | O_NOFOLLOW, dir_fd=root_fd)
+            try:
+                opened = os.fstat(child)
+                if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino):
+                    raise Operational("BLOCKED", f"secret-scan directory changed before traversal: {display}")
+                _scan_secret_directory(child, display, secrets, leaks, skip_git=False)
+            finally:
+                os.close(child)
+        elif stat.S_ISREG(info.st_mode):
+            child = os.open(name, os.O_RDONLY | O_NOFOLLOW, dir_fd=root_fd)
+            try:
+                opened = os.fstat(child)
+                if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino):
+                    raise Operational("BLOCKED", f"secret-scan file changed before read: {display}")
+                if _contains_exact_secret(child, secrets):
+                    leaks.append(display)
+            finally:
+                os.close(child)
+        elif stat.S_ISLNK(info.st_mode):
+            target = os.fsencode(os.readlink(name, dir_fd=root_fd))
+            if any(secret in target for secret in secrets):
+                leaks.append(display)
+        if len(leaks) >= MAX_SECRET_LEAK_PATHS:
+            return
+
+
+def reject_staged_secret_output(unit: dict, attempt: dict) -> None:
+    secrets = _staged_secret_values(attempt)
+    if not secrets:
+        return
+    leaks: list[str] = []
+    workspace = unit["workspace"]["path"]
+    workspace_fd = os.open(workspace, os.O_RDONLY | os.O_DIRECTORY | O_NOFOLLOW)
+    try:
+        _scan_secret_directory(workspace_fd, "workspace", secrets, leaks, skip_git=True)
+    finally:
+        os.close(workspace_fd)
+    result_fd, _result_dir = open_recorded_result_dir(unit)
+    try:
+        _scan_secret_directory(result_fd, "result", secrets, leaks, skip_git=False)
+    finally:
+        os.close(result_fd)
+    if leaks:
+        raise Operational(
+            "BLOCKED",
+            f"staged authentication secret bytes found in worker output: {json.dumps(leaks, ensure_ascii=True)}",
+            {"leaked_paths": leaks},
+        )
+    raise Operational("BLOCKED", "output from a route using exposed staged authentication cannot terminalize")
+
+
 def terminalize(run_id: str, unit_id: str) -> dict:
     evidence = sync_job(run_id, unit_id)
     if evidence["process_state"] != "done":
@@ -1564,6 +1696,7 @@ def terminalize(run_id: str, unit_id: str) -> dict:
                 raise Operational("REFUSED", "unknown unit")
             attempt = find_attempt(unit)
             supervisor = validate_authorized_successful_job(run_id, unit, attempt)
+            reject_staged_secret_output(unit, attempt)
             receipt = terminal_receipt(unit, attempt, supervisor=supervisor)
             if receipt.get("model_receipt_status") == "mismatch":
                 raise Operational("BLOCKED", "adapter reported a served-model mismatch")

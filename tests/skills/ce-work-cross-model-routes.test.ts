@@ -65,7 +65,7 @@ function fixture() {
     packetSource: packet,
     capture,
     runs,
-    authManifest: null as string | null,
+    authManifest: "" as string | null,
     prepared: null as null | { authorization_path: string; launcher: string; workspace: string; packet_path: string; result_dir: string },
   }
 }
@@ -152,16 +152,6 @@ function run(
       "--egress-json", JSON.stringify({ sanction_source: "test", route, intermediaries: [...contract.intermediaries], exposed_material: [unitId], restrictions: [] }),
     )
     const base = spawnSync("git", ["-C", f.canonical, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim()
-    if (f.authManifest === null) {
-      const auth = path.join(f.root, `${route}-auth.json`)
-      const manifest = path.join(f.root, `${route}-auth-manifest.json`)
-      writeFileSync(auth, '{"token":"fake"}\n', { mode: 0o600 })
-      writeFileSync(manifest, `${JSON.stringify({
-        route,
-        files: [{ source: auth, destination: "auth.json" }],
-      })}\n`, { mode: 0o600 })
-      f.authManifest = manifest
-    }
     const prepareArgs = [
       "prepare", "--run-id", runId, "--unit-id", unitId, "--attempt-id", attemptId,
       "--base", base, "--packet", f.packetSource, "--activity-posture", "incremental",
@@ -346,9 +336,12 @@ printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[
     const dispatch = manifest.units.U3.attempts[0].dispatch_authorization_receipt
     const evidence = JSON.parse(readFileSync(dispatch.supervisor_evidence.route.path, "utf8"))
     expect(evidence).toMatchObject({
-      protocol: "ce-work-subreaper/v1",
+      protocol: "ce-work-subreaper/v2",
       all_descendants_gone: true,
+      term_grace_ms: 1000,
+      kill_grace_ms: 3000,
     })
+    expect(evidence.initial_descendants.length).toBeGreaterThan(0)
     expect(evidence.descendants_observed.length).toBeGreaterThan(0)
   })
 
@@ -425,7 +418,7 @@ printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[
     expect(result.result.model_receipt_status).toBe("verified")
   })
 
-  test("stages only explicitly authorized backend auth into an isolated home", () => {
+  test("refuses exposed staged auth before model-controlled code can read or rewrite it", () => {
     const f = fixture()
     const hostHome = path.join(f.root, "real-home")
     const hostXdg = path.join(hostHome, ".config")
@@ -436,7 +429,6 @@ printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[
     mkdirSync(codexStore, { recursive: true })
     const unrelatedSentinel = "SENTINEL-unrelated-credential"
     const authorizedToken = "SENTINEL-authorized-codex-token"
-    const refreshedToken = "SENTINEL-refreshed-codex-token"
     for (const file of [
       path.join(hostHome, ".ssh", "id_ed25519"),
       path.join(hostHome, ".aws", "credentials"),
@@ -475,15 +467,14 @@ do
 done > '${f.capture}/unrelated-readable'
 ls -A '${hostHome}' > '${f.capture}/host-home-listing' 2>/dev/null || true
 cat "$CODEX_HOME/auth.json" > '${f.capture}/authorized-readable'
-printf '%s\n' '${JSON.stringify({ token: refreshedToken })}' > "$CODEX_HOME/auth.json"
-printf '%s\n' '${refreshedToken}' >&2
+printf '%s\n' '${JSON.stringify({ token: "rewritten" })}' > "$CODEX_HOME/auth.json"
 result=''
 previous=''
 for arg in "$@"; do
   if [ "$previous" = '-o' ]; then result="$arg"; fi
   previous="$arg"
 done
-printf '%s\n' '{"terminal_status":"completed","summary":"implemented ${authorizedToken} ${refreshedToken}","changed_files":[],"evidence":["fake"],"scope_expansion":null}' > "$result"
+printf '%s\n' '{"terminal_status":"completed","summary":"implemented ${authorizedToken}","changed_files":[],"evidence":["fake"],"scope_expansion":null}' > "$result"
 `)
     chmodSync(path.join(bin, "codex"), 0o755)
 
@@ -498,33 +489,29 @@ printf '%s\n' '{"terminal_status":"completed","summary":"implemented ${authorize
       GOOGLE_APPLICATION_CREDENTIALS: path.join(hostHome, "google.json"),
     })
 
-    const adapterLog = existsSync(path.join(f.resultDir, "adapter.log"))
-      ? readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")
-      : ""
-    expect(result.code, `${result.stderr}\n${adapterLog}\n${JSON.stringify(result.result)}`).toBe(0)
-    const dispatchEnv = readFileSync(path.join(f.capture, "env"), "utf8")
-    const observedHome = dispatchEnv.match(/^HOME=(.+)$/m)?.[1]
-    const observedXdg = dispatchEnv.match(/^XDG_CONFIG_HOME=(.+)$/m)?.[1]
-    expect(observedHome).toStartWith(path.join(f.runs, "route-run", "units", "U3", "environment", "attempt-1"))
-    expect(observedXdg).toStartWith(path.join(f.runs, "route-run", "units", "U3", "environment", "attempt-1"))
-    expect(dispatchEnv).not.toContain(hostHome)
-    expect(dispatchEnv).not.toContain(hostXdg)
-    expect(dispatchEnv).not.toContain("SSH_AUTH_SOCK=")
-    expect(dispatchEnv).not.toContain("AWS_SHARED_CREDENTIALS_FILE=")
-    expect(dispatchEnv).not.toContain("GOOGLE_APPLICATION_CREDENTIALS=")
-    expect(readFileSync(path.join(f.capture, "unrelated-readable"), "utf8")).toBe("")
-    expect(readFileSync(path.join(f.capture, "host-home-listing"), "utf8")).toBe("")
-    expect(readFileSync(path.join(f.capture, "authorized-readable"), "utf8")).toContain(authorizedToken)
-    expect(readFileSync(path.join(f.capture, "argv"), "utf8")).not.toContain(authorizedToken)
+    expect(result.code).toBe(2)
+    expect(result.result).toMatchObject({
+      terminal_status: "unavailable",
+      failure_reason: expect.stringContaining("staged authentication would expose secret bytes"),
+    })
+    expect(existsSync(path.join(f.capture, "env"))).toBe(false)
+    expect(existsSync(path.join(f.capture, "authorized-readable"))).toBe(false)
+    expect(existsSync(path.join(f.capture, "argv"))).toBe(false)
+    expect(spawnSync("grep", ["-R", "-F", authorizedToken, f.workspace]).status).not.toBe(0)
     expect(readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")).not.toContain(authorizedToken)
-    expect(readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")).not.toContain(refreshedToken)
     expect(JSON.stringify(result.result)).not.toContain(authorizedToken)
-    expect(JSON.stringify(result.result)).not.toContain(refreshedToken)
-    expect(result.result.summary).toBe("implemented [REDACTED] [REDACTED]")
   })
 
-  test("rejects a symlink-swapped staged-auth root during redaction refresh", () => {
+  test("staged-auth refusal happens before route code can swap its config root", () => {
     const f = fixture()
+    const auth = path.join(f.root, "codex-auth.json")
+    const manifest = path.join(f.root, "codex-auth-manifest.json")
+    writeFileSync(auth, '{"token":"SENTINEL-staged-token"}\n', { mode: 0o600 })
+    writeFileSync(manifest, `${JSON.stringify({
+      route: "codex",
+      files: [{ source: auth, destination: "auth.json" }],
+    })}\n`, { mode: 0o600 })
+    f.authManifest = manifest
     const bin = fakeBin("codex", f.capture)
     const outside = path.join(f.root, "outside-auth")
     mkdirSync(outside)
@@ -548,21 +535,21 @@ printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[
     expect(result.code).toBe(2)
     expect(result.result).toMatchObject({
       terminal_status: "unavailable",
-      failure_reason: expect.stringContaining("authentication changed unsafely"),
+      failure_reason: expect.stringContaining("staged authentication would expose secret bytes"),
     })
+    expect(existsSync(path.join(f.capture, "argv"))).toBe(false)
     expect(readFileSync(path.join(outside, "marker"), "utf8")).toBe("outside\n")
   })
 
-  test("refuses dispatch before egress when isolated backend authentication was not staged", () => {
+  test("retains credential-free or externally brokered routes without staging auth", () => {
     const f = fixture()
     f.authManifest = ""
     const bin = fakeBin("codex", f.capture)
     const result = run("codex", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
 
-    expect(result.code).toBe(2)
-    expect(result.result.terminal_status).toBe("unavailable")
-    expect(result.result.failure_reason).toContain("authenticated config was not staged")
-    expect(existsSync(path.join(f.capture, "argv"))).toBe(false)
+    expect(result.code, result.stderr).toBe(0)
+    expect(result.result.terminal_status).toBe("completed")
+    expect(existsSync(path.join(f.capture, "argv"))).toBe(true)
   })
 
   test("Claude dispatch preserves USER for Keychain auth without forwarding credential variables", () => {
