@@ -86,9 +86,9 @@ The skill resolves the simplification scope in priority order: explicit user-nam
 
 After applying fixes, the skill runs typecheck and lint over the project and runs tests scoped to the changed paths (broadening when the change has wide reach — e.g., a heavily-imported utility was rewritten). Failures are surfaced clearly with the failing check name and relevant output. **The skill refuses to relax assertions, weaken type signatures, or skip tests to make checks pass** — either fix the underlying break or revert the specific simplification that caused it. It also **never simplifies away a safety check** — input validation at trust boundaries, data-loss-preventing error handling, security checks, and accessibility affordances are preserved even when a finding frames them as removable boilerplate.
 
-### 4. Mid-tier model selection — cost-aware
+### 4. Configurable review routing
 
-The reviewer agents are dispatched on the platform's mid-tier model. Code review of a known diff doesn't need top-tier reasoning. On platforms where the model override is unavailable, the skill omits the override rather than failing the dispatch.
+On the supported native OpenCode package, generalized execution routing can bind the stable `review` roles `ce-simplify-code.code-reuse-reviewer`, `ce-simplify-code.code-quality-reviewer`, and `ce-simplify-code.efficiency-reviewer` after the skill fixes the three-reviewer roster; routing cannot add or replace a reviewer. Other harnesses and converted OpenCode installs remain experimental compatibility paths, so their live selector, authentication, and serving-receipt behavior is not claimed. See [Compound Engineering configuration](./configuration.md#execution-routing).
 
 ### 5. Honors caller-passed structure pins
 

@@ -62,6 +62,8 @@ Resolving PR feedback at scale fails in predictable ways:
 - **Reply with quoted context** — every reply quotes the relevant feedback for continuity, then states what was done
 - **Resolve via GraphQL** — review threads get resolved; PR comments and review bodies get a top-level reply (no resolve mechanism in the API)
 
+On the supported native OpenCode package, generalized execution routing can bind `ce-resolve-pr-feedback.feedback-fixer` (`implementation`) only after the central legitimacy gate approves a fix; routing cannot turn a reply, decline, or `needs-human` verdict into a fixer call. Other harnesses and converted OpenCode installs remain experimental compatibility paths, so their live selector, authentication, and serving-receipt behavior is not claimed. See [Compound Engineering configuration](./configuration.md#execution-routing).
+
 ---
 
 ## What Makes It Novel

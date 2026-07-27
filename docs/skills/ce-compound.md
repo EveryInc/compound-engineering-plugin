@@ -56,6 +56,8 @@ Most teams solve the same problem twice — sometimes with the same person — b
 - A discoverability check ensures the project's `AGENTS.md`/`CLAUDE.md` surfaces `docs/solutions/` so future agents find it (interactive Full asks consent before editing; headless and lightweight report or tip only)
 - Specialized post-review optionally enhances the doc: performance, security, data-integrity, and read-only simplification checks review the drafted learning without mutating product code
 
+On the supported native OpenCode package, generalized execution routing can bind `ce-compound.context-analyzer` and `ce-compound.solution-extractor` (`reasoning`); `ce-compound.related-docs-finder` and `ce-compound.session-historian` (`research`); `ce-compound.semantic-grounding-validator` (`verification`); and `ce-compound.performance-oracle`, `ce-compound.security-sentinel`, `ce-compound.data-integrity-guardian`, and `ce-compound.code-example-reviewer` (`review`) only after the skill's existing mode and selection gates choose them. Other harnesses and converted OpenCode installs remain experimental compatibility paths, so their live selector, authentication, and serving-receipt behavior is not claimed. See [Compound Engineering configuration](./configuration.md#execution-routing).
+
 ---
 
 ## What Makes It Novel

@@ -57,6 +57,8 @@ Raw user-feedback recordings don't reduce to structured input automatically:
 
 The skill defaults raw recordings, audio chunks, zip contents, and extracted screenshots to local-only — no automatic commit. Text artifacts (analysis summaries, problem analyses) can be committed when traceability matters and there's no sensitive data.
 
+On the supported native OpenCode package, generalized execution routing can bind `ce-riffrec-feedback-analysis.source-mapper` (`research`) only when extensive-analysis scale and workspace checks select source-mapping subagents; routing cannot choose subagents, split product areas, or widen their read-only evidence scope. Other harnesses and converted OpenCode installs remain experimental compatibility paths, so their live selector, authentication, and serving-receipt behavior is not claimed. See [Compound Engineering configuration](./configuration.md#execution-routing).
+
 ---
 
 ## What Makes It Novel

@@ -1,6 +1,7 @@
 # Compound Engineering -- local config
 # Copy to .compound-engineering/config.local.yaml in your project root.
-# All settings are optional. Invalid values fall through to defaults.
+# All settings are optional. Missing/commented settings use defaults; malformed
+# active settings fail closed.
 
 # --- Product pulse ---
 # Settings written by /ce-product-pulse first-run interview. Re-run the skill with
@@ -46,8 +47,8 @@
 # Cross-harness: setting a key means every harness you run these skills in will
 # attempt that model. The host serves it natively where it can; otherwise the
 # Claude CLI is invoked when installed and authenticated; otherwise the step runs
-# on your session model and the run says so. Invalid/commented/missing -> no
-# elevation.
+# on your session model and the run says so. Commented/missing -> no elevation;
+# an invalid active value fails closed.
 
 # plan_model: fable              # model alias for the plan-authoring step (no default)
 # brainstorm_model: fable        # model alias for approach generation (no default)
@@ -92,13 +93,13 @@
 # Standing, per-checkout preferences for who authors implementation units. Live
 # task/session/project instructions and LFG's provenance-bearing binding may
 # override or narrow these defaults. `off` disables only this standing preference.
-# `prefer` tries candidates in order, then falls back natively with disclosure.
-# `require` asks before native fallback in an interactive ce-work run and blocks
-# without prompting under LFG/headless execution. Harnesses: codex | claude | grok
-# | cursor. Omit model to use that harness's configured default. Composer is a model
-# family through Cursor: { harness: cursor, model: composer }. Do not put CLI flags
-# or commands here. A candidate equivalent to the current host/default is skipped;
-# a different explicit model in the same harness remains eligible.
+# `prefer` tries candidates in order, then uses only its declared compatibility
+# fallback to built-in execution. `require` blocks without prompting when the route
+# is unavailable or unverifiable. Harnesses: codex | claude | grok | cursor. Omit
+# model to use that harness's configured default. Composer is a model family through
+# Cursor: { harness: cursor, model: composer }. Do not put CLI flags or commands
+# here. A candidate equivalent to the current host/default is skipped; a different
+# explicit model in the same harness remains eligible.
 
 # work_engine_mode: prefer        # off | prefer | require (default: off)
 # work_engine_preferences:
@@ -113,6 +114,8 @@
 # membership; configuration selects execution only and never changes prompts,
 # tools, permissions, persona selection, or mutation authority. Bindings accept
 # `inherit`, `ce-default`, or a profile plus `prefer`/`require` policy.
+# `prefer` follows only declared candidates; add a final `ce-default` candidate to
+# permit built-in fallback. `require` blocks without prompting when unsatisfied.
 #
 # routing:
 #   profiles:

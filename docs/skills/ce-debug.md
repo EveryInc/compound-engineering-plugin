@@ -64,6 +64,8 @@ Common debugging anti-patterns:
 - **Test-first fix** — inspect existing tests first, use/update/strengthen the right test home or add a focused regression test, verify it fails for the right reason, then implement; never both at once
 - **Post-fix quality tail** — for non-trivial fixes, simplify the relevant diff, run the self-sizing code review, apply safe findings, and preserve residuals before shipping
 
+On the supported native OpenCode package, generalized execution routing can bind `ce-debug.hypothesis-investigator` (`research`) only after the existing independence gate selects parallel hypothesis probes; routing cannot create hypotheses or make dependent probes parallel. Other harnesses and converted OpenCode installs remain experimental compatibility paths, so their live selector, authentication, and serving-receipt behavior is not claimed. See [Compound Engineering configuration](./configuration.md#execution-routing).
+
 ---
 
 ## What Makes It Novel

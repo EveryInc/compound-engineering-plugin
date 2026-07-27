@@ -64,6 +64,8 @@ Without active maintenance, the knowledge store loses trustworthiness. Future ag
 
 The skill investigates first (Phase 1 reads each doc against the current codebase), then performs document-set analysis (Phase 1.75 catches problems only visible across docs), then classifies, then executes — committing the changes via PR or directly to the current branch.
 
+On the supported native OpenCode package, generalized execution routing can bind `ce-compound-refresh.investigator` (`research`) after scope decomposition selects investigation subagents and `ce-compound-refresh.replacement-writer` (`implementation`) only after classification selects Replace; routing cannot split scope, change an outcome, or make replacement writers concurrent. Other harnesses and converted OpenCode installs remain experimental compatibility paths, so their live selector, authentication, and serving-receipt behavior is not claimed. See [Compound Engineering configuration](./configuration.md#execution-routing).
+
 ---
 
 ## What Makes It Novel

@@ -35,6 +35,8 @@ One skill, four input shapes:
 
 The explainer is HTML-first (markdown on request), show-n-tell by default — diagrams for structure, annotated snippets for code, timelines for recaps — and written to a stable temp location before the skill asks where you want it. Claude Code prefers a private Claude Artifact when that tool is present; other harnesses prefer an explicitly confirmed public ht-ml.app page. Local file, Proof, Thinkroom, and leave-in-temp routes remain capability-gated fallbacks.
 
+On the supported native OpenCode package, generalized execution routing can bind `ce-explain.work-recap-scout` (`research`) only when input classification selects recap mode; routing cannot turn concept, diff, or idea mode into a recap. Other harnesses and converted OpenCode installs remain experimental compatibility paths, so their live selector, authentication, and serving-receipt behavior is not claimed. See [Compound Engineering configuration](./configuration.md#execution-routing).
+
 ## What Makes It Novel
 
 1. **Predict-then-reveal for diffs.** The turn *ends* after you're shown the raw change and asked for your prediction. No interpretive content leaks early — the reveal then names exactly what your prediction missed. That gap-naming is the teaching.
