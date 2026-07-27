@@ -465,16 +465,32 @@ DOC_BASENAME="$(basename "$DOC_PATH")"
 # event-line (not token) output, so a slow xhigh reasoning turn (Luna p95 ~242s,
 # max ~419s) can go quiet past a low cap and be reaped before turn.completed.
 #
-# The idle cap -- not the hard cap -- is the liveness guard: a wedged peer stops
-# growing PEERLOG and dies at IDLE_SECS regardless of HARD_SECS. HARD_SECS is a
-# backstop for a peer that stays *productive* past any useful budget, so it must
-# clear the tail of the adopted tier by a wide margin. HARD_SECS is the ONE knob
-# for the whole peer budget: the runner supervisor window and the orchestrator's
-# shared deadline both derive from it (see references/cross-model-review.md), so
-# raising it here raises all three. Keep this block in sync with
+# On the codex route the idle cap -- not the hard cap -- is the liveness guard: a
+# wedged peer stops growing PEERLOG and dies at IDLE_SECS regardless of
+# HARD_SECS. There, HARD_SECS only backstops a peer that stays *productive* past
+# any useful budget, so it must clear the adopted tier's tail by a wide margin.
+#
+# That reasoning is route-scoped, and only run_codex_cmd earns it. The
+# run_timeout_cmd routes (claude, grok, cursor, composer) have NO output-idle
+# detection -- `timeout $HARD_SECS` is their only bound -- and start_heartbeat
+# emits "peer alive" on a timer whether or not the peer is progressing, so the
+# runner's own byte-growth idle window cannot see their wedge either. For them
+# the hard cap IS the liveness guard, and raising it would just double how long a
+# wedged CLI hangs. So the raised default applies to the guarded route only;
+# UNGUARDED_HARD_SECS keeps the pre-raise bound for the rest. An explicit
+# CROSS_MODEL_HARD_SECS still overrides both -- the knob stays single; only the
+# default it falls back to is route-aware. Raise the unguarded default only
+# together with real output-idle detection in run_timeout_cmd.
+#
+# HARD_SECS is the ONE knob for the whole peer budget: the runner supervisor
+# window and the orchestrator's shared deadline both derive from it (see
+# references/cross-model-review.md), so raising it here raises all three. A
+# smaller effective worker cap on an unguarded route keeps that nesting valid --
+# the inner window may be tighter, never wider. Keep this block in sync with
 # ce-code-review's script (parity-tested in CI).
 IDLE_SECS="${CROSS_MODEL_IDLE_SECS:-480}"
 HARD_SECS="${CROSS_MODEL_HARD_SECS:-1200}"
+UNGUARDED_HARD_SECS="${CROSS_MODEL_HARD_SECS:-600}"
 TO_BIN="$(command -v gtimeout || command -v timeout || true)"
 
 # Reap a backgrounded job's whole process group: TERM, then KILL after a grace.
@@ -586,10 +602,12 @@ run_timeout_cmd() {   # $1 = stdin file ("" -> /dev/null). CMD already built.
   local stdin_file="${1:-}"; [ -n "$stdin_file" ] || stdin_file=/dev/null
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
   set -m
+  # UNGUARDED_HARD_SECS, not HARD_SECS: this path has no output-idle detection, so
+  # its cap is the only thing that can end a wedged CLI (see the run-machinery note).
   if [ -n "$TO_BIN" ]; then
-    ( cd "$PEER_WORKDIR" && exec "$TO_BIN" -k 10 "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
+    ( cd "$PEER_WORKDIR" && exec "$TO_BIN" -k 10 "$UNGUARDED_HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
   else
-    ( cd "$PEER_WORKDIR" && exec perl -e 'alarm shift; exec @ARGV' "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
+    ( cd "$PEER_WORKDIR" && exec perl -e 'alarm shift; exec @ARGV' "$UNGUARDED_HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
   fi
   local pid=$!
   ACTIVE_PEER_PID="$pid"
@@ -652,7 +670,7 @@ attempt_route() {   # <provider> <route>
     grok-cursor|composer)  note="$(route_model "$route")" ;;
     cursor)                note="auto (serving model unverified)" ;;
   esac
-  log "peer run: provider=$provider route=$route model=$note lens=$REVIEWER_NAME read-only least-privilege (idle ${IDLE_SECS}s / hard ${HARD_SECS}s)"
+  log "peer run: provider=$provider route=$route model=$note lens=$REVIEWER_NAME read-only least-privilege (idle ${IDLE_SECS}s / hard ${HARD_SECS}s codex, ${UNGUARDED_HARD_SECS}s idle-unguarded routes)"
   case "$route" in
     codex)
       run_codex_cmd

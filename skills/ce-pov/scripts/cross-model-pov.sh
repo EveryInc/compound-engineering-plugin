@@ -411,8 +411,11 @@ trap 'cleanup_private_scratch' EXIT
 } > "$PROMPT_FILE"
 
 # --- run machinery: idle-timeout for streaming codex, hard cap for the rest --
-# The idle cap is the liveness guard; HARD_SECS is only a backstop for a peer
-# that stays productive past any useful budget. This default stays at 600s
+# On the codex route the idle cap is the liveness guard and HARD_SECS only
+# backstops a peer that stays productive past any useful budget. The
+# run_timeout_cmd routes have no output-idle detection, so for them HARD_SECS is
+# itself the liveness guard -- which is why it may not be raised for those routes
+# without adding real idle detection first. This default stays at 600s
 # because this skill's codex route runs the lower sol/high tier -- ce-code-review
 # and ce-doc-review run luna/xhigh and default higher. `CROSS_MODEL_HARD_SECS` is
 # shared across all three, and the orchestrator's aggregate deadline derives from

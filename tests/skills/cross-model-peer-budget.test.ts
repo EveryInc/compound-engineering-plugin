@@ -35,9 +35,20 @@ const RUNNER_GRACE = 30 // runner supervisor window sits this far past the scrip
 function caps(rel: string): { idle: number; hard: number } {
   const src = read(rel)
   const idle = src.match(/IDLE_SECS="\$\{CROSS_MODEL_IDLE_SECS:-(\d+)\}"/)
-  const hard = src.match(/HARD_SECS="\$\{CROSS_MODEL_HARD_SECS:-(\d+)\}"/)
+  const hard = src.match(/^HARD_SECS="\$\{CROSS_MODEL_HARD_SECS:-(\d+)\}"/m)
   if (!idle || !hard) throw new Error(`missing IDLE_SECS/HARD_SECS defaults in ${rel}`)
   return { idle: Number(idle[1]), hard: Number(hard[1]) }
+}
+
+// Only run_codex_cmd watches PEERLOG for byte growth, so only that route has a
+// liveness guard independent of the hard cap. run_timeout_cmd routes (claude,
+// grok, cursor, composer) are bounded solely by their timeout — and
+// start_heartbeat keeps emitting "peer alive" whether or not the peer progresses,
+// so the runner's idle window cannot see their wedge either. Raising their cap
+// only doubles how long a wedged CLI hangs.
+function unguardedHard(rel: string): number | null {
+  const m = read(rel).match(/UNGUARDED_HARD_SECS="\$\{CROSS_MODEL_HARD_SECS:-(\d+)\}"/)
+  return m ? Number(m[1]) : null
 }
 
 describe("cross-model peer budget", () => {
@@ -50,6 +61,37 @@ describe("cross-model peer budget", () => {
 
   test("ce-code-review and ce-doc-review keep identical caps (kernel parity)", () => {
     expect(caps(SCRIPTS["ce-code-review"])).toEqual(caps(SCRIPTS["ce-doc-review"]))
+  })
+
+  test("a route without output-idle detection never gets the raised backstop", () => {
+    for (const [skill, rel] of Object.entries(SCRIPTS)) {
+      const { hard } = caps(rel)
+      const unguarded = unguardedHard(rel)
+      const usesTimeoutRoute = /run_timeout_cmd\(\)/.test(read(rel))
+      if (!usesTimeoutRoute) continue
+      if (hard > 600) {
+        // Raised the guarded cap, so the unguarded routes need their own lower one.
+        expect(unguarded, `${skill} must bound idle-unguarded routes separately`).not.toBeNull()
+        expect(unguarded!, `${skill} unguarded cap`).toBeLessThanOrEqual(600)
+      }
+      // Whatever the guarded cap is, the unguarded one may never exceed it.
+      if (unguarded !== null) expect(unguarded, `${skill} unguarded cap`).toBeLessThanOrEqual(hard)
+    }
+  })
+
+  test("run_timeout_cmd applies the unguarded cap, not the raised one", () => {
+    for (const [skill, rel] of Object.entries(SCRIPTS)) {
+      const src = read(rel)
+      if (caps(rel).hard <= 600) continue // no split needed while the cap is unraised
+      const body = src.slice(src.indexOf("run_timeout_cmd() {"))
+      const fn = body.slice(0, body.indexOf("\n}\n") + 1)
+      expect(fn, `${skill} run_timeout_cmd must use UNGUARDED_HARD_SECS`).toContain(
+        "$UNGUARDED_HARD_SECS",
+      )
+      expect(fn, `${skill} run_timeout_cmd must not use the raised cap`).not.toMatch(
+        /exec (?:"\$TO_BIN" -k 10|perl -e '[^']*') "\$HARD_SECS"/,
+      )
+    }
   })
 
   test("the adopted luna/xhigh tier gets a backstop clear of its observed tail", () => {
