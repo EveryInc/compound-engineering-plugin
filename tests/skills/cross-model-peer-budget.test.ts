@@ -23,11 +23,16 @@ const SCRIPTS = {
 // Every skill whose worker reads CROSS_MODEL_HARD_SECS belongs here: a start path
 // that omits the runner derivation leaves peer-job-runner.py on its own 630s
 // default, which then reaps the worker the raised knob was meant to keep alive.
+// ce-pov is deliberately absent: it documents no literal `start` invocation to hang
+// a derivation on, and its runner default already sits outside its worker cap, so
+// only an explicitly raised knob needs action there. The test below pins that
+// precondition instead.
 const DISPATCH_REFS = {
   "ce-code-review": "skills/ce-code-review/references/cross-model-review.md",
   "ce-doc-review": "skills/ce-doc-review/references/cross-model-review.md",
-  "ce-pov": "skills/ce-pov/references/cross-model-panel.md",
 } as const
+
+const POV_REF = "skills/ce-pov/references/cross-model-panel.md"
 
 const DEADLINE_GRACE = 10 // orchestrator deadline sits this far past the script cap
 const RUNNER_GRACE = 30 // runner supervisor window sits this far past the script cap
@@ -148,9 +153,25 @@ describe("cross-model peer budget", () => {
     expect(read(DISPATCH_REFS["ce-code-review"])).toContain(`${hard + DEADLINE_GRACE}s by default`)
   })
 
-  test("ce-pov states its derived aggregate-deadline default", () => {
+  test("ce-pov states its aggregate-deadline default", () => {
     const { hard } = caps(SCRIPTS["ce-pov"])
-    expect(read(DISPATCH_REFS["ce-pov"])).toContain(`${hard + DEADLINE_GRACE}s by default`)
+    expect(read(POV_REF)).toContain(`${hard + DEADLINE_GRACE}s by default`)
+  })
+
+  test("ce-pov needs no dispatch-time derivation because its runner window is already outside its worker cap", () => {
+    // ce-pov does not document a literal `start` invocation (its reference tells the
+    // agent to follow the worker's current usage rather than reconstruct provider
+    // args), so there is no seam to hang a derivation on. That is only safe while
+    // the runner's own default stays outside the worker's cap. If either number
+    // moves, the raised-knob instruction is no longer the ONLY broken case and this
+    // skill needs a real derivation at dispatch.
+    const runnerDefault = read("skills/ce-pov/scripts/peer-job-runner.py").match(
+      /"hard": _env_num\("CE_PEER_HARD_SECS", (\d+(?:\.\d+)?)/,
+    )
+    expect(runnerDefault, "ce-pov runner hard default").not.toBeNull()
+    expect(Number(runnerDefault![1]), "runner default must exceed the worker cap").toBeGreaterThan(
+      caps(SCRIPTS["ce-pov"]).hard,
+    )
   })
 
   test("no orchestrator may bound its total wait below the derived deadline", () => {
@@ -177,6 +198,7 @@ describe("cross-model peer budget", () => {
   test("no skill hardcodes a peer deadline or backstop in prose", () => {
     const docs = [
       ...Object.values(DISPATCH_REFS),
+      POV_REF,
       "skills/ce-code-review/SKILL.md",
       "skills/ce-doc-review/references/cross-model-eval.md",
       "skills/ce-pov/references/cross-model-panel.md",

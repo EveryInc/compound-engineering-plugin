@@ -205,25 +205,18 @@ root, and pre-create the round output directory as private scratch outside the
 repository. For named peers, start one job per exact target; for a selected panel,
 start one job per selected peer. Start all jobs before waiting.
 
-**Derive the runner window from the one knob, in the same shell call as `start`.**
-Without `CE_PEER_HARD_SECS` the runner supervisor keeps its own 630s default and
-becomes the tightest window, reaping a worker the knob was raised for. Resolve
-`PEER_HARD` and start the job in **one** call — a separate derivation call loses
-`PEER_HARD` (each tool call is a fresh shell, exactly as noted for `$PY` above),
-and the prefix would then compute `CE_PEER_HARD_SECS` as `30` and reap the job
-after ~30s:
+**At the defaults, the peer budget needs nothing from you.** This skill's worker
+self-bounds at 600s and the runner supervisor's own default is 630s, so the
+runner window already sits outside the worker's cap and reaps nothing healthy.
 
-```bash
-PEER_HARD="${CROSS_MODEL_HARD_SECS:-600}"; echo "peer-deadline-secs=$(( PEER_HARD + 10 ))";
-CE_PEER_HARD_SECS="$(( PEER_HARD + 30 ))" <the rest of this skill's documented `peer-job-runner.py start` invocation, unchanged>
-```
-
-Use the printed `peer-deadline-secs` as the aggregate deadline below. The windows
-then nest outward: worker cap < aggregate deadline `+10s` < runner supervisor
-`+30s`. Do **not** forward `CROSS_MODEL_HARD_SECS` to the worker: the runner
-passes the ambient environment through, so a knob the user set already reaches
-it, while re-exporting a resolved value turns a fallback into an override and
-takes the worker's route-aware default away from it.
+**Raising `CROSS_MODEL_HARD_SECS` above 600 here also requires raising
+`CE_PEER_HARD_SECS` to at least `knob + 30`.** The worker reads the knob from the
+ambient environment, but the runner does not derive its supervisor window from it
+— left alone it stays at 630s and becomes the tightest window, reaping the worker
+the knob was raised for. Both are ordinary environment variables the runner and
+worker inherit, so export them together. Do not re-export a *resolved*
+`CROSS_MODEL_HARD_SECS` onto the worker's command line: that converts a fallback
+into an override and strips the worker of its route-aware default.
 
 Each worker writes `<run-dir>/pov-<target>.json`, where `<target>` is the resolved
 route target with `grok-cli`/`grok-cursor` collapsing to `grok`. Pass exactly that
@@ -254,10 +247,10 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
 Job ids or job-directory paths are positional. `--skill`, `--run-id`, and
 `--label` are start-only; never pass them to `wait`. Do not add a separate shell
 sleep: `wait` itself provides the bounded polling delay. Use one aggregate
-deadline of the `peer-deadline-secs` resolved at start (`CROSS_MODEL_HARD_SECS` +
-10 seconds, 610s by default since this skill's workers self-bound at 600s); never
-begin a wait that can cross it. Derive it -- a hardcoded deadline silently reaps a
-healthy peer whenever a user raises the knob, wasting the peer's full spend.
+deadline of `CROSS_MODEL_HARD_SECS` + 10 seconds (610s by default, since this
+skill's workers self-bound at 600s); never begin a wait that can cross it. Read
+the knob rather than hardcoding the result -- a hardcoded deadline silently reaps
+a healthy peer whenever a user raises the knob, wasting the peer's full spend.
 Repeat the bounded slices above until every job is terminal or that deadline is
 spent; a single slice shorter than the deadline is not a substitute. At the
 deadline, reap each nonterminal job in a short call, then make one final wait:
