@@ -44,6 +44,7 @@ const modelActorSource = "(?:sub-?agents?|agents?|workers?|reviewers?|personas?|
 const dispatchModifiers = "(?:(?:one|a|an|the|each|every|all|selected|these|those|parallel|generic|read-only|lightweight|fresh|fresh-context|single|multiple|second|three|\\d+|~?\\d+|extraction-tier|generation-tier|ceiling-tier|general-purpose|recovery|singleton|evaluation|basis|fix|frame|research|ideation|local|materialized|full|default|same|affected|remaining|applicable|in-process)\\s+){0,6}"
 const modelCli = /(?:codex(?:\s+--search)?\s+exec|claude\s+-p|grok\s+--prompt-file|cursor-agent\s+-p)/
 const modelWorkerScript = /(?:elevation-dispatch|cross-model-adversarial-review|cross-model-doc-review|cross-model-pov|cross-model-work)\.sh/
+const pythonModelArgv = /\[\s*(?:["']codex["']\s*,\s*["']exec["']|["']claude["']\s*,\s*["']-p["']|["']grok["']\s*,\s*["']--prompt-file["']|["']cursor-agent["']\s*,\s*["']-p["'])/
 const pythonModelLaunch = /\bsubprocess\.(?:Popen|run)\s*\(\s*\[\s*(?:["']codex["']\s*,\s*["']exec["']|["']claude["']\s*,\s*["']-p["']|["']grok["']\s*,\s*["']--prompt-file["']|["']cursor-agent["']\s*,\s*["']-p["'])/
 
 async function catalogText(): Promise<string> {
@@ -175,13 +176,33 @@ function hasPositiveModelVerb(line: string, verb: "dispatch" | "spawn" | "launch
   return false
 }
 
+function hasPythonModelLaunch(lines: string[], index: number): boolean {
+  const line = lines[index]
+  if (pythonModelLaunch.test(line)) return true
+
+  const call = line.match(/\bsubprocess\.(?:Popen|run)\s*\(\s*([A-Za-z_]\w*)\b/)
+  if (!call) return false
+
+  const argument = call[1]
+  const assignment = new RegExp(`^\\s*${escapeRegex(argument)}(?:\\s*:\\s*[^=]+)?\\s*=\\s*(.*)$`)
+  const callIndent = line.match(/^\s*/)![0].length
+  for (let assignmentIndex = index - 1; assignmentIndex >= 0; assignmentIndex--) {
+    const candidate = lines[assignmentIndex]
+    const candidateIndent = candidate.match(/^\s*/)![0].length
+    if (/^\s*(?:async\s+)?def\b/.test(candidate) && candidateIndent < callIndent) break
+    const match = candidate.match(assignment)
+    if (match && candidateIndent <= callIndent) return pythonModelArgv.test(match[1])
+  }
+  return false
+}
+
 function isDispatchLine(lines: string[], index: number, extension: string): boolean {
   const line = lines[index]
   const trimmed = line.trim()
   if (!trimmed || trimmed.startsWith("<!--") || ([".py", ".sh"].includes(extension) && trimmed.startsWith("#"))) return false
   if (extension === ".py") {
     const annotation = annotationBefore(lines, index)
-    return pythonModelLaunch.test(line)
+    return hasPythonModelLaunch(lines, index)
       || (annotation?.kind === "site" && /\bsubprocess\.(?:Popen|run)\s*\(/.test(line))
   }
   if (extension === ".md" && trimmed.startsWith("|")) return false
@@ -447,6 +468,21 @@ describe("dispatch role coverage", () => {
 
     expect(occurrences).toHaveLength(1)
     expect(occurrences[0].annotation).toBeUndefined()
+  })
+
+  test("an unregistered Python model launch through assigned argv fails dispatch coverage", async () => {
+    const fixture = path.join(repoRoot, "tests", "fixtures", "routing", "role-coverage", "unregistered-variable-model-launch.py")
+    const occurrences = scanSource("skills/ce-test/scripts/unregistered-variable-model-launch.py", await readFile(fixture, "utf8")).occurrences
+
+    expect(occurrences).toHaveLength(1)
+    expect(occurrences[0].annotation).toBeUndefined()
+  })
+
+  test("a non-provider subprocess through assigned argv is not a model launch", async () => {
+    const fixture = path.join(repoRoot, "tests", "fixtures", "routing", "role-coverage", "non-provider-variable-launch.py")
+    const occurrences = scanSource("skills/ce-test/scripts/non-provider-variable-launch.py", await readFile(fixture, "utf8")).occurrences
+
+    expect(occurrences).toEqual([])
   })
 
   test("raw duplicate keys and normalization aliases remain observable", () => {

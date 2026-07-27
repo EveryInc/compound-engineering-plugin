@@ -486,7 +486,7 @@ The Phase 3 blocks below each set `SKILL_DIR` inline as well (the loaded `ce-opt
 2. For that CE-default path, sanction the canonical workspace scope, exact `parallel.shared_files`, and existing native environment behavior. Then create the experiment worktree. The helper rejects path escapes/symlinks/undeclared inputs and consults controller leases before reuse/reset. Pass `--legacy-no-routing` only when the frozen binding itself is CE-default/built-in:
    ```bash
    SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
-   WORKTREE_PATH=$(bash "$SKILL_DIR/scripts/experiment-worktree.sh" create "<spec_name>" <exp_index> "optimize/<spec_name>" --routed <shared_files...>)  # profile binding
+   WORKTREE_PATH=$(bash "$SKILL_DIR/scripts/experiment-worktree.sh" create "<spec_name>" <exp_index> "optimize/<spec_name>" --legacy-no-routing <shared_files...>)  # CE-default binding
    ```
 3. Immediately call controller `lock-attempt` for this author role/experiment instance with `--adapter host` and the returned worktree. The lock must succeed before constructing recipient material. Apply port parameterization only to the later controller-owned measurement process; do not forward measurement environment to the author.
 4. Fill the experiment prompt template (`references/experiment-prompt-template.md`) into a private file with:
