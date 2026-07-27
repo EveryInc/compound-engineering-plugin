@@ -105,7 +105,7 @@ describe("ce-pov cross-model panel contract", () => {
     expect(phaseThree).toContain("before resolving participation or deciding whether to offer")
     expect(phaseThree).toContain("authorizes the panel protocol's normal read-only consultation")
     expect(phaseThree).toContain("Announce the selected peers before dispatch")
-    expect(phaseThree).toMatch(/ask only when a retry adds an unexpected recipient or intermediary/)
+    expect(phaseThree).toMatch(/unsanctioned recipient or intermediary.*unavailable.*without asking/)
     expect(phaseThree).toContain("shared working tree")
   })
 
@@ -207,7 +207,7 @@ describe("ce-pov cross-model panel contract", () => {
     expect(prose).toContain("Resolve one concrete target")
     expect(prose).toContain("Announce the selected target and route")
     expect(prose).toMatch(/Invoking `oracle` authorizes.*read-only consultation/)
-    expect(prose).toMatch(/retry would add an unexpected recipient or intermediary.*ask/)
+    expect(prose).toMatch(/retry would add an unsanctioned recipient or intermediary.*unavailable without prompting/)
     expect(prose).toMatch(/read-only|may not mutate/)
     expect(prose).toContain("cooperative")
     expect(prose).toMatch(/never promise that secrets.*are inaccessible/)
@@ -332,7 +332,7 @@ describe("ce-pov cross-model panel contract", () => {
     expect(prose).toContain("declared preferred mapping first")
     expect(prose).toContain("same requested target")
     expect(prose).toContain("independence_verified")
-    expect(prose).toMatch(/unexpected recipient or intermediary.*ask/)
+    expect(prose).toMatch(/unsanctioned recipient or intermediary.*unavailable without prompting/)
     expect(prose).toContain("return failure to the host")
   })
 
