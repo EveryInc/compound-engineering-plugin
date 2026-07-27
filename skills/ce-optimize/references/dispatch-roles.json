@@ -942,6 +942,13 @@
       "posture": "isolated-write",
       "built_in_tier": "skill-default"
     },
+    "ce-optimize.codex-controller": {
+      "file": "skills/ce-optimize/scripts/optimize-controller.py",
+      "roles": ["ce-optimize.experiment-author"],
+      "adapter_family": "isolated-optimization-experiment",
+      "posture": "isolated-write",
+      "built_in_tier": "skill-default"
+    },
     "ce-optimize.baseline-judge": {
       "file": "skills/ce-optimize/SKILL.md",
       "roles": ["ce-optimize.semantic-judge"],

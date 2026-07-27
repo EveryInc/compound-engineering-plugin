@@ -2,6 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test"
 import { existsSync, promises as fs, readdirSync, readFileSync } from "fs"
 import os from "os"
 import path from "path"
+import { pathToFileURL } from "url"
 import { parseFrontmatter } from "../src/utils/frontmatter"
 
 // Conversion-drift smoke test.
@@ -285,7 +286,7 @@ for (const pluginName of PLUGIN_NAMES) {
   const inventory = loadSourceInventory(pluginName)
 
   describe(`real-plugin conversion drift: ${pluginName}`, () => {
-    test("converts to every implemented target", async () => {
+    test("converts twice to every implemented target", async () => {
       const outputRoot = await fs.mkdtemp(path.join(os.tmpdir(), `real-convert-${pluginName}-`))
       tempRoots.push(outputRoot)
       const fakeHome = path.join(outputRoot, "home")
@@ -293,8 +294,8 @@ for (const pluginName of PLUGIN_NAMES) {
 
       await Promise.all(IMPLEMENTED_TARGETS.map((target) => runConvert(pluginName, target, outputRoot, fakeHome)))
 
-      // Re-run against the same roots to exercise managed reinstall paths. A
-      // generated runtime asset must not disappear after the first install.
+      // Re-run conversion against the same roots to exercise managed replacement.
+      // A generated runtime asset must not disappear after the first conversion.
       await Promise.all(IMPLEMENTED_TARGETS.map((target) => runConvert(pluginName, target, outputRoot, fakeHome)))
 
       // Sandbox safety: with explicit output flags, no target may fall back to
@@ -306,6 +307,21 @@ for (const pluginName of PLUGIN_NAMES) {
         ).toBe(false)
       }
     }, 120_000)
+
+    test("loads the native OpenCode local-path package entrypoint and assets", async () => {
+      const manifest = readJson(path.join(repoRoot, "package.json"))
+      expect(manifest.main).toBe(".opencode/plugins/compound-engineering.js")
+      const entrypoint = path.join(repoRoot, manifest.main as string)
+      const loaded = await import(pathToFileURL(entrypoint).href)
+
+      expect(typeof loaded.default).toBe("function")
+      const plugin = await loaded.default()
+      const config: Record<string, any> = {}
+      await plugin.config(config)
+      expect(config.skills.paths).toContain(path.join(repoRoot, "skills"))
+      expect(existsSync(path.join(repoRoot, ".opencode", "plugins", "ce-routing-adapter.js"))).toBe(true)
+      expect(existsSync(path.join(repoRoot, "skills", "ce-work", "scripts", "ce-routing.py"))).toBe(true)
+    })
 
     test("opencode output matches the source inventory", () => {
       const { root } = getConversion(pluginName, "opencode")

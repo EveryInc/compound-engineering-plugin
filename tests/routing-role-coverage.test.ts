@@ -44,6 +44,7 @@ const modelActorSource = "(?:sub-?agents?|agents?|workers?|reviewers?|personas?|
 const dispatchModifiers = "(?:(?:one|a|an|the|each|every|all|selected|these|those|parallel|generic|read-only|lightweight|fresh|fresh-context|single|multiple|second|three|\\d+|~?\\d+|extraction-tier|generation-tier|ceiling-tier|general-purpose|recovery|singleton|evaluation|basis|fix|frame|research|ideation|local|materialized|full|default|same|affected|remaining|applicable|in-process)\\s+){0,6}"
 const modelCli = /(?:codex(?:\s+--search)?\s+exec|claude\s+-p|grok\s+--prompt-file|cursor-agent\s+-p)/
 const modelWorkerScript = /(?:elevation-dispatch|cross-model-adversarial-review|cross-model-doc-review|cross-model-pov|cross-model-work)\.sh/
+const pythonModelLaunch = /\bsubprocess\.(?:Popen|run)\s*\(\s*\[\s*(?:["']codex["']\s*,\s*["']exec["']|["']claude["']\s*,\s*["']-p["']|["']grok["']\s*,\s*["']--prompt-file["']|["']cursor-agent["']\s*,\s*["']-p["'])/
 
 async function catalogText(): Promise<string> {
   return readFile(catalogPath, "utf8")
@@ -177,7 +178,12 @@ function hasPositiveModelVerb(line: string, verb: "dispatch" | "spawn" | "launch
 function isDispatchLine(lines: string[], index: number, extension: string): boolean {
   const line = lines[index]
   const trimmed = line.trim()
-  if (!trimmed || trimmed.startsWith("<!--") || (extension === ".sh" && trimmed.startsWith("#"))) return false
+  if (!trimmed || trimmed.startsWith("<!--") || ([".py", ".sh"].includes(extension) && trimmed.startsWith("#"))) return false
+  if (extension === ".py") {
+    const annotation = annotationBefore(lines, index)
+    return pythonModelLaunch.test(line)
+      || (annotation?.kind === "site" && /\bsubprocess\.(?:Popen|run)\s*\(/.test(line))
+  }
   if (extension === ".md" && trimmed.startsWith("|")) return false
   if (extension === ".sh" && (
     /^\s*CMD=\("\$\{PROVIDER_CMD_PREFIX\[@\]\}"\s+-p\b/.test(line)
@@ -244,7 +250,7 @@ async function dispatchSources(): Promise<Map<string, string>> {
   const sources = new Map<string, string>()
   for (const file of await walk(skillsRoot)) {
     const relative = path.relative(repoRoot, file)
-    if (!/\.(?:md|sh)$/.test(file) || isPromptOrGenerated(relative)) continue
+    if (!/\.(?:md|py|sh)$/.test(file) || isPromptOrGenerated(relative)) continue
     sources.set(relative, await readFile(file, "utf8"))
   }
   return sources
@@ -289,7 +295,7 @@ describe("dispatch role coverage", () => {
 
     for (const [site, metadata] of Object.entries(value.sites)) {
       expect(site).toMatch(/^[a-z0-9][a-z0-9.-]*$/)
-      expect(metadata.file).toMatch(/^skills\/[a-z0-9-]+\/.+\.(?:md|sh)$/)
+      expect(metadata.file).toMatch(/^skills\/[a-z0-9-]+\/.+\.(?:md|py|sh)$/)
       expect(path.posix.normalize(metadata.file)).toBe(metadata.file)
       expect(metadata.roles.length, `${site} must cover at least one role`).toBeGreaterThan(0)
       expect(new Set(metadata.roles).size, `${site} repeats a role`).toBe(metadata.roles.length)
@@ -301,7 +307,7 @@ describe("dispatch role coverage", () => {
       const sourceMarker = metadata.source_marker ?? site
       expect(sourceMarker).toMatch(/^[a-z0-9][a-z0-9.-]*$/)
       const marker = `ce-dispatch-site:${sourceMarker}`
-      const markerLine = metadata.file.endsWith(".sh") ? `# ${marker}` : `<!-- ${marker} -->`
+      const markerLine = /\.(?:py|sh)$/.test(metadata.file) ? `# ${marker}` : `<!-- ${marker} -->`
       expect(source.split("\n").filter((line) => line.trim() === markerLine).length, `${metadata.file} must contain ${marker} exactly once`).toBe(1)
       const owners = new Set<string>()
       for (const role of metadata.roles) {
@@ -403,7 +409,7 @@ describe("dispatch role coverage", () => {
     for (const occurrence of occurrences) {
       const annotation = occurrence.annotation!
       const sourceLine = sources.get(occurrence.file)!.split("\n")[annotation.line - 1]
-      if (occurrence.file.endsWith(".sh")) {
+      if (/\.(?:py|sh)$/.test(occurrence.file)) {
         expect(sourceLine).toMatch(/^\s*# ce-dispatch-(?:site|exclude):[a-z0-9][a-z0-9.-]*\s*$/)
       } else {
         expect(sourceLine).toMatch(/^\s*<!-- ce-dispatch-(?:site|exclude):[a-z0-9][a-z0-9.-]* -->\s*$/)
@@ -433,6 +439,14 @@ describe("dispatch role coverage", () => {
     expect(occurrences).toHaveLength(2)
     expect(occurrences[0].annotation?.value).toBe("ce-test.first")
     expect(occurrences[1].annotation).toBeUndefined()
+  })
+
+  test("an unregistered Python model launch fails dispatch coverage", async () => {
+    const fixture = path.join(repoRoot, "tests", "fixtures", "routing", "role-coverage", "unregistered-model-launch.py")
+    const occurrences = scanSource("skills/ce-test/scripts/unregistered-model-launch.py", await readFile(fixture, "utf8")).occurrences
+
+    expect(occurrences).toHaveLength(1)
+    expect(occurrences[0].annotation).toBeUndefined()
   })
 
   test("raw duplicate keys and normalization aliases remain observable", () => {

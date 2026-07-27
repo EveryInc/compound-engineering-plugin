@@ -200,6 +200,166 @@ async function waitForFile(file: string): Promise<void> {
 }
 
 describe("routing resolver", () => {
+  test.each([
+    {
+      name: "task profile wins",
+      task: { profile: "task-profile", policy: "require" },
+      projectRole: { profile: "project-role-profile", policy: "require" },
+      projectClass: { profile: "project-class-profile", policy: "require" },
+      globalRole: { profile: "global-role-profile", policy: "require" },
+      globalClass: { profile: "global-class-profile", policy: "require" },
+      expected: { kind: "profile", profile: "task-profile", source_layer: "task" },
+    },
+    {
+      name: "project role wins after task inherit",
+      task: "inherit",
+      projectRole: { profile: "project-role-profile", policy: "require" },
+      projectClass: { profile: "project-class-profile", policy: "require" },
+      globalRole: { profile: "global-role-profile", policy: "require" },
+      globalClass: { profile: "global-class-profile", policy: "require" },
+      expected: { kind: "profile", profile: "project-role-profile", source_layer: "project-role" },
+    },
+    {
+      name: "project class wins after narrower inherits",
+      task: "inherit",
+      projectRole: "inherit",
+      projectClass: { profile: "project-class-profile", policy: "require" },
+      globalRole: { profile: "global-role-profile", policy: "require" },
+      globalClass: { profile: "global-class-profile", policy: "require" },
+      expected: { kind: "profile", profile: "project-class-profile", source_layer: "project-class" },
+    },
+    {
+      name: "global role wins after project inherits",
+      task: "inherit",
+      projectRole: "inherit",
+      projectClass: "inherit",
+      globalRole: { profile: "global-role-profile", policy: "require" },
+      globalClass: { profile: "global-class-profile", policy: "require" },
+      expected: { kind: "profile", profile: "global-role-profile", source_layer: "global-role" },
+    },
+    {
+      name: "global class wins after role inherit",
+      task: "inherit",
+      projectRole: "inherit",
+      projectClass: "inherit",
+      globalRole: "inherit",
+      globalClass: { profile: "global-class-profile", policy: "require" },
+      expected: { kind: "profile", profile: "global-class-profile", source_layer: "global-class" },
+    },
+    {
+      name: "built-in wins after every configured layer inherits",
+      task: "inherit",
+      projectRole: "inherit",
+      projectClass: "inherit",
+      globalRole: "inherit",
+      globalClass: "inherit",
+      expected: { kind: "ce-default", explicit_reset: false, source_layer: "builtin" },
+    },
+    {
+      name: "task CE-default stops every lower profile",
+      task: "ce-default",
+      projectRole: { profile: "project-role-profile", policy: "require" },
+      projectClass: { profile: "project-class-profile", policy: "require" },
+      globalRole: { profile: "global-role-profile", policy: "require" },
+      globalClass: { profile: "global-class-profile", policy: "require" },
+      expected: { kind: "ce-default", explicit_reset: true, source_layer: "task" },
+    },
+    {
+      name: "project role CE-default stops lower profiles",
+      task: "inherit",
+      projectRole: "ce-default",
+      projectClass: { profile: "project-class-profile", policy: "require" },
+      globalRole: { profile: "global-role-profile", policy: "require" },
+      globalClass: { profile: "global-class-profile", policy: "require" },
+      expected: { kind: "ce-default", explicit_reset: true, source_layer: "project-role" },
+    },
+    {
+      name: "project class CE-default stops lower profiles",
+      task: "inherit",
+      projectRole: "inherit",
+      projectClass: "ce-default",
+      globalRole: { profile: "global-role-profile", policy: "require" },
+      globalClass: { profile: "global-class-profile", policy: "require" },
+      expected: { kind: "ce-default", explicit_reset: true, source_layer: "project-class" },
+    },
+    {
+      name: "global role CE-default stops its class",
+      task: "inherit",
+      projectRole: "inherit",
+      projectClass: "inherit",
+      globalRole: "ce-default",
+      globalClass: { profile: "global-class-profile", policy: "require" },
+      expected: { kind: "ce-default", explicit_reset: true, source_layer: "global-role" },
+    },
+    {
+      name: "global class CE-default stops at built-in",
+      task: "inherit",
+      projectRole: "inherit",
+      projectClass: "inherit",
+      globalRole: "inherit",
+      globalClass: "ce-default",
+      expected: { kind: "ce-default", explicit_reset: true, source_layer: "global-class" },
+    },
+  ])("applies the complete R4 precedence matrix: $name", async (scenario) => {
+    const f = await fixture()
+    const role = "ce-work.implementation-worker"
+    const binding = (value: unknown) => typeof value === "string" ? value : JSON.stringify(value)
+    try {
+      await writeFile(path.join(f.home, "config.yaml"), [
+        "routing:",
+        "  profiles:",
+        "    task-profile:",
+        "      candidates:",
+        "        - { harness: opencode, model: openai/task-model }",
+        "    project-role-profile:",
+        "      candidates:",
+        "        - { harness: opencode, model: openai/project-role-model }",
+        "    project-class-profile:",
+        "      candidates:",
+        "        - { harness: opencode, model: openai/project-class-model }",
+        "    global-role-profile:",
+        "      candidates:",
+        "        - { harness: opencode, model: openai/global-role-model }",
+        "    global-class-profile:",
+        "      candidates:",
+        "        - { harness: opencode, model: openai/global-class-model }",
+        "  classes:",
+        `    implementation: ${binding(scenario.globalClass)}`,
+        "  roles:",
+        `    ${role}: ${binding(scenario.globalRole)}`,
+        "",
+      ].join("\n"), { mode: 0o600 })
+      await mkdir(path.join(f.project, ".compound-engineering"), { recursive: true })
+      await writeFile(path.join(f.project, ".compound-engineering", "config.local.yaml"), [
+        "routing:",
+        "  classes:",
+        `    implementation: ${binding(scenario.projectClass)}`,
+        "  roles:",
+        `    ${role}: ${binding(scenario.projectRole)}`,
+        "",
+      ].join("\n"), { mode: 0o600 })
+
+      const result = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        host: { harness: "opencode", serving_family: "openai" },
+        intents: [{
+          role,
+          ...opencodeIntentProvenance(`r4-${scenario.name.replaceAll(" ", "-")}`),
+          binding: scenario.task,
+        }],
+        roles: [{ role, instance: { id: scenario.name } }],
+      }, { cwd: f.project, home: f.home })
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stderr).toBe("")
+      expect(result.body.resolutions[0].binding).toMatchObject(scenario.expected)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
   test("merges sparse project settings and resolves role over class", async () => {
     const f = await fixture()
     try {

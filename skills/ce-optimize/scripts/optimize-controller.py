@@ -1794,6 +1794,7 @@ def command_dispatch(args: argparse.Namespace) -> tuple[str, dict]:
     try:
         if launch_fault("route", "pre-spawn"):
             raise OSError("injected route Popen failure")
+        # ce-dispatch-site:ce-optimize.codex-controller
         process = subprocess.Popen(
             argv,
             cwd=attempt["worktree"] if attempt["role"] == "author" else attempt["environment_root"],

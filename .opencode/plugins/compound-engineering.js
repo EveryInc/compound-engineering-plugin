@@ -64,7 +64,7 @@ function loadSkills() {
 
 const skillCommands = loadSkills()
 
-export const CompoundEngineeringPlugin = async (input = {}) => {
+async function compoundEngineeringPlugin(input = {}, createClient) {
   const hooks = {
     config: async (config) => {
       config.skills = config.skills || {}
@@ -82,7 +82,7 @@ export const CompoundEngineeringPlugin = async (input = {}) => {
   }
   if (!input.serverUrl) return hooks
 
-  const client = createOpencodeClient({ baseUrl: input.serverUrl.href, directory: input.directory })
+  const client = createClient({ baseUrl: input.serverUrl.href, directory: input.directory })
   const intents = createOpenCodeIntentStore()
   const host = createOpenCodeSdkHost(client)
   const adapter = createOpenCodeRoutingAdapter({
@@ -165,5 +165,11 @@ export const CompoundEngineeringPlugin = async (input = {}) => {
   }
   return hooks
 }
+
+export function createCompoundEngineeringPlugin({ createClient = createOpencodeClient } = {}) {
+  return (input) => compoundEngineeringPlugin(input, createClient)
+}
+
+export const CompoundEngineeringPlugin = createCompoundEngineeringPlugin()
 
 export default CompoundEngineeringPlugin
