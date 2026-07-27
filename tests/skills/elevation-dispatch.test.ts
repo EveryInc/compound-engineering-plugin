@@ -88,6 +88,7 @@ function runWorker(
   claudeStub: string,
   extraEnv: Record<string, string> = {},
   omit: string[] = [],
+  cwd?: string,
 ): { result: any; stderr: string; status: number | null } {
   const { bin, env } = sandbox(claudeStub, omit)
   const scratch = mkTempRoot("elevation-run-")
@@ -97,6 +98,7 @@ function runWorker(
   const r = spawnSync("bash", [WORKER, model, promptFile, resultPath], {
     encoding: "utf8",
     env: { CE_ELEVATION_POLL_SECS: "0.2", ...env, ...extraEnv },
+    cwd,
   })
   const result = existsSync(resultPath)
     ? JSON.parse(readFileSync(resultPath, "utf8"))
@@ -125,7 +127,7 @@ describe("elevation-dispatch worker", () => {
     })
     expect(r.status).toBe(0)
     const argv = (r.stdout ?? "").split("\0").filter(Boolean)
-    expect(argv.slice(0, 4)).toEqual(["claude", "-p", "--model", "fable"])
+    expect(argv.slice(0, 4)).toEqual(["<qualified-claude>", "-p", "--model", "fable"])
     expect(argv).toContain("--effort")
     expect(argv).toContain("high")
     expect(argv).toContain("stream-json")
@@ -174,7 +176,7 @@ describe("elevation-dispatch worker", () => {
     )
     expect(selected.status).toBe(0)
     const argv = (selected.stdout ?? "").split("\0").filter(Boolean)
-    expect(argv.slice(0, 4)).toEqual(["claude", "-p", "--model", "sonnet"])
+    expect(argv.slice(0, 4)).toEqual(["<qualified-claude>", "-p", "--model", "sonnet"])
     expect(argv.slice(argv.indexOf("--effort"), argv.indexOf("--effort") + 2)).toEqual([
       "--effort",
       "medium",
@@ -206,6 +208,107 @@ describe("elevation-dispatch worker", () => {
     expect(result.model_identity_status).toBe("matched")
     expect(result.effort_requested).toBe("high")
     expect(result.effort_actual).toBe("unverified")
+  })
+
+  test("rejects a project-local shadow without falling through to a safe provider", () => {
+    const project = mkTempRoot("elevation-hostile-project-")
+    mkdirSync(path.join(project, ".git"))
+    const projectBin = path.join(project, "bin")
+    mkdirSync(projectBin)
+    const invoked = path.join(project, "shadow-invoked")
+    writeFileSync(path.join(projectBin, "claude"), `#!/bin/sh\n: > '${invoked}'\nexit 0\n`)
+    chmodSync(path.join(projectBin, "claude"), 0o755)
+
+    const safe = sandbox(
+      "#!/bin/sh\nprintf '%s\\n' '" + RESULT_LINE("SAFE", { "claude-fable-5": {} }) + "'\n",
+    )
+    const { result, stderr } = runWorker(
+      "fable",
+      "#!/bin/sh\nexit 99\n",
+      { PATH: `${projectBin}:${safe.bin}` },
+      [],
+      project,
+    )
+
+    expect(result.status).toBe("failed")
+    expect(stderr).toContain("provider executable unavailable")
+    expect(existsSync(invoked)).toBe(false)
+  })
+
+  test("rejects provider identity substitution after qualification", () => {
+    const invoked = path.join(mkTempRoot("elevation-substitution-"), "replacement-invoked")
+    const safeResponse = RESULT_LINE("SAFE", { "claude-fable-5": {} })
+    const { bin, env } = sandbox(`#!/bin/sh\nprintf '%s\\n' '${safeResponse}'\n`)
+    const provider = path.join(bin, "claude")
+    const realMktemp = REAL_TOOL_PATHS.find(([tool]) => tool === "mktemp")?.[1]
+    expect(realMktemp).toBeTruthy()
+    rmSync(path.join(bin, "mktemp"))
+    writeFileSync(path.join(bin, "mktemp"), `#!/bin/sh
+out="$('${realMktemp}' "$@")" || exit $?
+replacement='${provider}.replacement'
+printf '%s\n' '#!/bin/sh' ': > "${invoked}"' 'exit 0' > "$replacement"
+chmod 755 "$replacement"
+mv -f "$replacement" '${provider}'
+printf '%s' "$out"
+`)
+    chmodSync(path.join(bin, "mktemp"), 0o755)
+
+    const scratch = mkTempRoot("elevation-substitution-run-")
+    const promptFile = path.join(scratch, "brief.md")
+    const resultPath = path.join(scratch, "result.json")
+    writeFileSync(promptFile, "author the plan")
+    const r = spawnSync("bash", [WORKER, "fable", promptFile, resultPath], {
+      encoding: "utf8",
+      env: { CE_ELEVATION_POLL_SECS: "0.2", ...env },
+    })
+
+    expect(r.status).toBe(0)
+    expect(JSON.parse(readFileSync(resultPath, "utf8")).status).toBe("failed")
+    expect(r.stderr).toContain("provider executable identity changed")
+    expect(existsSync(invoked)).toBe(false)
+  })
+
+  test("accepts a safe external symlink launcher after validating its final target", () => {
+    const { bin, env } = sandbox("#!/bin/sh\nexit 99\n")
+    const targetDir = path.join(path.dirname(bin), "package", "bin")
+    mkdirSync(targetDir, { recursive: true })
+    const target = path.join(targetDir, "claude.js")
+    writeFileSync(target, `#!/bin/sh\nprintf '%s\\n' '${RESULT_LINE("SYMLINK SAFE", { "claude-fable-5": {} })}'\n`)
+    chmodSync(target, 0o755)
+    rmSync(path.join(bin, "claude"))
+    symlinkSync(target, path.join(bin, "claude"))
+
+    const scratch = mkTempRoot("elevation-symlink-run-")
+    const promptFile = path.join(scratch, "brief.md")
+    const resultPath = path.join(scratch, "result.json")
+    writeFileSync(promptFile, "author the plan")
+    spawnSync("bash", [WORKER, "fable", promptFile, resultPath], {
+      encoding: "utf8",
+      env: { CE_ELEVATION_POLL_SECS: "0.2", ...env },
+    })
+
+    expect(JSON.parse(readFileSync(resultPath, "utf8"))).toMatchObject({
+      status: "ok",
+      output: "SYMLINK SAFE",
+    })
+  })
+
+  test("rejects a provider below a group-writable external ancestor", () => {
+    const invoked = path.join(mkTempRoot("elevation-unsafe-marker-"), "invoked")
+    const { bin, env } = sandbox(`#!/bin/sh\n: > '${invoked}'\nexit 0\n`)
+    chmodSync(path.dirname(bin), 0o770)
+    const scratch = mkTempRoot("elevation-unsafe-run-")
+    const promptFile = path.join(scratch, "brief.md")
+    const resultPath = path.join(scratch, "result.json")
+    writeFileSync(promptFile, "author the plan")
+    const result = spawnSync("bash", [WORKER, "fable", promptFile, resultPath], {
+      encoding: "utf8",
+      env: { CE_ELEVATION_POLL_SECS: "0.2", ...env },
+    })
+
+    expect(result.stderr).toContain("group/other writable")
+    expect(JSON.parse(readFileSync(resultPath, "utf8")).status).toBe("failed")
+    expect(existsSync(invoked)).toBe(false)
   })
 
   test("grants read access to only the prompt's own dir, not the whole temp root", () => {
@@ -248,7 +351,7 @@ describe("elevation-dispatch worker", () => {
       "#!/bin/sh\n" +
       `env > "${envCapture}"\n` +
       `printf '%s\\n' '${RESULT_LINE("OK", { "claude-fable-5": {} })}'\n`
-    const { env } = sandbox(stub)
+    const { bin, env } = sandbox(stub)
     const r = spawnSync("bash", [WORKER, "fable", promptFile, resultPath], {
       encoding: "utf8",
       env: {
@@ -265,6 +368,9 @@ describe("elevation-dispatch worker", () => {
     const childEnv = readFileSync(envCapture, "utf8")
     expect(childEnv).toContain("USER=elevation-keychain-user")
     expect(childEnv).toContain(`CLAUDE_CONFIG_DIR=${claudeConfig}`)
+    expect(childEnv.split("\n").find((line) => line.startsWith("PATH="))).toBe(
+      `PATH=${bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/homebrew/bin`,
+    )
     expect(childEnv).not.toContain("ANTHROPIC_API_KEY=")
     expect(childEnv).not.toContain("CLAUDE_CODE_OAUTH_TOKEN=")
     expect(childEnv).not.toContain(apiSecret)

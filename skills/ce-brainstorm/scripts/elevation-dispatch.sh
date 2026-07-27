@@ -32,6 +32,142 @@ RUN_SUCCEEDED=false
 log() { printf '[elevation] %s\n' "$*" >&2; }
 
 EFFORT="${CE_ROUTING_CANDIDATE_EFFORT:-high}"
+PROVIDER_EXECUTABLE=""
+PROVIDER_LOOKUP=""
+PROVIDER_IDENTITY=""
+PROVIDER_MIN_PATH=""
+SYSTEM_PYTHON="/usr/bin/python3"
+
+# Resolve a provider once, validate the launcher and canonical target, and bind
+# the target bytes plus ownership/mode/ancestry metadata. Python is a guaranteed
+# native-skill dependency; use the fixed system path so PATH cannot replace the
+# validator that protects the provider boundary.
+provider_identity() { # <qualify|verify> <lookup-path> [expected-identity]
+  [ -x "$SYSTEM_PYTHON" ] || return 1
+  "$SYSTEM_PYTHON" -I -S - "$@" <<'PY'
+import hashlib
+import json
+import os
+import stat
+import sys
+
+mode, lookup = sys.argv[1:3]
+expected = sys.argv[3] if len(sys.argv) > 3 else ""
+uid = os.geteuid()
+
+def fail(message):
+    print(message, file=sys.stderr)
+    raise SystemExit(1)
+
+def project_owner(path):
+    current = path if os.path.isdir(path) else os.path.dirname(path)
+    while True:
+        if os.path.lexists(os.path.join(current, ".git")):
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
+
+def components(path):
+    path = os.path.abspath(path)
+    parts = path.split(os.sep)
+    current = os.sep
+    yield current
+    for part in parts[1:]:
+        if not part:
+            continue
+        current = os.path.join(current, part)
+        yield current
+
+def inspect(path, executable=False):
+    records = []
+    for current in components(path):
+        try:
+            info = os.lstat(current)
+        except OSError as exc:
+            fail(f"provider path is unreadable: {current}: {exc}")
+        kind = "symlink" if stat.S_ISLNK(info.st_mode) else "directory" if stat.S_ISDIR(info.st_mode) else "file"
+        if info.st_uid not in (0, uid):
+            fail(f"provider path has unsafe owner: {current}")
+        permissions = stat.S_IMODE(info.st_mode)
+        if kind != "symlink" and permissions & 0o022:
+            if not (kind == "directory" and info.st_uid == 0 and permissions & stat.S_ISVTX):
+                fail(f"provider path is group/other writable: {current}")
+        record = [current, kind, info.st_dev, info.st_ino, info.st_uid, permissions]
+        if kind == "symlink":
+            record.append(os.readlink(current))
+        records.append(record)
+    leaf = os.stat(path, follow_symlinks=False)
+    if executable:
+        if not stat.S_ISREG(leaf.st_mode) or not stat.S_IMODE(leaf.st_mode) & 0o111:
+            fail("provider target is not a regular executable")
+    return records
+
+lookup = os.path.abspath(lookup)
+if os.sep not in lookup or not os.path.lexists(lookup):
+    fail("provider lookup did not return a filesystem path")
+target = os.path.realpath(lookup)
+if project_owner(lookup) is not None or project_owner(target) is not None:
+    fail("provider executable is project/worktree-owned")
+
+launcher_records = inspect(lookup)
+target_records = inspect(target, executable=True)
+flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+try:
+    fd = os.open(target, flags)
+except OSError as exc:
+    fail(f"provider target cannot be opened safely: {exc}")
+try:
+    before = os.fstat(fd)
+    digest = hashlib.sha256()
+    while True:
+        chunk = os.read(fd, 1024 * 1024)
+        if not chunk:
+            break
+        digest.update(chunk)
+    after = os.fstat(fd)
+finally:
+    os.close(fd)
+bound = lambda value: (value.st_dev, value.st_ino, value.st_uid, stat.S_IMODE(value.st_mode), value.st_size, value.st_mtime_ns)
+if bound(before) != bound(after) or not stat.S_ISREG(after.st_mode):
+    fail("provider target changed while it was qualified")
+
+payload = {
+    "lookup": lookup,
+    "target": target,
+    "launcher": launcher_records,
+    "target_ancestry": target_records,
+    "file": [*bound(after), digest.hexdigest()],
+}
+identity = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+if mode == "verify":
+    if identity != expected:
+        fail("provider executable identity changed")
+    raise SystemExit(0)
+if mode != "qualify":
+    fail("invalid provider identity operation")
+
+fixed = [os.path.dirname(lookup), "/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/sbin", "/bin", "/opt/homebrew/bin"]
+minimal_path = os.pathsep.join(dict.fromkeys(fixed))
+sys.stdout.buffer.write(target.encode() + b"\0" + identity.encode() + b"\0" + minimal_path.encode() + b"\0")
+PY
+}
+
+qualify_provider() { # <name>
+  local lookup field fields=()
+  lookup="$(command -v -- "$1" 2>/dev/null)" || return 1
+  while IFS= read -r -d '' field; do fields+=("$field"); done < <(provider_identity qualify "$lookup")
+  [ "${#fields[@]}" -eq 3 ] || return 1
+  PROVIDER_LOOKUP="$lookup"
+  PROVIDER_EXECUTABLE="${fields[0]}"
+  PROVIDER_IDENTITY="${fields[1]}"
+  PROVIDER_MIN_PATH="${fields[2]}"
+}
+
+revalidate_provider() {
+  provider_identity verify "$PROVIDER_LOOKUP" "$PROVIDER_IDENTITY"
+}
 
 safe_model_token() {
   local value="$1"
@@ -87,7 +223,7 @@ build_cmd() {   # <model> <handoff-dir> -> sets CMD array (claude CLI, streaming
   # prompt and scratch-file references must not be saved as a resumable session
   # on disk (matches the other scripted Claude peer routes in this repo).
   # ce-dispatch-site:reasoning-elevation.cli
-  CMD=(claude -p --model "$1" --effort "$EFFORT"
+  CMD=("${PROVIDER_EXECUTABLE:-<qualified-claude>}" -p --model "$1" --effort "$EFFORT"
        --output-format stream-json --verbose
        --safe-mode --no-session-persistence --disable-slash-commands --strict-mcp-config
        --permission-mode dontAsk
@@ -97,7 +233,7 @@ build_cmd() {   # <model> <handoff-dir> -> sets CMD array (claude CLI, streaming
 }
 
 build_min_env() {
-  MIN_ENV=(env -i "PATH=$PATH" "PYTHONDONTWRITEBYTECODE=1")
+  MIN_ENV=(/usr/bin/env -i "PATH=$PROVIDER_MIN_PATH" "PYTHONDONTWRITEBYTECODE=1")
   [ -n "${HOME:-}" ] && MIN_ENV+=("HOME=$HOME")
   [ -n "${USER:-}" ] && MIN_ENV+=("USER=$USER")
   [ -n "${TMPDIR:-}" ] && MIN_ENV+=("TMPDIR=$TMPDIR")
@@ -124,6 +260,11 @@ PROMPT_FILE="${2:?prompt-file required}"
 RESULT_PATH="${3:?result-path required}"
 validate_candidate_selectors "$MODEL" || { log "candidate selectors are unsafe or incompatible with the Claude elevation adapter"; exit 2; }
 [ -f "$PROMPT_FILE" ] || { log "prompt file not found: $PROMPT_FILE"; exit 2; }
+if ! qualify_provider claude; then
+  log "provider executable unavailable: first PATH match for claude failed secure qualification; not trying another executable"
+  printf '{"status":"failed","requested_model":"%s","model_identity_status":"unverified","effort_requested":"%s","effort_actual":"unverified","evidence":"provider executable unavailable"}' "$MODEL" "$EFFORT" > "$RESULT_PATH" 2>/dev/null || true
+  exit 0
+fi
 
 # The orchestrator co-locates the prompt and every evidence file in one private
 # per-run dir; grant the elevated model read access to just that dir (resolved
@@ -243,6 +384,10 @@ stop_heartbeat() {
 
 run_codex_cmd() {
   RUN_SUCCEEDED=false
+  if ! revalidate_provider; then
+    log "provider executable identity changed after qualification; route unavailable"
+    return 0
+  fi
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
   set -m
   command "${MIN_ENV[@]}" "${CMD[@]}" < "$PROMPT_FILE" > "$PEERLOG" 2>&1 &

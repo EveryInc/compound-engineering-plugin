@@ -253,6 +253,13 @@ output directory. Also pass the frozen candidate as
 `CE_ROUTING_CANDIDATE_HARNESS`, `CE_ROUTING_CANDIDATE_ROUTE`, optional
 `CE_ROUTING_CANDIDATE_MODEL`, and optional `CE_ROUTING_CANDIDATE_EFFORT`; the
 script validates route compatibility and token safety before invoking the CLI.
+For each fixed route, the script resolves the first provider PATH match exactly
+once, canonicalizes symlink launchers, rejects project/worktree ownership or
+unsafe owner/mode/ancestry, and binds the final target's metadata and digest.
+It revalidates that identity immediately before dispatch and invokes only the
+absolute target under a fixed minimal PATH. An unsafe, missing, or changed first
+match is unavailable without searching for another executable; preferred retry
+remains the host's declared next-candidate decision, never an adapter fallback.
 Pass the actual repository root separately from any narrower read root, and
 pre-create the round output directory as private scratch outside the repository.
 For named peers, start one job per exact target; for a selected panel, start one

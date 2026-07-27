@@ -77,6 +77,158 @@ cleanup_private_scratch() {
 log()  { printf '[cross-model-pov] %s\n' "$*" >&2; }
 skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no output
 
+PROVIDER_EXECUTABLE=""
+PROVIDER_LOOKUP=""
+PROVIDER_IDENTITY=""
+PROVIDER_MIN_PATH=""
+SYSTEM_PYTHON="/usr/bin/python3"
+
+# Resolve the fixed route's provider once. Validate the PATH launcher and its
+# canonical target, then bind target bytes and ownership/mode/ancestry metadata
+# so a later replacement cannot discard this adapter's read-only flags.
+provider_identity() { # <qualify|verify> <lookup-path> [expected-identity]
+  [ -x "$SYSTEM_PYTHON" ] || return 1
+  "$SYSTEM_PYTHON" -I -S - "$@" <<'PY'
+import hashlib
+import json
+import os
+import stat
+import sys
+
+mode, lookup = sys.argv[1:3]
+expected = sys.argv[3] if len(sys.argv) > 3 else ""
+uid = os.geteuid()
+
+def fail(message):
+    print(message, file=sys.stderr)
+    raise SystemExit(1)
+
+def project_owner(path):
+    current = path if os.path.isdir(path) else os.path.dirname(path)
+    while True:
+        if os.path.lexists(os.path.join(current, ".git")):
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
+
+def components(path):
+    path = os.path.abspath(path)
+    parts = path.split(os.sep)
+    current = os.sep
+    yield current
+    for part in parts[1:]:
+        if not part:
+            continue
+        current = os.path.join(current, part)
+        yield current
+
+def inspect(path, executable=False):
+    records = []
+    for current in components(path):
+        try:
+            info = os.lstat(current)
+        except OSError as exc:
+            fail(f"provider path is unreadable: {current}: {exc}")
+        kind = "symlink" if stat.S_ISLNK(info.st_mode) else "directory" if stat.S_ISDIR(info.st_mode) else "file"
+        if info.st_uid not in (0, uid):
+            fail(f"provider path has unsafe owner: {current}")
+        permissions = stat.S_IMODE(info.st_mode)
+        if kind != "symlink" and permissions & 0o022:
+            if not (kind == "directory" and info.st_uid == 0 and permissions & stat.S_ISVTX):
+                fail(f"provider path is group/other writable: {current}")
+        record = [current, kind, info.st_dev, info.st_ino, info.st_uid, permissions]
+        if kind == "symlink":
+            record.append(os.readlink(current))
+        records.append(record)
+    leaf = os.stat(path, follow_symlinks=False)
+    if executable:
+        if not stat.S_ISREG(leaf.st_mode) or not stat.S_IMODE(leaf.st_mode) & 0o111:
+            fail("provider target is not a regular executable")
+    return records
+
+lookup = os.path.abspath(lookup)
+if os.sep not in lookup or not os.path.lexists(lookup):
+    fail("provider lookup did not return a filesystem path")
+target = os.path.realpath(lookup)
+if project_owner(lookup) is not None or project_owner(target) is not None:
+    fail("provider executable is project/worktree-owned")
+
+launcher_records = inspect(lookup)
+target_records = inspect(target, executable=True)
+flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+try:
+    fd = os.open(target, flags)
+except OSError as exc:
+    fail(f"provider target cannot be opened safely: {exc}")
+try:
+    before = os.fstat(fd)
+    digest = hashlib.sha256()
+    while True:
+        chunk = os.read(fd, 1024 * 1024)
+        if not chunk:
+            break
+        digest.update(chunk)
+    after = os.fstat(fd)
+finally:
+    os.close(fd)
+bound = lambda value: (value.st_dev, value.st_ino, value.st_uid, stat.S_IMODE(value.st_mode), value.st_size, value.st_mtime_ns)
+if bound(before) != bound(after) or not stat.S_ISREG(after.st_mode):
+    fail("provider target changed while it was qualified")
+
+payload = {
+    "lookup": lookup,
+    "target": target,
+    "launcher": launcher_records,
+    "target_ancestry": target_records,
+    "file": [*bound(after), digest.hexdigest()],
+}
+identity = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+if mode == "verify":
+    if identity != expected:
+        fail("provider executable identity changed")
+    raise SystemExit(0)
+if mode != "qualify":
+    fail("invalid provider identity operation")
+
+fixed = [os.path.dirname(lookup), "/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/sbin", "/bin", "/opt/homebrew/bin"]
+minimal_path = os.pathsep.join(dict.fromkeys(fixed))
+sys.stdout.buffer.write(target.encode() + b"\0" + identity.encode() + b"\0" + minimal_path.encode() + b"\0")
+PY
+}
+
+qualify_provider() { # <name>
+  local lookup field fields=()
+  lookup="$(command -v -- "$1" 2>/dev/null)" || return 1
+  while IFS= read -r -d '' field; do fields+=("$field"); done < <(provider_identity qualify "$lookup")
+  [ "${#fields[@]}" -eq 3 ] || return 1
+  PROVIDER_LOOKUP="$lookup"
+  PROVIDER_EXECUTABLE="${fields[0]}"
+  PROVIDER_IDENTITY="${fields[1]}"
+  PROVIDER_MIN_PATH="${fields[2]}"
+}
+
+revalidate_provider() {
+  provider_identity verify "$PROVIDER_LOOKUP" "$PROVIDER_IDENTITY"
+}
+
+route_provider_name() {
+  case "$1" in
+    codex|claude) printf '%s' "$1" ;;
+    grok-cli) printf 'grok' ;;
+    grok-cursor|cursor|composer) printf 'cursor-agent' ;;
+  esac
+}
+
+provider_argv0() {
+  if [ -n "$PROVIDER_EXECUTABLE" ]; then
+    printf '%s' "$PROVIDER_EXECUTABLE"
+  else
+    printf '<qualified-%s>' "$(route_provider_name "$1")"
+  fi
+}
+
 # --- model + reasoning per provider ----------------------------------------
 # ONE model at HIGH reasoning per provider. Concrete IDs are the CURRENT instance of the tier principle
 # and the single maintenance point when model families change.
@@ -271,7 +423,7 @@ adapter_argv() {
   case "$1" in
     codex)
       # ce-dispatch-site:ce-pov.panel-cli-codex
-      printf '%s\0' codex --search exec - -C "$READ_ROOT" --skip-git-repo-check -s read-only \
+      printf '%s\0' "$(provider_argv0 codex)" --search exec - -C "$READ_ROOT" --skip-git-repo-check -s read-only \
         -o "$RAW_OUT" -m "$(route_model codex)" -c "model_reasoning_effort=\"$(route_effort codex)\"" -c 'hide_agent_reasoning=false'
       ;;
     claude)
@@ -279,13 +431,13 @@ adapter_argv() {
       # and bounded public web checks. Mutating tools, Bash, MCP, and subagents are
       # absent from the allowlist.
       # ce-dispatch-site:ce-pov.panel-cli-claude
-      printf '%s\0' claude -p --model "$(route_model claude)" --effort "$(route_effort claude)" --permission-mode dontAsk \
+      printf '%s\0' "$(provider_argv0 claude)" -p --model "$(route_model claude)" --effort "$(route_effort claude)" --permission-mode dontAsk \
         --safe-mode --disable-slash-commands --tools Read,Glob,Grep,WebSearch,WebFetch \
         --max-turns 15 --no-session-persistence --json-schema "$SCHEMA_REF" --output-format json
       ;;
     grok-cli)
       # ce-dispatch-site:ce-pov.panel-cli-grok
-      printf '%s\0' grok --prompt-file "$PROMPT_FILE" --model "$(route_model grok-cli)" --effort "$(route_effort grok-cli)" \
+      printf '%s\0' "$(provider_argv0 grok-cli)" --prompt-file "$PROMPT_FILE" --model "$(route_model grok-cli)" --effort "$(route_effort grok-cli)" \
         --cwd "$READ_ROOT" --permission-mode dontAsk \
         --deny Edit --deny Write --deny Bash --deny Task --deny 'mcp__*' \
         --no-subagents --max-turns 15 \
@@ -293,19 +445,19 @@ adapter_argv() {
       ;;
     grok-cursor)
       # ce-dispatch-site:ce-pov.panel-cli-grok-cursor
-      printf '%s\0' cursor-agent -p --model "$(route_model grok-cursor)" --mode ask --trust \
+      printf '%s\0' "$(provider_argv0 grok-cursor)" -p --model "$(route_model grok-cursor)" --mode ask --trust \
         --sandbox enabled --workspace "$READ_ROOT" --output-format json
       ;;
     cursor)
       # ce-dispatch-site:ce-pov.panel-cli-cursor
-      printf '%s\0' cursor-agent -p
+      printf '%s\0' "$(provider_argv0 cursor)" -p
       [ -z "${CE_ROUTING_CANDIDATE_MODEL:-}" ] || printf '%s\0' --model "$(route_model cursor)"
       printf '%s\0' --mode ask --trust \
         --sandbox enabled --workspace "$READ_ROOT" --output-format json
       ;;
     composer)
       # ce-dispatch-site:ce-pov.panel-cli-composer
-      printf '%s\0' cursor-agent -p --model "$(route_model composer)" --mode ask --trust \
+      printf '%s\0' "$(provider_argv0 composer)" -p --model "$(route_model composer)" --mode ask --trust \
         --sandbox enabled --workspace "$READ_ROOT" --output-format json
       ;;
     *) return 1 ;;
@@ -451,13 +603,10 @@ if [ "$PAYLOAD_CHARS" -gt "$MAX_PAYLOAD_CHARS" ]; then
 fi
 
 route_available() {
-  case "$1" in
-    codex) command -v codex >/dev/null 2>&1 ;;
-    claude) command -v claude >/dev/null 2>&1 ;;
-    grok-cli) command -v grok >/dev/null 2>&1 ;;
-    grok-cursor|cursor|composer) command -v cursor-agent >/dev/null 2>&1 ;;
-    *) return 1 ;;
-  esac
+  local provider
+  provider="$(route_provider_name "$1")" || return 1
+  [ -n "$provider" ] || return 1
+  qualify_provider "$provider"
 }
 route_allowlisted "$FIXED_ROUTE" || skip "fixed route '$FIXED_ROUTE' is not fully sanctioned by CROSS_MODEL_PEERS; skipping before egress"
 route_available "$FIXED_ROUTE" || skip "fixed route '$FIXED_ROUTE' is unavailable; host must disclose and choose any retry"
@@ -598,6 +747,11 @@ run_codex_cmd() {   # CMD already built for the codex route; streams to PEERLOG,
   RUN_SUCCEEDED=false
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
   set -m
+  if ! revalidate_provider; then
+    [ "$prev" = 0 ] && set +m
+    log "provider executable identity changed after qualification; fixed route unavailable"
+    return 0
+  fi
   command "${MIN_ENV[@]}" "${CMD[@]}" < "$PROMPT_FILE" > "$PEERLOG" 2>&1 &
   local pid=$!
   ACTIVE_PEER_PID="$pid"
@@ -634,6 +788,11 @@ run_timeout_cmd() {   # $1 = stdin file ("" -> /dev/null). CMD already built.
   local stdin_file="${1:-}"; [ -n "$stdin_file" ] || stdin_file=/dev/null
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
   set -m
+  if ! revalidate_provider; then
+    [ "$prev" = 0 ] && set +m
+    log "provider executable identity changed after qualification; fixed route unavailable"
+    return 0
+  fi
   if [ -n "$TO_BIN" ]; then
     ( cd "$READ_ROOT" && exec "${MIN_ENV[@]}" "$TO_BIN" -k 10 "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
   else
@@ -724,6 +883,7 @@ attempt_route() {   # <provider> <route>
   local provider="$1" route="$2" note
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT"
   build_cmd "$route"
+  PATH="$PROVIDER_MIN_PATH"
   build_min_env "$route"
   case "$route" in
     codex|claude|grok-cli) note="$(route_model "$route") (effort $(route_effort "$route"))" ;;

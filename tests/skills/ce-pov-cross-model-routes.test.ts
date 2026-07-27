@@ -75,8 +75,8 @@ function payload(contents = "Subject: choose A or B\nProject floor: TypeScript C
   return file
 }
 function runDir() { return temp("pov-run-") }
-function run(args: string[], dir: string, env: NodeJS.ProcessEnv = process.env) {
-  const result = spawnSync("bash", [SCRIPT, ...args], { encoding: "utf8", env })
+function run(args: string[], dir: string, env: NodeJS.ProcessEnv = process.env, cwd?: string) {
+  const result = spawnSync("bash", [SCRIPT, ...args], { encoding: "utf8", env, cwd })
   return {
     code: result.status ?? -1,
     stderr: result.stderr ?? "",
@@ -99,6 +99,7 @@ describe("ce-pov cross-model route safety", () => {
   test("all routes preserve read/write/exec denial and avoid never-use flags", () => {
     for (const route of ROUTES) {
       const command = emit(route)
+      expect(command.split(/\s+/, 1)[0]).toBe(`<qualified-${route === "grok-cli" ? "grok" : ["grok-cursor", "cursor", "composer"].includes(route) ? "cursor-agent" : route}>`)
       for (const denied of NEVER_FLAGS) expect(command.split(/\s+/)).not.toContain(denied)
       expect(command).not.toContain("bypassPermissions")
       expect(command).not.toContain("<run-dir>")
@@ -258,7 +259,7 @@ describe("ce-pov output gate and receipts", () => {
     const claudeConfig = path.join(captureRoot, "claude-config")
     const apiSecret = "SENTINEL-pov-api-secret"
     const response = '{"structured_output":{"voice":"peer","position":"Choose A","reasoning":"Evidence","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"},"modelUsage":{"claude-sonnet-4-7-20260701":{"inputTokens":3}}}'
-    const { env } = sandbox(["claude"], `#!/bin/sh
+    const { bin, env } = sandbox(["claude"], `#!/bin/sh
 printf '%s' "$*" > '${capture}'
 env > '${envCapture}'
 cat >/dev/null
@@ -280,6 +281,9 @@ printf '%s' '${response}'
     const childEnv = readFileSync(envCapture, "utf8")
     expect(childEnv).toContain("USER=pov-keychain-user")
     expect(childEnv).toContain(`CLAUDE_CONFIG_DIR=${claudeConfig}`)
+    expect(childEnv.split("\n").find((line) => line.startsWith("PATH="))).toBe(
+      `PATH=${bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/homebrew/bin`,
+    )
     expect(childEnv).not.toContain("ANTHROPIC_API_KEY=")
     expect(childEnv).not.toContain(apiSecret)
     const out = JSON.parse(readFileSync(path.join(dir, "pov-claude.json"), "utf8"))
@@ -435,6 +439,78 @@ printf '%s' '${response}'
 })
 
 describe("ce-pov fixed route and egress allowlist", () => {
+  test("rejects a project-local provider shadow without trying the safe PATH entry", () => {
+    const project = temp("pov-hostile-project-")
+    mkdirSync(path.join(project, ".git"))
+    const projectBin = path.join(project, "bin")
+    mkdirSync(projectBin)
+    const invoked = path.join(project, "shadow-invoked")
+    writeFileSync(path.join(projectBin, "claude"), `#!/bin/sh\n: > '${invoked}'\nexit 0\n`)
+    chmodSync(path.join(projectBin, "claude"), 0o755)
+    const safe = sandbox(["claude"], "#!/bin/sh\nexit 99\n")
+    const dir = runDir()
+
+    const result = run(["codex", "claude", payload(), dir], dir, {
+      ...safe.env,
+      PATH: `${projectBin}:${safe.bin}`,
+    }, project)
+
+    expect(result.files).not.toContain("pov-claude.json")
+    expect(result.stderr).toContain("fixed route 'claude' is unavailable")
+    expect(existsSync(invoked)).toBe(false)
+  })
+
+  test("rejects provider identity substitution after qualification", () => {
+    const invoked = path.join(temp("pov-substitution-"), "replacement-invoked")
+    const response = '{"structured_output":{"voice":"peer","position":"Hold","reasoning":"Evidence","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"}}'
+    const { bin, env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${response}'\n`)
+    const provider = path.join(bin, "claude")
+    const realMktemp = realTools().find(([tool]) => tool === "mktemp")?.[1]
+    expect(realMktemp).toBeTruthy()
+    rmSync(path.join(bin, "mktemp"))
+    writeFileSync(path.join(bin, "mktemp"), `#!/bin/sh
+out="$('${realMktemp}' "$@")" || exit $?
+replacement='${provider}.replacement'
+printf '%s\n' '#!/bin/sh' ': > "${invoked}"' 'exit 0' > "$replacement"
+chmod 755 "$replacement"
+mv -f "$replacement" '${provider}'
+printf '%s' "$out"
+`)
+    chmodSync(path.join(bin, "mktemp"), 0o755)
+    const dir = runDir()
+    const scratchParent = temp("pov-substitution-scratch-")
+
+    const result = run(["codex", "claude", payload(), dir], dir, {
+      ...env,
+      CROSS_MODEL_SCRATCH_PARENT: scratchParent,
+    })
+
+    expect(result.files).not.toContain("pov-claude.json")
+    expect(result.stderr).toContain("provider executable identity changed")
+    expect(existsSync(invoked)).toBe(false)
+  })
+
+  test("runs a safe private external provider through a canonical symlink target", () => {
+    const response = '{"structured_output":{"voice":"peer","position":"Hold","reasoning":"Evidence","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"},"modelUsage":{"claude-opus-4-8-20260115":{}}}'
+    const { bin, env } = sandbox(["claude"], "#!/bin/sh\nexit 99\n")
+    const targetDir = path.join(path.dirname(bin), "package", "bin")
+    mkdirSync(targetDir, { recursive: true })
+    const target = path.join(targetDir, "claude.js")
+    writeFileSync(target, `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${response}'\n`)
+    chmodSync(target, 0o755)
+    rmSync(path.join(bin, "claude"))
+    symlinkSync(target, path.join(bin, "claude"))
+    const dir = runDir()
+
+    const result = run(["codex", "claude", payload(), dir], dir, env)
+
+    expect(result.files).toContain("pov-claude.json")
+    expect(JSON.parse(readFileSync(path.join(dir, "pov-claude.json"), "utf8"))).toMatchObject({
+      model_identity_status: "matched",
+      position: "Hold",
+    })
+  })
+
   test("failed Grok CLI returns control without invoking Cursor", () => {
     const { bin, env } = sandbox(["grok", "cursor-agent"])
     const cursorInvoked = path.join(temp("pov-invoked-"), "cursor")
