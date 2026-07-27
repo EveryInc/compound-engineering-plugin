@@ -20,9 +20,13 @@ const SCRIPTS = {
 } as const
 
 // References that document a `start` invocation and therefore own the derivation.
+// Every skill whose worker reads CROSS_MODEL_HARD_SECS belongs here: a start path
+// that omits the runner derivation leaves peer-job-runner.py on its own 630s
+// default, which then reaps the worker the raised knob was meant to keep alive.
 const DISPATCH_REFS = {
   "ce-code-review": "skills/ce-code-review/references/cross-model-review.md",
   "ce-doc-review": "skills/ce-doc-review/references/cross-model-review.md",
+  "ce-pov": "skills/ce-pov/references/cross-model-panel.md",
 } as const
 
 const DEADLINE_GRACE = 10 // orchestrator deadline sits this far past the script cap
@@ -85,11 +89,30 @@ describe("cross-model peer budget", () => {
     expect(read(DISPATCH_REFS["ce-code-review"])).toContain(`${hard + DEADLINE_GRACE}s by default`)
   })
 
-  test("ce-pov derives its aggregate deadline from the shared knob", () => {
-    const doc = read("skills/ce-pov/references/cross-model-panel.md")
+  test("ce-pov states its derived aggregate-deadline default", () => {
     const { hard } = caps(SCRIPTS["ce-pov"])
-    expect(doc).toContain(`\`CROSS_MODEL_HARD_SECS\` + ${DEADLINE_GRACE} seconds`)
-    expect(doc).toContain(`${hard + DEADLINE_GRACE}s by`)
+    expect(read(DISPATCH_REFS["ce-pov"])).toContain(`${hard + DEADLINE_GRACE}s by default`)
+  })
+
+  test("no orchestrator may bound its total wait below the derived deadline", () => {
+    // The other half of the one-knob contract: widening the budget is worthless if
+    // the waiting side still stops early. A single bounded slice (capped at the
+    // idle window) cannot reach a deadline several times its length, so each
+    // orchestrator must repeat slices until terminal or the deadline is spent.
+    const banned = [
+      /issue one bounded `wait`/,
+      /do not start repeated/i,
+      /the documented single `wait`/,
+    ]
+    for (const [skill, rel] of Object.entries(DISPATCH_REFS)) {
+      const doc = read(rel)
+      for (const pattern of banned) {
+        expect(doc, `${skill} must not cap total peer waiting (${pattern})`).not.toMatch(pattern)
+      }
+      expect(doc, `${skill} must repeat bounded waits to the deadline`).toMatch(
+        /[Rr]epeat|until every job is terminal/,
+      )
+    }
   })
 
   test("no skill hardcodes a peer deadline or backstop in prose", () => {

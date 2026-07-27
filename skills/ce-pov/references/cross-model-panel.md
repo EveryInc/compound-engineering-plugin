@@ -205,6 +205,20 @@ root, and pre-create the round output directory as private scratch outside the
 repository. For named peers, start one job per exact target; for a selected panel,
 start one job per selected peer. Start all jobs before waiting.
 
+**Derive the whole peer budget from the one knob on every `start`.** Resolve it
+once and pass both derived windows, so the runner's supervisor cannot fall back
+to its own 630s default and reap a worker the knob was raised for:
+
+```bash
+PEER_HARD="${CROSS_MODEL_HARD_SECS:-600}"; echo "peer-deadline-secs=$(( PEER_HARD + 10 ))";
+```
+
+Prefix `CE_PEER_HARD_SECS="$(( PEER_HARD + 30 ))"` on the `peer-job-runner.py
+start` call, forward `CROSS_MODEL_HARD_SECS="$PEER_HARD"` to the worker so it
+cannot re-default, and use the printed `peer-deadline-secs` as the aggregate
+deadline below. All three windows then move together: worker `PEER_HARD` <
+aggregate deadline `+10s` < runner supervisor `+30s`.
+
 Each worker writes `<run-dir>/pov-<target>.json`, where `<target>` is the resolved
 route target with `grok-cli`/`grok-cursor` collapsing to `grok`. Pass exactly that
 path as `--result-path` to `peer-job-runner.py start`, so `done` is keyed to the
@@ -234,11 +248,13 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
 Job ids or job-directory paths are positional. `--skill`, `--run-id`, and
 `--label` are start-only; never pass them to `wait`. Do not add a separate shell
 sleep: `wait` itself provides the bounded polling delay. Use one aggregate
-deadline of `CROSS_MODEL_HARD_SECS` + 10 seconds after the final start (610s by
-default, since this skill's workers self-bound at 600s); never begin a wait that
-can cross it. Derive it -- a hardcoded deadline silently reaps a healthy peer
-whenever a user raises the knob, wasting the peer's full spend. At the deadline, reap each nonterminal job in a short call, then make one
-final wait:
+deadline of the `peer-deadline-secs` resolved at start (`CROSS_MODEL_HARD_SECS` +
+10 seconds, 610s by default since this skill's workers self-bound at 600s); never
+begin a wait that can cross it. Derive it -- a hardcoded deadline silently reaps a
+healthy peer whenever a user raises the knob, wasting the peer's full spend.
+Repeat the bounded slices above until every job is terminal or that deadline is
+spent; a single slice shorter than the deadline is not a substitute. At the
+deadline, reap each nonterminal job in a short call, then make one final wait:
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";

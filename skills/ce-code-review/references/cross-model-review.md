@@ -96,7 +96,7 @@ The three nested windows are one budget with one knob. `CROSS_MODEL_HARD_SECS` (
 - `<base-ref>` = the Stage 1 `BASE` (the diff base the peer reviews via `git diff <base-ref>`).
 - `<run-dir>` = the absolute Stage 4 run dir. The script writes `adversarial-<provider>.json` there **only after** forcing `reviewer` to `adversarial-<provider>` and downgrading peer `safe_auto` → `gated_auto`.
 
-**Single-reap finish.** The runner detaches the worker into its own supervised session. Capture the epoch time right after `start` (`date +%s`) and do not poll while local reviewers are active. After local returns are collected, check status once. If still running and the shared deadline (`peer-deadline-secs` from the `start` call; 1210s by default) leaves time, issue one bounded `wait` sized to the remaining deadline (cap the wait at 480s — Luna xhigh runs can legitimately take up to ~419s, so a lower cap can end before a healthy peer returns); do not start repeated short polling turns. Fold in the artifact when terminal. At the deadline, `reap <job-id>` and perform one final `wait --max-secs 10` because reap is asynchronous. The script self-bounds (idle timeout 480s; hard backstop `CROSS_MODEL_HARD_SECS`, default 1200s) *inside* that deadline, so deadline reaping is exceptional. Done detection stays presence-keyed: the worker publishes `<run-dir>/adversarial-<provider>.json` only after normalization. The script reads the persona brief and schema from the skill dir and reviews the current work tree against `<base-ref>`. Its large-diff preflight is transport only: it measures and stages the exact diff outside the prompt; the orchestrator chooses the semantic divisions, and the reviewer chooses representatives and evidence within them.
+**Single-reap finish.** The runner detaches the worker into its own supervised session. Capture the epoch time right after `start` (`date +%s`) and do not poll while local reviewers are active. After local returns are collected, check status once. If still running, issue bounded `wait` slices until the job is terminal **or** the shared deadline (`peer-deadline-secs` from the `start` call; 1210s by default) has elapsed since `start` — compare `date +%s` against the anchor before each slice and never begin a slice that would cross the deadline. Size each slice at up to 480s (Luna xhigh runs can legitimately take up to ~419s, so a shorter slice can end before a healthy peer returns), and let the slices repeat: one slice is far shorter than the derived deadline, so capping the *total* wait would reap a healthy peer for exactly the reason this budget was widened. A slice is not a polling turn — do not interleave status reads, shell no-ops, or "still waiting" turns between slices. Fold in the artifact when terminal. At the deadline, `reap <job-id>` and perform one final `wait --max-secs 10` because reap is asynchronous. The script self-bounds (idle timeout 480s; hard backstop `CROSS_MODEL_HARD_SECS`, default 1200s) *inside* that deadline, so deadline reaping is exceptional. Done detection stays presence-keyed: the worker publishes `<run-dir>/adversarial-<provider>.json` only after normalization. The script reads the persona brief and schema from the skill dir and reviews the current work tree against `<base-ref>`. Its large-diff preflight is transport only: it measures and stages the exact diff outside the prompt; the orchestrator chooses the semantic divisions, and the reviewer chooses representatives and evidence within them.
 
 The `start` command's returned job ID is the successful-start receipt. Do not immediately call `status`, inspect `--help`, or otherwise verify that receipt; persist it and continue to local dispatch. Status collection begins only after the local wave completes.
 
@@ -110,7 +110,15 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
 "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" status "<job-id>" --json
 ```
 
-If it is still running and time remains, use the documented single `wait`; do not invent alternate status flags or inspect help.
+If it is still running and time remains, each `wait` slice is exactly:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+"$PY" "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs <remaining-slice-secs> --json "<job-id>"
+```
+
+Repeat that call until the job is terminal or the derived deadline is spent; do not invent alternate status flags or inspect help.
 
 ## Step 5 — Fold into Stage 5
 
