@@ -31,6 +31,7 @@ FALLBACK_TOKEN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 MAX_ATTEMPT_HISTORY = 128
 ATTEMPT_LOCK_PROTOCOL = "ce-routing-attempt-lock/v1"
 SNAPSHOT_AUTH_PROTOCOL = "ce-routing-snapshot-auth/v1"
+CONFIG_REPLACE_PROTOCOL = "ce-config-replace/v1"
 SNAPSHOT_LIFETIME_SECONDS = 7 * 24 * 60 * 60
 SNAPSHOT_CLOCK_SKEW_SECONDS = 5 * 60
 MAX_SNAPSHOT_RECORDS = 1024
@@ -60,6 +61,10 @@ COMPATIBILITY_ROLE_SPECS = {
 O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
 TRUSTED_GIT = None
+
+
+def transaction_boundary(_name):
+    """Test seam for terminating a subprocess at durable replacement boundaries."""
 
 
 class RoutingError(Exception):
@@ -2474,7 +2479,7 @@ def routing_lock(path, operation):
         if not stat.S_ISREG(st.st_mode) or (current_uid() is not None and st.st_uid != current_uid()) or mode_bits(st) != 0o600:
             raise RoutingError(error_code, "routing lock owner/type/mode validation failed", exit_code=exit_code)
         try:
-            fcntl.flock(fd, operation)
+            fcntl.flock(fd, fcntl.LOCK_EX)
             acquired = True
         except OSError as exc:
             raise RoutingError(error_code, "cannot acquire routing source lock", exit_code=exit_code) from exc
@@ -2489,6 +2494,12 @@ def routing_lock(path, operation):
             or (st.st_dev, st.st_ino) != (current.st_dev, current.st_ino)
         ):
             raise RoutingError(error_code, "routing lock changed while acquiring it", exit_code=exit_code)
+        recover_source_transaction(path, writing)
+        if not writing:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_SH)
+            except OSError as exc:
+                raise RoutingError(error_code, "cannot downgrade routing source lock", exit_code=exit_code) from exc
         yield
     finally:
         if acquired:
@@ -2683,62 +2694,391 @@ def create_replacement_directory(parent_fd):
     raise RoutingError("WRITE_UNSAFE", "cannot reserve replacement state directory", exit_code=5)
 
 
-def preserve_write_conflict(parent_fd, parent, name, tmp_name, replacement_fd, replacement_name, message):
-    candidate_path = os.path.join(parent, tmp_name)
-    displaced_path = os.path.join(parent, replacement_name, "source")
-    restored = False
+def write_private_file(directory_fd, name, data):
     try:
-        os.link(
-            "source",
+        fd = os.open(
             name,
-            src_dir_fd=replacement_fd,
-            dst_dir_fd=parent_fd,
-            follow_symlinks=False,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | O_NOFOLLOW,
+            0o600,
+            dir_fd=directory_fd,
         )
-        restored = True
-    except FileExistsError:
-        pass
     except OSError as exc:
-        os.close(replacement_fd)
-        raise RoutingError(
-            "WRITE_UNSAFE",
-            "cannot preserve displaced configuration after a write conflict",
-            exit_code=5,
-            candidate_path=candidate_path,
-            displaced_path=displaced_path,
-        ) from exc
-    if restored:
-        os.unlink("source", dir_fd=replacement_fd)
-        os.close(replacement_fd)
-        replacement_fd = None
-        os.rmdir(replacement_name, dir_fd=parent_fd)
-        displaced_path = None
-    else:
-        os.close(replacement_fd)
+        raise RoutingError("WRITE_UNSAFE", "cannot create replacement transaction state", exit_code=5) from exc
+    try:
+        view = memoryview(data)
+        while view:
+            written = os.write(fd, view)
+            view = view[written:]
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def replacement_error(writing, parent, names, message="configuration replacement requires manual recovery"):
+    raise RoutingError(
+        "CONFIG_RECOVERY_REQUIRED",
+        message,
+        exit_code=5 if writing else 3,
+        reason="replacement_ambiguous",
+        transaction_paths=[os.path.join(parent, name) for name in names],
+    )
+
+
+def open_replacement_directory(parent_fd, parent, transaction_name, writing):
+    fd = None
+    try:
+        before = os.stat(transaction_name, dir_fd=parent_fd, follow_symlinks=False)
+        fd = os.open(transaction_name, os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW, dir_fd=parent_fd)
+        after = os.fstat(fd)
+    except OSError:
+        if fd is not None:
+            os.close(fd)
+        replacement_error(writing, parent, [transaction_name])
+    if (
+        not stat.S_ISDIR(before.st_mode)
+        or not stat.S_ISDIR(after.st_mode)
+        or (current_uid() is not None and (before.st_uid != current_uid() or after.st_uid != current_uid()))
+        or mode_bits(before) != 0o700
+        or mode_bits(after) != 0o700
+        or (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino)
+    ):
+        os.close(fd)
+        replacement_error(writing, parent, [transaction_name])
+    return fd
+
+
+def read_recovery_file(
+    directory_fd,
+    name,
+    cap,
+    writing,
+    parent,
+    transaction_name,
+    required=False,
+    private=False,
+):
+    try:
+        fd = os.open(name, os.O_RDONLY | O_NOFOLLOW, dir_fd=directory_fd)
+    except FileNotFoundError:
+        if required:
+            replacement_error(writing, parent, [transaction_name])
+        return None
+    except OSError:
+        replacement_error(writing, parent, [transaction_name])
+    try:
+        before = os.fstat(fd)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or (current_uid() is not None and before.st_uid != current_uid())
+            or (mode_bits(before) != 0o600 if private else mode_bits(before) & 0o022)
+            or before.st_size > cap
+        ):
+            replacement_error(writing, parent, [transaction_name])
+        chunks = []
+        total = 0
+        while total <= cap:
+            part = os.read(fd, min(65536, cap + 1 - total))
+            if not part:
+                break
+            chunks.append(part)
+            total += len(part)
+        after = os.fstat(fd)
+        try:
+            current = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+        except OSError:
+            replacement_error(writing, parent, [transaction_name])
+    finally:
+        os.close(fd)
+    if total > cap or file_identity(before) != file_identity(after) or file_identity(after) != file_identity(current):
+        replacement_error(writing, parent, [transaction_name])
+    return b"".join(chunks), file_identity(after)
+
+
+def read_recovery_destination(parent_fd, name, cap, writing, parent, transaction_name):
+    return read_recovery_file(parent_fd, name, cap, writing, parent, transaction_name)
+
+
+def replacement_metadata(transaction_fd, writing, parent, transaction_name):
+    result = read_recovery_file(
+        transaction_fd,
+        "transaction.json",
+        4096,
+        writing,
+        parent,
+        transaction_name,
+        required=True,
+        private=True,
+    )
+    try:
+        value = json.loads(result[0].decode("ascii"))
+    except (UnicodeDecodeError, ValueError):
+        replacement_error(writing, parent, [transaction_name])
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"protocol", "destination", "old_revision", "candidate_revision"}
+        or value.get("protocol") != CONFIG_REPLACE_PROTOCOL
+        or not isinstance(value.get("destination"), str)
+        or not isinstance(value.get("old_revision"), str)
+        or not CONFIG_REVISION.fullmatch(value["old_revision"])
+        or value["old_revision"] == "cecfg-v1:absent"
+        or not isinstance(value.get("candidate_revision"), str)
+        or not CONFIG_REVISION.fullmatch(value["candidate_revision"])
+        or value["candidate_revision"] == "cecfg-v1:absent"
+    ):
+        replacement_error(writing, parent, [transaction_name])
+    return value
+
+
+def preserve_replacement_candidate(parent_fd, parent, transaction_fd, transaction_name):
+    suffix = transaction_name[len(".ce-replace-"):]
+    candidate_name = ".ce-candidate-{}".format(suffix)
+    try:
+        os.rename("candidate", candidate_name, src_dir_fd=transaction_fd, dst_dir_fd=parent_fd)
+    except OSError:
+        replacement_error(True, parent, [transaction_name])
+    os.fsync(transaction_fd)
     os.fsync(parent_fd)
-    details = {"candidate_path": candidate_path}
-    if displaced_path is not None:
-        details["displaced_path"] = displaced_path
-    raise RoutingError("WRITE_CONFLICT", message, exit_code=5, **details)
+    return os.path.join(parent, candidate_name)
+
+
+def retire_replacement_transaction(parent_fd, transaction_fd, transaction_name):
+    suffix = transaction_name[len(".ce-replace-"):]
+    cleanup_name = ".ce-cleanup-{}".format(suffix)
+    try:
+        os.rename(transaction_name, cleanup_name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+    except OSError as exc:
+        raise RoutingError("WRITE_UNSAFE", "cannot retire replacement transaction", exit_code=5) from exc
+    os.fsync(parent_fd)
+    transaction_boundary("retired")
+    for name in ("committed", "transaction.json"):
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(name, dir_fd=transaction_fd)
+    os.fsync(transaction_fd)
+    os.rmdir(cleanup_name, dir_fd=parent_fd)
+    os.fsync(parent_fd)
+    transaction_boundary("cleaned")
+
+
+def create_commit_marker(transaction_fd):
+    try:
+        write_private_file(transaction_fd, "committed", b"ce-config-replace-commit/v1\n")
+    except RoutingError:
+        try:
+            current = read_recovery_file(transaction_fd, "committed", 64, True, "", "", private=True)
+        except RoutingError:
+            raise
+        if current is None or current[0] != b"ce-config-replace-commit/v1\n":
+            raise
+    os.fsync(transaction_fd)
+
+
+def cleanup_stale_replacement_controls(parent_fd, parent, names):
+    for name in names:
+        if re.fullmatch(r"\.ce-cleanup-[0-9]+-[0-9a-f]{24}", name) is None:
+            continue
+        try:
+            fd = open_replacement_directory(parent_fd, parent, name, False)
+        except RoutingError:
+            continue
+        try:
+            try:
+                entries = set(os.listdir(fd))
+            except OSError:
+                continue
+            if not entries.issubset({"transaction.json", "committed"}):
+                continue
+            try:
+                for entry in entries:
+                    record = read_recovery_file(fd, entry, 4096, False, parent, name, required=True, private=True)
+                    if entry == "committed" and record[0] != b"ce-config-replace-commit/v1\n":
+                        break
+            except RoutingError:
+                continue
+            else:
+                for entry in entries:
+                    os.unlink(entry, dir_fd=fd)
+                os.fsync(fd)
+                os.rmdir(name, dir_fd=parent_fd)
+                os.fsync(parent_fd)
+        finally:
+            os.close(fd)
+
+
+def recover_replacement_transaction(parent_fd, parent, name, transaction_name, cap, writing):
+    transaction_fd = open_replacement_directory(parent_fd, parent, transaction_name, writing)
+    try:
+        try:
+            entries = set(os.listdir(transaction_fd))
+        except OSError:
+            replacement_error(writing, parent, [transaction_name])
+        if not entries.issubset({"transaction.json", "candidate", "source", "committed"}):
+            replacement_error(writing, parent, [transaction_name])
+        metadata = replacement_metadata(transaction_fd, writing, parent, transaction_name)
+        if metadata["destination"] != name:
+            replacement_error(writing, parent, [transaction_name])
+        candidate = read_recovery_file(transaction_fd, "candidate", cap, writing, parent, transaction_name, private=True)
+        source = read_recovery_file(transaction_fd, "source", cap, writing, parent, transaction_name)
+        marker = read_recovery_file(transaction_fd, "committed", 64, writing, parent, transaction_name, private=True)
+        destination = read_recovery_destination(parent_fd, name, cap, writing, parent, transaction_name)
+        if candidate is not None and digest("cecfg-v1", candidate[0]) != metadata["candidate_revision"]:
+            replacement_error(writing, parent, [transaction_name])
+        if source is not None and digest("cecfg-v1", source[0]) != metadata["old_revision"]:
+            replacement_error(writing, parent, [transaction_name])
+        if marker is not None and marker[0] != b"ce-config-replace-commit/v1\n":
+            replacement_error(writing, parent, [transaction_name])
+        destination_revision = digest("cecfg-v1", destination[0]) if destination is not None else None
+        destination_is_candidate = (
+            destination is not None
+            and candidate is not None
+            and destination[1][:2] == candidate[1][:2]
+            and destination_revision == metadata["candidate_revision"]
+        )
+        destination_is_source = (
+            destination is not None
+            and source is not None
+            and destination[1][:2] == source[1][:2]
+            and destination_revision == metadata["old_revision"]
+        )
+
+        if marker is not None:
+            if destination is None:
+                if candidate is None:
+                    replacement_error(writing, parent, [transaction_name])
+                os.link("candidate", name, src_dir_fd=transaction_fd, dst_dir_fd=parent_fd, follow_symlinks=False)
+                os.fsync(parent_fd)
+            elif destination_revision != metadata["candidate_revision"]:
+                replacement_error(writing, parent, [transaction_name])
+            if source is not None:
+                os.unlink("source", dir_fd=transaction_fd)
+            if candidate is not None:
+                os.unlink("candidate", dir_fd=transaction_fd)
+            os.fsync(transaction_fd)
+            retire_replacement_transaction(parent_fd, transaction_fd, transaction_name)
+            return
+
+        if source is None and candidate is not None and destination_revision == metadata["old_revision"]:
+            preserve_replacement_candidate(parent_fd, parent, transaction_fd, transaction_name)
+            retire_replacement_transaction(parent_fd, transaction_fd, transaction_name)
+            return
+
+        if source is not None and candidate is not None and destination_is_candidate:
+            create_commit_marker(transaction_fd)
+            os.unlink("source", dir_fd=transaction_fd)
+            os.unlink("candidate", dir_fd=transaction_fd)
+            os.fsync(transaction_fd)
+            retire_replacement_transaction(parent_fd, transaction_fd, transaction_name)
+            return
+
+        if source is not None and candidate is not None and (destination is None or destination_is_source):
+            if destination is None:
+                os.link("source", name, src_dir_fd=transaction_fd, dst_dir_fd=parent_fd, follow_symlinks=False)
+                os.fsync(parent_fd)
+            preserve_replacement_candidate(parent_fd, parent, transaction_fd, transaction_name)
+            os.unlink("source", dir_fd=transaction_fd)
+            os.fsync(transaction_fd)
+            retire_replacement_transaction(parent_fd, transaction_fd, transaction_name)
+            return
+        replacement_error(writing, parent, [transaction_name])
+    except OSError:
+        replacement_error(writing, parent, [transaction_name])
+    finally:
+        os.close(transaction_fd)
+
+
+def recover_source_transaction(path, writing):
+    parent = os.path.dirname(path)
+    name = os.path.basename(path)
+    try:
+        parent_state = os.lstat(parent)
+    except FileNotFoundError:
+        return
+    except OSError:
+        replacement_error(writing, parent, [])
+    if stat.S_ISLNK(parent_state.st_mode) or not stat.S_ISDIR(parent_state.st_mode):
+        replacement_error(writing, parent, [])
+    try:
+        with secure_directory_fd(parent) as parent_fd:
+            try:
+                names = os.listdir(parent_fd)
+            except OSError:
+                replacement_error(writing, parent, [])
+            cleanup_stale_replacement_controls(parent_fd, parent, names)
+            transactions = sorted(name for name in names if name.startswith(".ce-replace-"))
+            if not transactions:
+                return
+            if len(transactions) != 1 or re.fullmatch(r"\.ce-replace-[0-9]+-[0-9a-f]{24}", transactions[0]) is None:
+                replacement_error(writing, parent, transactions)
+            recover_replacement_transaction(parent_fd, parent, name, transactions[0], 1024 * 1024, writing)
+    except RoutingError as exc:
+        if exc.code == "CONFIG_RECOVERY_REQUIRED" or writing:
+            raise
+        raise RoutingError(
+            "CONFIG_RECOVERY_REQUIRED",
+            "configuration replacement cannot be recovered safely",
+            reason="replacement_ambiguous",
+            transaction_paths=exc.details.get("transaction_paths", []),
+        ) from exc
+
+
+def abort_replacement(parent_fd, parent, name, transaction_fd, transaction_name, metadata, cap, message):
+    candidate = read_recovery_file(
+        transaction_fd,
+        "candidate",
+        cap,
+        True,
+        parent,
+        transaction_name,
+        required=True,
+        private=True,
+    )
+    source = read_recovery_file(transaction_fd, "source", cap, True, parent, transaction_name)
+    destination = read_recovery_destination(parent_fd, name, cap, True, parent, transaction_name)
+    candidate_path = os.path.join(parent, transaction_name, "candidate")
+    if source is None:
+        if destination is None or digest("cecfg-v1", destination[0]) != metadata["old_revision"]:
+            replacement_error(True, parent, [transaction_name])
+    else:
+        source_revision = digest("cecfg-v1", source[0])
+        destination_is_candidate = (
+            destination is not None
+            and destination[1][:2] == candidate[1][:2]
+            and digest("cecfg-v1", destination[0]) == metadata["candidate_revision"]
+        )
+        if source_revision == metadata["old_revision"]:
+            if destination_is_candidate:
+                os.unlink(name, dir_fd=parent_fd)
+                os.fsync(parent_fd)
+                destination = None
+            if destination is None:
+                os.link("source", name, src_dir_fd=transaction_fd, dst_dir_fd=parent_fd, follow_symlinks=False)
+                os.fsync(parent_fd)
+            elif destination[1][:2] != source[1][:2]:
+                replacement_error(True, parent, [transaction_name])
+        elif destination is None:
+            os.link("source", name, src_dir_fd=transaction_fd, dst_dir_fd=parent_fd, follow_symlinks=False)
+            os.fsync(parent_fd)
+        else:
+            replacement_error(True, parent, [transaction_name])
+        os.unlink("source", dir_fd=transaction_fd)
+        os.fsync(transaction_fd)
+    candidate_path = preserve_replacement_candidate(parent_fd, parent, transaction_fd, transaction_name)
+    retire_replacement_transaction(parent_fd, transaction_fd, transaction_name)
+    raise RoutingError(
+        "WRITE_CONFLICT",
+        message,
+        exit_code=5,
+        candidate_path=candidate_path,
+        _replacement_resolved=True,
+    )
 
 
 def atomic_write(path, data, source, cap):
     parent = os.path.dirname(path)
     name = os.path.basename(path)
     with secure_directory_fd(parent) as parent_fd:
-        fd, tmp_name = create_temp_at(parent_fd)
         replacement_fd = None
         replacement_name = None
-        destination_displaced = False
         try:
-            try:
-                view = memoryview(data)
-                while view:
-                    written = os.write(fd, view)
-                    view = view[written:]
-                os.fsync(fd)
-            finally:
-                os.close(fd)
             if source["exists"]:
                 current_raw, current_identity = read_commit_source(parent_fd, name, path, cap)
                 if current_identity != source["identity"] or digest("cecfg-v1", current_raw) != source["revision"]:
@@ -2750,148 +3090,143 @@ def atomic_write(path, data, source, cap):
                 if file_identity(final) != source["identity"]:
                     raise RoutingError("WRITE_CONFLICT", "configuration changed before replacement", exit_code=5)
                 replacement_fd, replacement_name = create_replacement_directory(parent_fd)
+                os.fsync(parent_fd)
+                transaction_boundary("transaction-created")
+                write_private_file(replacement_fd, "candidate", data)
+                os.fsync(replacement_fd)
+                transaction_boundary("candidate-durable")
+                metadata = {
+                    "protocol": CONFIG_REPLACE_PROTOCOL,
+                    "destination": name,
+                    "old_revision": source["revision"],
+                    "candidate_revision": digest("cecfg-v1", data),
+                }
+                write_private_file(
+                    replacement_fd,
+                    "transaction.json",
+                    (canonical_json(metadata) + "\n").encode("ascii"),
+                )
+                os.fsync(replacement_fd)
+                os.fsync(parent_fd)
+                transaction_boundary("metadata-durable")
                 try:
                     os.rename(name, "source", src_dir_fd=parent_fd, dst_dir_fd=replacement_fd)
                 except OSError as exc:
-                    candidate_path = os.path.join(parent, tmp_name)
-                    tmp_name = None
                     raise RoutingError(
                         "WRITE_CONFLICT",
                         "configuration changed at the replacement boundary",
                         exit_code=5,
-                        candidate_path=candidate_path,
+                        candidate_path=os.path.join(parent, replacement_name, "candidate"),
                     ) from exc
-                destination_displaced = True
+                os.fsync(replacement_fd)
+                os.fsync(parent_fd)
+                transaction_boundary("displaced")
                 displaced_raw, displaced_identity = read_commit_source(replacement_fd, "source", path, cap)
                 if displaced_identity[:4] != source["identity"][:4] or digest("cecfg-v1", displaced_raw) != source["revision"]:
-                    candidate_name = tmp_name
-                    tmp_name = None
-                    conflict_fd = replacement_fd
-                    conflict_name = replacement_name
-                    replacement_fd = None
-                    replacement_name = None
-                    destination_displaced = False
-                    preserve_write_conflict(
+                    abort_replacement(
                         parent_fd,
                         parent,
                         name,
-                        candidate_name,
-                        conflict_fd,
-                        conflict_name,
+                        replacement_fd,
+                        replacement_name,
+                        metadata,
+                        cap,
                         "configuration changed at the replacement boundary",
                     )
                 try:
                     os.link(
-                        tmp_name,
+                        "candidate",
                         name,
-                        src_dir_fd=parent_fd,
+                        src_dir_fd=replacement_fd,
                         dst_dir_fd=parent_fd,
                         follow_symlinks=False,
                     )
                 except FileExistsError:
-                    candidate_name = tmp_name
-                    tmp_name = None
-                    conflict_fd = replacement_fd
-                    conflict_name = replacement_name
-                    replacement_fd = None
-                    replacement_name = None
-                    destination_displaced = False
-                    preserve_write_conflict(
-                        parent_fd,
+                    replacement_error(
+                        True,
                         parent,
-                        name,
-                        candidate_name,
-                        conflict_fd,
-                        conflict_name,
-                        "configuration reappeared during replacement",
+                        [replacement_name],
+                        "configuration reappeared during replacement; all versions were preserved",
                     )
+                os.fsync(parent_fd)
+                transaction_boundary("installed")
                 installed_raw, installed_identity = read_commit_source(parent_fd, name, path, cap)
-                tmp_identity = file_identity(os.stat(tmp_name, dir_fd=parent_fd, follow_symlinks=False))
-                if installed_identity != tmp_identity or installed_raw != data:
-                    candidate_name = tmp_name
-                    tmp_name = None
-                    conflict_fd = replacement_fd
-                    conflict_name = replacement_name
-                    replacement_fd = None
-                    replacement_name = None
-                    destination_displaced = False
-                    preserve_write_conflict(
-                        parent_fd,
+                candidate_identity = file_identity(os.stat("candidate", dir_fd=replacement_fd, follow_symlinks=False))
+                if installed_identity != candidate_identity or installed_raw != data:
+                    replacement_error(
+                        True,
                         parent,
-                        name,
-                        candidate_name,
-                        conflict_fd,
-                        conflict_name,
-                        "configuration changed while completing replacement",
+                        [replacement_name],
+                        "configuration changed while completing replacement; all versions were preserved",
                     )
-                os.unlink(tmp_name, dir_fd=parent_fd)
-                tmp_name = None
+                create_commit_marker(replacement_fd)
+                transaction_boundary("committed")
                 os.unlink("source", dir_fd=replacement_fd)
-                destination_displaced = False
+                os.fsync(replacement_fd)
+                transaction_boundary("source-cleaned")
+                os.unlink("candidate", dir_fd=replacement_fd)
+                os.fsync(replacement_fd)
+                transaction_boundary("candidate-cleaned")
+                retire_replacement_transaction(parent_fd, replacement_fd, replacement_name)
                 os.close(replacement_fd)
                 replacement_fd = None
-                os.rmdir(replacement_name, dir_fd=parent_fd)
                 replacement_name = None
             else:
+                fd, tmp_name = create_temp_at(parent_fd)
                 try:
-                    os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
-                except FileNotFoundError:
-                    pass
-                except OSError as exc:
-                    raise RoutingError("WRITE_UNSAFE", "cannot inspect configuration destination", exit_code=5) from exc
-                else:
-                    raise RoutingError("WRITE_CONFLICT", "configuration appeared during create", exit_code=5)
-                try:
-                    os.link(
-                        tmp_name,
-                        name,
-                        src_dir_fd=parent_fd,
-                        dst_dir_fd=parent_fd,
-                        follow_symlinks=False,
-                    )
-                except FileExistsError as exc:
-                    raise RoutingError("WRITE_CONFLICT", "configuration appeared during create", exit_code=5) from exc
-                os.unlink(tmp_name, dir_fd=parent_fd)
-                tmp_name = None
+                    try:
+                        view = memoryview(data)
+                        while view:
+                            written = os.write(fd, view)
+                            view = view[written:]
+                        os.fsync(fd)
+                    finally:
+                        os.close(fd)
+                    try:
+                        os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+                    except FileNotFoundError:
+                        pass
+                    except OSError as exc:
+                        raise RoutingError("WRITE_UNSAFE", "cannot inspect configuration destination", exit_code=5) from exc
+                    else:
+                        raise RoutingError("WRITE_CONFLICT", "configuration appeared during create", exit_code=5)
+                    try:
+                        os.link(tmp_name, name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd, follow_symlinks=False)
+                    except FileExistsError as exc:
+                        raise RoutingError("WRITE_CONFLICT", "configuration appeared during create", exit_code=5) from exc
+                    os.unlink(tmp_name, dir_fd=parent_fd)
+                    tmp_name = None
+                finally:
+                    if tmp_name is not None:
+                        with contextlib.suppress(OSError):
+                            os.unlink(tmp_name, dir_fd=parent_fd)
             os.fsync(parent_fd)
-        except BaseException:
-            if not destination_displaced and replacement_fd is not None:
+        except BaseException as exc:
+            if isinstance(exc, RoutingError) and exc.details.pop("_replacement_resolved", False):
+                raise
+            if isinstance(exc, RoutingError) and exc.code == "CONFIG_RECOVERY_REQUIRED":
+                raise
+            if replacement_fd is not None and replacement_name is not None:
                 try:
-                    os.stat("source", dir_fd=replacement_fd, follow_symlinks=False)
-                except OSError:
+                    metadata
+                except UnboundLocalError:
                     pass
                 else:
-                    destination_displaced = True
-            if destination_displaced and replacement_fd is not None and replacement_name is not None and tmp_name is not None:
-                candidate_name = tmp_name
-                tmp_name = None
-                conflict_fd = replacement_fd
-                conflict_name = replacement_name
-                replacement_fd = None
-                replacement_name = None
-                destination_displaced = False
-                preserve_write_conflict(
-                    parent_fd,
-                    parent,
-                    name,
-                    candidate_name,
-                    conflict_fd,
-                    conflict_name,
-                    "configuration could not be replaced without losing concurrent data",
-                )
+                    abort_replacement(
+                        parent_fd,
+                        parent,
+                        name,
+                        replacement_fd,
+                        replacement_name,
+                        metadata,
+                        cap,
+                        "configuration could not be replaced without losing concurrent data",
+                    )
             raise
         finally:
             if replacement_fd is not None:
                 with contextlib.suppress(OSError):
-                    os.unlink("source", dir_fd=replacement_fd)
-                with contextlib.suppress(OSError):
                     os.close(replacement_fd)
-            if replacement_name is not None:
-                with contextlib.suppress(OSError):
-                    os.rmdir(replacement_name, dir_fd=parent_fd)
-            if tmp_name is not None:
-                with contextlib.suppress(OSError):
-                    os.unlink(tmp_name, dir_fd=parent_fd)
 
 
 def validate_patch_writer(writer, consumer, layer, updates, removals, schema):

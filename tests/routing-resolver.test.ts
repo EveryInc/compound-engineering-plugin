@@ -1,4 +1,4 @@
-import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from "fs/promises"
+import { chmod, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, utimes, writeFile } from "fs/promises"
 import { createHash } from "crypto"
 import os from "os"
 import path from "path"
@@ -1468,8 +1468,8 @@ describe("routing resolver", () => {
           "spec.loader.exec_module(module)",
           "original_flock = module.fcntl.flock",
           "observed = [False]",
-          "def observe_shared_lock(fd, operation):\n    first_shared = operation == module.fcntl.LOCK_SH and not observed[0]\n    if first_shared:\n        observed[0] = True\n        with open(attempted, 'xb'):\n            pass\n    result = original_flock(fd, operation)\n    if first_shared:\n        with open(acquired, 'xb'):\n            pass\n    return result",
-          "module.fcntl.flock = observe_shared_lock",
+          "def observe_recovery_lock(fd, operation):\n    first_exclusive = operation == module.fcntl.LOCK_EX and not observed[0]\n    if first_exclusive:\n        observed[0] = True\n        with open(attempted, 'xb'):\n            pass\n    result = original_flock(fd, operation)\n    if first_exclusive:\n        with open(acquired, 'xb'):\n            pass\n    return result",
+          "module.fcntl.flock = observe_recovery_lock",
           "module.main()",
         ].join("\n")
         return Bun.spawn(["python3", "-I", "-S", "-c", readerProbe], {
@@ -1522,6 +1522,260 @@ describe("routing resolver", () => {
       await rm(f.root, { recursive: true, force: true })
     }
   }, 15_000)
+
+  test.each([
+    ["transaction-created", "SIGTERM", "closed", null],
+    ["candidate-durable", "SIGKILL", "closed", null],
+    ["metadata-durable", "SIGKILL", "old", "old-policy"],
+    ["displaced", "SIGKILL", "old", "old-policy"],
+    ["installed", "SIGKILL", "new", "new-policy"],
+    ["committed", "SIGKILL", "new", "new-policy"],
+    ["source-cleaned", "SIGKILL", "new", "new-policy"],
+    ["candidate-cleaned", "SIGKILL", "new", "new-policy"],
+    ["retired", "SIGKILL", "new", "new-policy"],
+    ["cleaned", "SIGKILL", "new", "new-policy"],
+  ])("recovers or fails closed after %s crash", async (boundary, signalName, outcome, model) => {
+    const f = await fixture()
+    try {
+      const configPath = path.join(f.home, "config.yaml")
+      const oldConfig = `routing:\n  profiles:\n    guarded:\n      candidates:\n        - { harness: codex, model: old-policy }\n  classes:\n    implementation: { profile: guarded, policy: require }\n`
+      const newRouting = {
+        profiles: { guarded: { candidates: [{ harness: "codex", model: "new-policy" }] } },
+        classes: { implementation: { profile: "guarded", policy: "require" } },
+        roles: {},
+      }
+      await writeFile(configPath, oldConfig, { mode: 0o600 })
+      const probe = [
+        "import importlib.util, os, signal",
+        `resolver_path = ${JSON.stringify(resolver)}`,
+        `target_boundary = ${JSON.stringify(boundary)}`,
+        `signal_name = ${JSON.stringify(signalName)}`,
+        "spec = importlib.util.spec_from_file_location('ce_routing_crash_writer', resolver_path)",
+        "module = importlib.util.module_from_spec(spec)",
+        "spec.loader.exec_module(module)",
+        "def crash_at_boundary(name):\n    if name == target_boundary:\n        os.kill(os.getpid(), getattr(signal, signal_name))",
+        "module.transaction_boundary = crash_at_boundary",
+        "raise SystemExit(module.main())",
+      ].join("\n")
+      const patchRequest = {
+        protocol: "ce-routing/v1",
+        op: "patch_source",
+        cwd: f.project,
+        writer: "ce-setup",
+        layer: "global",
+        expected_revision: `cecfg-v1:${createHash("sha256").update(oldConfig).digest("hex")}`,
+        set: { routing: newRouting },
+        remove: [],
+      }
+      const writer = Bun.spawn(["python3", "-I", "-S", "-c", probe], {
+        cwd: f.project,
+        env: {
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+          HOME: f.home,
+          COMPOUND_ENGINEERING_HOME: f.home,
+        },
+        stdin: new Blob([JSON.stringify(patchRequest)]),
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      const [writerExit] = await Promise.all([
+        writer.exited,
+        new Response(writer.stdout).text(),
+        new Response(writer.stderr).text(),
+      ])
+      expect(writerExit).not.toBe(0)
+
+      const resolved = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        intents: [],
+        roles: [{ role: "ce-work.implementation-worker" }],
+      }, { cwd: f.project, home: f.home })
+      if (outcome === "closed") {
+        expect(resolved.exitCode).toBe(3)
+        expect(resolved.body.error.code).toBe("CONFIG_RECOVERY_REQUIRED")
+        expect(await readFile(configPath, "utf8")).toBe(oldConfig)
+      } else {
+        expect(resolved.exitCode, resolved.stderr).toBe(0)
+        expect(resolved.body.sources.global.exists).toBe(true)
+        expect(resolved.body.resolutions[0].binding).toMatchObject({ policy: "require" })
+        expect(resolved.body.resolutions[0].binding.kind).not.toBe("ce-default")
+        expect(resolved.body.resolutions[0].binding.candidates[0].model).toBe(model)
+      }
+
+      const entries = await readdir(f.home)
+      if (outcome === "old") {
+        const preserved = entries.filter((entry) => entry.startsWith(".ce-candidate-"))
+        expect(preserved).toHaveLength(1)
+        expect(await readFile(path.join(f.home, preserved[0]), "utf8")).toContain("new-policy")
+      }
+      if (boundary === "candidate-durable") {
+        const transactions = entries.filter((entry) => entry.startsWith(".ce-replace-"))
+        expect(transactions).toHaveLength(1)
+        expect(await readFile(path.join(f.home, transactions[0], "candidate"), "utf8")).toContain("new-policy")
+      }
+      if (outcome !== "closed") {
+        expect(entries.some((entry) => entry.startsWith(".ce-replace-") || entry.startsWith(".ce-cleanup-"))).toBe(false)
+      }
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  }, 15_000)
+
+  test("preserves old, candidate, and an external save after a displaced writer is killed", async () => {
+    const f = await fixture()
+    try {
+      const configPath = path.join(f.home, "config.yaml")
+      const oldConfig = `routing:\n  profiles:\n    guarded:\n      candidates:\n        - { harness: codex, model: old-policy }\n  classes:\n    implementation: { profile: guarded, policy: require }\n`
+      await writeFile(configPath, oldConfig, { mode: 0o600 })
+      const probe = [
+        "import importlib.util, os, signal",
+        `resolver_path = ${JSON.stringify(resolver)}`,
+        "spec = importlib.util.spec_from_file_location('ce_routing_external_crash', resolver_path)",
+        "module = importlib.util.module_from_spec(spec)",
+        "spec.loader.exec_module(module)",
+        "def crash_at_boundary(name):\n    if name == 'displaced':\n        os.kill(os.getpid(), signal.SIGKILL)",
+        "module.transaction_boundary = crash_at_boundary",
+        "raise SystemExit(module.main())",
+      ].join("\n")
+      const writer = Bun.spawn(["python3", "-I", "-S", "-c", probe], {
+        cwd: f.project,
+        env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: f.home, COMPOUND_ENGINEERING_HOME: f.home },
+        stdin: new Blob([JSON.stringify({
+          protocol: "ce-routing/v1",
+          op: "patch_source",
+          cwd: f.project,
+          writer: "ce-setup",
+          layer: "global",
+          expected_revision: `cecfg-v1:${createHash("sha256").update(oldConfig).digest("hex")}`,
+          set: {
+            routing: {
+              profiles: { guarded: { candidates: [{ harness: "codex", model: "candidate-policy" }] } },
+              classes: { implementation: { profile: "guarded", policy: "require" } },
+              roles: {},
+            },
+          },
+          remove: [],
+        })]),
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      await Promise.all([writer.exited, new Response(writer.stdout).text(), new Response(writer.stderr).text()])
+      expect(await Bun.file(configPath).exists()).toBe(false)
+      const external = `routing:\n  profiles:\n    guarded:\n      candidates:\n        - { harness: codex, model: external-policy }\n  classes:\n    implementation: { profile: guarded, policy: require }\n`
+      await writeFile(configPath, external, { mode: 0o600 })
+
+      const resolved = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        intents: [],
+        roles: [{ role: "ce-work.implementation-worker" }],
+      }, { cwd: f.project, home: f.home })
+      expect(resolved.exitCode).toBe(3)
+      expect(resolved.body.error.code).toBe("CONFIG_RECOVERY_REQUIRED")
+      expect(await readFile(configPath, "utf8")).toBe(external)
+      const transaction = resolved.body.error.transaction_paths[0] as string
+      expect(await readFile(path.join(transaction, "source"), "utf8")).toBe(oldConfig)
+      expect(await readFile(path.join(transaction, "candidate"), "utf8")).toContain("candidate-policy")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("fails closed and preserves malformed or multiple replacement transactions", async () => {
+    const f = await fixture()
+    try {
+      const configPath = path.join(f.home, "config.yaml")
+      const oldConfig = `routing:\n  profiles:\n    guarded:\n      candidates:\n        - { harness: codex, model: old-policy }\n  classes:\n    implementation: { profile: guarded, policy: require }\n`
+      const candidate = oldConfig.replace("old-policy", "candidate-policy")
+      await writeFile(configPath, oldConfig, { mode: 0o600 })
+      const metadata = {
+        protocol: "ce-config-replace/v1",
+        destination: "config.yaml",
+        old_revision: `cecfg-v1:${createHash("sha256").update(oldConfig).digest("hex")}`,
+        candidate_revision: `cecfg-v1:${createHash("sha256").update(candidate).digest("hex")}`,
+      }
+      const transactionNames = [
+        `.ce-replace-100-${"1".repeat(24)}`,
+        `.ce-replace-101-${"2".repeat(24)}`,
+      ]
+      for (const name of transactionNames) {
+        const transaction = path.join(f.home, name)
+        await mkdir(transaction, { mode: 0o700 })
+        await writeFile(path.join(transaction, "candidate"), candidate, { mode: 0o600 })
+        await writeFile(path.join(transaction, "transaction.json"), `${JSON.stringify(metadata)}\n`, { mode: 0o600 })
+      }
+
+      const multiple = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        intents: [],
+        roles: [{ role: "ce-work.implementation-worker" }],
+      }, { cwd: f.project, home: f.home })
+      expect(multiple.exitCode).toBe(3)
+      expect(multiple.body.error.code).toBe("CONFIG_RECOVERY_REQUIRED")
+      expect(multiple.body.error.transaction_paths).toHaveLength(2)
+      for (const name of transactionNames) {
+        expect(await readFile(path.join(f.home, name, "candidate"), "utf8")).toBe(candidate)
+      }
+
+      await rm(path.join(f.home, transactionNames[1]), { recursive: true })
+      await writeFile(path.join(f.home, transactionNames[0], "unexpected"), "preserve me\n", { mode: 0o600 })
+      const malformed = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        intents: [],
+        roles: [{ role: "ce-work.implementation-worker" }],
+      }, { cwd: f.project, home: f.home })
+      expect(malformed.exitCode).toBe(3)
+      expect(malformed.body.error.code).toBe("CONFIG_RECOVERY_REQUIRED")
+      expect(await readFile(path.join(f.home, transactionNames[0], "unexpected"), "utf8")).toBe("preserve me\n")
+      expect(await readFile(configPath, "utf8")).toBe(oldConfig)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("rejects symlinked replacement metadata without following or deleting it", async () => {
+    const f = await fixture()
+    try {
+      const configPath = path.join(f.home, "config.yaml")
+      const oldConfig = `routing:\n  profiles:\n    guarded:\n      candidates:\n        - { harness: codex, model: old-policy }\n  classes:\n    implementation: { profile: guarded, policy: require }\n`
+      const candidate = oldConfig.replace("old-policy", "candidate-policy")
+      await writeFile(configPath, oldConfig, { mode: 0o600 })
+      const outsideMetadata = path.join(f.root, "outside-transaction.json")
+      await writeFile(outsideMetadata, JSON.stringify({
+        protocol: "ce-config-replace/v1",
+        destination: "config.yaml",
+        old_revision: `cecfg-v1:${createHash("sha256").update(oldConfig).digest("hex")}`,
+        candidate_revision: `cecfg-v1:${createHash("sha256").update(candidate).digest("hex")}`,
+      }), { mode: 0o600 })
+      const transaction = path.join(f.home, `.ce-replace-200-${"3".repeat(24)}`)
+      await mkdir(transaction, { mode: 0o700 })
+      await writeFile(path.join(transaction, "candidate"), candidate, { mode: 0o600 })
+      await symlink(outsideMetadata, path.join(transaction, "transaction.json"))
+
+      const resolved = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        intents: [],
+        roles: [{ role: "ce-work.implementation-worker" }],
+      }, { cwd: f.project, home: f.home })
+      expect(resolved.exitCode).toBe(3)
+      expect(resolved.body.error.code).toBe("CONFIG_RECOVERY_REQUIRED")
+      expect(await readFile(outsideMetadata, "utf8")).toContain("ce-config-replace/v1")
+      expect((await lstat(path.join(transaction, "transaction.json"))).isSymbolicLink()).toBe(true)
+      expect(await readFile(path.join(transaction, "candidate"), "utf8")).toBe(candidate)
+      expect(await readFile(configPath, "utf8")).toBe(oldConfig)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
 
   test("finalize_attempt rejects all nonterminal or integrated states and exactness violations", async () => {
     const f = await fixture()
