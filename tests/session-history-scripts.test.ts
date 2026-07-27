@@ -12,13 +12,15 @@ const FIXTURES_DIR = path.join(__dirname, "fixtures/session-history")
 async function runScript(
   scriptName: string,
   args: string[] = [],
-  stdin?: string
+  stdin?: string,
+  env?: Record<string, string>
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const scriptPath = path.join(SCRIPTS_DIR, scriptName)
   const proc = Bun.spawn(["python3", scriptPath, ...args], {
     stdin: stdin ? new TextEncoder().encode(stdin) : undefined,
     stdout: "pipe",
     stderr: "pipe",
+    ...(env ? { env: { ...process.env, ...env } } : {}),
   })
   const stdout = await new Response(proc.stdout).text()
   const stderr = await new Response(proc.stderr).text()
@@ -1436,6 +1438,118 @@ describe("extract-errors", () => {
     expect(meta._meta).toBe(true)
     expect(meta.errors_found).toBeGreaterThan(0)
     expect(meta.parse_errors).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// UTF-8 session content under a non-UTF-8 locale (issue #1258)
+//
+// Session JSONL is UTF-8, but the scripts opened files and stdio in text mode
+// without an explicit encoding, so they fell back to the platform default
+// (cp1252 on Windows, ascii under a C locale) and crashed on emoji, smart
+// quotes, or box-drawing characters. Forcing a C locale reproduces the Windows
+// failure deterministically on Linux CI: file open() defaults to ascii/strict
+// (read and write both raise), while stdio uses surrogateescape.
+// ---------------------------------------------------------------------------
+describe("UTF-8 session content under a non-UTF-8 locale (#1258)", () => {
+  // PYTHONCOERCECLOCALE=0 stops Python promoting C -> C.UTF-8; PYTHONUTF8=0
+  // keeps UTF-8 mode off, so the interpreter actually honors the C locale.
+  const NON_UTF8_LOCALE = {
+    LC_ALL: "C",
+    LANG: "C",
+    LC_CTYPE: "C",
+    PYTHONUTF8: "0",
+    PYTHONCOERCECLOCALE: "0",
+  }
+  const NON_ASCII = 'rocket 🚀 “smart” ─ box'
+
+  test("extract-metadata.py reads a UTF-8 session file without crashing", async () => {
+    const base = await Bun.file(
+      path.join(FIXTURES_DIR, "claude-session.jsonl")
+    ).text()
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ce-utf8-meta-"))
+    const file = path.join(dir, "session.jsonl")
+    fs.writeFileSync(file, base.replace("auth bug", `auth bug ${NON_ASCII}`))
+    try {
+      const { stdout, stderr, exitCode } = await runScript(
+        "extract-metadata.py",
+        [file],
+        undefined,
+        NON_UTF8_LOCALE
+      )
+      expect(stderr).not.toContain("UnicodeDecodeError")
+      expect(exitCode).toBe(0)
+      const meta = parseJsonLines(stdout).find((l) => l._meta)
+      expect(meta.files_processed).toBe(1)
+      expect(meta.parse_errors).toBe(0)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test("extract-skeleton.py --output round-trips UTF-8 content without crashing", async () => {
+    const base = await Bun.file(
+      path.join(FIXTURES_DIR, "claude-session.jsonl")
+    ).text()
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ce-utf8-skel-"))
+    const out = path.join(dir, "out.txt")
+    try {
+      const { stderr, exitCode } = await runScript(
+        "extract-skeleton.py",
+        ["--output", out],
+        base.replace("auth bug", `auth bug ${NON_ASCII}`),
+        NON_UTF8_LOCALE
+      )
+      expect(stderr).not.toContain("UnicodeEncodeError")
+      expect(exitCode).toBe(0)
+      // Written as real UTF-8, not surrogate-escaped mojibake.
+      expect(fs.readFileSync(out, "utf-8")).toContain(NON_ASCII)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test("extract-errors.py --output round-trips UTF-8 content without crashing", async () => {
+    const session =
+      JSON.stringify({
+        type: "session",
+        version: 3,
+        id: "utf8-err",
+        timestamp: "2026-04-07T09:00:00.000Z",
+        cwd: "/Users/test/Code/my-repo",
+      }) +
+      "\n" +
+      JSON.stringify({
+        type: "message",
+        id: "b1",
+        parentId: null,
+        timestamp: "2026-04-07T09:02:00.000Z",
+        message: {
+          role: "bashExecution",
+          command: `bun test ${NON_ASCII}`,
+          output: "1 test failed",
+          exitCode: 1,
+          cancelled: false,
+          truncated: false,
+          timestamp: 1775542920000,
+        },
+      }) +
+      "\n"
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ce-utf8-err-"))
+    const out = path.join(dir, "out.txt")
+    try {
+      const { stderr, exitCode } = await runScript(
+        "extract-errors.py",
+        ["--output", out],
+        session,
+        NON_UTF8_LOCALE
+      )
+      expect(stderr).not.toContain("UnicodeEncodeError")
+      expect(exitCode).toBe(0)
+      expect(fs.readFileSync(out, "utf-8")).toContain(NON_ASCII)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

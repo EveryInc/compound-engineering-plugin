@@ -214,7 +214,7 @@ def _extract_user_assistant_text(filepath):
     chunks = []
     try:
         objects = []
-        with open(filepath, "r", errors="replace") as f:
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
             for line in f:
                 try:
                     objects.append(json.loads(line.strip()))
@@ -335,7 +335,7 @@ def process_file(filepath):
     content scan cost."""
     try:
         size = os.path.getsize(filepath)
-        with open(filepath, "r") as f:
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
             lines = []
             for i, line in enumerate(f):
                 if i >= MAX_LINES:
