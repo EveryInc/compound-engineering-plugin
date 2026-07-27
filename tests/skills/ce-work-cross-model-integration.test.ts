@@ -3,9 +3,11 @@ import { createHash } from "node:crypto"
 import { spawnSync } from "node:child_process"
 import {
   chmodSync,
+  cpSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs"
@@ -94,7 +96,7 @@ function controlFailureWithEnv(runs: string, extraEnv: NodeJS.ProcessEnv, ...arg
   return { status: result.status, word, body: body.length ? JSON.parse(body.join("\n")) : null, stderr: result.stderr }
 }
 
-function fakeDoneJob(runs: string, runId: string, unitId: string, packetContent: string, jobId: string) {
+function fakeDoneJob(runs: string, runId: string, unitId: string, packetContent: string, jobId: string, authorize = true) {
   const dir = path.join(runs, runId, "jobs", jobId)
   mkdirSync(dir, { recursive: true, mode: 0o700 })
   chmodSync(path.join(runs, runId, "jobs"), 0o700)
@@ -104,6 +106,16 @@ function fakeDoneJob(runs: string, runId: string, unitId: string, packetContent:
   const resultDir = path.join(unitRoot, "result")
   const resultPath = path.join(resultDir, "implementation-result.json")
   const logPath = path.join(resultDir, "adapter.log")
+  const authorization = JSON.parse(readFileSync(path.join(unitRoot, "authorization.json"), "utf8"))
+  const workspace = path.join(unitRoot, "workspace")
+  const backup = temp("ce-work-fake-workspace-")
+  const originalHead = git(workspace, "rev-parse", "HEAD")
+  const originalIndex = git(workspace, "write-tree")
+  const recordedBase = control(runs, "status", "--run-id", runId, "--unit-id", unitId).body.unit.workspace.base
+  cpSync(workspace, backup, { recursive: true, filter: source => path.resolve(source) !== path.join(workspace, ".git") })
+  for (const entry of readdirSync(workspace)) if (entry !== ".git") rmSync(path.join(workspace, entry), { recursive: true, force: true })
+  git(workspace, "reset", "--hard", recordedBase)
+  git(workspace, "clean", "-fdx")
   writeFileSync(path.join(dir, "meta.json"), `${JSON.stringify({
     job_id: jobId,
     skill: "ce-work",
@@ -111,7 +123,7 @@ function fakeDoneJob(runs: string, runId: string, unitId: string, packetContent:
     label: unitId,
     input_digest: digest,
     result_path: resultPath,
-    worker_argv: [ADAPTER, path.join(unitRoot, "authorization.json"), path.join(unitRoot, "workspace"), path.join(unitRoot, "packet.md"), digest, resultDir],
+    worker_argv: [authorization.launcher.path, ADAPTER, path.join(unitRoot, "authorization.json"), path.join(unitRoot, "workspace"), path.join(unitRoot, "packet.md"), digest, resultDir],
   })}\n`, { mode: 0o600 })
   writeFileSync(path.join(dir, "status"), "done\n", { mode: 0o600 })
   writeFileSync(path.join(dir, "reason"), "worker exited 0\n", { mode: 0o600 })
@@ -123,6 +135,47 @@ function fakeDoneJob(runs: string, runId: string, unitId: string, packetContent:
     model_requested: "auto", model_actual: "unverified", model_receipt_status: "unverified", activity_posture: "incremental",
     restriction_posture: "adapter-enforced", failure_reason: null, raw_log: logPath, packet_digest: digest,
   })}\n`, { mode: 0o600 })
+  const routeExecutable = path.join(temp("ce-work-fake-route-"), "codex")
+  writeFileSync(routeExecutable, "#!/bin/sh\nexit 0\n", { mode: 0o755 })
+  chmodSync(routeExecutable, 0o755)
+  if (authorize) control(
+    runs,
+    "authorize-dispatch",
+    "--run-id", runId,
+    "--unit-id", unitId,
+    "--attempt-id", authorization.attempt_id,
+    "--job-id", jobId,
+    "--authorization", path.join(unitRoot, "authorization.json"),
+    "--authorization-digest", createHash("sha256").update(readFileSync(path.join(unitRoot, "authorization.json"))).digest("hex"),
+    "--workspace", path.join(unitRoot, "workspace"),
+    "--packet", path.join(unitRoot, "packet.md"),
+    "--packet-digest", digest,
+    "--result-dir", resultDir,
+    "--route-executable", routeExecutable,
+  )
+  if (authorize) {
+    for (const entry of readdirSync(workspace)) if (entry !== ".git") rmSync(path.join(workspace, entry), { recursive: true, force: true })
+    git(workspace, "reset", "--hard", originalHead)
+    for (const entry of readdirSync(workspace)) if (entry !== ".git") rmSync(path.join(workspace, entry), { recursive: true, force: true })
+    for (const entry of readdirSync(backup)) cpSync(path.join(backup, entry), path.join(workspace, entry), { recursive: true })
+    git(workspace, "read-tree", originalIndex)
+    const status = control(runs, "status", "--run-id", runId, "--unit-id", unitId).body.unit
+    const dispatch = status.attempts.at(-1).dispatch_authorization_receipt
+    writeFileSync(dispatch.supervisor_evidence.route.path, `${JSON.stringify({
+    schema_version: 1,
+    protocol: "ce-work-subreaper/v1",
+    slot: "route",
+    config_sha256: dispatch.confinement_digest,
+    supervisor_pid: 2000000001,
+    leader_pid: 2000000002,
+    leader_exit: 0,
+    interrupted_signal: null,
+    descendants_observed: [],
+    term_sent: [],
+    kill_sent: [],
+    all_descendants_gone: true,
+    })}\n`, { mode: 0o600 })
+  }
   return jobId
 }
 
@@ -194,7 +247,7 @@ printf '%s\n' '{"terminal_status":"scope_expansion","summary":"shared contract n
       "--input-digest", prepared.packet_digest,
       "--result-path", resultPath,
       "--no-sweep",
-      "--", ADAPTER, prepared.authorization_path, prepared.workspace, prepared.packet_path,
+      "--", prepared.launcher, ADAPTER, prepared.authorization_path, prepared.workspace, prepared.packet_path,
       prepared.packet_digest, prepared.result_dir,
     ], {
       ...process.env,
@@ -313,7 +366,7 @@ printf '%s\n' '${JSON.stringify({
       "--input-digest", prepared.packet_digest,
       "--result-path", resultPath,
       "--no-sweep",
-      "--", ADAPTER, prepared.authorization_path, prepared.workspace, prepared.packet_path,
+      "--", prepared.launcher, ADAPTER, prepared.authorization_path, prepared.workspace, prepared.packet_path,
       prepared.packet_digest, prepared.result_dir,
     ], {
       ...process.env,
@@ -405,7 +458,7 @@ printf '%s\n' '${JSON.stringify({
       "--input-digest", prepared.packet_digest,
       "--result-path", path.join(prepared.result_dir, "implementation-result.json"),
       "--no-sweep",
-      "--", ADAPTER, prepared.authorization_path, prepared.workspace, prepared.packet_path,
+      "--", prepared.launcher, ADAPTER, prepared.authorization_path, prepared.workspace, prepared.packet_path,
       prepared.packet_digest, prepared.result_dir,
     ], runnerEnv)
     expect(control(
@@ -437,7 +490,7 @@ printf '%s\n' '${JSON.stringify({
       runs, "prepare", "--run-id", "unavailable-run", "--unit-id", "U-spoofed",
       "--base", base, "--packet", packetFile("spoofed packet"),
     ).body
-    const spoofedJob = fakeDoneJob(runs, "unavailable-run", "U-spoofed", "spoofed packet", "job-spoofed")
+    const spoofedJob = fakeDoneJob(runs, "unavailable-run", "U-spoofed", "spoofed packet", "job-spoofed", false)
     const spoofedJobDir = path.join(runs, "unavailable-run", "jobs", spoofedJob)
     writeFileSync(path.join(spoofedJobDir, "status"), "failed\n", { mode: 0o600 })
     writeFileSync(path.join(spoofedJobDir, "reason"), "worker exited 2\n", { mode: 0o600 })
@@ -1004,7 +1057,7 @@ printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[
       "--input-digest", packetDigest,
       "--result-path", resultPath,
       "--no-sweep",
-      "--", ADAPTER, prepared.body.authorization_path, workspace, prepared.body.packet_path, packetDigest, resultDir,
+      "--", prepared.body.launcher, ADAPTER, prepared.body.authorization_path, workspace, prepared.body.packet_path, packetDigest, resultDir,
     ], {
       ...process.env,
       CE_PEER_JOBS_ROOT: peerRoot,

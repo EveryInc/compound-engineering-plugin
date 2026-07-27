@@ -55,13 +55,7 @@ def _remove_owned_new_paths(repo: str, paths: set[str], pre_head: str) -> None:
     for rel in sorted(paths, key=lambda value: (value.count("/"), value), reverse=True):
         if git(repo, "ls-tree", "-z", "--full-tree", pre_head, "--", rel):
             continue
-        target = os.path.abspath(os.path.join(repo, rel))
-        if os.path.commonpath([repo, target]) != repo:
-            raise Operational("BLOCKED", "verification artifact path escaped canonical repository")
-        if os.path.islink(target) or os.path.isfile(target):
-            os.unlink(target)
-        elif os.path.isdir(target):
-            shutil.rmtree(target)
+        remove_relative_entry(repo, rel)
 
 
 def _directory_paths(repo: str) -> set[str]:
@@ -268,15 +262,8 @@ def _artifact_matches(target: str, record: dict) -> bool:
     )
 
 
-def _remove_artifact_entry(path: str) -> None:
-    try:
-        entry = os.lstat(path)
-    except FileNotFoundError:
-        return
-    if stat.S_ISDIR(entry.st_mode) and not stat.S_ISLNK(entry.st_mode):
-        shutil.rmtree(path)
-    else:
-        os.unlink(path)
+def _remove_artifact_entry(repo: str, rel: str) -> None:
+    remove_relative_entry(repo, rel)
 
 
 def _restore_ignored_artifacts(repo: str, snapshot: dict) -> set[str]:
@@ -290,7 +277,7 @@ def _restore_ignored_artifacts(repo: str, snapshot: dict) -> set[str]:
         except FileNotFoundError:
             entry = None
         if entry is not None and (not stat.S_ISDIR(entry.st_mode) or stat.S_ISLNK(entry.st_mode)):
-            _remove_artifact_entry(directory)
+            _remove_artifact_entry(repo, rel)
             entry = None
         if entry is None:
             os.mkdir(directory, mode)
@@ -301,7 +288,7 @@ def _restore_ignored_artifacts(repo: str, snapshot: dict) -> set[str]:
         if _artifact_matches(target, record):
             continue
         restored.add(rel)
-        _remove_artifact_entry(target)
+        _remove_artifact_entry(repo, rel)
         parent = os.path.dirname(target)
         temporary = os.path.join(parent, f".ce-work-restore-{secrets.token_hex(8)}")
         source_fd = os.open(record["backup"], os.O_RDONLY | O_NOFOLLOW)

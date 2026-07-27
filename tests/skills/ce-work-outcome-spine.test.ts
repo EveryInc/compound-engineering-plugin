@@ -345,7 +345,6 @@ describe("ce-work cross-model engine contract", () => {
       "prepare",
       "unit-workspace.py` `authorize-dispatch",
       "peer-job-runner.py` `start --no-sweep --input-digest <controller-packet-digest>",
-      "cross-model-work.sh",
       "record-job",
       "unit-workspace.py` `terminalize",
       "unit-workspace.py integrate",
@@ -362,11 +361,11 @@ describe("ce-work cross-model engine contract", () => {
     ]) {
       expect(serial).toContain(command)
     }
-    expect(serial).toContain("cross-model-work.sh <authorization_path> <workspace> <unit-packet> <expected-packet-sha256> <result-dir>")
-    expect(serial).toContain("controller-returned `authorization_path`")
+    expect(serial).toContain("<controller-launcher> <controller-adapter> <authorization_path> <workspace> <unit-packet> <expected-packet-sha256> <result-dir>")
+    expect(serial).toContain("Use only controller-returned paths and digests")
     expect(serial).toContain("`run_id`, `unit_id`, and `attempt_id`")
-    expect(serial).toContain("invoke the returned adapter path directly")
-    expect(serial).toContain("without a `bash`, `sh`, or `env` prefix")
+    expect(serial).toContain("exact absolute Bash and adapter paths returned by `prepare`")
+    expect(serial).toContain("never invoke the adapter through its shebang, `PATH`, `env`, `sh`, or another interpreter")
     expect(serial).toContain("runner label must equal the unit id exactly")
     expect(serial).toContain("<controller-result-dir>/implementation-result.json")
     expect(serial).toContain("do not pre-create it")
@@ -384,18 +383,18 @@ describe("ce-work cross-model engine contract", () => {
     )
     expect(runner).toContain("CE_WORK_RUNS_ROOT         parent CE Work dir containing all <run-id>/ dirs")
     expect(serial).toContain("Both `--input-digest` and the adapter's expected-packet argument")
-    expect(serial).toContain("controller `authorize-dispatch` success")
+    expect(serial).toContain("pass the runner-exported job id to `unit-workspace.py` `authorize-dispatch`")
     expect(serial).toContain("runner-exported job id")
     expect(serial).toContain("atomically binds that job id to the exact attempt before egress")
     expect(serial).toContain("A second job for the attempt is refused")
     expect(serial).toContain("actual runner metadata and exact worker argv")
-    expect(serial).toContain("authorization digest, workspace, packet path and digest, and result directory")
-    expect(serial).toContain("exact route, model, and intermediary contract")
+    expect(serial).toContain("authorization digest, workspace, packet path and digest, result directory, route executable, and confinement identities")
+    expect(serial).toContain("fixed route/model/intermediary and packet contract")
     expect(serial).toMatch(/before prompt construction or external CLI start/i)
     expect(serial).toContain("Linux Landlock")
-    expect(serial).toContain("exact interpreter, adapter, and config")
+    expect(serial).toContain("exact interpreter, adapter, config, and executable")
     expect(serial).toContain("denies the real home, canonical checkout, linked Git common directory, controller results")
-    expect(serial).toContain("Missing, substituted, or changed confinement/executable evidence fails before recipient egress")
+    expect(serial).toContain("Missing, substituted, changed, or incomplete confinement/executable/supervisor evidence blocks integration")
     expect(serial).toContain("`prefer` advances through its declared fallback contract and `require` blocks")
     expect(serial).toContain("`--emit-adapter` mode remains introspection only")
     expect(serial).not.toContain("CE_WORK_MODEL_OVERRIDE")

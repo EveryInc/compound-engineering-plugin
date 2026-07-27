@@ -6,7 +6,6 @@ import json
 import os
 import re
 import secrets
-import shutil
 from pathlib import Path
 
 from unit_workspace_state import *
@@ -60,6 +59,8 @@ def cmd_integration_acquire(args) -> tuple[str, dict]:
         allowed_states = INTEGRATABLE_STATES | {"preserved", "committed", "cleaned"}
         if plan_verification or (recover_only and unit and unit.get("state") == "native-completed"):
             allowed_states.add("native-completed")
+        if unit:
+            require_accepted_routing_finalization(doc, unit)
         if not unit or unit["state"] not in allowed_states:
             raise Operational("REFUSED", "unit is not ready for integration")
         if not plan_verification and unit["state"] != "native-completed":
@@ -363,6 +364,8 @@ def cmd_preflight(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id) as doc:
         info = validate_repo(doc)
         unit = doc["units"].get(args.unit_id)
+        if unit:
+            require_accepted_routing_finalization(doc, unit)
         if not unit or unit["state"] not in {"integration-pending", "preserved"}:
             raise Operational("REFUSED", "unit is not integration-pending")
         validate_lock(doc, args.unit_id, args.lock_token)
@@ -407,6 +410,8 @@ def cmd_mark_applied(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id) as doc:
         validate_lock(doc, args.unit_id, args.lock_token)
         unit = doc["units"].get(args.unit_id)
+        if unit:
+            require_accepted_routing_finalization(doc, unit)
         if not unit or unit["state"] not in {"integration-pending", "integrated"} or not unit["integration"].get("pre_fold"):
             raise Operational("REFUSED", "no recorded preflight intent")
         repo = validate_repo(doc)["toplevel"]
@@ -428,6 +433,8 @@ def cmd_mark_verified(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id, write=True) as doc:
         validate_lock(doc, args.unit_id, args.lock_token)
         unit = doc["units"].get(args.unit_id)
+        if unit:
+            require_accepted_routing_finalization(doc, unit)
         if not unit or unit["state"] not in {"integrated", "verified"}:
             raise Operational("REFUSED", "unit is not applied")
         repo = validate_repo(doc)["toplevel"]
@@ -463,6 +470,8 @@ def cmd_mark_committed(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id) as doc:
         validate_lock(doc, args.unit_id, args.lock_token)
         unit = doc["units"].get(args.unit_id)
+        if unit:
+            require_accepted_routing_finalization(doc, unit)
         if not unit or unit["state"] not in {"verified", "committed"}:
             raise Operational("REFUSED", "unit has not passed canonical verification")
         commit = reconcile_commit(doc, unit)
@@ -480,6 +489,8 @@ def cmd_wave_advance(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id) as doc:
         info = validate_repo(doc)
         unit = doc["units"].get(args.unit_id)
+        if unit:
+            require_accepted_routing_finalization(doc, unit)
         if not unit or unit.get("state") != "committed":
             raise Operational("REFUSED", "only a committed wave unit can advance its siblings")
         validate_lock(doc, args.unit_id, args.lock_token)
@@ -516,18 +527,10 @@ def remove_introduced_paths(repo: str, unit: dict) -> None:
     for rel in parse_diff_paths(raw):
         if path_in_tree(repo, pre, rel):
             continue
-        target = os.path.abspath(os.path.join(repo, rel))
-        if os.path.commonpath([repo, target]) != repo:
-            raise Operational("BLOCKED", "transport path escaped canonical repository")
-        if os.path.islink(target) or os.path.isfile(target):
-            os.unlink(target)
-        elif os.path.isdir(target):
-            shutil.rmtree(target)
-        parent = os.path.dirname(target)
-        while parent != repo and os.path.commonpath([repo, parent]) == repo:
-            try:
-                os.rmdir(parent)
-            except OSError:
+        remove_relative_entry(repo, rel)
+        parent = os.path.dirname(rel)
+        while parent and parent != ".":
+            if not remove_relative_empty_dir(repo, parent):
                 break
             parent = os.path.dirname(parent)
 
@@ -536,6 +539,8 @@ def restore(run_id: str, unit_id: str, lock_token: str) -> bool:
     with locked_manifest(run_id) as doc:
         validate_lock(doc, unit_id, lock_token)
         unit = doc["units"].get(unit_id)
+        if unit:
+            require_accepted_routing_finalization(doc, unit)
         if not unit or not unit["integration"].get("pre_fold"):
             raise Operational("REFUSED", "unit has no pre-fold snapshot")
         repo = doc["repository"]["toplevel"]
@@ -616,9 +621,11 @@ def release_lock_is_owned(doc: dict, unit_id: str, lock_token: str, lock: dict) 
 def integration_release(run_id: str, unit_id: str, lock_token: str) -> None:
     with locked_manifest(run_id, write=True) as doc:
         held = doc.get("integration_lock")
+        unit = doc["units"].get(unit_id)
+        if unit:
+            require_accepted_routing_finalization(doc, unit)
         if not held or held.get("unit_id") != unit_id or held.get("nonce") != lock_token:
             raise Operational("REFUSED", "integration lock token or identity mismatch")
-        unit = doc["units"].get(unit_id)
         pre_apply = bool(
             unit
             and unit.get("state") == "integration-pending"

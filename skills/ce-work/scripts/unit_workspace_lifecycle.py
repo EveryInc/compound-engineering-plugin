@@ -1004,7 +1004,8 @@ def retained_blocked_abandonment_receipt(run_id: str, unit: dict, attempt: dict)
     observed_process = process_evidence(runner_job_dir(run_id, attempt["job_id"]))["process_state"]
     if observed_process != "done":
         raise Operational("BLOCKED", "retained worker-blocker job evidence changed")
-    observed_receipt = terminal_receipt(unit, attempt)
+    supervisor = validate_authorized_successful_job(run_id, unit, attempt)
+    observed_receipt = terminal_receipt(unit, attempt, supervisor=supervisor)
     if observed_receipt != recorded:
         raise Operational("BLOCKED", "retained worker-blocker receipt evidence changed")
     return {

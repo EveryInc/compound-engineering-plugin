@@ -8,7 +8,16 @@ import json
 import os
 import sys
 
-from unit_workspace_state import Operational, TrustFailure, cmd_checkpoint_plan, cmd_init, cmd_lock_attempt, cmd_resolve_routing
+from unit_workspace_state import (
+    Operational,
+    TrustFailure,
+    cmd_checkpoint_plan,
+    cmd_init,
+    cmd_lock_attempt,
+    cmd_resolve_routing,
+    locked_manifest,
+    require_accepted_routing_finalization,
+)
 from unit_workspace_jobs import cmd_authorize_dispatch, cmd_prepare, cmd_record_job, cmd_sync_job, cmd_terminalize
 from unit_workspace_integration import (
     cmd_integration_acquire,
@@ -207,11 +216,21 @@ COMMANDS = {
     "integration-release": cmd_integration_release,
 }
 
+ROUTING_FINALIZATION_GATED_COMMANDS = {
+    "integration-acquire", "preflight", "mark-applied", "mark-verified",
+    "mark-committed", "wave-advance", "restore", "integration-release",
+}
+
 
 def main(argv: list[str]) -> int:
     os.umask(0o077)
     args = build_parser().parse_args(argv)
     try:
+        if args.command in ROUTING_FINALIZATION_GATED_COMMANDS:
+            with locked_manifest(args.run_id) as doc:
+                unit = doc.get("units", {}).get(args.unit_id)
+                if unit is not None:
+                    require_accepted_routing_finalization(doc, unit)
         word, body = COMMANDS[args.command](args)
         print(word)
         print(json.dumps(body, sort_keys=True, separators=(",", ":")))

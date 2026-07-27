@@ -16,6 +16,7 @@ import argparse
 import base64
 import copy
 import contextlib
+import errno
 import fcntl
 import hashlib
 import json
@@ -124,6 +125,173 @@ def safe_id(value: str, label: str) -> str:
 
 def digest_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def open_path_no_follow(path: str, flags: int = os.O_RDONLY) -> int:
+    """Open an absolute path without following a symlink in any component."""
+    absolute = os.path.abspath(path)
+    if path != absolute or not os.path.isabs(path):
+        raise TrustFailure(f"path is not absolute and normalized: {path}")
+    components = [part for part in absolute.split(os.sep) if part]
+    fd = os.open(os.sep, os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+    try:
+        for index, component in enumerate(components):
+            final = index == len(components) - 1
+            child_flags = flags if final else os.O_RDONLY | O_DIRECTORY
+            child = os.open(component, child_flags | O_NOFOLLOW, dir_fd=fd)
+            os.close(fd)
+            fd = child
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def descriptor_digest(fd: int) -> str:
+    digest = hashlib.sha256()
+    os.lseek(fd, 0, os.SEEK_SET)
+    while True:
+        chunk = os.read(fd, 65536)
+        if not chunk:
+            break
+        digest.update(chunk)
+    os.lseek(fd, 0, os.SEEK_SET)
+    return digest.hexdigest()
+
+
+def path_identity_no_follow(path: str, *, include_digest: bool = False) -> dict:
+    try:
+        fd = open_path_no_follow(path, os.O_RDONLY)
+    except (OSError, TrustFailure) as exc:
+        raise Operational("ROUTE_UNAVAILABLE", f"cannot safely open authorized path {path}: {exc}") from exc
+    try:
+        info = os.fstat(fd)
+        if stat.S_ISDIR(info.st_mode):
+            kind = "directory"
+        elif stat.S_ISREG(info.st_mode) or stat.S_ISCHR(info.st_mode) or stat.S_ISBLK(info.st_mode):
+            kind = "file"
+        else:
+            raise Operational("ROUTE_UNAVAILABLE", "authorized path is not a supported file or directory")
+        identity = {
+            "path": path,
+            "kind": kind,
+            "device": str(info.st_dev),
+            "inode": str(info.st_ino),
+            "owner": info.st_uid,
+            "mode": stat.S_IMODE(info.st_mode),
+        }
+        if include_digest:
+            if not stat.S_ISREG(info.st_mode):
+                raise Operational("ROUTE_UNAVAILABLE", "authorized executable digest requires a regular file")
+            identity["sha256"] = descriptor_digest(fd)
+        return identity
+    finally:
+        os.close(fd)
+
+
+def pinned_executable_identity(path: str) -> dict:
+    canonical = os.path.realpath(path)
+    identity = path_identity_no_follow(canonical, include_digest=True)
+    if identity["kind"] != "file" or not os.access(canonical, os.X_OK):
+        raise Operational("ROUTE_UNAVAILABLE", f"authorized executable is not executable: {canonical}")
+    if identity["owner"] not in {0, _euid()} or identity["mode"] & 0o022:
+        raise Operational("ROUTE_UNAVAILABLE", f"authorized executable owner or mode is unsafe: {canonical}")
+    ancestors = []
+    current = os.path.dirname(canonical)
+    while True:
+        ancestor = path_identity_no_follow(current)
+        if ancestor["kind"] != "directory" or ancestor["owner"] not in {0, _euid()} or ancestor["mode"] & 0o022:
+            raise Operational("ROUTE_UNAVAILABLE", f"authorized executable ancestor is unsafe: {current}")
+        ancestors.append(ancestor)
+        if current == os.sep:
+            break
+        current = os.path.dirname(current)
+    identity["ancestors"] = ancestors
+    return identity
+
+
+def validate_pinned_executable_identity(value: object, label: str) -> dict:
+    if not isinstance(value, dict) or not isinstance(value.get("path"), str):
+        raise Operational("BLOCKED", f"{label} identity is malformed")
+    observed = pinned_executable_identity(value["path"])
+    if observed != value:
+        raise Operational("BLOCKED", f"{label} identity changed after authorization")
+    return observed
+
+
+def _safe_relative_parts(relative: str) -> list[str]:
+    if not isinstance(relative, str) or not relative or os.path.isabs(relative):
+        raise Operational("BLOCKED", "unsafe descriptor-relative path")
+    parts = relative.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        raise Operational("BLOCKED", "unsafe descriptor-relative path")
+    return parts
+
+
+def _remove_tree_at(parent_fd: int, name: str) -> None:
+    info = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    if stat.S_ISDIR(info.st_mode) and not stat.S_ISLNK(info.st_mode):
+        child_fd = os.open(name, os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW, dir_fd=parent_fd)
+        try:
+            opened = os.fstat(child_fd)
+            if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino):
+                raise Operational("BLOCKED", "rollback directory changed before deletion")
+            for child in os.listdir(child_fd):
+                _remove_tree_at(child_fd, child)
+        finally:
+            os.close(child_fd)
+        os.rmdir(name, dir_fd=parent_fd)
+    else:
+        os.unlink(name, dir_fd=parent_fd)
+
+
+def remove_relative_entry(root: str, relative: str, *, missing_ok: bool = True) -> None:
+    """Delete one owned entry without pathname traversal outside root."""
+    parts = _safe_relative_parts(relative)
+    try:
+        fd = open_path_no_follow(os.path.abspath(root), os.O_RDONLY | O_DIRECTORY)
+    except (OSError, TrustFailure) as exc:
+        raise Operational("BLOCKED", f"cannot safely open deletion root: {exc}") from exc
+    try:
+        for component in parts[:-1]:
+            try:
+                child = os.open(component, os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW, dir_fd=fd)
+            except FileNotFoundError:
+                if missing_ok:
+                    return
+                raise
+            os.close(fd)
+            fd = child
+        try:
+            _remove_tree_at(fd, parts[-1])
+        except FileNotFoundError:
+            if not missing_ok:
+                raise
+    except OSError as exc:
+        raise Operational("BLOCKED", f"descriptor-relative deletion refused for {relative}: {exc}") from exc
+    finally:
+        os.close(fd)
+
+
+def remove_relative_empty_dir(root: str, relative: str) -> bool:
+    parts = _safe_relative_parts(relative)
+    fd = open_path_no_follow(os.path.abspath(root), os.O_RDONLY | O_DIRECTORY)
+    try:
+        for component in parts[:-1]:
+            child = os.open(component, os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW, dir_fd=fd)
+            os.close(fd)
+            fd = child
+        try:
+            os.rmdir(parts[-1], dir_fd=fd)
+            return True
+        except FileNotFoundError:
+            return False
+        except OSError as exc:
+            if exc.errno in {errno.ENOTEMPTY, errno.EEXIST}:
+                return False
+            raise Operational("BLOCKED", f"descriptor-relative parent cleanup refused: {exc}") from exc
+    finally:
+        os.close(fd)
 
 
 def _valid_git_object_id(value: object) -> bool:
@@ -966,23 +1134,10 @@ def confinement_adapter_path() -> str:
 
 
 def digest_regular_file(path: str) -> str:
-    try:
-        fd = os.open(path, os.O_RDONLY | O_NOFOLLOW)
-    except OSError as exc:
-        raise Operational("ROUTE_UNAVAILABLE", f"cannot safely open confinement executable: {exc}") from exc
-    try:
-        info = os.fstat(fd)
-        if not stat.S_ISREG(info.st_mode):
-            raise Operational("ROUTE_UNAVAILABLE", "confinement executable is not a regular file")
-        digest = hashlib.sha256()
-        while True:
-            chunk = os.read(fd, 65536)
-            if not chunk:
-                break
-            digest.update(chunk)
-        return digest.hexdigest()
-    finally:
-        os.close(fd)
+    identity = path_identity_no_follow(os.path.realpath(path), include_digest=True)
+    if identity["kind"] != "file":
+        raise Operational("ROUTE_UNAVAILABLE", "confinement executable is not a regular file")
+    return identity["sha256"]
 
 
 def _landlock_read_only_paths() -> list[str]:
@@ -1008,6 +1163,13 @@ def host_confinement_capability() -> dict:
     adapter_digest = digest_regular_file(adapter)
     interpreter = os.path.realpath(sys.executable)
     interpreter_digest = digest_regular_file(interpreter)
+    bash = shutil.which("bash", path="/usr/bin:/bin")
+    if not bash:
+        raise Operational("ROUTE_UNAVAILABLE", "fixed Bash interpreter is unavailable")
+    launcher = pinned_executable_identity(os.path.realpath(bash))
+    worker_adapter = pinned_executable_identity(
+        os.path.realpath(os.path.join(os.path.dirname(__file__), "cross-model-work.sh")),
+    )
     try:
         probe = subprocess.run(
             [interpreter, adapter, "--probe"],
@@ -1031,7 +1193,7 @@ def host_confinement_capability() -> dict:
         or set(receipt) != {"protocol", "abi"}
         or receipt.get("protocol") != CONFINEMENT_PROTOCOL
         or not isinstance(receipt.get("abi"), int)
-        or receipt["abi"] < 1
+        or receipt["abi"] < 3
     ):
         raise Operational("ROUTE_UNAVAILABLE", "Landlock confinement probe returned incompatible evidence")
     return {
@@ -1042,13 +1204,15 @@ def host_confinement_capability() -> dict:
         "interpreter_sha256": interpreter_digest,
         "abi": receipt["abi"],
         "read_only_paths": _landlock_read_only_paths(),
+        "launcher": launcher,
+        "worker_adapter": worker_adapter,
     }
 
 
 def validate_confinement_capability(value: object) -> dict:
     required = {
         "protocol", "adapter_path", "adapter_sha256", "interpreter_path", "interpreter_sha256",
-        "abi", "read_only_paths",
+        "abi", "read_only_paths", "launcher", "worker_adapter",
     }
     if not isinstance(value, dict) or set(value) != required or value.get("protocol") != CONFINEMENT_PROTOCOL:
         raise TrustFailure("routing attempt confinement capability is malformed")
@@ -1062,12 +1226,14 @@ def validate_confinement_capability(value: object) -> dict:
         or not isinstance(value.get("interpreter_sha256"), str)
         or not re.fullmatch(r"[0-9a-f]{64}", value["interpreter_sha256"])
         or not isinstance(value.get("abi"), int)
-        or value["abi"] < 1
+        or value["abi"] < 3
         or not isinstance(value.get("read_only_paths"), list)
         or not value["read_only_paths"]
         or any(not isinstance(path, str) or not os.path.isabs(path) for path in value["read_only_paths"])
     ):
         raise TrustFailure("routing attempt confinement capability is malformed")
+    validate_pinned_executable_identity(value.get("launcher"), "fixed Bash interpreter")
+    validate_pinned_executable_identity(value.get("worker_adapter"), "CE Work adapter")
     return value
 
 
@@ -1337,6 +1503,8 @@ def attempt_authorization(
         "restrictions": list(restrictions),
         "activity_posture": activity_posture,
         "packet_digest": packet_digest,
+        "launcher": copy.deepcopy(confinement_capability["launcher"]),
+        "adapter": copy.deepcopy(confinement_capability["worker_adapter"]),
         "environment": copy.deepcopy(environment),
         "confinement": {
             **copy.deepcopy(confinement_capability),
@@ -1649,14 +1817,50 @@ def validate_routing_finalization_evidence(run_id: str, unit_id: str) -> dict | 
         if not isinstance(finalization, dict) or finalization.get("action") != "accept":
             raise Operational("BLOCKED", "routed output has no accepted serving-identity finalization")
         lock = routing_attempt_lock(doc, unit_id, attempt.get("attempt_id"))
+        resolver_lock = routing["resolver_attempt_locks"][lock["candidate_ordinal"]]
         _result, result_digest = routing_result_evidence(unit, attempt, required=True)
         if (
             result_digest != finalization.get("result_sha256")
             or lock["lock_digest"] != finalization.get("attempt_lock_digest")
+            or resolver_lock.get("lock_digest") != finalization.get("resolver_attempt_lock_digest")
             or routing["binding_digest"] != finalization.get("binding_digest")
         ):
             raise Operational("BLOCKED", "accepted routing evidence changed before integration")
         return copy.deepcopy(finalization)
+
+
+def require_accepted_routing_finalization(doc: dict, unit: dict) -> dict | None:
+    routing = doc.get("routing")
+    if not isinstance(routing, dict) or unit.get("state") == "native-completed":
+        return None
+    attempt = _state_attempt(unit)
+    finalization = attempt.get("routing_finalization")
+    if not isinstance(finalization, dict) or finalization.get("action") != "accept":
+        raise Operational("BLOCKED", "routed transition requires controller-accepted finalization for this attempt")
+    lock = routing_attempt_lock(doc, unit["unit_id"], attempt.get("attempt_id"))
+    resolver_lock = routing["resolver_attempt_locks"][lock["candidate_ordinal"]]
+    result_digest = None
+    result_path = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result", "implementation-result.json")
+    if os.path.lexists(result_path):
+        _result, result_digest = routing_result_evidence(unit, attempt, required=True)
+    else:
+        terminal = attempt.get("terminal_receipt")
+        cleanup = unit.get("cleanup")
+        if not (
+            isinstance(terminal, dict)
+            and isinstance(cleanup, dict)
+            and cleanup.get("artifact_cleanup", {}).get("complete") is True
+        ):
+            raise Operational("BLOCKED", "accepted routing result disappeared before finalized cleanup")
+        result_digest = terminal.get("result_sha256")
+    if (
+        result_digest != finalization.get("result_sha256")
+        or lock["lock_digest"] != finalization.get("attempt_lock_digest")
+        or resolver_lock.get("lock_digest") != finalization.get("resolver_attempt_lock_digest")
+        or routing["binding_digest"] != finalization.get("binding_digest")
+    ):
+        raise Operational("BLOCKED", "accepted routing finalization is not bound to the exact attempt evidence")
+    return finalization
 
 
 def routing_blocker_detail(run_id: str, unit_id: str, finalization: dict) -> dict:

@@ -5,8 +5,10 @@ from __future__ import annotations
 import base64
 import json
 import os
+import pwd
 import re
 import stat
+import tempfile
 from pathlib import PurePosixPath
 
 from unit_workspace_state import *
@@ -190,22 +192,67 @@ def prepare_credential_environment(
 
 def _path_identity(path: str, *, include_digest: bool = False) -> dict:
     canonical = os.path.realpath(path)
+    return path_identity_no_follow(canonical, include_digest=include_digest)
+
+
+def _paths_overlap(left: str, right: str) -> bool:
+    left = os.path.realpath(left)
+    right = os.path.realpath(right)
+    common = os.path.commonpath([left, right])
+    return common in {left, right}
+
+
+def _validate_runtime_roots(doc: dict, unit: dict, roots: list[str]) -> None:
+    home = os.path.realpath(pwd.getpwuid(os.geteuid()).pw_dir)
+    run_root = os.path.realpath(run_dir(doc["run_id"]))
+    result_dir = os.path.realpath(os.path.join(os.path.dirname(unit["workspace"]["path"]), "result"))
+    protected = {
+        home,
+        os.path.realpath(doc["repository"]["toplevel"]),
+        os.path.realpath(doc["repository"]["common_dir"]),
+        run_root,
+        result_dir,
+    }
+    broad_temp = {
+        os.path.realpath(path)
+        for path in (tempfile.gettempdir(), "/tmp", "/var/tmp", "/dev/shm", f"/run/user/{os.geteuid()}")
+        if os.path.exists(path)
+    }
+    for root in roots:
+        canonical = os.path.realpath(root)
+        if any(_paths_overlap(canonical, sensitive) for sensitive in protected):
+            raise Operational("ROUTE_UNAVAILABLE", f"runtime root overlaps protected host state: {canonical}")
+        if any(os.path.commonpath([canonical, temp_root]) == canonical for temp_root in broad_temp):
+            raise Operational("ROUTE_UNAVAILABLE", f"runtime root is a broad same-user temporary ancestor: {canonical}")
+
+
+def _reserve_supervisor_evidence(unit: dict, attempt_id: str) -> dict[str, dict]:
+    result_fd, result_dir = open_recorded_result_dir(unit)
+    evidence: dict[str, dict] = {}
     try:
-        info = os.stat(canonical, follow_symlinks=False)
-    except OSError as exc:
-        raise Operational("ROUTE_UNAVAILABLE", f"confinement root is unavailable: {exc}") from exc
-    if stat.S_ISDIR(info.st_mode):
-        kind = "directory"
-    elif stat.S_ISREG(info.st_mode) or stat.S_ISCHR(info.st_mode) or stat.S_ISBLK(info.st_mode):
-        kind = "file"
-    else:
-        raise Operational("ROUTE_UNAVAILABLE", "confinement root is not a supported file or directory")
-    identity = {"path": canonical, "kind": kind, "device": info.st_dev, "inode": info.st_ino}
-    if include_digest:
-        if kind != "file" or not stat.S_ISREG(info.st_mode):
-            raise Operational("ROUTE_UNAVAILABLE", "confinement digest requires a regular file")
-        identity["sha256"] = digest_regular_file(canonical)
-    return identity
+        for slot in ("probe", "route"):
+            name = f"supervisor-{slot}-{attempt_id}.json"
+            try:
+                fd = os.open(name, os.O_RDWR | os.O_CREAT | os.O_EXCL | O_NOFOLLOW, 0o600, dir_fd=result_fd)
+            except FileExistsError:
+                fd = os.open(name, os.O_RDWR | O_NOFOLLOW, dir_fd=result_fd)
+            try:
+                info = os.fstat(fd)
+                if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600 or info.st_size != 0:
+                    raise Operational("BLOCKED", "supervisor evidence reservation changed before dispatch")
+                evidence[slot] = {
+                    "path": os.path.join(result_dir, name),
+                    "kind": "file",
+                    "device": str(info.st_dev),
+                    "inode": str(info.st_ino),
+                    "owner": info.st_uid,
+                    "mode": stat.S_IMODE(info.st_mode),
+                }
+            finally:
+                os.close(fd)
+    finally:
+        os.close(result_fd)
+    return evidence
 
 
 def _route_runtime_root(executable: str) -> str:
@@ -220,11 +267,11 @@ def _route_runtime_root(executable: str) -> str:
     return os.path.dirname(executable)
 
 
-def prepare_dispatch_confinement(authorization: dict, unit: dict, route_executable: str, attempt_id: str) -> tuple[str, str, dict]:
+def prepare_dispatch_confinement(doc: dict, authorization: dict, unit: dict, route_executable: str, attempt_id: str) -> tuple[str, str, dict]:
     confinement = authorization.get("confinement")
     expected_fields = {
         "protocol", "adapter_path", "adapter_sha256", "interpreter_path", "interpreter_sha256",
-        "abi", "read_only_paths", "read_write_paths",
+        "abi", "read_only_paths", "read_write_paths", "launcher", "worker_adapter",
     }
     if not isinstance(confinement, dict) or set(confinement) != expected_fields:
         raise Operational("BLOCKED", "attempt has no exact controller-issued confinement capability")
@@ -258,6 +305,7 @@ def prepare_dispatch_confinement(authorization: dict, unit: dict, route_executab
     runtime_root = os.path.realpath(_route_runtime_root(executable))
     if runtime_root not in read_only_paths:
         read_only_paths.append(runtime_root)
+    _validate_runtime_roots(doc, unit, read_only_paths)
     read_only = []
     seen = set()
     for path in read_only_paths:
@@ -272,6 +320,11 @@ def prepare_dispatch_confinement(authorization: dict, unit: dict, route_executab
     interpreter_identity = _path_identity(confinement["interpreter_path"], include_digest=True)
     if interpreter_identity["sha256"] != confinement["interpreter_sha256"]:
         raise Operational("ROUTE_UNAVAILABLE", "Landlock confinement interpreter digest changed")
+    launcher_identity = validate_pinned_executable_identity(confinement["launcher"], "fixed Bash interpreter")
+    worker_adapter_identity = validate_pinned_executable_identity(confinement["worker_adapter"], "CE Work adapter")
+    if worker_adapter_identity["path"] != authorization.get("adapter", {}).get("path"):
+        raise Operational("BLOCKED", "authorized CE Work adapter differs from confinement capability")
+    supervisor_evidence = _reserve_supervisor_evidence(unit, attempt_id)
     config = {
         "schema_version": 1,
         "protocol": CONFINEMENT_PROTOCOL,
@@ -281,6 +334,7 @@ def prepare_dispatch_confinement(authorization: dict, unit: dict, route_executab
         "executable": executable_identity,
         "read_only": read_only,
         "read_write": read_write,
+        "supervisor_evidence": supervisor_evidence,
     }
     config_bytes = (json.dumps(config, sort_keys=True, separators=(",", ":")) + "\n").encode()
     config_digest = digest_bytes(config_bytes)
@@ -473,6 +527,7 @@ def cmd_prepare(args) -> tuple[str, dict]:
                 "workspace": workspace, "result_dir": os.path.join(unit_root, "result"),
                 "packet_path": packet_path, "packet_digest": packet_digest,
                 "authorization_path": authorization_path, "authorization_digest": authorization_digest,
+                "launcher": attempt["launcher"]["path"],
                 "adapter": attempt["adapter"],
                 "base": base, "resumed": True,
             }
@@ -502,7 +557,9 @@ def cmd_prepare(args) -> tuple[str, dict]:
         "authorization_digest": authorization_digest,
         "authorization_retained": True,
         "confinement_retained": False,
-        "adapter": os.path.realpath(os.path.join(os.path.dirname(__file__), "cross-model-work.sh")),
+        "launcher": authorization["launcher"],
+        "adapter_identity": authorization["adapter"],
+        "adapter": authorization["adapter"]["path"],
         "terminal_receipt": None,
     }
     if not existing:
@@ -590,6 +647,7 @@ def cmd_prepare(args) -> tuple[str, dict]:
         "workspace": workspace, "result_dir": os.path.join(unit_root, "result"),
         "packet_path": packet_path, "packet_digest": packet_digest,
         "authorization_path": authorization_path, "authorization_digest": authorization_digest,
+        "launcher": attempt_record["launcher"]["path"],
         "adapter": attempt_record["adapter"],
         "base": base, "resumed": False,
     }
@@ -775,6 +833,7 @@ def terminal_receipt(
     *,
     unavailable: bool = False,
     launched_failure: bool = False,
+    supervisor: dict | None = None,
 ) -> dict:
     result_dir = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result")
     receipt, result_bytes = read_recorded_result_json(unit)
@@ -868,20 +927,78 @@ def terminal_receipt(
         "result_sha256": digest_bytes(result_bytes),
         "raw_log_sha256": digest_bytes(log_bytes),
         "raw_log_bytes": len(log_bytes),
+        "supervisor": supervisor,
     }
 
 
-def _validate_authorized_failed_job(
+def _validate_supervisor_evidence(dispatch: dict) -> dict:
+    evidence = dispatch.get("supervisor_evidence")
+    if not isinstance(evidence, dict) or set(evidence) != {"probe", "route"}:
+        raise Operational("BLOCKED", "dispatch has no exact supervisor evidence reservation")
+    route = evidence["route"]
+    if not isinstance(route, dict) or not isinstance(route.get("path"), str):
+        raise Operational("BLOCKED", "route supervisor evidence identity is malformed")
+    observed_identity = _path_identity(route["path"])
+    if observed_identity != route:
+        raise Operational("BLOCKED", "route supervisor evidence identity changed")
+    raw = read_private(route["path"], MAX_JSON_BYTES)
+    try:
+        receipt = json.loads(raw)
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise Operational("BLOCKED", "route supervisor evidence is malformed") from exc
+    required = {
+        "schema_version", "protocol", "slot", "config_sha256", "supervisor_pid", "leader_pid",
+        "leader_exit", "interrupted_signal", "descendants_observed", "term_sent", "kill_sent",
+        "all_descendants_gone",
+    }
+    pid_lists = ("descendants_observed", "term_sent", "kill_sent")
+    if (
+        not isinstance(receipt, dict)
+        or set(receipt) != required
+        or receipt.get("schema_version") != 1
+        or receipt.get("protocol") != "ce-work-subreaper/v1"
+        or receipt.get("slot") != "route"
+        or receipt.get("config_sha256") != dispatch.get("confinement_digest")
+        or type(receipt.get("supervisor_pid")) is not int
+        or receipt["supervisor_pid"] <= 0
+        or type(receipt.get("leader_pid")) is not int
+        or receipt["leader_pid"] <= 0
+        or receipt["leader_pid"] == receipt["supervisor_pid"]
+        or type(receipt.get("leader_exit")) is not int
+        or receipt.get("all_descendants_gone") is not True
+        or receipt.get("interrupted_signal") is not None
+        or any(
+            not isinstance(receipt.get(key), list)
+            or any(type(pid) is not int or pid <= 0 for pid in receipt[key])
+            or receipt[key] != sorted(set(receipt[key]))
+            for key in pid_lists
+        )
+        or not set(receipt["term_sent"]).issubset(receipt["descendants_observed"])
+        or not set(receipt["kill_sent"]).issubset(receipt["descendants_observed"])
+    ):
+        raise Operational("BLOCKED", "route supervisor did not prove descendant containment")
+    return {
+        **receipt,
+        "evidence_path": route["path"],
+        "evidence_sha256": digest_bytes(raw),
+    }
+
+
+def _validate_authorized_job(
     run_id: str,
     unit: dict,
     attempt: dict,
-) -> None:
+    *,
+    expected_states: set[str],
+    require_supervisor: bool,
+) -> dict | None:
     job_id = attempt.get("job_id")
     if not isinstance(job_id, str):
         raise Operational("BLOCKED", "failed receipt has no bound runner job")
     job_dir = runner_job_dir(run_id, job_id)
-    if process_evidence(job_dir)["process_state"] != "failed":
-        raise Operational("BLOCKED", "failed receipt requires authoritative failed runner evidence")
+    observed_state = process_evidence(job_dir)["process_state"]
+    if observed_state not in expected_states:
+        raise Operational("BLOCKED", "terminal receipt requires exact authoritative runner evidence")
     meta = read_private_json(os.path.join(job_dir, "meta.json"))
     if meta.get("job_id") != job_id:
         raise Operational("BLOCKED", "runner job metadata identity mismatch")
@@ -899,18 +1016,28 @@ def _validate_authorized_failed_job(
         "result_dir_identity": unit.get("result_dir_identity"),
     }
     dispatch = attempt.get("dispatch_authorization_receipt")
-    dynamic_fields = {"route_executable", "confinement_path", "confinement_digest", "confinement_adapter"}
+    dynamic_fields = {
+        "route_executable", "launcher", "adapter", "confinement_path", "confinement_digest",
+        "confinement_adapter", "confinement_interpreter", "supervisor_evidence",
+    }
     if (
         not isinstance(dispatch, dict)
         or set(dispatch) != set(expected_dispatch_base) | dynamic_fields
         or any(dispatch.get(key) != value for key, value in expected_dispatch_base.items())
         or not isinstance(dispatch.get("route_executable"), dict)
+        or not isinstance(dispatch.get("launcher"), dict)
+        or not isinstance(dispatch.get("adapter"), dict)
         or not isinstance(dispatch.get("confinement_adapter"), dict)
+        or not isinstance(dispatch.get("confinement_interpreter"), dict)
         or not isinstance(dispatch.get("confinement_path"), str)
         or not isinstance(dispatch.get("confinement_digest"), str)
         or not re.fullmatch(r"[0-9a-f]{64}", dispatch["confinement_digest"])
     ):
-        raise Operational("BLOCKED", "failed receipt is not bound to the exact authorized dispatch")
+        raise Operational("BLOCKED", "terminal receipt is not bound to the exact authorized dispatch")
+    validate_pinned_executable_identity(dispatch["launcher"], "fixed Bash interpreter")
+    validate_pinned_executable_identity(dispatch["adapter"], "CE Work adapter")
+    if dispatch["launcher"] != attempt.get("authorization", {}).get("launcher") or dispatch["adapter"] != attempt.get("authorization", {}).get("adapter"):
+        raise Operational("BLOCKED", "terminal executable identities differ from attempt authorization")
     confinement_bytes = read_private(dispatch["confinement_path"], MAX_JSON_BYTES)
     if digest_bytes(confinement_bytes) != dispatch["confinement_digest"]:
         raise Operational("BLOCKED", "failed receipt confinement config changed after dispatch authorization")
@@ -922,8 +1049,32 @@ def _validate_authorized_failed_job(
         not isinstance(confinement, dict)
         or confinement.get("executable") != dispatch["route_executable"]
         or confinement.get("adapter") != dispatch["confinement_adapter"]
+        or confinement.get("interpreter") != dispatch["confinement_interpreter"]
+        or confinement.get("supervisor_evidence") != dispatch["supervisor_evidence"]
     ):
-        raise Operational("BLOCKED", "failed receipt confinement identity differs from dispatch authorization")
+        raise Operational("BLOCKED", "terminal receipt confinement identity differs from dispatch authorization")
+    if _path_identity(dispatch["route_executable"]["path"], include_digest=True) != dispatch["route_executable"]:
+        raise Operational("BLOCKED", "route executable identity changed after dispatch")
+    if _path_identity(dispatch["confinement_adapter"]["path"], include_digest=True) != dispatch["confinement_adapter"]:
+        raise Operational("BLOCKED", "confinement adapter identity changed after dispatch")
+    if _path_identity(dispatch["confinement_interpreter"]["path"], include_digest=True) != dispatch["confinement_interpreter"]:
+        raise Operational("BLOCKED", "confinement interpreter identity changed after dispatch")
+    return _validate_supervisor_evidence(dispatch) if require_supervisor else None
+
+
+def validate_authorized_successful_job(run_id: str, unit: dict, attempt: dict) -> dict:
+    supervisor = _validate_authorized_job(
+        run_id,
+        unit,
+        attempt,
+        expected_states={"done"},
+        require_supervisor=True,
+    )
+    if supervisor is None:
+        raise Operational("BLOCKED", "successful route has no descendant-containment receipt")
+    if supervisor["leader_exit"] != 0:
+        raise Operational("BLOCKED", "successful route supervisor recorded a nonzero leader exit")
+    return supervisor
 
 
 def _authorized_failed_terminal_receipt(
@@ -933,12 +1084,19 @@ def _authorized_failed_terminal_receipt(
     *,
     unavailable: bool,
 ) -> dict:
-    _validate_authorized_failed_job(run_id, unit, attempt)
+    supervisor = _validate_authorized_job(
+        run_id,
+        unit,
+        attempt,
+        expected_states={"failed"},
+        require_supervisor=not unavailable,
+    )
     return terminal_receipt(
         unit,
         attempt,
         unavailable=unavailable,
         launched_failure=not unavailable,
+        supervisor=supervisor,
     )
 
 
@@ -1028,8 +1186,12 @@ def validate_runner_contract(run_id: str, unit: dict, meta: dict) -> None:
         raise TrustFailure("controller authorization artifact is malformed") from exc
     if observed_authorization != authorization or digest_bytes(authorization_bytes) != authorization_digest:
         raise Operational("BLOCKED", "controller authorization artifact no longer matches the recorded attempt")
+    launcher = validate_pinned_executable_identity(authorization.get("launcher"), "fixed Bash interpreter")
+    adapter = validate_pinned_executable_identity(authorization.get("adapter"), "CE Work adapter")
+    if attempt.get("launcher") != launcher or attempt.get("adapter_identity") != adapter or attempt.get("adapter") != adapter["path"]:
+        raise Operational("BLOCKED", "attempt executable identities differ from controller authorization")
     expected_argv = [
-        attempt.get("adapter"), authorization_path, unit["workspace"]["path"],
+        launcher["path"], adapter["path"], authorization_path, unit["workspace"]["path"],
         unit["packet"]["path"], unit["packet_digest"], expected_result_dir,
     ]
     if meta.get("worker_argv") != expected_argv:
@@ -1092,7 +1254,7 @@ def cmd_authorize_dispatch(args) -> tuple[str, dict]:
         if os.path.abspath(args.workspace) != expected_workspace:
             raise Operational("BLOCKED", "workspace path does not match the recorded unit")
         confinement_path, confinement_digest, confinement_config = prepare_dispatch_confinement(
-            authorization, unit, args.route_executable, attempt_id,
+            doc, authorization, unit, args.route_executable, attempt_id,
         )
         expected_dispatch_authorization_receipt = {
             "attempt_id": attempt_id,
@@ -1105,9 +1267,13 @@ def cmd_authorize_dispatch(args) -> tuple[str, dict]:
             "result_dir": os.path.join(os.path.dirname(expected_workspace), "result"),
             "result_dir_identity": unit.get("result_dir_identity"),
             "route_executable": confinement_config["executable"],
+            "launcher": authorization["launcher"],
+            "adapter": authorization["adapter"],
             "confinement_path": confinement_path,
             "confinement_digest": confinement_digest,
             "confinement_adapter": confinement_config["adapter"],
+            "confinement_interpreter": confinement_config["interpreter"],
+            "supervisor_evidence": confinement_config["supervisor_evidence"],
         }
         recorded_dispatch_authorization_receipt = attempt.get("dispatch_authorization_receipt")
         if recorded_dispatch_authorization_receipt is not None and (
@@ -1154,9 +1320,14 @@ def cmd_authorize_dispatch(args) -> tuple[str, dict]:
         "authorization_digest": expected_authorization_digest,
         "packet_digest": unit["packet_digest"],
         "route_executable": confinement_config["executable"]["path"],
+        "launcher": authorization["launcher"]["path"],
+        "adapter": authorization["adapter"]["path"],
         "confinement_path": confinement_path,
         "confinement_digest": confinement_digest,
         "confinement_adapter": confinement_config["adapter"]["path"],
+        "supervisor_evidence": {
+            slot: identity["path"] for slot, identity in confinement_config["supervisor_evidence"].items()
+        },
     }
 
 
@@ -1207,6 +1378,9 @@ def cmd_record_job(args) -> tuple[str, dict]:
         if attempt.get("job_id"):
             if attempt["job_id"] != args.job_id:
                 raise Operational("AMBIGUOUS", "attempt is already bound to another job")
+            job_dir = runner_job_dir(args.run_id, args.job_id)
+            meta = read_private_json(os.path.join(job_dir, "meta.json"))
+            validate_runner_contract(args.run_id, unit, meta)
             return "AUTHORING", {
                 "unit_id": args.unit_id,
                 "job_id": args.job_id,
@@ -1260,7 +1434,13 @@ def sync_job(run_id: str, unit_id: str) -> dict:
             finally:
                 os.close(result_fd)
             if result_stat is not None and result_stat.st_size > MAX_RESULT_BYTES:
-                _validate_authorized_failed_job(run_id, unit, attempt)
+                _validate_authorized_job(
+                    run_id,
+                    unit,
+                    attempt,
+                    expected_states={"failed"},
+                    require_supervisor=False,
+                )
                 oversized_result_failure = True
             else:
                 for reader in (unavailable_terminal_receipt, launched_failure_terminal_receipt):
@@ -1382,7 +1562,9 @@ def terminalize(run_id: str, unit_id: str) -> dict:
             unit = doc["units"].get(unit_id)
             if not unit:
                 raise Operational("REFUSED", "unknown unit")
-            receipt = terminal_receipt(unit, find_attempt(unit))
+            attempt = find_attempt(unit)
+            supervisor = validate_authorized_successful_job(run_id, unit, attempt)
+            receipt = terminal_receipt(unit, attempt, supervisor=supervisor)
             if receipt.get("model_receipt_status") == "mismatch":
                 raise Operational("BLOCKED", "adapter reported a served-model mismatch")
     except Operational as exc:

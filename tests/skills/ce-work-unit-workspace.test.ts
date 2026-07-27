@@ -2,6 +2,7 @@ import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import {
   chmodSync,
+  cpSync,
   existsSync,
   mkdtempSync,
   mkdirSync,
@@ -275,6 +276,7 @@ function authorizeDispatch(
     packet: prepared.packet_path,
     packetDigest: prepared.packet_digest,
     resultDir: prepared.result_dir,
+    launcher: prepared.launcher,
     adapter: ADAPTER,
     routeExecutable: prepared.route_executable,
     ...overrides,
@@ -289,7 +291,7 @@ function authorizeDispatch(
     run_id: values.runId,
     label: values.unitId,
     input_digest: values.packetDigest,
-    worker_argv: [values.adapter, values.authorization, values.workspace, values.packet, values.packetDigest, values.resultDir],
+    worker_argv: [values.launcher, values.adapter, values.authorization, values.workspace, values.packet, values.packetDigest, values.resultDir],
     result_path: path.join(values.resultDir, "implementation-result.json"),
   })}\n`, { mode: 0o600 })
   return ctl(
@@ -316,6 +318,7 @@ function fakeRunningJob(runsRoot: string, runId: string, unitId: string, packetC
   chmodSync(dir, 0o700)
   const digest = packetDigest(packetContent)
   const unitRoot = path.join(runsRoot, runId, "units", unitId)
+  const authorization = JSON.parse(readFileSync(path.join(unitRoot, "authorization.json"), "utf8"))
   const meta = {
     job_id: id,
     skill: "ce-work",
@@ -323,7 +326,7 @@ function fakeRunningJob(runsRoot: string, runId: string, unitId: string, packetC
     label: unitId,
     input_digest: digest,
     result_path: path.join(unitRoot, "result", "implementation-result.json"),
-    worker_argv: [ADAPTER, path.join(unitRoot, "authorization.json"), path.join(unitRoot, "workspace"), path.join(unitRoot, "packet.md"), digest, path.join(unitRoot, "result")],
+    worker_argv: [authorization.launcher.path, ADAPTER, path.join(unitRoot, "authorization.json"), path.join(unitRoot, "workspace"), path.join(unitRoot, "packet.md"), digest, path.join(unitRoot, "result")],
   }
   for (const [name, value] of [
     ["meta.json", JSON.stringify(meta) + "\n"],
@@ -344,6 +347,27 @@ function terminalizeFakeJob(runsRoot: string, runId: string, id: string, state: 
   chmodSync(path.join(dir, "reason"), 0o600)
 }
 
+function writeSupervisorEvidence(runsRoot: string, runId: string, unitId: string) {
+  const status = ctl(runsRoot, "status", "--run-id", runId, "--unit-id", unitId).body.unit
+  const dispatch = status.attempts.at(-1).dispatch_authorization_receipt
+  const evidencePath = dispatch.supervisor_evidence.route.path
+  writeFileSync(evidencePath, `${JSON.stringify({
+    schema_version: 1,
+    protocol: "ce-work-subreaper/v1",
+    slot: "route",
+    config_sha256: dispatch.confinement_digest,
+    supervisor_pid: 2000000001,
+    leader_pid: 2000000002,
+    leader_exit: 0,
+    interrupted_signal: null,
+    descendants_observed: [],
+    term_sent: [],
+    kill_sent: [],
+    all_descendants_gone: true,
+  })}\n`, { mode: 0o600 })
+  chmodSync(evidencePath, 0o600)
+}
+
 function fakeDoneJob(
   runsRoot: string,
   runId: string,
@@ -353,6 +377,7 @@ function fakeDoneJob(
   terminalStatus: "completed" | "blocked" | "scope_expansion" = "completed",
   changedFiles: string[] = [],
   receiptOverrides: Record<string, unknown> = {},
+  authorize = true,
 ) {
   const dir = path.join(runsRoot, runId, "jobs", id)
   mkdirSync(dir, { recursive: true, mode: 0o700 })
@@ -364,6 +389,15 @@ function fakeDoneJob(
   const resultPath = path.join(resultDir, "implementation-result.json")
   const logPath = path.join(resultDir, "adapter.log")
   const authorization = JSON.parse(readFileSync(path.join(unitRoot, "authorization.json"), "utf8"))
+  const workspace = path.join(unitRoot, "workspace")
+  const backup = tmp("ce-work-fake-workspace-")
+  const originalHead = git(workspace, "rev-parse", "HEAD")
+  const originalIndex = git(workspace, "write-tree")
+  const recordedBase = ctl(runsRoot, "status", "--run-id", runId, "--unit-id", unitId).body.unit.workspace.base
+  cpSync(workspace, backup, { recursive: true, filter: source => path.resolve(source) !== path.join(workspace, ".git") })
+  for (const entry of readdirSync(workspace)) if (entry !== ".git") rmSync(path.join(workspace, entry), { recursive: true, force: true })
+  git(workspace, "reset", "--hard", recordedBase)
+  git(workspace, "clean", "-fdx")
   const meta = {
     job_id: id,
     skill: "ce-work",
@@ -371,7 +405,7 @@ function fakeDoneJob(
     label: unitId,
     input_digest: digest,
     result_path: resultPath,
-    worker_argv: [ADAPTER, path.join(unitRoot, "authorization.json"), path.join(unitRoot, "workspace"), path.join(unitRoot, "packet.md"), digest, resultDir],
+    worker_argv: [authorization.launcher.path, ADAPTER, path.join(unitRoot, "authorization.json"), path.join(unitRoot, "workspace"), path.join(unitRoot, "packet.md"), digest, resultDir],
   }
   for (const [name, value] of [
     ["meta.json", JSON.stringify(meta) + "\n"],
@@ -412,6 +446,22 @@ function fakeDoneJob(
     ...receiptOverrides,
   })}\n`, { mode: 0o600 })
   chmodSync(resultPath, 0o600)
+  const authorized = authorize ? authorizeDispatch(runsRoot, runId, unitId, {
+    authorization_path: path.join(unitRoot, "authorization.json"),
+    authorization_digest: createHash("sha256").update(readFileSync(path.join(unitRoot, "authorization.json"))).digest("hex"),
+    workspace: path.join(unitRoot, "workspace"),
+    packet_path: path.join(unitRoot, "packet.md"),
+    packet_digest: digest,
+    result_dir: resultDir,
+    launcher: authorization.launcher.path,
+  }, { jobId: id, attemptId: authorization.attempt_id }) : null
+  if (authorize && authorized?.word !== "AUTHORIZED") throw new Error(`fake dispatch authorization failed: ${authorized?.stderr}`)
+  for (const entry of readdirSync(workspace)) if (entry !== ".git") rmSync(path.join(workspace, entry), { recursive: true, force: true })
+  git(workspace, "reset", "--hard", originalHead)
+  for (const entry of readdirSync(workspace)) if (entry !== ".git") rmSync(path.join(workspace, entry), { recursive: true, force: true })
+  for (const entry of readdirSync(backup)) cpSync(path.join(backup, entry), path.join(workspace, entry), { recursive: true })
+  git(workspace, "read-tree", originalIndex)
+  if (authorize) writeSupervisorEvidence(runsRoot, runId, unitId)
   return id
 }
 
@@ -420,6 +470,36 @@ afterEach(() => {
 })
 
 describe("ce-work unit workspace controller", () => {
+  test("rejects Landlock ABI 1/2 and protected or broad runtime roots", () => {
+    for (const abi of [1, 2]) {
+      const rejected = spawnSync("python3", [
+        "-c",
+        `import runpy; runpy.run_path(${JSON.stringify(CONFINEMENT_ADAPTER)})['handled_access'](${abi})`,
+      ], { encoding: "utf8" })
+      expect(rejected.status).toBe(2)
+      expect(rejected.stderr).toContain(`unsupported Landlock ABI: ${abi}`)
+    }
+
+    const f = makeRepo()
+    const common = realpathSync(git(f.repo, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    const source = [
+      "import sys",
+      `sys.path.insert(0, ${JSON.stringify(path.dirname(SCRIPT))})`,
+      "import unit_workspace_jobs as jobs",
+      `doc={'run_id':'unsafe-root','repository':{'toplevel':${JSON.stringify(realpathSync(f.repo))},'common_dir':${JSON.stringify(common)}}}`,
+      `unit={'workspace':{'path':${JSON.stringify(path.join(tmpdir(), "unsafe-root", "workspace"))}}}`,
+      "jobs._validate_runtime_roots(doc, unit, [sys.argv[1]])",
+    ].join("; ")
+    for (const root of [realpathSync(f.repo), common, tmpdir(), "/"]) {
+      const rejected = spawnSync("python3", ["-c", source, root], {
+        encoding: "utf8",
+        env: { ...process.env, CE_WORK_RUNS_ROOT: path.join(tmp("ce-work-unsafe-runs-"), "ce-work") },
+      })
+      expect(rejected.status).not.toBe(0)
+      expect(rejected.stderr).toMatch(/protected host state|broad same-user temporary ancestor/)
+    }
+  })
+
   test("ignores inherited Git repository-selection and index variables", () => {
     const f = makeRepo()
     const decoy = makeRepo()
@@ -859,13 +939,13 @@ describe("ce-work unit workspace controller", () => {
     expect(wrongResult.stderr).toContain("runner result path must be the controller result file")
     expect(wrongResult.stderr).toContain("implementation-result.json")
     meta.result_path = path.join(runs, "run-authority", "units", "U", "result", "implementation-result.json")
-    meta.worker_argv[1] = path.join(runs, "run-authority", "units", "U", "other-authorization.json")
+    meta.worker_argv[2] = path.join(runs, "run-authority", "units", "U", "other-authorization.json")
     writeFileSync(metaPath, `${JSON.stringify(meta)}\n`, { mode: 0o600 })
     chmodSync(metaPath, 0o600)
     expect(ctl(
       runs, "record-job", "--run-id", "run-authority", "--unit-id", "U", "--attempt-id", "attempt-1", "--job-id", job,
     ).word).toBe("BLOCKED")
-    meta.worker_argv[1] = prepared.body.authorization_path
+    meta.worker_argv[2] = prepared.body.authorization_path
     writeFileSync(metaPath, `${JSON.stringify(meta)}\n`, { mode: 0o600 })
     chmodSync(metaPath, 0o600)
     expect(ctl(
@@ -944,6 +1024,29 @@ describe("ce-work unit workspace controller", () => {
     expect(authorizeDispatch(runs, "run-hand-authored", "fake-unit", first).word).toBe("REFUSED")
   })
 
+  test("a forged successful runner receipt cannot terminalize without dispatch authorization", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-forged-success"
+    init(runs, runId, f)
+    ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("forged success packet"),
+    )
+    const job = fakeDoneJob(
+      runs, runId, "U", "forged success packet", "job-forged-success", "completed", [], {}, false,
+    )
+    expect(ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    ).word).toBe("AUTHORING")
+
+    const terminal = ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U")
+    expect(terminal.word).toBe("BLOCKED")
+    expect(terminal.stderr).toContain("exact authorized dispatch")
+    expect(ctl(runs, "status", "--run-id", runId, "--unit-id", "U").body.unit.transport.commit).toBeNull()
+  })
+
   test("rejects route executable substitution after dispatch authorization", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
@@ -964,7 +1067,7 @@ describe("ce-work unit workspace controller", () => {
     writeFileSync(forgedPath, forgedBytes, { mode: 0o600 })
     const forgedLaunch = spawnSync(
       forgedConfinement.interpreter.path,
-      [CONFINEMENT_ADAPTER, "--config", forgedPath, "--digest", packetDigest(forgedBytes), "--", prepared.route_executable],
+      [CONFINEMENT_ADAPTER, "--config", forgedPath, "--digest", packetDigest(forgedBytes), "--supervisor-slot", "route", "--", prepared.route_executable],
       { encoding: "utf8" },
     )
     expect(forgedLaunch.status).toBe(2)
@@ -2401,6 +2504,36 @@ describe("ce-work unit workspace controller", () => {
       integration_lock: null,
       units: { U: { state: "preserved", integration: { restore: { exact: true } } } },
     })
+  })
+
+  test("rollback unlinks a swapped symlink without traversing its outside target", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-symlink-rollback"
+    const outside = tmp("ce-work-rollback-outside-")
+    writeFileSync(path.join(outside, "marker"), "outside\n")
+    init(runs, runId, f)
+    ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    const job = fakeDoneJob(runs, runId, "U", "packet")
+    ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    expect(ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U").word).toBe("INTEGRATION_PENDING")
+
+    const failed = ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U",
+      "--commit-message", "feat(test): integration must roll back", "--",
+      "python3", "-c",
+      `import os; os.symlink(${JSON.stringify(outside)}, 'rollback-link'); raise SystemExit(7)`,
+    )
+
+    expect(failed.word).toBe("BLOCKED")
+    expect(existsSync(path.join(f.repo, "rollback-link"))).toBe(false)
+    expect(readFileSync(path.join(outside, "marker"), "utf8")).toBe("outside\n")
   })
 
   test("unit verification retains the lock when directory restoration cannot be proven", () => {
@@ -3957,9 +4090,6 @@ describe("ce-work unit workspace controller", () => {
     result.failure_reason = "terminal output failed implementation result schema"
     result.activity_posture = JSON.parse(readFileSync(prepared.authorization_path, "utf8")).activity_posture
     writeFileSync(resultPath, `${JSON.stringify(result)}\n`, { mode: 0o600 })
-    expect(authorizeDispatch(
-      runs, "run-launched-failure", "U", prepared, { jobId: job },
-    ).word).toBe("AUTHORIZED")
     ctl(
       runs, "record-job", "--run-id", "run-launched-failure", "--unit-id", "U",
       "--attempt-id", "attempt-1", "--job-id", job,
@@ -4792,6 +4922,24 @@ work_engine_preferences:
       runs, "terminalize", "--run-id", "run-strict-unverified", "--unit-id", "U",
     ).word).toBe("INTEGRATION_PENDING")
 
+    const directTransitions = [
+      ["integration-acquire"],
+      ["preflight", "--lock-token", "forged"],
+      ["mark-applied", "--lock-token", "forged"],
+      ["mark-verified", "--lock-token", "forged", "--evidence-digest", "a".repeat(64)],
+      ["mark-committed", "--lock-token", "forged"],
+      ["wave-advance", "--lock-token", "forged", "--canonical-commit", f.base],
+      ["restore", "--lock-token", "forged"],
+      ["integration-release", "--lock-token", "forged"],
+    ]
+    for (const transition of directTransitions) {
+      const direct = ctl(
+        runs, ...transition, "--run-id", "run-strict-unverified", "--unit-id", "U",
+      )
+      expect(direct.word).toBe("BLOCKED")
+      expect(direct.stderr).toContain("controller-accepted finalization")
+    }
+
     const beforeHead = git(f.repo, "rev-parse", "HEAD")
     const blocked = ctl(
       runs, "integrate", "--run-id", "run-strict-unverified", "--unit-id", "U",
@@ -5188,15 +5336,18 @@ work_engine_preferences:
     expect(git(f.repo, "status", "--porcelain")).toBe("")
   })
 
-  test("refuses ambiguous job adoption and preserves output on canonical divergence", () => {
+  test("refuses an unbound successful-job forgery and preserves output on canonical divergence", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
     init(runs, "run-ambiguous", f)
     ctl(runs, "prepare", "--run-id", "run-ambiguous", "--unit-id", "U", "--base", f.base, "--packet", packetFile("packet"))
     fakeDoneJob(runs, "run-ambiguous", "U", "packet", "job-a")
-    fakeDoneJob(runs, "run-ambiguous", "U", "packet", "job-b")
-    expect(ctl(runs, "resume", "--run-id", "run-ambiguous").word).toBe("AMBIGUOUS")
-    expect(ctl(runs, "status", "--run-id", "run-ambiguous", "--unit-id", "U").body.unit.state).toBe("queued")
+    fakeDoneJob(runs, "run-ambiguous", "U", "packet", "job-b", "completed", [], {}, false)
+    expect(ctl(
+      runs, "record-job", "--run-id", "run-ambiguous", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", "job-b",
+    ).word).toBe("AMBIGUOUS")
+    expect(ctl(runs, "status", "--run-id", "run-ambiguous", "--unit-id", "U").body.unit.state).toBe("authoring")
     git(f.repo, "worktree", "remove", "--force", path.join(runs, "run-ambiguous", "units", "U", "workspace"))
 
     init(runs, "run-diverge", f)

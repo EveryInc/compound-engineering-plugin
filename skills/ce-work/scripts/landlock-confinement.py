@@ -9,14 +9,17 @@ import hashlib
 import json
 import os
 import platform
+import signal
 import stat
 import struct
 import sys
+import time
 
 
 LANDLOCK_CREATE_RULESET_VERSION = 1
 LANDLOCK_RULE_PATH_BENEATH = 1
 PR_SET_NO_NEW_PRIVS = 38
+PR_SET_CHILD_SUBREAPER = 36
 
 ACCESS_EXECUTE = 1 << 0
 ACCESS_WRITE_FILE = 1 << 1
@@ -76,7 +79,7 @@ def landlock_abi() -> int:
 
 
 def handled_access(abi: int) -> int:
-    if abi < 1:
+    if abi < 3:
         fail(f"unsupported Landlock ABI: {abi}")
     access = ABI_1_ACCESS
     if abi >= 2:
@@ -88,25 +91,41 @@ def handled_access(abi: int) -> int:
     return access
 
 
-def digest_file(path: str) -> str:
-    digest = hashlib.sha256()
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(path, flags)
+def open_path_no_follow(path: str, flags: int = os.O_RDONLY) -> int:
+    absolute = os.path.abspath(path)
+    if path != absolute or not os.path.isabs(path):
+        fail("confinement path is not absolute and normalized")
+    components = [part for part in absolute.split(os.sep) if part]
+    fd = os.open(os.sep, os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0))
     try:
-        while True:
-            chunk = os.read(fd, 65536)
-            if not chunk:
-                break
-            digest.update(chunk)
-    finally:
+        for index, component in enumerate(components):
+            final = index == len(components) - 1
+            child_flags = flags if final else os.O_RDONLY | os.O_DIRECTORY
+            child = os.open(component, child_flags | getattr(os, "O_NOFOLLOW", 0), dir_fd=fd)
+            os.close(fd)
+            fd = child
+        return fd
+    except BaseException:
         os.close(fd)
+        raise
+
+
+def digest_fd(fd: int) -> str:
+    digest = hashlib.sha256()
+    os.lseek(fd, 0, os.SEEK_SET)
+    while True:
+        chunk = os.read(fd, 65536)
+        if not chunk:
+            break
+        digest.update(chunk)
+    os.lseek(fd, 0, os.SEEK_SET)
     return digest.hexdigest()
 
 
 def validate_entry(value: object) -> dict:
     if not isinstance(value, dict) or set(value) not in (
-        {"path", "kind", "device", "inode"},
-        {"path", "kind", "device", "inode", "sha256"},
+        {"path", "kind", "device", "inode", "owner", "mode"},
+        {"path", "kind", "device", "inode", "owner", "mode", "sha256"},
     ):
         fail("confinement path identity has an invalid schema")
     path = value.get("path")
@@ -116,21 +135,35 @@ def validate_entry(value: object) -> dict:
     if os.path.realpath(path) != path:
         fail("confinement path is not canonical")
     try:
-        info = os.stat(path, follow_symlinks=False)
+        fd = open_path_no_follow(path, os.O_RDONLY)
     except OSError as exc:
         fail(f"confinement path is unavailable: {exc}")
-    if (kind == "file") != stat.S_ISREG(info.st_mode) and not (
-        kind == "file" and (stat.S_ISCHR(info.st_mode) or stat.S_ISBLK(info.st_mode))
-    ):
-        fail("confinement path kind changed")
-    if kind == "directory" and not stat.S_ISDIR(info.st_mode):
-        fail("confinement directory kind changed")
-    if (info.st_dev, info.st_ino) != (value.get("device"), value.get("inode")):
-        fail("confinement path identity changed")
-    expected_digest = value.get("sha256")
-    if expected_digest is not None:
-        if not isinstance(expected_digest, str) or len(expected_digest) != 64 or digest_file(path) != expected_digest:
-            fail("confinement file digest changed")
+    try:
+        info = os.fstat(fd)
+        if (kind == "file") != stat.S_ISREG(info.st_mode) and not (
+            kind == "file" and (stat.S_ISCHR(info.st_mode) or stat.S_ISBLK(info.st_mode))
+        ):
+            fail("confinement path kind changed")
+        if kind == "directory" and not stat.S_ISDIR(info.st_mode):
+            fail("confinement directory kind changed")
+        if (
+            str(info.st_dev),
+            str(info.st_ino),
+            info.st_uid,
+            stat.S_IMODE(info.st_mode),
+        ) != (
+            value.get("device"),
+            value.get("inode"),
+            value.get("owner"),
+            value.get("mode"),
+        ):
+            fail("confinement path identity changed")
+        expected_digest = value.get("sha256")
+        if expected_digest is not None:
+            if not isinstance(expected_digest, str) or len(expected_digest) != 64 or digest_fd(fd) != expected_digest:
+                fail("confinement file digest changed")
+    finally:
+        os.close(fd)
     return value
 
 
@@ -162,7 +195,10 @@ def load_config(path: str, expected_digest: str) -> dict:
         value = json.loads(data)
     except (UnicodeDecodeError, ValueError) as exc:
         fail(f"confinement config is malformed: {exc}")
-    required = {"schema_version", "protocol", "adapter", "interpreter", "abi", "executable", "read_only", "read_write"}
+    required = {
+        "schema_version", "protocol", "adapter", "interpreter", "abi", "executable",
+        "read_only", "read_write", "supervisor_evidence",
+    }
     if not isinstance(value, dict) or set(value) != required:
         fail("confinement config schema is invalid")
     if value["schema_version"] != 1 or value["protocol"] != "ce-work-landlock/v1":
@@ -190,6 +226,13 @@ def load_config(path: str, expected_digest: str) -> dict:
             if validated["path"] in seen:
                 fail(f"confinement {key} repeats a root")
             seen.add(validated["path"])
+    evidence = value["supervisor_evidence"]
+    if not isinstance(evidence, dict) or set(evidence) != {"probe", "route"}:
+        fail("confinement supervisor evidence schema is invalid")
+    for entry in evidence.values():
+        validated = validate_entry(entry)
+        if validated["kind"] != "file":
+            fail("confinement supervisor evidence is not a file")
     return value
 
 
@@ -199,7 +242,7 @@ def allowed_for(entry: dict, writable: bool, handled: int) -> int:
     access = ACCESS_READ_FILE
     if os.access(entry["path"], os.X_OK):
         access |= ACCESS_EXECUTE
-    if writable:
+    if writable or entry["path"] == "/dev/null":
         access |= ACCESS_WRITE_FILE | ACCESS_TRUNCATE
     if handled & ACCESS_IOCTL_DEV:
         access |= ACCESS_IOCTL_DEV
@@ -215,7 +258,10 @@ def apply_landlock(read_only: list[dict], read_write: list[dict], abi: int) -> N
     try:
         for writable, entries in ((False, read_only), (True, read_write)):
             for entry in entries:
-                path_fd = os.open(entry["path"], os.O_PATH | getattr(os, "O_CLOEXEC", 0))
+                validate_entry(entry)
+                path_fd = open_path_no_follow(
+                    entry["path"], os.O_PATH | getattr(os, "O_CLOEXEC", 0),
+                )
                 try:
                     rule = struct.pack("QiI", allowed_for(entry, writable, handled), path_fd, 0)
                     rule_buffer = ctypes.create_string_buffer(rule)
@@ -233,6 +279,7 @@ def apply_landlock(read_only: list[dict], read_write: list[dict], abi: int) -> N
 
 def probe() -> None:
     abi = landlock_abi()
+    handled_access(abi)
     child = os.fork()
     if child == 0:
         try:
@@ -241,7 +288,14 @@ def probe() -> None:
                 canonical = os.path.realpath(candidate)
                 if os.path.isdir(canonical) and canonical not in {entry["path"] for entry in roots}:
                     info = os.stat(canonical, follow_symlinks=False)
-                    roots.append({"path": canonical, "kind": "directory", "device": info.st_dev, "inode": info.st_ino})
+                    roots.append({
+                        "path": canonical,
+                        "kind": "directory",
+                        "device": str(info.st_dev),
+                        "inode": str(info.st_ino),
+                        "owner": info.st_uid,
+                        "mode": stat.S_IMODE(info.st_mode),
+                    })
             apply_landlock(roots, [], abi)
             with open("/usr/bin/env", "rb"):
                 pass
@@ -259,21 +313,181 @@ def probe() -> None:
     print(json.dumps({"protocol": "ce-work-landlock/v1", "abi": abi}, sort_keys=True))
 
 
+def child_pids(children_fd: int) -> list[int]:
+    try:
+        os.lseek(children_fd, 0, os.SEEK_SET)
+        data = os.read(children_fd, 1024 * 1024).decode("ascii", "strict").strip()
+    except OSError as exc:
+        fail(f"cannot inspect subreaper descendants: {exc}")
+    try:
+        return [int(value) for value in data.split()] if data else []
+    except ValueError:
+        fail("subreaper descendant evidence is malformed")
+
+
+def reap_available() -> None:
+    while True:
+        try:
+            pid, _ = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            return
+        if pid <= 0:
+            return
+
+
+def contain_descendants(children_fd: int) -> dict:
+    observed: set[int] = set()
+    term_sent: set[int] = set()
+    kill_sent: set[int] = set()
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline:
+        reap_available()
+        children = child_pids(children_fd)
+        observed.update(children)
+        for pid in children:
+            try:
+                os.kill(pid, signal.SIGTERM)
+                term_sent.add(pid)
+            except ProcessLookupError:
+                pass
+        if not children:
+            break
+        time.sleep(0.05)
+    for pid in child_pids(children_fd):
+        observed.add(pid)
+        try:
+            os.kill(pid, signal.SIGKILL)
+            kill_sent.add(pid)
+        except ProcessLookupError:
+            pass
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        reap_available()
+        children = child_pids(children_fd)
+        observed.update(children)
+        if not children:
+            break
+        for pid in children:
+            try:
+                os.kill(pid, signal.SIGKILL)
+                kill_sent.add(pid)
+            except ProcessLookupError:
+                pass
+        time.sleep(0.05)
+    reap_available()
+    return {
+        "descendants_observed": sorted(observed),
+        "term_sent": sorted(term_sent),
+        "kill_sent": sorted(kill_sent),
+        "all_descendants_gone": not child_pids(children_fd),
+    }
+
+
+def open_supervisor_evidence(entry: dict) -> int:
+    validate_entry(entry)
+    fd = open_path_no_follow(entry["path"], os.O_WRONLY)
+    info = os.fstat(fd)
+    if (
+        not stat.S_ISREG(info.st_mode)
+        or info.st_size != 0
+        or (str(info.st_dev), str(info.st_ino)) != (entry["device"], entry["inode"])
+    ):
+        os.close(fd)
+        fail("supervisor evidence reservation changed before confinement")
+    return fd
+
+
+def publish_supervisor_evidence(fd: int, evidence: dict) -> None:
+    data = (json.dumps(evidence, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    view = memoryview(data)
+    while view:
+        view = view[os.write(fd, view):]
+    os.fsync(fd)
+    os.close(fd)
+
+
+def supervise(command: list[str], evidence_fd: int, children_fd: int, config_digest: str, slot: str) -> int:
+    result = libc().prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0)
+    if result != 0:
+        code = ctypes.get_errno()
+        fail(f"cannot enable Linux child subreaper: {OSError(code, os.strerror(code))}")
+    leader = os.fork()
+    if leader == 0:
+        os.close(evidence_fd)
+        os.close(children_fd)
+        try:
+            os.execv(command[0], command)
+        except OSError:
+            os._exit(127)
+
+    interrupted = {"signal": None}
+
+    def interrupt(signum: int, _frame: object) -> None:
+        interrupted["signal"] = signum
+
+    signal.signal(signal.SIGTERM, interrupt)
+    signal.signal(signal.SIGINT, interrupt)
+    status = None
+    while status is None and interrupted["signal"] is None:
+        try:
+            waited, observed = os.waitpid(leader, 0)
+            if waited == leader:
+                status = observed
+        except InterruptedError:
+            continue
+    if interrupted["signal"] is not None:
+        try:
+            os.kill(leader, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            _, status = os.waitpid(leader, 0)
+        except ChildProcessError:
+            status = 128 + int(interrupted["signal"])
+    containment = contain_descendants(children_fd)
+    os.close(children_fd)
+    exit_code = os.waitstatus_to_exitcode(status) if status is not None else 125
+    evidence = {
+        "schema_version": 1,
+        "protocol": "ce-work-subreaper/v1",
+        "slot": slot,
+        "config_sha256": config_digest,
+        "supervisor_pid": os.getpid(),
+        "leader_pid": leader,
+        "leader_exit": exit_code,
+        "interrupted_signal": interrupted["signal"],
+        **containment,
+    }
+    publish_supervisor_evidence(evidence_fd, evidence)
+    if not containment["all_descendants_gone"]:
+        return 125
+    if interrupted["signal"] is not None:
+        return 128 + int(interrupted["signal"])
+    return exit_code if exit_code >= 0 else 128 - exit_code
+
+
 def main(argv: list[str]) -> None:
     if argv == ["--probe"]:
         probe()
         return
-    if len(argv) < 6 or argv[0] != "--config" or argv[2] != "--digest" or argv[4] != "--":
-        fail("usage: landlock-confinement.py --config PATH --digest SHA256 -- COMMAND [ARG ...]")
+    if (
+        len(argv) < 8
+        or argv[0] != "--config"
+        or argv[2] != "--digest"
+        or argv[4] != "--supervisor-slot"
+        or argv[6] != "--"
+        or argv[5] not in {"probe", "route"}
+    ):
+        fail("usage: landlock-confinement.py --config PATH --digest SHA256 --supervisor-slot SLOT -- COMMAND [ARG ...]")
     config = load_config(argv[1], argv[3])
-    command = argv[5:]
+    slot = argv[5]
+    command = argv[7:]
     if not command or os.path.realpath(command[0]) != config["executable"]["path"]:
         fail("route executable differs from controller authorization")
+    evidence_fd = open_supervisor_evidence(config["supervisor_evidence"][slot])
+    children_fd = os.open(f"/proc/self/task/{os.getpid()}/children", os.O_RDONLY)
     apply_landlock(config["read_only"], config["read_write"], config["abi"])
-    try:
-        os.execv(command[0], command)
-    except OSError as exc:
-        fail(f"route exec failed: {exc}")
+    raise SystemExit(supervise(command, evidence_fd, children_fd, argv[3], slot))
 
 
 if __name__ == "__main__":

@@ -66,7 +66,7 @@ function fixture() {
     capture,
     runs,
     authManifest: null as string | null,
-    prepared: null as null | { authorization_path: string; workspace: string; packet_path: string; result_dir: string },
+    prepared: null as null | { authorization_path: string; launcher: string; workspace: string; packet_path: string; result_dir: string },
   }
 }
 
@@ -184,7 +184,7 @@ function run(
   const jobDir = path.join(f.runs, "route-run", "jobs", jobId)
   mkdirSync(jobDir, { mode: 0o700 })
   chmodSync(jobDir, 0o700)
-  const adapterArgv = [SCRIPT, authorization, f.workspace, f.packet, expectedPacketDigest, f.resultDir]
+  const adapterArgv = [f.prepared.launcher, SCRIPT, authorization, f.workspace, f.packet, expectedPacketDigest, f.resultDir]
   writeFileSync(path.join(jobDir, "meta.json"), `${JSON.stringify({
     job_id: jobId,
     skill: "ce-work",
@@ -194,7 +194,7 @@ function run(
     worker_argv: [...workerPrefix, ...adapterArgv],
     result_path: path.join(f.resultDir, "implementation-result.json"),
   })}\n`, { mode: 0o600 })
-  const proc = spawnSync(workerPrefix[0] ?? SCRIPT, workerPrefix.length ? [...workerPrefix.slice(1), ...adapterArgv] : adapterArgv.slice(1), {
+  const proc = spawnSync(adapterArgv[0], adapterArgv.slice(1), {
     encoding: "utf8",
     env: { ...env, CE_WORK_RUNS_ROOT: f.runs, CE_PEER_JOB_ID: jobId },
   })
@@ -295,6 +295,61 @@ describe("ce-work fixed write routes", () => {
       expect(result.result.model_actual).not.toBe("unverified")
       expect(result.result.model_receipt_status).toBe("verified")
     }
+  })
+
+  test("pins outer Bash independently of PATH substitution", () => {
+    const f = fixture()
+    const bin = fakeBin("codex", f.capture)
+    const marker = path.join(f.root, "forged-bash-ran")
+    writeFileSync(path.join(bin, "bash"), `#!/bin/sh\n: > '${marker}'\nexit 99\n`, { mode: 0o755 })
+    chmodSync(path.join(bin, "bash"), 0o755)
+
+    const result = run("codex", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
+
+    expect(result.code).toBe(0)
+    expect(existsSync(marker)).toBe(false)
+    expect(f.prepared?.launcher).toBe(realpathSync("/usr/bin/bash"))
+  })
+
+  test("subreaper kills double-forked setsid descendants before terminal success", () => {
+    const f = fixture()
+    const bin = fakeBin("codex", f.capture)
+    writeFileSync(path.join(bin, "codex"), `#!/bin/sh
+set -eu
+out=''
+previous=''
+for arg in "$@"; do
+  if [ "$previous" = '-o' ]; then out="$arg"; fi
+  previous="$arg"
+done
+/usr/bin/python3 - "$PWD" <<'PY'
+import os, sys, time
+if os.fork():
+    raise SystemExit(0)
+os.setsid()
+if os.fork():
+    os._exit(0)
+time.sleep(1)
+with open(os.path.join(sys.argv[1], "late-write.txt"), "w") as stream:
+    stream.write("escaped\\n")
+PY
+printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[],"evidence":["fake"],"scope_expansion":null}' > "$out"
+`)
+    chmodSync(path.join(bin, "codex"), 0o755)
+
+    const result = run("codex", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
+    Bun.sleepSync(1500)
+
+    expect(result.code).toBe(0)
+    expect(existsSync(path.join(f.workspace, "late-write.txt"))).toBe(false)
+    const manifest = JSON.parse(readFileSync(path.join(f.runs, "route-run", "manifest.json"), "utf8"))
+    const dispatch = manifest.units.U3.attempts[0].dispatch_authorization_receipt
+    const evidence = JSON.parse(readFileSync(dispatch.supervisor_evidence.route.path, "utf8"))
+    expect(evidence).toMatchObject({
+      protocol: "ce-work-subreaper/v1",
+      all_descendants_gone: true,
+    })
+    expect(evidence.descendants_observed.length).toBeGreaterThan(0)
   })
 
   test("Cursor accepts a controller-bounded explicit model while Composer stays family-locked", () => {
@@ -468,6 +523,36 @@ printf '%s\n' '{"terminal_status":"completed","summary":"implemented ${authorize
     expect(result.result.summary).toBe("implemented [REDACTED] [REDACTED]")
   })
 
+  test("rejects a symlink-swapped staged-auth root during redaction refresh", () => {
+    const f = fixture()
+    const bin = fakeBin("codex", f.capture)
+    const outside = path.join(f.root, "outside-auth")
+    mkdirSync(outside)
+    writeFileSync(path.join(outside, "marker"), "outside\n")
+    writeFileSync(path.join(bin, "codex"), `#!/bin/sh
+set -eu
+out=''
+previous=''
+for arg in "$@"; do
+  if [ "$previous" = '-o' ]; then out="$arg"; fi
+  previous="$arg"
+done
+mv "$CODEX_HOME" "$CODEX_HOME.old"
+ln -s '${outside}' "$CODEX_HOME"
+printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[],"evidence":["fake"],"scope_expansion":null}' > "$out"
+`)
+    chmodSync(path.join(bin, "codex"), 0o755)
+
+    const result = run("codex", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
+
+    expect(result.code).toBe(2)
+    expect(result.result).toMatchObject({
+      terminal_status: "unavailable",
+      failure_reason: expect.stringContaining("authentication changed unsafely"),
+    })
+    expect(readFileSync(path.join(outside, "marker"), "utf8")).toBe("outside\n")
+  })
+
   test("refuses dispatch before egress when isolated backend authentication was not staged", () => {
     const f = fixture()
     f.authManifest = ""
@@ -601,7 +686,7 @@ printf '%s\n' '{"terminal_status":"completed","summary":"implemented ${authorize
       const digest = createHash("sha256").update(readFileSync(f.packet)).digest("hex")
       const result = run("codex", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` }, digest, overrides, true)
       expect(result.code).toBe(2)
-      expect(result.stderr).toContain("controller dispatch authorization failed")
+      expect(result.stderr).toMatch(/controller (?:dispatch )?authorization (?:failed|rejected)/)
       expect(result.result).toBeNull()
       expect(existsSync(path.join(f.capture, "argv"))).toBe(false)
       expect(existsSync(path.join(f.capture, "stdin"))).toBe(false)

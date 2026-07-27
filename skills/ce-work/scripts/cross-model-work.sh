@@ -229,14 +229,15 @@ trap 'rm -rf "$SCRATCH"' EXIT
 # dispatch capability. Read it once through a no-follow descriptor, validate
 # its exact route/model/packet contract, and derive every dispatch identity
 # field from those bytes before constructing a prompt or invoking a model CLI.
-"$HOST_PYTHON" - "$AUTHORIZATION" "$EXPECTED_PACKET_DIGEST" "$AUTH_VALUES" <<'PY'
+"$HOST_PYTHON" - "$AUTHORIZATION" "$EXPECTED_PACKET_DIGEST" "$AUTH_VALUES" "${BASH_SOURCE[0]}" <<'PY'
 import json, os, re, stat, sys
 
-source, expected_packet_digest, output = sys.argv[1:]
+source, expected_packet_digest, output, running_adapter = sys.argv[1:]
 required = {
     "schema_version", "run_id", "unit_id", "attempt_id", "route", "target", "harness",
     "intermediaries", "model_requested", "effort_requested", "restriction_posture",
     "restrictions", "activity_posture", "packet_digest", "routing_lock", "environment", "confinement",
+    "launcher", "adapter",
 }
 contracts = {
     "codex": ("codex", "codex", [], "adapter-enforced"),
@@ -249,6 +250,47 @@ contracts = {
 
 def fail(message):
     raise ValueError(message)
+
+def open_no_follow(path, flags=os.O_RDONLY):
+    absolute=os.path.abspath(path)
+    if path != absolute or not os.path.isabs(path): fail("authorized executable path is not normalized")
+    parts=[part for part in absolute.split(os.sep) if part]
+    fd=os.open(os.sep, os.O_RDONLY | getattr(os,"O_DIRECTORY",0) | getattr(os,"O_NOFOLLOW",0))
+    try:
+        for index,part in enumerate(parts):
+            final=index == len(parts)-1
+            child_flags=flags if final else os.O_RDONLY | getattr(os,"O_DIRECTORY",0)
+            child=os.open(part, child_flags | getattr(os,"O_NOFOLLOW",0), dir_fd=fd)
+            os.close(fd); fd=child
+        return fd
+    except BaseException:
+        os.close(fd); raise
+
+def executable_identity(path):
+    fd=open_no_follow(path)
+    try:
+        info=os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or not os.access(path, os.X_OK): fail("authorized executable is unsafe")
+        digest=__import__("hashlib").sha256()
+        while True:
+            part=os.read(fd,65536)
+            if not part: break
+            digest.update(part)
+        identity={"path":path,"kind":"file","device":str(info.st_dev),"inode":str(info.st_ino),
+          "owner":info.st_uid,"mode":stat.S_IMODE(info.st_mode),"sha256":digest.hexdigest()}
+    finally: os.close(fd)
+    ancestors=[]; current=os.path.dirname(path)
+    while True:
+        afd=open_no_follow(current)
+        try:
+            info=os.fstat(afd)
+            ancestors.append({"path":current,"kind":"directory","device":str(info.st_dev),"inode":str(info.st_ino),
+              "owner":info.st_uid,"mode":stat.S_IMODE(info.st_mode)})
+        finally: os.close(afd)
+        if current == os.sep: break
+        current=os.path.dirname(current)
+    identity["ancestors"]=ancestors
+    return identity
 
 def model_allowed(route, model):
     if not isinstance(model, str) or not model or "\n" in model or "\r" in model:
@@ -333,6 +375,16 @@ try:
         fail("authorization model is incompatible with the fixed route")
     if not effort_allowed(route, value["effort_requested"]):
         fail("authorization effort is incompatible with the fixed route")
+    launcher=value["launcher"]; adapter=value["adapter"]
+    if executable_identity(launcher.get("path") if isinstance(launcher,dict) else "") != launcher:
+        fail("fixed Bash identity changed after authorization")
+    if executable_identity(adapter.get("path") if isinstance(adapter,dict) else "") != adapter:
+        fail("CE Work adapter identity changed after authorization")
+    running_bash=os.path.realpath(os.readlink(f"/proc/{os.getppid()}/exe"))
+    if running_bash != launcher["path"]:
+        fail("adapter was not launched by the authorized Bash interpreter")
+    if os.path.realpath(running_adapter) != adapter["path"]:
+        fail("adapter path differs from controller authorization")
     environment = value["environment"]
     environment_paths = {
         "home", "xdg_config_home", "xdg_data_home", "xdg_cache_home", "tmpdir", "route_config_home",
@@ -435,11 +487,11 @@ try:
     confinement = value["confinement"]
     confinement_required = {
         "protocol", "adapter_path", "adapter_sha256", "interpreter_path", "interpreter_sha256",
-        "abi", "read_only_paths", "read_write_paths",
+        "abi", "read_only_paths", "read_write_paths", "launcher", "worker_adapter",
     }
     if not isinstance(confinement, dict) or set(confinement) != confinement_required:
         fail("authorization confinement schema is invalid")
-    if confinement["protocol"] != "ce-work-landlock/v1" or not isinstance(confinement["abi"], int) or confinement["abi"] < 1:
+    if confinement["protocol"] != "ce-work-landlock/v1" or not isinstance(confinement["abi"], int) or confinement["abi"] < 3:
         fail("authorization confinement capability is invalid")
     if (
         not isinstance(confinement["adapter_path"], str) or not os.path.isabs(confinement["adapter_path"])
@@ -454,6 +506,8 @@ try:
         or any(not isinstance(path, str) or not os.path.isabs(path) for path in confinement["read_write_paths"])
     ):
         fail("authorization confinement roots are invalid")
+    if confinement["launcher"] != launcher or confinement["worker_adapter"] != adapter:
+        fail("authorization launcher/adapter differs from confinement capability")
     routing_lock = value["routing_lock"]
     if routing_lock is not None:
         lock_required = {
@@ -564,11 +618,54 @@ RESULT_FILE="$RESULT_DIR/implementation-result.json"
 LOG_FILE="$RESULT_DIR/adapter.log"
 AMBIENT_REDACTIONS="${CE_WORK_REDACT_FILE:-}"
 CE_WORK_REDACT_FILE="$SCRATCH/credential-redactions"
-{
-  [ -z "$AMBIENT_REDACTIONS" ] || [ ! -f "$AMBIENT_REDACTIONS" ] || cat "$AMBIENT_REDACTIONS"
-  cat "$AUTO_REDACTIONS"
-} > "$CE_WORK_REDACT_FILE"
-chmod 600 "$CE_WORK_REDACT_FILE"
+"$HOST_PYTHON" - "$AUTO_REDACTIONS" "$AMBIENT_REDACTIONS" "$SCRATCH" <<'PY'
+import os, stat, sys
+
+automatic, ambient, target_root = sys.argv[1:]
+no_follow = getattr(os, "O_NOFOLLOW", 0)
+directory = getattr(os, "O_DIRECTORY", 0)
+
+def open_absolute(path, flags):
+    absolute=os.path.abspath(path)
+    if path != absolute or not os.path.isabs(path): raise OSError("redaction path is not absolute")
+    fd=os.open(os.sep, os.O_RDONLY | directory | no_follow)
+    try:
+        parts=[part for part in absolute.split(os.sep) if part]
+        for index,part in enumerate(parts):
+            child_flags=flags if index == len(parts)-1 else os.O_RDONLY | directory
+            child=os.open(part, child_flags | no_follow, dir_fd=fd)
+            os.close(fd); fd=child
+        return fd
+    except BaseException:
+        os.close(fd); raise
+
+chunks=[]
+for path, required in ((automatic, True), (ambient, False)):
+    if not path: continue
+    try: fd=open_absolute(path, os.O_RDONLY)
+    except FileNotFoundError:
+        if required: raise
+        continue
+    try:
+        info=os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode): raise OSError("redaction source is not regular")
+        while True:
+            part=os.read(fd,65536)
+            if not part: break
+            chunks.append(part)
+    finally: os.close(fd)
+root_fd=open_absolute(target_root, os.O_RDONLY | directory)
+try:
+    target=os.open("credential-redactions", os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow, 0o600, dir_fd=root_fd)
+    try:
+        for chunk in chunks:
+            view=memoryview(chunk)
+            while view: view=view[os.write(target,view):]
+        os.fchmod(target,0o600)
+    finally: os.close(target)
+finally: os.close(root_fd)
+PY
+[ "$?" -eq 0 ] || { log "credential redaction staging refused"; exit 2; }
 rm -rf "$BOOTSTRAP_SCRATCH"
 trap 'rm -rf "$SCRATCH"' EXIT
 RUNNER_JOB_ID="${CE_PEER_JOB_ID:-}"
@@ -624,7 +721,10 @@ lines = os.environ.get("AUTH_RESPONSE", "").splitlines()
 if len(lines) != 2 or lines[0] != "AUTHORIZED":
     raise SystemExit(2)
 value = json.loads(lines[1])
-required = {"route_executable", "confinement_path", "confinement_digest", "confinement_adapter"}
+required = {
+    "route_executable", "launcher", "adapter", "confinement_path", "confinement_digest",
+    "confinement_adapter", "supervisor_evidence",
+}
 if not required.issubset(value):
     raise SystemExit(2)
 if (
@@ -634,11 +734,17 @@ if (
     or not re.fullmatch(r"[0-9a-f]{64}", value["confinement_digest"])
     or not re.fullmatch(r"[0-9a-f]{64}", expected_adapter_digest)
     or not expected_abi.isdigit()
+    or not isinstance(value["supervisor_evidence"], dict)
+    or set(value["supervisor_evidence"]) != {"probe", "route"}
+    or any(not isinstance(path, str) or not os.path.isabs(path) for path in value["supervisor_evidence"].values())
 ):
     raise SystemExit(2)
 fd = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
 try:
-    fields = (value["route_executable"], value["confinement_path"], value["confinement_digest"])
+    fields = (
+        value["route_executable"], value["confinement_path"], value["confinement_digest"],
+        value["supervisor_evidence"]["probe"], value["supervisor_evidence"]["route"],
+    )
     os.write(fd, b"\0".join(field.encode() for field in fields) + b"\0")
 finally:
     os.close(fd)
@@ -646,10 +752,12 @@ PY
 [ "$?" -eq 0 ] || { log "controller confinement authorization was malformed"; exit 2; }
 DISPATCH_FIELDS=()
 while IFS= read -r -d '' field; do DISPATCH_FIELDS+=("$field"); done < "$DISPATCH_VALUES"
-[ "${#DISPATCH_FIELDS[@]}" -eq 3 ] || { log "controller confinement projection is incomplete"; exit 2; }
+[ "${#DISPATCH_FIELDS[@]}" -eq 5 ] || { log "controller confinement projection is incomplete"; exit 2; }
 BINARY_PATH="${DISPATCH_FIELDS[0]}"
 CONFINEMENT_CONFIG="${DISPATCH_FIELDS[1]}"
 CONFINEMENT_CONFIG_DIGEST="${DISPATCH_FIELDS[2]}"
+PROBE_SUPERVISOR_EVIDENCE="${DISPATCH_FIELDS[3]}"
+ROUTE_SUPERVISOR_EVIDENCE="${DISPATCH_FIELDS[4]}"
 
 # Canonicalize operational paths only after the handshake. The controller
 # compares the raw paths it returned, including platform compatibility symlinks.
@@ -975,35 +1083,68 @@ import json, os, stat, sys
 
 config_root, redactions_path = sys.argv[1:]
 values = set()
+no_follow = getattr(os, "O_NOFOLLOW", 0)
+directory = getattr(os, "O_DIRECTORY", 0)
+euid = getattr(os, "geteuid", lambda: None)()
+
+def open_absolute(path, flags):
+    absolute=os.path.abspath(path)
+    if path != absolute or not os.path.isabs(path): raise OSError("path is not absolute")
+    fd=os.open(os.sep, os.O_RDONLY | directory | no_follow)
+    try:
+        parts=[part for part in absolute.split(os.sep) if part]
+        for index,part in enumerate(parts):
+            child_flags=flags if index == len(parts)-1 else os.O_RDONLY | directory
+            child=os.open(part, child_flags | no_follow, dir_fd=fd)
+            os.close(fd); fd=child
+        return fd
+    except BaseException:
+        os.close(fd); raise
+
+def read_bounded_at(parent_fd, name, expected, cap):
+    fd=os.open(name, os.O_RDONLY | no_follow, dir_fd=parent_fd)
+    try:
+        info=os.fstat(fd)
+        if (info.st_dev,info.st_ino) != (expected.st_dev,expected.st_ino): raise OSError("file changed before read")
+        if not stat.S_ISREG(info.st_mode) or (euid is not None and info.st_uid != euid) or stat.S_IMODE(info.st_mode) != 0o600 or info.st_size > cap:
+            raise OSError("backend config file is no longer private and bounded")
+        data=bytearray()
+        while len(data) <= cap:
+            part=os.read(fd,min(65536,cap+1-len(data)))
+            if not part: break
+            data.extend(part)
+        if len(data) > cap: raise OSError("backend config file exceeded its size limit")
+        return bytes(data)
+    finally: os.close(fd)
+
 try:
-    with open(redactions_path, "rb") as source:
-        values.update(value for value in source.read().splitlines() if value)
-    observed_files = 0
-    for current, directories, files in os.walk(config_root, followlinks=False):
-        for name in directories:
-            info = os.lstat(os.path.join(current, name))
-            if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o700:
-                raise OSError("backend config directory changed")
-        for name in files:
-            observed_files += 1
-            if observed_files > 4:
+    redaction_parent=os.path.dirname(redactions_path)
+    redaction_name=os.path.basename(redactions_path)
+    redaction_parent_fd=open_absolute(redaction_parent, os.O_RDONLY | directory)
+    redaction_before=os.stat(redaction_name, dir_fd=redaction_parent_fd, follow_symlinks=False)
+    values.update(value for value in read_bounded_at(redaction_parent_fd, redaction_name, redaction_before, 4 * 1024 * 1024).splitlines() if value)
+    root_fd=open_absolute(config_root, os.O_RDONLY | directory)
+    def walk(parent_fd):
+        observed_files=[0]
+        def visit(directory_fd):
+          for name in os.listdir(directory_fd):
+            info=os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+            if stat.S_ISDIR(info.st_mode) and not stat.S_ISLNK(info.st_mode):
+                if (euid is not None and info.st_uid != euid) or stat.S_IMODE(info.st_mode) != 0o700:
+                    raise OSError("backend config directory changed")
+                child=os.open(name, os.O_RDONLY | directory | no_follow, dir_fd=directory_fd)
+                try:
+                    opened=os.fstat(child)
+                    if (opened.st_dev,opened.st_ino) != (info.st_dev,info.st_ino): raise OSError("backend config directory changed before traversal")
+                    visit(child)
+                finally: os.close(child)
+                continue
+            if not stat.S_ISREG(info.st_mode) or stat.S_ISLNK(info.st_mode):
+                raise OSError("backend config contains an unsafe entry")
+            observed_files[0] += 1
+            if observed_files[0] > 4:
                 raise OSError("backend config file count exceeded")
-            path = os.path.join(current, name)
-            fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
-            try:
-                info = os.fstat(fd)
-                if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600 or info.st_size > 1024 * 1024:
-                    raise OSError("backend config file is no longer private and bounded")
-                data = bytearray()
-                while len(data) <= 1024 * 1024:
-                    part = os.read(fd, min(65536, 1024 * 1024 + 1 - len(data)))
-                    if not part:
-                        break
-                    data.extend(part)
-                if len(data) > 1024 * 1024:
-                    raise OSError("backend config file exceeded its size limit")
-            finally:
-                os.close(fd)
+            data=read_bounded_at(directory_fd,name,info,1024*1024)
             document = json.loads(data.decode("utf-8", "strict"))
             pending = [document]
             while pending:
@@ -1014,8 +1155,11 @@ try:
                     pending.extend(value)
                 elif isinstance(value, str) and value:
                     values.add(value.encode())
-    temporary = redactions_path + ".new"
-    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        visit(parent_fd)
+    try: walk(root_fd)
+    finally: os.close(root_fd)
+    temporary = f".credential-redactions-{os.getpid()}"
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | no_follow, 0o600, dir_fd=redaction_parent_fd)
     try:
         data = b"\n".join(sorted(values, key=lambda value: (-len(value), value)))
         if data:
@@ -1025,10 +1169,16 @@ try:
             view = view[os.write(fd, view):]
     finally:
         os.close(fd)
-    os.replace(temporary, redactions_path)
+    current=os.stat(redaction_name, dir_fd=redaction_parent_fd, follow_symlinks=False)
+    if (current.st_dev,current.st_ino) != (redaction_before.st_dev,redaction_before.st_ino):
+        os.unlink(temporary, dir_fd=redaction_parent_fd)
+        raise OSError("credential redaction target changed before replacement")
+    os.replace(temporary, redaction_name, src_dir_fd=redaction_parent_fd, dst_dir_fd=redaction_parent_fd)
 except (OSError, UnicodeDecodeError, ValueError) as error:
     print(f"credential redaction refresh refused: {error}", file=sys.stderr)
     raise SystemExit(2)
+finally:
+    if 'redaction_parent_fd' in locals(): os.close(redaction_parent_fd)
 PY
 }
 
@@ -1042,7 +1192,7 @@ if [ "$MODEL_REQUESTED" != auto ]; then
   case "$ROUTE" in
     cursor|composer|grok-cursor)
       MODEL_DISPLAY_HINT="$({ "${MIN_ENV[@]}" "$CONFINEMENT_INTERPRETER" "$CONFINEMENT_ADAPTER" \
-        --config "$CONFINEMENT_CONFIG" --digest "$CONFINEMENT_CONFIG_DIGEST" -- \
+        --config "$CONFINEMENT_CONFIG" --digest "$CONFINEMENT_CONFIG_DIGEST" --supervisor-slot probe -- \
         "$BINARY_PATH" --list-models 2>/dev/null || true; } | awk -F ' - ' -v key="$MODEL_REQUESTED" '$1 == key { sub(/^[^ ]+ - /, ""); print; exit }')"
       ;;
   esac
@@ -1083,7 +1233,7 @@ trap 'terminate_route' TERM INT
 
 set +e
 (cd "$WORKSPACE" && exec "${MIN_ENV[@]}" "$CONFINEMENT_INTERPRETER" "$CONFINEMENT_ADAPTER" \
-  --config "$CONFINEMENT_CONFIG" --digest "$CONFINEMENT_CONFIG_DIGEST" -- \
+  --config "$CONFINEMENT_CONFIG" --digest "$CONFINEMENT_CONFIG_DIGEST" --supervisor-slot route -- \
   "${ARGS[@]}" < "$PROMPT_FILE" > "$RAW_STDOUT" 2> "$RAW_STDERR") &
 ACTIVE_ROUTE_PID=$!
 (
