@@ -411,6 +411,12 @@ trap 'cleanup_private_scratch' EXIT
 } > "$PROMPT_FILE"
 
 # --- run machinery: idle-timeout for streaming codex, hard cap for the rest --
+# The idle cap is the liveness guard; HARD_SECS is only a backstop for a peer
+# that stays productive past any useful budget. This default stays at 600s
+# because this skill's codex route runs the lower sol/high tier -- ce-code-review
+# and ce-doc-review run luna/xhigh and default higher. `CROSS_MODEL_HARD_SECS` is
+# shared across all three, and the orchestrator's aggregate deadline derives from
+# it (see references/cross-model-panel.md), so a raised knob raises both windows.
 IDLE_SECS="${CROSS_MODEL_IDLE_SECS:-180}"
 HARD_SECS="${CROSS_MODEL_HARD_SECS:-600}"
 TO_BIN="$(command -v gtimeout || command -v timeout || true)"

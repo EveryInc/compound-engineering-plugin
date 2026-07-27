@@ -464,8 +464,17 @@ DOC_BASENAME="$(basename "$DOC_PATH")"
 # Idle cap must exceed the peer's worst-case silent turn: Codex --json is
 # event-line (not token) output, so a slow xhigh reasoning turn (Luna p95 ~242s,
 # max ~419s) can go quiet past a low cap and be reaped before turn.completed.
+#
+# The idle cap -- not the hard cap -- is the liveness guard: a wedged peer stops
+# growing PEERLOG and dies at IDLE_SECS regardless of HARD_SECS. HARD_SECS is a
+# backstop for a peer that stays *productive* past any useful budget, so it must
+# clear the tail of the adopted tier by a wide margin. HARD_SECS is the ONE knob
+# for the whole peer budget: the runner supervisor window and the orchestrator's
+# shared deadline both derive from it (see references/cross-model-review.md), so
+# raising it here raises all three. Keep this block in sync with
+# ce-code-review's script (parity-tested in CI).
 IDLE_SECS="${CROSS_MODEL_IDLE_SECS:-480}"
-HARD_SECS="${CROSS_MODEL_HARD_SECS:-600}"
+HARD_SECS="${CROSS_MODEL_HARD_SECS:-1200}"
 TO_BIN="$(command -v gtimeout || command -v timeout || true)"
 
 # Reap a backgrounded job's whole process group: TERM, then KILL after a grace.

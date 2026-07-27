@@ -234,8 +234,10 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
 Job ids or job-directory paths are positional. `--skill`, `--run-id`, and
 `--label` are start-only; never pass them to `wait`. Do not add a separate shell
 sleep: `wait` itself provides the bounded polling delay. Use one aggregate
-deadline of 610 seconds after the final start; never begin a wait that can cross
-it. At the deadline, reap each nonterminal job in a short call, then make one
+deadline of `CROSS_MODEL_HARD_SECS` + 10 seconds after the final start (610s by
+default, since this skill's workers self-bound at 600s); never begin a wait that
+can cross it. Derive it -- a hardcoded deadline silently reaps a healthy peer
+whenever a user raises the knob, wasting the peer's full spend. At the deadline, reap each nonterminal job in a short call, then make one
 final wait:
 
 ```bash
