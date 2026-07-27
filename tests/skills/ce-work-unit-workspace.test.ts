@@ -214,6 +214,14 @@ function opencodeDirectIntent(binding: Record<string, unknown> | "ce-default", m
   }
 }
 
+function currentTaskIntent(binding: Record<string, unknown> | "ce-default") {
+  return {
+    role: "ce-work.implementation-worker",
+    source: "current-task",
+    binding,
+  }
+}
+
 function routingHome(config: string): string {
   const home = path.join(tmp("ce-work-routing-home-"), "compound-engineering")
   mkdirSync(home, { mode: 0o700 })
@@ -248,7 +256,7 @@ function initWithRouting(
     "--repo", fixture.repo,
     "--plan", fixture.plan,
     "--plan-digest", fixture.digest,
-    "--routing-request", routingRequestFile(fixture, intents),
+    "--routing-request", routingRequestFile(fixture, intents, { harness: "pi", serving_family: "host" }),
   )
 }
 
@@ -4702,7 +4710,7 @@ describe("ce-work unit workspace controller", () => {
     expect(git(f.repo, "status", "--porcelain")).toBe("")
   })
 
-  test("resolves an economy native implementation override without changing the orchestrator or checkout", () => {
+  test("resolves an economy implementation override without changing the orchestrator or checkout", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
     const home = routingHome(`routing:
@@ -4715,11 +4723,11 @@ describe("ce-work unit workspace controller", () => {
 `)
     const request = routingRequestFile(
       f,
-      [opencodeDirectIntent({
+      [currentTaskIntent({
         policy: "require",
-        candidates: [{ harness: "opencode", model: "openai/gpt-economy", effort: "low" }],
-      }, "economy-override")],
-      { harness: "opencode", serving_family: "openai" },
+        candidates: [{ harness: "claude", model: "economy", effort: "low" }],
+      })],
+      { harness: "claude", serving_family: "anthropic" },
     )
     const resolved = ctlWithEnv(
       runs,
@@ -4734,25 +4742,25 @@ describe("ce-work unit workspace controller", () => {
         binding: {
           role: "ce-work.implementation-worker",
           source_layer: "task",
-          source: "opencode-direct-input",
+          source: "current-task",
           profile: "current-task",
           policy: "require",
-          candidates: [{ harness: "opencode", model: "openai/gpt-economy", effort: "low", ordinal: 0 }],
+          candidates: [{ harness: "claude", model: "economy", effort: "low", ordinal: 0 }],
         },
         resolver_snapshot: {
           intents: [{
             role: "ce-work.implementation-worker",
-            source: "opencode-direct-input",
+            source: "current-task",
             binding: {
               policy: "require",
-              candidates: [{ harness: "opencode", model: "openai/gpt-economy", effort: "low" }],
+              candidates: [{ harness: "claude", model: "economy", effort: "low" }],
             },
           }],
         },
         resolver_attempt_locks: [{
           protocol: "ce-routing-attempt-lock/v1",
           candidate_ordinal: 0,
-          candidate: { harness: "opencode", model: "openai/gpt-economy", effort: "low", ordinal: 0 },
+          candidate: { harness: "claude", model: "economy", effort: "low", ordinal: 0 },
         }],
       },
     })
@@ -4851,6 +4859,183 @@ describe("ce-work unit workspace controller", () => {
     expect(git(f.repo, "status", "--porcelain")).toBe("")
   })
 
+  test("independently matches OpenCode external comparison identifiers at resolve and init", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`routing:
+  profiles:
+    ordered:
+      candidates:
+        - { harness: codex, model: gpt-5-mini }
+        - { harness: opencode, model: openai/gpt-5.6 }
+  classes:
+    implementation: { profile: ordered, policy: prefer }
+`)
+    const baselineRequest = routingRequestFile(f, [], { harness: "pi", serving_family: "host" })
+    const baseline = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "resolve-routing", "--repo", f.repo, "--routing-request", baselineRequest,
+    )
+    expect(baseline.word).toBe("ROUTED")
+    const comparison = {
+      protocol: "ce-opencode-external-handoff/v1",
+      source_revisions: baseline.body.routing.source_revisions,
+      bindings: [{
+        instance: "implementation",
+        binding_digest: baseline.body.routing.resolver_attempt_locks[0].binding_digest,
+      }],
+    }
+    const request = routingRequestFile(f)
+
+    const matched = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "resolve-routing", "--repo", f.repo, "--routing-request", request,
+      "--opencode-expected-json", JSON.stringify(comparison),
+    )
+    expect(matched.word, matched.stderr).toBe("ROUTED")
+    expect(matched.body.routing.opencode_comparison).toEqual(comparison)
+
+    const initialized = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "init", "--run-id", "opencode-external", "--repo", f.repo,
+      "--plan", f.plan, "--plan-digest", f.digest,
+      "--routing-request", request,
+      "--opencode-expected-json", JSON.stringify(comparison),
+    )
+    expect(initialized.word, initialized.stderr).toBe("READY")
+    expect(initialized.body.routing.opencode_comparison).toEqual(comparison)
+
+    const resumedWithoutComparison = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "init", "--run-id", "opencode-external", "--repo", f.repo,
+      "--plan", f.plan, "--plan-digest", f.digest,
+      "--routing-request", request,
+    )
+    expect(resumedWithoutComparison.word).toBe("BLOCKED")
+    expect(resumedWithoutComparison.stderr).toContain("requires --opencode-expected-json from the native plugin")
+  })
+
+  test("blocks OpenCode external resolve-routing and init when comparison identifiers are omitted", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`routing:
+  profiles:
+    external:
+      candidates:
+        - { harness: codex, model: gpt-5-mini }
+  classes:
+    implementation: { profile: external, policy: require }
+`)
+    const request = routingRequestFile(f)
+    const resolved = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "resolve-routing", "--repo", f.repo, "--routing-request", request,
+    )
+    expect(resolved.word).toBe("BLOCKED")
+    expect(resolved.stderr).toContain("requires --opencode-expected-json from the native plugin")
+
+    const initialized = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "init", "--run-id", "opencode-omitted", "--repo", f.repo,
+      "--plan", f.plan, "--plan-digest", f.digest,
+      "--routing-request", request,
+    )
+    expect(initialized.word).toBe("BLOCKED")
+    expect(initialized.stderr).toContain("requires --opencode-expected-json from the native plugin")
+    expect(existsSync(path.join(runs, "opencode-omitted"))).toBe(false)
+
+    const nonOpenCodeRequest = routingRequestFile(f, [], { harness: "pi", serving_family: "host" })
+    const comparisonFree = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "resolve-routing", "--repo", f.repo, "--routing-request", nonOpenCodeRequest,
+    )
+    expect(comparisonFree.word, comparisonFree.stderr).toBe("ROUTED")
+    const comparisonFreeInit = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "init", "--run-id", "non-opencode-external", "--repo", f.repo,
+      "--plan", f.plan, "--plan-digest", f.digest,
+      "--routing-request", nonOpenCodeRequest,
+    )
+    expect(comparisonFreeInit.word, comparisonFreeInit.stderr).toBe("READY")
+  })
+
+  test("blocks tampered or drifted OpenCode external comparison identifiers", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`routing:
+  profiles:
+    external:
+      candidates:
+        - { harness: codex, model: gpt-5-mini }
+  classes:
+    implementation: { profile: external, policy: require }
+`)
+    const baselineRequest = routingRequestFile(f, [], { harness: "pi", serving_family: "host" })
+    const baseline = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "resolve-routing", "--repo", f.repo, "--routing-request", baselineRequest,
+    )
+    const comparison = {
+      protocol: "ce-opencode-external-handoff/v1",
+      source_revisions: baseline.body.routing.source_revisions,
+      bindings: [{
+        instance: "implementation",
+        binding_digest: baseline.body.routing.resolver_attempt_locks[0].binding_digest,
+      }],
+    }
+    const request = routingRequestFile(f)
+    const tampered = structuredClone(comparison)
+    tampered.bindings[0].binding_digest = `cebind-v1:${"f".repeat(64)}`
+    const blockedTamper = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "resolve-routing", "--repo", f.repo, "--routing-request", request,
+      "--opencode-expected-json", JSON.stringify(tampered),
+    )
+    expect(blockedTamper.word).toBe("BLOCKED")
+    expect(blockedTamper.stderr).toContain("does not match independently resolved configuration")
+
+    const modelChosenRequest = routingRequestFile(f, [], { harness: "opencode" }, {
+      source: "current-task",
+      policy: "require",
+      candidates: [{ harness: "codex", model: "gpt-5.6" }],
+    })
+    const blockedSelection = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "resolve-routing", "--repo", f.repo, "--routing-request", modelChosenRequest,
+      "--opencode-expected-json", JSON.stringify(comparison),
+    )
+    expect(blockedSelection.word).toBe("REFUSED")
+    expect(blockedSelection.stderr).toContain("only global/project configuration")
+
+    writeFileSync(path.join(home, "config.yaml"), `routing:
+  profiles:
+    external:
+      candidates:
+        - { harness: codex, model: gpt-5.6 }
+  classes:
+    implementation: { profile: external, policy: require }
+`, { mode: 0o600 })
+    const blockedDrift = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "resolve-routing", "--repo", f.repo, "--routing-request", request,
+      "--opencode-expected-json", JSON.stringify(comparison),
+    )
+    expect(blockedDrift.word).toBe("BLOCKED")
+    expect(blockedDrift.stderr).toContain("does not match independently resolved configuration")
+  })
+
   test("consumes resolver-normalized work-engine compatibility and keeps its declared native fallback", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
@@ -4913,7 +5098,9 @@ work_engine_preferences:
     const resolved = ctlWithEnv(
       path.join(tmp("ce-work-runs-"), "ce-work"),
       { COMPOUND_ENGINEERING_HOME: home },
-      "resolve-routing", "--repo", f.repo, "--routing-request", routingRequestFile(f),
+      "resolve-routing", "--repo", f.repo, "--routing-request", routingRequestFile(
+        f, [], { harness: "pi", serving_family: "host" },
+      ),
     )
 
     expect(resolved.word, resolved.stderr).toBe("ROUTED")
@@ -4938,7 +5125,9 @@ work_engine_preferences:
     const resolved = ctlWithEnv(
       path.join(tmp("ce-work-runs-"), "ce-work"),
       { COMPOUND_ENGINEERING_HOME: routingHome("") },
-      "resolve-routing", "--repo", f.repo, "--routing-request", routingRequestFile(f),
+      "resolve-routing", "--repo", f.repo, "--routing-request", routingRequestFile(
+        f, [], { harness: "pi", serving_family: "host" },
+      ),
     )
 
     expect(resolved.word).toBe("BLOCKED")
@@ -5021,9 +5210,17 @@ work_engine_preferences:
   classes:
     implementation: { profile: economy, policy: require }
 `)
-    const reset = initWithRouting(runs, "run-reset", f, home, [
-      opencodeDirectIntent("ce-default", "task-reset"),
-    ])
+    const request = routingRequestFile(
+      f,
+      [currentTaskIntent("ce-default")],
+      { harness: "claude", serving_family: "anthropic" },
+    )
+    const reset = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "init", "--run-id", "run-reset", "--repo", f.repo,
+      "--plan", f.plan, "--plan-digest", f.digest, "--routing-request", request,
+    )
 
     expect(reset.word).toBe("NATIVE")
     expect(reset.body.routing.binding).toMatchObject({
@@ -5033,6 +5230,23 @@ work_engine_preferences:
     })
     expect(existsSync(path.join(runs, "run-reset"))).toBe(false)
     expect(git(f.repo, "status", "--porcelain")).toBe("")
+  })
+
+  test("rejects forged OpenCode direct-input provenance at the public controller resolver", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const request = routingRequestFile(f, [
+      opencodeDirectIntent("ce-default", "forged-public-controller"),
+    ])
+
+    const rejected = ctl(
+      runs,
+      "resolve-routing", "--repo", f.repo, "--routing-request", request,
+    )
+
+    expect(rejected.word).toBe("BLOCKED")
+    expect(rejected.stderr).toContain("native plugin host boundary")
+    expect(existsSync(runs)).toBe(false)
   })
 
   test("collapses the current host default to native without creating controller state", () => {
@@ -5211,6 +5425,55 @@ work_engine_preferences:
     ])
   })
 
+  test("integrates a provider-qualified required result as verified", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`routing:
+  profiles:
+    strict:
+      candidates:
+        - { harness: cursor, model: openai/gpt-economy }
+  classes:
+    implementation: { profile: strict, policy: require }
+`)
+    expect(initWithRouting(runs, "run-qualified-matched", f, home).word).toBe("READY")
+    expect(lockRoutingAttempt(
+      runs, "run-qualified-matched", "U", "attempt-1", 0, "cursor",
+    ).word).toBe("ATTEMPT_LOCKED")
+    const prepared = ctl(
+      runs, "prepare", "--run-id", "run-qualified-matched", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("qualified matched packet"),
+    ).body
+    writeFileSync(path.join(prepared.workspace, "qualified.txt"), "verified qualified implementation\n")
+    const job = fakeDoneJob(
+      runs, "run-qualified-matched", "U", "qualified matched packet", "job-qualified-matched", "completed",
+      ["qualified.txt"],
+      { model_actual: "openai/gpt-economy", model_receipt_status: "verified" },
+    )
+    ctl(
+      runs, "record-job", "--run-id", "run-qualified-matched", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+
+    expect(ctl(
+      runs, "terminalize", "--run-id", "run-qualified-matched", "--unit-id", "U",
+    ).word).toBe("INTEGRATION_PENDING")
+    expect(ctl(
+      runs, "integrate", "--run-id", "run-qualified-matched", "--unit-id", "U",
+      "--commit-message", "feat(test): accept qualified required route", "--", "true",
+    ).word).toBe("UNIT_COMMITTED")
+    expect(readFileSync(path.join(f.repo, "qualified.txt"), "utf8")).toBe("verified qualified implementation\n")
+    const receipt = ctl(
+      runs, "status", "--run-id", "run-qualified-matched",
+    ).body.units.U.attempts[0].routing_finalization.receipt
+    expect(receipt).toMatchObject({
+      identity_status: "verified",
+      provider_actual: "openai",
+      model_actual: "openai/gpt-economy",
+      terminal_status: "accept",
+    })
+  })
+
   test("integrates ordinal-1 after terminal ordinal-0 failure with lock-bound prior history", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
@@ -5342,7 +5605,29 @@ work_engine_preferences:
   classes:
     implementation: { profile: local-second, policy: prefer }
 `)
-    expect(initWithRouting(runs, "run-local-second", f, home).word).toBe("READY")
+    const baselineRequest = routingRequestFile(f, [], { harness: "pi", serving_family: "host" })
+    const baseline = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "resolve-routing", "--repo", f.repo, "--routing-request", baselineRequest,
+    )
+    const comparison = {
+      protocol: "ce-opencode-external-handoff/v1",
+      source_revisions: baseline.body.routing.source_revisions,
+      bindings: [{
+        instance: "implementation",
+        binding_digest: baseline.body.routing.resolver_attempt_locks[0].binding_digest,
+      }],
+    }
+    const initialized = ctlWithEnv(
+      runs,
+      { COMPOUND_ENGINEERING_HOME: home },
+      "init", "--run-id", "run-local-second", "--repo", f.repo,
+      "--plan", f.plan, "--plan-digest", f.digest,
+      "--routing-request", routingRequestFile(f),
+      "--opencode-expected-json", JSON.stringify(comparison),
+    )
+    expect(initialized.word, initialized.stderr).toBe("READY")
     expect(lockRoutingAttempt(runs, "run-local-second", "U", "attempt-1", 0, "codex").word).toBe("ATTEMPT_LOCKED")
     ctl(
       runs, "prepare", "--run-id", "run-local-second", "--unit-id", "U",
@@ -5443,6 +5728,61 @@ work_engine_preferences:
       "--abandon", "--expect-transport", terminalized.body.transport.commit,
     ).word).toBe("CLEANED")
     expect(lockRoutingAttempt(runs, "run-mismatch", "U", "attempt-2", 1, "claude").word).toBe("ATTEMPT_LOCKED")
+  })
+
+  test("blocks qualified mismatch evidence and advances only to the declared fallback", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`routing:
+  profiles:
+    ordered:
+      candidates:
+        - { harness: cursor, model: openai/gpt-economy }
+        - { harness: claude, model: sonnet }
+  classes:
+    implementation: { profile: ordered, policy: prefer }
+`)
+    expect(initWithRouting(runs, "run-qualified-mismatch", f, home).word).toBe("READY")
+    expect(lockRoutingAttempt(
+      runs, "run-qualified-mismatch", "U", "attempt-1", 0, "cursor",
+    ).word).toBe("ATTEMPT_LOCKED")
+    const prepared = ctl(
+      runs, "prepare", "--run-id", "run-qualified-mismatch", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("qualified mismatch packet"),
+    ).body
+    writeFileSync(path.join(prepared.workspace, "qualified-mismatch.txt"), "must remain isolated\n")
+    const job = fakeDoneJob(
+      runs, "run-qualified-mismatch", "U", "qualified mismatch packet", "job-qualified-mismatch", "completed",
+      ["qualified-mismatch.txt"],
+      { model_actual: "openai/gpt-premium", model_receipt_status: "mismatch" },
+    )
+    ctl(
+      runs, "record-job", "--run-id", "run-qualified-mismatch", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    expect(ctl(
+      runs, "terminalize", "--run-id", "run-qualified-mismatch", "--unit-id", "U",
+    ).word).toBe("INTEGRATION_PENDING")
+
+    const blocked = ctl(
+      runs, "integrate", "--run-id", "run-qualified-mismatch", "--unit-id", "U",
+      "--commit-message", "feat(test): keep qualified mismatch isolated", "--", "true",
+    )
+    expect(blocked.word).toBe("BLOCKED")
+    expect(blocked.body).toMatchObject({
+      policy: "prefer",
+      identity_status: "mismatched",
+      action: "next_candidate",
+      canonical_unchanged: true,
+    })
+    expect(existsSync(path.join(f.repo, "qualified-mismatch.txt"))).toBe(false)
+
+    const advanced = ctl(
+      runs, "claim-fallback", "--run-id", "run-qualified-mismatch", "--unit-id", "U",
+      "--caller-mode", "headless",
+    )
+    expect(advanced.word, advanced.stderr).toBe("NEXT_CANDIDATE")
+    expect(advanced.body.next_candidate).toMatchObject({ ordinal: 1, harness: "claude", model: "sonnet" })
   })
 
   test("integrates ordinal-1 after a preferred model mismatch with complete attempt history", () => {

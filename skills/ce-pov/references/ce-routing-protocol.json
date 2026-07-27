@@ -2,6 +2,13 @@
   "version": 1,
   "protocol": "ce-routing/v1",
   "operations": ["inspect", "resolve_batch", "finalize_attempt", "patch_source"],
+  "native_host_wrapper": {
+    "entrypoint": ".opencode/plugins/ce-routing-host.py",
+    "operation": "opencode_host",
+    "actions": ["resolve_batch", "finalize_attempt"],
+    "public_cli_exposed": false,
+    "snapshot_publicly_reusable": false
+  },
   "attempt_lock_protocol": "ce-routing-attempt-lock/v1",
   "config_replace_protocol": "ce-config-replace/v1",
   "config_replace_recovery": "exclusive-source-lock-old-or-provably-installed-new",
@@ -11,11 +18,15 @@
   "snapshot_auth_storage": "effective-user-private-state",
   "opencode_adapter_protocol": "ce-opencode-task-adapter/v1",
   "opencode_intent_protocol": "ce-routing-intent/v1",
-  "opencode_intent_authority": "host-captured-direct-top-level-user-or-command-input",
+  "opencode_intent_authority": "native-plugin-in-process-direct-top-level-user-or-command-input-only",
   "opencode_intent_fields": ["role|class", "binding", "source", "provenance"],
-  "opencode_handle_binding": ["session", "role", "candidate_ordinal"],
+  "opencode_handle_binding": ["session", "role", "instance"],
+  "opencode_external_comparison_protocol": "ce-opencode-external-handoff/v1",
+  "opencode_external_comparison_fields": ["source_revisions", "bindings"],
+  "opencode_external_comparison_requirement": "required-when-public-request-host-is-opencode-and-first-candidate-is-external",
   "opencode_tested_sdk_version": "1.18.3",
-  "opencode_capability_preflight": ["session.get", "app.agents", "config.get", "model.list", "session.create", "session.prompt"],
+  "opencode_capability_preflight": ["session.get", "app.agents", "config.get", "model.list", "session.create", "session.prompt", "session.abort", "session.status"],
+  "opencode_prompt_reference_capability": "native-resolvePromptParts-not-public-in-sdk-1.18.3",
   "adapter_outcomes": ["ok", "unavailable", "failed"],
   "task_binding_fields": {
     "profile": ["profile", "policy"],
@@ -29,6 +40,10 @@
     "report",
     "prior_attempts"
   ],
+  "attempt_state_fields": ["ordinal", "terminal", "integrated", "phase", "retry_safety"],
+  "attempt_phase_values": ["preflight", "dispatched"],
+  "attempt_retry_safety_values": ["none", "adapter-isolated", "owner-discarded"],
+  "serving_report_fields": ["provider_selected", "model_selected", "variant_selected", "provider_actual", "model_actual", "variant_actual", "effort_actual"],
   "receipt_fields": [
     "snapshot_id",
     "binding_digest",

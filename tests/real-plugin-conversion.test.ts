@@ -320,6 +320,7 @@ for (const pluginName of PLUGIN_NAMES) {
       await plugin.config(config)
       expect(config.skills.paths).toContain(path.join(repoRoot, "skills"))
       expect(existsSync(path.join(repoRoot, ".opencode", "plugins", "ce-routing-adapter.js"))).toBe(true)
+      expect(existsSync(path.join(repoRoot, ".opencode", "plugins", "ce-routing-host.py"))).toBe(true)
       expect(existsSync(path.join(repoRoot, "skills", "ce-work", "scripts", "ce-routing.py"))).toBe(true)
     })
 

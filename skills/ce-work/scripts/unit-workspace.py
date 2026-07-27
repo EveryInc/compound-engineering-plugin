@@ -52,6 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--binding-json", default="{}")
     p.add_argument("--egress-json", default="{}")
     p.add_argument("--routing-request")
+    p.add_argument("--opencode-expected-json")
 
     p = sub.add_parser("checkpoint-plan")
     p.add_argument("--run-id", required=True)
@@ -59,6 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("resolve-routing")
     p.add_argument("--repo", required=True)
     p.add_argument("--routing-request", required=True)
+    p.add_argument("--opencode-expected-json")
 
     p = sub.add_parser("lock-attempt")
     p.add_argument("--run-id", required=True)

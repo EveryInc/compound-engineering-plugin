@@ -101,6 +101,9 @@ describe("opencode plugin skill commands", () => {
     await plugin.event?.({
       event: { type: "session.deleted", properties: { info: { id: "deleted-session" } } },
     })
+    await plugin.event?.({
+      event: { type: "session.idle", properties: { sessionID: "idle-session" } },
+    })
   })
 
   // Guards the frontmatter-scoped parse: a whole-file `name:` match could pick up

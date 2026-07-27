@@ -1936,6 +1936,8 @@ def resolver_finalize(document: dict, attempt: dict, report: dict) -> tuple[dict
             "ordinal": attempt["candidate_ordinal"],
             "terminal": attempt["state"] == "terminal",
             "integrated": attempt["integrated"],
+            "phase": "dispatched",
+            "retry_safety": "adapter-isolated",
         },
         "outcome": attempt["adapter_outcome"],
         "report": report,

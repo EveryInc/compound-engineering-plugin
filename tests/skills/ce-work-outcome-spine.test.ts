@@ -104,6 +104,19 @@ describe("ce-work native characterization", () => {
     expect(engineGate).toContain("**After a parallel inline/subagent batch")
   })
 
+  test("keeps OpenCode external routes on CE Work's durable adapter", async () => {
+    const skill = await readRepoFile("skills/ce-work/SKILL.md")
+    const engineGate = sliceSection(skill, "4. **Choose Execution Engine, then Strategy**", "### Phase 2: Execute")
+
+    expect(engineGate).toContain("typed `native` or `opencode` result")
+    expect(engineGate).toContain("typed `external` result selects the existing durable controller path")
+    expect(engineGate).toContain("do not call generic `ce_task`")
+    expect(engineGate).toContain("Comparison identifiers grant no routing authority; mismatch blocks")
+    expect(engineGate).toContain("MIXED_ADAPTER_CONTINUATION_UNSUPPORTED")
+    expect(engineGate).toContain("can never dispatch externally")
+    expect(engineGate).toContain("Lost handles cannot be rehydrated")
+  })
+
   test("preserves standalone shipping and return-to-caller tail ownership", async () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
     const standalone = sliceSection(skill, "### Phase 3-4: Quality Check and Finishing Work", "## Return-to-Caller Mode")

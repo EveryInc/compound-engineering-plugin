@@ -27,10 +27,12 @@ CATALOG_TOKEN = re.compile(r"^[a-z0-9][a-z0-9.-]{0,127}$")
 CONFIG_REVISION = re.compile(r"^cecfg-v1:(?:absent|[0-9a-f]{64})$")
 SNAPSHOT_ID = re.compile(r"^cesnap-v1:[0-9a-f]{64}$")
 SNAPSHOT_MAC = re.compile(r"^[0-9a-f]{64}$")
+SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 FALLBACK_TOKEN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 MAX_ATTEMPT_HISTORY = 128
 ATTEMPT_LOCK_PROTOCOL = "ce-routing-attempt-lock/v1"
 SNAPSHOT_AUTH_PROTOCOL = "ce-routing-snapshot-auth/v1"
+OPENCODE_HOST_BOUNDARY = "native-plugin-wrapper/v1"
 CONFIG_REPLACE_PROTOCOL = "ce-config-replace/v1"
 SNAPSHOT_LIFETIME_SECONDS = 7 * 24 * 60 * 60
 SNAPSHOT_CLOCK_SKEW_SECONDS = 5 * 60
@@ -1367,28 +1369,47 @@ def bind_from_layer(value, source_layer, role, class_name, routing_state, bindin
 
 
 def validate_opencode_intent_authority(intent):
-    provenance = intent.get("provenance")
-    fields = {"protocol", "session_id", "message_id", "carrier_digest"}
+    raise RoutingError(
+        "AUTHORITY_UNTRUSTED",
+        "OpenCode direct-input routing is authoritative only inside the native plugin host boundary",
+        exit_code=4,
+    )
+
+
+def validate_private_opencode_intent(intent, session_id, schema, roles):
+    target = "role" if isinstance(intent, dict) and "role" in intent else "class"
     if (
-        intent.get("source") != "opencode-direct-input"
-        or not isinstance(provenance, dict)
-        or set(provenance) != fields
-        or provenance.get("protocol") != "ce-routing-intent/v1"
-        or not isinstance(provenance.get("session_id"), str)
-        or not MODEL_TOKEN.fullmatch(provenance["session_id"])
-        or not isinstance(provenance.get("message_id"), str)
-        or not MODEL_TOKEN.fullmatch(provenance["message_id"])
-        or not isinstance(provenance.get("carrier_digest"), str)
-        or not SNAPSHOT_MAC.fullmatch(provenance["carrier_digest"])
+        not isinstance(intent, dict)
+        or set(intent) != {target, "binding", "source", "provenance"}
+        or target not in ("role", "class")
+        or not isinstance(intent.get(target), str)
+        or intent.get("source") != "opencode-direct-input"
     ):
-        raise RoutingError(
-            "AUTHORITY_UNTRUSTED",
-            "OpenCode task routing requires a host-captured direct-input carrier",
-            exit_code=4,
-        )
+        raise RoutingError("REQUEST_INVALID", "OpenCode host intent is malformed", exit_code=2)
+    provenance = intent.get("provenance")
+    if (
+        not isinstance(session_id, str)
+        or not session_id
+        or not isinstance(provenance, dict)
+        or set(provenance) != {"protocol", "session_id", "message_id", "carrier_digest"}
+        or provenance.get("protocol") != "ce-routing-intent/v1"
+        or provenance.get("session_id") != session_id
+        or not isinstance(provenance.get("message_id"), str)
+        or not provenance["message_id"]
+        or not isinstance(provenance.get("carrier_digest"), str)
+        or not SHA256_HEX.fullmatch(provenance["carrier_digest"])
+    ):
+        raise RoutingError("REQUEST_INVALID", "OpenCode host intent provenance is malformed", exit_code=2)
+    if (
+        target == "role" and intent[target] not in roles["roles"]
+        or target == "class" and intent[target] not in roles["classes"]
+    ):
+        raise RoutingError("REQUEST_INVALID", "OpenCode host intent target is unknown", exit_code=2)
+    validate_intent_binding(intent["binding"], schema)
+    return copy.deepcopy(intent)
 
 
-def intent_binding(intents, role, class_name, schema, host):
+def intent_binding(intents, role, class_name, schema, host, allow_opencode_intent=False):
     matched = []
     for intent in intents:
         if not isinstance(intent, dict):
@@ -1399,7 +1420,7 @@ def intent_binding(intents, role, class_name, schema, host):
             continue
         if "binding" not in intent:
             raise RoutingError("REQUEST_INVALID", "matching routing intent lacks binding", exit_code=2)
-        if isinstance(host, dict) and host.get("harness") == "opencode":
+        if isinstance(host, dict) and host.get("harness") == "opencode" and not allow_opencode_intent:
             validate_opencode_intent_authority(intent)
         matched.append(intent)
     if len(matched) > 1:
@@ -1439,7 +1460,16 @@ def resolved_role(role, class_name, instance, binding, compatibility, reason):
     return result
 
 
-def resolve_role(role_request, intents, routing_state, compatibility_state, host, roles, schema):
+def resolve_role(
+    role_request,
+    intents,
+    routing_state,
+    compatibility_state,
+    host,
+    roles,
+    schema,
+    allow_opencode_intent=False,
+):
     role_request = normalize_role_request(role_request)
     role = role_request["role"]
     instance = role_request["instance"]
@@ -1450,7 +1480,7 @@ def resolve_role(role_request, intents, routing_state, compatibility_state, host
     if class_name not in roles["classes"]:
         raise RoutingError("ROLE_UNCLASSIFIED", "dispatch role lacks a valid class", exit_code=4, role=role)
     compatibility = compatibility_metadata(role, compatibility_state)
-    task = intent_binding(intents, role, class_name, schema, host)
+    task = intent_binding(intents, role, class_name, schema, host, allow_opencode_intent)
     if task is not None:
         binding, source_name = task
         resolved = bind_from_layer(
@@ -1857,7 +1887,11 @@ def make_snapshot(
         role_requests,
         parent_snapshot_id,
     )
-    return authenticate_snapshot({"id": digest("cesnap-v1", payload), **payload})
+    snapshot = {"id": digest("cesnap-v1", payload), **payload}
+    host = context.get("host") if isinstance(context, dict) else None
+    if isinstance(host, dict) and host.get("boundary") == OPENCODE_HOST_BOUNDARY:
+        return snapshot
+    return authenticate_snapshot(snapshot)
 
 
 def validate_snapshot_routing(value, source_revisions, schema, roles):
@@ -1932,7 +1966,7 @@ def validate_snapshot_routing(value, source_revisions, schema, roles):
     }
 
 
-def validate_parent_snapshot(value, schema, roles):
+def validate_parent_snapshot(value, schema, roles, allow_opencode_intent=False):
     fields = {
         "id",
         "protocol",
@@ -1950,7 +1984,13 @@ def validate_parent_snapshot(value, schema, roles):
         raise RoutingError("CONTEXT_STALE", "parent snapshot protocol does not match", exit_code=4)
     if not isinstance(value["id"], str) or not SNAPSHOT_ID.fullmatch(value["id"]):
         raise RoutingError("CONTEXT_STALE", "parent snapshot ID is malformed", exit_code=4)
-    validate_snapshot_auth(value)
+    raw_context = value.get("context")
+    raw_host = raw_context.get("host") if isinstance(raw_context, dict) else None
+    host_private = isinstance(raw_host, dict) and raw_host.get("boundary") == OPENCODE_HOST_BOUNDARY
+    if host_private and not allow_opencode_intent:
+        raise RoutingError("CONTEXT_STALE", "native OpenCode host snapshots are not public resolver inputs", exit_code=4)
+    if not host_private:
+        validate_snapshot_auth(value)
     parent_id = value["parent_snapshot_id"]
     if parent_id is not None and (not isinstance(parent_id, str) or not SNAPSHOT_ID.fullmatch(parent_id)):
         raise RoutingError("CONTEXT_STALE", "parent snapshot lineage is malformed", exit_code=4)
@@ -1984,7 +2024,16 @@ def validate_parent_snapshot(value, schema, roles):
     try:
         normalized_roles = [normalize_role_request(item) for item in role_requests]
         for item in normalized_roles:
-            resolve_role(item, intents, routing_state, compatibility, context["host"], roles, schema)
+            resolve_role(
+                item,
+                intents,
+                routing_state,
+                compatibility,
+                context["host"],
+                roles,
+                schema,
+                allow_opencode_intent,
+            )
     except RoutingError as exc:
         raise RoutingError("CONTEXT_STALE", "parent snapshot role resolution is invalid", exit_code=4) from exc
     normalized_payload = snapshot_payload(
@@ -2012,7 +2061,7 @@ def request_cwd(request):
 def valid_host_context(value):
     return isinstance(value, dict) and all(
         field not in value or isinstance(value[field], str)
-        for field in ("harness", "serving_family")
+        for field in ("harness", "serving_family", "boundary")
     )
 
 
@@ -2074,7 +2123,7 @@ def frozen_settings(routing_state, compatibility):
     return {"effective": effective, "provenance": provenance, "authority": {}}
 
 
-def resolve_batch_op(request, schema, roles):
+def resolve_batch_op(request, schema, roles, allow_opencode_intent=False):
     role_requests = request.get("roles")
     if not isinstance(role_requests, list) or not role_requests:
         raise RoutingError("REQUEST_INVALID", "resolve_batch requires intents and a non-empty roles list", exit_code=2)
@@ -2090,7 +2139,7 @@ def resolve_batch_op(request, schema, roles):
         )
 
     if parent_value is not None:
-        parent = validate_parent_snapshot(parent_value, schema, roles)
+        parent = validate_parent_snapshot(parent_value, schema, roles, allow_opencode_intent)
         if requested_parent_id is not None and requested_parent_id != parent["id"]:
             raise RoutingError("CONTEXT_STALE", "parent snapshot ID does not match the envelope", exit_code=4)
         if cwd != parent["context"]["cwd"]:
@@ -2113,6 +2162,7 @@ def resolve_batch_op(request, schema, roles):
                 parent["context"]["host"],
                 roles,
                 schema,
+                allow_opencode_intent,
             )
             for item in role_requests
         ]
@@ -2155,6 +2205,12 @@ def resolve_batch_op(request, schema, roles):
             "resolve_batch host must be an object with string harness and serving_family fields",
             exit_code=2,
         )
+    if (
+        not allow_opencode_intent
+        and isinstance(host, dict)
+        and host.get("boundary") == OPENCODE_HOST_BOUNDARY
+    ):
+        raise RoutingError("REQUEST_INVALID", "native OpenCode host context is not a public resolver input", exit_code=2)
     state = base_state(request, schema, roles)
     resolutions = [
         resolve_role(
@@ -2165,6 +2221,7 @@ def resolve_batch_op(request, schema, roles):
             host,
             roles,
             schema,
+            allow_opencode_intent,
         )
         for item in role_requests
     ]
@@ -2205,6 +2262,23 @@ def identity_status(candidate, report):
     actual_provider = report.get("provider_actual")
     actual_model = report.get("model_actual")
     actual_effort = report.get("effort_actual")
+    selected_provider = report.get("provider_selected")
+    selected_model = report.get("model_selected")
+    selected_variant = report.get("variant_selected")
+    if selected_model is not None:
+        if requested_model is not None:
+            requested_parts = requested_model.split("/", 1)
+            if len(requested_parts) == 2:
+                if selected_provider is None or requested_parts[0].lower() != selected_provider.lower() or requested_parts[1].lower() != selected_model.lower():
+                    return "mismatched"
+            elif requested_model.lower() != selected_model.lower():
+                return "mismatched"
+        if selected_provider is None or actual_provider is None or actual_model is None:
+            return "unverified"
+        if selected_provider.lower() != actual_provider.lower() or selected_model.lower() != actual_model.lower():
+            return "mismatched"
+        if selected_variant is not None and (actual_effort is None or selected_variant.lower() != str(actual_effort).lower()):
+            return "mismatched" if actual_effort is not None else "unverified"
     if requested_model is not None and "/" in requested_model and actual_model is not None and actual_provider is None:
         return "unverified"
     if requested_model is not None and actual_model is not None:
@@ -2223,10 +2297,21 @@ def identity_status(candidate, report):
 
 
 def validate_serving_report(value):
-    fields = {"provider_actual", "model_actual", "variant_actual", "effort_actual"}
+    fields = {
+        "provider_selected",
+        "model_selected",
+        "variant_selected",
+        "provider_actual",
+        "model_actual",
+        "variant_actual",
+        "effort_actual",
+    }
     if not isinstance(value, dict) or set(value) - fields:
         raise RoutingError("REQUEST_INVALID", "finalize_attempt report fields are invalid", exit_code=2)
     for field, pattern in (
+        ("provider_selected", MODEL_TOKEN),
+        ("model_selected", MODEL_TOKEN),
+        ("variant_selected", EFFORT_TOKEN),
         ("provider_actual", MODEL_TOKEN),
         ("model_actual", MODEL_TOKEN),
         ("variant_actual", EFFORT_TOKEN),
@@ -2239,14 +2324,14 @@ def validate_serving_report(value):
     return copy.deepcopy(value)
 
 
-def validate_finalize_lock(request, schema, roles):
+def validate_finalize_lock(request, schema, roles, allow_opencode_intent=False):
     if "binding" in request:
         raise RoutingError(
             "REQUEST_INVALID",
             "finalize_attempt derives its binding from the frozen snapshot",
             exit_code=2,
         )
-    snapshot = validate_parent_snapshot(request.get("snapshot"), schema, roles)
+    snapshot = validate_parent_snapshot(request.get("snapshot"), schema, roles, allow_opencode_intent)
     cwd = request.get("cwd")
     if cwd is not None and (
         not isinstance(cwd, str)
@@ -2287,6 +2372,7 @@ def validate_finalize_lock(request, schema, roles):
         snapshot["context"]["host"],
         roles,
         schema,
+        allow_opencode_intent,
     )
     ordinal = lock["candidate_ordinal"]
     candidates = resolution["binding"].get("candidates")
@@ -2318,6 +2404,8 @@ def validate_prior_attempts(value, ordinal, attempt_locks):
         "identity_status",
         "terminal",
         "integrated",
+        "phase",
+        "retry_safety",
         "fallback_reason",
         "terminal_status",
         "attempt_lock_digest",
@@ -2332,6 +2420,10 @@ def validate_prior_attempts(value, ordinal, attempt_locks):
             raise RoutingError("REQUEST_INVALID", "prior attempt booleans must be true or false", exit_code=2)
         if not item["terminal"] or item["integrated"] or item["terminal_status"] != "next_candidate":
             raise RoutingError("REQUEST_INVALID", "prior attempt history is not retry-safe", exit_code=2)
+        phase = item["phase"]
+        retry_safety = item["retry_safety"]
+        if phase not in ("preflight", "dispatched") or retry_safety not in ("none", "adapter-isolated", "owner-discarded"):
+            raise RoutingError("REQUEST_INVALID", "prior attempt retry evidence is invalid", exit_code=2)
         outcome = item["outcome"]
         expected = {
             "ok": ("mismatched", "identity_mismatch"),
@@ -2340,6 +2432,11 @@ def validate_prior_attempts(value, ordinal, attempt_locks):
         }.get(outcome)
         if expected is None or item["identity_status"] != expected[0]:
             raise RoutingError("REQUEST_INVALID", "prior attempt outcome or identity status is invalid", exit_code=2)
+        if not (
+            phase == "preflight" and outcome == "unavailable"
+            or phase == "dispatched" and retry_safety in ("adapter-isolated", "owner-discarded")
+        ):
+            raise RoutingError("REQUEST_INVALID", "prior attempt lacks adapter-owned retry proof", exit_code=2)
         reason = item["fallback_reason"]
         if not isinstance(reason, str) or not FALLBACK_TOKEN.fullmatch(reason) or reason != expected[1]:
             raise RoutingError("REQUEST_INVALID", "prior attempt fallback reason is invalid", exit_code=2)
@@ -2371,6 +2468,8 @@ def receipt(snapshot, resolution, lock, candidate, outcome, report, status, acti
         "identity_status": status,
         "terminal": attempt["terminal"],
         "integrated": attempt["integrated"],
+        "phase": attempt["phase"],
+        "retry_safety": attempt["retry_safety"],
         "fallback_reason": current_fallback,
         "terminal_status": action,
         "attempt_lock_digest": lock["lock_digest"],
@@ -2407,15 +2506,20 @@ def receipt(snapshot, resolution, lock, candidate, outcome, report, status, acti
     }
 
 
-def finalize_attempt_op(request, schema, roles):
+def finalize_attempt_op(request, schema, roles, allow_opencode_intent=False):
     attempt = request.get("attempt")
     outcome = request.get("outcome")
-    if not isinstance(attempt, dict) or set(attempt) != {"ordinal", "terminal", "integrated"}:
+    if not isinstance(attempt, dict) or set(attempt) != {"ordinal", "terminal", "integrated", "phase", "retry_safety"}:
         raise RoutingError("REQUEST_INVALID", "finalize_attempt requires exact attempt and report objects", exit_code=2)
     report = validate_serving_report(request.get("report", {}))
     if outcome not in ADAPTER_OUTCOMES:
         raise RoutingError("REQUEST_INVALID", "finalize_attempt outcome must be ok, unavailable, or failed", exit_code=2)
-    snapshot, resolution, candidate, lock = validate_finalize_lock(request, schema, roles)
+    snapshot, resolution, candidate, lock = validate_finalize_lock(
+        request,
+        schema,
+        roles,
+        allow_opencode_intent,
+    )
     binding = resolution["binding"]
     candidates = binding.get("candidates")
     ordinal = attempt.get("ordinal")
@@ -2427,6 +2531,10 @@ def finalize_attempt_op(request, schema, roles):
         raise RoutingError("REQUEST_INVALID", "attempt terminal and integrated must be booleans", exit_code=2)
     if not terminal or integrated:
         raise RoutingError("RETRY_UNSAFE", "cannot finalize an in-flight or integrated attempt", exit_code=4)
+    phase = attempt.get("phase")
+    retry_safety = attempt.get("retry_safety")
+    if phase not in ("preflight", "dispatched") or retry_safety not in ("none", "adapter-isolated", "owner-discarded"):
+        raise RoutingError("REQUEST_INVALID", "attempt phase or retry safety is invalid", exit_code=2)
     attempt_locks = [
         make_attempt_lock(snapshot, resolution, lock["resolution_ordinal"], item)
         for item in candidates
@@ -2449,6 +2557,13 @@ def finalize_attempt_op(request, schema, roles):
             action = "next_candidate" if ordinal + 1 < len(candidates) else "block"
         else:
             action = "accept"
+    retry_safe = (
+        phase == "preflight" and outcome == "unavailable"
+        or phase == "dispatched" and retry_safety in ("adapter-isolated", "owner-discarded")
+    )
+    retry_unsafe = action == "next_candidate" and not retry_safe
+    if retry_unsafe:
+        action = "block"
     result = {
         "ok": action != "block",
         "protocol": PROTOCOL,
@@ -2471,7 +2586,7 @@ def finalize_attempt_op(request, schema, roles):
         result["next_candidate"] = candidates[ordinal + 1]
         result["next_attempt_lock"] = attempt_locks[ordinal + 1]
     if action == "block":
-        error_code = {
+        error_code = "RETRY_UNSAFE" if retry_unsafe else {
             "mismatched": "IDENTITY_MISMATCH",
             "unverified": "IDENTITY_REQUIRED",
             "unavailable": "ROUTE_UNAVAILABLE",
@@ -3505,6 +3620,52 @@ def parse_request(limit, request_file):
     if request.get("protocol") != PROTOCOL:
         raise RoutingError("PROTOCOL_UNSUPPORTED", "unsupported routing protocol", exit_code=2)
     return request
+
+
+def opencode_host_op(request, schema, roles):
+    action = request.get("action")
+    if action == "resolve_batch":
+        if "intents" in request:
+            raise RoutingError("REQUEST_INVALID", "OpenCode host resolution accepts only its private intent field", exit_code=2)
+        current = copy.deepcopy(request)
+        current["op"] = "resolve_batch"
+        current.pop("action", None)
+        session_id = current.pop("session_id", None)
+        intent = current.pop("intent", None)
+        parent = current.get("parent_snapshot")
+        host = current.get("host") if parent is None else parent.get("context", {}).get("host") if isinstance(parent, dict) else None
+        if not isinstance(host, dict) or host.get("harness") != "opencode":
+            raise RoutingError("REQUEST_INVALID", "OpenCode host resolution requires OpenCode host context", exit_code=2)
+        if parent is None:
+            host = copy.deepcopy(host)
+            host["boundary"] = OPENCODE_HOST_BOUNDARY
+            current["host"] = host
+        elif host.get("boundary") != OPENCODE_HOST_BOUNDARY:
+            raise RoutingError("CONTEXT_STALE", "OpenCode host parent snapshot has the wrong boundary", exit_code=4)
+        if parent is None and (not isinstance(session_id, str) or not session_id):
+            raise RoutingError("REQUEST_INVALID", "OpenCode host resolution requires a session ID", exit_code=2)
+        if parent is not None and intent is not None:
+            raise RoutingError("CONTEXT_STALE", "OpenCode child resolution inherits intent from its parent snapshot", exit_code=4)
+        if intent is not None:
+            current["intents"] = [validate_private_opencode_intent(intent, session_id, schema, roles)]
+        elif parent is None:
+            current["intents"] = []
+        response, exit_code = resolve_batch_op(current, schema, roles, allow_opencode_intent=True)
+        response["op"] = "opencode_host"
+        response["action"] = "resolve_batch"
+        return response, exit_code
+    if action == "finalize_attempt":
+        current = copy.deepcopy(request)
+        current["op"] = "finalize_attempt"
+        current.pop("action", None)
+        snapshot = current.get("snapshot")
+        host = snapshot.get("context", {}).get("host") if isinstance(snapshot, dict) else None
+        if not isinstance(host, dict) or host.get("harness") != "opencode":
+            raise RoutingError("REQUEST_INVALID", "OpenCode host finalization requires an OpenCode snapshot", exit_code=2)
+        response, exit_code = finalize_attempt_op(current, schema, roles, allow_opencode_intent=True)
+        response["op"] = "opencode_host"
+        return response, exit_code
+    raise RoutingError("REQUEST_INVALID", "OpenCode host operation action is invalid", exit_code=2)
 
 
 def execute(request, schema, roles, consumer):

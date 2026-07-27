@@ -79,7 +79,14 @@ function finalizeRequest(
     op: "finalize_attempt",
     snapshot: resolved.body.snapshot,
     attempt_lock: resolved.body.resolutions[0].attempt_locks[0],
-    attempt,
+    attempt: {
+      ordinal: 0,
+      terminal: true,
+      integrated: false,
+      phase: "dispatched",
+      retry_safety: "adapter-isolated",
+      ...attempt,
+    },
     outcome,
     report,
   }

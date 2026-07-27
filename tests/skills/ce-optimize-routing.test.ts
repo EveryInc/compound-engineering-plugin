@@ -4,6 +4,7 @@ import path from "node:path"
 import { describe, expect, test } from "bun:test"
 
 const ROOT = path.join(import.meta.dir, "../..")
+const SKILL_PATH = path.join(ROOT, "skills/ce-optimize/SKILL.md")
 const SCHEMA_PATH = path.join(ROOT, "skills/ce-optimize/references/optimize-spec-schema.yaml")
 const LOG_SCHEMA_PATH = path.join(ROOT, "skills/ce-optimize/references/experiment-log-schema.yaml")
 const RESOLVER = path.join(ROOT, "skills/ce-optimize/scripts/ce-routing.py")
@@ -71,7 +72,7 @@ function finalizeRequest(
   resolved: Awaited<ReturnType<typeof runResolver>>,
   ordinal: number,
   report: Record<string, unknown>,
-  attempt: Record<string, unknown> = { ordinal, terminal: true, integrated: false },
+  attempt: Record<string, unknown> = {},
   priorAttempts?: Record<string, unknown>[],
 ) {
   return {
@@ -79,7 +80,14 @@ function finalizeRequest(
     op: "finalize_attempt",
     snapshot: resolved.body.snapshot,
     attempt_lock: resolved.body.resolutions[0].attempt_locks[ordinal],
-    attempt,
+    attempt: {
+      ordinal,
+      terminal: true,
+      integrated: false,
+      phase: "dispatched",
+      retry_safety: "adapter-isolated",
+      ...attempt,
+    },
     outcome: "ok",
     report,
     ...(priorAttempts === undefined ? {} : { prior_attempts: priorAttempts }),
@@ -87,6 +95,12 @@ function finalizeRequest(
 }
 
 describe("ce-optimize routing", () => {
+  test("CE-default worktree instructions preserve legacy no-routing behavior", async () => {
+    const skill = await readFile(SKILL_PATH, "utf8")
+
+    expect(skill).toContain('"optimize/<spec_name>" --legacy-no-routing <shared_files...>)  # CE-default binding')
+  })
+
   test("resolves weaker authors and stronger judges independently from one snapshot", async () => {
     const f = await fixture()
     try {

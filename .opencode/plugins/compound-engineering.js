@@ -14,6 +14,15 @@ import {
 const pluginDir = path.dirname(fileURLToPath(import.meta.url))
 const skillsDir = path.resolve(pluginDir, "../../skills")
 
+function loadRoutingCatalog() {
+  try {
+    const catalog = JSON.parse(fs.readFileSync(path.join(skillsDir, "ce-work", "references", "dispatch-roles.json"), "utf8"))
+    return { roles: Object.keys(catalog.roles ?? {}), classes: catalog.classes ?? [] }
+  } catch {
+    return { roles: [], classes: [] }
+  }
+}
+
 function unquote(value) {
   if (value.length < 2) return value
   const quote = value[0]
@@ -83,12 +92,12 @@ async function compoundEngineeringPlugin(input = {}, createClient) {
   if (!input.serverUrl) return hooks
 
   const client = createClient({ baseUrl: input.serverUrl.href, directory: input.directory })
-  const intents = createOpenCodeIntentStore()
+  const intents = createOpenCodeIntentStore(loadRoutingCatalog())
   const host = createOpenCodeSdkHost(client)
   const adapter = createOpenCodeRoutingAdapter({
     host,
     intents,
-    resolver: createOpenCodeResolver({ skillsDir }),
+    resolver: createOpenCodeResolver({}),
   })
 
   hooks["chat.message"] = async ({ sessionID, messageID }, output) => {
@@ -102,6 +111,7 @@ async function compoundEngineeringPlugin(input = {}, createClient) {
       direct: !session.parentID,
       synthetic: part.synthetic === true,
       parentID: session.parentID,
+      origin: "message",
     })
     part.text = captured.text
   }
@@ -114,6 +124,7 @@ async function compoundEngineeringPlugin(input = {}, createClient) {
       direct: !session.parentID,
       synthetic: false,
       parentID: session.parentID,
+      origin: "command",
     })
     if (captured.text === rawArguments) return
     for (const part of output.parts) {
@@ -121,15 +132,56 @@ async function compoundEngineeringPlugin(input = {}, createClient) {
         part.text = part.text.replace(rawArguments, captured.text)
       }
     }
+    const commandText = output.parts.find((part) => part.type === "text" && typeof part.text === "string")
+    if (commandText) intents.armCommand(sessionID, commandText.text)
   }
   hooks.event = async ({ event }) => {
-    if (event.type === "session.deleted") adapter.releaseSession(event.properties.info.id)
+    const sessionID = event.properties?.info?.id ?? event.properties?.sessionID
+    if (typeof sessionID !== "string") return
+    if (event.type === "session.deleted") {
+      adapter.noteSessionDeleted(sessionID)
+      await adapter.releaseDeletedSession(sessionID)
+    }
+    if (event.type === "session.idle") await adapter.releaseCompletedSession(sessionID)
   }
   hooks.tool = {
+    ce_task_prepare: tool({
+      description: "Freeze one already-selected Compound Engineering OpenCode worker wave and return an opaque host handle.",
+      args: {
+        role: tool.schema.string().describe("Stable CE dispatch role shared by the selected wave"),
+        instances: tool.schema.array(tool.schema.string()).min(1).describe("Stable selected worker instance IDs"),
+      },
+      async execute(args, context) {
+        const prepared = await adapter.prepare({
+          sessionID: context.sessionID,
+          directory: context.directory,
+          role: args.role,
+          instances: args.instances,
+          signal: context.abort,
+        })
+        return {
+          title: `CE prepared wave: ${args.role}`,
+          output: JSON.stringify({
+            kind: prepared.kind,
+            routing_handle: prepared.handle,
+            instances: prepared.instances,
+            ...(prepared.comparison ? { external_comparison: prepared.comparison } : {}),
+          }),
+          metadata: {
+            kind: prepared.kind,
+            routing_handle: prepared.handle,
+            instances: prepared.instances,
+            ...(prepared.comparison ? { external_comparison: prepared.comparison } : {}),
+          },
+        }
+      },
+    }),
     ce_task: tool({
       description: "Run one already-selected Compound Engineering generic subagent through the OpenCode routing boundary.",
       args: {
         role: tool.schema.string().describe("Stable CE dispatch role"),
+        instance: tool.schema.string().optional().describe("Stable selected worker instance ID"),
+        routing_handle: tool.schema.string().optional().describe("Opaque handle returned by ce_task_prepare"),
         description: tool.schema.string().describe("Existing task description"),
         prompt: tool.schema.string().describe("Unchanged CE worker prompt"),
       },
@@ -137,10 +189,14 @@ async function compoundEngineeringPlugin(input = {}, createClient) {
         const result = await adapter.execute({
           sessionID: context.sessionID,
           callID: randomUUID(),
+          instanceID: args.instance,
+          routingHandle: args.routing_handle,
+          requirePreparation: true,
           directory: context.directory,
           role: args.role,
           description: args.description,
           prompt: args.prompt,
+          signal: context.abort,
           authorizeTask: () => context.ask({
             permission: "task",
             patterns: ["general"],
@@ -156,6 +212,13 @@ async function compoundEngineeringPlugin(input = {}, createClient) {
             title: "CE native task required",
             output: "Use the native Task tool with the exact built-in arguments; no routed OpenCode worker was started.",
             metadata: { kind: result.kind, receipt: result.receipt },
+          }
+        }
+        if (result.kind === "mixed_adapter_blocked") {
+          return {
+            title: "CE mixed-adapter continuation blocked",
+            output: result.message,
+            metadata: { kind: result.kind, code: result.code },
           }
         }
         return {

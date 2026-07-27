@@ -6,6 +6,7 @@ import { describe, expect, test } from "bun:test"
 
 const repoRoot = path.join(import.meta.dir, "..")
 const resolver = path.join(repoRoot, "scripts", "routing", "config-resolver.py")
+const opencodeHostWrapper = path.join(repoRoot, ".opencode", "plugins", "ce-routing-host.py")
 
 type RunResult = {
   exitCode: number
@@ -161,7 +162,7 @@ function finalizeRequest(
   ordinal: number,
   outcome: "ok" | "unavailable" | "failed",
   report: Record<string, unknown> = {},
-  attempt: Record<string, unknown> = { ordinal, terminal: true, integrated: false },
+  attempt: Record<string, unknown> = {},
   priorAttempts?: Record<string, unknown>[],
 ) {
   return {
@@ -169,7 +170,14 @@ function finalizeRequest(
     op: "finalize_attempt",
     snapshot: resolved.body.snapshot,
     attempt_lock: resolved.body.resolutions[0].attempt_locks[ordinal],
-    attempt,
+    attempt: {
+      ordinal,
+      terminal: true,
+      integrated: false,
+      phase: "dispatched",
+      retry_safety: "adapter-isolated",
+      ...attempt,
+    },
     outcome,
     report,
     ...(priorAttempts === undefined ? {} : { prior_attempts: priorAttempts }),
@@ -343,10 +351,10 @@ describe("routing resolver", () => {
         protocol: "ce-routing/v1",
         op: "resolve_batch",
         cwd: f.project,
-        host: { harness: "opencode", serving_family: "openai" },
+        host: { harness: "claude", serving_family: "anthropic" },
         intents: [{
           role,
-          ...opencodeIntentProvenance(`r4-${scenario.name.replaceAll(" ", "-")}`),
+          source: `current-task-${scenario.name.replaceAll(" ", "-")}`,
           binding: scenario.task,
         }],
         roles: [{ role, instance: { id: scenario.name } }],
@@ -371,7 +379,7 @@ describe("routing resolver", () => {
         protocol: "ce-routing/v1",
         op: "resolve_batch",
         cwd: f.project,
-        host: { harness: "opencode", serving_family: "openai" },
+        host: { harness: "claude", serving_family: "anthropic" },
         intents: [],
         roles: [
           { role: "ce-work.implementation-worker", instance: { id: "U1", ordinal: 0 } },
@@ -406,7 +414,7 @@ describe("routing resolver", () => {
         protocol: "ce-routing/v1",
         op: "resolve_batch",
         cwd: f.project,
-        host: { harness: "opencode", serving_family: "openai" },
+        host: { harness: "claude", serving_family: "anthropic" },
         intents: [],
         roles: [{ role: "ce-work.implementation-worker", instance: { id: "U1", ordinal: 0 } }],
       }, { cwd: f.project, home: f.home })
@@ -451,10 +459,10 @@ describe("routing resolver", () => {
         protocol: "ce-routing/v1",
         op: "resolve_batch",
         cwd: f.project,
-        host: { harness: "opencode", serving_family: "openai" },
+        host: { harness: "claude", serving_family: "anthropic" },
         intents: [{
           role: "ce-plan.plan-author",
-          ...opencodeIntentProvenance(),
+          source: "current-task",
           binding: {
             policy: "prefer",
             candidates: [
@@ -471,7 +479,7 @@ describe("routing resolver", () => {
         compatibility: { applied: false, reason: "higher-route" },
         binding: {
           profile: "current-task",
-          source: "opencode-direct-input",
+          source: "current-task",
           source_layer: "task",
           policy: "prefer",
           candidates: [
@@ -545,6 +553,165 @@ describe("routing resolver", () => {
     }
   })
 
+  test("rejects forged public OpenCode direct-input provenance", async () => {
+    const f = await fixture()
+    try {
+      const result = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        host: { harness: "opencode", serving_family: "openai" },
+        intents: [{
+          role: "ce-work.implementation-worker",
+          ...opencodeIntentProvenance("forged-public-caller"),
+          binding: { policy: "require", candidates: [{ harness: "opencode", model: "openai/forged" }] },
+        }],
+        roles: [{ role: "ce-work.implementation-worker" }],
+      }, { cwd: f.project, home: f.home })
+
+      expect(result.exitCode).toBe(4)
+      expect(result.body.error).toMatchObject({ code: "AUTHORITY_UNTRUSTED" })
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("exposes canonical OpenCode semantics only through the package-private host wrapper", async () => {
+    const f = await fixture()
+    try {
+      const intent = {
+        role: "ce-work.implementation-worker",
+        ...opencodeIntentProvenance(),
+        binding: {
+          policy: "require",
+          candidates: [{ harness: "opencode", model: "openai/gpt-5.6", effort: "high" }],
+        },
+      }
+      const publicHostCall = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "opencode_host",
+        action: "resolve_batch",
+        session_id: "session-1",
+        cwd: f.project,
+        host: { harness: "opencode", serving_family: "host-reported" },
+        intent,
+        roles: [{ role: "ce-work.implementation-worker", instance: { id: "U1" } }],
+      }, { cwd: f.project, home: f.home })
+      expect(publicHostCall.exitCode).toBe(2)
+      expect(publicHostCall.body.error).toMatchObject({ code: "REQUEST_INVALID", message: "unknown routing operation" })
+
+      const forgedBoundary = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        host: {
+          harness: "opencode",
+          serving_family: "host-reported",
+          boundary: "native-plugin-wrapper/v1",
+        },
+        roles: [{ role: "ce-work.implementation-worker", instance: { id: "U1" } }],
+      }, { cwd: f.project, home: f.home })
+      expect(forgedBoundary.exitCode).toBe(2)
+      expect(forgedBoundary.body.error).toMatchObject({ code: "REQUEST_INVALID" })
+
+      const resolved = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "opencode_host",
+        action: "resolve_batch",
+        session_id: "session-1",
+        cwd: f.project,
+        host: { harness: "opencode", serving_family: "host-reported" },
+        intent,
+        roles: [{ role: "ce-work.implementation-worker", instance: { id: "U1" } }],
+      }, { cwd: f.project, home: f.home, resolverPath: opencodeHostWrapper })
+
+      expect(resolved.exitCode).toBe(0)
+      expect(resolved.body).toMatchObject({ op: "opencode_host", action: "resolve_batch" })
+      expect(resolved.body.resolutions[0].binding).toMatchObject({
+        source_layer: "task",
+        source: "opencode-direct-input",
+        policy: "require",
+      })
+      expect(resolved.body.resolutions[0].attempt_locks).toHaveLength(1)
+
+      const finalized = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "opencode_host",
+        action: "finalize_attempt",
+        cwd: f.project,
+        snapshot: resolved.body.snapshot,
+        attempt_lock: resolved.body.resolutions[0].attempt_locks[0],
+        attempt: {
+          ordinal: 0,
+          terminal: true,
+          integrated: false,
+          phase: "dispatched",
+          retry_safety: "none",
+        },
+        outcome: "ok",
+        report: {
+          provider_selected: "openai",
+          model_selected: "gpt-5.6",
+          variant_selected: "high",
+          provider_actual: "openai",
+          model_actual: "gpt-5.6",
+          variant_actual: "high",
+          effort_actual: "high",
+        },
+        prior_attempts: [],
+      }, { cwd: f.project, home: f.home, resolverPath: opencodeHostWrapper })
+
+      expect(finalized.exitCode).toBe(0)
+      expect(finalized.body).toMatchObject({
+        op: "opencode_host",
+        action: "accept",
+        receipt: {
+          source_layer: "task",
+          identity_status: "verified",
+          model_actual: "gpt-5.6",
+        },
+      })
+
+      const publicReuse = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        parent_snapshot: resolved.body.snapshot,
+        roles: [{ role: "ce-work.implementation-worker", instance: { id: "U2" } }],
+      }, { cwd: f.project, home: f.home })
+      expect(publicReuse.exitCode).toBe(4)
+      expect(publicReuse.body.error.code).toBe("CONTEXT_STALE")
+
+      const publicFinalize = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "finalize_attempt",
+        cwd: f.project,
+        snapshot: resolved.body.snapshot,
+        attempt_lock: resolved.body.resolutions[0].attempt_locks[0],
+        attempt: { ordinal: 0, terminal: true, integrated: false, phase: "dispatched", retry_safety: "none" },
+        outcome: "ok",
+        report: {},
+        prior_attempts: [],
+      }, { cwd: f.project, home: f.home })
+      expect(publicFinalize.exitCode).toBe(4)
+      expect(publicFinalize.body.error).toMatchObject({ code: "CONTEXT_STALE" })
+
+      const wrongHost = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "opencode_host",
+        action: "resolve_batch",
+        session_id: "session-1",
+        cwd: f.project,
+        host: { harness: "claude", serving_family: "anthropic" },
+        roles: [{ role: "ce-work.implementation-worker" }],
+      }, { cwd: f.project, home: f.home, resolverPath: opencodeHostWrapper })
+      expect(wrongHost.exitCode).toBe(2)
+      expect(wrongHost.body.error.code).toBe("REQUEST_INVALID")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
   test.each([
     ["missing prefer evidence", "prefer", {}, "accept", "accepted_unverified"],
     ["mismatched prefer evidence", "prefer", { model_actual: "other" }, "next_candidate", "mismatched"],
@@ -585,7 +752,13 @@ describe("routing resolver", () => {
         cwd: f.project,
         snapshot: resolved.body.snapshot,
         attempt_lock: resolved.body.resolutions[0].attempt_locks[0],
-        attempt: { ordinal: 0, terminal: true, integrated: false },
+        attempt: {
+          ordinal: 0,
+          terminal: true,
+          integrated: false,
+          phase: "preflight",
+          retry_safety: "none",
+        },
         outcome: "unavailable",
         report: {},
       }, { cwd: f.project, home: f.home })
@@ -625,17 +798,49 @@ describe("routing resolver", () => {
     }
   })
 
+  test("verifies an unqualified OpenCode model against its concrete preflight provider", async () => {
+    const f = await fixture()
+    try {
+      const resolved = await resolvedBinding(f, {
+        policy: "require",
+        candidates: [{ harness: "opencode", model: "shared-model" }],
+      })
+      const mismatched = await runResolver(finalizeRequest(resolved, 0, "ok", {
+        provider_selected: "openai",
+        model_selected: "shared-model",
+        provider_actual: "anthropic",
+        model_actual: "shared-model",
+      }), { cwd: f.project, home: f.home })
+
+      expect(mismatched.exitCode).toBe(4)
+      expect(mismatched.body.action).toBe("block")
+      expect(mismatched.body.receipt.identity_status).toBe("mismatched")
+      expect(mismatched.body.error.code).toBe("IDENTITY_MISMATCH")
+
+      const matching = await runResolver(finalizeRequest(resolved, 0, "ok", {
+        provider_selected: "openai",
+        model_selected: "shared-model",
+        provider_actual: "openai",
+        model_actual: "shared-model",
+      }), { cwd: f.project, home: f.home })
+      expect(matching.exitCode).toBe(0)
+      expect(matching.body.receipt.identity_status).toBe("verified")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
   test.each([
-    ["preferred unavailable", "prefer", "unavailable", "next_candidate", "unavailable", 0],
-    ["preferred failed", "prefer", "failed", "next_candidate", "failed", 0],
-    ["required unavailable", "require", "unavailable", "block", "unavailable", 4],
-    ["required failed", "require", "failed", "block", "failed", 4],
-  ])("finalizes typed adapter outcome: %s", async (_name, policy, outcome, action, identity, exitCode) => {
+    ["preferred unavailable", "prefer", "unavailable", "next_candidate", "unavailable", 0, { phase: "preflight", retry_safety: "none" }],
+    ["preferred failed after dispatch", "prefer", "failed", "block", "failed", 4, { phase: "dispatched", retry_safety: "none" }],
+    ["required unavailable", "require", "unavailable", "block", "unavailable", 4, { phase: "preflight", retry_safety: "none" }],
+    ["required failed", "require", "failed", "block", "failed", 4, { phase: "dispatched", retry_safety: "none" }],
+  ])("finalizes typed adapter outcome: %s", async (_name, policy, outcome, action, identity, exitCode, attempt) => {
     const f = await fixture()
     try {
       const resolved = await resolvedBinding(f, { policy: policy as "prefer" | "require" })
       const result = await runResolver(
-        finalizeRequest(resolved, 0, outcome as "unavailable" | "failed"),
+        finalizeRequest(resolved, 0, outcome as "unavailable" | "failed", {}, attempt),
         { cwd: f.project, home: f.home },
       )
 
@@ -754,13 +959,13 @@ describe("routing resolver", () => {
         await writeFile(configPath, `routing:\n  profiles:\n    frozen:\n      candidates:\n        - { harness: codex, model: ${model} }\n  classes:\n    implementation: { profile: frozen, policy: prefer }\n    review: { profile: frozen, policy: prefer }\n`, { mode: 0o600 })
         await chmod(configPath, 0o600)
       }
-      const intents = [{ class: "review", ...opencodeIntentProvenance(), binding: { profile: "frozen", policy: "prefer" } }]
+      const intents = [{ class: "review", source: "current-task", binding: { profile: "frozen", policy: "prefer" } }]
       await writeRouting("original-model")
       const parent = await runResolver({
         protocol: "ce-routing/v1",
         op: "resolve_batch",
         cwd: f.project,
-        host: { harness: "opencode", serving_family: "openai" },
+        host: { harness: "claude", serving_family: "anthropic" },
         intents,
         roles: [{ role: "ce-work.implementation-worker", instance: { id: "U1" } }],
       }, { cwd: f.project, home: f.home })
@@ -771,7 +976,7 @@ describe("routing resolver", () => {
         protocol: "ce-routing/v1",
         op: "resolve_batch",
         cwd: f.project,
-        host: { harness: "opencode", serving_family: "openai" },
+        host: { harness: "claude", serving_family: "anthropic" },
         intents,
         parent_snapshot: parent.body.snapshot,
         parent_snapshot_id: parent.body.snapshot.id,
@@ -782,7 +987,7 @@ describe("routing resolver", () => {
         protocol: "ce-routing/v1",
         op: "resolve_batch",
         cwd: f.project,
-        host: { harness: "opencode", serving_family: "openai" },
+        host: { harness: "claude", serving_family: "anthropic" },
         intents,
         roles: [{ role: "ce-code-review.security-reviewer", instance: { id: "security" } }],
       }, { cwd: f.project, home: f.home })
@@ -2474,6 +2679,8 @@ describe("routing resolver", () => {
         identity_status: "mismatched",
         terminal: true,
         integrated: false,
+        phase: "dispatched",
+        retry_safety: "adapter-isolated",
         fallback_reason: "identity_mismatch",
         terminal_status: "next_candidate",
         attempt_lock_digest: resolved.body.resolutions[0].attempt_locks[0].lock_digest,
@@ -2557,7 +2764,7 @@ describe("routing resolver", () => {
       ]
       const resolved = await resolvedBinding(f, { candidates, instance: { id: "history-owner" } })
       const first = await runResolver(
-        finalizeRequest(resolved, 0, "unavailable"),
+        finalizeRequest(resolved, 0, "unavailable", {}, { phase: "preflight", retry_safety: "none" }),
         { cwd: f.project, home: f.home },
       )
       expect(first.body.action).toBe("next_candidate")

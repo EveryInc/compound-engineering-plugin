@@ -78,6 +78,8 @@ describe("routing configuration contract", () => {
     const protocol = JSON.parse(await readFile(protocolPath, "utf8")) as {
       protocol: string
       operations: string[]
+      native_host_wrapper: Record<string, unknown>
+      opencode_external_comparison_requirement: string
       attempt_lock_protocol: string
       adapter_outcomes: string[]
       finalize_request_fields: string[]
@@ -88,7 +90,17 @@ describe("routing configuration contract", () => {
 
     expect(protocol.protocol).toBe("ce-routing/v1")
     expect(protocol.operations).toEqual(["inspect", "resolve_batch", "finalize_attempt", "patch_source"])
+    expect(protocol.native_host_wrapper).toEqual({
+      entrypoint: ".opencode/plugins/ce-routing-host.py",
+      operation: "opencode_host",
+      actions: ["resolve_batch", "finalize_attempt"],
+      public_cli_exposed: false,
+      snapshot_publicly_reusable: false,
+    })
     expect(protocol.attempt_lock_protocol).toBe("ce-routing-attempt-lock/v1")
+    expect(protocol.opencode_external_comparison_requirement).toBe(
+      "required-when-public-request-host-is-opencode-and-first-candidate-is-external",
+    )
     expect(protocol.adapter_outcomes).toEqual(["ok", "unavailable", "failed"])
     expect(protocol.finalize_request_fields).toEqual([
       "snapshot",

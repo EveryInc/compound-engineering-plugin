@@ -16,6 +16,8 @@ For an ordered standing preference, preflight candidates in order without egress
 
 Before egress, list traversal may continue after a candidate is proven unavailable. After dispatch starts, the adapter receives one fixed recipient and must never switch recipients, providers, or intermediaries internally. A different recipient requires a separately resolved and sanctioned attempt after authoritative terminal or reaped state; it is never an in-flight fallback.
 
+For a configured OpenCode-origin handoff, this controller independently resolves only global/project config and matches the supplied source/binding comparison identifiers. It derives OpenCode origin from the parsed request host and blocks before creating run state if those identifiers are omitted. A converted or non-native OpenCode install cannot produce the native comparison and therefore cannot enter this external path. If a later declared candidate requires the process-local OpenCode adapter, stop with an explicit mixed-adapter capability blocker; the controller cannot mint or recover an opaque native handle, so U7 does not claim that fallback works.
+
 If a target asks for the same-host default with no distinct serving route or model, collapse to native execution. Record the target as requested and native as actual; do not create an external job merely to call the current host's default model through itself.
 
 ## Apply preference or requirement strength

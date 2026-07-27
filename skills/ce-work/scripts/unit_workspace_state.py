@@ -890,7 +890,56 @@ def _direct_implementation_binding(value: object) -> dict | None:
     }
 
 
-def resolve_implementation_routing(request_bytes: bytes, repo: str) -> dict:
+def parse_opencode_expected(value: str | None) -> dict | None:
+    if value is None:
+        return None
+    try:
+        expected = json.loads(value)
+    except ValueError as exc:
+        raise Operational("REFUSED", "OpenCode external comparison must be JSON") from exc
+    if not isinstance(expected, dict) or set(expected) != {"protocol", "source_revisions", "bindings"}:
+        raise Operational("REFUSED", "OpenCode external comparison envelope is malformed")
+    if expected["protocol"] != "ce-opencode-external-handoff/v1":
+        raise Operational("REFUSED", "OpenCode external comparison protocol is unsupported")
+    revisions = expected["source_revisions"]
+    bindings = expected["bindings"]
+    if (
+        not isinstance(revisions, dict)
+        or set(revisions) != {"global", "project"}
+        or any(not isinstance(item, str) or not re.fullmatch(r"cecfg-v1:(?:[0-9a-f]{64}|absent)", item) for item in revisions.values())
+        or not isinstance(bindings, list)
+        or not bindings
+    ):
+        raise Operational("REFUSED", "OpenCode external comparison identifiers are malformed")
+    seen = set()
+    for binding in bindings:
+        if (
+            not isinstance(binding, dict)
+            or set(binding) != {"instance", "binding_digest"}
+            or not isinstance(binding["instance"], str)
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}", binding["instance"])
+            or not isinstance(binding["binding_digest"], str)
+            or not re.fullmatch(r"cebind-v1:[0-9a-f]{64}", binding["binding_digest"])
+            or binding["instance"] in seen
+        ):
+            raise Operational("REFUSED", "OpenCode external comparison bindings are malformed")
+        seen.add(binding["instance"])
+    return expected
+
+
+def requires_opencode_external_comparison(binding: object, host: object) -> bool:
+    if not isinstance(binding, dict) or not isinstance(host, dict) or host.get("harness") != "opencode":
+        return False
+    candidates = binding.get("candidates")
+    first_candidate = candidates[0] if isinstance(candidates, list) and candidates else None
+    return (
+        isinstance(first_candidate, dict)
+        and first_candidate.get("kind") != "ce-default"
+        and first_candidate.get("harness") != "opencode"
+    )
+
+
+def resolve_implementation_routing(request_bytes: bytes, repo: str, opencode_expected: dict | None = None) -> dict:
     try:
         request = json.loads(request_bytes.decode("utf-8"))
     except (UnicodeDecodeError, ValueError) as exc:
@@ -899,6 +948,11 @@ def resolve_implementation_routing(request_bytes: bytes, repo: str) -> dict:
         raise Operational("REFUSED", "routing request root must be an object")
     if request.get("protocol") != ROUTING_PROTOCOL or request.get("op") != "resolve_batch":
         raise Operational("REFUSED", "routing request must be a ce-routing/v1 resolve_batch operation")
+    if opencode_expected is not None and (
+        request.get("implementation_intent") is not None
+        or request.get("intents") not in (None, [])
+    ):
+        raise Operational("REFUSED", "OpenCode external comparison may independently resolve only global/project configuration")
     request_cwd = request.get("cwd")
     if not isinstance(request_cwd, str) or os.path.realpath(request_cwd) != os.path.realpath(repo):
         raise Operational("REFUSED", "routing request cwd must equal the canonical checkout")
@@ -953,6 +1007,11 @@ def resolve_implementation_routing(request_bytes: bytes, repo: str) -> dict:
     candidates = first_binding.get("candidates")
     if not isinstance(resolver_attempt_locks, list) or not isinstance(candidates, list) or len(resolver_attempt_locks) != len(candidates):
         raise Operational("BLOCKED", "routing resolver returned incomplete implementation attempt locks")
+    if requires_opencode_external_comparison(first_binding, host) and opencode_expected is None:
+        raise Operational(
+            "BLOCKED",
+            "OpenCode external durable routing requires --opencode-expected-json from the native plugin; converted or non-native OpenCode cannot enter this controller path",
+        )
     binding = copy.deepcopy(first_binding)
     generalized = copy.deepcopy(first_binding)
     compatibility = copy.deepcopy(first_resolution.get("compatibility", {}))
@@ -965,6 +1024,19 @@ def resolve_implementation_routing(request_bytes: bytes, repo: str) -> dict:
     if not isinstance(source_revisions, dict):
         raise Operational("BLOCKED", "routing resolver snapshot omitted source revisions")
     binding_digest = digest_bytes(canonical_json_bytes(binding))
+    if opencode_expected is not None:
+        actual_bindings = []
+        for resolution in resolutions:
+            instance = resolution.get("instance")
+            actual_digest = resolution.get("binding_digest")
+            if not isinstance(instance, dict) or not isinstance(instance.get("id"), str) or not isinstance(actual_digest, str):
+                raise Operational("BLOCKED", "public routing resolution omitted OpenCode comparison identifiers")
+            actual_bindings.append({"instance": instance["id"], "binding_digest": actual_digest})
+        if (
+            opencode_expected["source_revisions"] != source_revisions
+            or opencode_expected["bindings"] != actual_bindings
+        ):
+            raise Operational("BLOCKED", "OpenCode external routing comparison does not match independently resolved configuration")
     frozen_material = {
         "resolver_snapshot": snapshot,
         "binding": binding,
@@ -986,6 +1058,7 @@ def resolve_implementation_routing(request_bytes: bytes, repo: str) -> dict:
         "resolver_attempt_locks": copy.deepcopy(resolver_attempt_locks),
         "attempt_locks": {},
         "receipts": [],
+        **({"opencode_comparison": copy.deepcopy(opencode_expected)} if opencode_expected is not None else {}),
     }
 
 
@@ -1612,10 +1685,19 @@ def _resolver_serving_report(candidate: dict, result: dict) -> dict:
     model_status = result.get("model_receipt_status")
     if requested_model is not None:
         if model_status == "verified":
-            report["model_actual"] = requested_model
+            if "/" in requested_model:
+                report["provider_actual"], report["model_actual"] = requested_model.split("/", 1)
+            else:
+                report["model_actual"] = requested_model
         elif model_status == "mismatch":
             actual = result.get("model_actual")
-            report["model_actual"] = actual if isinstance(actual, str) and actual else "mismatched"
+            if isinstance(actual, str) and actual:
+                if "/" in actual:
+                    report["provider_actual"], report["model_actual"] = actual.split("/", 1)
+                else:
+                    report["model_actual"] = actual
+            else:
+                report["model_actual"] = "mismatched"
     requested_effort = candidate.get("effort")
     effort_status = result.get("effort_receipt_status")
     if requested_effort is not None:
@@ -1634,7 +1716,7 @@ def _resolver_adapter_outcome(attempt: dict, result: dict) -> str:
     return "ok" if attempt.get("process_state") == "done" else "failed"
 
 
-def _resolver_history_entry(routing: dict, ordinal: int, outcome: str) -> dict:
+def _resolver_history_entry(routing: dict, ordinal: int, outcome: str, *, preflight: bool = False) -> dict:
     locks = routing["resolver_attempt_locks"]
     if ordinal < 0 or ordinal >= len(locks):
         raise TrustFailure("routing attempt history ordinal is outside the frozen resolver binding")
@@ -1648,6 +1730,8 @@ def _resolver_history_entry(routing: dict, ordinal: int, outcome: str) -> dict:
         "identity_status": identity,
         "terminal": True,
         "integrated": False,
+        "phase": "preflight" if preflight else "dispatched",
+        "retry_safety": "none" if preflight else "adapter-isolated",
         "fallback_reason": reason,
         "terminal_status": "next_candidate",
         "attempt_lock_digest": locks[ordinal]["lock_digest"],
@@ -1685,7 +1769,7 @@ def _resolver_prior_attempts(unit: dict, routing: dict, ordinal: int) -> list[di
         for row in local_lock.get("preflight", []):
             if not isinstance(row, dict) or row.get("status") != "unavailable" or not isinstance(row.get("ordinal"), int):
                 raise TrustFailure("routing preflight history entry is malformed")
-            remember(_resolver_history_entry(routing, row["ordinal"], "unavailable"))
+            remember(_resolver_history_entry(routing, row["ordinal"], "unavailable", preflight=True))
 
         prior = attempts_by_id.get(attempt_id)
         if not isinstance(prior, dict):
@@ -1748,6 +1832,8 @@ def finalize_routing_attempt(run_id: str, unit_id: str, *, require_result: bool 
                 "ordinal": lock["candidate_ordinal"],
                 "terminal": attempt.get("process_state") in TERMINAL_PROCESS,
                 "integrated": integration_effect_started(unit),
+                "phase": "dispatched",
+                "retry_safety": "adapter-isolated",
             },
             "outcome": outcome,
             "report": _resolver_serving_report(candidate, result) if outcome == "ok" else {},
@@ -1893,7 +1979,8 @@ def cmd_resolve_routing(args) -> tuple[str, dict]:
     if os.path.commonpath([info["toplevel"], request_path]) == info["toplevel"]:
         raise Operational("REFUSED", "routing request must be private control data outside the canonical repository")
     request_bytes = read_external_packet(args.routing_request, "routing request")
-    routing = resolve_implementation_routing(request_bytes, info["toplevel"])
+    expected = parse_opencode_expected(getattr(args, "opencode_expected_json", None))
+    routing = resolve_implementation_routing(request_bytes, info["toplevel"], expected)
     word = "NATIVE" if routing_starts_native(routing) else "ROUTED"
     return word, {"repository": info["toplevel"], "routing": routing, "canonical_unchanged": True}
 
@@ -1934,6 +2021,7 @@ def cmd_init(args) -> tuple[str, dict]:
     if actual_digest != supplied_digest:
         raise Operational("REFUSED", f"selected {source_kind} digest does not match content")
     routing_request_path = getattr(args, "routing_request", None)
+    opencode_expected = parse_opencode_expected(getattr(args, "opencode_expected_json", None))
     routing_request_bytes = None
     binding = None
     egress = None
@@ -1945,6 +2033,8 @@ def cmd_init(args) -> tuple[str, dict]:
             raise Operational("REFUSED", "routing request must be private control data outside the canonical repository")
         routing_request_bytes = read_external_packet(routing_request_path, "routing request")
     else:
+        if opencode_expected is not None:
+            raise Operational("REFUSED", "OpenCode external comparison requires generalized routing")
         binding = parse_json_arg(args.binding_json, "binding")
         egress = parse_json_arg(args.egress_json, "egress")
         fixed_route_contract(binding, egress, "REFUSED")
@@ -1979,7 +2069,23 @@ def cmd_init(args) -> tuple[str, dict]:
                 raise Operational("BLOCKED", "run id already belongs to another repository or source")
             if routing_request_bytes is not None:
                 recorded_routing = existing.get("routing")
-                if not isinstance(recorded_routing, dict) or recorded_routing.get("request_sha256") != digest_bytes(routing_request_bytes):
+                if (
+                    isinstance(recorded_routing, dict)
+                    and requires_opencode_external_comparison(
+                        recorded_routing.get("binding"),
+                        recorded_routing.get("host"),
+                    )
+                    and opencode_expected is None
+                ):
+                    raise Operational(
+                        "BLOCKED",
+                        "OpenCode external durable routing requires --opencode-expected-json from the native plugin; converted or non-native OpenCode cannot enter this controller path",
+                    )
+                if (
+                    not isinstance(recorded_routing, dict)
+                    or recorded_routing.get("request_sha256") != digest_bytes(routing_request_bytes)
+                    or recorded_routing.get("opencode_comparison") != opencode_expected
+                ):
                     raise Operational(
                         "BLOCKED",
                         "run id routing intent differs from the frozen snapshot; resume with the recorded context or choose a new run id",
@@ -2000,7 +2106,7 @@ def cmd_init(args) -> tuple[str, dict]:
             }
     routing = None
     if routing_request_bytes is not None:
-        routing = resolve_implementation_routing(routing_request_bytes, info["toplevel"])
+        routing = resolve_implementation_routing(routing_request_bytes, info["toplevel"], opencode_expected)
         if routing_starts_native(routing):
             return "NATIVE", {
                 "run_id": None,
