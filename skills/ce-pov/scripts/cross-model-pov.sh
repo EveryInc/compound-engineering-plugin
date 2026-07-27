@@ -539,8 +539,12 @@ adapter_argv() {
     codex)
       # ce-dispatch-site:ce-pov.panel-cli-codex
       emit_provider_prefix codex
-      printf '%s\0' --search exec - -C "$READ_ROOT" --skip-git-repo-check -s read-only \
-        -o "$RAW_OUT" -m "$(route_model codex)" -c "model_reasoning_effort=\"$(route_effort codex)\"" -c 'hide_agent_reasoning=false'
+      printf '%s\0' --search exec - -C "$PEER_WORKDIR" --skip-git-repo-check -s read-only \
+        -o "$RAW_OUT" -m "$(route_model codex)" -c 'model_provider="openai"' \
+        -c "model_reasoning_effort=\"$(route_effort codex)\"" -c 'hide_agent_reasoning=false' \
+        -c 'features.hooks=false' -c 'features.apps=false' -c 'features.remote_plugin=false' \
+        -c 'features.multi_agent=false' -c 'features.skill_mcp_dependency_install=false' \
+        -c 'agents.enabled=false' -c 'mcp_servers={}'
       ;;
     claude)
       # Keep project auto-discovery disabled while allowing only repository reads
@@ -747,6 +751,25 @@ if ! PEER_WORKDIR="$(mktemp -d "$SCRATCH_PARENT/xmodel-pov-peer-XXXXXX")"; then
   skip "provider $TARGET workspace isolation unavailable; skipping provider"
 fi
 chmod 700 "$PEER_WORKDIR" 2>/dev/null || { cleanup_private_scratch; skip "cannot make peer scratch private"; }
+PROVIDER_HOME="$PEER_WORKDIR/provider-home"
+PROVIDER_TMP="$PEER_WORKDIR/provider-tmp"
+PROVIDER_XDG_CONFIG="$PEER_WORKDIR/xdg/config"
+PROVIDER_XDG_DATA="$PEER_WORKDIR/xdg/data"
+PROVIDER_XDG_CACHE="$PEER_WORKDIR/xdg/cache"
+PROVIDER_CONFIG="$PEER_WORKDIR/provider-config"
+mkdir -p "$PROVIDER_HOME" "$PROVIDER_TMP" "$PROVIDER_XDG_CONFIG" "$PROVIDER_XDG_DATA" "$PROVIDER_XDG_CACHE" "$PROVIDER_CONFIG" \
+  || { cleanup_private_scratch; skip "cannot create isolated provider roots"; }
+chmod 700 "$PROVIDER_HOME" "$PROVIDER_TMP" "$PEER_WORKDIR/xdg" "$PROVIDER_XDG_CONFIG" "$PROVIDER_XDG_DATA" "$PROVIDER_XDG_CACHE" "$PROVIDER_CONFIG" \
+  2>/dev/null || { cleanup_private_scratch; skip "cannot make provider roots private"; }
+HOME="$PROVIDER_HOME"
+TMPDIR="$PROVIDER_TMP"
+XDG_CONFIG_HOME="$PROVIDER_XDG_CONFIG"
+XDG_DATA_HOME="$PROVIDER_XDG_DATA"
+XDG_CACHE_HOME="$PROVIDER_XDG_CACHE"
+CLAUDE_CONFIG_DIR="$PROVIDER_CONFIG"
+CODEX_HOME="$PROVIDER_CONFIG"
+GROK_CONFIG_HOME="$PROVIDER_CONFIG"
+CURSOR_CONFIG_DIR="$PROVIDER_CONFIG"
 PROMPT_FILE="$PEER_WORKDIR/prompt.md"
 PEERLOG="$PEER_WORKDIR/stdout.log"
 # Peer stderr goes to its own file, NOT merged into PEERLOG: PEERLOG must stay
@@ -833,6 +856,7 @@ build_min_env() {
       [ -n "${CURSOR_CONFIG_DIR:-}" ] && MIN_ENV+=("CURSOR_CONFIG_DIR=$CURSOR_CONFIG_DIR")
       ;;
   esac
+  MIN_ENV+=("XDG_DATA_HOME=$XDG_DATA_HOME" "XDG_CACHE_HOME=$XDG_CACHE_HOME")
 }
 
 # --- liveness heartbeat -----------------------------------------------------
@@ -1005,7 +1029,7 @@ bounded_failure_evidence() {   # <logfile>; prefer structured diagnostics, then 
 # Run one route for a provider; leaves a schema-shaped (pre-normalization) $RAW_OUT on success.
 attempt_route() {   # <provider> <route>
   local provider="$1" route="$2" note
-  : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT"
+  : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT"
   build_cmd "$route"
   build_min_env "$route"
   case "$route" in
@@ -1055,12 +1079,10 @@ run_fixed_route() {
   # Publish ONLY the normalized OUT into RUN_DIR. RAW_OUT lives in the per-peer
   # workspace and is never a fold-in artifact — if this script dies before normalize
   # (orphaned launch), synthesis finds no .json in RUN_DIR.
-  rm -f "$OUT"
   if [ -s "$RAW_OUT" ]; then
     _norm="$PEER_WORKDIR/normalized.json"
     case "$ACTUAL_ROUTE:$MODEL_ACTUAL" in
-      cursor:*) serving_family="unknown" ;;
-      composer:unverified|grok-cursor:unverified) serving_family="unknown" ;;
+      *:unverified|cursor:*) serving_family="unknown" ;;
       *) serving_family="$(target_serving_family "$provider")" ;;
     esac
     independence=false

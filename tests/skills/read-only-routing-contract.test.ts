@@ -94,6 +94,7 @@ describe("specialized read-only routing contract", () => {
     expect(launchers[0]).toContain('"/bin/bash", "--noprofile", "--norc"')
     expect(launchers[0]).toContain('"CE_PROVIDER_DISCOVERY_PATH": caller_path')
     expect(launchers[0]).not.toMatch(/API_KEY|OAUTH_TOKEN/)
+    expect(launchers[0]).not.toMatch(/CODEX_HOME|CLAUDE_CONFIG_DIR|GROK_CONFIG_HOME|CURSOR_CONFIG_DIR/)
   })
 
   test("adapter invocation docs make the clean launcher the first worker argv", async () => {

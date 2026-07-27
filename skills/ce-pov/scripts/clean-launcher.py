@@ -89,7 +89,10 @@ clean = {
     "CE_ADAPTER_SKILL_ROOT": os.path.dirname(script_dir),
 }
 
-for name in ("HOME", "TMPDIR", "XDG_CONFIG_HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "GROK_CONFIG_HOME", "CURSOR_CONFIG_DIR", "CROSS_MODEL_READ_ROOT", "CROSS_MODEL_SCRATCH_PARENT"):
+root_names = ["CROSS_MODEL_READ_ROOT", "CROSS_MODEL_SCRATCH_PARENT"]
+if not adapter.endswith("cross-model-pov.sh"):
+    root_names.extend(("HOME", "TMPDIR", "XDG_CONFIG_HOME"))
+for name in root_names:
     value = bounded(name, 4096, absolute=True)
     if value is not None:
         clean[name] = value

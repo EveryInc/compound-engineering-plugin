@@ -13,6 +13,7 @@ surface:
   collision, with bounded retries.
 """
 import importlib.util
+import hashlib
 import io
 import json
 import os
@@ -68,16 +69,36 @@ def make_done_job():
     result = os.path.join(root, "result.json")
     with open(result, "w") as f:
         f.write('{"secret":"SECRET-CONTENT"}')
+    parent_stat = os.stat(root)
+    result_stat = os.stat(result)
+    reservation = {
+        "job_id": "job",
+        "parent_dev": parent_stat.st_dev,
+        "parent_ino": parent_stat.st_ino,
+        "result_dev": result_stat.st_dev,
+        "result_ino": result_stat.st_ino,
+    }
     meta = {
         "job_id": "job",
         "skill": "ce-doc-review",
         "run_id": "run1",
         "result_path": result,
+        "result_reservation": reservation,
     }
     with open(os.path.join(job_dir, "meta.json"), "w") as f:
         json.dump(meta, f)
     with open(os.path.join(job_dir, "status"), "w") as f:
         f.write("done\n")
+    proof = {
+        "job_id": "job",
+        "publication": "direct-write",
+        "result_dev": result_stat.st_dev,
+        "result_ino": result_stat.st_ino,
+        "result_size": result_stat.st_size,
+        "result_sha256": hashlib.sha256(b'{"secret":"SECRET-CONTENT"}').hexdigest(),
+    }
+    with open(os.path.join(job_dir, "result-proof.json"), "w") as f:
+        json.dump(proof, f)
     return job_dir, result
 
 

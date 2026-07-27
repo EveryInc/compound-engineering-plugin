@@ -49,7 +49,7 @@ describe("cross-model receipt-kernel parity", () => {
     expect(kernels[0]).toContain("claude-*")
   })
 
-  test("candidate qualification and credential-minimized environments stay identical", async () => {
+  test("candidate qualification stays identical and POV keeps the stronger isolated environment", async () => {
     const bodies = await Promise.all(
       SCRIPTS.map((rel) => readFile(path.join(PLUGIN_ROOT, rel), "utf8")),
     )
@@ -65,14 +65,15 @@ describe("cross-model receipt-kernel parity", () => {
     const environmentKernels = bodies.map((body) =>
       block(body, "build_min_env()", "\n}\n"))
 
-    for (const kernels of [selectorKernels, environmentKernels]) {
-      for (let i = 1; i < kernels.length; i++) expect(kernels[i]).toBe(kernels[0])
-    }
+    for (let i = 1; i < selectorKernels.length; i++) expect(selectorKernels[i]).toBe(selectorKernels[0])
+    expect(environmentKernels[1]).toBe(environmentKernels[0])
     expect(selectorKernels[0]).toContain("candidate_model_compatible")
     expect(environmentKernels[0]).toContain("env -i")
     for (const configDir of ["CODEX_HOME", "CLAUDE_CONFIG_DIR", "GROK_CONFIG_HOME", "CURSOR_CONFIG_DIR"]) {
-      expect(environmentKernels[0]).toContain(configDir)
+      for (const kernel of environmentKernels) expect(kernel).toContain(configDir)
     }
+    expect(environmentKernels[2]).toContain("XDG_DATA_HOME")
+    expect(environmentKernels[2]).toContain("XDG_CACHE_HOME")
     for (const credential of ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"]) {
       expect(environmentKernels[0]).not.toContain(credential)
     }

@@ -358,8 +358,7 @@ build_min_env() {
   [ -n "${LANG:-}" ] && MIN_ENV+=("LANG=$LANG")
   [ -n "${LC_ALL:-}" ] && MIN_ENV+=("LC_ALL=$LC_ALL")
   [ -n "${XDG_CONFIG_HOME:-}" ] && MIN_ENV+=("XDG_CONFIG_HOME=$XDG_CONFIG_HOME")
-  # Preserve the CLI's native auth-store pointer, never ambient API/OAuth keys.
-  [ -n "${CLAUDE_CONFIG_DIR:-}" ] && MIN_ENV+=("CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR")
+  # Authentication must be credential-free or brokered outside readable config files.
 }
 
 # Test hook: print the argv the worker would exec, without calling a model.

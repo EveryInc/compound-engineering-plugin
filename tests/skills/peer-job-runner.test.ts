@@ -7,6 +7,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   utimesSync,
@@ -230,8 +231,97 @@ describe("peer-job-runner lifecycle", () => {
     expect(meta.skill).toBe("ce-doc-review")
     expect(meta.run_id).toBe("run1")
     expect(meta.result_path).toBe(resultPath)
+    expect(meta.result_reservation.job_id).toBe(id)
+    const proof = JSON.parse(readFileSync(path.join(dir, "result-proof.json"), "utf8"))
+    expect(proof).toMatchObject({ job_id: id, publication: "direct-write" })
     expect(statSync(dir).mode & 0o777).toBe(0o700)
   }, 20000)
+
+  test("rejects a forged preexisting result and permits recovery after an early skip", () => {
+    const root = makeRoot()
+    const resultPath = path.join(mkTempRoot("peer-fresh-result-"), "result.json")
+    const forged = '{"position":"forged","reasoning":"stale"}'
+    writeFileSync(resultPath, forged, { mode: 0o600 })
+    const writer = writeStub(`printf '%s' fresh > "$1"\nexit 0\n`)
+
+    const rejected = startJob(root, FAST, [writer, resultPath], { resultPath })
+    expect(rejected.res.code).toBe(1)
+    expect(rejected.res.stdout).toBe("")
+    expect(rejected.res.stderr).toContain("preexisting non-empty result")
+    expect(readFileSync(resultPath, "utf8")).toBe(forged)
+
+    rmSync(resultPath)
+    const skip = writeStub("exit 0\n")
+    const skipped = startJob(root, FAST, [skip], { resultPath, runId: "skip" })
+    expect(skipped.res.code).toBe(0)
+    trackJob(skipped.dir)
+    expect(waitState(root, FAST, skipped.id, 10).stdout.trim()).toBe("failed")
+    expect(runner(root, FAST, ["result", skipped.id]).code).toBe(3)
+    expect(existsSync(resultPath)).toBe(false)
+
+    const recovered = startJob(root, FAST, [writer, resultPath], {
+      resultPath,
+      runId: "recovered",
+    })
+    expect(recovered.res.code).toBe(0)
+    trackJob(recovered.dir)
+    expect(waitState(root, FAST, recovered.id, 10).stdout.trim()).toBe("done")
+    expect(runner(root, FAST, ["result", recovered.id]).stdout).toBe("fresh")
+  }, 20000)
+
+  test("concurrent starts cannot reserve the same result path", () => {
+    const root = makeRoot()
+    const coord = mkTempRoot("peer-concurrent-result-")
+    const gate = path.join(coord, "gate")
+    const resultPath = path.join(coord, "result.json")
+    writeFileSync(gate, "wait")
+    const held = writeStub(
+      `while [ -e "$1" ]; do sleep 0.1; done\nprintf ready > "$2"\nexit 0\n`,
+    )
+    const first = startJob(root, FAST, [held, gate, resultPath], {
+      resultPath,
+      runId: "first",
+    })
+    expect(first.res.code).toBe(0)
+    trackJob(first.dir)
+    expect(existsSync(resultPath)).toBe(true)
+    expect(statSync(resultPath).size).toBe(0)
+
+    const second = startJob(root, FAST, [held, gate, resultPath], {
+      resultPath,
+      runId: "second",
+    })
+    expect(second.res.code).toBe(1)
+    expect(second.res.stdout).toBe("")
+    expect(second.res.stderr).toContain("already reserved")
+
+    rmSync(gate)
+    expect(waitState(root, FAST, first.id, 10).stdout.trim()).toBe("done")
+    expect(runner(root, FAST, ["result", first.id]).stdout).toBe("ready")
+  }, 20000)
+
+  test("accepts atomic replacement but rejects bytes substituted after done", () => {
+    const root = makeRoot()
+    const resultPath = path.join(mkTempRoot("peer-atomic-result-"), "result.json")
+    const atomic = writeStub(
+      `tmp="$1.tmp"\nprintf atomic > "$tmp"\nmv "$tmp" "$1"\nexit 0\n`,
+    )
+    const started = startJob(root, FAST, [atomic, resultPath], { resultPath })
+    expect(started.res.code).toBe(0)
+    trackJob(started.dir)
+    expect(waitState(root, FAST, started.id, 10).stdout.trim()).toBe("done")
+    expect(runner(root, FAST, ["result", started.id]).stdout).toBe("atomic")
+
+    const terminalTime = statSync(resultPath).mtime
+    const replacement = `${resultPath}.replacement`
+    writeFileSync(replacement, "substituted", { mode: 0o600 })
+    utimesSync(replacement, terminalTime, terminalTime)
+    renameSync(replacement, resultPath)
+    const result = runner(root, FAST, ["result", started.id])
+    expect(result.code).toBe(4)
+    expect(result.stdout).toBe("")
+    expect(result.stderr).toContain("terminal result identity changed")
+  }, 15000)
 
   test("repairs an existing owner-owned root that is not private", () => {
     const root = makeRoot()

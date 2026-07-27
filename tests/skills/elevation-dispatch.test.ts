@@ -496,7 +496,7 @@ describe("elevation-dispatch worker", () => {
     expect((argv.match(/--add-dir/g) || []).length).toBe(1)
   })
 
-  test("uses CLI-native auth without forwarding ambient credential variables", () => {
+  test("permits externally brokered auth without forwarding config or credential variables", () => {
     const scratch = mkTempRoot("elevation-min-env-")
     const promptFile = path.join(scratch, "brief.md")
     const resultPath = path.join(scratch, "result.json")
@@ -525,7 +525,8 @@ describe("elevation-dispatch worker", () => {
     expect(r.status).toBe(0)
     const childEnv = readFileSync(envCapture, "utf8")
     expect(childEnv).toContain("USER=elevation-keychain-user")
-    expect(childEnv).toContain(`CLAUDE_CONFIG_DIR=${claudeConfig}`)
+    expect(childEnv).not.toContain(`CLAUDE_CONFIG_DIR=${claudeConfig}`)
+    expect(childEnv).not.toContain("CLAUDE_CONFIG_DIR=")
     expect(childEnv.split("\n").find((line) => line.startsWith("PATH="))).toBe(
       "PATH=/usr/bin:/bin",
     )

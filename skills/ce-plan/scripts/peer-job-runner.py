@@ -23,12 +23,14 @@ lives on disk:
 Job directory (durable state, the source of truth):
   <root>/<skill>/<run-id>/jobs/<job-id>/
     meta.json   identity: skill, run id, label, input digest, start time,
-                worker argv, result path (written at start, before detach)
+                worker argv, result path + exclusive reservation identity
+                (written at start, before detach)
     pid         supervisor pid/pgid + worker pid (written by the supervisor
                 before start returns; its presence marks "detached")
     out.log     worker's combined stdout+stderr (byte growth = liveness)
     reason      terminal detail, written before the status rename so the
                 status file is always the LAST record to land
+    result-proof.json  terminal result identity + digest, written before done
     status      exactly one word, published atomically (tmp + os.replace):
                 done | failed | timeout | died-without-result
 
@@ -81,6 +83,7 @@ Pure stdlib. No third-party dependencies.
 """
 import argparse
 import glob
+import hashlib
 import json
 import os
 import re
@@ -280,18 +283,170 @@ def write_atomic(path: str, data: bytes) -> None:
         raise
 
 
-def write_terminal(job_dir: str, state: str, reason: str, overwrite: bool = True) -> None:
+def write_terminal(job_dir: str, state: str, reason: str, overwrite: bool = True,
+                   result_proof=None) -> None:
     """Publish the single terminal record. The reason detail lands FIRST so the
     atomic status rename is always the last record; a reason write failure never
     blocks the status."""
     status_path = os.path.join(job_dir, "status")
     if not overwrite and os.path.lexists(status_path):
         return
+    if state == "done" and result_proof is not None:
+        write_atomic(
+            os.path.join(job_dir, "result-proof.json"),
+            (json.dumps(result_proof, sort_keys=True) + "\n").encode(),
+        )
     try:
         write_atomic(os.path.join(job_dir, "reason"), (reason.rstrip("\n") + "\n").encode())
     except OSError:
         pass
     write_atomic(status_path, (state + "\n").encode())
+
+
+def _open_result_parent(path: str, reservation=None):
+    parent = os.path.dirname(path)
+    name = os.path.basename(path)
+    if not name or name in (".", ".."):
+        raise Unreadable(f"{path}: invalid result filename")
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | O_NOFOLLOW
+    fd = os.open(parent, flags)
+    try:
+        info = os.fstat(fd)
+        euid = _euid()
+        if not stat.S_ISDIR(info.st_mode):
+            raise Unreadable(f"{parent}: result parent is not a directory")
+        if euid is not None and info.st_uid != euid:
+            raise Unreadable(f"{parent}: result parent is not owned by the current user")
+        if stat.S_IMODE(info.st_mode) & 0o077:
+            raise Unreadable(f"{parent}: result parent must be private")
+        if reservation is not None and (
+            reservation.get("parent_dev") != info.st_dev
+            or reservation.get("parent_ino") != info.st_ino
+        ):
+            raise Unreadable("result parent identity changed after reservation")
+        return fd, name, info
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def reserve_result_path(path: str, job_id: str) -> dict:
+    """Exclusively install an empty job-bound result placeholder.
+
+    A direct writer fills this inode; an atomic writer replaces it. Either form
+    proves publication happened after this reservation without trusting mtime.
+    """
+    parent_fd, name, parent = _open_result_parent(path)
+    result_fd = None
+    try:
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | O_NOFOLLOW
+        try:
+            result_fd = os.open(name, flags, 0o600, dir_fd=parent_fd)
+        except FileExistsError:
+            try:
+                planted = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+                if stat.S_ISREG(planted.st_mode) and planted.st_size > 0:
+                    raise RunnerError(
+                        f"preexisting non-empty result at {path}; refusing stale or forged bytes"
+                    )
+            except FileNotFoundError:
+                raise RunnerError(f"result path changed while reserving: {path}")
+            raise RunnerError(f"result path is already reserved or occupied: {path}")
+        os.fchmod(result_fd, 0o600)
+        result = os.fstat(result_fd)
+        return {
+            "job_id": job_id,
+            "parent_dev": parent.st_dev,
+            "parent_ino": parent.st_ino,
+            "result_dev": result.st_dev,
+            "result_ino": result.st_ino,
+        }
+    finally:
+        if result_fd is not None:
+            os.close(result_fd)
+        os.close(parent_fd)
+
+
+def release_empty_reservation(path: str, reservation) -> None:
+    """Remove only this job's unchanged empty placeholder (recovery-safe)."""
+    if not isinstance(reservation, dict):
+        return
+    try:
+        parent_fd, name, _ = _open_result_parent(path, reservation)
+        try:
+            info = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+            if (
+                stat.S_ISREG(info.st_mode)
+                and info.st_size == 0
+                and info.st_dev == reservation.get("result_dev")
+                and info.st_ino == reservation.get("result_ino")
+            ):
+                os.unlink(name, dir_fd=parent_fd)
+        finally:
+            os.close(parent_fd)
+    except (OSError, Unreadable):
+        pass
+
+
+def inspect_fresh_result(path: str, reservation, cap: int):
+    if not isinstance(reservation, dict):
+        raise Unreadable("job metadata has no result reservation identity")
+    parent_fd, name, _ = _open_result_parent(path, reservation)
+    result_fd = None
+    try:
+        try:
+            result_fd = os.open(name, os.O_RDONLY | O_NOFOLLOW, dir_fd=parent_fd)
+        except FileNotFoundError:
+            return None, None
+        before = os.fstat(result_fd)
+        euid = _euid()
+        if not stat.S_ISREG(before.st_mode):
+            raise Unreadable("published result is not a regular file")
+        if euid is not None and before.st_uid != euid:
+            raise Unreadable("published result is not owned by the current user")
+        if before.st_size == 0:
+            return None, None
+        if before.st_size > cap:
+            raise Unreadable(
+                f"result exceeded byte cap ({before.st_size} > {cap} bytes)"
+            )
+        chunks = []
+        digest = hashlib.sha256()
+        total = 0
+        while total <= cap:
+            chunk = os.read(result_fd, min(65536, cap + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            digest.update(chunk)
+            total += len(chunk)
+        after = os.fstat(result_fd)
+        binding = lambda value: (
+            value.st_dev, value.st_ino, value.st_uid, value.st_mode,
+            value.st_size, value.st_mtime_ns, value.st_ctime_ns,
+        )
+        if total > cap or binding(before) != binding(after) or total != after.st_size:
+            raise Unreadable("published result changed during verification")
+        publication = (
+            "direct-write"
+            if (after.st_dev, after.st_ino) == (
+                reservation.get("result_dev"), reservation.get("result_ino")
+            )
+            else "atomic-replace"
+        )
+        proof = {
+            "job_id": reservation.get("job_id"),
+            "publication": publication,
+            "result_dev": after.st_dev,
+            "result_ino": after.st_ino,
+            "result_size": after.st_size,
+            "result_sha256": digest.hexdigest(),
+        }
+        return proof, b"".join(chunks)
+    finally:
+        if result_fd is not None:
+            os.close(result_fd)
+        os.close(parent_fd)
 
 
 # --- job identity and resolution ----------------------------------------------
@@ -470,30 +625,31 @@ def kill_tree(root_pid: int, grace: float) -> bool:
 
 # --- the supervisor (runs inside the detached session) -------------------------
 
-def classify_exit(rc: int, result_path, conf: dict):
-    result_size = None
+def classify_exit(rc: int, result_path, reservation, conf: dict):
+    result_proof = None
+    result_error = None
     if result_path:
         try:
-            st = os.lstat(result_path)
-            if stat.S_ISREG(st.st_mode) and st.st_size > 0:
-                result_size = st.st_size
-        except OSError:
-            pass
-    if result_size is not None and result_size > conf["result_max"]:
-        return "failed", (
-            f"result exceeded byte cap ({result_size} > {conf['result_max']} bytes)"
-        )
+            result_proof, _ = inspect_fresh_result(
+                result_path, reservation, conf["result_max"]
+            )
+        except (Unreadable, OSError) as exc:
+            result_error = str(exc)
     if rc == 0:
-        if result_path is None or result_size is not None:
-            return "done", "worker exited 0"
-        return "failed", "worker exited 0 without publishing a non-empty result"
+        if result_path is None:
+            return "done", "worker exited 0", None
+        if result_proof is not None:
+            return "done", "worker exited 0 with a fresh job-bound result", result_proof
+        if result_error is not None:
+            return "failed", f"worker result failed freshness verification: {result_error}", None
+        return "failed", "worker exited 0 without publishing a fresh non-empty result", None
     if rc < 0:
-        if result_size is not None:
-            return "done", f"worker killed by signal {-rc} after publishing its result"
+        if result_proof is not None:
+            return "done", f"worker killed by signal {-rc} after publishing its result", result_proof
         return "died-without-result", (
             f"worker killed by signal {-rc} with no result evidence"
-        )
-    return "failed", f"worker exited {rc}"
+        ), None
+    return "failed", f"worker exited {rc}", None
 
 
 def _reap_worker(proc, conf: dict) -> None:
@@ -526,7 +682,7 @@ def _interruptible_sleep(secs: float, flag: dict) -> None:
         time.sleep(min(0.1, max(0.01, end - time.monotonic())))
 
 
-def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
+def supervise(job_dir: str, argv, result_path, reservation, conf: dict, ack_fd: int) -> None:
     """The watchdog around the worker child. Owns liveness (out.log growth),
     the idle/hard windows, byte caps, reap-on-request, and the single terminal
     classification."""
@@ -578,6 +734,8 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
         # job as never-started).
         write_atomic(os.path.join(job_dir, "pid"), (json.dumps(pid_doc) + "\n").encode())
     except Exception as exc:
+        if result_path:
+            release_empty_reservation(result_path, reservation)
         write_terminal(job_dir, "failed", f"could not launch worker: {exc}")
         ack()
         return
@@ -589,7 +747,9 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
     while True:
         rc = proc.poll()
         if rc is not None:
-            state, reason = classify_exit(rc, result_path, conf)
+            state, reason, result_proof = classify_exit(
+                rc, result_path, reservation, conf
+            )
             break
         if flag["reap"]:
             # Classification is fixed BEFORE the kill: even if the worker
@@ -597,6 +757,7 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
             # record wins (R3).
             _reap_worker(proc, conf)
             state, reason = "timeout", "reaped on request before completion"
+            result_proof = None
             break
         try:
             size = os.fstat(log_fd).st_size
@@ -610,14 +771,17 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
             state, reason = "failed", (
                 f"out.log exceeded byte cap ({size} > {conf['log_max']} bytes)"
             )
+            result_proof = None
             break
         if conf["idle"] is not None and now - last_growth >= conf["idle"]:
             _reap_worker(proc, conf)
             state, reason = "timeout", f"no output for {conf['idle']:g}s (idle window)"
+            result_proof = None
             break
         if now - start_t >= conf["hard"]:
             _reap_worker(proc, conf)
             state, reason = "timeout", f"hard cap {conf['hard']:g}s exceeded"
+            result_proof = None
             break
         _interruptible_sleep(conf["poll"], flag)
     # An externally killed worker can leave group members behind (its shell's
@@ -625,10 +789,12 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
     # terminal record. A pgid cannot be recycled while members remain.
     _killpg_quiet(proc.pid, signal.SIGTERM)
     _killpg_quiet(proc.pid, signal.SIGKILL)
-    write_terminal(job_dir, state, reason)
+    if state != "done" and result_path:
+        release_empty_reservation(result_path, reservation)
+    write_terminal(job_dir, state, reason, result_proof=result_proof)
 
 
-def detach_supervisor(job_dir: str, argv, result_path, conf: dict) -> bool:
+def detach_supervisor(job_dir: str, argv, result_path, reservation, conf: dict) -> bool:
     """setsid double-fork. The grandchild (new session, stdio on /dev/null,
     reparented to init) runs the supervisor; the parent returns once the
     supervisor acks that the pid file exists."""
@@ -649,7 +815,7 @@ def detach_supervisor(job_dir: str, argv, result_path, conf: dict) -> bool:
             os.dup2(devnull, 2)
             if devnull > 2:
                 os.close(devnull)
-            supervise(job_dir, argv, result_path, conf, write_fd)
+            supervise(job_dir, argv, result_path, reservation, conf, write_fd)
         except BaseException:
             rc = 1
             try:
@@ -754,26 +920,6 @@ def cmd_start(args, worker_argv) -> int:
     argv = [resolved] + list(worker_argv[1:])
 
     conf = cfg(args.skill)
-    meta = {
-        "job_id": job_id,
-        "skill": args.skill,
-        "run_id": args.run_id,
-        "label": args.label,
-        "input_digest": args.input_digest,
-        "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "worker_argv": argv,
-        "result_path": result_path,
-        "sweep_enabled": not args.no_sweep,
-        "supervision": conf,
-    }
-    try:
-        create_exclusive(
-            os.path.join(job_dir, "meta.json"),
-            (json.dumps(meta, indent=2) + "\n").encode(),
-        )
-    except OSError as exc:
-        raise RunnerError(f"cannot write job metadata for {job_id}: {exc}")
-
     if problem is not None:
         raise RunnerError(
             f"preflight failed for job {job_id}: worker {argv0!r} {problem}; "
@@ -787,7 +933,33 @@ def cmd_start(args, worker_argv) -> int:
             "nothing was detached"
         )
 
-    if not detach_supervisor(job_dir, argv, result_path, conf):
+    reservation = reserve_result_path(result_path, job_id) if result_path else None
+    meta = {
+        "job_id": job_id,
+        "skill": args.skill,
+        "run_id": args.run_id,
+        "label": args.label,
+        "input_digest": args.input_digest,
+        "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "worker_argv": argv,
+        "result_path": result_path,
+        "result_reservation": reservation,
+        "sweep_enabled": not args.no_sweep,
+        "supervision": conf,
+    }
+    try:
+        create_exclusive(
+            os.path.join(job_dir, "meta.json"),
+            (json.dumps(meta, indent=2) + "\n").encode(),
+        )
+    except OSError as exc:
+        if result_path:
+            release_empty_reservation(result_path, reservation)
+        raise RunnerError(f"cannot write job metadata for {job_id}: {exc}")
+
+    if not detach_supervisor(job_dir, argv, result_path, reservation, conf):
+        if result_path:
+            release_empty_reservation(result_path, reservation)
         raise RunnerError(
             f"detach failed for job {job_id}: supervisor did not acknowledge; "
             f"inspect {job_dir}"
@@ -892,13 +1064,23 @@ def cmd_result(args) -> int:
         sys.stderr.write("peer-job-runner: job declared no result path; nothing to emit\n")
         return 0
     try:
-        data = read_owned(result_path, conf["result_max"])
+        expected = json.loads(read_owned(
+            os.path.join(job_dir, "result-proof.json"), META_READ_CAP
+        ))
+        observed, data = inspect_fresh_result(
+            result_path, meta.get("result_reservation"), conf["result_max"]
+        )
+        if observed is None or expected != observed:
+            raise Unreadable("terminal result identity changed after completion")
     except Unreadable as exc:
         sys.stderr.write(f"peer-job-runner: unreadable: {exc}\n")
         return 4
-    except OSError as exc:
+    except FileNotFoundError as exc:
         sys.stderr.write(f"peer-job-runner: result missing or unreadable: {exc}\n")
         return 3
+    except (OSError, ValueError) as exc:
+        sys.stderr.write(f"peer-job-runner: unreadable terminal result proof: {exc}\n")
+        return 4
     _emit_bytes(data)
     return 0
 
@@ -952,24 +1134,23 @@ def cmd_reap(args) -> int:
     # classify_exit. Only with no usable result do we fall back to timeout (leader
     # was alive) / died-without-result (leader gone).
     result_path = None
+    meta = None
     try:
         meta = json.loads(read_owned(os.path.join(job_dir, "meta.json"), META_READ_CAP))
         result_path = meta.get("result_path") if isinstance(meta, dict) else None
     except (Unreadable, OSError, ValueError):
         result_path = None
-    result_size = None
+    result_proof = None
     if result_path:
         try:
-            st = os.lstat(result_path)
-            if stat.S_ISREG(st.st_mode) and st.st_size > 0:
-                result_size = st.st_size
-        except OSError:
+            result_proof, _ = inspect_fresh_result(
+                result_path,
+                meta.get("result_reservation") if isinstance(meta, dict) else None,
+                conf["result_max"],
+            )
+        except (Unreadable, OSError):
             pass
-    if result_size is not None and result_size > conf["result_max"]:
-        word, reason = "failed", (
-            f"result exceeded byte cap ({result_size} > {conf['result_max']} bytes)"
-        )
-    elif result_size is not None:
+    if result_proof is not None:
         word, reason = "done", "worker published its result before reap (supervisor was gone)"
     elif worker_leader_alive:
         word, reason = "timeout", (
@@ -979,7 +1160,15 @@ def cmd_reap(args) -> int:
         word, reason = "died-without-result", (
             "supervisor and worker both gone without a terminal record"
         )
-    write_terminal(job_dir, word, reason, overwrite=False)
+    if word != "done" and result_path:
+        release_empty_reservation(
+            result_path,
+            meta.get("result_reservation") if isinstance(meta, dict) else None,
+        )
+    write_terminal(
+        job_dir, word, reason, overwrite=False,
+        result_proof=result_proof if word == "done" else None,
+    )
     return 0
 
 

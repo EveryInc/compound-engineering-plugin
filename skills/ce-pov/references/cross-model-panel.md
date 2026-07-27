@@ -249,8 +249,9 @@ co-located `scripts/cross-model-pov.sh` adapter for one resolved fixed route per
 peer, and `scripts/peer-job-runner.py` for detached lifecycle control. Never
 invoke the Bash adapter directly, including adapter-emission tests. The launcher
 must start from the canonical declared repository root; it removes Bash startup
-hooks, exported functions, and ambient API/OAuth keys before Bash starts, retains
-only bounded route selectors, auth-store pointers, locale, and timeout controls,
+hooks, exported functions, ambient API/OAuth keys, provider config pointers,
+and ambient home/config roots before Bash starts. It retains only bounded route
+selectors, locale, timeout controls, and inert provider discovery data,
 and passes caller `PATH` as inert provider discovery data. Follow the worker's
 current usage rather than reconstructing provider arguments. Pass the fixed target/route, any eligible host-resolved same-family
 default-model override, the canonical scope and identity, payload path, and round
@@ -270,6 +271,19 @@ a fixed trusted helper `PATH`. Unsupported chains and unsafe, missing, or change
 first matches are unavailable without searching for another executable;
 preferred retry remains the host's declared next-candidate decision, never an
 adapter fallback.
+
+Every provider process receives empty private `HOME`, `TMPDIR`, XDG config/data/cache,
+and provider-config roots beneath that peer's private scratch directory. No user or
+project provider configuration, plugin, hook, MCP declaration, JSON credential, or
+API/OAuth key is staged there. Codex additionally pins the built-in `openai` provider
+and disables hook, app/plugin, subagent, skill-MCP-install, and MCP-server surfaces
+through fixed CLI overrides; the flags supplement rather than replace filesystem
+isolation. A route that needs a readable credential or config file is unavailable.
+Credential-free execution and authentication brokered outside the model-readable
+filesystem remain eligible.
+Codex starts with its working directory in private scratch rather than the repository,
+while the prompt and read-only sandbox carry the absolute declared read root; this
+prevents repository `.codex/config.toml` files from becoming an active config layer.
 Pass the actual repository root separately from any narrower read root, and
 pre-create the round output directory as private scratch outside the repository.
 For named peers, start one job per exact target; for a selected panel, start one
@@ -279,7 +293,11 @@ Each worker writes `<run-dir>/pov-<target>.json`, where `<target>` is the resolv
 route target with `grok-cli`/`grok-cursor` collapsing to `grok`. Pass exactly that
 path as `--result-path` to `peer-job-runner.py start`, so `done` is keyed to the
 artifact and `result <job-id>` reads it without guessing the filename or the
-host's provider key.
+host's provider key. `start` exclusively reserves that path and rejects any
+preexisting artifact or concurrent reservation. A terminal result is accepted
+only when its direct-write inode or atomic replacement descends from this job's
+reservation and its verified bytes still match the proof published before
+`done`; timestamp freshness alone is never sufficient.
 
 Start each job from the declared repository root. Put the selector and scope
 environment on the runner process so the fixed clean launcher receives it by
