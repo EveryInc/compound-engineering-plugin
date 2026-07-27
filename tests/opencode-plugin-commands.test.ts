@@ -97,6 +97,10 @@ describe("opencode plugin skill commands", () => {
 
     expect(plugin.tool?.ce_task).toBeDefined()
     expect(plugin.tool?.ce_task.description).toMatch(/OpenCode routing boundary/i)
+    expect(plugin.event).toBeDefined()
+    await plugin.event?.({
+      event: { type: "session.deleted", properties: { info: { id: "deleted-session" } } },
+    })
   })
 
   // Guards the frontmatter-scoped parse: a whole-file `name:` match could pick up

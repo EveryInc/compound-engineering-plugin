@@ -324,6 +324,46 @@ describe("OpenCode routed task adapter", () => {
     expect(store.intentsFor("session")).toEqual([])
   })
 
+  test("releases intent state and cached session snapshots", async () => {
+    const store = createOpenCodeIntentStore()
+    store.capture({
+      sessionID: "session",
+      messageID: "direct",
+      text: `${carrier({ role: ROLE, binding: { profile: "economy", policy: "require" } })}\nproduct prompt`,
+      direct: true,
+      synthetic: false,
+      parentID: undefined,
+    })
+    const requests: Record<string, any>[] = []
+    const adapter = createOpenCodeRoutingAdapter({
+      intents: store,
+      host: fakeHost().host,
+      resolver: async (request) => {
+        requests.push(structuredClone(request))
+        return {
+          snapshot: { id: `snapshot-${requests.length}` },
+          resolutions: [{ role: ROLE, binding: { kind: "ce-default", explicit_reset: false } }],
+        }
+      },
+    })
+    const input = {
+      sessionID: "session",
+      callID: "call-1",
+      directory: "/repo",
+      role: ROLE,
+      prompt: "native prompt",
+    }
+
+    await adapter.execute(input)
+    adapter.releaseSession("session")
+    await adapter.execute({ ...input, callID: "call-2" })
+
+    expect(requests).toHaveLength(2)
+    expect(requests[0].intents).toHaveLength(1)
+    expect(requests[1].intents).toEqual([])
+    expect(store.revision("session")).toBe(0)
+  })
+
   test("blocks routed child creation at the native TaskTool subagent depth limit", async () => {
     const candidate = { harness: "opencode", model: "openai/gpt-5.6" }
     const { host, calls } = fakeHost()

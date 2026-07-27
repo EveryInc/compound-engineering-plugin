@@ -56,6 +56,7 @@ async function fixture(options: {
   backend?: "codex" | "worktree"
   routeHarness?: "codex" | "opencode"
   hostHarness?: "codex" | "opencode"
+  terminalDefault?: boolean
 } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), "ce-optimize-controller-"))
   const repo = path.join(root, "repo")
@@ -149,6 +150,7 @@ print(json.dumps({'score': 1 if denied == len(numbers) else -1}))
       "    optimize-test:",
       "      candidates:",
       ...models.map((model) => `        - { harness: ${options.routeHarness ?? "codex"}, model: ${model} }`),
+      ...(options.terminalDefault ? ["        - ce-default"] : []),
       "  roles:",
       `    ce-optimize.experiment-author: { profile: optimize-test, policy: ${options.policy ?? "require"} }`,
       ...(options.judge ? [`    ce-optimize.semantic-judge: { profile: optimize-test, policy: ${options.policy ?? "require"} }`] : []),
@@ -749,6 +751,35 @@ print(json.dumps({"raised": raised, "exit_code": result["exit_code"], "stdout": 
       expect(second.word).toBe("ACCEPT")
       expect(second.body.receipt.attempts).toHaveLength(2)
       expect(second.body.receipt).toMatchObject({ provider_actual: "openai", model_actual: "second" })
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("advances a preferred Codex route to its terminal CE-default candidate", async () => {
+    const f = await fixture({ policy: "prefer", models: ["openai/first"], terminalDefault: true })
+    try {
+      await start(f)
+      let worktree = await createWorktree(f, "native-fallback")
+      await lock(f, worktree, "attempt-first", 0, "native-fallback")
+      await checked(["python3", "-I", "-S", CONTROLLER, "dispatch", "--run-id", "run", "--attempt-id", "attempt-first", "--prompt", f.prompt], f.repo, f.env)
+      const first = await checked(["python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", "attempt-first"], f.repo, f.env)
+      expect(first.word).toBe("NEXT_CANDIDATE")
+
+      worktree = await createWorktree(f, "native-fallback")
+      const fallback = await lock(f, worktree, "attempt-default", 1, "native-fallback")
+      expect(fallback.word).toBe("LOCKED")
+      expect(fallback.body.recipient).toMatchObject({ adapter: "codex", harness: "codex", route: "codex" })
+      await checked([
+        "python3", "-I", "-S", CONTROLLER, "dispatch", "--run-id", "run",
+        "--attempt-id", "attempt-default", "--prompt", f.prompt,
+      ], f.repo, f.env)
+      const finalized = await checked([
+        "python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", "attempt-default",
+      ], f.repo, f.env)
+      expect(finalized.word).toBe("ACCEPT")
+      expect(finalized.body.receipt).toMatchObject({ identity_status: "ce-default" })
+      expect(finalized.body.receipt.attempts).toHaveLength(2)
     } finally {
       await rm(f.root, { recursive: true, force: true })
     }

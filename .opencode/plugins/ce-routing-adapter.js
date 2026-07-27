@@ -64,6 +64,10 @@ export function createOpenCodeIntentStore() {
     revision(sessionID) {
       return revisions.get(sessionID) ?? 0
     },
+    release(sessionID) {
+      sessions.delete(sessionID)
+      revisions.delete(sessionID)
+    },
   }
 }
 
@@ -111,7 +115,7 @@ function modelSelector(candidate, parent, models) {
   if (!model) return null
   const variant = candidate.effort
   if (variant && !(model.variants ?? []).some((item) => (item.id ?? item) === variant)) return null
-  return { providerID, modelID, variant, model }
+  return { providerID, modelID, variant }
 }
 
 function taskPermission(parent, general, config) {
@@ -201,10 +205,11 @@ export function createOpenCodeRoutingAdapter(options) {
   const roots = new Map()
 
   async function resolve(input) {
-    const key = `${input.sessionID}:${intents.revision(input.sessionID)}`
-    let root = roots.get(key)
-    if (!root) {
+    const revision = intents.revision(input.sessionID)
+    let root = roots.get(input.sessionID)
+    if (!root || root.revision !== revision) {
       root = {
+        revision,
         callID: input.callID,
         promise: options.resolver({
           protocol: "ce-routing/v1",
@@ -215,7 +220,7 @@ export function createOpenCodeRoutingAdapter(options) {
           roles: [{ role: input.role, instance: { id: input.callID } }],
         }, { role: input.role, directory: input.directory }),
       }
-      roots.set(key, root)
+      roots.set(input.sessionID, root)
     }
     const first = await root.promise
     if (root.callID === input.callID) return first
@@ -277,6 +282,10 @@ export function createOpenCodeRoutingAdapter(options) {
 
   return {
     intents,
+    releaseSession(sessionID) {
+      roots.delete(sessionID)
+      intents.release?.(sessionID)
+    },
     async execute(input) {
       const resolved = await resolve(input)
       const item = resolved.resolutions?.find((candidate) => candidate.role === input.role)
@@ -336,7 +345,6 @@ export function createOpenCodeRoutingAdapter(options) {
         }
         const handle = handles.create({
           ...state,
-          parent: context.parent,
           permission: context.permission,
           agentName: context.agentName,
           selector,

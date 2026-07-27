@@ -122,6 +122,9 @@ async function compoundEngineeringPlugin(input = {}, createClient) {
       }
     }
   }
+  hooks.event = async ({ event }) => {
+    if (event.type === "session.deleted") adapter.releaseSession(event.properties.info.id)
+  }
   hooks.tool = {
     ce_task: tool({
       description: "Run one already-selected Compound Engineering generic subagent through the OpenCode routing boundary.",

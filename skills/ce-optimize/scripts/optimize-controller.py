@@ -1149,7 +1149,7 @@ def command_lock_attempt(args: argparse.Namespace) -> tuple[str, dict]:
         auth_material = []
         confinement = None
         if args.adapter == "codex":
-            if not ce_default and candidate.get("harness") != "codex":
+            if not native_default and candidate.get("harness") != "codex":
                 preflight_error = "frozen candidate is not eligible for the Codex backend"
             if candidate.get("effort") is not None:
                 preflight_error = preflight_error or "Codex Optimize does not support a routed effort override"
@@ -1180,8 +1180,8 @@ def command_lock_attempt(args: argparse.Namespace) -> tuple[str, dict]:
         immutable = hash_scope(worktree or document["repo"], document["constraints"]["scope"]["immutable"])
         recipient = {
             "adapter": args.adapter,
-            "harness": candidate.get("harness") if not ce_default else args.adapter,
-            "route": candidate.get("route") if not ce_default else args.adapter,
+            "harness": candidate.get("harness") if not native_default else args.adapter,
+            "route": candidate.get("route") if not native_default else args.adapter,
             "model": candidate.get("model"),
             "effort": candidate.get("effort"),
         }
