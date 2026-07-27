@@ -11,9 +11,9 @@
 # WebSearch/WebFetch, so writes, shell, skills, and MCP are unavailable; the
 # model reads the repo and web to verify its brief and returns prose.
 #
-# Usage:
-#   elevation-dispatch.sh <model> <prompt-file> <result-path>
-#   elevation-dispatch.sh --emit-adapter <model>   # print argv, no model call (test hook)
+# Invoked only through the co-located clean launcher:
+#   /usr/bin/python3 -I -S clean-launcher.py <model> <prompt-file> <result-path>
+#   /usr/bin/python3 -I -S clean-launcher.py --emit-adapter <model>
 #
 # NOTE ON THE FUNCTION NAMED run_codex_cmd: it is NOT codex-specific here. It is
 # the $PEERLOG byte-growth idle loop that implements R11's primary supervision
@@ -26,10 +26,17 @@
 set -uo pipefail
 trap '' HUP
 
-# Caller PATH is untrusted discovery data only. Establish the helper boundary
-# before the first external command; provider/interpreter lookup receives the
-# captured value explicitly and provider execution never inherits it.
-DISCOVERY_PATH="${PATH:-}"
+# Production and test-only paths enter through clean-launcher.py. Bash startup
+# hooks have already run by this point, so direct shell execution is refused.
+[ "${CE_ADAPTER_CLEAN_LAUNCH:-}" = "v1" ] || { printf '[elevation] clean launcher provenance missing\n' >&2; exit 2; }
+[ -n "${CE_ADAPTER_SCRIPT_FD:-}" ] && [ "${BASH_SOURCE[0]}" = "/dev/fd/${CE_ADAPTER_SCRIPT_FD}" ] \
+  || { printf '[elevation] adapter was not launched from its bound file descriptor\n' >&2; exit 2; }
+[ -n "${CE_PROJECT_ROOT:-}" ] && [ "$(pwd -P)" = "$CE_PROJECT_ROOT" ] \
+  || { printf '[elevation] launch directory does not match the declared project root\n' >&2; exit 2; }
+
+# Caller PATH is inert discovery data captured before the clean launch.
+DISCOVERY_PATH="${CE_PROVIDER_DISCOVERY_PATH:-}"
+PROJECT_ROOT="$CE_PROJECT_ROOT"
 TRUSTED_HELPER_PATH="/usr/bin:/bin"
 HELPER_DISCOVERY_PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
 PATH="$TRUSTED_HELPER_PATH"
@@ -53,23 +60,23 @@ SYSTEM_ENV="/usr/bin/env"
 # native-skill dependency; invoke fixed system binaries in an empty environment
 # so neither PATH nor Python startup variables can replace the validator.
 provider_identity() { # <qualify|verify> <name> <discovery-path> [expected-identity]
+  local operation="$1" name="$2" discovery="$3" expected="${4:-}"
   [ -x "$SYSTEM_ENV" ] && [ -x "$SYSTEM_PYTHON" ] || return 1
   "$SYSTEM_ENV" -i "PATH=$TRUSTED_HELPER_PATH" "PYTHONDONTWRITEBYTECODE=1" \
-    "$SYSTEM_PYTHON" -I -S - "$@" <<'PY'
+    "$SYSTEM_PYTHON" -I -S - "$operation" "$name" "$discovery" "$PROJECT_ROOT" "$expected" <<'PY'
 import hashlib
 import json
 import os
-import shlex
+import re
 import stat
 import sys
 
-mode, name, discovery = sys.argv[1:4]
-expected = sys.argv[4] if len(sys.argv) > 4 else ""
+mode, name, discovery, project_root = sys.argv[1:5]
+expected = sys.argv[5]
 uid = os.geteuid()
 MAX_DISCOVERY = 65536
 MAX_CHAIN_DEPTH = 6
 MAX_SHEBANG = 1024
-MAX_SHEBANG_ARGS = 8
 MAX_ARG = 256
 
 def fail(message):
@@ -85,6 +92,12 @@ def project_owner(path):
         if parent == current:
             return None
         current = parent
+
+def beneath_project(path):
+    try:
+        return os.path.commonpath((os.path.abspath(path), project_root)) == project_root
+    except ValueError:
+        return False
 
 def components(path):
     path = os.path.abspath(path)
@@ -123,6 +136,8 @@ def inspect(path, executable=False):
 
 if not discovery or len(discovery) > MAX_DISCOVERY or "\0" in discovery:
     fail("executable discovery PATH is missing or oversized")
+if not os.path.isabs(project_root) or os.path.realpath(project_root) != project_root or not os.path.isdir(project_root):
+    fail("declared project root is not canonical")
 
 def discover(command):
     if not command or os.sep in command:
@@ -142,6 +157,8 @@ def bind_file(lookup):
     if not os.path.lexists(lookup):
         fail(f"executable path is missing: {lookup}")
     target = os.path.realpath(lookup)
+    if beneath_project(lookup) or beneath_project(target):
+        fail("executable is beneath the declared project root")
     if project_owner(lookup) is not None or project_owner(target) is not None:
         fail("executable is project/worktree-owned")
     launcher_records = inspect(lookup)
@@ -185,11 +202,11 @@ def shebang_tokens(prefix):
     raw = prefix[2:newline].rstrip(b"\r")
     try:
         line = raw.decode("utf-8", "strict")
-        tokens = shlex.split(line, posix=True)
-    except (UnicodeDecodeError, ValueError) as exc:
+        tokens = line.split()
+    except UnicodeDecodeError as exc:
         fail(f"malformed executable shebang: {exc}")
-    if not tokens or len(tokens) > MAX_SHEBANG_ARGS + 2:
-        fail("malformed or over-argument executable shebang")
+    if not tokens:
+        fail("malformed executable shebang")
     if any(not token or len(token) > MAX_ARG or "\0" in token for token in tokens):
         fail("unsafe executable shebang argument")
     return tokens
@@ -209,30 +226,18 @@ def resolve(lookup, depth=0):
     stack.add(target)
     try:
         if interpreter in ("/usr/bin/env", "/bin/env"):
-            # Bind env itself even though final argv bypasses it. Only common,
-            # deterministic command-selection forms are supported.
+            # Bind env itself even though final argv bypasses it. Interpreter
+            # arguments can select or preload code, so only a simple command
+            # name, with an optional `--`, is accepted.
             resolve(interpreter, depth + 1)
-            split = False
-            if args and args[0] in ("-S", "--split-string"):
-                split = True
+            if args and args[0] == "--":
                 args = args[1:]
-            elif args and args[0].startswith("--split-string="):
-                split = True
-                args = [args[0].split("=", 1)[1], *args[1:]]
-            elif args and args[0] == "--":
-                args = args[1:]
-            if not args or (len(args) > 1 and not split):
+            if len(args) != 1 or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", args[0]) is None:
                 fail("unsupported /usr/bin/env shebang form")
-            command, command_args = args[0], args[1:]
-            if len(command_args) > MAX_SHEBANG_ARGS:
-                fail("over-argument /usr/bin/env shebang")
-            command_lookup = command if os.path.isabs(command) else discover(command)
-            if os.sep in command and not os.path.isabs(command):
-                fail("relative interpreter path is unsupported")
-            return [*resolve(command_lookup, depth + 1), *command_args, target]
-        if len(args) > 1:
-            fail("absolute shebang supports at most one interpreter argument")
-        return [*resolve(interpreter, depth + 1), *args, target]
+            return [*resolve(discover(args[0]), depth + 1), target]
+        if args:
+            fail("absolute shebang interpreter arguments are unsupported")
+        return [*resolve(interpreter, depth + 1), target]
     finally:
         stack.remove(target)
 

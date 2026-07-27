@@ -24,7 +24,7 @@ Qualify declared candidates in order, after resolution and before prompt assembl
 
 <!-- ce-dispatch-site:reasoning-elevation.native -->
 1. **Native in-harness dispatch.** Attempt the platform subagent primitive only when the candidate names the current harness (or the compatibility native route), it supports every requested selector, and the existing read-only instruction posture remains intact. A candidate matching the active session model collapses to inline execution rather than shelling out to self. A host with no model or effort selector reports the configured candidate unavailable; it never encodes the request in prose.
-2. **Claude CLI.** Eligible only for a Claude/`claude` candidate, an installed authenticated CLI, and selectors accepted by `scripts/elevation-dispatch.sh`. Run it through the existing detached worker contract below. Pass the frozen candidate through `CE_ROUTING_CANDIDATE_HARNESS`, `CE_ROUTING_CANDIDATE_ROUTE`, `CE_ROUTING_CANDIDATE_MODEL`, and optional `CE_ROUTING_CANDIDATE_EFFORT`; the worker rejects mismatched or unsafe tokens before invoking Claude. The worker captures caller `PATH` only as inert provider/interpreter discovery data, resolves the first `claude` match and its bounded shebang chain exactly once, and accepts only canonical executables outside project/worktree ownership with safe owner/mode/ancestry and bound file digests. Immediately before dispatch it revalidates the complete chain and invokes an explicit absolute interpreter/provider argv under a fixed trusted helper `PATH`; unsupported chains and unsafe, missing, or changed first matches are unavailable without searching for another executable.
+2. **Claude CLI.** Eligible only for a Claude/`claude` candidate, an installed authenticated CLI, and selectors accepted by the co-located clean launcher and `scripts/elevation-dispatch.sh`. Run it through the detached worker contract below. Pass the frozen candidate through `CE_ROUTING_CANDIDATE_HARNESS`, `CE_ROUTING_CANDIDATE_ROUTE`, `CE_ROUTING_CANDIDATE_MODEL`, and optional `CE_ROUTING_CANDIDATE_EFFORT`; the launcher validates their bounded data forms, removes shell startup hooks, exported functions, and ambient API/OAuth keys before Bash starts, then the worker rejects route mismatches before invoking Claude. Launch from the declared project root. The launcher captures caller `PATH` only as inert provider/interpreter discovery data; the worker resolves the first `claude` match and its bounded shebang chain exactly once, rejects every executable beneath the declared root independently of VCS, and accepts only argument-free absolute interpreters or `/usr/bin/env [--] <simple-name>` with safe canonical ownership, mode, ancestry, and bound file digests. Immediately before dispatch it revalidates the complete chain and invokes an explicit absolute interpreter/provider argv under a fixed trusted helper `PATH`; unsupported chains and unsafe, missing, or changed first matches are unavailable without searching for another executable.
 3. **CE-default.** Run the inline session-model step with the exact existing prompt and material.
 
 Before every external attempt, independently sanction the target, intermediary, exact handoff directory/material, and a credential-minimized environment. A profile is routing data, not egress authority. A `require` candidate that is unavailable blocks the affected author/generator call without prompting. A `prefer` candidate may move to the next declared candidate after a preflight rejection; once work starts, the recipient is fixed.
@@ -56,25 +56,26 @@ Never hold a tool call open for the model's runtime — some harnesses kill long
 
 1. **Write the prompt-file into the private handoff directory.** Put the prompt-file *and* every evidence scratch file in the one `mktemp -d` directory from "Read-only posture and brief handoff" above — the worker grants read access to the prompt-file's own parent directory, so co-locating them is what makes the evidence readable while keeping the rest of the temp root private. Build the prompt-file as the elevated model's brief: the instruction to interpret findings and author the plan (or generate approaches), plus the **absolute paths** of those co-located scratch files — the evidence files told to the model as untrusted data to Read and interpret (R20), and the project-conventions file as constraints the output must honor. The scratch files are referenced by path inside this one prompt-file, not passed as extra worker args.
 
-2. **Start the detached job**, anchoring the bundled scripts to this skill's directory. The Bash tool's CWD is the user's project, not the skill dir, so a bare `scripts/…` path resolves in the wrong place and the run silently never starts — set `SKILL_DIR` inline in the same command and pass `start` with its required flags (`--skill`, `--run-id`, then `--` before the worker argv):
+2. **Start the detached job from the project root**, anchoring the bundled scripts to this skill's directory. The Bash tool's CWD is the user's project, not the skill dir, so a bare `scripts/…` path resolves in the wrong place and the run silently never starts — set `SKILL_DIR` inline in the same command and pass `start` with its required flags (`--skill`, `--run-id`, then `--` before the worker argv). The worker argv begins at the fixed isolated Python launcher, never at `env` or the Bash adapter:
 
    ```bash
    SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read — this skill's own directory>";
    SKILL_NAME="<this skill's name: ce-plan or ce-brainstorm>";
    CE_PEER_HARD_SECS=5400 CE_ELEVATION_HARD_SECS=5400 CE_PEER_LOG_MAX_BYTES=52428800 \
-     python3 "$SKILL_DIR/scripts/peer-job-runner.py" start \
+   CE_ROUTING_CANDIDATE_HARNESS=claude CE_ROUTING_CANDIDATE_ROUTE=claude \
+   CE_ROUTING_CANDIDATE_MODEL="<model>" CE_ROUTING_CANDIDATE_EFFORT="<effort>" \
+     /usr/bin/python3 -I -S "$SKILL_DIR/scripts/peer-job-runner.py" start \
      --skill "$SKILL_NAME" --run-id "<run-id>" --label elevation \
      --result-path "<result-path>" \
-     -- env CE_ROUTING_CANDIDATE_HARNESS=claude CE_ROUTING_CANDIDATE_ROUTE=claude \
-       CE_ROUTING_CANDIDATE_MODEL="<model>" CE_ROUTING_CANDIDATE_EFFORT="<effort>" \
-       /bin/bash "$SKILL_DIR/scripts/elevation-dispatch.sh" "<model>" "<prompt-file>" "<result-path>"
+     -- /usr/bin/python3 -I -S "$SKILL_DIR/scripts/clean-launcher.py" \
+       "<model>" "<prompt-file>" "<result-path>"
    ```
 
 `CE_PEER_HARD_SECS` (the outer runner cap) and `CE_ELEVATION_HARD_SECS` (the worker's own inner cap) are set to the **same** raised backstop well above any legitimate run (R11) — keep them equal so the inner cap never reaps a healthy run before the outer one. `CE_PEER_LOG_MAX_BYTES` is raised for the streaming route so a healthy high-volume run is not reaped as a failure (R22). `start` returns a job id in under ~2s.
 
-3. **Poll** with `python3 "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 "<job-id>"` between your other work, until terminal.
+3. **Poll** with `/usr/bin/python3 -I -S "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 "<job-id>"` between your other work, until terminal.
 
-4. **Read the result** via `python3 "$SKILL_DIR/scripts/peer-job-runner.py" result "<job-id>"` — the worker's quarantined envelope `{status, requested_model, served_model, model_identity_status, effort_requested, effort_actual, output}`. Map `status: ok` to outcome `ok` and route/preflight absence or terminal worker failure to `unavailable` or `failed`; run lock-bound `finalize_attempt` before consuming `output`.
+4. **Read the result** via `/usr/bin/python3 -I -S "$SKILL_DIR/scripts/peer-job-runner.py" result "<job-id>"` — the worker's quarantined envelope `{status, requested_model, served_model, model_identity_status, effort_requested, effort_actual, output}`. Map `status: ok` to outcome `ok` and route/preflight absence or terminal worker failure to `unavailable` or `failed`; run lock-bound `finalize_attempt` before consuming `output`.
 
 The worker streams `--output-format stream-json --verbose`, so progress events reset its idle window; a genuinely stalled model stops growing the log and is reaped while a productive long run continues.
 

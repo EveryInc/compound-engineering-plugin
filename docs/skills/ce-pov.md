@@ -203,6 +203,8 @@ The compatible `cross_model_peer` setting and generalized `ce-pov.panel-peer` ro
 
 Concrete model IDs and CLI flags are preferred adapter defaults, not permanent product promises. If the landscape changes, ce-pov tries the declared mapping first, then may discover the closest compatible equivalent within the same requested target and hard safety/egress boundaries. It discloses the substitution and actual route; an explicitly named model or newly receiving intermediary never changes silently.
 
+External peers launch only from the canonical repository root through ce-pov's co-located clean Python launcher. Before Bash starts, it removes shell startup hooks, exported functions, and ambient API/OAuth credentials; provider and interpreter discovery then rejects project-local executables and every shebang argument that could select, preload, or evaluate code.
+
 ---
 
 ## FAQ

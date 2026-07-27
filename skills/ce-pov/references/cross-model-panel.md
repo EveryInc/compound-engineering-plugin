@@ -244,20 +244,27 @@ Verify that the same complete payload fits every selected route; never truncate
 it per provider. A route that cannot accept it is unavailable under the ordinary
 partial-panel degradation rule.
 
-Use `scripts/cross-model-pov.sh` from this skill's directory to run one resolved
-fixed route per peer, and `scripts/peer-job-runner.py` for detached lifecycle
-control. Follow the worker's current usage rather than reconstructing provider
-arguments. Pass the fixed target/route, any eligible host-resolved same-family
+Use `scripts/clean-launcher.py` from this skill's directory to open and run the
+co-located `scripts/cross-model-pov.sh` adapter for one resolved fixed route per
+peer, and `scripts/peer-job-runner.py` for detached lifecycle control. Never
+invoke the Bash adapter directly, including adapter-emission tests. The launcher
+must start from the canonical declared repository root; it removes Bash startup
+hooks, exported functions, and ambient API/OAuth keys before Bash starts, retains
+only bounded route selectors, auth-store pointers, locale, and timeout controls,
+and passes caller `PATH` as inert provider discovery data. Follow the worker's
+current usage rather than reconstructing provider arguments. Pass the fixed target/route, any eligible host-resolved same-family
 default-model override, the canonical scope and identity, payload path, and round
 output directory. Also pass the frozen candidate as
 `CE_ROUTING_CANDIDATE_HARNESS`, `CE_ROUTING_CANDIDATE_ROUTE`, optional
 `CE_ROUTING_CANDIDATE_MODEL`, and optional `CE_ROUTING_CANDIDATE_EFFORT`; the
 script validates route compatibility and token safety before invoking the CLI.
-For each fixed route, the script captures caller `PATH` only as inert
-provider/interpreter discovery data, resolves the first provider match and its
-bounded shebang chain exactly once, canonicalizes symlink launchers, rejects
-project/worktree ownership or unsafe owner/mode/ancestry, and binds every
-executable's metadata and digest. It revalidates the complete chain immediately
+For each fixed route, the script resolves the first provider match and its
+bounded shebang chain exactly once, canonicalizes symlink launchers, rejects any
+provider or interpreter beneath the canonical declared root independently of
+VCS, rejects unsafe owner/mode/ancestry, and binds every executable's metadata
+and digest. Shebangs support only argument-free absolute interpreters or
+`/usr/bin/env [--] <simple-name>`; interpreter arguments that select, preload, or
+evaluate code are unavailable. It revalidates the complete chain immediately
 before dispatch and invokes an explicit absolute interpreter/provider argv under
 a fixed trusted helper `PATH`. Unsupported chains and unsafe, missing, or changed
 first matches are unavailable without searching for another executable;
@@ -274,16 +281,33 @@ path as `--result-path` to `peer-job-runner.py start`, so `done` is keyed to the
 artifact and `result <job-id>` reads it without guessing the filename or the
 host's provider key.
 
+Start each job from the declared repository root. Put the selector and scope
+environment on the runner process so the fixed clean launcher receives it by
+inheritance; after `--`, the worker argv must begin at that launcher:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read — this skill's own directory>";
+CROSS_MODEL_REPO_ROOT="<canonical-repository-root>" CROSS_MODEL_READ_ROOT="<read-root>" \
+CROSS_MODEL_HOST_HARNESS="<host-harness>" CE_ROUTING_CANDIDATE_HARNESS="<candidate-harness>" \
+CE_ROUTING_CANDIDATE_ROUTE="<fixed-route>" CE_ROUTING_CANDIDATE_MODEL="<model>" \
+CE_ROUTING_CANDIDATE_EFFORT="<effort>" \
+  /usr/bin/python3 -I -S "$SKILL_DIR/scripts/peer-job-runner.py" start \
+  --skill ce-pov --run-id "<run-id>" --label "<target>" \
+  --result-path "<run-dir>/pov-<target>.json" -- \
+  /usr/bin/python3 -I -S "$SKILL_DIR/scripts/clean-launcher.py" \
+  "<host-serving-family>" "<fixed-route>" "<payload-path>" "<run-dir>"
+```
+
 Record every job id and the epoch after the final start. Poll all jobs in
 bounded slices with
-`python3 "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 --json <job-ids...>`.
+`/usr/bin/python3 -I -S "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 --json <job-ids...>`.
 Job ids or job-directory paths are positional. `--skill`, `--run-id`, and
 `--label` are start-only; never pass them to `wait`. Do not add a separate shell
 sleep: `wait` itself provides the bounded polling delay. Use one aggregate
 deadline of 610 seconds after the final start; never begin a wait that can cross
 it. At the deadline, reap each nonterminal job in a short call, then make one
 final
-`python3 "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 10 --json <job-ids...>`
+`/usr/bin/python3 -I -S "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 10 --json <job-ids...>`
 call. Classify every started job from its terminal state; `done` alone does not
 prove a usable artifact exists.
 

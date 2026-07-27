@@ -25,7 +25,7 @@ afterAll(() => {
 })
 
 const REAL_TOOLS = [
-  "bash", "sh", "jq", "date", "sed", "tr", "cat", "wc", "mktemp", "env",
+  "bash", "sh", "jq", "python3", "date", "sed", "tr", "cat", "wc", "mktemp", "env",
   "sleep", "rm", "mv", "chmod", "printf", "kill", "tail", "grep",
 ]
 function resolveRealToolPaths(): Array<[string, string]> {
@@ -51,6 +51,9 @@ const BRAINSTORM_WORKER = path.join(
   __dirname,
   "../../skills/ce-brainstorm/scripts/elevation-dispatch.sh",
 )
+const LAUNCHER = path.join(__dirname, "../../skills/ce-plan/scripts/clean-launcher.py")
+const BRAINSTORM_LAUNCHER = path.join(__dirname, "../../skills/ce-brainstorm/scripts/clean-launcher.py")
+const PYTHON = "/usr/bin/python3"
 
 // Approval/bypass flags the read-only elevation call must never emit.
 const NEVER_FLAGS = [
@@ -95,7 +98,7 @@ function runWorker(
   const promptFile = path.join(scratch, "brief.md")
   const resultPath = path.join(scratch, "result.json")
   writeFileSync(promptFile, "author the plan from these findings")
-  const r = spawnSync("bash", [WORKER, model, promptFile, resultPath], {
+  const r = spawnSync(PYTHON, ["-I", "-S", LAUNCHER, model, promptFile, resultPath], {
     encoding: "utf8",
     env: { CE_ELEVATION_POLL_SECS: "0.2", ...env, ...extraEnv },
     cwd,
@@ -119,10 +122,13 @@ describe("elevation-dispatch worker", () => {
     expect(readFileSync(WORKER, "utf8")).toBe(
       readFileSync(BRAINSTORM_WORKER, "utf8"),
     )
+    expect(readFileSync(LAUNCHER, "utf8")).toBe(
+      readFileSync(BRAINSTORM_LAUNCHER, "utf8"),
+    )
   })
 
   test("emits a streaming, read-only claude argv", () => {
-    const r = spawnSync("bash", [WORKER, "--emit-adapter", "fable", "/fake/handoff/xyz"], {
+    const r = spawnSync(PYTHON, ["-I", "-S", LAUNCHER, "--emit-adapter", "fable", "/fake/handoff/xyz"], {
       encoding: "utf8",
     })
     expect(r.status).toBe(0)
@@ -159,10 +165,18 @@ describe("elevation-dispatch worker", () => {
     for (const flag of NEVER_FLAGS) expect(argv).not.toContain(flag)
   })
 
+  test("refuses direct bash execution even for test-only adapter emission", () => {
+    const result = spawnSync("/bin/bash", [WORKER, "--emit-adapter", "fable"], {
+      encoding: "utf8",
+    })
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain("clean launcher provenance missing")
+  })
+
   test("applies only token-safe generalized Claude model and effort selectors", () => {
     const selected = spawnSync(
-      "bash",
-      [WORKER, "--emit-adapter", "sonnet", "/fake/handoff/xyz"],
+      PYTHON,
+      ["-I", "-S", LAUNCHER, "--emit-adapter", "sonnet", "/fake/handoff/xyz"],
       {
         encoding: "utf8",
         env: {
@@ -188,8 +202,8 @@ describe("elevation-dispatch worker", () => {
       { CE_ROUTING_CANDIDATE_HARNESS: "claude", CE_ROUTING_CANDIDATE_MODEL: "sonnet", CE_ROUTING_CANDIDATE_EFFORT: "ultra high" },
     ]) {
       const rejected = spawnSync(
-        "bash",
-        [WORKER, "--emit-adapter", "sonnet", "/fake/handoff/xyz"],
+        PYTHON,
+        ["-I", "-S", LAUNCHER, "--emit-adapter", "sonnet", "/fake/handoff/xyz"],
         { encoding: "utf8", env: { ...process.env, ...env } },
       )
       expect(rejected.status).toBe(2)
@@ -235,6 +249,52 @@ describe("elevation-dispatch worker", () => {
     expect(existsSync(invoked)).toBe(false)
   })
 
+  test("rejects a provider beneath a declared non-Git project root", () => {
+    const project = mkTempRoot("elevation-nongit-project-")
+    const projectBin = path.join(project, "bin")
+    mkdirSync(projectBin)
+    const invoked = path.join(project, "provider-invoked")
+    writeFileSync(path.join(projectBin, "claude"), `#!/bin/sh\n: > '${invoked}'\nexit 0\n`)
+    chmodSync(path.join(projectBin, "claude"), 0o755)
+    const safe = sandbox("#!/bin/sh\nexit 99\n")
+
+    const { result, stderr } = runWorker(
+      "fable",
+      "#!/bin/sh\nexit 99\n",
+      { PATH: `${projectBin}:${safe.bin}` },
+      [],
+      project,
+    )
+
+    expect(result).toMatchObject({ status: "failed", model_identity_status: "unverified" })
+    expect(stderr).toContain("beneath the declared project root")
+    expect(existsSync(invoked)).toBe(false)
+  })
+
+  test("rejects a non-Git project-local shebang interpreter", () => {
+    const project = mkTempRoot("elevation-nongit-interpreter-")
+    const projectBin = path.join(project, "bin")
+    const providerRoot = mkTempRoot("elevation-external-provider-")
+    mkdirSync(projectBin)
+    const invoked = path.join(project, "interpreter-invoked")
+    writeFileSync(path.join(projectBin, "ce-local-python"), `#!/bin/sh\n: > '${invoked}'\nexit 0\n`)
+    chmodSync(path.join(projectBin, "ce-local-python"), 0o755)
+    writeFileSync(path.join(providerRoot, "claude"), "#!/usr/bin/env ce-local-python\n")
+    chmodSync(path.join(providerRoot, "claude"), 0o755)
+
+    const { result, stderr } = runWorker(
+      "fable",
+      "#!/bin/sh\nexit 99\n",
+      { PATH: `${projectBin}:${providerRoot}:${process.env.PATH ?? "/usr/bin:/bin"}` },
+      [],
+      project,
+    )
+
+    expect(result).toMatchObject({ status: "failed", model_identity_status: "unverified" })
+    expect(stderr).toContain("beneath the declared project root")
+    expect(existsSync(invoked)).toBe(false)
+  })
+
   test("project-local helper shims never run when a safe provider is later on PATH", () => {
     const project = mkTempRoot("elevation-helper-project-")
     mkdirSync(path.join(project, ".git"))
@@ -275,7 +335,7 @@ describe("elevation-dispatch worker", () => {
     const promptFile = path.join(scratch, "brief.md")
     const resultPath = path.join(scratch, "result.json")
     writeFileSync(promptFile, "author the plan")
-    spawnSync("bash", [WORKER, "fable", promptFile, resultPath], {
+    spawnSync(PYTHON, ["-I", "-S", LAUNCHER, "fable", promptFile, resultPath], {
       encoding: "utf8",
       env: { CE_ELEVATION_POLL_SECS: "0.2", ...env },
     })
@@ -286,7 +346,7 @@ describe("elevation-dispatch worker", () => {
     })
   })
 
-  test("binds an env shebang interpreter from discovery PATH without invoking a malicious provider sibling", () => {
+  test("binds an argument-free env shebang interpreter without invoking a malicious provider sibling", () => {
     const root = mkTempRoot("elevation-env-chain-")
     const interpreterBin = path.join(root, "interpreters")
     const providerBin = path.join(root, "provider")
@@ -295,7 +355,7 @@ describe("elevation-dispatch worker", () => {
     const safeMarker = path.join(root, "safe-interpreter")
     const maliciousMarker = path.join(root, "malicious-interpreter")
     const interpreter = path.join(interpreterBin, "ce-safe-node")
-    writeFileSync(interpreter, `#!/bin/sh\n: > '${safeMarker}'\n[ "\${1:-}" = "--safe-flag" ] && shift\nexec /bin/sh "$@"\n`)
+    writeFileSync(interpreter, `#!/bin/sh\n: > '${safeMarker}'\nexec /bin/sh "$@"\n`)
     chmodSync(interpreter, 0o755)
     const malicious = path.join(providerBin, "ce-safe-node")
     writeFileSync(malicious, `#!/bin/sh\n: > '${maliciousMarker}'\nexit 99\n`)
@@ -303,7 +363,7 @@ describe("elevation-dispatch worker", () => {
     const provider = path.join(providerBin, "claude")
     writeFileSync(
       provider,
-      `#!/usr/bin/env -S ce-safe-node --safe-flag\nprintf '%s\\n' '${RESULT_LINE("ENV SAFE", { "claude-fable-5": {} })}'\n`,
+      `#!/usr/bin/env ce-safe-node\nprintf '%s\\n' '${RESULT_LINE("ENV SAFE", { "claude-fable-5": {} })}'\n`,
     )
     chmodSync(provider, 0o755)
 
@@ -331,7 +391,7 @@ describe("elevation-dispatch worker", () => {
     const resultPath = path.join(scratch, "result.json")
     writeFileSync(promptFile, "author the plan")
 
-    const result = spawnSync("bash", [WORKER, "fable", promptFile, resultPath], {
+    const result = spawnSync(PYTHON, ["-I", "-S", LAUNCHER, "fable", promptFile, resultPath], {
       encoding: "utf8",
       env: { CE_ELEVATION_POLL_SECS: "0.2", ...env },
     })
@@ -339,6 +399,56 @@ describe("elevation-dispatch worker", () => {
     expect(result.stderr).toContain("unsupported /usr/bin/env shebang form")
     expect(JSON.parse(readFileSync(resultPath, "utf8")).status).toBe("failed")
     expect(existsSync(invoked)).toBe(false)
+  })
+
+  test.each([
+    ["project module", "#!/usr/bin/env -S python3 -m hostile_project_module"],
+    ["split string", "#!/usr/bin/env --split-string=python3\\ -m\\ hostile_project_module"],
+  ])("rejects %s shebang selection without running code or publishing a matched receipt", (_name, shebang) => {
+    const { bin, env } = sandbox("#!/bin/sh\nexit 99\n")
+    const project = mkTempRoot("elevation-code-selector-project-")
+    const marker = path.join(path.dirname(bin), "selected-code-ran")
+    writeFileSync(path.join(project, "hostile_project_module.py"), `open('${marker}', 'w').close()\n`)
+    writeFileSync(path.join(bin, "claude"), `${shebang}\nprintf ignored\n`)
+    chmodSync(path.join(bin, "claude"), 0o755)
+    const scratch = mkTempRoot("elevation-code-selector-")
+    const promptFile = path.join(scratch, "brief.md")
+    const resultPath = path.join(scratch, "result.json")
+    writeFileSync(promptFile, "author the plan")
+
+    const result = spawnSync(PYTHON, ["-I", "-S", LAUNCHER, "fable", promptFile, resultPath], {
+      encoding: "utf8",
+      env: { CE_ELEVATION_POLL_SECS: "0.2", ...env },
+      cwd: project,
+    })
+
+    expect(result.status).toBe(0)
+    expect(existsSync(marker)).toBe(false)
+    expect(JSON.parse(readFileSync(resultPath, "utf8"))).toMatchObject({
+      status: "failed",
+      model_identity_status: "unverified",
+    })
+  })
+
+  test("rejects an absolute interpreter preload argument before any selected code runs", () => {
+    const root = mkTempRoot("elevation-preload-")
+    const providerBin = path.join(root, "providers")
+    const interpreterBin = path.join(root, "interpreters")
+    mkdirSync(providerBin)
+    mkdirSync(interpreterBin)
+    const marker = path.join(root, "preload-ran")
+    const interpreter = path.join(interpreterBin, "node")
+    writeFileSync(interpreter, `#!/bin/sh\n: > '${marker}'\nexit 0\n`)
+    chmodSync(interpreter, 0o755)
+    writeFileSync(path.join(providerBin, "claude"), `#!${interpreter} --require=${root}/preload.js\n`)
+    chmodSync(path.join(providerBin, "claude"), 0o755)
+
+    const { result } = runWorker("fable", "#!/bin/sh\nexit 99\n", {
+      PATH: `${providerBin}:${process.env.PATH ?? "/usr/bin:/bin"}`,
+    })
+
+    expect(result).toMatchObject({ status: "failed", model_identity_status: "unverified" })
+    expect(existsSync(marker)).toBe(false)
   })
 
   test("rejects a provider below a group-writable external ancestor", () => {
@@ -349,7 +459,7 @@ describe("elevation-dispatch worker", () => {
     const promptFile = path.join(scratch, "brief.md")
     const resultPath = path.join(scratch, "result.json")
     writeFileSync(promptFile, "author the plan")
-    const result = spawnSync("bash", [WORKER, "fable", promptFile, resultPath], {
+    const result = spawnSync(PYTHON, ["-I", "-S", LAUNCHER, "fable", promptFile, resultPath], {
       encoding: "utf8",
       env: { CE_ELEVATION_POLL_SECS: "0.2", ...env },
     })
@@ -373,7 +483,7 @@ describe("elevation-dispatch worker", () => {
       `printf '%s\\n' "$*" > "${argvDump}"\n` +
       `printf '%s\\n' '${RESULT_LINE("OK", { "claude-fable-5": {} })}'\n`
     const { env } = sandbox(dumpStub)
-    spawnSync("bash", [WORKER, "fable", promptFile, resultPath], {
+    spawnSync(PYTHON, ["-I", "-S", LAUNCHER, "fable", promptFile, resultPath], {
       encoding: "utf8",
       env: { CE_ELEVATION_POLL_SECS: "0.2", ...env },
     })
@@ -400,7 +510,7 @@ describe("elevation-dispatch worker", () => {
       `env > "${envCapture}"\n` +
       `printf '%s\\n' '${RESULT_LINE("OK", { "claude-fable-5": {} })}'\n`
     const { env } = sandbox(stub)
-    const r = spawnSync("bash", [WORKER, "fable", promptFile, resultPath], {
+    const r = spawnSync(PYTHON, ["-I", "-S", LAUNCHER, "fable", promptFile, resultPath], {
       encoding: "utf8",
       env: {
         CE_ELEVATION_POLL_SECS: "0.2",
@@ -423,6 +533,22 @@ describe("elevation-dispatch worker", () => {
     expect(childEnv).not.toContain("CLAUDE_CODE_OAUTH_TOKEN=")
     expect(childEnv).not.toContain(apiSecret)
     expect(childEnv).not.toContain(oauthSecret)
+  })
+
+  test("BASH_ENV and exported functions cannot run before adapter PATH cleanup", () => {
+    const root = mkTempRoot("elevation-shell-startup-")
+    const marker = path.join(root, "startup-ran")
+    const bashEnv = path.join(root, "bash-env")
+    writeFileSync(bashEnv, `: > '${marker}'\n`)
+    const response = RESULT_LINE("SAFE", { "claude-fable-5": {} })
+    const { result } = runWorker("fable", `#!/bin/sh\nprintf '%s\\n' '${response}'\n`, {
+      BASH_ENV: bashEnv,
+      "BASH_FUNC_date%%": `() { : > '${marker}'; /bin/date "$@"; }`,
+      SHELLOPTS: "xtrace",
+    })
+
+    expect(result).toMatchObject({ status: "ok", output: "SAFE" })
+    expect(existsSync(marker)).toBe(false)
   })
 
   test("trusted jq remains functional when it is absent from caller PATH", () => {

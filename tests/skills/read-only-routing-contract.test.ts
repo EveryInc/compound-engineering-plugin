@@ -12,6 +12,7 @@ const references = [
   "skills/ce-doc-review/references/cross-model-review.md",
   "skills/ce-pov/references/cross-model-panel.md",
 ] as const
+const cleanLauncherConsumers = ["ce-plan", "ce-brainstorm", "ce-pov"] as const
 
 async function runResolver(
   request: Record<string, unknown>,
@@ -85,6 +86,28 @@ function finalizeRequest(
 }
 
 describe("specialized read-only routing contract", () => {
+  test("independently installed adapters share the same clean-launch kernel", async () => {
+    const launchers = await Promise.all(cleanLauncherConsumers.map((skill) =>
+      readFile(path.join(ROOT, "skills", skill, "scripts", "clean-launcher.py"), "utf8"),
+    ))
+    for (const launcher of launchers.slice(1)) expect(launcher).toBe(launchers[0])
+    expect(launchers[0]).toContain('"/bin/bash", "--noprofile", "--norc"')
+    expect(launchers[0]).toContain('"CE_PROVIDER_DISCOVERY_PATH": caller_path')
+    expect(launchers[0]).not.toMatch(/API_KEY|OAUTH_TOKEN/)
+  })
+
+  test("adapter invocation docs make the clean launcher the first worker argv", async () => {
+    const elevation = await readFile(path.join(ROOT, references[0]), "utf8")
+    const pov = await readFile(path.join(ROOT, references[3]), "utf8")
+    for (const body of [elevation, pov]) {
+      expect(body).toContain('/usr/bin/python3 -I -S "$SKILL_DIR/scripts/clean-launcher.py"')
+      expect(body).not.toMatch(/(?:bash|\/bin\/bash)\s+"?\$SKILL_DIR\/scripts\/(?:elevation-dispatch|cross-model-pov)\.sh/)
+      expect(body).toMatch(/worker argv.*(?:begin|begins).*launcher/is)
+    }
+    expect(elevation).toMatch(/-- \/usr\/bin\/python3 -I -S "\$SKILL_DIR\/scripts\/clean-launcher\.py"/s)
+    expect(pov).toMatch(/--\s*\\?\s*\n?\s*\/usr\/bin\/python3 -I -S "\$SKILL_DIR\/scripts\/clean-launcher\.py"/s)
+  })
+
   test("every owning reference freezes resolution before qualification and finalizes before consumption", async () => {
     for (const relative of references) {
       const body = await readFile(path.join(ROOT, relative), "utf8")

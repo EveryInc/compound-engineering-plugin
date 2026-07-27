@@ -27,6 +27,8 @@ function temp(prefix: string): string {
 afterAll(() => roots.forEach((dir) => rmSync(dir, { recursive: true, force: true })))
 
 const SCRIPT = path.join(__dirname, "../../skills/ce-pov/scripts/cross-model-pov.sh")
+const LAUNCHER = path.join(__dirname, "../../skills/ce-pov/scripts/clean-launcher.py")
+const PYTHON = "/usr/bin/python3"
 const SKILL_BODY = readFileSync(path.join(__dirname, "../../skills/ce-pov/SKILL.md"), "utf8")
 const PANEL_BODY = readFileSync(path.join(__dirname, "../../skills/ce-pov/references/cross-model-panel.md"), "utf8")
 const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer"] as const
@@ -77,7 +79,12 @@ function payload(contents = "Subject: choose A or B\nProject floor: TypeScript C
 }
 function runDir() { return temp("pov-run-") }
 function run(args: string[], dir: string, env: NodeJS.ProcessEnv = process.env, cwd?: string) {
-  const result = spawnSync("bash", [SCRIPT, ...args], { encoding: "utf8", env, cwd })
+  const declaredRoot = env.CROSS_MODEL_REPO_ROOT ?? env.REPO_ROOT
+  const result = spawnSync(PYTHON, ["-I", "-S", LAUNCHER, ...args], {
+    encoding: "utf8",
+    env,
+    cwd: cwd ?? declaredRoot,
+  })
   return {
     code: result.status ?? -1,
     stderr: result.stderr ?? "",
@@ -85,12 +92,20 @@ function run(args: string[], dir: string, env: NodeJS.ProcessEnv = process.env, 
   }
 }
 function emit(route: string, env: NodeJS.ProcessEnv = process.env) {
-  const result = spawnSync("bash", [SCRIPT, "--emit-adapter", route], { encoding: "utf8", env })
+  const result = spawnSync(PYTHON, ["-I", "-S", LAUNCHER, "--emit-adapter", route], { encoding: "utf8", env })
   expect(result.status).toBe(0)
   return result.stdout.trim()
 }
 
 describe("ce-pov cross-model route safety", () => {
+  test("refuses direct bash execution even for test-only adapter emission", () => {
+    const result = spawnSync("/bin/bash", [SCRIPT, "--emit-adapter", "claude"], {
+      encoding: "utf8",
+    })
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain("clean launcher provenance missing")
+  })
+
   test("preferred retries never prompt for new egress authority", () => {
     expect(SKILL_BODY).toMatch(/unsanctioned recipient or intermediary is unavailable.*without asking/is)
     expect(PANEL_BODY).toMatch(/classify that candidate\s+unavailable without prompting/is)
@@ -148,7 +163,7 @@ describe("ce-pov cross-model route safety", () => {
         CE_ROUTING_CANDIDATE_MODEL: "composer-2.5-fast",
       }],
     ] as const) {
-      const rejected = spawnSync("bash", [SCRIPT, "--emit-adapter", route], {
+      const rejected = spawnSync(PYTHON, ["-I", "-S", LAUNCHER, "--emit-adapter", route], {
         encoding: "utf8",
         env: { ...process.env, ...env },
       })
@@ -165,7 +180,7 @@ describe("ce-pov cross-model route safety", () => {
     expect(composer).toContain("--model composer-next-fast")
     expect(composer).toContain("--workspace <read-root>")
 
-    const rejected = spawnSync("bash", [SCRIPT, "--emit-adapter", "grok-cursor"], {
+    const rejected = spawnSync(PYTHON, ["-I", "-S", LAUNCHER, "--emit-adapter", "grok-cursor"], {
       encoding: "utf8",
       env: {
         ...process.env,
@@ -176,7 +191,7 @@ describe("ce-pov cross-model route safety", () => {
     expect(rejected.status).toBe(2)
     expect(rejected.stderr).toContain("not compatible with route")
 
-    const unbound = spawnSync("bash", [SCRIPT, "--emit-adapter", "composer"], {
+    const unbound = spawnSync(PYTHON, ["-I", "-S", LAUNCHER, "--emit-adapter", "composer"], {
       encoding: "utf8",
       env: { ...process.env, CROSS_MODEL_MODEL_OVERRIDE: "composer-next-fast" },
     })
@@ -442,6 +457,26 @@ printf '%s' '${response}'
     expect(existsSync(marker)).toBe(false)
   })
 
+  test("BASH_ENV and exported functions never execute before the adapter starts", () => {
+    const root = temp("pov-shell-startup-")
+    const marker = path.join(root, "startup-ran")
+    const bashEnv = path.join(root, "bash-env")
+    writeFileSync(bashEnv, `: > '${marker}'\n`)
+    const response = '{"structured_output":{"voice":"peer","position":"Hold","reasoning":"Evidence","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"},"modelUsage":{"claude-opus-4-8-20260115":{}}}'
+    const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${response}'\n`)
+    const dir = runDir()
+
+    const result = run(["codex", "claude", payload(), dir], dir, {
+      ...env,
+      BASH_ENV: bashEnv,
+      "BASH_FUNC_date%%": `() { : > '${marker}'; /bin/date "$@"; }`,
+      SHELLOPTS: "xtrace",
+    })
+
+    expect(result.files).toContain("pov-claude.json")
+    expect(existsSync(marker)).toBe(false)
+  })
+
   test("an unavailable private scratch parent skips before provider invocation", () => {
     const invoked = path.join(temp("pov-scratch-failure-"), "provider-invoked")
     const { env } = sandbox(["claude"], `#!/bin/sh\n: > '${invoked}'\nexit 0\n`)
@@ -461,9 +496,8 @@ printf '%s' '${response}'
 })
 
 describe("ce-pov fixed route and egress allowlist", () => {
-  test("rejects a project-local provider shadow without trying the safe PATH entry", () => {
+  test("rejects a non-Git project-local provider shadow without trying the safe PATH entry", () => {
     const project = temp("pov-hostile-project-")
-    mkdirSync(path.join(project, ".git"))
     const projectBin = path.join(project, "bin")
     mkdirSync(projectBin)
     const invoked = path.join(project, "shadow-invoked")
@@ -480,6 +514,69 @@ describe("ce-pov fixed route and egress allowlist", () => {
     expect(result.files).not.toContain("pov-claude.json")
     expect(result.stderr).toContain("fixed route 'claude' is unavailable")
     expect(existsSync(invoked)).toBe(false)
+  })
+
+  test("rejects a non-Git project-local shebang interpreter", () => {
+    const project = temp("pov-hostile-interpreter-project-")
+    const projectBin = path.join(project, "bin")
+    const providerBin = path.join(temp("pov-external-provider-"), "bin")
+    mkdirSync(projectBin)
+    mkdirSync(providerBin)
+    const invoked = path.join(project, "interpreter-invoked")
+    writeFileSync(path.join(projectBin, "ce-local-node"), `#!/bin/sh\n: > '${invoked}'\nexit 0\n`)
+    chmodSync(path.join(projectBin, "ce-local-node"), 0o755)
+    writeFileSync(path.join(providerBin, "claude"), "#!/usr/bin/env ce-local-node\n")
+    chmodSync(path.join(providerBin, "claude"), 0o755)
+    const dir = runDir()
+
+    const result = run(["codex", "claude", payload(), dir], dir, {
+      ...process.env,
+      PATH: `${projectBin}:${providerBin}:${process.env.PATH ?? "/usr/bin:/bin"}`,
+      CROSS_MODEL_REPO_ROOT: project,
+    }, project)
+
+    expect(result.files).not.toContain("pov-claude.json")
+    expect(result.stderr).toContain("beneath the declared project root")
+    expect(existsSync(invoked)).toBe(false)
+  })
+
+  test("rejects a project-module shebang without running code or publishing an artifact", () => {
+    const project = temp("pov-module-project-")
+    const { bin, env } = sandbox(["claude"], "#!/bin/sh\nexit 99\n")
+    const marker = path.join(path.dirname(bin), "module-ran")
+    writeFileSync(path.join(project, "hostile_project_module.py"), `open('${marker}', 'w').close()\n`)
+    writeFileSync(path.join(bin, "claude"), "#!/usr/bin/env -S python3 -m hostile_project_module\n")
+    chmodSync(path.join(bin, "claude"), 0o755)
+    const dir = runDir()
+    const result = run(["codex", "claude", payload(), dir], dir, {
+      ...env,
+      CROSS_MODEL_REPO_ROOT: project,
+    }, project)
+
+    expect(result.files).not.toContain("pov-claude.json")
+    expect(existsSync(marker)).toBe(false)
+  })
+
+  test("rejects a preload shebang argument before its interpreter runs", () => {
+    const root = temp("pov-preload-")
+    const providerBin = path.join(root, "providers")
+    const interpreterBin = path.join(root, "interpreters")
+    mkdirSync(providerBin)
+    mkdirSync(interpreterBin)
+    const marker = path.join(root, "preload-ran")
+    const interpreter = path.join(interpreterBin, "node")
+    writeFileSync(interpreter, `#!/bin/sh\n: > '${marker}'\nexit 0\n`)
+    chmodSync(interpreter, 0o755)
+    writeFileSync(path.join(providerBin, "claude"), `#!${interpreter} --require=${root}/preload.js\n`)
+    chmodSync(path.join(providerBin, "claude"), 0o755)
+    const dir = runDir()
+    const result = run(["codex", "claude", payload(), dir], dir, {
+      ...process.env,
+      PATH: `${providerBin}:${process.env.PATH ?? "/usr/bin:/bin"}`,
+    })
+
+    expect(result.files).not.toContain("pov-claude.json")
+    expect(existsSync(marker)).toBe(false)
   })
 
   test("detects interpreter substitution after provider-chain qualification", async () => {
@@ -499,7 +596,7 @@ describe("ce-pov fixed route and egress allowlist", () => {
     const dir = runDir()
     const scratchParent = temp("pov-substitution-scratch-")
     const largePayload = payload("x".repeat(32 * 1024 * 1024))
-    const child = spawn("bash", [SCRIPT, "codex", "claude", largePayload, dir], {
+    const child = spawn(PYTHON, ["-I", "-S", LAUNCHER, "codex", "claude", largePayload, dir], {
       env: {
         ...process.env,
         PATH: `${interpreterBin}:${providerBin}:${process.env.PATH ?? "/usr/bin:/bin"}`,
@@ -641,12 +738,30 @@ describe("ce-pov fixed route and egress allowlist", () => {
     expect(inside.stderr).toContain("run-dir must be outside the repository")
   })
 
+  test("the launcher requires execution from the canonical declared repository root", () => {
+    const repoRoot = temp("pov-launch-root-")
+    const wrongRoot = temp("pov-wrong-launch-root-")
+    const invoked = path.join(temp("pov-root-provider-"), "invoked")
+    const { env } = sandbox(["claude"], `#!/bin/sh\n: > '${invoked}'\nexit 0\n`)
+    const dir = runDir()
+    const result = spawnSync(PYTHON, ["-I", "-S", LAUNCHER, "codex", "claude", payload(), dir], {
+      encoding: "utf8",
+      cwd: wrongRoot,
+      env: { ...env, CROSS_MODEL_REPO_ROOT: repoRoot },
+    })
+
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain("must be launched from the declared project root")
+    expect(existsSync(invoked)).toBe(false)
+    expect(readdirSync(dir)).toEqual([])
+  })
+
   test.each(["SIGTERM", "SIGINT"] as const)("%s cleans private peer scratch and heartbeat", async (signal) => {
     const scratchParent = temp("pov-signal-scratch-")
     const started = path.join(temp("pov-signal-started-"), "marker")
     const { env } = sandbox(["cursor-agent"], `#!/bin/sh\n: > '${started}'\ncat >/dev/null\nsleep 30\n`)
     const dir = runDir()
-    const child = spawn("bash", [SCRIPT, "codex", "cursor", payload(), dir], {
+    const child = spawn(PYTHON, ["-I", "-S", LAUNCHER, "codex", "cursor", payload(), dir], {
       env: { ...env, CROSS_MODEL_SCRATCH_PARENT: scratchParent },
       stdio: "ignore",
     })
