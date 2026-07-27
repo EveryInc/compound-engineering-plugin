@@ -1366,7 +1366,29 @@ def bind_from_layer(value, source_layer, role, class_name, routing_state, bindin
     }
 
 
-def intent_binding(intents, role, class_name, schema):
+def validate_opencode_intent_authority(intent):
+    provenance = intent.get("provenance")
+    fields = {"protocol", "session_id", "message_id", "carrier_digest"}
+    if (
+        intent.get("source") != "opencode-direct-input"
+        or not isinstance(provenance, dict)
+        or set(provenance) != fields
+        or provenance.get("protocol") != "ce-routing-intent/v1"
+        or not isinstance(provenance.get("session_id"), str)
+        or not MODEL_TOKEN.fullmatch(provenance["session_id"])
+        or not isinstance(provenance.get("message_id"), str)
+        or not MODEL_TOKEN.fullmatch(provenance["message_id"])
+        or not isinstance(provenance.get("carrier_digest"), str)
+        or not SNAPSHOT_MAC.fullmatch(provenance["carrier_digest"])
+    ):
+        raise RoutingError(
+            "AUTHORITY_UNTRUSTED",
+            "OpenCode task routing requires a host-captured direct-input carrier",
+            exit_code=4,
+        )
+
+
+def intent_binding(intents, role, class_name, schema, host):
     matched = []
     for intent in intents:
         if not isinstance(intent, dict):
@@ -1377,6 +1399,8 @@ def intent_binding(intents, role, class_name, schema):
             continue
         if "binding" not in intent:
             raise RoutingError("REQUEST_INVALID", "matching routing intent lacks binding", exit_code=2)
+        if isinstance(host, dict) and host.get("harness") == "opencode":
+            validate_opencode_intent_authority(intent)
         matched.append(intent)
     if len(matched) > 1:
         first = canonical_json(matched[0].get("binding"))
@@ -1426,7 +1450,7 @@ def resolve_role(role_request, intents, routing_state, compatibility_state, host
     if class_name not in roles["classes"]:
         raise RoutingError("ROLE_UNCLASSIFIED", "dispatch role lacks a valid class", exit_code=4, role=role)
     compatibility = compatibility_metadata(role, compatibility_state)
-    task = intent_binding(intents, role, class_name, schema)
+    task = intent_binding(intents, role, class_name, schema, host)
     if task is not None:
         binding, source_name = task
         resolved = bind_from_layer(
@@ -2178,10 +2202,19 @@ def resolve_batch_op(request, schema, roles):
 def identity_status(candidate, report):
     requested_model = candidate.get("model")
     requested_effort = candidate.get("effort")
+    actual_provider = report.get("provider_actual")
     actual_model = report.get("model_actual")
     actual_effort = report.get("effort_actual")
-    if requested_model is not None and actual_model is not None and requested_model.lower() != str(actual_model).lower():
-        return "mismatched"
+    if requested_model is not None and "/" in requested_model and actual_model is not None and actual_provider is None:
+        return "unverified"
+    if requested_model is not None and actual_model is not None:
+        served_model = (
+            "{}/{}".format(actual_provider, actual_model)
+            if "/" in requested_model and actual_provider is not None
+            else str(actual_model)
+        )
+        if requested_model.lower() != served_model.lower():
+            return "mismatched"
     if requested_effort is not None and actual_effort is not None and requested_effort.lower() != str(actual_effort).lower():
         return "mismatched"
     if (requested_model is not None and actual_model is None) or (requested_effort is not None and actual_effort is None):
@@ -2190,11 +2223,19 @@ def identity_status(candidate, report):
 
 
 def validate_serving_report(value):
-    if not isinstance(value, dict) or set(value) - {"model_actual", "effort_actual"}:
+    fields = {"provider_actual", "model_actual", "variant_actual", "effort_actual"}
+    if not isinstance(value, dict) or set(value) - fields:
         raise RoutingError("REQUEST_INVALID", "finalize_attempt report fields are invalid", exit_code=2)
-    for field, pattern in (("model_actual", MODEL_TOKEN), ("effort_actual", EFFORT_TOKEN)):
+    for field, pattern in (
+        ("provider_actual", MODEL_TOKEN),
+        ("model_actual", MODEL_TOKEN),
+        ("variant_actual", EFFORT_TOKEN),
+        ("effort_actual", EFFORT_TOKEN),
+    ):
         if field in value and (not isinstance(value[field], str) or not pattern.fullmatch(value[field])):
             raise RoutingError("REQUEST_INVALID", "finalize_attempt {} is invalid".format(field), exit_code=2)
+    if "variant_actual" in value and "effort_actual" in value and value["variant_actual"] != value["effort_actual"]:
+        raise RoutingError("REQUEST_INVALID", "OpenCode variant and effort evidence disagree", exit_code=2)
     return copy.deepcopy(value)
 
 
@@ -2352,10 +2393,12 @@ def receipt(snapshot, resolution, lock, candidate, outcome, report, status, acti
         "policy": binding.get("policy"),
         "harness_requested": candidate.get("harness"),
         "route_requested": candidate.get("route"),
+        "provider_actual": report.get("provider_actual"),
         "model_requested": candidate.get("model"),
         "model_actual": report.get("model_actual"),
         "effort_requested": candidate.get("effort"),
         "effort_actual": report.get("effort_actual"),
+        "variant_actual": report.get("variant_actual"),
         "adapter_outcome": outcome,
         "identity_status": "accepted_unverified" if status == "unverified" and action == "accept" else status,
         "attempts": attempts,

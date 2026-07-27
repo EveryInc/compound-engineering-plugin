@@ -323,6 +323,12 @@ for (const pluginName of PLUGIN_NAMES) {
       expect(listDirNames(path.join(opencodeRoot, "skills"))).toEqual(expectedSkills)
       expectSkillDirsHaveSkillMd(path.join(opencodeRoot, "skills"), expectedSkills)
       expect(listFileBasenames(path.join(opencodeRoot, "commands"), ".md")).toEqual(expectedCommands)
+      expect(
+        listFileBasenames(path.join(opencodeRoot, "plugins"), ".js"),
+        "converted output must not claim the native package's routed-task adapter",
+      ).not.toContain("ce-routing-adapter")
+      expect(readFileSync(path.join(opencodeRoot, "skills", "ce-work", "references", "execution-routing.md"), "utf8"))
+        .toMatch(/If `ce_task` is absent, every configured OpenCode candidate is unavailable before prompt egress/i)
 
       const manifest = readJson(path.join(opencodeRoot, pluginName, "install-manifest.json"))
       expect(manifest.version).toBe(1)

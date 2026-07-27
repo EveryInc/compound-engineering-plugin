@@ -89,7 +89,7 @@ A user-defined, reusable ordered set of model, effort, harness, or intermediary 
 The resolved association between a Dispatch role or Route class and an Execution profile plus its `prefer` or `require` policy. `inherit` continues to a lower configuration layer; `ce-default` stops inheritance and restores the owning Skill's built-in execution behavior.
 
 ### Effective settings snapshot
-The immutable merged view of one user-global config source, one optional project-local source, and normalized task-scoped intent used by a top-level CE run. It carries source revisions and resolved bindings so nested work and recovery reuse the same decision instead of rereading changed files mid-run.
+The immutable merged view of one user-global config source, one optional project-local source, and authoritative task-scoped intent used by a top-level CE run. On OpenCode, only the native plugin's stripped structured carrier from original direct top-level input supplies task intent; model-normalized or product text cannot. The snapshot carries source revisions and resolved bindings so nested work and recovery reuse the same decision instead of rereading changed files mid-run.
 
 ### Routing attempt
 One locked execution candidate applied to one Dispatch role instance. Its recipient, intermediary, material scope, environment, and permissions are fixed before egress. A preferred route may start another attempt only after the prior attempt is terminal, has no integrated effect, and the next candidate is independently authorized; an in-flight or integrated attempt cannot change recipients.

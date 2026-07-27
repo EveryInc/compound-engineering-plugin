@@ -1,6 +1,6 @@
 # OpenCode Spec (Config, Agents, Plugins)
 
-Last verified: 2026-04-19
+Last verified: 2026-07-27
 
 ## Primary sources
 
@@ -78,6 +78,17 @@ https://opencode.ai/config.json
 - Plugins are JavaScript/TypeScript modules. Each exported plugin function receives OpenCode context and returns hooks/event handlers.
 - Local plugins and custom tools can use npm dependencies declared in a `package.json` in the OpenCode config directory; OpenCode runs `bun install` at startup.
 
+## Compound Engineering routed task adapter
+
+- The native CE package registers a custom `ce_task` tool because OpenCode's native Task tool has no per-call model/variant selector.
+- The adapter is tested against `@opencode-ai/plugin` and `@opencode-ai/sdk` `1.18.3`. At runtime it preflights observable session, agent, config, and model APIs rather than treating an injected or package version string as server attestation.
+- It selects the registered `general` agent and mirrors TaskTool permission derivation: parent-session deny and `external_directory` rules survive, the general agent's explicit `task`/`todowrite` rules suppress duplicate defaults, missing recursion denies and `experimental.primary_tools` denies are appended without exact duplicates, and `subagent_depth` is enforced before child creation.
+- Missing or malformed capability data, provider/model, an unadvertised variant, any candidate `route`, or depth exhaustion is unavailable before a child prompt call. A qualified attempt creates a parent-linked `general` child session with the exact derived permission array and selected provider/model/variant, then sends the unchanged prompt as one text part.
+- Serving identity comes only from the assistant response's `providerID`, `modelID`, and `variant`. The adapter finalizes the resolver attempt before returning worker output.
+- Resolver snapshots and attempt locks stay behind opaque session/role/candidate-bound handles. Tool arguments cannot replace them or supply permissions, tools, fallback, or receipt evidence.
+- OpenCode task routing intent is accepted only from a valid `ce-routing-intent/v1` carrier at the start of direct top-level user or command input. Only that authorized carrier is stripped before prompt exposure; unauthorized, malformed, synthetic, child, and quoted bytes remain unchanged. Repository, finding, and model-normalized text has no task-recipient authority.
+- A no-route or `ce-default` result returns to native Task with its exact built-in arguments. Converted OpenCode trees contain portable skills and generated resolver assets but no adapter, so configured OpenCode selectors are unavailable there.
+
 ## Notes for this repository
 
 - The current documented global CE install root should stay `~/.config/opencode`, not `~/.agents`, to avoid conflicts with harnesses that also read `~/.agents`.
@@ -89,4 +100,4 @@ https://opencode.ai/config.json
   - `~/.config/opencode/skills/*/SKILL.md`
 - OpenCode's plugin system is useful for JS/TS hooks and custom tools, but current docs do not describe a native marketplace command that consumes CE's `.claude-plugin/marketplace.json` and installs the full skills/agents/commands payload.
 - Keep the custom Bun writer until OpenCode documents a native distribution path for packaged skills and agents.
-- The `compound-engineering` plugin currently emits skills and subagent Markdown files for OpenCode. It should not emit deprecated `tools` config; permission config is enough for non-default permission modes.
+- The converter emits skills and subagent Markdown files for OpenCode but does not claim the native package's `ce_task` capability. It should not emit deprecated `tools` config; permission config is enough for non-default permission modes.

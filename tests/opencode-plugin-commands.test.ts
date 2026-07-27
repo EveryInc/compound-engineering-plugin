@@ -89,6 +89,16 @@ describe("opencode plugin skill commands", () => {
     expect(config.skills?.paths).toEqual(["/somewhere/else", skillsDir])
   })
 
+  test("native package registers the OpenCode-owned routed task adapter", async () => {
+    const plugin = await CompoundEngineeringPlugin({
+      serverUrl: new URL("http://127.0.0.1:4096"),
+      directory: process.cwd(),
+    })
+
+    expect(plugin.tool?.ce_task).toBeDefined()
+    expect(plugin.tool?.ce_task.description).toMatch(/OpenCode routing boundary/i)
+  })
+
   // Guards the frontmatter-scoped parse: a whole-file `name:` match could pick up
   // a line from a fenced YAML example and register a command with no skill behind it.
   test("every registered command name is a skill directory name", async () => {

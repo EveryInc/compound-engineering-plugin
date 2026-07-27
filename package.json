@@ -31,6 +31,8 @@
     "release:validate": "bun run scripts/release/validate.ts"
   },
   "dependencies": {
+    "@opencode-ai/plugin": "1.18.3",
+    "@opencode-ai/sdk": "1.18.3",
     "citty": "^0.1.6",
     "js-yaml": "^4.1.0"
   },

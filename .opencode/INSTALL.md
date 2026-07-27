@@ -8,7 +8,7 @@ Add Compound Engineering to the `plugin` array in your global or project `openco
 }
 ```
 
-Restart OpenCode after changing the config. The OpenCode plugin registers the Compound Engineering skills directory directly; no Bun installer or generated skill copy is required.
+Restart OpenCode after changing the config. The OpenCode plugin registers the Compound Engineering skills directory and the host-owned `ce_task` routing adapter directly; no Bun installer or generated skill copy is required. The adapter is the supported path for per-dispatch provider/model and effort/variant selection. Converter-produced OpenCode skill trees do not include this native adapter and classify configured OpenCode selectors as unavailable rather than claiming they ran.
 
 To pin a release, add a tag. Replace `X.Y.Z` with the release you want — see the [releases page](https://github.com/EveryInc/compound-engineering-plugin/releases) for available tags:
 

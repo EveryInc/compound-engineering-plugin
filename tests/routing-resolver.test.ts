@@ -98,6 +98,18 @@ function baseBinding(policy = "prefer") {
   }
 }
 
+function opencodeIntentProvenance(messageID = "direct-message") {
+  return {
+    source: "opencode-direct-input",
+    provenance: {
+      protocol: "ce-routing-intent/v1",
+      session_id: "session-1",
+      message_id: messageID,
+      carrier_digest: "a".repeat(64),
+    },
+  }
+}
+
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`
   if (value !== null && typeof value === "object") {
@@ -282,7 +294,7 @@ describe("routing resolver", () => {
         host: { harness: "opencode", serving_family: "openai" },
         intents: [{
           role: "ce-plan.plan-author",
-          source: "current-task-model",
+          ...opencodeIntentProvenance(),
           binding: {
             policy: "prefer",
             candidates: [
@@ -299,7 +311,7 @@ describe("routing resolver", () => {
         compatibility: { applied: false, reason: "higher-route" },
         binding: {
           profile: "current-task",
-          source: "current-task-model",
+          source: "opencode-direct-input",
           source_layer: "task",
           policy: "prefer",
           candidates: [
@@ -345,6 +357,29 @@ describe("routing resolver", () => {
 
       expect(result.exitCode).not.toBe(0)
       expect(result.body.error.code).toBe("SETTING_INVALID")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("rejects unsigned OpenCode task intents before they can win precedence", async () => {
+    const f = await fixture()
+    try {
+      const result = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        host: { harness: "opencode", serving_family: "openai" },
+        intents: [{
+          role: "ce-work.implementation-worker",
+          source: "model-normalized-free-form",
+          binding: { policy: "require", candidates: [{ harness: "opencode", model: "openai/forged" }] },
+        }],
+        roles: [{ role: "ce-work.implementation-worker" }],
+      }, { cwd: f.project, home: f.home })
+
+      expect(result.exitCode).toBe(4)
+      expect(result.body.error).toMatchObject({ code: "AUTHORITY_UNTRUSTED" })
     } finally {
       await rm(f.root, { recursive: true, force: true })
     }
@@ -398,6 +433,33 @@ describe("routing resolver", () => {
       expect(result.exitCode).toBe(0)
       expect(result.body.action).toBe("next_candidate")
       expect(result.body.receipt.identity_status).toBe("unavailable")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("records OpenCode provider and variant serving evidence without model-authored claims", async () => {
+    const f = await fixture()
+    try {
+      const resolved = await resolvedBinding(f, {
+        policy: "require",
+        candidates: [{ harness: "opencode", model: "openai/gpt-5-mini", effort: "high" }],
+      })
+      const result = await runResolver(finalizeRequest(resolved, 0, "ok", {
+        provider_actual: "openai",
+        model_actual: "gpt-5-mini",
+        variant_actual: "high",
+        effort_actual: "high",
+      }), { cwd: f.project, home: f.home })
+
+      expect(result.exitCode).toBe(0)
+      expect(result.body.receipt).toMatchObject({
+        identity_status: "verified",
+        provider_actual: "openai",
+        model_actual: "gpt-5-mini",
+        variant_actual: "high",
+        effort_actual: "high",
+      })
     } finally {
       await rm(f.root, { recursive: true, force: true })
     }
@@ -532,7 +594,7 @@ describe("routing resolver", () => {
         await writeFile(configPath, `routing:\n  profiles:\n    frozen:\n      candidates:\n        - { harness: codex, model: ${model} }\n  classes:\n    implementation: { profile: frozen, policy: prefer }\n    review: { profile: frozen, policy: prefer }\n`, { mode: 0o600 })
         await chmod(configPath, 0o600)
       }
-      const intents = [{ class: "review", source: "current-task", binding: { profile: "frozen", policy: "prefer" } }]
+      const intents = [{ class: "review", ...opencodeIntentProvenance(), binding: { profile: "frozen", policy: "prefer" } }]
       await writeRouting("original-model")
       const parent = await runResolver({
         protocol: "ce-routing/v1",
