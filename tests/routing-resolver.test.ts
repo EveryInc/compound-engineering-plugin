@@ -1777,6 +1777,324 @@ describe("routing resolver", () => {
     }
   })
 
+  test.each([
+    ["malformed name", false],
+    ["malformed empty suffix", false],
+    ["malformed non-hex suffix", false],
+    ["renamed source", false],
+    ["renamed candidate with external save", true],
+    ["renamed metadata", false],
+    ["symlink control", false],
+    ["wrong mode", false],
+    ["wrong type with external save", true],
+    ["unreadable control", false],
+    ["unexpected entry", false],
+    ["invalid marker with external save", true],
+    ["invalid metadata", false],
+  ])("fails closed and preserves suspicious cleanup state: %s", async (scenario, destinationPresent) => {
+    const f = await fixture()
+    try {
+      const configPath = path.join(f.home, "config.yaml")
+      const oldConfig = `routing:\n  profiles:\n    guarded:\n      candidates:\n        - { harness: codex, model: old-policy }\n  classes:\n    implementation: { profile: guarded, policy: require }\n`
+      const candidate = oldConfig.replace("old-policy", "candidate-policy")
+      const external = oldConfig.replace("old-policy", "external-policy")
+      const validName = `.ce-cleanup-300-${"4".repeat(24)}`
+      const invalidNames: Record<string, string> = {
+        "malformed name": ".ce-cleanup-not-a-transaction",
+        "malformed empty suffix": ".ce-cleanup-",
+        "malformed non-hex suffix": `.ce-cleanup-300-${"g".repeat(24)}`,
+      }
+      const cleanupName = invalidNames[scenario] ?? validName
+      const cleanupPath = path.join(f.home, cleanupName)
+      const metadata = `${JSON.stringify({
+        protocol: "ce-config-replace/v1",
+        destination: "config.yaml",
+        old_revision: `cecfg-v1:${createHash("sha256").update(oldConfig).digest("hex")}`,
+        candidate_revision: `cecfg-v1:${createHash("sha256").update(candidate).digest("hex")}`,
+      })}\n`
+
+      if (destinationPresent) await writeFile(configPath, external, { mode: 0o600 })
+      if (scenario === "wrong type with external save") {
+        await writeFile(cleanupPath, oldConfig, { mode: 0o600 })
+      } else if (scenario === "symlink control") {
+        const outside = path.join(f.root, "outside-cleanup")
+        await mkdir(outside, { mode: 0o700 })
+        await writeFile(path.join(outside, "source"), oldConfig, { mode: 0o600 })
+        await symlink(outside, cleanupPath)
+      } else {
+        await mkdir(cleanupPath, { mode: 0o700 })
+        if (scenario.startsWith("malformed ") || scenario === "renamed source") {
+          await writeFile(path.join(cleanupPath, "source"), oldConfig, { mode: 0o600 })
+        } else if (scenario === "renamed candidate with external save") {
+          await writeFile(path.join(cleanupPath, "candidate"), candidate, { mode: 0o600 })
+        } else if (scenario === "renamed metadata") {
+          await writeFile(path.join(cleanupPath, "transaction.json"), oldConfig, { mode: 0o600 })
+        } else if (scenario === "unexpected entry") {
+          await writeFile(path.join(cleanupPath, "saved-policy"), oldConfig, { mode: 0o600 })
+        } else if (scenario === "invalid marker with external save") {
+          await writeFile(path.join(cleanupPath, "transaction.json"), metadata, { mode: 0o600 })
+          await writeFile(path.join(cleanupPath, "committed"), "not committed\n", { mode: 0o600 })
+        } else if (scenario === "invalid metadata") {
+          await writeFile(path.join(cleanupPath, "transaction.json"), "{invalid metadata\n", { mode: 0o600 })
+        } else {
+          await writeFile(path.join(cleanupPath, "source"), oldConfig, { mode: 0o600 })
+        }
+        if (scenario === "wrong mode") await chmod(cleanupPath, 0o755)
+        if (scenario === "unreadable control") await chmod(cleanupPath, 0o000)
+      }
+
+      const resolved = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        intents: [],
+        roles: [{ role: "ce-work.implementation-worker" }],
+      }, { cwd: f.project, home: f.home })
+
+      expect(resolved.exitCode).toBe(3)
+      expect(resolved.body.error.code).toBe("CONFIG_RECOVERY_REQUIRED")
+      expect(resolved.body.resolutions).toBeUndefined()
+      expect(resolved.body.error.transaction_paths).toContain(cleanupPath)
+      if (destinationPresent) expect(await readFile(configPath, "utf8")).toBe(external)
+      else expect(await Bun.file(configPath).exists()).toBe(false)
+      if (scenario === "wrong type with external save") {
+        expect(await readFile(cleanupPath, "utf8")).toBe(oldConfig)
+      } else if (scenario === "symlink control") {
+        expect((await lstat(cleanupPath)).isSymbolicLink()).toBe(true)
+        expect(await readFile(path.join(f.root, "outside-cleanup", "source"), "utf8")).toBe(oldConfig)
+      } else {
+        if (scenario === "unreadable control") await chmod(cleanupPath, 0o700)
+        const entries = await readdir(cleanupPath)
+        expect(entries.length).toBeGreaterThan(0)
+        if (entries.includes("source")) expect(await readFile(path.join(cleanupPath, "source"), "utf8")).toBe(oldConfig)
+        if (entries.includes("candidate")) expect(await readFile(path.join(cleanupPath, "candidate"), "utf8")).toBe(candidate)
+        if (entries.includes("saved-policy")) expect(await readFile(path.join(cleanupPath, "saved-policy"), "utf8")).toBe(oldConfig)
+        if (entries.includes("transaction.json")) {
+          const expected = scenario === "invalid marker with external save" ? metadata : scenario === "invalid metadata" ? "{invalid metadata\n" : oldConfig
+          expect(await readFile(path.join(cleanupPath, "transaction.json"), "utf8")).toBe(expected)
+        }
+      }
+    } finally {
+      if (scenario === "unreadable control") {
+        await chmod(path.join(f.home, `.ce-cleanup-300-${"4".repeat(24)}`), 0o700).catch(() => {})
+      }
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test.each([
+    ["committed", "absent"],
+    ["transaction-only", "absent"],
+    ["empty", "absent"],
+    ["committed", "external-save"],
+    ["transaction-only", "external-save"],
+  ])("preserves valid %s cleanup when destination is %s", async (cleanupState, destinationState) => {
+    const f = await fixture()
+    try {
+      const configPath = path.join(f.home, "config.yaml")
+      const cleanupName = `.ce-cleanup-303-${"7".repeat(24)}`
+      const cleanupPath = path.join(f.home, cleanupName)
+      const oldConfig = `routing:\n  profiles:\n    guarded:\n      candidates:\n        - { harness: codex, model: old-policy }\n  classes:\n    implementation: { profile: guarded, policy: require }\n`
+      const candidate = oldConfig.replace("old-policy", "candidate-policy")
+      const external = oldConfig.replace("old-policy", "external-policy")
+      const metadata = `${JSON.stringify({
+        protocol: "ce-config-replace/v1",
+        destination: "config.yaml",
+        old_revision: `cecfg-v1:${createHash("sha256").update(oldConfig).digest("hex")}`,
+        candidate_revision: `cecfg-v1:${createHash("sha256").update(candidate).digest("hex")}`,
+      })}\n`
+      const marker = "ce-config-replace-commit/v1\n"
+      if (destinationState === "external-save") await writeFile(configPath, external, { mode: 0o600 })
+      await mkdir(cleanupPath, { mode: 0o700 })
+      if (cleanupState !== "empty") {
+        await writeFile(path.join(cleanupPath, "transaction.json"), metadata, { mode: 0o600 })
+      }
+      if (cleanupState === "committed") {
+        await writeFile(path.join(cleanupPath, "committed"), marker, { mode: 0o600 })
+      }
+
+      const resolved = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        intents: [],
+        roles: [{ role: "ce-work.implementation-worker" }],
+      }, { cwd: f.project, home: f.home })
+
+      expect(resolved.exitCode).toBe(3)
+      expect(resolved.body.error.code).toBe("CONFIG_RECOVERY_REQUIRED")
+      expect(resolved.body.resolutions).toBeUndefined()
+      expect(resolved.body.error.transaction_paths).toContain(cleanupPath)
+      const expectedEntries: Record<string, string[]> = {
+        committed: ["committed", "transaction.json"],
+        "transaction-only": ["transaction.json"],
+        empty: [],
+      }
+      expect((await readdir(cleanupPath)).sort()).toEqual(expectedEntries[cleanupState])
+      if (cleanupState !== "empty") {
+        expect(await readFile(path.join(cleanupPath, "transaction.json"), "utf8")).toBe(metadata)
+      }
+      if (cleanupState === "committed") {
+        expect(await readFile(path.join(cleanupPath, "committed"), "utf8")).toBe(marker)
+      }
+      if (destinationState === "external-save") expect(await readFile(configPath, "utf8")).toBe(external)
+      else expect(await Bun.file(configPath).exists()).toBe(false)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("preserves multiple cleanup controls when candidate revisions disagree", async () => {
+    const f = await fixture()
+    try {
+      const configPath = path.join(f.home, "config.yaml")
+      const installed = `routing:\n  profiles:\n    guarded:\n      candidates:\n        - { harness: codex, model: installed-policy }\n  classes:\n    implementation: { profile: guarded, policy: require }\n`
+      const other = installed.replace("installed-policy", "other-policy")
+      await writeFile(configPath, installed, { mode: 0o600 })
+      const controls = [
+        [`.ce-cleanup-304-${"8".repeat(24)}`, installed],
+        [`.ce-cleanup-305-${"9".repeat(24)}`, other],
+      ]
+      const metadataByControl = new Map<string, string>()
+      for (const [name, candidate] of controls) {
+        const cleanupPath = path.join(f.home, name)
+        const metadata = `${JSON.stringify({
+          protocol: "ce-config-replace/v1",
+          destination: "config.yaml",
+          old_revision: `cecfg-v1:${createHash("sha256").update(installed).digest("hex")}`,
+          candidate_revision: `cecfg-v1:${createHash("sha256").update(candidate).digest("hex")}`,
+        })}\n`
+        await mkdir(cleanupPath, { mode: 0o700 })
+        await writeFile(path.join(cleanupPath, "transaction.json"), metadata, { mode: 0o600 })
+        metadataByControl.set(name, metadata)
+      }
+
+      const resolved = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        intents: [],
+        roles: [{ role: "ce-work.implementation-worker" }],
+      }, { cwd: f.project, home: f.home })
+
+      expect(resolved.exitCode).toBe(3)
+      expect(resolved.body.error.code).toBe("CONFIG_RECOVERY_REQUIRED")
+      expect(resolved.body.error.transaction_paths).toHaveLength(2)
+      expect(await readFile(configPath, "utf8")).toBe(installed)
+      for (const [name] of controls) {
+        expect(await readFile(path.join(f.home, name, "transaction.json"), "utf8")).toBe(metadataByControl.get(name))
+      }
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("rejects a wrong-owner cleanup control without deleting it", async () => {
+    const f = await fixture()
+    try {
+      const cleanupName = `.ce-cleanup-301-${"5".repeat(24)}`
+      const cleanupPath = path.join(f.home, cleanupName)
+      const oldConfig = `routing:\n  profiles:\n    guarded:\n      candidates:\n        - { harness: codex, model: old-policy }\n  classes:\n    implementation: { profile: guarded, policy: require }\n`
+      await mkdir(cleanupPath, { mode: 0o700 })
+      await writeFile(path.join(cleanupPath, "source"), oldConfig, { mode: 0o600 })
+      const probe = [
+        "import importlib.util, os",
+        `resolver_path = ${JSON.stringify(resolver)}`,
+        `cleanup_name = ${JSON.stringify(cleanupName)}`,
+        "spec = importlib.util.spec_from_file_location('ce_routing_cleanup_owner', resolver_path)",
+        "module = importlib.util.module_from_spec(spec)",
+        "spec.loader.exec_module(module)",
+        "original_stat = module.os.stat",
+        "def foreign_cleanup(target, *args, **kwargs):\n    result = original_stat(target, *args, **kwargs)\n    if target == cleanup_name and kwargs.get('dir_fd') is not None:\n        fields = list(result)\n        fields[4] = result.st_uid + 1\n        return os.stat_result(fields)\n    return result",
+        "module.os.stat = foreign_cleanup",
+        "raise SystemExit(module.main())",
+      ].join("\n")
+      const proc = Bun.spawn(["python3", "-I", "-S", "-c", probe], {
+        cwd: f.project,
+        env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: f.home, COMPOUND_ENGINEERING_HOME: f.home },
+        stdin: new Blob([JSON.stringify({
+          protocol: "ce-routing/v1",
+          op: "resolve_batch",
+          cwd: f.project,
+          intents: [],
+          roles: [{ role: "ce-work.implementation-worker" }],
+        })]),
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      const [exitCode, stdout, stderr] = await Promise.all([
+        proc.exited,
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+      ])
+
+      expect(exitCode, stderr).toBe(3)
+      expect(JSON.parse(stdout).error.code).toBe("CONFIG_RECOVERY_REQUIRED")
+      expect(await readFile(path.join(cleanupPath, "source"), "utf8")).toBe(oldConfig)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("preserves a validated cleanup control when removal fails", async () => {
+    const f = await fixture()
+    try {
+      const configPath = path.join(f.home, "config.yaml")
+      const cleanupName = `.ce-cleanup-302-${"6".repeat(24)}`
+      const cleanupPath = path.join(f.home, cleanupName)
+      const external = `routing:\n  profiles:\n    guarded:\n      candidates:\n        - { harness: codex, model: external-policy }\n  classes:\n    implementation: { profile: guarded, policy: require }\n`
+      const metadata = `${JSON.stringify({
+        protocol: "ce-config-replace/v1",
+        destination: "config.yaml",
+        old_revision: `cecfg-v1:${createHash("sha256").update(external).digest("hex")}`,
+        candidate_revision: `cecfg-v1:${createHash("sha256").update(external).digest("hex")}`,
+      })}\n`
+      const marker = "ce-config-replace-commit/v1\n"
+      await writeFile(configPath, external, { mode: 0o600 })
+      await mkdir(cleanupPath, { mode: 0o700 })
+      await writeFile(path.join(cleanupPath, "transaction.json"), metadata, { mode: 0o600 })
+      await writeFile(path.join(cleanupPath, "committed"), marker, { mode: 0o600 })
+      const probe = [
+        "import importlib.util",
+        `resolver_path = ${JSON.stringify(resolver)}`,
+        "spec = importlib.util.spec_from_file_location('ce_routing_cleanup_remove', resolver_path)",
+        "module = importlib.util.module_from_spec(spec)",
+        "spec.loader.exec_module(module)",
+        `cleanup_name = ${JSON.stringify(cleanupName)}`,
+        "original_rmdir = module.os.rmdir",
+        "def deny_cleanup(entry, *args, **kwargs):\n    if entry == cleanup_name and kwargs.get('dir_fd') is not None:\n        raise PermissionError('injected cleanup failure')\n    return original_rmdir(entry, *args, **kwargs)",
+        "module.os.rmdir = deny_cleanup",
+        "raise SystemExit(module.main())",
+      ].join("\n")
+      const proc = Bun.spawn(["python3", "-I", "-S", "-c", probe], {
+        cwd: f.project,
+        env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: f.home, COMPOUND_ENGINEERING_HOME: f.home },
+        stdin: new Blob([JSON.stringify({
+          protocol: "ce-routing/v1",
+          op: "resolve_batch",
+          cwd: f.project,
+          intents: [],
+          roles: [{ role: "ce-work.implementation-worker" }],
+        })]),
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      const [exitCode, stdout, stderr] = await Promise.all([
+        proc.exited,
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+      ])
+
+      expect(exitCode, stderr).toBe(3)
+      expect(JSON.parse(stdout).error.code).toBe("CONFIG_RECOVERY_REQUIRED")
+      expect(await readFile(configPath, "utf8")).toBe(external)
+      expect(await readFile(path.join(cleanupPath, "transaction.json"), "utf8")).toBe(metadata)
+      expect(await readFile(path.join(cleanupPath, "committed"), "utf8")).toBe(marker)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
   test("finalize_attempt rejects all nonterminal or integrated states and exactness violations", async () => {
     const f = await fixture()
     try {

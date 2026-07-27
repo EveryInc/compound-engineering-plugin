@@ -2798,19 +2798,9 @@ def read_recovery_destination(parent_fd, name, cap, writing, parent, transaction
     return read_recovery_file(parent_fd, name, cap, writing, parent, transaction_name)
 
 
-def replacement_metadata(transaction_fd, writing, parent, transaction_name):
-    result = read_recovery_file(
-        transaction_fd,
-        "transaction.json",
-        4096,
-        writing,
-        parent,
-        transaction_name,
-        required=True,
-        private=True,
-    )
+def parse_replacement_metadata(raw, writing, parent, transaction_name):
     try:
-        value = json.loads(result[0].decode("ascii"))
+        value = json.loads(raw.decode("ascii"))
     except (UnicodeDecodeError, ValueError):
         replacement_error(writing, parent, [transaction_name])
     if (
@@ -2827,6 +2817,20 @@ def replacement_metadata(transaction_fd, writing, parent, transaction_name):
     ):
         replacement_error(writing, parent, [transaction_name])
     return value
+
+
+def replacement_metadata(transaction_fd, writing, parent, transaction_name):
+    record = read_recovery_file(
+        transaction_fd,
+        "transaction.json",
+        4096,
+        writing,
+        parent,
+        transaction_name,
+        required=True,
+        private=True,
+    )
+    return parse_replacement_metadata(record[0], writing, parent, transaction_name)
 
 
 def preserve_replacement_candidate(parent_fd, parent, transaction_fd, transaction_name):
@@ -2872,36 +2876,142 @@ def create_commit_marker(transaction_fd):
     os.fsync(transaction_fd)
 
 
-def cleanup_stale_replacement_controls(parent_fd, parent, names):
-    for name in names:
-        if re.fullmatch(r"\.ce-cleanup-[0-9]+-[0-9a-f]{24}", name) is None:
-            continue
+def restore_cleanup_control(parent_fd, parent, name, records, writing):
+    try:
         try:
-            fd = open_replacement_directory(parent_fd, parent, name, False)
-        except RoutingError:
-            continue
+            os.mkdir(name, 0o700, dir_fd=parent_fd)
+        except FileExistsError:
+            pass
+        fd = open_replacement_directory(parent_fd, parent, name, writing)
         try:
+            entries = set(os.listdir(fd))
+            for entry, raw in records.items():
+                if entry in entries:
+                    current = read_recovery_file(fd, entry, 4096, writing, parent, name, required=True, private=True)
+                    if current[0] != raw:
+                        replacement_error(writing, parent, [name])
+                else:
+                    write_private_file(fd, entry, raw)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.fsync(parent_fd)
+    except OSError:
+        replacement_error(writing, parent, [name])
+
+
+def cleanup_stale_replacement_controls(parent_fd, parent, destination_name, names, writing):
+    cleanup_names = sorted(name for name in names if name.startswith(".ce-cleanup-"))
+    if not cleanup_names:
+        return
+    controls = []
+    try:
+        for name in cleanup_names:
+            if re.fullmatch(r"\.ce-cleanup-[0-9]+-[0-9a-f]{24}", name) is None:
+                replacement_error(writing, parent, cleanup_names)
+            fd = open_replacement_directory(parent_fd, parent, name, writing)
+            controls.append({"name": name, "fd": fd, "records": {}, "candidate_revision": None})
             try:
                 entries = set(os.listdir(fd))
             except OSError:
-                continue
-            if not entries.issubset({"transaction.json", "committed"}):
-                continue
+                replacement_error(writing, parent, [name])
+            if entries not in (set(), {"transaction.json"}, {"transaction.json", "committed"}):
+                replacement_error(writing, parent, [name])
+            records = controls[-1]["records"]
+            if "transaction.json" in entries:
+                metadata_record = read_recovery_file(
+                    fd,
+                    "transaction.json",
+                    4096,
+                    writing,
+                    parent,
+                    name,
+                    required=True,
+                    private=True,
+                )
+                metadata = parse_replacement_metadata(metadata_record[0], writing, parent, name)
+                if metadata["destination"] != destination_name:
+                    replacement_error(writing, parent, [name])
+                records["transaction.json"] = metadata_record[0]
+                controls[-1]["candidate_revision"] = metadata["candidate_revision"]
+            if "committed" in entries:
+                marker = read_recovery_file(
+                    fd,
+                    "committed",
+                    64,
+                    writing,
+                    parent,
+                    name,
+                    required=True,
+                    private=True,
+                )
+                if marker[0] != b"ce-config-replace-commit/v1\n":
+                    replacement_error(writing, parent, [name])
+                records["committed"] = marker[0]
             try:
-                for entry in entries:
-                    record = read_recovery_file(fd, entry, 4096, False, parent, name, required=True, private=True)
-                    if entry == "committed" and record[0] != b"ce-config-replace-commit/v1\n":
-                        break
-            except RoutingError:
-                continue
-            else:
-                for entry in entries:
-                    os.unlink(entry, dir_fd=fd)
+                os.fsync(fd)
+            except OSError:
+                replacement_error(writing, parent, [name])
+        destination = read_recovery_destination(
+            parent_fd,
+            destination_name,
+            1024 * 1024,
+            writing,
+            parent,
+            cleanup_names[0],
+        )
+        if destination is None:
+            replacement_error(writing, parent, cleanup_names)
+        destination_revision = digest("cecfg-v1", destination[0])
+        if any(
+            control["candidate_revision"] is not None
+            and control["candidate_revision"] != destination_revision
+            for control in controls
+        ):
+            replacement_error(writing, parent, cleanup_names)
+        try:
+            os.fsync(parent_fd)
+        except OSError:
+            replacement_error(writing, parent, cleanup_names)
+
+        removed = []
+        for control in controls:
+            name = control["name"]
+            fd = control["fd"]
+            records = control["records"]
+            try:
+                current_destination = os.stat(destination_name, dir_fd=parent_fd, follow_symlinks=False)
+                if (
+                    not stat.S_ISREG(current_destination.st_mode)
+                    or (current_uid() is not None and current_destination.st_uid != current_uid())
+                    or mode_bits(current_destination) & 0o022
+                    or file_identity(current_destination) != destination[1]
+                ):
+                    raise OSError(errno.ESTALE, "configuration changed before cleanup retirement")
+                before = os.fstat(fd)
+                current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+                if (before.st_dev, before.st_ino) != (current.st_dev, current.st_ino):
+                    replacement_error(writing, parent, [name])
+                for entry in ("committed", "transaction.json"):
+                    if entry in records:
+                        os.unlink(entry, dir_fd=fd)
                 os.fsync(fd)
                 os.rmdir(name, dir_fd=parent_fd)
                 os.fsync(parent_fd)
-        finally:
-            os.close(fd)
+                removed.append(control)
+            except OSError:
+                for restore in removed + [control]:
+                    restore_cleanup_control(
+                        parent_fd,
+                        parent,
+                        restore["name"],
+                        restore["records"],
+                        writing,
+                    )
+                replacement_error(writing, parent, cleanup_names)
+    finally:
+        for control in controls:
+            os.close(control["fd"])
 
 
 def recover_replacement_transaction(parent_fd, parent, name, transaction_name, cap, writing):
@@ -3002,7 +3112,7 @@ def recover_source_transaction(path, writing):
                 names = os.listdir(parent_fd)
             except OSError:
                 replacement_error(writing, parent, [])
-            cleanup_stale_replacement_controls(parent_fd, parent, names)
+            cleanup_stale_replacement_controls(parent_fd, parent, name, names, writing)
             transactions = sorted(name for name in names if name.startswith(".ce-replace-"))
             if not transactions:
                 return
