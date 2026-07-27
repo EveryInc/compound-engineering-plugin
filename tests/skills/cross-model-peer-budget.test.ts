@@ -117,8 +117,25 @@ describe("cross-model peer budget", () => {
       expect(doc, `${skill} deadline receipt`).toContain(
         `echo "peer-deadline-secs=$(( PEER_HARD + ${DEADLINE_GRACE} ))"`,
       )
-      // The worker inherits the same resolved value, not its own default.
-      expect(doc, `${skill} worker inheritance`).toContain('CROSS_MODEL_HARD_SECS="$PEER_HARD"')
+      // The worker must keep its OWN route-aware defaults. The runner forwards the
+      // ambient environment, so a user-set knob already reaches it; re-exporting the
+      // orchestrator's resolved value turns the `:-600` unguarded fallback into an
+      // explicit 1200 override and silently restores the doubled wedge hang.
+      expect(doc, `${skill} must not forward a resolved cap to the worker`).not.toContain(
+        'CROSS_MODEL_HARD_SECS="$PEER_HARD"',
+      )
+
+      // PEER_HARD is load-bearing and shell state does not persist between tool
+      // calls, so its derivation must sit in the same fenced block as `start`.
+      const blocks = doc.match(/```bash\n[\s\S]*?```/g) ?? []
+      const startBlocks = blocks.filter((b) => /peer-job-runner\.py"? start|start --skill/.test(b))
+      expect(startBlocks.length, `${skill} documents a start block`).toBeGreaterThan(0)
+      for (const b of startBlocks) {
+        if (!b.includes("CE_PEER_HARD_SECS")) continue
+        expect(b, `${skill} must resolve PEER_HARD in the same shell as start`).toContain(
+          'PEER_HARD="${CROSS_MODEL_HARD_SECS:-',
+        )
+      }
     }
   })
 

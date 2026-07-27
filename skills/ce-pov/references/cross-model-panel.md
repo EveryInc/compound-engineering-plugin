@@ -205,19 +205,25 @@ root, and pre-create the round output directory as private scratch outside the
 repository. For named peers, start one job per exact target; for a selected panel,
 start one job per selected peer. Start all jobs before waiting.
 
-**Derive the whole peer budget from the one knob on every `start`.** Resolve it
-once and pass both derived windows, so the runner's supervisor cannot fall back
-to its own 630s default and reap a worker the knob was raised for:
+**Derive the runner window from the one knob, in the same shell call as `start`.**
+Without `CE_PEER_HARD_SECS` the runner supervisor keeps its own 630s default and
+becomes the tightest window, reaping a worker the knob was raised for. Resolve
+`PEER_HARD` and start the job in **one** call — a separate derivation call loses
+`PEER_HARD` (each tool call is a fresh shell, exactly as noted for `$PY` above),
+and the prefix would then compute `CE_PEER_HARD_SECS` as `30` and reap the job
+after ~30s:
 
 ```bash
 PEER_HARD="${CROSS_MODEL_HARD_SECS:-600}"; echo "peer-deadline-secs=$(( PEER_HARD + 10 ))";
+CE_PEER_HARD_SECS="$(( PEER_HARD + 30 ))" <the rest of this skill's documented `peer-job-runner.py start` invocation, unchanged>
 ```
 
-Prefix `CE_PEER_HARD_SECS="$(( PEER_HARD + 30 ))"` on the `peer-job-runner.py
-start` call, forward `CROSS_MODEL_HARD_SECS="$PEER_HARD"` to the worker so it
-cannot re-default, and use the printed `peer-deadline-secs` as the aggregate
-deadline below. All three windows then move together: worker `PEER_HARD` <
-aggregate deadline `+10s` < runner supervisor `+30s`.
+Use the printed `peer-deadline-secs` as the aggregate deadline below. The windows
+then nest outward: worker cap < aggregate deadline `+10s` < runner supervisor
+`+30s`. Do **not** forward `CROSS_MODEL_HARD_SECS` to the worker: the runner
+passes the ambient environment through, so a knob the user set already reaches
+it, while re-exporting a resolved value turns a fallback into an override and
+takes the worker's route-aware default away from it.
 
 Each worker writes `<run-dir>/pov-<target>.json`, where `<target>` is the resolved
 route target with `grok-cli`/`grok-cursor` collapsing to `grok`. Pass exactly that
