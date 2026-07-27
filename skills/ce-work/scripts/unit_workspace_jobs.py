@@ -1698,8 +1698,6 @@ def terminalize(run_id: str, unit_id: str) -> dict:
             supervisor = validate_authorized_successful_job(run_id, unit, attempt)
             reject_staged_secret_output(unit, attempt)
             receipt = terminal_receipt(unit, attempt, supervisor=supervisor)
-            if receipt.get("model_receipt_status") == "mismatch":
-                raise Operational("BLOCKED", "adapter reported a served-model mismatch")
     except Operational as exc:
         record_terminal_validation_failure(run_id, unit_id, exc)
         raise

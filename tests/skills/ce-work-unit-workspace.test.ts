@@ -100,6 +100,23 @@ function ctlWithScriptAndEnv(script: string, runsRoot: string, extraEnv: Record<
   return { code: r.status ?? -1, word: lines[0] || "", body, stderr: r.stderr }
 }
 
+function isolatedCtlFrom(cwd: string, runsRoot: string, extraEnv: Record<string, string>, ...args: string[]) {
+  const r = spawnSync("python3", ["-I", "-S", SCRIPT, ...args], {
+    cwd,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      CE_WORK_RUNS_ROOT: runsRoot,
+      CE_PEER_JOBS_ROOT: path.dirname(runsRoot),
+      ...extraEnv,
+    },
+  })
+  const lines = r.stdout.trim().split("\n")
+  let body: any = null
+  if (lines.length > 1) body = JSON.parse(lines.slice(1).join("\n"))
+  return { code: r.status ?? -1, word: lines[0] || "", body, stderr: r.stderr }
+}
+
 function ownerRootProbe(ownerRoot: string, runsRoot: string, foreignLike = false) {
   const source = [
     "import os, sys",
@@ -181,6 +198,20 @@ function routingRequestFile(
     ...(implementationIntent === undefined ? {} : { implementation_intent: implementationIntent }),
   })}\n`, { mode: 0o600 })
   return request
+}
+
+function opencodeDirectIntent(binding: Record<string, unknown> | "ce-default", messageId: string) {
+  return {
+    role: "ce-work.implementation-worker",
+    source: "opencode-direct-input",
+    provenance: {
+      protocol: "ce-routing-intent/v1",
+      session_id: "session-1",
+      message_id: messageId,
+      carrier_digest: "a".repeat(64),
+    },
+    binding,
+  }
 }
 
 function routingHome(config: string): string {
@@ -4623,6 +4654,54 @@ describe("ce-work unit workspace controller", () => {
     expect(readFileSync(path.join(f.repo, "U-retry-corrected.txt"), "utf8")).toBe("corrected\n")
   })
 
+  test("runs isolated from an unrelated cwd and keeps absent routing native without state", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome("")
+    const unrelatedCwd = tmp("ce-work-unrelated-cwd-")
+    const request = routingRequestFile(f)
+    const env = { COMPOUND_ENGINEERING_HOME: home }
+    const initialHead = git(f.repo, "rev-parse", "HEAD")
+
+    const resolved = isolatedCtlFrom(
+      unrelatedCwd, runs, env,
+      "resolve-routing", "--repo", f.repo, "--routing-request", request,
+    )
+    expect(resolved.word, resolved.stderr).toBe("NATIVE")
+    expect(resolved.body).toMatchObject({
+      canonical_unchanged: true,
+      routing: {
+        binding: {
+          kind: "ce-default",
+          explicit_reset: false,
+          source_layer: "builtin",
+        },
+      },
+    })
+
+    const initialized = isolatedCtlFrom(
+      unrelatedCwd, runs, env,
+      "init", "--run-id", "run-no-config", "--repo", f.repo,
+      "--plan", f.plan, "--plan-digest", f.digest, "--routing-request", request,
+    )
+    expect(initialized.word, initialized.stderr).toBe("NATIVE")
+    expect(initialized.body).toMatchObject({
+      run_id: null,
+      recovery_path: null,
+      routing: {
+        binding: {
+          kind: "ce-default",
+          explicit_reset: false,
+          source_layer: "builtin",
+        },
+      },
+    })
+    expect(existsSync(path.join(runs, "run-no-config"))).toBe(false)
+    expect(existsSync(runs)).toBe(false)
+    expect(git(f.repo, "rev-parse", "HEAD")).toBe(initialHead)
+    expect(git(f.repo, "status", "--porcelain")).toBe("")
+  })
+
   test("resolves an economy native implementation override without changing the orchestrator or checkout", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
@@ -4636,13 +4715,11 @@ describe("ce-work unit workspace controller", () => {
 `)
     const request = routingRequestFile(
       f,
-      [],
-      { harness: "opencode", serving_family: "openai" },
-      {
-        source: "current-task",
+      [opencodeDirectIntent({
         policy: "require",
         candidates: [{ harness: "opencode", model: "openai/gpt-economy", effort: "low" }],
-      },
+      }, "economy-override")],
+      { harness: "opencode", serving_family: "openai" },
     )
     const resolved = ctlWithEnv(
       runs,
@@ -4657,7 +4734,7 @@ describe("ce-work unit workspace controller", () => {
         binding: {
           role: "ce-work.implementation-worker",
           source_layer: "task",
-          source: "current-task",
+          source: "opencode-direct-input",
           profile: "current-task",
           policy: "require",
           candidates: [{ harness: "opencode", model: "openai/gpt-economy", effort: "low", ordinal: 0 }],
@@ -4665,7 +4742,7 @@ describe("ce-work unit workspace controller", () => {
         resolver_snapshot: {
           intents: [{
             role: "ce-work.implementation-worker",
-            source: "current-task",
+            source: "opencode-direct-input",
             binding: {
               policy: "require",
               candidates: [{ harness: "opencode", model: "openai/gpt-economy", effort: "low" }],
@@ -4687,7 +4764,7 @@ describe("ce-work unit workspace controller", () => {
       { COMPOUND_ENGINEERING_HOME: home },
       "resolve-routing", "--repo", f.repo, "--routing-request", routingRequestFile(
         f,
-        [{ role: "ce-work.implementation-worker", source: "other-task-intent", binding: "ce-default" }],
+        [opencodeDirectIntent("ce-default", "conflicting-reset")],
         { harness: "opencode", serving_family: "openai" },
         {
           source: "current-task",
@@ -4944,11 +5021,9 @@ work_engine_preferences:
   classes:
     implementation: { profile: economy, policy: require }
 `)
-    const reset = initWithRouting(runs, "run-reset", f, home, [{
-      role: "ce-work.implementation-worker",
-      source: "current-task",
-      binding: "ce-default",
-    }])
+    const reset = initWithRouting(runs, "run-reset", f, home, [
+      opencodeDirectIntent("ce-default", "task-reset"),
+    ])
 
     expect(reset.word).toBe("NATIVE")
     expect(reset.body.routing.binding).toMatchObject({
@@ -5368,6 +5443,109 @@ work_engine_preferences:
       "--abandon", "--expect-transport", terminalized.body.transport.commit,
     ).word).toBe("CLEANED")
     expect(lockRoutingAttempt(runs, "run-mismatch", "U", "attempt-2", 1, "claude").word).toBe("ATTEMPT_LOCKED")
+  })
+
+  test("integrates ordinal-1 after a preferred model mismatch with complete attempt history", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const home = routingHome(`routing:
+  profiles:
+    ordered:
+      candidates:
+        - { harness: codex, model: gpt-5-mini }
+        - { harness: claude, model: sonnet }
+  classes:
+    implementation: { profile: ordered, policy: prefer }
+`)
+    expect(initWithRouting(runs, "run-model-mismatch", f, home).word).toBe("READY")
+    expect(lockRoutingAttempt(
+      runs, "run-model-mismatch", "U", "attempt-1", 0, "codex",
+    ).word).toBe("ATTEMPT_LOCKED")
+    const first = ctl(
+      runs, "prepare", "--run-id", "run-model-mismatch", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("model mismatch packet"),
+    ).body
+    writeFileSync(path.join(first.workspace, "wrong-model.txt"), "must remain isolated\n")
+    const firstJob = fakeDoneJob(
+      runs, "run-model-mismatch", "U", "model mismatch packet", "job-model-mismatch", "completed",
+      ["wrong-model.txt"],
+      { model_actual: "gpt-5-large", model_receipt_status: "mismatch" },
+    )
+    ctl(
+      runs, "record-job", "--run-id", "run-model-mismatch", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", firstJob,
+    )
+    const firstTerminalized = ctl(
+      runs, "terminalize", "--run-id", "run-model-mismatch", "--unit-id", "U",
+    )
+    expect(firstTerminalized.word, firstTerminalized.stderr).toBe("INTEGRATION_PENDING")
+
+    const blocked = ctl(
+      runs, "integrate", "--run-id", "run-model-mismatch", "--unit-id", "U",
+      "--commit-message", "feat(test): keep mismatched model isolated", "--", "true",
+    )
+    expect(blocked.word).toBe("BLOCKED")
+    expect(blocked.body).toMatchObject({
+      policy: "prefer",
+      identity_status: "mismatched",
+      action: "next_candidate",
+      canonical_unchanged: true,
+    })
+    const advanced = ctl(
+      runs, "claim-fallback", "--run-id", "run-model-mismatch", "--unit-id", "U",
+      "--caller-mode", "headless",
+    )
+    expect(advanced.word, advanced.stderr).toBe("NEXT_CANDIDATE")
+    expect(advanced.body.next_candidate).toMatchObject({ ordinal: 1, harness: "claude", model: "sonnet" })
+    expect(ctl(
+      runs, "cleanup", "--run-id", "run-model-mismatch", "--unit-id", "U",
+      "--abandon", "--expect-transport", firstTerminalized.body.transport.commit,
+    ).word).toBe("CLEANED")
+
+    expect(lockRoutingAttempt(
+      runs, "run-model-mismatch", "U", "attempt-2", 1, "claude",
+    ).word).toBe("ATTEMPT_LOCKED")
+    const second = ctl(
+      runs, "prepare", "--run-id", "run-model-mismatch", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("accepted model packet"), "--attempt-id", "attempt-2",
+    ).body
+    writeFileSync(path.join(second.workspace, "accepted-model.txt"), "accepted recipient\n")
+    const secondJob = fakeDoneJob(
+      runs, "run-model-mismatch", "U", "accepted model packet", "job-model-accepted", "completed",
+      ["accepted-model.txt"],
+      { model_actual: "sonnet", model_receipt_status: "verified" },
+    )
+    ctl(
+      runs, "record-job", "--run-id", "run-model-mismatch", "--unit-id", "U",
+      "--attempt-id", "attempt-2", "--job-id", secondJob,
+    )
+    expect(ctl(
+      runs, "terminalize", "--run-id", "run-model-mismatch", "--unit-id", "U",
+    ).word).toBe("INTEGRATION_PENDING")
+    expect(ctl(
+      runs, "integrate", "--run-id", "run-model-mismatch", "--unit-id", "U",
+      "--commit-message", "feat(test): accept matching fallback model", "--", "true",
+    ).word).toBe("UNIT_COMMITTED")
+
+    expect(existsSync(path.join(f.repo, "wrong-model.txt"))).toBe(false)
+    expect(readFileSync(path.join(f.repo, "accepted-model.txt"), "utf8")).toBe("accepted recipient\n")
+    const receipt = ctl(
+      runs, "status", "--run-id", "run-model-mismatch",
+    ).body.units.U.attempts[1].routing_finalization.receipt
+    expect(receipt.attempts).toMatchObject([
+      {
+        ordinal: 0,
+        outcome: "ok",
+        identity_status: "mismatched",
+        terminal_status: "next_candidate",
+      },
+      {
+        ordinal: 1,
+        outcome: "ok",
+        identity_status: "verified",
+        terminal_status: "accept",
+      },
+    ])
   })
 
   test("rejects forged terminal evidence and independently denies an unsanctioned recipient", () => {
