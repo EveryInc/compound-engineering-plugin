@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, truncate, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { describe, expect, test } from "bun:test"
@@ -49,10 +49,13 @@ async function fixture(options: {
   policy?: "prefer" | "require"
   models?: string[]
   noRouting?: boolean
-  fakeMode?: "receipt" | "forged" | "sleep" | "scope" | "measurementEscape" | "setsid"
+  fakeMode?: "receipt" | "forged" | "sleep" | "hang" | "floodStdout" | "floodStderr" | "scope" | "measurementEscape" | "setsid"
   measurementMode?: "normal" | "repeat" | "sleep" | "setsid" | "credential" | "string" | "undeclared" | "transient" | "baselineEscape" | "rawNetwork" | "mutableOutput"
   judge?: boolean
+  judgeAdapter?: "codex" | "host"
   backend?: "codex" | "worktree"
+  routeHarness?: "codex" | "opencode"
+  hostHarness?: "codex" | "opencode"
 } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), "ce-optimize-controller-"))
   const repo = path.join(root, "repo")
@@ -145,7 +148,7 @@ print(json.dumps({'score': 1 if denied == len(numbers) else -1}))
       "  profiles:",
       "    optimize-test:",
       "      candidates:",
-      ...models.map((model) => `        - { harness: codex, model: ${model} }`),
+      ...models.map((model) => `        - { harness: ${options.routeHarness ?? "codex"}, model: ${model} }`),
       "  roles:",
       `    ce-optimize.experiment-author: { profile: optimize-test, policy: ${options.policy ?? "require"} }`,
       ...(options.judge ? [`    ce-optimize.semantic-judge: { profile: optimize-test, policy: ${options.policy ?? "require"} }`] : []),
@@ -167,6 +170,15 @@ def readable(value):
 if ${JSON.stringify(fakeMode)} == "sleep":
     pathlib.Path("started").write_text("started\\n")
     time.sleep(2)
+if ${JSON.stringify(fakeMode)} == "hang":
+    pathlib.Path("started").write_text("started\\n")
+    time.sleep(30)
+if ${JSON.stringify(fakeMode)} == "floodStdout":
+    while True:
+        os.write(1, b"x" * 65536)
+if ${JSON.stringify(fakeMode)} == "floodStderr":
+    while True:
+        os.write(2, b"x" * 65536)
 if ${JSON.stringify(fakeMode)} == "scope":
     pathlib.Path("measure.py").write_text("print('tampered')\\n")
 if ${JSON.stringify(fakeMode)} == "measurementEscape":
@@ -230,7 +242,7 @@ else:
     },
     scope: { mutable: ["mutable.txt", "capture.json", "started", "candidate.py", "late-author", "late-measure"], immutable: ["measure.py", ".gitignore"] },
     execution: { mode: "serial", max_concurrent: 1 },
-    judge: options.judge ? { adapter: "codex", rubric: "test" } : null,
+    judge: options.judge ? { adapter: options.judgeAdapter ?? "codex", rubric: "test" } : null,
     stopping: { max_iterations: 2 },
     shared_files: [],
     sanctioned_env: { SAFE_INPUT: "approved" },
@@ -252,14 +264,17 @@ else:
     GITHUB_TOKEN: "ambient-token",
     AWS_SECRET_ACCESS_KEY: "ambient-secret",
   }
-  return { root, repo, home, controllerRoot, bin, fake, spec, constraints, prompt, authManifest, env }
+  return {
+    root, repo, home, controllerRoot, bin, fake, spec, constraints, prompt, authManifest, env,
+    hostHarness: options.hostHarness ?? "codex",
+  }
 }
 
 async function start(f: Awaited<ReturnType<typeof fixture>>, runId = "run", judge = false) {
   return checked([
     "python3", "-I", "-S", CONTROLLER, "start", "--run-id", runId,
     "--repo", f.repo, "--spec", f.spec, "--constraints", f.constraints,
-    "--host-harness", "codex", "--serving-family", "openai",
+    "--host-harness", f.hostHarness, "--serving-family", "openai",
   ], f.repo, f.env)
 }
 
@@ -339,6 +354,39 @@ describe("ce-optimize controller", () => {
     expect(result.stderr).toMatch(/unsupported seccomp architecture/i)
   })
 
+  test("retries a nonblocking stdin write after EAGAIN without dropping input", async () => {
+    const source = `
+import errno, importlib.util, json, os, sys
+spec = importlib.util.spec_from_file_location("landlock", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+real_write = module.os.write
+raised = False
+def flaky_write(fd, data):
+    global raised
+    if not raised:
+        raised = True
+        raise BlockingIOError(errno.EAGAIN, "injected EAGAIN")
+    return real_write(fd, data)
+module.os.write = flaky_write
+children_fd = os.open(f"/proc/self/task/{os.getpid()}/children", os.O_RDONLY)
+try:
+    result = module.run_once(
+        [sys.executable, "-c", "import sys; data=sys.stdin.buffer.read(); print(len(data))"],
+        {"PATH": "/usr/local/bin:/usr/bin:/bin", "LC_ALL": "C"},
+        2,
+        children_fd,
+        b"x" * 131072,
+    )
+finally:
+    os.close(children_fd)
+print(json.dumps({"raised": raised, "exit_code": result["exit_code"], "stdout": result["stdout"].decode().strip()}))
+`
+    const result = await run(["python3", "-I", "-S", "-c", source, LANDLOCK], ROOT, {})
+    expect(result.exitCode, result.stderr).toBe(0)
+    expect(JSON.parse(result.word)).toEqual({ raised: true, exit_code: 0, stdout: "131072" })
+  })
+
   test("freezes one self-validating role snapshot and ignores live config drift on resume", async () => {
     const f = await fixture({ judge: true })
     try {
@@ -406,6 +454,228 @@ describe("ce-optimize controller", () => {
     }
   })
 
+  test("recovers first-run creation interrupted after the journal fsync", async () => {
+    const f = await fixture()
+    try {
+      const crashed = await run([
+        "python3", "-I", "-S", CONTROLLER, "start", "--run-id", "run",
+        "--repo", f.repo, "--spec", f.spec, "--constraints", f.constraints,
+        "--host-harness", f.hostHarness, "--serving-family", "openai",
+      ], f.repo, { ...f.env, CE_OPTIMIZE_TEST_JOURNAL_FAULT: "run-started" })
+      expect(crashed.exitCode).toBe(87)
+
+      const statePath = path.join(f.controllerRoot, "run", "state.json")
+      const journalPath = path.join(f.controllerRoot, "run", "routing-events.jsonl")
+      const interruptedState = JSON.parse(await readFile(statePath, "utf8"))
+      expect(interruptedState).toMatchObject({ event_sequence: 0, journal_head: "0".repeat(64) })
+      expect((await stat(journalPath)).size).toBeGreaterThan(0)
+
+      const status = await checked(["python3", "-I", "-S", CONTROLLER, "status", "--run-id", "run"], f.repo, f.env)
+      expect(status.word).toBe("STATUS")
+      expect((await stat(journalPath)).size).toBe(0)
+      const resumed = await start(f)
+      expect(resumed.word).toBe("RESUMED")
+      const recoveredState = JSON.parse(await readFile(statePath, "utf8"))
+      expect(recoveredState.event_sequence).toBe(1)
+      expect((await run(["git", "status", "--porcelain"], f.repo, f.env)).word).toBe("")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("rolls back an interrupted normal transition and keeps abandon and cleanup usable", async () => {
+    const f = await fixture()
+    try {
+      await start(f)
+      const worktree = await createWorktree(f, "journal-recovery")
+      await lock(f, worktree, "attempt-journal", 0, "journal-recovery")
+      const statePath = path.join(f.controllerRoot, "run", "state.json")
+      const before = JSON.parse(await readFile(statePath, "utf8"))
+      const crashed = await run([
+        "python3", "-I", "-S", CONTROLLER, "abandon", "--run-id", "run",
+        "--attempt-id", "attempt-journal", "--reason", "injected-interruption",
+      ], f.repo, { ...f.env, CE_OPTIMIZE_TEST_JOURNAL_FAULT: "attempt-abandoned" })
+      expect(crashed.exitCode).toBe(87)
+
+      const status = await checked(["python3", "-I", "-S", CONTROLLER, "status", "--run-id", "run"], f.repo, f.env)
+      expect(status.body.attempts["attempt-journal"]).toMatchObject({ state: "locked", final_state: null })
+      const after = JSON.parse(await readFile(statePath, "utf8"))
+      expect(after.event_sequence).toBe(before.event_sequence)
+      expect(after.journal_head).toBe(before.journal_head)
+
+      const abandoned = await checked([
+        "python3", "-I", "-S", CONTROLLER, "abandon", "--run-id", "run",
+        "--attempt-id", "attempt-journal", "--reason", "recovered-interruption",
+      ], f.repo, f.env)
+      expect(abandoned.word).toBe("ABANDONED")
+      const cleanup = await run(["bash", WORKTREE, "cleanup", "journal-recovery", "1"], f.repo, f.env)
+      expect(cleanup.exitCode, cleanup.stderr).toBe(0)
+      await expect(stat(worktree)).rejects.toThrow()
+      expect((await run(["git", "status", "--porcelain"], f.repo, f.env)).word).toBe("")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test.each(["corrupt", "gap", "rewrite", "behind"] as const)(
+    "rejects a %s journal instead of repairing committed evidence",
+    async (damage) => {
+      const f = await fixture()
+      try {
+        await start(f)
+        const state = JSON.parse(await readFile(path.join(f.controllerRoot, "run", "state.json"), "utf8"))
+        const journalPath = path.join(f.controllerRoot, "run", "routing-events.jsonl")
+        const original = await readFile(journalPath, "utf8")
+        const event = JSON.parse(original.trim())
+        if (damage === "corrupt") {
+          await writeFile(journalPath, `${original}{not-json}\n`, { mode: 0o600 })
+        } else if (damage === "gap") {
+          const suffix = {
+            sequence: state.event_sequence + 2,
+            kind: "gap",
+            attempt_id: null,
+            details: {},
+            timestamp: 1,
+            previous_digest: state.journal_head,
+          }
+          await writeFile(journalPath, `${original}${JSON.stringify({ ...suffix, event_digest: sha256(suffix) })}\n`, { mode: 0o600 })
+        } else if (damage === "rewrite") {
+          event.kind = "rewritten"
+          await writeFile(journalPath, `${JSON.stringify(event)}\n`, { mode: 0o600 })
+        } else {
+          await truncate(journalPath, 0)
+        }
+        const rejected = await run(["python3", "-I", "-S", CONTROLLER, "status", "--run-id", "run"], f.repo, f.env)
+        expect(rejected.exitCode).toBe(4)
+        expect(rejected.stderr).toMatch(/journal.*(malformed|sequence|digest|behind|rewrite|corrupt)/i)
+      } finally {
+        await rm(f.root, { recursive: true, force: true })
+      }
+    },
+  )
+
+  test("migrates an exact legacy journal under the run lock", async () => {
+    const f = await fixture()
+    try {
+      await start(f)
+      const statePath = path.join(f.controllerRoot, "run", "state.json")
+      const journalPath = path.join(f.controllerRoot, "run", "routing-events.jsonl")
+      const state = JSON.parse(await readFile(statePath, "utf8"))
+      const legacyEvents = (await readFile(journalPath, "utf8")).trim().split("\n").map((line) => {
+        const event = JSON.parse(line)
+        delete event.previous_digest
+        delete event.event_digest
+        return event
+      })
+      delete state.state_digest
+      delete state.journal_head
+      state.state_digest = sha256(state)
+      await writeFile(statePath, `${JSON.stringify(state)}\n`, { mode: 0o600 })
+      await writeFile(journalPath, `${legacyEvents.map((event) => JSON.stringify(event)).join("\n")}\n`, { mode: 0o600 })
+
+      await checked(["python3", "-I", "-S", CONTROLLER, "status", "--run-id", "run"], f.repo, f.env)
+      const migratedState = JSON.parse(await readFile(statePath, "utf8"))
+      const migratedEvent = JSON.parse((await readFile(journalPath, "utf8")).trim())
+      expect(migratedState.journal_head).toMatch(/^[a-f0-9]{64}$/)
+      expect(migratedEvent).toMatchObject({ previous_digest: "0".repeat(64), event_digest: migratedState.journal_head })
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("finishes legacy migration after crashing between journal conversion and manifest publication", async () => {
+    const f = await fixture()
+    try {
+      await start(f)
+      const statePath = path.join(f.controllerRoot, "run", "state.json")
+      const journalPath = path.join(f.controllerRoot, "run", "routing-events.jsonl")
+      const state = JSON.parse(await readFile(statePath, "utf8"))
+      const legacyEvents = (await readFile(journalPath, "utf8")).trim().split("\n").map((line) => {
+        const event = JSON.parse(line)
+        delete event.previous_digest
+        delete event.event_digest
+        return event
+      })
+      delete state.state_digest
+      delete state.journal_head
+      state.state_digest = sha256(state)
+      await writeFile(statePath, `${JSON.stringify(state)}\n`, { mode: 0o600 })
+      await writeFile(journalPath, `${legacyEvents.map((event) => JSON.stringify(event)).join("\n")}\n`, { mode: 0o600 })
+
+      const crashed = await run(
+        ["python3", "-I", "-S", CONTROLLER, "status", "--run-id", "run"],
+        f.repo,
+        { ...f.env, CE_OPTIMIZE_TEST_LEGACY_MIGRATION_FAULT: "after-journal" },
+      )
+      expect(crashed.exitCode).toBe(88)
+      const interruptedState = JSON.parse(await readFile(statePath, "utf8"))
+      const convertedEvent = JSON.parse((await readFile(journalPath, "utf8")).trim())
+      expect(interruptedState).not.toHaveProperty("journal_head")
+      expect(convertedEvent.previous_digest).toBe("0".repeat(64))
+      expect(convertedEvent.event_digest).toMatch(/^[a-f0-9]{64}$/)
+
+      const recovered = await checked(["python3", "-I", "-S", CONTROLLER, "status", "--run-id", "run"], f.repo, f.env)
+      expect(recovered.word).toBe("STATUS")
+      const migratedState = JSON.parse(await readFile(statePath, "utf8"))
+      expect(migratedState.journal_head).toBe(convertedEvent.event_digest)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test.each([
+    ["mixed formats", /mixes formats/i],
+    ["invalid converted digest", /digest.*rewrite|digest.*corruption/i],
+    ["converted wrong length", /length differs/i],
+    ["converted journal behind", /behind/i],
+  ] as const)("rejects %s while resuming legacy migration", async (damage, errorPattern) => {
+    const f = await fixture()
+    try {
+      await start(f)
+      const statePath = path.join(f.controllerRoot, "run", "state.json")
+      const journalPath = path.join(f.controllerRoot, "run", "routing-events.jsonl")
+      const state = JSON.parse(await readFile(statePath, "utf8"))
+      const first = JSON.parse((await readFile(journalPath, "utf8")).trim())
+      const secondMaterial = {
+        sequence: 2,
+        kind: "migration-test",
+        attempt_id: null,
+        details: {},
+        timestamp: first.timestamp,
+        previous_digest: first.event_digest,
+      }
+      const second = { ...secondMaterial, event_digest: sha256(secondMaterial) }
+      let events: any[]
+      if (damage === "mixed formats") {
+        const legacyFirst = { ...first }
+        delete legacyFirst.previous_digest
+        delete legacyFirst.event_digest
+        events = [legacyFirst, second]
+        state.event_sequence = 2
+      } else if (damage === "invalid converted digest") {
+        events = [{ ...first, event_digest: "0".repeat(64) }]
+      } else if (damage === "converted wrong length") {
+        events = [first, second]
+      } else {
+        events = [first]
+        state.event_sequence = 2
+      }
+      delete state.state_digest
+      delete state.journal_head
+      state.state_digest = sha256(state)
+      await writeFile(statePath, `${JSON.stringify(state)}\n`, { mode: 0o600 })
+      await writeFile(journalPath, `${events.map((event) => JSON.stringify(event)).join("\n")}\n`, { mode: 0o600 })
+
+      const rejected = await run(["python3", "-I", "-S", CONTROLLER, "status", "--run-id", "run"], f.repo, f.env)
+      expect(rejected.exitCode).toBe(4)
+      expect(rejected.stderr).toMatch(errorPattern)
+      const unchanged = JSON.parse(await readFile(statePath, "utf8"))
+      expect(unchanged).not.toHaveProperty("journal_head")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
   test("sanitizes and confines Codex while finalizing only adapter-owned serving evidence", async () => {
     const f = await fixture()
     try {
@@ -451,7 +721,11 @@ describe("ce-optimize controller", () => {
         "python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", "attempt-1",
       ], f.repo, f.env)
       expect(finalized.word).toBe("ACCEPT")
-      expect(finalized.body.receipt).toMatchObject({ identity_status: "verified", model_actual: "openai/expected" })
+      expect(finalized.body.receipt).toMatchObject({
+        identity_status: "verified",
+        provider_actual: "openai",
+        model_actual: "expected",
+      })
     } finally {
       await rm(f.root, { recursive: true, force: true })
     }
@@ -474,7 +748,7 @@ describe("ce-optimize controller", () => {
       const second = await checked(["python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", "attempt-second"], f.repo, f.env)
       expect(second.word).toBe("ACCEPT")
       expect(second.body.receipt.attempts).toHaveLength(2)
-      expect(second.body.receipt.model_actual).toBe("openai/second")
+      expect(second.body.receipt).toMatchObject({ provider_actual: "openai", model_actual: "second" })
     } finally {
       await rm(f.root, { recursive: true, force: true })
     }
@@ -647,8 +921,14 @@ describe("ce-optimize controller", () => {
     }
   })
 
-  test("accepts serving evidence only from a lock-bound owning host receipt", async () => {
-    const f = await fixture({ backend: "worktree" })
+  test("makes configured native OpenCode Optimize candidates unavailable before dispatch", async () => {
+    const f = await fixture({
+      backend: "worktree",
+      routeHarness: "opencode",
+      hostHarness: "opencode",
+      judge: true,
+      judgeAdapter: "host",
+    })
     try {
       await start(f)
       const worktree = await createWorktree(f, "host")
@@ -657,15 +937,21 @@ describe("ce-optimize controller", () => {
         "--attempt-id", "attempt-host", "--role", "author", "--instance-id", "host-experiment",
         "--ordinal", "0", "--adapter", "host", "--worktree", worktree,
       ], f.repo, f.env)
-      const authorized = await checked([
-        "python3", "-I", "-S", CONTROLLER, "authorize-host", "--run-id", "run", "--attempt-id", "attempt-host",
+      expect(locked.word).toBe("UNAVAILABLE")
+      expect(locked.body.preflight_error).toMatch(/controller-owned.*native.*launcher.*unavailable/i)
+      const judgeLocked = await checked([
+        "python3", "-I", "-S", CONTROLLER, "lock-attempt", "--run-id", "run",
+        "--attempt-id", "judge-host", "--role", "judge", "--instance-id", "judge-batch",
+        "--ordinal", "0", "--adapter", "host",
       ], f.repo, f.env)
+      expect(judgeLocked.word).toBe("UNAVAILABLE")
+      expect(judgeLocked.body.preflight_error).toMatch(/controller-owned.*native.*launcher.*unavailable/i)
       const receiptPath = path.join(f.root, "host-receipt.json")
       await writeFile(receiptPath, JSON.stringify({
         protocol: "ce-optimize-host-receipt/v1",
         attempt_id: "attempt-host",
         lock_digest: locked.body.lock_digest,
-        launch_token: authorized.body.launch_token,
+        launch_token: "caller-minted-token",
         outcome: "ok",
         process: {
           terminal: true,
@@ -677,15 +963,69 @@ describe("ce-optimize controller", () => {
         serving_report: { model_actual: "openai/expected" },
       }), { mode: 0o600 })
       await chmod(receiptPath, 0o600)
-      const terminal = await checked([
-        "python3", "-I", "-S", CONTROLLER, "record-host", "--run-id", "run",
-        "--attempt-id", "attempt-host", "--receipt", receiptPath,
-      ], f.repo, f.env)
-      expect(terminal.word).toBe("TERMINAL")
-      const finalized = await checked([
+      for (const command of [
+        ["authorize-host", "--run-id", "run", "--attempt-id", "attempt-host"],
+        ["record-host", "--run-id", "run", "--attempt-id", "attempt-host", "--receipt", receiptPath],
+      ]) {
+        const rejected = await run(["python3", "-I", "-S", CONTROLLER, ...command], f.repo, f.env)
+        expect(rejected.exitCode).not.toBe(0)
+      }
+      const finalized = await run([
         "python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", "attempt-host",
       ], f.repo, f.env)
-      expect(finalized.body.receipt).toMatchObject({ identity_status: "verified", model_actual: "openai/expected" })
+      expect(finalized.word).toBe("BLOCK")
+      expect(finalized.body.receipt.identity_status).toBe("unavailable")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("preserves CE-default native completion without model or process attestation", async () => {
+    const f = await fixture({
+      backend: "worktree",
+      noRouting: true,
+      hostHarness: "opencode",
+      judge: true,
+      judgeAdapter: "host",
+    })
+    try {
+      await start(f)
+      const worktree = await createWorktree(f, "native-default")
+      const locked = await checked([
+        "python3", "-I", "-S", CONTROLLER, "lock-attempt", "--run-id", "run",
+        "--attempt-id", "attempt-native", "--role", "author", "--instance-id", "native-default",
+        "--ordinal", "0", "--adapter", "host", "--worktree", worktree,
+      ], f.repo, f.env)
+      expect(locked.word).toBe("LOCKED")
+      const terminal = await checked([
+        "python3", "-I", "-S", CONTROLLER, "complete-native", "--run-id", "run",
+        "--attempt-id", "attempt-native", "--outcome", "ok",
+      ], f.repo, f.env)
+      expect(terminal.body).toEqual({
+        attempt_id: "attempt-native",
+        outcome: "ok",
+        evidence_status: "native-compatibility-unverified",
+      })
+      const finalized = await checked([
+        "python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", "attempt-native",
+      ], f.repo, f.env)
+      expect(finalized.body.receipt).toMatchObject({ identity_status: "ce-default" })
+      expect(finalized.body.receipt).not.toHaveProperty("model_actual")
+
+      await checked([
+        "python3", "-I", "-S", CONTROLLER, "lock-attempt", "--run-id", "run",
+        "--attempt-id", "judge-native", "--role", "judge", "--instance-id", "judge-native",
+        "--ordinal", "0", "--adapter", "host",
+      ], f.repo, f.env)
+      await checked([
+        "python3", "-I", "-S", CONTROLLER, "complete-native", "--run-id", "run",
+        "--attempt-id", "judge-native", "--outcome", "ok",
+      ], f.repo, f.env)
+      const judgeFinalized = await checked([
+        "python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", "judge-native",
+      ], f.repo, f.env)
+      expect(judgeFinalized.body.receipt).toMatchObject({ identity_status: "ce-default" })
+      expect(judgeFinalized.body.receipt).not.toHaveProperty("model_actual")
     } finally {
       await rm(f.root, { recursive: true, force: true })
     }
@@ -790,6 +1130,62 @@ describe("ce-optimize controller", () => {
       expect(baseline.word).toBe("BASELINE_FAILED")
       expect(baseline.body).toMatchObject({ metrics: {}, exit_code: 124 })
       expect(Date.now() - started).toBeLessThan(4000)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test.each([
+    ["hang", 124, true, false],
+    ["floodStdout", 125, false, true],
+    ["floodStderr", 125, false, true],
+  ] as const)("bounds a routed author that triggers %s and leaves recovery usable", async (fakeMode, exitCode, timedOut, outputExceeded) => {
+    const f = await fixture({ fakeMode })
+    try {
+      await start(f)
+      if (fakeMode === "hang") {
+        await writeFile(f.prompt, "p".repeat(1024 * 1024), { mode: 0o600 })
+      }
+      let worktree = await createWorktree(f, `bounded-${fakeMode.toLowerCase()}`)
+      const attemptId = `attempt-${fakeMode.toLowerCase()}`
+      await lock(f, worktree, attemptId, 0, fakeMode.toLowerCase())
+      const started = Date.now()
+      const dispatched = await checked([
+        "python3", "-I", "-S", CONTROLLER, "dispatch", "--run-id", "run",
+        "--attempt-id", attemptId, "--prompt", f.prompt,
+      ], f.repo, { ...f.env, CE_OPTIMIZE_TEST_ROUTE_TIMEOUT_SECONDS: "1" })
+      expect(Date.now() - started).toBeLessThan(8000)
+      expect(dispatched.body).toMatchObject({ outcome: "failed", exit_code: exitCode })
+
+      const attemptRoot = path.join(f.controllerRoot, "run", "attempts", attemptId)
+      const evidence = JSON.parse(await readFile(path.join(attemptRoot, "supervisor-route.json"), "utf8"))
+      expect(evidence.all_descendants_gone).toBe(true)
+      expect(evidence.runs[0]).toMatchObject({ timed_out: timedOut, output_exceeded: outputExceeded })
+      expect(evidence.runs[0].term_sent.length).toBeGreaterThan(0)
+      expect((await stat(path.join(attemptRoot, "stdout.log"))).size).toBeLessThanOrEqual(2 * 1024 * 1024)
+      expect((await stat(path.join(attemptRoot, "stderr.log"))).size).toBeLessThanOrEqual(2 * 1024 * 1024)
+
+      const status = await checked(["python3", "-I", "-S", CONTROLLER, "status", "--run-id", "run"], f.repo, f.env)
+      expect(status.body.attempts[attemptId].process).toMatchObject({ state: "done", exit_code: exitCode })
+      const finalized = await run([
+        "python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", attemptId,
+      ], f.repo, f.env)
+      expect(finalized.word).toBe("BLOCK")
+      await checked([
+        "python3", "-I", "-S", CONTROLLER, "abandon", "--run-id", "run", "--attempt-id", attemptId,
+        "--reason", `bounded-${fakeMode.toLowerCase()}`,
+      ], f.repo, f.env)
+      expect((await run(["bash", WORKTREE, "cleanup", `bounded-${fakeMode.toLowerCase()}`, "1"], f.repo, f.env)).exitCode).toBe(0)
+
+      worktree = await createWorktree(f, `bounded-${fakeMode.toLowerCase()}`)
+      const retry = await lock(f, worktree, `${attemptId}-retry`, 0, `${fakeMode.toLowerCase()}-retry`)
+      expect(retry.word).toBe("LOCKED")
+      await checked([
+        "python3", "-I", "-S", CONTROLLER, "abandon", "--run-id", "run", "--attempt-id", `${attemptId}-retry`,
+        "--reason", "recovery-proved",
+      ], f.repo, f.env)
+      expect((await run(["bash", WORKTREE, "cleanup", `bounded-${fakeMode.toLowerCase()}`, "1"], f.repo, f.env)).exitCode).toBe(0)
+      expect((await run(["git", "status", "--porcelain"], f.repo, f.env)).word).toBe("")
     } finally {
       await rm(f.root, { recursive: true, force: true })
     }

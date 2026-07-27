@@ -38,6 +38,7 @@ BPF_RET = 0x06
 SECCOMP_RET_ALLOW = 0x7FFF0000
 SECCOMP_RET_ERRNO = 0x00050000
 SECCOMP_RET_KILL_PROCESS = 0x80000000
+MAX_OUTPUT_BYTES = 2 * 1024 * 1024
 
 AUDIT_ARCH = {
     "x86_64": 0xC000003E,
@@ -193,7 +194,7 @@ def load_config(path: str, expected_digest: str) -> dict:
         fail(f"confinement config is malformed: {exc}")
     required = {
         "schema_version", "protocol", "adapter", "interpreter", "abi", "executable", "read_only", "read_write",
-        "mode", "child_env", "supervisor_evidence", "measurement", "network", "stdin",
+        "mode", "child_env", "supervisor_evidence", "measurement", "route_timeout_seconds", "network", "stdin",
     }
     if not isinstance(value, dict) or set(value) != required:
         fail("confinement config schema is invalid")
@@ -233,8 +234,13 @@ def load_config(path: str, expected_digest: str) -> dict:
             or any(not isinstance(name, str) for name in names)
         ):
             fail("measurement metric declaration is invalid")
-    elif value["measurement"] is not None:
-        fail("route confinement cannot carry measurement policy")
+        if value["route_timeout_seconds"] is not None:
+            fail("measurement confinement cannot carry a route timeout")
+    else:
+        if value["measurement"] is not None:
+            fail("route confinement cannot carry measurement policy")
+        if type(value["route_timeout_seconds"]) is not int or not 1 <= value["route_timeout_seconds"] <= 86400:
+            fail("route timeout is invalid")
     evidence = validate_entry(value["supervisor_evidence"])
     if evidence["kind"] != "file":
         fail("supervisor evidence is not a file")
@@ -438,27 +444,57 @@ def run_once(command: list[str], child_env: dict[str, str], timeout: int | None,
         stderr=subprocess.PIPE,
         start_new_session=True,
     )
-    if process.stdin is not None:
-        process.stdin.write(input_data or b"")
-        process.stdin.close()
     selector = selectors.DefaultSelector()
     streams = {process.stdout: bytearray(), process.stderr: bytearray()}
     for stream in streams:
         os.set_blocking(stream.fileno(), False)
         selector.register(stream, selectors.EVENT_READ)
+    pending_input = memoryview(input_data or b"")
+    if process.stdin is not None:
+        os.set_blocking(process.stdin.fileno(), False)
+        selector.register(process.stdin, selectors.EVENT_WRITE)
     deadline = None if timeout is None else time.monotonic() + timeout
     timed_out = False
+    output_exceeded = False
     while process.poll() is None:
         for key, _ in selector.select(0.05):
+            if key.fileobj is process.stdin:
+                try:
+                    written = os.write(process.stdin.fileno(), pending_input[:65536])
+                except BlockingIOError:
+                    continue
+                except BrokenPipeError:
+                    written = 0
+                if written > 0:
+                    pending_input = pending_input[written:]
+                if written <= 0 or not pending_input:
+                    selector.unregister(process.stdin)
+                    process.stdin.close()
+                continue
             chunk = os.read(key.fileobj.fileno(), 65536)
             if chunk:
-                streams[key.fileobj].extend(chunk)
+                retained = streams[key.fileobj]
+                available = MAX_OUTPUT_BYTES - len(retained)
+                retained.extend(chunk[:max(0, available)])
+                if len(chunk) > available:
+                    output_exceeded = True
+                    with contextlib.suppress(ProcessLookupError):
+                        os.kill(process.pid, signal.SIGTERM)
+                    break
+            else:
+                selector.unregister(key.fileobj)
+        if output_exceeded:
+            break
         if deadline is not None and time.monotonic() >= deadline:
             timed_out = True
             with contextlib.suppress(ProcessLookupError):
                 os.kill(process.pid, signal.SIGTERM)
             break
     containment = contain_descendants(children_fd)
+    if process.stdin is not None and not process.stdin.closed:
+        with contextlib.suppress(KeyError):
+            selector.unregister(process.stdin)
+        process.stdin.close()
     if process.poll() is None:
         with contextlib.suppress(ProcessLookupError):
             os.kill(process.pid, signal.SIGKILL)
@@ -468,19 +504,31 @@ def run_once(command: list[str], child_env: dict[str, str], timeout: int | None,
         for key, _ in selector.select(0.05):
             chunk = os.read(key.fileobj.fileno(), 65536)
             if chunk:
-                streams[key.fileobj].extend(chunk)
+                retained = streams[key.fileobj]
+                available = MAX_OUTPUT_BYTES - len(retained)
+                retained.extend(chunk[:max(0, available)])
+                if len(chunk) > available:
+                    output_exceeded = True
             else:
                 selector.unregister(key.fileobj)
     selector.close()
     stdout = bytes(streams[process.stdout])
     stderr = bytes(streams[process.stderr])
-    if len(stdout) > 2 * 1024 * 1024 or len(stderr) > 2 * 1024 * 1024:
-        return {"exit_code": 125, "stdout": b"", "stderr": b"output exceeded limit", "timed_out": False, **containment}
+    if output_exceeded:
+        return {
+            "exit_code": 125,
+            "stdout": b"",
+            "stderr": b"output exceeded limit",
+            "timed_out": False,
+            "output_exceeded": True,
+            **containment,
+        }
     return {
         "exit_code": 124 if timed_out else process.returncode,
         "stdout": stdout,
         "stderr": stderr,
         "timed_out": timed_out,
+        "output_exceeded": False,
         **containment,
     }
 
@@ -522,7 +570,12 @@ def spread_values(values: list[object]) -> object:
 
 def publish_evidence(fd: int, value: dict) -> None:
     data = (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode()
-    os.write(fd, data)
+    view = memoryview(data)
+    while view:
+        written = os.write(fd, view)
+        if written <= 0:
+            fail("supervisor evidence write made no progress")
+        view = view[written:]
     os.fsync(fd)
     os.close(fd)
 
@@ -540,7 +593,7 @@ def supervise(config: dict, command: list[str], evidence_fd: int, config_digest:
             os.close(stdin_fd)
         if len(input_data) > 2 * 1024 * 1024:
             fail("route stdin exceeds limit")
-        runs.append(run_once(command, config["child_env"], None, children_fd, input_data))
+        runs.append(run_once(command, config["child_env"], config["route_timeout_seconds"], children_fd, input_data))
         aggregate = None
         spread = None
     else:

@@ -2,7 +2,7 @@
 
 Load this reference before CP-0, resume, or any experiment/judge dispatch. The
 co-located controller is the only authority for routing, attempt lifecycle,
-Codex confinement, identity finalization, measurement markers, and worktree
+Codex confinement, identity finalization, native compatibility completion, measurement markers, and worktree
 reuse. A worker response, conversation claim, PID supplied by a caller,
 `result.yaml`, or experiment-log row cannot replace controller state.
 
@@ -56,6 +56,19 @@ Spec, constraints, host, or intent drift blocks. Use `status --run-id <run-id>`
 only after that resume gate; it validates the manifest digest plus the complete
 frozen resolver snapshot/binding/lock projections before returning state.
 
+The sealed `state.json` manifest is the commit point. Journal records are
+hash-chained to the manifest's committed head and written completely before
+manifest publication. While holding the run lock, start/status/resume accepts
+only a structurally valid, contiguous, digest-valid suffix beyond the committed
+sequence and truncates it as uncommitted projection. A missing committed event,
+gap, rewrite, malformed record, digest mismatch, or journal behind the manifest
+blocks. First creation publishes a sealed sequence-zero manifest before its
+first event, so interruption leaves recoverable authoritative state.
+One-time legacy journal migration is also restart-safe: a locked load accepts
+either an exact all-legacy projection or a fully converted valid chain whose
+length equals the committed manifest sequence. Mixed formats, invalid chains or
+digests, wrong lengths, and journal-behind state block.
+
 ## Attempt Transaction
 
 Create a new worktree only after CP-0. Then lock each author or judge instance
@@ -69,9 +82,12 @@ SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
 python3 -I -S "$SKILL_DIR/scripts/optimize-controller.py" lock-attempt --run-id "<run-id>" --attempt-id "<attempt-id>" --role author --instance-id "experiment-<experiment-number>" --ordinal <candidate-ordinal> --adapter codex --worktree "<canonical-worktree>" --executable "<absolute-codex>" --auth-manifest "<private-auth-manifest.json>"
 ```
 
-For a native host judge or worktree author, use `--adapter host` and omit Codex
-arguments. A judge attempt never receives `--worktree`. The controller rejects
-an adapter that differs from the frozen author backend or judge adapter. The
+For a CE-default native judge or worktree author, use `--adapter host` and omit
+Codex arguments. Configured native host candidates are unavailable because no
+controller-owned launcher currently supplies Optimize's required confinement,
+environment, barrier, PID/subreaper, and descendant evidence. A judge attempt
+never receives `--worktree`. The controller rejects an adapter that differs
+from the frozen author backend or judge adapter. The
 lock binds role, instance, recipient, candidate, backend, worktree, spec and
 constraints digests, measurement command/digest, mutable/immutable scopes,
 execution policy, stopping criteria, stability policy, full pre-dispatch
@@ -117,22 +133,26 @@ architecture, denies native/compat socket creation plus `io_uring_setup`, and
 kills/reaps all descendants, including double-forked or `setsid` children,
 before terminal evidence. A controller crash leaves recoverable process state;
 it never turns unknown execution into abandonment or worktree-reuse authority.
+Each routed author has a controller-owned one-hour ceiling, independent of the
+measurement command's configured timeout. Stdout and stderr are each capped at
+2 MiB while streaming. Timeout or overflow triggers TERM/KILL descendant
+containment before bounded failure evidence is published; measurement continues
+to use its separately frozen `measurement.timeout_seconds` value.
 
-For a native host dispatch, call `authorize-host` before releasing the harness
-launch barrier. The owning host must inherit Landlock, supervise/reap all
-descendants, and write a private receipt with this exact shape before
-finalization:
+OpenCode's ordinary `ce_task` adapter can attest the selected model/variant and
+native Task permissions, but it cannot attest inherited Landlock, a sanitized
+process environment, a controller launch barrier, PID/subreaper state, or
+all-descendant cleanup. Therefore it cannot produce a strict Optimize receipt.
+The public caller-minted `authorize-host`/`record-host` commands do not exist.
 
-```json
-{"protocol":"ce-optimize-host-receipt/v1","attempt_id":"<attempt-id>","lock_digest":"<controller-lock-digest>","launch_token":"<authorize-host-token>","outcome":"ok","process":{"terminal":true,"exit_code":0,"launch_authority_recorded":true,"all_descendants_gone":true,"confinement":"inherited-landlock"},"serving_report":{"model_actual":"<host-receipted-model>","effort_actual":"<host-receipted-effort>"}}
-```
-
-Omit absent serving fields; never copy a worker claim into `serving_report`.
-Record it with `record-host --run-id <run-id> --attempt-id <attempt-id>
---receipt <private-receipt>`. If the host cannot issue this receipt while
-preserving the environment/workspace boundary, launch barrier, inherited
-Landlock, and descendant supervisor, preflight is unavailable. Missing terminal
-evidence remains unknown and cannot be abandoned or reused.
+Only a top-level no-routing/CE-default binding retains the characterized native
+Task path. After that Task returns, call `complete-native --run-id <run-id>
+--attempt-id <attempt-id> --outcome ok|failed`. The controller records a
+`native-compatibility-unverified` marker with no model, effort, confinement,
+environment, barrier, PID, subreaper, or descendant-cleanup claim. It rejects
+this command for every profile candidate. Then call `finalize`; CE-default may
+accept compatibility output, but no receipt may describe strict identity or
+process evidence.
 
 ## Finalization And Integration
 
@@ -191,6 +211,7 @@ prune operations run inside controller `worktree-mutate` while the per-worktree
 lock is held. Shell helpers never check a lease and mutate after releasing it;
 new attempt locks contend on the same lock.
 
-Every controller mutation appends and fsyncs a redacted event before returning
-it. Import those events into the experiment log in sequence before displaying
-them, preserving the skill's append-before-display rule.
+Every controller mutation appends and fsyncs a redacted event before publishing
+the sealed manifest and returning it. Import only manifest-committed events into
+the experiment log in sequence before displaying them. A journal-only suffix is
+an uncommitted projection and is truncated on locked recovery, not imported.

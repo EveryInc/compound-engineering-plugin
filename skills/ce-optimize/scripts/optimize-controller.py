@@ -27,6 +27,9 @@ SAFE_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 SAFE_TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/:+-]{0,127}$")
 SAFE_METRIC = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]{0,127}$")
 MAX_FILE = 2 * 1024 * 1024
+JOURNAL_GENESIS = "0" * 64
+JOURNAL_FIELDS = {"sequence", "kind", "attempt_id", "details", "timestamp", "previous_digest", "event_digest"}
+ROUTE_TIMEOUT_SECONDS = 3600
 ROLE_NAMES = {
     "author": "ce-optimize.experiment-author",
     "judge": "ce-optimize.semantic-judge",
@@ -196,6 +199,15 @@ def atomic_write(path: str, data: bytes, mode: int = 0o600) -> None:
             os.unlink(temporary)
 
 
+def complete_write(fd: int, data: bytes) -> None:
+    view = memoryview(data)
+    while view:
+        written = os.write(fd, view)
+        if written <= 0:
+            raise OSError("write made no progress")
+        view = view[written:]
+
+
 def write_json(path: str, value: object) -> None:
     atomic_write(path, json.dumps(value, sort_keys=True, indent=2).encode() + b"\n")
 
@@ -211,13 +223,17 @@ def manifest_path(run_id: str) -> str:
     return os.path.join(run_dir(run_id), "state.json")
 
 
-def load_manifest(run_id: str) -> dict:
+def load_manifest(run_id: str, *, repair_journal: bool = True) -> dict:
     path = manifest_path(run_id)
     value = read_json(path, private=True)
     observed = value.pop("state_digest", None)
     if value.get("protocol") != PROTOCOL or observed != digest(value):
         raise Refused("controller state failed its self-validation digest")
     value["state_digest"] = observed
+    if "journal_head" not in value:
+        if not repair_journal:
+            raise Refused("legacy controller journal requires a locked status or resume repair")
+        value = migrate_legacy_event_journal(value)
     validate_routing_state(value)
     if not isinstance(value.get("attempts"), dict):
         raise Refused("controller attempt state is malformed")
@@ -225,7 +241,7 @@ def load_manifest(run_id: str) -> dict:
         validate_attempt_lock(value, attempt)
         validate_attempt_runtime(value, attempt)
     validate_baseline_runtime(value)
-    validate_event_journal(value)
+    validate_event_journal(value, repair=repair_journal)
     return value
 
 
@@ -270,7 +286,7 @@ def all_worktree_attempts(worktree: str) -> list[dict]:
         if name == ".locks" or not os.path.isfile(os.path.join(root, name, "state.json")):
             continue
         try:
-            document = load_manifest(name)
+            document = load_manifest(name, repair_journal=False)
         except Refused as exc:
             raise Refused(f"cannot prove worktree lease safety while run {name} is unreadable: {exc}") from exc
         attempts.extend(item for item in document["attempts"].values() if item.get("worktree") == worktree)
@@ -285,21 +301,125 @@ def append_event(document: dict, kind: str, attempt_id: str | None, details: dic
         "attempt_id": attempt_id,
         "details": details,
         "timestamp": int(time.time()),
+        "previous_digest": document.get("journal_head", JOURNAL_GENESIS),
     }
+    event["event_digest"] = digest(event)
     path = os.path.join(run_dir(document["run_id"]), "routing-events.jsonl")
     fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
     try:
         os.fchmod(fd, 0o600)
-        os.write(fd, canonical_json(event) + b"\n")
+        complete_write(fd, canonical_json(event) + b"\n")
         os.fsync(fd)
     finally:
         os.close(fd)
     document["event_sequence"] = sequence
+    document["journal_head"] = event["event_digest"]
+    if os.environ.get("CE_OPTIMIZE_TEST_JOURNAL_FAULT") == kind:
+        os._exit(87)
 
 
-def validate_event_journal(document: dict) -> None:
+def migrate_legacy_event_journal(document: dict) -> dict:
     path = os.path.join(run_dir(document["run_id"]), "routing-events.jsonl")
+    if not os.path.isfile(path):
+        if document.get("event_sequence") != 0:
+            raise Refused("controller event journal is behind the manifest")
+        document["journal_head"] = JOURNAL_GENESIS
+        return save_manifest(document)
     raw = read_bytes(path, private=True, limit=16 * 1024 * 1024)
+    if raw and not raw.endswith(b"\n"):
+        raise Refused("legacy controller event journal has an incomplete record")
+    events = []
+    for line in raw.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError as exc:
+            raise Refused("legacy controller event journal is malformed") from exc
+        if not isinstance(event, dict):
+            raise Refused("legacy controller event journal entry is malformed")
+        events.append(event)
+    committed = document.get("event_sequence")
+    if type(committed) is not int or committed < 0:
+        raise Refused("controller manifest event sequence is malformed")
+    legacy_fields = {"sequence", "kind", "attempt_id", "details", "timestamp"}
+    formats = {frozenset(event) for event in events}
+    if formats and formats == {frozenset(JOURNAL_FIELDS)}:
+        converted_head = validate_event_chain(events)
+        if len(events) < committed:
+            raise Refused("converted controller event journal is behind the legacy manifest")
+        if len(events) != committed:
+            raise Refused("converted controller event journal length differs from the legacy manifest")
+        document["journal_head"] = converted_head
+        return save_manifest(document)
+    if formats - {frozenset(legacy_fields)}:
+        raise Refused("legacy controller event journal mixes formats or has invalid fields")
+    migrated = []
+    previous = JOURNAL_GENESIS
+    for sequence, event in enumerate(events, 1):
+        if (
+            event.get("sequence") != sequence
+            or not isinstance(event.get("kind"), str)
+            or not SAFE_ID.fullmatch(event["kind"])
+            or not isinstance(event.get("details"), dict)
+            or type(event.get("timestamp")) is not int
+            or event["timestamp"] < 0
+            or (
+                event.get("attempt_id") is not None
+                and (not isinstance(event["attempt_id"], str) or not SAFE_ID.fullmatch(event["attempt_id"]))
+            )
+        ):
+            raise Refused("legacy controller event journal sequence or structure is invalid")
+        migrated_event = {**event, "previous_digest": previous}
+        migrated_event["event_digest"] = digest(migrated_event)
+        previous = migrated_event["event_digest"]
+        migrated.append(migrated_event)
+    if len(migrated) < committed:
+        raise Refused("legacy controller event journal is behind the manifest")
+    if len(migrated) != committed:
+        raise Refused("legacy controller event journal and manifest sequence disagree")
+    atomic_write(path, b"".join(canonical_json(event) + b"\n" for event in migrated))
+    if os.environ.get("CE_OPTIMIZE_TEST_LEGACY_MIGRATION_FAULT") == "after-journal":
+        os._exit(88)
+    document["journal_head"] = previous
+    return save_manifest(document)
+
+
+def validate_event_chain(events: list[dict]) -> str:
+    previous = JOURNAL_GENESIS
+    for sequence, event in enumerate(events, 1):
+        if not isinstance(event, dict) or set(event) != JOURNAL_FIELDS:
+            raise Refused("controller event journal entry is malformed")
+        material = {key: value for key, value in event.items() if key != "event_digest"}
+        if (
+            event.get("sequence") != sequence
+            or event.get("previous_digest") != previous
+            or not isinstance(event.get("kind"), str)
+            or not SAFE_ID.fullmatch(event["kind"])
+            or not isinstance(event.get("details"), dict)
+            or type(event.get("timestamp")) is not int
+            or event["timestamp"] < 0
+            or (
+                event.get("attempt_id") is not None
+                and (not isinstance(event["attempt_id"], str) or not SAFE_ID.fullmatch(event["attempt_id"]))
+            )
+            or not isinstance(event.get("event_digest"), str)
+            or not re.fullmatch(r"[a-f0-9]{64}", event["event_digest"])
+        ):
+            raise Refused("controller event journal sequence or structure is not contiguous")
+        if event.get("event_digest") != digest(material):
+            raise Refused("controller event journal digest detects a rewrite or corruption")
+        previous = event["event_digest"]
+    return previous
+
+
+def validate_event_journal(document: dict, *, repair: bool) -> None:
+    path = os.path.join(run_dir(document["run_id"]), "routing-events.jsonl")
+    if not os.path.isfile(path):
+        if document.get("event_sequence") != 0 or document.get("journal_head") != JOURNAL_GENESIS:
+            raise Refused("controller event journal is behind the manifest")
+        return
+    raw = read_bytes(path, private=True, limit=16 * 1024 * 1024)
+    if raw and not raw.endswith(b"\n"):
+        raise Refused("controller event journal has an incomplete record")
     events = []
     for line in raw.splitlines():
         try:
@@ -309,10 +429,25 @@ def validate_event_journal(document: dict) -> None:
         if not isinstance(event, dict):
             raise Refused("controller event journal entry is malformed")
         events.append(event)
-    if [event.get("sequence") for event in events] != list(range(1, len(events) + 1)):
-        raise Refused("controller event journal sequence is not contiguous")
-    if len(events) != document.get("event_sequence"):
-        raise Refused("controller event journal and manifest sequence disagree")
+    validate_event_chain(events)
+    committed = document.get("event_sequence")
+    if type(committed) is not int or committed < 0:
+        raise Refused("controller manifest event sequence is malformed")
+    if len(events) < committed:
+        raise Refused("controller event journal is behind the manifest")
+    committed_head = JOURNAL_GENESIS if committed == 0 else events[committed - 1]["event_digest"]
+    if committed_head != document.get("journal_head"):
+        raise Refused("controller event journal committed digest detects a rewrite or corruption")
+    if len(events) > committed:
+        if not repair:
+            raise Refused("controller event journal has an uncommitted suffix requiring locked repair")
+        committed_bytes = b"".join(canonical_json(event) + b"\n" for event in events[:committed])
+        fd = os.open(path, os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0))
+        try:
+            os.ftruncate(fd, len(committed_bytes))
+            os.fsync(fd)
+        finally:
+            os.close(fd)
 
 
 def canonical_repo(path: str) -> str:
@@ -622,9 +757,15 @@ def command_start(args: argparse.Namespace) -> tuple[str, dict]:
             observed = {key: existing[key] for key in requested}
             if observed != requested:
                 raise Refused("resume input differs from the frozen spec, constraints, host, or routing intent")
+            if existing["event_sequence"] == 0:
+                append_event(existing, "run-started", None, {"snapshot_id": existing["routing"]["snapshot_id"]})
+                existing = save_manifest(existing)
             return "RESUMED", public_status(existing)
         if os.path.lexists(path):
-            raise Refused("run directory exists without controller state; choose a new run id")
+            if os.path.islink(path) or not os.path.isdir(path):
+                raise Refused("run path exists without controller state and is not a private directory")
+            ensure_private_dir(path, create=False)
+            shutil.rmtree(path)
         ensure_private_dir(path)
         baseline_root = ensure_private_dir(os.path.join(path, "baseline"))
         baseline_environment_root = prepare_measurement_environment(os.path.join(baseline_root, "environment"))
@@ -652,8 +793,10 @@ def command_start(args: argparse.Namespace) -> tuple[str, dict]:
             "baseline_measurement": {"state": "not-started", "pid": None, "exit_code": None, "generation": 0},
             "baseline_result": None,
             "event_sequence": 0,
+            "journal_head": JOURNAL_GENESIS,
             "created_at": int(time.time()),
         }
+        document = save_manifest(document)
         append_event(document, "run-started", None, {"snapshot_id": snapshot["id"]})
         document = save_manifest(document)
         return "STARTED", public_status(document)
@@ -673,6 +816,12 @@ def public_status(document: dict) -> dict:
         "attempts": document["attempts"],
         "state_digest": document["state_digest"],
     }
+
+
+def command_status(args: argparse.Namespace) -> tuple[str, dict]:
+    run_id = safe_id(args.run_id, "run id")
+    with run_lock(run_id):
+        return "STATUS", public_status(load_manifest(run_id))
 
 
 def resolution_for(document: dict, role: str) -> dict:
@@ -959,6 +1108,7 @@ def command_lock_attempt(args: argparse.Namespace) -> tuple[str, dict]:
                 raise Refused("candidate ordinal is outside the frozen binding")
             candidate = candidates[args.ordinal]
             resolver_lock = resolution["attempt_locks"][args.ordinal]
+        native_default = ce_default or candidate.get("kind") == "ce-default"
         history = prior_history(document, args.role, instance_id, args.ordinal)
         expected_adapter = document["constraints"]["backend"] if args.role == "author" else document["constraints"].get("judge", {}).get("adapter", "host")
         expected_adapter = "host" if expected_adapter == "worktree" else expected_adapter
@@ -1025,10 +1175,8 @@ def command_lock_attempt(args: argparse.Namespace) -> tuple[str, dict]:
             for hidden in hidden_paths.get("hidden_reference_paths", []):
                 if isinstance(hidden, str) and not os.path.isabs(hidden) and worktree and os.path.lexists(os.path.join(worktree, hidden)):
                     preflight_error = preflight_error or "experiment worktree contains a hidden reference path"
-        elif not ce_default:
-            host_context = document["routing"]["snapshot"].get("context", {}).get("host") or {}
-            if candidate.get("harness") != host_context.get("harness"):
-                preflight_error = "frozen candidate is not eligible for the current host adapter"
+        elif not native_default:
+            preflight_error = "controller-owned native Optimize launcher is unavailable for configured candidates"
         immutable = hash_scope(worktree or document["repo"], document["constraints"]["scope"]["immutable"])
         recipient = {
             "adapter": args.adapter,
@@ -1229,7 +1377,10 @@ def serving_evidence(stdout: bytes) -> dict:
             continue
         report = {}
         if isinstance(event.get("model"), str) and SAFE_TOKEN.fullmatch(event["model"]):
-            report["model_actual"] = event["model"]
+            if "/" in event["model"]:
+                report["provider_actual"], report["model_actual"] = event["model"].split("/", 1)
+            else:
+                report["model_actual"] = event["model"]
         if isinstance(event.get("effort"), str) and SAFE_TOKEN.fullmatch(event["effort"]):
             report["effort_actual"] = event["effort"]
         return report
@@ -1355,6 +1506,19 @@ def reserve_supervisor_evidence(root: str, name: str) -> dict:
         os.close(fd)
 
 
+def route_timeout_seconds() -> int:
+    override = os.environ.get("CE_OPTIMIZE_TEST_ROUTE_TIMEOUT_SECONDS")
+    if override is None:
+        return ROUTE_TIMEOUT_SECONDS
+    try:
+        value = int(override)
+    except ValueError as exc:
+        raise Refused("test route timeout is invalid") from exc
+    if value < 1 or value > 10:
+        raise Refused("test route timeout is outside its bound")
+    return value
+
+
 def make_confinement(
     attempt: dict,
     document: dict,
@@ -1392,6 +1556,7 @@ def make_confinement(
         "child_env": child_environment(attempt, document),
         "supervisor_evidence": evidence,
         "measurement": None,
+        "route_timeout_seconds": route_timeout_seconds(),
         "network": "seccomp-deny-network-v2",
         "stdin": path_identity(stdin_path, include_digest=True) if stdin_path else None,
     }
@@ -1442,6 +1607,7 @@ def make_measurement_confinement(
             "timeout_seconds": measurement["timeout_seconds"],
             "stability": measurement["stability"],
         },
+        "route_timeout_seconds": None,
         "network": "seccomp-deny-network-v2",
         "stdin": None,
     }
@@ -1673,7 +1839,7 @@ def command_dispatch(args: argparse.Namespace) -> tuple[str, dict]:
         return "TERMINAL", result
 
 
-def command_record_host(args: argparse.Namespace) -> tuple[str, dict]:
+def command_complete_native(args: argparse.Namespace) -> tuple[str, dict]:
     run_id = safe_id(args.run_id, "run id")
     attempt_id = safe_id(args.attempt_id, "attempt id")
     with run_lock(run_id):
@@ -1682,82 +1848,32 @@ def command_record_host(args: argparse.Namespace) -> tuple[str, dict]:
         if not isinstance(attempt, dict):
             raise Refused("attempt does not exist")
         validate_attempt_lock(document, attempt)
-        if attempt["recipient"]["adapter"] != "host" or attempt["state"] != "locked" or attempt["process"]["state"] != "dispatching":
-            raise Refused("attempt is not awaiting an owning host receipt")
-        receipt_source = private_control_file(args.receipt, document["repo"], "owning host receipt")
-        for worker_root in (attempt.get("environment_root"), attempt.get("worktree")):
-            if worker_root and os.path.commonpath([worker_root, receipt_source]) == worker_root:
-                raise Refused("owning host receipt cannot come from worker-writable material")
-        receipt = read_json(receipt_source, private=True)
-        required = {"protocol", "attempt_id", "lock_digest", "launch_token", "outcome", "process", "serving_report"}
-        if set(receipt) != required or receipt.get("protocol") != "ce-optimize-host-receipt/v1":
-            raise Refused("owning host receipt schema is invalid")
-        process = receipt.get("process")
         if (
-            not isinstance(process, dict)
-            or set(process) != {"terminal", "exit_code", "launch_authority_recorded", "all_descendants_gone", "confinement"}
-            or process.get("terminal") is not True
-            or process.get("launch_authority_recorded") is not True
-            or process.get("all_descendants_gone") is not True
-            or process.get("confinement") != "inherited-landlock"
+            attempt["recipient"]["adapter"] != "host"
+            or attempt["state"] != "locked"
+            or attempt["process"]["state"] != "not-started"
+            or not (attempt["candidate"].get("kind") == "ce-default" or attempt["resolver_attempt_lock"] is None)
         ):
-            raise Refused("owning host receipt does not prove a terminal process")
-        if process.get("exit_code") is not None and type(process["exit_code"]) is not int:
-            raise Refused("owning host receipt exit code is invalid")
-        if receipt.get("outcome") not in {"ok", "unavailable", "failed"}:
-            raise Refused("owning host receipt outcome is invalid")
-        if receipt["outcome"] == "ok" and process.get("exit_code") != 0:
-            raise Refused("owning host receipt cannot report ok for a failed process")
-        report = receipt.get("serving_report")
-        if not isinstance(report, dict) or set(report) - {"model_actual", "effort_actual"}:
-            raise Refused("owning host serving receipt is invalid")
-        if any(not isinstance(value, str) or not SAFE_TOKEN.fullmatch(value) for value in report.values()):
-            raise Refused("owning host serving identity is invalid")
-        if (
-            receipt["attempt_id"] != attempt_id
-            or receipt["lock_digest"] != attempt["lock_digest"]
-            or receipt["launch_token"] != attempt["process"].get("launch_token")
-        ):
-            raise Refused("owning host receipt does not belong to the attempt lock")
-        receipt_path = os.path.join(run_dir(run_id), "attempts", attempt_id, "adapter-receipt.json")
-        write_json(receipt_path, receipt)
-        attempt["state"] = "terminal"
+            raise Refused("only a CE-default native compatibility attempt can be completed without host evidence")
         attempt["process"] = {
             "state": "done",
             "pid": None,
-            "exit_code": process["exit_code"],
+            "exit_code": 0 if args.outcome == "ok" else 1,
+            "evidence_status": "native-compatibility-unverified",
             "finished_at": int(time.time()),
         }
-        attempt["adapter_outcome"] = receipt["outcome"]
-        attempt["adapter_receipt"] = receipt_path
-        attempt["adapter_receipt_digest"] = digest_file(receipt_path)
-        append_event(document, "host-process-terminal", attempt_id, {"outcome": receipt["outcome"], "receipt_digest": attempt["adapter_receipt_digest"]})
-        document = save_manifest(document)
-        return "TERMINAL", {"outcome": receipt["outcome"], "receipt_digest": document["attempts"][attempt_id]["adapter_receipt_digest"]}
-
-
-def command_authorize_host(args: argparse.Namespace) -> tuple[str, dict]:
-    run_id = safe_id(args.run_id, "run id")
-    attempt_id = safe_id(args.attempt_id, "attempt id")
-    with run_lock(run_id):
-        document = load_manifest(run_id)
-        attempt = document["attempts"].get(attempt_id)
-        if not isinstance(attempt, dict):
-            raise Refused("attempt does not exist")
-        validate_attempt_lock(document, attempt)
-        if attempt["recipient"]["adapter"] != "host" or attempt["state"] != "locked" or attempt["process"]["state"] != "not-started":
-            raise Refused("attempt is not an authorizable host lock")
-        launch_token = os.urandom(24).hex()
-        attempt["process"] = {
-            "state": "dispatching",
-            "pid": None,
-            "exit_code": None,
-            "launch_token": launch_token,
-            "started_at": int(time.time()),
-        }
-        append_event(document, "host-launch-authorized", attempt_id, {"launch_token_digest": digest_bytes(launch_token.encode())})
+        attempt["state"] = "terminal"
+        attempt["adapter_outcome"] = args.outcome
+        append_event(document, "native-compatibility-terminal", attempt_id, {
+            "outcome": args.outcome,
+            "evidence_status": "native-compatibility-unverified",
+        })
         save_manifest(document)
-        return "HOST_AUTHORIZED", {"attempt_id": attempt_id, "launch_token": launch_token, "lock_digest": attempt["lock_digest"]}
+        return "TERMINAL", {
+            "attempt_id": attempt_id,
+            "outcome": args.outcome,
+            "evidence_status": "native-compatibility-unverified",
+        }
 
 
 def changed_paths(worktree: str) -> list[str]:
@@ -2470,7 +2586,8 @@ def command_worktree_status(args: argparse.Namespace) -> tuple[str, dict]:
         if not os.path.isfile(state_path):
             continue
         try:
-            document = load_manifest(name)
+            with run_lock(name):
+                document = load_manifest(name)
         except Refused as exc:
             unknown.append({"run_id": name, "reason": str(exc)})
             continue
@@ -2577,7 +2694,7 @@ def build_parser() -> argparse.ArgumentParser:
     start.set_defaults(handler=command_start)
     status = commands.add_parser("status")
     status.add_argument("--run-id", required=True)
-    status.set_defaults(handler=lambda args: ("STATUS", public_status(load_manifest(args.run_id))))
+    status.set_defaults(handler=command_status)
     baseline = commands.add_parser("baseline")
     baseline.add_argument("--run-id", required=True)
     baseline.set_defaults(handler=command_baseline)
@@ -2597,15 +2714,11 @@ def build_parser() -> argparse.ArgumentParser:
     dispatch.add_argument("--attempt-id", required=True)
     dispatch.add_argument("--prompt", required=True)
     dispatch.set_defaults(handler=command_dispatch)
-    host = commands.add_parser("record-host")
-    host.add_argument("--run-id", required=True)
-    host.add_argument("--attempt-id", required=True)
-    host.add_argument("--receipt", required=True)
-    host.set_defaults(handler=command_record_host)
-    authorize_host = commands.add_parser("authorize-host")
-    authorize_host.add_argument("--run-id", required=True)
-    authorize_host.add_argument("--attempt-id", required=True)
-    authorize_host.set_defaults(handler=command_authorize_host)
+    native = commands.add_parser("complete-native")
+    native.add_argument("--run-id", required=True)
+    native.add_argument("--attempt-id", required=True)
+    native.add_argument("--outcome", choices=["ok", "failed"], required=True)
+    native.set_defaults(handler=command_complete_native)
     finalize = commands.add_parser("finalize")
     finalize.add_argument("--run-id", required=True)
     finalize.add_argument("--attempt-id", required=True)

@@ -182,8 +182,8 @@ describe("ce-optimize routing", () => {
 
   test.each([
     ["required author with missing evidence", "ce-optimize.experiment-author", {}, "block", "unverified"],
-    ["required judge with mismatched evidence", "ce-optimize.semantic-judge", { model_actual: "other/model" }, "block", "mismatched"],
-    ["required judge with matching evidence", "ce-optimize.semantic-judge", { model_actual: "openai/strong" }, "accept", "verified"],
+    ["required judge with mismatched evidence", "ce-optimize.semantic-judge", { provider_actual: "other", model_actual: "model" }, "block", "mismatched"],
+    ["required judge with matching evidence", "ce-optimize.semantic-judge", { provider_actual: "openai", model_actual: "strong" }, "accept", "verified"],
   ])("%s", async (_name, role, report, action, identityStatus) => {
     const f = await fixture()
     try {
@@ -206,7 +206,7 @@ describe("ce-optimize routing", () => {
         { harness: "opencode", model: "openai/second" },
       ])
       const safe = await runResolver(
-        finalizeRequest(resolved, 0, { model_actual: "openai/wrong" }),
+        finalizeRequest(resolved, 0, { provider_actual: "openai", model_actual: "wrong" }),
         f.project,
         f.home,
       )
@@ -219,7 +219,7 @@ describe("ce-optimize routing", () => {
         { ordinal: 0, terminal: true, integrated: true },
       ]) {
         const unsafe = await runResolver(
-          finalizeRequest(resolved, 0, { model_actual: "openai/wrong" }, attempt),
+          finalizeRequest(resolved, 0, { provider_actual: "openai", model_actual: "wrong" }, attempt),
           f.project,
           f.home,
         )
