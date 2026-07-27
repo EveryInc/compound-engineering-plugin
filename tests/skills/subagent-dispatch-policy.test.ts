@@ -21,7 +21,13 @@ describe("subagent dispatch policy", () => {
 
     test(`${seam} instructs an attempt before any fallback`, () => {
       expect(body).toMatch(
-        /[Aa]ttempt (subagent dispatch|the dispatch) using whatever agent-dispatch tool this harness exposes|[Aa]ttempt the dispatch; fall back/,
+        /[Aa]ttempt subagent dispatch using whatever agent-dispatch tool this harness exposes|[Aa]ttempt the dispatch\./,
+      );
+    });
+
+    test(`${seam} asks once on a denied attempt instead of degrading silently`, () => {
+      expect(body).toMatch(
+        /If the attempt is denied, ask the user once whether to allow it\./,
       );
     });
 

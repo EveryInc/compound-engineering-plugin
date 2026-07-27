@@ -301,7 +301,7 @@ Fires **only in solo invocation** — when Phase 0.2 found no upstream Product C
 
 All specialist research and deepening prompts used in this phase are skill-local prompt assets under `references/agents/`. When dispatching one, read the matching file and seed a generic subagent with that prompt content plus the task-specific context below. Do not dispatch standalone agents by type/name.
 
-**Dispatch policy.** Attempt subagent dispatch using whatever agent-dispatch tool this harness exposes. Fall back to inline only if there is no such tool or the attempt fails, and say which.
+**Dispatch policy.** Attempt subagent dispatch using whatever agent-dispatch tool this harness exposes. If the attempt is denied, ask the user once whether to allow it. Fall back to inline only if there is no such tool, or the attempt failed or was declined — and say which.
 
 Model tiering lives in this caller, not in prompt assets. Local prompt files have no frontmatter. Use the platform's mid-tier model for external/organizational research prompts such as `slack-researcher` and `web-researcher` when the current harness exposes a known override; otherwise omit the override and inherit. Use inherited model for high-judgment architecture, migration, and planning-deepening prompts unless the harness has an established cheaper capable tier.
 
