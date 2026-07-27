@@ -157,20 +157,16 @@ validate_destination_path() {
   done
 }
 
-require_terminal_lease() {
-  local worktree_path="${1:?Error: worktree path required}"
-  local response
-  local status
-
-  set +e
-  response=$(python3 -I -S "$CONTROLLER" worktree-status --worktree "$worktree_path" 2>&1)
-  local controller_exit=$?
-  set -e
-  status="${response%%$'\n'*}"
-  if [[ "$controller_exit" -ne 0 || "$status" != "RESET_ALLOWED" ]]; then
-    fail "controller lease does not prove terminal completed/abandoned state for $worktree_path (${status:-unavailable})"
-    return
+controller_mutate() {
+  local action="${1:?Error: action required}"
+  local worktree_path="${2:?Error: worktree path required}"
+  local branch_name="${3:?Error: branch name required}"
+  local base_branch="${4:-}"
+  local args=(python3 -I -S "$CONTROLLER" worktree-mutate --action "$action" --repo "$GIT_ROOT" --worktree "$worktree_path" --branch "$branch_name")
+  if [[ -n "$base_branch" ]]; then
+    args+=(--base "$base_branch")
   fi
+  "${args[@]}" >/dev/null
 }
 
 reject_routed_dotenv() {
@@ -235,11 +231,8 @@ reset_worktree_to_base() {
     return 1
   fi
 
-  require_terminal_lease "$worktree_path"
-
   echo -e "${YELLOW}Resetting existing experiment worktree to base: $branch_name -> $base_branch${NC}" >&2
-  git -C "$worktree_path" reset --hard "$base_branch" >/dev/null
-  git -C "$worktree_path" clean -fdx >/dev/null
+  controller_mutate reset "$worktree_path" "$branch_name" "$base_branch"
 }
 
 # Create an experiment worktree
@@ -306,10 +299,8 @@ create_worktree() {
           return 1
         fi
 
-        require_terminal_lease "$worktree_path"
         echo -e "${YELLOW}Resetting existing experiment branch to base: $branch_name -> $base_branch${NC}" >&2
-        git branch -f "$branch_name" "$base_branch" >/dev/null
-        git worktree add "$worktree_path" "$branch_name" --quiet
+        controller_mutate branch-reset-add "$worktree_path" "$branch_name" "$base_branch"
       else
         echo -e "${RED}Error: Failed to create worktree for $branch_name from $base_branch${NC}" >&2
         return 1
@@ -376,16 +367,8 @@ cleanup_worktree() {
   local worktree_path="$WORKTREE_DIR/$worktree_name"
 
   if [[ -d "$worktree_path" ]]; then
-    require_terminal_lease "$worktree_path"
-    git worktree remove "$worktree_path" --force 2>/dev/null || {
-      # If worktree remove fails, try manual cleanup
-      rm -rf "$worktree_path" 2>/dev/null || true
-      git worktree prune 2>/dev/null || true
-    }
+    controller_mutate remove "$worktree_path" "$branch_name"
   fi
-
-  # Delete the experiment branch
-  git branch -D "$branch_name" 2>/dev/null || true
 
   echo -e "${GREEN}Cleaned up: $worktree_name${NC}" >&2
 }
@@ -415,26 +398,17 @@ cleanup_all() {
       # Extract index from name
       local index_str="${worktree_name#"$prefix"}"
 
-      if ! require_terminal_lease "$worktree_path"; then
+      local branch_name
+      branch_name=$(experiment_branch_name "$spec_name" "$index_str")
+      if ! controller_mutate remove "$worktree_path" "$branch_name"; then
         echo -e "${YELLOW}Retained worktree without a controller-verified terminal checkpoint: $worktree_name${NC}" >&2
         retained=$((retained + 1))
         continue
       fi
 
-      git worktree remove "$worktree_path" --force 2>/dev/null || {
-        rm -rf "$worktree_path" 2>/dev/null || true
-      }
-
-      # Delete the branch
-      local branch_name
-      branch_name=$(experiment_branch_name "$spec_name" "$index_str")
-      git branch -D "$branch_name" 2>/dev/null || true
-
       count=$((count + 1))
     fi
   done
-
-  git worktree prune 2>/dev/null || true
 
   # Clean up empty worktree directory
   if [[ -d "$WORKTREE_DIR" ]] && [[ -z "$(ls -A "$WORKTREE_DIR" 2>/dev/null)" ]]; then

@@ -4,19 +4,39 @@
 from __future__ import annotations
 
 import ctypes
+import base64
+import contextlib
 import errno
 import hashlib
 import json
+import math
 import os
 import platform
+import selectors
+import signal
 import stat
+import statistics
 import struct
+import subprocess
 import sys
+import time
 
 
 LANDLOCK_CREATE_RULESET_VERSION = 1
 LANDLOCK_RULE_PATH_BENEATH = 1
 PR_SET_NO_NEW_PRIVS = 38
+PR_SET_CHILD_SUBREAPER = 36
+PR_SET_SECCOMP = 22
+SECCOMP_MODE_FILTER = 2
+BPF_LD = 0x00
+BPF_W = 0x00
+BPF_ABS = 0x20
+BPF_JMP = 0x05
+BPF_JEQ = 0x10
+BPF_K = 0x00
+BPF_RET = 0x06
+SECCOMP_RET_ALLOW = 0x7FFF0000
+SECCOMP_RET_ERRNO = 0x00050000
 
 ACCESS_EXECUTE = 1 << 0
 ACCESS_WRITE_FILE = 1 << 1
@@ -76,7 +96,7 @@ def landlock_abi() -> int:
 
 
 def handled_access(abi: int) -> int:
-    if abi < 1:
+    if abi < 3:
         fail(f"unsupported Landlock ABI: {abi}")
     access = ABI_1_ACCESS
     if abi >= 2:
@@ -103,7 +123,10 @@ def digest_file(path: str) -> str:
 
 
 def validate_entry(value: object) -> dict:
-    valid_fields = ({"path", "kind", "device", "inode"}, {"path", "kind", "device", "inode", "sha256"})
+    valid_fields = (
+        {"path", "kind", "device", "inode", "owner", "mode"},
+        {"path", "kind", "device", "inode", "owner", "mode", "sha256"},
+    )
     if not isinstance(value, dict) or set(value) not in valid_fields:
         fail("confinement path identity has an invalid schema")
     path = value.get("path")
@@ -120,7 +143,11 @@ def validate_entry(value: object) -> dict:
         fail("confinement file kind changed")
     if kind == "directory" and not stat.S_ISDIR(info.st_mode):
         fail("confinement directory kind changed")
-    if (info.st_dev, info.st_ino) != (value.get("device"), value.get("inode")):
+    if (
+        str(info.st_dev), str(info.st_ino), info.st_uid, stat.S_IMODE(info.st_mode)
+    ) != (
+        value.get("device"), value.get("inode"), value.get("owner"), value.get("mode")
+    ):
         fail("confinement path identity changed")
     expected = value.get("sha256")
     if expected is not None and (not isinstance(expected, str) or digest_file(path) != expected):
@@ -155,7 +182,10 @@ def load_config(path: str, expected_digest: str) -> dict:
         value = json.loads(data)
     except (UnicodeDecodeError, ValueError) as exc:
         fail(f"confinement config is malformed: {exc}")
-    required = {"schema_version", "protocol", "adapter", "interpreter", "abi", "executable", "read_only", "read_write"}
+    required = {
+        "schema_version", "protocol", "adapter", "interpreter", "abi", "executable", "read_only", "read_write",
+        "mode", "child_env", "supervisor_evidence", "measurement", "network", "stdin",
+    }
     if not isinstance(value, dict) or set(value) != required:
         fail("confinement config schema is invalid")
     if value["schema_version"] != 1 or value["protocol"] != "ce-optimize-landlock/v1":
@@ -173,6 +203,30 @@ def load_config(path: str, expected_digest: str) -> dict:
     if value["abi"] != landlock_abi():
         fail("Landlock ABI changed after authorization")
     validate_entry(value["executable"])
+    if value["mode"] not in {"route", "measurement"} or value["network"] != "seccomp-deny-socket":
+        fail("confinement execution mode is invalid")
+    if not isinstance(value["child_env"], dict) or any(
+        not isinstance(name, str) or not isinstance(item, str) or "\x00" in item
+        for name, item in value["child_env"].items()
+    ):
+        fail("confinement child environment is invalid")
+    if value["mode"] == "measurement":
+        measurement = value["measurement"]
+        if not isinstance(measurement, dict) or set(measurement) != {
+            "command", "timeout_seconds", "stability",
+        }:
+            fail("measurement policy is invalid")
+    elif value["measurement"] is not None:
+        fail("route confinement cannot carry measurement policy")
+    evidence = validate_entry(value["supervisor_evidence"])
+    if evidence["kind"] != "file":
+        fail("supervisor evidence is not a file")
+    if value["mode"] == "route":
+        stdin = validate_entry(value["stdin"])
+        if stdin["kind"] != "file":
+            fail("route stdin is not a file")
+    elif value["stdin"] is not None:
+        fail("measurement confinement cannot carry route stdin")
     for key in ("read_only", "read_write"):
         entries = value[key]
         if not isinstance(entries, list) or not entries:
@@ -192,7 +246,7 @@ def allowed_for(entry: dict, writable: bool, handled: int) -> int:
     access = ACCESS_READ_FILE
     if os.access(entry["path"], os.X_OK):
         access |= ACCESS_EXECUTE
-    if writable:
+    if writable or entry["path"] == "/dev/null":
         access |= ACCESS_WRITE_FILE | ACCESS_TRUNCATE
     if handled & ACCESS_IOCTL_DEV:
         access |= ACCESS_IOCTL_DEV
@@ -223,6 +277,36 @@ def apply_landlock(read_only: list[dict], read_write: list[dict], abi: int) -> N
         os.close(ruleset_fd)
 
 
+class SockFilter(ctypes.Structure):
+    _fields_ = [("code", ctypes.c_ushort), ("jt", ctypes.c_ubyte), ("jf", ctypes.c_ubyte), ("k", ctypes.c_uint32)]
+
+
+class SockFprog(ctypes.Structure):
+    _fields_ = [("len", ctypes.c_ushort), ("filter", ctypes.POINTER(SockFilter))]
+
+
+def socket_syscall() -> int:
+    machine = platform.machine().lower()
+    if machine in {"x86_64", "amd64"}:
+        return 41
+    if machine in {"aarch64", "arm64", "riscv64"}:
+        return 198
+    fail(f"unsupported seccomp architecture: {machine or 'unknown'}")
+
+
+def apply_network_seccomp() -> None:
+    filters = (SockFilter * 4)(
+        SockFilter(BPF_LD | BPF_W | BPF_ABS, 0, 0, 0),
+        SockFilter(BPF_JMP | BPF_JEQ | BPF_K, 0, 1, socket_syscall()),
+        SockFilter(BPF_RET | BPF_K, 0, 0, SECCOMP_RET_ERRNO | errno.EPERM),
+        SockFilter(BPF_RET | BPF_K, 0, 0, SECCOMP_RET_ALLOW),
+    )
+    program = SockFprog(len(filters), ctypes.cast(filters, ctypes.POINTER(SockFilter)))
+    if libc().prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ctypes.byref(program), 0, 0) != 0:
+        code = ctypes.get_errno()
+        fail(f"cannot install network-denying seccomp filter: {OSError(code, os.strerror(code))}")
+
+
 def probe() -> None:
     abi = landlock_abi()
     child = os.fork()
@@ -235,8 +319,12 @@ def probe() -> None:
                     info = os.stat(canonical, follow_symlinks=False)
                     roots.append({"path": canonical, "kind": "directory", "device": info.st_dev, "inode": info.st_ino})
             apply_landlock(roots, [], abi)
+            apply_network_seccomp()
             with open("/usr/bin/env", "rb"):
                 pass
+            result = libc().syscall(socket_syscall(), 2, 1, 0)
+            if result >= 0 or ctypes.get_errno() != errno.EPERM:
+                os._exit(5)
             try:
                 with open("/etc/hosts", "rb"):
                     pass
@@ -248,24 +336,254 @@ def probe() -> None:
     _, status = os.waitpid(child, 0)
     if not os.WIFEXITED(status) or os.WEXITSTATUS(status) != 0:
         fail("Landlock probe did not enforce the filesystem deny boundary")
-    print(json.dumps({"protocol": "ce-optimize-landlock/v1", "abi": abi}, sort_keys=True))
+    print(json.dumps({
+        "protocol": "ce-optimize-landlock/v1",
+        "abi": abi,
+        "network": "seccomp-deny-socket",
+    }, sort_keys=True))
+
+
+def child_pids(children_fd: int) -> list[int]:
+    os.lseek(children_fd, 0, os.SEEK_SET)
+    data = os.read(children_fd, 1024 * 1024).decode("ascii", "strict").strip()
+    return [int(value) for value in data.split()] if data else []
+
+
+def reap_available() -> None:
+    while True:
+        try:
+            pid, _ = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            return
+        if pid <= 0:
+            return
+
+
+def contain_descendants(children_fd: int) -> dict:
+    observed: set[int] = set()
+    term_sent: set[int] = set()
+    kill_sent: set[int] = set()
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline:
+        reap_available()
+        children = child_pids(children_fd)
+        observed.update(children)
+        for pid in children:
+            try:
+                os.kill(pid, signal.SIGTERM)
+                term_sent.add(pid)
+            except ProcessLookupError:
+                pass
+        if not children:
+            break
+        time.sleep(0.05)
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        reap_available()
+        children = child_pids(children_fd)
+        observed.update(children)
+        if not children:
+            break
+        for pid in children:
+            try:
+                os.kill(pid, signal.SIGKILL)
+                kill_sent.add(pid)
+            except ProcessLookupError:
+                pass
+        time.sleep(0.05)
+    reap_available()
+    return {
+        "descendants_observed": sorted(observed),
+        "term_sent": sorted(term_sent),
+        "kill_sent": sorted(kill_sent),
+        "all_descendants_gone": not child_pids(children_fd),
+    }
+
+
+def run_once(command: list[str], child_env: dict[str, str], timeout: int | None, children_fd: int, input_data: bytes | None = None) -> dict:
+    process = subprocess.Popen(
+        command,
+        env=child_env,
+        stdin=subprocess.PIPE if input_data is not None else subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    )
+    if process.stdin is not None:
+        process.stdin.write(input_data or b"")
+        process.stdin.close()
+    selector = selectors.DefaultSelector()
+    streams = {process.stdout: bytearray(), process.stderr: bytearray()}
+    for stream in streams:
+        os.set_blocking(stream.fileno(), False)
+        selector.register(stream, selectors.EVENT_READ)
+    deadline = None if timeout is None else time.monotonic() + timeout
+    timed_out = False
+    while process.poll() is None:
+        for key, _ in selector.select(0.05):
+            chunk = os.read(key.fileobj.fileno(), 65536)
+            if chunk:
+                streams[key.fileobj].extend(chunk)
+        if deadline is not None and time.monotonic() >= deadline:
+            timed_out = True
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(process.pid, signal.SIGTERM)
+            break
+    containment = contain_descendants(children_fd)
+    if process.poll() is None:
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(process.pid, signal.SIGKILL)
+        process.wait()
+    drain_deadline = time.monotonic() + 1
+    while selector.get_map() and time.monotonic() < drain_deadline:
+        for key, _ in selector.select(0.05):
+            chunk = os.read(key.fileobj.fileno(), 65536)
+            if chunk:
+                streams[key.fileobj].extend(chunk)
+            else:
+                selector.unregister(key.fileobj)
+    selector.close()
+    stdout = bytes(streams[process.stdout])
+    stderr = bytes(streams[process.stderr])
+    if len(stdout) > 2 * 1024 * 1024 or len(stderr) > 2 * 1024 * 1024:
+        return {"exit_code": 125, "stdout": b"", "stderr": b"output exceeded limit", "timed_out": False, **containment}
+    return {
+        "exit_code": 124 if timed_out else process.returncode,
+        "stdout": stdout,
+        "stderr": stderr,
+        "timed_out": timed_out,
+        **containment,
+    }
+
+
+def aggregate_values(values: list[object], method: str) -> object:
+    first = values[0]
+    if type(first) in {int, float} and all(type(value) in {int, float} for value in values):
+        numbers = [float(value) for value in values]
+        if not all(math.isfinite(value) for value in numbers):
+            fail("measurement output contains a non-finite number")
+        if method == "mean":
+            return sum(numbers) / len(numbers)
+        if method == "median":
+            return statistics.median(numbers)
+        return min(numbers) if method == "min" else max(numbers)
+    if isinstance(first, bool) and all(value is first for value in values):
+        return first
+    if isinstance(first, dict) and all(isinstance(value, dict) and set(value) == set(first) for value in values):
+        return {key: aggregate_values([value[key] for value in values], method) for key in sorted(first)}
+    if all(value == first for value in values):
+        return first
+    fail("repeated measurement output contains non-aggregatable values")
+
+
+def spread_values(values: list[object]) -> object:
+    first = values[0]
+    if type(first) in {int, float}:
+        numbers = [float(value) for value in values]
+        return max(numbers) - min(numbers)
+    if isinstance(first, dict):
+        return {key: spread_values([value[key] for value in values]) for key in sorted(first)}
+    return 0
+
+
+def publish_evidence(fd: int, value: dict) -> None:
+    data = (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    os.write(fd, data)
+    os.fsync(fd)
+    os.close(fd)
+
+
+def supervise(config: dict, command: list[str], evidence_fd: int, config_digest: str, children_fd: int) -> int:
+    if libc().prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0:
+        code = ctypes.get_errno()
+        fail(f"cannot enable child subreaper: {OSError(code, os.strerror(code))}")
+    runs = []
+    if config["mode"] == "route":
+        stdin_fd = os.open(config["stdin"]["path"], os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        try:
+            input_data = os.read(stdin_fd, 2 * 1024 * 1024 + 1)
+        finally:
+            os.close(stdin_fd)
+        if len(input_data) > 2 * 1024 * 1024:
+            fail("route stdin exceeds limit")
+        runs.append(run_once(command, config["child_env"], None, children_fd, input_data))
+        aggregate = None
+        spread = None
+    else:
+        policy = config["measurement"]
+        shell_command = [config["executable"]["path"], "-c", policy["command"]]
+        for _ in range(policy["stability"]["repeat_count"]):
+            runs.append(run_once(shell_command, config["child_env"], policy["timeout_seconds"], children_fd))
+        parsed = []
+        if all(run["exit_code"] == 0 and run["all_descendants_gone"] for run in runs):
+            try:
+                parsed = [json.loads(run["stdout"]) for run in runs]
+            except (UnicodeDecodeError, ValueError):
+                parsed = []
+        if parsed and all(isinstance(value, dict) for value in parsed):
+            aggregate = aggregate_values(parsed, policy["stability"]["aggregation"])
+            spread = spread_values(parsed)
+        else:
+            aggregate = None
+            spread = None
+    encoded_runs = [{
+        **{key: value for key, value in run.items() if key not in {"stdout", "stderr"}},
+        "stdout_b64": base64.b64encode(run["stdout"]).decode(),
+        "stderr_b64": base64.b64encode(run["stderr"]).decode(),
+    } for run in runs]
+    os.close(children_fd)
+    evidence = {
+        "protocol": "ce-optimize-supervisor/v1",
+        "config_digest": config_digest,
+        "mode": config["mode"],
+        "supervisor_pid": os.getpid(),
+        "runs": encoded_runs,
+        "aggregate": aggregate,
+        "spread": spread,
+        "all_descendants_gone": all(run["all_descendants_gone"] for run in runs),
+    }
+    publish_evidence(evidence_fd, evidence)
+    if config["mode"] == "route":
+        return runs[0]["exit_code"] if runs[0]["all_descendants_gone"] else 125
+    return 0 if aggregate is not None and evidence["all_descendants_gone"] else max(run["exit_code"] for run in runs)
 
 
 def main(argv: list[str]) -> None:
     if argv == ["--probe"]:
         probe()
         return
-    if len(argv) < 6 or argv[0] != "--config" or argv[2] != "--digest" or argv[4] != "--":
-        fail("usage: optimize-landlock.py --config PATH --digest SHA256 -- COMMAND [ARG ...]")
+    if len(argv) < 8 or argv[0] != "--config" or argv[2] != "--digest" or argv[4] != "--barrier-fd" or argv[6] != "--":
+        fail("usage: optimize-landlock.py --config PATH --digest SHA256 --barrier-fd FD -- COMMAND [ARG ...]")
     config = load_config(argv[1], argv[3])
-    command = argv[5:]
+    try:
+        barrier_fd = int(argv[5])
+    except ValueError:
+        fail("launch barrier descriptor is invalid")
+    command = argv[7:]
     if not command or os.path.realpath(command[0]) != config["executable"]["path"]:
         fail("route executable differs from controller authorization")
+    evidence_fd = os.open(config["supervisor_evidence"]["path"], os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0))
+    if os.fstat(evidence_fd).st_size != 0:
+        fail("supervisor evidence reservation is not empty")
+    if os.read(barrier_fd, 1) != b"1":
+        publish_evidence(evidence_fd, {
+            "protocol": "ce-optimize-supervisor/v1",
+            "config_digest": argv[3],
+            "mode": config["mode"],
+            "supervisor_pid": os.getpid(),
+            "runs": [],
+            "aggregate": None,
+            "spread": None,
+            "all_descendants_gone": True,
+            "launch_cancelled": True,
+            "cancellation_origin": "barrier-closed",
+        })
+        raise SystemExit(125)
+    os.close(barrier_fd)
+    children_fd = os.open(f"/proc/self/task/{os.getpid()}/children", os.O_RDONLY)
     apply_landlock(config["read_only"], config["read_write"], config["abi"])
-    try:
-        os.execv(command[0], command)
-    except OSError as exc:
-        fail(f"route exec failed: {exc}")
+    apply_network_seccomp()
+    raise SystemExit(supervise(config, command, evidence_fd, argv[3], children_fd))
 
 
 if __name__ == "__main__":

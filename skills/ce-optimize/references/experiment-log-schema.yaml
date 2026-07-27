@@ -65,7 +65,7 @@ structure:
         description: "Lowercase SHA-256 over canonical compact UTF-8 JSON with recursively sorted keys for the approved backend, mutable/immutable scope, measurement, judge separation, concurrency, security posture, shared inputs/environment, and stopping criteria"
       measurement_digest:
         type: string
-        description: "Lowercase SHA-256 over the frozen measurement command, working directory, and timeout"
+        description: "Lowercase SHA-256 over the frozen measurement command, working directory, timeout, stability mode, exact repeat count, aggregation, and noise threshold"
       binding_digests:
         type: object
         description: "Per-role content-derived binding digests; candidate contents remain in private controller state"
@@ -244,6 +244,18 @@ experiment_entry:
       type: string
       description: "Snapshot that authorized this experiment; must equal routing_context.snapshot_id"
 
+    run_id:
+      type: string
+      description: "Controller run identity verified at CP-3"
+
+    attempt_id:
+      type: string
+      description: "Unique controller attempt identity; exactly one CP-3 row may match it"
+
+    spec_digest:
+      type: string
+      description: "Frozen approved optimization spec digest"
+
     author_receipt:
       type: object
       description: "Redacted finalize_attempt receipt for ce-optimize.experiment-author. Measurement and result-marker creation are forbidden until this receipt accepts the isolated output."
@@ -251,6 +263,18 @@ experiment_entry:
     author_attempt_lock_digest:
       type: string
       description: "Controller attempt lock that binds this experiment instance, recipient, backend, worktree, spec, measurement, and scopes"
+
+    author_receipt_digest:
+      type: string
+      description: "Content digest of the accepted controller finalization receipt"
+
+    constraints_digest:
+      type: string
+      description: "Frozen constraints digest copied from controller marker evidence"
+
+    measurement_digest:
+      type: string
+      description: "Frozen command and complete stability-policy digest copied from controller marker evidence"
 
     judge_receipts:
       type: array
@@ -264,13 +288,25 @@ experiment_entry:
       items:
         type: string
 
+    judge_attempt_lock_digest:
+      type: string
+      description: "Exact lock digest for a separately checkpointed semantic-judge instance"
+
+    judge_receipt_digest:
+      type: string
+      description: "Content digest of that judge instance's accepted controller finalization receipt"
+
     result_marker_digest:
       type: string
       description: "Digest of the controller-owned measurement marker"
 
     checkpoint_digest:
       type: string
-      description: "Digest acknowledged by the controller only after CP-3 append/read-back"
+      description: "Digest computed by the controller over the exact no-follow experiment-log bytes after CP-3 verification; callers do not supply it"
+
+    metrics_digest:
+      type: string
+      description: "Digest of the controller-aggregated metrics object; must match the result marker"
 
     gates:
       type: object

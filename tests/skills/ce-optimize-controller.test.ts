@@ -1,13 +1,26 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { describe, expect, test } from "bun:test"
 
 const ROOT = path.join(import.meta.dir, "../..")
 const CONTROLLER = path.join(ROOT, "skills/ce-optimize/scripts/optimize-controller.py")
+const CONTROLLER_PROTOCOL = path.join(ROOT, "skills/ce-optimize/references/controller-protocol.md")
 const WORKTREE = path.join(ROOT, "skills/ce-optimize/scripts/experiment-worktree.sh")
 
 type Result = { exitCode: number; word: string; body: any; stderr: string }
+
+function canonical(value: any): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`
+  }
+  return JSON.stringify(value)
+}
+
+function sha256(value: any): string {
+  return new Bun.CryptoHasher("sha256").update(canonical(value)).digest("hex")
+}
 
 async function run(argv: string[], cwd: string, env: Record<string, string>): Promise<Result> {
   const proc = Bun.spawn(argv, { cwd, env: { ...process.env, ...env }, stdout: "pipe", stderr: "pipe" })
@@ -34,7 +47,8 @@ async function fixture(options: {
   policy?: "prefer" | "require"
   models?: string[]
   noRouting?: boolean
-  fakeMode?: "receipt" | "forged" | "sleep" | "scope"
+  fakeMode?: "receipt" | "forged" | "sleep" | "scope" | "measurementEscape" | "setsid"
+  measurementMode?: "normal" | "repeat" | "sleep" | "setsid"
   judge?: boolean
   backend?: "codex" | "worktree"
 } = {}) {
@@ -53,8 +67,17 @@ async function fixture(options: {
   await checked(["git", "config", "user.email", "test@example.com"], repo, {})
   await checked(["git", "config", "user.name", "Test User"], repo, {})
   await writeFile(path.join(repo, "mutable.txt"), "baseline\n")
-  await writeFile(path.join(repo, "measure.py"), "import json\nprint(json.dumps({'score': 1}))\n")
-  await checked(["git", "add", "mutable.txt", "measure.py"], repo, {})
+  const measurementMode = options.measurementMode ?? "normal"
+  const measureSource = measurementMode === "repeat"
+    ? "import json, os, pathlib\np = pathlib.Path(os.environ['TMPDIR']) / 'repeat-count'\nn = int(p.read_text()) + 1 if p.exists() else 0\np.write_text(str(n))\nprint(json.dumps({'score': [1, 9, 3][n]}))\n"
+    : measurementMode === "sleep"
+      ? "import json, time\ntime.sleep(1)\nprint(json.dumps({'score': 1}))\n"
+      : measurementMode === "setsid"
+        ? "import json, os, pathlib, time\nchild = os.fork()\nif child == 0:\n os.setsid()\n grandchild = os.fork()\n if grandchild == 0:\n  time.sleep(1)\n  pathlib.Path('late-measure').write_text('escaped\\n')\n  os._exit(0)\n os._exit(0)\nos.waitpid(child, 0)\nprint(json.dumps({'score': 1}))\n"
+      : "import json\ntry:\n import candidate\n score = candidate.score()\nexcept ImportError:\n score = 1\nprint(json.dumps({'score': score}))\n"
+  await writeFile(path.join(repo, "measure.py"), measureSource)
+  await writeFile(path.join(repo, ".gitignore"), "ignored.dat\n")
+  await checked(["git", "add", "mutable.txt", "measure.py", ".gitignore"], repo, {})
   await checked(["git", "commit", "-q", "-m", "baseline"], repo, {})
   await writeFile(path.join(home, "home-secret"), "hidden-home\n")
   await writeFile(path.join(home, ".env"), "TOKEN=hidden-env\n")
@@ -93,6 +116,28 @@ if ${JSON.stringify(fakeMode)} == "sleep":
     time.sleep(2)
 if ${JSON.stringify(fakeMode)} == "scope":
     pathlib.Path("measure.py").write_text("print('tampered')\\n")
+if ${JSON.stringify(fakeMode)} == "measurementEscape":
+    pathlib.Path("candidate.py").write_text(${JSON.stringify(`import pathlib, socket
+def score():
+    denied = 0
+    for target in [${JSON.stringify(outside)}, ${JSON.stringify(path.join(home, "home-secret"))}]:
+        try: pathlib.Path(target).read_text()
+        except Exception: denied += 1
+    try: socket.socket()
+    except Exception: denied += 1
+    return 1 if denied == 3 else -1
+`)})
+if ${JSON.stringify(fakeMode)} == "setsid":
+    child = os.fork()
+    if child == 0:
+        os.setsid()
+        grandchild = os.fork()
+        if grandchild == 0:
+            time.sleep(1)
+            pathlib.Path("late-author").write_text("escaped\\n")
+            os._exit(0)
+        os._exit(0)
+    os.waitpid(child, 0)
 capture.write_text(json.dumps({
     "argv": sys.argv[1:],
     "env": dict(os.environ),
@@ -122,13 +167,19 @@ else:
   await writeFile(constraints, JSON.stringify({
     backend: options.backend ?? "codex",
     codex_security: "full-auto",
-    measurement: { command: "python3 measure.py", working_directory: ".", timeout_seconds: 10 },
-    scope: { mutable: ["mutable.txt", "capture.json", "started"], immutable: ["measure.py"] },
+    measurement: {
+      command: "python3 measure.py",
+      working_directory: ".",
+      timeout_seconds: 10,
+      stability: { mode: "stable", repeat_count: 1, aggregation: "median", noise_threshold: 0.02 },
+    },
+    scope: { mutable: ["mutable.txt", "capture.json", "started", "candidate.py", "late-author", "late-measure"], immutable: ["measure.py", ".gitignore"] },
     execution: { mode: "serial", max_concurrent: 1 },
     judge: options.judge ? { adapter: "codex", rubric: "test" } : null,
     stopping: { max_iterations: 2 },
     shared_files: [],
     sanctioned_env: { SAFE_INPUT: "approved" },
+    experiment_log: ".context/compound-engineering/ce-optimize/controller-test/experiment-log.yaml",
   }), { mode: 0o600 })
   await chmod(constraints, 0o600)
   await writeFile(prompt, "bounded prompt\n", { mode: 0o600 })
@@ -146,7 +197,7 @@ else:
     GITHUB_TOKEN: "ambient-token",
     AWS_SECRET_ACCESS_KEY: "ambient-secret",
   }
-  return { root, repo, home, controllerRoot, fake, spec, constraints, prompt, authManifest, env }
+  return { root, repo, home, controllerRoot, bin, fake, spec, constraints, prompt, authManifest, env }
 }
 
 async function start(f: Awaited<ReturnType<typeof fixture>>, runId = "run", judge = false) {
@@ -177,7 +228,55 @@ async function lock(
   ], f.repo, f.env)
 }
 
+async function writeCheckpoint(f: Awaited<ReturnType<typeof fixture>>, attemptId: string, marker: any, overrides: Record<string, unknown> = {}) {
+  const checkpointPath = path.join(f.repo, ".context/compound-engineering/ce-optimize/controller-test/experiment-log.yaml")
+  await mkdir(path.dirname(checkpointPath), { recursive: true })
+  await writeFile(checkpointPath, JSON.stringify({ experiments: [{
+    run_id: "run",
+    attempt_id: attemptId,
+    routing_snapshot_id: marker.routing_snapshot_id,
+    spec_digest: marker.spec_digest,
+    author_attempt_lock_digest: marker.attempt_lock_digest,
+    author_receipt_digest: marker.author_receipt_digest,
+    constraints_digest: marker.constraints_digest,
+    measurement_digest: marker.measurement_digest,
+    result_marker_digest: marker.marker_digest,
+    metrics_digest: marker.metrics_digest,
+    ...overrides,
+  }] }))
+  return checkpointPath
+}
+
+async function prepareAcceptedAuthor(
+  f: Awaited<ReturnType<typeof fixture>>,
+  spec: string,
+  attemptId: string,
+) {
+  await start(f)
+  const worktree = await createWorktree(f, spec)
+  await lock(f, worktree, attemptId, 0, spec)
+  await checked(["python3", "-I", "-S", CONTROLLER, "dispatch", "--run-id", "run", "--attempt-id", attemptId, "--prompt", f.prompt], f.repo, f.env)
+  await checked(["python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", attemptId], f.repo, f.env)
+  return worktree
+}
+
+async function waitForNonemptyFile(file: string) {
+  for (let index = 0; index < 100; index++) {
+    try {
+      if ((await stat(file)).size > 0) return
+    } catch {}
+    await Bun.sleep(20)
+  }
+  throw new Error(`timed out waiting for ${file}`)
+}
+
 describe("ce-optimize controller", () => {
+  test("documents candidate ordinal independently from experiment instance identity", async () => {
+    const protocol = await readFile(CONTROLLER_PROTOCOL, "utf8")
+    expect(protocol).toContain('--instance-id "experiment-<experiment-number>" --ordinal <candidate-ordinal>')
+    expect(protocol).toMatch(/candidate ordinal starts\s+at 0 and is never the experiment number/i)
+  })
+
   test("freezes one self-validating role snapshot and ignores live config drift on resume", async () => {
     const f = await fixture({ judge: true })
     try {
@@ -204,7 +303,19 @@ describe("ce-optimize controller", () => {
       expect(judgeCapture.workspace).toBeNull()
       expect(judgeCapture.outside).toBeNull()
       expect(judgeCapture.auth).toContain("explicit-auth")
-      await checked(["python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", "judge-attempt"], f.repo, f.env)
+      const judgeFinalized = await checked(["python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", "judge-attempt"], f.repo, f.env)
+      const judgeCheckpoint = path.join(f.repo, ".context/compound-engineering/ce-optimize/controller-test/experiment-log.yaml")
+      await mkdir(path.dirname(judgeCheckpoint), { recursive: true })
+      await writeFile(judgeCheckpoint, JSON.stringify({ experiments: [{
+        run_id: "run",
+        attempt_id: "judge-attempt",
+        routing_snapshot_id: first.body.snapshot_id,
+        spec_digest: state.spec_digest,
+        constraints_digest: first.body.constraints_digest,
+        judge_attempt_lock_digest: judgeLock.body.lock_digest,
+        judge_receipt_digest: sha256(judgeFinalized.body.receipt),
+      }] }))
+      await checked(["python3", "-I", "-S", CONTROLLER, "checkpoint", "--run-id", "run", "--attempt-id", "judge-attempt", "--checkpoint-path", judgeCheckpoint], f.repo, f.env)
 
       await writeFile(path.join(f.home, "config.yaml"), (await readFile(path.join(f.home, "config.yaml"), "utf8")).replaceAll("openai/expected", "openai/drifted"), { mode: 0o600 })
       const resumed = await start(f)
@@ -250,8 +361,8 @@ describe("ce-optimize controller", () => {
       expect(locked.body).toMatchObject({
         backend: "codex",
         worktree,
-        mutable_scope: ["mutable.txt", "capture.json", "started"],
-        immutable_scope: ["measure.py"],
+        mutable_scope: ["mutable.txt", "capture.json", "started", "candidate.py", "late-author", "late-measure"],
+        immutable_scope: ["measure.py", ".gitignore"],
         execution: { mode: "serial", max_concurrent: 1 },
         stopping: { max_iterations: 2 },
       })
@@ -396,10 +507,26 @@ describe("ce-optimize controller", () => {
         attempt_lock_digest: expect.any(String),
         measurement_digest: expect.any(String),
         exit_code: 0,
+        repeat_count: 1,
+        metrics: { score: 1 },
       })
-      expect(JSON.parse(await readFile(path.join(worktree, "result.yaml"), "utf8")).marker_digest).toBe(measured.body.marker_digest)
-      const checkpoint = "a".repeat(64)
-      await checked(["python3", "-I", "-S", CONTROLLER, "checkpoint", "--run-id", "run", "--attempt-id", "attempt-live", "--checkpoint-digest", checkpoint], f.repo, f.env)
+      const marker = JSON.parse(await readFile(path.join(worktree, "result.yaml"), "utf8"))
+      expect(marker.marker_digest).toBe(measured.body.marker_digest)
+      const checkpointPath = path.join(f.repo, ".context/compound-engineering/ce-optimize/controller-test/experiment-log.yaml")
+      await mkdir(path.dirname(checkpointPath), { recursive: true })
+      await writeFile(checkpointPath, JSON.stringify({ experiments: [{
+        run_id: "run",
+        attempt_id: "attempt-live",
+        routing_snapshot_id: marker.routing_snapshot_id,
+        spec_digest: marker.spec_digest,
+        author_attempt_lock_digest: marker.attempt_lock_digest,
+        author_receipt_digest: marker.author_receipt_digest,
+        constraints_digest: marker.constraints_digest,
+        measurement_digest: marker.measurement_digest,
+        result_marker_digest: marker.marker_digest,
+        metrics_digest: marker.metrics_digest,
+      }] }))
+      await checked(["python3", "-I", "-S", CONTROLLER, "checkpoint", "--run-id", "run", "--attempt-id", "attempt-live", "--checkpoint-path", checkpointPath], f.repo, f.env)
       const reset = await run(["bash", WORKTREE, "create", "lease", "1", "HEAD", "--routed"], f.repo, f.env)
       expect(reset.exitCode, reset.stderr).toBe(0)
     } finally {
@@ -468,13 +595,23 @@ describe("ce-optimize controller", () => {
         "--attempt-id", "attempt-host", "--role", "author", "--instance-id", "host-experiment",
         "--ordinal", "0", "--adapter", "host", "--worktree", worktree,
       ], f.repo, f.env)
+      const authorized = await checked([
+        "python3", "-I", "-S", CONTROLLER, "authorize-host", "--run-id", "run", "--attempt-id", "attempt-host",
+      ], f.repo, f.env)
       const receiptPath = path.join(f.root, "host-receipt.json")
       await writeFile(receiptPath, JSON.stringify({
         protocol: "ce-optimize-host-receipt/v1",
         attempt_id: "attempt-host",
         lock_digest: locked.body.lock_digest,
+        launch_token: authorized.body.launch_token,
         outcome: "ok",
-        process: { terminal: true, exit_code: 0 },
+        process: {
+          terminal: true,
+          exit_code: 0,
+          launch_authority_recorded: true,
+          all_descendants_gone: true,
+          confinement: "inherited-landlock",
+        },
         serving_report: { model_actual: "openai/expected" },
       }), { mode: 0o600 })
       await chmod(receiptPath, 0o600)
@@ -487,6 +624,455 @@ describe("ce-optimize controller", () => {
         "python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", "attempt-host",
       ], f.repo, f.env)
       expect(finalized.body.receipt).toMatchObject({ identity_status: "verified", model_actual: "openai/expected" })
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test.each(["LD_PRELOAD", "BASH_ENV", "PYTHONPATH", "NODE_OPTIONS", "RUBYOPT"])(
+    "rejects pre-confinement and loader environment hook %s",
+    async (name) => {
+      const f = await fixture()
+      try {
+        const constraints = JSON.parse(await readFile(f.constraints, "utf8"))
+        constraints.sanctioned_env[name] = "/tmp/inject"
+        await writeFile(f.constraints, JSON.stringify(constraints), { mode: 0o600 })
+        const refused = await run([
+          "python3", "-I", "-S", CONTROLLER, "start", "--run-id", "run",
+          "--repo", f.repo, "--spec", f.spec, "--constraints", f.constraints,
+        ], f.repo, f.env)
+        expect(refused.exitCode).toBe(4)
+        expect(refused.stderr).toMatch(/environment name is forbidden/i)
+      } finally {
+        await rm(f.root, { recursive: true, force: true })
+      }
+    },
+  )
+
+  test("rejects ignored files and symlinks from the full pre-dispatch inventory", async () => {
+    const f = await fixture()
+    try {
+      await start(f)
+      const worktree = await createWorktree(f, "inventory")
+      await writeFile(path.join(worktree, "ignored.dat"), "metric gaming\n")
+      let refused = await run([
+        "python3", "-I", "-S", CONTROLLER, "lock-attempt", "--run-id", "run",
+        "--attempt-id", "ignored", "--role", "author", "--instance-id", "ignored",
+        "--ordinal", "0", "--adapter", "codex", "--worktree", worktree,
+        "--executable", f.fake, "--auth-manifest", f.authManifest,
+      ], f.repo, f.env)
+      expect(refused.exitCode).toBe(4)
+      expect(refused.stderr).toMatch(/ignored\/untracked/i)
+
+      await rm(path.join(worktree, "ignored.dat"))
+      await symlink(path.join(f.root, "outside-secret"), path.join(worktree, "candidate.py"))
+      refused = await run([
+        "python3", "-I", "-S", CONTROLLER, "lock-attempt", "--run-id", "run",
+        "--attempt-id", "symlink", "--role", "author", "--instance-id", "symlink",
+        "--ordinal", "0", "--adapter", "codex", "--worktree", worktree,
+        "--executable", f.fake, "--auth-manifest", f.authManifest,
+      ], f.repo, f.env)
+      expect(refused.exitCode).toBe(4)
+      expect(refused.stderr).toMatch(/symlink/i)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("confines candidate code imported by controller measurement and denies network", async () => {
+    const f = await fixture({ fakeMode: "measurementEscape" })
+    try {
+      await start(f)
+      const worktree = await createWorktree(f, "measurement-escape")
+      await lock(f, worktree, "attempt-escape", 0, "escape")
+      await checked(["python3", "-I", "-S", CONTROLLER, "dispatch", "--run-id", "run", "--attempt-id", "attempt-escape", "--prompt", f.prompt], f.repo, f.env)
+      await checked(["python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", "attempt-escape"], f.repo, f.env)
+      const measured = await checked(["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", "attempt-escape"], f.repo, f.env)
+      expect(measured.body.metrics).toEqual({ score: 1 })
+      expect(measured.body.exit_code).toBe(0)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("executes the frozen repeat count once and deterministically aggregates before marking", async () => {
+    const f = await fixture({ measurementMode: "repeat" })
+    try {
+      const constraints = JSON.parse(await readFile(f.constraints, "utf8"))
+      constraints.measurement.stability = { mode: "repeat", repeat_count: 3, aggregation: "median", noise_threshold: 20 }
+      await writeFile(f.constraints, JSON.stringify(constraints), { mode: 0o600 })
+      await start(f)
+      const worktree = await createWorktree(f, "repeat")
+      await lock(f, worktree, "attempt-repeat", 0, "repeat")
+      await checked(["python3", "-I", "-S", CONTROLLER, "dispatch", "--run-id", "run", "--attempt-id", "attempt-repeat", "--prompt", f.prompt], f.repo, f.env)
+      await checked(["python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", "attempt-repeat"], f.repo, f.env)
+      const measured = await checked(["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", "attempt-repeat"], f.repo, f.env)
+      expect(measured.body.repeat_count).toBe(3)
+      expect(measured.body.repeat_digests).toHaveLength(3)
+      expect(measured.body.metrics).toEqual({ score: 3 })
+      const duplicate = await run(["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", "attempt-repeat"], f.repo, f.env)
+      expect(duplicate.exitCode).toBe(4)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("refuses duplicate ordinals and recipient advancement after measurement integration", async () => {
+    const f = await fixture({ policy: "prefer", models: ["openai/expected", "openai/second"] })
+    try {
+      await start(f)
+      const worktree = await createWorktree(f, "ordinal")
+      await lock(f, worktree, "attempt-ordinal", 0, "same-instance")
+      const duplicate = await run([
+        "python3", "-I", "-S", CONTROLLER, "lock-attempt", "--run-id", "run",
+        "--attempt-id", "attempt-duplicate", "--role", "author", "--instance-id", "same-instance",
+        "--ordinal", "0", "--adapter", "codex", "--worktree", worktree,
+        "--executable", f.fake, "--auth-manifest", f.authManifest,
+      ], f.repo, f.env)
+      expect(duplicate.exitCode).toBe(4)
+      expect(duplicate.stderr).toMatch(/already have an attempt/i)
+      await checked(["python3", "-I", "-S", CONTROLLER, "dispatch", "--run-id", "run", "--attempt-id", "attempt-ordinal", "--prompt", f.prompt], f.repo, f.env)
+      await checked(["python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", "attempt-ordinal"], f.repo, f.env)
+      await checked(["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", "attempt-ordinal"], f.repo, f.env)
+      const advanced = await run([
+        "python3", "-I", "-S", CONTROLLER, "lock-attempt", "--run-id", "run",
+        "--attempt-id", "attempt-after-effect", "--role", "author", "--instance-id", "same-instance",
+        "--ordinal", "1", "--adapter", "codex", "--worktree", worktree,
+        "--executable", f.fake, "--auth-manifest", f.authManifest,
+      ], f.repo, f.env)
+      expect(advanced.exitCode).toBe(4)
+      expect(advanced.stderr).toMatch(/measured.*integrated effect|integrated effect/i)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("recovers a crashed measurement controller and refuses concurrent measurement", async () => {
+    const f = await fixture({ measurementMode: "sleep" })
+    try {
+      await start(f)
+      const worktree = await createWorktree(f, "measurement-crash")
+      await lock(f, worktree, "attempt-measure-crash", 0, "measurement-crash")
+      await checked(["python3", "-I", "-S", CONTROLLER, "dispatch", "--run-id", "run", "--attempt-id", "attempt-measure-crash", "--prompt", f.prompt], f.repo, f.env)
+      await checked(["python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", "attempt-measure-crash"], f.repo, f.env)
+      const first = Bun.spawn(["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", "attempt-measure-crash"], {
+        cwd: f.repo, env: { ...process.env, ...f.env }, stdout: "pipe", stderr: "pipe",
+      })
+      await Bun.sleep(200)
+      const concurrent = await run(["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", "attempt-measure-crash"], f.repo, f.env)
+      expect(concurrent.exitCode).toBe(4)
+      first.kill(9)
+      await first.exited
+      await Bun.sleep(1300)
+      const recovered = await checked(["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", "attempt-measure-crash"], f.repo, f.env)
+      expect(recovered.word).toBe("MEASURED")
+      expect(recovered.body.metrics).toEqual({ score: 1 })
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test.each(["route", "measurement"])(
+    "records a terminal controller-owned cancellation when %s Popen fails before spawn",
+    async (mode) => {
+      const f = await fixture()
+      try {
+        const attemptId = `attempt-${mode}-pre-spawn`
+        let worktree: string
+        if (mode === "route") {
+          await start(f)
+          worktree = await createWorktree(f, "route-pre-spawn")
+          await lock(f, worktree, attemptId, 0, "route-pre-spawn")
+        } else {
+          worktree = await prepareAcceptedAuthor(f, "measurement-pre-spawn", attemptId)
+        }
+        const command = mode === "route"
+          ? ["python3", "-I", "-S", CONTROLLER, "dispatch", "--run-id", "run", "--attempt-id", attemptId, "--prompt", f.prompt]
+          : ["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", attemptId]
+        const failed = await run(command, f.repo, {
+          ...f.env,
+          CE_OPTIMIZE_TEST_LAUNCH_FAULT: `${mode}-pre-spawn`,
+        })
+        expect(failed.exitCode).toBe(4)
+        expect(failed.stderr).toMatch(/launch failed before spawn.*cancellation recorded/i)
+        const status = await checked(["python3", "-I", "-S", CONTROLLER, "status", "--run-id", "run"], f.repo, f.env)
+        const lifecycle = mode === "route"
+          ? status.body.attempts[attemptId].process
+          : status.body.attempts[attemptId].measurement_process
+        expect(lifecycle).toMatchObject({ state: "launch-cancelled", pid: null, exit_code: 125 })
+        if (mode === "route") {
+          expect(status.body.attempts[attemptId].state).toBe("terminal")
+          await expect(stat(path.join(worktree, "capture.json"))).rejects.toThrow()
+        }
+        const abandoned = await checked([
+          "python3", "-I", "-S", CONTROLLER, "abandon", "--run-id", "run",
+          "--attempt-id", attemptId, "--reason", "verified-pre-spawn-cancellation",
+        ], f.repo, f.env)
+        expect(abandoned.word).toBe("ABANDONED")
+      } finally {
+        await rm(f.root, { recursive: true, force: true })
+      }
+    },
+  )
+
+  test.each(["route", "measurement"])(
+    "recovers %s supervisor cancellation after a spawn-before-PID controller crash",
+    async (mode) => {
+      const f = await fixture()
+      try {
+        const attemptId = `attempt-${mode}-post-spawn`
+        let worktree: string
+        if (mode === "route") {
+          await start(f)
+          worktree = await createWorktree(f, "route-post-spawn")
+          await lock(f, worktree, attemptId, 0, "route-post-spawn")
+        } else {
+          worktree = await prepareAcceptedAuthor(f, "measurement-post-spawn", attemptId)
+        }
+        const command = mode === "route"
+          ? ["python3", "-I", "-S", CONTROLLER, "dispatch", "--run-id", "run", "--attempt-id", attemptId, "--prompt", f.prompt]
+          : ["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", attemptId]
+        const crashed = Bun.spawn(command, {
+          cwd: f.repo,
+          env: { ...process.env, ...f.env, CE_OPTIMIZE_TEST_LAUNCH_FAULT: `${mode}-post-spawn-pre-pid` },
+          stdout: "pipe",
+          stderr: "pipe",
+        })
+        expect(await crashed.exited).toBe(86)
+        await Promise.all([new Response(crashed.stdout).text(), new Response(crashed.stderr).text()])
+        const evidencePath = mode === "route"
+          ? path.join(f.controllerRoot, "run", "attempts", attemptId, "supervisor-route.json")
+          : path.join(f.controllerRoot, "run", "attempts", attemptId, "supervisor-measurement-1.json")
+        await waitForNonemptyFile(evidencePath)
+        const evidence = JSON.parse(await readFile(evidencePath, "utf8"))
+        expect(evidence).toMatchObject({ launch_cancelled: true, runs: [], all_descendants_gone: true })
+
+        const beforeRecovery = await checked(["python3", "-I", "-S", CONTROLLER, "status", "--run-id", "run"], f.repo, f.env)
+        const lifecycle = mode === "route"
+          ? beforeRecovery.body.attempts[attemptId].process
+          : beforeRecovery.body.attempts[attemptId].measurement_process
+        expect(lifecycle.pid).toBeNull()
+        expect(lifecycle.state).toBe(mode === "route" ? "dispatching" : "launch-authorized")
+
+        if (mode === "route") {
+          const recovered = await checked(command, f.repo, f.env)
+          expect(recovered.body).toMatchObject({ outcome: "unavailable", exit_code: 125 })
+          await expect(stat(path.join(worktree, "capture.json"))).rejects.toThrow()
+          const abandoned = await checked([
+            "python3", "-I", "-S", CONTROLLER, "abandon", "--run-id", "run",
+            "--attempt-id", attemptId, "--reason", "verified-barrier-cancellation",
+          ], f.repo, f.env)
+          expect(abandoned.word).toBe("ABANDONED")
+        } else {
+          const recovered = await checked(command, f.repo, f.env)
+          expect(recovered.word).toBe("MEASURED")
+          const status = await checked(["python3", "-I", "-S", CONTROLLER, "status", "--run-id", "run"], f.repo, f.env)
+          expect(status.body.attempts[attemptId].measurement_process).toMatchObject({ state: "done", generation: 2 })
+        }
+      } finally {
+        await rm(f.root, { recursive: true, force: true })
+      }
+    },
+  )
+
+  test("reaps double-forked setsid author descendants before terminal evidence", async () => {
+    const f = await fixture({ fakeMode: "setsid" })
+    try {
+      await start(f)
+      const worktree = await createWorktree(f, "setsid")
+      await lock(f, worktree, "attempt-setsid", 0, "setsid")
+      await checked(["python3", "-I", "-S", CONTROLLER, "dispatch", "--run-id", "run", "--attempt-id", "attempt-setsid", "--prompt", f.prompt], f.repo, f.env)
+      await Bun.sleep(1200)
+      await expect(stat(path.join(worktree, "late-author"))).rejects.toThrow()
+      const state = await checked(["python3", "-I", "-S", CONTROLLER, "status", "--run-id", "run"], f.repo, f.env)
+      expect(state.body.attempts["attempt-setsid"].process.state).toBe("done")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("reaps double-forked setsid measurement descendants before marking", async () => {
+    const f = await fixture({ measurementMode: "setsid" })
+    try {
+      await start(f)
+      const worktree = await createWorktree(f, "setsid-measure")
+      await lock(f, worktree, "attempt-setsid-measure", 0, "setsid-measure")
+      await checked(["python3", "-I", "-S", CONTROLLER, "dispatch", "--run-id", "run", "--attempt-id", "attempt-setsid-measure", "--prompt", f.prompt], f.repo, f.env)
+      await checked(["python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", "attempt-setsid-measure"], f.repo, f.env)
+      const measured = await checked(["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", "attempt-setsid-measure"], f.repo, f.env)
+      expect(measured.body.exit_code).toBe(0)
+      await Bun.sleep(1200)
+      await expect(stat(path.join(worktree, "late-measure"))).rejects.toThrow()
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("rejects a forged CP-3 row instead of accepting caller-supplied hashes", async () => {
+    const f = await fixture()
+    try {
+      await start(f)
+      const worktree = await createWorktree(f, "forged-checkpoint")
+      await lock(f, worktree, "attempt-checkpoint", 0, "checkpoint")
+      await checked(["python3", "-I", "-S", CONTROLLER, "dispatch", "--run-id", "run", "--attempt-id", "attempt-checkpoint", "--prompt", f.prompt], f.repo, f.env)
+      await checked(["python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", "attempt-checkpoint"], f.repo, f.env)
+      const measured = await checked(["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", "attempt-checkpoint"], f.repo, f.env)
+      const checkpointPath = await writeCheckpoint(f, "attempt-checkpoint", measured.body, { result_marker_digest: "0".repeat(64) })
+      const forged = await run(["python3", "-I", "-S", CONTROLLER, "checkpoint", "--run-id", "run", "--attempt-id", "attempt-checkpoint", "--checkpoint-path", checkpointPath], f.repo, f.env)
+      expect(forged.exitCode).toBe(4)
+      expect(forged.stderr).toMatch(/CP-3 evidence/i)
+      const state = await checked(["python3", "-I", "-S", CONTROLLER, "status", "--run-id", "run"], f.repo, f.env)
+      expect(state.body.attempts["attempt-checkpoint"].final_state).toBeNull()
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("keeps a completed checkpoint valid when later rows append and allowed outcome fields change", async () => {
+    const f = await fixture()
+    try {
+      const attemptId = "attempt-append-safe"
+      await prepareAcceptedAuthor(f, "append-safe", attemptId)
+      const measured = await checked(["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", attemptId], f.repo, f.env)
+      const checkpointPath = await writeCheckpoint(f, attemptId, measured.body, { outcome: "candidate" })
+      const checkpoint = await checked(["python3", "-I", "-S", CONTROLLER, "checkpoint", "--run-id", "run", "--attempt-id", attemptId, "--checkpoint-path", checkpointPath], f.repo, f.env)
+      expect(checkpoint.body.digest).toMatch(/^[a-f0-9]{64}$/)
+
+      const log = JSON.parse(await readFile(checkpointPath, "utf8"))
+      log.experiments[0].outcome = "winner"
+      log.experiments[0].notes = "updated after comparison"
+      log.experiments.push({ run_id: "other-run", attempt_id: attemptId, outcome: "candidate" })
+      await writeFile(checkpointPath, JSON.stringify(log))
+
+      const status = await checked(["python3", "-I", "-S", CONTROLLER, "status", "--run-id", "run"], f.repo, f.env)
+      expect(status.body.attempts[attemptId].final_state).toBe("completed")
+      expect(status.body.attempts[attemptId].checkpoint.digest).toBe(checkpoint.body.digest)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("blocks a completed checkpoint when its immutable controller evidence changes", async () => {
+    const f = await fixture()
+    try {
+      const attemptId = "attempt-immutable-checkpoint"
+      await prepareAcceptedAuthor(f, "immutable-checkpoint", attemptId)
+      const measured = await checked(["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", attemptId], f.repo, f.env)
+      const checkpointPath = await writeCheckpoint(f, attemptId, measured.body)
+      await checked(["python3", "-I", "-S", CONTROLLER, "checkpoint", "--run-id", "run", "--attempt-id", attemptId, "--checkpoint-path", checkpointPath], f.repo, f.env)
+
+      const log = JSON.parse(await readFile(checkpointPath, "utf8"))
+      log.experiments[0].metrics_digest = "0".repeat(64)
+      await writeFile(checkpointPath, JSON.stringify(log))
+      const blocked = await run(["python3", "-I", "-S", CONTROLLER, "status", "--run-id", "run"], f.repo, f.env)
+      expect(blocked.exitCode).toBe(4)
+      expect(blocked.stderr).toMatch(/checkpoint.*immutable|CP-3 evidence/i)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("excludes project-owned Codex executables before dispatch", async () => {
+    const f = await fixture()
+    try {
+      await start(f)
+      const worktree = await createWorktree(f, "project-executable")
+      const projectExecutable = path.join(f.repo, "codex")
+      await writeFile(projectExecutable, "#!/bin/sh\nexit 0\n", { mode: 0o755 })
+      await chmod(projectExecutable, 0o755)
+      const unavailable = await checked([
+        "python3", "-I", "-S", CONTROLLER, "lock-attempt", "--run-id", "run",
+        "--attempt-id", "project-executable", "--role", "author", "--instance-id", "project-executable",
+        "--ordinal", "0", "--adapter", "codex", "--worktree", worktree,
+        "--executable", projectExecutable, "--auth-manifest", f.authManifest,
+      ], f.repo, f.env)
+      expect(unavailable.word).toBe("UNAVAILABLE")
+      expect(unavailable.body.preflight_error).toMatch(/project or experiment worktree/i)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test.each([0o775, 0o777])("rejects a mode %o group/world-writable Codex executable", async (mode) => {
+    const f = await fixture()
+    try {
+      await start(f)
+      const worktree = await createWorktree(f, `executable-${mode.toString(8)}`)
+      await chmod(f.fake, mode)
+      const unavailable = await lock(f, worktree, `attempt-executable-${mode.toString(8)}`, 0, `executable-${mode.toString(8)}`)
+      expect(unavailable.word).toBe("UNAVAILABLE")
+      expect(unavailable.body.preflight_error).toMatch(/owner\/mode trusted/i)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("rejects an executable below an unsafe non-sticky writable ancestor", async () => {
+    const f = await fixture()
+    try {
+      await start(f)
+      const worktree = await createWorktree(f, "unsafe-executable-ancestor")
+      await chmod(f.bin, 0o777)
+      const unavailable = await lock(f, worktree, "attempt-unsafe-ancestor", 0, "unsafe-ancestor")
+      expect(unavailable.word).toBe("UNAVAILABLE")
+      expect(unavailable.body.preflight_error).toContain(f.bin)
+      expect(unavailable.body.preflight_error).toMatch(/owner\/mode trusted/i)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("denies cleanup when the managed worktree is checked out on a different branch", async () => {
+    const f = await fixture()
+    try {
+      const attemptId = "attempt-branch-mismatch"
+      const worktree = await prepareAcceptedAuthor(f, "branch-mismatch", attemptId)
+      const measured = await checked(["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", attemptId], f.repo, f.env)
+      const checkpointPath = await writeCheckpoint(f, attemptId, measured.body)
+      await checked(["python3", "-I", "-S", CONTROLLER, "checkpoint", "--run-id", "run", "--attempt-id", attemptId, "--checkpoint-path", checkpointPath], f.repo, f.env)
+      await checked(["git", "-C", worktree, "checkout", "-q", "-b", "optimize-exp/mismatch/exp-999"], f.repo, f.env)
+
+      const cleanup = await run(["bash", WORKTREE, "cleanup", "branch-mismatch", "1"], f.repo, f.env)
+      expect(cleanup.exitCode).not.toBe(0)
+      expect(cleanup.stderr).toMatch(/unexpected branch/i)
+      expect((await stat(worktree)).isDirectory()).toBe(true)
+      const originalBranch = await run(["git", "show-ref", "--verify", "refs/heads/optimize-exp/branch-mismatch/exp-001"], f.repo, f.env)
+      expect(originalBranch.exitCode).toBe(0)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("holds the worktree lock across cleanup so a new attempt cannot race mutation", async () => {
+    const f = await fixture()
+    try {
+      await start(f)
+      const worktree = await createWorktree(f, "cleanup-race")
+      await lock(f, worktree, "attempt-cleanup", 0, "cleanup")
+      await checked(["python3", "-I", "-S", CONTROLLER, "dispatch", "--run-id", "run", "--attempt-id", "attempt-cleanup", "--prompt", f.prompt], f.repo, f.env)
+      await checked(["python3", "-I", "-S", CONTROLLER, "finalize", "--run-id", "run", "--attempt-id", "attempt-cleanup"], f.repo, f.env)
+      const measured = await checked(["python3", "-I", "-S", CONTROLLER, "measure", "--run-id", "run", "--attempt-id", "attempt-cleanup"], f.repo, f.env)
+      const checkpointPath = await writeCheckpoint(f, "attempt-cleanup", measured.body)
+      await checked(["python3", "-I", "-S", CONTROLLER, "checkpoint", "--run-id", "run", "--attempt-id", "attempt-cleanup", "--checkpoint-path", checkpointPath], f.repo, f.env)
+
+      const cleanup = Bun.spawn(["bash", WORKTREE, "cleanup", "cleanup-race", "1"], {
+        cwd: f.repo,
+        env: { ...process.env, ...f.env, CE_OPTIMIZE_TEST_MUTATION_PAUSE: "1" },
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      await Bun.sleep(200)
+      const racingLock = await run([
+        "python3", "-I", "-S", CONTROLLER, "lock-attempt", "--run-id", "run",
+        "--attempt-id", "attempt-racing", "--role", "author", "--instance-id", "racing",
+        "--ordinal", "0", "--adapter", "codex", "--worktree", worktree,
+        "--executable", f.fake, "--auth-manifest", f.authManifest,
+      ], f.repo, f.env)
+      const cleanupStderr = await new Response(cleanup.stderr).text()
+      expect(await cleanup.exited, cleanupStderr).toBe(0)
+      expect(racingLock.exitCode).toBe(4)
+      const state = await checked(["python3", "-I", "-S", CONTROLLER, "status", "--run-id", "run"], f.repo, f.env)
+      expect(state.body.attempts).not.toHaveProperty("attempt-racing")
     } finally {
       await rm(f.root, { recursive: true, force: true })
     }

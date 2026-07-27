@@ -1,17 +1,16 @@
 #!/bin/bash
 
 # Measurement Runner
-# Runs a measurement command, captures JSON output, and handles timeouts.
-# The orchestrating agent (not this script) evaluates gates and handles
-# stability repeats.
+# Preflight-smokes a measurement command before controller attempts exist.
+# Authoritative baseline/experiment measurement, stability repeats, aggregation,
+# confinement, and lifecycle evidence belong to optimize-controller.py.
 #
-# Usage: measure.sh <command> <timeout_seconds> [working_directory] [KEY=VALUE ...]
+# Usage: measure.sh <command> <timeout_seconds> [working_directory]
 #
 # Arguments:
 #   command          - Shell command to run (e.g., "python evaluate.py")
 #   timeout_seconds  - Maximum seconds before killing the command
 #   working_directory - Directory to run the command in (default: .)
-#   KEY=VALUE        - Optional environment variables to set before running
 #
 # Output:
 #   stdout: Raw JSON output from the measurement command
@@ -31,12 +30,10 @@ if [[ $# -gt 0 ]] && [[ "$1" != *=* ]]; then
   shift
 fi
 
-# Set any KEY=VALUE environment variables
-for arg in "$@"; do
-  if [[ "$arg" == *=* ]]; then
-    export "$arg"
-  fi
-done
+if [[ $# -gt 0 ]]; then
+  echo "Error: preflight measurement accepts no environment overrides" >&2
+  exit 2
+fi
 
 # Change to working directory
 cd "$WORKDIR" || {
@@ -46,17 +43,20 @@ cd "$WORKDIR" || {
 
 run_with_timeout() {
   if command -v timeout >/dev/null 2>&1; then
-    timeout "$TIMEOUT" bash -c "$COMMAND"
+    env -i PATH=/usr/local/bin:/usr/bin:/bin HOME= LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+      timeout "$TIMEOUT" bash -c "$COMMAND"
     return
   fi
 
   if command -v gtimeout >/dev/null 2>&1; then
-    gtimeout "$TIMEOUT" bash -c "$COMMAND"
+    env -i PATH=/usr/local/bin:/usr/bin:/bin HOME= LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+      gtimeout "$TIMEOUT" bash -c "$COMMAND"
     return
   fi
 
   if command -v python3 >/dev/null 2>&1; then
-    python3 - "$TIMEOUT" "$COMMAND" <<'PY'
+    env -i PATH=/usr/local/bin:/usr/bin:/bin HOME= LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+      python3 - "$TIMEOUT" "$COMMAND" <<'PY'
 import os
 import signal
 import subprocess

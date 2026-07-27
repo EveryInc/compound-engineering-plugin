@@ -61,7 +61,7 @@ The approved optimization spec remains higher authority than routing. A route ca
 
 Every author and judge attempt is locked before dispatch and bound to role, experiment/judge instance, recipient, backend, worktree, approved spec and constraints digests, exact measurement command/digest, mutable/immutable scopes, execution policy, and stopping criteria. Required output remains quarantined until identity and scope verification accepts it. The controller derives adapter outcome, terminal/integrated state, serving model/effort evidence, and cumulative prior history from its own process/host receipts, result markers, and checkpoints; callers and workers do not supply these fields to finalization.
 
-All Codex author or judge commands run through the controller's co-located Linux Landlock adapter with a fresh empty environment, isolated HOME/XDG/temp/backend roots, and only explicit private JSON backend auth. Real home, ambient tokens, `.env*`, SSH/cloud stores, hidden references, canonical checkout, controller results, and unrelated paths remain inaccessible. If the exact executable, interpreter, confinement, auth, environment, or receipt boundary cannot be preserved, preflight is unavailable. The semantic judge remains a distinct instance with no experiment worktree or mutable authority and receives only rubric plus sampled candidate output.
+All Codex author or judge commands and every controller measurement run through the controller's co-located Linux Landlock/network-denial adapter with a fresh empty environment, isolated HOME/XDG/temp/backend roots, and only explicit private JSON backend auth. Real home, ambient tokens, `.env*`, SSH/cloud stores, hidden references, canonical checkout, controller results, unrelated paths, and network sockets remain inaccessible. A launch barrier records authority before child code runs, and a child subreaper kills/reaps double-forked or `setsid` descendants before terminal evidence. If the exact executable, interpreter, confinement, auth, environment, or receipt boundary cannot be preserved, preflight is unavailable. The semantic judge remains a distinct instance with no experiment worktree or mutable authority and receives only rubric plus sampled candidate output.
 
 The controller appends each redacted event before returning it. Import and verify events in `routing-events.jsonl`/`route_events` sequence before display, and preserve existing bounded dispatch and backpressure; routing never changes queue membership or concurrency.
 
@@ -87,7 +87,7 @@ Every piece of state that matters MUST live on disk, not in the agent's memory.
 
 4. **The experiment log is append-only during Phase 3** — never rewrite the full file. Append new experiment entries. Update the `best` section in place only when a new best is found. This prevents data loss if a write is interrupted.
 
-5. **Per-experiment result markers for crash recovery** — `optimize-controller.py measure` writes controller-owned `result-marker.json` plus the bound `result.yaml` mirror immediately after measurement. On resume, recover only a marker that controller state validates against the snapshot, attempt lock, constraints/measurement digests, and accepted author receipt.
+5. **Per-experiment result markers for crash recovery** — `optimize-controller.py measure` executes the exact frozen stability repeats under confinement and writes one controller-owned `result-marker.json` plus the bound `result.yaml` mirror after deterministic aggregation. On resume, recover only a marker that controller state validates against the snapshot, attempt lock, constraints/measurement digests, accepted author receipt, repeat policy, and supervised process evidence.
 
 6. **Strategy digest is written after every batch, before generating new hypotheses** — the agent reads the digest (not its memory) when deciding what to try next.
 
@@ -297,6 +297,8 @@ Filter the output against the scope paths. If any in-scope files have uncommitte
 - Ask the user to commit or stash before proceeding
 - Do NOT continue until the working tree is clean for in-scope files
 
+Git status is only an operator preview. Before every attempt lock, the controller walks and digests the complete worktree, including ignored/untracked material, and rejects symlinks, special files, undeclared shared inputs, and every out-of-scope path. That inventory, not this preview, is dispatch authority.
+
 ### 1.2 Build or Validate Measurement Harness
 
 **If user provides a measurement harness** (the `measurement.command` already exists):
@@ -488,7 +490,7 @@ The Phase 3 blocks below each set `SKILL_DIR` inline as well (the loaded `ce-opt
    SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
    WORKTREE_PATH=$(bash "$SKILL_DIR/scripts/experiment-worktree.sh" create "<spec_name>" <exp_index> "optimize/<spec_name>" --routed <shared_files...>)  # profile binding
    ```
-3. Immediately call controller `lock-attempt` for this author role/experiment instance with `--adapter host` and the returned worktree. The lock must succeed before constructing or sending recipient material. Apply port parameterization only to the later controller-owned measurement process; do not forward measurement environment to the author.
+3. Immediately call controller `lock-attempt` for this author role/experiment instance with `--adapter host` and the returned worktree. The lock must succeed before constructing recipient material. Call `authorize-host` immediately before dispatch; do not release the host launch barrier until its durable token is recorded. Apply port parameterization only to the later controller-owned measurement process; do not forward measurement environment to the author.
 4. Fill the experiment prompt template (`references/experiment-prompt-template.md`) into a private file with:
    - Iteration number, spec name
    - Hypothesis description and category
@@ -498,7 +500,7 @@ The Phase 3 blocks below each set `SKILL_DIR` inline as well (the loaded `ce-opt
    - Constraints and approved dependencies
    - Rolling window of last 10 experiments (concise summaries)
 <!-- ce-dispatch-site:ce-optimize.worktree-experiment -->
-5. Dispatch a generic subagent with the qualified model selector outside the prompt, working in the experiment worktree. Preserve existing tools, permission mode, bounded scheduling, and the controller lock. Supply only the freshly constructed sanctioned environment. The owning host, not the worker, writes the terminal/serving receipt described in `references/controller-protocol.md`, then records it with controller `record-host`. If the host cannot isolate the environment or issue that receipt, preflight is unavailable.
+5. Dispatch a generic subagent with the qualified model selector outside the prompt, working in the experiment worktree. Preserve existing tools, permission mode, bounded scheduling, and the controller lock. Supply only the freshly constructed sanctioned environment under inherited Landlock. The owning host, not the worker, supervises/reaps every descendant and writes the launch-token-bound terminal/serving receipt described in `references/controller-protocol.md`, then records it with controller `record-host`. If the host cannot enforce the barrier, confinement, descendant supervision, or receipt, preflight is unavailable; an unknown launch cannot be abandoned.
 
 **Codex backend:**
 1. Select the next candidate only from controller status. It is eligible only with `harness: codex` and a safe model selector accepted by the fixed controller adapter.
@@ -532,8 +534,8 @@ For each completed experiment, **immediately**:
     SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
     python3 -I -S "$SKILL_DIR/scripts/optimize-controller.py" measure --run-id "<run-id>" --attempt-id "<attempt-id>"
     ```
-   - If stability mode is `repeat`, run the measurement harness `repeat_count` times in that working directory and aggregate the results exactly as in Phase 1 before evaluating gates or ranking the experiment.
-   - Use the aggregated metrics as the experiment's score; if variance exceeds `noise_threshold`, record that in learnings so the operator knows the result is noisy.
+   - The controller runs exactly `repeat_count` executions from the frozen stability policy and applies the frozen aggregation before publishing one marker. Never invoke `measure` again to add a repeat or aggregate in conversation.
+   - Use the controller's aggregated metrics as the experiment's score; if its spread evidence exceeds `noise_threshold`, record that in learnings so the operator knows the result is noisy.
 
 4. **Verify the crash-recovery marker** — controller measurement writes private `result-marker.json` and the bound worktree `result.yaml` mirror containing snapshot, attempt-lock, accepted author receipt, constraints/measurement digests, process result, and raw-output digests. Read controller status and the marker back. Never mint or repair marker authority from a worktree file.
 
@@ -562,7 +564,7 @@ For each completed experiment, **immediately**:
 
 9. **IMMEDIATELY append to experiment log on disk (CP-3)** — do not defer this to batch evaluation. Write the experiment entry (iteration, routing snapshot, attempt lock, author receipt, judge receipts, hypothesis, outcome, metrics, learnings) to `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml` right now. Use the transitional outcome `measured` once the experiment has valid metrics but has not yet been compared to the current best. Update the outcome to `kept`, `reverted`, or another terminal state in the evaluation step, but the raw metrics are on disk and safe from context compaction.
 
-10. **VERIFY and checkpoint CP-3** — read the experiment log back and confirm the entry, snapshot, lock, metrics, and receipts. Hash the recorded checkpoint and call controller `checkpoint` for the author plus every accepted judge instance. If verification fails, retry the write and do not checkpoint. Only controller `completed`/`abandoned` state permits `experiment-worktree.sh cleanup`; there is no caller override flag.
+10. **VERIFY and checkpoint CP-3** — read the experiment log back and confirm the entry, snapshot, lock, metrics, and receipts. Call controller `checkpoint --checkpoint-path <approved-experiment-log>` for the author plus every accepted judge instance. The row must include the controller's run/attempt/snapshot/spec/lock/receipt/constraints/measurement/marker/metrics digests; the controller reopens and parses the exact bytes rather than trusting a caller hash. If verification fails, retry the write and do not checkpoint. Only controller `completed`/`abandoned` state permits `experiment-worktree.sh cleanup`; destructive cleanup remains inside the controller's per-worktree lock.
 
 **Why immediately + verify?** The agent's context window is NOT a durable store. Context compaction, session crashes, and restarts are expected during long runs — results that exist only in the agent's memory are lost. The verification step catches silent write failures that would otherwise lose data.
 

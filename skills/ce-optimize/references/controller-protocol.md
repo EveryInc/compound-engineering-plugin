@@ -10,10 +10,13 @@ reuse. A worker response, conversation claim, PID supplied by a caller,
 
 Create one private constraints JSON object from the approved spec. It contains
 exactly `backend`, `codex_security`, `measurement`, `scope`, `execution`,
-`judge`, `stopping`, `shared_files`, and `sanctioned_env`. Copy complete values;
+`judge`, `stopping`, `shared_files`, `sanctioned_env`, and `experiment_log`. Copy complete values;
 do not let a candidate or worker construct this file. `sanctioned_env` is an
 explicit name-to-value map and cannot include home/path/XDG overrides, token or
-secret names, SSH variables, or cloud credential variables. The `judge` object
+secret names, SSH/cloud variables, dynamic-loader names, shell startup hooks, or
+language runtime/loader hooks. The normalized `measurement` includes the exact
+stability mode, repeat count, aggregation, and noise threshold. `experiment_log`
+is the canonical repository-relative CP-3 path. The `judge` object
 records the owning adapter (`host` or `codex`) in addition to the unchanged
 rubric/sampling contract; this records runtime mechanics and does not activate
 judging or alter the approved spec.
@@ -53,11 +56,13 @@ frozen resolver snapshot/binding/lock projections before returning state.
 
 Create a new worktree only after CP-0. Then lock each author or judge instance
 before dispatch. Use a unique attempt ID and stable instance ID; fallback
-candidates for one instance use ordinal 0, 1, ... and fresh attempt IDs.
+candidates for one instance use fresh attempt IDs. The candidate ordinal starts
+at 0 and is never the experiment number; experiment instance identity remains
+stable while fallback ordinals advance through 0, 1, ... independently.
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
-python3 -I -S "$SKILL_DIR/scripts/optimize-controller.py" lock-attempt --run-id "<run-id>" --attempt-id "<attempt-id>" --role author --instance-id "experiment-<n>" --ordinal <n> --adapter codex --worktree "<canonical-worktree>" --executable "<absolute-codex>" --auth-manifest "<private-auth-manifest.json>"
+python3 -I -S "$SKILL_DIR/scripts/optimize-controller.py" lock-attempt --run-id "<run-id>" --attempt-id "<attempt-id>" --role author --instance-id "experiment-<experiment-number>" --ordinal <candidate-ordinal> --adapter codex --worktree "<canonical-worktree>" --executable "<absolute-codex>" --auth-manifest "<private-auth-manifest.json>"
 ```
 
 For a native host judge or worktree author, use `--adapter host` and omit Codex
@@ -65,8 +70,10 @@ arguments. A judge attempt never receives `--worktree`. The controller rejects
 an adapter that differs from the frozen author backend or judge adapter. The
 lock binds role, instance, recipient, candidate, backend, worktree, spec and
 constraints digests, measurement command/digest, mutable/immutable scopes,
-execution policy, stopping criteria, executable identity, auth material, and
-the exact resolver attempt lock.
+execution policy, stopping criteria, stability policy, full pre-dispatch
+filesystem inventory digest, executable identity, auth material, and the exact
+resolver attempt lock. One role + instance + candidate ordinal can be locked
+only once, with exactly monotonic prior history.
 
 The Codex auth manifest is private JSON with exactly this shape:
 
@@ -77,8 +84,9 @@ The Codex auth manifest is private JSON with exactly this shape:
 Authorize at most four effective-user-owned `0600` JSON files outside the
 repository. Never authorize a directory, `.env*`, SSH/cloud store, unrelated
 backend store, or ambient token. The controller stages only those files below
-the private attempt root. Missing Landlock, unsafe auth, tracked `.env*`, an
-ineligible candidate, or an unavailable executable returns `UNAVAILABLE`
+the private attempt root. Missing Landlock/seccomp, unsafe auth, tracked `.env*`,
+an ineligible candidate, or an executable with untrusted owner/mode/ancestors or
+inside the project/worktree returns `UNAVAILABLE`
 before egress.
 
 For Codex, write the prompt to a private `0600` file and dispatch only through
@@ -99,17 +107,27 @@ cannot read an experiment worktree, hidden references, real home, canonical
 checkout, `.env*`, SSH/cloud stores, or controller results. Wrapper,
 interpreter, policy, or receipt substitution blocks.
 
-For a native host dispatch, the owning host writes a private receipt with this
-exact shape and records it before finalization:
+The controller records launch authority before releasing a one-use barrier.
+The confined adapter is a Linux child subreaper, denies socket creation, and
+kills/reaps all descendants, including double-forked or `setsid` children,
+before terminal evidence. A controller crash leaves recoverable process state;
+it never turns unknown execution into abandonment or worktree-reuse authority.
+
+For a native host dispatch, call `authorize-host` before releasing the harness
+launch barrier. The owning host must inherit Landlock, supervise/reap all
+descendants, and write a private receipt with this exact shape before
+finalization:
 
 ```json
-{"protocol":"ce-optimize-host-receipt/v1","attempt_id":"<attempt-id>","lock_digest":"<controller-lock-digest>","outcome":"ok","process":{"terminal":true,"exit_code":0},"serving_report":{"model_actual":"<host-receipted-model>","effort_actual":"<host-receipted-effort>"}}
+{"protocol":"ce-optimize-host-receipt/v1","attempt_id":"<attempt-id>","lock_digest":"<controller-lock-digest>","launch_token":"<authorize-host-token>","outcome":"ok","process":{"terminal":true,"exit_code":0,"launch_authority_recorded":true,"all_descendants_gone":true,"confinement":"inherited-landlock"},"serving_report":{"model_actual":"<host-receipted-model>","effort_actual":"<host-receipted-effort>"}}
 ```
 
 Omit absent serving fields; never copy a worker claim into `serving_report`.
 Record it with `record-host --run-id <run-id> --attempt-id <attempt-id>
 --receipt <private-receipt>`. If the host cannot issue this receipt while
-preserving the environment and workspace boundary, preflight is unavailable.
+preserving the environment/workspace boundary, launch barrier, inherited
+Landlock, and descendant supervisor, preflight is unavailable. Missing terminal
+evidence remains unknown and cannot be abandoned or reused.
 
 ## Finalization And Integration
 
@@ -130,9 +148,17 @@ Do not reuse prompt, auth root, environment, worktree dirt, or receipt.
 
 After an accepted author result, run the frozen measurement only through
 `measure --run-id <run-id> --attempt-id <attempt-id>`. The controller owns the
-process receipt and writes the bound `result-marker.json` plus `result.yaml`.
+launch barrier and descendant supervisor, applies sanctioned values only to the
+already-confined child, executes the exact frozen repeats, deterministically
+aggregates them, and writes one bound `result-marker.json` plus `result.yaml`.
 Append and verify CP-3 before calling `checkpoint --run-id <run-id>
---attempt-id <attempt-id> --checkpoint-digest <sha256-of-recorded-checkpoint>`.
+--attempt-id <attempt-id> --checkpoint-path <approved-experiment-log>`.
+The controller opens that exact path without following the final component,
+parses one corresponding row, and verifies run, attempt, snapshot, spec, lock,
+receipt, constraints, measurement, marker, and metrics digests.
+It retains the whole-file digest as checkpoint-time history. Later validation
+reopens the log and verifies only that row's immutable controller-bound fields,
+so appended experiments and mutable outcome updates do not invalidate it.
 For an accepted judge, parse/aggregate only after acceptance, append and verify
 the score checkpoint, then call the same `checkpoint` command. This marks the
 instance completed and integrated.
@@ -144,6 +170,11 @@ overrides the lease. Worktree reset/cleanup is permitted only when every bound
 attempt is controller-verified `completed` or `abandoned`; live, dispatching,
 unknown, crashed-before-receipt, blocked-but-preserved, or missing state denies
 reset.
+
+All destructive reset, clean, worktree removal, branch reset/deletion, and
+prune operations run inside controller `worktree-mutate` while the per-worktree
+lock is held. Shell helpers never check a lease and mutate after releasing it;
+new attempt locks contend on the same lock.
 
 Every controller mutation appends and fsyncs a redacted event before returning
 it. Import those events into the experiment log in sequence before displaying
