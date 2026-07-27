@@ -179,6 +179,14 @@ async function fixture(): Promise<{ root: string; home: string; project: string 
   return { root, home, project }
 }
 
+async function waitForFile(file: string): Promise<void> {
+  const deadline = Date.now() + 5_000
+  while (!(await Bun.file(file).exists())) {
+    if (Date.now() >= deadline) throw new Error(`timed out waiting for ${file}`)
+    await Bun.sleep(10)
+  }
+}
+
 describe("routing resolver", () => {
   test("merges sparse project settings and resolves role over class", async () => {
     const f = await fixture()
@@ -1343,6 +1351,177 @@ describe("routing resolver", () => {
       await rm(f.root, { recursive: true, force: true })
     }
   })
+
+  test("restores the source when interrupted immediately after displacement", async () => {
+    const f = await fixture()
+    try {
+      const configPath = path.join(f.home, "config.yaml")
+      await writeFile(configPath, "plan_output: md\n", { mode: 0o600 })
+      const probe = [
+        "import importlib.util, os",
+        `resolver_path = ${JSON.stringify(resolver)}`,
+        `config_path = ${JSON.stringify(configPath)}`,
+        "spec = importlib.util.spec_from_file_location('ce_routing_interrupt_test', resolver_path)",
+        "module = importlib.util.module_from_spec(spec)",
+        "spec.loader.exec_module(module)",
+        "raw = open(config_path, 'rb').read()",
+        "source = {'exists': True, 'identity': module.file_identity(os.stat(config_path)), 'revision': module.digest('cecfg-v1', raw)}",
+        "original_rename = module.os.rename",
+        "def interrupt_after_displacement(src, dst, *args, **kwargs):\n    result = original_rename(src, dst, *args, **kwargs)\n    if src == os.path.basename(config_path):\n        raise KeyboardInterrupt()\n    return result",
+        "module.os.rename = interrupt_after_displacement",
+        "try:\n    module.atomic_write(config_path, b'plan_output: html\\n', source, 262144)\nexcept module.RoutingError as error:\n    print(module.canonical_json({'code': error.code, **error.details}))\nelse:\n    raise SystemExit('interruption was not raised')",
+      ].join("\n")
+      const proc = Bun.spawn(["python3", "-I", "-S", "-c", probe], {
+        cwd: f.project,
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      const [exitCode, stdout, stderr] = await Promise.all([
+        proc.exited,
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+      ])
+
+      expect(exitCode, stderr).toBe(0)
+      const conflict = JSON.parse(stdout)
+      expect(conflict.code).toBe("WRITE_CONFLICT")
+      expect(await readFile(configPath, "utf8")).toBe("plan_output: md\n")
+      expect(await readFile(conflict.candidate_path, "utf8")).toBe("plan_output: html\n")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("blocks snapshot readers across the missing replacement boundary", async () => {
+    const f = await fixture()
+    let writer: any
+    let interruptedReader: any
+    let reader: any
+    try {
+      const configPath = path.join(f.home, "config.yaml")
+      const boundary = path.join(f.root, "replacement-paused")
+      const release = path.join(f.root, "release-replacement")
+      const interruptedAttempt = path.join(f.root, "interrupted-reader-attempted")
+      const interruptedAcquired = path.join(f.root, "interrupted-reader-acquired")
+      const readerAttempt = path.join(f.root, "reader-attempted")
+      const readerAcquired = path.join(f.root, "reader-acquired")
+      const oldConfig = `routing:\n  profiles:\n    guarded:\n      candidates:\n        - { harness: codex, model: old-policy }\n  classes:\n    implementation: { profile: guarded, policy: require }\n`
+      const newRouting = {
+        profiles: { guarded: { candidates: [{ harness: "codex", model: "new-policy" }] } },
+        classes: { implementation: { profile: "guarded", policy: "require" } },
+        roles: {},
+      }
+      await writeFile(configPath, oldConfig, { mode: 0o600 })
+      const expectedRevision = `cecfg-v1:${createHash("sha256").update(oldConfig).digest("hex")}`
+      const writerProbe = [
+        "import importlib.util, os, time",
+        `resolver_path = ${JSON.stringify(resolver)}`,
+        `config_path = ${JSON.stringify(configPath)}`,
+        `boundary = ${JSON.stringify(boundary)}`,
+        `release = ${JSON.stringify(release)}`,
+        "spec = importlib.util.spec_from_file_location('ce_routing_paused_writer', resolver_path)",
+        "module = importlib.util.module_from_spec(spec)",
+        "spec.loader.exec_module(module)",
+        "original_rename = module.os.rename",
+        "def pause_after_displacement(src, dst, *args, **kwargs):\n    result = original_rename(src, dst, *args, **kwargs)\n    if src == os.path.basename(config_path):\n        with open(boundary, 'xb'):\n            pass\n        while not os.path.exists(release):\n            time.sleep(0.005)\n    return result",
+        "module.os.rename = pause_after_displacement",
+        "module.main()",
+      ].join("\n")
+      const patchRequest = {
+        protocol: "ce-routing/v1",
+        op: "patch_source",
+        cwd: f.project,
+        writer: "ce-setup",
+        layer: "global",
+        expected_revision: expectedRevision,
+        set: { routing: newRouting },
+        remove: [],
+      }
+      writer = Bun.spawn(["python3", "-I", "-S", "-c", writerProbe], {
+        cwd: f.project,
+        env: {
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+          HOME: f.home,
+          COMPOUND_ENGINEERING_HOME: f.home,
+        },
+        stdin: new Blob([JSON.stringify(patchRequest)]),
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      await waitForFile(boundary)
+
+      const request = {
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        intents: [],
+        roles: [{ role: "ce-work.implementation-worker" }],
+      }
+      const spawnObservedReader = (attempted: string, acquired: string) => {
+        const readerProbe = [
+          "import importlib.util",
+          `resolver_path = ${JSON.stringify(resolver)}`,
+          `attempted = ${JSON.stringify(attempted)}`,
+          `acquired = ${JSON.stringify(acquired)}`,
+          "spec = importlib.util.spec_from_file_location('ce_routing_observed_reader', resolver_path)",
+          "module = importlib.util.module_from_spec(spec)",
+          "spec.loader.exec_module(module)",
+          "original_flock = module.fcntl.flock",
+          "observed = [False]",
+          "def observe_shared_lock(fd, operation):\n    first_shared = operation == module.fcntl.LOCK_SH and not observed[0]\n    if first_shared:\n        observed[0] = True\n        with open(attempted, 'xb'):\n            pass\n    result = original_flock(fd, operation)\n    if first_shared:\n        with open(acquired, 'xb'):\n            pass\n    return result",
+          "module.fcntl.flock = observe_shared_lock",
+          "module.main()",
+        ].join("\n")
+        return Bun.spawn(["python3", "-I", "-S", "-c", readerProbe], {
+          cwd: f.project,
+          env: {
+            PATH: process.env.PATH ?? "/usr/bin:/bin",
+            HOME: f.home,
+            COMPOUND_ENGINEERING_HOME: f.home,
+          },
+          stdin: new Blob([JSON.stringify(request)]),
+          stdout: "pipe",
+          stderr: "pipe",
+        })
+      }
+
+      interruptedReader = spawnObservedReader(interruptedAttempt, interruptedAcquired)
+      await waitForFile(interruptedAttempt)
+      await Bun.sleep(50)
+      expect(await Bun.file(interruptedAcquired).exists()).toBe(false)
+      interruptedReader.kill()
+      await interruptedReader.exited
+
+      reader = spawnObservedReader(readerAttempt, readerAcquired)
+      await waitForFile(readerAttempt)
+      await Bun.sleep(50)
+      expect(await Bun.file(readerAcquired).exists()).toBe(false)
+
+      await writeFile(release, "release\n")
+      const [writerExit, writerStdout, writerStderr, readerExit, readerStdout, readerStderr] = await Promise.all([
+        writer.exited,
+        new Response(writer.stdout).text(),
+        new Response(writer.stderr).text(),
+        reader.exited,
+        new Response(reader.stdout).text(),
+        new Response(reader.stderr).text(),
+      ])
+      expect(writerExit, writerStderr).toBe(0)
+      expect(JSON.parse(writerStdout).ok).toBe(true)
+      expect(readerExit, readerStderr).toBe(0)
+      const resolved = JSON.parse(readerStdout)
+      expect(resolved.sources.global.exists).toBe(true)
+      expect(resolved.resolutions[0].binding.kind).not.toBe("ce-default")
+      expect(resolved.resolutions[0].binding.policy).toBe("require")
+      expect(["old-policy", "new-policy"]).toContain(resolved.resolutions[0].binding.candidates[0].model)
+    } finally {
+      for (const process of [writer, interruptedReader, reader]) {
+        process?.kill()
+        if (process) await process.exited.catch(() => {})
+      }
+      await rm(f.root, { recursive: true, force: true })
+    }
+  }, 15_000)
 
   test("finalize_attempt rejects all nonterminal or integrated states and exactness violations", async () => {
     const f = await fixture()

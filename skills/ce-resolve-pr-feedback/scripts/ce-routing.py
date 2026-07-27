@@ -1001,15 +1001,23 @@ def source_public(source):
 def load_sources(cwd, schema, roles):
     limits = schema["limits"]
     global_root, global_path = global_config_path()
-    global_source = read_source("global", global_root, global_path, limits)
     repo = project_root(cwd)
     if repo is None:
-        project_source = absent_source("project", None)
+        project_root_dir = None
+        project_path = None
     else:
         project_root_dir = os.path.join(repo, ".compound-engineering")
         project_path = os.path.join(project_root_dir, "config.local.yaml")
-        project_source = read_source("project", project_root_dir, project_path, limits, repo=repo)
-    return validate_source(global_source, schema, roles), validate_source(project_source, schema, roles), repo
+    lock_paths = [global_path] + ([project_path] if project_path is not None else [])
+    with read_locks(lock_paths):
+        global_source = read_source("global", global_root, global_path, limits)
+        if project_path is None:
+            project_source = absent_source("project", None)
+        else:
+            project_source = read_source("project", project_root_dir, project_path, limits, repo=repo)
+        global_source = validate_source(global_source, schema, roles)
+        project_source = validate_source(project_source, schema, roles)
+    return global_source, project_source, repo
 
 
 def routing_parts(source):
@@ -2444,7 +2452,10 @@ def ensure_private_dir(path):
 
 
 @contextlib.contextmanager
-def write_lock(path):
+def routing_lock(path, operation):
+    writing = operation == fcntl.LOCK_EX
+    error_code = "WRITE_UNSAFE" if writing else "CONFIG_UNSAFE"
+    exit_code = 5 if writing else 3
     scratch = "/tmp/compound-engineering-{}".format(current_uid() if current_uid() is not None else "user")
     ensure_private_dir(scratch)
     routing_dir = os.path.join(scratch, "routing")
@@ -2456,17 +2467,48 @@ def write_lock(path):
     try:
         fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | O_NOFOLLOW, 0o600)
     except OSError as exc:
-        raise RoutingError("WRITE_UNSAFE", "cannot open routing write lock", exit_code=5) from exc
+        raise RoutingError(error_code, "cannot safely open routing source lock", exit_code=exit_code) from exc
+    acquired = False
     try:
         st = os.fstat(fd)
         if not stat.S_ISREG(st.st_mode) or (current_uid() is not None and st.st_uid != current_uid()) or mode_bits(st) != 0o600:
-            raise RoutingError("WRITE_UNSAFE", "routing lock owner/type/mode validation failed", exit_code=5)
-        fcntl.flock(fd, fcntl.LOCK_EX)
+            raise RoutingError(error_code, "routing lock owner/type/mode validation failed", exit_code=exit_code)
+        try:
+            fcntl.flock(fd, operation)
+            acquired = True
+        except OSError as exc:
+            raise RoutingError(error_code, "cannot acquire routing source lock", exit_code=exit_code) from exc
+        try:
+            current = os.stat(lock_path, follow_symlinks=False)
+        except OSError as exc:
+            raise RoutingError(error_code, "routing lock changed while acquiring it", exit_code=exit_code) from exc
+        if (
+            not stat.S_ISREG(current.st_mode)
+            or (current_uid() is not None and current.st_uid != current_uid())
+            or mode_bits(current) != 0o600
+            or (st.st_dev, st.st_ino) != (current.st_dev, current.st_ino)
+        ):
+            raise RoutingError(error_code, "routing lock changed while acquiring it", exit_code=exit_code)
         yield
     finally:
-        with contextlib.suppress(OSError):
-            fcntl.flock(fd, fcntl.LOCK_UN)
+        if acquired:
+            with contextlib.suppress(OSError):
+                fcntl.flock(fd, fcntl.LOCK_UN)
         os.close(fd)
+
+
+@contextlib.contextmanager
+def read_locks(paths):
+    with contextlib.ExitStack() as stack:
+        for path in sorted({os.path.abspath(path) for path in paths}):
+            stack.enter_context(routing_lock(path, fcntl.LOCK_SH))
+        yield
+
+
+@contextlib.contextmanager
+def write_lock(path):
+    with routing_lock(path, fcntl.LOCK_EX):
+        yield
 
 
 def emit_scalar(value):
@@ -2812,7 +2854,14 @@ def atomic_write(path, data, source, cap):
                 os.unlink(tmp_name, dir_fd=parent_fd)
                 tmp_name = None
             os.fsync(parent_fd)
-        except Exception:
+        except BaseException:
+            if not destination_displaced and replacement_fd is not None:
+                try:
+                    os.stat("source", dir_fd=replacement_fd, follow_symlinks=False)
+                except OSError:
+                    pass
+                else:
+                    destination_displaced = True
             if destination_displaced and replacement_fd is not None and replacement_name is not None and tmp_name is not None:
                 candidate_name = tmp_name
                 tmp_name = None
