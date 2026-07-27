@@ -14,9 +14,10 @@ Before publishing, the destination option itself must state: **the page is publi
 
 After the user selects the warned option or explicitly confirms after the warning:
 
-1. Prefer any ht-ml.app or general HTML-publishing capability detected in the current session. When it is a skill, invoke it through the platform's skill-invocation primitive with the canonical `$RUN_DIR/explainer.html` and the user's public-publishing confirmation; otherwise call the detected tool, connector, or browser capability directly. Follow that capability's current contract. Do not assume a particular skill name or installation path.
-2. When no publisher is installed, use a reachable web or HTTP interface to follow ht-ml.app's agent-facing instructions at `https://ht-ml.app/llms.txt` (or its linked API help) and publish the complete canonical HTML. The explainer is already composed; do not select a template or redesign it.
-3. Surface the returned URL. Treat any returned update credential as a secret: do not print it in chat or embed it in the page. On failure, retry once after a short wait, then report the error and fall back to the canonical local-file path.
+1. Confirm `$RUN_DIR/explainer.html` carries `<meta name="robots" content="noindex, nofollow">` in `<head>`; insert it if compose-time omitted it. This does not make the page private — the warning above still holds — it keeps the public URL out of search indexes.
+2. Prefer any ht-ml.app or general HTML-publishing capability detected in the current session. When it is a skill, invoke it through the platform's skill-invocation primitive with the canonical `$RUN_DIR/explainer.html` and the user's public-publishing confirmation; otherwise call the detected tool, connector, or browser capability directly. Follow that capability's current contract. Do not assume a particular skill name or installation path.
+3. When no publisher is installed, use a reachable web or HTTP interface to follow ht-ml.app's agent-facing instructions at `https://ht-ml.app/llms.txt` (or its linked API help) and publish the complete canonical HTML. The explainer is already composed; do not select a template or redesign it.
+4. Surface the returned URL. Treat any returned update credential as a secret: do not print it in chat or embed it in the page. On failure, retry once after a short wait, then report the error and fall back to the canonical local-file path.
 
 ## Local file
 
