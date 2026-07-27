@@ -7,12 +7,14 @@ import copy
 import errno
 import fcntl
 import hashlib
+import hmac
 import json
 import os
 import re
 import stat
 import subprocess
 import sys
+import time
 
 
 PROTOCOL = "ce-routing/v1"
@@ -24,9 +26,15 @@ ID_TOKEN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 CATALOG_TOKEN = re.compile(r"^[a-z0-9][a-z0-9.-]{0,127}$")
 CONFIG_REVISION = re.compile(r"^cecfg-v1:(?:absent|[0-9a-f]{64})$")
 SNAPSHOT_ID = re.compile(r"^cesnap-v1:[0-9a-f]{64}$")
+SNAPSHOT_MAC = re.compile(r"^[0-9a-f]{64}$")
 FALLBACK_TOKEN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 MAX_ATTEMPT_HISTORY = 128
 ATTEMPT_LOCK_PROTOCOL = "ce-routing-attempt-lock/v1"
+SNAPSHOT_AUTH_PROTOCOL = "ce-routing-snapshot-auth/v1"
+SNAPSHOT_LIFETIME_SECONDS = 7 * 24 * 60 * 60
+SNAPSHOT_CLOCK_SKEW_SECONDS = 5 * 60
+MAX_SNAPSHOT_RECORDS = 1024
+SNAPSHOT_STATE_ROOT = None
 ADAPTER_OUTCOMES = ("ok", "unavailable", "failed")
 COMPATIBILITY_KEYS = (
     "plan_model",
@@ -51,18 +59,7 @@ COMPATIBILITY_ROLE_SPECS = {
 }
 O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
-GIT_LOCAL_ENV_VARS = {
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_CONFIG",
-    "GIT_CONFIG_COUNT",
-    "GIT_CONFIG_KEY_0",
-    "GIT_CONFIG_VALUE_0",
-    "GIT_DIR",
-    "GIT_INDEX_FILE",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_PREFIX",
-    "GIT_WORK_TREE",
-}
+TRUSTED_GIT = None
 
 
 class RoutingError(Exception):
@@ -614,13 +611,74 @@ def validate_relative_components(anchor, path):
     return True
 
 
+def trusted_system_executable(name):
+    search = []
+    try:
+        search.extend(os.confstr("CS_PATH").split(os.pathsep))
+    except (AttributeError, OSError, TypeError, ValueError):
+        pass
+    search.extend(("/usr/bin", "/bin"))
+    search.extend(os.environ.get("PATH", "").split(os.pathsep))
+    seen = set()
+    for directory in search:
+        if not directory or not os.path.isabs(directory):
+            continue
+        candidate = os.path.realpath(os.path.join(directory, name))
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        try:
+            if not os.path.isfile(candidate) or not os.access(candidate, os.X_OK):
+                continue
+            current = os.path.sep
+            components = [part for part in candidate.split(os.sep) if part]
+            safe = True
+            for index, component in enumerate(components):
+                current = os.path.join(current, component)
+                st = os.lstat(current)
+                if stat.S_ISLNK(st.st_mode) or st.st_uid != 0 or mode_bits(st) & 0o022:
+                    safe = False
+                    break
+                if index == len(components) - 1 and not stat.S_ISREG(st.st_mode):
+                    safe = False
+                    break
+            if safe:
+                return candidate
+        except OSError:
+            continue
+    raise RoutingError(
+        "RUNTIME_UNSUPPORTED",
+        "a trusted system Git executable is unavailable",
+    )
+
+
 def sanitized_git_env():
-    return {key: value for key, value in os.environ.items() if key not in GIT_LOCAL_ENV_VARS}
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith("GIT_") and key not in ("HOME", "XDG_CONFIG_HOME")
+    }
+    env.update(
+        {
+            "PATH": os.defpath,
+            "HOME": os.path.sep,
+            "GIT_ATTR_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_TERMINAL_PROMPT": "0",
+            "LC_ALL": "C",
+        }
+    )
+    return env
 
 
 def git(repo, *args):
+    global TRUSTED_GIT
+    if TRUSTED_GIT is None:
+        TRUSTED_GIT = trusted_system_executable("git")
     return subprocess.run(
-        ["git", "-C", repo, *args],
+        [TRUSTED_GIT, "-C", repo, *args],
         capture_output=True,
         check=False,
         env=sanitized_git_env(),
@@ -1491,6 +1549,259 @@ def snapshot_payload(context, source_revisions, intents, routing_state, compatib
     }
 
 
+@contextlib.contextmanager
+def snapshot_state_directory():
+    uid = current_uid()
+    if uid is None:
+        raise RoutingError("RUNTIME_UNSUPPORTED", "snapshot authentication requires an effective user ID")
+    anchor = SNAPSHOT_STATE_ROOT or "/tmp/compound-engineering-{}".format(uid)
+    if not os.path.isabs(anchor):
+        raise RoutingError("CONFIG_PATH_INVALID", "snapshot authentication state root must be absolute")
+    anchor = os.path.abspath(anchor)
+    try:
+        os.mkdir(anchor, 0o700)
+    except FileExistsError:
+        pass
+    except OSError as exc:
+        raise RoutingError("CONFIG_UNSAFE", "cannot create routing state root", reason="state_root", path=anchor) from exc
+    anchor_state = validate_owned_path_component(anchor, True)
+    if anchor_state is None or mode_bits(anchor_state) != 0o700:
+        raise RoutingError("CONFIG_UNSAFE", "routing state root is not private", reason="mode", path=anchor)
+    components = ("routing", "snapshot-auth")
+    try:
+        current_fd = os.open(anchor, os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+    except OSError as exc:
+        raise RoutingError("CONFIG_UNSAFE", "cannot open routing state root", reason="state_root", path=anchor) from exc
+    try:
+        for component_index, component in enumerate(components):
+            try:
+                os.mkdir(component, 0o700, dir_fd=current_fd)
+            except FileExistsError:
+                pass
+            except OSError as exc:
+                raise RoutingError("CONFIG_UNSAFE", "cannot create routing state directory", reason="state_create") from exc
+            try:
+                next_fd = os.open(component, os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW, dir_fd=current_fd)
+            except OSError as exc:
+                raise RoutingError("CONFIG_UNSAFE", "cannot open routing state directory", reason="state_open") from exc
+            st = os.fstat(next_fd)
+            if current_uid() is not None and st.st_uid != current_uid():
+                os.close(next_fd)
+                raise RoutingError("CONFIG_UNSAFE", "routing state directory is not user-owned", reason="owner")
+            private_component = component_index >= len(components) - 2
+            if mode_bits(st) & 0o022 or (private_component and mode_bits(st) & 0o077):
+                os.close(next_fd)
+                raise RoutingError("CONFIG_UNSAFE", "routing state directory is not private", reason="mode")
+            os.close(current_fd)
+            current_fd = next_fd
+        yield current_fd
+    finally:
+        os.close(current_fd)
+
+
+def snapshot_auth_key():
+    name = "snapshot-auth-v1.key"
+    with snapshot_state_directory() as state_fd:
+        while True:
+            try:
+                fd = os.open(name, os.O_RDONLY | O_NOFOLLOW, dir_fd=state_fd)
+                break
+            except FileNotFoundError:
+                try:
+                    fd = os.open(
+                        name,
+                        os.O_WRONLY | os.O_CREAT | os.O_EXCL | O_NOFOLLOW,
+                        0o600,
+                        dir_fd=state_fd,
+                    )
+                except FileExistsError:
+                    continue
+                except OSError as exc:
+                    raise RoutingError("CONFIG_UNSAFE", "cannot create snapshot authentication state", reason="state_key") from exc
+                try:
+                    key = os.urandom(32)
+                    os.fchmod(fd, 0o600)
+                    view = memoryview(key)
+                    while view:
+                        written = os.write(fd, view)
+                        view = view[written:]
+                    os.fsync(fd)
+                    os.fsync(state_fd)
+                finally:
+                    os.close(fd)
+                return key
+            except OSError as exc:
+                raise RoutingError("CONFIG_UNSAFE", "cannot open snapshot authentication state", reason="state_key") from exc
+        try:
+            before = os.fstat(fd)
+            if not stat.S_ISREG(before.st_mode):
+                raise RoutingError("CONFIG_UNSAFE", "snapshot authentication state is not a regular file", reason="not_regular")
+            if current_uid() is not None and before.st_uid != current_uid():
+                raise RoutingError("CONFIG_UNSAFE", "snapshot authentication state is not user-owned", reason="owner")
+            if mode_bits(before) != 0o600:
+                raise RoutingError("CONFIG_UNSAFE", "snapshot authentication state is not private", reason="mode")
+            key = os.read(fd, 33)
+            after = os.fstat(fd)
+            try:
+                current = os.stat(name, dir_fd=state_fd, follow_symlinks=False)
+            except OSError as exc:
+                raise RoutingError("CONFIG_UNSAFE", "snapshot authentication state changed", reason="state_key") from exc
+        finally:
+            os.close(fd)
+        if len(key) != 32 or file_identity(before) != file_identity(after) or file_identity(after) != file_identity(current):
+            raise RoutingError("CONFIG_UNSAFE", "snapshot authentication state is malformed", reason="state_key")
+        return key
+
+
+@contextlib.contextmanager
+def snapshot_records_directory():
+    with snapshot_state_directory() as state_fd:
+        try:
+            os.mkdir("snapshots", 0o700, dir_fd=state_fd)
+        except FileExistsError:
+            pass
+        except OSError as exc:
+            raise RoutingError("CONFIG_UNSAFE", "cannot create snapshot authentication records", reason="state_create") from exc
+        try:
+            records_fd = os.open("snapshots", os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW, dir_fd=state_fd)
+        except OSError as exc:
+            raise RoutingError("CONFIG_UNSAFE", "cannot open snapshot authentication records", reason="state_open") from exc
+        try:
+            st = os.fstat(records_fd)
+            if current_uid() is not None and st.st_uid != current_uid():
+                raise RoutingError("CONFIG_UNSAFE", "snapshot authentication records are not user-owned", reason="owner")
+            if mode_bits(st) != 0o700:
+                raise RoutingError("CONFIG_UNSAFE", "snapshot authentication records are not private", reason="mode")
+            yield records_fd
+        finally:
+            os.close(records_fd)
+
+
+def snapshot_record_name(snapshot):
+    return snapshot["id"].split(":", 1)[1] + ".mac"
+
+
+def snapshot_mac(snapshot, key):
+    material = {"protocol": SNAPSHOT_AUTH_PROTOCOL, "snapshot": snapshot}
+    return hmac.new(key, canonical_json(material).encode("ascii"), hashlib.sha256).hexdigest()
+
+
+def prune_snapshot_records(records_fd, keep_name):
+    now = time.time()
+    retained = []
+    try:
+        names = os.listdir(records_fd)
+    except OSError as exc:
+        raise RoutingError("CONFIG_UNSAFE", "cannot enumerate snapshot authentication records", reason="state_record") from exc
+    for name in names:
+        is_record = re.fullmatch(r"[0-9a-f]{64}\.mac", name) is not None
+        is_temporary = re.fullmatch(r"\.ce-config-[0-9]+-[0-9a-f]{24}", name) is not None
+        if not is_record and not is_temporary:
+            raise RoutingError("CONFIG_UNSAFE", "snapshot authentication record name is unsafe", reason="state_record")
+        try:
+            st = os.stat(name, dir_fd=records_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise RoutingError("CONFIG_UNSAFE", "cannot inspect snapshot authentication record", reason="state_record") from exc
+        if (
+            not stat.S_ISREG(st.st_mode)
+            or (current_uid() is not None and st.st_uid != current_uid())
+            or mode_bits(st) != 0o600
+        ):
+            raise RoutingError("CONFIG_UNSAFE", "snapshot authentication record is unsafe", reason="state_record")
+        if is_temporary:
+            if now - st.st_mtime > SNAPSHOT_CLOCK_SKEW_SECONDS:
+                os.unlink(name, dir_fd=records_fd)
+            continue
+        if name != keep_name and (st.st_mtime > now + SNAPSHOT_CLOCK_SKEW_SECONDS or now - st.st_mtime > SNAPSHOT_LIFETIME_SECONDS):
+            os.unlink(name, dir_fd=records_fd)
+        else:
+            retained.append((st.st_mtime, name))
+    retained.sort(reverse=True)
+    for _mtime, name in retained[MAX_SNAPSHOT_RECORDS:]:
+        if name != keep_name:
+            os.unlink(name, dir_fd=records_fd)
+
+
+def authenticate_snapshot(snapshot):
+    data = (snapshot_mac(snapshot, snapshot_auth_key()) + "\n").encode("ascii")
+    with snapshot_records_directory() as records_fd:
+        name = snapshot_record_name(snapshot)
+        try:
+            current = os.stat(name, dir_fd=records_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise RoutingError("CONFIG_UNSAFE", "cannot inspect snapshot authentication record", reason="state_record") from exc
+        else:
+            if (
+                not stat.S_ISREG(current.st_mode)
+                or (current_uid() is not None and current.st_uid != current_uid())
+                or mode_bits(current) != 0o600
+            ):
+                raise RoutingError("CONFIG_UNSAFE", "snapshot authentication record is unsafe", reason="state_record")
+        fd, tmp_name = create_temp_at(records_fd)
+        try:
+            try:
+                os.fchmod(fd, 0o600)
+                view = memoryview(data)
+                while view:
+                    written = os.write(fd, view)
+                    view = view[written:]
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+            os.replace(tmp_name, name, src_dir_fd=records_fd, dst_dir_fd=records_fd)
+            tmp_name = None
+            prune_snapshot_records(records_fd, name)
+            os.fsync(records_fd)
+        finally:
+            if tmp_name is not None:
+                with contextlib.suppress(OSError):
+                    os.unlink(tmp_name, dir_fd=records_fd)
+    return snapshot
+
+
+def validate_snapshot_auth(snapshot):
+    with snapshot_records_directory() as records_fd:
+        name = snapshot_record_name(snapshot)
+        try:
+            fd = os.open(name, os.O_RDONLY | O_NOFOLLOW, dir_fd=records_fd)
+        except FileNotFoundError as exc:
+            raise RoutingError("CONTEXT_STALE", "snapshot authentication record is missing", exit_code=4) from exc
+        except OSError as exc:
+            raise RoutingError("CONFIG_UNSAFE", "cannot open snapshot authentication record", reason="state_record") from exc
+        try:
+            before = os.fstat(fd)
+            if (
+                not stat.S_ISREG(before.st_mode)
+                or (current_uid() is not None and before.st_uid != current_uid())
+                or mode_bits(before) != 0o600
+            ):
+                raise RoutingError("CONFIG_UNSAFE", "snapshot authentication record is unsafe", reason="state_record")
+            data = os.read(fd, 66)
+            after = os.fstat(fd)
+            try:
+                current = os.stat(name, dir_fd=records_fd, follow_symlinks=False)
+            except OSError as exc:
+                raise RoutingError("CONFIG_UNSAFE", "snapshot authentication record changed", reason="state_record") from exc
+        finally:
+            os.close(fd)
+    now = time.time()
+    if after.st_mtime > now + SNAPSHOT_CLOCK_SKEW_SECONDS or now - after.st_mtime > SNAPSHOT_LIFETIME_SECONDS:
+        raise RoutingError("CONTEXT_STALE", "snapshot authentication has expired", exit_code=4)
+    if file_identity(before) != file_identity(after) or file_identity(after) != file_identity(current):
+        raise RoutingError("CONFIG_UNSAFE", "snapshot authentication record changed", reason="state_record")
+    try:
+        mac = data.decode("ascii").strip()
+    except UnicodeDecodeError as exc:
+        raise RoutingError("CONTEXT_STALE", "snapshot authentication is malformed", exit_code=4) from exc
+    expected = snapshot_mac(snapshot, snapshot_auth_key())
+    if not SNAPSHOT_MAC.fullmatch(mac) or not hmac.compare_digest(mac, expected):
+        raise RoutingError("CONTEXT_STALE", "snapshot authentication does not match", exit_code=4)
+
+
 def make_snapshot(
     context,
     source_revisions,
@@ -1509,7 +1820,7 @@ def make_snapshot(
         role_requests,
         parent_snapshot_id,
     )
-    return {"id": digest("cesnap-v1", payload), **payload}
+    return authenticate_snapshot({"id": digest("cesnap-v1", payload), **payload})
 
 
 def validate_snapshot_routing(value, source_revisions, schema, roles):
@@ -1600,6 +1911,9 @@ def validate_parent_snapshot(value, schema, roles):
         raise RoutingError("CONTEXT_STALE", "parent snapshot envelope is malformed", exit_code=4)
     if value["protocol"] != PROTOCOL:
         raise RoutingError("CONTEXT_STALE", "parent snapshot protocol does not match", exit_code=4)
+    if not isinstance(value["id"], str) or not SNAPSHOT_ID.fullmatch(value["id"]):
+        raise RoutingError("CONTEXT_STALE", "parent snapshot ID is malformed", exit_code=4)
+    validate_snapshot_auth(value)
     parent_id = value["parent_snapshot_id"]
     if parent_id is not None and (not isinstance(parent_id, str) or not SNAPSHOT_ID.fullmatch(parent_id)):
         raise RoutingError("CONTEXT_STALE", "parent snapshot lineage is malformed", exit_code=4)
@@ -2313,11 +2627,67 @@ def create_temp_at(parent_fd):
     raise RoutingError("WRITE_UNSAFE", "cannot reserve configuration temporary file", exit_code=5)
 
 
+def create_replacement_directory(parent_fd):
+    for _ in range(128):
+        name = ".ce-replace-{}-{}".format(os.getpid(), os.urandom(12).hex())
+        try:
+            os.mkdir(name, 0o700, dir_fd=parent_fd)
+            fd = os.open(name, os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW, dir_fd=parent_fd)
+            return fd, name
+        except FileExistsError:
+            continue
+        except OSError as exc:
+            raise RoutingError("WRITE_UNSAFE", "cannot create replacement state directory", exit_code=5) from exc
+    raise RoutingError("WRITE_UNSAFE", "cannot reserve replacement state directory", exit_code=5)
+
+
+def preserve_write_conflict(parent_fd, parent, name, tmp_name, replacement_fd, replacement_name, message):
+    candidate_path = os.path.join(parent, tmp_name)
+    displaced_path = os.path.join(parent, replacement_name, "source")
+    restored = False
+    try:
+        os.link(
+            "source",
+            name,
+            src_dir_fd=replacement_fd,
+            dst_dir_fd=parent_fd,
+            follow_symlinks=False,
+        )
+        restored = True
+    except FileExistsError:
+        pass
+    except OSError as exc:
+        os.close(replacement_fd)
+        raise RoutingError(
+            "WRITE_UNSAFE",
+            "cannot preserve displaced configuration after a write conflict",
+            exit_code=5,
+            candidate_path=candidate_path,
+            displaced_path=displaced_path,
+        ) from exc
+    if restored:
+        os.unlink("source", dir_fd=replacement_fd)
+        os.close(replacement_fd)
+        replacement_fd = None
+        os.rmdir(replacement_name, dir_fd=parent_fd)
+        displaced_path = None
+    else:
+        os.close(replacement_fd)
+    os.fsync(parent_fd)
+    details = {"candidate_path": candidate_path}
+    if displaced_path is not None:
+        details["displaced_path"] = displaced_path
+    raise RoutingError("WRITE_CONFLICT", message, exit_code=5, **details)
+
+
 def atomic_write(path, data, source, cap):
     parent = os.path.dirname(path)
     name = os.path.basename(path)
     with secure_directory_fd(parent) as parent_fd:
         fd, tmp_name = create_temp_at(parent_fd)
+        replacement_fd = None
+        replacement_name = None
+        destination_displaced = False
         try:
             try:
                 view = memoryview(data)
@@ -2337,11 +2707,89 @@ def atomic_write(path, data, source, cap):
                     raise RoutingError("WRITE_CONFLICT", "configuration changed before replacement", exit_code=5) from exc
                 if file_identity(final) != source["identity"]:
                     raise RoutingError("WRITE_CONFLICT", "configuration changed before replacement", exit_code=5)
-                # The lock serializes CE writers only. Portable POSIX has no conditional
-                # rename, so a non-cooperating writer can still race after this final
-                # no-follow identity/revision check and before the anchored replacement.
-                os.replace(tmp_name, name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+                replacement_fd, replacement_name = create_replacement_directory(parent_fd)
+                try:
+                    os.rename(name, "source", src_dir_fd=parent_fd, dst_dir_fd=replacement_fd)
+                except OSError as exc:
+                    candidate_path = os.path.join(parent, tmp_name)
+                    tmp_name = None
+                    raise RoutingError(
+                        "WRITE_CONFLICT",
+                        "configuration changed at the replacement boundary",
+                        exit_code=5,
+                        candidate_path=candidate_path,
+                    ) from exc
+                destination_displaced = True
+                displaced_raw, displaced_identity = read_commit_source(replacement_fd, "source", path, cap)
+                if displaced_identity[:4] != source["identity"][:4] or digest("cecfg-v1", displaced_raw) != source["revision"]:
+                    candidate_name = tmp_name
+                    tmp_name = None
+                    conflict_fd = replacement_fd
+                    conflict_name = replacement_name
+                    replacement_fd = None
+                    replacement_name = None
+                    destination_displaced = False
+                    preserve_write_conflict(
+                        parent_fd,
+                        parent,
+                        name,
+                        candidate_name,
+                        conflict_fd,
+                        conflict_name,
+                        "configuration changed at the replacement boundary",
+                    )
+                try:
+                    os.link(
+                        tmp_name,
+                        name,
+                        src_dir_fd=parent_fd,
+                        dst_dir_fd=parent_fd,
+                        follow_symlinks=False,
+                    )
+                except FileExistsError:
+                    candidate_name = tmp_name
+                    tmp_name = None
+                    conflict_fd = replacement_fd
+                    conflict_name = replacement_name
+                    replacement_fd = None
+                    replacement_name = None
+                    destination_displaced = False
+                    preserve_write_conflict(
+                        parent_fd,
+                        parent,
+                        name,
+                        candidate_name,
+                        conflict_fd,
+                        conflict_name,
+                        "configuration reappeared during replacement",
+                    )
+                installed_raw, installed_identity = read_commit_source(parent_fd, name, path, cap)
+                tmp_identity = file_identity(os.stat(tmp_name, dir_fd=parent_fd, follow_symlinks=False))
+                if installed_identity != tmp_identity or installed_raw != data:
+                    candidate_name = tmp_name
+                    tmp_name = None
+                    conflict_fd = replacement_fd
+                    conflict_name = replacement_name
+                    replacement_fd = None
+                    replacement_name = None
+                    destination_displaced = False
+                    preserve_write_conflict(
+                        parent_fd,
+                        parent,
+                        name,
+                        candidate_name,
+                        conflict_fd,
+                        conflict_name,
+                        "configuration changed while completing replacement",
+                    )
+                os.unlink(tmp_name, dir_fd=parent_fd)
                 tmp_name = None
+                os.unlink("source", dir_fd=replacement_fd)
+                destination_displaced = False
+                os.close(replacement_fd)
+                replacement_fd = None
+                os.rmdir(replacement_name, dir_fd=parent_fd)
+                replacement_name = None
             else:
                 try:
                     os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
@@ -2364,7 +2812,34 @@ def atomic_write(path, data, source, cap):
                 os.unlink(tmp_name, dir_fd=parent_fd)
                 tmp_name = None
             os.fsync(parent_fd)
+        except Exception:
+            if destination_displaced and replacement_fd is not None and replacement_name is not None and tmp_name is not None:
+                candidate_name = tmp_name
+                tmp_name = None
+                conflict_fd = replacement_fd
+                conflict_name = replacement_name
+                replacement_fd = None
+                replacement_name = None
+                destination_displaced = False
+                preserve_write_conflict(
+                    parent_fd,
+                    parent,
+                    name,
+                    candidate_name,
+                    conflict_fd,
+                    conflict_name,
+                    "configuration could not be replaced without losing concurrent data",
+                )
+            raise
         finally:
+            if replacement_fd is not None:
+                with contextlib.suppress(OSError):
+                    os.unlink("source", dir_fd=replacement_fd)
+                with contextlib.suppress(OSError):
+                    os.close(replacement_fd)
+            if replacement_name is not None:
+                with contextlib.suppress(OSError):
+                    os.rmdir(replacement_name, dir_fd=parent_fd)
             if tmp_name is not None:
                 with contextlib.suppress(OSError):
                     os.unlink(tmp_name, dir_fd=parent_fd)

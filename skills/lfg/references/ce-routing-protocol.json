@@ -3,6 +3,10 @@
   "protocol": "ce-routing/v1",
   "operations": ["inspect", "resolve_batch", "finalize_attempt", "patch_source"],
   "attempt_lock_protocol": "ce-routing-attempt-lock/v1",
+  "snapshot_auth_protocol": "ce-routing-snapshot-auth/v1",
+  "snapshot_auth_lifetime_seconds": 604800,
+  "snapshot_auth_record_limit": 1024,
+  "snapshot_auth_storage": "effective-user-private-state",
   "adapter_outcomes": ["ok", "unavailable", "failed"],
   "task_binding_fields": {
     "profile": ["profile", "policy"],

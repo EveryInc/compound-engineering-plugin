@@ -1,4 +1,5 @@
-import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "fs/promises"
+import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, stat, symlink, utimes, writeFile } from "fs/promises"
+import { createHash } from "crypto"
 import os from "os"
 import path from "path"
 import { describe, expect, test } from "bun:test"
@@ -95,6 +96,24 @@ function baseBinding(policy = "prefer") {
       { harness: "claude", model: "sonnet", ordinal: 1 },
     ],
   }
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`
+  if (value !== null && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`)
+      .join(",")}}`
+  }
+  return JSON.stringify(value)
+}
+
+function recomputeSnapshotId(snapshot: Record<string, any>): void {
+  const payload = structuredClone(snapshot)
+  delete payload.id
+  delete payload.auth
+  snapshot.id = `cesnap-v1:${createHash("sha256").update(canonicalJson(payload), "ascii").digest("hex")}`
 }
 
 async function resolvedBinding(
@@ -560,6 +579,16 @@ describe("routing resolver", () => {
       expect(forgedResult.exitCode).toBe(4)
       expect(forgedResult.body.error.code).toBe("CONTEXT_STALE")
 
+      const rehashed = structuredClone(parent.body.snapshot)
+      rehashed.routing.profiles.frozen.candidates[0].model = "rehashed-forged-model"
+      recomputeSnapshotId(rehashed)
+      const rehashedResult = await runResolver(
+        { ...childRequest, parent_snapshot: rehashed, parent_snapshot_id: rehashed.id },
+        { cwd: f.project, home: f.home },
+      )
+      expect(rehashedResult.exitCode).toBe(4)
+      expect(rehashedResult.body.error.code).toBe("CONTEXT_STALE")
+
       const wrongId = await runResolver({ ...childRequest, parent_snapshot_id: `cesnap-v1:${"0".repeat(64)}` }, { cwd: f.project, home: f.home })
       expect(wrongId.exitCode).toBe(4)
       expect(wrongId.body.error.code).toBe("CONTEXT_STALE")
@@ -580,6 +609,107 @@ describe("routing resolver", () => {
       )
       expect(wrongProtocol.exitCode).toBe(4)
       expect(wrongProtocol.body.error.code).toBe("CONTEXT_STALE")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("authenticates unchanged snapshot envelopes across installed resolver copies", async () => {
+    const f = await fixture()
+    try {
+      await writeFile(path.join(f.home, "config.yaml"), `routing:\n  profiles:\n    isolated:\n      candidates:\n        - { harness: codex, model: gpt-5-mini }\n  classes:\n    implementation: { profile: isolated, policy: prefer }\n`, { mode: 0o600 })
+      const isolated = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        intents: [],
+        roles: [{ role: "ce-work.implementation-worker", instance: { id: "isolated-state" } }],
+      }, { cwd: f.project, home: f.home })
+      expect(isolated.exitCode).toBe(0)
+      expect(isolated.body.snapshot).not.toHaveProperty("auth")
+
+      const finalized = await runResolver(
+        finalizeRequest(isolated, 0, "ok", { model_actual: "gpt-5-mini" }),
+        {
+          cwd: f.project,
+          home: f.home,
+          resolverPath: path.join(repoRoot, "skills", "ce-work", "scripts", "ce-routing.py"),
+        },
+      )
+      expect(finalized.exitCode).toBe(0)
+      expect(finalized.body.action).toBe("accept")
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("validates private snapshot state ownership, modes, symlinks, and lifetime in isolation", async () => {
+    const f = await fixture()
+    const stateRoot = path.join(f.root, "isolated-state")
+    const snapshot = { id: `cesnap-v1:${"1".repeat(64)}`, value: "private-state-test" }
+    const runProbe = async (action: "create" | "validate") => {
+      const probe = [
+        "import importlib.util, json, sys",
+        `spec = importlib.util.spec_from_file_location('ce_routing_auth_test', ${JSON.stringify(resolver)})`,
+        "module = importlib.util.module_from_spec(spec)",
+        "spec.loader.exec_module(module)",
+        `module.SNAPSHOT_STATE_ROOT = ${JSON.stringify(stateRoot)}`,
+        `snapshot = json.loads(${JSON.stringify(JSON.stringify(snapshot))})`,
+        "try:",
+        `    ${action === "create" ? "module.authenticate_snapshot(snapshot)" : "module.validate_snapshot_auth(snapshot)"}`,
+        "except module.RoutingError as error:",
+        "    print(module.canonical_json(error.response()))",
+        "    raise SystemExit(error.exit_code)",
+        "print(module.canonical_json({'ok': True}))",
+      ].join("\n")
+      const proc = Bun.spawn(["python3", "-I", "-S", "-c", probe], {
+        cwd: f.project,
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      const [exitCode, stdout, stderr] = await Promise.all([
+        proc.exited,
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+      ])
+      return { exitCode, body: JSON.parse(stdout), stderr }
+    }
+    try {
+      await mkdir(stateRoot, { mode: 0o700 })
+      expect((await runProbe("create")).exitCode).toBe(0)
+      expect((await runProbe("validate")).exitCode).toBe(0)
+
+      const authRoot = path.join(stateRoot, "routing", "snapshot-auth")
+      const keyPath = path.join(authRoot, "snapshot-auth-v1.key")
+      const recordPath = path.join(authRoot, "snapshots", `${"1".repeat(64)}.mac`)
+      const key = await readFile(keyPath)
+      const record = await readFile(recordPath, "utf8")
+      expect(key).toHaveLength(32)
+      expect((await stat(authRoot)).mode & 0o777).toBe(0o700)
+      expect((await stat(keyPath)).mode & 0o777).toBe(0o600)
+      expect((await stat(recordPath)).mode & 0o777).toBe(0o600)
+      expect(record.trim()).toMatch(/^[0-9a-f]{64}$/)
+
+      const expiredAt = new Date(Date.now() - (7 * 24 * 60 * 60 + 1) * 1000)
+      await utimes(recordPath, expiredAt, expiredAt)
+      const expired = await runProbe("validate")
+      expect(expired.exitCode).toBe(4)
+      expect(expired.body.error.code).toBe("CONTEXT_STALE")
+      const now = new Date()
+      await utimes(recordPath, now, now)
+
+      await chmod(keyPath, 0o644)
+      const unsafeState = await runProbe("validate")
+      expect(unsafeState.exitCode).toBe(3)
+      expect(unsafeState.body.error).toMatchObject({ code: "CONFIG_UNSAFE", reason: "mode" })
+
+      await rm(keyPath)
+      const attackerKey = path.join(f.root, "attacker-snapshot.key")
+      await writeFile(attackerKey, Buffer.alloc(32, 7), { mode: 0o600 })
+      await symlink(attackerKey, keyPath)
+      const symlinkedState = await runProbe("validate")
+      expect(symlinkedState.exitCode).toBe(3)
+      expect(symlinkedState.body.error).toMatchObject({ code: "CONFIG_UNSAFE", reason: "state_key" })
     } finally {
       await rm(f.root, { recursive: true, force: true })
     }
@@ -822,6 +952,83 @@ describe("routing resolver", () => {
         source_layer: "project-class",
         source_authority: false,
       })
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("does not let a hostile PATH forge tracked project config authority", async () => {
+    const f = await fixture()
+    try {
+      const projectDir = path.join(f.project, ".compound-engineering")
+      const projectPath = path.join(projectDir, "config.local.yaml")
+      const shimDir = path.join(f.root, "hostile-bin")
+      const marker = path.join(f.root, "hostile-git-ran")
+      await writeFile(path.join(f.project, ".gitignore"), "")
+      await mkdir(projectDir, { recursive: true })
+      await writeFile(projectPath, `routing:\n  profiles:\n    forged:\n      candidates:\n        - { harness: codex, model: forged-model }\n  classes:\n    implementation: { profile: forged, policy: require }\n`, { mode: 0o600 })
+      await Bun.$`git add .compound-engineering/config.local.yaml`.cwd(f.project)
+      await mkdir(shimDir)
+      const shim = path.join(shimDir, "git")
+      await writeFile(shim, `#!/bin/sh\nprintf hostile > ${JSON.stringify(marker)}\ncase "$*" in\n  *rev-parse*) printf '%s\\n' ${JSON.stringify(f.project)}; exit 0 ;;\n  *check-ignore*) exit 0 ;;\n  *ls-files*) exit 1 ;;\nesac\nexit 1\n`)
+      await chmod(shim, 0o755)
+
+      const result = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        intents: [],
+        roles: [{ role: "ce-work.implementation-worker" }],
+      }, {
+        cwd: f.project,
+        home: f.home,
+        env: {
+          PATH: `${shimDir}:${process.env.PATH ?? "/usr/bin:/bin"}`,
+          GIT_CONFIG_GLOBAL: path.join(f.root, "attacker.gitconfig"),
+          GIT_CONFIG_SYSTEM: path.join(f.root, "attacker-system.gitconfig"),
+        },
+      })
+
+      expect(result.exitCode).toBe(3)
+      expect(result.body.error).toMatchObject({ code: "CONFIG_UNSAFE", reason: "tracked" })
+      expect(await Bun.file(marker).exists()).toBe(false)
+    } finally {
+      await rm(f.root, { recursive: true, force: true })
+    }
+  })
+
+  test("rejects rehashed snapshots with forged project authority", async () => {
+    const f = await fixture()
+    try {
+      await writeFile(path.join(f.project, ".gitignore"), "")
+      const projectDir = path.join(f.project, ".compound-engineering")
+      await mkdir(projectDir, { recursive: true })
+      await writeFile(path.join(projectDir, "config.local.yaml"), `routing:\n  profiles:\n    forged:\n      candidates:\n        - { harness: codex, model: forged-model }\n  classes:\n    review: { profile: forged, policy: require }\n`, { mode: 0o600 })
+      const parent = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        intents: [],
+        roles: [{ role: "ce-work.implementation-worker" }],
+      }, { cwd: f.project, home: f.home })
+      expect(parent.exitCode).toBe(0)
+
+      const forged = structuredClone(parent.body.snapshot)
+      forged.routing.layers.project.authority_trusted = true
+      forged.routing.profile_provenance.forged.authority_trusted = true
+      recomputeSnapshotId(forged)
+      const child = await runResolver({
+        protocol: "ce-routing/v1",
+        op: "resolve_batch",
+        cwd: f.project,
+        intents: [],
+        parent_snapshot: forged,
+        parent_snapshot_id: forged.id,
+        roles: [{ role: "ce-code-review.security-reviewer" }],
+      }, { cwd: f.project, home: f.home })
+
+      expect(child.exitCode).toBe(4)
+      expect(child.body.error.code).toBe("CONTEXT_STALE")
     } finally {
       await rm(f.root, { recursive: true, force: true })
     }
@@ -1093,7 +1300,7 @@ describe("routing resolver", () => {
     }
   })
 
-  test("fails compare-and-swap when an external writer replaces the validated source", async () => {
+  test("preserves a competing save injected at the final replacement boundary", async () => {
     const f = await fixture()
     try {
       const configPath = path.join(f.home, "config.yaml")
@@ -1109,10 +1316,12 @@ describe("routing resolver", () => {
         "spec.loader.exec_module(module)",
         "raw = open(config_path, 'rb').read()",
         "source = {'exists': True, 'identity': module.file_identity(os.stat(config_path)), 'revision': module.digest('cecfg-v1', raw)}",
-        "original = module.read_commit_source",
-        "def replace_after_validation(*args):\n    result = original(*args)\n    with open(external_path, 'wb') as stream:\n        stream.write(b'plan_output: html\\npulse_product_name: external\\n')\n    os.chmod(external_path, 0o600)\n    os.replace(external_path, config_path)\n    return result",
-        "module.read_commit_source = replace_after_validation",
-        "try:\n    module.atomic_write(config_path, b'plan_output: changed\\n', source, 262144)\nexcept module.RoutingError as error:\n    print(error.code)\nelse:\n    raise SystemExit('replacement was overwritten')",
+        "original_rename = os.rename",
+        "original_replace = os.replace",
+        "injected = False",
+        "def compete_at_boundary(src, dst, *args, **kwargs):\n    global injected\n    if not injected and src == os.path.basename(config_path):\n        injected = True\n        with open(external_path, 'wb') as stream:\n            stream.write(b'plan_output: html\\npulse_product_name: external\\n')\n        os.chmod(external_path, 0o600)\n        original_replace(external_path, config_path)\n    return original_rename(src, dst, *args, **kwargs)",
+        "module.os.rename = compete_at_boundary",
+        "try:\n    module.atomic_write(config_path, b'plan_output: changed\\n', source, 262144)\nexcept module.RoutingError as error:\n    print(module.canonical_json({'code': error.code, **error.details}))\nelse:\n    raise SystemExit('replacement was overwritten')",
       ].join("\n")
       const proc = Bun.spawn(["python3", "-I", "-S", "-c", probe], {
         cwd: f.project,
@@ -1126,7 +1335,9 @@ describe("routing resolver", () => {
       ])
 
       expect(exitCode, stderr).toBe(0)
-      expect(stdout.trim()).toBe("WRITE_CONFLICT")
+      const conflict = JSON.parse(stdout)
+      expect(conflict.code).toBe("WRITE_CONFLICT")
+      expect(await readFile(conflict.candidate_path, "utf8")).toBe("plan_output: changed\n")
       expect(await readFile(configPath, "utf8")).toContain("pulse_product_name: external")
     } finally {
       await rm(f.root, { recursive: true, force: true })
