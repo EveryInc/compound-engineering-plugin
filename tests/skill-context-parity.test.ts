@@ -7,6 +7,9 @@ const PLUGIN_ROOT = path.join(process.cwd(), "skills")
 // context.mjs is byte-duplicated into every skill whose flows depend on
 // subagent dispatch (the plugin has no cross-skill import mechanism — see
 // AGENTS.md "File References in Skills"). All copies must stay identical.
+// ce-resolve-pr-feedback is intentionally absent: it pins allowed-tools so it can
+// run unattended without permission prompts, and its fixers provide parallelism
+// rather than independence — so it applies approved fixes in-context instead.
 const DISPATCH_SKILLS = [
   "ce-brainstorm",
   "ce-code-review",
@@ -19,7 +22,6 @@ const DISPATCH_SKILLS = [
   "ce-optimize",
   "ce-plan",
   "ce-pov",
-  "ce-resolve-pr-feedback",
   "ce-retune",
   "ce-simplify-code",
   "ce-sweep",

@@ -2,6 +2,7 @@
 name: ce-resolve-pr-feedback
 description: Resolve PR review feedback. Use when addressing review comments, resolving review threads, or fixing code-review feedback.
 argument-hint: "[PR number, comment URL, or blank for current branch's PR]"
+allowed-tools: Bash(gh *), Bash(git *), Read
 ---
 
 # Resolve PR Review Feedback
@@ -18,20 +19,6 @@ Evaluate and fix PR review feedback, then reply and resolve threads. The orchest
 > Most review feedback -- nitpicks included -- is correct and worth fixing; work the list and fix. Validation is a tripwire, not a gate: you read the code to make the fix anyway, so divert only on a concrete signal -- don't manufacture doubt or risk to avoid work. Judge every item on its merits regardless of source (human or bot) or form (inline thread, formal review body, or top-level comment). The diverts: `not-addressing` when the finding doesn't hold (cite evidence), `declined` when the fix would make the code worse (cite the harm), `replied` when the change buys nothing real or it's a question, and `needs-human` for risk you can't bound or a call that's genuinely the user's.
 >
 > **Judge centrally, fan out only the fixes.** The validity decision is made by the orchestrator, which holds every thread from a single fetch -- so it can dedup reads, catch a systematically-wrong reviewer across threads, and weigh the author's design intent against the finding. A confidently-wrong code-review bot is caught at this gate, not blindly fixed by an isolated subagent. Subagents implement approved fixes; they do not judge whether a fix was worthwhile.
-
-## Setup
-
-Run this once at the start of this invocation, before any subagent dispatch, and follow the directives it prints — except where one conflicts with this skill's own non-interactive mode contract (headless or pipeline), in which case the skill's contract wins and no blocking question is asked. Do not rerun it within the same invocation; a later invocation of this or any other skill runs its own. If no Node runtime is available the skill proceeds unchanged.
-
-```bash
-SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
-if [ -n "$NODE" ]; then
-"$NODE" "$SKILL_DIR/scripts/context.mjs" || echo "context script failed; continue with the skill's normal behavior";
-else
-echo "no Node runtime; continue with the skill's normal behavior";
-fi
-```
 
 ## Security
 
