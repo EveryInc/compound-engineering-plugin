@@ -4,6 +4,8 @@
 
 `ce-setup` is the lightweight onboarding and troubleshooting skill. It reports which optional tools are available, cleans obsolete local config, refreshes the committed config example, and helps keep machine-local settings out of git.
 
+See [Compound Engineering configuration](./configuration.md) for the complete option reference and how local defaults interact with session and project instructions.
+
 It is explicit-invocation only (`disable-model-invocation: true`) so it never runs as a side effect of ordinary setup discussion.
 
 ---
@@ -36,6 +38,7 @@ Those are different concerns. Missing optional tools should not make the whole p
 - Refreshes `.compound-engineering/config.local.example.yaml` from the bundled template.
 - Offers to create `.compound-engineering/config.local.yaml` if missing.
 - Offers to add `.compound-engineering/*.local.yaml` to `.gitignore` if needed.
+- Reports the resolved artifact root and which config layer supplied it, and flags an unusable `docs_root` (see [Artifact root](./configuration.md#artifact-root)).
 - Prints install commands or URLs for missing optional tools, but does not bulk-install them.
 
 ---
@@ -128,3 +131,4 @@ Yes. When the bundled health script is not directly runnable, the skill falls ba
 - [`/ce-test-browser`](./ce-test-browser.md) — uses `agent-browser` when no capable host-native browser is available
 - [`/ce-dogfood`](./ce-dogfood.md) — uses `agent-browser` for diff-scoped QA
 - [`/ce-product-pulse`](./ce-product-pulse.md) — uses `.compound-engineering/config.local.yaml` for pulse settings
+- [Compound Engineering configuration](./configuration.md) — every supported local option, its consumer, and precedence guidance

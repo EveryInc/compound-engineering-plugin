@@ -249,12 +249,12 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(r.stderr).toContain("peer exited non-zero or timed out")
   })
 
-  test("codex: read-only sandbox + skip-git-repo-check + medium reasoning", () => {
+  test("codex: read-only sandbox + skip-git-repo-check + xhigh reasoning", () => {
     const cmd = emitAdapter("codex")
     expect(cmd).toContain("-s read-only")
     expect(cmd).toContain("--skip-git-repo-check")
-    expect(cmd).toContain('model_reasoning_effort="medium"')
-    expect(cmd).toContain("gpt-5.6-sol")
+    expect(cmd).toContain('model_reasoning_effort="xhigh"')
+    expect(cmd).toContain("gpt-5.6-luna")
   })
 
   test("claude: all tools disabled + safe mode + dontAsk + effort high", () => {
@@ -710,9 +710,42 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
       readFileSync(path.join(runDir, "adversarial-codex.json"), "utf8"),
     )
     expect(out.cross_model_route).toBe("codex")
-    expect(out.model_requested).toBe("gpt-5.6-sol")
+    expect(out.model_requested).toBe("gpt-5.6-luna")
     expect(out.model_actual).toBe("unverified")
   }, 20_000) // the codex liveness poll sleeps in 5s slices even for a fast stub
+
+  test("codex stdout recovery is string-aware — an in-string brace does not let a draft object win", () => {
+    // A brace-counting scanner desyncs on the real answer's in-string "{" (quoted
+    // code in evidence) and keeps an earlier balanced draft instead. See #1197.
+    const codexStub =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"findings":[{"section":"X","title":"DRAFT placeholder"}]}\n{"reviewer":"adversarial","findings":[{"section":"X","title":"unterminated block","evidence":"the loop body starts with { and never closes"}]}'\n`
+    const { env } = sandbox(["codex"], codexStub)
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "adversarial", doc, "plan", "none", runDir], runDir, env)
+    expect(r.files).toContain("adversarial-codex.json")
+    const out = JSON.parse(
+      readFileSync(path.join(runDir, "adversarial-codex.json"), "utf8"),
+    )
+    expect(out.findings[0].title).toBe("unterminated block")
+  }, 20_000)
+
+  test("codex stdout recovery handles an escaped quote-brace inside a JSON string", () => {
+    // A naive brace counter (pre-raw_decode) treats every "{" as a nesting
+    // level even inside a string, so an escaped \"{\" in a findings value
+    // pushes it one level too deep and it never unwinds back to zero.
+    const codexStub =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"reviewer":"adversarial","findings":[{"section":"X","title":"t","evidence":"payload was literally \\"{\\" and stayed valid"}]}'\n`
+    const { env } = sandbox(["codex"], codexStub)
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "adversarial", doc, "plan", "none", runDir], runDir, env)
+    expect(r.files).toContain("adversarial-codex.json")
+    const out = JSON.parse(
+      readFileSync(path.join(runDir, "adversarial-codex.json"), "utf8"),
+    )
+    expect(out.findings[0].title).toBe("t")
+  }, 20_000)
 
   test("the whole-doc sweep reviewer-name is accepted and normalizes to whole-doc-<provider>", () => {
     // R20/U9: the broad whole-document sweep runs under reviewer-name `whole-doc`.

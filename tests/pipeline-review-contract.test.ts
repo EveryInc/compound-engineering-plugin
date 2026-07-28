@@ -6,6 +6,12 @@ async function readRepoFile(relativePath: string): Promise<string> {
   return readFile(path.join(process.cwd(), relativePath), "utf8")
 }
 
+async function readCeWorkImplementationContract(): Promise<string> {
+  const skill = await readRepoFile("skills/ce-work/SKILL.md")
+  const implementationLoop = await readRepoFile("skills/ce-work/references/implementation-loop.md").catch(() => "")
+  return `${skill}\n${implementationLoop}`
+}
+
 describe("ce-work review contract", () => {
   test("requires code review before shipping", async () => {
     const content = await readRepoFile("skills/ce-work/SKILL.md")
@@ -62,7 +68,7 @@ describe("ce-work review contract", () => {
   })
 
   test("includes per-task testing deliberation in execution loop", async () => {
-    const content = await readRepoFile("skills/ce-work/SKILL.md")
+    const content = await readCeWorkImplementationContract()
 
     // Testing deliberation exists in the execution loop
     expect(content).toContain("Assess testing coverage")
@@ -172,7 +178,7 @@ describe("ce-plan testing contract", () => {
 
 describe("ce-work testing evidence contract", () => {
   test("requires evidence strategy before behavior changes and evidence in return-to-caller", async () => {
-    const content = await readRepoFile("skills/ce-work/SKILL.md")
+    const content = await readCeWorkImplementationContract()
 
     expect(content).toContain("Choose the evidence strategy for this task before changing behavior")
     expect(content).toContain("default to test-first or characterization-first")
@@ -254,14 +260,71 @@ describe("verification_evidence seam parity (ce-work <-> lfg)", () => {
       "3. Invoke the `ce-simplify-code`"
     )
 
-    // One-shot retry on the same plan path (idempotency backfill), no user prompt.
-    expect(gate).toContain(
-      "invoke `ce-work` one more time with the same `mode:return-to-caller <plan-path-from-step-1>` argument"
-    )
-    expect(gate).toContain("Do not prompt the user and do not alter the plan path argument")
+    // One-shot recovery on the same plan and engine binding, with the returned durable run id.
+    expect(gate).toContain("invoke `ce-work` one more time in recovery mode")
+    expect(gate).toContain("same `implementation_engine:<compact-json>` carrier")
+    expect(gate).toContain("implementation_run:<safe-id>")
+    expect(gate).toContain("Do not prompt the user and do not alter the plan path or engine carrier")
+    expect(gate).toContain("When `actual_route` is `native` and `run_id` is `null`")
+    expect(gate).toContain("repeat the original ce-work invocation once without an `implementation_run:` carrier")
+    expect(gate).toContain("A non-native return without a safe run id remains blocked")
     // Second still-missing return stops blocked instead of continuing to ship.
     expect(gate).toContain("stop as blocked and report the missing fields")
     expect(gate).toContain("instead of continuing to simplify/review/ship")
+  })
+})
+
+describe("cross-model execution receipt seam parity (ce-work <-> lfg)", () => {
+  const ROUTE_RECEIPT_FIELDS = [
+    "implementation_engine_binding",
+    "requested_route",
+    "actual_route",
+    "requested_model",
+    "actual_model",
+    "fallback_reason",
+    "run_id",
+    "unit_receipts",
+    "plan_checkpoint",
+    "blockers",
+    "recovery_path",
+  ]
+
+  function sliceSection(content: string, startAnchor: string, endAnchor: string): string {
+    const start = content.indexOf(startAnchor)
+    expect(start, `start anchor not found: ${startAnchor}`).toBeGreaterThanOrEqual(0)
+    const end = content.indexOf(endAnchor, start + startAnchor.length)
+    expect(end, `end anchor not found: ${endAnchor}`).toBeGreaterThan(start)
+    return content.slice(start, end)
+  }
+
+  test("lfg requires every route receipt exposed by ce-work", async () => {
+    const ceWork = await readRepoFile("skills/ce-work/SKILL.md")
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+    const returned = sliceSection(ceWork, "## Return-to-Caller Mode", "Engine selection (")
+    const gate = sliceSection(
+      lfg,
+      "2. Invoke the `ce-work` skill with `mode:return-to-caller",
+      "3. Invoke the `ce-simplify-code`",
+    )
+
+    for (const field of ROUTE_RECEIPT_FIELDS) {
+      expect(returned, `ce-work must return ${field}`).toContain(`\`${field}\``)
+      expect(gate, `lfg must gate on ${field}`).toContain(`\`${field}\``)
+    }
+  })
+
+  test("lfg keeps the binding out of plan and review inputs", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+    const carrier = sliceSection(
+      lfg,
+      "## Per-stage routing carriers",
+      "1. Invoke the `ce-plan` skill",
+    )
+    expect(carrier).toContain("Remove every routing directive")
+    expect(carrier).toContain("Never pass")
+    expect(carrier).toContain("`ce-plan`")
+    expect(carrier).toContain("`ce-code-review`")
+    expect(carrier).toContain("feature content")
   })
 })
 
@@ -317,7 +380,7 @@ describe("ce-plan review contract", () => {
     // Both executors are offered; ce-work is always the recommended default (it is the
     // correctly-layered entry point that reaches goal/workflow engines itself), while goal
     // mode is the opt-in preference for driving the work through the harness's goal loop.
-    expect(content).toContain("**Start `/ce-work`** - Build and ship the plan in this session")
+    expect(content).toContain("**Start `ce-work`** - Build and ship the plan in this session")
     expect(content).toContain("**Run it as a `/goal`**")
     expect(content).toMatch(/`ce-work` \(option 1\) always carries \*\(recommended\)\*/i)
     expect(content).toContain("Codex `create_goal` in the available tool list")
@@ -658,10 +721,10 @@ describe("ce-compound frontmatter schema expansion contract", () => {
       "skills/ce-compound/references/yaml-schema.md"
     )
 
-    expect(mapping).toContain("architecture_pattern` -> `docs/solutions/architecture-patterns/")
-    expect(mapping).toContain("design_pattern` -> `docs/solutions/design-patterns/")
-    expect(mapping).toContain("tooling_decision` -> `docs/solutions/tooling-decisions/")
-    expect(mapping).toContain("convention` -> `docs/solutions/conventions/")
+    expect(mapping).toContain("architecture_pattern` -> `<root>/solutions/architecture-patterns/")
+    expect(mapping).toContain("design_pattern` -> `<root>/solutions/design-patterns/")
+    expect(mapping).toContain("tooling_decision` -> `<root>/solutions/tooling-decisions/")
+    expect(mapping).toContain("convention` -> `<root>/solutions/conventions/")
   })
 })
 
@@ -744,9 +807,16 @@ describe("concept-teaching seam parity (ce-commit-push-pr <-> lfg)", () => {
     // The callsite passes the mode explicitly rather than relying on defaults
     expect(lfg).toContain("Invoke the `ce-commit-push-pr` skill with `mode:pipeline branding:on`.")
 
-    // The pre-DONE report line names the concept and the /ce-explain pointer
+    // The pre-DONE report names the concept and renders each user-runnable
+    // handoff for the active host rather than hardcoding one harness's syntax.
     expect(lfg).toContain("New concept introduced:")
-    expect(lfg).toContain("run /ce-explain")
+    expect(lfg).toContain("run <rendered ce-explain invocation> to go deeper")
+    expect(lfg).toContain("run <rendered ce-babysit-pr invocation> to watch it through review to merge")
+    for (const target of ["ce-explain <name>", "ce-babysit-pr <pr-url>"]) {
+      expect(lfg).toContain(`$${target}`)
+      expect(lfg).toContain(`/${target}`)
+    }
+    expect(lfg).toMatch(/default to `\/ce-explain <name>`[\s\S]{0,360}Codex[\s\S]{0,220}output one form only/i)
 
     // The callee documents the mode the caller passes
     expect(skill).toContain("mode:pipeline")

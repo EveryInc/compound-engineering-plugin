@@ -21,6 +21,22 @@ describe("frontmatter", () => {
     expect(parsed.body.trim()).toBe(body)
   })
 
+  test("formatFrontmatter quotes reserved scalar strings so they keep their type", () => {
+    // Emitted bare, each of these reparses as null/bool/number/date. See #613
+    // for the array-item sibling of the same YAML-safety class.
+    const reserved = ["null", "true", "false", "123", "1.5", "~", "0x1A", "2026-07-21", ""]
+    for (const value of reserved) {
+      const parsed = parseFrontmatter(formatFrontmatter({ description: value }, "body"))
+      expect(parsed.data.description, `"${value}" changed type on round-trip`).toBe(value)
+    }
+  })
+
+  test("formatFrontmatter leaves strings YAML reads back as themselves unquoted", () => {
+    const formatted = formatFrontmatter({ description: "yes", name: "off" }, "body")
+    expect(formatted).toContain("description: yes")
+    expect(formatted).toContain("name: off")
+  })
+
 })
 
 /**

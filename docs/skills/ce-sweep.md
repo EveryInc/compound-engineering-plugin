@@ -35,6 +35,8 @@ Feedback triage tends to become a bespoke, per-repo ritual: scan a Slack channel
 
 `ce-sweep` makes the sweep a repeatable skill. Sources are declared once in a shared `feedback_sources` config. Each run fetches items newer than a per-source cursor, acknowledges them at the source (emoji reaction on Slack, label on GitHub Issues), analyzes attached recordings in parallel subagents, verifies claimed fixes are actually merged to the main branch before closing anything out, and reconciles one rolling plan of open actionable items that `/lfg` can execute directly.
 
+The [configuration reference](./configuration.md) lists the feedback-source and sweep coordination keys written by first-run setup.
+
 Every item's lifecycle lives in a durable YAML state file with a versioned schema, so runs resume cleanly, peer agents can share the state, and a crashed run never double-acknowledges a customer's message.
 
 ## What Makes It Novel

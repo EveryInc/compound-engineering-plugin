@@ -26,15 +26,14 @@ describe("reasoning-elevation engine parity", () => {
     }
   })
 
-  // The always-loaded SKILL.md must carry NO token that names the elevated model,
-  // in any casing — not the model name, not the gated reference's old model-named
-  // filename, not a config key that contains it. The silent no-op on non-Claude
-  // harnesses depends on the model-bearing engine living only in the Claude-gated
-  // reference; the stub names a model-neutral reference file and no model or key.
-  // A blanket "fable" token check (rather than a couple of exact substrings) is
-  // what makes this guarantee real: a filename or config-key mention would leak
-  // into non-Claude context and this catches it.
-  test("no consumer SKILL.md mentions the elevated model by any token", async () => {
+  // Narrow guard: the legacy "fable" token must not return to an always-loaded
+  // SKILL.md. Model choice now arrives from config or the prompt at runtime, so a
+  // hardcoded model name in a SKILL.md hook is a regression — the engine and its
+  // model examples live in the reference, not the always-loaded body. This is NOT
+  // a general model-agnosticism proof: a single-token search cannot verify that,
+  // and "fable" is a substring of the ordinary word "diffable" — so this checks
+  // exactly that these hooks did not reintroduce the retired model name.
+  test("no consumer SKILL.md reintroduces the retired model name", async () => {
     for (const skill of CONSUMER_SKILLS) {
       const skillMd = await readFile(path.join(PLUGIN_ROOT, skill, "SKILL.md"), "utf8")
       expect(skillMd.toLowerCase()).not.toContain("fable")

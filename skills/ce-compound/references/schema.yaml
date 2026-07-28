@@ -1,5 +1,5 @@
 # Documentation schema for learnings written by ce-compound
-# Treat this as the canonical frontmatter contract for docs/solutions/.
+# Treat this as the canonical frontmatter contract for compounded learnings.
 #
 # The schema has two tracks based on problem_type:
 #   Bug track  — problem_type is a defect or failure (build_error, test_failure, etc.)

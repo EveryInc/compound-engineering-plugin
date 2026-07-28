@@ -2,18 +2,21 @@
 
 Per-destination mechanics for Phase 6. The menu itself and the one-line action per option live inline in SKILL.md — this file carries only the elaborate sub-flows. Detection is by capability: probe the current session's tools and context; a missing binary, env var, or unloaded MCP tool is not proof of absence when a connector could supply the capability. Local file is the always-present floor.
 
-## Artifact surface
+## Claude Artifact
 
-Offered when an artifact-publishing tool is present in the session's toolset.
+Offered for HTML output when the session is Claude Code and its Artifact tool is present. Give the tool the canonical `$RUN_DIR/explainer.html`, follow its current contract, and confirm the returned URL or reference to the user. The tool owns any adaptation needed for its artifact runtime; do not pre-process the HTML for it.
 
-Artifact surfaces wrap published content in their own document skeleton (doctype, head, body) and enforce a CSP that blocks requests to external hosts. Publishing the run-dir file verbatim would nest a full HTML document inside theirs and break on any external reference. So:
+## Publish publicly to ht-ml.app
 
-1. Re-emit the explainer as **body-only markup**: strip the doctype/`<html>`/`<head>`/`<body>` shell; keep the content elements.
-2. Keep all CSS inline (a `<style>` element at the top of the fragment is acceptable); no external font links, no external images — the explainer's no-external-request invariant already guarantees this.
-3. Keep the visible metadata header and composition footer in the fragment — they are part of the artifact.
-4. Publish, confirm the returned URL/reference to the user.
+This is the preferred HTML publisher when the Claude Artifact adapter is not selected. ht-ml.app accepts the complete standalone HTML document and works through ordinary HTTP, independent of the agent harness.
 
-The run-dir file remains the complete standalone document; the fragment is a re-emission, not a replacement.
+Before publishing, the destination option itself must state: **the page is public and may be indexed, crawled, copied, or archived**. Whenever ht-ml.app is chosen without that warned option in front of the user — their initial request selected it and the menu was skipped, or they named it after the one-preferred-publisher rule kept it off a menu that *was* shown — state the same full warning in chat and ask for explicit confirmation after the warning before any publish; “this is public” is not the complete warning, and the initial request itself does not count as confirmation. Only a warned menu selection or explicit post-warning confirmation permits publishing. If confirmation cannot be obtained, do not publish; preserve the canonical `$RUN_DIR/explainer.html` and report its local path. Never publish headlessly or infer consent from the fact that an explainer was requested. If the content is sensitive, route to Local file instead.
+
+After the user selects the warned option or explicitly confirms after the warning:
+
+1. Prefer any ht-ml.app or general HTML-publishing capability detected in the current session. When it is a skill, invoke it through the platform's skill-invocation primitive with the canonical `$RUN_DIR/explainer.html` and the user's public-publishing confirmation; otherwise call the detected tool, connector, or browser capability directly. Follow that capability's current contract. Do not assume a particular skill name or installation path.
+2. When no publisher is installed, use a reachable web or HTTP interface to follow ht-ml.app's agent-facing instructions at `https://ht-ml.app/llms.txt` (or its linked API help) and publish the complete canonical HTML. The explainer is already composed; do not select a template or redesign it.
+3. Surface the returned URL. Treat any returned update credential as a secret: do not print it in chat or embed it in the page. On failure, retry once after a short wait, then report the error and fall back to the canonical local-file path.
 
 ## Local file
 

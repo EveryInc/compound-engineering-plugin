@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from "fs"
 import path from "path"
 import { formatFrontmatter } from "../utils/frontmatter"
+import { isReservedPathRoot } from "../utils/slash-command"
 import { type ClaudeAgent, type ClaudeCommand, type ClaudeMcpServer, type ClaudePlugin, filterSkillsByPlatform } from "../types/claude"
 import type {
   KiroAgent,
@@ -150,11 +151,26 @@ export function transformContentForKiro(body: string, knownAgentNames: string[] 
   result = result.replace(/(?<=^|\s|["'`])~\/\.claude\//gm, "~/.kiro/")
   result = result.replace(/(?<=^|\s|["'`])\.claude\//gm, ".kiro/")
 
-  // 3. Slash command refs: /command-name -> skill activation language
-  result = result.replace(/(?<=^|\s)`?\/([a-zA-Z][a-zA-Z0-9_:-]*)`?/gm, (_match, cmdName: string) => {
-    const skillName = normalizeName(cmdName)
-    return `the ${skillName} skill`
-  })
+  // 3. Slash command refs: /command-name -> skill activation language.
+  // Path-vs-command is decided in the callback rather than via a lookahead: a token whose
+  // match ends with "/" as the next char (and isn't closed by a backtick) is a path segment
+  // (/etc/hosts, /Users/foo, `/private/tmp/x`) and is left verbatim; everything else is a
+  // real command reference and converts. Inspecting the trailing char directly sidesteps the
+  // regex backtracking traps a trailing lookahead hits with namespaced (:) and backticked (`)
+  // commands. The allowlist still guards bare single-segment roots like a standalone "/etc".
+  result = result.replace(
+    /(?<=^|\s)`?\/([a-zA-Z][a-zA-Z0-9_:-]*)`?/gm,
+    (match, cmdName: string, offset: number, full: string) => {
+      const nextChar = full[offset + match.length]
+      if (nextChar === "/" && !match.endsWith("`")) {
+        return match
+      }
+      if (isReservedPathRoot(cmdName)) {
+        return match
+      }
+      return `the ${normalizeName(cmdName)} skill`
+    },
+  )
 
   // 4. Claude tool names -> Kiro tool names
   for (const [claudeTool, kiroTool] of Object.entries(CLAUDE_TO_KIRO_TOOLS)) {

@@ -51,10 +51,12 @@ Use a readable topic slug as the filename. When Git context exists, use a saniti
 
 Treat creation as complete only after confirming the destination contains the handoff. Give a succinct, context-specific summary of what the generated handoff captures so the user can verify its substance without opening it; do not impose a fixed summary template. Then report the final path or URL, applicable retention or access limits, and any warnings together. Managed `/tmp` storage is OS-managed and not permanent. Its automatic discovery assumes the receiving session can see the same host filesystem; otherwise tell the user to transfer or publish the handoff to a receiver-visible location and resume from that explicit source.
 
-End the creation response with one fenced, copyable command using the final path or URL:
+**User-runnable invocation rendering.** For the copyable resume command below, default to `/ce-handoff resume <source>`; use `$ce-handoff resume <source>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render it as the fenced command below and output one form only.
+
+End the creation response with one fenced, copyable command using the final path or URL and the rendering rule above:
 
 ```text
-/ce-handoff resume <source>
+<rendered resume invocation>
 ```
 
 Quote the source when needed so the command can be pasted verbatim. Do not generate a longer resume prompt.

@@ -118,7 +118,7 @@ The same generate-critique-survive mechanism runs across very different topic do
 
 ### 8. Issue-tracker intent
 
-Phrases like "what users are reporting" or "biggest issue patterns" trigger an issue-intelligence agent that pulls real GitHub issues and feeds clustered themes into the ideation frames.
+Phrases like "what users are reporting" or "biggest issue patterns" trigger an issue-intelligence agent that pulls real issues from your tracker — GitHub, Linear, or Jira, whichever is reachable — and feeds leverage-ranked clustered themes into the ideation frames. It scopes large trackers by the tracker's own structure and asks at most one question, only when the tracker is genuinely split; it discloses what it did and didn't analyze rather than implying it read everything.
 
 ---
 
@@ -209,7 +209,7 @@ The deliverable is written automatically — you don't have to ask. If a run was
 | `surprise me` | Surprise-me mode |
 | `go deep` | Maximum depth: every ideation agent runs on the top-tier model, verification budgets double, and a second critic joins the filtering pass |
 | `top issue themes in <area>` | Triggers issue-tracker intent |
-| `output:md` | Write the artifact as markdown instead of the default self-contained HTML (`output:html` forces HTML explicitly). Also settable per-project via `ideate_output` in `.compound-engineering/config.local.yaml` |
+| `output:md` | Write the artifact as markdown instead of the default self-contained HTML (`output:html` forces HTML explicitly). Also settable per-project via `ideate_output` in `.compound-engineering/config.local.yaml`; see the [configuration reference](./configuration.md) |
 
 Skip phrases supported anywhere in the prompt: `no external research`, `no slack`.
 

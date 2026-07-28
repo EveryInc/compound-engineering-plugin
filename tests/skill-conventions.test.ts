@@ -3,6 +3,13 @@ import path from "path"
 import { describe, expect, test } from "bun:test"
 import { parseFrontmatter } from "../src/utils/frontmatter"
 
+const ROOT_AGENTS = readFileSync(path.join(process.cwd(), "AGENTS.md"), "utf8")
+const PORTABLE_AUTHORING_GUIDE = readFileSync(
+  path.join(process.cwd(), "docs/solutions/skill-design/portable-agent-skill-authoring.md"),
+  "utf8",
+)
+const ROOT_README = readFileSync(path.join(process.cwd(), "README.md"), "utf8")
+
 /**
  * Convention-enforcement tests for skill content, encoding the repo-root
  * AGENTS.md rules "File References in Skills" and "Platform-Specific
@@ -129,6 +136,29 @@ const REPO_ROOT = process.cwd()
 const SKILLS_ROOT = path.join(REPO_ROOT, "skills")
 const AGENTS_MD_REF = `AGENTS.md (repo root)`
 
+describe("user-facing skill invocation authoring contract", () => {
+  test("authoring guidance separates semantic routing from host-rendered user copy", () => {
+    for (const text of [ROOT_AGENTS, PORTABLE_AUTHORING_GUIDE]) {
+      expect(text).toContain("$skill-name")
+      expect(text).toContain("/skill-name")
+      expect(text).toMatch(/agent-to-agent|skill-to-skill/i)
+      expect(text).toMatch(/format formal skill names as inline code/i)
+      expect(text).toContain("`ce-plan`")
+      expect(text).toMatch(/in prose, render only the invocation as inline code[^\n]*fenced block/i)
+      expect(text).toMatch(/active host|active harness/i)
+      expect(text).toMatch(/default to `\/skill-name`[\s\S]{0,160}Codex[\s\S]{0,160}dollar-prefixed/i)
+      expect(text).toMatch(/\/goal[\s\S]{0,180}(built-in|exception)|built-in[\s\S]{0,180}\/goal/i)
+      expect(text).toMatch(/smallest section[\s\S]{0,180}do not repeat[\s\S]{0,180}separately loaded reference/i)
+    }
+  })
+
+  test("README explains Codex invocation syntax without rewriting the built-in goal command", () => {
+    expect(ROOT_README).toMatch(/README uses `\/skill-name`[\s\S]{0,180}Codex[\s\S]{0,120}`\$skill-name`/i)
+    expect(ROOT_README).toContain("`$ce-plan` and `$lfg`")
+    expect(ROOT_README).toMatch(/\/goal[\s\S]{0,80}Codex built-in/i)
+  })
+})
+
 // ---------------------------------------------------------------------------
 // Exemptions. Shrinking these lists is welcome; growing them requires written
 // justification in the entry comment — they must not become silent junk
@@ -147,6 +177,11 @@ const EXPECTED_USER_INVOKED_SKILLS = new Set([
   "ce-polish",
   "ce-product-pulse",
   "ce-promote",
+  // ce-retune: a measurement-first corpus retune that refuses to run without a
+  // benchmark harness and spends many paid runs. No skill or pipeline dispatches
+  // it, and model-routing it would let a cheaper request escalate into an
+  // expensive measurement program, so it stays user-invoked.
+  "ce-retune",
   "ce-setup",
   "ce-sweep",
   "ce-test-xcode",
@@ -1224,5 +1259,85 @@ describe("findPlatformVarViolations", () => {
       '```',
     ].join("\n")
     expect(findPlatformVarViolations(sample).map((v) => v.variable)).toEqual(["CLAUDE_SKILL_DIR"])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Python interpreter resolution (#1247 / resolve-python-interpreter-not-python3.md)
+// ---------------------------------------------------------------------------
+
+/**
+ * Bare `python3 …` invocations that an agent would copy into Bash. On native
+ * Windows, `python3` is often the Microsoft Store stub — existence checks pass,
+ * execution fails. Skills must probe execution (`for c in python3 python py`)
+ * and invoke `"$PY"` instead. See
+ * docs/solutions/conventions/resolve-python-interpreter-not-python3.md.
+ */
+const BARE_PYTHON3_INVOCATION =
+  /(?:^|[\s;|&])python3\s+(?:"\$|"\$\{|'\$|-|\/|\.\.?\/|[A-Za-z_][\w./-]*\.(?:py|sh)\b|scripts\/)|xargs(?:\s+-\S+)*\s+python3\b/
+
+function listSkillMarkdownAndShellFiles(skillAbsPath: string): string[] {
+  const out: string[] = []
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        walk(abs)
+        continue
+      }
+      if (entry.isFile() && (entry.name.endsWith(".md") || entry.name.endsWith(".sh"))) {
+        out.push(abs)
+      }
+    }
+  }
+  walk(skillAbsPath)
+  return out
+}
+
+function findBarePython3Invocations(content: string): number[] {
+  const lineNumbers: number[] = []
+  const lines = content.split("\n")
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!
+    // The sanctioned probe names `python3` as a candidate — not an invocation.
+    if (line.includes("for c in python3 python py")) continue
+    // Shell comments are not agent-copied invocation blocks.
+    if (/^\s*#/.test(line)) continue
+    if (BARE_PYTHON3_INVOCATION.test(line)) lineNumbers.push(i + 1)
+  }
+  return lineNumbers
+}
+
+describe("python interpreter resolution (no bare python3 invocations)", () => {
+  for (const skill of skillDirs) {
+    test(`${skill.relPath} does not hardcode bare python3 to invoke bundled scripts`, () => {
+      const offenders: string[] = []
+      for (const filePath of listSkillMarkdownAndShellFiles(skill.absPath)) {
+        const fileRel = path.relative(REPO_ROOT, filePath)
+        const content = readFileSync(filePath, "utf8")
+        for (const lineNumber of findBarePython3Invocations(content)) {
+          offenders.push(`  ${fileRel}:${lineNumber}`)
+        }
+      }
+      expect(
+        offenders,
+        `Hardcoded python3 invocations break on native Windows (Microsoft Store stub). Resolve with an execution probe and invoke "$PY" — see docs/solutions/conventions/resolve-python-interpreter-not-python3.md and issue #1247.\nOffending lines:\n${offenders.join("\n")}`,
+      ).toEqual([])
+    })
+  }
+
+  test("findBarePython3Invocations flags bare calls and ignores the probe", () => {
+    expect(
+      findBarePython3Invocations(
+        'python3 "$SKILL_DIR/scripts/x.py"\nPY="$(for c in python3 python py; do …)"; "$PY" "$SKILL_DIR/scripts/x.py"\n',
+      ),
+    ).toEqual([1])
+    expect(findBarePython3Invocations('xargs -0 python3 "$SKILL_DIR/scripts/x.py"')).toEqual([1])
+    expect(findBarePython3Invocations("python3 scripts/foo.py")).toEqual([1])
+    expect(
+      findBarePython3Invocations(
+        'Never write inline scripts (`python3 -c`, `node -e`) to process issue data.',
+      ),
+    ).toEqual([])
   })
 })

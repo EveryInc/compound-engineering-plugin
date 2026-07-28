@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate ce-compound docs/solutions/ frontmatter for parser-safety issues.
+"""Validate ce-compound learning-doc frontmatter for parser-safety issues.
 
 Usage:
     python3 validate-frontmatter.py <doc-path>

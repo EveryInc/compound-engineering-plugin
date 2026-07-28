@@ -22,9 +22,11 @@ The needed capability is generic — *run a background process and be woken when
 | Codex (CLI) | a runtime-owned background exec that re-runs the tick (a detached `nohup` is **reaped** when the tool call ends) | No (session-bound) |
 | GUI apps / headless / unknown | none reliable → **checkpoint** | — |
 
-**Checkpoint (the floor):** when no background-and-wake capability exists, run one tick, persist, report, and print the exact re-run command (`/ce-babysit-pr <PR-url>`) — monitoring is *paused*, say so plainly. Because every tick is disk-resumable, checkpoint is the same loop hand-cranked; the in-session watch only automates the crank. Never fake a loop with a foreground `sleep` (blocked on Claude Code, discouraged elsewhere) or a detached `nohup` (reaped/unsupported on several harnesses).
+**User-runnable resume syntax.** Whenever this reference tells the skill to print or copy a resume invocation, default to `/ce-babysit-pr <url>`. Use `$ce-babysit-pr <url>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
 
-**Durability:** the in-session watch dies with the session; re-invoking resumes from disk (`/tmp` persists across ticks). For an unattended multi-day watch, escalate to a durable scheduler (Grok `scheduler_create --durable`, or cron running `<cli> exec "/ce-babysit-pr <url>"`) — a fresh headless run is context-blind, so persist consequential decisions to disk. **Shell env vars do not persist between separate tool calls** on any harness — re-set `SKILL_DIR`/`STATE_DIR` inline in every command.
+**Checkpoint (the floor):** when no background-and-wake capability exists, run one tick, persist, report, and print the exact host-rendered re-run invocation — monitoring is *paused*, say so plainly. Because every tick is disk-resumable, checkpoint is the same loop hand-cranked; the in-session watch only automates the crank. Never fake a loop with a foreground `sleep` (blocked on Claude Code, discouraged elsewhere) or a detached `nohup` (reaped/unsupported on several harnesses).
+
+**Durability:** the in-session watch dies with the session; re-invoking resumes from disk (`/tmp` persists across ticks). For an unattended multi-day watch, escalate to a durable scheduler (Grok `scheduler_create --durable`, or cron running `<cli> exec '<host-rendered resume invocation>'`) — a fresh headless run is context-blind, so persist consequential decisions to disk. **Shell env vars do not persist between separate tool calls** on any harness — re-set `SKILL_DIR`/`STATE_DIR` inline in every command.
 
 ## Cadence (the watch interval)
 
@@ -76,6 +78,9 @@ State lives at `<scratch-root>/ce-babysit-pr/<host>-<owner>-<repo>-<pr>/state.js
   "started_at": "<iso8601>",
   "invocation_id": "<opaque invocation token>",
   "invocation_budget_seconds": 28800,
+  "last_activity_at": "<iso8601 — activity heartbeat: last watch poll or agent snapshot/mark>",
+  "dead_time_seconds": 0,
+  "invocation_backstop_seconds": 259200,
   "watch_generation": "<opaque generation>",
   "watch_pid": 12345,
   "watch_process_identity": "<pid-reuse guard>",
@@ -160,7 +165,7 @@ The settle window guards the most damaging false positive: "CI went green, told 
 
 ## Managed-stack continuation
 
-Sequential babysitting is available only while a fresh probe positively reports `manager_status == "confirmed"` for the active PR. It uses one active PR target and one watcher, never a watcher per stack layer. On an authorized transition, stop the old watcher, re-read `gh stack view --json`, require the next PR to be the manager's immediate open entry and either non-draft or explicitly included by the user, check out that branch, and initialize its own state directory with `--continue-invocation` plus the same invocation ID, start, and budget. One fixed budget covers the entire accepted traversal rather than restarting per PR. Recheck downstack settledness only at transitions, immediately before mutation, and at readiness; if a lower layer has become unsettled, return to the lowest unsettled layer rather than writing to both concurrently. Loss of manager confirmation ends continuation.
+Sequential babysitting is available only while a fresh probe positively reports `manager_status == "confirmed"` for the active PR. It uses one active PR target and one watcher, never a watcher per stack layer. On an authorized transition, stop the old watcher, re-read `gh stack view --json`, require the next PR to be the manager's immediate open entry and either non-draft or explicitly included by the user, check out that branch, and initialize its own state directory with `--continue-invocation` plus the same recorded values on the same flags the first snapshot used — `--invocation-id`, `--session-started-at` (the anchor flag, not `--invocation-started-at`), and `--invocation-budget-seconds` — **and `--continue-dead-time-seconds <prior layer's `invocation_dead_time_seconds`>`** so the shared active-time budget carries the suspended time already excluded on earlier layers. One fixed budget covers the entire accepted traversal rather than restarting per PR; each layer's state dir accumulates its own dead time, so omitting the carry value would re-count the prior layer's excluded suspend as active. Recheck downstack settledness only at transitions, immediately before mutation, and at readiness; if a lower layer has become unsettled, return to the lowest unsettled layer rather than writing to both concurrently. Loss of manager confirmation ends continuation.
 
 The one-time semantic-scope offer and draft/human boundaries live inline in SKILL.md because they are routing decisions, not detector mechanics. A manual dependency chain never enters this continuation path; it remains target-local even when its base/head relationships have the same shape.
 
@@ -177,5 +182,5 @@ The one-time semantic-scope offer and draft/human boundaries live inline in SKIL
 - **PR closed or merged externally:** detected as `pr_state != "OPEN"` on any tick → clean exit with a final status.
 - **needs-human feedback:** `ce-resolve-pr-feedback` leaves those threads open and returns them as escalations; record each with `mark ... --disposition needs-human`, keep doing independent CI work, and surface them. Never auto-decline or auto-resolve a thread you did not fix. A parked `needs-human` is a **standing residual** (SKILL.md Step 3): it blocks *declaring* merge-ready but does **not** end the watch — keep handling new CI and later review rounds around it. Only a true stop (terminal / looks-ready / the budget cap) ends the active layer, not a count of accumulated escalations; an authorized confirmed-managed-stack run may transition after a looks-ready layer as defined inline in SKILL.md.
 - **No push access / fork PR:** a delegated push will fail. Detect that from the delegated skill's result, report it, and stop — the loop cannot make progress it has no permission to make.
-- **CI that never completes:** a check stuck `IN_PROGRESS` for a long time will keep the loop from settling. When the fixed invocation budget is reached, hand back with the measured `invocation_elapsed_seconds`; never substitute the age of persisted PR state or automatically start another budget.
+- **CI that never completes:** a check stuck `IN_PROGRESS` for a long time will keep the loop from settling. When the invocation budget is reached — either the 8h **active** cap (`invocation_elapsed_seconds`, which excludes suspended time) or the 3-calendar-day **wall-clock backstop** (`invocation_wall_elapsed_seconds`) — hand back with the measured `invocation_elapsed_seconds` and the `max_runtime_ceiling` that fired; never substitute the age of persisted PR state or automatically start another budget.
 - **Rate limits / transient API errors:** honor the reset time, back off, resume. The claim→confirm protocol protects against replay.

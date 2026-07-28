@@ -52,6 +52,10 @@ One thing it deliberately does *not* do is render a verdict. When a request is r
 
 # Equivalent shorthand when a repeatable automation needs it
 /ce-brainstorm add account-level notification settings output:html
+
+# Keep your session on a model like Opus, but generate the approaches on Fable --
+# surgical use of a strong-but-expensive model just for the heavy reasoning step
+/ce-brainstorm add account-level notification settings, use fable
 ```
 
 ---
@@ -80,6 +84,8 @@ A typical "let's brainstorm" with an AI also has shape problems: it asks five qu
 - **Opt-in visual probes** for decisions that are faster to judge as rough sketches than prose
 - **Synthesis Summary** as the last opportunity to correct scope before the doc lands
 - **Fresh-context claim verification** checks the doc's repo claims before it lands
+- **One coherent work unit per artifact** with a plain-language view of how separately planned work currently fits together
+- **Ready for Planning Check** repairs completeness, consistency, focus, and planning-readiness defects before handoff
 - **Right-sized Product Contract** inside a unified plan with stable identifiers (R/A/F/AE) that flow into planning
 
 ---
@@ -222,7 +228,7 @@ The Phase 4 handoff offers planning, agent doc review, publish to Proof, direct-
 | `<feature idea>` | Open-ended brainstorm |
 | `<problem>` | Routes via the product pressure test |
 | Existing requirements-only plan path, legacy `*-requirements.md` path, or topic | Resume offer |
-| `output:html` | Write the requirements-only unified plan as a single self-contained HTML file instead of markdown. Exclusive — the artifact is `.md` OR `.html`, never both. Default is markdown. Set `brainstorm_output: html` in `.compound-engineering/config.local.yaml` to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown so downstream automation gets a stable text shape. |
+| `output:html` | Write the requirements-only unified plan as a single self-contained HTML file instead of markdown. Exclusive — the artifact is `.md` OR `.html`, never both. Default is markdown. Set `brainstorm_output: html` in `.compound-engineering/config.local.yaml` to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown so downstream automation gets a stable text shape. See the [configuration reference](./configuration.md). |
 
 ---
 
@@ -248,9 +254,11 @@ Yes — a domain-agnostic facilitator preserves the one-question-at-a-time disci
 
 ---
 
-## Fable elevation (Claude Code only)
+## Model elevation
 
-When you're on a cheaper session model, `ce-brainstorm` can still generate approaches with a higher-reasoning model: it dispatches approach generation to Fable via a subagent, so you get sharper, less-generic options without switching your whole session. Opt in per run by saying "use fable" in your prompt, or set `brainstorm_use_fable: true` in `.compound-engineering/config.local.yaml`. A mechanical host gate makes this a silent no-op on every non-Claude-Code harness (Codex, Cursor). See `references/reasoning-elevation.md`.
+When you want a specific model for the heavy reasoning step, `ce-brainstorm` can generate approaches on a model you choose instead of your session model. It dispatches only approach generation to that model, with read access so it can verify its brief; the rest of the skill stays on your session model. Choose per run by naming a model in your prompt ("use fable", "have opus generate these"), or set a default with `brainstorm_model: <model>` in `.compound-engineering/config.local.yaml`. A prompt request overrides the config key.
+
+This works on any harness: the host serves the chosen model natively where it can, otherwise it invokes the Claude CLI (which must be installed and authenticated), otherwise it runs the step on your session model and tells you which precondition was unmet. **Setting `brainstorm_model` therefore takes effect in every harness you run `ce-brainstorm` in**, not just Claude Code. See `references/reasoning-elevation.md`.
 
 ---
 

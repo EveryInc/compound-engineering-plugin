@@ -30,6 +30,17 @@ describe("ce-pov subject-shape contract", () => {
     expect(skill).not.toContain("repo-profile-cache")
   })
 
+  test("licenses bounded inline grounding while keeping the prior-decision scan mandatory", async () => {
+    const skill = await skillFile("SKILL.md")
+    const phaseOne = between(skill, "### Phase 1: Ground", "### Phase 2: Verify Grounding")
+
+    expect(phaseOne).toContain("Send scouts directly to candidate-specific current evidence")
+    expect(phaseOne).toMatch(/bounded reads.*instead of dispatching scouts/)
+    expect(phaseOne).toMatch(/a pointer to check, never self-verifying/)
+    expect(phaseOne).toMatch(/unscoped or noisy grounding still dispatches/)
+    expect(phaseOne).toMatch(/prior-decision scan.*stays mandatory on either path/)
+  })
+
   test("semantic cross-model requests activate without the oracle shorthand", async () => {
     const skill = await skillFile("SKILL.md")
     const frontmatter = skill.split("---", 3)[1] ?? ""
@@ -112,6 +123,17 @@ describe("ce-pov cross-model panel contract", () => {
     expect(phaseThree).toContain("Freeze that position")
     expect(phaseThree).toMatch(/Keep it out of an independent peer's initial context/)
     expect(phaseThree).toMatch(/critique that position|reconciliation round/)
+  })
+
+  test("discloses panel status after any summons even when no panel runs", async () => {
+    const skill = await skillFile("SKILL.md")
+    const panel = await skillFile("references/cross-model-panel.md")
+    const phaseThree = between(skill, "### Phase 3: Point of View", "### Phase 4: Follow-up")
+
+    expect(phaseThree).toContain("states which peers ran")
+    expect(phaseThree).toMatch(/caller's paraphrase in one channel never cancels/)
+    expect(phaseThree).toMatch(/no summons keeps the solo result unchanged with no panel note/)
+    expect(panel).toMatch(/summons was present but the panel branch never entered/)
   })
 
   test("follow-up covers every subject shape while retaining adoption tier gates", async () => {
@@ -201,9 +223,25 @@ describe("ce-pov cross-model panel contract", () => {
 
     expect(prose).toMatch(/initial `independent` round, exclude ce-pov's position and every other voice's conclusion/)
     expect(prose).toMatch(/proposal, document, or approach set.*subject.*fully available/)
+    expect(prose).toMatch(/host's own argument.*is reconcile-round material, not round-1 material/)
+    expect(prose).toMatch(/Define round-1 evidence by provenance/)
+    expect(prose).toContain("rejecting every supplied option, or the framing itself, is a valid position")
+    expect(prose).toContain("present the options symmetrically in the payload's own words")
     expect(prose).toMatch(/For `skeptic` mode, include ce-pov's position/)
     expect(prose).toMatch(/Reconciliation payloads.*include already-formed positions/)
     expect(prose).toMatch(/Do not duplicate readable files/)
+  })
+
+  test("packages a prior-opinion subject as first-class without capitulating", async () => {
+    const panel = await skillFile("references/cross-model-panel.md")
+    const invocation = await skillFile("references/invocation.md")
+    const prose = compact(panel)
+
+    expect(panel).toContain("Prior-opinion subjects")
+    expect(prose).toMatch(/already-formed position.*that position is the subject artifact and ships in the payload/)
+    expect(prose).toMatch(/enter convergence \(unlike `skeptic` mode/)
+    expect(panel).toContain("never capitulated to")
+    expect(invocation).toContain("not a revision prompt")
   })
 
   test("grounds initial peers in the subject and shared tree without a host-curated project floor", async () => {
@@ -227,6 +265,15 @@ describe("ce-pov cross-model panel contract", () => {
     expect(prose).toMatch(/Recommend a specific number of additional exchanges only when/)
     expect(prose).toMatch(/Further rounds require user approval/)
     expect(prose).toMatch(/new finite cap, never an open-ended loop/)
+  })
+
+  test("names the peer result artifact and pins result-path at job start", async () => {
+    const panel = await skillFile("references/cross-model-panel.md")
+    const prose = compact(panel)
+
+    expect(panel).toContain("pov-<target>.json")
+    expect(prose).toContain("grok-cli`/`grok-cursor` collapsing to `grok`")
+    expect(prose).toMatch(/Pass exactly that\s+path as `--result-path`/)
   })
 
   test("keeps include and exclude path filters explicitly cooperative in the worker prompt", async () => {

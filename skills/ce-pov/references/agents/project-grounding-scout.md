@@ -16,7 +16,7 @@ Hunt for whichever of these the case needs:
 - **Integration / migration cost signals** — for a replacement, how many call sites / modules use the incumbent (a count from a content search, not an exhaustive list) and the surfaces a swap would touch; for **net-new**, where the candidate would integrate (the entry point, the module(s) that would use it) and how large that wiring is.
 - **Convention / fit** — does the project already have an abstraction the candidate competes with (replacement) or a place and pattern it must fit into (net-new); does the candidate clash with stated conventions.
 - **Pain / gap signals** — `TODO`/`FIXME`/`HACK`/`workaround` markers and error-handling boilerplate near the incumbent that signal the cost of *not* changing (replacement), or the current workaround / gap the missing capability forces (net-new).
-- **Prior decision** — a quick scan of `docs/solutions/`, ADRs, and design docs for an existing decision on this candidate or the job it does (a past adopt / reject / defer). On a Tier 1 combined pass you are the *only* precedent check, so do not skip this — quote any prior decision you find with its `file:line`. (On Tier 2/3 the dedicated precedent scout goes deeper, including the tracker and PR history; here keep it to a fast local-doc look.)
+- **Prior decision** — a quick scan of `<root>/solutions/`, ADRs, and design docs for an existing decision on this candidate or the job it does (a past adopt / reject / defer). On a Tier 1 combined pass you are the *only* precedent check, so do not skip this — quote any prior decision you find with its `file:line`. (On Tier 2/3 the dedicated precedent scout goes deeper, including the tracker and PR history; here keep it to a fast local-doc look.)
 
 ## Methodology
 

@@ -323,7 +323,21 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(gateBlock).toMatch(/atomicity cannot be proven[^.]{0,160}true stop[^.]{0,120}every mode/i)
     expect(gateBlock).toContain("do not invoke a delegate, run another tick, or arm/re-arm a watcher")
     expect(gateBlock).toMatch(/interactive\/self-sustaining[^.]{0,120}hands control back[^.]{0,160}pipeline mode[^.]{0,120}terminates/i)
-    expect(gateBlock).toMatch(/normally bare `\/ce-babysit-pr`[\s\S]{0,180}current branch no longer identifies that PR/i)
+    expect(gateBlock).toMatch(/normally bare[\s\S]{0,220}current branch no longer identifies that PR/i)
+  })
+
+  test("user-facing resume commands render for the active host", async () => {
+    const [babysit, watchLoop] = await Promise.all([
+      readRepoFile(BABYSIT),
+      readRepoFile(WATCH_LOOP),
+    ])
+
+    for (const text of [babysit, watchLoop]) {
+      expect(text).toContain("$ce-babysit-pr <url>")
+      expect(text).toContain("/ce-babysit-pr <url>")
+      expect(text).toMatch(/default to `\/ce-babysit-pr <url>`[\s\S]{0,260}Codex[\s\S]{0,180}output one form only/i)
+      expect(text).toContain("exec '<host-rendered resume invocation>'")
+    }
   })
 
   test("sequential babysitting is a confirmed-managed-stack-only, one-watcher scope", async () => {
@@ -420,7 +434,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
       expect(text).toMatch(/ambiguous[^.]{0,220}never[^.]{0,160}(retry|resubmit)/i)
     }
     expect(babysit).toMatch(/stale invocation[^.]{0,220}(reject|invalidate)/i)
-    expect(babysit).toMatch(/SKILL_DIR=[^\n]+;[^\n]+STATE_DIR=[^\n]+;[^\n]+RUN_INVOCATION_ID=[^\n]+;[^\n]+RUN_STARTED_AT=[^\n]+;[^\n]+RUN_BUDGET_SECONDS=[^\n]+;\n\s*python3[^\n]+--currency-disposition claimed/i)
+    expect(babysit).toMatch(/SKILL_DIR=[^\n]+;[^\n]+STATE_DIR=[^\n]+;[^\n]+RUN_INVOCATION_ID=[^\n]+;[^\n]+RUN_STARTED_AT=[^\n]+;[^\n]+RUN_BUDGET_SECONDS=[^\n]+;\n\s*PY=[\s\S]*?"\$PY"[^\n]+--currency-disposition claimed/i)
     expect(watchLoop).toMatch(/max-runtime[^.]{0,160}(claim|mutation)/i)
   })
 

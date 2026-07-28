@@ -13,7 +13,7 @@
 # Independence is by PROVIDER, not CLI brand. A provider is reached by a ROUTE:
 # its dedicated CLI, or (for fixed grok-cursor / composer routes) cursor-agent. All
 # activated lenses run on ONE model per provider at high reasoning, except codex
-# on medium; composer's -fast tier is its ceiling (accepted exceptions).
+# on extra-high; composer's -fast tier is its ceiling (accepted exceptions).
 #
 # Usage:
 #   cross-model-doc-review.sh <host-provider> <candidates> <reviewer-name> \
@@ -79,10 +79,10 @@ log()  { printf '[cross-model-doc] %s\n' "$*" >&2; }
 skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no output
 
 # --- model + reasoning per provider ----------------------------------------
-# ONE model per provider at high reasoning, except codex on medium (supersedes
+# ONE model per provider at high reasoning, except codex on extra-high (supersedes
 # the old per-lens sol/terra split). Concrete IDs are the CURRENT instance of the
 # tier principle and the single maintenance point when model families change.
-M_CODEX="gpt-5.6-sol"          # codex CLI            (-c model_reasoning_effort="medium")
+M_CODEX="gpt-5.6-luna"         # codex CLI            (-c model_reasoning_effort="xhigh")
 M_CLAUDE="opus"                # claude CLI, Opus 4.8 (--effort high)
 M_GROK="grok-4.5"              # grok CLI             (--effort high)
 M_GROK_CURSOR="cursor-grok-4.5-high"  # fixed cursor-agent Grok route (current id)
@@ -181,7 +181,7 @@ extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODE
 # --- adapter argv (single source of truth for route flags) -----------------
 # Emits the CLI + flags one token per line. Read-only, no-prompt, least-privilege
 # (tool-less on claude/grok; read-only residual on codex/cursor-agent), and
-# codex medium + others high reasoning per R17. PEER_WORKDIR / RAW_OUT / PROMPT_FILE / SCHEMA_REF are
+# codex xhigh + others high reasoning per R17. PEER_WORKDIR / RAW_OUT / PROMPT_FILE / SCHEMA_REF are
 # resolved by the caller (placeholders in --emit-adapter mode); PEER_WORKDIR is the
 # per-peer empty cwd/workspace, kept separate from the shared fold-in dir RUN_DIR.
 # Peer routes write to RAW_OUT only; the final fold-in file (OUT) is published after normalize so an orphaned
@@ -192,7 +192,7 @@ adapter_argv() {
   case "$1" in
     codex)
       printf '%s\0' codex exec - -C "$PEER_WORKDIR" --skip-git-repo-check -s read-only \
-        -o "$RAW_OUT" -m "$(route_model codex)" -c 'model_reasoning_effort="medium"' -c 'hide_agent_reasoning=false'
+        -o "$RAW_OUT" -m "$(route_model codex)" -c 'model_reasoning_effort="xhigh"' -c 'hide_agent_reasoning=false'
       ;;
     claude)
       # --tools "" disables ALL built-in tools (allowlist deny-all, no denylist gap
@@ -423,7 +423,7 @@ fi
 PROMPT_FILE="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-prompt-XXXXXX")"
 PEERLOG="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-log-XXXXXX")"
 # Peer stderr goes to its own file, NOT merged into PEERLOG: PEERLOG must stay
-# clean stdout for the findings brace-match and the receipt jq-parse. An
+# clean stdout for the findings raw_decode scan and the receipt jq-parse. An
 # auth/quota/rate-limit message often lands on stderr, so capture it separately
 # and surface it in the skip evidence (grok's 402 is on stdout, others on stderr).
 PEERERR="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-err-XXXXXX")"
@@ -461,7 +461,10 @@ DOC_BASENAME="$(basename "$DOC_PATH")"
 } > "$PROMPT_FILE"
 
 # --- run machinery: idle-timeout for streaming codex, hard cap for the rest --
-IDLE_SECS="${CROSS_MODEL_IDLE_SECS:-180}"
+# Idle cap must exceed the peer's worst-case silent turn: Codex --json is
+# event-line (not token) output, so a slow xhigh reasoning turn (Luna p95 ~242s,
+# max ~419s) can go quiet past a low cap and be reaped before turn.completed.
+IDLE_SECS="${CROSS_MODEL_IDLE_SECS:-480}"
 HARD_SECS="${CROSS_MODEL_HARD_SECS:-600}"
 TO_BIN="$(command -v gtimeout || command -v timeout || true)"
 
@@ -590,24 +593,33 @@ run_timeout_cmd() {   # $1 = stdin file ("" -> /dev/null). CMD already built.
   ACTIVE_PEER_PID=""
 }
 
-# Brace-match the largest {...} object containing "findings" out of raw stdout.
+# Decode each {...} object in raw stdout via raw_decode (string/escape-aware,
+# unlike brace counting) and keep the last one shaped like findings.
 recover_findings_json() {   # <logfile> <outfile>
-  command -v python3 >/dev/null 2>&1 || return 1
-  python3 - "$1" "$2" <<'PY' 2>/dev/null
+  # Probe execution, not just PATH presence — Windows Store's python3 stub
+  # satisfies `command -v` then exits nonzero (see resolve-python convention).
+  local py
+  py="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
+  [ -n "$py" ] || return 1
+  "$py" - "$1" "$2" <<'PY' 2>/dev/null
 import sys, json
 txt = open(sys.argv[1], encoding="utf-8", errors="replace").read()
-best, depth, start = None, 0, None
-for i, ch in enumerate(txt):
-    if ch == '{':
-        if depth == 0: start = i
-        depth += 1
-    elif ch == '}' and depth > 0:
-        depth -= 1
-        if depth == 0 and start is not None:
-            try:
-                obj = json.loads(txt[start:i+1])
-                if isinstance(obj, dict) and "findings" in obj: best = obj
-            except Exception: pass
+# Any selectable object carries a literal `"findings"` key; if the raw text has
+# none, there is nothing to recover. Skip the scan — raw_decode probing every
+# `{` is O(n^2) on brace-dense non-findings stdout (error/crash dumps).
+if '"findings"' not in txt: sys.exit(0)
+dec = json.JSONDecoder()
+best, i = None, 0
+while True:
+    j = txt.find('{', i)
+    if j < 0: break
+    try:
+        obj, end = dec.raw_decode(txt, j)
+    except Exception:
+        i = j + 1
+        continue
+    if isinstance(obj, dict) and isinstance(obj.get("findings"), list): best = obj
+    i = end
 if best is not None: open(sys.argv[2], "w").write(json.dumps(best))
 PY
   [ -s "$2" ]
@@ -626,7 +638,7 @@ attempt_route() {   # <provider> <route>
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT"
   build_cmd "$route"
   case "$route" in
-    codex)                 note="$(route_model "$route") (effort medium)" ;;
+    codex)                 note="$(route_model "$route") (effort xhigh)" ;;
     claude|grok-cli)       note="$(route_model "$route") (effort high)" ;;
     grok-cursor|composer)  note="$(route_model "$route")" ;;
     cursor)                note="auto (serving model unverified)" ;;

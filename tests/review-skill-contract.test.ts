@@ -390,12 +390,43 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/Bounded foreground dispatch/)
     expect(content).toMatch(/active-agent\/thread\/concurrency-limit spawn errors as backpressure/)
     expect(content).toMatch(/background execution off/)
-    expect(content).not.toMatch(/parallel dispatch|bounded parallel scheduler/i)
+    // Default is a concurrent foreground batch sized to the host cap, degrading to serial
+    // where the harness does not run same-message calls concurrently — not strict serial.
+    expect(content).toMatch(/foreground concurrent batch/i)
+    expect(content).toMatch(/degrades to serial/i)
+    expect(content).not.toMatch(/exactly one reviewer|one reviewer at a time|one at a time/i)
+    // The anti-poll ban targets detached bash/CLI delegate polling, not subagent concurrency,
+    // so the rationale must name the detached delegate rather than forbid concurrency itself.
+    expect(content).toMatch(/detached/i)
     // Exceptions are restated at point of action so the agent does not have to recall them
     // from the Model tiering subsection above while advancing the foreground queue.
     expect(content).toContain("correctness-reviewer")
     expect(content).toContain("security-reviewer")
     expect(content).toContain("adversarial-reviewer")
+  })
+
+  test("Stage 4 concurrent-batch dispatch preserves cap-safety and determinism", async () => {
+    const content = await readRepoFile(
+      "skills/ce-code-review/references/dispatch-reviewers.md",
+    )
+
+    // Batch size is learned from the host, never a fixed constant, so it can't overrun a cap.
+    expect(content).toMatch(/never hard-code a number/i)
+    expect(content).toMatch(/active-agent cap/i)
+
+    // A requested batch larger than the host cap clamps and drops no reviewer (restores #1031's
+    // backpressure guarantee per batch slot instead of the strict pool-of-one).
+    expect(content).toMatch(/dropping no reviewer/i)
+    expect(content).toMatch(/retried in a later batch/i)
+
+    // Determinism does not depend on completion order: findings are order-independent and
+    // stable numbers are assigned downstream after the post-merge sort.
+    expect(content).toMatch(/completion order cannot change any finding/i)
+    expect(content).toMatch(/after the post-merge sort/i)
+
+    // Anti-poll invariant still holds: no sleep/status/wakeup loops to await reviewers.
+    expect(content).toMatch(/scheduled wakeups/i)
+    expect(content).toMatch(/still waiting/i)
   })
 
   test("Stage 5 synthesis uses anchor gate and one-anchor promotion", async () => {
@@ -467,7 +498,7 @@ describe("ce-code-review contract", () => {
     // Act stage is separately authorized; bare and mode:agent invocations stay report-only.
     expect(content).toContain("### Stage 5c: Act on findings")
     expect(content).toMatch(/Skip unless local apply was explicitly authorized/i)
-    expect(content).toMatch(/bare `\/ce-code-review`.{0,80}does not apply/i)
+    expect(content).toMatch(/bare `ce-code-review` invocation.{0,80}does not apply/i)
     expect(content).toMatch(/`mode:agent` does not apply fixes/i)
 
     // Bias to act, push back if wrong, no deny-list
@@ -503,7 +534,7 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/Production-file presence alone[\s\S]*non-behavioral edits do not select/i)
     expect(content).toMatch(/maintainability-reviewer.*(large|structural|refactor)/i)
     expect(content).toMatch(/agent-native-reviewer.*agent-facing/i)
-    expect(content).toMatch(/learnings-researcher.*docs\/solutions/i)
+    expect(content).toMatch(/learnings-researcher.*<root>\/solutions/i)
 
     expect(catalog).toContain("## Core and standards gate")
     expect(catalog).toContain("## Generic conditional")
@@ -867,7 +898,7 @@ describe("ce-code-review contract", () => {
 
       // Accept-and-proceed path threads findings into the PR description.
       expect(workflow).toContain("Known Residuals")
-      expect(workflow).toContain("docs/residual-review-findings/<branch-or-head-sha>.md")
+      expect(workflow).toContain("<root>/residual-review-findings/<branch-or-head-sha>.md")
       expect(workflow).toContain("If the user later chooses the no-PR `ce-commit` path")
       expect(workflow).toContain("must not live only in the transient session")
     }
@@ -905,7 +936,7 @@ describe("ce-code-review contract", () => {
     expect(lfg).toContain("never the PR body")
     expect(lfg).not.toContain("gh pr edit PR_NUMBER --body-file BODY_FILE")
     expect(lfg).toContain("## Residual Review Findings")
-    expect(lfg).toContain("docs/residual-review-findings/<branch-or-head-sha>.md")
+    expect(lfg).toContain("<root>/residual-review-findings/<branch-or-head-sha>.md")
     expect(lfg).toContain("first configured remote")
     expect(lfg).toContain("git push --set-upstream <remote> HEAD")
     expect(lfg).not.toContain("git push --set-upstream origin HEAD")
@@ -1124,6 +1155,31 @@ describe("cross-model peer skip legibility", () => {
       expect(referenceSrc).toContain("peer skip evidence:")
       expect(referenceSrc).toMatch(/quota|usage-limit/i)
       expect(referenceSrc).toMatch(/more than once in this session/i)
+    })
+  }
+
+  // A restricted host sandbox (e.g. a Codex task with network disabled) denies
+  // the spawned peer CLI network/keychain, producing the exact same
+  // `Not logged in` signal as a genuine account logout. The classifier surfaces
+  // that string verbatim, so each cross-model reference must scope an
+  // auth-shaped peer failure to the peer's execution context and forbid the
+  // account-logout / run-login conclusion — otherwise the agent misreports the
+  // user as logged out. This is harness-agnostic prose (no Codex-only
+  // mechanism), so it must hold across code review, doc review, and pov alike.
+  const authScopeRefs = [
+    "skills/ce-code-review/references/cross-model-review.md",
+    "skills/ce-doc-review/references/cross-model-review.md",
+    "skills/ce-pov/references/cross-model-panel.md",
+  ]
+  for (const reference of authScopeRefs) {
+    test(`${reference} scopes an auth-shaped peer failure to execution context`, async () => {
+      // Collapse whitespace: ce-pov hard-wraps prose, so the anchor phrases can
+      // straddle a line break while the code-review/doc-review bullets do not.
+      const src = (await readRepoFile(reference)).replace(/\s+/g, " ")
+      expect(src).toContain("describes only the peer's execution context")
+      expect(src).toContain(
+        "never report it as the user's account being logged out",
+      )
     })
   }
 

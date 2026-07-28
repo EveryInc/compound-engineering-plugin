@@ -9,11 +9,20 @@ const PLUGIN_ROOT = path.join(process.cwd(), "skills")
 // References in Skills"). All copies must stay identical.
 const RUNNER_ASSETS = ["scripts/peer-job-runner.py"]
 
-const CONSUMER_SKILLS = ["ce-doc-review", "ce-code-review", "ce-pov"]
+const CONSUMER_SKILLS = [
+  "ce-doc-review",
+  "ce-code-review",
+  "ce-pov",
+  "ce-work",
+  "ce-plan",
+  "ce-brainstorm",
+]
 const PEER_WORKERS = [
   "ce-doc-review/scripts/cross-model-doc-review.sh",
   "ce-code-review/scripts/cross-model-adversarial-review.sh",
   "ce-pov/scripts/cross-model-pov.sh",
+  "ce-plan/scripts/elevation-dispatch.sh",
+  "ce-brainstorm/scripts/elevation-dispatch.sh",
 ]
 
 describe("peer-job-runner shared-asset parity", () => {
@@ -36,13 +45,16 @@ describe("peer-job-runner shared-asset parity", () => {
       PEER_WORKERS.map(async (worker) => {
         const body = await readFile(path.join(PLUGIN_ROOT, worker), "utf8")
         expect(body).toContain('wait "$_HEARTBEAT_PID" 2>/dev/null || true')
-        const match = body.match(/start_heartbeat\(\) \{[\s\S]*?\n\}\n(?=\nrun_codex_cmd\(\))/)
+        // Tolerate CRLF checkouts (\r?\n) — Windows runners often set
+        // core.autocrlf=true; the heartbeat body itself must still match.
+        const match = body.match(/start_heartbeat\(\) \{[\s\S]*?\r?\n\}\r?\n(?=\r?\nrun_codex_cmd\(\))/)
         expect(match).not.toBeNull()
         return match![0]
       }),
     )
-    expect(kernels[1]).toBe(kernels[0])
-    expect(kernels[2]).toBe(kernels[0])
+    for (let i = 1; i < kernels.length; i++) {
+      expect(kernels[i]).toBe(kernels[0])
+    }
     expect(kernels[0]).toContain('parent_pid="$$"')
     expect(kernels[0]).toContain('while kill -0 "$parent_pid" 2>/dev/null')
   })

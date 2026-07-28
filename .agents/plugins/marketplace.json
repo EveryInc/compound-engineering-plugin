@@ -7,8 +7,8 @@
     {
       "name": "compound-engineering",
       "source": {
-        "source": "url",
-        "url": "https://github.com/ethras/compound-engineering-orca.git"
+        "source": "local",
+        "path": "./"
       },
       "policy": {
         "installation": "AVAILABLE",

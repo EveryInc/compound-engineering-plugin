@@ -156,6 +156,12 @@ The name and description are an activation contract. A correct body is useless i
 
 Evaluate activation separately from execution with a few positive triggers, adjacent negatives, and explicit invocations. A routing failure is not an execution failure.
 
+### Render user invocations at the output boundary
+
+Keep agent-to-agent routing capability-first: format formal skill names as inline code (for example, `ce-plan`) and invoke the named skill through the active harness's callable skill mechanism. Exact command spelling belongs only where the skill prints or copies a user-runnable invocation. At that output seam, default to `/skill-name`; use `$skill-name` only when the active harness is Codex or explicitly documents dollar-prefixed skill invocation. In prose, render only the invocation as inline code; use a fenced block only when the command stands alone. Output exactly one form. Built-in commands such as `/goal` are separate capabilities, not evidence that slash-prefixed skill names are callable in Codex.
+
+An authoring guide cannot supply runtime behavior to an installed skill. Put the smallest self-contained rendering rule immediately before the smallest section that contains all affected user-copy seams. Do not repeat it in every step; repeat it only in a separately loaded reference that independently owns output. Use a focused contract test when independently edited skills must preserve the same handoff, without duplicating the rationale or a harness matrix.
+
 ## Separate protocol from judgment
 
 For each prescriptive block, ask:

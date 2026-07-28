@@ -64,8 +64,20 @@ function formatYamlValue(value: unknown): string {
   if (raw.includes("\n")) {
     return `|\n${raw.split("\n").map((line) => `  ${line}`).join("\n")}`
   }
-  if (raw.includes(":") || raw.startsWith("[") || raw.startsWith("{") || raw === "*") {
+  if (raw.includes(":") || raw.startsWith("[") || raw.startsWith("{") || raw === "*" || parsesAsNonString(raw)) {
     return JSON.stringify(raw)
   }
   return raw
+}
+
+// A bare string that YAML reads back as a non-string (null, bool, number, date)
+// silently changes type on round-trip. Quote it. Re-parsing with the same loader
+// the read path uses keeps this rule in lockstep with js-yaml rather than a
+// hand-maintained token list that can drift from the parser's actual grammar.
+function parsesAsNonString(raw: string): boolean {
+  try {
+    return typeof load(raw) !== "string"
+  } catch {
+    return false
+  }
 }
