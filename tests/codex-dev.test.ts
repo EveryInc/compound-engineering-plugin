@@ -95,7 +95,7 @@ function plugin(pluginId: string, options: Partial<InstalledPlugin> = {}): Insta
     version: "3.19.0",
     installed: true,
     enabled: true,
-    source: { source: "git", url: "https://github.com/EveryInc/compound-engineering-plugin.git" },
+    source: { source: "local", path: "/tmp/compound-engineering-plugin" },
     marketplaceSource: {
       sourceType: "git",
       source: "https://github.com/EveryInc/compound-engineering-plugin.git",
@@ -460,7 +460,7 @@ describe("Codex development installation transitions", () => {
     ])
   })
 
-  test("remote mode installs and verifies the official Git plugin before unlinking local skills", async () => {
+  test("remote mode installs and verifies the official marketplace plugin before unlinking local skills", async () => {
     const context = await makeContext()
     await activateLocalCollection(context)
     const runner = new StatefulCodexRunner([], [officialMarketplace])
@@ -480,6 +480,20 @@ describe("Codex development installation transitions", () => {
       "compound-engineering-plugin",
       "--json",
     ])
+  })
+
+  test("status accepts an existing Git-source install during the marketplace migration", async () => {
+    const context = await makeContext()
+    const runner = new StatefulCodexRunner([
+      plugin("compound-engineering@compound-engineering-plugin", {
+        source: {
+          source: "git",
+          url: "https://github.com/EveryInc/compound-engineering-plugin.git",
+        },
+      }),
+    ])
+
+    expect((await inspectCodexDevStatus(context, runner)).mode).toBe("remote")
   })
 
   test("keeps local skills active if the remote install fails", async () => {
@@ -595,6 +609,8 @@ describe("Codex developer workflow contracts", () => {
     }
     expect(agents).toContain("bun run codex:dev -- local")
     expect(agents).toContain("$CODEX_HOME/skills/compound-engineering-local")
+    expect(readme).toContain("cached copy of this checkout")
+    expect(readme).not.toContain("points Compound Engineering back to the public Git repository")
   })
 
   test("refuses an unrelated symlink at the managed collection path", async () => {

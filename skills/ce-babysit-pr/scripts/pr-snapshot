@@ -85,6 +85,12 @@ CHECK_HISTORY_TTL = 30
 # maximum-length GitHub-hosted Actions job (six hours) plus reaction and settle time. Callers may
 # choose another fixed value on the first snapshot; later commands must present the same value.
 DEFAULT_INVOCATION_BUDGET_SECONDS = 8 * 60 * 60
+# The 8h budget is spent in *active watch-capability time*, not raw wall-clock: a span where the
+# whole watch process was suspended (laptop asleep) is excluded. Detection is coarse — an activity
+# gap wider than this threshold (well above the 150s poll interval) is charged to dead time, minus
+# the threshold itself so ordinary polls/ticks never register. The 3-day backstop stays wall-clock.
+DEAD_TIME_THRESHOLD_SECONDS = 15 * 60
+DEFAULT_INVOCATION_BACKSTOP_SECONDS = 3 * 24 * 60 * 60
 CURRENCY_RETRY_BACKOFF_SECONDS = 30
 
 
@@ -632,6 +638,8 @@ def _empty_state(pr, repo, url, now):
         "pr": {"owner": owner, "repo": name, "number": pr, "url": url},
         "head_sha": None, "tick": 0, "state_created_at": created_at,
         "started_at": created_at, "invocation_id": None, "invocation_budget_seconds": None,
+        "last_activity_at": created_at, "dead_time_seconds": 0.0,
+        "invocation_backstop_seconds": DEFAULT_INVOCATION_BACKSTOP_SECONDS,
         "checks": {}, "threads": {}, "ci_dispatched": {},
         "review_decision": None, "mergeable": None, "merge_state_status": None,
         "review_in_progress": False, "review_signal_count": 0, "review_signal_identities": [],
@@ -1215,7 +1223,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
     all_checks_ok = checks_terminal and not has_failing and bool(cur["checks"]) and awaiting_approval == 0
     blocked_external = (awaiting_approval > 0 and not has_failing and checks_terminal
                         and not actionable_threads and not actionable_feedback)
-    invocation_elapsed = _elapsed(state.get("started_at"), now)
+    invocation_elapsed = _active_elapsed(state, now)
 
     return {
         "pr_state": cur["pr_state"],
@@ -1264,6 +1272,9 @@ def diff(state, cur, now=None, advance_trajectory=True):
             0,
             (state.get("invocation_budget_seconds") or 0) - invocation_elapsed,
         ),
+        "invocation_wall_elapsed_seconds": _elapsed(state.get("started_at"), now),
+        "invocation_dead_time_seconds": int(state.get("dead_time_seconds") or 0),
+        "invocation_backstop_seconds": state.get("invocation_backstop_seconds"),
         "persisted_state_created_at": state.get("state_created_at"),
         "persisted_state_age_seconds": _elapsed(state.get("state_created_at"), now),
         # Compatibility aliases for callers migrating from the original single-clock contract.
@@ -1327,6 +1338,32 @@ def _elapsed(iso_str, now):
         return 0
 
 
+def _advance_activity(state, now, threshold=DEAD_TIME_THRESHOLD_SECONDS, accumulate=True):
+    """Advance the activity heartbeat, and (for the in-session watch) accumulate suspended time.
+
+    Every watch poll and every agent snapshot/mark marks activity. A gap wider than `threshold`
+    means the whole process was not running — a suspended machine — so, when accumulating, the
+    excess beyond the threshold is charged to dead time and later excluded from active elapsed.
+    Agent snapshots/marks bump the heartbeat with `accumulate=False`, so active agent work keeps the
+    heartbeat fresh and is not refunded as long as the agent touches state (snapshots or marks) within
+    the threshold; a single silent tick longer than the threshold is the coarse-discriminator limit
+    the plan defers, bounded by the wall-clock backstop. Dead time only ever grows in the watch loop.
+    Clock-backward safe: `_elapsed` floors negative deltas at 0 and the accumulator never decreases.
+    """
+    last = state.get("last_activity_at") or state.get("started_at")
+    if accumulate:
+        gap = _elapsed(last, now)
+        if gap > threshold:
+            state["dead_time_seconds"] = (state.get("dead_time_seconds") or 0) + (gap - threshold)
+    state["last_activity_at"] = _iso(now)
+
+
+def _active_elapsed(state, now):
+    """Wall-clock elapsed since the invocation anchor, minus accumulated suspended (dead) time."""
+    wall = _elapsed(state.get("started_at"), now)
+    return max(0, wall - int(state.get("dead_time_seconds") or 0))
+
+
 def _session_started_at(value):
     """Parse one invocation-wide, timezone-aware budget anchor for reuse across state dirs."""
     try:
@@ -1354,6 +1391,14 @@ def locked_state(state_dir, pr, repo, now):
         # Older state used `started_at` for both durable-state age and the active budget. Preserve
         # that original value as the state birth time before a new invocation replaces the clock.
         state.setdefault("state_created_at", state.get("started_at") or _iso(now))
+        # Active-time accounting fields migrate onto legacy state on first observation. Seed the
+        # heartbeat to *now*, not the old anchor: there is no recorded activity for the pre-migration
+        # period, so charging that whole span as one supra-threshold gap would refund the entire
+        # historical invocation (a 9h-old 8h run would read as ~15 min active and never max-runtime).
+        # Seeding to load time makes the first poll see a ~0 gap and keeps elapsed on real wall-clock.
+        state.setdefault("last_activity_at", _iso(now))
+        state.setdefault("dead_time_seconds", 0.0)
+        state.setdefault("invocation_backstop_seconds", DEFAULT_INVOCATION_BACKSTOP_SECONDS)
         box = {"state": state}
         yield box
         tmp = tempfile.NamedTemporaryFile("w", dir=state_dir, delete=False)
@@ -1390,6 +1435,10 @@ def _apply_invocation(box, args, now):
         state["invocation_id"] = invocation_id
         state["started_at"] = requested_started_at
         state["invocation_budget_seconds"] = requested_budget
+        # A fresh invocation resets the active-time clock: heartbeat at now, no dead time yet.
+        state["last_activity_at"] = _iso(now)
+        state["dead_time_seconds"] = 0.0
+        state.setdefault("invocation_backstop_seconds", DEFAULT_INVOCATION_BACKSTOP_SECONDS)
         args.invocation_id = invocation_id
         args.session_started_at = requested_started_at
         args.invocation_budget_seconds = requested_budget
@@ -1410,10 +1459,28 @@ def _apply_invocation(box, args, now):
                 same_anchor = False
             if not same_anchor or state.get("invocation_budget_seconds") != requested_budget:
                 raise SystemExit("continuation cannot renew or extend an existing invocation")
+            # Honor a carry arg on a same-invocation re-continue too, as a monotonic floor: raise the
+            # dead-time to the carried value without clobbering time this dir already accumulated
+            # (dead time only ever grows). This makes the carry order-independent — it lands whether
+            # it arrives on the first adopt or a later re-continue.
+            continue_dead_time = getattr(args, "continue_dead_time_seconds", None)
+            if continue_dead_time is not None:
+                state["dead_time_seconds"] = max(
+                    state.get("dead_time_seconds") or 0, float(continue_dead_time))
             return
         state["invocation_id"] = invocation_id
         state["started_at"] = requested_started_at
         state["invocation_budget_seconds"] = requested_budget
+        # Adopting an invocation into this state dir establishes a fresh active-time clock. Seed the
+        # heartbeat to now (not the shared anchor, which may be hours old) so the first poll sees a
+        # ~0 gap and does not refund the span between the anchor and adoption as dead time.
+        state["last_activity_at"] = _iso(now)
+        # Dead time is per-state-dir, but a managed-stack continuation shares one active-time budget
+        # across layers, so it explicitly carries the prior layer's accumulated dead time here. Absent
+        # that arg (an ordinary adopt of an unrelated dir), reset to 0 rather than inherit stale state.
+        continue_dead_time = getattr(args, "continue_dead_time_seconds", None)
+        state["dead_time_seconds"] = float(continue_dead_time) if continue_dead_time is not None else 0.0
+        state.setdefault("invocation_backstop_seconds", DEFAULT_INVOCATION_BACKSTOP_SECONDS)
         return
 
     persisted_id = state.get("invocation_id")
@@ -1443,16 +1510,22 @@ def _apply_snapshot(box, args, cur, now, advance_trajectory):
 def _run_snapshot(args, now, advance_trajectory=True, watch_generation=None):
     """One fetch -> diff -> persist. Returns the actionable/state dict."""
     cur = _fetch_snapshot(args)
-    if (getattr(args, "start_invocation", False)
-            or getattr(args, "reset_session", False)):
-        # A new invocation starts after preflight I/O; a slow first fetch must not consume its budget.
-        now = _now()
+    # Re-capture the clock *after* the (blocking) fetch so activity accounting reflects post-fetch
+    # time: a suspend that lands during the fetch is then credited as dead time by this poll's
+    # _advance_activity, instead of leaving the next top-of-loop budget check to fire max-runtime on
+    # a gap it hasn't yet excluded. It also keeps a new invocation's slow first fetch off its budget.
+    now = _now()
     with locked_state(args.state_dir, args.pr, args.repo, now) as box:
         if watch_generation is not None and box["state"].get("watch_generation") != watch_generation:
             raise _WatchSuperseded()
         if (watch_generation is not None
                 and box["state"].get("invocation_id") != getattr(args, "invocation_id", None)):
             raise _InvocationSuperseded(box["state"].get("invocation_id"))
+        # Only the self-sustaining in-session watch (watch_generation set) accumulates dead time;
+        # an agent-driven snapshot bumps the heartbeat without accumulating, so checkpoint/durable
+        # runs — which have no continuous poll cadence — keep pure wall-clock accounting.
+        if box["state"].get("started_at"):
+            _advance_activity(box["state"], now, accumulate=watch_generation is not None)
         actionable, box["state"] = _apply_snapshot(box, args, cur, now, advance_trajectory)
     return actionable
 
@@ -1636,6 +1709,10 @@ def _activate_watch(args, generation, now, cur):
         state["watch_generation"] = generation
         state["watch_pid"] = os.getpid()
         state["watch_process_identity"] = identity
+        # The arming poll is a real in-session watch poll: accumulate any suspended span since the
+        # last activity (e.g. the watch armed right after the machine resumed) before reading elapsed.
+        if state.get("started_at"):
+            _advance_activity(state, now, accumulate=True)
         actionable, box["state"] = _apply_snapshot(box, args, cur, now, advance_trajectory=False)
         try:
             os.unlink(_watch_candidate_path(args))
@@ -1753,10 +1830,17 @@ def cmd_watch(args):
                 _emit_wake_if_current(args, generation, "stop-signal")
                 return
             now = _now()
-            invocation_elapsed = _elapsed(actionable.get("invocation_started_at"), now)
+            # Active elapsed = raw wall-clock minus accumulated suspended time (dead_time was
+            # updated by the previous poll's _run_snapshot, including any gap from a resumed
+            # suspension). The 8h budget spends active time; the 3-day backstop is raw wall-clock.
+            wall_elapsed = _elapsed(actionable.get("invocation_started_at"), now)
+            dead_time = int(actionable.get("invocation_dead_time_seconds") or 0)
+            invocation_elapsed = max(0, wall_elapsed - dead_time)
             budget = actionable.get("invocation_budget_seconds") or 0
+            backstop = actionable.get("invocation_backstop_seconds") or 0
             actionable["invocation_elapsed_seconds"] = invocation_elapsed
             actionable["invocation_remaining_seconds"] = max(0, budget - invocation_elapsed)
+            actionable["invocation_wall_elapsed_seconds"] = wall_elapsed
             actionable["persisted_state_age_seconds"] = _elapsed(
                 actionable.get("persisted_state_created_at"), now)
             reason = _wake_reason(actionable, args.settle_seconds)
@@ -1764,13 +1848,19 @@ def cmd_watch(args):
                 _emit_wake_if_current(args, generation, reason, url=actionable.get("url"),
                                       pr_state=actionable.get("pr_state"), counts=actionable.get("counts"))
                 return
-            if budget and invocation_elapsed >= budget:
+            active_cap_hit = bool(budget) and invocation_elapsed >= budget
+            backstop_hit = bool(backstop) and wall_elapsed >= backstop
+            if active_cap_hit or backstop_hit:
                 _emit_wake_if_current(
                     args, generation, "max-runtime", url=actionable.get("url"),
                     invocation_id=actionable.get("invocation_id"),
                     invocation_started_at=actionable.get("invocation_started_at"),
                     invocation_elapsed_seconds=actionable.get("invocation_elapsed_seconds"),
                     invocation_budget_seconds=budget,
+                    invocation_wall_elapsed_seconds=wall_elapsed,
+                    invocation_backstop_seconds=backstop or None,
+                    max_runtime_ceiling=("backstop" if backstop_hit and not active_cap_hit
+                                         else "active-budget"),
                     persisted_state_age_seconds=actionable.get("persisted_state_age_seconds"),
                 )
                 return
@@ -1916,7 +2006,9 @@ def _mark_branch_currency(args, state, now):
             except (ValueError, TypeError):
                 raise SystemExit("currency retry backoff is invalid")
         budget = state.get("invocation_budget_seconds")
-        if budget is not None and _elapsed(state.get("started_at"), now) >= budget:
+        backstop = state.get("invocation_backstop_seconds")
+        if ((budget is not None and _active_elapsed(state, now) >= budget)
+                or (backstop is not None and _elapsed(state.get("started_at"), now) >= backstop)):
             raise SystemExit("currency claim cannot start after max-runtime")
     item["disposition"] = disposition
     item["transitioned_at"] = _iso(now)
@@ -1964,6 +2056,10 @@ def cmd_mark(args):
     with locked_state(args.state_dir, args.pr, args.repo, now) as box:
         _apply_invocation(box, args, now)
         state = box["state"]
+        # An agent-driven mark is activity: bump the heartbeat (no accumulation) so a long tick
+        # that only marks — never snapshots — still never has its active time refunded as dead time.
+        if state.get("started_at"):
+            _advance_activity(state, now, accumulate=False)
         if (args.currency_key or args.currency_disposition or args.currency_outcome
                 or args.currency_inspected_fingerprint):
             actions = sum(bool(value) for value in (
@@ -2024,6 +2120,9 @@ def main():
                    help="fixed anchor emitted by the first snapshot; required for a new state dir")
     s.add_argument("--invocation-budget-seconds", type=float,
                    help=f"fixed total budget; first snapshot default {DEFAULT_INVOCATION_BUDGET_SECONDS}")
+    s.add_argument("--continue-dead-time-seconds", type=float, default=None,
+                   help="carry the prior layer's accumulated dead time into a managed-stack layer "
+                        "(with --continue-invocation), so the shared active-time budget stays correct")
     s.set_defaults(func=cmd_snapshot)
 
     m = sub.add_parser("mark")

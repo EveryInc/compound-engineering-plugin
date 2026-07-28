@@ -9,10 +9,13 @@ const UNSAFE_FILE_PATTERN = /\0|[*?[\]{}]|[!+@]\(/
 const MAX_BATCH = 5
 const WORKER_STATUSES = ['complete', 'blocked', 'failed']
 const WORKER_STATUS_SET = new Set(WORKER_STATUSES)
+const PACKET_FIELDS = new Set(['schema', 'workflowId', 'nodes'])
+const NODE_FIELDS = new Set(['id', 'stage', 'role', 'predictedFiles', 'prompt'])
 const isRecord = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
 const workerSchema = {
   type: 'object',
+  additionalProperties: false,
   required: ['status', 'unit_id', 'changed_files', 'verification_evidence', 'behavior_change', 'blockers'],
   properties: {
     status: { type: 'string', enum: WORKER_STATUSES },
@@ -45,6 +48,10 @@ const scopesOverlap = (left, right) => {
 export function validatePacket(packet) {
   const errors = []
   if (!packet || typeof packet !== 'object' || Array.isArray(packet)) return ['packet must be an object']
+  const unsupportedPacketFields = Object.keys(packet).filter((field) => !PACKET_FIELDS.has(field)).sort()
+  if (unsupportedPacketFields.length) {
+    errors.push(`packet contains unsupported fields: ${unsupportedPacketFields.join(', ')}`)
+  }
   if (packet.schema !== PACKET_SCHEMA) errors.push(`schema must be ${PACKET_SCHEMA}`)
   if (packet.workflowId !== 'ce-work') errors.push('workflowId must be ce-work')
   if (!Array.isArray(packet.nodes) || packet.nodes.length < 1 || packet.nodes.length > MAX_BATCH) {
@@ -58,6 +65,10 @@ export function validatePacket(packet) {
     if (!node || typeof node !== 'object' || Array.isArray(node)) {
       errors.push(`${at} must be an object`)
       continue
+    }
+    const unsupportedNodeFields = Object.keys(node).filter((field) => !NODE_FIELDS.has(field)).sort()
+    if (unsupportedNodeFields.length) {
+      errors.push(`${at} contains unsupported fields: ${unsupportedNodeFields.join(', ')}`)
     }
     if (!ID.test(node.id || '')) errors.push(`${at}.id is invalid`)
     else if (ids.has(node.id)) errors.push(`${at}.id is duplicated`)

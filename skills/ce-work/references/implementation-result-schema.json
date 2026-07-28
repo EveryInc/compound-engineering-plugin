@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://compound-engineering.dev/schemas/ce-work-implementation-result-v1.json",
+  "title": "CE Work external implementation worker result",
+  "type": "object",
+  "required": [
+    "terminal_status",
+    "summary",
+    "changed_files",
+    "evidence",
+    "scope_expansion"
+  ],
+  "properties": {
+    "terminal_status": {
+      "type": "string",
+      "enum": ["completed", "blocked", "scope_expansion"]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "changed_files": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "scope_expansion": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["requested_paths", "reason"],
+          "properties": {
+            "requested_paths": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "reason": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "additionalProperties": false
+}

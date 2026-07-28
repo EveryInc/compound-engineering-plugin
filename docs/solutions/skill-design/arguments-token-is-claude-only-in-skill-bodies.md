@@ -35,7 +35,7 @@ It is a sibling of the bundled-script path problem (see `bundled-script-path-res
 
 ## Guidance
 
-**`$ARGUMENTS` substitution inside a SKILL.md body is only confirmed on Claude Code.** Per the target specs in `docs/specs/`: Codex documents `$1`–`$9`, `$ARGUMENTS`, and named placeholders for **prompts** (skill-body behavior is not documented); Cursor documents only `$1`/`$2` for commands; Kiro lists `$ARGUMENTS` interpolation as **"Lost."** The converter rewrites the `argument-hint` frontmatter into an `## Arguments` section but does **not** rewrite inline body `$ARGUMENTS` (the OpenCode writer even emits it deliberately). So inline `$ARGUMENTS` in skill prose is a portability risk off Claude.
+**`$ARGUMENTS` substitution inside a SKILL.md body is only confirmed on Claude Code.** Per each platform's own documentation: Codex documents `$1`–`$9`, `$ARGUMENTS`, and named placeholders for **prompts** (skill-body behavior is not documented); Cursor documents only `$1`/`$2` for commands; Kiro lists `$ARGUMENTS` interpolation as **"Lost."** The converter rewrites the `argument-hint` frontmatter into an `## Arguments` section but does **not** rewrite inline body `$ARGUMENTS` (the OpenCode writer even emits it deliberately). So inline `$ARGUMENTS` in skill prose is a portability risk off Claude.
 
 Separate the two uses — they take different fixes:
 

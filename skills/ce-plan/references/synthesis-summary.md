@@ -269,7 +269,7 @@ Based on your request, here's the scope I'm proposing to plan against:
 **Call outs:** (omit this header when zero forks survived the keep test)
 - [decision-level fork in 1-2 lines: name the choice and optional one-clause trade-off in parens. NO multi-sentence rationale, NO "my default is X" pitch — those belong in Key Technical Decisions in the plan body, not the synthesis]
 
-Confirm and I'll proceed to research, drawing on this scope. (You can also redirect to /ce-brainstorm if this is bigger than you initially thought — I'll stop here and load it for you.)
+Confirm and I'll proceed to research, drawing on this scope. (You can also redirect to `ce-brainstorm` if this is bigger than you initially thought — I'll stop here and load it for you.)
 ```
 
 **Auto-proceed template (fires only for Lightweight with zero call-outs):**
@@ -372,7 +372,7 @@ When the skill is invoked from an automated workflow such as LFG or any `disable
   - **Stated** content → Product Contract `### Requirements` (user-stated constraints, traced to origin's R-IDs when present)
   - **Out-of-scope** content → Product Contract `### Scope Boundaries`
   - **Inferred** content → Planning Contract `### Assumptions` — explicitly labeled as un-validated agent bets. Do NOT route Inferred items into Key Technical Decisions or Implementation Units; that would make un-validated bets indistinguishable from user-confirmed decisions.
-  - **Session-settled decisions** (including those from a passed brief) → labeled Key Technical Decisions, never `### Assumptions` — they are user-confirmed; the Assumptions firewall covers agent-inferred bets only. A brief entry that fails the settlement test (cannot state its rejected alternative) demotes to a directive or open area instead.
+  - **Session-settled decisions** (including those from a passed brief) → settled product decisions route to their labeled Product Contract Key Decisions with exact `Governs R…` links; settled planning/how decisions route to labeled Key Technical Decisions. Neither belongs in `### Assumptions` — they are user-confirmed; the Assumptions firewall covers agent-inferred bets only. A brief entry that fails the settlement test (cannot state its rejected alternative) demotes to a directive or open area instead.
 
 The `### Assumptions` section appears in non-interactive plans and in interactive plans where the user opted into `SKIP_SCOPING_CONFIRM` — both cases proceed without confirming Inferred bets, so those bets must stay visibly labeled. A normal interactive plan doesn't need it (Inferred bets either get user-corrected via call-outs and become Key Technical Decisions, are revised away, or were judged not-fork material by the keep test and dissolved into Implementation Units silently).
 
@@ -384,8 +384,8 @@ This restores the audit visibility the original design intended (un-validated be
 
 If the user response indicates they're in the wrong skill or want a different workflow:
 
-- **Solo variant**: common redirects include "this is bigger than I thought — let me brainstorm first" (suggest `/ce-brainstorm`), "this is just a fix, no plan needed" (suggest `/ce-work`), or "I need to investigate first" (suggest `/ce-debug`).
-- **Brainstorm-sourced variant**: less common, but possible — "actually this scope is wrong, take it back to brainstorm" (suggest `/ce-brainstorm` to revise the upstream doc).
+- **Solo variant**: common redirects include "this is bigger than I thought — let me brainstorm first" (suggest `ce-brainstorm`), "this is just a fix, no plan needed" (suggest `ce-work`), or "I need to investigate first" (suggest `ce-debug`).
+- **Brainstorm-sourced variant**: less common, but possible — "actually this scope is wrong, take it back to brainstorm" (suggest `ce-brainstorm` to revise the upstream doc).
 
 In either case: stop ce-plan, suggest the alternative skill, offer to load it in-session. Don't push back or argue — the user's redirect signal is the deliberate choice.
 

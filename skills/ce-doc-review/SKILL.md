@@ -27,15 +27,27 @@ If `mode:headless` is present, set **headless mode** for the rest of the workflo
 
 The caller receives findings with their original classifications intact and decides what to do with them.
 
-**Headless argument contract:** Require `mode:headless <document-path>`, for example `mode:headless docs/plans/my-plan.md`.
+**Headless argument contract:** Require `mode:headless <document-path>`, for example `mode:headless <path-to-doc>.md`.
 
 If `mode:headless` is not present, run in default interactive mode with the routing question, walk-through, and bulk-preview behaviors documented in `references/walkthrough.md` and `references/bulk-preview.md`.
+
+## Artifact Root
+
+This skill reviews a document at a path it is handed and, in interactive mode with no path given, discovers the most recent plan under `<root>/plans/`. Resolve `<root>` (per the block below) **only in that no-path discovery branch** — the sole place it composes a `<root>/` path. A review of an explicitly-named document reads that path directly and never resolves `<root>`; do not run root resolution at the start of every run, since a valid headless or absolute-path review (e.g. `/tmp/plan.md`, possibly outside any git repo) must not depend on a repo root or CE config it does not need.
+
+<!-- ce-docs-root:start -->
+**Resolve the CE artifact root `<root>` before composing any artifact path.**
+
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml`; first non-empty value wins (`<repo-root>` = `git rev-parse --show-toplevel`). Unset -> `<root>` is `docs`, exactly as before.
+- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
+- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
+<!-- ce-docs-root:end -->
 
 ## Phase 1: Get and Analyze Document
 
 **If a document path is provided:** Read it, then proceed. If the Read fails or the file is not on disk, apply the missing-document gate below instead of continuing.
 
-**If no document is specified (interactive mode):** Ask which document to review, or find the most recent in `docs/brainstorms/` or `docs/plans/` using a file-search/glob tool (e.g., Glob in Claude Code).
+**If no document is specified (interactive mode):** Ask which document to review, or find the most recent under `<root>/plans/` using a file-search/glob tool (e.g., Glob in Claude Code).
 
 **If no document is specified (headless mode):** Output "Review failed: headless mode requires a document path. Expected arguments: mode:headless <path>" and stop without dispatching reviewers.
 
@@ -46,7 +58,7 @@ If `mode:headless` is not present, run in default interactive mode with the rout
 
 ### Classify Document Type
 
-Classify the document by reading its **content shape**, not its file path. Path is a tie-breaker hint, not the primary signal — a brainstorm-style doc placed under `docs/plans/` should still classify as `requirements`, and a plan-shaped doc under `docs/brainstorms/` should still classify as `plan`. The reviewers below operate differently depending on this classification, so misclassifying a plan-shaped doc as a requirements doc (or vice versa) produces noisy or under-scrutinized findings.
+Classify the document by reading its **content shape and metadata**, not its file path. Under the unified plan contract a requirements-only and an implementation-ready plan both live in `<root>/plans/`, so location no longer signals type — a requirements-style doc classifies as `requirements` and a plan-shaped doc as `plan` wherever either sits. The reviewers below operate differently depending on this classification, so misclassifying a plan-shaped doc as a requirements doc (or vice versa) produces noisy or under-scrutinized findings.
 
 First check for the unified artifact contract:
 
@@ -72,7 +84,7 @@ Use these signals to decide:
 - Repo-relative file paths to create/modify/test
 - Prose framing focused on technical decisions, sequencing, and implementer-facing detail
 
-**Tie-breaker rule.** When the content signals are mixed or sparse, fall back to path: legacy `docs/brainstorms/` → `requirements`, `docs/plans/` → `plan` unless unified metadata says otherwise. When neither path location applies, treat the dominant content shape as authoritative; if shape is genuinely ambiguous, default to `requirements` (the more conservative classification — it activates fewer plan-specific feasibility checks).
+**Tie-breaker rule.** When the content signals are mixed or sparse, treat the dominant content shape as authoritative; if shape is genuinely ambiguous, default to `requirements` (the more conservative classification — it activates fewer plan-specific feasibility checks). Path location does not disambiguate type under the unified plan contract, where requirements-only and implementation-ready plans share `<root>/plans/`; a legacy `origin: docs/brainstorms/...` field, when present, still reads as a `plan` signal per the frontmatter list above.
 
 Pass the classification result to each persona via the `{document_type}` slot in the subagent template. Personas read this and adapt their analysis accordingly.
 
@@ -214,6 +226,8 @@ Round 1 — rejected (M entries):
   Evidence: "{evidence_snippet}"
 - {section}: "{title}" — Acknowledged without applying because {reason or "no suggested_fix — user acknowledged"}
   Evidence: "{evidence_snippet}"
+- {section}: "{title}" — Withdrawn because {triggering decision}
+  Evidence: "{evidence_snippet}"
 
 Round 2 — applied (N entries):
 ...
@@ -222,7 +236,7 @@ Round 2 — applied (N entries):
 
 Each entry carries an `Evidence:` line because synthesis R29 (rejected-finding suppression) and R30 (fix-landed verification) both use an evidence-substring overlap check as part of their matching predicate — without the evidence snippet in the primer, the orchestrator cannot compute the `>50%` overlap test and has to fall back to fingerprint-only matching, which either re-surfaces rejected findings or suppresses too aggressively. The `{evidence_snippet}` is the first evidence quote from the finding, truncated to the first ~120 characters (preserving whole words at the boundary) and with internal quotes escaped. If a finding has multiple evidence entries, use the first one; the rest live in the run artifact and are not needed for the overlap check.
 
-Accumulate across all rounds in the current session. Skip, Defer, and Acknowledge actions all count as "rejected" for suppression purposes — each signals the user decided the finding wasn't worth actioning this round (Acknowledge is the no-fix-guard variant: the user saw a finding with no `suggested_fix`, chose not to defer or skip explicitly, and recorded acknowledgement instead; for round-to-round suppression that is semantically equivalent to Skip). Applied findings stay on the applied list so round-N+1 personas can verify fixes landed (see R30 in `references/synthesis-and-presentation.md`).
+Accumulate across all rounds in the current session. Skip, Defer, and Acknowledge actions all count as "rejected" for suppression purposes — each signals the user decided the finding wasn't worth actioning this round (Acknowledge is the no-fix-guard variant: the user saw a finding with no `suggested_fix`, chose not to defer or skip explicitly, and recorded acknowledgement instead; for round-to-round suppression that is semantically equivalent to Skip). **Withdraw is conditional** (it is the revalidation variant: an earlier decision resolved or contradicted the finding; see "Withdrawing findings the user's earlier answers resolved" in `references/walkthrough.md`): it counts as rejected-class **only when a user decision retired it — a settled premise (Skip/Defer) or a user-asserted fact. An Apply-triggered Withdraw never does** (its resolution depends on the staged edit both landing and semantically resolving the finding, which round N+1 re-synthesis checks — not R29; suppressing it would hide a fix that failed or landed ineffectively). Applied findings stay on the applied list so round-N+1 personas can verify fixes landed (see R30 in `references/synthesis-and-presentation.md`).
 
 Cross-session persistence is out of scope. A later review of the same document starts with a fresh round 1 and no carried primer, even if prior sessions deferred findings into the document's Open Questions section.
 

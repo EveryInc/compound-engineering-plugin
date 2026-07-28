@@ -8,7 +8,8 @@ Input is one JSON array of reviewer-return objects. Output is one object with `f
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-python3 "$SKILL_DIR/scripts/findings-mechanics.py" < "$RUN_DIR/raw-returns.json" > "$RUN_DIR/mechanical-findings.json"
+PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+"$PY" "$SKILL_DIR/scripts/findings-mechanics.py" < "$RUN_DIR/raw-returns.json" > "$RUN_DIR/mechanical-findings.json"
 ```
 
 Before the first helper run, load every available per-reviewer artifact and build a source-detail map keyed by reviewer plus the helper fingerprint: normalized `file`, string `line`, and whitespace-normalized lowercase `title`. The map owns each source finding's `why_it_matters` and `evidence`; compact returns are merge inputs, not final report objects.
@@ -58,7 +59,7 @@ When `finding-validation` resolves to Orca, read `references/orca-routing.md` an
 
 ### Stage 5c: Act on findings (explicit local apply only)
 
-**Skip unless local apply was explicitly authorized.** A bare `/ce-code-review` is report-only and does not apply findings. Authorization exists only when `apply:local` was passed or the invoking user prompt explicitly asked this review to apply/fix its findings. Do not infer authority from `autofix_class`, a clean tree, an actionable finding, or the fact that another workflow may apply later. `mode:agent` does not apply fixes and conflicts with `apply:local`; the pipeline caller owns any later mutation.
+**Skip unless local apply was explicitly authorized.** A bare `ce-code-review` invocation is report-only and does not apply findings. Authorization exists only when `apply:local` was passed or the invoking user prompt explicitly asked this review to apply/fix its findings. Do not infer authority from `autofix_class`, a clean tree, an actionable finding, or the fact that another workflow may apply later. `mode:agent` does not apply fixes and conflicts with `apply:local`; the pipeline caller owns any later mutation.
 
 `apply:local` is authority, not an output mode: presentation remains markdown and reviewer selection is unchanged.
 
@@ -124,7 +125,7 @@ Assemble the final report. **Default:** human-readable markdown. **`mode:agent`:
    Omit this section entirely when no plan was found — do not mention the absence of a plan.
 5. **Actionable Findings.** Include when the actionable queue is non-empty — findings the caller should address (`gated_auto` / `manual` with `downstream-resolver`), plus anything Stage 5c chose not to apply. When local apply ran, findings already applied appear in the Applied section, not here.
 6. **Pre-existing.** Separate section, does not count toward verdict.
-7. **Learnings & Past Solutions.** Surface `learnings-researcher` local-prompt results: if past solutions are relevant, flag them as "Known Pattern" with links to docs/solutions/ files.
+7. **Learnings & Past Solutions.** Surface `learnings-researcher` local-prompt results: if past solutions are relevant, flag them as "Known Pattern" with links to <root>/solutions/ files.
 8. **Agent-Native Gaps.** Surface `agent-native-reviewer` local-prompt results. Omit section if no gaps found.
 9. **Deployment Notes.** If the `deployment-verification-agent` local prompt ran, surface the key Go/No-Go items: blocking pre-deploy checks, the most important verification queries, rollback caveats, and monitoring focus areas. Keep the checklist actionable rather than dropping it into Coverage. Schema drift appears in the findings tables as `data-migration` P1 rows — do not add a separate Schema Drift section.
 10. **Coverage.** Applied count (when Stage 5c ran), suppressed count by anchor (e.g., "N findings suppressed at anchor 50, M at anchor 25"), mode-aware demotion count, validator drop count and reasons (when Stage 5b ran), any P0/P1 with degraded validation (kept on validator infrastructure failure), residual risks, testing gaps, failed/timed-out reviewers, and inferred-intent uncertainty when applicable. When the Stage 3c lite roster ran, state it and the reduced reviewer set (so the narrower coverage is visible). When Stage 5b skipped validators for quote-anchored cross-model-corroborated findings, state how many and name that evidence basis; also state the one-batch result for every remaining selected finding. When the Stage 5 step 3 quote-the-line gate demoted any 75/100 finding for missing `first_evidence`, record that count. When no plan was discovered in Stage 2b (or discovery was ambiguous and skipped), note that settlement suppression was not evaluated. When the plan was `plan_source: inferred` and Stage 5 step 2 fired, note that settlement suppression was honored weakly (advisory-grade), with the settlement-conflict demotion count. **Removable surface (only when deletion-oriented maintainability findings exist):** one line giving the approximate net lines/files those findings would remove if applied (e.g., "Removable surface: ~120 lines / 2 files across findings #4, #7"). This is a dead-weight signal, **not** a reduction target — never lower the bar for a finding or invent deletions to grow the number, and omit the line entirely when no finding proposes a deletion.
@@ -192,5 +193,5 @@ Before delivering the review, verify:
 2. **No false positives from skimming.** For each finding, verify the surrounding code was actually read. Check that the "bug" isn't handled elsewhere in the same function, that the "unused import" isn't used in a type annotation, that the "missing null check" isn't guarded by the caller.
 3. **Severity is calibrated.** A style nit is never P0. A SQL injection is never P3. Re-check every severity assignment.
 4. **Line numbers are accurate.** Verify each cited line number against the file content. A finding pointing to the wrong line is worse than no finding.
-5. **Protected artifacts are respected.** Discard any findings that recommend deleting or gitignoring files in `docs/brainstorms/`, `docs/plans/`, or `docs/solutions/`.
+5. **Protected artifacts are respected.** Discard any finding that recommends deleting or gitignoring a CE pipeline artifact, per the Protected Artifacts rule in SKILL.md: any file under a `plans/`, `solutions/`, or legacy `brainstorms/` directory whose immediate parent is the artifact root (a directory named `docs`, or the configured `docs_root` when resolved). Categories nest (`solutions/<category>/`); a `references/personas/` skill asset, parented by `references`, is not a protected artifact.
 6. **Findings don't duplicate linter output.** Don't flag things the project's linter/formatter would catch (missing semicolons, wrong indentation). Focus on semantic issues.

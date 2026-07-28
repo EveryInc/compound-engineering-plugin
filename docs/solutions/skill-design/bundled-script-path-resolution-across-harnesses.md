@@ -65,7 +65,7 @@ Two adjacent rules:
 
 ### Where this is codified
 
-`AGENTS.md` > "Platform-Specific Variables in Skills" codifies this three-tier model as the repo's authoring rule; this learning is the rationale and worked examples behind it. A few legacy `${CLAUDE_SKILL_DIR}` uses are still being migrated to the anchor (e.g. `ce-compound`'s `validate-frontmatter.py`), tracked by #944. Note `tests/skill-conventions.test.ts` enforces an existence guard only when a skill-dir *platform var* is used — it does not forbid the model-filled `SKILL_DIR` anchor (which uses no platform var), so anchor-based skills pass it.
+`AGENTS.md` > "Platform-Specific Variables in Skills" codifies this three-tier model as the repo's authoring rule; this learning is the rationale and worked examples behind it. Note `tests/skill-conventions.test.ts` enforces an existence guard only when a skill-dir *platform var* is used — it does not forbid the model-filled `SKILL_DIR` anchor (which uses no platform var), so anchor-based skills pass it.
 
 ## Why This Matters
 

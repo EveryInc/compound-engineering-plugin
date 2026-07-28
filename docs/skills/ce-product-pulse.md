@@ -205,7 +205,7 @@ Past reports remain in the folder as a browseable timeline. The folder is meant 
 | `24h`, `48h`, `72h`, `7d`, `30d`, `1h` | Trailing time window |
 | `setup` / `reconfigure` / `edit config` | Re-run the interview regardless of config state |
 
-Configuration lives in `.compound-engineering/config.local.yaml` (gitignored, machine-local) under `pulse_*` keys: product name, primary event, value event, completion events, quality scoring, quality dimension, analytics source, tracing source, payments source, DB enabled, per-metric source overrides, pending metrics, excluded metrics, default lookback.
+Configuration lives in `.compound-engineering/config.local.yaml` (gitignored, machine-local) under `pulse_*` keys: product name, primary event, value event, completion events, quality scoring, quality dimension, analytics source, tracing source, payments source, DB enabled, per-metric source overrides, pending metrics, excluded metrics, default lookback. See the [configuration reference](./configuration.md) for the complete key list.
 
 ---
 

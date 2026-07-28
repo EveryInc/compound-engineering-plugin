@@ -1,8 +1,8 @@
 {
   "schema": "ce-orca.upstream-baseline/v1",
   "repository": "https://github.com/EveryInc/compound-engineering-plugin.git",
-  "version": "3.19.0",
-  "commit": "49e7d280f4877715a9f025e86e4b3e92d89a5fc6",
+  "version": "3.20.0",
+  "commit": "a9f6d530d4446d805a3100387dedd86268d7e695",
   "skillInventory": [
     "ce-babysit-pr",
     "ce-brainstorm",
@@ -25,6 +25,7 @@
     "ce-promote",
     "ce-proof",
     "ce-resolve-pr-feedback",
+    "ce-retune",
     "ce-riffrec-feedback-analysis",
     "ce-setup",
     "ce-simplify-code",
@@ -107,7 +108,8 @@
       "efficiency-reviewer.md"
     ],
     "ce-work": [
-      "figma-design-sync.md"
+      "figma-design-sync.md",
+      "implementation-worker.md"
     ],
     "lfg": [
     ]
@@ -126,12 +128,12 @@
     {
       "id": "ce-work.unit-dispatch",
       "file": "skills/ce-work/SKILL.md",
-      "contains": "**Dispatch** uses your harness's subagent/worker mechanism."
+      "contains": "**Native dispatch (inline/subagent engines only)** uses your harness's subagent/worker mechanism."
     },
     {
       "id": "ce-work.execution-engine-selection",
       "file": "skills/ce-work/references/execution-engines.md",
-      "contains": "Engine selection applies only to code execution. Knowledge-work and legacy plans keep the inline/subagent flow in `SKILL.md`."
+      "contains": "Engine selection applies only to code execution. Knowledge-work keeps its carve-out."
     },
     {
       "id": "ce-simplify-code.reviewer-dispatch",

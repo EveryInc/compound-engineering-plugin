@@ -120,11 +120,12 @@ const PARITY_CASES: ParityCase[] = [
   {
     workflowId: "ce-work",
     controller: "ce-controller",
-    upstreamAnchor: "**Dispatch** uses your harness's subagent/worker mechanism.",
+    upstreamAnchor: "**Native dispatch (inline/subagent engines only)** uses your harness's subagent/worker mechanism.",
     hooks: [{
-      id: "ce-work-engine",
-      before: "4. **Choose Execution Engine, then Strategy**",
-      after: "For an implementation-ready unified code plan, first pick the **engine**",
+      id: "ce-work-execution-engine",
+      file: "skills/ce-work/references/execution-engines.md",
+      before: "`off` disables only the standing preference.",
+      after: "## Step 1: Probe host capability",
     }],
     reference: "skills/ce-work/references/orca-execution.md",
     controllerAnchors: [
@@ -271,8 +272,8 @@ const PARITY_CASES: ParityCase[] = [
     upstreamAnchor: "Invoke the `ce-work` skill with `mode:return-to-caller",
     hooks: [{
       id: "lfg-controller",
-      before: "When invoking any skill referenced below, resolve its name against the available-skills list",
-      after: "1. Invoke the `ce-plan` skill with the arguments you were invoked with.",
+      before: "**Sanitize product input.** Remove every routing directive from the feature request that enters planning",
+      after: "1. Invoke the `ce-plan` skill with the sanitized feature request prepared above",
     }],
     reference: "skills/lfg/references/orca-lfg.md",
     controllerAnchors: [
@@ -288,11 +289,17 @@ const PARITY_CASES: ParityCase[] = [
     ownership: {
       lifecycle: "lfg-controller",
       child_dispatch: "configured-per-stage",
+      receipts: "lfg-controller",
+      checkpoints: "lfg-controller",
+      integration: "lfg-controller",
+      verification: "lfg-controller",
       fixes: "lfg-controller",
       commit: "lfg-controller",
       push: "lfg-controller",
       pull_request: "lfg-controller",
       ci_repair: "lfg-controller",
+      shipping: "lfg-controller",
+      shipping_tail: "lfg-controller",
     },
     gate: "lfg",
     run: runLfgAdapter,

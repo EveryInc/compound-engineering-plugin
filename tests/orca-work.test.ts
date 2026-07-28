@@ -50,6 +50,36 @@ describe('ce-work Orca workflow', () => {
     expect(validatePacket(packet(node('U1', ['.'])))).toContain('nodes[0].predictedFiles contains an unsafe path')
   })
 
+  test('rejects host-owned control state at the packet boundary', () => {
+    const hostControlFields = {
+      implementation_engine_binding: { target: 'codex' },
+      requested_route: 'codex',
+      actual_route: 'native',
+      requested_model: 'gpt',
+      actual_model: 'unverified',
+      fallback_reason: null,
+      run_id: 'run-123',
+      source_kind: 'plan',
+      source_digest: 'digest',
+      unit_receipts: [],
+      plan_checkpoint: 'abc123',
+      integration: {},
+      verification_results: [],
+      canonical_commit: 'abc123',
+      standalone_shipping_skipped: true,
+      tail: 'shipping',
+    }
+
+    for (const [field, value] of Object.entries(hostControlFields)) {
+      expect(validatePacket({ ...packet(node('U1', ['src/one.ts'])), [field]: value })).toContain(
+        `packet contains unsupported fields: ${field}`,
+      )
+      expect(validatePacket(packet({ ...node('U1', ['src/one.ts']), [field]: value }))).toContain(
+        `nodes[0] contains unsupported fields: ${field}`,
+      )
+    }
+  })
+
   test('rejects wildcard and glob scopes before launching a single writer', async () => {
     for (const predictedFile of [
       '*',
@@ -260,11 +290,23 @@ describe('ce-work Orca workflow', () => {
     })
   })
 
-  test('keeps the native dispatch text intact behind a bounded hook', async () => {
+  test('keeps upstream SKILL dispatch canonical and gates Orca after route resolution', async () => {
     const skill = await readFile(path.join(import.meta.dir, '..', 'skills', 'ce-work', 'SKILL.md'), 'utf8')
-    expect(skill).toContain('<!-- ce-orca-hook:start ce-work-engine -->')
     expect(skill).toContain('For the inline/subagent engine, **prefer subagents for any structured multi-unit plan**')
-    expect(skill).toContain('Do not also launch native implementation workers for an Orca-owned batch')
+    expect(skill).not.toContain('<!-- ce-orca-hook:')
+
+    const engines = await readFile(
+      path.join(import.meta.dir, '..', 'skills', 'ce-work', 'references', 'execution-engines.md'),
+      'utf8',
+    )
+    const nativeResolution = engines.indexOf('`off` disables only the standing preference.')
+    const orcaHook = engines.indexOf('<!-- ce-orca-hook:start ce-work-execution-engine -->')
+    const capabilityProbe = engines.indexOf('## Step 1: Probe host capability')
+    expect(nativeResolution).toBeGreaterThan(-1)
+    expect(orcaHook).toBeGreaterThan(nativeResolution)
+    expect(capabilityProbe).toBeGreaterThan(orcaHook)
+    expect(engines).toContain('no applicable live/session/project cross-model source')
+    expect(engines).toContain('do not enter another native or cross-model dispatch path for the same batch')
   })
 
   test('documents immutable resolve-then-run dispatch', async () => {

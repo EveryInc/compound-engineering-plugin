@@ -9,6 +9,7 @@ severity: medium
 applies_when:
   - Choosing or changing the model or reasoning tier a skill dispatches a peer/subagent on
   - Evaluating a "cheaper and faster at similar quality" claim about a candidate model
+  - Comparing candidate models that sit at different per-token price tiers
   - Any peer or subagent whose output is graded for whether it caught something
 related_components:
   - tooling
@@ -19,6 +20,7 @@ tags:
   - reasoning-effort
   - benchmark
   - non-inferiority
+  - cost-accounting
 ---
 
 # Benchmark a cross-model review peer's model and reasoning tier with reversed real bugs and a detection-vs-assertion judge
@@ -45,8 +47,9 @@ it as a non-inferiority test.
    confounder — you are measuring the model on the persona's job, nothing else.
 2. **Frame as non-inferiority, not a bake-off.** A "cheaper/faster" candidate wins
    only if quality stays within a pre-registered margin of the baseline. Speed and
-   cost are near-deterministic and cheap to confirm; quality is the only real risk,
-   so the whole question reduces to "is the candidate's quality non-inferior?"
+   cost are near-deterministic and cheap to confirm *once cost is priced in money,
+   not token volume* (step 7); quality is the only real risk, so the whole question
+   reduces to "is the candidate's quality non-inferior?"
 3. **Build ground truth from reversed real bug-fixes.** For a real fix commit `C`,
    `git diff C C^` (restricted to the code file, excluding tests/changelog that
    name the bug) is a patch that **re-introduces** the exact defect the fix
@@ -68,6 +71,14 @@ it as a non-inferiority test.
 6. **Pre-register the decision rule**, then confirm generality with a cross-language
    spot-check (same method, a second and third language in the same domain). A tie
    that holds across languages is a decision; a tie in one language is a lead.
+7. **Price the tokens; never compare token volume across price tiers.** Token count
+   is a cost proxy *only within one model's pricing*. Across models, convert to
+   money — `median_tokens × per-token price` — and capture the price ratio at
+   decision time. A model with higher token volume can be materially cheaper in
+   dollars when its per-token price is lower. Keep subscription-metered cost (e.g.
+   ChatGPT Pro message allowances) as a **separate** axis from API token-dollar
+   cost; the two do not convert into each other, so state which one a recommendation
+   is denominated in.
 
 ## Why This Matters
 
@@ -85,12 +96,23 @@ it as a non-inferiority test.
 - **Median, not mean.** The high tier's cost is dominated by a few very expensive
   hard-diff runs; the mean overstated savings by ~2x versus the median. The robust,
   defensible cost figure is the median.
+- **Token volume is not monetary cost.** The first run reported median *tokens* and
+  read the higher-token model as more expensive. Folding in per-token price reversed
+  it: a ~5x cheaper-per-token sibling (Luna) at the *highest* reasoning tier used
+  ~49% more tokens yet cost an estimated ~30% of the baseline in API dollars (~70%
+  savings), tying detection. Comparing token counts across models at different price
+  tiers silently favors the pricier one — the corrected axis, not any new quality
+  data, changed the decision. This is the same "wrong proxy" failure as mean-vs-
+  median, one level up: tokens proxy cost only within a single price.
 - **The payoff is asymmetric.** The whole benchmark is cheap relative to the
-  engineering it guides, and it caught that the *reasoning tier*, not the model, was
-  the real cost lever — dropping the peer from high to medium reasoning held quality
-  within noise at ~30-70% lower token cost, while the cheaper candidate model was
-  rejected for weaker detection. The intuition ("high reasoning is worth it") was
-  wrong and only a measurement showed it.
+  engineering it guides. The first pass caught that the *reasoning tier* was a real
+  cost lever — high to medium held quality within noise at ~30-70% lower token cost —
+  and rejected one cheaper model (Terra) for weaker detection. A follow-up then found
+  the model axis *also* had a free-cost win that the token-only metric had hidden:
+  once cost was priced in dollars, a cheaper-per-token model (Luna) at the top tier
+  tied detection for ~70% less spend (~0.30x the API cost). Two intuitions ("high reasoning is worth it,"
+  "more tokens means more expensive") were both wrong, and only measurement — with
+  the right cost axis — showed it.
 
 ## When to Apply
 
@@ -124,24 +146,35 @@ Isolation: the arm differs only in the two swapped tokens on the real invocation
 
 ```
 codex exec ... -m gpt-5.6-sol   -c 'model_reasoning_effort="high"'    # baseline
-codex exec ... -m gpt-5.6-sol   -c 'model_reasoning_effort="medium"'  # tier candidate
-codex exec ... -m gpt-5.6-terra -c 'model_reasoning_effort="high"'    # model candidate
+codex exec ... -m gpt-5.6-sol   -c 'model_reasoning_effort="medium"'  # tier candidate  (faster, more predictable)
+codex exec ... -m gpt-5.6-terra -c 'model_reasoning_effort="high"'    # model candidate (rejected: weaker detection)
+codex exec ... -m gpt-5.6-luna  -c 'model_reasoning_effort="xhigh"'   # model candidate (adopted: ~70% cheaper in API $)
 ```
 
-Concrete result shape (real bugs, blind 3-vote judge, medians), showing the tier
-drop is a near-free win and the model swap is not:
+Concrete result shape (real bugs, blind 3-vote judge, medians). The tier drop and
+the cheaper-per-token model are both near-free wins; the token count alone hid the
+second one — "rel. API $" is `median_tokens × per-token price`, not token volume:
 
-| arm | detection | assertion | median tokens |
-|---|---|---|---|
-| sol high | 94-100% | 84-100% | 170k-616k |
-| sol medium | 92-100% | 82-100% | 118k-189k |
-| terra high | 67-100% | 67-100% | 70k-130k |
+| arm | detection | assertion | median tokens | rel. API $ |
+|---|---|---|---|---|
+| sol high | 94-100% | 84-100% | 170k-616k | higher |
+| sol medium | 92-100% | 82-100% | 118k-189k | 1.0x (baseline) |
+| terra high | 67-100% | 67-100% | 70k-130k | rejected: detection |
+| luna xhigh | 92-100% | 92-100% | 175k-243k | ~0.30x |
 
-Full write-up and the shareable chart:
-`docs/plans/2026-07-18-adversarial-peer-benchmark-report.md`; running phase log:
-`docs/plans/2026-07-17-001-eval-cross-model-peer-model-config.md`. Runnable harness
-(re-run when models change): `github.com/tmchow/cross-model-peer-eval` (private).
-(Tier change applied in the working tree at time of writing; not yet merged.)
+Luna wins on API dollars but is ~54% slower at the median with a heavy tail (JS p95
+242s, max 419s), so the choice is constraint-driven: **Luna xHigh for API-dollar
+efficiency, Sol-medium for faster/predictable turnaround.** ChatGPT-Pro-metered use
+is a separate axis (Luna ~3.1-3.3x the message capacity), not the API-dollar figure.
+
+The corrected API-dollar axis and the Luna result are captured in this document.
+The original Sol-only benchmark (token-volume cost, no Luna run) is the 2026-07-18
+write-up `docs/plans/2026-07-18-adversarial-peer-benchmark-report.md` and its phase
+log `docs/plans/2026-07-17-001-eval-cross-model-peer-model-config.md` — both predate
+the Luna/API-dollar update and do not contain it.
+Runnable harness (re-run when models change):
+`github.com/tmchow/cross-model-peer-eval` (private). Current config: `gpt-5.6-luna`
+at `xhigh` for both `ce-code-review` and `ce-doc-review` adversarial peers.
 
 ## Related
 

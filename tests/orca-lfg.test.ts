@@ -133,6 +133,20 @@ const resolvedLfg = () => ({
   },
 })
 
+const upstreamStageIntent = () => ({
+  schema: 'ce-orca.lfg-stage-intent/v1',
+  planning: { carrier: 'plan_model', value: 'opus' },
+  implementation: {
+    carrier: 'implementation_engine',
+    value: {
+      mode: 'require',
+      target: 'composer',
+      model: null,
+      source: 'lfg-current-turn',
+    },
+  },
+})
+
 type LfgFixtureStageId = 'plan' | 'work' | 'simplify' | 'review' | 'fixes' | 'browser-test'
 type LfgFixtureRuntime = 'native' | 'orca'
 type LfgFixtureStageStatus = 'complete' | 'failed' | 'blocked' | 'skipped'
@@ -469,6 +483,7 @@ describe('LFG Orca ownership gate', () => {
     const manifest = await writeLfgChildExecutionPatches({ resolved: resolvedLfg(), outDir })
 
     expect(manifest.schema).toBe('ce-orca.lfg-child-patches/v1')
+    expect(manifest.upstreamOwnedStages).toEqual([])
     expect(Object.keys(manifest.children)).toEqual(['implementation', 'planning', 'review', 'simplification'])
     expect((await stat(outDir)).mode & 0o777).toBe(0o700)
     for (const child of Object.values(manifest.children)) {
@@ -489,17 +504,21 @@ describe('LFG Orca ownership gate', () => {
   test('exposes child patch derivation through a symlinked bundled workflow CLI', async () => {
     const root = await directory()
     const resolvedPath = path.join(root, 'resolved.json')
+    const intentPath = path.join(root, 'intent.json')
     const outDir = path.join(root, 'derived')
     await writeFile(resolvedPath, JSON.stringify(resolvedLfg()))
+    await writeFile(intentPath, JSON.stringify(upstreamStageIntent()))
     const workflow = path.join(import.meta.dir, '..', 'integrations', 'orca', 'workflows', 'lfg.mjs')
     const symlinkedWorkflow = path.join(root, 'orca-workflow.mjs')
     await symlink(workflow, symlinkedWorkflow)
     const child = Bun.spawn([
-      'node',
+      process.execPath,
       symlinkedWorkflow,
       'derive-child-patches',
       '--resolved',
       resolvedPath,
+      '--intent',
+      intentPath,
       '--out-dir',
       outDir,
     ], { stdout: 'pipe', stderr: 'pipe' })
@@ -512,10 +531,11 @@ describe('LFG Orca ownership gate', () => {
     expect(exitCode, stderr).toBe(0)
     const manifest = JSON.parse(stdout)
     expect(manifest.schema).toBe('ce-orca.lfg-child-patches/v1')
-    expect(JSON.parse(await readFile(manifest.children.planning.patchPath, 'utf8'))).toMatchObject({
-      workflowId: 'ce-plan',
-      defaults: { backend: 'claude', model: 'opus' },
-    })
+    expect(manifest.upstreamOwnedStages).toEqual(['planning', 'implementation'])
+    expect(manifest.children).not.toHaveProperty('planning')
+    expect(manifest.children).not.toHaveProperty('implementation')
+    expect(manifest.children).toHaveProperty('review')
+    expect(manifest.children).toHaveProperty('simplification')
   })
 
   test('rejects child propagation from a native or malformed LFG resolution', () => {
@@ -540,6 +560,42 @@ describe('LFG Orca ownership gate', () => {
       stages: { implementation: { concurrency: 5 } },
     })
     expect(JSON.stringify(patches)).not.toContain('gpt-5.4')
+  })
+
+  test('consumes resolved upstream carriers without remapping or overriding them', async () => {
+    const intent = upstreamStageIntent()
+    const patches = deriveLfgChildExecutionPatches(resolvedLfg(), intent)
+
+    expect(patches).not.toHaveProperty('planning')
+    expect(patches).not.toHaveProperty('implementation')
+    expect(patches).toHaveProperty('review')
+    expect(patches).toHaveProperty('simplification')
+    expect(JSON.stringify(patches)).not.toContain('composer')
+
+    const ordered = {
+      ...intent,
+      planning: null,
+      implementation: { carrier: 'ordered-assignment' },
+    }
+    const orderedPatches = deriveLfgChildExecutionPatches(resolvedLfg(), ordered)
+    expect(orderedPatches).toHaveProperty('planning')
+    expect(orderedPatches).not.toHaveProperty('implementation')
+
+    const root = await directory()
+    const manifest = await writeLfgChildExecutionPatches({
+      resolved: resolvedLfg(),
+      intent,
+      outDir: path.join(root, 'carrier-aware'),
+    })
+    expect(manifest.upstreamOwnedStages).toEqual(['planning', 'implementation'])
+
+    expect(() => deriveLfgChildExecutionPatches(resolvedLfg(), {
+      ...intent,
+      implementation: {
+        carrier: 'implementation_engine',
+        value: { ...intent.implementation.value, target: 'unknown' },
+      },
+    })).toThrow(/exact resolved implementation_engine carrier/)
   })
 
   test('preserves upstream stage order and caller-owned child modes', () => {
@@ -579,6 +635,15 @@ describe('LFG Orca ownership gate', () => {
     expect(result.tail_mode).toBe('remote')
     expect(result.ownership.commit).toBe('lfg-controller')
     expect(result.ownership.ci_repair).toBe('lfg-controller')
+    expect(result.ownership).toMatchObject({
+      lifecycle: 'lfg-controller',
+      receipts: 'lfg-controller',
+      checkpoints: 'lfg-controller',
+      integration: 'lfg-controller',
+      verification: 'lfg-controller',
+      shipping: 'lfg-controller',
+      shipping_tail: 'lfg-controller',
+    })
     expect(result.stage_trace).toEqual(
       packet().stages.map(({ id, status, runtime, owner, artifactRef }) => ({
         id,
@@ -645,10 +710,16 @@ describe('LFG Orca ownership gate', () => {
       shipping_allowed: true,
       tail_mode: 'remote',
       ownership: {
+        receipts: 'lfg-controller',
+        checkpoints: 'lfg-controller',
+        integration: 'lfg-controller',
+        verification: 'lfg-controller',
         commit: 'lfg-controller',
         push: 'lfg-controller',
         pull_request: 'lfg-controller',
         ci_repair: 'lfg-controller',
+        shipping: 'lfg-controller',
+        shipping_tail: 'lfg-controller',
       },
     })
     expect(JSON.parse(await readFile(execution.resolvedPath, 'utf8'))).toEqual(resolved)
@@ -842,7 +913,7 @@ describe('LFG Orca ownership gate', () => {
       '6. **Autonomous residual handoff**',
       '7. Invoke the `ce-test-browser` skill with `mode:pipeline`',
       '8. Invoke the `ce-commit-push-pr` skill with `mode:pipeline branding:on`',
-      '9. **Drive CI to green via `ce-babysit-pr`**',
+      '9. **Watch the PR to CI-decided via `ce-babysit-pr`**',
       '10. Output `<promise>DONE</promise>`',
     ]
     const positions = orderedAnchors.map((anchor) => skill.indexOf(anchor))
@@ -850,15 +921,20 @@ describe('LFG Orca ownership gate', () => {
     expect(positions).toEqual([...positions].sort((left, right) => left - right))
   })
 
-  test('documents out-of-band child overrides while preserving the original prompt', async () => {
+  test('documents out-of-band child overrides while preserving sanitized product input', async () => {
     const reference = await readFile(
       path.join(import.meta.dir, '..', 'skills', 'lfg', 'references', 'orca-lfg.md'),
       'utf8',
     )
     expect(reference).toContain('derive-child-patches')
     expect(reference).toContain('executionPatchRef')
-    expect(reference).toContain('original LFG user prompt unchanged')
-    expect(reference).toContain('never call `save-profile`')
+    expect(reference).toContain('resolved carrier state')
+    expect(reference).toContain('do not parse the')
+    expect(reference).toMatch(/never call\s+`save-profile`/)
+    expect(reference).toContain('never reconstruct it under a')
+    expect(reference).toContain('hardcoded default artifact root')
+    expect(reference).toContain('`unit_receipts`')
+    expect(reference).toContain('`plan_checkpoint`')
     expect(reference).toContain('SKILL_DIR="<absolute path of the lfg skill>";')
     expect(reference).toContain('LFG_DIR="$(mktemp -d -t ce-orca-lfg-XXXXXX)";')
     expect(reference).toContain('chmod 700 "$LFG_DIR";')

@@ -60,6 +60,10 @@ But it stands alone just as well — many teams reach for `ce-plan` directly wit
 
 # Equivalent shorthand when a repeatable automation needs it
 /ce-plan turn the notification mute requirements into an implementation-ready plan output:html
+
+# Keep your session on a model like Opus, but send only the heavy planning
+# step to Fable -- surgical use of a strong-but-expensive model where it pays off
+/ce-plan turn the notification mute requirements into an implementation-ready plan, use fable
 ```
 
 Start with `ce-brainstorm` when the product shape is still unsettled; direct planning works best when the intended outcome is already clear.
@@ -237,7 +241,7 @@ In universal-planning mode, the U-IDs, dependency ordering, scope boundaries, an
 | `deepen the plan` / `deepening pass` | Re-deepen fast path (interactive mode) |
 | `<bug description>` | Routes to `ce-debug` suggestion menu |
 | `<task in another repo>` | Cross-repo announcement, plan lands in target |
-| `output:html` | Write the plan as a single self-contained HTML file instead of markdown. Exclusive — the plan is `.md` OR `.html`, never both. Default is markdown. Set `plan_output: html` in `.compound-engineering/config.local.yaml` to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown so downstream automation gets a stable text shape. |
+| `output:html` | Write the plan as a single self-contained HTML file instead of markdown. Exclusive — the plan is `.md` OR `.html`, never both. Default is markdown. Set `plan_output: html` in `.compound-engineering/config.local.yaml` to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown so downstream automation gets a stable text shape. See the [configuration reference](./configuration.md). |
 | `confirm:auto` | Skip the pre-plan scoping-confirmation pause for this run — ce-plan writes the scope summary for itself, records inferred scope under an `Assumptions` section, announces it's proceeding, and keeps going without waiting. Skips only that confirmation; genuine blockers and the post-plan menu still appear. Use `confirm:ask` to force the gate on for one run. Set `plan_skip_scoping_confirm: true` in `.compound-engineering/config.local.yaml` to make skipping the default. |
 
 ---
@@ -264,9 +268,11 @@ Yes — and it's increasingly common. Universal-planning preserves the U-ID conc
 
 ---
 
-## Fable elevation (Claude Code only)
+## Model elevation
 
-When you're on a cheaper session model, `ce-plan` can still author the plan with a higher-reasoning model: it dispatches the interpret-findings-then-author step to Fable via a subagent, so you get Fable-quality planning without switching your whole session. Opt in per run by saying "use fable" in your prompt, or set `plan_use_fable: true` in `.compound-engineering/config.local.yaml`. A mechanical host gate makes this a silent no-op on every non-Claude-Code harness (Codex, Cursor). See `references/reasoning-elevation.md`.
+When you want a specific model for the heavy reasoning step, `ce-plan` can author the plan on a model you choose instead of your session model. It dispatches only the interpret-findings-then-author step to that model, with read access so it can verify its brief; the rest of the skill (dialogue, research) stays on your session model. Choose per run by naming a model in your prompt ("use fable", "have opus plan this"), or set a default with `plan_model: <model>` in `.compound-engineering/config.local.yaml`. A prompt request overrides the config key.
+
+This works on any harness: the host serves the chosen model natively where it can, otherwise it invokes the Claude CLI (which must be installed and authenticated), otherwise it runs the step on your session model and tells you which precondition was unmet. **Setting `plan_model` therefore takes effect in every harness you run `ce-plan` in**, not just Claude Code. See `references/reasoning-elevation.md`.
 
 ## See Also
 

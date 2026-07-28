@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 export const PACKET_SCHEMA = 'ce-orca.lfg-packet/v1'
 export const RESULT_SCHEMA = 'ce-orca.lfg-result/v1'
 export const CHILD_PATCHES_SCHEMA = 'ce-orca.lfg-child-patches/v1'
+const STAGE_INTENT_SCHEMA = 'ce-orca.lfg-stage-intent/v1'
 const RESOLVED_EXECUTION_SCHEMA = 'ce-orca.resolved-execution/v1'
 const EXECUTION_REQUEST_SCHEMA = 'ce-orca.execution-request/v1'
 const BASE_ORDER = ['plan', 'work', 'simplify', 'review', 'fixes']
@@ -29,6 +30,13 @@ const CHILDREN = {
   review: { workflowId: 'ce-code-review', sourceStage: 'review' },
   simplification: { workflowId: 'ce-simplify-code', sourceStage: 'simplification' },
 }
+const INTENT_FIELDS = new Set(['schema', 'planning', 'implementation'])
+const CARRIER_FIELDS = new Set(['carrier', 'value'])
+const ORDERED_ASSIGNMENT_FIELDS = new Set(['carrier'])
+const ENGINE_FIELDS = new Set(['mode', 'target', 'model', 'source'])
+const ENGINE_MODES = new Set(['prefer', 'require'])
+const ENGINE_TARGETS = new Set(['codex', 'claude', 'grok', 'cursor', 'composer'])
+const TOKEN = /^[A-Za-z0-9][A-Za-z0-9._:/+[\],=-]{0,127}$/
 
 const safeRef = (value) => {
   if (typeof value !== 'string' || !value || value.includes('\0') || path.isAbsolute(value)) return false
@@ -37,6 +45,81 @@ const safeRef = (value) => {
 }
 
 const isObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+const hasOnlyFields = (value, fields) =>
+  Object.keys(value).every((field) => fields.has(field))
+
+const hasExactFields = (value, fields) =>
+  Object.keys(value).length === fields.size && hasOnlyFields(value, fields)
+
+const isValidEngineModel = (model) => model === null || TOKEN.test(model || '')
+
+const isValidEngineSource = (source) =>
+  typeof source === 'string'
+  && Boolean(source)
+  && source.length <= 256
+  && !source.includes('\0')
+
+const isValidEngine = (engine) => {
+  if (!isObject(engine) || !hasExactFields(engine, ENGINE_FIELDS)) return false
+  return [
+    ENGINE_MODES.has(engine.mode),
+    ENGINE_TARGETS.has(engine.target),
+    isValidEngineModel(engine.model),
+    isValidEngineSource(engine.source),
+  ].every(Boolean)
+}
+
+const validatePlanningIntent = (planning) => {
+  if (
+    planning !== null
+    && (
+      !isObject(planning)
+      || !hasOnlyFields(planning, CARRIER_FIELDS)
+      || planning.carrier !== 'plan_model'
+      || !TOKEN.test(planning.value || '')
+    )
+  ) {
+    throw new Error('stage intent planning must be null or an exact plan_model carrier')
+  }
+}
+
+const validateImplementationIntent = (implementation) => {
+  if (implementation === null) return
+  if (!isObject(implementation)) {
+    throw new Error('stage intent implementation must be null or a resolved carrier')
+  }
+  if (implementation.carrier === 'ordered-assignment') {
+    if (!hasOnlyFields(implementation, ORDERED_ASSIGNMENT_FIELDS)) {
+      throw new Error('ordered-assignment intent is state-only; candidates stay in current-task context')
+    }
+    return
+  }
+  if (implementation.carrier !== 'implementation_engine') {
+    throw new Error('stage intent implementation must contain the exact resolved implementation_engine carrier')
+  }
+  if (!hasExactFields(implementation, CARRIER_FIELDS)) {
+    throw new Error('stage intent implementation must contain the exact resolved implementation_engine carrier')
+  }
+  if (!isValidEngine(implementation.value)) {
+    throw new Error('stage intent implementation must contain the exact resolved implementation_engine carrier')
+  }
+}
+
+const validateStageIntent = (intent) => {
+  if (intent === undefined || intent === null) return { planning: null, implementation: null }
+  if (!isObject(intent) || intent.schema !== STAGE_INTENT_SCHEMA) {
+    throw new Error(`stage intent must use ${STAGE_INTENT_SCHEMA}`)
+  }
+  const unknown = Object.keys(intent).filter((field) => !INTENT_FIELDS.has(field))
+  if (unknown.length) throw new Error(`stage intent contains unsupported fields: ${unknown.sort().join(', ')}`)
+
+  const planning = intent.planning ?? null
+  const implementation = intent.implementation ?? null
+  validatePlanningIntent(planning)
+  validateImplementationIntent(implementation)
+  return { planning, implementation }
+}
 
 const target = (value, label) => {
   if (value === undefined) return {}
@@ -48,7 +131,7 @@ const target = (value, label) => {
   return Object.fromEntries(TARGET_FIELDS.filter((field) => Object.hasOwn(value, field)).map((field) => [field, value[field]]))
 }
 
-export function deriveLfgChildExecutionPatches(resolved) {
+export function deriveLfgChildExecutionPatches(resolved, intent) {
   if (!isObject(resolved) || resolved.schema !== RESOLVED_EXECUTION_SCHEMA || resolved.workflowId !== 'lfg') {
     throw new Error(`resolved execution must use ${RESOLVED_EXECUTION_SCHEMA} for workflow lfg`)
   }
@@ -65,8 +148,10 @@ export function deriveLfgChildExecutionPatches(resolved) {
   }
 
   const defaults = target(override.defaults, 'runScopedOverride.defaults')
+  const upstreamIntent = validateStageIntent(intent)
   const patches = {}
   for (const [childId, mapping] of Object.entries(CHILDREN)) {
+    if (upstreamIntent[childId]) continue
     const stageOverride = target(override.stages?.[mapping.sourceStage], `runScopedOverride.stages.${mapping.sourceStage}`)
     const patch = {
       schema: EXECUTION_REQUEST_SCHEMA,
@@ -86,9 +171,10 @@ export function deriveLfgChildExecutionPatches(resolved) {
   return patches
 }
 
-export async function writeLfgChildExecutionPatches({ resolved, outDir }) {
+export async function writeLfgChildExecutionPatches({ resolved, intent, outDir }) {
   if (typeof outDir !== 'string' || !outDir) throw new Error('outDir is required')
-  const patches = deriveLfgChildExecutionPatches(resolved)
+  const upstreamIntent = validateStageIntent(intent)
+  const patches = deriveLfgChildExecutionPatches(resolved, intent)
   const absolute = path.resolve(outDir)
   try {
     await fs.mkdir(absolute, { mode: 0o700 })
@@ -109,7 +195,14 @@ export async function writeLfgChildExecutionPatches({ resolved, outDir }) {
     await fs.rm(absolute, { recursive: true, force: true })
     throw error
   }
-  return { schema: CHILD_PATCHES_SCHEMA, sourceWorkflowId: 'lfg', children }
+  return {
+    schema: CHILD_PATCHES_SCHEMA,
+    sourceWorkflowId: 'lfg',
+    upstreamOwnedStages: Object.entries(upstreamIntent)
+      .filter(([, value]) => value !== null)
+      .map(([stageId]) => stageId),
+    children,
+  }
 }
 
 export function validateLfgPacket(packet) {
@@ -161,11 +254,17 @@ export function validateLfgPacket(packet) {
 const ownership = {
   lifecycle: 'lfg-controller',
   child_dispatch: 'configured-per-stage',
+  receipts: 'lfg-controller',
+  checkpoints: 'lfg-controller',
+  integration: 'lfg-controller',
+  verification: 'lfg-controller',
   fixes: 'lfg-controller',
   commit: 'lfg-controller',
   push: 'lfg-controller',
   pull_request: 'lfg-controller',
   ci_repair: 'lfg-controller',
+  shipping: 'lfg-controller',
+  shipping_tail: 'lfg-controller',
 }
 
 async function writeResult(runDir, result) {
@@ -226,16 +325,19 @@ async function deriveChildPatchesCli(args) {
   for (let index = 0; index < args.length; index += 1) {
     const token = args[index]
     if (!token.startsWith('--') || !args[index + 1] || args[index + 1].startsWith('--')) {
-      throw new Error('Usage: orca-workflow.mjs derive-child-patches --resolved <file> --out-dir <new-private-directory>')
+      throw new Error('Usage: orca-workflow.mjs derive-child-patches --resolved <file> [--intent <file>] --out-dir <new-private-directory>')
     }
     flags[token.slice(2)] = args[index + 1]
     index += 1
   }
-  if (!flags.resolved || !flags['out-dir'] || Object.keys(flags).some((key) => !['resolved', 'out-dir'].includes(key))) {
-    throw new Error('Usage: orca-workflow.mjs derive-child-patches --resolved <file> --out-dir <new-private-directory>')
+  if (!flags.resolved || !flags['out-dir'] || Object.keys(flags).some((key) => !['resolved', 'intent', 'out-dir'].includes(key))) {
+    throw new Error('Usage: orca-workflow.mjs derive-child-patches --resolved <file> [--intent <file>] --out-dir <new-private-directory>')
   }
   const resolved = JSON.parse(await fs.readFile(path.resolve(flags.resolved), 'utf8'))
-  const manifest = await writeLfgChildExecutionPatches({ resolved, outDir: flags['out-dir'] })
+  const intent = flags.intent
+    ? JSON.parse(await fs.readFile(path.resolve(flags.intent), 'utf8'))
+    : undefined
+  const manifest = await writeLfgChildExecutionPatches({ resolved, intent, outDir: flags['out-dir'] })
   process.stdout.write(`${JSON.stringify(manifest, null, 2)}\n`)
 }
 

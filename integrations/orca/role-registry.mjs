@@ -197,8 +197,8 @@ const WORKFLOW_DEFINITIONS = {
   },
   "ce-work": {
     stages: {
-      implementation: stage("skills/ce-work/SKILL.md", "your harness's subagent/worker mechanism.", {
-        "implementation-unit-worker": workflowRole("skills/ce-work/SKILL.md", "bounded unit packet", { activation: "repeatable", mutation: "worktree-write", required: true, resultMode: "artifact" }),
+      implementation: stage("skills/ce-work/SKILL.md", "**Native dispatch (inline/subagent engines only)** uses your harness's subagent/worker mechanism.", {
+        "implementation-unit-worker": promptRole("skills/ce-work/references/agents/implementation-worker.md", { activation: "repeatable", mutation: "worktree-write", required: true, resultMode: "artifact" }),
       }, { mutation: "worktree-write", resultMode: "artifact" }),
       "design-validation": stage("skills/ce-work/SKILL.md", "figma-design-sync", {
         "figma-design-sync": promptRole("skills/ce-work/references/agents/figma-design-sync.md", { activation: "conditional", resultMode: "artifact" }),

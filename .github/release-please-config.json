@@ -2,13 +2,13 @@
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "include-component-in-tag": true,
   "release-search-depth": 20,
-  "commit-search-depth": 50,
+  "commit-search-depth": 500,
   "plugins": [],
   "packages": {
     ".": {
       "release-type": "simple",
       "package-name": "compound-engineering",
-      "release-as": "3.19.0-orca.1",
+      "release-as": "3.20.0-orca.2",
       "changelog-sections": [
         {
           "type": "feat",

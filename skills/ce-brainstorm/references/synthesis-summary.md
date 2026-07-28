@@ -48,7 +48,7 @@ Each section answers a different question:
 
 Then the confirmation, which names **what actually happens next** so the user knows what is coming and can interrupt without ambiguity. When a doc is expected — the common case — that is the artifact write: *"Confirm and I'll write the requirements-only plan next, drawing on our dialogue and this synthesis. Or tell me what to change."*
 
-When a doc is already ruled out — the user declined one, or `brainstorm-sections.md`'s "Decide whether a doc is warranted at all" criteria plainly hold — name where the decisions actually go instead, which is whichever of that rule's alternatives *this run* established (`ce-plan`, the user's commit message, `docs/solutions/`): *"Confirm and we're done here — the scope above carries straight into [the destination the dialogue established]. Or tell me what to change."* When the dialogue named none, drop the clause rather than picking one: *"Confirm and we're done here — no doc, as you asked. Or tell me what to change."*
+When a doc is already ruled out — the user declined one, or `brainstorm-sections.md`'s "Decide whether a doc is warranted at all" criteria plainly hold — name where the decisions actually go instead, which is whichever of that rule's alternatives *this run* established (`ce-plan`, the user's commit message, `<root>/solutions/`): *"Confirm and we're done here — the scope above carries straight into [the destination the dialogue established]. Or tell me what to change."* When the dialogue named none, drop the clause rather than picking one: *"Confirm and we're done here — no doc, as you asked. Or tell me what to change."*
 
 Do not hardcode a destination. This phase writes no commit message and hands off at Phase 4, so asserting a downstream action the run will not take is the same overreach as promising the doc. Phase 3, not this phase, owns the doc-warranted decision, so promising the write here makes a user who already declined a doc decline it a second time.
 
@@ -251,10 +251,10 @@ Fall back to a numbered list in chat only when no blocking tool exists or the ca
 
 ## Self-redirect
 
-If the user response indicates they're in the wrong skill or want a different workflow (e.g., "this is too small, just /ce-work it" or "this needs more thought, let me brainstorm differently"):
+If the user response indicates they're in the wrong skill or want a different workflow (e.g., "this is too small, just use `ce-work`" or "this needs more thought, let me brainstorm differently"):
 
 - Stop ce-brainstorm
-- Suggest the alternative skill the user appears to want (e.g., `/ce-work`, `/ce-debug`)
+- Suggest the alternative skill the user appears to want (e.g., `ce-work`, `ce-debug`)
 - Offer to load it in-session
 - Do not push back or argue — the user's redirect signal is the deliberate choice
 

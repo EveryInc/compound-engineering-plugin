@@ -35,11 +35,13 @@ describe("CE-Orca packaging", () => {
         }
       }
       integration: {
+        revision: number
         workflowCoverage: Record<string, { mode: string; controller: string }>
       }
     }>("integrations/orca/protocol.json")
 
     expect(protocol.schema).toBe("ce-orca.protocol-compatibility/v1")
+    expect(protocol.integration.revision).toBe(2)
     expect(protocol.orca).toEqual({
       protocol: "orca.local-protocol/v1",
       envelopes: {
@@ -101,15 +103,15 @@ describe("CE-Orca packaging", () => {
     const codexMarketplace = await readJson<{
       plugins: Array<{
         name: string
-        source: { source: string; url: string }
+        source: { source: string; path: string }
       }>
     }>(".agents/plugins/marketplace.json")
 
     expect(protocol.distribution.packageRoot).toBe(".")
     expect(claudeMarketplace.plugins.find((plugin) => plugin.name === "compound-engineering")?.source).toBe("./")
     expect(codexMarketplace.plugins.find((plugin) => plugin.name === "compound-engineering")?.source).toEqual({
-      source: "url",
-      url: "https://github.com/ethras/compound-engineering-orca.git",
+      source: "local",
+      path: "./",
     })
 
     for (const asset of protocol.distribution.requiredAssets) {
@@ -136,7 +138,7 @@ describe("CE-Orca packaging", () => {
     const claudeVersion = claude.version
     const codexVersion = codex.version
     expect(new Set([packageJson.version, claudeVersion, codexVersion]).size).toBe(1)
-    expect([upstream.version, `${upstream.version}-orca.1`]).toContain(packageJson.version)
+    expect([upstream.version, `${upstream.version}-orca.2`]).toContain(packageJson.version)
     expect(packageJson.repository).toBe("https://github.com/ethras/compound-engineering-orca")
     expect(claude).toMatchObject({
       name: "compound-engineering",
@@ -183,15 +185,15 @@ describe("CE-Orca packaging", () => {
     }
     expect(packageJson.scripts["orca:version"]).toBe("bun integrations/orca/version.mjs")
 
-    const stdout = execFileSync("bun", ["integrations/orca/version.mjs"], {
+    const stdout = execFileSync(process.execPath, ["integrations/orca/version.mjs"], {
       cwd: REPO_ROOT,
       encoding: "utf8",
     })
     expect(JSON.parse(stdout)).toEqual({
       name: "compound-engineering-orca",
-      version: "3.19.0-orca.1",
+      version: "3.20.0-orca.2",
       upstream,
-      integrationRevision: 1,
+      integrationRevision: 2,
       orca: {
         protocol: "orca.local-protocol/v1",
         requestVersions: ["orca.execution-config/v1"],

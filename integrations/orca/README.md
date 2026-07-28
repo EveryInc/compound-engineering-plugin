@@ -330,4 +330,4 @@ Changes unrelated to protected skill inventory, CE-defined roles, or dispatch an
 
 ## Native packages
 
-Claude and Codex install this repository root as the plugin package. `protocol.json` declares the required fork-owned assets, and packaging tests verify the Claude root source and Codex fork URL continue to include them. The public skill name and native `skills/` path intentionally remain upstream-compatible.
+Claude and Codex install this repository root as the plugin package. `protocol.json` declares the required fork-owned assets, and packaging tests verify the Claude root source and co-located local Codex source continue to include them. The public skill name and native `skills/` path intentionally remain upstream-compatible.

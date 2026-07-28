@@ -194,9 +194,20 @@ describe("release metadata", () => {
 
     expect(counts).toEqual({
       agents: 0,
-      skills: 31,
+      skills: 32,
       mcpServers: 0,
     })
+  })
+
+  test("pins release-please to the current Orca fork identity", async () => {
+    const root = process.cwd()
+    const upstream = await Bun.file(path.join(root, "integrations/orca/upstream.json")).json()
+    const protocol = await Bun.file(path.join(root, "integrations/orca/protocol.json")).json()
+    const releasePlease = await Bun.file(path.join(root, ".github/release-please-config.json")).json()
+
+    expect(releasePlease.packages["."]["release-as"]).toBe(
+      `${upstream.version}-orca.${protocol.integration.revision}`,
+    )
   })
 
   test("builds a stable compound-engineering manifest description", async () => {
@@ -336,6 +347,60 @@ describe("release metadata", () => {
         (err) => err.includes(".grok-plugin/marketplace.json") && err.includes("self-referential"),
       ),
     ).toBe(true)
+  })
+
+  test("reports a materialized (non-local) Codex marketplace source as a structural error", async () => {
+    const root = await makeFixtureRoot()
+    await writeFile(
+      path.join(root, ".agents", "plugins", "marketplace.json"),
+      JSON.stringify(
+        {
+          name: "compound-engineering-plugin",
+          plugins: [
+            {
+              name: "compound-engineering",
+              source: {
+                source: "url",
+                url: "https://github.com/EveryInc/compound-engineering-plugin.git",
+              },
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+    )
+
+    const result = await syncReleaseMetadata({ root, write: false })
+
+    expect(
+      result.errors.some(
+        (err) => err.includes(".agents/plugins/marketplace.json") && err.includes("#1226"),
+      ),
+    ).toBe(true)
+  })
+
+  test("accepts a co-located local Codex marketplace source", async () => {
+    const root = await makeFixtureRoot()
+    await writeFile(
+      path.join(root, ".agents", "plugins", "marketplace.json"),
+      JSON.stringify(
+        {
+          name: "compound-engineering-plugin",
+          plugins: [
+            { name: "compound-engineering", source: { source: "local", path: "./" } },
+          ],
+        },
+        null,
+        2,
+      ),
+    )
+
+    const result = await syncReleaseMetadata({ root, write: false })
+
+    expect(
+      result.errors.some((err) => err.includes(".agents/plugins/marketplace.json")),
+    ).toBe(false)
   })
 
   test("reports package.json version drift without auto-correcting", async () => {
@@ -618,39 +683,6 @@ describe("release metadata", () => {
     expect(
       result.errors.some(
         (err) => err.includes(".agents/plugins/marketplace.json") && err.includes("does not match"),
-      ),
-    ).toBe(true)
-  })
-
-  test("reports Codex marketplace root-local plugin source as structural error", async () => {
-    const root = await makeFixtureRoot()
-    await writeFile(
-      path.join(root, ".agents", "plugins", "marketplace.json"),
-      JSON.stringify(
-        {
-          name: "compound-engineering-plugin",
-          plugins: [
-            {
-              name: "compound-engineering",
-              source: {
-                source: "local",
-                path: "./",
-              },
-            },
-          ],
-        },
-        null,
-        2,
-      ),
-    )
-    const result = await syncReleaseMetadata({ root, write: false })
-
-    expect(
-      result.errors.some(
-        (err) =>
-          err.includes(".agents/plugins/marketplace.json") &&
-          err.includes("compound-engineering") &&
-          err.includes('source.path "./"'),
       ),
     ).toBe(true)
   })

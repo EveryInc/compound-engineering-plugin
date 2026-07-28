@@ -58,7 +58,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        help="Directory for extracted evidence/kickoff artifacts. Defaults to docs/brainstorms/riffrec-feedback/<source-stem> when available; durable ce-brainstorm outputs live in docs/plans/.",
+        help="Directory for extracted evidence/kickoff artifacts. Defaults to docs/brainstorms/riffrec-feedback/<source-stem> when available; durable ce-brainstorm outputs live in the plans artifact directory.",
     )
     parser.add_argument("--topic", help="Kebab-case topic for requirements-kickoff frontmatter")
     parser.add_argument(
@@ -1114,7 +1114,7 @@ def main() -> int:
     print(f"Source materials: {display_path(source_materials_md, repo_root)}")
     print(f"Problem statements: {display_path(problem_analysis_md, repo_root)}")
     print(f"Brainstorm handoff: $compound-engineering:ce-brainstorm {display_path(kickoff_md, repo_root)}")
-    print("Brainstorm should first confirm whether the captured requirements are complete and correctly grouped, then write the durable unified plan under docs/plans/.")
+    print("Brainstorm should first confirm whether the captured requirements are complete and correctly grouped, then write the durable unified plan under the plans artifact directory.")
     return 0
 
 

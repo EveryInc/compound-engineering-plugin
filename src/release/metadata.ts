@@ -424,10 +424,14 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
         `${marketplaceCodexPath}: plugin list [${codexNames.join(", ")}] does not match ${marketplaceClaudePath} [${claudeNames.join(", ")}]`,
       )
     }
+    // Codex materialises non-local ("url"/"git"/"npm") sources only on install, so
+    // it blanks the plugin's skills/hooks/apps/MCP in the `/plugins` preview (#1226).
+    // The plugin is co-located in this repo, so its source must be local.
     for (const plugin of marketplaceCodex.plugins) {
-      if (plugin.source?.source === "local" && plugin.source.path === "./") {
+      const codexSourceType = plugin.source?.source
+      if (codexSourceType !== undefined && codexSourceType !== "local") {
         errors.push(
-          `${marketplaceCodexPath}: plugin "${plugin.name}" uses source.path "./"; Codex does not enumerate marketplace entries that point back at the marketplace root. Use a plugin subdirectory path or a Git URL source.`,
+          `${marketplaceCodexPath}: plugin "${plugin.name}" uses a "${codexSourceType}" source; Codex materialises non-local sources only on install, so the /plugins preview lists no skills, hooks, apps, or MCP servers (issue #1226). Use a co-located "local" source.`,
         )
       }
     }

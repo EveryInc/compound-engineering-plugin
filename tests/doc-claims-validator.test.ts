@@ -249,6 +249,83 @@ describe("validate-doc-claims script", () => {
         expect(result.stdout).toContain("{{DOC:3}}")
       })
 
+      test("does not flag {{...}} inside an inline code span", () => {
+        const docPath = writeRepoDoc(
+          "The ruleset names `{{IP_RELEASER_APP_ID}}` as a bypass actor.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+        expect(result.stdout).not.toContain("FLAG scaffold")
+      })
+
+      test("does not flag {{...}} inside a fenced code block", () => {
+        const docPath = writeRepoDoc(
+          "Example ruleset actor:\n\n" +
+            "```json\n" +
+            '{ "bypass_actors": [{ "actor_id": "{{IP_RELEASER_APP_ID}}" }] }\n' +
+            "```\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+        expect(result.stdout).not.toContain("FLAG scaffold")
+      })
+
+      test("still flags a bare {{...}} scaffold leaked into prose", () => {
+        const docPath = writeRepoDoc(
+          "Save the output under {{run_dir}} before continuing.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG scaffold")
+        expect(result.stdout).toContain("{{run_dir}}")
+      })
+
+      test("keeps a nested shorter fence inside a longer one masked", () => {
+        // A 4-backtick fence that demonstrates an inner 3-backtick block: the
+        // inner ``` must not close the outer fence (CommonMark length rule),
+        // so the {{...}} it wraps stays masked.
+        const docPath = writeRepoDoc(
+          "````markdown\n" +
+            "```\n" +
+            "{{NESTED_PLACEHOLDER}}\n" +
+            "```\n" +
+            "````\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+        expect(result.stdout).not.toContain("FLAG scaffold")
+      })
+
+      test("keeps a same-length info-string fence line as block content", () => {
+        // A bare ``` block whose content demonstrates a ```json opener: the
+        // inner ```json has trailing text, so CommonMark does not treat it as
+        // a closing fence — the {{...}} after it stays masked.
+        const docPath = writeRepoDoc(
+          "```\n" +
+            "```json\n" +
+            '{ "actor_id": "{{PLACEHOLDER_APP_ID}}" }\n' +
+            "```\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+        expect(result.stdout).not.toContain("FLAG scaffold")
+      })
+
+      test("flags prose {{...}} after a closing fence, not the fenced content", () => {
+        // Pins the fence toggle-off transition: content resumes prose masking
+        // once the block closes.
+        const docPath = writeRepoDoc(
+          "```json\n" +
+            '{ "actor_id": "{{IP_RELEASER_APP_ID}}" }\n' +
+            "```\n\n" +
+            "Then save under {{run_dir}} before continuing.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("{{run_dir}}")
+        expect(result.stdout).not.toContain("{{IP_RELEASER_APP_ID}}")
+      })
+
       test("resolves a `../` code-formatted link label from the doc's location", () => {
         const docPath = writeRepoDoc(
           "See [`../best-practices/linked-target.md`]" +

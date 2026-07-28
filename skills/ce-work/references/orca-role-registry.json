@@ -1,13 +1,13 @@
 {
   "identities": {
-    "ceVersion": "3.19.0",
-    "integrationVersion": "3.19.0-orca.1",
+    "ceVersion": "3.20.0",
+    "integrationVersion": "3.20.0-orca.2",
     "protocolVersion": "orca.local-protocol/v1",
-    "registryVersion": "ce-orca.registry/v1@3.19.0-orca.1",
+    "registryVersion": "ce-orca.registry/v1@3.20.0-orca.2",
     "requestVersion": "orca.execution-config/v1"
   },
   "schema": "ce-orca.role-registry/v1",
-  "version": "ce-orca.registry/v1@3.19.0-orca.1",
+  "version": "ce-orca.registry/v1@3.20.0-orca.2",
   "workflows": {
     "ce-work": {
       "controller": "ce-controller",
@@ -36,20 +36,19 @@
         },
         "implementation": {
           "activation": "always",
-          "anchor": "your harness's subagent/worker mechanism.",
+          "anchor": "**Native dispatch (inline/subagent engines only)** uses your harness's subagent/worker mechanism.",
           "defaultOwner": "orca",
           "mutation": "worktree-write",
           "resultMode": "artifact",
           "roles": {
             "implementation-unit-worker": {
               "activation": "repeatable",
-              "anchor": "bounded unit packet",
               "modelTier": "parent",
               "mutation": "worktree-write",
               "required": true,
               "resultMode": "artifact",
-              "sourceKind": "workflow-role",
-              "sourcePath": "SKILL.md"
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/implementation-worker.md"
             }
           },
           "sourcePath": "SKILL.md"

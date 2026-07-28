@@ -434,6 +434,49 @@ Task best-practices-researcher(topic)`
     expect(result).toContain("the workflows-plan skill")
   })
 
+  test("does not transform absolute filesystem paths as slash commands", () => {
+    const result = transformContentForKiro("Read /etc/hosts and /usr/local/bin/tool and /tmp/out.md.")
+    expect(result).toContain("/etc/hosts")
+    expect(result).toContain("/usr/local/bin/tool")
+    expect(result).toContain("/tmp/out.md")
+    expect(result).not.toContain("the etc skill")
+  })
+
+  test("preserves absolute paths whose root is outside the allowlist", () => {
+    // /Users (case-sensitive) and /private are not in the allowlist, but the
+    // trailing-delimiter lookahead still leaves multi-segment paths untouched.
+    const result = transformContentForKiro("See /Users/luke/notes.md and /private/tmp/out and /opt/bin/tool.")
+    expect(result).toContain("/Users/luke/notes.md")
+    expect(result).toContain("/private/tmp/out")
+    expect(result).toContain("/opt/bin/tool")
+    expect(result).not.toContain("the users skill")
+    expect(result).not.toContain("the private skill")
+    expect(result).not.toContain("the opt skill")
+  })
+
+  test("transforms slash commands terminated by sentence punctuation", () => {
+    // ; ! ? are delimiters too — a command followed by them must still convert.
+    const result = transformContentForKiro("Run /workflows:plan; then /workflows:work! or /ce:review?")
+    expect(result).toContain("the workflows-plan skill")
+    expect(result).toContain("the workflows-work skill")
+    expect(result).toContain("the ce-review skill")
+    expect(result).not.toContain("/workflows:plan")
+  })
+
+  test("transforms a backticked command followed by a colon without leaving a stray backtick", () => {
+    const result = transformContentForKiro("Run `/ce-plan`: do the thing.")
+    expect(result).toContain("the ce-plan skill:")
+    expect(result).not.toContain("`")
+  })
+
+  test("preserves a backticked absolute path whose root is outside the allowlist", () => {
+    const result = transformContentForKiro("Edit `/Users/luke/.claude/x` and `/private/tmp/o`.")
+    expect(result).toContain("/Users/luke/")
+    expect(result).toContain("/private/tmp/o")
+    expect(result).not.toContain("the users skill")
+    expect(result).not.toContain("the private skill")
+  })
+
   test("does not transform partial .claude paths like package/.claude-config/", () => {
     const result = transformContentForKiro("Check some-package/.claude-config/settings")
     // The .claude-config/ part should be transformed since it starts with .claude/

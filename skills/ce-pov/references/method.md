@@ -6,7 +6,7 @@ Load this before reasoning about the POV (SKILL.md Phase 2). It defines the Veri
 
 1. **Frame** (Phase 0) — the question, incumbent, horizon, and success criteria are pinned, and the selection escape hatch has fired if the field is unbounded.
 2. **Precedent** (Phase 1) — the precedent-&-activity scout has reported whether a prior stance exists. Precedent-aware, not rigidly first: a CVE's urgency can lead, but you still consume precedent before grading.
-3. **Verify** (Phase 2) — apply the grounding gate below to the scout dossiers.
+3. **Verify** (Phase 2) — apply the grounding gate below to the grounded evidence (scout dossiers and bounded inline-read observations).
 4. **Point of view** (Phase 3) — emit the contract for the active subject shape below.
 
 ## Two cross-cutting properties (not phases)
@@ -16,16 +16,16 @@ Load this before reasoning about the POV (SKILL.md Phase 2). It defines the Veri
 
 ## The grounding gate
 
-The project floor always applies. The external floor applies in full to an external-adoption question. For a document or approach set, it applies only to external claims that materially support the POV's bottom line; when no external claim is load-bearing, no external source is required. A conversation claim (warm mode) never satisfies either floor until a scout corroborated it — it sits in the *conversation hypotheses* bucket, never the *verified facts* bucket.
+The project floor always applies. The external floor applies in full to an external-adoption question. For a document or approach set, it applies only to external claims that materially support the POV's bottom line; when no external claim is load-bearing, no external source is required. A conversation claim (warm mode) never satisfies either floor until a scout or a bounded inline read of the authoritative source corroborated it — it sits in the *conversation hypotheses* bucket, never the *verified facts* bucket.
 
 ### External-adoption questions: the two-floor Invalid-Verdict gate
 
 The verdict must clear **two absolute floors**. They are independent: strong external evidence never compensates for a thin project leg, and vice versa. This is a pass/fail checklist, **not** a comparison of leg sizes.
 
-- **Project floor** — PASS requires the verdict to rest on a concrete, *verified* project fact relevant to the decision, in one of these forms: a **named incumbent plus at least one concrete touchpoint** (a `file:line`, dependency, issue, PR, or doc passage from the dossiers) for a replace/migrate; the **verified absence of an incumbent plus a concrete integration/fit point** (where it would slot in, the conventions it must match) for a net-new adoption; or a **prior decision** on the question. FAIL means the project was not actually inspected — return **"Hold — insufficient project grounding"** with a numbered list of exactly what to inspect to make the floor passable. Forbidden from Adopt/Reject on a failed project floor, regardless of how strong the external evidence is.
+- **Project floor** — PASS requires the verdict to rest on a concrete, *verified* project fact relevant to the decision, in one of these forms: a **named incumbent plus at least one concrete touchpoint** (a `file:line`, dependency, issue, PR, or doc passage from the dossiers or a bounded inline read) for a replace/migrate; the **verified absence of an incumbent plus a concrete integration/fit point** (where it would slot in, the conventions it must match) for a net-new adoption; or a **prior decision** on the question. FAIL means the project was not actually inspected — return **"Hold — insufficient project grounding"** with a numbered list of exactly what to inspect to make the floor passable. Forbidden from Adopt/Reject on a failed project floor, regardless of how strong the external evidence is.
 - **External floor** — PASS requires at least one verified external source whose text supports the claim it backs. FAIL (e.g., no research tools were reachable) → return **"Hold — external evidence unavailable"**, not a graded verdict at lowered confidence.
 
-A conversation claim (warm mode) never satisfies a floor until a scout corroborated it — it sits in the *conversation hypotheses* bucket, never the *verified facts* bucket.
+A conversation claim (warm mode) never satisfies a floor until a scout or a bounded inline read of the authoritative source corroborated it — it sits in the *conversation hypotheses* bucket, never the *verified facts* bucket.
 
 ### Documents and approach sets: explicit blocker returns
 
@@ -61,7 +61,7 @@ Name the few strengths and risks that actually determine the bottom line; do not
 
 ## Approach-set position contract
 
-An approach-set POV judges only the options the user or conversation supplied; generating a new option field belongs to `ce-ideate` or `ce-brainstorm`. Lead with a plain-language **Position**. Name each supplied approach by a short distinguishing gloss on first mention in the Position and Tradeoffs — never a bare label like "Option A" that only the original list defines — so the block stands alone for a reader who never saw that list. Then state:
+An approach-set POV judges only the options the user or conversation supplied; generating a new option field belongs to `ce-ideate` or `ce-brainstorm`. Lead with a plain-language **Position**. Then state:
 
 `Why` · `Tradeoffs by supplied approach` · `Verified facts (project + load-bearing external claims, kept distinct)` · `Conversation hypotheses (unverified — warm only)` · `Conditions` · `Handoff (optional separate continuation)`
 
@@ -69,7 +69,13 @@ Choose an approach and recommend it when verified project facts and the material
 
 ## Output economy
 
-`ce-pov` writes no document, so the chat block *is* the whole deliverable — make it a tight POV, not a transcript of the investigation. Lead with the grade for an external-adoption question and with the bottom line or position for the other shapes. Keep each schema field to one line or a few bullets. The `Verified facts` field **cites** from the dossiers (`file:line`, issue/PR number, url) rather than reproducing them, and the dossiers themselves are never printed to chat. For adoption subjects, length is governed by the tier, not by how much was found:
+`ce-pov` writes no document, so the chat block *is* the whole deliverable — make it a tight POV, not a transcript of the investigation.
+
+Lead with the grade for an external-adoption question and with the bottom line or position for the other shapes. Keep each schema field to one line or a few bullets. The `Verified facts` field **cites** from the dossiers (`file:line`, issue/PR number, url) rather than reproducing them, and the dossiers themselves are never printed to chat.
+
+**Name what identifiers refer to.** When the POV references an identifier the subject defines rather than the reader — a supplied option label like "Option A", a document requirement or unit ID like `R8` or `U3` — pair it with a short distinguishing gloss at first mention (`R8 (elevated-call read access)`, not bare `R8`), so the block stands alone for someone who never saw the option list or does not have the document open. Keep the identifier; keep the gloss to a few words. Resolve the gloss from the material already in context — the supplied list, or the document `ce-pov` read. This governs the whole delivered block, including any peer position folded in during reconciliation: a peer that wrote a bare label does not license relaying one.
+
+For adoption subjects, length is governed by the tier, not by how much was found:
 
 - **Tier 1** — one screen: the grade, the incumbent, 1-2 project + 1-2 external cited facts, the conditions, the handoff. No reversal trigger, no alternatives walk-through.
 - **Tier 2/3** — fuller (alternatives, the reversal trigger, deeper conditions), but still leads with the grade and keeps evidence to cited bullets, never walls of quoted text.

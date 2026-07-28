@@ -120,7 +120,7 @@ describe("ce-compound non-interactive depth contract", () => {
     const lightweightSection = skill.slice(lightweightStart, successOutputStart)
     const writeStep = lightweightSection.indexOf("**Write minimal doc**")
     const collisionGuard = lightweightSection.indexOf(
-      "check whether the exact proposed `docs/solutions/[category]/[filename].md` path exists",
+      "check whether the exact proposed `<root>/solutions/[category]/[filename].md` path exists",
     )
     const claimsCheck = lightweightSection.indexOf("**Mechanical claims check**")
 

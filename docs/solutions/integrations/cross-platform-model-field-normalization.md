@@ -159,4 +159,3 @@ This reference captures research findings as of 2026-03-29. Targets marked **(re
 - `docs/solutions/integrations/opencode-temperature-rejected-by-sonnet5-opus48.md` — Companion gotcha: when the alias map here is bumped to a newer generation (per Prevention #2), the OpenCode converter must also stop emitting an inferred `temperature`, because Sonnet 5 / Opus 4.7+ reject non-default sampling params. Normalization gets the model ID right; that doc covers the sampling-param constraint the new generation introduced.
 - `docs/solutions/adding-converter-target-providers.md` — Converter architecture doc; should be updated to reference model normalization as part of the conversion pattern
 - `docs/solutions/integrations/colon-namespaced-names-break-windows-paths.md` — Structural analog: same pattern of per-target boundary normalization
-- `docs/specs/codex.md` — Platform spec (last verified 2026-01-21); confirms skill frontmatter limitations

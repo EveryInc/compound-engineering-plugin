@@ -37,6 +37,8 @@ Brainstorm complete.
 
 Plan artifact: <absolute path to requirements-only unified plan>  # omit line if no artifact was created
 
+Planning and shipping will use this artifact as the definition of what to build.  # omit line if no artifact was created
+
 What would you like to do next? (Pick a number or describe what you want.)
 ```
 
@@ -112,7 +114,7 @@ Do not print the closing summary first.
 
 Load the `ce-proof` skill to publish the markdown unified plan. Pass:
 
-- **source file:** `docs/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.md`
+- **source file:** `<root>/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.md`
 - **doc title:** `Plan: <topic title> (requirements-only)`
 - **identity:** `ai:compound-engineering` / `Compound Engineering`
 
