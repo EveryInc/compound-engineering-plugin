@@ -301,8 +301,6 @@ Fires **only in solo invocation** — when Phase 0.2 found no upstream Product C
 
 All specialist research and deepening prompts used in this phase are skill-local prompt assets under `references/agents/`. When dispatching one, read the matching file and seed a generic subagent with that prompt content plus the task-specific context below. Do not dispatch standalone agents by type/name.
 
-**Dispatch policy.** Attempt subagent dispatch using whatever agent-dispatch tool this harness exposes. If the attempt is denied, ask the user once whether to allow it. Fall back to inline only if there is no such tool, or the attempt failed or was declined — and say which.
-
 Model tiering lives in this caller, not in prompt assets. Local prompt files have no frontmatter. Use the platform's mid-tier model for external/organizational research prompts such as `slack-researcher` and `web-researcher` when the current harness exposes a known override; otherwise omit the override and inherit. Use inherited model for high-judgment architecture, migration, and planning-deepening prompts unless the harness has an established cheaper capable tier.
 
 #### 1.1 Local Research (Always Runs)
@@ -410,7 +408,7 @@ Announce the decision and the intent briefly before continuing. Examples:
 
 #### 1.3 External Research (Conditional)
 
-If Step 1.2 indicates external research is useful, dispatch by the **intent** classified in Stage 2, using whatever agent-dispatch tool this harness exposes (`Agent`/`Task` in Claude Code, `spawn_agent` in Codex), per the Phase 1 dispatch policy. Read the selected prompt asset from `references/agents/` and seed a generic subagent with it. For `web-researcher.md`, pass a focus hint plus the planning context summary and do **not** pass codebase content — it operates externally.
+If Step 1.2 indicates external research is useful, dispatch by the **intent** classified in Stage 2, using the platform's subagent primitive (`Agent`/`Task` in Claude Code, `spawn_agent` in Codex) where available; otherwise run the work inline or serially. Read the selected prompt asset from `references/agents/` and seed a generic subagent with it. For `web-researcher.md`, pass a focus hint plus the planning context summary and do **not** pass codebase content — it operates externally.
 
 - **Implementation-guidance** — run in parallel:
   - `references/agents/best-practices-researcher.md` with the planning context summary.
