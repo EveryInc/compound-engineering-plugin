@@ -76,7 +76,7 @@ describe("CE-Orca documentation contracts", () => {
     expect(engines.split(end)).toHaveLength(2)
     expect(engines.indexOf(start)).toBeLessThan(engines.indexOf(end))
     expect(engines.slice(engines.indexOf(start), engines.indexOf(end))).toContain(
-      "The Orca fork adds one conditional path",
+      "Only after the upstream resolution above selects native execution",
     )
 
     const baseline = JSON.parse(await read("integrations/orca/upstream.json")) as {
@@ -85,7 +85,7 @@ describe("CE-Orca documentation contracts", () => {
     expect(baseline.hookAnchors).toContainEqual({
       id: "ce-work.execution-engine-selection",
       file: "skills/ce-work/references/execution-engines.md",
-      contains: "Engine selection applies only to code execution. Knowledge-work and legacy plans keep the inline/subagent flow in `SKILL.md`.",
+      contains: "Engine selection applies only to code execution. Knowledge-work keeps its carve-out.",
     })
   })
 

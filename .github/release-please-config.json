@@ -8,7 +8,7 @@
     ".": {
       "release-type": "simple",
       "package-name": "compound-engineering",
-      "release-as": "3.19.0-orca.1",
+      "release-as": "3.20.0-orca.2",
       "changelog-sections": [
         {
           "type": "feat",

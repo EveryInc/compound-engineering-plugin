@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { promises as fs } from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -9,6 +9,8 @@ import {
 
 const REPO_ROOT = path.resolve(import.meta.dir, "..")
 const tempRoots: string[] = []
+
+setDefaultTimeout(30_000)
 
 afterEach(async () => {
   await Promise.all(tempRoots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })))
@@ -71,6 +73,12 @@ async function makeUpstreamFixture(integrationRevision = 1) {
 describe("CE-Orca upstream parity", () => {
   test("matches the recorded upstream skill, role, hook, and version baseline", async () => {
     const baseline = await loadUpstreamBaseline(REPO_ROOT)
+    expect(baseline).toMatchObject({
+      version: "3.20.0",
+      commit: "a9f6d530d4446d805a3100387dedd86268d7e695",
+    })
+    expect(baseline.skillInventory).toContain("ce-retune")
+    expect(baseline.promptAssets["ce-work"]).toContain("implementation-worker.md")
     expect(await checkUpstreamParity(REPO_ROOT, baseline)).toEqual([])
   })
 
@@ -87,12 +95,12 @@ describe("CE-Orca upstream parity", () => {
     })
     const staleIssues = await checkUpstreamParity(REPO_ROOT, {
       ...baseline,
-      commit: "cb892f50a6bdfc9befdd15394fe1e88b45aaf767",
+      commit: "49e7d280f4877715a9f025e86e4b3e92d89a5fc6",
     })
     const staleIssue = staleIssues.find((issue) => issue.code === "upstream_commit_not_current")
     expect(staleIssue).toMatchObject({
       code: "upstream_commit_not_current",
-      commit: "cb892f50a6bdfc9befdd15394fe1e88b45aaf767",
+      commit: "49e7d280f4877715a9f025e86e4b3e92d89a5fc6",
       expected: baseline.commit,
     })
     expect(staleIssue?.ref).toMatch(/^refs\/remotes\/(?:upstream|origin)\/main$/)

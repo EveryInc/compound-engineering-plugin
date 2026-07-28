@@ -25,7 +25,26 @@
         }
       }
     },
-    "ownership": { "type": "object" },
+    "ownership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lifecycle", "child_dispatch", "receipts", "checkpoints", "integration", "verification", "fixes", "commit", "push", "pull_request", "ci_repair", "shipping", "shipping_tail"],
+      "properties": {
+        "lifecycle": { "const": "lfg-controller" },
+        "child_dispatch": { "const": "configured-per-stage" },
+        "receipts": { "const": "lfg-controller" },
+        "checkpoints": { "const": "lfg-controller" },
+        "integration": { "const": "lfg-controller" },
+        "verification": { "const": "lfg-controller" },
+        "fixes": { "const": "lfg-controller" },
+        "commit": { "const": "lfg-controller" },
+        "push": { "const": "lfg-controller" },
+        "pull_request": { "const": "lfg-controller" },
+        "ci_repair": { "const": "lfg-controller" },
+        "shipping": { "const": "lfg-controller" },
+        "shipping_tail": { "const": "lfg-controller" }
+      }
+    },
     "shipping_allowed": { "type": "boolean" },
     "tail_mode": { "enum": ["remote", "local-only"] },
     "failure_reason": { "type": "string" }

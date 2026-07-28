@@ -22,7 +22,14 @@
           "verification_evidence": { "type": "object" },
           "behavior_change": { "type": "boolean" },
           "blockers": { "type": "array", "items": { "type": "string" } },
-          "integration": { "type": "object" }
+          "integration": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["files"],
+            "properties": {
+              "files": { "type": "array", "items": { "type": "string" } }
+            }
+          }
         }
       }
     },

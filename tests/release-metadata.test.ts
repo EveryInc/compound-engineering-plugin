@@ -199,6 +199,17 @@ describe("release metadata", () => {
     })
   })
 
+  test("pins release-please to the current Orca fork identity", async () => {
+    const root = process.cwd()
+    const upstream = await Bun.file(path.join(root, "integrations/orca/upstream.json")).json()
+    const protocol = await Bun.file(path.join(root, "integrations/orca/protocol.json")).json()
+    const releasePlease = await Bun.file(path.join(root, ".github/release-please-config.json")).json()
+
+    expect(releasePlease.packages["."]["release-as"]).toBe(
+      `${upstream.version}-orca.${protocol.integration.revision}`,
+    )
+  })
+
   test("builds a stable compound-engineering manifest description", async () => {
     const description = await buildCompoundEngineeringDescription(process.cwd())
 

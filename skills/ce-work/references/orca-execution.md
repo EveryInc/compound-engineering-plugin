@@ -1,11 +1,14 @@
 # Orca execution engine
 
-Use this path only after `references/orca-routing.md` resolves the current run to Orca. Native routing returns to the unchanged engine selection in `SKILL.md`.
+Use this path only after upstream `ce-work` routing selected an unbound native
+route and `references/orca-routing.md` then resolved the current run to Orca.
+Native routing returns to the unchanged engine selection in `SKILL.md`.
 
 ## Ownership boundary
 
 - The `ce-work` controller parses the plan, builds dependency layers, chooses batches, verifies the integrated tree, records task progress, commits, and resumes the correct standalone or return-to-caller tail.
 - Orca owns only the implementation workers in the current batch and their lifecycle.
+- Route/model bindings and receipts, durable run state, unit receipts, checkpoints, canonical integration decisions, authoritative verification, commits, and tails are host state. Do not place them in the Orca packet; the adapter rejects every field outside the bounded batch grammar.
 - Every writer uses strict Orca worktree isolation. No worker stages, commits, pushes, opens a PR, watches CI, or launches another agent.
 - Every writer has a non-empty exact file allowlist derived from the unit's predicted files. The engine rejects an actual delta outside it before mutating the controller worktree.
 - The workflow applies each successful isolated patch to the controller worktree in deterministic unit order. A patch is removed only after successful application, and the returned `integration.files` replaces the worker's self-reported changed-file list.
@@ -24,7 +27,7 @@ Use this path only after `references/orca-routing.md` resolves the current run t
      --registry "$SKILL_DIR/scripts/orca-workflow-registry.json"
    ```
 
-4. `orca-runtime.mjs run` returns a hydrated `ce-orca.dispatch/v1` envelope. Use `result.value` as `ce-result.json`; this workflow has no child artifacts to open. Treat a missing, malformed, failed, or stopped result as a failed batch. References such as `runs/<run-id>/...` are opaque transport identifiers; never resolve or open them relative to the target checkout or current working directory. The helper retrieves only published artifacts through the protocol's allowlisted reader. Do not redispatch the batch natively: runtime fallback is forbidden after Orca starts.
+4. `orca-runtime.mjs run` returns a hydrated `ce-orca.dispatch/v1` envelope. Use `result.value` as `ce-result.json`; this workflow has no child artifacts to open. Treat a missing, malformed, failed, or stopped result as a failed batch. References such as `runs/<run-id>/...` are opaque transport identifiers; never resolve or open them relative to the target checkout or current working directory. The helper retrieves only published artifacts through the protocol's allowlisted reader. The first Orca worker launch locks the batch to this adapter: do not also launch inline/subagent, goal-mode, dynamic-workflow, cross-model, or fallback-native implementation for it.
 5. Treat each unit's returned `changed_files` as controller-attested only when its integration contains `files`; a missing attestation fails the batch. Inspect the actual integrated diff, compare it with each unit scope, run the unit tests and authoritative verification, then commit/update progress exactly as the native path requires. Do not dispatch the next dependency batch on a broken tree.
 6. Roll worker evidence into `verification_evidence`. A missing red-before observation remains unverified; do not reconstruct it from the diff.
 

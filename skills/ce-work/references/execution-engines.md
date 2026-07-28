@@ -72,7 +72,9 @@ Traverse each ordered candidate during preflight. If a candidate is equivalent t
 `off` disables only the standing preference. It does not cancel applicable live intent or a typed caller binding. An enabled mode without a valid candidate list is unavailable rather than guessed. When the list is exhausted, `prefer` falls back natively with every attempted route and reason disclosed; `require` follows the interactive/headless blocker rule. Standing configuration supplies defaults, not permission to change recipient or broaden authority.
 
 <!-- ce-orca-hook:start ce-work-execution-engine -->
-The Orca fork adds one conditional path before this upstream selection. When `references/orca-routing.md` resolves Orca, follow `references/orca-execution.md`; otherwise use the engines below without changing their behavior.
+Only after the upstream resolution above selects native execution with no applicable live/session/project cross-model source, typed caller binding, enabled standing preference, or recovery binding/run may the Orca fork read `references/orca-routing.md`. A same-host collapse and an exhausted `prefer` route remain upstream-owned resolutions and are not Orca-eligible because they still have a cross-model source or binding.
+
+When that bounded gate resolves Orca, follow `references/orca-execution.md` as the native implementation-worker adapter and do not enter another native or cross-model dispatch path for the same batch. When it resolves native, continue with the engines below unchanged.
 <!-- ce-orca-hook:end ce-work-execution-engine -->
 
 ## Step 1: Probe host capability
