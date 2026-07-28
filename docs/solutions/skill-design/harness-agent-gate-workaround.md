@@ -59,6 +59,8 @@ What we changed and why is in the shipped script's comments; the substantive dev
 
 **Write the exit condition down.** This exists only until the upstream ambiguity in "unless the user requested it" is fixed at the source. When that lands, the mechanism should be **deleted, not reworded** — a workaround that outlives its cause becomes a permanent unexplained exception.
 
+**Refuse where independence is load-bearing, rather than degrading.** Inline substitution is the right default when a dispatch is merely unavailable, but not when a workflow's correctness *is* the separation. `ce-retune`'s corpus audit is a proposal pass and an opposing defense pass; run in one context, the same reasoner argues both sides and the audit still emits confident-looking cuts with the control silently removed — and that skill deletes prose, so the damage is a line a real defender would have saved. Where a workflow declares that a pass needs independent contexts, report the missing capability as a blocker and stop that pass. Scope the refusal to workflows that declare it; a global refusal would break every skill that degrades acceptably.
+
 **Independence accounting must travel with it.** Restoring dispatch fixes the corrupted confidence signal only while dispatch succeeds. A second directive states that independence is a property of separate dispatched contexts — not of separate personas or lenses — so agreement reached inside one context cannot promote a finding. That rule is correct whether or not the gate is ever lifted.
 
 ## Why This Matters

@@ -66,6 +66,8 @@ One agent per skill, each reading that skill's full directory, proposing cuts wi
 
 Read `references/corpus-audit.md` for the dispatch shape, the finding schema, and the classes worth hunting.
 
+**These two passes require independent contexts.** The defense is only worth running when it can genuinely disagree with the proposal, which one context arguing both sides cannot do. If the host exposes no way to run them as separate agents, report that as a blocker and stop the audit — do not run proposal and defense inline and present the result as an audit.
+
 Two rules make the difference between an audit and a demolition:
 
 - **A cut with no provenance found after a real search is a confident cut. A cut the defender saves with a citation is off the list.** Do not relitigate a defended keep.

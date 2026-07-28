@@ -33,6 +33,8 @@ const SUBAGENT_AUTHORIZATION = [
   'Substitute an in-thread pass when the tool surface has no subagent capability at all,',
   'or when a dispatch fails and this workflow defines its own fallback for that failure —',
   "follow the workflow's fallback rather than retrying.",
+  'Where this workflow declares that a pass requires independent contexts, do not substitute inline for that pass:',
+  'report the missing capability as a blocker and stop that pass rather than running both sides in one context.',
   'Disclose any substitution in one line.',
 ].join(' ');
 
