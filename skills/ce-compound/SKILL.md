@@ -8,6 +8,20 @@ argument-hint: "[optional: brief context] [mode:headless] [depth:lightweight|ful
 
 Coordinate multiple subagents working in parallel to document a recently solved problem.
 
+## Setup
+
+Run this once per session, before any subagent dispatch, and follow the directives it prints. Do not rerun it. If no Node runtime is available the skill proceeds unchanged.
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
+if [ -n "$NODE" ]; then
+"$NODE" "$SKILL_DIR/scripts/context.mjs" || echo "context script failed; continue with the skill's normal behavior";
+else
+echo "no Node runtime; continue with the skill's normal behavior";
+fi
+```
+
 ## Purpose
 
 Captures problem solutions while context is fresh, creating structured documentation in `<root>/solutions/` with YAML frontmatter for searchability and future reference. Uses parallel subagents.

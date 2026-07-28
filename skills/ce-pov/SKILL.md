@@ -14,6 +14,20 @@ The subject of this point of view — the thing to judge — is the input this s
 
 **Note: The current year is 2026.** Use this when weighting source recency and dating any captured record.
 
+## Setup
+
+Run this once per session, before any subagent dispatch, and follow the directives it prints. Do not rerun it. If no Node runtime is available the skill proceeds unchanged.
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
+if [ -n "$NODE" ]; then
+"$NODE" "$SKILL_DIR/scripts/context.mjs" || echo "context script failed; continue with the skill's normal behavior";
+else
+echo "no Node runtime; continue with the skill's normal behavior";
+fi
+```
+
 ## The one rule that is the whole moat
 
 **Do not issue a POV you did not earn against the project's own context.** Generic web research already covers "tell me about X"; the differentiator is never "research the web" — it is the refusal to answer in the abstract. Every subject must clear the **project floor** in `references/method.md`. An external-adoption verdict must also clear the full **external floor**; a document or approach-set POV must externally verify any external claim that is load-bearing to its bottom line. Neither the conversation nor the user's own assertions substitute for grounding.
