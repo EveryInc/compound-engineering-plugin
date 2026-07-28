@@ -2,7 +2,7 @@
 name: ce-resolve-pr-feedback
 description: Resolve PR review feedback. Use when addressing review comments, resolving review threads, or fixing code-review feedback.
 argument-hint: "[PR number, comment URL, or blank for current branch's PR]"
-allowed-tools: Bash(gh *), Bash(git *), Bash(node *), Bash(command *), Read
+allowed-tools: Bash(gh *), Bash(git *), Bash(node *), Bash(command -v node), Bash(command -v nodejs), Read
 ---
 
 # Resolve PR Review Feedback
@@ -22,7 +22,7 @@ Evaluate and fix PR review feedback, then reply and resolve threads. The orchest
 
 ## Setup
 
-Run this once at the start of this invocation, before any subagent dispatch, and follow the directives it prints. Do not rerun it within the same invocation; a later invocation of this or any other skill runs its own. If no Node runtime is available the skill proceeds unchanged.
+Run this once at the start of this invocation, before any subagent dispatch, and follow the directives it prints — except where one conflicts with this skill's own non-interactive mode contract (headless or pipeline), in which case the skill's contract wins and no blocking question is asked. Do not rerun it within the same invocation; a later invocation of this or any other skill runs its own. If no Node runtime is available the skill proceeds unchanged.
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
