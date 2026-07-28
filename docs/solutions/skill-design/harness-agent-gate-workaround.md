@@ -80,7 +80,8 @@ Do **not** reach for it to bypass a restriction the operator actually intended, 
 
 Two practical constraints found the hard way:
 
-- **A skill with a narrow `allowed-tools` pin cannot run a bundled script at all.** `ce-resolve-pr-feedback` pins Bash to `gh` and `git`; the setup step was dead on arrival there. Excluding that skill was the right call — widening a deliberately narrow tool policy on something that runs unattended is a security decision for a human, not a side effect.
+- **A skill with a narrow `allowed-tools` pin cannot run a bundled script at all.** `ce-resolve-pr-feedback` pinned Bash to `gh` and `git`, so the setup step was dead on arrival there. Widening that pin is a security decision, so it went to the maintainer rather than being taken as a side effect; the pin was then widened to admit the setup command only, leaving the agent-tool permission untouched.
+- **The delivery runtime is a coverage limit, and an accepted one.** The emitter is a Node script, and Node is not a declared prerequisite of this plugin. On a host without it the setup step degrades to the prior behavior and the gate stands. That is the status quo rather than a regression, so it was accepted knowingly instead of adding a second emitter to keep in sync.
 - **Inventory by behavior, not by phrasing.** The first pass grepped for fixed phrasings — "generic subagent", and references to agent-prompt directories like `skills/ce-plan/references/agents/` — and missed three skills that describe dispatch in their own words ("one agent per skill", "dispatch read-only sub-agents in parallel", "a replacement subagent writes the successor"). `ce-retune` was the costliest miss: its audit runs a proposer agent and an opposing defender agent per skill, so collapsing them into one context has the same context arguing both sides.
 
 ## Examples
