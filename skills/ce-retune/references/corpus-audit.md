@@ -6,6 +6,8 @@ The audit is not evidence. It ranks candidates; only the harness says whether a 
 
 ## Dispatch shape
 
+**The two waves must run as separate dispatched agents.** A defender's ruling is only worth recording when it can genuinely disagree with the proposal that reached it, which one context holding both roles cannot do. If the host exposes no way to run them as independent agents, report that as a blocker and stop the audit — do not run the waves inline and hand the result to Phase 4. The same context arguing both sides still emits confident `cut` rulings, and Phase 4 deletes on them: that is the demolition this reference warns about below, arriving through the dispatch layer instead of a weak model tier.
+
 Two waves, one agent per unit each way.
 
 **Wave 1 — proposers.** One agent per corpus unit. Give it the unit's **full directory**, not just its entry file: conditionally-loaded reference files are usually the bulk of a unit and the entry file alone hides them. Instruct it to return the finding schema below and nothing else — no summary prose, no recommendations about other units.
