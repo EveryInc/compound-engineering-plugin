@@ -35,6 +35,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    env:
+      # Single source of truth for the pinned `claude plugin validate` version:
+      # both the install and its cache key read this, so a bump cannot bump one
+      # and leave the other serving a stale cached binary.
+      CLAUDE_CODE_VERSION: 2.1.220
+
     steps:
       - uses: actions/checkout@v6
         # Full history so release:validate can read the base-branch (origin/main)
@@ -68,9 +74,29 @@ jobs:
       # plugin:validate must hit .claude-plugin/plugin.json — `validate .` only
       # checks the marketplace. Root CLAUDE.md is a symlink to AGENTS.md so
       # --strict stays green; see AGENTS.md "CI and Quality Gates".
+      #
+      # The install is cached because the npm package is a 165KB wrapper whose
+      # postinstall pulls a platform binary (`@anthropic-ai/claude-code-linux-x64`,
+      # ~275MB unpacked). Registry throughput for that payload is the whole cost
+      # of this step — validation itself is under a second. Observed range on
+      # ubuntu-latest: 3-10s typical, 5m worst case. Caching buys predictability,
+      # not average speed: it caps the tail rather than beating the fast path.
+      # Keying on the pinned version means a hit on every run between bumps.
+      - name: Cache claude-code validator
+        id: cache-claude-code
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm-global
+          key: claude-code-${{ runner.os }}-${{ env.CLAUDE_CODE_VERSION }}
+
+      - name: Install claude-code validator
+        if: steps.cache-claude-code.outputs.cache-hit != 'true'
+        run: npm install -g --prefix ~/.npm-global @anthropic-ai/claude-code@${{ env.CLAUDE_CODE_VERSION }}
+
       - name: Validate plugin schema (claude plugin validate)
         run: |
-          npm install -g @anthropic-ai/claude-code@2.1.220
+          export PATH="$HOME/.npm-global/bin:$PATH"
+          claude --version
           bun run plugin:validate
 
       # Runs the package `test` script so the flags CI uses and the flags a
