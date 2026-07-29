@@ -293,13 +293,21 @@ const FAILING = {
   merge_state_status: "BLOCKED",
   review_decision: "REVIEW_REQUIRED",
   head_sha: "s1",
+  base: {
+    host: "github.com",
+    repository: "o/r",
+    ref: "main",
+    oid: "base-1",
+    pr_oid: "base-1",
+    freshness: "current",
+  },
   url: "http://x/1",
   checks: [{ key: "CI/test", name: "test", status: "COMPLETED", conclusion: "FAILURE", details_url: "u" }],
   threads: [{ thread_id: "T1", last_comment_id: "C1", last_comment_at: "t1" }],
 }
 
 function currencyFixture(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
+  const fixture = {
     ...FAILING,
     mergeable: "MERGEABLE",
     merge_state_status: "BEHIND",
@@ -308,6 +316,8 @@ function currencyFixture(overrides: Record<string, unknown> = {}): Record<string
       repository: "o/r",
       ref: "main",
       oid: "base-1",
+      pr_oid: "base-1",
+      freshness: "current",
     },
     host_branch_update_capability: true,
     pr_chain: {
@@ -320,6 +330,15 @@ function currencyFixture(overrides: Record<string, unknown> = {}): Record<string
     },
     ...overrides,
   }
+  if (overrides.base && typeof overrides.base === "object") {
+    const base = overrides.base as Record<string, unknown>
+    fixture.base = {
+      pr_oid: base.oid,
+      freshness: "current",
+      ...base,
+    } as typeof fixture.base
+  }
+  return fixture
 }
 
 function quietCurrencyFixture(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -1101,14 +1120,15 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     }).capability).toBe("unknown")
   })
 
-  test("live fetch requests base identity and probes host update capability only for eligible BEHIND", () => {
+  test("live fetch requires the host-qualified current base ref before probing an eligible BEHIND update", () => {
     const python = `
 import json
 from importlib.machinery import SourceFileLoader
 m = SourceFileLoader("prs", ${JSON.stringify(SCRIPT)}).load_module()
 calls = []
 capability_calls = []
-merge_state_status = "BEHIND"
+current_base_oid = "1111111111111111111111111111111111111111"
+ref_probe_status = 0
 class Result: pass
 def checked(cmd, label):
     calls.append(cmd)
@@ -1116,13 +1136,22 @@ def checked(cmd, label):
     result.returncode = 0
     result.stderr = ""
     result.stdout = json.dumps({
-        "state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": merge_state_status,
-        "reviewDecision": "APPROVED", "headRefOid": "head-1", "baseRefOid": "base-1",
+        "state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": "BEHIND",
+        "reviewDecision": "APPROVED", "headRefOid": "head-1",
+        "baseRefOid": "1111111111111111111111111111111111111111",
         "baseRefName": "main", "headRefName": "feature", "number": 7,
         "url": "https://ghe.acme.test/o/r/pull/7", "statusCheckRollup": [],
         "author": {"login": "author"}, "comments": [], "reviews": []})
     return result
+def run(cmd):
+    calls.append(cmd)
+    result = Result()
+    result.returncode = ref_probe_status
+    result.stderr = "base ref probe failed" if result.returncode else ""
+    result.stdout = current_base_oid + "\\n" if result.returncode == 0 else ""
+    return result
 m._run_checked = checked
+m._run = run
 m.fetch_eyes_reactors = lambda *args: []
 m.fetch_threads = lambda *args: []
 m.fetch_awaiting_approval = lambda *args: 0
@@ -1132,26 +1161,132 @@ def capability(*args):
     capability_calls.append(args)
     return True
 m.fetch_host_branch_update_capability = capability
-behind = m.fetch(7, "ghe.acme.test/o/r")
-merge_state_status = "CLEAN"
-clean = m.fetch(7, "ghe.acme.test/o/r")
-print(json.dumps({"behind": behind, "clean": clean, "view": calls[0],
-                  "capability_calls": len(capability_calls)}))
+current = m.fetch(7, "ghe.acme.test/o/r")
+current_base_oid = "2222222222222222222222222222222222222222"
+stale = m.fetch(7, "ghe.acme.test/o/r")
+ref_probe_status = 1
+probe_error = m.fetch(7, "ghe.acme.test/o/r")
+print(json.dumps({"current": current, "stale": stale, "probe_error": probe_error,
+                  "calls": calls, "capability_calls": len(capability_calls)}))
 `
     const r = spawnSync("python3", ["-c", python], { encoding: "utf8" })
     expect(r.status, r.stderr).toBe(0)
     const result = JSON.parse(r.stdout)
-    expect(result.view.join(" ")).toContain("baseRefOid")
-    expect(result.behind.base).toEqual({
+    expect(result.calls[0].join(" ")).toContain("baseRefOid")
+    const refCalls = result.calls.filter((call: string[]) => call.includes("repos/o/r/git/ref/heads/main"))
+    expect(refCalls).toHaveLength(3)
+    for (const call of refCalls) {
+      expect(call).toContain("--hostname")
+      expect(call).toContain("ghe.acme.test")
+    }
+    expect(result.current.base).toEqual({
       host: "ghe.acme.test",
       repository: "o/r",
       ref: "main",
-      oid: "base-1",
+      oid: "1111111111111111111111111111111111111111",
+      pr_oid: "1111111111111111111111111111111111111111",
+      freshness: "current",
     })
-    expect(result.behind.host_branch_update_capability).toBe(true)
-    expect(result.clean.host_branch_update_capability).toBe("unknown")
+    expect(result.current.host_branch_update_capability).toBe(true)
+    expect(result.stale.base).toEqual({
+      host: "ghe.acme.test",
+      repository: "o/r",
+      ref: "main",
+      oid: "2222222222222222222222222222222222222222",
+      pr_oid: "1111111111111111111111111111111111111111",
+      freshness: "stale",
+    })
+    expect(result.stale.host_branch_update_capability).toBe("unknown")
+    expect(result.probe_error.base).toEqual({
+      host: "ghe.acme.test",
+      repository: "o/r",
+      ref: "main",
+      oid: null,
+      pr_oid: "1111111111111111111111111111111111111111",
+      freshness: "probe-error",
+    })
+    expect(result.probe_error.host_branch_update_capability).toBe("unknown")
     expect(result.capability_calls).toBe(1)
   })
+
+  test("base-ref freshness blocks readiness, resets quiet on current-to-stale, and fails closed on probe error", () => {
+    const clean = {
+      ...FAILING,
+      merge_state_status: "CLEAN",
+      review_decision: "APPROVED",
+      checks: [{ key: "CI/test", name: "test", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+      threads: [],
+    }
+    const currentFile = fetchFile(dir, "base-current.json", clean)
+    snapshot(state, currentFile)
+    const statePath = path.join(state, "state.json")
+    const settled = JSON.parse(readFileSync(statePath, "utf8"))
+    settled.last_change_at = "2026-07-17T12:00:00+00:00"
+    writeFileSync(statePath, JSON.stringify(settled))
+
+    const current = snapshot(state, currentFile)
+    expect(current.base_ref_blocker).toBeNull()
+    expect(current.mergeability_certain).toBe(true)
+    expect(current.changed_this_tick).toBe(false)
+    expect(current.quiet_seconds).toBeGreaterThan(60)
+    expect(wakeReason(current, 0)).toBe("merge-ready")
+
+    const stale = snapshot(state, fetchFile(dir, "base-stale.json", {
+      ...clean,
+      base: {
+        host: "github.com",
+        repository: "o/r",
+        ref: "main",
+        oid: "base-2",
+        pr_oid: "base-1",
+        freshness: "stale",
+      },
+    }))
+    expect(stale.base_ref_blocker).toBe("stale")
+    expect(stale.mergeability_certain).toBe(false)
+    expect(stale.changed_this_tick).toBe(true)
+    expect(stale.quiet_seconds).toBeLessThan(2)
+    expect(stale.branch_currency).toBeNull()
+    expect(wakeReason(stale, 0)).toBe("base-ref-blocked")
+
+    const probeError = snapshot(state, fetchFile(dir, "base-probe-error.json", {
+      ...clean,
+      base: {
+        host: "github.com",
+        repository: "o/r",
+        ref: "main",
+        oid: null,
+        pr_oid: "base-1",
+        freshness: "probe-error",
+      },
+    }))
+    expect(probeError.base_ref_blocker).toBe("probe-error")
+    expect(probeError.mergeability_certain).toBe(false)
+    expect(probeError.branch_currency).toBeNull()
+    expect(wakeReason(probeError, 0)).toBe("base-ref-blocked")
+  })
+
+  test("watch keeps polling an already-surfaced base-ref blocker instead of busy-waking or declaring ready", () => {
+    const stale = {
+      ...FAILING,
+      merge_state_status: "CLEAN",
+      review_decision: "APPROVED",
+      checks: [{ key: "CI/test", name: "test", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+      threads: [],
+      base: {
+        host: "github.com",
+        repository: "o/r",
+        ref: "main",
+        oid: "base-2",
+        pr_oid: "base-1",
+        freshness: "stale",
+      },
+    }
+    const staleFile = fetchFile(dir, "base-stale-standing.json", stale)
+    const staleState = path.join(dir, "base-stale-standing")
+    snapshot(staleState, staleFile, EXPIRING_TEST_INVOCATION)
+    expect(watch(staleState, staleFile, ["--settle-seconds", "0"]).reason).toBe("max-runtime")
+  }, 15000)
 
   test("first snapshot: thread + failing check are actionable; checks terminal", () => {
     const d = snapshot(state, fetchFile(dir, "a.json", FAILING))
