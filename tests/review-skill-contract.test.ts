@@ -1261,6 +1261,6 @@ describe("testing-reviewer contract", () => {
     expect(content).toContain("Self-authored tests in the same diff as the fix")
 
     // Check is distinct from the existing false-confidence bullet
-    expect(content).toContain("distinct from line 11")
+    expect(content).toContain("distinct from the *Tests that don't assert behavior* bullet")
   })
 })
