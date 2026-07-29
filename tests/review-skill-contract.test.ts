@@ -1253,4 +1253,14 @@ describe("testing-reviewer contract", () => {
     // Non-behavioral changes are excluded
     expect(content).toContain("Non-behavioral changes")
   })
+
+  test("includes false-confidence guard for self-authored tests", async () => {
+    const content = await readRepoFile(personaPromptPath("testing-reviewer"))
+
+    // Check exists in "What you're hunting for" section
+    expect(content).toContain("Self-authored tests in the same diff as the fix")
+
+    // Check is distinct from the existing false-confidence bullet
+    expect(content).toContain("distinct from line 11")
+  })
 })
