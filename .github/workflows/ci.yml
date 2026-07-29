@@ -70,7 +70,7 @@ jobs:
       # --strict stays green; see AGENTS.md "CI and Quality Gates".
       - name: Validate plugin schema (claude plugin validate)
         run: |
-          npm install -g @anthropic-ai/claude-code@2.1.175
+          npm install -g @anthropic-ai/claude-code@2.1.220
           bun run plugin:validate
 
       # Runs the package `test` script so the flags CI uses and the flags a
