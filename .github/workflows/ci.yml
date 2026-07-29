@@ -84,7 +84,7 @@ jobs:
       # Keying on the pinned version means a hit on every run between bumps.
       - name: Cache claude-code validator
         id: cache-claude-code
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.npm-global
           key: claude-code-${{ runner.os }}-${{ env.CLAUDE_CODE_VERSION }}
