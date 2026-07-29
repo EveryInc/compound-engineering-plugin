@@ -16,6 +16,12 @@ or the reviewed product's codebase. The output exists so they can decide **Apply
 without reconstructing the finding from expert narrative. A finding whose only path to a decision is
 "go read the code" has failed this floor regardless of how correct it is.
 
+Write human-facing finding prose in an ASD-STE100 Simplified Technical English (STE)-inspired style.
+Use short, direct sentences. Keep one consequence, recommendation, or supporting idea per sentence,
+and use one consistent term for each concept. Preserve exact document identifiers and domain terms
+when they help the decision. Shorten sentences, not content: preserve coverage, evidence, technical
+depth, and every distinct consequence, qualification, or required action.
+
 ## Decision-first field order
 
 Every actionable finding carries these fields, and each surface makes them decision-first in its own
