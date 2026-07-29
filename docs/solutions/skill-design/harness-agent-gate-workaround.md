@@ -1,6 +1,7 @@
 ---
 title: "Working around a harness default that silently disables a skill's subagents"
 date: 2026-07-28
+last_updated: 2026-07-29
 category: skill-design
 module: "skills (every dispatch skill: ce-plan, ce-doc-review, ce-code-review, ce-work, ce-retune, and others)"
 problem_type: design_pattern
@@ -61,7 +62,13 @@ What we changed and why is in the shipped script's comments; the substantive dev
 
 **Refuse where independence is load-bearing, rather than degrading.** Inline substitution is the right default when a dispatch is merely unavailable, but not when a workflow's correctness *is* the separation. `ce-retune`'s corpus audit is a proposal pass and an opposing defense pass; run in one context, the same reasoner argues both sides and the audit still emits confident-looking cuts with the control silently removed — and that skill deletes prose, so the damage is a line a real defender would have saved. Where a workflow declares that a pass needs independent contexts, report the missing capability as a blocker and stop that pass. Scope the refusal to workflows that declare it; a global refusal would break every skill that degrades acceptably.
 
-**Independence accounting must travel with it.** Restoring dispatch fixes the corrupted confidence signal only while dispatch succeeds. A second directive states that independence is a property of separate dispatched contexts — not of separate personas or lenses — so agreement reached inside one context cannot promote a finding. That rule is correct whether or not the gate is ever lifted.
+**Look for the suppressed behavior, not the expected phrasing.** A second directive counters a harness claim that the user is absent, so the skill's own confirmation and question steps stay live. Deciding whether that directive is needed is where this nearly went wrong: an audit for the literal words — "the user is not watching", "cannot answer" — found nothing in the harness, and concluded there was no defect to counter.
+
+That was the wrong search. The prompt carried something with the same effect in different words: *reserve blocking questions for cases where proceeding under any assumption would be unsafe or would make the work useless if wrong.* That is a standing instruction to infer rather than ask, and it produces exactly what the directive exists to prevent — a skill silently skipping its confirmation step and inferring the answer. Nearby tool descriptions reinforce it by defining an away-user as the normal case.
+
+So audit by **behavior suppressed**, not by phrasing matched. The question is not "does the prompt say the user is gone" but "does anything here make the model stop asking". Absence of the expected sentence is not absence of the constraint, and a directive dropped on that reasoning removes a protection that was doing real work.
+
+**Independence accounting must travel with it.** Restoring dispatch fixes the corrupted confidence signal only while dispatch succeeds. A third directive states that independence is a property of separate dispatched contexts — not of separate personas or lenses — so agreement reached inside one context cannot promote a finding. That rule is correct whether or not the gate is ever lifted.
 
 ## Why This Matters
 
