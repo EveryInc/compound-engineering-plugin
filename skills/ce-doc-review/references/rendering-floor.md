@@ -37,9 +37,11 @@ verbatim.
 
 1. **Recommendation** — the recommended action (`Apply` / `Defer` / `Skip`, from the finding's
    `recommended_action`), stated up front. This is what the user is being asked to accept or reject.
-2. **Consequence if unchanged** — one sentence: what goes wrong, for whom, if the finding is not
-   acted on. **Contains no opaque identifier at all** (see the token policy). A reader who skimmed the
-   document once must be able to judge it without looking anything up. This is the load-bearing line.
+2. **Consequence if unchanged** — one short sentence per distinct consequence: what goes wrong, for
+   whom, if the finding is not acted on. Use multiple sentences only when required to preserve
+   independent consequences. **Contains no opaque identifier at all** (see the token policy). A reader
+   who skimmed the document once must be able to judge it without looking anything up. This is the
+   load-bearing field.
 3. **Change** — one sentence of intent: what the fix achieves and where it lives. Prefer intent
    language over quoted text or raw markup.
 4. **Basis** — at most **two** sentences of mechanism explaining how the problem arises. Every opaque
