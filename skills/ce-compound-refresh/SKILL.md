@@ -393,6 +393,7 @@ When a learning's referenced files are gone, that is strong evidence — but onl
 
 - A learning about session token storage where `auth_token.rb` is gone — does the application still handle session tokens? If so, the concept persists under a new implementation. That is Replace, not Delete.
 - A learning about a deprecated API endpoint where the entire feature was removed — the problem domain is gone. That is Delete.
+- A learning that references no in-repo implementation — developer-environment, onboarding, tooling-on-laptops, or process learnings — can never satisfy "the implementation is gone": the repo never witnessed its domain, so absence of supporting files is not evidence the problem stopped existing. These never auto-delete. When their currency is in doubt, stale-mark (headless) or ask (interactive).
 
 Do not search mechanically for keywords from the old learning. Instead, understand what problem the learning addresses, then investigate whether that problem domain still exists in the codebase. The agent understands concepts — use that understanding to look for where the problem lives now, not where the old code used to be.
 
