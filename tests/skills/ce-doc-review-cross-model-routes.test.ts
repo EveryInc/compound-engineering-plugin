@@ -31,7 +31,7 @@ afterAll(() => {
 const REAL_TOOLS = [
   "bash", "sh", "jq", "python3", "date", "sed", "tr", "cat", "wc", "awk",
   "dirname", "basename", "mktemp", "env", "perl", "timeout", "gtimeout", "sleep", "rm",
-  "mv", "chmod", "cp", "printf", "kill", "mkdir",
+  "mv", "chmod", "cp", "printf", "kill", "mkdir", "grep", "tail",
 ]
 // A version-manager shim (pyenv/rbenv/perlbrew/mise) for an interpreter is a
 // wrapper *script*, not a symlink: `command -v python3` returns the shim, but

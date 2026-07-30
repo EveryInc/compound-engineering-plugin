@@ -150,9 +150,13 @@ MODEL_ACTUAL="unverified"
 extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODEL_ACTUAL
   MODEL_ACTUAL="unverified"
   [ "$1" = "claude" ] || return 0
-  local requested actual prefix matched
+  local requested actual prefix matched envelope
   requested="$(route_model claude)"
   prefix="$(expected_model_prefix "$requested")"
+  # stream-json is NDJSON: modelUsage lives on the terminal type=result event
+  # (same pattern as elevation-dispatch). Buffered --output-format json is one
+  # object — whole-file jq still works when no result event exists.
+  envelope="$(grep -a '"type":"result"' "$PEERLOG" 2>/dev/null | tail -1 || true)"
   # jq `keys` is sorted, so keys[0] is the alphabetically-first model, not
   # necessarily the one that served the run (a multi-key envelope can also carry
   # an auxiliary model's usage). Prefer a key matching the requested family's
@@ -163,13 +167,21 @@ extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODE
   if [ -n "$prefix" ]; then
     # first modelUsage key matching the expected family prefix (jq-native, no
     # external `head`: the route sandbox may not carry coreutils on PATH).
-    matched="$(jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(startswith($p)))) // empty' "$PEERLOG" 2>/dev/null)"
+    if [ -n "$envelope" ]; then
+      matched="$(printf '%s' "$envelope" | jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(startswith($p)))) // empty' 2>/dev/null)"
+    else
+      matched="$(jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(startswith($p)))) // empty' "$PEERLOG" 2>/dev/null)"
+    fi
   fi
   if [ -n "$matched" ]; then
     MODEL_ACTUAL="$matched"
     return 0
   fi
-  actual="$(jq -r '.modelUsage // empty | keys[0] // empty' "$PEERLOG" 2>/dev/null)"
+  if [ -n "$envelope" ]; then
+    actual="$(printf '%s' "$envelope" | jq -r '.modelUsage // empty | keys[0] // empty' 2>/dev/null)"
+  else
+    actual="$(jq -r '.modelUsage // empty | keys[0] // empty' "$PEERLOG" 2>/dev/null)"
+  fi
   if [ -z "$actual" ]; then
     log "model receipt absent/unparseable on claude route; recording unverified"
     return 0
@@ -487,14 +499,24 @@ TO_BIN="$(command -v gtimeout || command -v timeout || true)"
 
 # Reap a backgrounded job's whole process group: TERM, then KILL after a grace.
 reap() {
+  # TERM the process group, then wait for the *leader* in THIS shell. A subshell
+  # cannot wait on our child; kill -0 also succeeds on zombies until wait reaps
+  # them — the old kill -0 poll burned the full 5s grace on every idle/hard
+  # timeout (#1270 / Codex P1). Race wait against a grace timer that KILLs.
   local pid="$1" grp
-  if kill -TERM -- -"$pid" 2>/dev/null; then grp=1; else kill -TERM "$pid" 2>/dev/null; grp=0; fi
-  for _ in 1 2 3 4 5; do
-    if [ "$grp" = 1 ]; then kill -0 -- -"$pid" 2>/dev/null || return 0
-    else kill -0 "$pid" 2>/dev/null || return 0; fi
-    sleep 1
-  done
-  if [ "$grp" = 1 ]; then kill -KILL -- -"$pid" 2>/dev/null; else kill -KILL "$pid" 2>/dev/null; fi
+  if kill -TERM -- -"$pid" 2>/dev/null; then grp=1; else kill -TERM "$pid" 2>/dev/null || true; grp=0; fi
+  (
+    sleep 5
+    if kill -0 "$pid" 2>/dev/null; then
+      if [ "$grp" = 1 ]; then kill -KILL -- -"$pid" 2>/dev/null; else kill -KILL "$pid" 2>/dev/null; fi
+    fi
+  ) &
+  local timer=$!
+  wait "$pid" 2>/dev/null || true
+  kill "$timer" 2>/dev/null || true
+  wait "$timer" 2>/dev/null || true
+  # Sweep any survivors left in the provider's own process group.
+  if [ "$grp" = 1 ]; then kill -KILL -- -"$pid" 2>/dev/null || true; fi
 }
 
 # TERM/INT: reap the live peer group, then exit cleanly (HUP remains ignored).
@@ -658,7 +680,13 @@ while True:
     except Exception:
         i = j + 1
         continue
-    if isinstance(obj, dict) and isinstance(obj.get("findings"), list): best = obj
+    if isinstance(obj, dict):
+        if isinstance(obj.get("findings"), list):
+            best = obj
+        else:
+            so = obj.get("structured_output")
+            if isinstance(so, dict) and isinstance(so.get("findings"), list):
+                best = so
     i = end
 if best is not None: open(sys.argv[2], "w").write(json.dumps(best))
 PY
@@ -667,8 +695,16 @@ PY
 
 # Parse a schema-shaped object out of a headless CLI JSON envelope (claude/grok/cursor).
 parse_structured() {   # <logfile> <outfile>
+  # Buffered single-object envelopes (grok-cli json, test stubs).
   jq -e '.structured_output' "$1" > "$2" 2>/dev/null && return 0
   jq -r '.result // empty' "$1" 2>/dev/null | jq -e '.' > "$2" 2>/dev/null && return 0
+  # stream-json NDJSON: last type=result event (elevation-dispatch pattern).
+  local event
+  event="$(grep -a '"type":"result"' "$1" 2>/dev/null | tail -1 || true)"
+  if [ -n "$event" ]; then
+    printf '%s' "$event" | jq -e '.structured_output' > "$2" 2>/dev/null && return 0
+    printf '%s' "$event" | jq -r '.result // empty' 2>/dev/null | jq -e '.' > "$2" 2>/dev/null && return 0
+  fi
   recover_findings_json "$1" "$2"
 }
 

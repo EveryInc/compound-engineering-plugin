@@ -36,7 +36,7 @@ afterAll(() => {
 const REAL_TOOLS = [
   "bash", "sh", "jq", "python3", "date", "sed", "tr", "cat", "wc", "awk",
   "dirname", "basename", "mktemp", "env", "perl", "timeout", "gtimeout", "sleep", "rm",
-  "mv", "chmod", "cp", "printf", "kill", "mkdir", "git",
+  "mv", "chmod", "cp", "printf", "kill", "mkdir", "git", "grep", "tail",
 ]
 // A version-manager shim (pyenv/rbenv/perlbrew/mise) for an interpreter is a
 // wrapper *script*, not a symlink: `command -v python3` returns the shim, but
@@ -365,6 +365,22 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(emitAdapter("cursor")).not.toContain("--model")
     expect(emitAdapter("composer")).toContain("composer-2.5-fast")
   })
+
+  test("stream-json NDJSON result event yields findings and model receipt", () => {
+    // Production claude stream-json writes NDJSON; structured_output + modelUsage
+    // live on the terminal type=result event (#1270 Bugbot).
+    const ndjson =
+      '{"type":"assistant","message":{"content":[{"type":"text","text":"thinking"}]}}\n' +
+      '{"type":"result","subtype":"success","structured_output":{"reviewer":"adversarial","findings":[{"title":"from-stream"}],"residual_risks":[],"testing_gaps":[]},"modelUsage":{"claude-opus-4-8-20260115":{"inputTokens":10}}}\n'
+    const stub = `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${ndjson.replace(/'/g, `'\\''`)}'\n`
+    const { env } = sandbox(["claude"], stub)
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
+    expect(r.files).toContain("adversarial-claude.json")
+    const out = JSON.parse(readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"))
+    expect(out.findings[0].title).toBe("from-stream")
+    expect(out.model_actual).toBe("claude-opus-4-8-20260115")
+  }, 20_000)
 
   test("silent PEERLOG on a streaming route is reaped by idle before the hard cap", () => {
     // Fake CLI writes nothing to stdout; heartbeat still fires on stderr. Idle
