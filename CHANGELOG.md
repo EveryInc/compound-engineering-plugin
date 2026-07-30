@@ -1,5 +1,39 @@
 # Changelog
 
+## [3.22.0](https://github.com/boltcoder/compound-engineering-fe-plugin/compare/compound-engineering-v3.20.0...v3.22.0) (2026-07-30)
+
+### Other Changes
+
+*  chore(scope): drop upstream changes outside FE-fork scope (2a73dda)
+*  fix(ce-explain): keep tokens out of prose, render for a named reader (#1236) (3422ea0)
+*  fix(planning): prevent cross-layer requirement duplication (#1234) (6cef653)
+*  perf(ci): run the test suite in parallel worker processes (#1235) (dbc565d)
+*  fix(ce-work): gate simplify on substantive code lines, not total diff lines (#1231) (f9d9e08)
+*  chore(release): bump version to 3.21.3 (2e1875d)
+*  feat(release): cumulative upgrade summary + one-time migration-note flag (#15) (beb35ab)
+*  fix(ce-fix-bugs): flip qa-ready items via MCP markdown rewrite, not UI automation (#14) (fd40bc9)
+*  fix(release): accept --flag=value form and split parseArgs out (#13) (e795b8b)
+*  chore(release): bump version to 3.21.2 (3b74c26)
+*  feat(release): auto-detect new skills and onboard after /ce-setup (#12) (2c71770)
+*  chore(release): bump version to 3.21.1 (c81b076)
+*  fix(release): fold prerequisites into the upgrade prompt (#11) (9784e20)
+*  chore(release): bump version to 3.21.0 (bfdcee2)
+*  feat(ce-fix-bugs): add Jira checklist driver skill (#10) (22b0f40)
+*  chore(release): bump version to 3.20.2 (261010f)
+*  feat(release): append consumer upgrade prompt to GitHub Release notes (#9) (abe27ad)
+*  chore(release): bump version to 3.20.1 (756fb01)
+*  fix(ce-setup): move creds to shell rc, make gh/agent-browser/docker required, add release script (#8) (d9c49a2)
+*  chore(release): bump version to 3.20.0 (#7) (f7f8582)
+*  fix(repo): correct stale skill count and upstream references (#6) (7f12098)
+*  feat(jira): wire ticket capture upstream and add ce-jira-update skill (#5) (416d11f)
+*  feat(ce-setup): add Atlassian MCP server (mcp-atlassian) Docker setup (#4) (f0fab78)
+*  chore(ci): remove CI workflows (f9f9070)
+*  fix(repo): restore distribution infra without deleted skills (77419d3)
+*  feat(skills): enrich 9 skills with frontend-specific reference knowledge (0b9f850)
+*  refactor(skills): trim overkill orchestration from review, planning, and brainstorm skills (988f7c3)
+*  refactor(repo): strip distribution infra and out-of-scope skills for frontend focus (6a50a8a)
+
+
 ## [3.21.3](https://github.com/boltcoder/compound-engineering-fe-plugin/compare/v3.21.2...v3.21.3) (2026-07-21)
 
 ### Features
