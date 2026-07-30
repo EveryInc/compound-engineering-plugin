@@ -134,6 +134,17 @@ For each peer:
    intermediary. Confirm every actual recipient is in the egress allowlist.
 5. Announce the selected target and route in ordinary language before dispatch.
 
+The fixed route passed to the worker accepts exactly these tokens — the worker
+fail-closes on anything else (including route-shaped guesses like `codex-cli`):
+
+| Target | Route token(s) |
+|--------|----------------|
+| `codex` | `codex` |
+| `claude` | `claude` |
+| `grok` | `grok-cli` (native CLI) or `grok-cursor` (via Cursor intermediary) |
+| `cursor` | `cursor` |
+| `composer` | `composer` |
+
 Binary presence proves only that a route is a candidate. Use an available
 non-egressing authentication or capability probe when the harness exposes one,
 and do not call a route usable until it returns a valid artifact. Classify a

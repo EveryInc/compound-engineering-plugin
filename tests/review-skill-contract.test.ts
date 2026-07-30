@@ -1121,12 +1121,21 @@ describe("cross-model peer skip legibility", () => {
     },
   ]
 
-  // The route-token vocabulary lives in the worker's route_target() case, but
-  // the reference forbids inspecting worker source — so the reference must
-  // enumerate every accepted CROSS_MODEL_FIXED_ROUTE token itself (issue
-  // #1282: an orchestrator guessed `codex-cli` and wasted a dispatch cycle).
-  for (const { worker, reference } of pairs) {
-    test(`${reference} enumerates the worker's accepted CROSS_MODEL_FIXED_ROUTE tokens`, async () => {
+  // The route-token vocabulary lives in each worker's route_target() case, but
+  // the references forbid inspecting worker source — so each reference must
+  // enumerate every accepted fixed-route token itself (issue #1282: an
+  // orchestrator guessed `codex-cli` and wasted a dispatch cycle). ce-pov
+  // shares the vocabulary but not the review-worker internals the rest of
+  // this describe pins, so it joins only this parity check.
+  const routeTokenPairs = [
+    ...pairs,
+    {
+      worker: "skills/ce-pov/scripts/cross-model-pov.sh",
+      reference: "skills/ce-pov/references/cross-model-panel.md",
+    },
+  ]
+  for (const { worker, reference } of routeTokenPairs) {
+    test(`${reference} enumerates the worker's accepted fixed-route tokens`, async () => {
       const workerSrc = await readRepoFile(worker)
       const caseBody = workerSrc.match(/route_target\(\) \{\s*case "\$1" in([\s\S]*?)esac/)?.[1]
       expect(caseBody).toBeTruthy()
