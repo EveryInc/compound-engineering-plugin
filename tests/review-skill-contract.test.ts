@@ -1121,6 +1121,28 @@ describe("cross-model peer skip legibility", () => {
     },
   ]
 
+  // The route-token vocabulary lives in the worker's route_target() case, but
+  // the reference forbids inspecting worker source — so the reference must
+  // enumerate every accepted CROSS_MODEL_FIXED_ROUTE token itself (issue
+  // #1282: an orchestrator guessed `codex-cli` and wasted a dispatch cycle).
+  for (const { worker, reference } of pairs) {
+    test(`${reference} enumerates the worker's accepted CROSS_MODEL_FIXED_ROUTE tokens`, async () => {
+      const workerSrc = await readRepoFile(worker)
+      const caseBody = workerSrc.match(/route_target\(\) \{\s*case "\$1" in([\s\S]*?)esac/)?.[1]
+      expect(caseBody).toBeTruthy()
+      const tokens = [...caseBody!.matchAll(/^\s*([a-z|-]+)\)/gm)]
+        .flatMap((m) => m[1].split("|"))
+      expect(tokens.length).toBeGreaterThanOrEqual(6)
+
+      const ref = await readRepoFile(reference)
+      expect(ref).toContain("accepts exactly these tokens")
+      const tableRows = ref.split("\n").filter((line) => line.startsWith("|"))
+      for (const token of tokens) {
+        expect(tableRows.some((row) => row.includes(`\`${token}\``))).toBe(true)
+      }
+    })
+  }
+
   // A fixed route succeeded only
   // when it returned a reviewer-shaped object with a top-level `findings` array
   // — not merely any valid JSON. Accepting an error/envelope object (e.g. a grok
