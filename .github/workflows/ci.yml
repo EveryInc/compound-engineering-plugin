@@ -150,3 +150,10 @@ jobs:
 
       - name: pr-snapshot platform primitives
         run: python tests/fixtures/pr-snapshot-platform.py
+
+      # Runs the scratch-root preamble exactly as the skills ship it, under Git Bash. The
+      # POSIX suite cannot cover this: `install -d -m 700` works there and fails only here
+      # (#1285), so a shape assertion stayed green while every skill's scratch setup aborted
+      # on Windows. Shell out via bun so the same file also runs in the ubuntu suite.
+      - name: Scratch-root preamble executes under Git Bash
+        run: bun test tests/scratch-root-preamble-executes.test.ts

@@ -154,6 +154,17 @@ translation of "block until the holder releases" is a retry loop around the *non
 lock acquisition becomes the race it was meant to prevent. Use `os.open(..., O_RDWR |
 O_CREAT)`.
 
+**That retry loop must discriminate on `errno`, not catch `OSError`.** `msvcrt.locking`
+reports genuine contention as **`EACCES`** and real defects as `EBADF` (closed descriptor) or
+`EINVAL` (bad range) — all `OSError`, so a bare `except OSError: sleep; continue` retries the
+unfixable ones forever, at the poll interval, emitting nothing. Because the POSIX side is an
+unbounded `flock` wait, the loop has no timeout to rescue it: the process simply never returns.
+For a supervised watcher that is observably identical to "monitoring silently stopped" — the
+class of failure the port existed to fix. Retry `EACCES`; re-raise everything else. Testing this
+needs the primitive **patched**, not provoked with a real bad descriptor: the `os.lseek` that
+pins the offset rejects a closed fd *before* the loop is entered, so the obvious test passes
+against the broken loop too.
+
 **`ps -o lstart=` -> `GetProcessTimes`.** A PID-reuse guard needs process *creation time*;
 Windows recycles PIDs aggressively, so this matters more there, not less. `OpenProcess`
 with `PROCESS_QUERY_LIMITED_INFORMATION` plus `GetProcessTimes` is the analog, with

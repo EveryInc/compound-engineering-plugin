@@ -20,12 +20,14 @@ Windows implementations satisfy it. Run directly:  python <this file>
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 import importlib.util
@@ -141,6 +143,81 @@ class PlatformPrimitives(unittest.TestCase):
         # Re-acquire after full release, exclusive this time.
         with module._state_lock(self.state):
             self.assertTrue(os.path.exists(os.path.join(self.state, "lock")))
+
+    @staticmethod
+    def _settled(call, timeout=10.0):
+        """Run `call` off-thread. Returns ('raised', exc) / ('returned', value), or None if it hung.
+
+        A regression here is an infinite loop, so it must be observed as a timeout rather than
+        allowed to wedge the suite."""
+        box = []
+
+        def run():
+            try:
+                box.append(("returned", call()))
+            except BaseException as exc:   # noqa: BLE001 - a hang and a raise are both outcomes here
+                box.append(("raised", exc))
+
+        t = threading.Thread(target=run, daemon=True)
+        t.start()
+        t.join(timeout=timeout)
+        return box[0] if box else None
+
+    def test_lock_acquire_retries_only_on_contention(self):
+        """The unbounded wait must retry on "someone holds this" and nothing else (issue #1285).
+
+        msvcrt reports a held range as EACCES and a genuine defect (bad descriptor, bad range) as
+        EBADF/EINVAL. All are OSError, so a bare `except OSError` cannot tell them apart: it spins
+        at the retry interval forever, silently. For a watcher that is observably identical to not
+        running at all — exactly the failure this port set out to fix.
+
+        The primitive is patched rather than provoked with a real bad descriptor, because
+        `os.lseek` rejects one before the retry loop is ever entered — so the natural-looking
+        version of this test passes against both the fixed and the broken loop."""
+        module = load_script()
+        if not IS_WINDOWS:
+            # POSIX has no retry loop; flock surfaces errors directly. Pin that contract so the
+            # platforms cannot silently diverge.
+            fd = os.open(os.path.join(self.dir, "posix-lock"), os.O_RDWR | os.O_CREAT, 0o600)
+            os.close(fd)
+            outcome = self._settled(lambda: module._lock_acquire(fd, True))
+            self.assertIsNotNone(outcome, "_lock_acquire hung on POSIX")
+            self.assertEqual(outcome[0], "raised")
+            return
+
+        fd = os.open(os.path.join(self.dir, "win-lock"), os.O_RDWR | os.O_CREAT, 0o600)
+        real = module.msvcrt.locking
+        try:
+            attempts = []
+
+            def unfixable(handle, mode, nbytes):
+                attempts.append(mode)
+                raise OSError(errno.EINVAL, "not contention")
+
+            module.msvcrt.locking = unfixable
+            outcome = self._settled(lambda: module._lock_acquire(fd, True))
+            self.assertIsNotNone(
+                outcome, "_lock_acquire spun on a non-contention error instead of raising")
+            self.assertEqual(outcome[0], "raised")
+            self.assertEqual(outcome[1].errno, errno.EINVAL)
+            self.assertEqual(len(attempts), 1, "a non-contention error must not be retried")
+
+            # ...and real contention must still be waited out rather than raised.
+            held = []
+
+            def busy_then_free(handle, mode, nbytes):
+                held.append(mode)
+                if len(held) < 3:
+                    raise OSError(errno.EACCES, "range held by another process")
+
+            module.msvcrt.locking = busy_then_free
+            outcome = self._settled(lambda: module._lock_acquire(fd, True))
+            self.assertIsNotNone(outcome, "_lock_acquire failed to finish waiting out contention")
+            self.assertEqual(outcome[0], "returned", outcome)
+            self.assertEqual(len(held), 3, "contention must be retried until it clears")
+        finally:
+            module.msvcrt.locking = real
+            os.close(fd)
 
     def test_replace_atomic_overwrites_an_existing_file(self):
         module = load_script()

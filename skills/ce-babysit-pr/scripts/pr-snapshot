@@ -30,6 +30,7 @@ Subcommands:
 so the diff logic is testable without a live PR.
 """
 import argparse
+import errno
 import hashlib
 import json
 import os
@@ -189,7 +190,14 @@ def _lock_acquire(fd, exclusive):
         try:
             msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
             return
-        except OSError:
+        except OSError as e:
+            # Retry only genuine contention. msvcrt reports a held range as EACCES; anything
+            # else (EBADF from a closed descriptor, EINVAL from a bad range) is a defect that
+            # retrying cannot clear, and swallowing it here would spin this loop forever with
+            # no output — a silent hang, which for a watcher is indistinguishable from the
+            # "monitoring is quietly not running" failure this port exists to fix.
+            if e.errno != errno.EACCES:
+                raise
             time.sleep(_WIN_RETRY_SECONDS)
 
 
