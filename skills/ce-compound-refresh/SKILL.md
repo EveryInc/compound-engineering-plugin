@@ -117,7 +117,7 @@ For each candidate artifact, classify it into one of five outcomes:
    - the user has provided enough concrete replacement context to document the successor honestly, or
    - the codebase investigation found the current approach and can document it as the successor, or
    - newer docs, pattern docs, PRs, or issues provide strong successor evidence.
-8. **Delete when the code is gone, and only after checking for inbound links.** If the referenced code, controller, or workflow no longer exists in the codebase and no successor can be found, delete the file — don't default to Keep just because the general advice is still "sound." When in doubt between Keep and Delete, ask the user (in interactive mode) or mark as stale (in headless mode). Inbound links inform classification, not cleanup: cleanup is always mechanical, but **decorative** citations (principle stated inline) allow Delete, while **substantive** citations (citing doc relies on the cited doc) signal Replace. The auto-delete case is missing code, no matching successor, and citations absent or decorative.
+8. **Delete when the code is gone, and only after checking for inbound links.** If the referenced code, controller, or workflow once lived in this repo and has since been removed, and no successor can be found, delete the file — don't default to Keep just because the general advice is still "sound." "Gone" requires that it existed here: a learning that never referenced in-repo code (developer environment, onboarding, process) is outside this rule and never auto-deletes — see the no-in-repo-implementation case in Phase 2. When in doubt between Keep and Delete, ask the user (in interactive mode) or mark as stale (in headless mode). Inbound links inform classification, not cleanup: cleanup is always mechanical, but **decorative** citations (principle stated inline) allow Delete, while **substantive** citations (citing doc relies on the cited doc) signal Replace. The auto-delete case is missing code, no matching successor, and citations absent or decorative.
 9. **Evaluate document-set design, not just accuracy.** In addition to checking whether each doc is accurate, evaluate whether it is still the right unit of knowledge. If two or more docs overlap heavily, determine whether they should remain separate, be cross-scoped more clearly, or be consolidated into one canonical document. Redundant docs are dangerous because they drift silently — two docs saying the same thing will eventually say different things.
 10. **Delete, don't archive.** There is no `_archived/` directory. When a doc is no longer useful, delete it. Git history preserves every deleted file — that is the archive. A dedicated archive directory creates problems: archived docs accumulate, pollute search results, and nobody reads them. If someone needs a deleted doc, `git log --diff-filter=D -- <root>/solutions/` will find it.
 
@@ -419,7 +419,7 @@ In headless mode, Delete + decorative cleanup is fine. Any substantive citation,
 
 **Auto-delete only when all three hold:**
 
-- The implementation is gone (or fully superseded by a clearly better successor, or the doc is plainly redundant).
+- The implementation is gone — it once lived in this repo and was removed (or is fully superseded by a clearly better successor, or the doc is plainly redundant).
 - The problem domain is gone — the app no longer deals with what the learning addresses.
 - Inbound links are absent or unambiguously decorative.
 
@@ -453,6 +453,7 @@ Most Updates and Consolidations should be applied directly without asking. Only 
 - You are about to Delete a document **and** the evidence is not unambiguous (see auto-delete criteria in Phase 2). When auto-delete criteria are met, proceed without asking.
 - You are about to Consolidate and the choice of canonical doc is not clear-cut
 - You are about to create a successor via Replace
+- You are about to execute a Split — it writes successors and deletes the original, so confirm the fragment boundaries like a Replace; the apply-without-asking default for Consolidations covers merges only, never splits
 
 Do **not** ask questions about whether code changes were intentional, whether the user wants to fix bugs in the code, or other concerns outside doc maintenance. Stay in your lane — doc accuracy.
 

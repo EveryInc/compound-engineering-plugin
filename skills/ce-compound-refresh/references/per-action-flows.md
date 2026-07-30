@@ -39,6 +39,7 @@ In headless mode, apply the relocation only when all four conditions hold, mirro
 2. Move the file with `git mv` so history follows the rename.
 3. Reconcile frontmatter category metadata with the new location.
 4. Rewrite inbound links across the repo's markdown, including catalog rows in README files.
+5. Re-check the moved doc's **outgoing** relative links — the move changed their resolution base, so a `../category/doc.md` that resolved before now dangles. Run the bundled claims validator (`scripts/validate-doc-claims.py`, invoked as in the Replace flow) on the moved doc, or inspect its relative links manually, and rewrite any that no longer resolve before completing the relocation.
 
 ## Consolidate Flow
 
@@ -47,7 +48,7 @@ The orchestrator handles consolidation directly (no subagent needed — the docs
 1. **Confirm the canonical doc** — the broader, more current, more accurate doc in the cluster.
 2. **Extract unique content** from the subsumed doc(s) — anything the canonical doc does not already cover. This might be specific edge cases, additional prevention rules, or alternative debugging approaches.
 3. **Merge unique content** into the canonical doc in a natural location. Do not just append — integrate it where it logically belongs. If the unique content is small (a bullet point, a sentence), inline it. If it is a substantial sub-topic, add it as a clearly labeled section.
-4. **Update cross-references** — if any other docs reference the subsumed doc, update those references to point to the canonical doc. This includes catalog rows in README files: they are excluded as review candidates, but their rows are updated mechanically whenever an action removes or renames a doc they list.
+4. **Update cross-references** — if any other docs reference the subsumed doc, update those references to point to the canonical doc. Catalog rows in README files are inventory, not citations: **remove** the subsumed doc's row (folding any unique description into the canonical doc's row) rather than repointing it — a repointed row leaves two catalog entries for one file. READMEs are excluded as review candidates, but their rows are maintained mechanically whenever an action removes, renames, or moves a doc they list.
 5. **Delete the subsumed doc.** Do not archive it, do not add redirect metadata — just delete the file. Git history preserves it.
 
 If a doc cluster has 3+ overlapping docs, process pairwise: consolidate the two most overlapping docs first, then evaluate whether the merged result should be consolidated with the next doc.
