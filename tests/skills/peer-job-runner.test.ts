@@ -68,7 +68,7 @@ afterAll(() => {
 
 // Fast supervisor cadence so second-scale windows classify quickly; the
 // idle/hard/byte windows themselves are set per test via the CE_PEER_* envs
-// (defaults stay 240s/630s/10MB in the script).
+// (defaults stay 240s idle / derived hard / 10MB in the script).
 const FAST = { CE_PEER_POLL_SECS: "0.2", CE_PEER_GRACE_SECS: "2" }
 
 type RunResult = { code: number; stdout: string; stderr: string; ms: number }

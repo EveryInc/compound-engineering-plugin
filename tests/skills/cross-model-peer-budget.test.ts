@@ -9,6 +9,10 @@ import path from "node:path"
 // silently reaps a healthy, still-streaming peer and the peer's full spend is
 // wasted for no usable output — the failure mode is invisible in the review
 // output, so it needs a mechanical guard rather than review vigilance.
+//
+// The runner derives its own supervisor hard window (#1271). Orchestrator prose
+// only prints the aggregate deadline (`knob + 10`); it must not re-derive
+// CE_PEER_HARD_SECS (that arithmetic failed repeatedly under #1267).
 
 const REPO_ROOT = path.join(__dirname, "../..")
 const read = (rel: string) => readFileSync(path.join(REPO_ROOT, rel), "utf8")
@@ -19,23 +23,19 @@ const SCRIPTS = {
   "ce-pov": "skills/ce-pov/scripts/cross-model-pov.sh",
 } as const
 
-// References that document a `start` invocation and therefore own the derivation.
-// Every skill whose worker reads CROSS_MODEL_HARD_SECS belongs here: a start path
-// that omits the runner derivation leaves peer-job-runner.py on its own 630s
-// default, which then reaps the worker the raised knob was meant to keep alive.
-// ce-pov is deliberately absent: it documents no literal `start` invocation to hang
-// a derivation on, and its runner default already sits outside its worker cap, so
-// only an explicitly raised knob needs action there. The test below pins that
-// precondition instead.
+// References that document a `start` invocation and therefore own the deadline
+// print. Runner hard-window derivation lives in peer-job-runner.py, not here.
 const DISPATCH_REFS = {
   "ce-code-review": "skills/ce-code-review/references/cross-model-review.md",
   "ce-doc-review": "skills/ce-doc-review/references/cross-model-review.md",
 } as const
 
 const POV_REF = "skills/ce-pov/references/cross-model-panel.md"
+const RUNNER = "skills/ce-doc-review/scripts/peer-job-runner.py"
 
 const DEADLINE_GRACE = 10 // orchestrator deadline sits this far past the script cap
-const RUNNER_GRACE = 30 // runner supervisor window sits this far past the script cap
+const RUNNER_GRACE = 30 // runner supervisor window sits this far past the knob
+const RUNNER_HARD_FLOOR = 1230 // clears the highest worker default (review :-1200)
 
 function caps(rel: string): { idle: number; hard: number } {
   const src = read(rel)
@@ -105,47 +105,71 @@ describe("cross-model peer budget", () => {
     expect(caps(SCRIPTS["ce-code-review"]).hard).toBeGreaterThanOrEqual(1200)
   })
 
-  test("the documented start call derives both outer windows from the one knob", () => {
-    for (const [skill, rel] of Object.entries(DISPATCH_REFS)) {
-      const doc = read(rel)
-      const { hard } = caps(SCRIPTS[skill as keyof typeof SCRIPTS])
+  test("the runner derives its hard window from CROSS_MODEL_HARD_SECS", () => {
+    // Behavioral cases live in tests/fixtures/peer-job-runner-unit.py
+    // (HardDefaultFromCrossModel). This pins the formula constants so a prose
+    // reversion cannot quietly restore a static 630 default.
+    const src = read(RUNNER)
+    expect(src).toContain(`_RUNNER_HARD_FLOOR = ${RUNNER_HARD_FLOOR}`)
+    expect(src).toContain(`_RUNNER_HARD_GRACE = ${RUNNER_GRACE}`)
+    expect(src).toContain("def _derived_hard_default()")
+    expect(src).toMatch(/max\(_RUNNER_HARD_FLOOR,\s*cross \+ _RUNNER_HARD_GRACE\)/)
+    expect(src).toContain('_env_num("CE_PEER_HARD_SECS", _derived_hard_default(), float)')
+  })
 
-      // The snippet's own default must equal the script's default.
-      expect(doc, `${skill} start snippet default`).toContain(
-        `PEER_HARD="\${CROSS_MODEL_HARD_SECS:-${hard}}"`,
-      )
-      // Runner supervisor window: outermost.
-      expect(doc, `${skill} runner window`).toContain(
-        `CE_PEER_HARD_SECS="$(( PEER_HARD + ${RUNNER_GRACE} ))"`,
-      )
-      // Orchestrator deadline: printed so the orchestrator never invents one.
-      expect(doc, `${skill} deadline receipt`).toContain(
-        `echo "peer-deadline-secs=$(( PEER_HARD + ${DEADLINE_GRACE} ))"`,
-      )
-      // The worker must keep its OWN route-aware defaults. The runner forwards the
-      // ambient environment, so a user-set knob already reaches it; re-exporting the
-      // orchestrator's resolved value turns the `:-600` unguarded fallback into an
-      // explicit 1200 override and silently restores the doubled wedge hang.
-      expect(doc, `${skill} must not forward a resolved cap to the worker`).not.toContain(
-        'CROSS_MODEL_HARD_SECS="$PEER_HARD"',
-      )
-
-      // PEER_HARD is load-bearing and shell state does not persist between tool
-      // calls, so its derivation must sit in the same fenced block as `start`.
-      const blocks = doc.match(/```bash\n[\s\S]*?```/g) ?? []
-      const startBlocks = blocks.filter((b) => /peer-job-runner\.py"? start|start --skill/.test(b))
-      expect(startBlocks.length, `${skill} documents a start block`).toBeGreaterThan(0)
-      for (const b of startBlocks) {
-        if (!b.includes("CE_PEER_HARD_SECS")) continue
-        expect(b, `${skill} must resolve PEER_HARD in the same shell as start`).toContain(
-          'PEER_HARD="${CROSS_MODEL_HARD_SECS:-',
-        )
-      }
+  test("the runner floor clears every skill's worker hard default", () => {
+    for (const [skill, rel] of Object.entries(SCRIPTS)) {
+      const { hard } = caps(rel)
+      expect(
+        RUNNER_HARD_FLOOR,
+        `${skill}: runner floor must sit at/above worker default + grace`,
+      ).toBeGreaterThanOrEqual(hard + RUNNER_GRACE)
     }
   })
 
   test("the runner window is the outermost of the three", () => {
     expect(RUNNER_GRACE).toBeGreaterThan(DEADLINE_GRACE)
+    expect(RUNNER_HARD_FLOOR).toBeGreaterThan(caps(SCRIPTS["ce-code-review"]).hard + DEADLINE_GRACE)
+  })
+
+  test("start snippets derive only the orchestrator deadline, not the runner window", () => {
+    for (const [skill, rel] of Object.entries(DISPATCH_REFS)) {
+      const doc = read(rel)
+      const { hard } = caps(SCRIPTS[skill as keyof typeof SCRIPTS])
+
+      // Orchestrator deadline receipt — still printed at dispatch.
+      expect(doc, `${skill} deadline receipt`).toContain(
+        `echo "peer-deadline-secs=$(( \${CROSS_MODEL_HARD_SECS:-${hard}} + ${DEADLINE_GRACE} ))"`,
+      )
+      // Runner derivation moved into peer-job-runner.py (#1271). Clear ambient
+      // CE_PEER_HARD_SECS so a stale export cannot undercut it; never set a
+      // numeric value or invent PEER_HARD arithmetic here.
+      expect(doc, `${skill} must not derive CE_PEER_HARD_SECS in prose`).not.toContain(
+        'CE_PEER_HARD_SECS="$((',
+      )
+      expect(doc, `${skill} must not invent PEER_HARD`).not.toContain("PEER_HARD=")
+      // The worker must keep its OWN route-aware defaults.
+      expect(doc, `${skill} must not forward a resolved cap to the worker`).not.toContain(
+        'CROSS_MODEL_HARD_SECS="$PEER_HARD"',
+      )
+
+      // Deadline print is load-bearing and shell state does not persist between
+      // tool calls, so it must sit in the same fenced block as `start`.
+      const blocks = doc.match(/```bash\n[\s\S]*?```/g) ?? []
+      const startBlocks = blocks.filter((b) => /peer-job-runner\.py"? start|start --skill/.test(b))
+      expect(startBlocks.length, `${skill} documents a start block`).toBeGreaterThan(0)
+      for (const b of startBlocks) {
+        expect(b, `${skill} must print peer-deadline-secs in the same shell as start`).toContain(
+          "peer-deadline-secs=$((",
+        )
+        expect(b, `${skill} must clear ambient CE_PEER_HARD_SECS on start`).toMatch(
+          /CE_PEER_HARD_SECS=\s/,
+        )
+        expect(b, `${skill} must not set a numeric CE_PEER_HARD_SECS`).not.toMatch(
+          /CE_PEER_HARD_SECS=\d/,
+        )
+      }
+    }
   })
 
   test("ce-code-review states the derived deadline default consistently", () => {
@@ -158,20 +182,11 @@ describe("cross-model peer budget", () => {
     expect(read(POV_REF)).toContain(`${hard + DEADLINE_GRACE}s by default`)
   })
 
-  test("ce-pov needs no dispatch-time derivation because its runner window is already outside its worker cap", () => {
-    // ce-pov does not document a literal `start` invocation (its reference tells the
-    // agent to follow the worker's current usage rather than reconstruct provider
-    // args), so there is no seam to hang a derivation on. That is only safe while
-    // the runner's own default stays outside the worker's cap. If either number
-    // moves, the raised-knob instruction is no longer the ONLY broken case and this
-    // skill needs a real derivation at dispatch.
-    const runnerDefault = read("skills/ce-pov/scripts/peer-job-runner.py").match(
-      /"hard": _env_num\("CE_PEER_HARD_SECS", (\d+(?:\.\d+)?)/,
-    )
-    expect(runnerDefault, "ce-pov runner hard default").not.toBeNull()
-    expect(Number(runnerDefault![1]), "runner default must exceed the worker cap").toBeGreaterThan(
-      caps(SCRIPTS["ce-pov"]).hard,
-    )
+  test("ce-pov does not ask the orchestrator to raise CE_PEER_HARD_SECS", () => {
+    const doc = read(POV_REF)
+    expect(doc).toContain("widens the runner window automatically")
+    expect(doc).toContain("CE_PEER_HARD_SECS=")
+    expect(doc).not.toMatch(/also requires raising\s*`?CE_PEER_HARD_SECS/)
   })
 
   test("no orchestrator may bound its total wait below the derived deadline", () => {

@@ -61,7 +61,11 @@ Environment overrides (defaults in parentheses):
   CE_PEER_JOBS_ROOT         base dir (/tmp/compound-engineering-<effective-uid>)
   CE_WORK_RUNS_ROOT         parent CE Work dir containing all <run-id>/ dirs
   CE_PEER_IDLE_SECS         idle window, no out.log growth (240)
-  CE_PEER_HARD_SECS         hard cap on worker wall clock (630)
+  CE_PEER_HARD_SECS         hard cap on worker wall clock
+                            (default: max(1230, CROSS_MODEL_HARD_SECS+30);
+                            an explicit value always wins)
+  CROSS_MODEL_HARD_SECS     when CE_PEER_HARD_SECS is unset, widens the
+                            supervisor hard window (see above)
   CE_PEER_LOG_MAX_BYTES     out.log byte cap (10485760)
   CE_PEER_RESULT_MAX_BYTES  result byte cap, supervise + read (5242880)
   CE_PEER_POLL_SECS         supervisor poll interval (2)
@@ -170,8 +174,9 @@ exit codes:
      user) — content is never emitted
 
 environment overrides: CE_PEER_JOBS_ROOT, CE_WORK_RUNS_ROOT, CE_PEER_IDLE_SECS,
-CE_PEER_HARD_SECS, CE_PEER_LOG_MAX_BYTES, CE_PEER_RESULT_MAX_BYTES,
-CE_PEER_POLL_SECS, CE_PEER_GRACE_SECS (defaults in the module docstring).
+CE_PEER_HARD_SECS, CROSS_MODEL_HARD_SECS, CE_PEER_LOG_MAX_BYTES,
+CE_PEER_RESULT_MAX_BYTES, CE_PEER_POLL_SECS, CE_PEER_GRACE_SECS (defaults in
+the module docstring).
 """
 
 
@@ -184,6 +189,14 @@ class Unreadable(Exception):
 
 
 # --- configuration -----------------------------------------------------------
+
+# Supervisor hard-window floor: clears the highest cross-model worker default
+# (review skills use CROSS_MODEL_HARD_SECS:-1200) so an unset knob still nests
+# worker < deadline < runner without orchestrator arithmetic. Grace matches the
+# historical prose +30s so a raised knob widens the runner the same way.
+_RUNNER_HARD_FLOOR = 1230.0
+_RUNNER_HARD_GRACE = 30.0
+
 
 def jobs_root_base() -> str:
     configured = os.environ.get("CE_PEER_JOBS_ROOT")
@@ -213,10 +226,21 @@ def _env_num(name: str, default: float, conv, *, allow_zero: bool = False):
     return val if val > 0 else default
 
 
+def _derived_hard_default() -> float:
+    """Outermost supervisor hard window when CE_PEER_HARD_SECS is unset.
+
+    Reads ambient CROSS_MODEL_HARD_SECS (the runner already forwards os.environ
+    to the worker, so a user-set knob is present here). Explicit CE_PEER_HARD_SECS
+    still wins via cfg() — ce-work and elevation paths keep their own windows.
+    """
+    cross = _env_num("CROSS_MODEL_HARD_SECS", 0.0, float)
+    return max(_RUNNER_HARD_FLOOR, cross + _RUNNER_HARD_GRACE)
+
+
 def cfg(skill=None) -> dict:
     return {
         "idle": _env_num("CE_PEER_IDLE_SECS", 240.0, float, allow_zero=skill == "ce-work"),
-        "hard": _env_num("CE_PEER_HARD_SECS", 630.0, float),
+        "hard": _env_num("CE_PEER_HARD_SECS", _derived_hard_default(), float),
         "log_max": int(_env_num("CE_PEER_LOG_MAX_BYTES", 10 * 1024 * 1024, int)),
         "result_max": int(_env_num("CE_PEER_RESULT_MAX_BYTES", 5 * 1024 * 1024, int)),
         "poll": _env_num("CE_PEER_POLL_SECS", 2.0, float),

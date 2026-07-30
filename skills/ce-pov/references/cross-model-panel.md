@@ -217,17 +217,16 @@ repository. For named peers, start one job per exact target; for a selected pane
 start one job per selected peer. Start all jobs before waiting.
 
 **At the defaults, the peer budget needs nothing from you.** This skill's worker
-self-bounds at 600s and the runner supervisor's own default is 630s, so the
+self-bounds at 600s and the runner supervisor derives a floor of 1230s, so the
 runner window already sits outside the worker's cap and reaps nothing healthy.
 
-**Raising `CROSS_MODEL_HARD_SECS` above 600 here also requires raising
-`CE_PEER_HARD_SECS` to at least `knob + 30`.** The worker reads the knob from the
-ambient environment, but the runner does not derive its supervisor window from it
-— left alone it stays at 630s and becomes the tightest window, reaping the worker
-the knob was raised for. Both are ordinary environment variables the runner and
-worker inherit, so export them together. Do not re-export a *resolved*
-`CROSS_MODEL_HARD_SECS` onto the worker's command line: that converts a fallback
-into an override and strips the worker of its route-aware default.
+**Raising `CROSS_MODEL_HARD_SECS` widens the runner window automatically.** The
+runner derives its supervisor hard cap from the ambient knob
+(`max(1230, knob + 30)`). Do not set a numeric `CE_PEER_HARD_SECS` here — and
+clear any ambient one on the start prefix (`CE_PEER_HARD_SECS=`) so a stale
+export cannot undercut the derivation. Do not re-export a *resolved*
+`CROSS_MODEL_HARD_SECS` onto the worker's command line: that converts a
+fallback into an override and strips the worker of its route-aware default.
 
 Each worker writes `<run-dir>/pov-<target>.json`, where `<target>` is the resolved
 route target with `grok-cli`/`grok-cursor` collapsing to `grok`. Pass exactly that

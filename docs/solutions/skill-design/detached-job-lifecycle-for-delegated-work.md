@@ -52,10 +52,10 @@ Never let one tool call span a delegate's runtime. Split the lifecycle so every 
 
    Two corollaries, each of which has shipped as a bug:
 
-   - **Never hardcode a derived window.** A literal in prose survives a knob change, and the tightest window then silently reaps a *healthy* peer — the worst outcome, because the peer's full spend is already paid and the loss is invisible in the output. Every start path must pass the derived values (the runner otherwise falls back to its own `CE_PEER_HARD_SECS` default and becomes the tightest window).
+   - **Never hardcode a derived window.** A literal in prose survives a knob change, and the tightest window then silently reaps a *healthy* peer — the worst outcome, because the peer's full spend is already paid and the loss is invisible in the output. The runner derives its own supervisor hard window from ambient `CROSS_MODEL_HARD_SECS` (`max(1230, knob + 30)`; explicit `CE_PEER_HARD_SECS` still wins for ce-work / elevation). The caller's aggregate deadline (`knob + 10`) is still printed at dispatch — never invent a shorter total wait.
    - **Do not bound the caller's *total* waiting below the deadline.** A single bounded `wait` slice sized to the idle window cannot reach an aggregate deadline several times its length; the caller must repeat slices until terminal or the deadline is spent. Widening the budget is worthless if the waiting side still stops early.
 
-   Earlier revisions of this rule required the aggregate deadline to be **shorter than or equal to** the worker's hard cap. That inverted ordering is what let the caller reap a still-productive worker before its own backstop fired; the outward nesting above supersedes it. `tests/skills/cross-model-peer-budget.test.ts` is the mechanical guard — the class recurred once already under prose alone.
+   Earlier revisions of this rule required the aggregate deadline to be **shorter than or equal to** the worker's hard cap. That inverted ordering is what let the caller reap a still-productive worker before its own backstop fired; the outward nesting above supersedes it. `tests/skills/cross-model-peer-budget.test.ts` and the runner unit fixture (`HardDefaultFromCrossModel`) are the mechanical guards — the class recurred under prose-only derivation (#1267 / #1271).
 
 6. **SINGLE TERMINAL RECORD.** Exactly one authoritative terminal state, written atomically after the worker classifies the outcome. Never two files (e.g. a status word AND a separate exit-code file) that a crash can leave disagreeing.
 
