@@ -73,8 +73,11 @@ function preambles(): { file: string; script: string }[] {
 describe("scratch-root preamble executes on this host", () => {
   test("every shipped preamble creates its root and exits 0", () => {
     const blocks = preambles()
-    // Guard the guard: a broken extractor silently testing nothing is the failure mode here.
-    expect(blocks.length).toBeGreaterThanOrEqual(12)
+    // Guard the guard: an extractor that quietly matches nothing is the failure mode here, and
+    // it would look identical to a clean pass. Pin the count of *blocks* (16 across 12 files),
+    // not files — a floor of 12 would let four blocks disappear before this went red. `>=` so
+    // adding a skill does not break the suite; a drop means the extractor or the prose moved.
+    expect(blocks.length).toBeGreaterThanOrEqual(16)
 
     const parent = mkdtempSync(path.join(tmpdir(), "ce-preamble-"))
     try {
