@@ -226,7 +226,9 @@ runner derives its supervisor hard cap from the ambient knob
 clear any ambient one on the start prefix (`CE_PEER_HARD_SECS=`) so a stale
 export cannot undercut the derivation. Do not re-export a *resolved*
 `CROSS_MODEL_HARD_SECS` onto the worker's command line: that converts a
-fallback into an override and strips the worker of its route-aware default.
+fallback into an override and strips the worker of its route-aware default
+(idle-guarded streaming routes share `HARD_SECS`; `grok-cli` alone keeps the
+lower `UNGUARDED_HARD_SECS` bound because its `--json-schema` path cannot stream).
 
 Each worker writes `<run-dir>/pov-<target>.json`, where `<target>` is the resolved
 route target with `grok-cli`/`grok-cursor` collapsing to `grok`. Pass exactly that

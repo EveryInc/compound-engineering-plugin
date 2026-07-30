@@ -45,12 +45,9 @@ function caps(rel: string): { idle: number; hard: number } {
   return { idle: Number(idle[1]), hard: Number(hard[1]) }
 }
 
-// Only run_codex_cmd watches PEERLOG for byte growth, so only that route has a
-// liveness guard independent of the hard cap. run_timeout_cmd routes (claude,
-// grok, cursor, composer) are bounded solely by their timeout — and
-// start_heartbeat keeps emitting "peer alive" whether or not the peer progresses,
-// so the runner's idle window cannot see their wedge either. Raising their cap
-// only doubles how long a wedged CLI hangs.
+// Only routes that cannot stream (today: grok-cli with --json-schema) stay on
+// UNGUARDED_HARD_SECS. Claude/cursor-family stream and share HARD_SECS + IDLE_SECS
+// via run_timeout_cmd's idle poll (#1270).
 function unguardedHard(rel: string): number | null {
   const m = read(rel).match(/UNGUARDED_HARD_SECS="\$\{CROSS_MODEL_HARD_SECS:-(\d+)\}"/)
   return m ? Number(m[1]) : null
@@ -68,33 +65,48 @@ describe("cross-model peer budget", () => {
     expect(caps(SCRIPTS["ce-code-review"])).toEqual(caps(SCRIPTS["ce-doc-review"]))
   })
 
-  test("a route without output-idle detection never gets the raised backstop", () => {
+  test("grok-cli stays hard-only below the raised backstop", () => {
     for (const [skill, rel] of Object.entries(SCRIPTS)) {
       const { hard } = caps(rel)
       const unguarded = unguardedHard(rel)
-      const usesTimeoutRoute = /run_timeout_cmd\(\)/.test(read(rel))
-      if (!usesTimeoutRoute) continue
+      const src = read(rel)
+      if (!/run_timeout_cmd\(\)/.test(src)) continue
+      // Streaming routes share HARD_SECS; only grok-cli keeps the unguarded bound.
+      expect(src, `${skill} must hard-only grok-cli`).toContain(
+        'run_timeout_cmd "" "$UNGUARDED_HARD_SECS" no-idle',
+      )
+      expect(src, `${skill} must idle-guard claude`).toContain(
+        'run_timeout_cmd "$PROMPT_FILE" "$HARD_SECS" idle',
+      )
       if (hard > 600) {
-        // Raised the guarded cap, so the unguarded routes need their own lower one.
-        expect(unguarded, `${skill} must bound idle-unguarded routes separately`).not.toBeNull()
+        expect(unguarded, `${skill} must keep UNGUARDED for grok-cli`).not.toBeNull()
         expect(unguarded!, `${skill} unguarded cap`).toBeLessThanOrEqual(600)
       }
-      // Whatever the guarded cap is, the unguarded one may never exceed it.
       if (unguarded !== null) expect(unguarded, `${skill} unguarded cap`).toBeLessThanOrEqual(hard)
     }
   })
 
-  test("run_timeout_cmd applies the unguarded cap, not the raised one", () => {
+  test("run_timeout_cmd idle mode polls PEERLOG like run_codex_cmd", () => {
     for (const [skill, rel] of Object.entries(SCRIPTS)) {
       const src = read(rel)
-      if (caps(rel).hard <= 600) continue // no split needed while the cap is unraised
       const body = src.slice(src.indexOf("run_timeout_cmd() {"))
       const fn = body.slice(0, body.indexOf("\n}\n") + 1)
-      expect(fn, `${skill} run_timeout_cmd must use UNGUARDED_HARD_SECS`).toContain(
-        "$UNGUARDED_HARD_SECS",
+      expect(fn, `${skill} idle mode must poll PEERLOG`).toContain('wc -c <"$PEERLOG"')
+      expect(fn, `${skill} idle mode must reap on IDLE_SECS`).toContain('"$IDLE_SECS"')
+      expect(fn, `${skill} must accept no-idle for grok-cli`).toContain('idle_mode="${3:-idle}"')
+    }
+  })
+
+  test("streaming adapters use stream-json; grok-cli stays on buffered json", () => {
+    for (const [skill, rel] of Object.entries(SCRIPTS)) {
+      const src = read(rel)
+      expect(src, `${skill} claude streams`).toMatch(
+        /claude[\s\S]*?--output-format stream-json --verbose/,
       )
-      expect(fn, `${skill} run_timeout_cmd must not use the raised cap`).not.toMatch(
-        /exec (?:"\$TO_BIN" -k 10|perl -e '[^']*') "\$HARD_SECS"/,
+      expect(src, `${skill} cursor-family streams`).toContain("--output-format stream-json")
+      // grok-cli schema path remains buffered json (schema vs stream mutual exclusion).
+      expect(src, `${skill} grok-cli stays json`).toMatch(
+        /grok-cli\)[\s\S]*?--json-schema "\$SCHEMA_REF" --output-format json/,
       )
     }
   })

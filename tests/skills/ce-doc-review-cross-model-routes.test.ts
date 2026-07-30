@@ -266,6 +266,8 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(cmd).not.toContain("--bare")
     expect(cmd).toContain("--effort high")
     expect(cmd).toContain("--model opus")
+    expect(cmd).toContain("--output-format stream-json")
+    expect(cmd).toContain("--verbose")
   })
 
   test("grok CLI: deny Read + web/subagents off + dontAsk + effort high", () => {
@@ -276,6 +278,9 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(cmd).toContain("--permission-mode dontAsk")
     expect(cmd).toContain("--effort high")
     expect(cmd).toContain("--model grok-4.5")
+    expect(cmd).toContain("--json-schema")
+    expect(cmd).toContain("--output-format json")
+    expect(cmd).not.toContain("stream-json")
   })
 
   test("cursor-agent routes: ask mode + sandbox enabled + scratch workspace", () => {
@@ -285,6 +290,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
       expect(cmd).toContain("--trust")
       expect(cmd).toContain("--sandbox enabled")
       expect(cmd).toContain("--workspace")
+      expect(cmd).toContain("--output-format stream-json")
     }
     expect(emitAdapter("grok-cursor")).toContain("cursor-grok-4.5-high")
     expect(emitAdapter("cursor")).not.toContain("--model")

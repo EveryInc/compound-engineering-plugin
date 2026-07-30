@@ -326,6 +326,9 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(cmd).toContain("Skill")
     expect(cmd).toContain("--effort high")
     expect(cmd).toContain("--model opus")
+    // stream-json + --verbose: PEERLOG grows mid-run for run_timeout_cmd idle (#1270).
+    expect(cmd).toContain("--output-format stream-json")
+    expect(cmd).toContain("--verbose")
     // In-tree review: Read must remain available (unlike doc-review's --tools "").
     expect(cmd).not.toContain("--tools")
     expect(cmd).not.toContain("--bare")
@@ -343,6 +346,10 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(cmd).toContain("--model grok-4.5")
     expect(cmd).toContain("--cwd <repo-root>")
     expect(cmd).not.toContain("--deny Read")
+    // Schema forces buffered json — no PEERLOG idle signal (#1270 residual).
+    expect(cmd).toContain("--json-schema")
+    expect(cmd).toContain("--output-format json")
+    expect(cmd).not.toContain("stream-json")
   })
 
   test("cursor-agent routes: ask mode + sandbox + repo workspace", () => {
@@ -352,11 +359,32 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
       expect(cmd).toContain("--trust")
       expect(cmd).toContain("--sandbox enabled")
       expect(cmd).toContain("--workspace <repo-root>")
+      expect(cmd).toContain("--output-format stream-json")
     }
     expect(emitAdapter("grok-cursor")).toContain("cursor-grok-4.5-high")
     expect(emitAdapter("cursor")).not.toContain("--model")
     expect(emitAdapter("composer")).toContain("composer-2.5-fast")
   })
+
+  test("silent PEERLOG on a streaming route is reaped by idle before the hard cap", () => {
+    // Fake CLI writes nothing to stdout; heartbeat still fires on stderr. Idle
+    // poll must reap before HARD_SECS (same shape as elevation-dispatch AE4).
+    const stub = "#!/bin/sh\ncat >/dev/null\nsleep 60\n"
+    const { env } = sandbox(["claude"], stub)
+    const runDir = makeRunDir()
+    const started = Date.now()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_IDLE_SECS: "3",
+      CROSS_MODEL_HARD_SECS: "120",
+      CROSS_MODEL_HEARTBEAT_SECS: "1",
+    })
+    const elapsedSec = (Date.now() - started) / 1000
+    expect(r.stderr).toContain("peer alive")
+    expect(r.stderr).toMatch(/peer output idle|output idle/)
+    expect(r.files).not.toContain("adversarial-claude.json")
+    expect(elapsedSec).toBeLessThan(40)
+  }, 45_000)
 
   test("adapters target repo-root, not shared run-dir fold-in path", () => {
     expect(emitAdapter("codex")).toContain("-C <repo-root>")

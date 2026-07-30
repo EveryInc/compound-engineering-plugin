@@ -74,17 +74,14 @@ Three flag-level gotchas surfaced alongside the sizes:
 
 ## Why This Matters
 
-The idle guard in this repo currently sits on precisely the wrong route.
+Stdout buffering decides whether a `$PEERLOG` idle poll is meaningful. Under
+buffered `--output-format json`, mid-run byte growth is zero, so an idle poll
+would reap every healthy run. Under `stream-json`, progressive events keep the
+window alive. Measure the quiet interval before choosing `CROSS_MODEL_IDLE_SECS`
+— see `docs/solutions/skill-design/quiet-interval-floors-for-streaming-peer-routes.md`
+for the #1270 floors.
 
-`run_codex_cmd` (`cross-model-adversarial-review.sh:478-510`) is the only runner with idle detection: it polls `wc -c <"$PEERLOG"` every 5 seconds and reaps the peer when the file has not grown for `IDLE_SECS` (default 180, :387) or when total elapsed exceeds `HARD_SECS` (default 600, :388). `run_timeout_cmd` (:512-531) enforces only the hard cap — no idle detection at all.
-
-Route dispatch (:574-599) sends only `codex` to `run_codex_cmd`; `claude`, `grok-cli`, `grok-cursor`, `cursor`, and `composer` all go to `run_timeout_cmd`. So the idle guard is attached to the one route whose output is flat *within* a reasoning turn (measured: 48 seconds flat mid-turn), while the routes that could stream progressively get no idle detection.
-
-The source itself obscures this: the pre-dispatch log line at `:573` announces `(idle ${IDLE_SECS}s / hard ${HARD_SECS}s)` for **every** route, including the `run_timeout_cmd` routes where no idle guard actually runs. Anyone reading the logs to reason about a reaped peer will believe an idle window was in force on a route that has none.
-
-This is survivable today rather than actively broken: adversarial review is a multi-step task, so each completed codex item resets the 180s clock, and the 600s hard cap bounds the worst case. But it is a latent sharp edge — a single-step or unusually long reasoning turn on the codex route would be reaped as idle while perfectly healthy, and the JSON envelope would be lost entirely because a buffered CLI has written nothing yet.
-
-The failure is also asymmetric in cost. Killing a healthy peer discards an entire multi-minute model call with zero partial output to recover from. And the outer layer compounds this: `peer-job-runner.py:589-594` enforces `CE_PEER_LOG_MAX_BYTES` (10MB, :171) mid-run by **killing the worker**, not by truncating the log — so a chatty streaming format traded for better liveness signal introduces a new way to lose the run. Choosing a streaming format is therefore a two-sided decision: it improves progress detection but raises byte volume against a cap whose enforcement is fatal.
+The failure is also asymmetric in cost. Killing a healthy peer discards an entire multi-minute model call with zero partial output to recover from. And the outer layer compounds this: `peer-job-runner.py` enforces `CE_PEER_LOG_MAX_BYTES` (10MB) mid-run by **killing the worker**, not by truncating the log — so a chatty streaming format traded for better liveness signal introduces a new way to lose the run. Choosing a streaming format is therefore a two-sided decision: it improves progress detection but raises byte volume against a cap whose enforcement is fatal.
 
 ## When to Apply
 
@@ -124,15 +121,17 @@ claude -p --output-format stream-json --verbose --json-schema "$SCHEMA_REF" ...
 
 **The grok dead end.** `grok --output-format streaming-json` streams, and `grok --json-schema` implies `--output-format json`. There is no combination that gives both structured output and progressive bytes, so a route needing a schema on grok must use an out-of-band mechanism or accept that no in-turn liveness signal exists — the hard cap is the only guard available.
 
-**The current asymmetry in this repo,** for reference when touching the dispatch block:
+**Post-#1270 dispatch shape** (measure before changing floors):
 
 ```
-cross-model-adversarial-review.sh:387-388   IDLE_SECS=180 / HARD_SECS=600
-cross-model-adversarial-review.sh:491       size="$(wc -c <"$PEERLOG" ...)"   # only in run_codex_cmd
-cross-model-adversarial-review.sh:574-599   codex -> run_codex_cmd (idle+hard)
-                                            all other routes -> run_timeout_cmd (hard only)
+codex                                  -> run_codex_cmd (idle + HARD_SECS)
+claude / cursor / composer / grok-cursor
+  (stream-json)                        -> run_timeout_cmd idle + HARD_SECS
+grok-cli (schema + json)               -> run_timeout_cmd no-idle + UNGUARDED_HARD_SECS
 ```
 
-Adding streaming output to a `run_timeout_cmd` route only helps if that route also gains idle detection; conversely, keeping idle detection on the codex route only remains safe as long as the task stays multi-step.
+Adding streaming flags without an idle poll (or an idle poll without streaming)
+is still unsafe — both halves are required. Shared `CROSS_MODEL_IDLE_SECS`
+still clears the codex Luna quiet floor.
 
 **External precedent for the mechanism shape.** Anthropic ships `CLAUDE_ASYNC_AGENT_STALL_TIMEOUT_MS` (default 10 minutes), which resets on each streaming progress event and aborts the subagent only if no progress arrives within the window. That is a progress-reset idle window layered on a streaming transport — the same combination recommended above, and evidence that wall-clock caps alone are not the industry answer either.

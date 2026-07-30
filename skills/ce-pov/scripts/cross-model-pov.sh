@@ -196,11 +196,14 @@ adapter_argv() {
       # Keep project auto-discovery disabled while allowing only repository reads
       # and bounded public web checks. Mutating tools, Bash, MCP, and subagents are
       # absent from the allowlist.
+      # stream-json + --verbose for PEERLOG idle (#1270); schema still composes.
       printf '%s\0' claude -p --model "$(route_model claude)" --effort high --permission-mode dontAsk \
         --safe-mode --disable-slash-commands --tools Read,Glob,Grep,WebSearch,WebFetch \
-        --max-turns 15 --no-session-persistence --json-schema "$SCHEMA_REF" --output-format json
+        --max-turns 15 --no-session-persistence --json-schema "$SCHEMA_REF" \
+        --output-format stream-json --verbose
       ;;
     grok-cli)
+      # Schema forces buffered json — hard-only, no PEERLOG idle (#1270).
       printf '%s\0' grok --prompt-file "$PROMPT_FILE" --model "$(route_model grok-cli)" --effort high \
         --cwd "$READ_ROOT" --permission-mode dontAsk \
         --deny Edit --deny Write --deny Bash --deny Task --deny 'mcp__*' \
@@ -209,15 +212,15 @@ adapter_argv() {
       ;;
     grok-cursor)
       printf '%s\0' cursor-agent -p --model "$(route_model grok-cursor)" --mode ask --trust \
-        --sandbox enabled --workspace "$READ_ROOT" --output-format json
+        --sandbox enabled --workspace "$READ_ROOT" --output-format stream-json
       ;;
     cursor)
       printf '%s\0' cursor-agent -p --mode ask --trust \
-        --sandbox enabled --workspace "$READ_ROOT" --output-format json
+        --sandbox enabled --workspace "$READ_ROOT" --output-format stream-json
       ;;
     composer)
       printf '%s\0' cursor-agent -p --model "$(route_model composer)" --mode ask --trust \
-        --sandbox enabled --workspace "$READ_ROOT" --output-format json
+        --sandbox enabled --workspace "$READ_ROOT" --output-format stream-json
       ;;
     *) return 1 ;;
   esac
@@ -410,18 +413,19 @@ trap 'cleanup_private_scratch' EXIT
   printf '\n</subject-payload>\n'
 } > "$PROMPT_FILE"
 
-# --- run machinery: idle-timeout for streaming codex, hard cap for the rest --
-# On the codex route the idle cap is the liveness guard and HARD_SECS only
-# backstops a peer that stays productive past any useful budget. The
-# run_timeout_cmd routes have no output-idle detection, so for them HARD_SECS is
-# itself the liveness guard -- which is why it may not be raised for those routes
-# without adding real idle detection first. This default stays at 600s
-# because this skill's codex route runs the lower sol/high tier -- ce-code-review
-# and ce-doc-review run luna/xhigh and default higher. `CROSS_MODEL_HARD_SECS` is
-# shared across all three, and the orchestrator's aggregate deadline derives from
-# it (see references/cross-model-panel.md), so a raised knob raises both windows.
+# --- run machinery: idle-timeout for streaming peers, hard-only for grok-cli --
+# On idle-guarded routes the idle cap is the liveness guard and HARD_SECS only
+# backstops a peer that stays productive past any useful budget. Claude and
+# cursor-agent stream (`stream-json`) so run_timeout_cmd polls PEERLOG (#1270).
+# grok-cli keeps --json-schema (buffered) and stays hard-only on
+# UNGUARDED_HARD_SECS. This skill's default HARD_SECS stays at 600s because its
+# codex route runs the lower sol/high tier -- ce-code-review and ce-doc-review
+# run luna/xhigh and default higher. `CROSS_MODEL_HARD_SECS` is shared across
+# all three, and the orchestrator's aggregate deadline derives from it (see
+# references/cross-model-panel.md), so a raised knob raises both windows.
 IDLE_SECS="${CROSS_MODEL_IDLE_SECS:-180}"
 HARD_SECS="${CROSS_MODEL_HARD_SECS:-600}"
+UNGUARDED_HARD_SECS="${CROSS_MODEL_HARD_SECS:-600}"
 TO_BIN="$(command -v gtimeout || command -v timeout || true)"
 
 # Reap a backgrounded job's whole process group: TERM, then KILL after a grace.
@@ -503,7 +507,7 @@ run_codex_cmd() {   # CMD already built for the codex route; streams to PEERLOG,
   local start last=-1 lastchg now size
   start="$(date +%s)"; lastchg="$start"
   while kill -0 "$pid" 2>/dev/null; do
-    sleep 5; now="$(date +%s)"; size="$(wc -c <"$PEERLOG" 2>/dev/null || echo 0)"
+    now="$(date +%s)"; size="$(wc -c <"$PEERLOG" 2>/dev/null || echo 0)"
     [ "$size" != "$last" ] && { last="$size"; lastchg="$now"; }
     if [ $(( now - lastchg )) -ge "$IDLE_SECS" ]; then
       log "codex output idle ${IDLE_SECS}s; reaping peer process group"; reap "$pid"; break
@@ -511,6 +515,9 @@ run_codex_cmd() {   # CMD already built for the codex route; streams to PEERLOG,
     if [ $(( now - start )) -ge "$HARD_SECS" ]; then
       log "codex exceeded hard cap ${HARD_SECS}s; reaping peer process group"; reap "$pid"; break
     fi
+    # 1s slices so a finished peer is noticed promptly (was sleep-5-first, which
+    # added up to 5s after every short stub / healthy exit).
+    sleep 1
   done
   if wait "$pid" 2>/dev/null; then RUN_SUCCEEDED=true
   else log "peer exited non-zero or timed out"; fi
@@ -524,22 +531,42 @@ run_codex_cmd() {   # CMD already built for the codex route; streams to PEERLOG,
   ACTIVE_PEER_PID=""
 }
 
-run_timeout_cmd() {   # $1 = stdin file ("" -> /dev/null). CMD already built.
+run_timeout_cmd() {
+  # $1 = stdin file ("" -> /dev/null). $2 = hard cap secs. $3 = "idle" | "no-idle".
   RUN_SUCCEEDED=false
   # Run from the declared read root. Private prompt/output paths are absolute and
   # remain outside the repository; route adapters separately carry the same root.
   local stdin_file="${1:-}"; [ -n "$stdin_file" ] || stdin_file=/dev/null
+  local hard_cap="${2:-$HARD_SECS}"
+  local idle_mode="${3:-idle}"
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
   set -m
-  if [ -n "$TO_BIN" ]; then
-    ( cd "$READ_ROOT" && exec "$TO_BIN" -k 10 "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
+  if [ "$idle_mode" = "idle" ]; then
+    ( cd "$READ_ROOT" && exec "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
+  elif [ -n "$TO_BIN" ]; then
+    ( cd "$READ_ROOT" && exec "$TO_BIN" -k 10 "$hard_cap" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
   else
-    ( cd "$READ_ROOT" && exec perl -e 'alarm shift; exec @ARGV' "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
+    ( cd "$READ_ROOT" && exec perl -e 'alarm shift; exec @ARGV' "$hard_cap" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
   fi
   local pid=$!
   ACTIVE_PEER_PID="$pid"
   [ "$prev" = 0 ] && set +m
   start_heartbeat
+  if [ "$idle_mode" = "idle" ]; then
+    local start last=-1 lastchg now size
+    start="$(date +%s)"; lastchg="$start"
+    while kill -0 "$pid" 2>/dev/null; do
+      now="$(date +%s)"; size="$(wc -c <"$PEERLOG" 2>/dev/null || echo 0)"
+      [ "$size" != "$last" ] && { last="$size"; lastchg="$now"; }
+      if [ $(( now - lastchg )) -ge "$IDLE_SECS" ]; then
+        log "peer output idle ${IDLE_SECS}s; reaping peer process group"; reap "$pid"; break
+      fi
+      if [ $(( now - start )) -ge "$hard_cap" ]; then
+        log "peer exceeded hard cap ${hard_cap}s; reaping peer process group"; reap "$pid"; break
+      fi
+      sleep 1
+    done
+  fi
   if wait "$pid" 2>/dev/null; then RUN_SUCCEEDED=true
   else log "peer exited non-zero or timed out"; fi
   reap "$pid" 2>/dev/null || true   # sweep survivors in the provider's own group (see run_codex_cmd)
@@ -633,7 +660,7 @@ attempt_route() {   # <provider> <route>
     cursor)      note="auto (serving model unverified)" ;;
     composer)    note="$(route_model composer)" ;;
   esac
-  log "peer run: provider=$provider route=$route model=$note POV read-only least-privilege (idle ${IDLE_SECS}s / hard ${HARD_SECS}s)"
+  log "peer run: provider=$provider route=$route model=$note POV read-only least-privilege (idle ${IDLE_SECS}s / hard ${HARD_SECS}s; grok-cli hard-only ${UNGUARDED_HARD_SECS}s)"
   case "$route" in
     codex)
       run_codex_cmd
@@ -641,14 +668,17 @@ attempt_route() {   # <provider> <route>
         recover_pov_json "$PEERLOG" "$RAW_OUT" && log "recovered codex JSON from stdout (-o file unavailable)"
       fi
       ;;
-    grok-cli)    run_timeout_cmd ""            ; [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # grok reads --prompt-file
-    claude)      run_timeout_cmd "$PROMPT_FILE"; [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # claude -p reads stdin
+    grok-cli)    run_timeout_cmd "" "$UNGUARDED_HARD_SECS" no-idle
+                 [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # grok reads --prompt-file
+    claude)      run_timeout_cmd "$PROMPT_FILE" "$HARD_SECS" idle
+                 [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # claude -p reads stdin
     grok-cursor|cursor|composer)
       # cursor-agent reads the prompt from stdin (verified). Use stdin, NOT a
       # positional argv token: the composed prompt (persona + schema + template +
       # full subject payload, up to CROSS_MODEL_MAX_PAYLOAD_CHARS) can exceed ARG_MAX and fail
       # the exec with E2BIG on low-limit hosts, whereas stdin has no size limit.
-      run_timeout_cmd "$PROMPT_FILE"; [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;
+      run_timeout_cmd "$PROMPT_FILE" "$HARD_SECS" idle
+      [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;
   esac
   if [ "$RUN_SUCCEEDED" != true ]; then
     rm -f "$RAW_OUT"
