@@ -44,6 +44,122 @@ skip()    { echo "  ➖  $1"; }
 detail()  { echo "       $1"; }
 section() { echo ""; echo " $1"; }
 
+# Read one top-level scalar from the repo's flat local-config convention. This is
+# intentionally not a general YAML parser: comments and absent/empty keys are
+# ignored, surrounding quotes are removed, and values are never evaluated.
+read_flat_config_value() {
+  local config_file="$1"
+  local config_key="$2"
+  local value
+  value=$(awk -v key="$config_key" '
+    $0 ~ "^" key "[[:space:]]*:" {
+      sub("^" key "[[:space:]]*:[[:space:]]*", "")
+      sub(/[[:space:]]+#.*$/, "")
+      sub(/^[[:space:]]+/, "")
+      sub(/[[:space:]]+$/, "")
+      print
+      exit
+    }
+  ' "$config_file")
+
+  case "$value" in
+    \"*\") value=${value#\"}; value=${value%\"} ;;
+    \'*\') value=${value#\'}; value=${value%\'} ;;
+  esac
+  printf '%s' "$value"
+}
+
+# Report whether a retired top-level key is still present without interpreting
+# its value. Detection is intentionally separate from routing so legacy scalar
+# settings can receive a migration diagnostic without remaining supported.
+has_flat_config_key() {
+  local config_file="$1"
+  local config_key="$2"
+  awk -v key="$config_key" '
+    $0 ~ "^" key "[[:space:]]*:" { found = 1 }
+    END { exit(found ? 0 : 1) }
+  ' "$config_file"
+}
+
+# Read the narrow YAML sequence used by work_engine_preferences. The local
+# config remains human-authored YAML, but setup health needs only this one
+# deterministic shape rather than a general parser.
+read_work_engine_preferences() {
+  local config_file="$1"
+  awk '
+    function trim(value) {
+      sub(/^[[:space:]]+/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      return value
+    }
+    function scalar(value) {
+      sub(/[[:space:]]+#.*$/, "", value)
+      value = trim(value)
+      if (value ~ /^".*"$/ || value ~ /^\047.*\047$/) {
+        value = substr(value, 2, length(value) - 2)
+      }
+      return value
+    }
+    function emit_item() {
+      if (!have_item) return
+      if (harness == "" && model != "") {
+        print "ERROR\tmodel \047" model "\047 has no harness in work_engine_preferences"
+      } else if (harness == "") {
+        print "ERROR\tempty item in work_engine_preferences"
+      } else {
+        print "ITEM\t" harness "\t" (model == "" ? "default" : model)
+      }
+      have_item = 0
+      harness = ""
+      model = ""
+    }
+    /^[^[:space:]#-][^:]*[[:space:]]*:/ {
+      if (active) {
+        emit_item()
+        active = 0
+      }
+    }
+    /^work_engine_preferences[[:space:]]*:/ {
+      active = 1
+      next
+    }
+    active {
+      line = $0
+      if (line ~ /^[[:space:]]*($|#)/) next
+      if (line ~ /^[[:space:]]*-[[:space:]]*harness[[:space:]]*:/) {
+        emit_item()
+        sub(/^[[:space:]]*-[[:space:]]*harness[[:space:]]*:[[:space:]]*/, "", line)
+        harness = scalar(line)
+        have_item = 1
+        next
+      }
+      if (line ~ /^[[:space:]]*-[[:space:]]*model[[:space:]]*:/) {
+        emit_item()
+        sub(/^[[:space:]]*-[[:space:]]*model[[:space:]]*:[[:space:]]*/, "", line)
+        model = scalar(line)
+        have_item = 1
+        next
+      }
+      if (line ~ /^[[:space:]]+model[[:space:]]*:/) {
+        sub(/^[[:space:]]+model[[:space:]]*:[[:space:]]*/, "", line)
+        model = scalar(line)
+        if (!have_item) have_item = 1
+        next
+      }
+      if (line ~ /^[[:space:]]+harness[[:space:]]*:/) {
+        sub(/^[[:space:]]+harness[[:space:]]*:[[:space:]]*/, "", line)
+        harness = scalar(line)
+        if (!have_item) have_item = 1
+        next
+      }
+      print "ERROR\tunsupported work_engine_preferences entry: " trim(line)
+    }
+    END {
+      if (active) emit_item()
+    }
+  ' "$config_file"
+}
+
 has_brew=$(command -v brew >/dev/null 2>&1 && echo "yes" || echo "no")
 in_repo=$(git rev-parse --is-inside-work-tree >/dev/null 2>&1 && echo "yes" || echo "no")
 
@@ -92,6 +208,12 @@ legacy_cfg="skip"
 repo_cfg_gitignore="skip"
 local_cfg="skip"
 example_cfg="skip"
+retired_keys=()
+work_engine_cfg="skip"
+work_engine_detail=""
+work_engine_preferences_note=""
+work_engine_preferences_note_level="detail"
+work_engine_migration_note=""
 project_issues=0
 
 if [ "$in_repo" = "yes" ]; then
@@ -102,11 +224,107 @@ if [ "$in_repo" = "yes" ]; then
   local_cfg="missing"
   if [ -e "$repo_root/.compound-engineering/config.local.yaml" ]; then
     local_cfg="present"
+    local_config_path="$repo_root/.compound-engineering/config.local.yaml"
     if git check-ignore -q "$repo_root/.compound-engineering/config.local.yaml" 2>/dev/null; then
       repo_cfg_gitignore="ok"
     else
       repo_cfg_gitignore="missing"
     fi
+
+    work_engine_mode=$(read_flat_config_value "$local_config_path" "work_engine_mode")
+    work_engine_preferences_count=0
+    work_engine_preferences_detail=""
+    work_engine_preferences_error=""
+    retired_work_engine_keys=""
+    for retired_key in work_engine_target work_engine_model; do
+      if has_flat_config_key "$local_config_path" "$retired_key"; then
+        if [ -n "$retired_work_engine_keys" ]; then
+          retired_work_engine_keys="${retired_work_engine_keys}, ${retired_key}"
+        else
+          retired_work_engine_keys="$retired_key"
+        fi
+      fi
+    done
+    if [ -n "$retired_work_engine_keys" ]; then
+      work_engine_migration_note="retired config key(s) ${retired_work_engine_keys} detected; migrate routing to work_engine_preferences entries with harness and optional model fields, then remove the retired keys"
+      project_issues=$((project_issues + 1))
+    fi
+    while IFS=$'\t' read -r preference_kind preference_harness preference_model; do
+      case "$preference_kind" in
+        ITEM)
+          work_engine_preferences_count=$((work_engine_preferences_count + 1))
+          case "$preference_harness" in
+            codex|claude|grok|cursor) ;;
+            *)
+              [ -z "$work_engine_preferences_error" ] && work_engine_preferences_error="invalid harness '$preference_harness' in work_engine_preferences"
+              ;;
+          esac
+          if [ "$preference_model" != "default" ]; then
+            case "$preference_model" in
+              [A-Za-z0-9]*)
+                case "$preference_model" in
+                  *[!A-Za-z0-9._:/-]*)
+                    [ -z "$work_engine_preferences_error" ] && work_engine_preferences_error="invalid model '$preference_model' in work_engine_preferences"
+                    ;;
+                esac
+                ;;
+              *)
+                [ -z "$work_engine_preferences_error" ] && work_engine_preferences_error="invalid model '$preference_model' in work_engine_preferences"
+                ;;
+            esac
+          fi
+          preference_display="${preference_harness}@${preference_model}"
+          if [ -n "$work_engine_preferences_detail" ]; then
+            work_engine_preferences_detail="${work_engine_preferences_detail}, ${preference_display}"
+          else
+            work_engine_preferences_detail="$preference_display"
+          fi
+          ;;
+        ERROR)
+          [ -z "$work_engine_preferences_error" ] && work_engine_preferences_error="$preference_harness"
+          ;;
+      esac
+    done < <(read_work_engine_preferences "$local_config_path")
+
+    case "$work_engine_mode" in
+      ""|off)
+        work_engine_cfg="native"
+        if [ -n "$work_engine_mode" ]; then
+          work_engine_detail="standing preference is off"
+        else
+          work_engine_detail="setting is commented or missing"
+        fi
+        if [ -n "$work_engine_preferences_error" ]; then
+          work_engine_preferences_note="invalid dormant work_engine_preferences: ${work_engine_preferences_error}"
+          work_engine_preferences_note_level="warn"
+          project_issues=$((project_issues + 1))
+        elif [ "$work_engine_preferences_count" -gt 0 ]; then
+          work_engine_preferences_note="ordered preferences ignored while standing mode is off"
+        fi
+        ;;
+      prefer|require)
+        if [ -n "$work_engine_preferences_error" ]; then
+          work_engine_cfg="unavailable"
+          work_engine_detail="$work_engine_preferences_error"
+          project_issues=$((project_issues + 1))
+        elif [ "$work_engine_preferences_count" -eq 0 ] && [ -n "$retired_work_engine_keys" ]; then
+          work_engine_cfg="unavailable"
+          work_engine_detail="$work_engine_mode cannot use retired scalar routing; migrate ${retired_work_engine_keys} to work_engine_preferences"
+        elif [ "$work_engine_preferences_count" -eq 0 ]; then
+          work_engine_cfg="unavailable"
+          work_engine_detail="$work_engine_mode requires work_engine_preferences"
+          project_issues=$((project_issues + 1))
+        else
+          work_engine_cfg="$work_engine_mode"
+          work_engine_detail="$work_engine_preferences_detail"
+        fi
+        ;;
+      *)
+        work_engine_cfg="invalid"
+        work_engine_detail="invalid mode '$work_engine_mode' ignored; native is the default"
+        project_issues=$((project_issues + 1))
+        ;;
+    esac
   fi
 
   script_dir="$(cd "$(dirname "$0")" && pwd)"
@@ -118,6 +336,17 @@ if [ "$in_repo" = "yes" ]; then
     example_cfg="outdated"
   else
     example_cfg="ok"
+  fi
+
+  # Retired keys set as ACTIVE (non-commented) in the user's local config. A
+  # commented `# plan_use_fable:` line does not match `^[[:space:]]*<key>:`.
+  local_cfg_file="$repo_root/.compound-engineering/config.local.yaml"
+  if [ -f "$local_cfg_file" ]; then
+    for key in plan_use_fable brainstorm_use_fable fable_nudge; do
+      if grep -Eq "^[[:space:]]*${key}[[:space:]]*:" "$local_cfg_file" 2>/dev/null; then
+        retired_keys+=("$key")
+      fi
+    done
   fi
 fi
 
@@ -173,6 +402,26 @@ if [ "$in_repo" = "yes" ]; then
     skip "No local config yet (.compound-engineering/config.local.yaml)"
   fi
 
+  if [ "$work_engine_cfg" = "native" ]; then
+    ok "CE Work implementation engine: native (${work_engine_detail})"
+    if [ -n "$work_engine_preferences_note" ]; then
+      if [ "$work_engine_preferences_note_level" = "warn" ]; then
+        warn "$work_engine_preferences_note"
+      else
+        detail "$work_engine_preferences_note"
+      fi
+    fi
+  elif [ "$work_engine_cfg" = "prefer" ] || [ "$work_engine_cfg" = "require" ]; then
+    ok "CE Work implementation engine: ${work_engine_cfg} -> ${work_engine_detail}"
+  elif [ "$work_engine_cfg" = "unavailable" ]; then
+    warn "CE Work implementation engine unavailable: ${work_engine_detail}"
+  elif [ "$work_engine_cfg" = "invalid" ]; then
+    warn "CE Work implementation engine: ${work_engine_detail}"
+  elif [ "$work_engine_cfg" = "skip" ]; then
+    skip "CE Work implementation engine: native (no local config)"
+  fi
+  [ -n "$work_engine_migration_note" ] && warn "$work_engine_migration_note"
+
   if [ "$example_cfg" = "ok" ]; then
     ok "Example config is current"
   elif [ "$example_cfg" = "missing" ]; then
@@ -182,6 +431,15 @@ if [ "$in_repo" = "yes" ]; then
     warn "Example config outdated (new settings available)"
     project_issues=$((project_issues + 1))
   fi
+
+  for key in "${retired_keys[@]}"; do
+    case "$key" in
+      plan_use_fable)       warn "Retired config key '$key' — removed; use 'plan_model' instead" ;;
+      brainstorm_use_fable) warn "Retired config key '$key' — removed; use 'brainstorm_model' instead" ;;
+      fable_nudge)          warn "Retired config key '$key' — removed; model elevation is always available" ;;
+    esac
+    project_issues=$((project_issues + 1))
+  done
 else
   section "Project config"
   skip "Not inside a git repository"

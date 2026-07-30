@@ -17,7 +17,9 @@ tags: [security, prompt-injection, cache, tmp, file-ownership, shared-host]
 
 ## Context
 
-The repo-grounding cache stored profiles at `/tmp/compound-engineering/repo-profile/<root-sha>/<head-sha>.json`. Both SHAs are knowable for any public or shared repo (the root commit and HEAD), and `/tmp/compound-engineering/` is world-traversable. Security review found: on a multi-user host, a local co-tenant can **pre-create** that exact path and plant a `<head-sha>.json` that satisfies every validity gate (it sets `head_sha` to the victim's HEAD, the current schema version, and a `profile` object — cleanliness is checked against the victim's working tree, not the file's authenticity). The victim's skill then prints `HIT` and feeds the attacker's JSON into the agent as the "project profile" — attacker-controlled text into the LLM context, i.e. **indirect prompt injection**.
+The repo-grounding cache stored profiles at `/tmp/compound-engineering/repo-profile/<root-sha>/<inputs-digest>.json` (earlier: `<head-sha>.json`). The path components are knowable for any public or shared repo (root commit + a digest of committed profile-input blobs), and `/tmp/compound-engineering/` is world-traversable. Security review found: on a multi-user host, a local co-tenant can **pre-create** that exact path and plant a JSON file that satisfies every validity gate (it sets `inputs_digest` to the victim's current digest, the current schema version, and a `profile` object — cleanliness is checked against the victim's working tree, not the file's authenticity). The victim's skill then prints `HIT` and feeds the attacker's JSON into the agent as the "project profile" — attacker-controlled text into the LLM context, i.e. **indirect prompt injection**.
+
+The repo-orientation profile was later removed entirely after behavioral evaluation showed no marginal value over lean task-specific grounding. The ownership lesson still applies to any predictable shared-temp artifact whose contents are read into an agent context.
 
 Impact is calibrated (needs a local co-tenant + predictable SHAs; payload is text, not code-exec or secret disclosure), but the injection elevation is why it is worth fixing rather than dismissing as "just repo metadata."
 
@@ -45,7 +47,7 @@ Not needed for per-run `mktemp -d` scratch with an unguessable path consumed onl
 ## Examples
 
 ```python
-# Vulnerable: gates check authenticity-irrelevant facts (head_sha/schema/cleanliness),
+# Vulnerable: gates check authenticity-irrelevant facts (inputs_digest/schema/cleanliness),
 # never WHO wrote the file.
 with open(path) as f:
     doc = json.load(f)

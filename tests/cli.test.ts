@@ -1,7 +1,13 @@
-import { describe, expect, test } from "bun:test"
+import { afterAll, describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
+import { materializeClaudePluginFixture } from "./helpers/claude-plugin-fixture"
+
+const fixture = materializeClaudePluginFixture(path.join(import.meta.dir, "fixtures", "sample-plugin"))
+const fixtureRoot = fixture.root
+
+afterAll(fixture.cleanup)
 
 async function exists(filePath: string): Promise<boolean> {
   try {
@@ -98,7 +104,6 @@ function envWithoutOpenCodeConfig(overrides: NodeJS.ProcessEnv = {}): NodeJS.Pro
 describe("CLI", () => {
   test("install converts fixture plugin to OpenCode output", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-opencode-"))
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
     const proc = Bun.spawn([
       "bun",
@@ -134,7 +139,6 @@ describe("CLI", () => {
 
   test("install defaults output to ~/.config/opencode", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-local-default-"))
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
     const repoRoot = path.join(import.meta.dir, "..")
     const proc = Bun.spawn([
@@ -167,7 +171,6 @@ describe("CLI", () => {
   })
 
   test("install rejects native marketplace-only plugin targets", async () => {
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const repoRoot = path.join(import.meta.dir, "..")
 
     for (const target of ["copilot", "droid", "qwen"]) {
@@ -1052,7 +1055,6 @@ describe("CLI", () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-github-install-"))
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-github-workspace-"))
     const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-github-repo-"))
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const pluginRoot = repoRoot
 
     await fs.cp(fixtureRoot, pluginRoot, { recursive: true })
@@ -1194,7 +1196,6 @@ describe("CLI", () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-strip-map-"))
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-strip-map-ws-"))
     const projectRoot = path.join(import.meta.dir, "..")
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const codexRoot = path.join(tempRoot, ".codex")
     await fs.mkdir(codexRoot, { recursive: true })
     await fs.writeFile(
@@ -1246,7 +1247,6 @@ describe("CLI", () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-env-home-"))
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-env-home-ws-"))
     const projectRoot = path.join(import.meta.dir, "..")
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const codexHome = path.join(tempRoot, "profiles", "sstk")
 
     const proc = Bun.spawn([
@@ -1285,7 +1285,6 @@ describe("CLI", () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-explicit-home-"))
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-explicit-home-ws-"))
     const projectRoot = path.join(import.meta.dir, "..")
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const codexHome = path.join(tempRoot, "profiles", "sstk")
 
     const proc = Bun.spawn([
@@ -1331,7 +1330,6 @@ describe("CLI", () => {
     await fs.writeFile(path.join(shadowDir, "README.md"), "Not a plugin")
 
     // Set up a fake GitHub source with a valid plugin
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const pluginRoot = repoRoot
     await fs.cp(fixtureRoot, pluginRoot, { recursive: true })
 
@@ -1384,7 +1382,6 @@ describe("CLI", () => {
   test("install --branch clones a specific branch for non-Claude targets", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-branch-install-"))
     const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-branch-repo-"))
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const pluginRoot = repoRoot
 
     await fs.cp(fixtureRoot, pluginRoot, { recursive: true })
@@ -1444,7 +1441,6 @@ describe("CLI", () => {
 
   test("convert writes OpenCode output", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-convert-"))
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
     const proc = Bun.spawn([
       "bun",
@@ -1477,7 +1473,6 @@ describe("CLI", () => {
   test("convert supports --codex-home for codex output", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-home-"))
     const codexRoot = path.join(tempRoot, ".codex")
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
     const proc = Bun.spawn([
       "bun",
@@ -1514,7 +1509,6 @@ describe("CLI", () => {
 
   test("install supports --also with codex output", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-also-"))
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const codexRoot = path.join(tempRoot, ".codex")
 
     const proc = Bun.spawn([
@@ -1564,7 +1558,6 @@ describe("CLI", () => {
     // resolveTargetOutputRoot, so --also opencode lands at the global config
     // root regardless of the primary target.
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-also-opencode-from-codex-"))
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const codexRoot = path.join(tempRoot, ".codex")
     const repoRoot = path.join(import.meta.dir, "..")
 
@@ -1617,7 +1610,6 @@ describe("CLI", () => {
     // either. Without --output, opencode should still resolve to the global
     // config root.
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-also-codex-from-opencode-"))
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const codexRoot = path.join(tempRoot, ".codex")
     const repoRoot = path.join(import.meta.dir, "..")
 
@@ -1661,7 +1653,6 @@ describe("CLI", () => {
   test("install --to opencode without --output respects OPENCODE_CONFIG_DIR", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-opencode-env-"))
     const customRoot = path.join(tempRoot, "custom-opencode-config")
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const repoRoot = path.join(import.meta.dir, "..")
 
     const proc = Bun.spawn([
@@ -1813,7 +1804,6 @@ describe("CLI", () => {
   test("convert supports --pi-home for pi output", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-pi-home-"))
     const piRoot = path.join(tempRoot, ".pi")
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
     const proc = Bun.spawn([
       "bun",
@@ -1854,7 +1844,6 @@ describe("CLI", () => {
 
   test("install supports --also with pi output", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-also-pi-"))
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const piRoot = path.join(tempRoot, ".pi")
 
     const proc = Bun.spawn([
@@ -1893,7 +1882,6 @@ describe("CLI", () => {
 
   test("install --to opencode uses permissions:none by default", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-perms-none-"))
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
     const proc = Bun.spawn([
       "bun",
@@ -1931,7 +1919,6 @@ describe("CLI", () => {
 
   test("install --to opencode --permissions broad writes permission block", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-perms-broad-"))
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
     const proc = Bun.spawn([
       "bun",
@@ -1973,7 +1960,6 @@ describe("CLI", () => {
     const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "cli-install-all-home-"))
     const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "cli-install-all-cwd-"))
     const repoRoot = path.join(import.meta.dir, "..")
-    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
     await fs.mkdir(path.join(tempHome, ".config", "opencode"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".codex"), { recursive: true })

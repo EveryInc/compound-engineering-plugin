@@ -1,12 +1,12 @@
 # `ce-pov`
 
-> Form a decisive, project-grounded point of view on an external input — judge it against *this* project, not in the abstract, and return a graded verdict.
+> Form a decisive, project-grounded point of view in the subject's own shape — an adoption verdict, a document take, or a position on supplied approaches — with an optional different-model cross-check.
 
-`ce-pov` is the **judgment** skill. You bring something from the outside world — a framework you're weighing, a library, a pattern, a CVE, an "is our approach dead?" question — and it returns a decisive, graded verdict for *your* project: **Adopt / Trial / Hold / Reject / Not-our-problem**. It is distinct from generic web research, which explains a topic; `ce-pov` decides what that topic means *here*.
+`ce-pov` is the **judgment** skill. Give it an external-adoption question, a plan/spec/brainstorm to react to holistically, or competing approaches already on the table. It returns a decisive POV in that subject's shape: **Adopt / Trial / Hold / Reject / Not-our-problem** for adoption, strengths/risks and a bottom line for a document, or a preferred approach (or an honest toss-up) for supplied options. It is distinct from generic web research, which explains a topic; `ce-pov` decides what that topic means *here*.
 
-Its core rule is **dual-grounding**: no verdict issues unless it clears two absolute floors — a **project floor** (it cites a concrete, verified fact about your repo) and an **external floor** (at least one verified external source). Strong external evidence never compensates for a thin project read, and vice versa. That is the whole differentiator from a bare "what's your POV on X?" prompt, which answers in the abstract and agrees with your framing.
+Its core rule is **earned grounding**: every POV clears a **project floor** by citing a concrete, verified project fact. Adoption verdicts also clear the full **external floor**; document and approach POVs externally verify the claims that are load-bearing to their bottom line. That is the whole differentiator from a bare "what's your POV on X?" prompt, which answers in the abstract and agrees with your framing.
 
-It fills the gap between exploring (`/ce-ideate`), scoping (`/ce-brainstorm`), and building (`/ce-plan`): none of those *evaluates a fixed external thing for fit*. When `ce-pov` reaches a verdict, it proposes the right next step — plan it, scope it, spike it — and can hand the decision off as the seed.
+It fills the judgment gap between exploring (`/ce-ideate`), scoping (`/ce-brainstorm`), reviewing for findings (`/ce-doc-review`), and building (`/ce-plan`). When `ce-pov` reaches a position, it proposes the right separate next step — edit it, plan it, scope it, or spike it — and can hand the decision off as the seed.
 
 ---
 
@@ -14,10 +14,39 @@ It fills the gap between exploring (`/ce-ideate`), scoping (`/ce-brainstorm`), a
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Researches an external input and grounds it against your repo, then returns a graded, conditional verdict with a recommended next step |
-| When to use it | "Should we adopt/migrate to X?", "what should we use for Y?", "does this CVE affect us?", "is our approach still right?", or a mid-session second opinion |
-| What it produces | A compact chat verdict (grade + conditions + next step); optionally a shareable write-up or a captured decision record |
-| What's next | A reasoned handoff — `/ce-plan`, `/ce-brainstorm`, or a spike — proposed *from the verdict*, not assumed |
+| What does it do? | Grounds a question, document, or supplied approach set against your project and returns a decisive POV in the same shape |
+| When to use it | "Should we adopt X?", "what do you think of this plan?", "A or B here?", or a mid-session second opinion |
+| What it produces | A compact chat POV; optionally a shareable write-up, captured decision, or attributed cross-model panel note |
+| What's next | A reasoned, separate handoff — edits, `/ce-plan`, `/ce-brainstorm`, or a spike — proposed *from the POV*, not assumed |
+
+---
+
+## Example invocations
+
+```text
+# Decide whether an external tool fits this project
+/ce-pov should we adopt Drizzle ORM here?
+
+# Get a holistic bottom line on a document
+# Use ce-doc-review instead when you want issue-by-issue findings
+/ce-pov what do you think of docs/plans/new-checkout.md?
+
+# Choose between approaches that are already on the table
+/ce-pov for this service, should we use polling or webhooks?
+
+# Supply a bare link when you want ce-pov to propose the possible questions first
+/ce-pov https://example.com/tool
+
+# Ask an independent panel to pressure-test the proposal already in this conversation
+/ce-pov oracle that proposal
+
+# Ask for an independent cross-model check on an explicit question
+/ce-pov ask an independent panel whether we should adopt this auth provider
+/ce-pov compare your take on docs/plans/new-checkout.md with Grok and Composer
+
+# Invoke it mid-session for a grounded second opinion on the current direction
+/ce-pov
+```
 
 ---
 
@@ -36,18 +65,19 @@ A bare agent asked "what's your POV on X?" fails in predictable ways:
 `ce-pov` runs evaluation as a disciplined method with explicit gates:
 
 - **Frame before grounding** — orient on the input, settle the intent, never guess
-- **Dual-grounding floors** — a verdict must cite both verified external evidence and a concrete project fact
+- **Subject-aware grounding** — every POV needs a concrete project fact; external evidence is required wherever an external claim carries the conclusion
 - **Skeptic stance** — seek disconfirming evidence, name the alternatives; "no" and "not our problem" are first-class
 - **Reversibility-tiered effort** — a one-way door gets the full workup; a reversible `npm i` gets one screen
-- **Reasoned handoff** — the next step is computed from the verdict, not assumed
+- **Optional different-model panel** — named peers and `oracle` can cross-check the POV; material dissent gets a bounded debate rather than a vote
+- **Reasoned handoff** — the next step is computed from the POV, not assumed
 
 ---
 
 ## What Makes It Novel
 
-### 1. Dual-grounding as two absolute floors
+### 1. Subject-aware grounding floors
 
-The verdict must clear a **project floor** (a named incumbent + a concrete touchpoint, the verified *absence* of an incumbent plus an integration point for a net-new adoption, or a prior decision) **and** an **external floor** (at least one verified external source). The floors are independent: strong external evidence cannot rescue a thin project read, and a rich repo read cannot substitute for verified external facts. Fail a floor and the skill returns the matching `Hold` subtype rather than a confident guess.
+Every POV must clear a **project floor**: a verified project fact relevant to the decision or take. Adoption questions also require a verified external source; document and approach subjects require one when an external claim materially supports the bottom line. Failed adoption floors return the existing `Hold` subtype; failed document/approach floors return an explicit `Blocked` result rather than a confident guess.
 
 ### 2. The intake framing gate — propose, never guess
 
@@ -59,21 +89,35 @@ The differentiator is reading *your* project: dependency manifests and lockfiles
 
 ### 4. Scout-based grounding keeps the verdict context clean
 
-Grounding runs in **scout sub-agents** that search in their own context and return a compact dossier plus a gist; the orchestrator reads dossiers on demand and reasons over the verdict on a clean context. This keeps noisy issue/PR/code search from crowding out the judgment. Dispatch is tier-sensitive — a reversible Tier-1 call runs a single combined pass; the full fleet is reserved for one-way decisions.
+Grounding runs in **scout sub-agents** that search in their own context and return a compact dossier plus a gist; the orchestrator reads dossiers on demand and reasons over the verdict on a clean context. This keeps noisy issue/PR/code search from crowding out the judgment. Dispatch is tier-sensitive — a reversible Tier-1 call runs a single combined pass; the full fleet is reserved for one-way decisions. When the load-bearing facts are already located and verified in context — common for warm invocations and reversible Tier-1 calls — ce-pov may verify them with bounded inline reads instead of dispatching scouts, while the prior-decision scan still runs either way.
 
 ### 5. Cold and warm invocation — one method
 
-Run it cold (you state the question) or warm (drop `/ce-pov` into a live session for a second opinion). In warm mode the conversation supplies only the *question and the claims to verify* — never grounding. **Provenance buckets** keep "things the chat assumed" out of the verified-facts column, so twenty turns of mutual assumption can't quietly become "grounding." Warm mode is a guest: a verdict block, then control handed back.
+Run it cold (you state the question) or warm (drop `/ce-pov` into a live session for a second opinion). In warm mode the conversation supplies only the *question and the claims to verify* — never grounding. **Provenance buckets** keep "things the chat assumed" out of the verified-facts column, so twenty turns of mutual assumption can't quietly become "grounding." Warm mode is a guest: a POV block, then control handed back; peers run only when explicitly requested.
 
 ### 6. Reversibility-tiered effort — no ritual on reversible calls
 
 The skill classifies the decision as a one-way or two-way door and sizes the work to match. A reversible dependency gets a one-screen verdict with no reversal trigger; a data store, auth provider, or migration gets the deep workup. The reversibility classification is stated, so a shallow verdict is defensible, not lazy.
 
-### 7. A fixed, graded verdict vocabulary
+### 7. Shape-specific output contracts
 
-Every verdict uses the same five grades (Adopt / Trial / Hold / Reject / Not-our-problem) and a fixed schema (grade, incumbent, verified facts, conditions, handoff, and a reversal trigger on weighty calls). `Hold` is a complete, valid "wait" decision, not a failure. The fixed shape makes verdicts comparable and lets a later run find a prior decision.
+Adoption verdicts preserve the same five grades (Adopt / Trial / Hold / Reject / Not-our-problem) and fixed schema. Document takes lead with a bottom line, strengths, and risks. Approach-set positions choose and explain one supplied option, or say "Either is viable" with the material tradeoffs rather than forcing a scoreboard winner.
 
-### 8. Reasoned, tier-gated follow-up
+### 8. Independent, bounded cross-model panels
+
+A peer never replaces ce-pov's own judgment. Name one or more providers to cross-check directly, ask in ordinary language for independent opinions from other models, use `oracle` as shorthand to fan out to as many as two reachable different-model peers, or accept a proactive offer on a decision with meaningful correction cost. Named peers are honored exactly and are not capped. The skill announces the selected peers and proceeds read-only; it asks only when a retry introduces an unexpected recipient/intermediary or an active instruction requires separate approval.
+
+Peers inspect the shared working tree directly. When a proposal or document already exists in the project, ce-pov points peers to it instead of constructing duplicate review packets. The initial independent round carries the framed question, subject, read scope, and evidence — but withholds ce-pov's conclusion, its argument (risk lists, decisive premises, advocacy, evaluative labels), and every other voice's judgment; the host's case enters at the reconcile exchange, its designed home. When the subject is itself an already-formed position — ce-pov's prior take or your own view — that position ships as the subject and peers return their own verdict on the underlying question rather than capitulating to it. A critique request includes the position being challenged because that position is then the subject.
+
+A POV delivered after any panel summons always reports panel status — which peers ran, or that none did and the observed reason — so a dropped, unreachable, or never-entered panel never silently ships as a bare solo verdict.
+
+When voices materially disagree, they get up to two reconciliation exchanges by default — so a full default run is **up to three exchanges total**: one blind independent round plus at most two reconciliations. Before each exchange ce-pov verifies disputed, decision-changing project claims and gives every voice the same evidence delta (`verified`, `contradicted`, or `unverifiable`) plus the already-formed positions. Each peer reports whether it `moved` or `held`. A user-supplied pass or round limit overrides the default.
+
+**Why two, and not five.** Three total exchanges is where debate stops paying: cross-model agreement converges within two to three rounds, and past that the marginal accuracy gain flattens or reverses while cost and latency keep climbing. Extra rounds also make the panel *worse* at its actual job — models with correlated training tend to converge on each other rather than on new evidence, so a high round count mostly manufactures agreement that reads as confidence. Most runs never reach the cap anyway: convergence is ce-pov's reasoned confidence, not a vote tally, so a run ends the moment the POV is settled or every peer holds.
+
+**The cap is a checkpoint, not a ceiling.** Two bounds *automatic* spend; it does not bound the debate. At the effective limit, automatic dispatch stops and ce-pov exposes the convergence or stalemate. It recommends a specific bounded extension only when it can name the unresolved question, new evidence or framing, and why another exchange could move a position; continuing requires user approval unless a larger limit was supplied in advance. That way the rare decision that genuinely needs a fourth exchange can reach one by reasoning, instead of every routine run pre-paying for it. ce-pov remains the decision-maker, not a vote counter, and a failed or timed-out peer never blocks the solo POV.
+
+### 9. Reasoned, tier-gated follow-up
 
 The chat verdict is a compact TL;DR by default. The follow-up is reasoned *from the verdict*: an `Adopt` proposes `/ce-plan` (or `/ce-brainstorm` if scope is fuzzy), a `Trial` proposes a spike, a `Reject` just ends. You can also ask for a full shareable write-up (HTML by default, opened locally or published) or capture the decision into `docs/solutions/` via `/ce-compound` — but those are opt-in, and trivial verdicts get a one-line prose offer, not a menu.
 
@@ -98,12 +142,16 @@ Reach for `ce-pov` when:
 - You need to pick from a bounded field of real options ("what should we use for feature flags?")
 - A CVE or deprecation lands and you need to know if it's *your* problem
 - You want to revisit a past decision ("we passed on X last year — still right?")
+- You want a holistic take on a plan, spec, or brainstorm rather than an issue list
+- You supplied competing approaches and want a project-grounded choice or honest tradeoff
+- You want ce-pov's take cross-checked by named different-model peers or `oracle`
 - You're mid-brainstorm and want a grounded second opinion on the direction
 
 Skip `ce-pov` when:
 
 - You just want to understand a topic with no project angle → general research (it's not a verdict)
-- You want options generated from a blank slate → `/ce-debug`'s sibling for ideas, `/ce-ideate`
+- You want options generated from a blank slate → `/ce-ideate`
+- You want findings or an issue-by-issue review of a document → `/ce-doc-review`
 - You've already decided and want to scope or build it → `/ce-brainstorm` or `/ce-plan`
 - You're diagnosing broken behavior → `/ce-debug`
 
@@ -123,14 +171,7 @@ Skip `ce-pov` when:
 
 ## Use Standalone
 
-- **Adoption** — `/ce-pov should we adopt Drizzle ORM here?`
-- **Migration** — `/ce-pov should we migrate off Moment to Temporal?`
-- **Selection** — `/ce-pov what should we use for feature flags?`
-- **Comparison** — `/ce-pov how does Biome compare to our ESLint + Prettier setup?`
-- **Exposure** — `/ce-pov does CVE-2026-1234 in tar affect us?`
-- **Revisit** — `/ce-pov we passed on tRPC last year — still the right call?`
-- **Bare link** — paste a URL with nothing else; the intake gate proposes framings
-- **Warm** — `/ce-pov` mid-brainstorm for a second opinion
+The examples near the top cover the main subject shapes and panel routes. Other useful prompts include migration decisions, bounded technology selection, CVE exposure, revisiting a past decision, and a Cursor-default cross-check.
 
 ---
 
@@ -142,6 +183,23 @@ Skip `ce-pov` when:
 | `<a question>` | Cold evaluation — e.g. "should we adopt X?", "does this CVE affect us?" |
 | `<a bare link>` | Orients on the link, then proposes candidate framings before grounding |
 | `<a selection question>` | Picks from a bounded field; routes to `/ce-ideate` if the field can't be bounded |
+| `<a document or supplied approach set>` | Returns a holistic take or a project-grounded position in that subject's shape |
+| `compare/cross-check with <peers>` | Forms ce-pov's own POV, then consults every named peer |
+| `oracle` | Runs a blind initial cross-check with up to two reachable different-model peers, then bounded evidence-based reconciliation when needed |
+
+### Peer target names
+
+Target names distinguish models from harnesses, and are intentionally not aliases for each other:
+
+| Name | Resolves to |
+|------|-------------|
+| `Cursor` | `cursor-agent` using its configured default/Auto model |
+| `Composer` | A Composer model through Cursor |
+| `Grok` | The Grok CLI preferred; a sanctioned Grok-via-Cursor route otherwise |
+
+Cursor Auto is labeled unverified unless a serving-model receipt exists, and without that proof it does not count as independent cross-model corroboration.
+
+Concrete model IDs and CLI flags are preferred adapter defaults, not permanent product promises. If the landscape changes, ce-pov tries the declared mapping first, then may discover the closest compatible equivalent within the same requested target and hard safety/egress boundaries. It discloses the substitution and actual route; an explicitly named model or newly receiving intermediary never changes silently.
 
 ---
 
@@ -150,11 +208,17 @@ Skip `ce-pov` when:
 **How is this different from a general "deep research" tool?**
 A general research tool explains a topic in the abstract. `ce-pov` refuses to issue a verdict unless it cites a concrete fact about *your* project — that project floor is the whole point. It ends in a decision, not a report.
 
-**Why two floors instead of one?**
-A verdict built only on web evidence is an abstract opinion; a verdict built only on repo reads is uninformed. Requiring both keeps the skill from confidently recommending something it didn't actually evaluate against your code, and from grading a thin read at "lowered confidence."
+**Why are the floors subject-aware?**
+An adoption verdict built only on web evidence is abstract, while a document take does not need ceremonial web research unless an external claim actually carries its conclusion. The project floor always applies; the external floor applies wherever it can change the answer.
+
+**How is this different from `ce-doc-review`?**
+Use `ce-pov` for "what do you think of this doc?" — a holistic bottom line with strengths and risks. Use `ce-doc-review` for "review this doc" or "find the issues" — structured findings and remediation.
+
+**Why only two reconciliation rounds — why not five?**
+Because two is the cap on *automatic* spend, not on the debate. A default run is up to three exchanges (one blind independent round plus two reconciliations), which is where cross-model debate converges; beyond that the marginal gain flattens while cost, latency, and correlated-model false consensus all rise. Most runs stop earlier still, because ce-pov ends on reasoned confidence rather than a round count. When a decision genuinely needs more, the limit is a checkpoint: ce-pov proposes a bounded extension with the specific unresolved question it would answer, and you can supply a larger limit up front.
 
 **Does it always write a document?**
-No. The default is a compact chat verdict. A full shareable write-up and a durable `ce-compound` capture are both opt-in — offered, never forced.
+No. The default is a compact chat POV. A full shareable write-up and a durable `ce-compound` capture are both opt-in — offered, never forced.
 
 **Will it nag me with clarifying questions?**
 Only when the intent is genuinely ambiguous (a bare link, no stated intent). A clear question gets a one-line inferred frame and proceeds.
@@ -169,5 +233,6 @@ Yes for any project folder with real material (docs, decks, data) to ground agai
 - [`ce-ideate`](./ce-ideate.md) — generate options from a blank slate; `ce-pov` judges a *given* external thing instead
 - [`ce-brainstorm`](./ce-brainstorm.md) — scope a decision once it's a yes; `ce-pov` decides *whether*
 - [`ce-plan`](./ce-plan.md) — the build-side handoff when a verdict is accepted
+- [`ce-doc-review`](./ce-doc-review.md) — produce issue-shaped findings for a document; `ce-pov` gives the holistic take
 - [`ce-debug`](./ce-debug.md) — investigate *observed* broken behavior; `ce-pov` assesses *exposure* (is this CVE ours?)
 - [`ce-compound`](./ce-compound.md) — capture a weighty verdict into `docs/solutions/` for future precedent

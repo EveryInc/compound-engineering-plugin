@@ -21,8 +21,11 @@ These hold regardless of which skill produced the artifact.
 - **Repo-relative paths for file references.** Always. Never absolute paths
   — they break portability across machines, worktrees, teammates.
 - **No HTML mixed in.** Keep the markdown pure. No `<div>`, no `<details>`,
-  no inline `<style>`. If a layout idea only works as HTML, defer it to the
-  HTML rendering. Markdown stays markdown.
+  no inline `<style>`. The only exception is a contract-defined invisible
+  semantic marker such as `<!-- ce-section: work-relationships -->`; it carries
+  section meaning for downstream agents and does not create layout. If a layout
+  idea only works as HTML, defer it to the HTML rendering. Markdown stays
+  markdown.
 - **No fixed-width line wrapping.** Do not hard-wrap prose to a column (e.g.
   80 chars). Write one sentence per line, or let each paragraph flow as a
   single line. The artifact is read rendered and shared, where fixed wraps add
@@ -135,8 +138,11 @@ contracts — the agent picks the shape that fits the content.
   applicability, unit IDs, and done signals share a uniform shape. Name
   concrete repo commands such as `bun test` rather than generic "run tests"
   when the repo has known commands.
-- **Key Technical Decisions** — bullets with bold decision name + prose
-  rationale, or numbered KTD-N pattern when traceability matters.
+- **Key Technical Decisions** — bullets with `KTD<N>.` plain prefix (same
+  format as `R1.`/`U1.`) + bold decision name + prose rationale. Legacy
+  plans with unnumbered KTDs stay readable by label; do not renumber
+  existing numbered ones. A `session-settled:` annotation renders as part
+  of the KTD bullet's visible text, stem preserved verbatim.
 - **Key Flows / Acceptance Examples** — bullets with bold leader labels
   (Trigger / Actors / Steps / Outcome / Covers / Given-When-Then).
 - **Scope Boundaries** — bullets, optionally split into "Deferred for

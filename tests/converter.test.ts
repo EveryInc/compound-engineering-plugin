@@ -1,13 +1,17 @@
-import { describe, expect, test } from "bun:test"
+import { afterAll, describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import path from "path"
 import { loadClaudePlugin } from "../src/parsers/claude"
 import { convertClaudeToOpenCode, transformSkillContentForOpenCode } from "../src/converters/claude-to-opencode"
 import { parseFrontmatter } from "../src/utils/frontmatter"
 import type { ClaudePlugin } from "../src/types/claude"
+import { materializeClaudePluginFixture } from "./helpers/claude-plugin-fixture"
 
-const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+const fixture = materializeClaudePluginFixture(path.join(import.meta.dir, "fixtures", "sample-plugin"))
+const fixtureRoot = fixture.root
 const compoundEngineeringRoot = path.join(import.meta.dir, "..")
+
+afterAll(fixture.cleanup)
 
 describe("convertClaudeToOpenCode", () => {
   test("current compound-engineering output is skills only, no standalone agents, with one command stub per skill", async () => {

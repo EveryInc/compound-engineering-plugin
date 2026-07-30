@@ -19,6 +19,23 @@ It is pure prose + inline git, with **no bundled script**, so it works verbatim 
 
 ---
 
+## Example invocations
+
+```text
+# Start fresh work in isolation; existing isolation is detected first
+/ce-worktree for the account-notifications feature
+
+# Isolate an existing branch rather than creating a new one
+/ce-worktree isolate feature/account-notifications
+
+# Isolate a pull request without disturbing the current checkout
+/ce-worktree isolate PR 1234
+```
+
+If the current checkout is already an isolated worktree, every form works in place rather than nesting another worktree.
+
+---
+
 ## The Problem
 
 Asking an agent to "make a worktree" is increasingly the *wrong* default, because the agent is usually already in one:

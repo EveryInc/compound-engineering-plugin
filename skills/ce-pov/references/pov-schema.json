@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Cross-model point of view",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["voice", "position", "reasoning", "evidence", "external_check", "mode", "movement"],
+  "properties": {
+    "voice": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Short identity for the peer voice; the worker namespaces it to the provider."
+    },
+    "position": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The adoption grade, document or approach bottom line, skeptic verdict, or blocked state."
+    },
+    "reasoning": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Concise reasoning for the position, including the reason when blocked."
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "description": "A succinct claim with a URL, file:line, or named document section attribution."
+      }
+    },
+    "external_check": {
+      "type": "string",
+      "enum": ["ran", "unavailable"]
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["independent", "skeptic"]
+    },
+    "movement": {
+      "type": "string",
+      "enum": ["initial", "moved", "held"],
+      "description": "Initial position, or whether the voice moved or held during reconciliation."
+    },
+    "cross_model_route": { "type": "string" },
+    "cross_model_target": { "type": "string" },
+    "cross_model_harness": { "type": "string" },
+    "serving_family": { "type": "string" },
+    "model_requested": { "type": "string" },
+    "model_actual": { "type": "string" },
+    "independence_verified": { "type": "boolean" }
+  }
+}

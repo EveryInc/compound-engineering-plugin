@@ -19,6 +19,26 @@ Inspired by Karpathy's autoresearch, generalized for multi-file code changes and
 
 ---
 
+## Example invocations
+
+```text
+# Start from a plain-language outcome and build the measurement spec together
+/ce-optimize reduce build time by 30%
+
+# Optimize a qualitative result with an LLM-as-judge rubric
+/ce-optimize improve clustering quality for notification categories
+
+# Run from an existing, reviewable optimization specification
+/ce-optimize path/to/clustering-quality.yaml
+
+# Resume a persisted run from its saved specification
+/ce-optimize .context/compound-engineering/ce-optimize/clustering-quality/spec.yaml
+```
+
+Use a spec when the metric, gates, budget, or stopping rule must be reviewed before experiments start.
+
+---
+
 ## The Problem
 
 For optimization-shaped problems, the common failure modes:
@@ -148,7 +168,7 @@ The branch (`optimize/<spec-name>`) and experiment log are preserved through Pha
 
 - **From a spec** — `/ce-optimize path/to/spec.yaml` (use `references/example-hard-spec.yaml` or `references/example-judge-spec.yaml` as starting points)
 - **From a description** — `/ce-optimize "reduce build time by 30%"` walks you through writing the spec interactively
-- **Resume an existing run** — `/ce-optimize <spec-name>` detects the existing branch and offers Resume vs Fresh Start
+- **Resume an existing run** — `/ce-optimize .context/compound-engineering/ce-optimize/<spec-name>/spec.yaml` detects the existing branch and offers Resume vs Fresh Start
 
 For a friendly overview of what the skill is for, when to use hard metrics vs LLM-as-judge, and example kickoff prompts, see `references/usage-guide.md`.
 

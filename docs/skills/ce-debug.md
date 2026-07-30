@@ -21,6 +21,27 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 ---
 
+## Example invocations
+
+```text
+# Start from a failing test
+/ce-debug spec/models/notification_subscription_spec.rb
+
+# Start from an issue or ticket and include its full discussion
+/ce-debug https://github.com/acme/widgets/issues/1234
+/ce-debug ABC-456
+
+# Start from observed behavior when no ticket exists
+/ce-debug the digest job sends duplicate emails after a retry
+
+# Invoke first, then paste a stack trace when the error is the best evidence
+/ce-debug
+```
+
+Describe what is observably broken, not the fix you suspect; the skill validates the causal chain before changing code.
+
+---
+
 ## The Problem
 
 Common debugging anti-patterns:
@@ -130,7 +151,7 @@ Skip `ce-debug` when:
 - **Called from `/ce-plan`** — when a planning prompt is bug-shaped (error message, "fix the bug where X", regression), `ce-plan` surfaces `ce-debug` as a route-out option before doing structural planning
 - **Escalates to `/ce-brainstorm`** — when investigation reveals a design problem rather than a logic error, the skill recommends rethinking before implementing
 - **Runs post-fix quality checks** — non-trivial fixes go through `/ce-simplify-code` and `/ce-code-review` before shipping; tiny mechanical fixes skip with a reason
-- **Hands off to `/ce-commit-push-pr`** — after a successful fix on a skill-created branch, the skill defaults to commit-and-PR without further prompting (with an explicit override path if your repo's `AGENTS.md` says otherwise)
+- **Hands off to `/ce-commit-push-pr branding:on`** — after a successful fix on a skill-created branch, the skill explicitly marks the CE provenance and defaults to commit-and-PR without further prompting (with an explicit override path if your repo's `AGENTS.md` says otherwise)
 
 After a PR opens, the skill optionally offers `/ce-compound` to capture learning — but only when the bug is generalizable (3+ recurrence, wrong assumption about a shared dependency). Localized mechanical fixes are skipped silently to avoid cluttering `docs/solutions/` with one-off entries.
 

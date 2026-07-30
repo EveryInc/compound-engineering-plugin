@@ -275,6 +275,12 @@ Long HTML plans are agent-consumed as source text as often as they are read in
 a browser. Keep the heading text visible and adjacent to the `id`; do not rely
 on a nav link alone to carry the section name.
 
+Optional sections with a contract-defined semantic role put that role on their
+wrapping `<section>` with `data-ce-section`. For example, the broader-work
+relationship section uses `data-ce-section="work-relationships"`. The role is
+stable even when the visible heading changes; it supplements, rather than
+replaces, readable heading text and any useful anchor.
+
 ### Text contrast is local
 
 Every text-on-background pairing must hold up on its own. A color that
@@ -358,7 +364,10 @@ contracts — the agent picks shapes that fit the content.
 - **Key Technical Decisions** — repeating cards with the decision ID,
   bold decision title (often with inline code for technical
   identifiers), and prose rationale. Flat cards (not collapsibles) —
-  these are reference material readers scan, not drill into.
+  these are reference material readers scan, not drill into. A
+  `session-settled:` annotation renders as visible text in the card —
+  never an attribute or hidden markup — stem preserved verbatim so
+  grep works on the HTML artifact.
 - **Risks** — cards with a color-coded status eyebrow (e.g., "RISK ·
   MITIGATED" / "OPEN · DEFERRED FOLLOW-UP") and prose body. Communicate
   status through the eyebrow's color plus an optional subtle full-card

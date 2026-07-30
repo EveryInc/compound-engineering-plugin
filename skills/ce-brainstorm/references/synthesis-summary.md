@@ -20,6 +20,8 @@ The internal draft is structured in three labeled buckets. Items may appear in t
 - **Inferred** — what the agent assumed to fill gaps. Scope boundaries the user never explicitly named, success criteria extrapolated from intent, technical assumptions made because the brief interview didn't probe them. The Inferred bucket is the most actionable surface for correction — items here are the agent's bets.
 - **Out of scope** — deliberately excluded items. Adjacent work the agent considered but decided not to include, refactors, nice-to-haves, future-work items. Making exclusions explicit lets the agent spot anything that should actually be included.
 
+A session-settled decision is **Stated with provenance** — record it in the Stated bucket with its class, rejected alternative, and one-line reason, never in Inferred: it is the user's confirmed choice, not an agent bet.
+
 This draft is internal. Do not paste it verbatim into chat. Compose it as a thinking step, then derive stage 2 from it.
 
 ---
@@ -35,6 +37,8 @@ The scoping synthesis has up to four named sections, each **render-conditional**
 3. **What's not in scope** (conditional) — 1–3 bullets, or fold into a single sentence. Render only when deferred items would surprise a downstream reader if absent.
 4. **Call outs** (conditional) — 0–3 bullets. Residual forks the dialogue didn't resolve: post-dialogue consequences (combining user answers surfaced something they couldn't see during Q&A), silent agent inferences, or — in pre-loaded contexts with no dialogue — scope bets the user is seeing for the first time. **Not "questions the agent could have asked during Phase 1.2 but didn't"** — if a call-out reads like a missed dialogue question, Phase 1.2's integration check failed; flag the gap rather than padding the section.
 
+Session-settled decisions render as `Carrying forward:` lines — one line each, placed before Call outs (where Call outs would sit when none survive): `Carrying forward: <decision> over <rejected alternative> — <one-line reason>.` They are statements, never questions and never call-outs: the confirmation covers the overall shape, not decisions the user already made.
+
 Each section answers a different question:
 
 - **What's being built?** → shape
@@ -42,7 +46,11 @@ Each section answers a different question:
 - **What did we cut?** → deferred items a reader would expect to see acknowledged
 - **Where might you redirect?** → residual forks: post-dialogue consequences, silent inferences, late-cycle bets
 
-Then the confirmation: *"Confirm and I'll write the requirements-only plan next, drawing on our dialogue and this synthesis. Or tell me what to change."* The phrasing sets the expectation that confirm -> artifact-write, so the user knows what's about to happen and can interrupt without ambiguity.
+Then the confirmation, which names **what actually happens next** so the user knows what is coming and can interrupt without ambiguity. When a doc is expected — the common case — that is the artifact write: *"Confirm and I'll write the requirements-only plan next, drawing on our dialogue and this synthesis. Or tell me what to change."*
+
+When a doc is already ruled out — the user declined one, or `brainstorm-sections.md`'s "Decide whether a doc is warranted at all" criteria plainly hold — name where the decisions actually go instead, which is whichever of that rule's alternatives *this run* established (`ce-plan`, the user's commit message, `docs/solutions/`): *"Confirm and we're done here — the scope above carries straight into [the destination the dialogue established]. Or tell me what to change."* When the dialogue named none, drop the clause rather than picking one: *"Confirm and we're done here — no doc, as you asked. Or tell me what to change."*
+
+Do not hardcode a destination. This phase writes no commit message and hands off at Phase 4, so asserting a downstream action the run will not take is the same overreach as promising the doc. Phase 3, not this phase, owns the doc-warranted decision, so promising the write here makes a user who already declined a doc decline it a second time.
 
 ### Path A vs Path B: the gate that fires the confirmation question
 
@@ -73,6 +81,7 @@ Each conditional section has its own keep test. Sections are render-conditional 
 
 Cut anything that doesn't match a keep-test category, including:
 
+- Session-settled decisions — already chosen; they render as `Carrying forward:` lines, never call-outs
 - Mechanical items where there is no real alternative
 - Implementation choices that will be settled during planning
 - Items already implied by the scoping synthesis prose
@@ -152,7 +161,7 @@ Based on our dialogue, here's the scope I'm proposing for the Product Contract:
 - [scope-level fork or non-obvious consequence the user can affirm or redirect]
 - [same]
 
-Confirm and I'll write the requirements-only plan next, drawing on our dialogue and this synthesis. Or tell me what to change — even something I captured correctly earlier is fair game to revise (you may have changed your mind or want to correct an unstated assumption).
+[Closing line — name what actually happens next, per "the confirmation" above. Doc expected (the common case):] Confirm and I'll write the requirements-only plan next, drawing on our dialogue and this synthesis. Or tell me what to change — even something I captured correctly earlier is fair game to revise (you may have changed your mind or want to correct an unstated assumption). [Doc already ruled out — user declined one, or the skip criteria plainly hold:] Confirm and we're done here — the scope above carries straight into [the destination this run established; drop this clause when none was named]. Or tell me what to change — even something I captured correctly earlier is fair game to revise.
 ```
 
 ### Path A template (no questions were asked — typically Phase 0.2 short-circuit)
@@ -242,10 +251,10 @@ Fall back to a numbered list in chat only when no blocking tool exists or the ca
 
 ## Self-redirect
 
-If the user response indicates they're in the wrong skill or want a different workflow (e.g., "this is too small, just /ce-work it" or "this needs more thought, let me brainstorm differently"):
+If the user response indicates they're in the wrong skill or want a different workflow (e.g., "this is too small, just use `ce-work`" or "this needs more thought, let me brainstorm differently"):
 
 - Stop ce-brainstorm
-- Suggest the alternative skill the user appears to want (e.g., `/ce-work`, `/ce-debug`)
+- Suggest the alternative skill the user appears to want (e.g., `ce-work`, `ce-debug`)
 - Offer to load it in-session
 - Do not push back or argue — the user's redirect signal is the deliberate choice
 
@@ -265,6 +274,8 @@ After user confirmation (or after the soft-cut decision proceeds), Phase 3 write
 | Out-of-scope bullets | `## Scope Boundaries` |
 
 The chat-time Trade-offs section dissolves into `## Key Decisions` (the explicit choices acknowledged in chat become documented decisions). The chat-time What's-not-in-scope section dissolves into `## Scope Boundaries`.
+
+Session-settled decisions are the exception to the Stated → Requirements row: each routes to `## Key Decisions` carrying its `session-settled:` annotation — a user-confirmed choice, never softened into an inferred bet or recorded as an assumption. This holds equally when the artifact is written from context without dialogue.
 
 No italic capture-context note (e.g., "Captured at Phase 2.5..."). It would leak engineering process into an artifact whose readers do not need that signal.
 

@@ -1,18 +1,36 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterAll, afterEach, describe, expect, test } from "bun:test"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import { loadClaudePlugin } from "../src/parsers/claude"
 import { filterSkillsByPlatform } from "../src/types/claude"
+import { materializeClaudePluginFixture } from "./helpers/claude-plugin-fixture"
 
-const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 const compoundPluginRoot = path.join(import.meta.dir, "..")
-const mcpFixtureRoot = path.join(import.meta.dir, "fixtures", "mcp-file")
-const customPathsRoot = path.join(import.meta.dir, "fixtures", "custom-paths")
-const invalidCommandPathRoot = path.join(import.meta.dir, "fixtures", "invalid-command-path")
-const invalidHooksPathRoot = path.join(import.meta.dir, "fixtures", "invalid-hooks-path")
-const invalidMcpPathRoot = path.join(import.meta.dir, "fixtures", "invalid-mcp-path")
+const fixtureNames = [
+  "sample-plugin",
+  "mcp-file",
+  "custom-paths",
+  "invalid-command-path",
+  "invalid-hooks-path",
+  "invalid-mcp-path",
+] as const
+const fixtures = fixtureNames.map((name) =>
+  materializeClaudePluginFixture(path.join(import.meta.dir, "fixtures", name)),
+)
+const [
+  fixtureRoot,
+  mcpFixtureRoot,
+  customPathsRoot,
+  invalidCommandPathRoot,
+  invalidHooksPathRoot,
+  invalidMcpPathRoot,
+] = fixtures.map((fixture) => fixture.root)
 const tempRoots: string[] = []
+
+afterAll(() => {
+  for (const fixture of fixtures) fixture.cleanup()
+})
 
 afterEach(async () => {
   for (const root of tempRoots.splice(0, tempRoots.length)) {
@@ -33,6 +51,17 @@ async function makeMinimalPluginRoot(): Promise<string> {
 }
 
 describe("loadClaudePlugin", () => {
+  test("repository tree exposes only the root Claude plugin manifest", async () => {
+    const manifests: string[] = []
+    const glob = new Bun.Glob("**/.claude-plugin/plugin.json")
+
+    for await (const manifest of glob.scan({ cwd: compoundPluginRoot, dot: true, onlyFiles: true })) {
+      manifests.push(manifest)
+    }
+
+    expect(manifests.sort()).toEqual([".claude-plugin/plugin.json"])
+  })
+
   test("current compound-engineering plugin ships skills but no source commands or standalone agents", async () => {
     const plugin = await loadClaudePlugin(compoundPluginRoot)
 

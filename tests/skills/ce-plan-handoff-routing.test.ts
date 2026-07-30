@@ -62,7 +62,7 @@ describe("ce-plan post-generation menu routing", () => {
     // Testing for a label fragment (not the full label) tolerates label
     // phrasing tweaks without the assertion becoming brittle.
     const optionFragments: { name: string; fragment: string }[] = [
-      { name: "Start /ce-work", fragment: "Start `/ce-work`" },
+      { name: "Start /ce-work", fragment: "Start `ce-work`" },
       { name: "Run it as a /goal", fragment: "Run it as a `/goal`" },
       { name: "Create Issue", fragment: "Create Issue" },
       { name: "Open in browser", fragment: "Open in browser" },
@@ -88,36 +88,36 @@ describe("ce-plan post-generation menu routing", () => {
     }
   })
 
-  test("Start /ce-work routing names the host skill mechanism and plan path", () => {
+  test("Start ce-work routing names the host skill mechanism and plan path", () => {
     const phaseStart = SKILL_BODY.indexOf("##### 5.3.8")
     const phaseRegion = SKILL_BODY.slice(phaseStart)
 
-    // The Start /ce-work routing BULLET (not the menu list entry) must name
+    // The Start ce-work routing BULLET (not the menu list entry) must name
     // both (a) the host's skill-invocation mechanism and (b) the plan path
     // being passed as the argument.
     // This is what makes the difference between "tell the user to type
     // /ce-work" and "fire the Skill tool now."
     //
-    // Anchor on the bullet form `- **Start \`/ce-work\`**` to avoid matching
-    // the numbered menu list entry `1. **Start \`/ce-work\`** (recommended) -`,
+    // Anchor on the bullet form `- **Start `ce-work`**` to avoid matching
+    // the numbered menu list entry `1. **Start `/ce-work`** (recommended) -`,
     // which legitimately doesn't carry the routing language.
     const ceWorkRoutingMatch = phaseRegion.match(
-      /^- \*\*Start `\/ce-work`\*\*[\s\S]{0,500}/m,
+      /^- \*\*Start `ce-work`\*\*[\s\S]{0,500}/m,
     )
     expect(
       ceWorkRoutingMatch,
-      "ce-plan SKILL.md Phase 5.4 is missing the inline '- **Start `/ce-work`** ...' routing bullet (distinct from the numbered menu list entry).",
+      "ce-plan SKILL.md Phase 5.4 is missing the inline '- **Start `ce-work`** ...' routing bullet (distinct from the numbered menu list entry).",
     ).not.toBeNull()
     const block = ceWorkRoutingMatch![0]
 
     expect(
       /skill[\s-]?invocation|Skill tool|skill primitive/i.test(block),
-      "ce-plan SKILL.md 'Start /ce-work' routing must name the host's skill-invocation mechanism so the agent fires the invocation rather than announcing a handoff in prose. See issue #714.",
+      "ce-plan SKILL.md 'Start ce-work' routing must name the host's skill-invocation mechanism so the agent fires the invocation rather than announcing a handoff in prose. See issue #714.",
     ).toBe(true)
 
     expect(
       /plan path|plan file path|plan as the (?:skill )?argument|passing the plan/i.test(block),
-      "ce-plan SKILL.md 'Start /ce-work' routing must name the plan path as the argument so the agent passes it correctly to ce-work. See issue #714.",
+      "ce-plan SKILL.md 'Start ce-work' routing must name the plan path as the argument so the agent passes it correctly to ce-work. See issue #714.",
     ).toBe(true)
   })
 
@@ -125,16 +125,16 @@ describe("ce-plan post-generation menu routing", () => {
     // Both surfaces must converge so that an agent which loads the reference
     // sees compatible, host-generic guidance.
     const ceWorkLine = HANDOFF_BODY.match(
-      /\*\*Start `\/ce-work`\*\*[^\n]*->[^\n]+/,
+      /\*\*Start `ce-work`\*\*[^\n]*->[^\n]+/,
     )
     expect(
       ceWorkLine,
-      "references/plan-handoff.md is missing the routing line for 'Start /ce-work'.",
+      "references/plan-handoff.md is missing the routing line for 'Start `ce-work`'.",
     ).not.toBeNull()
 
     expect(
       /skill[\s-]?invocation|Skill tool|skill primitive/i.test(ceWorkLine![0]),
-      `references/plan-handoff.md 'Start /ce-work' routing must use host-generic invocation language matching SKILL.md. The bare 'Call /ce-work with the plan path' phrasing was the regression. Found: ${JSON.stringify(ceWorkLine![0])}`,
+      `references/plan-handoff.md 'Start ce-work' routing must use host-generic invocation language matching SKILL.md. The bare 'Call /ce-work with the plan path' phrasing was the regression. Found: ${JSON.stringify(ceWorkLine![0])}`,
     ).toBe(true)
   })
 
@@ -180,7 +180,7 @@ describe("ce-plan post-generation menu routing", () => {
       ).toBe(false)
     }
 
-    for (const route of ["Start `/ce-work`", "Decide on the review's open items"]) {
+    for (const route of ["Start `ce-work`", "Decide on the review's open items"]) {
       const escaped = route.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
       const bullet = SKILL_BODY.match(new RegExp(`^- \\*\\*${escaped}[^\\n]+`, "m"))?.[0]
       expect(bullet, `ce-plan SKILL.md is missing the inline ${route} routing bullet.`).toBeDefined()

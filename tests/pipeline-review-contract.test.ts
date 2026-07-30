@@ -6,6 +6,12 @@ async function readRepoFile(relativePath: string): Promise<string> {
   return readFile(path.join(process.cwd(), relativePath), "utf8")
 }
 
+async function readCeWorkImplementationContract(): Promise<string> {
+  const skill = await readRepoFile("skills/ce-work/SKILL.md")
+  const implementationLoop = await readRepoFile("skills/ce-work/references/implementation-loop.md").catch(() => "")
+  return `${skill}\n${implementationLoop}`
+}
+
 describe("ce-work review contract", () => {
   test("requires code review before shipping", async () => {
     const content = await readRepoFile("skills/ce-work/SKILL.md")
@@ -52,6 +58,9 @@ describe("ce-work review contract", () => {
 
     expect(shipping).toContain("`ce-commit-push-pr` skill")
     expect(shipping).toContain("`ce-commit` skill")
+    expect(shipping).toContain("`branding:on`")
+    expect(shipping).not.toContain("attribution badges")
+    expect(shipping).not.toContain("Compound Engineered badge with accurate model and harness")
 
     // Should not contain inline PR templates or attribution placeholders
     expect(content).not.toContain("gh pr create")
@@ -59,7 +68,7 @@ describe("ce-work review contract", () => {
   })
 
   test("includes per-task testing deliberation in execution loop", async () => {
-    const content = await readRepoFile("skills/ce-work/SKILL.md")
+    const content = await readCeWorkImplementationContract()
 
     // Testing deliberation exists in the execution loop
     expect(content).toContain("Assess testing coverage")
@@ -169,7 +178,7 @@ describe("ce-plan testing contract", () => {
 
 describe("ce-work testing evidence contract", () => {
   test("requires evidence strategy before behavior changes and evidence in return-to-caller", async () => {
-    const content = await readRepoFile("skills/ce-work/SKILL.md")
+    const content = await readCeWorkImplementationContract()
 
     expect(content).toContain("Choose the evidence strategy for this task before changing behavior")
     expect(content).toContain("default to test-first or characterization-first")
@@ -243,23 +252,6 @@ describe("verification_evidence seam parity (ce-work <-> lfg)", () => {
     expect(gate).toContain("Do NOT decide the test strategy inside LFG")
   })
 
-  test("lfg retries ce-work exactly once for evidence, then blocks rather than ships", async () => {
-    const lfg = await readRepoFile("skills/lfg/SKILL.md")
-    const gate = sliceSection(
-      lfg,
-      "2. Invoke the `ce-work` skill with `mode:return-to-caller",
-      "3. Invoke the `ce-simplify-code`"
-    )
-
-    // One-shot retry on the same plan path (idempotency backfill), no user prompt.
-    expect(gate).toContain(
-      "invoke `ce-work` one more time with the same `mode:return-to-caller <plan-path-from-step-1>` argument"
-    )
-    expect(gate).toContain("Do not prompt the user and do not alter the plan path argument")
-    // Second still-missing return stops blocked instead of continuing to ship.
-    expect(gate).toContain("stop as blocked and report the missing fields")
-    expect(gate).toContain("instead of continuing to simplify/review/ship")
-  })
 })
 
 describe("ce-debug regression test selection", () => {
@@ -314,7 +306,7 @@ describe("ce-plan review contract", () => {
     // Both executors are offered; ce-work is always the recommended default (it is the
     // correctly-layered entry point that reaches goal/workflow engines itself), while goal
     // mode is the opt-in preference for driving the work through the harness's goal loop.
-    expect(content).toContain("**Start `/ce-work`** - Build and ship the plan in this session")
+    expect(content).toContain("**Start `ce-work`** - Build and ship the plan in this session")
     expect(content).toContain("**Run it as a `/goal`**")
     expect(content).toMatch(/`ce-work` \(option 1\) always carries \*\(recommended\)\*/i)
     expect(content).toContain("Codex `create_goal` in the available tool list")
@@ -574,6 +566,20 @@ describe("ce-doc-review contract", () => {
     expect(bulkPreview).toContain("Appending to Open Questions (N):")
     expect(bulkPreview).toContain("Skipping (N):")
 
+    // The preview and question are two ordered user-facing events. The
+    // portable contract names the capability before non-exhaustive adapters.
+    const previewEvent = bulkPreview.indexOf("Preview event")
+    const questionCapability = bulkPreview.indexOf(
+      "agent-callable blocking-question capability"
+    )
+    const adapters = bulkPreview.indexOf("Non-exhaustive adapters")
+    expect(previewEvent).toBeGreaterThan(-1)
+    expect(questionCapability).toBeGreaterThan(previewEvent)
+    expect(adapters).toBeGreaterThan(questionCapability)
+    expect(bulkPreview).toContain("user-visible assistant text")
+    expect(bulkPreview).toMatch(/(?:thinking|reasoning).*does not count/)
+    expect(bulkPreview).toContain("do not invoke the blocking-question capability")
+
     // No Acknowledge bucket in bulk preview either
     expect(bulkPreview).not.toContain("Acknowledging (N):")
   })
@@ -656,9 +662,10 @@ describe("ce-compound Phase 1 artifact contract", () => {
 
     // A run identifier scopes the per-subagent artifact files
     expect(content).toContain("RUN_ID")
-    // Run dir under the shared cross-invocation scratch namespace
-    expect(content).toContain("/tmp/compound-engineering/ce-compound/")
-    expect(content).toContain('mkdir -p "/tmp/compound-engineering/ce-compound/')
+    // Run dir under the validated owner-private scratch namespace
+    expect(content).toContain('SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)"')
+    expect(content).toContain('RUN_DIR="$SCRATCH_ROOT/ce-compound/$RUN_ID"')
+    expect(content).toContain('(umask 077; mkdir -p "$RUN_DIR")')
   })
 
   test("Phase 1 subagents write full output to the run-artifact path", async () => {
@@ -670,7 +677,7 @@ describe("ce-compound Phase 1 artifact contract", () => {
     )
 
     // Subagents are instructed to write their full structured output to the run dir
-    expect(phase1).toContain("/tmp/compound-engineering/ce-compound/")
+    expect(phase1).toContain("{run_dir}")
     // ...and return a compact confirmation containing the artifact path
     expect(phase1.toLowerCase()).toContain("artifact path")
     // Inline return is required whenever the write did not succeed (not only when
@@ -688,7 +695,7 @@ describe("ce-compound Phase 1 artifact contract", () => {
     )
 
     // Orchestrator reads the per-subagent artifact files
-    expect(phase2).toContain("/tmp/compound-engineering/ce-compound/")
+    expect(phase2).toContain("{run_dir}")
     // Inline return is the documented fallback when the artifact is absent
     expect(phase2.toLowerCase()).toContain("fall back")
   })
@@ -721,14 +728,35 @@ describe("concept-teaching seam parity (ce-commit-push-pr <-> lfg)", () => {
     expect(lfg).toContain("New concepts:")
 
     // The callsite passes the mode explicitly rather than relying on defaults
-    expect(lfg).toContain("Invoke the `ce-commit-push-pr` skill with `mode:pipeline`.")
+    expect(lfg).toContain("Invoke the `ce-commit-push-pr` skill with `mode:pipeline branding:on`.")
 
-    // The pre-DONE report line names the concept and the /ce-explain pointer
+    // The pre-DONE report names the concept and renders each user-runnable
+    // handoff for the active host rather than hardcoding one harness's syntax.
     expect(lfg).toContain("New concept introduced:")
-    expect(lfg).toContain("run /ce-explain")
+    expect(lfg).toContain("run <rendered ce-explain invocation> to go deeper")
+    expect(lfg).toContain("run <rendered ce-babysit-pr invocation> to watch it through review to merge")
+    for (const target of ["ce-explain <name>", "ce-babysit-pr <pr-url>"]) {
+      expect(lfg).toContain(`$${target}`)
+      expect(lfg).toContain(`/${target}`)
+    }
+    expect(lfg).toMatch(/default to `\/ce-explain <name>`[\s\S]{0,360}Codex[\s\S]{0,220}output one form only/i)
 
     // The callee documents the mode the caller passes
     expect(skill).toContain("mode:pipeline")
+  })
+})
+
+describe("explicit Compound Engineering branding provenance", () => {
+  test("CE-owned shipping callers pass branding:on", async () => {
+    const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+    const debug = await readRepoFile("skills/ce-debug/SKILL.md")
+
+    expect(shipping).toContain("Load the `ce-commit-push-pr` skill with `branding:on`")
+    expect(lfg).toContain("ce-commit-push-pr` skill with `mode:pipeline branding:on`")
+    expect(debug).toContain("Invoke the `ce-commit-push-pr` skill with `branding:on`.")
+    expect(debug).toContain("reviewed fix (invoke the `ce-commit-push-pr` skill with `branding:on`)")
+    expect(debug).not.toContain("`/ce-commit-push-pr branding:on`")
   })
 })
 

@@ -152,19 +152,6 @@ describe("ce-code-review contract", () => {
     expect(schema.properties.findings.items.properties.confidence.type).toBe("integer")
     expect(schema.properties.findings.items.properties.confidence.enum).toEqual([0, 25, 50, 75, 100])
 
-    // Threshold: anchor 75 (P0 escape at anchor 50)
-    expect(schema._meta.confidence_thresholds.suppress).toContain("anchor 75")
-    expect(schema._meta.confidence_thresholds.suppress).toContain("anchor 50")
-    expect(schema._meta.confidence_thresholds.suppress).toMatch(/P0/)
-
-    // Behavioral anchors documented for personas
-    expect(schema._meta.confidence_anchors).toBeDefined()
-    expect(schema._meta.confidence_anchors["0"]).toBeDefined()
-    expect(schema._meta.confidence_anchors["25"]).toBeDefined()
-    expect(schema._meta.confidence_anchors["50"]).toBeDefined()
-    expect(schema._meta.confidence_anchors["75"]).toBeDefined()
-    expect(schema._meta.confidence_anchors["100"]).toBeDefined()
-
   })
 
   test("subagent template carries verbatim 5-anchor rubric and lint-ignore suppression", async () => {

@@ -55,10 +55,12 @@ Created `src/utils/model.ts` with shared normalization utilities:
 
 ```typescript
 // Single source of truth for bare Claude family aliases
+// (illustrative current values; src/utils/model.ts holds the live map,
+//  bumped per generation — e.g. sonnet moved 4-6 -> 5, opus 4-6 -> 4-8)
 export const CLAUDE_FAMILY_ALIASES: Record<string, string> = {
   haiku: "claude-haiku-4-5",
-  sonnet: "claude-sonnet-4-6",
-  opus: "claude-opus-4-6",
+  sonnet: "claude-sonnet-5",
+  opus: "claude-opus-4-8",
 }
 
 // Resolve bare alias without provider prefix (used by Droid)
@@ -75,7 +77,7 @@ Each converter uses the appropriate shared utility:
 
 | Target | Behavior | Output for `model: sonnet` |
 |--------|----------|----------------------------|
-| OpenCode | Resolve alias + add provider prefix | `anthropic/claude-sonnet-4-6` |
+| OpenCode | Resolve alias + add provider prefix | `anthropic/claude-sonnet-5` |
 | Droid | Pass through as-is | `sonnet` |
 | Copilot | Drop entirely | (omitted) |
 | Codex | Drop entirely | (omitted) |
@@ -88,7 +90,7 @@ Each converter uses the appropriate shared utility:
 
 Each platform has fundamentally different model handling requirements:
 
-**Platforms that normalize (OpenCode, Qwen, OpenClaw):** These are multi-provider platforms that support Anthropic, OpenAI, Google, and other model providers. They need provider-prefixed IDs like `anthropic/claude-sonnet-4-6` to route requests to the correct backend. The `normalizeModelWithProvider` function resolves bare aliases and adds the appropriate prefix.
+**Platforms that normalize (OpenCode, Qwen, OpenClaw):** These are multi-provider platforms that support Anthropic, OpenAI, Google, and other model providers. They need provider-prefixed IDs like `anthropic/claude-sonnet-5` to route requests to the correct backend. The `normalizeModelWithProvider` function resolves bare aliases and adds the appropriate prefix.
 
 **Droid (Factory) — pass-through:** Factory is multi-provider but natively resolves Claude's bare aliases (`sonnet`, `opus`, `haiku`) internally. Pass-through is correct and simpler than normalizing to a format Factory would also accept but doesn't require. Factory also accepts full dated model IDs like `claude-sonnet-4-5-20250929` and non-Anthropic models prefixed with `custom:`.
 
@@ -154,6 +156,6 @@ This reference captures research findings as of 2026-03-29. Targets marked **(re
 
 ## Related Issues
 
+- `docs/solutions/integrations/opencode-temperature-rejected-by-sonnet5-opus48.md` — Companion gotcha: when the alias map here is bumped to a newer generation (per Prevention #2), the OpenCode converter must also stop emitting an inferred `temperature`, because Sonnet 5 / Opus 4.7+ reject non-default sampling params. Normalization gets the model ID right; that doc covers the sampling-param constraint the new generation introduced.
 - `docs/solutions/adding-converter-target-providers.md` — Converter architecture doc; should be updated to reference model normalization as part of the conversion pattern
 - `docs/solutions/integrations/colon-namespaced-names-break-windows-paths.md` — Structural analog: same pattern of per-target boundary normalization
-- `docs/specs/codex.md` — Platform spec (last verified 2026-01-21); confirms skill frontmatter limitations

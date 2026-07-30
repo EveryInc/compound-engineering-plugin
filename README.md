@@ -8,6 +8,8 @@ This is a streamlined fork of [Compound Engineering](https://github.com/EveryInc
 
 **Each unit of engineering work should make subsequent units easier -- not harder.**
 
+Invocation syntax: this README uses `/skill-name` examples for slash-skill hosts. In Codex, invoke installed skills with `$skill-name` (for example, `$ce-plan` and `$lfg`); `/goal` remains a Codex built-in command.
+
 Traditional development accumulates technical debt. Every feature adds complexity. Every bug fix leaves behind a little more local knowledge that someone has to rediscover later. The codebase gets larger, the context gets harder to hold, and the next change becomes slower.
 
 Compound engineering inverts this. 80% is in planning and review, 20% is in execution:
@@ -24,6 +26,7 @@ The point is not ceremony. The point is leverage. A good brainstorm makes the pl
 - [Skill documentation catalog](docs/skills/README.md)
 - [Compound engineering: how Every codes with agents](https://every.to/chain-of-thought/compound-engineering-how-every-codes-with-agents)
 
+
 ## Workflow
 
 The core loop is six steps: **brainstorm** the requirements, **plan** the implementation, **work** through the plan, **simplify** what you wrote, **review** the result, then **compound** the learning -- and repeat with better context.
@@ -34,7 +37,7 @@ The core loop is six steps: **brainstorm** the requirements, **plan** the implem
 | [`/ce-plan`](docs/skills/ce-plan.md) | Enrich feature ideas or requirements-only plans into implementation-ready plans |
 | [`/ce-work`](docs/skills/ce-work.md) | Execute implementation-ready plans with worktrees and task tracking |
 | [`/ce-simplify-code`](docs/skills/ce-simplify-code.md) | Refine the freshly written code for clarity and reuse before review |
-| [`/ce-code-review`](docs/skills/ce-code-review.md) | Multi-agent review against the plan before merging |
+| [`/ce-code-review`](docs/skills/ce-code-review.md) | Multi-agent review against the plan before merging; local apply is explicit |
 | [`/ce-compound`](docs/skills/ce-compound.md) | Capture the learning into `docs/solutions/` so the next loop starts smarter |
 
 Each cycle compounds: `/ce-compound` writes learnings that the next `/ce-brainstorm` and `/ce-plan` read as grounding -- brainstorms sharpen plans, plans inform future plans, reviews catch more issues, patterns get documented. That return arrow is the whole point.
@@ -83,6 +86,8 @@ For the full catalog and how each skill chains together, see [docs/skills](docs/
 /ce-simplify-code simplify the code in my most-churned file
 ```
 
+The first pass tightens recent branch changes before review. The targeted pass is useful when one file keeps absorbing unrelated fixes, follow-ups, or merge conflicts.
+
 **Debugging a bug** -- when you start from broken behavior instead of a feature:
 
 ```text
@@ -98,7 +103,7 @@ For the full catalog and how each skill chains together, see [docs/skills](docs/
 /lfg
 ```
 
-`/lfg` runs the loop hands-off: it plans, works through the plan, simplifies, runs code review and applies the fixes, runs browser tests, commits, pushes, opens a PR, then watches CI and repairs failures until it's green. Start it after `/ce-brainstorm` so it plans against real requirements rather than a one-line prompt.
+`/lfg` runs the loop hands-off: it plans, works through the plan, simplifies, runs code review and applies the fixes, runs browser tests, commits, pushes, opens a PR, then watches CI and repairs failures until it's green. Start it after `/ce-brainstorm` so it plans against real requirements rather than a one-line prompt. It's the autopilot version of the standard loop -- neat when you want to step away and come back to an open, green PR.
 
 ## Getting Started
 
@@ -116,13 +121,14 @@ The plugin ships 26 skills. Specialist review, research, and workflow behavior l
 | [`/ce-explain`](docs/skills/ce-explain.md) | Explain a concept, diff, idea, or window of your own work as a personal learning artifact |
 | [`/ce-brainstorm`](docs/skills/ce-brainstorm.md) | Explore requirements and write a right-sized requirements doc |
 | [`/ce-plan`](docs/skills/ce-plan.md) | Create structured implementation plans |
-| [`/ce-work`](docs/skills/ce-work.md) | Execute implementation plans systematically |
+| [`/ce-work`](docs/skills/ce-work.md) | Execute implementation-ready plans with worktrees and task tracking |
 | [`/ce-code-review`](docs/skills/ce-code-review.md) | Review code with skill-local reviewer personas |
 | [`/ce-doc-review`](docs/skills/ce-doc-review.md) | Review requirements and plan documents |
 | [`/ce-debug`](docs/skills/ce-debug.md) | Reproduce failures, trace root cause, fix bugs, and prepare non-trivial fixes for PR |
 | [`/ce-compound`](docs/skills/ce-compound.md) | Document solved problems to compound team knowledge |
 | [`/ce-compound-refresh`](docs/skills/ce-compound-refresh.md) | Refresh stale or drifting learnings |
 | [`/ce-optimize`](docs/skills/ce-optimize.md) | Run iterative optimization loops |
+
 | [`/ce-resolve-pr-feedback`](docs/skills/ce-resolve-pr-feedback.md) | Resolve PR review feedback |
 | [`/ce-commit`](docs/skills/ce-commit.md) | Create a git commit with a clear message |
 | [`/ce-commit-push-pr`](docs/skills/ce-commit-push-pr.md) | Commit, push, and open a PR that teaches any concept the change newly introduces |
@@ -138,6 +144,7 @@ The plugin ships 26 skills. Specialist review, research, and workflow behavior l
 | [`/lfg`](docs/skills/lfg.md) | Full autonomous engineering workflow |
 
 ---
+
 
 ## License
 

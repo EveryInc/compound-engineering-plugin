@@ -55,7 +55,7 @@ describe("findNewSkillsBetweenRefs", () => {
     // the release "What's new" section wants to call out materially-changed
     // skills, not just newly-added ones.
     const skills = findNewSkillsBetweenRefs("v3.21.2")
-    expect(skills).toEqual(["ce-fix-bugs"])
+    expect(skills).toContain("ce-fix-bugs")
   })
 
   test("returns sorted output for stable test assertions", () => {

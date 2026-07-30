@@ -69,7 +69,7 @@ import { parseFrontmatter } from "../src/utils/frontmatter"
  *    filename), which name no file to check.
  *    (c) is where this rule's fence policy deliberately diverges
  *    from Rule 1: fenced bash blocks are where skills put their REAL bundled
-     *    script invocations (for example, `bash scripts/repo-profile-cache.py`),
+     *    script invocations (for example, `bash scripts/validate-frontmatter.py`),
  *    so stripping fences here would let a deleted or renamed script pass CI
  *    while the skill fails at runtime. Markdown-link syntax inside fences is
  *    still NOT a candidate — fenced `[text](references/x.md)` is teaching
@@ -1013,13 +1013,13 @@ describe("extractLocalReferenceCandidates", () => {
     // Extraction is what makes a fenced mention visible to the existence
     // check; resolution + statSync against the real skill then demonstrates
     // the pass/caught split the repo scan enforces.
-    const sample = "```bash\nbash scripts/repo-profile-cache.py\nbash scripts/deleted-tool.sh\n```"
+    const sample = "```bash\nbash scripts/validate-frontmatter.py\nbash scripts/deleted-tool.sh\n```"
     expect(extractLocalReferenceCandidates(sample).map((c) => c.value)).toEqual([
-      "scripts/repo-profile-cache.py",
+      "scripts/validate-frontmatter.py",
       "scripts/deleted-tool.sh",
     ])
     const skillRoot = path.join(SKILLS_ROOT, "ce-compound")
-    const existing = resolveInsideSkill(skillRoot, skillRoot, "scripts/repo-profile-cache.py")
+    const existing = resolveInsideSkill(skillRoot, skillRoot, "scripts/validate-frontmatter.py")
     const missing = resolveInsideSkill(skillRoot, skillRoot, "scripts/deleted-tool.sh")
     expect(existing).not.toBeNull()
     expect(statSync(existing!).isFile()).toBe(true)

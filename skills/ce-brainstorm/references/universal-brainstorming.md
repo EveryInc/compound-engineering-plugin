@@ -67,6 +67,6 @@ When the conversation has enough material to narrow — reflect back what you've
 
 **Question:** "Brainstorm wrapped. What would you like to do next?"
 
-- **Create a plan** → hand off to `/ce-plan` with the decided goal and constraints; let `ce-plan` choose the universal/knowledge-work artifact shape, not the software unified-plan contract
+- **Create a plan** → hand off to `ce-plan` with the decided goal and constraints; let `ce-plan` choose the universal/knowledge-work artifact shape, not the software unified-plan contract
 - **Save summary to disk** → write the summary as a markdown file in the current working directory
 - **Done** → the conversation was the value, no artifact needed

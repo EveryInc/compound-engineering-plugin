@@ -21,6 +21,24 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 ---
 
+## Example invocations
+
+```text
+# Commit current work, push the branch, and open a PR
+/ce-commit-push-pr
+
+# Draft a PR description without applying it
+/ce-commit-push-pr draft a PR description for this branch
+
+# Rewrite the current PR description with a specific emphasis
+/ce-commit-push-pr update the PR description to include benchmark results
+
+# Describe a different PR from its complete branch scope
+/ce-commit-push-pr https://github.com/acme/widgets/pull/1234
+```
+
+---
+
 ## The Problem
 
 Going from "code written" to "PR open" is supposed to be a one-step move, but it tends to fail in predictable ways:
@@ -46,6 +64,7 @@ Going from "code written" to "PR open" is supposed to be a one-step move, but it
 - **Full PR commit-range resolution** — descriptions cover all commits in the PR, not just the working-tree diff
 - **Related-reference preflight** — identifies work-item references and uses closing magic words only when the PR truly resolves the item
 - **Concept teaching** — when a PR introduces a concept new to the codebase (a pattern, technique, library, or domain idea), the description gains a `## New concepts` section teaching it, so readers can understand and re-explain the change without opening the diff
+- **Explicit, non-disruptive branding** — new PRs receive the generic Compound Engineering badge only with `branding:on`; bare and automatically selected invocations add nothing, while existing PR rewrites preserve their current branding
 
 ---
 
@@ -109,7 +128,11 @@ When the skill runs on a branch with an open PR and you want the description rew
 
 ### 10. Concept-teaching section — the PR teaches what it introduces
 
-Agent-driven development removed the learning that writing code by hand used to provide. When the composition pass judges that the change introduces a concept new to the codebase — checked against the base ref, never the working tree, so the PR's own code doesn't mask novelty — the description gains a dedicated `## New concepts` section: what the concept is, why it was chosen here over the obvious alternative, and one example from this PR's behavior. Absence is the common case by design: established repo patterns, refactors, renames, and dependency bumps never fire it. After the PR ships, a one-line offer points to `/ce-explain` for interactive learning, and an opt-in config key (`pr_teaching_archive`) archives the explainer to `docs/explainers/` and links it from the PR. Turn the whole feature off per repo with `pr_teaching_section: false` in `.compound-engineering/config.local.yaml`.
+Agent-driven development removed the learning that writing code by hand used to provide. When the composition pass judges that the change introduces a concept new to the codebase — checked against the base ref, never the working tree, so the PR's own code doesn't mask novelty — the description gains a dedicated `## New concepts` section: what the concept is, why it was chosen here over the obvious alternative, and one example from this PR's behavior. Absence is the common case by design: established repo patterns, refactors, renames, and dependency bumps never fire it. After the PR ships, a one-line offer points to `/ce-explain` for interactive learning, and an opt-in config key (`pr_teaching_archive`) archives the explainer to `docs/explainers/` and links it from the PR. Turn the whole feature off per repo with `pr_teaching_section: false` in `.compound-engineering/config.local.yaml`; all three PR settings are listed in the [configuration reference](./configuration.md).
+
+### 11. Session-settled provenance line
+
+When a labeled plan is in hand, the PR body gains one static line naming which decisions were session-settled and their classes, so a reviewer sees at a glance what the user already decided and chose over what. Runs with no plan omit it.
 
 ---
 
@@ -149,9 +172,9 @@ Skip `ce-commit-push-pr` when:
 
 `ce-commit-push-pr` is the standard shipping handoff for several skills:
 
-- **`/lfg` step 8** — invokes with `mode:pipeline` (non-interactive: no blocking asks, existing-PR rewrite defaults to no); when a `New concepts:` trailer is printed, lfg echoes the concept and the `/ce-explain` pointer in its completion output
-- **`/ce-work` Phase 4** — passes plan summary, key decisions, testing notes, evidence context, operational validation, and any accepted Known Residuals
-- **`/ce-debug` Phase 4** (skill-owned branch) — defaults to commit-and-PR without prompting after a successful fix; includes closing syntax only when the PR resolves the issue, and non-closing related syntax for partial, investigative, or uncertain links
+- **`/lfg` step 8** — invokes with `mode:pipeline branding:on` (non-interactive: no blocking asks, existing-PR rewrite defaults to no); when a `New concepts:` trailer is printed, lfg echoes the concept and the `/ce-explain` pointer in its completion output
+- **`/ce-work` Phase 4** — passes `branding:on` with the plan summary, key decisions, testing notes, evidence context, operational validation, and any accepted Known Residuals
+- **`/ce-debug` Phase 4** (skill-owned branch) — passes `branding:on` and defaults to commit-and-PR without prompting after a successful fix; includes closing syntax only when the PR resolves the issue, and non-closing related syntax for partial, investigative, or uncertain links
 - **`/ce-compound`** — after a learning doc is written, can commit + push to update an open PR with the new commit
 
 ---
@@ -180,6 +203,7 @@ When the skill's mode detection picks the wrong path, you can prompt explicitly 
 | `"...<focus text>"` | Steers description composition (e.g., "include the benchmarking results") |
 | `mode:pipeline` | Non-interactive modifier for orchestrated callers; suppresses every blocking ask (existing-PR rewrite defaults to no) |
 | `archive:on\|off` | Per-run override of the `pr_teaching_archive` config key (explainer-doc archival to `docs/explainers/`) |
+| `branding:on\|off` | Explicitly add or omit generic Compound Engineering branding on a newly created PR; omission defaults off, and existing PR rewrites preserve their current branding |
 
 ---
 

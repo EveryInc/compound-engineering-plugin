@@ -19,6 +19,26 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 ---
 
+## Example invocations
+
+```text
+# Create STRATEGY.md through the full interview when none exists
+/ce-strategy
+
+# Revisit one section without reopening the entire strategy
+/ce-strategy approach
+
+# Focus a section update on a specific question
+/ce-strategy metrics for retention
+
+# Invoke without arguments on an existing strategy to choose sections interactively
+/ce-strategy
+```
+
+Prefer a section or scope hint for targeted maintenance; a bare invocation is intentionally broader when `STRATEGY.md` already exists.
+
+---
+
 ## The Problem
 
 Most teams either don't have a strategy doc, or have one that's so long nobody reads it. Failure shapes:

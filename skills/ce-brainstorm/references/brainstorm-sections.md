@@ -37,7 +37,10 @@ artifact contract:
 A requirements-only unified plan is kept **light and standalone-readable**. It
 includes:
 
-- `## Goal Capsule` with objective, product authority, and open blockers.
+- `## Goal Capsule` with objective, product authority, and open blockers. When
+  the coherent-work gate split a broader request, the objective names the
+  current area and product authority says the surrounding areas are not active
+  scope.
 - `## Product Contract` containing the brainstorm sections below.
 
 Do **not** emit a `## Goal Launch Block` or `## Reader Index`: the launch prompt
@@ -125,10 +128,51 @@ standing, and don't keep superseded prose as strikethrough. Version control
 holds the history. Stacked question/resolution strata double the reading surface
 and hide which text is live.
 
-**Named test, run before the doc is declared written:** could a reader find a
-contradiction in each section in one pass? A sentence carrying more than one
-parenthetical, or a requirement specifying two outcomes, fails the test — split
-it or defer it.
+**One owner per rule; cite, don't restate.** A normative rule — a gate, cap,
+threshold, or output contract — is stated in full at exactly one owning
+entry: the R-ID that carries it. Every other section that needs the rule
+cites the owning ID (`Covers R4`, `Governs R5, R7`, "per R6") and adds only
+what is local to that section. Linked projections are sanctioned — an AE
+restating behavior under a `Covers R…` marker, a Flow citing the Rs it
+sequences. **Unlinked sibling restatement** — the same rule written out again
+in a Key Decision, Flow, or Scope bullet with no ID link — is the defect:
+each copy drifts independently and the doc has no rule for which one wins.
+
+**Bind external authorities; don't summarize them.** When a requirement or
+decision adopts an external document (a field guide, spec, standard), state
+the commitment, cite the path, and record only this work's deltas. A
+multi-sentence summary of the cited document is restatement of an owner that
+lives outside the doc.
+
+## Ready for Planning Check
+
+Run this against the written artifact before declaring it written or presenting
+the Phase 4 handoff:
+
+1. **Complete** — no placeholders, `TBD`s, or half-written sections remain;
+   every Outstanding Question is classified as `Resolve Before Planning` or
+   `Deferred to Planning`. When the coherent-work gate split a broader request,
+   the `work-relationships` section is present and carries the marker for the
+   resolved output format: `<!-- ce-section: work-relationships -->` in Markdown
+   or `data-ce-section="work-relationships"` on its wrapping `<section>` in HTML.
+2. **Consistent** — Goal Capsule, Requirements, Key Flows, Acceptance Examples,
+   Scope Boundaries, and the `work-relationships` section do not contradict one
+   another. Could a reader find a contradiction in each section in one pass? A
+   sentence with more than one parenthetical or a requirement that specifies two
+   outcomes, or a rule stated in full in more than one section, fails this check
+   — split it, defer the fork, or replace the duplicate with its owning ID.
+3. **Focused** — the Product Contract owns one coherent work unit. Surrounding
+   work appears only as context, deferred work, or an explicit non-goal; it does
+   not leak into active Requirements, Flows, or Acceptance Examples.
+4. **Usable by planning** — `ce-plan` can decide how to build the current work
+   without inventing product behavior, scope, actors, or success criteria.
+
+Fix a failed check in place when the correction preserves settled intent, then
+rerun the failed checks. When a fix would choose or change product behavior or
+scope, ask one targeted question and update the artifact after the answer. If
+the user is unavailable, keep the artifact blocked rather than letting planning
+invent the answer. Do not emit this checklist into the Product Contract; the
+corrected artifact is the output.
 
 ## Product Contract hard floor
 
@@ -164,9 +208,48 @@ worse than omitting it.
 
 - **Key Decisions** — include when the brainstorm produced opinionated
   framing choices (defaults, scope narrowings, foundational technical picks)
-  that constrain Requirements / Flows / Scope below. Each entry names the
-  decision in bold with prose rationale. Sits high in the rendered doc so
-  readers encounter the framing choices before descending into detail.
+  that constrain Requirements / Flows / Scope below. Sits high in the
+  rendered doc so readers encounter the framing choices before descending
+  into detail. Each entry is a **provenance index entry, not a second
+  statement of the rule**: the decision in bold, at most one line of
+  rationale, and — when the decision constrains specific requirements —
+  exact `Governs R5, R7` links naming them. The full normative rule text
+  lives on the governed Rs; an entry that would write the rule out again
+  cites them instead. A pure framing decision with no governed R carries
+  its rationale and no links.
+  An entry recording a decision settled in the invoking conversation may
+  carry the inline annotation
+  `(session-settled: <class> — chosen over <alternative>: <reason>)`, with
+  exactly two classes — `user-directed` (the user chose against or between
+  surfaced options) and `user-approved` (the agent proposed with the
+  tradeoff surfaced; the user assented). An agent never labels its own
+  unexamined proposal. Preserve the label on the Product Contract Key
+  Decision and its exact `Governs R…` links. `ce-plan` may inherit the label
+  into a KTD only when the KTD makes a distinct how-level choice and cites
+  the governed R-IDs; it must not create a KTD that merely mirrors the
+  product decision.
+
+- **How This Work Fits Together** — required when the coherent-work gate split
+  a broader request; otherwise include when this plan is one part of a larger
+  body of separately planned work and the relationship materially orients a
+  cold reader. Give this section the semantic role `work-relationships`, which
+  remains stable even if its visible heading is renamed: in Markdown, place
+  `<!-- ce-section: work-relationships -->` immediately before the heading; in
+  HTML, put `data-ce-section="work-relationships"` on the wrapping `<section>`.
+  The role identifies meaning, not wording, and is the downstream discovery
+  contract. Lead with the one area this plan owns and state that the broader
+  breakdown is the current understanding, not a committed roadmap. Then use a
+  shallow indented bullet list for later areas, with explicit relationship
+  phrases such as `Depends on`, `Enables`, `Shares`, `Can proceed independently
+  of`, and `Still to decide`; indentation groups the prose but never carries the
+  relationship by itself. Future areas are contextual candidates, never
+  Requirements or implied Implementation Units. A later plan may revise, split,
+  merge, or discard them and cite the earlier plan with a repo-relative path;
+  do not create or synchronize a separate master map. Keep Scope Boundaries as
+  the authority for what this plan excludes rather than duplicating the full
+  relationship list there. Use no diagram by default. Add one only when
+  non-linear cross-links, fan-in, or fan-out would make the nested list
+  misleading, and keep the bullet text complete without it.
 
 - **Actors** — include when the proposed thing has multi-party behavior
   (multiple humans, agents, or systems meaningfully involved). Skip for

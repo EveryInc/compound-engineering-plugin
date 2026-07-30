@@ -19,6 +19,23 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 ---
 
+## Example invocations
+
+```text
+# Capture the verified solution from the current conversation
+/ce-compound
+
+# Focus capture when the session contains several solved problems
+/ce-compound the email digest race condition we fixed
+
+# Capture unattended when invoked from automation or standing instructions
+/ce-compound mode:headless the verified caching fix
+```
+
+Use headless mode only when the caller should own any follow-up decisions; ordinary interactive capture can still ask before changing project guidance.
+
+---
+
 ## The Problem
 
 Most teams solve the same problem twice — sometimes with the same person — because the first solution lives in conversation, chat history, or a teammate's head. Common failure shapes:
@@ -47,9 +64,11 @@ Most teams solve the same problem twice — sometimes with the same person — b
 
 **Full mode** runs three research subagents in parallel (Context Analyzer / Solution Extractor / Related Docs Finder). Cross-references existing docs, detects duplicates, runs a read-only simplification review.
 
-**Lightweight mode** does the same documentation in a single pass, no subagents, no cross-referencing. Faster, fewer tokens.
+**Lightweight mode** writes the same solution-doc artifact type in a single pass, with no subagents or cross-referencing. It is lower overhead, but it also skips overlap detection, session-history research, and semantic grounding validation.
 
 **The skill picks the mode itself — it does not ask.** Full is the default because its token cost is small next to the work that produced the learning; Lightweight is chosen only under real context pressure (session near its limit, or a trivial fix where cross-referencing adds nothing). Those are conditions the agent can observe and the user can't, so a prompt would just ask you to guess. The skill states which mode it ran, and why, on the first line of its output; if it guessed wrong for your taste, re-running is a cheap correction.
+
+Automations can select the same tradeoff without a prompt: `mode:headless depth:lightweight` runs the single-pass workflow, while `mode:headless depth:full` runs the complete workflow, including its automatic session-history probe. Existing `mode:headless` calls remain Full by default. Depth is headless-only; a depth flag without headless intent, an unknown value, or conflicting depth flags fails explicitly instead of silently choosing a workflow.
 
 ### 2. Bug track vs knowledge track — different structures for different shapes
 
@@ -78,7 +97,7 @@ The proposed addition matches the existing file's tone and density — a single-
 
 A solution doc is only as valuable as its claims are true, and drafting from conversation evidence invites three failure shapes: code-behavior claims written from a session-level summary instead of the source, "fixed in X" claims about merges the current checkout can't see, and drafting scaffold ("Learning 3") leaking into the written doc.
 
-Phase 2.45 closes this in two layers. A deterministic script (`scripts/validate-doc-claims.py`) checks cited repo paths, commit SHAs (classified by reachability from HEAD vs the upstream default branch, so a stale checkout is distinguished from a fabricated citation), relative links, and dangling scaffold — its flags are adjudicated, not auto-failed, because a doc may legitimately cite a path deleted by the very fix it documents. Then a read-only validator subagent (Full and headless modes) verifies code-behavior claims by quoting the defining source line, merge-state claims against remote truth (`gh` primary, local git fallback), and internal completeness of countable assertions. The same discipline applies at draft time: the Solution Extractor must read the defining line before asserting behavior, and cite PR numbers over rebase-fragile SHAs.
+Phase 2.45 closes this in two layers. A deterministic script (`scripts/validate-doc-claims.py`) checks cited repo paths, commit SHAs (classified by reachability from HEAD vs the upstream default branch, so a stale checkout is distinguished from a fabricated citation), relative links, and dangling scaffold — its flags are adjudicated, not auto-failed, because a doc may legitimately cite a path deleted by the very fix it documents. Then a read-only validator subagent (Full mode, including headless Full) verifies code-behavior claims by quoting the defining source line, merge-state claims against remote truth (`gh` primary, local git fallback), and internal completeness of countable assertions. Lightweight keeps the deterministic check and skips the validator subagent. The same discipline applies at draft time: the Solution Extractor must read the defining line before asserting behavior, and cite PR numbers over rebase-fragile SHAs.
 
 ### 6. Selective refresh trigger
 
@@ -150,6 +169,8 @@ The skill is its own complete cycle:
 - **Just-finished problem** — `/ce-compound` (or auto-invoked from "that worked")
 - **With context hint** — `/ce-compound "the email digest race condition we fixed"`
 - **Lightweight on a long session** — when context is tight, the skill selects lightweight mode on its own and says so in its output
+- **Lower-overhead unattended capture** — `/ce-compound mode:headless depth:lightweight "the verified fix"`
+- **Full unattended capture** — `/ce-compound mode:headless depth:full "the verified fix"` (plain `mode:headless` is equivalent)
 
 The auto-invoke triggers happen mid-conversation; you don't need to remember the slash command if you've just confirmed something works.
 
@@ -168,6 +189,8 @@ Put it in the repo's `AGENTS.md`/`CLAUDE.md`, or in your global instruction file
 **Run it automatically** — no prompt, because not being interrupted is the whole point of automating it:
 
 > After a solved, verified problem produces a non-trivial, reusable learning, automatically invoke the `ce-compound` skill, passing `mode:headless` as the skill argument. Only in repositories that accept `docs/solutions/` as a tracked knowledge store.
+
+Use `mode:headless depth:lightweight` instead when the standing workflow deliberately accepts reduced research and validation in exchange for a single-pass, no-subagent closure.
 
 Auto-run writes to `docs/solutions/` (and may touch `CONCEPTS.md`) without asking — but that's the point, and it's no scarier than the other edits you're already making on the branch and reviewing before you commit. Headless never edits `AGENTS.md`/`CLAUDE.md`; if discoverability is missing it reports `gap noted, not applied` so a later interactive run can apply it with consent. Passing `mode:headless` as an argument is the explicit, unambiguous form: the skill also honors a clear "run headless / without prompts" request, but the token removes all doubt — without a headless signal the run stays interactive and can stop for the one-time discoverability-consent prompt.
 

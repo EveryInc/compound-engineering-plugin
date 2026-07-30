@@ -49,6 +49,8 @@ Display the diagnostic output to the user. Missing optional tools are not setup 
 
 ### Step 3: Decide Whether Repo-Local Fixes Are Needed
 
+**User-runnable invocation rendering.** In setup summaries, default to `/ce-setup`; use `$ce-setup` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
+
 Proceed to Phase 2 only if one or more repo-local project issues exist:
 
 - obsolete `compound-engineering.local.md`
@@ -226,5 +228,5 @@ Skipped:    <repo-local fixes declined, or none>
 Atlassian:  <mcp-atlassian status: configured | declined | blocked (reason) | not attempted>
 Optional:   <missing optional tools, or all available>
 
-Run /ce-setup anytime to re-check.
+Run `<rendered invocation>` anytime to re-check.
 ```

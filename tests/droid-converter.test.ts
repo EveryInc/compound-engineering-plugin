@@ -77,6 +77,31 @@ describe("convertClaudeToDroid", () => {
     expect(parsed.body).toContain("Focus on vulnerabilities.")
   })
 
+  test("still infers tools from whole-word references", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [
+        {
+          name: "worker",
+          description: "does work",
+          body: "Use Read to inspect files and Bash to run commands.",
+          sourcePath: "/tmp/plugin/agents/worker.md",
+        },
+      ],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToDroid(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const parsed = parseFrontmatter(bundle.droids[0].content)
+    expect(parsed.data.tools).toEqual(["Execute", "Read"])
+  })
+
   test("passes through skill directories", () => {
     const bundle = convertClaudeToDroid(fixturePlugin, {
       agentMode: "subagent",

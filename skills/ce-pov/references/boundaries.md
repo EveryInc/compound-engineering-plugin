@@ -4,16 +4,18 @@ Load this when the input's fit for `ce-pov` is in doubt, or to route a Hold (SKI
 
 ## The discriminator
 
-`ce-pov` always takes an **external input** and judges it **against this project**, producing a **decisive position** — not options, not requirements, not implementation, not a diagnosis. If the answer should be a *verdict about your project*, it is `ce-pov`. If the answer is options, requirements, implementation, a diagnosis, or a neutral explainer, route out.
+`ce-pov` takes a **supplied subject** and judges it **against this project**, producing a **decisive position** — not options, not requirements, not implementation, not a diagnosis. If the answer should be a *verdict about your project*, it is `ce-pov`. If the answer is options, requirements, implementation, a diagnosis, or a neutral explainer, route out.
 
 ## Where the lines fall
 
 | If the user wants... | Route to | The line |
 |---|---|---|
 | A neutral explainer ("tell me about X") | general research / answer it directly | `ce-pov` only returns a project-grounded verdict; with no project angle, answer it as a normal research question — or a dedicated deep-research-style tool *if the environment has one* — rather than forcing a verdict |
+| A holistic take on a supplied document ("what do you think of this doc?") | `ce-pov` | A take judges the document's direction, strengths, risks, and bottom line; "review this doc" or "find the issues" asks for findings and routes to `ce-doc-review`. When the wording is ambiguous, ask one clarifying line rather than guessing |
+| A judgment among approaches the user already supplied | `ce-pov` | Options supplied → judge them against the project; options still need to be invented → `ce-ideate` |
 | Options invented from an open field | `ce-ideate` | Invented vs. discovered: ideate invents; `ce-pov` judges/selects from a discoverable field |
 | To scope an idea already chosen | `ce-brainstorm` | `ce-pov` decides *whether*; brainstorm scopes *what* once it's a yes |
-| To know how to build something decided | `ce-plan` | Verdict accepted → hand off; `ce-pov` does no task breakdown |
+| To know how to build something decided | `ce-plan` | Verdict accepted → offer the handoff, or perform it only when the original request authorized that named action and the Phase 4 authority gate passes; `ce-pov` does no task breakdown |
 | To fix observed broken behavior | `ce-debug` | `ce-pov` assesses *exposure and priority* of a CVE; debug investigates an *actual failure* |
 | Product thesis / company direction | `ce-strategy` | `ce-pov` is bounded to a specific external input |
 

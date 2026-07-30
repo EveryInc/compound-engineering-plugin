@@ -19,6 +19,23 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 ---
 
+## Example invocations
+
+```text
+# Resolve all new actionable feedback on the current branch's PR
+/ce-resolve-pr-feedback
+
+# Resolve all new actionable feedback on a specific PR
+/ce-resolve-pr-feedback 1234
+
+# Address only one review thread and leave every other thread untouched
+/ce-resolve-pr-feedback https://github.com/acme/widgets/pull/1234#discussion_r5678901
+```
+
+Use a discussion URL for surgical follow-up. A PR number or bare invocation runs the full unresolved-feedback workflow.
+
+---
+
 ## The Problem
 
 Resolving PR feedback at scale fails in predictable ways:

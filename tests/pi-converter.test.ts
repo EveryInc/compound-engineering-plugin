@@ -1,11 +1,15 @@
-import { describe, expect, test } from "bun:test"
+import { afterAll, describe, expect, test } from "bun:test"
 import path from "path"
 import { loadClaudePlugin } from "../src/parsers/claude"
 import { convertClaudeToPi } from "../src/converters/claude-to-pi"
 import { parseFrontmatter } from "../src/utils/frontmatter"
 import type { ClaudePlugin } from "../src/types/claude"
+import { materializeClaudePluginFixture } from "./helpers/claude-plugin-fixture"
 
-const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+const fixture = materializeClaudePluginFixture(path.join(import.meta.dir, "fixtures", "sample-plugin"))
+const fixtureRoot = fixture.root
+
+afterAll(fixture.cleanup)
 
 describe("convertClaudeToPi", () => {
   test("converts commands, skills, agents, and MCP servers without shipping a Pi extension", async () => {

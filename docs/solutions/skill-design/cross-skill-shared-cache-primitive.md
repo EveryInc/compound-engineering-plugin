@@ -1,5 +1,5 @@
 ---
-title: Building a shared cached primitive across self-contained skills
+title: Retiring a shared cache that does not beat lean fresh grounding
 date: 2026-06-29
 category: docs/solutions/skill-design/
 module: repo-grounding-cache
@@ -7,61 +7,50 @@ problem_type: architecture_pattern
 component: tooling
 severity: medium
 applies_when:
-  - Multiple skills independently re-derive the same expensive, question-agnostic data
-  - You want one shared cache/helper/persona reused across skills that cannot import each other
-  - Adding a cross-skill optimization where the plugin's self-contained-skill rule forbids shared modules
-tags: [cross-skill, cache, skill-design, duplication, parity-test, skill-creator-eval]
+  - A shared optimization has accumulated schema, invalidation, repair, and integration machinery
+  - The cached value overlaps context the harness already supplies
+  - You need to test whether a cross-skill cache still earns its complexity
+tags: [cross-skill, cache, skill-design, evaluation, simplification, grounding]
 ---
 
-# Building a shared cached primitive across self-contained skills
+# Retiring a shared cache that does not beat lean fresh grounding
 
 ## Context
 
-Repo-grounding skills (`ce-pov`, `ce-plan`, `ce-optimize`, `ce-ideate`, `ce-brainstorm`, `ce-code-review`, `ce-compound`, `ce-debug`) each independently re-derived the same question-agnostic "project profile" (stack, deps, conventions, structure) on every run — an expensive grounding pass repeated per skill and per invocation. We wanted one shared, cached primitive. But the plugin's hard constraint (AGENTS.md "File References in Skills") forbids cross-skill imports: the converter copies each skill directory as an isolated unit, so a skill may only reference files inside its own tree. There is no shared-module mechanism.
+Several repo-grounding skills once shared a question-agnostic project profile. The implementation evolved from strict git-keyed invalidation to a smaller existence-first, self-correcting shape/stack map. That redesign made cache reuse cheaper and more resilient, but it did not answer the more important question: whether the reusable profile added value over the project instructions already loaded by the harness plus task-specific current reads.
 
-## Guidance
+The profile also imposed real product cost: duplicated protocol, helper, and persona assets in every consumer; parity and helper tests; cache-path and ownership policy; schema/version migration; per-consumer integration wording; and a behavioral obligation to keep generic orientation separate from current task evidence.
 
-Build the "shared" primitive as **byte-duplicated assets plus a parity test**, not a shared import:
+## Decision
 
-1. **Duplicate the assets into every consuming skill.** Here that was three files per skill: a protocol/schema reference (`references/repo-profile-cache.md`), a bundled helper script (`scripts/repo-profile-cache.py`), and a derivation persona (`references/agents/repo-profiler.md`). Each consumer carries identical copies.
-2. **Guard file drift with a `tests/` byte-identity test** — declare the asset filenames x the consumer-skill list and assert each copy equals the first (mirror `tests/compound-support-files.test.ts`). Adding a consumer = drop in the copies + add its name to the test's `CONSUMER_SKILLS`.
-3. **Invoke the bundled script via the `SKILL_DIR` anchor**, never `${CLAUDE_SKILL_DIR}` (see `docs/solutions/skill-design/bundled-script-path-resolution-across-harnesses.md`).
-4. **Put deterministic work in the script, judgment in the persona.** The Python helper does git keying + validity + atomic read/write (unit-testable); the LLM persona derives the profile only on a miss.
-5. **Share state through a single OS-temp location, keyed by content/identity**, so any skill reads what another wrote (`/tmp/compound-engineering/repo-profile/<root-sha>/<head-sha>.json`).
+Remove the shared profile and route consumers directly to lean fresh grounding:
 
-## Why This Matters
+1. The main agent takes coarse orientation from the project's active instructions already in context.
+2. A fresh subagent receives the relevant project/task summary, or reads the applicable current instruction source when operational rules materially affect its work.
+3. Grounding starts with the task-specific evidence: the affected code, incumbent, call-sites, patterns, diff, or decision precedent.
+4. A generic root, stack, or layout scan does not run by default. If the task genuinely cannot be scoped, use one targeted probe and keep its result local to the run.
+5. Exact technology or version facts are read fresh only when they materially affect the decision.
 
-The parity test guards **file** drift but **not integration** drift: a consumer can carry byte-identical assets yet wire the grounding phase wrong (skip the cache, or — worse — skip the still-required question-specific grounding). Two layers are needed:
+## Evidence
 
-- **Parity test** (`bun test`) — proves the duplicated files are identical across skills.
-- **Per-consumer `skill-creator` grounding-phase eval** — proves each skill actually *uses* the primitive correctly: takes the agnostic slice from the cache AND keeps its question-specific work fresh. This is the only check that catches integration drift, and it is manual (not run by CI).
+A direct behavioral comparison used the same planning task with two arms: a compact reusable profile versus lean no-profile grounding. Both reached the same core implementation direction. The no-profile arm completed faster (156 seconds versus 177), used fewer shell invocation lines (22 versus 32), inspected fewer repo files (22 versus 26), and was slightly stronger on unresolved provider contract, recovery, and verification details. The profile produced no unique decision that changed the result.
 
-One more unguarded seam: **per-skill field reads** (e.g. a SKILL.md that reads `conventions.testing` from the profile JSON) are not byte-duplicated, so renaming a schema field passes the parity test and the version bump yet silently breaks consumers — document a "grep the consumers for the field" step in the schema-change checklist.
+An independent grader recommended removing the shared profile with 0.82 confidence. The important result was not that caching could never beat an exhaustive cold scan; it could. The result was that the right baseline is not exhaustive regeneration. It is focused fresh grounding that avoids generic discovery in the first place.
 
-## When to Apply
+## General lesson
 
-- Several skills re-derive the same stable, question-agnostic data and you want to compute it once.
-- The shared thing is genuinely reusable across skills (not one skill's private concern).
-- You can express the shared contract as a small, self-contained asset set (reference + script + persona) rather than a code dependency.
+Pressure-test an optimization against the leanest correct alternative, not merely against the expensive behavior it originally replaced. A warm cache can look valuable when the miss path is over-scoped. Before adding durability, repair semantics, or more permissive hit logic, ask:
 
-Do **not** reach for this when only one skill needs the data, or when the "shared" data is actually question-specific per skill (then there is nothing stable to cache).
+- Which downstream mistake does this artifact prevent?
+- Is the same orientation already present in loaded context?
+- Did the artifact change a decision, or only restate repo facts?
+- Does its hit path beat focused fresh reads in time, tool calls, and output quality?
+- Would narrowing the uncached workflow remove more cost than improving the cache?
 
-## Examples
-
-The validation layering that made the difference:
-
-```
-tests/repo-profile-cache-parity.test.ts   # FILE drift: 3 assets x 8 skills byte-identical
-skill-creator evals (per consumer)         # INTEGRATION drift: agnostic-from-cache AND
-                                           #   question-specific-still-fresh, per skill
-```
-
-The grounding-phase eval pattern is cheap and high-signal precisely because the cache logic lives at the *front* of each skill — you can drive a fresh subagent through just the grounding phase (cache HIT/MISS/NO-CACHE) and observe its decisions without running the whole skill. That pattern caught real wiring issues on every batch it ran.
+When the cached value does not change decisions and focused fresh grounding is cheaper, remove the cache. The best cache hit is work the workflow no longer needs.
 
 ## Related
 
-- `docs/solutions/skill-design/bundled-script-path-resolution-across-harnesses.md` — the `SKILL_DIR` anchor used to invoke the shared script
-- `docs/solutions/skill-design/script-first-skill-architecture.md` — deterministic-script / model-presents split
-- `docs/solutions/best-practices/cache-invalidation-input-set-completeness.md` — the cardinal rule for the cache this pattern shipped
-- `docs/solutions/skill-design/paired-old-vs-new-injection-skill-evals.md` — generalizes the field-rename parity gap noted here into a rule: prove the anti-drift test fails on one-sided drift before trusting it.
-- AGENTS.md "Shared Repo-Grounding Profile Cache" and "File References in Skills"
+- `docs/solutions/skill-design/paired-old-vs-new-injection-skill-evals.md` — paired behavioral comparison method
+- `docs/solutions/best-practices/cache-invalidation-input-set-completeness.md` — historical invalidation lesson that still applies to correctness-sensitive caches
+- `docs/solutions/best-practices/predictable-tmp-cache-ownership-check.md` — historical shared-temp ownership lesson for artifacts read into agent context

@@ -33,6 +33,43 @@ But it stands alone just as well — many teams reach for `ce-plan` directly wit
 
 ---
 
+## Example invocations
+
+```text
+# Plan from the current conversation, including a completed ce-brainstorm
+/ce-plan
+
+# Enrich a requirements-only brainstorm artifact into an implementation-ready plan
+/ce-plan docs/plans/notification-mute.md
+
+# Plan directly from an issue or PRD
+/ce-plan https://github.com/acme/widgets/issues/1234
+/ce-plan docs/product/account-notifications-prd.md
+
+# Bootstrap planning from a clear rough idea
+/ce-plan add a background email digest at 8am UTC
+
+# Revisit and deepen an existing plan
+/ce-plan deepen docs/plans/auth-rewrite.md
+
+# Plan a non-software multi-step project
+/ce-plan organize a two-day customer advisory workshop
+
+# Ask for a self-contained HTML artifact in plain language
+/ce-plan turn the notification mute requirements into an implementation-ready plan and make it a self-contained HTML page
+
+# Equivalent shorthand when a repeatable automation needs it
+/ce-plan turn the notification mute requirements into an implementation-ready plan output:html
+
+# Keep your session on a model like Opus, but send only the heavy planning
+# step to Fable -- surgical use of a strong-but-expensive model where it pays off
+/ce-plan turn the notification mute requirements into an implementation-ready plan, use fable
+```
+
+Start with `ce-brainstorm` when the product shape is still unsettled; direct planning works best when the intended outcome is already clear.
+
+---
+
 ## The Problem
 
 Plans written by humans (or AI without structure) tend to fail in predictable ways:
@@ -99,6 +136,10 @@ Universal planning also distinguishes two **dispositions**. *Plan-seeking* tasks
 ### 8. Approach altitude — a plan for the plan when a deliverable is hard
 
 For a hard problem, `ce-plan` can answer one level up: produce a grounded **approach-plan** (a plan for *how the deliverable will be made*) and hold at a checkpoint before committing — a way to get structure and certainty instead of zero-shotting a fragile result. It's entered explicitly ("plan for a plan", "don't write it yet — plan how you'd approach it") and, rarely, offered proactively — only when the method is genuinely unsettled *and* getting it wrong is costly, so it never becomes a nag. After light recon of the provided inputs (skim, not deep-read), it lays out the approach in chat, file-optional and deepenable. At the checkpoint you run it now or save it for later. The boundary it draws is **code vs. knowledge-work**, not plan vs. execute: code still flows to `ce-work`'s normal path, while a non-code deliverable is marked `execution: knowledge-work` and runs through `ce-work`'s lightweight carve-out (or any agent — the plan stays portable). `ce-plan` itself never executes; it produces the approach-plan and hands off.
+
+### 9. Session-settled decisions — carried, not re-asked
+
+When a decision was examined and chosen in the invoking conversation — or arrives distilled in a caller brief — `ce-plan` records it on its Key Technical Decision as a visible `(session-settled: user-directed|user-approved — chosen over X: reason)` annotation and never re-asks it: the scoping synthesis renders it as a `Carrying forward:` line, not a fork to reconfirm. Research augments settled decisions and may contradict them only on evidence, routed by a severity ladder — nothing found proceeds silently; suboptimal-but-workable proceeds as settled with a conflict call-out attached to the KTD; invalidating evidence (infeasible, wrong-thing, destructive) stops the run, and in pipeline mode returns a `settled-decision-invalidated` blocked report. An unexamined assertion isn't settled — it earns exactly one plan-time challenge, whose outcome is ledgered in the plan rather than re-litigated downstream.
 
 ---
 
@@ -200,7 +241,7 @@ In universal-planning mode, the U-IDs, dependency ordering, scope boundaries, an
 | `deepen the plan` / `deepening pass` | Re-deepen fast path (interactive mode) |
 | `<bug description>` | Routes to `ce-debug` suggestion menu |
 | `<task in another repo>` | Cross-repo announcement, plan lands in target |
-| `output:html` | Write the plan as a single self-contained HTML file instead of markdown. Exclusive — the plan is `.md` OR `.html`, never both. Default is markdown. Set `plan_output: html` in `.compound-engineering/config.local.yaml` to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown so downstream automation gets a stable text shape. |
+| `output:html` | Write the plan as a single self-contained HTML file instead of markdown. Exclusive — the plan is `.md` OR `.html`, never both. Default is markdown. Set `plan_output: html` in `.compound-engineering/config.local.yaml` to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown so downstream automation gets a stable text shape. See the [configuration reference](./configuration.md). |
 | `confirm:auto` | Skip the pre-plan scoping-confirmation pause for this run — ce-plan writes the scope summary for itself, records inferred scope under an `Assumptions` section, announces it's proceeding, and keeps going without waiting. Skips only that confirmation; genuine blockers and the post-plan menu still appear. Use `confirm:ask` to force the gate on for one run. Set `plan_skip_scoping_confirm: true` in `.compound-engineering/config.local.yaml` to make skipping the default. |
 
 ---
@@ -227,9 +268,11 @@ Yes — and it's increasingly common. Universal-planning preserves the U-ID conc
 
 ---
 
-## Fable elevation (Claude Code only)
+## Model elevation
 
-When you're on a cheaper session model, `ce-plan` can still author the plan with a higher-reasoning model: it dispatches the interpret-findings-then-author step to Fable via a subagent, so you get Fable-quality planning without switching your whole session. Opt in per run by saying "use fable" in your prompt, or set `plan_use_fable: true` in `.compound-engineering/config.local.yaml`. A mechanical host gate makes this a silent no-op on every non-Claude-Code harness (Codex, Cursor). See `references/reasoning-elevation.md`.
+When you want a specific model for the heavy reasoning step, `ce-plan` can author the plan on a model you choose instead of your session model. It dispatches only the interpret-findings-then-author step to that model, with read access so it can verify its brief; the rest of the skill (dialogue, research) stays on your session model. Choose per run by naming a model in your prompt ("use fable", "have opus plan this"), or set a default with `plan_model: <model>` in `.compound-engineering/config.local.yaml`. A prompt request overrides the config key.
+
+This works on any harness: the host serves the chosen model natively where it can, otherwise it invokes the Claude CLI (which must be installed and authenticated), otherwise it runs the step on your session model and tells you which precondition was unmet. **Setting `plan_model` therefore takes effect in every harness you run `ce-plan` in**, not just Claude Code. See `references/reasoning-elevation.md`.
 
 ## See Also
 

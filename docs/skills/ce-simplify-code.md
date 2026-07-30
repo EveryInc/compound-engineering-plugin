@@ -8,7 +8,7 @@ It's a **utility skill** — point it at whatever you want refined. With no argu
 
 The premise is that simplification preserves exact functionality. The skill enforces this by running typecheck, lint, and scoped tests after fixes. **It refuses to relax assertions, weaken type signatures, or skip tests to make checks pass** — that defeats the guarantee.
 
-The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-simplify-code` runs automatically as a quality gate inside `/ce-work` Phase 3 (for diffs ≥30 changed lines) and as step 3 of the autonomous `/lfg` loop (before review, skipped for docs-only or trivial changes), and is directly invocable for refining a feature branch before you open a PR.
+The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-simplify-code` runs automatically as a quality gate inside `/ce-work` Phase 3 (for diffs with ≥30 substantive code lines) and as step 3 of the autonomous `/lfg` loop (before review, skipped for docs-only or trivial changes), and is directly invocable for refining a feature branch before you open a PR.
 
 ---
 
@@ -20,6 +20,26 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 | When to use it | Before opening a PR; after writing a feature; after AI generated code that works but feels heavy |
 | What it produces | Updated code (in place) + a summary of what was changed, what was good as-is, which checks ran, and a quantified impact by dimension (fixes applied per reuse/quality/efficiency, skipped count, verification result) |
 | What's next | Open the PR via `/ce-commit-push-pr` |
+
+---
+
+## Example invocations
+
+```text
+# Simplify the current branch diff before review or PR creation
+/ce-simplify-code
+
+# Limit the pass to one file
+/ce-simplify-code app/services/notification_dispatcher.rb
+
+# Describe a conversational scope when paths alone are not expressive enough
+/ce-simplify-code the changes I made to NotificationDispatcher
+
+# Clean up code an agent just generated before it becomes review noise
+/ce-simplify-code the authentication code from the last implementation step
+```
+
+User-named scope is authoritative. A bare invocation prefers the branch diff, then staged or unstaged work, then files recently edited in the conversation.
 
 ---
 
@@ -54,8 +74,8 @@ The orchestrator aggregates their findings, applies fixes, and runs typecheck + 
 
 A single "review and improve" prompt collapses into the agent's most-trained directions. Three reviewers each focused on one dimension cover meaningfully more ground:
 
-- **Reuse** — searches for existing utilities and helpers; flags new functions that duplicate existing ones; flags inline logic that could use an existing utility; flags diff code that reimplements a language standard-library or runtime primitive (gated on behavior-equivalence, excluding UX-changing swaps)
-- **Quality** — redundant state, parameter sprawl, copy-paste with variation, leaky abstractions, stringly-typed code, unnecessary wrappers (in component-tree UI frameworks), deeply nested conditionals, unnecessary comments, dead code / unused imports / unused exports
+- **Reuse** — searches for existing utilities and helpers; flags new functions that duplicate existing ones; flags inline logic that could use an existing utility; flags diff code that reimplements a language standard-library or runtime primitive (gated on behavior-equivalence, excluding UX-changing swaps); flags code that hand-maintains a verified guarantee the platform, framework, or downstream layer already provides
+- **Quality** — redundant state, parameter sprawl, copy-paste with variation (checking whether the duplicated construct can be eliminated before proposing a merge), leaky abstractions, stringly-typed code, unnecessary wrappers (in component-tree UI frameworks), deeply nested conditionals, unnecessary comments, dead code / unused imports / unused exports
 - **Efficiency** — unnecessary work (redundant computations, repeat reads), missed concurrency, hot-path bloat, recurring no-op updates, TOCTOU pre-checks, memory issues, overly broad operations
 
 ### 2. Smart scope detection — user-named > git diff > recent edits
@@ -69,6 +89,10 @@ After applying fixes, the skill runs typecheck and lint over the project and run
 ### 4. Mid-tier model selection — cost-aware
 
 The reviewer agents are dispatched on the platform's mid-tier model. Code review of a known diff doesn't need top-tier reasoning. On platforms where the model override is unavailable, the skill omits the override rather than failing the dispatch.
+
+### 5. Honors caller-passed structure pins
+
+When a caller (`/ce-work` or `/lfg`) passes a plan path whose labeled `session-settled:` KTDs name structural constraints, `ce-simplify-code` treats those as pins: a deliberately duplicated block stays duplicated, an intentional wrapper stays. A settled structural decision the user made on purpose isn't collapsed just because it looks reducible in isolation.
 
 ---
 
@@ -109,7 +133,7 @@ Skip `ce-simplify-code` when:
 
 `ce-simplify-code` is invoked automatically by two workflows, always **before** the review step so reviewers see the simplified diff:
 
-- **`/ce-work` Phase 3** — runs when a diff is ≥30 changed lines, ahead of the harness-native or `/ce-code-review` review tier.
+- **`/ce-work` Phase 3** — runs when a diff has ≥30 substantive code lines, ahead of the harness-native or `/ce-code-review` review tier.
 - **`/lfg` step 3** — the autonomous build loop runs it on the branch diff after the build step and before code review. It's skipped only for docs-only changes (markdown/docs paths) or trivial ones (roughly under 10 changed lines), and it leaves its edits uncommitted so the loop's later commit step sweeps them up with the rest of the work.
 
 It's also commonly invoked manually before `/ce-commit-push-pr`, when you want a refinement pass on a branch you've been building over multiple sessions.
@@ -194,7 +218,7 @@ The skill won't relax assertions, weaken type signatures, or skip tests to paper
 It can be, but in practice the moment to find an existing utility is when you're searching for it, not when you're writing the feature. A separate refinement pass with parallel cross-cutting search catches things the original write didn't.
 
 **Does it run for tiny diffs?**
-By default it runs against whatever code scope it resolves, but the yield on tiny diffs (a couple of lines) is low. The automated callers gate on size for that reason: `ce-work` runs it only for diffs ≥30 changed lines, and `/lfg` skips it for docs-only or trivial (roughly under 10 changed lines) changes. The skill itself does not gate on size — an explicit scope on a small function is authoritative and still runs; the size floor is a cost policy that lives in the callers and in any [standing instruction](#make-it-automatic) you add.
+By default it runs against whatever code scope it resolves, but the yield on tiny diffs (a couple of lines) is low. The automated callers gate on size for that reason: `ce-work` runs it only for diffs with ≥30 substantive code lines, and `/lfg` skips it for docs-only or trivial (roughly under 10 changed lines) changes. The skill itself does not gate on size — an explicit scope on a small function is authoritative and still runs; the size floor is a cost policy that lives in the callers and in any [standing instruction](#make-it-automatic) you add.
 
 **What if I point it at a docs-only or mechanical diff?**
 The skill detects when the resolved scope has no substantive code — documentation/Markdown-only, or only generated, vendored, lockfile, or purely mechanical churn — and stops with a short "nothing to simplify" note instead of dispatching the three reviewers, which would find nothing there. On a mixed diff it narrows to the code files and continues. This self-guard keys on the *kind* of change, not its size.

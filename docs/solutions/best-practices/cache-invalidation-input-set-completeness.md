@@ -17,7 +17,9 @@ tags: [cache, invalidation, correctness, freshness, git, stale-data]
 
 ## Context
 
-We cached a question-agnostic "project profile" (stack, deps, license, conventions, topology) keyed by git `<root-sha>/<head-sha>`, and reused it only when the working tree was "clean enough." The cardinal rule: the cache is an optimization that must **never** serve a stale profile that changes a skill's output. "Clean enough" was implemented as a delta check — reuse the entry unless a **profile-input** path is dirty (`git status --porcelain`). The whole correctness of the scheme rests on the *profile-input set* being complete.
+We cached a question-agnostic "project profile" (stack, deps, license, conventions, topology) keyed by git `<root-sha>/<inputs-digest>` (content-addressed over profile-input blobs at HEAD; earlier revisions used `<head-sha>`), and reused it only when the working tree was "clean enough." The cardinal rule: the cache is an optimization that must **never** serve a stale profile that changes a skill's output. "Clean enough" was implemented as a delta check — reuse the entry unless a **profile-input** path is dirty (`git status --porcelain`). The whole correctness of the scheme rests on the *profile-input set* being complete.
+
+The repo-orientation profile was later removed entirely after behavioral evaluation showed that lean task-specific fresh grounding was faster and at least as useful. This guidance remains historical evidence for any other cache whose stale value can directly decide an output; it explains why correctness-sensitive fields should be invalidated completely or removed from the cache rather than treated as advisory.
 
 The first version's input set was a hand-picked, JS/Python/Go/Ruby-centric allowlist of manifest filenames. Adversarial review found whole ecosystems missing — `.NET` (`*.csproj`, `*.sln`), Swift/iOS (`Package.swift`, `Podfile`), Deno, modern Python (`uv.lock`, `pdm.lock`), C/C++, Gradle version catalogs. In any of those repos, editing a manifest at an unchanged HEAD would **not** invalidate, and the cache would serve a profile with the old stack/deps — a silent cardinal-rule break.
 
@@ -70,4 +72,4 @@ def is_input(p):
 
 - `docs/solutions/skill-design/cross-skill-shared-cache-primitive.md` — the cache this rule shipped on
 - `docs/solutions/best-practices/predictable-tmp-cache-ownership-check.md` — a separate safety property of the same cache
-- AGENTS.md "Shared Repo-Grounding Profile Cache"
+- AGENTS.md "Lean Repo Grounding"

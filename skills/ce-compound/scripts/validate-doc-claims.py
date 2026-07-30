@@ -25,7 +25,10 @@ citations against the repository:
        HEAD and the upstream default branch.
     3. Relative markdown link targets resolve from the doc's location.
     4. Dangling drafting scaffold: "Learning(s) N" numbering and
-       unresolved {{...}} placeholder tokens.
+       unresolved {{...}} placeholder tokens. Inline code spans and fenced
+       code blocks are masked first, so a {{...}} shown as documented syntax
+       (Handlebars, a CI variable, a GitHub ruleset placeholder) is not
+       mistaken for a leaked scaffold; only a bare token in prose is flagged.
 
 Flags are adjudication input, NOT hard failures — a doc may legitimately
 cite a path deleted by the very fix it documents. The calling agent
@@ -48,6 +51,7 @@ PLACEHOLDER_SUBSTRINGS = ("path/to", "...", "…")
 SHA_RE = re.compile(r"\b[0-9a-f]{7,40}\b")
 BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
 SCAFFOLD_RES = (
     re.compile(r"\bLearnings?\s+#?\d"),
     re.compile(r"\{\{[^}\n]*\}\}"),
@@ -112,6 +116,35 @@ def is_path_shaped(token: str, base: str) -> bool:
     if token.endswith("/"):
         return True
     return os.path.isdir(os.path.join(base, segments[0]))
+
+
+def mask_code(lines: list[str]) -> list[str]:
+    """Blank out fenced code blocks and inline code spans, preserving line
+    count and length. Illustrative {{...}} in quoted code must not read as a
+    leaked drafting scaffold; only bare tokens in prose should."""
+    masked: list[str] = []
+    fence: str | None = None  # active fence run (e.g. "```"), or None
+    for line in lines:
+        m = FENCE_RE.match(line)
+        if fence is None and m:
+            fence = m.group(1)
+            masked.append(" " * len(line))
+            continue
+        if fence is not None:
+            # CommonMark: a closing fence is the same char, at least as long,
+            # and followed only by whitespace — an info string (```json) opens
+            # but never closes, so it stays block content.
+            if (
+                m
+                and m.group(1)[0] == fence[0]
+                and len(m.group(1)) >= len(fence)
+                and not m.group(2).strip()
+            ):
+                fence = None
+            masked.append(" " * len(line))
+            continue
+        masked.append(BACKTICK_RE.sub(lambda x: " " * len(x.group(0)), line))
+    return masked
 
 
 def normalize_path(token: str) -> str:
@@ -317,7 +350,7 @@ def main(argv: list[str]) -> int:
             )
 
     # --- 4. Dangling drafting scaffold ---------------------------------------
-    for i, line_text in enumerate(body_lines):
+    for i, line_text in enumerate(mask_code(body_lines)):
         for pattern in SCAFFOLD_RES:
             m = pattern.search(line_text)
             if m:

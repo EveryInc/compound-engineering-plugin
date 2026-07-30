@@ -1,7 +1,8 @@
-import { describe, expect, test } from "bun:test"
+import { afterAll, describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
+import { materializeClaudePluginFixture } from "./helpers/claude-plugin-fixture"
 
 async function exists(filePath: string): Promise<boolean> {
   try {
@@ -35,7 +36,10 @@ const gitEnv = {
 }
 
 const projectRoot = path.join(import.meta.dir, "..")
-const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+const fixture = materializeClaudePluginFixture(path.join(import.meta.dir, "fixtures", "sample-plugin"))
+const fixtureRoot = fixture.root
+
+afterAll(fixture.cleanup)
 
 async function createTestRepo(): Promise<string> {
   const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "plugin-path-repo-"))

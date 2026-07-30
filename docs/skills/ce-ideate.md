@@ -25,8 +25,40 @@ The chain works across domains — every step supports universal mode. `ce-ideat
 |----------|--------|
 | What does it do? | Grounds in real material, decomposes the topic into orthogonal axes, generates candidates across six conceptual frames spread over those axes, critiques them adversarially, presents 5-7 survivors — each with a tagged basis |
 | When to use it | Greenfield exploration, big-picture thinking, codebase audits, surprise-me runs, naming, decisions, business strategy — any domain where you want a qualified candidate set rather than a refined idea |
-| What it produces | Ranked ideation artifact written as a single self-contained HTML file by default (humans are the audience — rich, openable in a browser); pass `output:md` for markdown. Written automatically to `docs/ideation/` when present, else an announced temp path under `/tmp/compound-engineering/` |
+| What it produces | Ranked ideation artifact written as a single self-contained HTML file by default (humans are the audience — rich, openable in a browser); pass `output:md` for markdown. Written automatically to `docs/ideation/` when present, else an announced temp path under `/tmp/compound-engineering-<effective-uid>/` |
 | What's next | `/ce-brainstorm` on a chosen survivor, iterate on one first, or just keep the saved file |
+
+---
+
+## Example invocations
+
+```text
+# Generate grounded product or codebase opportunities
+/ce-ideate what should we improve in this repository?
+
+# Focus ideation on a specific product surface
+/ce-ideate onboarding improvements for new team administrators
+
+# Find solution opportunities across patterns in open GitHub issues
+/ce-ideate what product opportunities do you see across our open GitHub issues?
+
+# Ideate from the open work in an accessible Linear project
+/ce-ideate find solution opportunities across https://linear.app/acme/project/customer-onboarding-1234
+
+# Ask for non-obvious directions without naming a subject
+/ce-ideate surprise me
+
+# Use the same engine for non-software ideation
+/ce-ideate names for a neighborhood coffee shop
+
+# Ask for Markdown instead of the default self-contained HTML artifact
+/ce-ideate developer experience improvements, and write the artifact in Markdown
+
+# Equivalent shorthand when a repeatable automation needs it
+/ce-ideate developer experience improvements output:md
+```
+
+Use `ce-pov` when the candidates are already known and need judgment; use `ce-brainstorm` when one candidate needs scope.
 
 ---
 
@@ -86,7 +118,7 @@ The same generate-critique-survive mechanism runs across very different topic do
 
 ### 8. Issue-tracker intent
 
-Phrases like "what users are reporting" or "biggest issue patterns" trigger an issue-intelligence agent that pulls real GitHub issues and feeds clustered themes into the ideation frames.
+Phrases like "what users are reporting" or "biggest issue patterns" trigger an issue-intelligence agent that pulls real issues from your tracker — GitHub, Linear, or Jira, whichever is reachable — and feeds leverage-ranked clustered themes into the ideation frames. It scopes large trackers by the tracker's own structure and asks at most one question, only when the tracker is genuinely split; it discloses what it did and didn't analyze rather than implying it read everything.
 
 ---
 
@@ -177,7 +209,7 @@ The deliverable is written automatically — you don't have to ask. If a run was
 | `surprise me` | Surprise-me mode |
 | `go deep` | Maximum depth: every ideation agent runs on the top-tier model, verification budgets double, and a second critic joins the filtering pass |
 | `top issue themes in <area>` | Triggers issue-tracker intent |
-| `output:md` | Write the artifact as markdown instead of the default self-contained HTML (`output:html` forces HTML explicitly). Also settable per-project via `ideate_output` in `.compound-engineering/config.local.yaml` |
+| `output:md` | Write the artifact as markdown instead of the default self-contained HTML (`output:html` forces HTML explicitly). Also settable per-project via `ideate_output` in `.compound-engineering/config.local.yaml`; see the [configuration reference](./configuration.md) |
 
 Skip phrases supported anywhere in the prompt: `no external research`.
 

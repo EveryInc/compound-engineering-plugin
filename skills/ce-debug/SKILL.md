@@ -72,14 +72,7 @@ Confirm the bug exists and understand its behavior. Run the test, trigger the er
 - **Manual setup required:** If reproduction needs specific conditions the agent cannot create alone (data states, user roles, external services, environment config), document the exact setup steps and guide the user through them. Clear step-by-step instructions save significant time even when the process is fully manual.
 - **Does not reproduce after 2-3 attempts:** Read `references/investigation-techniques.md` for intermittent-bug techniques.
 - **Cannot reproduce at all in this environment:** Document what was tried and what conditions appear to be missing.
-- **Writing the reproduction test:** Orient on the project's testing conventions before authoring the failing test. Resolve them from the shared repo-grounding cache first — set `SKILL_DIR` to this skill's directory and run the helper (full protocol in `references/repo-profile-cache.md`):
-
-  ```bash
-  SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-  python3 "$SKILL_DIR/scripts/repo-profile-cache.py" get
-  ```
-
-  On `HIT`, use the cached profile's `conventions.testing` field as the testing-convention orientation — do not re-read the *root* instruction files for it. (If the bug lives under a subdirectory with its own scoped `AGENTS.md`/`CLAUDE.md` testing rules, still read those fresh — subdirectory-scoped instructions are excluded from the cache.) **But if that field is empty or null** (the profile recorded no explicit testing guidance), still fall back to the inline check below — in particular, look for a clear style across the project's existing tests. On `MISS` or `NO-CACHE` (or any error), fall back to deriving it inline as today: if the project has testing-conventions guidance — a dedicated testing skill, an `AGENTS.md`/`CLAUDE.md` testing section, or a clear style across existing tests — apply it. The cache is purely an orientation convenience here; never block on it, and do not derive or persist a full profile just for this lookup. Either way, inspect existing tests before adding coverage: use an existing failing test when it already captures the bug, update an existing test when it owns the contract but has the wrong expectation, strengthen an over-mocked test when it should have caught the bug, or add a new minimal isolated test only when no existing test is the right home. The chosen test must fail on the current bug and pass once the corrected behavior lands; name it descriptively so the failure message itself explains the bug.
+- **Writing the reproduction test:** Use the active project instructions and any applicable subdirectory-scoped instructions; always inspect existing tests before adding coverage. Use an existing failing test when it already captures the bug, update an existing test when it owns the contract but has the wrong expectation, strengthen an over-mocked test when it should have caught the bug, or add a new minimal isolated test only when no existing test is the right home. The chosen test must fail on the current bug and pass once the corrected behavior lands; name it descriptively so the failure message itself explains the bug.
 
 #### 1.2 Verify environment sanity
 
@@ -93,8 +86,6 @@ Before deep code tracing, confirm the environment is what you think it is:
 - Dependent local services (database, cache, queue) running at expected versions *when the bug plausibly involves them*
 
 #### 1.3 Trace the code path
-
-For frontend bugs (React components, browser behavior, CSS, state management), read `references/frontend-debugging-patterns.md` for React DevTools workflows, state management debugging, CSS/layout debugging, memory leak patterns, and frontend error triage tables.
 
 Trace data flow backward from the symptom to where valid state first became invalid. Read code-shape to form a hypothesis, then verify with observed values — do not theorize from code alone.
 
@@ -178,7 +169,7 @@ Once the root cause is confirmed, present:
 
 Then offer next steps.
 
-**`mode:pipeline`:** do not ask. The caller invoked this skill to fix, so proceed to Phase 3 and apply a **convergent** fix; a **divergent** fix (one that would reverse a deliberate contract/behavior/product decision — including a "failing" test that asserts intended behavior) is deferred, not applied, per `references/pipeline-mode.md`. Never route to `/ce-brainstorm` in pipeline mode — a design problem becomes a `needs-human` residual.
+**`mode:pipeline`:** do not ask. The caller invoked this skill to fix, so proceed to Phase 3 and apply a **convergent** fix; a **divergent** fix (one that would reverse a deliberate contract/behavior/product decision — including a "failing" test that asserts intended behavior) is deferred, not applied, per `references/pipeline-mode.md`. Never route to `ce-brainstorm` in pipeline mode — a design problem becomes a `needs-human` residual.
 
 Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension)). In Claude Code, call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded — a pending schema load is not a reason to fall back. Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes). Never silently skip the question.
 
@@ -186,7 +177,7 @@ Options to offer:
 
 1. **Fix it now** — proceed to Phase 3
 2. **Diagnosis only — I'll take it from here** — skip the fix, proceed to Phase 4's summary, and end the skill
-3. **Rethink the design** (`/ce-brainstorm`) — only when the root cause reveals a design problem (see below)
+3. **Rethink the design** (`ce-brainstorm`) — only when the root cause reveals a design problem (see below)
 
 Do not assume the user wants action right now. The test recommendations are part of the diagnosis regardless of which path is chosen.
 
@@ -204,7 +195,7 @@ If 2-3 hypotheses are exhausted without confirmation, diagnose why:
 
 | Pattern | Diagnosis | Next move |
 |---------|-----------|-----------|
-| Hypotheses point to different subsystems | Architecture/design problem, not a localized bug | Present findings, suggest `/ce-brainstorm` |
+| Hypotheses point to different subsystems | Architecture/design problem, not a localized bug | Present findings, suggest `ce-brainstorm` |
 | Evidence contradicts itself | Wrong mental model of the code | Step back, re-read the code path without assumptions |
 | Works locally, fails in CI/prod | Environment problem | Focus on env differences, config, dependencies, timing |
 | Fix works but prediction was wrong | Symptom fix, not root cause | The real cause is still active — keep investigating |
@@ -219,7 +210,7 @@ Present the diagnosis to the user before proceeding.
 
 *Reminder: one change at a time. If you are changing multiple things, stop.*
 
-If the user chose "Diagnosis only" at the end of Phase 2, skip this phase and go straight to Phase 4 for the summary — the skill's job was the diagnosis. If they chose "Rethink the design", control has transferred to `/ce-brainstorm` and this skill ends.
+If the user chose "Diagnosis only" at the end of Phase 2, skip this phase and go straight to Phase 4 for the summary — the skill's job was the diagnosis. If they chose "Rethink the design", control has transferred to `ce-brainstorm` and this skill ends.
 
 **Workspace and branch check:** Before editing files:
 
@@ -275,11 +266,11 @@ Run this tail after Phase 3 ran and before the branch-based commit/PR handoff. T
 
 **Skip the tail only with a reason.** Skip dedicated simplify/review when the fix is purely mechanical or trivial: typo/import-only, formatting/lint-only, dependency/version-only, generated artifacts, docs-only, or roughly under 10 changed lines with no sensitive surface. Still keep the Phase 3 tests and self-review. If skipping, carry the skip reason into the handoff summary.
 
-**Simplify before review when useful.** Invoke `/ce-simplify-code` before code review when the current fix diff is non-mechanical and large enough to benefit (default: >=30 changed lines), touches multiple implementation files, introduces a new helper/abstraction, or affects shared/risky surfaces such as auth/authz, public contracts, persistence, concurrency, background jobs, or external services. Use the branch diff only when the branch is skill-owned or clearly contains only this fix. On a pre-existing branch, scope simplification to fix-owned files only when those files were clean before Phase 3. If a fix-owned file already had pre-existing user edits, skip `/ce-simplify-code` for that file and record `Simplify: skipped for overlapping pre-existing edits`; file-level simplification could rewrite unrelated hunks the user did not authorize. Do not let simplification widen into unrelated user work.
+**Simplify before review when useful.** Invoke `ce-simplify-code` before code review when the current fix diff is non-mechanical and large enough to benefit (default: >=30 changed lines), touches multiple implementation files, introduces a new helper/abstraction, or affects shared/risky surfaces such as auth/authz, public contracts, persistence, concurrency, background jobs, or external services. Use the branch diff only when the branch is skill-owned or clearly contains only this fix. On a pre-existing branch, scope simplification to fix-owned files only when those files were clean before Phase 3. If a fix-owned file already had pre-existing user edits, skip `ce-simplify-code` for that file and record `Simplify: skipped for overlapping pre-existing edits`; file-level simplification could rewrite unrelated hunks the user did not authorize. Do not let simplification widen into unrelated user work.
 
-**Review the final fix scope.** After simplification (or after the skip decision), review every non-mechanical fix unless review tooling is unavailable. Run default `/ce-code-review` only when its diff scope is known to be this fix: the branch was created by this skill, or the pre-fix tree was clean and you can pass `base:<pre-fix-HEAD>`. Do not run default `/ce-code-review` on a pre-existing dirty branch or a branch with unrelated committed work; standalone review uses the branch/worktree diff and may apply fixes outside the bug scope. In that case, run the harness's lightweight review tool only if it accepts an explicit file scope; otherwise perform an explicit manual review of the fix-owned files and record `Code review: targeted manual due to unrelated branch work`. If `/ce-code-review` is unavailable on an otherwise fix-only scope, fall back to the harness's lightweight review tool when available; otherwise do one explicit manual diff scan and state that dedicated review was unavailable.
+**Review the final fix scope.** After simplification (or after the skip decision), review every non-mechanical fix unless review tooling is unavailable. Run default `ce-code-review` only when its diff scope is known to be this fix: the branch was created by this skill, or the pre-fix tree was clean and you can pass `base:<pre-fix-HEAD>`. Do not run default `ce-code-review` on a pre-existing dirty branch or a branch with unrelated committed work; standalone review uses the branch/worktree diff and may apply fixes outside the bug scope. In that case, run the harness's lightweight review tool only if it accepts an explicit file scope; otherwise perform an explicit manual review of the fix-owned files and record `Code review: targeted manual due to unrelated branch work`. If `ce-code-review` is unavailable on an otherwise fix-only scope, fall back to the harness's lightweight review tool when available; otherwise do one explicit manual diff scan and state that dedicated review was unavailable.
 
-**Handle residual findings before shipping.** Inspect the review's Actionable Findings. Do not auto-open a PR with unresolved P0/P1 findings, or with findings whose fix needs a product/design decision. Ask the user whether to fix now, accept/defer durably, or stop. For lower-severity residuals the user accepts, preserve them before any outward handoff: if a PR will be opened, pass them as "Known Residuals" context to `/ce-commit-push-pr`; if the user chooses commit-only or stop, create `docs/residual-review-findings/<branch-or-head-sha>.md` with the accepted findings and source review context, stage it with the fix when committing, and mention the file path in the final summary. Accepted residuals must not live only in the session.
+**Handle residual findings before shipping.** Inspect the review's Actionable Findings. Do not auto-open a PR with unresolved P0/P1 findings, or with findings whose fix needs a product/design decision. Ask the user whether to fix now, accept/defer durably, or stop. For lower-severity residuals the user accepts, preserve them before any outward handoff: if a PR will be opened, pass them as "Known Residuals" context to `ce-commit-push-pr`; if the user chooses commit-only or stop, prefer filing a ticket per finding in the project's tracker (detected in Phase 1.4) with enough background to action it standalone — the finding, why it matters, file:line, severity, a pointer to the review run, and the branch/head commit SHA so the ticket points at the code even without a PR. Only when no tracker is reachable, create `docs/residual-review-findings/<branch-or-head-sha>.md` with the accepted findings and source review context as the last resort, stage it with the fix when committing, and mention the file path in the final summary. Accepted residuals must not live only in the session.
 
 **Re-verify after tail edits.** If simplification or review changed code, rerun the bug's regression test and any targeted checks the tail identified. Never proceed to commit or PR with a red tree.
 
@@ -290,7 +281,7 @@ Run this tail after Phase 3 ran and before the branch-based commit/PR handoff. T
 **Scope**: [fix-only branch / base:<pre-fix-HEAD> / fix-owned files only / targeted manual due to unrelated branch work]
 **Simplify**: [ran/skipped + reason]
 **Review**: [ran/skipped/manual + outcome]
-**Residuals**: [none / accepted Known Residuals for PR / accepted residuals written to docs/residual-review-findings/<branch-or-head-sha>.md / blocked pending user decision]
+**Residuals**: [none / accepted Known Residuals for PR / filed as tracker tickets / accepted residuals written to docs/residual-review-findings/<branch-or-head-sha>.md (last resort) / blocked pending user decision]
 **Re-verification**: [checks rerun after tail edits]
 ```
 
@@ -298,7 +289,7 @@ Run this tail after Phase 3 ran and before the branch-based commit/PR handoff. T
 
 1. **Check for contextual overrides first.** Look at the user's original prompt, loaded memories, and the project's active instructions already in your context for preferences that conflict with auto commit-and-PR — for example, "always review before pushing", "open PRs as drafts", or "don't open PRs from skills". A signal must be an explicit instruction or a clearly applicable rule, not a vague tonal cue. If any apply, honor them — switch to the pre-existing-branch menu below, or skip the PR step entirely, whichever matches the user's stated preference.
 2. **Briefly preview what will happen** — what will be committed, on what branch, and that a PR will be opened — then proceed without waiting for confirmation. The preview exists so the user can interrupt; it is not a blocking question. Format and length are your call; keep it scannable.
-3. **Run `/ce-commit-push-pr`.** When the entry came from an issue tracker, include the appropriate auto-close syntax for that tracker in the location it requires — most trackers parse PR descriptions (e.g., `Fixes #N` for GitHub, `Closes ABC-123` for Linear), but some only parse commit messages (e.g., Jira Smart Commits) — so the diagnosis and fix flow back to the issue and it closes on merge. Surface the resulting PR URL.
+3. **Invoke the `ce-commit-push-pr` skill with `branding:on`.** The explicit branding signal records that `ce-debug` produced the fix. When the entry came from an issue tracker, include the appropriate auto-close syntax for that tracker in the location it requires — most trackers parse PR descriptions (e.g., `Fixes #N` for GitHub, `Closes ABC-123` for Linear), but some only parse commit messages (e.g., Jira Smart Commits) — so the diagnosis and fix flow back to the issue and it closes on merge. Surface the resulting PR URL.
 
 #### Pre-existing branch (skill did not create it): ask the user
 
@@ -306,8 +297,8 @@ Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `re
 
 Options:
 
-1. **Open a PR with the reviewed fix (`/ce-commit-push-pr`)** — default for most cases
-2. **Commit the fix (`/ce-commit`)** — local commit only
+1. **Open a PR with the reviewed fix (invoke the `ce-commit-push-pr` skill with `branding:on`)** — default for most cases
+2. **Commit the fix (`ce-commit`)** — local commit only
 3. **Stop here** — user takes it from there
 
 #### After a PR is open (either path): consider offering learning capture
@@ -318,4 +309,4 @@ Most bugs are localized mechanical fixes (typo, missed null check, missing impor
 - **Offer neutrally** when the lesson can be stated in one sentence — e.g., "X.foo() returns T | undefined when Y, not just T", or "the diagnostic path was non-obvious and worth recording." If you cannot articulate the lesson, skip rather than offer.
 - **Lean into the offer** when the pattern appears in 3+ locations OR the root cause reveals a wrong assumption about a shared dependency, framework, or convention that other code is likely to repeat.
 
-When offering, use the blocking question tool described above. If the user accepts, run `/ce-compound`, then commit the resulting learning doc to the same branch and push so the open PR picks up the new commit.
+When offering, use the blocking question tool described above. If the user accepts, run `ce-compound`, then commit the resulting learning doc to the same branch and push so the open PR picks up the new commit.

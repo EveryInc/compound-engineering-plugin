@@ -18,14 +18,15 @@ Read this when checking the V15 cache before dispatching `web-researcher`, or wh
 ]
 ```
 
-Files live under `<scratch-dir>/web-research-cache.json`, where `<scratch-dir>` is `/tmp/compound-engineering/ce-ideate/<run-id>`, resolved once in SKILL.md Phase 1.
+Files live under `<scratch-dir>/web-research-cache.json`, where `<scratch-dir>` is `<scratch-root>/ce-ideate/<run-id>`, resolved once in SKILL.md Phase 1.
 
 ## Reuse check
 
 Before dispatching `web-researcher`, resolve the scratch root (the parent of `<scratch-dir>`) in bash and list sibling run-id directories — refinement loops within a session may legitimately reuse another run's cache by topic, not run-id:
 
 ```bash
-SCRATCH_ROOT="/tmp/compound-engineering/ce-ideate"
+SCRATCH_DIR="<absolute scratch-dir resolved in Phase 1>"
+SCRATCH_ROOT="$(dirname "$SCRATCH_DIR")"
 find "$SCRATCH_ROOT" -maxdepth 2 -name 'web-research-cache.json' -type f 2>/dev/null
 ```
 

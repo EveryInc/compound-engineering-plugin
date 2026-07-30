@@ -57,6 +57,14 @@ let sharedSha: string
 let localOnlySha: string
 let upstreamOnlySha: string
 
+function mixedShaPrefix(sha: string): string {
+  for (let length = 7; length <= sha.length; length++) {
+    const prefix = sha.slice(0, length)
+    if (/\d/.test(prefix) && /[a-f]/.test(prefix)) return prefix
+  }
+  throw new Error(`commit SHA has no mixed digit/letter prefix: ${sha}`)
+}
+
 beforeAll(() => {
   repo = mkdtempSync(path.join(tmpdir(), "doc-claims-repo-"))
   sh(repo, "git", ["init", "-b", "main"])
@@ -123,7 +131,7 @@ describe("validate-doc-claims script", () => {
       test("passes a clean doc citing an existing path and a shared SHA", () => {
         const docPath = writeRepoDoc(
           "The fix lives in `src/real-file.ts` and landed in commit " +
-            `${sharedSha.slice(0, 12)}.\n` +
+            `${mixedShaPrefix(sharedSha)}.\n` +
             "See [the existing doc](existing-doc.md) for background.\n",
         )
         const result = runValidator(skillDir, docPath)
@@ -192,23 +200,25 @@ describe("validate-doc-claims script", () => {
       })
 
       test("flags a HEAD-only SHA as rewritable on merge", () => {
+        const sha = mixedShaPrefix(localOnlySha)
         const docPath = writeRepoDoc(
-          `Landed in ${localOnlySha.slice(0, 12)} on this branch.\n`,
+          `Landed in ${sha} on this branch.\n`,
         )
         const result = runValidator(skillDir, docPath)
         expect(result.code).toBe(1)
-        expect(result.stdout).toContain(`FLAG sha ${localOnlySha.slice(0, 12)}`)
+        expect(result.stdout).toContain(`FLAG sha ${sha}`)
         expect(result.stdout).toContain("local-only commit")
       })
 
       test("flags an upstream-only SHA as predating-the-merge (the stale-branch bug)", () => {
+        const sha = mixedShaPrefix(upstreamOnlySha)
         const docPath = writeRepoDoc(
-          `Fixed by ${upstreamOnlySha.slice(0, 12)} which merged upstream.\n`,
+          `Fixed by ${sha} which merged upstream.\n`,
         )
         const result = runValidator(skillDir, docPath)
         expect(result.code).toBe(1)
         expect(result.stdout).toContain(
-          `FLAG sha ${upstreamOnlySha.slice(0, 12)}`,
+          `FLAG sha ${sha}`,
         )
         expect(result.stdout).toContain("predates the merge")
       })
@@ -237,6 +247,83 @@ describe("validate-doc-claims script", () => {
         expect(result.code).toBe(1)
         expect(result.stdout).toContain("FLAG scaffold")
         expect(result.stdout).toContain("{{DOC:3}}")
+      })
+
+      test("does not flag {{...}} inside an inline code span", () => {
+        const docPath = writeRepoDoc(
+          "The ruleset names `{{IP_RELEASER_APP_ID}}` as a bypass actor.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+        expect(result.stdout).not.toContain("FLAG scaffold")
+      })
+
+      test("does not flag {{...}} inside a fenced code block", () => {
+        const docPath = writeRepoDoc(
+          "Example ruleset actor:\n\n" +
+            "```json\n" +
+            '{ "bypass_actors": [{ "actor_id": "{{IP_RELEASER_APP_ID}}" }] }\n' +
+            "```\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+        expect(result.stdout).not.toContain("FLAG scaffold")
+      })
+
+      test("still flags a bare {{...}} scaffold leaked into prose", () => {
+        const docPath = writeRepoDoc(
+          "Save the output under {{run_dir}} before continuing.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG scaffold")
+        expect(result.stdout).toContain("{{run_dir}}")
+      })
+
+      test("keeps a nested shorter fence inside a longer one masked", () => {
+        // A 4-backtick fence that demonstrates an inner 3-backtick block: the
+        // inner ``` must not close the outer fence (CommonMark length rule),
+        // so the {{...}} it wraps stays masked.
+        const docPath = writeRepoDoc(
+          "````markdown\n" +
+            "```\n" +
+            "{{NESTED_PLACEHOLDER}}\n" +
+            "```\n" +
+            "````\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+        expect(result.stdout).not.toContain("FLAG scaffold")
+      })
+
+      test("keeps a same-length info-string fence line as block content", () => {
+        // A bare ``` block whose content demonstrates a ```json opener: the
+        // inner ```json has trailing text, so CommonMark does not treat it as
+        // a closing fence — the {{...}} after it stays masked.
+        const docPath = writeRepoDoc(
+          "```\n" +
+            "```json\n" +
+            '{ "actor_id": "{{PLACEHOLDER_APP_ID}}" }\n' +
+            "```\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+        expect(result.stdout).not.toContain("FLAG scaffold")
+      })
+
+      test("flags prose {{...}} after a closing fence, not the fenced content", () => {
+        // Pins the fence toggle-off transition: content resumes prose masking
+        // once the block closes.
+        const docPath = writeRepoDoc(
+          "```json\n" +
+            '{ "actor_id": "{{IP_RELEASER_APP_ID}}" }\n' +
+            "```\n\n" +
+            "Then save under {{run_dir}} before continuing.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("{{run_dir}}")
+        expect(result.stdout).not.toContain("{{IP_RELEASER_APP_ID}}")
       })
 
       test("resolves a `../` code-formatted link label from the doc's location", () => {

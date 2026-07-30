@@ -21,6 +21,12 @@ describe("frontmatter", () => {
     expect(parsed.body.trim()).toBe(body)
   })
 
+  test("formatFrontmatter leaves strings YAML reads back as themselves unquoted", () => {
+    const formatted = formatFrontmatter({ description: "yes", name: "off" }, "body")
+    expect(formatted).toContain("description: yes")
+    expect(formatted).toContain("name: off")
+  })
+
 })
 
 /**

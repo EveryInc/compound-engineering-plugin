@@ -32,6 +32,34 @@ One thing it deliberately does *not* do is render a verdict. When a request is r
 
 ---
 
+## Example invocations
+
+```text
+# Shape an ambitious feature or project before committing to a plan
+/ce-brainstorm design a self-serve migration platform for enterprise customers
+
+# Turn a rough feature idea into a requirements artifact
+/ce-brainstorm add a way for users to pause notifications
+
+# Explore a problem without prescribing the solution up front
+/ce-brainstorm support agents get paged overnight for non-urgent events
+
+# Brainstorm non-software work with the same scope and decision discipline
+/ce-brainstorm plan a two-day customer advisory workshop
+
+# Ask for a self-contained HTML artifact in plain language
+/ce-brainstorm add account-level notification settings and make the artifact a self-contained HTML page
+
+# Equivalent shorthand when a repeatable automation needs it
+/ce-brainstorm add account-level notification settings output:html
+
+# Keep your session on a model like Opus, but generate the approaches on Fable --
+# surgical use of a strong-but-expensive model just for the heavy reasoning step
+/ce-brainstorm add account-level notification settings, use fable
+```
+
+---
+
 ## The Problem
 
 Going straight from a vague idea to implementation produces:
@@ -56,6 +84,8 @@ A typical "let's brainstorm" with an AI also has shape problems: it asks five qu
 - **Opt-in visual probes** for decisions that are faster to judge as rough sketches than prose
 - **Synthesis Summary** as the last opportunity to correct scope before the doc lands
 - **Fresh-context claim verification** checks the doc's repo claims before it lands
+- **One coherent work unit per artifact** with a plain-language view of how separately planned work currently fits together
+- **Ready for Planning Check** repairs completeness, consistency, focus, and planning-readiness defects before handoff
 - **Right-sized Product Contract** inside a unified plan with stable identifiers (R/A/F/AE) that flow into planning
 
 ---
@@ -110,7 +140,11 @@ Requirements describe **what** behavior is expected from the user's perspective.
 
 The interview machinery assumes you can evaluate what it asks — and that assumption fails exactly when you're scoping work in territory you don't know. When you flag unfamiliarity ("I know nothing about the auth modules", "I don't know what color grading is"), or consecutive answers show you *can't weigh the options* rather than merely haven't decided, `ce-brainstorm` offers a **blindspot pass** before questioning you further on that territory: a grounded map of 3-7 decisions and hazards you didn't know to ask about, each with why it matters for your topic, the realistic options, and a recommended default. You pick which to walk through; the rest take defaults recorded as explicit assumptions. It converts unknown unknowns into known unknowns, so the interview extracts choices instead of guesses. Works on both the software and non-software routes.
 
-### 11. Grounding and verification ride inside your think-time
+### 11. Session-settled decisions carried into requirements
+
+The same settlement test runs at requirements time: a decision the user examined and chose during the dialogue (a tradeoff was surfaced, they chose with it in view) lands as a labeled Key Decision — `session-settled: user-directed` or `user-approved`, naming what it was chosen over — and the dialogue never re-asks it. `ce-plan` enrichment inherits the label and its rejected-alternative provenance, so a choice made once here isn't re-litigated when the requirements become an implementation-ready plan.
+
+### 12. Grounding and verification ride inside your think-time
 
 On Standard and Deep brainstorms, a cheap extraction-tier scout is dispatched in the background while you answer the first question. It writes a grounding dossier — verbatim quotes with `file:line` pointers — to scratch storage and hands back a short gist, so the dialogue stays lean while the evidence stays available on demand. Before the requirements-only unified plan is written, a fresh-context verifier (a mid-tier model that never saw the dialogue) checks the Product Contract's repo claims — absence claims, file references — against the codebase, running while you review the synthesis confirmation. Refuted claims are corrected before the plan lands; unverifiable ones become explicit assumptions. The dossier path is handed to `ce-plan` so planning starts from verified quotes instead of re-scanning. On platforms without per-agent model selection, both run on the inherited model with the same read budgets; with no subagent support at all, the skill falls back to inline scanning and verification.
 
@@ -194,7 +228,7 @@ The Phase 4 handoff offers planning, agent doc review, publish to Proof, direct-
 | `<feature idea>` | Open-ended brainstorm |
 | `<problem>` | Routes via the named gap lenses |
 | Existing requirements-only plan path, legacy `*-requirements.md` path, or topic | Resume offer |
-| `output:html` | Write the requirements-only unified plan as a single self-contained HTML file instead of markdown. Exclusive — the artifact is `.md` OR `.html`, never both. Default is markdown. Set `brainstorm_output: html` in `.compound-engineering/config.local.yaml` to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown so downstream automation gets a stable text shape. |
+| `output:html` | Write the requirements-only unified plan as a single self-contained HTML file instead of markdown. Exclusive — the artifact is `.md` OR `.html`, never both. Default is markdown. Set `brainstorm_output: html` in `.compound-engineering/config.local.yaml` to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown so downstream automation gets a stable text shape. See the [configuration reference](./configuration.md). |
 
 ---
 
@@ -220,9 +254,11 @@ Yes — a domain-agnostic facilitator preserves the one-question-at-a-time disci
 
 ---
 
-## Fable elevation (Claude Code only)
+## Model elevation
 
-When you're on a cheaper session model, `ce-brainstorm` can still generate approaches with a higher-reasoning model: it dispatches approach generation to Fable via a subagent, so you get sharper, less-generic options without switching your whole session. Opt in per run by saying "use fable" in your prompt, or set `brainstorm_use_fable: true` in `.compound-engineering/config.local.yaml`. A mechanical host gate makes this a silent no-op on every non-Claude-Code harness (Codex, Cursor). See `references/reasoning-elevation.md`.
+When you want a specific model for the heavy reasoning step, `ce-brainstorm` can generate approaches on a model you choose instead of your session model. It dispatches only approach generation to that model, with read access so it can verify its brief; the rest of the skill stays on your session model. Choose per run by naming a model in your prompt ("use fable", "have opus generate these"), or set a default with `brainstorm_model: <model>` in `.compound-engineering/config.local.yaml`. A prompt request overrides the config key.
+
+This works on any harness: the host serves the chosen model natively where it can, otherwise it invokes the Claude CLI (which must be installed and authenticated), otherwise it runs the step on your session model and tells you which precondition was unmet. **Setting `brainstorm_model` therefore takes effect in every harness you run `ce-brainstorm` in**, not just Claude Code. See `references/reasoning-elevation.md`.
 
 ---
 
