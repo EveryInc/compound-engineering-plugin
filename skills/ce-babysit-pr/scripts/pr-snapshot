@@ -36,12 +36,21 @@ import os
 import re
 import signal
 import subprocess
+import sys
 import tempfile
 import threading
+import time
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote, urlsplit
+
+IS_WINDOWS = sys.platform == "win32"
+
+if IS_WINDOWS:
+    import msvcrt
+else:
+    import fcntl
 
 # Conclusions that mean "this check needs attention" (failing states).
 FAILING = {"FAILURE", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE", "STALE"}
@@ -95,6 +104,142 @@ DEFAULT_INVOCATION_BUDGET_SECONDS = 8 * 60 * 60
 DEAD_TIME_THRESHOLD_SECONDS = 15 * 60
 DEFAULT_INVOCATION_BACKSTOP_SECONDS = 3 * 24 * 60 * 60
 CURRENCY_RETRY_BACKOFF_SECONDS = 30
+
+
+# --- cross-platform state primitives ------------------------------------------
+#
+# The watcher needs three POSIX facilities that native Windows Python does not
+# have: an advisory file lock (fcntl.flock), a process-identity probe for the
+# PID-reuse guard (`ps -o lstart=`), and an unconditional rename. Each Windows
+# analog differs in a way that matters here, so each is named rather than
+# translated literally. See
+# docs/solutions/architecture-patterns/posix-process-supervision-on-native-windows.md.
+
+# Poll spacing while waiting on a Windows lock or a blocked rename.
+_WIN_RETRY_SECONDS = 0.05
+# Bound only the rename retry. A lock wait is unbounded, matching flock.
+_WIN_REPLACE_TIMEOUT_SECONDS = 10.0
+
+if IS_WINDOWS:
+    import ctypes
+    from ctypes import wintypes
+
+    _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+
+    # Declare argtypes/restype explicitly: without them ctypes truncates HANDLEs
+    # to 32-bit ints on Win64, so a valid handle silently becomes a bad one.
+    _kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    _kernel32.OpenProcess.restype = wintypes.HANDLE
+    _kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    _kernel32.CloseHandle.restype = wintypes.BOOL
+    _kernel32.GetProcessTimes.argtypes = [
+        wintypes.HANDLE, ctypes.POINTER(wintypes.FILETIME),
+        ctypes.POINTER(wintypes.FILETIME), ctypes.POINTER(wintypes.FILETIME),
+        ctypes.POINTER(wintypes.FILETIME)]
+    _kernel32.GetProcessTimes.restype = wintypes.BOOL
+    _kernel32.QueryFullProcessImageNameW.argtypes = [
+        wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR,
+        ctypes.POINTER(wintypes.DWORD)]
+    _kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+
+    def _win_process_identity(pid):
+        """Creation time plus image path — the Windows analog of `ps -o lstart= -o command=`.
+
+        Creation time is the part that makes this a PID-reuse guard: Windows recycles PIDs
+        aggressively, and a recycled PID always carries a later creation time than the watcher
+        we recorded. Returns None when the process is gone or unopenable, which the caller
+        treats as "identity not proven" and declines to act on."""
+        handle = _kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not handle:
+            return None
+        try:
+            created, exited, kernel, user = (wintypes.FILETIME() for _ in range(4))
+            if not _kernel32.GetProcessTimes(
+                    handle, ctypes.byref(created), ctypes.byref(exited),
+                    ctypes.byref(kernel), ctypes.byref(user)):
+                return None
+            started = (created.dwHighDateTime << 32) | created.dwLowDateTime
+            if not started:
+                return None
+            size = wintypes.DWORD(32768)
+            buf = ctypes.create_unicode_buffer(size.value)
+            image = (buf.value if _kernel32.QueryFullProcessImageNameW(
+                handle, 0, buf, ctypes.byref(size)) else "")
+        finally:
+            _kernel32.CloseHandle(handle)
+        return "{} {}".format(started, image)
+
+
+def _lock_acquire(fd, exclusive):
+    """Block until this process owns the lock file.
+
+    msvcrt.locking is the Windows analog of flock, with three differences. It locks a byte range
+    from the current offset rather than the whole file, so the offset is pinned to 0. It has no
+    shared mode, so a reader takes the same exclusive lock a writer does — free here, because every
+    critical section is a small local read/write with the network fetch already completed outside
+    the lock. And its blocking mode (LK_LOCK) gives up after roughly ten seconds instead of waiting,
+    so retrying the non-blocking mode is what actually reproduces flock's wait-for-the-holder
+    behavior. As on POSIX, the OS releases the lock if a holder dies, so a crash cannot wedge this."""
+    if not IS_WINDOWS:
+        fcntl.flock(fd, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+        return
+    os.lseek(fd, 0, os.SEEK_SET)
+    while True:
+        try:
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            return
+        except OSError:
+            time.sleep(_WIN_RETRY_SECONDS)
+
+
+def _lock_release(fd):
+    if not IS_WINDOWS:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        return
+    os.lseek(fd, 0, os.SEEK_SET)
+    try:
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+    except OSError:
+        pass
+
+
+@contextmanager
+def _state_lock(state_dir, exclusive=True):
+    """Serialize access to the state dir for the duration of the body."""
+    os.makedirs(state_dir, exist_ok=True)
+    # O_RDWR|O_CREAT rather than a truncating open("w"): on Windows, truncating a file another
+    # process holds a byte-range lock on fails, which would make lock acquisition itself the race.
+    fd = os.open(os.path.join(state_dir, "lock"), os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        _lock_acquire(fd, exclusive)
+        try:
+            yield
+        finally:
+            _lock_release(fd)
+    finally:
+        os.close(fd)
+
+
+def _replace_atomic(src, dst):
+    """Atomically move `src` onto `dst`.
+
+    POSIX rename always succeeds over an open destination. Windows refuses while any other handle
+    to `dst` is open, so an unlocked best-effort reader — or a virus scanner that opened the file
+    behind us — would otherwise turn a routine concurrent read into a crashed writer. Retry briefly
+    rather than treating that transient sharing violation as a failure."""
+    if not IS_WINDOWS:
+        os.replace(src, dst)
+        return
+    deadline = time.monotonic() + _WIN_REPLACE_TIMEOUT_SECONDS
+    while True:
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(_WIN_RETRY_SECONDS)
 
 
 class _WatchSuperseded(Exception):
@@ -1420,12 +1565,8 @@ def _session_started_at(value):
 
 @contextmanager
 def locked_state(state_dir, pr, repo, now):
-    import fcntl
-    os.makedirs(state_dir, exist_ok=True)
-    lock_path = os.path.join(state_dir, "lock")
     state_path = os.path.join(state_dir, "state.json")
-    with open(lock_path, "w") as lf:
-        fcntl.flock(lf, fcntl.LOCK_EX)
+    with _state_lock(state_dir):
         if os.path.exists(state_path):
             with open(state_path) as f:
                 state = json.load(f)
@@ -1449,8 +1590,7 @@ def locked_state(state_dir, pr, repo, now):
         tmp.flush()
         os.fsync(tmp.fileno())
         tmp.close()
-        os.replace(tmp.name, state_path)
-        fcntl.flock(lf, fcntl.LOCK_UN)
+        _replace_atomic(tmp.name, state_path)
 
 
 def _fetch_snapshot(args):
@@ -1689,23 +1829,16 @@ def _blocker_sig(a):
 def _process_identity(pid):
     """Best-effort PID-reuse guard for replacing a prior watcher. If process identity cannot be
     proven, generation invalidation still suppresses its wake and we leave OS cleanup alone."""
-    r = subprocess.run(["ps", "-p", str(pid), "-o", "lstart=", "-o", "command="],
-                       capture_output=True, text=True)
+    if IS_WINDOWS:
+        return _win_process_identity(pid)
+    try:
+        r = subprocess.run(["ps", "-p", str(pid), "-o", "lstart=", "-o", "command="],
+                           capture_output=True, text=True)
+    except OSError:
+        return None   # no ps on PATH: unproven identity, same as a failed lookup
     if r.returncode != 0:
         return None
     return (r.stdout or "").strip() or None
-
-
-@contextmanager
-def _watch_lock(state_dir, exclusive):
-    import fcntl
-    os.makedirs(state_dir, exist_ok=True)
-    with open(os.path.join(state_dir, "lock"), "w") as lf:
-        fcntl.flock(lf, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
-        try:
-            yield
-        finally:
-            fcntl.flock(lf, fcntl.LOCK_UN)
 
 
 def _watch_candidate_path(args):
@@ -1728,19 +1861,19 @@ def _reserve_watch_candidate(args, generation):
         "pid": os.getpid(),
         "process_identity": _process_identity(os.getpid()),
     }
-    with _watch_lock(args.state_dir, exclusive=True):
+    with _state_lock(args.state_dir, exclusive=True):
         previous = _read_watch_candidate(args)
         tmp = tempfile.NamedTemporaryFile("w", dir=args.state_dir, delete=False)
         json.dump(candidate, tmp)
         tmp.flush()
         os.fsync(tmp.fileno())
         tmp.close()
-        os.replace(tmp.name, _watch_candidate_path(args))
+        _replace_atomic(tmp.name, _watch_candidate_path(args))
     return previous
 
 
 def _clear_watch_candidate(args, generation):
-    with _watch_lock(args.state_dir, exclusive=True):
+    with _state_lock(args.state_dir, exclusive=True):
         if _read_watch_candidate(args).get("generation") != generation:
             return
         try:
@@ -1778,7 +1911,7 @@ def _activate_watch(args, generation, now, cur):
 def _watch_is_current(args, generation):
     """Read the ownership generation under the state lock without rewriting state.json."""
     state_path = os.path.join(args.state_dir, "state.json")
-    with _watch_lock(args.state_dir, exclusive=False):
+    with _state_lock(args.state_dir, exclusive=False):
         if not os.path.exists(state_path):
             return False
         with open(state_path) as f:
@@ -1790,7 +1923,7 @@ def _emit_wake_if_current(args, generation, reason, **fields):
     the new generation has become current. Invocation replacement also supersedes every ordinary
     wake from the old budget, even when the replacement kept the same watch generation."""
     state_path = os.path.join(args.state_dir, "state.json")
-    with _watch_lock(args.state_dir, exclusive=False):
+    with _state_lock(args.state_dir, exclusive=False):
         if not os.path.exists(state_path):
             return False
         with open(state_path) as f:
@@ -1811,7 +1944,13 @@ def _emit_wake_if_current(args, generation, reason, **fields):
 
 
 def _terminate_replaced_watch(previous):
-    """Promptly stop the replaced process, but never signal a PID whose identity no longer matches."""
+    """Promptly stop the replaced process, but never signal a PID whose identity no longer matches.
+
+    On Windows os.kill maps to TerminateProcess, so the replaced watcher dies abruptly instead of
+    unwinding a SIGTERM handler: it cannot clear its own watch candidate, nor finish terminating a
+    predecessor it was mid-handoff with. Neither leaks. The replacement has already written its own
+    candidate before calling this, and any watcher left running reads a foreign watch_generation on
+    its next poll and exits on its own — so the abrupt path costs at most one poll interval."""
     pid = previous.get("pid")
     identity = previous.get("process_identity")
     if not isinstance(pid, int) or pid == os.getpid() or not identity:
@@ -1820,8 +1959,8 @@ def _terminate_replaced_watch(previous):
         return
     try:
         os.kill(pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
+    except OSError:
+        pass   # exited between the identity check and here (Windows reports this as a plain OSError)
 
 
 def cmd_watch(args):
@@ -1850,6 +1989,9 @@ def cmd_watch(args):
         if interrupt_immediately:
             raise _WatchSuperseded()
 
+    # Cooperative supersession. Windows accepts this handler but never delivers SIGTERM across
+    # processes, so there it is inert and the loop's own watch_generation checks are what retire a
+    # replaced watcher — the handler is the fast path, not the correctness guarantee.
     prior_sigterm = signal.getsignal(signal.SIGTERM)
     signal.signal(signal.SIGTERM, request_stop)
     try:

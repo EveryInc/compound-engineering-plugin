@@ -104,11 +104,14 @@ jobs:
       - name: Run tests
         run: bun run test
 
-  # Focused Windows gate for peer-job-runner (#1243). Not a full-suite matrix:
-  # POSIX lifecycle tests (fork/killpg/ps) stay on ubuntu-latest. This job runs
-  # the cross-platform unit fixture under real win32 plus a smoke that hits
-  # Job Objects / DETACHED_PROCESS / bare-.sh wrap — the paths Mac cannot prove.
-  peer-job-runner-windows:
+  # Focused Windows gate for the skill scripts that reach for POSIX process and
+  # file primitives: peer-job-runner (#1243) and ce-babysit-pr's pr-snapshot
+  # (#1280). Not a full-suite matrix — POSIX lifecycle tests (fork/killpg/ps)
+  # stay on ubuntu-latest. This job runs the cross-platform fixtures under real
+  # win32, which is the only way to execute the msvcrt/ctypes branches at all:
+  # they are imported solely under sys.platform == "win32", so no amount of
+  # patching reaches them from Linux or Mac.
+  windows-native:
     runs-on: windows-latest
 
     steps:
@@ -144,3 +147,6 @@ jobs:
 
       - name: Peer-job-runner parity
         run: bun test tests/peer-job-runner-parity.test.ts
+
+      - name: pr-snapshot platform primitives
+        run: python tests/fixtures/pr-snapshot-platform.py

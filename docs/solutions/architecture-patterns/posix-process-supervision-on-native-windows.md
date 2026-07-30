@@ -2,7 +2,7 @@
 title: "Porting POSIX process supervision to native Windows: the primitives that fail silently"
 date: 2026-07-24
 category: architecture-patterns
-module: "skills (peer-job-runner.py, byte-duplicated across ce-doc-review, ce-code-review, ce-pov, ce-work, ce-plan, ce-brainstorm)"
+module: "skills (peer-job-runner.py, byte-duplicated across ce-doc-review, ce-code-review, ce-pov, ce-work, ce-plan, ce-brainstorm; ce-babysit-pr/scripts/pr-snapshot)"
 problem_type: architecture_pattern
 component: tooling
 severity: high
@@ -12,7 +12,10 @@ applies_when:
   - "Reading or writing bytes through os.open on Windows (result artifacts, logs, caches)"
   - "Reimplementing a uid/mode-based file-ownership or privacy check on Windows"
   - "A worker's child processes survive teardown on Windows but not on macOS/Linux"
-tags: [windows, cross-platform, process-supervision, job-objects, taskkill, ctypes, file-ownership, o-binary, detached-jobs]
+  - "Replacing fcntl.flock with a Windows file lock, or relying on a shared/read lock"
+  - "Replacing a `ps`-based process-identity or start-time probe used as a PID-reuse guard"
+  - "os.replace raises PermissionError on Windows but never on macOS/Linux"
+tags: [windows, cross-platform, process-supervision, job-objects, taskkill, ctypes, file-ownership, o-binary, detached-jobs, file-locking, msvcrt, pid-reuse, atomic-rename]
 ---
 
 # Porting POSIX process supervision to native Windows: the primitives that fail silently
@@ -132,6 +135,43 @@ user-supplied root the way an unconditional `chmod 0700` safely would.
 - Resolve `icacls`/`taskkill` by absolute `%SystemRoot%\System32` path: `CreateProcess`
   searches the application and current directories before System32, so bare names are a
   binary-hijack surface.
+
+### 5. State files: locking, identity, and rename
+
+`ce-babysit-pr`'s `pr-snapshot` watcher hit the same family from a different angle (issue
+#1280). It needed no fork or job object at all — only a lock, a start-time probe, and a
+rename — and all three still differ.
+
+**`fcntl.flock` -> `msvcrt.locking`, with three semantic changes.** It locks a byte range
+**from the current file offset**, not the whole file, so the offset must be pinned (seek to
+0, lock 1 byte) or an unlock at a different offset silently leaves the range held. It has
+**no shared mode** — every holder is exclusive, so a POSIX `LOCK_SH` reader has to become a
+writer, which is free only if critical sections are short. And its blocking mode `LK_LOCK`
+**gives up after ~10 seconds** (1s × 10 retries) rather than waiting, so the faithful
+translation of "block until the holder releases" is a retry loop around the *non-blocking*
+`LK_NBLCK`, not `LK_LOCK`. Also: do not acquire the lock through a truncating `open(path,
+"w")` — on Windows, truncating a file another process holds a byte-range lock on fails, so
+lock acquisition becomes the race it was meant to prevent. Use `os.open(..., O_RDWR |
+O_CREAT)`.
+
+**`ps -o lstart=` -> `GetProcessTimes`.** A PID-reuse guard needs process *creation time*;
+Windows recycles PIDs aggressively, so this matters more there, not less. `OpenProcess`
+with `PROCESS_QUERY_LIMITED_INFORMATION` plus `GetProcessTimes` is the analog, with
+`QueryFullProcessImageNameW` standing in for `command=`. Two asymmetries: Windows keeps an
+exited process openable while any handle to it remains, so a "dead" pid can still yield an
+identity (harmless if you compare identities rather than test existence); and
+`QueryFullProcessImageNameW` fails on an exited process, so the image half goes empty while
+the creation-time half stays valid. Guard the POSIX branch too — a missing `ps` raises
+`FileNotFoundError`, it does not return nonzero.
+
+**`os.replace` is not unconditional.** POSIX rename succeeds over an open destination;
+Windows refuses with `PermissionError` while any other handle to the destination is open.
+Any unlocked best-effort reader — or a virus scanner — turns a routine concurrent read into
+a *crashed writer*, and it is timing-dependent, so it passes every local test. Retry the
+rename briefly instead of treating the sharing violation as failure.
+
+Note that a lock file used only for locking moves no bytes, so item 2's `O_BINARY` does not
+apply to it. Apply that rule by whether the descriptor carries data, not by platform.
 
 ## Why This Matters
 
