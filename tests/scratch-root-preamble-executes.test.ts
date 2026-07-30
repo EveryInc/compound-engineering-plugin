@@ -5,7 +5,7 @@ import path from "node:path"
 import { describe, expect, setDefaultTimeout, test } from "bun:test"
 
 // Executes the scratch-root preamble exactly as it ships in each skill, instead of only
-// string-matching it (issue #1285).
+// string-matching it (#1285).
 //
 // scratch-root-contract.test.ts pins the *shape* of these blocks. That is what let
 // `install -d -m 700` survive: the string was present and correct-looking, and on POSIX it

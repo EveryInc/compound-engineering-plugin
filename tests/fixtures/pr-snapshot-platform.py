@@ -164,7 +164,7 @@ class PlatformPrimitives(unittest.TestCase):
         return box[0] if box else None
 
     def test_lock_acquire_retries_only_on_contention(self):
-        """The unbounded wait must retry on "someone holds this" and nothing else (issue #1285).
+        """The unbounded wait must retry on "someone holds this" and nothing else (#1285).
 
         msvcrt reports a held range as EACCES and a genuine defect (bad descriptor, bad range) as
         EBADF/EINVAL. All are OSError, so a bare `except OSError` cannot tell them apart: it spins
