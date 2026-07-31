@@ -15,7 +15,7 @@ It pairs with `ce-compound`: that skill **captures** new learnings; this skill *
 | What does it do? | Reviews learnings in `docs/solutions/` against the current codebase and applies one of five outcomes: Keep, Update, Consolidate, Replace, Delete |
 | When to use it | After significant refactors; when `ce-compound` flags an older doc as superseded; when learnings are accumulating drift; periodic hygiene sweeps |
 | What it produces | Updated, consolidated, replaced, or deleted docs — plus a maintenance report |
-| Modes | **Interactive** (default) and **Headless** (`mode:headless`) |
+| Modes | **Interactive** (default) and **Non-interactive** (`mode:non-interactive`; deprecated alias `mode:headless`) |
 
 ---
 
@@ -32,7 +32,7 @@ It pairs with `ce-compound`: that skill **captures** new learnings; this skill *
 /ce-compound-refresh
 
 # Apply unambiguous maintenance without interactive decisions
-/ce-compound-refresh authentication mode:headless
+/ce-compound-refresh authentication mode:non-interactive
 ```
 
 Prefer a topic, module, category, or filename hint: an unscoped run first has to triage the entire learning set.
@@ -72,7 +72,7 @@ The skill investigates first (Phase 1 reads each doc against the current codebas
 
 Most "review the docs" prompts collapse into "is this still right?" → vague answers. The five-outcome model forces a specific decision per doc and a specific action: Keep does nothing, Update applies in-place fixes, Consolidate merges and deletes, Replace writes a successor, Delete removes the file. Each has its own evidence bar.
 
-### 2. Two modes — Interactive default, Headless on `mode:headless`
+### 2. Two modes — Interactive default, Headless on `mode:non-interactive`
 
 **Interactive** (default) asks one question at a time on ambiguous cases, leads with a recommendation. **Headless** processes all docs without user interaction, applies all unambiguous actions, and marks ambiguous cases as stale (with `status: stale`, `stale_reason`, `stale_date` in frontmatter) for later human review. The headless report has two sections: **Applied** (writes that succeeded) and **Recommended** (writes that couldn't be applied — e.g., permission denied — with full rationale so a human can apply them).
 
@@ -178,7 +178,7 @@ The skill is invoked directly with a scope hint that narrows the review:
 - **Module/component** — `/ce-compound-refresh payments`
 - **Category** — `/ce-compound-refresh performance-issues`
 - **Pattern topic** — `/ce-compound-refresh critical-patterns`
-- **Headless mode** — `/ce-compound-refresh auth mode:headless` (no user interaction; report is the deliverable)
+- **Headless mode** — `/ce-compound-refresh auth mode:non-interactive` (no user interaction; report is the deliverable)
 - **Broad sweep** (rare) — `/ce-compound-refresh` with no scope, processes everything
 
 Without a scope hint, the skill discovers the candidate set, does broad-scope triage (groups by module/component, identifies highest-impact clusters), and recommends a starting area before deep investigation.
@@ -193,7 +193,7 @@ Without a scope hint, the skill discovers the candidate set, does broad-scope tr
 | `<directory>` | e.g., `performance-issues` — narrows by category |
 | `<filename slug>` | e.g., `plugin-versioning-requirements` — narrows by file |
 | `<module/keyword>` | e.g., `auth`, `payments` — narrows by content/frontmatter |
-| `mode:headless` | Append to any of the above; runs without user interaction, applies all unambiguous actions, marks ambiguous as stale |
+| `mode:non-interactive` | Append to any of the above; runs without user interaction, applies all unambiguous actions, marks ambiguous as stale. Deprecated alias: `mode:headless`. |
 
 ---
 

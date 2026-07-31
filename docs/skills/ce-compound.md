@@ -29,7 +29,7 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 /ce-compound the email digest race condition we fixed
 
 # Capture unattended when invoked from automation or standing instructions
-/ce-compound mode:headless the verified caching fix
+/ce-compound mode:non-interactive the verified caching fix
 ```
 
 Use headless mode only when the caller should own any follow-up decisions; ordinary interactive capture can still ask before changing project guidance.
@@ -68,7 +68,7 @@ Most teams solve the same problem twice — sometimes with the same person — b
 
 **The skill picks the mode itself — it does not ask.** Full is the default because its token cost is small next to the work that produced the learning; Lightweight is chosen only under real context pressure (session near its limit, or a trivial fix where cross-referencing adds nothing). Those are conditions the agent can observe and the user can't, so a prompt would just ask you to guess. The skill states which mode it ran, and why, on the first line of its output; if it guessed wrong for your taste, re-running is a cheap correction.
 
-Automations can select the same tradeoff without a prompt: `mode:headless depth:lightweight` runs the single-pass workflow, while `mode:headless depth:full` runs the complete workflow, including its automatic session-history probe. Existing `mode:headless` calls remain Full by default. Depth is headless-only; a depth flag without headless intent, an unknown value, or conflicting depth flags fails explicitly instead of silently choosing a workflow.
+Automations can select the same tradeoff without a prompt: `mode:non-interactive depth:lightweight` runs the single-pass workflow, while `mode:non-interactive depth:full` runs the complete workflow, including its automatic session-history probe. Bare `mode:non-interactive` (and the deprecated alias `mode:headless`) remains Full by default. Depth is non-interactive-only; a depth flag without non-interactive intent, an unknown value, or conflicting depth flags fails explicitly instead of silently choosing a workflow.
 
 ### 2. Bug track vs knowledge track — different structures for different shapes
 
@@ -173,8 +173,8 @@ The skill is its own complete cycle:
 - **Just-finished problem** — `/ce-compound` (or auto-invoked from "that worked")
 - **With context hint** — `/ce-compound "the email digest race condition we fixed"`
 - **Lightweight on a long session** — when context is tight, the skill selects lightweight mode on its own and says so in its output
-- **Lower-overhead unattended capture** — `/ce-compound mode:headless depth:lightweight "the verified fix"`
-- **Full unattended capture** — `/ce-compound mode:headless depth:full "the verified fix"` (plain `mode:headless` is equivalent)
+- **Lower-overhead unattended capture** — `/ce-compound mode:non-interactive depth:lightweight "the verified fix"`
+- **Full unattended capture** — `/ce-compound mode:non-interactive depth:full "the verified fix"` (plain `mode:non-interactive` is equivalent)
 
 The auto-invoke triggers happen mid-conversation; you don't need to remember the slash command if you've just confirmed something works.
 
@@ -192,11 +192,11 @@ Put it in the repo's `AGENTS.md`/`CLAUDE.md`, or in your global instruction file
 
 **Run it automatically** — no prompt, because not being interrupted is the whole point of automating it:
 
-> After a solved, verified problem produces a non-trivial, reusable learning, automatically invoke the `ce-compound` skill, passing `mode:headless` as the skill argument. Only in repositories that accept `docs/solutions/` as a tracked knowledge store.
+> After a solved, verified problem produces a non-trivial, reusable learning, automatically invoke the `ce-compound` skill, passing `mode:non-interactive` as the skill argument. Only in repositories that accept `docs/solutions/` as a tracked knowledge store.
 
-Use `mode:headless depth:lightweight` instead when the standing workflow deliberately accepts reduced research and validation in exchange for a single-pass, no-subagent closure.
+Use `mode:non-interactive depth:lightweight` instead when the standing workflow deliberately accepts reduced research and validation in exchange for a single-pass, no-subagent closure.
 
-Auto-run writes to `docs/solutions/` (and may touch `CONCEPTS.md`) without asking — but that's the point, and it's no scarier than the other edits you're already making on the branch and reviewing before you commit. Headless never edits `AGENTS.md`/`CLAUDE.md`; if discoverability is missing it reports `gap noted, not applied` so a later interactive run can apply it with consent. Passing `mode:headless` as an argument is the explicit, unambiguous form: the skill also honors a clear "run headless / without prompts" request, but the token removes all doubt — without a headless signal the run stays interactive and can stop for the one-time discoverability-consent prompt.
+Auto-run writes to `docs/solutions/` (and may touch `CONCEPTS.md`) without asking — but that's the point, and it's no scarier than the other edits you're already making on the branch and reviewing before you commit. Headless never edits `AGENTS.md`/`CLAUDE.md`; if discoverability is missing it reports `gap noted, not applied` so a later interactive run can apply it with consent. Passing `mode:non-interactive` as an argument is the explicit, unambiguous form: the skill also honors a clear "run headless / without prompts" request, but the token removes all doubt — without a headless signal the run stays interactive and can stop for the one-time discoverability-consent prompt.
 
 Every other phrase in those lines is deliberate too:
 

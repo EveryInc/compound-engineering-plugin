@@ -365,9 +365,9 @@ describe("ce-plan review contract", () => {
   test("uses headless mode by default and in pipeline context", async () => {
     const content = await readRepoFile("skills/ce-plan/references/plan-handoff.md")
 
-    // Default at Phase 5.3.8 is `mode:headless` so users opt into deeper interactive review
+    // Default at Phase 5.3.8 is `mode:non-interactive` so users opt into deeper interactive review
     // explicitly from the post-generation menu rather than being forced through it.
-    expect(content).toContain("ce-doc-review` with `mode:headless`")
+    expect(content).toContain("ce-doc-review` with `mode:non-interactive`")
     expect(content).not.toContain("skip document-review and return control")
 
     // The interactive walkthrough is opt-in via the post-generation menu, not automatic
@@ -389,7 +389,7 @@ describe("ce-plan review contract", () => {
     // without relying on free-form prompting; routed through ce-doc-review without headless mode.
     expect(content).toContain("**Decide on the review's open items**")
     expect(content).toContain("`ce-doc-review`")
-    expect(content).toContain("without** `mode:headless`")
+    expect(content).toContain("without** `mode:non-interactive`")
 
     // Deeper-review menu fixture is hidden when no actionable findings remain so the menu
     // collapses back to a 4-option AskUserQuestion-friendly shape on Claude Code. FYI-only

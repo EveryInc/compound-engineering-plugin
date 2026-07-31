@@ -116,7 +116,7 @@ When the user picks "Auto-resolve with best judgment" or "Append to Open Questio
 | Mode | When | Behavior |
 |------|------|----------|
 | **Interactive** | Direct user invocation, or opt-in via `Run deeper doc review` from a caller's post-generation menu | Routing question, per-finding walk-through, bulk-preview confirmations |
-| **Headless** _(default for chained invocation)_ | `mode:headless`; default at `/ce-plan` Phase 5.3.8 | Apply `safe_auto` silently; return all other findings as structured text; surface a one-line summary above the caller's next menu; no prompts |
+| **Non-interactive** _(default for chained invocation)_ | `mode:non-interactive` (deprecated alias `mode:headless`); default at `/ce-plan` Phase 5.3.8 | Apply `safe_auto` silently; return all other findings as structured text; surface a one-line summary above the caller's next menu; no prompts |
 
 Headless is the default for chained invocation from doc-producing skills — `/ce-plan` Phase 5.3.8 invokes it headless so routine plans autofix and surface a summary line without blocking the user. Interactive is for direct invocation, or when the user opts into `Run deeper doc review` from the post-generation menu.
 
@@ -152,7 +152,7 @@ Because the skill reviews documents for arbitrary products, a finding can name i
 
 ## Quick Example
 
-`/ce-plan` finishes producing a Standard plan for a notification-mute feature. Phase 5.3.8 invokes `/ce-doc-review` in `mode:headless` with the plan path.
+`/ce-plan` finishes producing a Standard plan for a notification-mute feature. Phase 5.3.8 invokes `/ce-doc-review` in `mode:non-interactive` with the plan path.
 
 The skill reads the doc, classifies it as `plan` from content-shape signals (U-IDs, plan section structure), reads the `Origin:` slot, and analyzes content for conditional personas. The plan touches a UI surface (mute toggle copy) but no high-stakes domains and proposes no new abstractions. It activates `coherence-reviewer` (always-on), `feasibility-reviewer` (always-on, scoped to plan-shape techniques), and `design-lens-reviewer` (UI surface). Adversarial, scope-guardian, security-lens, and product-lens skip — none of their triggers fire on a routine plan with origin set.
 
@@ -184,7 +184,7 @@ Skip `ce-doc-review` when:
 `ce-doc-review` is invoked from doc-producing skills as their review pass:
 
 - **`/ce-brainstorm` Phase 4** — offered as one of the post-doc options ("Agent review of Product Contract"); runs interactive with full premise scrutiny, since validating premise is exactly what brainstorm exists for
-- **`/ce-plan` Phase 5.3.8** — runs in `mode:headless` by default after the confidence check. `safe_auto` fixes apply silently; remaining findings surface as a one-line summary above the post-generation menu, where `Run deeper doc review` is exposed as a first-class option for users who want the interactive walkthrough
+- **`/ce-plan` Phase 5.3.8** — runs in `mode:non-interactive` by default after the confidence check. `safe_auto` fixes apply silently; remaining findings surface as a one-line summary above the post-generation menu, where `Run deeper doc review` is exposed as a first-class option for users who want the interactive walkthrough
 - **`/ce-resolve-pr-feedback`** — when reviewer feedback lands on a brainstorm or plan doc rather than code
 
 In headless mode, callers receive structured findings and route the user-decision options themselves.
@@ -197,7 +197,7 @@ The skill works directly on unified plan artifacts, legacy requirements docs, an
 
 - **Specific path** — `/ce-doc-review docs/plans/2026-05-04-001-feat-notification-mute-plan.md`
 - **Ask the user** — `/ce-doc-review` with no path asks which doc to review (or auto-finds the most recent in `docs/brainstorms/` or `docs/plans/`)
-- **Headless** — `/ce-doc-review mode:headless docs/plans/.../plan.md` returns structured findings without interactive prompts
+- **Headless** — `/ce-doc-review mode:non-interactive docs/plans/.../plan.md` returns structured findings without interactive prompts
 
 ---
 
@@ -207,7 +207,7 @@ The skill works directly on unified plan artifacts, legacy requirements docs, an
 |----------|--------|
 | _(empty, interactive)_ | Asks which doc to review or auto-finds the most recent |
 | `<doc path>` | Reviews that specific doc |
-| `mode:headless <doc path>` | Headless mode; structured text output, no prompts |
+| `mode:non-interactive <doc path>` | Non-interactive mode; structured text output, no prompts. Deprecated alias: `mode:headless`. |
 
 Headless mode requires a path; without one it errors out rather than guessing.
 
