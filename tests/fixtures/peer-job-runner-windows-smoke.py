@@ -468,13 +468,19 @@ class WindowsPeerJobSmoke(unittest.TestCase):
         bash = self._require_git_bash()
         env_exe = self._require_git_env(bash)
         stub = self._write_stub_sh()
-        for index, assignment in enumerate(("-S=x", "--split-string=x"), start=1):
-            with self.subTest(assignment=assignment):
+        cases = (
+            ("--", "-S=x"),
+            ("--", "--split-string=x"),
+            ("-", "-S=x"),
+            ("-", "--split-string=x"),
+        )
+        for index, (terminator, assignment) in enumerate(cases, start=1):
+            with self.subTest(terminator=terminator, assignment=assignment):
                 run_id = f"run-env-option-terminator-{index}"
                 started = self._run(
                     [
                         "start", "--skill", "ce-doc-review", "--run-id", run_id,
-                        "--", env_exe, "--", assignment, "bash", stub,
+                        "--", env_exe, terminator, assignment, "bash", stub,
                     ]
                 )
                 self.assertEqual(started.returncode, 0, started.stderr)

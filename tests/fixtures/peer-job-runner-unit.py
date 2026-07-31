@@ -520,19 +520,23 @@ class PopenArgvBranch(unittest.TestCase):
                         )
 
     def test_windows_rewrites_env_assignment_after_option_terminator(self):
-        for assignment in ("-S=x", "--split-string=x"):
-            with self.subTest(assignment=assignment):
-                argv = ["env", "--", assignment, "bash", "script.sh"]
-                with windows_platform():
-                    with mock.patch.object(
-                        MOD,
-                        "_resolve_windows_posix_shell",
-                        return_value=self.GIT_BASH,
-                    ):
-                        self.assertEqual(
-                            MOD._popen_argv(argv),
-                            ["env", "--", assignment, self.GIT_BASH, "script.sh"],
-                        )
+        for terminator in ("-", "--"):
+            for assignment in ("-S=x", "--split-string=x"):
+                with self.subTest(terminator=terminator, assignment=assignment):
+                    argv = ["env", terminator, assignment, "bash", "script.sh"]
+                    with windows_platform():
+                        with mock.patch.object(
+                            MOD,
+                            "_resolve_windows_posix_shell",
+                            return_value=self.GIT_BASH,
+                        ):
+                            self.assertEqual(
+                                MOD._popen_argv(argv),
+                                [
+                                    "env", terminator, assignment,
+                                    self.GIT_BASH, "script.sh",
+                                ],
+                            )
 
     def test_windows_env_prefixed_bash_missing_shell_raises(self):
         argv = ["env", "FOO=1", "bash", "script.sh"]
@@ -907,6 +911,7 @@ class WindowsPosixShellResolve(unittest.TestCase):
         cases = (
             (["env", "--", "-0", "bash"], (-1, None)),
             (["env", "--", r"--chdir=C:\tools\bash", "bash"], (3, None)),
+            (["env", "-", "-S=x", "bash"], (3, None)),
         )
         for argv, expected in cases:
             with self.subTest(argv=argv):

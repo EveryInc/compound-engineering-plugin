@@ -1228,7 +1228,7 @@ def _env_bash_index(argv):
     options_done = False
     while i < len(argv):
         tok = argv[i]
-        if tok == "--" and not options_done:
+        if tok in ("-", "--") and not options_done:
             options_done = True
             i += 1
             continue
