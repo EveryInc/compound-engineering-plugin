@@ -758,6 +758,83 @@ class WindowsPosixShellResolve(unittest.TestCase):
         self.assertEqual(MOD._env_bash_index(["env", "python", "x.py"]), -1)
         self.assertEqual(MOD._env_bash_index(["bash", "x.sh"]), -1)
 
+    def test_env_bash_index_skips_chdir_operand(self):
+        # -C / --chdir take DIR; a directory named bash must not be treated as
+        # the command, and bash after a real DIR must still be found (#1292 P2).
+        self.assertEqual(
+            MOD._env_bash_index(["env", "-C", "bash", "python", "x.py"]), -1
+        )
+        self.assertEqual(
+            MOD._env_bash_index(["env", "-C", "/tmp", "bash", "script.sh"]), 3
+        )
+        self.assertEqual(
+            MOD._env_bash_index(
+                ["env", "--chdir", "bash", "python", "x.py"]
+            ),
+            -1,
+        )
+        self.assertEqual(
+            MOD._env_bash_index(
+                ["env", "--chdir=/tmp", "bash", "script.sh"]
+            ),
+            2,
+        )
+
+    def test_env_bash_index_skips_split_string_operand(self):
+        # -S / --split-string consume their string; do not treat tokens inside
+        # as argv-level bash (rewrite of -S body is out of scope).
+        self.assertEqual(
+            MOD._env_bash_index(["env", "-S", "bash script.sh"]), -1
+        )
+        self.assertEqual(
+            MOD._env_bash_index(
+                ["env", "--split-string=FOO=1 bash script.sh"]
+            ),
+            -1,
+        )
+        self.assertEqual(
+            MOD._env_bash_index(
+                ["env", "-S", "FOO=1", "bash", "script.sh"]
+            ),
+            3,
+        )
+
+    def test_env_bash_index_skips_unset_attached(self):
+        self.assertEqual(
+            MOD._env_bash_index(["env", "-u", "FOO", "bash", "script.sh"]), 3
+        )
+        self.assertEqual(
+            MOD._env_bash_index(["env", "--unset=FOO", "bash", "script.sh"]), 2
+        )
+
+    def test_windows_popen_rewrites_bash_after_chdir(self):
+        argv = ["env", "-C", r"C:\workdir", "bash", "script.sh", "x"]
+        with windows_platform():
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ):
+                self.assertEqual(
+                    MOD._popen_argv(argv),
+                    [
+                        "env",
+                        "-C",
+                        r"C:\workdir",
+                        self.GIT_BASH,
+                        "script.sh",
+                        "x",
+                    ],
+                )
+
+    def test_windows_popen_does_not_rewrite_chdir_named_bash(self):
+        argv = ["env", "-C", "bash", "python", "x.py"]
+        with windows_platform():
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ) as resolve:
+                self.assertEqual(MOD._popen_argv(argv), argv)
+                resolve.assert_not_called()
+
+
 class BinaryRoundTrip(unittest.TestCase):
     """Windows CPython opens os.open() descriptors in CRT *text* mode: writes
     expand \\n -> \\r\\n and reads stop at the first 0x1A (Ctrl-Z EOF), which

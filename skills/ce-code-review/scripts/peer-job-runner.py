@@ -1139,11 +1139,30 @@ def _env_assignment_token(token: str) -> bool:
     return all(c.isalnum() or c == "_" for c in name)
 
 
+def _env_option_advance(tok: str) -> int:
+    """How many argv slots an env(1) option occupies (incl. the option itself).
+
+    GNU env options that take a separate operand: -u/--unset, -C/--chdir,
+    -S/--split-string. Attached `--name=value` forms are a single slot.
+    Unknown flags advance one slot. (#1292 Codex P2)
+    """
+    if tok in ("-u", "--unset", "-C", "--chdir", "-S", "--split-string"):
+        return 2
+    if tok.startswith(("--unset=", "--chdir=", "--split-string=")):
+        return 1
+    # Short -uNAME (no space) is one slot; -CDIR / -SSTRING likewise.
+    if len(tok) > 2 and tok[0] == "-" and tok[1] in "uCS" and tok[2] != "-":
+        return 1
+    return 1
+
+
 def _env_bash_index(argv) -> int:
     """Index of bare bash/sh after `env` [options] [assignments], or -1.
 
     Matches the production cross-model shape:
-    `env VAR=… bash script.sh …` (#1268).
+    `env VAR=… bash script.sh …` (#1268). Operand-taking options (-u/-C/-S
+    and long forms) consume their arguments before the command token is
+    sought (#1292).
     """
     if not argv:
         return -1
@@ -1159,11 +1178,10 @@ def _env_bash_index(argv) -> int:
             i += 1
             continue
         if tok.startswith("-"):
-            # env -u NAME / --unset NAME consume the following argument.
-            if tok in ("-u", "--unset"):
-                i += 2
-                continue
-            i += 1
+            span = _env_option_advance(tok)
+            if span > 1 and i + 1 >= len(argv):
+                return -1
+            i += span
             continue
         return -1
     return -1
