@@ -153,6 +153,8 @@ Inspect the item body. Decide:
 
 For trivial items (single-file alignment, a one-line CSS fix, a typo, a label change), `/ce-debug` or `/ce-work` may be more ceremony than the change warrants — still pick one of the two based on the bug-vs-feature heuristic above; do not invent a third path.
 
+**Frontend/UI items — `ce-ui-engineering` awareness.** When the checklist item touches frontend/UI code (`.tsx`, `.jsx`, `.css`, `.scss`, component, page, layout, or state files), the delegated skill (`ce-debug` or `ce-work`) must invoke `ce-ui-engineering` to load the UI engineering conventions into context. When delegating, include in the handoff prompt: "This item touches frontend/UI code — invoke `ce-ui-engineering` for authoritative UI engineering conventions (naming, component structure, state management, JSX hygiene, styling, cleanup, Red Flags). Authority order: repo instructions (`AGENTS.md`, `architecture.md`, `projectbrief.md`) > repo `docs/solutions/*` > `ce-ui-engineering` > general guidance."
+
 If the delegated skill returns with the bug/work still open (e.g. `ce-debug` couldn't reproduce, or `ce-work` decided the spec needs to be revisited), do **not** commit and mark the item as `failed`. Surface the reason to the user; the loop continues to the next item. Failed items stay `open` in the markdown (the workflow does not invent transitions for them).
 
 #### Step 5b: Commit per item

@@ -2,6 +2,8 @@
 
 Read this file when the project under test is a React + TypeScript CSR app. It extends the Rails-centric file-to-route mapping in the main skill with React-specific patterns, and adds testing approaches for accessibility, visual regression, Web Vitals, React internals, network/API behavior, and Testing Library query selection.
 
+For the authoritative frontend UI engineering conventions (naming, component structure, state management, JSX hygiene, styling, cleanup, empty/loading/error states, and the verification checklist), invoke `ce-ui-engineering`. The rules in `ce-ui-engineering` supersede any overlap with the baseline checks below; this file retains only test-procedure-specific guidance not covered there. Authority order: repo instructions (`AGENTS.md`, `architecture.md`, `projectbrief.md`) > repo `docs/solutions/*` > `ce-ui-engineering` > this file > general guidance.
+
 ## File-to-Route Mapping (React)
 
 The mapping in the main skill is Rails-centric. For React CSR apps:
@@ -20,10 +22,11 @@ The mapping in the main skill is Rails-centric. For React CSR apps:
 
 ## Accessibility Testing
 
+> Apply this section only when the repo's own guidelines require strict accessibility compliance. If the repo has no accessibility standard, skip this section entirely.
+
 ### Automated scanning
 
 ```bash
-npx axe-core <url>
 npx pa11y <url>
 ```
 
@@ -52,6 +55,8 @@ Chrome DevTools -> Elements -> Accessibility tree
 
 ## Visual Regression Testing
 
+> Apply these checks only if the surface genuinely supports mobile responsiveness, and only when a browser automation tool (agent-browser or Chrome DevTools) is wired in for the surface. If either condition is unmet, skip this section.
+
 ### Before/after screenshot comparison
 
 1. Take screenshot of the page before changes
@@ -61,7 +66,7 @@ Chrome DevTools -> Elements -> Accessibility tree
 
 ### Responsive breakpoint matrix
 
-- Screenshot at 320px, 768px, 1024px, 1440px
+- Screenshot at the dimensions defined by the repository's theme/breakpoints (not generic values like 320px/768px/1024px/1440px)
 - Compare each breakpoint before/after
 - Check for: layout shifts, text overflow, horizontal scroll, element overlap
 
@@ -74,6 +79,8 @@ Chrome DevTools -> Elements -> Accessibility tree
 - Long content state (overflow, truncation)
 
 ## Web Vitals / Performance Testing
+
+> This section is not a pre-planning concern and not a default test pass. Engage only from an optimization lens (an explicit perf review request from the end user) or when a perf regression is suspected. Additionally, these checks require browser tooling — only apply when a browser automation tool (agent-browser or Chrome DevTools MCP) is available; otherwise skip. Web Vitals thresholds (LCP, INP, CLS) and the performance budget are in `ce-ui-engineering` `## Performance Budget and Web Vitals`.
 
 ### Lighthouse audit
 
@@ -117,7 +124,6 @@ npx webpack-bundle-analyzer stats.json
 ### Hook behavior testing
 
 - Custom hooks: test with React Testing Library `renderHook`
-- `useEffect` cleanup: verify subscriptions/timers are cleaned up on unmount
 - Effect dependency changes: verify effect re-runs when dependencies change
 
 ### Context provider testing
@@ -159,14 +165,13 @@ When querying the DOM in tests, use these in order of preference:
 
 1. `getByRole` — queries by ARIA role + accessible name (most resilient)
 2. `getByLabelText` — queries by associated label text
-3. `getByPlaceholderText` — queries by placeholder
-4. `getByText` — queries by visible text content
-5. `getByDisplayValue` — queries by form value
-6. `getByAltText` — queries by alt text
-7. `getByTitle` — queries by title attribute
-8. `getByTestId` — last resort; avoid if possible
+3. `getByText` — queries by visible text content
+4. `getByDisplayValue` — queries by form value
+5. `getByAltText` — queries by alt text
+6. `getByTitle` — queries by title attribute
+7. `getByTestId` — last resort; avoid if possible
 
-Rule: find elements by accessible role/label, NOT test IDs. `screen.getByRole('button', { name: /submit/i })` over `screen.getByTestId('submit-button')`.
+Rule: find elements by accessible role/label, NOT test IDs. `screen.getByRole('button', { name: /submit/i })` over `screen.getByTestId('submit-button')`. Avoid `getByPlaceholderText` — placeholders are not labels and are discouraged as query anchors.
 
 ## Mock at Boundaries Only
 

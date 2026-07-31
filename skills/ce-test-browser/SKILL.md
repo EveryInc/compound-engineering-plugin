@@ -62,7 +62,7 @@ Map each changed file to the route(s) that render it, then build the list of URL
 | `src/app/*` (Next.js) | Corresponding routes |
 | `src/components/*` | Pages using those components |
 
-**React + TypeScript CSR apps:** read `references/frontend-testing-guide.md` from this skill's directory for the React file-to-route mapping (the table above is Rails-centric), plus accessibility testing, visual regression, Web Vitals measurement, React-specific testing patterns, network/API testing, and Testing Library query priorities.
+**React + TypeScript CSR apps:** also invoke `ce-ui-engineering` to load the authoritative UI engineering conventions into context (naming, component structure, state management, JSX hygiene, styling, cleanup, empty/loading/error states, the verification checklist). Then read `references/frontend-testing-guide.md` from this skill's directory for the React file-to-route mapping (the table above is Rails-centric), plus accessibility testing, visual regression, Web Vitals measurement, React-specific testing patterns, network/API testing, and Testing Library query priorities. Authority order: repo instructions (`AGENTS.md`, `architecture.md`, `projectbrief.md`) > repo `docs/solutions/*` > `ce-ui-engineering` > the testing guide > general guidance.
 
 ### 4. Determine the Dev Server Port
 

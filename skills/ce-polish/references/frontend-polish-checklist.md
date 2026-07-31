@@ -2,7 +2,11 @@
 
 Structured polish criteria for React + TypeScript client-side-rendered apps. Read this when the feature under polish is a frontend UI, so the conversation has concrete things to look for. This is a what-to-look-for reference, not a rigid gate — the iterate loop in `SKILL.md` remains conversational; these are the surfaces worth probing.
 
+For the authoritative frontend UI engineering conventions (naming, component structure, state management, JSX hygiene, styling, accessibility baselines, cleanup, empty/loading/error states, and the Red Flags checklist), invoke `ce-ui-engineering`. The rules in `ce-ui-engineering` supersede any overlap with the baseline checks below; this file retains only polish-specific checks not covered there. Authority order: repo instructions (`AGENTS.md`, `architecture.md`, `projectbrief.md`) > repo `docs/solutions/*` > `ce-ui-engineering` > this file > general guidance.
+
 ## Accessibility polish
+
+> Apply these checks only when the repo's own guidelines require strict accessibility compliance. If the repo has no accessibility standard, skip this section entirely.
 
 ### Keyboard navigation
 
@@ -44,7 +48,9 @@ Structured polish criteria for React + TypeScript client-side-rendered apps. Rea
 
 ## Responsive polish
 
-- Test at 320px, 768px, 1024px, 1440px
+> Apply these checks only if the surface genuinely supports mobile responsiveness, and only when a browser automation tool (agent-browser or Chrome DevTools) is wired in for the surface. If either condition is unmet, skip this section.
+
+- Test at the dimensions defined by the repository's theme/breakpoints (not generic values like 320px/768px/1024px/1440px)
 - No horizontal scroll at any breakpoint
 - Text readable at all sizes — check line length (45-75 characters ideal)
 - Touch targets >= 44x44px on mobile
@@ -53,16 +59,14 @@ Structured polish criteria for React + TypeScript client-side-rendered apps. Rea
 
 ## Visual polish
 
+> Apply these checks only when a browser automation tool (agent-browser or Chrome DevTools) is available and the active model is multimodal (can understand images). If either condition is unmet, skip this section — visual inspection requires seeing the rendered UI.
+
 ### Spacing consistency
 
-- All spacing uses the project's design token scale (0.25rem increments or the Tailwind config)
-- No off-scale values (`padding: 13px`, `margin-top: 2.3rem`)
 - Consistent spacing between related elements (cards in a grid, items in a list, sections on a page)
 
 ### Typography hierarchy
 
-- Clear visual hierarchy: h1 > h2 > h3 > body > small
-- No skipped heading levels
 - Consistent font sizes and weights across similar components
 
 ### Interaction states
@@ -85,13 +89,11 @@ Every interactive element has all of:
 
 ### Empty states
 
-- Never blank screens — icon + heading + helper text + action button
 - Empty state tells the user what to do next
 
 ### Error states
 
 - Error messages are specific and actionable (not "Something went wrong")
-- Error states include a retry or recovery action
 - Error boundaries catch render errors and show a fallback
 
 ### Icon consistency
@@ -102,47 +104,8 @@ Every interactive element has all of:
 
 ## Performance polish
 
-### Web Vitals
-
-| Metric | Threshold |
-|--------|-----------|
-| LCP | <= 2.5s |
-| CLS | <= 0.1 |
-| INP | <= 200ms |
-
-Measure with Lighthouse or the `web-vitals` library.
-
-### Render performance
-
-- No unnecessary re-renders (check with React DevTools Profiler "Highlight updates")
-- No commit > 16ms (causes a dropped frame at 60fps)
-- Long lists virtualized (> 100 items)
-
-### Bundle impact
-
-- No new heavy dependencies added without checking bundle size
-- Verify `import()` code splitting works in the production build
-- Check the bundle analyzer for unexpected growth
-
-## AI aesthetic anti-patterns
-
-Refuse these patterns — they signal AI-generated UI, not intentional design:
-
-- Purple / indigo gradient palettes as default
-- Excessive gradients (on buttons, cards, backgrounds)
-- `rounded-2xl` on everything
-- Generic hero sections with centered text and a CTA button
-- Lorem ipsum or placeholder copy left in the UI
-- Oversized padding everywhere (no visual density)
-- Stock card grids with no hierarchy
-- Shadow-heavy design (also slows rendering on low-end devices)
-- Overuse of animations / transitions on every element
+Performance rules are not duplicated here. Render performance (re-renders, virtualization, memoization) is in `ce-ui-engineering` `## React Rendering Performance`. Web Vitals thresholds (LCP <= 2.5s, CLS <= 0.1, INP <= 200ms) and the performance budget are in `ce-plan`'s `references/frontend-architecture-guide.md` `## Web Vitals / Performance Budget Planning`. Cite the signal against those sections.
 
 ## React-specific inspection
 
-- State persists correctly across route navigation (no stale data from a previous route)
-- Effect cleanup runs on unmount (no memory leaks, no stale state updates)
-- Context provider value changes do not cause unnecessary re-renders
-- Form inputs do not lose focus on each keystroke
-- Controlled components have consistent `value` / `onChange` pairing
-- `key` props on list items are stable (not array index when items can reorder)
+React inspection signals (state persistence across navigation, form input focus loss, controlled component value/onChange pairing, stable list keys) are in `ce-ui-engineering` `## React Hooks Correctness` > `### React inspection signals`. These are code-level checks, not visual checks — infer them from the code.

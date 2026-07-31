@@ -181,7 +181,7 @@ When a scenario fails — or a passing scenario carries a sharp paper cut worth 
 **For autonomous fixes:**
 
 1. Investigate the root cause. If it's non-obvious, use `ce-debug`.
-2. Apply the fix in the code.
+2. Apply the fix in the code. **Frontend/UI fix — invoke `ce-ui-engineering`.** When the fix touches frontend/UI code (`.tsx`, `.jsx`, `.css`, `.scss`, component, page, layout, or state files), invoke `ce-ui-engineering` to load the UI engineering conventions into context. Its rules are authoritative for frontend code — authority order: repo instructions (`AGENTS.md`, `architecture.md`, `projectbrief.md`) > repo `docs/solutions/*` > `ce-ui-engineering` > general guidance.
 3. **Add an automated regression test** that fails before the fix and passes after, so the bug can't return. This is the default for behavioral and code bugs. When an automated test is genuinely impractical — a pure copy, spacing, or visual fix with no behavioral assertion to make — substitute a documented browser-replay or screenshot check and **state in the report why no automated test was meaningful**. Do not invent a hollow test just to satisfy the step.
 4. Commit the fix with a clear message (use `ce-commit`). One logical fix per commit.
 5. Re-run the failing scenario in the browser to confirm it now passes; then continue the matrix.

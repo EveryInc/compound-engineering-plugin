@@ -50,6 +50,7 @@ After determining mode, read the matching reference and follow it. Each referenc
 - **Targeted Mode** → `references/targeted-mode.md` (2 steps: extract thread context from URL, then judge/fix/reply/resolve via the same validate/commit/push/reply pipeline)
 - Evaluation rubric → `references/evaluation-rubric.md` (the orchestrator reads this to judge each item before any fix is dispatched)
 - Fixer prompt asset → `references/agents/pr-comment-resolver.md` (read before dispatching fixer subagents for approved fixes; do not dispatch a standalone agent by type/name)
+- **Frontend/UI feedback — `ce-ui-engineering` for fixer subagents.** When the approved fix touches frontend/UI code (`.tsx`, `.jsx`, `.css`, `.scss`, component, page, layout, or state files), invoke `ce-ui-engineering` to load the authoritative UI engineering conventions into context before dispatching the fixer subagent. Include in the fixer dispatch prompt: "Follow the UI engineering conventions from `ce-ui-engineering` — naming, component structure, state management, JSX hygiene, styling, cleanup, and the Red Flags checklist." Authority order: repo instructions (`AGENTS.md`, `architecture.md`, `projectbrief.md`) > repo `docs/solutions/*` > `ce-ui-engineering` > the fixer prompt asset > general guidance.
 
 ## Scripts
 
