@@ -518,4 +518,33 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(fullMode).toMatch(/Class fix:/)
     expect(fixer, "class-fix mutation boundary must reach the fixer prompt").toMatch(/enumerated set is the mutation boundary/i)
   })
+
+  test("drafts stay opt-in against automatic skill handoffs", async () => {
+    // A calling skill's auto-handoff (ce-commit-push-pr post-PR) must not count as the user
+    // explicitly naming a draft; only a human's invocation or an explicit watch-mode token may
+    // arm a watch on one.
+    const babysit = await readRepoFile(BABYSIT)
+    const boundary = babysit.match(/\*\*Draft PRs are opt-in\.\*\*[\s\S]+?(?=\n-)/)?.[0]
+    expect(boundary).toBeDefined()
+    expect(boundary).toContain("A calling skill's automatic handoff is neither")
+    expect(boundary).toContain("report the draft status and stop")
+  })
+
+  test("stop summaries open with a pinned status line and carry a counted run recap", async () => {
+    // Observed drift: merge-ready stops reported only current PR state (CI green, no threads),
+    // burying the ready call in prose and dropping the hour of resolved feedback/CI work entirely.
+    const babysit = await readRepoFile(BABYSIT)
+    const step4 = babysit.match(/## Step 4: Report \/ summary([\s\S]+?)## Step 5:/)?.[1]
+    expect(step4).toBeDefined()
+    // Ready declarations are pinned to the two ready emoji; merged celebrates distinctly.
+    expect(step4).toContain("✅ Looks merge-ready")
+    expect(step4).toContain("🟡 Cautiously looks ready")
+    expect(step4).toContain("🎉 Merged")
+    expect(step4).toContain("Your call to merge")
+    expect(step4).toMatch(/never opens with anything but ✅ or 🟡/)
+    // The recap must be rebuilt from durable sources (the PR's remote record), never memory alone.
+    expect(step4).toContain("A run recap at every true stop")
+    expect(step4).toMatch(/never from conversation memory alone/)
+    expect(step4).toContain("remote record")
+  })
 })

@@ -95,6 +95,12 @@ An additive delegated run that sends the host workflow's review or judgment brie
 ### Model identity receipt
 The serving backend's own report of which model actually handled a delegated run, recorded alongside the requested model so the two can disagree visibly. A run's model identity is verified only by such a receipt — never by the request parameters or the model's own text — and outputs without one are labeled as requested-but-unverified; logic that weights cross-model agreement follows the receipt, not the request.
 
+### Handoff seam
+The point in a calling Skill where completed work triggers a follow-on Skill in the same run — distinct from a Session handoff, which carries continuity to a fresh session. A seam that states only intent ("auto-invoke X") invites the caller's agent to reproduce the callee's mechanics from memory; a hardened seam pins the invocation mechanism (the platform's skill-invocation primitive, so the callee's instructions actually load) and, when the callee runs a stateful protocol, explicitly forbids starting that protocol's mechanics directly.
+
+### Context-absent agent
+An agent performing a Skill-shaped action without that Skill's instructions loaded in context — typically reconstructing a half-remembered command, recognizable by parameter values that drift from the Skill's documented defaults. Prose in the unloaded Skill cannot reach it; the only channels that do are the seam it entered through and the output of the tools it runs, which is why fail-closed refusals in bundled CLIs carry their own recovery path.
+
 ## Review and workflow vocabulary
 
 ### Reviewer persona

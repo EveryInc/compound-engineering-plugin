@@ -2303,9 +2303,35 @@ def cmd_mark(args):
     print(json.dumps({"marked": args.currency_key or args.check or args.thread or args.comment}))
 
 
+WATCH_BOOTSTRAP_FLAGS = ("--state-dir", "--invocation-id", "--session-started-at",
+                         "--invocation-budget-seconds")
+WATCH_BOOTSTRAP_HINT = """\
+watch cannot start a babysit run: it only arms the change detector for an
+invocation that was already bootstrapped. Bootstrap first (ce-babysit-pr Step 2):
+  1. pr-snapshot snapshot --pr N --repo [HOST/]OWNER/REPO --state-dir DIR \\
+       --start-invocation --invocation-budget-seconds SECS
+  2. re-run watch with that snapshot's emitted invocation_id,
+     invocation_started_at, and invocation_budget_seconds
+     (as --invocation-id / --session-started-at / --invocation-budget-seconds)
+     plus the same --state-dir.
+Never mint these values yourself; they must come from the bootstrap snapshot."""
+
+
+class _WatchHintingParser(argparse.ArgumentParser):
+    # A bare `watch --pr N` is the observed illegal start path (an agent arming the
+    # detector without the Step 2 bootstrap). Keep the fail-closed exit 2, but make
+    # the refusal carry its own recovery path instead of a raw usage dump.
+    def error(self, message):
+        if (self.prog.endswith(" watch") and "required" in message
+                and any(flag in message for flag in WATCH_BOOTSTRAP_FLAGS)):
+            self.print_usage(sys.stderr)
+            self.exit(2, f"{self.prog}: error: {message}\n\n{WATCH_BOOTSTRAP_HINT}\n")
+        super().error(message)
+
+
 def main():
     p = argparse.ArgumentParser(prog="pr-snapshot")
-    sub = p.add_subparsers(dest="cmd", required=True)
+    sub = p.add_subparsers(dest="cmd", required=True, parser_class=_WatchHintingParser)
 
     s = sub.add_parser("snapshot")
     s.add_argument("--pr", type=int, required=True)

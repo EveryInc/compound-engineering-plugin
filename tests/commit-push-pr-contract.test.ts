@@ -212,4 +212,26 @@ describe("PR concept teaching contract", () => {
     expect(template).toContain("pr_teaching_section")
     expect(template).toContain("pr_teaching_archive")
   })
+
+  test("babysit handoff is a hard skill invocation, never ad-hoc babysit mechanics", async () => {
+    const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+
+    const handoff = content.match(/\*\*Babysit handoff — default on\.\*\*[\s\S]+?(?=\n\n)/)?.[0]
+    expect(handoff).toBeDefined()
+    // Observed drift (Nugget PR #1933): the shipping agent ran a bare
+    // `pr-snapshot watch --pr N` instead of invoking ce-babysit-pr, skipping its
+    // Step 2 bootstrap. The handoff must pin the invocation mechanism and forbid
+    // reconstructing babysit's loop at this seam.
+    expect(handoff).toContain("skill-invocation primitive")
+    expect(handoff).toContain("Never start babysit mechanics yourself")
+    expect(handoff).toContain("`pr-snapshot`")
+
+    // Observed drift (Nugget PR #1934): auto-babysit fired on a draft design PR, forcing the
+    // session to improvise "never mark ready" caveats. Drafts are a not-ready signal; the
+    // auto-handoff must not fire on them (explicit babysit tokens still force it).
+    const doNotFire = content.match(/\*\*Do not fire \(auto-detected[\s\S]+?(?=\n\n)/)?.[0]
+    expect(doNotFire).toBeDefined()
+    expect(doNotFire).toContain("draft")
+    expect(doNotFire).toContain("`babysit:continuous`")
+  })
 })
