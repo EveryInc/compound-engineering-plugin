@@ -538,6 +538,24 @@ class PopenArgvBranch(unittest.TestCase):
                                 ],
                             )
 
+    def test_windows_rewrites_after_option_like_assignment_in_assignment_phase(self):
+        for assignment in ("-S=x", "--split-string=x"):
+            with self.subTest(assignment=assignment):
+                argv = ["env", "A=1", assignment, "bash", "script.sh"]
+                with windows_platform():
+                    with mock.patch.object(
+                        MOD,
+                        "_resolve_windows_posix_shell",
+                        return_value=self.GIT_BASH,
+                    ):
+                        self.assertEqual(
+                            MOD._popen_argv(argv),
+                            [
+                                "env", "A=1", assignment,
+                                self.GIT_BASH, "script.sh",
+                            ],
+                        )
+
     def test_windows_env_prefixed_bash_missing_shell_raises(self):
         argv = ["env", "FOO=1", "bash", "script.sh"]
         with windows_platform():
@@ -912,6 +930,7 @@ class WindowsPosixShellResolve(unittest.TestCase):
             (["env", "--", "-0", "bash"], (-1, None)),
             (["env", "--", r"--chdir=C:\tools\bash", "bash"], (3, None)),
             (["env", "-", "-S=x", "bash"], (3, None)),
+            (["env", "A=1", "-S=x", "bash"], (3, None)),
         )
         for argv, expected in cases:
             with self.subTest(argv=argv):

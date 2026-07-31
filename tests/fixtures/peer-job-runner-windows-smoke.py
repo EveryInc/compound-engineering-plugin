@@ -502,6 +502,27 @@ class WindowsPeerJobSmoke(unittest.TestCase):
                 self.assertEqual(waited.returncode, 0, waited.stderr)
                 self.assertEqual(waited.stdout.strip(), "done")
 
+    def test_env_assignment_phase_allows_option_shaped_assignments(self):
+        bash = self._require_git_bash()
+        env_exe = self._require_git_env(bash)
+        stub = self._write_stub_sh()
+        for index, assignment in enumerate(("-S=x", "--split-string=x"), start=1):
+            with self.subTest(assignment=assignment):
+                run_id = f"run-env-assignment-phase-{index}"
+                started = self._run(
+                    [
+                        "start", "--skill", "ce-doc-review", "--run-id", run_id,
+                        "--", env_exe, "A=1", assignment, "bash", stub,
+                    ]
+                )
+                self.assertEqual(started.returncode, 0, started.stderr)
+                job_id = started.stdout.strip()
+                waited = self._run(
+                    ["wait", "--skill", "ce-doc-review", "--max-secs", "20", job_id]
+                )
+                self.assertEqual(waited.returncode, 0, waited.stderr)
+                self.assertEqual(waited.stdout.strip(), "done")
+
     def test_env_exact_no_operand_long_options_rewrite_to_git_bash(self):
         bash = self._require_git_bash()
         env_exe = self._require_git_env(bash)

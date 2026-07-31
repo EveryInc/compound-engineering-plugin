@@ -1233,6 +1233,7 @@ def _env_bash_index(argv):
             i += 1
             continue
         if _env_assignment_token(tok, allow_option_like=options_done):
+            options_done = True
             i += 1
             continue
         if not options_done and (
