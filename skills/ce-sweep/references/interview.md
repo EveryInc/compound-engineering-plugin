@@ -174,7 +174,7 @@ Then surface the resulting Sweep section to the user in chat and offer **one rou
 **Ask:** "Want the sweep to run on a recurring schedule so feedback gets triaged automatically, or run it on demand? On-demand works fully without a schedule."
 
 - **On demand** -> nothing to register. Note that the rendered `ce-sweep` invocation is ready to run any time.
-- **Recurring** -> hand off to whichever scheduling primitive the harness exposes — the in-plugin `schedule` skill if it is installed, otherwise name the platform-native mechanism (cron, GitHub Actions, the host's own automation) and emit a brief hint of what would need to run. **The registered invocation must include `mode:headless`** using the rendering rule above, so the scheduled run knows it is unattended and defers instead of prompting. Never schedule inline; always hand off to the scheduling primitive.
+- **Recurring** -> hand off to whichever scheduling primitive the harness exposes — the in-plugin `schedule` skill if it is installed, otherwise name the platform-native mechanism (cron, GitHub Actions, the host's own automation) and emit a brief hint of what would need to run. **The registered invocation must include `mode:non-interactive`** (deprecated alias `mode:headless` still works if already registered) using the rendering rule above, so the scheduled run knows it is unattended and defers instead of prompting. Never schedule inline; always hand off to the scheduling primitive.
 
 Declining a schedule leaves on-demand use fully working.
 

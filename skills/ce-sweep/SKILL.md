@@ -1,8 +1,8 @@
 ---
 name: ce-sweep
-description: "Sweep configured feedback sources (Slack, GitHub Issues; email experimental) for new items: acknowledge at source, analyze recordings, verify fixes merged to main, and emit an `lfg`-ready plan. First run sets up sources; supports mode:headless for scheduled runs."
+description: "Sweep configured feedback sources (Slack, GitHub Issues; email experimental) for new items: acknowledge at source, analyze recordings, verify fixes merged to main, and emit an `lfg`-ready plan. First run sets up sources; supports mode:non-interactive for scheduled runs."
 disable-model-invocation: true
-argument-hint: "[setup|reconfigure] [mode:headless]"
+argument-hint: "[setup|reconfigure] [mode:non-interactive]"
 allowed-tools:
   - Read
   - Write
@@ -40,9 +40,9 @@ Default to the platform's blocking question tool: `AskUserQuestion` in Claude Co
 
 ## Mode
 
-Parse a `mode:headless` token from anywhere in the arguments, strip it, and treat the remaining tokens (`setup`, `reconfigure`) per Phase 0.
+Parse a `mode:non-interactive` token or its deprecated alias `mode:headless` from anywhere in the arguments, strip both, and treat the remaining tokens (`setup`, `reconfigure`) per Phase 0. Both tokens together is not a conflict.
 
-**Headless** (token present) never prompts:
+**Non-interactive / Headless** (either token present) never prompts:
 - Ambiguous product decisions defer into the plan's Outstanding Questions section instead of asking.
 - The circuit breaker (2c) defers instead of asking.
 - Setup cannot run headless: if routing lands on the interview while headless, report `first run requires interactive setup` and stop.

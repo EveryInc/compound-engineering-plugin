@@ -1,7 +1,7 @@
 ---
 name: ce-compound
 description: Document a recently solved problem as a durable repo learning, or capture project vocabulary in CONCEPTS.md. Use when capturing a learning after work.
-argument-hint: "[optional: brief context] [mode:headless] [depth:lightweight|full]"
+argument-hint: "[optional: brief context] [mode:non-interactive] [depth:lightweight|full]"
 ---
 
 # /ce-compound
@@ -33,10 +33,11 @@ Captures problem solutions while context is fresh, creating structured documenta
 ```bash
 /ce-compound                            # Document the most recent fix
 /ce-compound [brief context]            # Provide additional context hint
-/ce-compound mode:headless              # Non-interactive run for automations
-/ce-compound mode:headless [context]    # Non-interactive run with context hint
-/ce-compound mode:headless depth:lightweight [context] # Lower-overhead non-interactive run
-/ce-compound mode:headless depth:full [context]        # Full non-interactive run
+/ce-compound mode:non-interactive              # Non-interactive run for automations
+/ce-compound mode:non-interactive [context]    # Non-interactive run with context hint
+/ce-compound mode:non-interactive depth:lightweight [context] # Lower-overhead non-interactive run
+/ce-compound mode:non-interactive depth:full [context]        # Full non-interactive run
+# mode:headless is a deprecated alias for mode:non-interactive (same depth rules)
 ```
 
 **One learning per run.** The workflow's grounding, overlap detection, and cross-referencing all assume a single solved problem. When a session produced multiple distinct learnings, run the skill once per learning, sequentially — each run grounds fresh against the tree. Do not batch several learnings through one run and stitch cross-references between the drafts afterward; drafting-context numbering ("Learning 3") leaking into written docs is the failure this rule prevents.
@@ -47,14 +48,14 @@ If invoked specifically to create or bootstrap `CONCEPTS.md` from scratch rather
 
 ## Mode Detection
 
-Enter headless mode when **either** holds: the arguments you were invoked with contain the `mode:headless` token, **or** the invocation makes non-interactive intent unmistakable — a caller or standing instruction asking to run `ce-compound` "headless", "non-interactively", "unattended", or "without prompts/questions". The token is the explicit form; a clear natural-language request for a non-interactive run is equivalent. Bare "automatically" or "auto-run" is **not** on its own a headless signal — it speaks to *invoking* the skill, not to suppressing its prompts — so an ambiguous or absent signal defaults to interactive. Tokens starting with `mode:` or `depth:` are flags, not context — strip them before treating the remainder as the brief context hint.
+Enter headless (non-interactive) mode when **either** holds: the arguments you were invoked with contain the `mode:non-interactive` token or its deprecated alias `mode:headless`, **or** the invocation makes non-interactive intent unmistakable — a caller or standing instruction asking to run `ce-compound` "headless", "non-interactively", "unattended", or "without prompts/questions". `mode:non-interactive` is the explicit form; `mode:headless` is a **deprecated alias** for the same mode (both together is not a conflict). A clear natural-language request for a non-interactive run is equivalent. Bare "automatically" or "auto-run" is **not** on its own a headless signal — it speaks to *invoking* the skill, not to suppressing its prompts — so an ambiguous or absent signal defaults to interactive. Tokens starting with `mode:` or `depth:` are flags, not context — strip them before treating the remainder as the brief context hint.
 
-Depth is an explicit headless-only selector. In headless mode, accept at most one depth token: `depth:lightweight` routes directly to Lightweight Mode, while `depth:full` routes to Full Mode with its automatic session-history probe. `mode:headless` without a `depth:` token remains backward compatible and runs Full Mode. Headless lightweight asks no blocking questions and launches no subagents. If the invocation contains an unknown `depth:` token, multiple `depth:` tokens, or a `depth:` token without headless intent, do not guess; emit the headless failure report with the reason and end with `Documentation skipped`.
+Depth is an explicit headless-only selector. In headless mode, accept at most one depth token: `depth:lightweight` routes directly to Lightweight Mode, while `depth:full` routes to Full Mode with its automatic session-history probe. `mode:non-interactive` without a `depth:` token remains backward compatible and runs Full Mode (same for the deprecated `mode:headless` alias). Headless lightweight asks no blocking questions and launches no subagents. If the invocation contains an unknown `depth:` token, multiple `depth:` tokens, or a `depth:` token without headless intent, do not guess; emit the headless failure report with the reason and end with `Documentation skipped`.
 
 | Mode | When | Behavior |
 |------|------|----------|
-| **Interactive** (default) | No headless token or clear non-interactive intent | Auto-pick Full vs Lightweight and report the choice; run session history as an automatic probe (Full only); prompt for Discoverability Check consent; end with a plain summary (no "What's next?" menu) |
-| **Headless** | `mode:headless` token present, or the invocation makes non-interactive intent unmistakable | No blocking questions. Run the explicitly requested depth, defaulting to **Full mode** with the automatic session-history probe. If the Discoverability Check finds a gap, report it without editing instruction files. Skip Phase 3 specialized reviews. End with a structured terminal report — no "What's next?" menu. |
+| **Interactive** (default) | No non-interactive token or clear non-interactive intent | Auto-pick Full vs Lightweight and report the choice; run session history as an automatic probe (Full only); prompt for Discoverability Check consent; end with a plain summary (no "What's next?" menu) |
+| **Non-interactive** (aka Headless) | `mode:non-interactive` or deprecated alias `mode:headless` present, or the invocation makes non-interactive intent unmistakable | No blocking questions. Run the explicitly requested depth, defaulting to **Full mode** with the automatic session-history probe. If the Discoverability Check finds a gap, report it without editing instruction files. Skip Phase 3 specialized reviews. End with a structured terminal report — no "What's next?" menu. |
 
 Headless mode is intended for automations and skill-to-skill invocation where no human is present to answer questions. Once detected, headless mode applies for the entire run.
 

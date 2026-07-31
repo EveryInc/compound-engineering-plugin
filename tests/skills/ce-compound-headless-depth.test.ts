@@ -14,13 +14,14 @@ const skillPath = path.join(
 const skill = readFileSync(skillPath, "utf8")
 
 describe("ce-compound non-interactive depth contract", () => {
-  test("advertises explicit lightweight and full headless invocations", () => {
-    expect(skill).toContain("mode:headless depth:lightweight")
-    expect(skill).toContain("mode:headless depth:full")
+  test("advertises explicit lightweight and full non-interactive invocations", () => {
+    expect(skill).toContain("mode:non-interactive depth:lightweight")
+    expect(skill).toContain("mode:non-interactive depth:full")
   })
 
-  test("keeps existing headless calls backward compatible", () => {
-    expect(skill).toMatch(/`mode:headless` without a `depth:` token[^\n]+Full/i)
+  test("keeps existing headless calls backward compatible as deprecated alias", () => {
+    expect(skill).toMatch(/`mode:non-interactive` without a `depth:` token[^\n]+Full/i)
+    expect(skill).toMatch(/deprecated alias `mode:headless`/i)
     expect(skill).toMatch(/`depth:full` or no depth token enters Full Mode[^\n]+automatic session-history probe/i)
   })
 

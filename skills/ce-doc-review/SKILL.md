@@ -1,7 +1,7 @@
 ---
 name: ce-doc-review
 description: Review requirements, plans, or specs with role-specific lenses. Use when the user wants to improve an existing planning document.
-argument-hint: "[mode:headless] [path/to/document.md]"
+argument-hint: "[mode:non-interactive] [path/to/document.md]"
 ---
 
 # Document Review
@@ -29,9 +29,9 @@ fi
 
 ## Phase 0: Detect Mode
 
-Check the invocation arguments for `mode:headless`. Arguments may contain a document path, `mode:headless`, or both. Tokens starting with `mode:` are flags, not file paths — strip them from the arguments and use the remaining token (if any) as the document path for Phase 1.
+Check the invocation arguments for `mode:non-interactive` or its deprecated alias `mode:headless`. Arguments may contain a document path, either mode token, or both. Tokens starting with `mode:` are flags, not file paths — strip them from the arguments and use the remaining token (if any) as the document path for Phase 1. Both tokens together is not a conflict.
 
-If `mode:headless` is present, set **headless mode** for the rest of the workflow.
+If `mode:non-interactive` or `mode:headless` is present, set **headless (non-interactive) mode** for the rest of the workflow.
 
 **Headless mode** changes the interaction model, not the classification boundaries. Apply the same judgment about which tier each finding belongs in. Only the delivery of non-`safe_auto` findings changes:
 
@@ -41,9 +41,9 @@ If `mode:headless` is present, set **headless mode** for the rest of the workflo
 
 The caller receives findings with their original classifications intact and decides what to do with them.
 
-**Headless argument contract:** Require `mode:headless <document-path>`, for example `mode:headless <path-to-doc>.md`.
+**Headless argument contract:** Require `mode:non-interactive <document-path>`, for example `mode:non-interactive <path-to-doc>.md`. `mode:headless` is a deprecated alias for the same contract.
 
-If `mode:headless` is not present, run in default interactive mode with the routing question, walk-through, and bulk-preview behaviors documented in `references/walkthrough.md` and `references/bulk-preview.md`.
+If neither `mode:non-interactive` nor `mode:headless` is present, run in default interactive mode with the routing question, walk-through, and bulk-preview behaviors documented in `references/walkthrough.md` and `references/bulk-preview.md`.
 
 ## Artifact Root
 
@@ -63,7 +63,7 @@ This skill reviews a document at a path it is handed and, in interactive mode wi
 
 **If no document is specified (interactive mode):** Ask which document to review, or find the most recent under `<root>/plans/` using a file-search/glob tool (e.g., Glob in Claude Code).
 
-**If no document is specified (headless mode):** Output "Review failed: headless mode requires a document path. Expected arguments: mode:headless <path>" and stop without dispatching reviewers.
+**If no document is specified (headless mode):** Output "Review failed: headless mode requires a document path. Expected arguments: mode:non-interactive <path>" and stop without dispatching reviewers.
 
 **Missing-document gate — verify before any dispatch.** Persona reviewers read documents from the filesystem, and several run without Bash, so they cannot read git refs — a path that exists only on a branch that is not checked out wastes the entire persona team discovering they cannot proceed (issue #925). Before Phase 2, confirm every resolved document path is readable on disk (the Read above succeeded). Location does not matter: an absolute path outside the checkout (e.g. `/tmp/plan.md`) or a doc in another checkout reviews fine. If any path is not readable, do not dispatch any personas:
 

@@ -1,7 +1,7 @@
 ---
 name: ce-compound-refresh
 description: Refresh the repo's captured learnings against the current codebase. Use when auditing stale, overlapping, superseded, or drifted learnings; avoid general refactor, debugging, or code review unless the learnings store is explicit.
-argument-hint: "[optional: scope hint — directory, filename, module, or keyword] [mode:headless] "
+argument-hint: "[optional: scope hint — directory, filename, module, or keyword] [mode:non-interactive] "
 ---
 
 # Compound Refresh
@@ -24,12 +24,12 @@ fi
 
 ## Mode Detection
 
-Check whether the arguments you were invoked with contain `mode:headless`. If present, strip it from the arguments (use the remainder as a scope hint) and run in **headless mode**.
+Check whether the arguments you were invoked with contain `mode:non-interactive` or its deprecated alias `mode:headless`. If either is present, strip both from the arguments (use the remainder as a scope hint) and run in **headless (non-interactive) mode**. Both tokens together is not a conflict.
 
 | Mode | When | Behavior |
 |------|------|----------|
 | **Interactive** (default) | User is present and can answer questions | Ask for decisions on ambiguous cases, confirm actions |
-| **Headless** | `mode:headless` in arguments | No user interaction. Apply all unambiguous actions (Keep, Update, Consolidate, auto-Delete, Replace with sufficient evidence). Mark ambiguous cases as stale. Generate a summary report at the end. |
+| **Non-interactive** (aka Headless) | `mode:non-interactive` or deprecated alias `mode:headless` in arguments | No user interaction. Apply all unambiguous actions (Keep, Update, Consolidate, auto-Delete, Replace with sufficient evidence). Mark ambiguous cases as stale. Generate a summary report at the end. |
 
 ### Headless mode rules
 
