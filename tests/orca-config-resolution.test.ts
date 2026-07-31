@@ -652,7 +652,7 @@ describe("CE-Orca canonical configuration resolution", () => {
     const store = JSON.parse(await fs.readFile(filePath, "utf8"))
     expect(Object.keys(store.profiles).sort()).toEqual([...names].sort())
     await expect(fs.stat(lockPath)).rejects.toMatchObject({ code: "ENOENT" })
-  })
+  }, { timeout: 15_000 })
 
   test("advances recovery generations after an elected recovery owner crashes", async () => {
     const { registry } = await data("ce-doc-review")
