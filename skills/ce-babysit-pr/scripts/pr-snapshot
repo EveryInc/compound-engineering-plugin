@@ -2309,14 +2309,13 @@ WATCH_BOOTSTRAP_FLAGS = ("--state-dir", "--invocation-id", "--session-started-at
                          "--invocation-budget-seconds")
 WATCH_BOOTSTRAP_HINT = """\
 watch cannot start a babysit run: it only arms the change detector for an
-invocation that was already bootstrapped. Bootstrap first (ce-babysit-pr Step 2):
-  1. pr-snapshot snapshot --pr N --repo [HOST/]OWNER/REPO --state-dir DIR \\
-       --start-invocation --invocation-budget-seconds SECS
-  2. re-run watch with that snapshot's emitted invocation_id,
-     invocation_started_at, and invocation_budget_seconds
-     (as --invocation-id / --session-started-at / --invocation-budget-seconds)
-     plus the same --state-dir.
-Never mint these values yourself; they must come from the bootstrap snapshot."""
+invocation that was already bootstrapped by a snapshot --start-invocation run
+(the ce-babysit-pr Step 2 bootstrap).
+To recover, invoke the ce-babysit-pr skill through your harness's callable
+skill mechanism with this PR: its instructions own the bootstrap, arming,
+marks, and stop protocol. Do not drive pr-snapshot directly outside that skill.
+Never mint the bootstrap values yourself; they come from the skill's
+bootstrap snapshot."""
 
 
 class _WatchHintingParser(argparse.ArgumentParser):

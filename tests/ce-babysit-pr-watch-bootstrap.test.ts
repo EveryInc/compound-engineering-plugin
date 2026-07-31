@@ -29,6 +29,8 @@ describe("pr-snapshot watch bootstrap refusal", () => {
     expect(r.stderr).toContain("watch cannot start a babysit run")
     expect(r.stderr).toContain("--start-invocation")
     expect(r.stderr).toContain("ce-babysit-pr Step 2")
+    // The recovery path must route through the skill, not a raw command recipe.
+    expect(r.stderr).toContain("invoke the ce-babysit-pr skill")
   })
 
   test("watch missing only a non-bootstrap flag gets the plain argparse error", () => {
