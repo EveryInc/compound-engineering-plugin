@@ -205,6 +205,27 @@ print(json.dumps({"capability": capability, "call": calls[0]}))`,
   return JSON.parse(r.stdout.trim())
 }
 
+function probeAwaitingApproval(response: { status: number; stdout?: string }): number | null {
+  const r = spawnSync(
+    "python3",
+    [
+      "-c",
+      `import json
+from importlib.machinery import SourceFileLoader
+m = SourceFileLoader("prs", ${JSON.stringify(SCRIPT)}).load_module()
+class Result: pass
+result = Result()
+result.returncode = ${JSON.stringify(response.status)}
+result.stdout = ${JSON.stringify(response.stdout ?? "")}
+m._run = lambda _cmd: result
+print(json.dumps(m.fetch_awaiting_approval("o", "r", "head")))`,
+    ],
+    { encoding: "utf8" },
+  )
+  expect(r.status, r.stderr).toBe(0)
+  return JSON.parse(r.stdout.trim())
+}
+
 function probeChain(options: {
   pr?: number
   url?: string
@@ -2097,6 +2118,12 @@ m.cmd_snapshot(args)
     expect(d.blocked_external).toBe(true)
   })
 
+  test("an approval probe failure is unknown rather than a proven-clear gate", () => {
+    expect(probeAwaitingApproval({ status: 1 })).toBeNull()
+    expect(probeAwaitingApproval({ status: 0, stdout: "not-a-count" })).toBeNull()
+    expect(probeAwaitingApproval({ status: 0, stdout: "0" })).toBe(0)
+  })
+
   test("approval review-drain clock is head-scoped and resets only on external review movement", () => {
     const sd = path.join(dir, "approval-drain-state")
     const gated = {
@@ -2117,6 +2144,18 @@ m.cmd_snapshot(args)
     patchState(sd, { blocked_external_review_last_activity_at: isoAgo(10 * 60) })
     const unchanged = snapshot(sd, fetchFile(dir, "approval-drain-unchanged.json", gated))
     expect(unchanged.blocked_external_review_quiet_seconds).toBeGreaterThanOrEqual(9 * 60)
+
+    const activityBeforeProbeFailure = unchanged.blocked_external_review_last_activity_at
+    const unknown = snapshot(sd, fetchFile(dir, "approval-drain-probe-failed.json", {
+      ...gated,
+      awaiting_approval: null,
+    }))
+    expect(unknown.checks_awaiting_approval).toBe(1)
+    expect(unknown.blocked_external).toBe(true)
+    expect(unknown.blocked_external_review_last_activity_at).toBe(activityBeforeProbeFailure)
+    const recovered = snapshot(sd, fetchFile(dir, "approval-drain-probe-recovered.json", gated))
+    expect(recovered.blocked_external_review_last_activity_at).toBe(activityBeforeProbeFailure)
+    expect(recovered.blocked_external_review_quiet_seconds).toBeGreaterThanOrEqual(9 * 60)
 
     const persistentFeedback = {
       ...gated,

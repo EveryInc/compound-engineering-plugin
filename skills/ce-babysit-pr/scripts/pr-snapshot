@@ -778,7 +778,8 @@ def fetch_awaiting_approval(owner, name, head, host=None):
     """Count Actions workflow runs on this head that are awaiting maintainer approval —
     the fork-PR security gate. Such a run has created NO check-run yet, so it is invisible
     to statusCheckRollup; without this, a fork PR blocked on approval reads as 'all checks ok'.
-    Best-effort: any API/permission failure returns 0 rather than failing the tick."""
+    Best-effort: an API/permission failure returns None so the tick can preserve the
+    last proven gate state rather than treating an unknown result as a proven clear."""
     if not head:
         return 0
     r = _run(["gh", "api", *_host_args(host),
@@ -786,11 +787,11 @@ def fetch_awaiting_approval(owner, name, head, host=None):
               "--jq", '[.workflow_runs[] | select(.status==\"action_required\" or .status==\"waiting\" '
                       'or .conclusion==\"action_required\")] | length'])
     if r.returncode != 0:
-        return 0
+        return None
     try:
         return int((r.stdout or "").strip() or 0)
     except ValueError:
-        return 0
+        return None
 
 
 def fetch_threads(pr, owner, name, host=None):
@@ -1415,9 +1416,15 @@ def diff(state, cur, now=None, advance_trajectory=True):
     state["review_in_progress"] = review_in_progress
     state["review_signal_count"] = review_signal_count
     state["review_signal_identities"] = review_signal_identities
-    awaiting_approval = cur.get("awaiting_approval", 0)
+    observed_awaiting_approval = cur.get("awaiting_approval")
+    approval_probe_succeeded = observed_awaiting_approval is not None
+    awaiting_approval = (
+        observed_awaiting_approval
+        if approval_probe_succeeded
+        else state.get("awaiting_approval", 0)
+    )
     state["awaiting_approval"] = awaiting_approval
-    if awaiting_approval > 0:
+    if approval_probe_succeeded and awaiting_approval > 0:
         gate_is_new_for_head = (
             state.get("blocked_external_head_sha") != head
             or not state.get("blocked_external_review_last_activity_at")
@@ -1428,7 +1435,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
             state["blocked_external_review_last_activity_at"] = _iso(now)
         elif external_review_moved:
             state["blocked_external_review_last_activity_at"] = _iso(now)
-    else:
+    elif approval_probe_succeeded:
         state["blocked_external_head_sha"] = None
         state["blocked_external_first_seen_at"] = None
         state["blocked_external_review_last_activity_at"] = None
