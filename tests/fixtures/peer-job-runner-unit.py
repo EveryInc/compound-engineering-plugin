@@ -604,6 +604,34 @@ class WindowsPosixShellResolve(unittest.TestCase):
     PATH_GIT_BASH = r"C:\Tools\Git\bin\bash.exe"
     LOCAL_GIT_BASH = r"C:\Users\me\AppData\Local\Programs\Git\bin\bash.exe"
 
+    def test_well_known_paths_prefer_distinct_programw6432_root(self):
+        with windows_ntpath():
+            with mock.patch.dict(os.environ, {
+                "ProgramW6432": r"C:\Program Files",
+                "ProgramFiles": r"C:\Program Files (x86)",
+                "ProgramFiles(x86)": r"C:\Program Files (x86)",
+                "LOCALAPPDATA": "",
+            }, clear=False):
+                paths = MOD._git_bash_well_known_paths()
+        self.assertEqual(paths, [
+            r"C:\Program Files\Git\bin\bash.exe",
+            r"C:\Program Files\Git\usr\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\usr\bin\bash.exe",
+        ])
+
+    def test_well_known_paths_deduplicate_matching_program_roots(self):
+        with windows_ntpath():
+            with mock.patch.dict(os.environ, {
+                "ProgramW6432": r"C:\Program Files",
+                "ProgramFiles": r"C:\Program Files",
+                "ProgramFiles(x86)": r"C:\Program Files (x86)",
+                "LOCALAPPDATA": "",
+            }, clear=False):
+                paths = MOD._git_bash_well_known_paths()
+        self.assertEqual(len(paths), 4)
+        self.assertEqual(paths[0], r"C:\Program Files\Git\bin\bash.exe")
+
     def test_prefers_git_bash_when_system32_first_on_path(self):
         with windows_platform(
             isfile_side_effect=_nt_exists(self.GIT_BASH, self.SYSTEM32_BASH)

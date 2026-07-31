@@ -1088,15 +1088,26 @@ def _is_system32_wsl_bash(path: str) -> bool:
 
 def _git_bash_well_known_paths():
     """Standard Git for Windows bash.exe locations."""
+    pf64 = os.environ.get("ProgramW6432") or ""
     pf = os.environ.get("ProgramFiles") or r"C:\Program Files"
     pf86 = os.environ.get("ProgramFiles(x86)") or r"C:\Program Files (x86)"
     local = os.environ.get("LOCALAPPDATA") or ""
-    paths = [
-        os.path.join(pf, "Git", "bin", "bash.exe"),
-        os.path.join(pf, "Git", "usr", "bin", "bash.exe"),
-        os.path.join(pf86, "Git", "bin", "bash.exe"),
-        os.path.join(pf86, "Git", "usr", "bin", "bash.exe"),
-    ]
+    roots = []
+    seen = set()
+    for root in (pf64, pf, pf86):
+        if not root:
+            continue
+        key = os.path.normcase(os.path.abspath(root))
+        if key in seen:
+            continue
+        seen.add(key)
+        roots.append(root)
+    paths = []
+    for root in roots:
+        paths.extend([
+            os.path.join(root, "Git", "bin", "bash.exe"),
+            os.path.join(root, "Git", "usr", "bin", "bash.exe"),
+        ])
     if local:
         paths.extend([
             os.path.join(local, "Programs", "Git", "bin", "bash.exe"),
