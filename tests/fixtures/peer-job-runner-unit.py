@@ -426,6 +426,7 @@ class PopenArgvBranch(unittest.TestCase):
 
     GIT_BASH = r"C:\Program Files\Git\bin\bash.exe"
     SYSTEM32_BASH = r"C:\Windows\System32\bash.exe"
+    SYSNATIVE_BASH = r"C:\Windows\Sysnative\bash.exe"
 
     def test_posix_passthrough(self):
         argv = ["/tmp/cross-model-work.sh", "a", "b"]
@@ -569,6 +570,20 @@ class PopenArgvBranch(unittest.TestCase):
                         [self.GIT_BASH, "script.sh"],
                     )
 
+    def test_windows_rewrites_absolute_sysnative_bash(self):
+        argv = [self.SYSNATIVE_BASH, "script.sh"]
+        with windows_platform(isfile_side_effect=_nt_exists(self.SYSNATIVE_BASH)):
+            with mock.patch.dict(
+                os.environ, {"SystemRoot": r"C:\Windows"}, clear=False
+            ):
+                with mock.patch.object(
+                    MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+                ):
+                    self.assertEqual(
+                        MOD._popen_argv(argv),
+                        [self.GIT_BASH, "script.sh"],
+                    )
+
     def test_windows_keeps_env_prefixed_absolute_non_wsl_bash(self):
         portable = r"C:\PortableGit\bin\bash.exe"
         argv = ["env", "FOO=1", portable, "script.sh"]
@@ -601,6 +616,7 @@ class WindowsPosixShellResolve(unittest.TestCase):
 
     GIT_BASH = r"C:\Program Files\Git\bin\bash.exe"
     SYSTEM32_BASH = r"C:\Windows\System32\bash.exe"
+    SYSNATIVE_BASH = r"C:\Windows\Sysnative\bash.exe"
     PATH_GIT_BASH = r"C:\Tools\Git\bin\bash.exe"
     LOCAL_GIT_BASH = r"C:\Users\me\AppData\Local\Programs\Git\bin\bash.exe"
 
@@ -759,6 +775,23 @@ class WindowsPosixShellResolve(unittest.TestCase):
             "ce_peer_bash" in msg or "claude_code_git_bash_path" in msg
         )
 
+    def test_rejects_sysnative_only(self):
+        with windows_platform(isfile_side_effect=_nt_exists(self.SYSNATIVE_BASH)):
+            with mock.patch.dict(os.environ, {
+                "CE_PEER_BASH": "",
+                "CLAUDE_CODE_GIT_BASH_PATH": "",
+                "SystemRoot": r"C:\Windows",
+                "ProgramFiles": r"C:\Missing",
+                "ProgramFiles(x86)": r"C:\Missing (x86)",
+                "LOCALAPPDATA": "",
+            }, clear=False):
+                with mock.patch.object(
+                    MOD, "_windows_path_shell_candidates",
+                    return_value=[self.SYSNATIVE_BASH],
+                ):
+                    with self.assertRaises(MOD.RunnerError):
+                        MOD._resolve_windows_posix_shell()
+
     def test_missing_override_falls_through(self):
         with windows_platform(isfile_side_effect=_nt_exists(self.GIT_BASH)):
             with mock.patch.dict(os.environ, {
@@ -778,6 +811,7 @@ class WindowsPosixShellResolve(unittest.TestCase):
         with windows_ntpath():
             with mock.patch.dict(os.environ, {"SystemRoot": r"C:\Windows"}, clear=False):
                 self.assertTrue(MOD._is_system32_wsl_bash(self.SYSTEM32_BASH))
+                self.assertTrue(MOD._is_system32_wsl_bash(self.SYSNATIVE_BASH))
                 self.assertFalse(MOD._is_system32_wsl_bash(self.GIT_BASH))
 
     def test_prefer_keeps_absolute_portable(self):

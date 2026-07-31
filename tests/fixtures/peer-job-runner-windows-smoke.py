@@ -356,6 +356,7 @@ class WindowsPeerJobSmoke(unittest.TestCase):
         )
         waited = self._run(["wait", "--max-secs", "20", job_id])
         self.assertEqual(waited.returncode, 0, waited.stderr)
+        self.assertEqual(waited.stdout.strip(), "done")
 
     def test_env_prefixed_bash_worker_sets_meta_shell(self):
         # Production cross-model shape: start -- env VAR=… bash script.sh
@@ -392,6 +393,14 @@ class WindowsPeerJobSmoke(unittest.TestCase):
         )
         waited = self._run(["wait", "--max-secs", "20", job_id])
         self.assertEqual(waited.returncode, 0, waited.stderr)
+        self.assertEqual(waited.stdout.strip(), "done")
+
+    def test_sysnative_shell_alias_is_classified_as_wsl(self):
+        system_root = os.environ.get("SystemRoot") or r"C:\Windows"
+        for name in ("bash.exe", "sh.exe"):
+            with self.subTest(name=name):
+                path = os.path.join(system_root, "Sysnative", name)
+                self.assertTrue(MOD._is_system32_wsl_bash(path), path)
 
     def test_env_unusual_assignment_names_rewrite_to_git_bash(self):
         bash = self._require_git_bash()

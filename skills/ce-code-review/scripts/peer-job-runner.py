@@ -1072,18 +1072,20 @@ def _interruptible_sleep(secs: float, flag: dict, job_dir: str) -> None:
 
 
 def _is_system32_wsl_bash(path: str) -> bool:
-    """True when path is the Windows System32 WSL bash launcher (#1268)."""
+    """True for Windows System32 WSL launchers, including Sysnative aliases."""
     if not path:
         return False
     base = os.path.basename(path).lower()
     if base not in ("bash", "bash.exe", "sh", "sh.exe"):
         return False
     system_root = os.environ.get("SystemRoot") or r"C:\Windows"
-    system32 = os.path.normcase(
-        os.path.join(os.path.abspath(system_root), "System32")
-    )
+    windows_root = os.path.abspath(system_root)
+    blocked_parents = {
+        os.path.normcase(os.path.join(windows_root, name))
+        for name in ("System32", "Sysnative")
+    }
     parent = os.path.normcase(os.path.dirname(os.path.abspath(path)))
-    return parent == system32
+    return parent in blocked_parents
 
 
 def _git_bash_well_known_paths():
