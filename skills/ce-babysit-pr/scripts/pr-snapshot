@@ -1428,7 +1428,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
         else state.get("awaiting_approval", 0)
     )
     state["awaiting_approval"] = awaiting_approval
-    if approval_probe_succeeded and awaiting_approval > 0:
+    if awaiting_approval > 0:
         gate_is_new_for_head = (
             state.get("blocked_external_head_sha") != head
             or not state.get("blocked_external_review_last_activity_at")

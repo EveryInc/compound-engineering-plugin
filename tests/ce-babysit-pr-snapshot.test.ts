@@ -2194,6 +2194,43 @@ m.cmd_snapshot(args)
     expect(cleared.blocked_external_review_quiet_seconds).toBe(0)
   })
 
+  test("external review movement resets a confirmed approval drain when the current probe is unknown", () => {
+    const sd = path.join(dir, "approval-drain-unknown-movement")
+    const gated = {
+      ...FAILING,
+      head_sha: "gated-h1",
+      merge_state_status: "UNSTABLE",
+      checks: [{ key: "Track", name: "Track", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+      threads: [],
+      feedback: [],
+      awaiting_approval: 1,
+    }
+    snapshot(sd, fetchFile(dir, "approval-drain-unknown-start.json", gated))
+    patchState(sd, { blocked_external_review_last_activity_at: isoAgo(10 * 60) })
+
+    const withExternalMovement = {
+      ...gated,
+      feedback: [{ id: "C1", kind: "comment", author: "reviewer", edit_id: "e1" }],
+      awaiting_approval: null,
+    }
+    const moved = snapshot(sd, fetchFile(dir, "approval-drain-unknown-moved.json", withExternalMovement))
+    expect(moved.checks_awaiting_approval).toBe(1)
+    expect(moved.blocked_external_review_moved_this_tick).toBe(true)
+    expect(moved.blocked_external_review_quiet_seconds).toBeLessThan(2)
+    const resetAt = moved.blocked_external_review_last_activity_at
+
+    const unchanged = snapshot(sd, fetchFile(dir, "approval-drain-unknown-unchanged.json", withExternalMovement))
+    expect(unchanged.blocked_external_review_moved_this_tick).toBe(false)
+    expect(unchanged.blocked_external_review_last_activity_at).toBe(resetAt)
+
+    const cleared = snapshot(sd, fetchFile(dir, "approval-drain-unknown-cleared.json", {
+      ...withExternalMovement,
+      awaiting_approval: 0,
+    }))
+    expect(cleared.checks_awaiting_approval).toBe(0)
+    expect(cleared.blocked_external_review_last_activity_at).toBeNull()
+  })
+
   test("approval drain ignores the resolver reply baseline but wakes for a later reviewer reply", () => {
     const gated = (cid: string) => ({
       ...FAILING,
