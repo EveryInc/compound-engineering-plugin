@@ -113,7 +113,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     // producer side: the watch subcommand emits the sentinel and can wake on each precedence reason
     expect(script).toContain("def cmd_watch")
     expect(script).toContain("BABYSIT_WAKE")
-    for (const reason of ["terminal", "blocked-external", "actionable", "feedback-candidate", "stack-blocked", "needs-human", "branch-currency", "merge-ready", "invocation-superseded"]) {
+    for (const reason of ["terminal", "blocked-external", "blocked-external-drained", "actionable", "feedback-candidate", "stack-blocked", "needs-human", "branch-currency", "merge-ready", "invocation-superseded"]) {
       expect(script, `watch must be able to wake on '${reason}'`).toContain(reason)
     }
   })
@@ -385,11 +385,13 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(script).toMatch(/def cmd_mark\(args\):[\s\S]{0,180}_apply_invocation\(box, args, now\)/)
   })
 
-  test("blocked approval watching stays inside the invocation budget", async () => {
+  test("blocked approval drains review automatically before a bounded handback", async () => {
     const babysit = await readRepoFile(BABYSIT)
-    expect(babysit).toContain("within this invocation's remaining fixed budget")
-    expect(babysit).toContain("never promise or mint a longer approval-watch window after invocation entry")
-    expect(babysit).not.toContain("hard-capped at 24h")
+    expect(babysit).toContain("blocked-external-drained")
+    expect(babysit).toContain("--blocked-external-drain-seconds")
+    for (const bound of ["300", "900", "1800"]) expect(babysit).toContain(bound)
+    expect(babysit).toMatch(/without asking|do not ask/i)
+    expect(babysit).toMatch(/pipeline[^.]{0,300}(terminate|return)/i)
   })
 
   test("deadline precedence preserves stop results without starting another work round", async () => {

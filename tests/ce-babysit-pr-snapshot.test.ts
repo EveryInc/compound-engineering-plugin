@@ -2097,6 +2097,163 @@ m.cmd_snapshot(args)
     expect(d.blocked_external).toBe(true)
   })
 
+  test("approval review-drain clock is head-scoped and resets only on external review movement", () => {
+    const sd = path.join(dir, "approval-drain-state")
+    const gated = {
+      ...FAILING,
+      head_sha: "gated-h1",
+      merge_state_status: "UNSTABLE",
+      checks: [{ key: "Track", name: "Track", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+      threads: [],
+      feedback: [],
+      awaiting_approval: 1,
+    }
+
+    const first = snapshot(sd, fetchFile(dir, "approval-drain-first.json", gated))
+    expect(first.blocked_external).toBe(true)
+    expect(first.blocked_external_review_quiet_seconds).toBeLessThan(2)
+    const startedAt = first.blocked_external_review_last_activity_at
+
+    patchState(sd, { blocked_external_review_last_activity_at: isoAgo(10 * 60) })
+    const unchanged = snapshot(sd, fetchFile(dir, "approval-drain-unchanged.json", gated))
+    expect(unchanged.blocked_external_review_quiet_seconds).toBeGreaterThanOrEqual(9 * 60)
+
+    const persistentFeedback = {
+      ...gated,
+      feedback: [{ id: "C1", kind: "comment", author: "reviewer", edit_id: "e1" }],
+    }
+    snapshot(sd, fetchFile(dir, "approval-drain-feedback-baseline.json", persistentFeedback))
+    patchState(sd, { blocked_external_review_last_activity_at: isoAgo(10 * 60) })
+    mark(sd, ["--comment", "C1", "--disposition", "dispatched", "--acted-edit-id", "e1"])
+    const dispositionOnly = snapshot(sd, fetchFile(dir, "approval-drain-disposition.json", persistentFeedback))
+    expect(dispositionOnly.blocked_external_review_quiet_seconds).toBeGreaterThanOrEqual(9 * 60)
+
+    const newFeedback = {
+      ...persistentFeedback,
+      feedback: [
+        { id: "C1", kind: "comment", author: "reviewer", edit_id: "e1" },
+        { id: "C2", kind: "comment", author: "reviewer", edit_id: "e2" },
+      ],
+    }
+    const moved = snapshot(sd, fetchFile(dir, "approval-drain-feedback.json", newFeedback))
+    expect(moved.blocked_external).toBe(false)
+    expect(moved.blocked_external_review_quiet_seconds).toBeLessThan(2)
+    expect(moved.blocked_external_review_last_activity_at).not.toBe(startedAt)
+
+    const newHead = snapshot(sd, fetchFile(dir, "approval-drain-head.json", {
+      ...gated,
+      head_sha: "gated-h2",
+    }))
+    expect(newHead.blocked_external_review_quiet_seconds).toBeLessThan(2)
+
+    const cleared = snapshot(sd, fetchFile(dir, "approval-drain-cleared.json", {
+      ...gated,
+      head_sha: "gated-h2",
+      awaiting_approval: 0,
+    }))
+    expect(cleared.blocked_external_review_last_activity_at).toBeNull()
+    expect(cleared.blocked_external_review_quiet_seconds).toBe(0)
+  })
+
+  test("approval review-drain wakes terminally after its selected quiet bound", () => {
+    const sd = path.join(dir, "approval-drain-expiry")
+    const gated = {
+      ...FAILING,
+      head_sha: "gated-h1",
+      merge_state_status: "UNSTABLE",
+      checks: [{ key: "Track", name: "Track", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+      threads: [],
+      feedback: [],
+      awaiting_approval: 1,
+    }
+    snapshot(sd, fetchFile(dir, "approval-drain-expiry-first.json", gated))
+    patchState(sd, { blocked_external_review_last_activity_at: isoAgo(10) })
+
+    const expired = watch(sd, fetchFile(dir, "approval-drain-expiry-watch.json", gated), [
+      "--blocked-external-drain-seconds", "1",
+    ])
+    expect(expired.reason).toBe("blocked-external-drained")
+    expect(expired.blocked_external_review_quiet_seconds).toBeGreaterThanOrEqual(1)
+    expect(expired.blocked_external_drain_seconds).toBe(1)
+  })
+
+  test("the invocation budget outranks an expired approval review-drain", () => {
+    const sd = path.join(dir, "approval-drain-budget")
+    const gated = {
+      ...FAILING,
+      head_sha: "gated-h1",
+      merge_state_status: "UNSTABLE",
+      checks: [{ key: "Track", name: "Track", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+      threads: [],
+      feedback: [],
+      awaiting_approval: 1,
+    }
+    snapshot(sd, fetchFile(dir, "approval-drain-budget-first.json", gated))
+    patchState(sd, {
+      started_at: isoAgo(9 * 3600),
+      last_activity_at: isoAgo(10),
+      dead_time_seconds: 0,
+      blocked_external_review_last_activity_at: isoAgo(10),
+    })
+
+    const expired = watch(sd, fetchFile(dir, "approval-drain-budget-watch.json", gated), [
+      "--blocked-external-drain-seconds", "1",
+    ])
+    expect(expired.reason).toBe("max-runtime")
+  })
+
+  test("new review feedback outranks an expired approval review-drain", () => {
+    const sd = path.join(dir, "approval-drain-feedback-wake")
+    const gated = {
+      ...FAILING,
+      head_sha: "gated-h1",
+      merge_state_status: "UNSTABLE",
+      checks: [{ key: "Track", name: "Track", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+      threads: [],
+      feedback: [],
+      awaiting_approval: 1,
+    }
+    snapshot(sd, fetchFile(dir, "approval-drain-feedback-first.json", gated))
+    patchState(sd, { blocked_external_review_last_activity_at: isoAgo(10) })
+    const withFeedback = {
+      ...gated,
+      feedback: [{ id: "C1", kind: "comment", author: "reviewer", edit_id: "e1" }],
+    }
+
+    const wake = watch(sd, fetchFile(dir, "approval-drain-feedback-watch.json", withFeedback), [
+      "--blocked-external-drain-seconds", "1",
+    ])
+    expect(wake.reason).toBe("feedback-candidate")
+  })
+
+  test("a review lifecycle starting during an approval drain wakes for a longer bound", () => {
+    const sd = path.join(dir, "approval-drain-signal")
+    const gated = {
+      ...FAILING,
+      head_sha: "gated-h1",
+      merge_state_status: "UNSTABLE",
+      checks: [{ key: "Track", name: "Track", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+      threads: [],
+      feedback: [],
+      awaiting_approval: 1,
+      review_in_progress: false,
+      review_signal_count: 0,
+      review_signal_identities: [],
+    }
+    snapshot(sd, fetchFile(dir, "approval-drain-signal-first.json", gated))
+    const withSignal = {
+      ...gated,
+      review_in_progress: true,
+      review_signal_count: 1,
+      review_signal_identities: ["review-bot"],
+    }
+
+    const wake = watch(sd, fetchFile(dir, "approval-drain-signal-watch.json", withSignal), [
+      "--blocked-external-drain-seconds", "300",
+    ])
+    expect(wake.reason).toBe("blocked-external")
+  })
+
   test("an empty statusCheckRollup (no check-runs yet) is not ok — checks_present false blocks a pipeline false-success", () => {
     const noChecks = { ...FAILING, merge_state_status: "CLEAN", review_decision: "APPROVED", checks: [], threads: [] }
     const d = snapshot(state, fetchFile(dir, "nc.json", noChecks))

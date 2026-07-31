@@ -1,5 +1,5 @@
 ---
-title: "Watch-loop skills need a blocked-external terminal state for fork-PR CI approval gates"
+title: "Watch-loop skills need a bounded blocked-external handback for fork-PR CI approval gates"
 category: skill-design
 date: 2026-07-11
 module: skills/ce-babysit-pr
@@ -46,10 +46,12 @@ blocked_external = awaiting_approval > 0 and not has_failing and not actionable_
 
 `all_checks_ok` cannot go true while a workflow is gated, and `checks_awaiting_approval` / `blocked_external` are emitted as first-class fields alongside the actionable set — not inferred later from prose.
 
-**Model the discovered state as its own terminal condition, not a variant of an existing one.** "Blocked on a third party neither the loop nor the user controls, for an unbounded time" is neither `needs-human` (the user *could* act — resolve a thread, fix code) nor transient `in-progress` (bounded, will resolve on its own soon). `ce-babysit-pr`'s Step 3 gives it a dedicated stop condition, "Blocked on external CI approval":
+**Model the discovered state as its own bounded handback, not a variant of an existing blocker.** "Blocked on a third party neither the loop nor the user controls, for an unbounded time" is neither `needs-human` (the user *could* act — resolve a thread, fix code) nor ordinary `in-progress` (expected to resolve on its own soon). But an approval-gated **CI stream** does not prove the independent **review stream** is finished. `ce-babysit-pr` therefore separates initial detection from terminal handback:
 
-- Interactive: recommend stopping by default, report the wait as open-ended (hours to days, and review is often *also* gated on CI so there may be nothing to watch), give the exact resume command (`/ce-babysit-pr <url>`), and offer exactly **one** bounded alternative — poll at ~30-minute cadence, hard-capped at 24h, resuming full babysitting the moment CI clears.
-- Pipeline/unattended: don't ask, don't spin — return a `blocked-external` residual with the run URL and terminate.
+- Interactive: the first `blocked-external` observation automatically starts a head-scoped review drain instead of asking whether to stop. Reuse the review lifecycle's evidence tiers: 300 seconds with no incomplete lifecycle, 900 seconds when one is present, and one extension to 1800 seconds only when concrete prior-round timing supports it. Poll at the normal active cadence so the five-minute tier contains more than one observation. New external review activity or a new head resets the narrow drain clock; unrelated check/base/stack movement does not.
+- When the selected drain expires, emit `blocked-external-drained`, report that all observed feedback was handled and CI still needs maintainer approval, give the resume invocation, and stop without another question.
+- Pipeline/unattended: don't drain, ask, or spin — return a `blocked-external` residual with the run URL and terminate. Its separate bounded contract explicitly does not wait on human review or approval.
+- Checkpoint: process one tick, report that monitoring is paused, and give the resume invocation.
 - **Never auto-approve the run.** That click is the maintainer's security gate; the skill treats it as out of scope for automation entirely.
 
 **Gate on push-capability, not fork-status.** A PR from your own fork is still fully drivable — you can push fixes to the head. The distinction that matters is whether *this loop* can push to the PR's head ref, not whether the head repo happens to be a fork; read state from the base repo, push fixes to the head/fork.
@@ -60,7 +62,7 @@ A watch loop over an external system's API inherits that API's blind spots. If t
 
 The fix generalizes past this one API: **don't let a single endpoint's completeness assumption become your loop's completeness assumption.** Cross-check with a second source when you know (or suspect) the primary source omits a state, and make the omission visible in the engine's boolean, not just left to a human noticing `mergeStateStatus` disagrees with the rollup.
 
-The second half — modeling `blocked-external` as its own condition — matters because collapsing it into `needs-human` would tell the user "something needs your attention" when nothing does (they can't approve someone else's maintainer gate), and collapsing it into ordinary in-progress waiting would make the loop spin indefinitely (or the user assume it will resolve on the loop's normal cadence) on a wait that can run for days. A watch loop's stop-condition taxonomy needs a distinct bucket for "blocked on someone outside this conversation, unbounded," with its own handback shape (bounded-poll offer + resume command, no auto-resolution).
+The second half — modeling `blocked-external` as its own condition — matters because collapsing it into `needs-human` would tell the user "something needs your attention" when nothing does (they can't approve someone else's maintainer gate), and collapsing it into ordinary in-progress waiting would make the loop spin indefinitely on a wait that can run for days. Immediate termination is also too coarse when another independently actionable stream can still move. A watch loop needs a distinct transition for "one stream is externally blocked": drain the independent streams for an evidence-based bound, then emit a terminal handback with a resume path.
 
 ## When to Apply
 
@@ -87,7 +89,7 @@ all_checks_ok = checks_terminal and not has_failing and bool(cur["checks"]) and 
 blocked_external = awaiting_approval > 0 and not has_failing and not actionable_threads
 ```
 
-`SKILL.md` Step 3 adds "Blocked on external CI approval" as its own stop condition with the interactive default-to-stop + bounded 30-min/24h-cap alternative + resume-command handback, and an explicit never-auto-approve rule. Verified live on `stablyai/orca#8238`: the snapshot returned `blocked_external: true` and `checks_awaiting_approval: 1`, `all_checks_ok: false`; the skill recommended stopping, offered the bounded watch, printed the resume command, and did not attempt to approve the run. The regression test `tests/ce-babysit-pr-snapshot.test.ts` ("a fork-PR workflow awaiting maintainer approval blocks 'all_checks_ok' and flags blocked_external") locks this in via `--fetch-file` with `awaiting_approval: 1`, asserting `checks_awaiting_approval === 1`, `has_failing_checks === false`, `all_checks_ok === false`, and `blocked_external === true`.
+`SKILL.md` Step 3 keeps "Blocked on external CI approval" as a distinct readiness state but makes the interactive terminal condition `blocked-external-drained`. `pr-snapshot` persists a narrow head-scoped review-activity clock and `watch --blocked-external-drain-seconds <N>` emits the terminal wake only after the selected quiet bound. The original live evidence on `stablyai/orca#8238` still establishes the API gap: the snapshot returned `blocked_external: true` and `checks_awaiting_approval: 1`, `all_checks_ok: false`, and did not attempt to approve the run. Regression coverage now separately locks the false-green guard, head/activity clock resets, drain expiry, and feedback/lifecycle wake precedence.
 
 ## Related
 

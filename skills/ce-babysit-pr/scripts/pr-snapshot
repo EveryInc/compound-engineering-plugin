@@ -839,6 +839,9 @@ def _empty_state(pr, repo, url, now):
         "review_in_progress": False, "review_signal_count": 0, "review_signal_identities": [],
         "review_signal_seen_on_head": False,
         "review_signal_first_seen_at": None, "review_signal_last_changed_at": None,
+        "blocked_external_head_sha": None,
+        "blocked_external_first_seen_at": None,
+        "blocked_external_review_last_activity_at": None,
         "pr_chain": _default_pr_chain(),
         "base": None,
         "branch_currency_state": _empty_branch_currency_state(),
@@ -1272,6 +1275,13 @@ def diff(state, cur, now=None, advance_trajectory=True):
 
     prior_threads = state.get("threads", {})
     prior_feedback = state.get("feedback", {})
+    prior_thread_activity = {
+        tid: _thread_identity(item) for tid, item in prior_threads.items()
+    }
+    prior_feedback_activity = {
+        fid: item.get("edit_id") for fid, item in prior_feedback.items()
+    }
+    prior_review_decision = state.get("review_decision")
     prior_change_sig = _change_sig(state)
     prior_review_in_progress = bool(state.get("review_in_progress", False))
     prior_review_signal_count = state.get("review_signal_count")
@@ -1293,6 +1303,9 @@ def diff(state, cur, now=None, advance_trajectory=True):
         review_signal_identities = sorted(set(map(str, review_signal_identities)))
         review_signal_count = len(review_signal_identities)
     review_in_progress = review_signal_count > 0
+    signal_changed = (review_signal_identities != prior_review_signal_identities
+                      if review_signal_identities is not None else
+                      review_signal_count != prior_review_signal_count)
 
     if head_changed:
         # SHA-scoped state is meaningless on a new head.
@@ -1307,9 +1320,6 @@ def diff(state, cur, now=None, advance_trajectory=True):
             state["review_signal_seen_on_head"] = True
             legacy_seen_at = state.get("last_change_at") if prior_review_in_progress else None
             state["review_signal_first_seen_at"] = legacy_seen_at or _iso(now)
-        signal_changed = (review_signal_identities != prior_review_signal_identities
-                          if review_signal_identities is not None else
-                          review_signal_count != prior_review_signal_count)
         if signal_changed:
             state["review_signal_last_changed_at"] = _iso(now)
 
@@ -1362,6 +1372,21 @@ def diff(state, cur, now=None, advance_trajectory=True):
         identity_fn=lambda t: [t.get("last_comment_id"), t.get("last_comment_at")])
     new_feedback, actionable_feedback, human_feedback = _apply_dispositions(
         cur.get("feedback") or [], "id", prior_feedback, identity_fn=lambda c: [c.get("edit_id")])
+    current_thread_activity = {
+        item.get("thread_id"): _thread_identity(item)
+        for item in cur["threads"] if item.get("thread_id")
+    }
+    current_feedback_activity = {
+        item.get("id"): item.get("edit_id")
+        for item in (cur.get("feedback") or []) if item.get("id")
+    }
+    external_review_moved = (
+        head_changed
+        or current_thread_activity != prior_thread_activity
+        or current_feedback_activity != prior_feedback_activity
+        or cur.get("review_decision") != prior_review_decision
+        or signal_changed
+    )
     open_needs_human = human_threads + human_feedback
     # Identities of the currently-parked needs-human items, so the watch can tell an already-
     # surfaced residual (do not re-wake) from a newly-arrived one (wake) — a parked human decision
@@ -1380,7 +1405,23 @@ def diff(state, cur, now=None, advance_trajectory=True):
     state["review_in_progress"] = review_in_progress
     state["review_signal_count"] = review_signal_count
     state["review_signal_identities"] = review_signal_identities
-    state["awaiting_approval"] = cur.get("awaiting_approval", 0)
+    awaiting_approval = cur.get("awaiting_approval", 0)
+    state["awaiting_approval"] = awaiting_approval
+    if awaiting_approval > 0:
+        gate_is_new_for_head = (
+            state.get("blocked_external_head_sha") != head
+            or not state.get("blocked_external_review_last_activity_at")
+        )
+        if gate_is_new_for_head:
+            state["blocked_external_head_sha"] = head
+            state["blocked_external_first_seen_at"] = _iso(now)
+            state["blocked_external_review_last_activity_at"] = _iso(now)
+        elif external_review_moved:
+            state["blocked_external_review_last_activity_at"] = _iso(now)
+    else:
+        state["blocked_external_head_sha"] = None
+        state["blocked_external_first_seen_at"] = None
+        state["blocked_external_review_last_activity_at"] = None
     state["pr_chain"] = cur.get("pr_chain") or _default_pr_chain()
     state["base"] = cur.get("base")
     branch_currency = _apply_branch_currency(state, cur, head, head_changed, now)
@@ -1414,6 +1455,10 @@ def diff(state, cur, now=None, advance_trajectory=True):
     # gated. blocked_external = the loop cannot progress (no failing check to fix, but CI can't run)
     # and no one in this loop can unblock it — it is up to a maintainer of the base repo.
     awaiting_approval = state["awaiting_approval"]
+    blocked_external_review_quiet_seconds = (
+        _elapsed(state.get("blocked_external_review_last_activity_at"), now)
+        if awaiting_approval > 0 else 0
+    )
     # "OK" requires every check terminal, none failing, AND none gated on approval. A still-
     # IN_PROGRESS or awaiting-approval check is neither ok nor failing — do not exit green.
     all_checks_ok = checks_terminal and not has_failing and bool(cur["checks"]) and awaiting_approval == 0
@@ -1453,6 +1498,12 @@ def diff(state, cur, now=None, advance_trajectory=True):
         "review_signal_last_changed_at": state.get("review_signal_last_changed_at"),
         "checks_awaiting_approval": awaiting_approval,
         "blocked_external": blocked_external,
+        "blocked_external_first_seen_at": state.get("blocked_external_first_seen_at"),
+        "blocked_external_review_last_activity_at": state.get(
+            "blocked_external_review_last_activity_at"),
+        "blocked_external_review_quiet_seconds": blocked_external_review_quiet_seconds,
+        "blocked_external_review_moved_this_tick": (
+            awaiting_approval > 0 and external_review_moved),
         "pr_chain": state["pr_chain"],
         "stack_blocker": _stack_blocker(state["pr_chain"]),
         "open_needs_human": open_needs_human,
@@ -1816,6 +1867,8 @@ def _blocker_sig(a):
         sig.add("__terminal_red__")
     if a.get("blocked_external"):
         sig.add("__blocked_external__")
+        sig.add(("approval-review-state", bool(a.get("review_signal_seen_on_head")),
+                 tuple(a.get("review_signal_identities") or []), a.get("review_decision")))
     if a.get("stack_blocker"):
         sig.add(f"__stack__:{a['stack_blocker']}")
     if a.get("base_ref_blocker"):
@@ -2070,8 +2123,23 @@ def cmd_watch(args):
                     persisted_state_age_seconds=actionable.get("persisted_state_age_seconds"),
                 )
                 return
-            if reason in ("needs-human", "blocked-failing", "blocked-external",
-                          "stack-blocked", "base-ref-blocked") and _blocker_sig(actionable) <= armed:
+            drain_seconds = getattr(args, "blocked_external_drain_seconds", None)
+            drain_quiet = actionable.get("blocked_external_review_quiet_seconds", 0)
+            if (drain_seconds is not None and actionable.get("blocked_external")
+                    and drain_quiet >= drain_seconds):
+                _emit_wake_if_current(
+                    args, generation, "blocked-external-drained", url=actionable.get("url"),
+                    pr_state=actionable.get("pr_state"), counts=actionable.get("counts"),
+                    blocked_external_review_quiet_seconds=drain_quiet,
+                    blocked_external_drain_seconds=drain_seconds,
+                )
+                return
+            approval_review_moved = (
+                reason == "blocked-external"
+                and actionable.get("blocked_external_review_moved_this_tick"))
+            if (reason in ("needs-human", "blocked-failing", "blocked-external",
+                           "stack-blocked", "base-ref-blocked")
+                    and not approval_review_moved and _blocker_sig(actionable) <= armed):
                 reason = None   # already-surfaced residual — keep watching, do not re-wake or terminate
             if reason:
                 _emit_wake_if_current(args, generation, reason, url=actionable.get("url"),
@@ -2394,6 +2462,8 @@ def main():
     w.add_argument("--state-dir", required=True)
     w.add_argument("--interval", type=float, default=150.0, help="poll cadence seconds")
     w.add_argument("--settle-seconds", type=float, default=300.0, help="quiet window before a merge-ready wake")
+    w.add_argument("--blocked-external-drain-seconds", type=float, default=None,
+                   help="head-scoped review-quiet bound before a gated-CI handback")
     w.add_argument("--stop-file", default=None, help="path whose existence stops the watch")
     w.add_argument("--fetch-file", default=None)
     w.add_argument("--invocation-id", required=True,
@@ -2409,6 +2479,9 @@ def main():
             and args.invocation_budget_seconds is not None
             and args.invocation_budget_seconds <= 0):
         p.error("--invocation-budget-seconds must be positive")
+    if (args.cmd == "watch" and args.blocked_external_drain_seconds is not None
+            and args.blocked_external_drain_seconds <= 0):
+        p.error("--blocked-external-drain-seconds must be positive")
     if args.cmd == "snapshot":
         starting = args.start_invocation or args.reset_session
         continuing = args.continue_invocation
