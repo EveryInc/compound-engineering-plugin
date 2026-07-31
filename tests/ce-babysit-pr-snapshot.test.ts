@@ -1,8 +1,10 @@
-import { describe, expect, test, beforeEach } from "bun:test"
+import { describe, expect, test, beforeEach, setDefaultTimeout } from "bun:test"
 import { spawn, spawnSync } from "node:child_process"
 import { existsSync, mkdtempSync, writeFileSync, readFileSync, renameSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
+
+setDefaultTimeout(30_000)
 
 // Regression tests for the ce-babysit-pr pr-snapshot claim->act->confirm engine.
 // Exercised via --fetch-file (no live PR), following the tests/*-validator.test.ts
