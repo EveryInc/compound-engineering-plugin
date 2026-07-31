@@ -118,6 +118,11 @@ describe("ce-pov cross-model route safety", () => {
     expect(emit("cursor")).not.toContain("--model")
     expect(emit("composer")).toContain("--model")
     expect(emit("grok-cursor")).toContain("--model cursor-grok-4.5-high")
+    const source = readFileSync(SCRIPT, "utf8")
+    // Zombies report as Z+ on macOS; exact "Z" alone leaves them "alive".
+    expect(source).toContain('[ "${st#Z}" = "$st" ]')
+    // After reap no longer waits, TERM/INT must wait the peer leader.
+    expect(source).toMatch(/reap "\$_term_peer"[\s\S]*?wait "\$_term_peer"/)
   })
 
   test("same-family model override changes only model-specific routes", () => {

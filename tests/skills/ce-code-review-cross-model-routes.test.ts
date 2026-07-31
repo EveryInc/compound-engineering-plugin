@@ -192,6 +192,10 @@ describe("cross-model-adversarial-review route safety", () => {
     const source = readFileSync(SCRIPT, "utf8")
     expect(source).toContain('rm -rf "$RAW_DIR"')
     expect(source).toContain("trap 'on_term' TERM INT")
+    // Zombies report as Z+ on macOS; exact "Z" alone leaves them "alive".
+    expect(source).toContain('[ "${st#Z}" = "$st" ]')
+    // After reap no longer waits, TERM/INT must wait the peer leader.
+    expect(source).toMatch(/reap "\$_term_peer"[\s\S]*?wait "\$_term_peer"/)
   })
 
   test("every route carries read-only / no-prompt / least-privilege flags and no NEVER-use flag", () => {

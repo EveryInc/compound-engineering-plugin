@@ -481,10 +481,11 @@ TO_BIN="$(command -v gtimeout || command -v timeout || true)"
 
 # True while $1 is a live (non-zombie) process. kill -0 succeeds on zombies
 # until wait reaps them, so idle polls must not treat zombies as still running.
+# macOS/BSD often report defunct state as "Z+" (not bare "Z").
 peer_alive() {
   local st
   st="$(ps -o state= -p "$1" 2>/dev/null | tr -d ' \n')"
-  [ -n "$st" ] && [ "$st" != "Z" ]
+  [ -n "$st" ] && [ "${st#Z}" = "$st" ]
 }
 
 reap() {
@@ -515,7 +516,10 @@ on_term() {
   fi
   if [ -n "${ACTIVE_PEER_PID:-}" ]; then
     log "received TERM/INT; reaping peer process group $ACTIVE_PEER_PID"
-    reap "$ACTIVE_PEER_PID" 2>/dev/null || true
+    _term_peer="$ACTIVE_PEER_PID"
+    reap "$_term_peer" 2>/dev/null || true
+    # reap only signals the group; wait reaps the leader so it cannot orphan.
+    wait "$_term_peer" 2>/dev/null || true
     ACTIVE_PEER_PID=""
   fi
   exit 0
