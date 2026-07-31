@@ -337,7 +337,8 @@ const consumerUpgrade = generateConsumerUpgradeNotes(newVersion, whatsNew.skills
 const releaseNotes = (args.notes ?? changelogEntry) + whatsNew.section + consumerUpgrade
 const tmpFile = path.join(require("node:os").tmpdir(), `ce-release-${newVersion}.md`)
 writeFileSync(tmpFile, releaseNotes)
-run(`gh release create v${newVersion} --title "v${newVersion}" --notes-file "${tmpFile}"`)
+const repoSlug = REPO_URL.replace("https://github.com/", "")
+run(`gh release create v${newVersion} --repo ${repoSlug} --title "v${newVersion}" --notes-file "${tmpFile}"`)
 console.log("   ✓ GitHub Release created.")
 
 console.log(`\n=== DONE: v${newVersion} released ===`)
