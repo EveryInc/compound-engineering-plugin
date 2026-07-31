@@ -70,6 +70,10 @@ Environment overrides (defaults in parentheses):
   CE_PEER_RESULT_MAX_BYTES  result byte cap, supervise + read (5242880)
   CE_PEER_POLL_SECS         supervisor poll interval (2)
   CE_PEER_GRACE_SECS        TERM-to-KILL grace during reap (5)
+  CE_PEER_BASH              Windows: absolute bash.exe for peer workers
+                            (preferred over PATH / WSL System32 bash)
+  CLAUDE_CODE_GIT_BASH_PATH Claude Code Git Bash path; used on Windows when
+                            CE_PEER_BASH is unset (#1268)
 
 Security posture: the job root is a predictable, owner-private directory under
 world-shared /tmp. Every read of job state opens the file first (no-follow) and
@@ -1067,30 +1071,103 @@ def _interruptible_sleep(secs: float, flag: dict, job_dir: str) -> None:
         time.sleep(min(0.1, max(0.01, end - time.monotonic())))
 
 
+def _is_system32_wsl_bash(path: str) -> bool:
+    """True when path is the Windows System32 WSL bash launcher (#1268)."""
+    if not path:
+        return False
+    base = os.path.basename(path).lower()
+    if base not in ("bash", "bash.exe", "sh", "sh.exe"):
+        return False
+    system_root = os.environ.get("SystemRoot") or r"C:\Windows"
+    system32 = os.path.normcase(
+        os.path.join(os.path.abspath(system_root), "System32")
+    )
+    parent = os.path.normcase(os.path.dirname(os.path.abspath(path)))
+    return parent == system32
+
+
+def _git_bash_well_known_paths():
+    """Standard Git for Windows bash.exe locations."""
+    pf = os.environ.get("ProgramFiles") or r"C:\Program Files"
+    pf86 = os.environ.get("ProgramFiles(x86)") or r"C:\Program Files (x86)"
+    local = os.environ.get("LOCALAPPDATA") or ""
+    paths = [
+        os.path.join(pf, "Git", "bin", "bash.exe"),
+        os.path.join(pf, "Git", "usr", "bin", "bash.exe"),
+        os.path.join(pf86, "Git", "bin", "bash.exe"),
+        os.path.join(pf86, "Git", "usr", "bin", "bash.exe"),
+    ]
+    if local:
+        paths.extend([
+            os.path.join(local, "Programs", "Git", "bin", "bash.exe"),
+            os.path.join(local, "Programs", "Git", "usr", "bin", "bash.exe"),
+        ])
+    return paths
+
+
+def _resolve_windows_posix_shell() -> str:
+    """Absolute path to a non-WSL POSIX shell for native Windows peer workers.
+
+    Order: CE_PEER_BASH, CLAUDE_CODE_GIT_BASH_PATH, well-known Git Bash
+    installs, then PATH bash/sh excluding System32 WSL. Fail closed when
+    nothing usable remains — never select System32\\bash.exe (#1268).
+    """
+    candidates = []
+    for key in ("CE_PEER_BASH", "CLAUDE_CODE_GIT_BASH_PATH"):
+        val = (os.environ.get(key) or "").strip()
+        if val:
+            candidates.append(val)
+    candidates.extend(_git_bash_well_known_paths())
+    for name in ("bash", "sh"):
+        found = shutil.which(name)
+        if found:
+            candidates.append(found)
+
+    seen = set()
+    for raw in candidates:
+        path = os.path.abspath(raw)
+        key = os.path.normcase(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        if not os.path.isfile(path):
+            continue
+        if _is_system32_wsl_bash(path):
+            continue
+        return path
+
+    raise RunnerError(
+        "no usable Git Bash (or other non-WSL POSIX shell) for native Windows "
+        "peer workers; install Git for Windows or set CE_PEER_BASH / "
+        "CLAUDE_CODE_GIT_BASH_PATH to an absolute bash.exe path "
+        "(System32\\bash.exe / WSL is not used)"
+    )
+
+
 def _popen_argv(argv):
     """Argv for subprocess.Popen.
 
     On Windows, CreateProcess does not honor shebang, so a bare *.sh / *.bash
-    worker must be launched through bash/sh. meta.json still records the
-    caller argv so authorize-dispatch contracts that forbid a shell prefix
-    stay exact. Already-prefixed workers (review skills use `bash script.sh`)
-    are left alone.
+    worker must be launched through bash/sh. Prefer Git Bash over System32
+    WSL bash (#1268). Bare `bash`/`sh` prefixes (review skills) are rewritten
+    to that absolute path. meta.json still records the caller argv for
+    authorize-dispatch contracts that forbid a shell prefix on ce-work.
     """
     if not IS_WINDOWS or not argv:
         return list(argv)
     head = argv[0]
     base = os.path.basename(head).lower()
-    if base in ("bash", "bash.exe", "sh", "sh.exe", "env", "env.exe"):
+    if base in ("env", "env.exe"):
         return list(argv)
+    if base in ("bash", "bash.exe", "sh", "sh.exe"):
+        shell = _resolve_windows_posix_shell()
+        if os.path.normcase(os.path.abspath(head)) == os.path.normcase(shell):
+            return list(argv)
+        return [shell] + list(argv[1:])
     lower = head.lower()
     if not (lower.endswith(".sh") or lower.endswith(".bash")):
         return list(argv)
-    shell = shutil.which("bash") or shutil.which("sh")
-    if shell is None:
-        raise RunnerError(
-            "worker is a shell script but neither bash nor sh is on PATH; "
-            "install Git Bash or another POSIX shell to run it on Windows"
-        )
+    shell = _resolve_windows_posix_shell()
     return [shell, head] + list(argv[1:])
 
 
@@ -1484,18 +1561,28 @@ def cmd_start(args, worker_argv) -> int:
 
     argv0 = worker_argv[0]
     problem = None
-    if os.sep in argv0:
+    windows_posix_shell = None
+    base0 = os.path.basename(argv0).lower()
+    if IS_WINDOWS and base0 in ("bash", "bash.exe", "sh", "sh.exe"):
+        # Prefer Git Bash over PATH/System32 WSL before meta + detach (#1268).
+        try:
+            resolved = _resolve_windows_posix_shell()
+            windows_posix_shell = resolved
+        except RunnerError as exc:
+            problem = str(exc)
+            resolved = argv0
+    elif os.sep in argv0 or (IS_WINDOWS and len(argv0) >= 2 and argv0[1] == ":"):
         resolved = os.path.abspath(argv0)
         if not os.path.isfile(resolved):
             problem = "does not exist or is not a regular file"
         elif IS_WINDOWS and resolved.lower().endswith((".sh", ".bash")):
             # CreateProcess cannot run shebang scripts; _popen_argv wraps with
-            # bash/sh. Require that shell now so start fails closed, not after
+            # Git Bash. Require that shell now so start fails closed, not after
             # detach. Skip the X_OK check — Windows often marks .sh non-exec.
-            if shutil.which("bash") is None and shutil.which("sh") is None:
-                problem = (
-                    "is a shell script but neither bash nor sh is on PATH"
-                )
+            try:
+                windows_posix_shell = _resolve_windows_posix_shell()
+            except RunnerError as exc:
+                problem = str(exc)
         elif not os.access(resolved, os.X_OK):
             problem = "is not executable"
     else:
@@ -1504,12 +1591,19 @@ def cmd_start(args, worker_argv) -> int:
             problem = "was not found on PATH"
             resolved = argv0
         elif IS_WINDOWS and resolved.lower().endswith((".sh", ".bash")):
-            # Same shell requirement as the path-separator branch: a PATH hit
-            # on a bare `foo.sh` must not detach when bash/sh is missing.
-            if shutil.which("bash") is None and shutil.which("sh") is None:
-                problem = (
-                    "is a shell script but neither bash nor sh is on PATH"
-                )
+            try:
+                windows_posix_shell = _resolve_windows_posix_shell()
+            except RunnerError as exc:
+                problem = str(exc)
+        elif IS_WINDOWS and os.path.basename(resolved).lower() in (
+            "bash", "bash.exe", "sh", "sh.exe",
+        ):
+            # which() may have returned System32 WSL — rewrite now.
+            try:
+                resolved = _resolve_windows_posix_shell()
+                windows_posix_shell = resolved
+            except RunnerError as exc:
+                problem = str(exc)
     argv = [resolved] + list(worker_argv[1:])
 
     conf = cfg(args.skill)
@@ -1525,6 +1619,8 @@ def cmd_start(args, worker_argv) -> int:
         "sweep_enabled": not args.no_sweep,
         "supervision": conf,
     }
+    if windows_posix_shell:
+        meta["windows_posix_shell"] = windows_posix_shell
     try:
         create_exclusive(
             os.path.join(job_dir, "meta.json"),

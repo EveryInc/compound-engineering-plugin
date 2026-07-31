@@ -12,6 +12,7 @@ wrapping when bash is on PATH.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import shutil
@@ -27,6 +28,10 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 RUNNER = os.path.join(
     REPO_ROOT, "skills", "ce-doc-review", "scripts", "peer-job-runner.py"
 )
+
+_spec = importlib.util.spec_from_file_location("peer_job_runner_smoke", RUNNER)
+MOD = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(MOD)
 
 FAST = {
     "CE_PEER_POLL_SECS": "0.2",
@@ -270,9 +275,14 @@ class WindowsPeerJobSmoke(unittest.TestCase):
         )
 
     def test_bare_sh_worker_wraps_when_bash_present(self):
-        bash = shutil.which("bash") or shutil.which("sh")
+        # Prefer the runner's Git-Bash resolver (#1268) over bare which():
+        # System32 WSL bash or a missing PATH entry must not skip this smoke.
+        try:
+            bash = MOD._resolve_windows_posix_shell()
+        except MOD.RunnerError:
+            bash = shutil.which("bash") or shutil.which("sh")
         if bash is None:
-            self.skipTest("bash/sh not on PATH (unexpected on windows-latest)")
+            self.skipTest("no usable Git Bash / bash on this host")
         stub = os.path.join(self.root, "stub.sh")
         with open(stub, "w", encoding="utf-8", newline="\n") as f:
             f.write("#!/usr/bin/env bash\nexit 0\n")
@@ -284,6 +294,17 @@ class WindowsPeerJobSmoke(unittest.TestCase):
         waited = self._run(["wait", "--max-secs", "20", job_id])
         self.assertEqual(waited.returncode, 0, waited.stderr)
         self.assertEqual(waited.stdout.strip(), "done")
+        meta_path = os.path.join(
+            self.env["CE_PEER_JOBS_ROOT"], "ce-doc-review", "run1", "jobs",
+            job_id, "meta.json",
+        )
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        self.assertIn("windows_posix_shell", meta)
+        self.assertFalse(
+            MOD._is_system32_wsl_bash(meta["windows_posix_shell"]),
+            meta["windows_posix_shell"],
+        )
 
     def test_reap_during_long_poll_classifies_timeout_not_failed(self):
         # Regression (#1248): with poll=2s, min(grace, 1.0) alone races into
