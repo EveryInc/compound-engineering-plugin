@@ -1169,16 +1169,41 @@ def _env_bash_index(argv) -> int:
     return -1
 
 
+def _windows_path_is_absolute(path: str) -> bool:
+    """True for Windows absolute paths (drive letter or path separator)."""
+    return os.sep in path or (len(path) >= 2 and path[1] == ":")
+
+
+def _prefer_windows_posix_shell(token: str) -> str:
+    """Absolute non-WSL bash/sh kept; bare names and System32 go through resolve.
+
+    Explicit absolute paths (portable Git, custom installs) must not be
+    substituted by the preferred resolver (#1292 Codex P2). Bare `bash`/`sh`
+    and System32 WSL launchers still use `_resolve_windows_posix_shell()`.
+    """
+    if _windows_path_is_absolute(token):
+        path = os.path.abspath(token)
+        if not os.path.isfile(path):
+            raise RunnerError(
+                f"peer worker shell does not exist or is not a regular file: {token}"
+            )
+        if _is_system32_wsl_bash(path):
+            return _resolve_windows_posix_shell()
+        return path
+    return _resolve_windows_posix_shell()
+
+
 def _rewrite_windows_env_bash_argv(argv):
     """Rewrite bare bash/sh inside an env-prefixed argv.
 
     Returns (argv, resolved_shell_or_None). Raises RunnerError when a bash/sh
-    token is present but no usable non-WSL shell can be resolved.
+    token is present but no usable non-WSL shell can be resolved. Absolute
+    non-WSL bash tokens are kept unchanged (#1292 P2).
     """
     idx = _env_bash_index(argv)
     if idx < 0:
         return list(argv), None
-    shell = _resolve_windows_posix_shell()
+    shell = _prefer_windows_posix_shell(argv[idx])
     out = list(argv)
     if os.path.normcase(os.path.abspath(out[idx])) != os.path.normcase(shell):
         out[idx] = shell
@@ -1228,8 +1253,9 @@ def _popen_argv(argv):
     worker must be launched through bash/sh. Prefer Git Bash over System32
     WSL bash (#1268). Bare `bash`/`sh` prefixes (review skills) and bare
     `bash`/`sh` tokens after `env VAR=…` (cross-model) are rewritten to that
-    absolute path. meta.json still records the caller argv for
-    authorize-dispatch contracts that forbid a shell prefix on ce-work.
+    absolute path. Explicit absolute non-WSL bash/sh paths are kept (#1292 P2).
+    meta.json still records the caller argv for authorize-dispatch contracts
+    that forbid a shell prefix on ce-work.
     """
     if not IS_WINDOWS or not argv:
         return list(argv)
@@ -1239,7 +1265,7 @@ def _popen_argv(argv):
         rewritten, _shell = _rewrite_windows_env_bash_argv(argv)
         return rewritten
     if base in ("bash", "bash.exe", "sh", "sh.exe"):
-        shell = _resolve_windows_posix_shell()
+        shell = _prefer_windows_posix_shell(head)
         if os.path.normcase(os.path.abspath(head)) == os.path.normcase(shell):
             return list(argv)
         return [shell] + list(argv[1:])
@@ -1644,8 +1670,9 @@ def cmd_start(args, worker_argv) -> int:
     base0 = os.path.basename(argv0).lower()
     if IS_WINDOWS and base0 in ("bash", "bash.exe", "sh", "sh.exe"):
         # Prefer Git Bash over PATH/System32 WSL before meta + detach (#1268).
+        # Keep an explicit absolute non-WSL bash (portable Git) (#1292 P2).
         try:
-            resolved = _resolve_windows_posix_shell()
+            resolved = _prefer_windows_posix_shell(argv0)
             windows_posix_shell = resolved
         except RunnerError as exc:
             problem = str(exc)

@@ -514,6 +514,53 @@ class PopenArgvBranch(unittest.TestCase):
                 with self.assertRaises(MOD.RunnerError):
                     MOD._popen_argv(argv)
 
+    def test_windows_keeps_absolute_non_wsl_bash(self):
+        # Portable / non-well-known absolute bash must not be substituted (#1292 P2).
+        portable = r"C:\PortableGit\bin\bash.exe"
+        argv = [portable, "script.sh", "x"]
+        with windows_platform(isfile_side_effect=_nt_exists(portable)):
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ) as resolve:
+                self.assertEqual(MOD._popen_argv(argv), argv)
+                resolve.assert_not_called()
+
+    def test_windows_rewrites_absolute_system32_bash(self):
+        argv = [self.SYSTEM32_BASH, "script.sh"]
+        with windows_platform(isfile_side_effect=_nt_exists(self.SYSTEM32_BASH)):
+            with mock.patch.dict(
+                os.environ, {"SystemRoot": r"C:\Windows"}, clear=False
+            ):
+                with mock.patch.object(
+                    MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+                ):
+                    self.assertEqual(
+                        MOD._popen_argv(argv),
+                        [self.GIT_BASH, "script.sh"],
+                    )
+
+    def test_windows_keeps_env_prefixed_absolute_non_wsl_bash(self):
+        portable = r"C:\PortableGit\bin\bash.exe"
+        argv = ["env", "FOO=1", portable, "script.sh"]
+        with windows_platform(isfile_side_effect=_nt_exists(portable)):
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ) as resolve:
+                self.assertEqual(MOD._popen_argv(argv), argv)
+                resolve.assert_not_called()
+
+    def test_windows_absolute_bash_missing_raises(self):
+        missing = r"C:\Missing\PortableGit\bin\bash.exe"
+        argv = [missing, "script.sh"]
+        with windows_platform(isfile_side_effect=_nt_exists()):
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ) as resolve:
+                with self.assertRaises(MOD.RunnerError) as ctx:
+                    MOD._popen_argv(argv)
+                resolve.assert_not_called()
+        self.assertIn("does not exist", str(ctx.exception).lower())
+
 
 class WindowsPosixShellResolve(unittest.TestCase):
     """#1268: prefer Git Bash over System32 WSL bash; fail closed otherwise.
@@ -674,6 +721,36 @@ class WindowsPosixShellResolve(unittest.TestCase):
             with mock.patch.dict(os.environ, {"SystemRoot": r"C:\Windows"}, clear=False):
                 self.assertTrue(MOD._is_system32_wsl_bash(self.SYSTEM32_BASH))
                 self.assertFalse(MOD._is_system32_wsl_bash(self.GIT_BASH))
+
+    def test_prefer_keeps_absolute_portable(self):
+        portable = r"C:\PortableGit\bin\bash.exe"
+        with windows_platform(isfile_side_effect=_nt_exists(portable)):
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ) as resolve:
+                got = MOD._prefer_windows_posix_shell(portable)
+                resolve.assert_not_called()
+        self.assertEqual(ntpath.normcase(got), ntpath.normcase(portable))
+
+    def test_prefer_rewrites_system32_via_resolver(self):
+        with windows_platform(isfile_side_effect=_nt_exists(self.SYSTEM32_BASH)):
+            with mock.patch.dict(
+                os.environ, {"SystemRoot": r"C:\Windows"}, clear=False
+            ):
+                with mock.patch.object(
+                    MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+                ):
+                    got = MOD._prefer_windows_posix_shell(self.SYSTEM32_BASH)
+        self.assertEqual(ntpath.normcase(got), ntpath.normcase(self.GIT_BASH))
+
+    def test_prefer_bare_delegates_to_resolver(self):
+        with windows_platform():
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ) as resolve:
+                got = MOD._prefer_windows_posix_shell("bash")
+                resolve.assert_called_once_with()
+        self.assertEqual(ntpath.normcase(got), ntpath.normcase(self.GIT_BASH))
 
     def test_env_bash_index_finds_token_after_assignments(self):
         argv = ["env", "A=1", "B=2", "bash", "script.sh"]
