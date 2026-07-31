@@ -1159,7 +1159,7 @@ def _env_option_advance(tok: str) -> int:
 
     GNU env options that take a separate operand: -u/--unset, -C/--chdir.
     Attached `--name=value` forms are a single slot.
-    Short options may be clustered. No-operand flags (-i/-0/-v and their exact
+    Short options may be clustered. No-operand flags (-i/-v and their exact
     long aliases) advance one slot; -u/-C consume the rest of the token as an
     attached operand or the next argv slot. Unsupported options fail closed
     before worker detach.
@@ -1171,6 +1171,11 @@ def _env_option_advance(tok: str) -> int:
         return 1
     if tok in ("--ignore-environment", "--debug"):
         return 1
+    if tok == "--null":
+        raise RunnerError(
+            "env -0/--null cannot be used with a command by native Windows "
+            "peer workers; remove the null-output option"
+        )
     if not tok.startswith("-"):
         return 1
     if tok.startswith("--"):
@@ -1182,8 +1187,13 @@ def _env_option_advance(tok: str) -> int:
 
     cluster = tok[1:]
     for index, option in enumerate(cluster):
-        if option in "i0v":
+        if option in "iv":
             continue
+        if option == "0":
+            raise RunnerError(
+                "env -0/--null cannot be used with a command by native "
+                "Windows peer workers; remove the null-output option"
+            )
         if option == "S":
             raise RunnerError(
                 "env -S/--split-string is unsupported for native Windows "
@@ -1225,9 +1235,6 @@ def _env_bash_index(argv):
         if _env_assignment_token(tok, allow_option_like=options_done):
             i += 1
             continue
-        base = os.path.basename(tok).lower()
-        if base in ("bash", "bash.exe", "sh", "sh.exe"):
-            return i, None
         if not options_done and (
             tok in ("-S", "--split-string") or tok.startswith(
                 ("-S", "--split-string=")
@@ -1244,6 +1251,9 @@ def _env_bash_index(argv):
                 return -1, None
             i += span
             continue
+        base = os.path.basename(tok).lower()
+        if base in ("bash", "bash.exe", "sh", "sh.exe"):
+            return i, None
         return -1, None
     return -1, None
 

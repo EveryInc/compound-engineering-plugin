@@ -895,6 +895,24 @@ class WindowsPosixShellResolve(unittest.TestCase):
             (2, None),
         )
 
+    def test_env_bash_index_classifies_attached_chdir_before_shell_name(self):
+        for option in (r"--chdir=C:\tools\bash", r"-CC:\tools\sh.exe"):
+            with self.subTest(option=option):
+                self.assertEqual(
+                    MOD._env_bash_index(["env", option, "bash", "script.sh"]),
+                    (2, None),
+                )
+
+    def test_env_bash_index_does_not_parse_options_after_terminator(self):
+        cases = (
+            (["env", "--", "-0", "bash"], (-1, None)),
+            (["env", "--", r"--chdir=C:\tools\bash", "bash"], (3, None)),
+            (["env", "--", r"-CC:\tools\sh.exe", "bash"], (2, None)),
+        )
+        for argv, expected in cases:
+            with self.subTest(argv=argv):
+                self.assertEqual(MOD._env_bash_index(argv), expected)
+
     def test_windows_popen_rejects_env_split_string_forms(self):
         cases = (
             ["env", "-S", "bash script.sh"],
@@ -915,7 +933,6 @@ class WindowsPosixShellResolve(unittest.TestCase):
             ["env", "--chd", "/tmp", "bash", "script.sh"],
             ["env", "--unse", "FOO", "bash", "script.sh"],
             ["env", "--split-s", "bash script.sh"],
-            ["env", "--null", "bash", "script.sh"],
             ["env", "--unknown", "bash", "script.sh"],
         )
         with windows_platform():
@@ -988,6 +1005,40 @@ class WindowsPosixShellResolve(unittest.TestCase):
                 with self.subTest(argv=argv):
                     with self.assertRaises(MOD.RunnerError):
                         MOD._popen_argv(argv)
+
+    def test_windows_popen_rejects_env_null_option_before_shell_resolution(self):
+        cases = (
+            ["env", "-0", "bash", "script.sh"],
+            ["env", "-i0", "bash", "script.sh"],
+            ["env", "-0v", "bash", "script.sh"],
+            ["env", "--null", "bash", "script.sh"],
+        )
+        with windows_platform():
+            for argv in cases:
+                with self.subTest(argv=argv):
+                    with mock.patch.object(
+                        MOD,
+                        "_resolve_windows_posix_shell",
+                        side_effect=AssertionError("must fail before shell resolution"),
+                    ):
+                        with self.assertRaises(MOD.RunnerError) as ctx:
+                            MOD._popen_argv(argv)
+                    self.assertIn("-0/--null", str(ctx.exception))
+
+    def test_windows_popen_rewrites_shell_after_attached_chdir(self):
+        for option in (r"--chdir=C:\tools\bash", r"-CC:\tools\sh.exe"):
+            argv = ["env", option, "bash", "script.sh"]
+            with self.subTest(option=option):
+                with windows_platform():
+                    with mock.patch.object(
+                        MOD,
+                        "_resolve_windows_posix_shell",
+                        return_value=self.GIT_BASH,
+                    ):
+                        self.assertEqual(
+                            MOD._popen_argv(argv),
+                            ["env", option, self.GIT_BASH, "script.sh"],
+                        )
 
     def test_windows_popen_rewrites_bash_after_clustered_env_options(self):
         for argv in (

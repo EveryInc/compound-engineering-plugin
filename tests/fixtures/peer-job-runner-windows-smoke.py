@@ -562,7 +562,6 @@ class WindowsPeerJobSmoke(unittest.TestCase):
             ["--chd", ".", "bash"],
             ["--unse", "FOO", "bash"],
             ["--split-s", "bash -c 'exit 0'"],
-            ["--null", "bash", "-c", "exit 0"],
             ["--unknown", "bash"],
         )
         for index, env_args in enumerate(cases, start=1):
@@ -582,6 +581,69 @@ class WindowsPeerJobSmoke(unittest.TestCase):
                 job_dirs = os.listdir(jobs_root)
                 self.assertEqual(len(job_dirs), 1)
                 self.assertFalse(os.path.exists(os.path.join(jobs_root, job_dirs[0], "pid")))
+
+    def test_env_null_options_fail_before_detach(self):
+        bash = self._require_git_bash()
+        env_exe = self._require_git_env(bash)
+        cases = (
+            ["-0", "bash", "-c", "exit 0"],
+            ["-i0", "bash", "-c", "exit 0"],
+            ["-0v", "bash", "-c", "exit 0"],
+            ["--null", "bash", "-c", "exit 0"],
+        )
+        for index, env_args in enumerate(cases, start=1):
+            with self.subTest(env_args=env_args):
+                run_id = f"run-env-null-{index}"
+                started = self._run(
+                    [
+                        "start", "--skill", "ce-doc-review", "--run-id", run_id,
+                        "--", env_exe, *env_args,
+                    ]
+                )
+                self.assertNotEqual(started.returncode, 0)
+                self.assertIn("-0/--null", started.stderr)
+                jobs_root = os.path.join(
+                    self.env["CE_PEER_JOBS_ROOT"], "ce-doc-review", run_id, "jobs"
+                )
+                job_dirs = os.listdir(jobs_root)
+                self.assertEqual(len(job_dirs), 1)
+                self.assertFalse(os.path.exists(os.path.join(jobs_root, job_dirs[0], "pid")))
+
+    def test_env_attached_chdir_ending_in_shell_rewrites_actual_bash(self):
+        bash = self._require_git_bash()
+        env_exe = self._require_git_env(bash)
+        stub = self._write_stub_sh()
+        workdir = os.path.join(self.root, "bash")
+        os.makedirs(workdir)
+        for index, option in enumerate(
+            (f"--chdir={workdir}", f"-C{workdir}"), start=1
+        ):
+            with self.subTest(option=option):
+                run_id = f"run-env-attached-chdir-{index}"
+                started = self._run(
+                    [
+                        "start", "--skill", "ce-doc-review", "--run-id", run_id,
+                        "--", env_exe, option, "bash", stub,
+                    ]
+                )
+                self.assertEqual(started.returncode, 0, started.stderr)
+                job_id = started.stdout.strip()
+                meta_path = os.path.join(
+                    self.env["CE_PEER_JOBS_ROOT"], "ce-doc-review", run_id,
+                    "jobs", job_id, "meta.json",
+                )
+                with open(meta_path, encoding="utf-8") as f:
+                    meta = json.load(f)
+                self.assertEqual(meta["worker_argv"][1], option)
+                self.assertEqual(
+                    os.path.normcase(os.path.abspath(meta["worker_argv"][2])),
+                    os.path.normcase(os.path.abspath(meta["windows_posix_shell"])),
+                )
+                waited = self._run(
+                    ["wait", "--skill", "ce-doc-review", "--max-secs", "20", job_id]
+                )
+                self.assertEqual(waited.returncode, 0, waited.stderr)
+                self.assertEqual(waited.stdout.strip(), "done")
 
     def test_reap_during_long_poll_classifies_timeout_not_failed(self):
         # Regression (#1248): with poll=2s, min(grace, 1.0) alone races into
