@@ -872,6 +872,29 @@ class WindowsPosixShellResolve(unittest.TestCase):
                             MOD._popen_argv(argv)
                     self.assertIn("unsupported env long option", str(ctx.exception))
 
+    def test_env_bash_index_accepts_exact_no_operand_long_options(self):
+        for option in ("--ignore-environment", "--null", "--debug"):
+            with self.subTest(option=option):
+                self.assertEqual(
+                    MOD._env_bash_index(["env", option, "bash", "script.sh"]),
+                    (2, None),
+                )
+
+    def test_windows_popen_rewrites_bash_after_exact_no_operand_long_options(self):
+        for option in ("--ignore-environment", "--null", "--debug"):
+            argv = ["env", option, "bash", "script.sh"]
+            with self.subTest(option=option):
+                with windows_platform():
+                    with mock.patch.object(
+                        MOD,
+                        "_resolve_windows_posix_shell",
+                        return_value=self.GIT_BASH,
+                    ):
+                        self.assertEqual(
+                            MOD._popen_argv(argv),
+                            ["env", option, self.GIT_BASH, "script.sh"],
+                        )
+
     def test_env_bash_index_skips_unset_attached(self):
         self.assertEqual(
             MOD._env_bash_index(["env", "-u", "FOO", "bash", "script.sh"]), (3, None)

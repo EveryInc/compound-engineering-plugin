@@ -455,6 +455,39 @@ class WindowsPeerJobSmoke(unittest.TestCase):
                 )
                 self.assertEqual(waited.returncode, 0, waited.stderr)
 
+    def test_env_exact_no_operand_long_options_rewrite_to_git_bash(self):
+        bash = self._require_git_bash()
+        env_exe = self._require_git_env(bash)
+        stub = self._write_stub_sh()
+        for index, option in enumerate(
+            ("--ignore-environment", "--null", "--debug"), start=1
+        ):
+            with self.subTest(option=option):
+                run_id = f"run-env-long-option-{index}"
+                started = self._run(
+                    [
+                        "start", "--skill", "ce-doc-review", "--run-id", run_id,
+                        "--", env_exe, option, "bash", stub,
+                    ]
+                )
+                self.assertEqual(started.returncode, 0, started.stderr)
+                job_id = started.stdout.strip()
+                meta_path = os.path.join(
+                    self.env["CE_PEER_JOBS_ROOT"], "ce-doc-review", run_id,
+                    "jobs", job_id, "meta.json",
+                )
+                with open(meta_path, encoding="utf-8") as f:
+                    meta = json.load(f)
+                self.assertEqual(meta["worker_argv"][1], option)
+                self.assertEqual(
+                    os.path.normcase(os.path.abspath(meta["worker_argv"][2])),
+                    os.path.normcase(os.path.abspath(meta["windows_posix_shell"])),
+                )
+                waited = self._run(
+                    ["wait", "--skill", "ce-doc-review", "--max-secs", "20", job_id]
+                )
+                self.assertEqual(waited.returncode, 0, waited.stderr)
+
     def test_env_split_string_forms_fail_before_detach(self):
         bash = self._require_git_bash()
         env_exe = self._require_git_env(bash)
