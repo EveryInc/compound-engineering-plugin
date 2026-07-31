@@ -101,7 +101,12 @@ The serving backend's own report of which model actually handled a delegated run
 A single-lens reviewer role that evaluates work from one specific perspective — security, correctness, scope, design, and so on. Review Skills dispatch a panel of personas as subagents and merge their findings.
 
 ### Confidence anchor
-A discrete, self-scored confidence value on a fixed small scale, each level tied to a behavioral criterion the model can honestly apply, used to gate and rank review findings instead of a continuous score that invites false precision. Each review Skill sets its own actionable threshold; corroboration across personas promotes a finding by one level.
+A discrete, self-scored confidence value on a fixed small scale, each level tied to a behavioral criterion the model can honestly apply, used to gate and rank review findings instead of a continuous score that invites false precision. Each review Skill sets its own actionable threshold; corroboration across personas promotes a finding by one level, but only when those personas meet the bar in Independence.
+
+### Independence
+A property of the *execution context* a reviewer or researcher ran in, not of the lens it applied: two findings count as independent only when they came from separately dispatched contexts. Two personas reasoned inside one context are two perspectives, not two witnesses.
+
+Only independence in this sense licenses corroboration — promoting a Confidence anchor, counting agreement, or describing a result as independently confirmed. When dispatch does not happen and the work runs inline, the findings remain valid but the corroboration signal does not exist, and the run says what coverage was lost rather than promoting on it.
 
 ### Autofix class
 The classification of a review finding by how safely its proposed fix can be applied: applied silently, applied only after user confirmation, left for a human to resolve, or recorded as advisory with no action.

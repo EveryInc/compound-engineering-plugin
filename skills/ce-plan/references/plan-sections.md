@@ -290,9 +290,14 @@ Hold every kept section to these:
   goal beneath its rationale. This does not override section roles — Summary
   stays proposal-only, Problem Frame stays motivation-only and never restates
   the remedy.
-- **One idea per sentence.** A Summary is a handful of sentences, not one
-  sentence with five semicolons and four parentheticals. A KTD's rationale is
-  the load-bearing reason, not every reason.
+- **Use an ASD-STE100 Simplified Technical English (STE)-inspired style for
+  technical plan content.** Write short, direct sentences. Keep one decision,
+  action, or condition per sentence, and use one consistent term for each
+  concept. Preserve exact identifiers, paths, commands, protocol names, and
+  domain terms. Shorten sentences, not content: preserve every distinct
+  requirement, qualification, and test scenario. A Summary is a handful of
+  sentences, not one sentence with five semicolons and four parentheticals. A
+  KTD's rationale is the load-bearing reason, not every reason.
 - **A requirement or unit is one sentence of intent plus at most one
   qualifier.** When it would specify two outcomes ("either A or B, the
   implementer decides"), state the intent and send the fork to Open Questions —

@@ -42,7 +42,13 @@ describe("owner-scoped scratch root", () => {
       while (offset >= 0) {
         const block = content.slice(offset, offset + 700)
         expect(block).toMatch(/(?:\[ ! -L "\$SCRATCH_ROOT" \]|if \[ -L "\$SCRATCH_ROOT" \])/)
-        expect(block).toContain('install -d -m 700 "$SCRATCH_ROOT"')
+        // `(umask 077; mkdir -p …)`, not `install -d -m 700 …`: the latter fails outright on
+        // native Windows Git Bash ("cannot change permissions"), which trips the guard's own
+        // `|| exit 1` and makes every skill's scratch setup abort on a supported shell (#1285).
+        // Same end state on POSIX — created 0700, then re-asserted by the chmod below — and it
+        // is already the pattern every sub-directory in these blocks uses.
+        expect(block).toContain('(umask 077; mkdir -p "$SCRATCH_ROOT")')
+        expect(block).not.toContain("install -d")
         expect(block).toMatch(/\[ !? ?-O "\$SCRATCH_ROOT" \]/)
         expect(block).toContain('chmod 700 "$SCRATCH_ROOT"')
         offset = content.indexOf(ROOT_ASSIGNMENT, offset + ROOT_ASSIGNMENT.length)
@@ -64,7 +70,7 @@ root="$1/root"
 umask 0777
 mkdir -p "$root" || exit 8
 chmod 755 "$root" || exit 8
-[ ! -L "$root" ] && install -d -m 700 "$root" && [ ! -L "$root" ] && [ -O "$root" ] && chmod 700 "$root" || exit 9
+[ ! -L "$root" ] && (umask 077; mkdir -p "$root") && [ ! -L "$root" ] && [ -O "$root" ] && chmod 700 "$root" || exit 9
 run="$root/skill/run"
 (umask 077; mkdir -p "$run") || exit 10
 chmod 700 "$run" || exit 11
@@ -78,7 +84,7 @@ target="$1/target"
 install -d -m 700 "$target"
 link="$1/link"
 ln -s "$target" "$link"
-[ ! -L "$link" ] && install -d -m 700 "$link" && [ ! -L "$link" ] && [ -O "$link" ] && chmod 700 "$link" && exit 13
+[ ! -L "$link" ] && (umask 077; mkdir -p "$link") && [ ! -L "$link" ] && [ -O "$link" ] && chmod 700 "$link" && exit 13
 exit 0
 `
     const parent = mkdtempSync(path.join(tmpdir(), "ce-scratch-contract-"))

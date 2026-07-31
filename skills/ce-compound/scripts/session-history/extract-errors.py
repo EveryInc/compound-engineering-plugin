@@ -30,6 +30,11 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+# Session logs are UTF-8; force UTF-8 I/O so Windows' cp1252 default can't crash
+# on non-Latin-1 content like emoji, smart quotes, or box-drawing (#1258).
+sys.stdin.reconfigure(encoding="utf-8", errors="replace")
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 _original_stdout = sys.stdout
 if args.output:
     sys.stdout = io.StringIO()
@@ -248,7 +253,7 @@ print(json.dumps({"_meta": True, **stats}))
 if args.output:
     body = sys.stdout.getvalue()
     sys.stdout = _original_stdout
-    with open(args.output, "w") as f:
+    with open(args.output, "w", encoding="utf-8") as f:
         f.write(body)
     bytes_written = os.path.getsize(args.output)
     print(json.dumps({"_meta": True, "wrote": args.output, "bytes": bytes_written, **stats}))

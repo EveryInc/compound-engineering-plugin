@@ -8,6 +8,20 @@ argument-hint: "[optional: scope hint — directory, filename, module, or keywor
 
 Maintain the quality of `<root>/solutions/` over time. This workflow reviews existing learnings against the current codebase, then refreshes any derived pattern docs that depend on them.
 
+## Setup
+
+Run this once at the start of this invocation, before any subagent dispatch, and follow the directives it prints — except where one conflicts with this skill's own rules on asking the user questions, whether those rules are scoped to a non-interactive mode or apply in every mode, in which case this skill's rules win and no blocking question is asked. Do not rerun it within the same invocation; a later invocation of this or any other skill runs its own. If no Node runtime is available the skill proceeds unchanged.
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
+if [ -n "$NODE" ]; then
+"$NODE" "$SKILL_DIR/scripts/context.mjs" || echo "context script failed; continue with the skill's normal behavior";
+else
+echo "no Node runtime; continue with the skill's normal behavior";
+fi
+```
+
 ## Mode Detection
 
 Check whether the arguments you were invoked with contain `mode:headless`. If present, strip it from the arguments (use the remainder as a scope hint) and run in **headless mode**.
@@ -22,6 +36,7 @@ Check whether the arguments you were invoked with contain `mode:headless`. If pr
 - **Skip all user questions.** Never pause for input.
 - **Process all docs in scope.** No scope narrowing questions — if no scope hint was provided, process everything.
 - **Attempt all safe actions:** Keep (no-op), Update (fix references), Consolidate (merge and delete subsumed doc), auto-Delete (unambiguous criteria met), Replace (when evidence is sufficient). If a write succeeds, record it as **applied**. If a write fails (e.g., permission denied), record the action as **recommended** in the report and continue — do not stop or ask for permissions.
+- **Relocations follow the auto-delete pattern: apply only when every condition holds, recommend otherwise.** Auto-apply a headless relocation only when all four hold: (1) frontmatter and directory disagree per the category mapping, (2) content evidence clearly resolves the direction — the directory is wrong, not the frontmatter, (3) the target category directory already exists, (4) all inbound citations are in-repo and mechanically rewritable. Any condition fails — including a doc whose content plausibly fits either category — record the relocation under Recommended instead. Splits are always recommend-only in headless mode: the split bar is a retrieval-value judgment with no ground truth, so record proposed fragment boundaries under Recommended.
 - **Mark as stale when uncertain.** If classification is genuinely ambiguous (Update vs Replace vs Consolidate vs Delete) or Replace evidence is insufficient, mark as stale with `status: stale`, `stale_reason`, and `stale_date` in the frontmatter. If even the stale-marking write fails, include it as a recommendation.
 - **Use conservative confidence.** In interactive mode, borderline cases get a user question. In headless mode, borderline cases get marked stale. Err toward stale-marking over incorrect action.
 - **Always generate a report.** The report is the primary deliverable. It has two sections: **Applied** (actions that were successfully written) and **Recommended** (actions that could not be written, with full rationale so a human can apply them or run the skill interactively). The report structure is the same regardless of what permissions were granted — the only difference is which section each action lands in.
@@ -96,13 +111,13 @@ For each candidate artifact, classify it into one of five outcomes:
 3. **Match docs to reality, not the reverse.** When current code differs from a learning, update the learning to reflect the current code. The skill's job is doc accuracy, not code review — do not ask the user whether code changes were "intentional" or "a regression." If the code changed, the doc should match. If the user thinks the code is wrong, that is a separate concern outside this workflow.
 4. **Be decisive, minimize questions.** When evidence is clear (file renamed, class moved, reference broken), apply the update. In interactive mode, only ask the user when the right action is genuinely ambiguous. In headless mode, mark ambiguous cases as stale instead of asking. The goal is automated maintenance with human oversight on judgment calls, not a question for every finding.
 5. **Avoid low-value churn.** Do not edit a doc just to fix a typo, polish wording, or make cosmetic changes that do not materially improve accuracy or usability.
-6. **Use Update only for meaningful, evidence-backed drift.** Paths, module names, related links, category metadata, code snippets, and clearly stale wording are fair game when fixing them materially improves accuracy.
+6. **Use Update only for meaningful, evidence-backed drift.** Paths, module names, related links, category metadata, code snippets, and clearly stale wording are fair game when fixing them materially improves accuracy. Misfiling is drift too: when a doc's directory and its frontmatter category disagree, or its content unambiguously belongs in a different existing category, relocate the file per the Update flow's relocation steps. A frontmatter/directory mismatch proves something is wrong but not which side — resolve the direction from content evidence before moving, and never relocate on a judgment call a later run could argue back (that is rule-5 churn). In headless mode, apply the relocation only under the four-condition gate in the headless rules; otherwise recommend.
 7. **Use Replace only when there is a real replacement.** That means either:
    - the current conversation contains a recently solved, verified replacement fix, or
    - the user has provided enough concrete replacement context to document the successor honestly, or
    - the codebase investigation found the current approach and can document it as the successor, or
    - newer docs, pattern docs, PRs, or issues provide strong successor evidence.
-8. **Delete when the code is gone, and only after checking for inbound links.** If the referenced code, controller, or workflow no longer exists in the codebase and no successor can be found, delete the file — don't default to Keep just because the general advice is still "sound." When in doubt between Keep and Delete, ask the user (in interactive mode) or mark as stale (in headless mode). Inbound links inform classification, not cleanup: cleanup is always mechanical, but **decorative** citations (principle stated inline) allow Delete, while **substantive** citations (citing doc relies on the cited doc) signal Replace. The auto-delete case is missing code, no matching successor, and citations absent or decorative.
+8. **Delete when the code is gone, and only after checking for inbound links.** If the referenced code, controller, or workflow once lived in this repo and has since been removed, and no successor can be found, delete the file — don't default to Keep just because the general advice is still "sound." "Gone" requires that it existed here: a learning that never referenced in-repo code (developer environment, onboarding, process) is outside this rule and never auto-deletes — see the no-in-repo-implementation case in Phase 2. When in doubt between Keep and Delete, ask the user (in interactive mode) or mark as stale (in headless mode). Inbound links inform classification, not cleanup: cleanup is always mechanical, but **decorative** citations (principle stated inline) allow Delete, while **substantive** citations (citing doc relies on the cited doc) signal Replace. The auto-delete case is missing code, no matching successor, and citations absent or decorative.
 9. **Evaluate document-set design, not just accuracy.** In addition to checking whether each doc is accurate, evaluate whether it is still the right unit of knowledge. If two or more docs overlap heavily, determine whether they should remain separate, be cross-scoped more clearly, or be consolidated into one canonical document. Redundant docs are dangerous because they drift silently — two docs saying the same thing will eventually say different things.
 10. **Delete, don't archive.** There is no `_archived/` directory. When a doc is no longer useful, delete it. Git history preserves every deleted file — that is the archive. A dedicated archive directory creates problems: archived docs accumulate, pollute search results, and nobody reads them. If someone needs a deleted doc, `git log --diff-filter=D -- <root>/solutions/` will find it.
 
@@ -116,6 +131,8 @@ Exclude:
 - `<root>/solutions/_archived/` (legacy — if this directory exists, flag it for cleanup in the report)
 
 Find all `.md` files under `<root>/solutions/`, excluding `README.md` files and anything under `_archived/`. If an `_archived/` directory exists, note it in the report as a legacy artifact that should be cleaned up (files either restored or deleted).
+
+`README.md` files are excluded as review *candidates*, not from cleanup: when an action deletes, renames, moves, consolidates, or replaces a doc that a catalog README lists, update that README's rows mechanically as part of the action's cross-reference cleanup — otherwise every delete leaves a dangling catalog row.
 
 If a scope argument was provided, use it to narrow scope before proceeding. Try these matching strategies in order, stopping at the first that produces results:
 
@@ -272,6 +289,10 @@ Separate docs earn their keep only when:
 
 If none of these apply, prefer consolidation. Two docs covering the same ground will eventually drift apart and contradict each other — that is worse than a slightly longer single doc.
 
+### Category-Shape Signal (report-only)
+
+While clustering, note category-level shape problems: a directory whose docs span several distinct themes, a near-empty category, or docs filed under a directory that disagrees with their frontmatter category. Report these as recommendations — never restructure directories, rename categories, or create new ones. The only structural action this skill takes is the per-doc kind: an unambiguous misfiling feeds the Update flow's relocation steps, and an unwieldy multi-problem doc feeds the Split flow.
+
 ### Cross-Doc Conflict Check
 
 Look for outright contradictions between docs in scope:
@@ -301,7 +322,7 @@ Use subagents for context isolation when investigating multiple artifacts — no
 There are two subagent roles:
 
 1. **Investigation subagents** — read-only. They must not edit files, create successors, or delete anything. Each returns: file path, evidence, recommended action, confidence, and open questions. These can run in parallel when artifacts are independent.
-2. **Replacement subagents** — write a single new learning to replace a stale one. These run **one at a time, sequentially** (each replacement subagent may need to read significant code, and running multiple in parallel risks context exhaustion). The orchestrator handles all deletions and metadata updates after each replacement completes.
+2. **Replacement subagents** — write the successor content for a single candidate doc: one new learning for a Replace, or **every successor fragment** for a confirmed Split (one subagent still owns the whole split candidate, so no fragment is lost between workers). These run **one at a time, sequentially** (each replacement subagent may need to read significant code, and running multiple in parallel risks context exhaustion). The orchestrator handles all deletions and metadata updates after each replacement completes.
 
 The orchestrator merges investigation results, detects contradictions, coordinates replacement subagents, and performs all deletions/metadata edits centrally. In interactive mode, it asks the user questions on ambiguous cases. In headless mode, it marks ambiguous cases as stale instead. If two artifacts overlap or discuss the same root issue, investigate them together rather than parallelizing.
 
@@ -337,6 +358,8 @@ Choose **Consolidate** when Phase 1.75 identified docs that overlap heavily but 
 
 The Consolidate action is: merge unique content from the subsumed doc into the canonical doc, then delete the subsumed doc. Not archive — delete. Git history preserves it.
 
+**Split (inverse consolidation):** Consolidate also covers the reverse case — one doc holding multiple genuinely independent problems becomes focused successors, executed per the Split flow in `references/per-action-flows.md`. The bar is the Retrieval-Value Test inverted: split only when a maintainer searching for one sub-topic would be materially harmed by the other content, and each fragment has independent retrieval value. Length alone is never a reason — splitting doubles drift surface, the exact risk consolidation exists to remove. In headless mode, splits are recommend-only.
+
 ### Replace
 
 Choose **Replace** when the learning's core guidance is now misleading — the recommended fix changed materially, the root cause or architecture shifted, or the preferred pattern is different.
@@ -370,6 +393,7 @@ When a learning's referenced files are gone, that is strong evidence — but onl
 
 - A learning about session token storage where `auth_token.rb` is gone — does the application still handle session tokens? If so, the concept persists under a new implementation. That is Replace, not Delete.
 - A learning about a deprecated API endpoint where the entire feature was removed — the problem domain is gone. That is Delete.
+- A learning that references no in-repo implementation — developer-environment, onboarding, tooling-on-laptops, or process learnings — can never satisfy "the implementation is gone": the repo never witnessed its domain, so absence of supporting files is not evidence the problem stopped existing. These never auto-delete. When their currency is in doubt, stale-mark (headless) or ask (interactive).
 
 Do not search mechanically for keywords from the old learning. Instead, understand what problem the learning addresses, then investigate whether that problem domain still exists in the codebase. The agent understands concepts — use that understanding to look for where the problem lives now, not where the old code used to be.
 
@@ -395,7 +419,7 @@ In headless mode, Delete + decorative cleanup is fine. Any substantive citation,
 
 **Auto-delete only when all three hold:**
 
-- The implementation is gone (or fully superseded by a clearly better successor, or the doc is plainly redundant).
+- The implementation is gone — it once lived in this repo and was removed (or is fully superseded by a clearly better successor, or the doc is plainly redundant).
 - The problem domain is gone — the app no longer deals with what the learning addresses.
 - Inbound links are absent or unambiguously decorative.
 
@@ -429,6 +453,7 @@ Most Updates and Consolidations should be applied directly without asking. Only 
 - You are about to Delete a document **and** the evidence is not unambiguous (see auto-delete criteria in Phase 2). When auto-delete criteria are met, proceed without asking.
 - You are about to Consolidate and the choice of canonical doc is not clear-cut
 - You are about to create a successor via Replace
+- You are about to execute a Split — it writes successors and deletes the original, so confirm the fragment boundaries like a Replace; the apply-without-asking default for Consolidations covers merges only, never splits
 
 Do **not** ask questions about whether code changes were intentional, whether the user wants to fix bugs in the code, or other concerns outside doc maintenance. Stay in your lane — doc accuracy.
 
@@ -501,8 +526,8 @@ Do not front-load the user with a full maintenance queue.
 For each candidate, execute the flow that matches its classification from Phase 2 (confirmed in Phase 3). Read `references/per-action-flows.md` and follow the matching section:
 
 - **Keep** — no file edit by default; summarize why the learning remains trustworthy.
-- **Update** — in-place edits when the solution is still substantively correct (path renames, link refreshes, module renames).
-- **Consolidate** — merge overlapping docs into a canonical doc, delete subsumed docs, update cross-references. The orchestrator handles consolidation directly.
+- **Update** — in-place edits when the solution is still substantively correct (path renames, link refreshes, module renames), plus unambiguous relocations of misfiled docs (headless: only under the four-condition gate).
+- **Consolidate** — merge overlapping docs into a canonical doc, delete subsumed docs, update cross-references. The orchestrator handles consolidation directly. The inverse case runs the Split flow: one multi-problem doc becomes focused successors via subagent (interactive mode only).
 - **Replace** — write a successor learning via subagent (passing the documentation contract files), validate frontmatter and cited claims, then delete the old. When evidence is insufficient, mark stale instead.
 - **Delete** — final inbound-link check, then remove. Reclassify if late-discovered substantive citations surface.
 
@@ -577,11 +602,13 @@ Split actions into two sections:
 - For each **Deleted** file: the file path and why it was removed (problem domain gone, fully redundant, etc.)
 - For each **Marked stale** file: the file path, what evidence was found, and why it was ambiguous
 
-**Recommended** (actions that could not be written — e.g., permission denied):
+**Recommended** (actions that could not be written — e.g., permission denied — plus actions that never run unattended):
 - Same detail as above, but framed as recommendations for a human to apply
 - Include enough context that the user can apply the change manually or re-run the skill interactively
+- Each relocation that failed the four-condition gate (doc, proposed target category, which condition failed) and each split (doc, proposed fragment boundaries — splits are always recommend-only)
+- Any category-shape observations from Phase 1.75
 
-If all writes succeed, the Recommended section is empty. If no writes succeed (e.g., read-only invocation), all actions appear under Recommended — the report becomes a maintenance plan.
+The Recommended section is empty only when all writes succeeded **and** there are no report-only items — recommend-only relocations and splits, and category-shape observations, appear under Recommended even in a run where every write succeeded. If no writes succeed (e.g., read-only invocation), all actions appear under Recommended — the report becomes a maintenance plan.
 
 **Legacy cleanup** (if `<root>/solutions/_archived/` exists):
 - List archived files found and recommend disposition: restore (if still relevant), delete (if truly obsolete), or consolidate (if overlapping with active docs)

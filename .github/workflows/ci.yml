@@ -35,6 +35,12 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    env:
+      # Single source of truth for the pinned `claude plugin validate` version:
+      # both the install and its cache key read this, so a bump cannot bump one
+      # and leave the other serving a stale cached binary.
+      CLAUDE_CODE_VERSION: 2.1.220
+
     steps:
       - uses: actions/checkout@v6
         # Full history so release:validate can read the base-branch (origin/main)
@@ -73,9 +79,29 @@ jobs:
       # plugin:validate must hit .claude-plugin/plugin.json — `validate .` only
       # checks the marketplace. Root CLAUDE.md is a symlink to AGENTS.md so
       # --strict stays green; see AGENTS.md "CI and Quality Gates".
+      #
+      # The install is cached because the npm package is a 165KB wrapper whose
+      # postinstall pulls a platform binary (`@anthropic-ai/claude-code-linux-x64`,
+      # ~275MB unpacked). Registry throughput for that payload is the whole cost
+      # of this step — validation itself is under a second. Observed range on
+      # ubuntu-latest: 3-10s typical, 5m worst case. Caching buys predictability,
+      # not average speed: it caps the tail rather than beating the fast path.
+      # Keying on the pinned version means a hit on every run between bumps.
+      - name: Cache claude-code validator
+        id: cache-claude-code
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm-global
+          key: claude-code-${{ runner.os }}-${{ env.CLAUDE_CODE_VERSION }}
+
+      - name: Install claude-code validator
+        if: steps.cache-claude-code.outputs.cache-hit != 'true'
+        run: npm install -g --prefix ~/.npm-global @anthropic-ai/claude-code@${{ env.CLAUDE_CODE_VERSION }}
+
       - name: Validate plugin schema (claude plugin validate)
         run: |
-          npm install -g @anthropic-ai/claude-code@2.1.175
+          export PATH="$HOME/.npm-global/bin:$PATH"
+          claude --version
           bun run plugin:validate
 
       # Runs the package `test` script so the flags CI uses and the flags a
@@ -83,11 +109,14 @@ jobs:
       - name: Run tests
         run: bun run test
 
-  # Focused Windows gate for peer-job-runner (#1243). Not a full-suite matrix:
-  # POSIX lifecycle tests (fork/killpg/ps) stay on ubuntu-latest. This job runs
-  # the cross-platform unit fixture under real win32 plus a smoke that hits
-  # Job Objects / DETACHED_PROCESS / bare-.sh wrap — the paths Mac cannot prove.
-  peer-job-runner-windows:
+  # Focused Windows gate for the skill scripts that reach for POSIX process and
+  # file primitives: peer-job-runner (#1243) and ce-babysit-pr's pr-snapshot
+  # (#1280). Not a full-suite matrix — POSIX lifecycle tests (fork/killpg/ps)
+  # stay on ubuntu-latest. This job runs the cross-platform fixtures under real
+  # win32, which is the only way to execute the msvcrt/ctypes branches at all:
+  # they are imported solely under sys.platform == "win32", so no amount of
+  # patching reaches them from Linux or Mac.
+  windows-native:
     runs-on: windows-latest
 
     steps:
@@ -123,3 +152,13 @@ jobs:
 
       - name: Peer-job-runner parity
         run: bun test tests/peer-job-runner-parity.test.ts
+
+      - name: pr-snapshot platform primitives
+        run: python tests/fixtures/pr-snapshot-platform.py
+
+      # Runs the scratch-root preamble exactly as the skills ship it, under Git Bash. The
+      # POSIX suite cannot cover this: `install -d -m 700` works there and fails only here
+      # (#1285), so a shape assertion stayed green while every skill's scratch setup aborted
+      # on Windows. Shell out via bun so the same file also runs in the ubuntu suite.
+      - name: Scratch-root preamble executes under Git Bash
+        run: bun test tests/scratch-root-preamble-executes.test.ts

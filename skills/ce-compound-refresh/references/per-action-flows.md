@@ -16,6 +16,7 @@ Examples of valid in-place updates:
 - Update `module: AuthToken` to `module: SessionToken`
 - Fix outdated links to related docs
 - Refresh implementation notes after a directory move
+- Relocate a doc whose directory and frontmatter category unambiguously disagree (see Relocation below)
 
 Examples that should **not** be in-place updates:
 
@@ -28,6 +29,18 @@ Examples that should **not** be in-place updates:
 
 Those cases require **Replace**, not Update.
 
+### Relocation (Update variant)
+
+Relocate only when the misfiling is unambiguous: the doc's directory and its frontmatter category disagree, or the content plainly belongs in a different **existing** category. A mismatch proves something is wrong but not which side — read the content and decide whether the directory is wrong (relocate) or the frontmatter is wrong (fix the frontmatter in place; that is an ordinary Update, not a move). Never create a new category directory for a relocation, and never relocate on a judgment call — placement has no ground truth, and a move a later run could argue back is churn.
+
+In headless mode, apply the relocation only when all four conditions hold, mirroring the auto-delete pattern: (1) frontmatter and directory disagree per the category mapping, (2) content evidence clearly resolves the direction as directory-wrong, (3) the target category directory already exists, (4) every inbound citation is in-repo and mechanically rewritable. If any condition fails — including content that plausibly fits either category — record the relocation (doc, proposed target, which condition failed) under Recommended instead of moving.
+
+1. Confirm the target category directory exists.
+2. Move the file with `git mv` so history follows the rename.
+3. Reconcile frontmatter category metadata with the new location.
+4. Rewrite inbound links across the repo's markdown, including catalog rows in README files.
+5. Re-check the moved doc's **outgoing** relative links — the move changed their resolution base, so a `../category/doc.md` that resolved before now dangles. Run the bundled claims validator (`scripts/validate-doc-claims.py`, invoked as in the Replace flow) on the moved doc, or inspect its relative links manually, and rewrite any that no longer resolve before completing the relocation.
+
 ## Consolidate Flow
 
 The orchestrator handles consolidation directly (no subagent needed — the docs are already read and the merge is a focused edit). Process Consolidate candidates by topic cluster. For each cluster identified in Phase 1.75:
@@ -35,14 +48,27 @@ The orchestrator handles consolidation directly (no subagent needed — the docs
 1. **Confirm the canonical doc** — the broader, more current, more accurate doc in the cluster.
 2. **Extract unique content** from the subsumed doc(s) — anything the canonical doc does not already cover. This might be specific edge cases, additional prevention rules, or alternative debugging approaches.
 3. **Merge unique content** into the canonical doc in a natural location. Do not just append — integrate it where it logically belongs. If the unique content is small (a bullet point, a sentence), inline it. If it is a substantial sub-topic, add it as a clearly labeled section.
-4. **Update cross-references** — if any other docs reference the subsumed doc, update those references to point to the canonical doc.
+4. **Update cross-references** — if any other docs reference the subsumed doc, update those references to point to the canonical doc. Catalog rows in README files are inventory, not citations: the invariant is that after consolidation the canonical doc has exactly one row and the subsumed doc has none. When both docs had rows, remove the subsumed row (folding any unique description into the canonical row); when only the subsumed doc had a row, repoint that row to the canonical doc (path and description) instead of deleting the catalog's only entry for the surviving content. READMEs are excluded as review candidates, but their rows are maintained mechanically whenever an action removes, renames, or moves a doc they list.
 5. **Delete the subsumed doc.** Do not archive it, do not add redirect metadata — just delete the file. Git history preserves it.
 
 If a doc cluster has 3+ overlapping docs, process pairwise: consolidate the two most overlapping docs first, then evaluate whether the merged result should be consolidated with the next doc.
 
 After the merge, run the mechanical claims check on the canonical doc (step 4 of the Replace flow below) — merged content brings its citations with it, and consolidation is where cross-references most often dangle.
 
-**Structural edits beyond merge:** Consolidate also covers the reverse case. If one doc has grown unwieldy and covers multiple distinct problems that would benefit from separate retrieval, it is valid to recommend splitting it. Only do this when the sub-topics are genuinely independent and a maintainer might search for one without needing the other.
+**Structural edits beyond merge:** Consolidate also covers the reverse case — one doc holding multiple genuinely independent problems. That case runs the Split Flow below.
+
+## Split Flow
+
+Split is the inverse of Consolidate: one multi-problem doc becomes N focused successors. The bar is high — splitting doubles drift surface, the exact risk consolidation exists to remove. Split only when the Retrieval-Value Test inverts: a maintainer searching for one sub-topic would be materially harmed by wading through the other content, and each fragment has independent retrieval value. Length alone is never a reason.
+
+In headless mode, do not split; record the recommendation (doc, proposed fragment boundaries, evidence) under Recommended.
+
+Process splits **one at a time, sequentially**, reusing the Replace machinery:
+
+1. Spawn a single subagent to write the successor docs. Pass it the original's full content, the sub-topic boundaries identified during investigation, the target paths and categories, and the same three contract files the Replace flow passes (`references/schema.yaml`, `references/yaml-schema.md`, `assets/resolution-template.md`). Shared context that every fragment needs (root cause, environment, background) is duplicated into each successor, not cross-referenced — each fragment must stand alone.
+2. Validate every successor exactly as in Replace flow steps 3-4: parser-safe frontmatter via `scripts/validate-frontmatter.py`, then the mechanical claims check via `scripts/validate-doc-claims.py`, with the same fallback behavior when a script is not resolvable.
+3. Rewrite inbound links so each citation points at the fragment that carries the cited content; a citation that spans fragments points at the most relevant one. Update catalog rows in README files.
+4. The orchestrator deletes the original. Git history preserves it.
 
 ## Replace Flow
 
@@ -96,7 +122,7 @@ Do not let replacement subagents invent frontmatter fields, enum values, or sect
    ```
 
    Exit 1 flags are **adjudication input, not failures** — a successor doc describing removed code legitimately cites paths that no longer exist. Resolve each flag by fixing the citation, annotating it as historical, or confirming it intentional; always fix scaffold flags. If the script is not resolvable on this platform, scan the body for those same patterns manually and say so in the report.
-5. After the subagent completes, the orchestrator deletes the old learning file. The new learning's frontmatter may include `supersedes: [old learning filename]` for traceability, but this is optional — the git history and commit message provide the same information.
+5. After the subagent completes, the orchestrator deletes the old learning file and updates any catalog README row that lists the old filename to point at the successor. The new learning's frontmatter may include `supersedes: [old learning filename]` for traceability, but this is optional — the git history and commit message provide the same information.
 
 **When evidence is insufficient:**
 
@@ -111,6 +137,6 @@ Delete only when a learning is clearly obsolete, redundant (with no unique conte
 
 Before unlinking the file, run a final inbound-link check across the repo's markdown content to catch any references missed during Phase 1 investigation. Prefer the platform's native content-search tool (e.g., Grep in Claude Code) for efficiency; use ranged or context-line reads around matches rather than loading whole files.
 
-Each match is a citation that will dangle after delete. Cleanup is mechanical — Phase 2 already classified the citations and confirmed Delete was right. Don't re-litigate.
+Each match is a citation that will dangle after delete. Cleanup is mechanical — Phase 2 already classified the citations and confirmed Delete was right. Don't re-litigate. Catalog rows in README files count as citations for cleanup purposes: remove the deleted doc's row.
 
 If any citation surfaces here that wasn't seen in Phase 1 and is anything other than unambiguously decorative (substantive or mixed/unclear), stop and reclassify: autofix mode stale-marks; interactive mode asks the user whether Replace fits. Only proceed with cleanup when all late-discovered citations are unambiguously decorative.

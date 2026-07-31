@@ -36,7 +36,7 @@ afterAll(() => {
 const REAL_TOOLS = [
   "bash", "sh", "jq", "python3", "date", "sed", "tr", "cat", "wc", "awk",
   "dirname", "basename", "mktemp", "env", "perl", "timeout", "gtimeout", "sleep", "rm",
-  "mv", "chmod", "cp", "printf", "kill", "mkdir", "git",
+  "mv", "chmod", "cp", "printf", "kill", "mkdir", "git", "grep", "tail", "ps",
 ]
 // A version-manager shim (pyenv/rbenv/perlbrew/mise) for an interpreter is a
 // wrapper *script*, not a symlink: `command -v python3` returns the shim, but
@@ -192,6 +192,13 @@ describe("cross-model-adversarial-review route safety", () => {
     const source = readFileSync(SCRIPT, "utf8")
     expect(source).toContain('rm -rf "$RAW_DIR"')
     expect(source).toContain("trap 'on_term' TERM INT")
+    // Zombies report as Z+ on macOS; exact "Z" alone leaves them "alive".
+    expect(source).toContain('[ "${st#Z}" = "$st" ]')
+    // Match peer-job-runner: empty ps state => not alive; kill -0 only if ps missing.
+    expect(source).toContain("command -v ps")
+    expect(source).toContain("[ -n \"$st\" ] || return 1")
+    // After reap no longer waits, TERM/INT must wait the peer leader.
+    expect(source).toMatch(/reap "\$_term_peer"[\s\S]*?wait "\$_term_peer"/)
   })
 
   test("every route carries read-only / no-prompt / least-privilege flags and no NEVER-use flag", () => {
@@ -326,6 +333,9 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(cmd).toContain("Skill")
     expect(cmd).toContain("--effort high")
     expect(cmd).toContain("--model opus")
+    // stream-json + --verbose: PEERLOG grows mid-run for run_timeout_cmd idle (#1270).
+    expect(cmd).toContain("--output-format stream-json")
+    expect(cmd).toContain("--verbose")
     // In-tree review: Read must remain available (unlike doc-review's --tools "").
     expect(cmd).not.toContain("--tools")
     expect(cmd).not.toContain("--bare")
@@ -343,6 +353,10 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(cmd).toContain("--model grok-4.5")
     expect(cmd).toContain("--cwd <repo-root>")
     expect(cmd).not.toContain("--deny Read")
+    // Schema forces buffered json — no PEERLOG idle signal (#1270 residual).
+    expect(cmd).toContain("--json-schema")
+    expect(cmd).toContain("--output-format json")
+    expect(cmd).not.toContain("stream-json")
   })
 
   test("cursor-agent routes: ask mode + sandbox + repo workspace", () => {
@@ -352,11 +366,48 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
       expect(cmd).toContain("--trust")
       expect(cmd).toContain("--sandbox enabled")
       expect(cmd).toContain("--workspace <repo-root>")
+      expect(cmd).toContain("--output-format stream-json")
     }
     expect(emitAdapter("grok-cursor")).toContain("cursor-grok-4.5-high")
     expect(emitAdapter("cursor")).not.toContain("--model")
     expect(emitAdapter("composer")).toContain("composer-2.5-fast")
   })
+
+  test("stream-json NDJSON result event yields findings and model receipt", () => {
+    // Production claude stream-json writes NDJSON; structured_output + modelUsage
+    // live on the terminal type=result event (#1270 Bugbot).
+    const ndjson =
+      '{"type":"assistant","message":{"content":[{"type":"text","text":"thinking"}]}}\n' +
+      '{"type":"result","subtype":"success","structured_output":{"reviewer":"adversarial","findings":[{"title":"from-stream"}],"residual_risks":[],"testing_gaps":[]},"modelUsage":{"claude-opus-4-8-20260115":{"inputTokens":10}}}\n'
+    const stub = `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${ndjson.replace(/'/g, `'\\''`)}'\n`
+    const { env } = sandbox(["claude"], stub)
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
+    expect(r.files).toContain("adversarial-claude.json")
+    const out = JSON.parse(readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"))
+    expect(out.findings[0].title).toBe("from-stream")
+    expect(out.model_actual).toBe("claude-opus-4-8-20260115")
+  }, 20_000)
+
+  test("silent PEERLOG on a streaming route is reaped by idle before the hard cap", () => {
+    // Fake CLI writes nothing to stdout; heartbeat still fires on stderr. Idle
+    // poll must reap before HARD_SECS (same shape as elevation-dispatch AE4).
+    const stub = "#!/bin/sh\ncat >/dev/null\nsleep 60\n"
+    const { env } = sandbox(["claude"], stub)
+    const runDir = makeRunDir()
+    const started = Date.now()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_IDLE_SECS: "3",
+      CROSS_MODEL_HARD_SECS: "120",
+      CROSS_MODEL_HEARTBEAT_SECS: "1",
+    })
+    const elapsedSec = (Date.now() - started) / 1000
+    expect(r.stderr).toContain("peer alive")
+    expect(r.stderr).toMatch(/peer output idle|output idle/)
+    expect(r.files).not.toContain("adversarial-claude.json")
+    expect(elapsedSec).toBeLessThan(40)
+  }, 45_000)
 
   test("adapters target repo-root, not shared run-dir fold-in path", () => {
     expect(emitAdapter("codex")).toContain("-C <repo-root>")
