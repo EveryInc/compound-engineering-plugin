@@ -816,6 +816,29 @@ class WindowsPosixShellResolve(unittest.TestCase):
         self.assertEqual(MOD._env_bash_index(["env", "python", "x.py"]), (-1, None))
         self.assertEqual(MOD._env_bash_index(["bash", "x.sh"]), (-1, None))
 
+    def test_env_bash_index_does_not_match_assignment_value_as_command(self):
+        for assignment in (r"FOO=C:\tools\bash", r"FOO=C:\tools\sh.exe"):
+            with self.subTest(assignment=assignment):
+                self.assertEqual(
+                    MOD._env_bash_index(["env", assignment, "bash", "script.sh"]),
+                    (2, None),
+                )
+
+    def test_windows_popen_preserves_assignment_value_ending_in_shell_name(self):
+        for assignment in (r"FOO=C:\tools\bash", r"FOO=C:\tools\sh.exe"):
+            argv = ["env", assignment, "bash", "script.sh"]
+            with self.subTest(assignment=assignment):
+                with windows_platform():
+                    with mock.patch.object(
+                        MOD,
+                        "_resolve_windows_posix_shell",
+                        return_value=self.GIT_BASH,
+                    ):
+                        self.assertEqual(
+                            MOD._popen_argv(argv),
+                            ["env", assignment, self.GIT_BASH, "script.sh"],
+                        )
+
     def test_env_bash_index_skips_chdir_operand(self):
         # -C / --chdir take DIR; a directory named bash must not be treated as
         # the command, and bash after a real DIR must still be found (#1292 P2).

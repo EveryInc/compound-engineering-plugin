@@ -1216,9 +1216,6 @@ def _env_bash_index(argv):
     options_done = False
     while i < len(argv):
         tok = argv[i]
-        base = os.path.basename(tok).lower()
-        if base in ("bash", "bash.exe", "sh", "sh.exe"):
-            return i, None
         if tok == "--" and not options_done:
             options_done = True
             i += 1
@@ -1226,6 +1223,9 @@ def _env_bash_index(argv):
         if _env_assignment_token(tok, allow_option_like=options_done):
             i += 1
             continue
+        base = os.path.basename(tok).lower()
+        if base in ("bash", "bash.exe", "sh", "sh.exe"):
+            return i, None
         if not options_done and (
             tok in ("-S", "--split-string") or tok.startswith(
                 ("-S", "--split-string=")
