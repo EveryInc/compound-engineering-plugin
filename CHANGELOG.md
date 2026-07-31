@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.22.1](https://github.com/boltcoder/compound-engineering-fe-plugin/compare/v3.22.0...v3.22.1) (2026-07-31)
+
+### Other Changes
+
+*  feat(ui-engineering): add ce-ui-engineering skill, dedupe 5 frontend reference files (#19) (a30d025)
+
+
 ## [3.22.0](https://github.com/boltcoder/compound-engineering-fe-plugin/compare/compound-engineering-v3.20.0...v3.22.0) (2026-07-30)
 
 ### Other Changes
