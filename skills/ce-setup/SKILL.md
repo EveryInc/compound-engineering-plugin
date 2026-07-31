@@ -115,7 +115,7 @@ SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
 if [ -f "$SKILL_DIR/scripts/install-mcp-atlassian" ]; then bash "$SKILL_DIR/scripts/install-mcp-atlassian"; else echo "Bundled script not found at $SKILL_DIR/scripts/install-mcp-atlassian; skipping Atlassian MCP phase."; fi
 ```
 
-Display the output to the user. The script reports four readiness dimensions: Docker running, image pulled, Atlassian account reachable (authenticated GET to Jira `/myself` using `JIRA_URL` + `JIRA_USERNAME` + `JIRA_API_TOKEN`; `JIRA_URL` falls back to `https://chatous.atlassian.net` when unset), and opencode MCP config present.
+Display the output to the user. The script reports five readiness dimensions: Docker running, image pulled, no stale existing containers running the mcp-atlassian image, Atlassian account reachable (authenticated GET to Jira `/myself` using `JIRA_URL` + `JIRA_USERNAME` + `JIRA_API_TOKEN`; `JIRA_URL` falls back to `https://chatous.atlassian.net` when unset), and opencode MCP config present.
 
 ### Step 9: Ask Whether to Set Up Atlassian MCP
 
@@ -172,9 +172,22 @@ Edit the export lines in ~/.zshrc (or ~/.bashrc), save, then run:
   /ce-setup
 ```
 
-### Step 11: Pull the Docker image if needed
+### Step 11: Stop and remove existing mcp-atlassian containers
 
-If the readiness check reported the image as not pulled, pull it:
+opencode spawns the mcp-atlassian container via `docker run -i --rm`, which should self-remove on exit — but a crashed or orphaned container can linger and collide with the next spawn (stale image lock, port conflict, leftover env). Before pulling/writing config, tear down any existing container running the mcp-atlassian image so the next `docker run` spawns truly fresh.
+
+Set `SKILL_DIR` to the absolute directory you loaded this `SKILL.md` from, then run the readiness script with `--clean --pull`:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
+if [ -f "$SKILL_DIR/scripts/install-mcp-atlassian" ]; then bash "$SKILL_DIR/scripts/install-mcp-atlassian" --clean --pull; else echo "Bundled script not found at $SKILL_DIR/scripts/install-mcp-atlassian; skipping cleanup."; fi
+```
+
+`--clean` makes the script `docker stop` then `docker rm -f` every container whose ancestor image is `ghcr.io/sooperset/mcp-atlassian:latest` (both running and stopped-but-not-removed). `--pull` ensures the image is current (see Step 12). Display the output to the user. If any container could not be removed, surface that and continue — a later `docker run` will still proceed on the fresh image pulled in Step 12, and the next `--clean` run will retry.
+
+### Step 12: Pull the Docker image if needed
+
+If the readiness check reported the image as not pulled (Step 11's script already pulled it when `--pull` was passed; only run this standalone if Step 11 was skipped), pull it:
 
 ```bash
 docker pull ghcr.io/sooperset/mcp-atlassian:latest
@@ -182,7 +195,7 @@ docker pull ghcr.io/sooperset/mcp-atlassian:latest
 
 Docker is a required tool (checked in Phase 1). If it is not installed or not running, stop this phase and tell the user to install Docker (https://docs.docker.com/get-docker/) and rerun `/ce-setup`.
 
-### Step 12: Write the MCP server entry into opencode config
+### Step 13: Write the MCP server entry into opencode config
 
 The target is the user's global opencode config at `~/.config/opencode/opencode.json` (create it if missing; if `opencode.jsonc` exists instead, edit that). ce-setup adds an `mcp-atlassian` entry under the top-level `mcp` key without disturbing existing MCP servers or other config.
 
@@ -212,7 +225,7 @@ The entry uses opencode's `{env:VAR}` substitution so the secrets are read from 
 ```
 
 Notes for the agent:
-- `JIRA_USERNAME`, `JIRA_API_TOKEN`, and `GITHUB_PR_PREFIX_USERNAME` are exported in the shell profile (Step 10 wrote them). `JIRA_URL` defaults to `https://chatous.atlassian.net` via the readiness script; if the user did not set it themselves and the org is the default, Step 10 also wrote the `JIRA_URL` export. If any value is unset when the container starts, the `{env:...}` resolves to empty and the container will fail to authenticate on first use.
+- `JIRA_USERNAME`, `JIRA_API_TOKEN`, and `GITHUB_PR_PREFIX_USERNAME` are exported in the shell profile (Step 10 wrote them). `JIRA_URL` defaults to `https://chatous.atlassian.net` via the readiness script; if the user did not set it themselves and the org is the default, Step 10 also wrote the `JIRA_URL` export. If any value is unset when the container starts, the `{env:...}` resolves to empty and the container will fail to authenticate on first use. Step 11 already stopped & removed any stale container so this `docker run` is fresh.
 - Use `jq` to merge the entry into an existing config non-destructively. If `jq` is unavailable, read the file as JSON, add the key, and write it back with proper formatting. Never overwrite the entire file; preserve all existing keys, comments (in `.jsonc`), and whitespace where feasible.
 - If the `mcp-atlassian` entry already exists, leave it unless the user asks to rewrite it.
 

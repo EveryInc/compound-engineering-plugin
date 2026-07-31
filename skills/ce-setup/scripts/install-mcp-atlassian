@@ -14,10 +14,13 @@ OPENCODE_GLOBALC="$HOME/.config/opencode/opencode.jsonc"
 # Overridable via the JIRA_URL env var for forks / other orgs.
 DEFAULT_JIRA_URL="https://chatous.atlassian.net"
 
-action="check"
+# Actions are composable flags (a run may combine --pull and --clean).
+do_pull=0
+do_clean=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --pull) action="pull"; shift ;;
+    --pull)  do_pull=1;  shift ;;
+    --clean) do_clean=1; shift ;;
     *) shift ;;
   esac
 done
@@ -62,22 +65,75 @@ if [ "$docker_ok" = "yes" ]; then
   if docker image inspect "$IMAGE" >/dev/null 2>&1; then
     ok "Image $IMAGE is available locally"
     image_ok="yes"
-  else
-    if [ "$action" = "pull" ]; then
-      echo "       Pulling $IMAGE ..."
-      if docker pull "$IMAGE" 2>&1 | tail -1; then
-        ok "Image pulled successfully"
-        image_ok="yes"
-      else
-        warn "Failed to pull image"
-      fi
+  fi
+  # Pull (or repull) when --pull was passed, regardless of local presence, so
+  # a setup run always picks up the latest image rather than reusing a stale one.
+  if [ "$do_pull" = "1" ]; then
+    echo "       Pulling $IMAGE ..."
+    if docker pull "$IMAGE" 2>&1 | tail -1; then
+      ok "Image pulled successfully"
+      image_ok="yes"
     else
-      warn "Image not pulled yet (run with --pull or ce-setup will offer to pull)"
-      detail "docker pull $IMAGE"
+      warn "Failed to pull image"
     fi
+  elif [ "$image_ok" = "no" ]; then
+    warn "Image not pulled yet (run with --pull or ce-setup will offer to pull)"
+    detail "docker pull $IMAGE"
   fi
 else
   skip "Cannot check image without Docker"
+fi
+
+# =====================================================
+#  Existing mcp-atlassian containers
+# =====================================================
+# opencode spawns a fresh container per session via `docker run -i --rm
+# ghcr.io/sooperset/mcp-atlassian:latest`. Those normally self-remove on exit,
+# but a crashed or orphaned container can linger and hold the image / port in
+# a bad state. When --clean is passed we stop & remove every container running
+# this image so the next `docker run` starts truly fresh; in check mode we just
+# report them so the readiness output surfaces the stale state.
+
+section "Existing mcp-atlassian containers"
+
+containers_ok="yes"
+existing_ids=""
+if [ "$docker_ok" = "yes" ]; then
+  # Match by image ref, covering both `--rm` and named runs. We use `-a` so
+  # stopped-but-not-removed containers are also caught.
+  existing_ids=$(docker ps -a --filter "ancestor=$IMAGE" --format '{{.ID}}' 2>/dev/null)
+
+  if [ -n "$existing_ids" ]; then
+    count=$(printf '%s\n' "$existing_ids" | grep -c .)
+    warn "Found $count existing container(s) using $IMAGE"
+    if [ "$do_clean" = "1" ]; then
+      cleaned=0
+      for cid in $existing_ids; do
+        detail "Stopping $cid ..."
+        docker stop "$cid" >/dev/null 2>&1
+        detail "Removing $cid ..."
+        if docker rm -f "$cid" >/dev/null 2>&1; then
+          cleaned=$((cleaned + 1))
+        else
+          warn "Could not remove container $cid"
+        fi
+      done
+      if [ "$cleaned" -gt 0 ]; then
+        ok "Removed $cleaned stale container(s); next run will spawn fresh"
+        containers_ok="yes"
+      else
+        containers_ok="no"
+      fi
+    else
+      detail "Run with --clean (or ce-setup will do so) to stop & remove them"
+      detail "before spawning a fresh container."
+      containers_ok="no"
+    fi
+  else
+    ok "No existing containers using $IMAGE"
+  fi
+else
+  skip "Cannot check containers without Docker"
 fi
 
 # =====================================================
@@ -195,16 +251,17 @@ fi
 
 echo ""
 ready=0
-[ "$docker_ok" = "yes" ] && ready=$((ready + 1))
-[ "$image_ok" = "yes" ] && ready=$((ready + 1))
-[ "$creds_ok" = "yes" ] && ready=$((ready + 1))
-[ "$config_ok" = "yes" ] && ready=$((ready + 1))
+[ "$docker_ok" = "yes" ]      && ready=$((ready + 1))
+[ "$image_ok" = "yes" ]       && ready=$((ready + 1))
+[ "$creds_ok" = "yes" ]       && ready=$((ready + 1))
+[ "$config_ok" = "yes" ]      && ready=$((ready + 1))
+[ "$containers_ok" = "yes" ]  && ready=$((ready + 1))
 
-if [ "$ready" -eq 4 ]; then
-  echo " ✅  mcp-atlassian is fully configured ($ready/4)"
+if [ "$ready" -eq 5 ]; then
+  echo " ✅  mcp-atlassian is fully configured ($ready/5)"
 elif [ "$ready" -eq 0 ]; then
-  echo " ❌  mcp-atlassian is not set up yet (0/4)"
+  echo " ❌  mcp-atlassian is not set up yet (0/5)"
 else
-  echo " ⚠️  mcp-atlassian partially ready ($ready/4)"
+  echo " ⚠️  mcp-atlassian partially ready ($ready/5)"
 fi
 echo ""
