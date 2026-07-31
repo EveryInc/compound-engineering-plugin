@@ -1105,11 +1105,91 @@ def _git_bash_well_known_paths():
     return paths
 
 
+def _windows_path_shell_candidates():
+    """Every bash/sh on PATH in PATH order (not only shutil.which's first hit)."""
+    path_env = os.environ.get("PATH") or ""
+    names = ("bash.exe", "bash", "sh.exe", "sh")
+    found = []
+    seen = set()
+    for directory in path_env.split(os.pathsep):
+        if not directory:
+            continue
+        for name in names:
+            candidate = os.path.join(directory, name)
+            try:
+                if not os.path.isfile(candidate):
+                    continue
+            except OSError:
+                continue
+            key = os.path.normcase(os.path.abspath(candidate))
+            if key in seen:
+                continue
+            seen.add(key)
+            found.append(candidate)
+    return found
+
+
+def _env_assignment_token(token: str) -> bool:
+    """True for env(1) NAME=value operands (not options or the command)."""
+    if not token or token.startswith("-") or "=" not in token:
+        return False
+    name = token.split("=", 1)[0]
+    if not name or name[0].isdigit():
+        return False
+    return all(c.isalnum() or c == "_" for c in name)
+
+
+def _env_bash_index(argv) -> int:
+    """Index of bare bash/sh after `env` [options] [assignments], or -1.
+
+    Matches the production cross-model shape:
+    `env VAR=… bash script.sh …` (#1268).
+    """
+    if not argv:
+        return -1
+    if os.path.basename(argv[0]).lower() not in ("env", "env.exe"):
+        return -1
+    i = 1
+    while i < len(argv):
+        tok = argv[i]
+        base = os.path.basename(tok).lower()
+        if base in ("bash", "bash.exe", "sh", "sh.exe"):
+            return i
+        if _env_assignment_token(tok):
+            i += 1
+            continue
+        if tok.startswith("-"):
+            # env -u NAME / --unset NAME consume the following argument.
+            if tok in ("-u", "--unset"):
+                i += 2
+                continue
+            i += 1
+            continue
+        return -1
+    return -1
+
+
+def _rewrite_windows_env_bash_argv(argv):
+    """Rewrite bare bash/sh inside an env-prefixed argv.
+
+    Returns (argv, resolved_shell_or_None). Raises RunnerError when a bash/sh
+    token is present but no usable non-WSL shell can be resolved.
+    """
+    idx = _env_bash_index(argv)
+    if idx < 0:
+        return list(argv), None
+    shell = _resolve_windows_posix_shell()
+    out = list(argv)
+    if os.path.normcase(os.path.abspath(out[idx])) != os.path.normcase(shell):
+        out[idx] = shell
+    return out, shell
+
+
 def _resolve_windows_posix_shell() -> str:
     """Absolute path to a non-WSL POSIX shell for native Windows peer workers.
 
     Order: CE_PEER_BASH, CLAUDE_CODE_GIT_BASH_PATH, well-known Git Bash
-    installs, then PATH bash/sh excluding System32 WSL. Fail closed when
+    installs, then every PATH bash/sh excluding System32 WSL. Fail closed when
     nothing usable remains — never select System32\\bash.exe (#1268).
     """
     candidates = []
@@ -1118,10 +1198,7 @@ def _resolve_windows_posix_shell() -> str:
         if val:
             candidates.append(val)
     candidates.extend(_git_bash_well_known_paths())
-    for name in ("bash", "sh"):
-        found = shutil.which(name)
-        if found:
-            candidates.append(found)
+    candidates.extend(_windows_path_shell_candidates())
 
     seen = set()
     for raw in candidates:
@@ -1149,8 +1226,9 @@ def _popen_argv(argv):
 
     On Windows, CreateProcess does not honor shebang, so a bare *.sh / *.bash
     worker must be launched through bash/sh. Prefer Git Bash over System32
-    WSL bash (#1268). Bare `bash`/`sh` prefixes (review skills) are rewritten
-    to that absolute path. meta.json still records the caller argv for
+    WSL bash (#1268). Bare `bash`/`sh` prefixes (review skills) and bare
+    `bash`/`sh` tokens after `env VAR=…` (cross-model) are rewritten to that
+    absolute path. meta.json still records the caller argv for
     authorize-dispatch contracts that forbid a shell prefix on ce-work.
     """
     if not IS_WINDOWS or not argv:
@@ -1158,7 +1236,8 @@ def _popen_argv(argv):
     head = argv[0]
     base = os.path.basename(head).lower()
     if base in ("env", "env.exe"):
-        return list(argv)
+        rewritten, _shell = _rewrite_windows_env_bash_argv(argv)
+        return rewritten
     if base in ("bash", "bash.exe", "sh", "sh.exe"):
         shell = _resolve_windows_posix_shell()
         if os.path.normcase(os.path.abspath(head)) == os.path.normcase(shell):
@@ -1571,6 +1650,25 @@ def cmd_start(args, worker_argv) -> int:
         except RunnerError as exc:
             problem = str(exc)
             resolved = argv0
+    elif IS_WINDOWS and base0 in ("env", "env.exe"):
+        # Production cross-model: env VAR=… bash script.sh — rewrite bash
+        # before detach so env cannot PATH-resolve System32 WSL (#1268).
+        if os.sep in argv0 or (len(argv0) >= 2 and argv0[1] == ":"):
+            resolved = os.path.abspath(argv0)
+            if not os.path.isfile(resolved):
+                problem = "does not exist or is not a regular file"
+        else:
+            resolved = shutil.which(argv0)
+            if resolved is None:
+                problem = "was not found on PATH"
+                resolved = argv0
+        try:
+            rewritten, shell = _rewrite_windows_env_bash_argv(list(worker_argv))
+            if shell is not None:
+                windows_posix_shell = shell
+                worker_argv = rewritten
+        except RunnerError as exc:
+            problem = str(exc) if problem is None else f"{problem}; {exc}"
     elif os.sep in argv0 or (IS_WINDOWS and len(argv0) >= 2 and argv0[1] == ":"):
         resolved = os.path.abspath(argv0)
         if not os.path.isfile(resolved):

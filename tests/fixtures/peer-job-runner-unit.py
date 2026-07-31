@@ -426,35 +426,84 @@ class PopenArgvBranch(unittest.TestCase):
                 with self.assertRaises(MOD.RunnerError):
                     MOD._popen_argv(argv)
 
+    def test_windows_env_exe_passthrough_without_bash(self):
+        # env without a bash/sh token must stay unchanged (no false wrap).
+        argv = ["env", "CE_PEER_HARD_SECS=", "python", "x.py"]
+        with mock.patch.object(MOD, "IS_WINDOWS", True):
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ) as resolve:
+                self.assertEqual(MOD._popen_argv(argv), argv)
+                resolve.assert_not_called()
+
+    def test_windows_rewrites_env_prefixed_bash(self):
+        # Production cross-model: start -- env VAR=… bash script.sh
+        argv = [
+            "env",
+            "CROSS_MODEL_HOST_HARNESS=claude",
+            "CROSS_MODEL_FIXED_ROUTE=codex",
+            "bash",
+            r"C:\skills\ce-code-review\scripts\cross-model-adversarial-review.sh",
+            "x",
+        ]
+        with mock.patch.object(MOD, "IS_WINDOWS", True):
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ):
+                self.assertEqual(
+                    MOD._popen_argv(argv),
+                    [
+                        "env",
+                        "CROSS_MODEL_HOST_HARNESS=claude",
+                        "CROSS_MODEL_FIXED_ROUTE=codex",
+                        self.GIT_BASH,
+                        argv[4],
+                        "x",
+                    ],
+                )
+
+    def test_windows_env_prefixed_bash_missing_shell_raises(self):
+        argv = ["env", "FOO=1", "bash", "script.sh"]
+        with mock.patch.object(MOD, "IS_WINDOWS", True):
+            with mock.patch.object(
+                MOD,
+                "_resolve_windows_posix_shell",
+                side_effect=MOD.RunnerError("no usable Git Bash"),
+            ):
+                with self.assertRaises(MOD.RunnerError):
+                    MOD._popen_argv(argv)
+
 
 class WindowsPosixShellResolve(unittest.TestCase):
     """#1268: prefer Git Bash over System32 WSL bash; fail closed otherwise."""
 
     GIT_BASH = r"C:\Program Files\Git\bin\bash.exe"
     SYSTEM32_BASH = r"C:\Windows\System32\bash.exe"
+    PATH_GIT_BASH = r"C:\Tools\Git\bin\bash.exe"
+    LOCAL_GIT_BASH = r"C:\Users\me\AppData\Local\Programs\Git\bin\bash.exe"
 
     def test_prefers_git_bash_when_system32_first_on_path(self):
-        which_map = {"bash": self.SYSTEM32_BASH, "sh": None}
-
-        def fake_which(name):
-            return which_map.get(name)
-
         with mock.patch.object(MOD, "IS_WINDOWS", True):
             with mock.patch.dict(os.environ, {
                 "CE_PEER_BASH": "",
                 "CLAUDE_CODE_GIT_BASH_PATH": "",
                 "SystemRoot": r"C:\Windows",
                 "ProgramFiles": r"C:\Program Files",
+                "ProgramFiles(x86)": r"C:\Program Files (x86)",
+                "LOCALAPPDATA": "",
+                "PATH": r"C:\Windows\System32",
             }, clear=False):
-                with mock.patch.object(MOD.shutil, "which", side_effect=fake_which):
+                with mock.patch.object(
+                    MOD, "_windows_path_shell_candidates",
+                    return_value=[self.SYSTEM32_BASH],
+                ):
                     with mock.patch.object(MOD.os.path, "isfile", side_effect=lambda p: (
                         os.path.normcase(p) == os.path.normcase(self.GIT_BASH)
                         or os.path.normcase(p) == os.path.normcase(self.SYSTEM32_BASH)
                     )):
-                        # Well-known Git path must win over System32 which()
+                        # Well-known Git path must win over System32 PATH hit
                         got = MOD._resolve_windows_posix_shell()
         self.assertEqual(os.path.normcase(got), os.path.normcase(self.GIT_BASH))
-
     def test_ce_peer_bash_overrides_path(self):
         override = r"C:\Custom\Git\bin\bash.exe"
         with mock.patch.object(MOD, "IS_WINDOWS", True):
@@ -463,7 +512,10 @@ class WindowsPosixShellResolve(unittest.TestCase):
                 "CLAUDE_CODE_GIT_BASH_PATH": "",
                 "SystemRoot": r"C:\Windows",
             }, clear=False):
-                with mock.patch.object(MOD.shutil, "which", return_value=self.SYSTEM32_BASH):
+                with mock.patch.object(
+                    MOD, "_windows_path_shell_candidates",
+                    return_value=[self.SYSTEM32_BASH],
+                ):
                     with mock.patch.object(MOD.os.path, "isfile", side_effect=lambda p: (
                         os.path.normcase(p) == os.path.normcase(override)
                     )):
@@ -478,12 +530,81 @@ class WindowsPosixShellResolve(unittest.TestCase):
                 "CLAUDE_CODE_GIT_BASH_PATH": override,
                 "SystemRoot": r"C:\Windows",
             }, clear=False):
-                with mock.patch.object(MOD.shutil, "which", return_value=self.SYSTEM32_BASH):
+                with mock.patch.object(
+                    MOD, "_windows_path_shell_candidates",
+                    return_value=[self.SYSTEM32_BASH],
+                ):
                     with mock.patch.object(MOD.os.path, "isfile", side_effect=lambda p: (
                         os.path.normcase(p) == os.path.normcase(override)
                     )):
                         got = MOD._resolve_windows_posix_shell()
         self.assertEqual(os.path.normcase(got), os.path.normcase(override))
+
+    def test_whitespace_only_env_falls_through(self):
+        with mock.patch.object(MOD, "IS_WINDOWS", True):
+            with mock.patch.dict(os.environ, {
+                "CE_PEER_BASH": "   ",
+                "CLAUDE_CODE_GIT_BASH_PATH": "\t",
+                "SystemRoot": r"C:\Windows",
+                "ProgramFiles": r"C:\Program Files",
+                "ProgramFiles(x86)": r"C:\Program Files (x86)",
+                "LOCALAPPDATA": "",
+            }, clear=False):
+                with mock.patch.object(
+                    MOD, "_windows_path_shell_candidates", return_value=[]
+                ):
+                    with mock.patch.object(MOD.os.path, "isfile", side_effect=lambda p: (
+                        os.path.normcase(p) == os.path.normcase(self.GIT_BASH)
+                    )):
+                        got = MOD._resolve_windows_posix_shell()
+        self.assertEqual(os.path.normcase(got), os.path.normcase(self.GIT_BASH))
+
+    def test_path_walk_skips_system32_then_finds_later_bash(self):
+        # shutil.which would stop at System32; walk must keep going (#1268 review).
+        with mock.patch.object(MOD, "IS_WINDOWS", True):
+            with mock.patch.dict(os.environ, {
+                "CE_PEER_BASH": "",
+                "CLAUDE_CODE_GIT_BASH_PATH": "",
+                "SystemRoot": r"C:\Windows",
+                "ProgramFiles": r"C:\Program Files",
+                "ProgramFiles(x86)": r"C:\Program Files (x86)",
+                "LOCALAPPDATA": "",
+            }, clear=False):
+                with mock.patch.object(
+                    MOD, "_windows_path_shell_candidates",
+                    return_value=[self.SYSTEM32_BASH, self.PATH_GIT_BASH],
+                ):
+                    with mock.patch.object(MOD.os.path, "isfile", side_effect=lambda p: (
+                        os.path.normcase(p) in {
+                            os.path.normcase(self.SYSTEM32_BASH),
+                            os.path.normcase(self.PATH_GIT_BASH),
+                        }
+                    )):
+                        got = MOD._resolve_windows_posix_shell()
+        self.assertEqual(os.path.normcase(got), os.path.normcase(self.PATH_GIT_BASH))
+
+    def test_localappdata_well_known_git(self):
+        with mock.patch.object(MOD, "IS_WINDOWS", True):
+            with mock.patch.dict(os.environ, {
+                "CE_PEER_BASH": "",
+                "CLAUDE_CODE_GIT_BASH_PATH": "",
+                "SystemRoot": r"C:\Windows",
+                "ProgramFiles": r"C:\Program Files",
+                "ProgramFiles(x86)": r"C:\Program Files (x86)",
+                "LOCALAPPDATA": r"C:\Users\me\AppData\Local",
+            }, clear=False):
+                with mock.patch.object(
+                    MOD, "_windows_path_shell_candidates",
+                    return_value=[self.SYSTEM32_BASH],
+                ):
+                    with mock.patch.object(MOD.os.path, "isfile", side_effect=lambda p: (
+                        os.path.normcase(p) in {
+                            os.path.normcase(self.SYSTEM32_BASH),
+                            os.path.normcase(self.LOCAL_GIT_BASH),
+                        }
+                    )):
+                        got = MOD._resolve_windows_posix_shell()
+        self.assertEqual(os.path.normcase(got), os.path.normcase(self.LOCAL_GIT_BASH))
 
     def test_rejects_system32_only(self):
         with mock.patch.object(MOD, "IS_WINDOWS", True):
@@ -493,9 +614,11 @@ class WindowsPosixShellResolve(unittest.TestCase):
                 "SystemRoot": r"C:\Windows",
                 "ProgramFiles": r"C:\Program Files",
                 "ProgramFiles(x86)": r"C:\Program Files (x86)",
+                "LOCALAPPDATA": "",
             }, clear=False):
                 with mock.patch.object(
-                    MOD.shutil, "which", return_value=self.SYSTEM32_BASH
+                    MOD, "_windows_path_shell_candidates",
+                    return_value=[self.SYSTEM32_BASH],
                 ):
                     with mock.patch.object(MOD.os.path, "isfile", side_effect=lambda p: (
                         os.path.normcase(p) == os.path.normcase(self.SYSTEM32_BASH)
@@ -515,8 +638,11 @@ class WindowsPosixShellResolve(unittest.TestCase):
                 "CLAUDE_CODE_GIT_BASH_PATH": "",
                 "SystemRoot": r"C:\Windows",
                 "ProgramFiles": r"C:\Program Files",
+                "LOCALAPPDATA": "",
             }, clear=False):
-                with mock.patch.object(MOD.shutil, "which", return_value=None):
+                with mock.patch.object(
+                    MOD, "_windows_path_shell_candidates", return_value=[]
+                ):
                     with mock.patch.object(MOD.os.path, "isfile", side_effect=lambda p: (
                         os.path.normcase(p) == os.path.normcase(self.GIT_BASH)
                     )):
@@ -528,6 +654,11 @@ class WindowsPosixShellResolve(unittest.TestCase):
             self.assertTrue(MOD._is_system32_wsl_bash(self.SYSTEM32_BASH))
             self.assertFalse(MOD._is_system32_wsl_bash(self.GIT_BASH))
 
+    def test_env_bash_index_finds_token_after_assignments(self):
+        argv = ["env", "A=1", "B=2", "bash", "script.sh"]
+        self.assertEqual(MOD._env_bash_index(argv), 3)
+        self.assertEqual(MOD._env_bash_index(["env", "python", "x.py"]), -1)
+        self.assertEqual(MOD._env_bash_index(["bash", "x.sh"]), -1)
 
 class BinaryRoundTrip(unittest.TestCase):
     """Windows CPython opens os.open() descriptors in CRT *text* mode: writes

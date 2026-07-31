@@ -274,18 +274,26 @@ class WindowsPeerJobSmoke(unittest.TestCase):
             "reap must sweep the orphan grandchild",
         )
 
-    def test_bare_sh_worker_wraps_when_bash_present(self):
-        # Prefer the runner's Git-Bash resolver (#1268) over bare which():
-        # System32 WSL bash or a missing PATH entry must not skip this smoke.
-        try:
-            bash = MOD._resolve_windows_posix_shell()
-        except MOD.RunnerError:
-            bash = shutil.which("bash") or shutil.which("sh")
-        if bash is None:
-            self.skipTest("no usable Git Bash / bash on this host")
+    def _write_stub_sh(self):
         stub = os.path.join(self.root, "stub.sh")
         with open(stub, "w", encoding="utf-8", newline="\n") as f:
             f.write("#!/usr/bin/env bash\nexit 0\n")
+        return stub
+
+    def _require_git_bash(self):
+        try:
+            return MOD._resolve_windows_posix_shell()
+        except MOD.RunnerError:
+            bash = shutil.which("bash") or shutil.which("sh")
+            if bash is None:
+                self.skipTest("no usable Git Bash / bash on this host")
+            return bash
+
+    def test_bare_sh_worker_wraps_when_bash_present(self):
+        # Prefer the runner's Git-Bash resolver (#1268) over bare which():
+        # System32 WSL bash or a missing PATH entry must not skip this smoke.
+        self._require_git_bash()
+        stub = self._write_stub_sh()
         started = self._run(
             ["start", "--skill", "ce-doc-review", "--run-id", "run1", "--", stub]
         )
@@ -305,6 +313,82 @@ class WindowsPeerJobSmoke(unittest.TestCase):
             MOD._is_system32_wsl_bash(meta["windows_posix_shell"]),
             meta["windows_posix_shell"],
         )
+
+    def test_bash_prefix_worker_sets_meta_shell(self):
+        bash = self._require_git_bash()
+        stub = self._write_stub_sh()
+        started = self._run(
+            [
+                "start", "--skill", "ce-doc-review", "--run-id", "run-bash-prefix",
+                "--", "bash", stub,
+            ]
+        )
+        self.assertEqual(started.returncode, 0, started.stderr)
+        job_id = started.stdout.strip()
+        meta_path = os.path.join(
+            self.env["CE_PEER_JOBS_ROOT"], "ce-doc-review", "run-bash-prefix",
+            "jobs", job_id, "meta.json",
+        )
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        self.assertIn("windows_posix_shell", meta)
+        self.assertFalse(
+            MOD._is_system32_wsl_bash(meta["windows_posix_shell"]),
+            meta["windows_posix_shell"],
+        )
+        self.assertFalse(
+            MOD._is_system32_wsl_bash(meta["worker_argv"][0]),
+            meta["worker_argv"][0],
+        )
+        waited = self._run(["wait", "--max-secs", "20", job_id])
+        self.assertEqual(waited.returncode, 0, waited.stderr)
+
+    def test_env_prefixed_bash_worker_sets_meta_shell(self):
+        # Production cross-model shape: start -- env VAR=… bash script.sh
+        bash = self._require_git_bash()
+        env_exe = shutil.which("env") or shutil.which("env.exe")
+        if env_exe is None:
+            # Git usr\bin\env.exe is usual; derive from resolved bash.
+            cand = os.path.join(os.path.dirname(bash), "env.exe")
+            if os.path.isfile(cand):
+                env_exe = cand
+            else:
+                usr = os.path.join(os.path.dirname(os.path.dirname(bash)), "usr", "bin", "env.exe")
+                if os.path.isfile(usr):
+                    env_exe = usr
+        if env_exe is None:
+            self.skipTest("no env.exe alongside Git Bash on this host")
+        stub = self._write_stub_sh()
+        started = self._run(
+            [
+                "start", "--skill", "ce-doc-review", "--run-id", "run-env-bash",
+                "--", env_exe, "SMOKE_PEER=1", "bash", stub,
+            ]
+        )
+        self.assertEqual(started.returncode, 0, started.stderr)
+        job_id = started.stdout.strip()
+        meta_path = os.path.join(
+            self.env["CE_PEER_JOBS_ROOT"], "ce-doc-review", "run-env-bash",
+            "jobs", job_id, "meta.json",
+        )
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        self.assertIn("windows_posix_shell", meta)
+        self.assertFalse(
+            MOD._is_system32_wsl_bash(meta["windows_posix_shell"]),
+            meta["windows_posix_shell"],
+        )
+        # bash token rewritten to absolute non-WSL shell
+        self.assertTrue(
+            any(
+                os.path.normcase(os.path.abspath(t))
+                == os.path.normcase(os.path.abspath(meta["windows_posix_shell"]))
+                for t in meta["worker_argv"]
+            ),
+            meta["worker_argv"],
+        )
+        waited = self._run(["wait", "--max-secs", "20", job_id])
+        self.assertEqual(waited.returncode, 0, waited.stderr)
 
     def test_reap_during_long_poll_classifies_timeout_not_failed(self):
         # Regression (#1248): with poll=2s, min(grace, 1.0) alone races into
