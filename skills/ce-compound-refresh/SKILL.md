@@ -322,7 +322,7 @@ Use subagents for context isolation when investigating multiple artifacts — no
 There are two subagent roles:
 
 1. **Investigation subagents** — read-only. They must not edit files, create successors, or delete anything. Each returns: file path, evidence, recommended action, confidence, and open questions. These can run in parallel when artifacts are independent.
-2. **Replacement subagents** — write a single new learning to replace a stale one. These run **one at a time, sequentially** (each replacement subagent may need to read significant code, and running multiple in parallel risks context exhaustion). The orchestrator handles all deletions and metadata updates after each replacement completes.
+2. **Replacement subagents** — write the successor content for a single candidate doc: one new learning for a Replace, or **every successor fragment** for a confirmed Split (one subagent still owns the whole split candidate, so no fragment is lost between workers). These run **one at a time, sequentially** (each replacement subagent may need to read significant code, and running multiple in parallel risks context exhaustion). The orchestrator handles all deletions and metadata updates after each replacement completes.
 
 The orchestrator merges investigation results, detects contradictions, coordinates replacement subagents, and performs all deletions/metadata edits centrally. In interactive mode, it asks the user questions on ambiguous cases. In headless mode, it marks ambiguous cases as stale instead. If two artifacts overlap or discuss the same root issue, investigate them together rather than parallelizing.
 
@@ -608,7 +608,7 @@ Split actions into two sections:
 - Each relocation that failed the four-condition gate (doc, proposed target category, which condition failed) and each split (doc, proposed fragment boundaries — splits are always recommend-only)
 - Any category-shape observations from Phase 1.75
 
-If all writes succeed, the Recommended section is empty. If no writes succeed (e.g., read-only invocation), all actions appear under Recommended — the report becomes a maintenance plan.
+The Recommended section is empty only when all writes succeeded **and** there are no report-only items — recommend-only relocations and splits, and category-shape observations, appear under Recommended even in a run where every write succeeded. If no writes succeed (e.g., read-only invocation), all actions appear under Recommended — the report becomes a maintenance plan.
 
 **Legacy cleanup** (if `<root>/solutions/_archived/` exists):
 - List archived files found and recommend disposition: restore (if still relevant), delete (if truly obsolete), or consolidate (if overlapping with active docs)
