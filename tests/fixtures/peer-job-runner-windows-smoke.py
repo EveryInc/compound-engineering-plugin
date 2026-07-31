@@ -482,6 +482,33 @@ class WindowsPeerJobSmoke(unittest.TestCase):
                 self.assertEqual(len(job_dirs), 1)
                 self.assertFalse(os.path.exists(os.path.join(jobs_root, job_dirs[0], "pid")))
 
+    def test_env_abbreviated_and_unknown_long_options_fail_before_detach(self):
+        bash = self._require_git_bash()
+        env_exe = self._require_git_env(bash)
+        cases = (
+            ["--chd", ".", "bash"],
+            ["--unse", "FOO", "bash"],
+            ["--split-s", "bash -c 'exit 0'"],
+            ["--unknown", "bash"],
+        )
+        for index, env_args in enumerate(cases, start=1):
+            with self.subTest(env_args=env_args):
+                run_id = f"run-env-long-option-{index}"
+                started = self._run(
+                    [
+                        "start", "--skill", "ce-doc-review", "--run-id", run_id,
+                        "--", env_exe, *env_args,
+                    ]
+                )
+                self.assertNotEqual(started.returncode, 0)
+                self.assertIn("unsupported env long option", started.stderr)
+                jobs_root = os.path.join(
+                    self.env["CE_PEER_JOBS_ROOT"], "ce-doc-review", run_id, "jobs"
+                )
+                job_dirs = os.listdir(jobs_root)
+                self.assertEqual(len(job_dirs), 1)
+                self.assertFalse(os.path.exists(os.path.join(jobs_root, job_dirs[0], "pid")))
+
     def test_reap_during_long_poll_classifies_timeout_not_failed(self):
         # Regression (#1248): with poll=2s, min(grace, 1.0) alone races into
         # the fallback kill path and used to record "failed" from the kill

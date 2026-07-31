@@ -1166,8 +1166,14 @@ def _env_option_advance(tok: str) -> int:
         return 2
     if tok.startswith(("--unset=", "--chdir=")):
         return 1
-    if not tok.startswith("-") or tok.startswith("--"):
+    if not tok.startswith("-"):
         return 1
+    if tok.startswith("--"):
+        raise RunnerError(
+            f"unsupported env long option {tok!r} for native Windows peer "
+            "workers; use an exact supported option or pass -- before "
+            "option-like assignments"
+        )
 
     cluster = tok[1:]
     for index, option in enumerate(cluster):

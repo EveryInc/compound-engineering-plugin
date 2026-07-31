@@ -853,6 +853,25 @@ class WindowsPosixShellResolve(unittest.TestCase):
                         MOD._popen_argv(argv)
                     self.assertIn("split-string", str(ctx.exception))
 
+    def test_windows_popen_rejects_abbreviated_and_unknown_env_long_options(self):
+        cases = (
+            ["env", "--chd", "/tmp", "bash", "script.sh"],
+            ["env", "--unse", "FOO", "bash", "script.sh"],
+            ["env", "--split-s", "bash script.sh"],
+            ["env", "--unknown", "bash", "script.sh"],
+        )
+        with windows_platform():
+            for argv in cases:
+                with self.subTest(argv=argv):
+                    with mock.patch.object(
+                        MOD,
+                        "_resolve_windows_posix_shell",
+                        side_effect=AssertionError("must fail before shell resolution"),
+                    ):
+                        with self.assertRaises(MOD.RunnerError) as ctx:
+                            MOD._popen_argv(argv)
+                    self.assertIn("unsupported env long option", str(ctx.exception))
+
     def test_env_bash_index_skips_unset_attached(self):
         self.assertEqual(
             MOD._env_bash_index(["env", "-u", "FOO", "bash", "script.sh"]), (3, None)
