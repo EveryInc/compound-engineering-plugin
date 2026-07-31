@@ -861,6 +861,50 @@ class WindowsPosixShellResolve(unittest.TestCase):
             MOD._env_bash_index(["env", "--unset=FOO", "bash", "script.sh"]), (2, None)
         )
 
+    def test_env_bash_index_parses_clustered_options_with_separate_operands(self):
+        self.assertEqual(
+            MOD._env_bash_index(["env", "-iu", "FOO", "bash", "script.sh"]),
+            (3, None),
+        )
+        self.assertEqual(
+            MOD._env_bash_index(["env", "-iC", "/tmp", "bash", "script.sh"]),
+            (3, None),
+        )
+
+    def test_env_bash_index_parses_clustered_options_with_attached_operands(self):
+        self.assertEqual(
+            MOD._env_bash_index(["env", "-iuFOO", "bash", "script.sh"]),
+            (2, None),
+        )
+        self.assertEqual(
+            MOD._env_bash_index(["env", "-iC/tmp", "bash", "script.sh"]),
+            (2, None),
+        )
+
+    def test_windows_popen_rejects_unsupported_env_short_option_clusters(self):
+        cases = (["env", "-iSvalue", "bash"], ["env", "-ix", "bash"])
+        with windows_platform():
+            for argv in cases:
+                with self.subTest(argv=argv):
+                    with self.assertRaises(MOD.RunnerError):
+                        MOD._popen_argv(argv)
+
+    def test_windows_popen_rewrites_bash_after_clustered_env_options(self):
+        for argv in (
+            ["env", "-iu", "FOO", "bash", "script.sh"],
+            ["env", "-iC", r"C:\workdir", "bash", "script.sh"],
+        ):
+            with self.subTest(argv=argv):
+                with windows_platform():
+                    with mock.patch.object(
+                        MOD,
+                        "_resolve_windows_posix_shell",
+                        return_value=self.GIT_BASH,
+                    ):
+                        expected = list(argv)
+                        expected[-2] = self.GIT_BASH
+                        self.assertEqual(MOD._popen_argv(argv), expected)
+
     def test_windows_popen_rewrites_bash_after_chdir(self):
         argv = ["env", "-C", r"C:\workdir", "bash", "script.sh", "x"]
         with windows_platform():

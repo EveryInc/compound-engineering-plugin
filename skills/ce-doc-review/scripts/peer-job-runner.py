@@ -1157,15 +1157,34 @@ def _env_option_advance(tok: str) -> int:
 
     GNU env options that take a separate operand: -u/--unset, -C/--chdir.
     Attached `--name=value` forms are a single slot.
-    Unknown flags advance one slot. (#1292 Codex P2)
+    Short options may be clustered. No-operand flags (-i/-0/-v) continue the
+    cluster; -u/-C consume the rest of the token as an attached operand or the
+    next argv slot. Unsupported clusters fail closed before worker detach.
+    (#1292 Codex P2)
     """
     if tok in ("-u", "--unset", "-C", "--chdir"):
         return 2
     if tok.startswith(("--unset=", "--chdir=")):
         return 1
-    # Short -uNAME (no space) and -CDIR are one slot.
-    if len(tok) > 2 and tok[0] == "-" and tok[1] in "uC" and tok[2] != "-":
+    if not tok.startswith("-") or tok.startswith("--"):
         return 1
+
+    cluster = tok[1:]
+    for index, option in enumerate(cluster):
+        if option in "i0v":
+            continue
+        if option == "S":
+            raise RunnerError(
+                "env -S/--split-string is unsupported for native Windows "
+                "peer workers; pass env assignments and the command as "
+                "separate arguments"
+            )
+        if option in "uC":
+            return 1 if index + 1 < len(cluster) else 2
+        raise RunnerError(
+            f"unsupported env short-option cluster {tok!r} for native "
+            "Windows peer workers; pass env options separately"
+        )
     return 1
 
 
