@@ -535,6 +535,8 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     const snapshot = await readRepoFile("skills/ce-babysit-pr/scripts/pr-snapshot")
     const emissions = snapshot.match(/"pr_is_draft"/g) ?? []
     expect(emissions.length, "pr-snapshot must carry pr_is_draft in view builder and output payload").toBeGreaterThanOrEqual(2)
+    // The live fetch must actually request the field, or every emission is null (Bugbot round 3).
+    expect(snapshot, "fetch()'s gh pr view field list must request isDraft").toContain("url,number,isDraft,")
   })
 
   test("stop summaries open with a pinned status line and carry a counted run recap", async () => {
