@@ -189,8 +189,9 @@ describe("cross-model-doc-review route safety (R17)", () => {
     expect(source).toContain('rm -rf "$PEER_WORKDIR"')
     // Zombies report as Z+ on macOS; exact "Z" alone leaves them "alive".
     expect(source).toContain('[ "${st#Z}" = "$st" ]')
-    // Empty ps state (Git Bash) must not skip the idle/hard poll.
-    expect(source).toContain('kill -0 "$1" 2>/dev/null')
+    // Match peer-job-runner: empty ps state => not alive; kill -0 only if ps missing.
+    expect(source).toContain("command -v ps")
+    expect(source).toContain("[ -n \"$st\" ] || return 1")
     // After reap no longer waits, TERM/INT must wait the peer leader.
     expect(source).toMatch(/reap "\$_term_peer"[\s\S]*?wait "\$_term_peer"/)
   })

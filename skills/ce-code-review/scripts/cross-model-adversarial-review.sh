@@ -482,16 +482,17 @@ TO_BIN="$(command -v gtimeout || command -v timeout || true)"
 # True while $1 is a live (non-zombie) process. kill -0 succeeds on zombies
 # until wait reaps them, so idle polls must not treat zombies as still running.
 # macOS/BSD often report defunct state as "Z+" (not bare "Z").
-# When ps cannot report state (e.g. Git Bash/MSYS), fall back to kill -0 so a
-# live peer is not treated dead and the idle/hard poll is not skipped.
+# Match peer-job-runner._pid_running: empty state after ps means not alive
+# (avoids zombie spin). Fall back to kill -0 only when ps itself is missing.
 peer_alive() {
   local st
-  st="$(ps -o state= -p "$1" 2>/dev/null | tr -d ' \n')"
-  if [ -n "$st" ]; then
-    [ "${st#Z}" = "$st" ]
-  else
-    kill -0 "$1" 2>/dev/null
+  kill -0 "$1" 2>/dev/null || return 1
+  if ! command -v ps >/dev/null 2>&1; then
+    return 0
   fi
+  st="$(ps -o state= -p "$1" 2>/dev/null | tr -d ' \n')"
+  [ -n "$st" ] || return 1
+  [ "${st#Z}" = "$st" ]
 }
 
 reap() {
