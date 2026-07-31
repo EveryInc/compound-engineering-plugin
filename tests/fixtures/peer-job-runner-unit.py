@@ -505,7 +505,7 @@ class PopenArgvBranch(unittest.TestCase):
                 )
 
     def test_windows_rewrites_env_prefixed_bash_after_unusual_assignment_names(self):
-        for assignment in ("1=x", "a-b=x"):
+        for assignment in ("=x", "1=x", "a-b=x"):
             with self.subTest(assignment=assignment):
                 argv = ["env", assignment, "bash", "script.sh"]
                 with windows_platform():

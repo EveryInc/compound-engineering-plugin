@@ -1150,8 +1150,7 @@ def _env_assignment_token(token: str, allow_option_like: bool = False) -> bool:
         or "=" not in token
     ):
         return False
-    name = token.split("=", 1)[0]
-    return bool(name)
+    return True
 
 
 def _env_option_advance(tok: str) -> int:

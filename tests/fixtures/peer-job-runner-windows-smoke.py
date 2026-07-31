@@ -406,7 +406,7 @@ class WindowsPeerJobSmoke(unittest.TestCase):
         bash = self._require_git_bash()
         env_exe = self._require_git_env(bash)
         stub = self._write_stub_sh()
-        for index, assignment in enumerate(("1=x", "a-b=x"), start=1):
+        for index, assignment in enumerate(("=x", "1=x", "a-b=x"), start=1):
             with self.subTest(assignment=assignment):
                 run_id = f"run-env-assignment-{index}"
                 started = self._run(
