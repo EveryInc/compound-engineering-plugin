@@ -97,7 +97,7 @@ Include only what a fresh agent cannot safely infer, drawing from:
 - Authoritative references
 - Unfinished work, blockers, and fragile local state
 - Verification performed and failures observed
-- Plausible next steps
+- Plausible next steps (exclusive forks as alternatives; related sequential work as one path — the same framing resume uses)
 - Relevant installed skills that may help, if any
 
 Keep the handoff pointer-first. Prefer repository-relative paths for repository files, anchored once by the repository, branch, and HEAD metadata. Use absolute paths only for machine-local capture context or uncommitted, untracked, ignored, or temporary state, and label them as machine-local.
@@ -131,6 +131,8 @@ Assess whether the source contains enough concrete continuity context to orient 
 
 The current user, the current project's active instructions, and verified current state are authoritative. Check only material claims that can be verified read-only within the user's present scope. If the handoff is stale, the worktree is gone, or current files disagree, name the mismatch and distinguish durable state from missing machine-local state.
 
-When the source is sufficient, return a concise orientation covering the recovered objective, meaningful progress, decisions, constraints, current state, unfinished work, and material drift. Then suggest one or more context-specific next actions and relevant installed skills when available.
+When the source is sufficient, return a concise orientation covering the recovered objective, meaningful progress, decisions, constraints, current state, unfinished work, and material drift. Then recommend how to continue from this handoff's actual continuity reason — research parked mid-thread, a pending decision, unfinished planning, ready implementation, a debug pause, review feedback, a no-repo conversation, or another shape evidenced by the source. Do not default to an implementation-resume menu. Name relevant installed skills only when they fit that reason.
 
-**MUST stop without acting until the user chooses.** Do not execute or mutate anything, invoke or start another workflow, reopen deferred scope, or mark the handoff consumed.
+Present a numbered choice list only for mutually exclusive forks (the user can pick at most one). Keep related pieces of one continuation — including ordered steps that belong together — under a single recommendation; do not promote them into competing options. If only one natural continuation fits, say that one and stop; do not invent alternate options for symmetry.
+
+**MUST stop without acting until the user confirms or redirects.** Do not execute or mutate anything, invoke or start another workflow, reopen deferred scope, or mark the handoff consumed.

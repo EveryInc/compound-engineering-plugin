@@ -2,7 +2,7 @@
 
 > Preserve the useful context from one agent session so a fresh agent can orient without the original transcript.
 
-`ce-handoff` is a two-direction session-continuity utility. A bare invocation creates a handoff. Resume intent reads any continuity source the user selects or helps the user find one, then explains the recovered state and offers logical ways to continue without taking action automatically.
+`ce-handoff` is a two-direction session-continuity utility. A bare invocation creates a handoff. Resume intent reads any continuity source the user selects or helps the user find one, then explains the recovered state and recommends how to continue without taking action automatically.
 
 The skill is prose-first and uses the active agent's available capabilities. It adds no transport script, mutable index, or lifecycle database.
 
@@ -17,7 +17,7 @@ The skill is prose-first and uses the active agent's available capabilities. It 
 | What does bare `/ce-handoff` do? | Always creates a new handoff |
 | Where does it write? | By default, `/tmp/compound-engineering-<effective-uid>/ce-handoff/<repo-namespace>/<topic>.md`; an explicit user path, format, or publication destination overrides the default |
 | What do I paste into the next session? | `/ce-handoff resume <path-or-URL>` |
-| What happens after resume? | The agent summarizes the recovered context, suggests one or more next actions, and waits for the user |
+| What happens after resume? | The agent summarizes the recovered context, recommends a continuation matched to that handoff's reason (numbered only for real forks), and waits for the user |
 
 ---
 
@@ -58,7 +58,7 @@ By default, the skill writes one pointer-first Markdown document with:
 - Meaningful progress, decisions, constraints, blockers, and verification
 - References to authoritative plans, issues, commits, diffs, docs, and repository files
 - Clear labels for machine-local paths and fragile worktree state
-- Plausible next steps for a receiving agent to consider
+- Plausible next steps for a receiving agent to consider (exclusive forks as alternatives; related sequential work as one path)
 
 Only managed-store frontmatter has a fixed contract because default discovery depends on it. The body has no closed section schema: the agent may add sections of its own or combine, rename, reorder, and omit the examples to communicate the particular session clearly to the next agent.
 
@@ -105,8 +105,8 @@ After reading the selected source, the agent:
 1. Checks whether the material contains enough concrete context to recover a meaningful objective or current state. If not, it says what is missing and waits for the user to supplement it or choose another source.
 2. Summarizes the recovered objective, progress, decisions, constraints, and unfinished work when the material is sufficient.
 3. Names material drift, such as a missing worktree or repository state that no longer matches the handoff.
-4. Suggests one or more context-specific next actions and relevant installed skills.
-5. Stops and waits for the user to choose.
+4. Recommends how to continue from the handoff's actual continuity reason (not a default implementation-resume menu) and names fitting installed skills. Numbered choices appear only for mutually exclusive forks; related pieces of one continuation stay under a single recommendation; do not invent alternate options for symmetry.
+5. Stops and waits for the user to confirm or redirect.
 
 Selection authorizes reading the selected source only. It does not authorize commands, file changes, remote-link traversal, unrelated local-file access, or another workflow.
 
@@ -154,7 +154,7 @@ Skip it when:
 
 `ce-handoff` is a utility rather than a fixed pipeline stage. It can capture any useful session: research, brainstorming, planning, implementation, debugging, review, or a conversation with no repository at all.
 
-On resume, it suggests relevant next steps from the selected source and current context. It does not automatically invoke `ce-plan`, `ce-work`, `ce-debug`, or any other workflow.
+On resume, it recommends a continuation matched to the selected source's continuity reason and current context. It does not automatically invoke `ce-plan`, `ce-work`, `ce-debug`, or any other workflow.
 
 ---
 
