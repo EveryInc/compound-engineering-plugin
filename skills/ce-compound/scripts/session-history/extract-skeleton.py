@@ -37,6 +37,11 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+# Session logs are UTF-8; force UTF-8 I/O so Windows' cp1252 default can't crash
+# on non-Latin-1 content like emoji, smart quotes, or box-drawing (#1258).
+sys.stdin.reconfigure(encoding="utf-8", errors="replace")
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 # Capture-and-redirect when --output is set: prints in the rest of the script
 # go to the buffer; at the end the buffer is written to PATH and a status
 # line is emitted to the real stdout.
@@ -569,7 +574,7 @@ print(json.dumps({"_meta": True, **stats}))
 if args.output:
     body = sys.stdout.getvalue()
     sys.stdout = _original_stdout
-    with open(args.output, "w") as f:
+    with open(args.output, "w", encoding="utf-8") as f:
         f.write(body)
     bytes_written = os.path.getsize(args.output)
     print(json.dumps({"_meta": True, "wrote": args.output, "bytes": bytes_written, **stats}))

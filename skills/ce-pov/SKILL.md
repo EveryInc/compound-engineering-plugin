@@ -14,6 +14,20 @@ The subject of this point of view — the thing to judge — is the input this s
 
 **Note: The current year is 2026.** Use this when weighting source recency and dating any captured record.
 
+## Setup
+
+Run this once at the start of this invocation, before any subagent dispatch, and follow the directives it prints — except where one conflicts with this skill's own rules on asking the user questions, whether those rules are scoped to a non-interactive mode or apply in every mode, in which case this skill's rules win and no blocking question is asked. Do not rerun it within the same invocation; a later invocation of this or any other skill runs its own. If no Node runtime is available the skill proceeds unchanged.
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
+if [ -n "$NODE" ]; then
+"$NODE" "$SKILL_DIR/scripts/context.mjs" || echo "context script failed; continue with the skill's normal behavior";
+else
+echo "no Node runtime; continue with the skill's normal behavior";
+fi
+```
+
 ## The one rule that is the whole moat
 
 **Do not issue a POV you did not earn against the project's own context.** Generic web research already covers "tell me about X"; the differentiator is never "research the web" — it is the refusal to answer in the abstract. Every subject must clear the **project floor** in `references/method.md`. An external-adoption verdict must also clear the full **external floor**; a document or approach-set POV must externally verify any external claim that is load-bearing to its bottom line. Neither the conversation nor the user's own assertions substitute for grounding.
@@ -80,7 +94,7 @@ Create the scratch dir once, and reuse the echoed path for every scout this run:
 ```bash
 SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
 if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
-install -d -m 700 "$SCRATCH_ROOT" || exit 1;
+(umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
 if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
 chmod 700 "$SCRATCH_ROOT" || exit 1;
 SCRATCH_DIR="$SCRATCH_ROOT/ce-pov/$(openssl rand -hex 4)";

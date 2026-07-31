@@ -57,8 +57,8 @@ Without active maintenance, the knowledge store loses trustworthiness. Future ag
 `ce-compound-refresh` runs as a structured review with five explicit outcomes:
 
 - **Keep** — accurate and useful; no edit
-- **Update** — references drifted but the solution is still right; apply in-place fixes
-- **Consolidate** — two docs overlap heavily; merge unique content into the canonical doc, delete the subsumed one
+- **Update** — references drifted but the solution is still right; apply in-place fixes, including relocating a doc whose directory and frontmatter category unambiguously disagree
+- **Consolidate** — two docs overlap heavily; merge unique content into the canonical doc, delete the subsumed one. Its inverse, **Split**, breaks one multi-problem doc into focused successors when sub-topics have independent retrieval value
 - **Replace** — the old guidance is now misleading; write a successor (via subagent for context isolation) and delete the old
 - **Delete** — code is gone, problem domain is gone, no inbound substantive citations; remove the file (git history is the archive)
 
@@ -78,7 +78,7 @@ Most "review the docs" prompts collapse into "is this still right?" → vague an
 
 ### 3. Document-set analysis — catches what per-doc review misses
 
-Phase 1.75 evaluates the document set as a whole: overlap detection across five dimensions (problem statement, solution shape, referenced files, prevention rules, root cause), supersession signals (newer canonical doc subsumes older narrow precursor), canonical-doc identification per topic cluster, and cross-doc conflict checks. Two docs covering the same ground will eventually drift apart and contradict each other — that's worse than a slightly longer single doc.
+Phase 1.75 evaluates the document set as a whole: overlap detection across five dimensions (problem statement, solution shape, referenced files, prevention rules, root cause), supersession signals (newer canonical doc subsumes older narrow precursor), canonical-doc identification per topic cluster, cross-doc conflict checks, and a report-only category-shape signal (directories spanning multiple themes, near-empty categories, misfiled docs). Two docs covering the same ground will eventually drift apart and contradict each other — that's worse than a slightly longer single doc.
 
 ### 4. Replace via subagent — context isolation
 
@@ -213,6 +213,9 @@ In interactive mode, you'll see the recommendation with evidence before deletion
 
 **Why delete instead of archive?**
 Archive folders accumulate and pollute search results, nobody reads them, and they create the illusion of "we'll come back to this" without actually doing it. Git history preserves every deleted file. `git log --diff-filter=D -- docs/solutions/` finds anything you need to recover.
+
+**Does it reorganize the solutions folder?**
+Only the safe subset, with a deliberate asymmetry: content drift is auto-fixed, structural drift is auto-fixed only when it is as falsifiable as content drift. Unambiguous misfilings are relocated via `git mv` plus inbound-link rewrite — in headless mode only under a four-condition gate mirroring auto-delete (frontmatter/directory disagree, content clearly resolves the direction, target category exists, all citations in-repo); anything short of that is recommended, not applied. One multi-problem doc can be split into focused successors (high bar; always recommend-only in headless — the split bar is a retrieval-value judgment with no ground truth). Catalog README rows are updated whenever a listed doc is removed or renamed. Directory-level restructuring — renaming categories, creating new ones, re-taxonomizing — is never automated; Phase 1.75 reports category-shape observations as recommendations.
 
 **Does it handle pattern docs differently from learning docs?**
 Yes — pattern docs are derived guidance, not incident-level learnings. The five outcomes apply, but with different evidence: Keep means underlying learnings still support the rule; Replace means the synthesis is misleading and a different generalization is needed based on refreshed learnings.

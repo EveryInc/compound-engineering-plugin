@@ -428,5 +428,50 @@ class BinaryRoundTrip(unittest.TestCase):
         self.assertEqual(MOD.read_owned(path, 4096), payload)  # nor truncated
 
 
+class HardDefaultFromCrossModel(unittest.TestCase):
+    """Supervisor hard window derives from CROSS_MODEL_HARD_SECS (#1271).
+
+    Explicit CE_PEER_HARD_SECS still wins (ce-work / elevation). Empty string
+    is treated as unset by _env_num, so tests can clear without deleting keys
+    that a parent process may have set.
+    """
+
+    def test_floor_when_knob_unset(self):
+        with mock.patch.dict(
+            os.environ, {"CE_PEER_HARD_SECS": "", "CROSS_MODEL_HARD_SECS": ""}
+        ):
+            self.assertEqual(MOD.cfg()["hard"], 1230.0)
+
+    def test_raises_with_knob(self):
+        with mock.patch.dict(
+            os.environ,
+            {"CE_PEER_HARD_SECS": "", "CROSS_MODEL_HARD_SECS": "2000"},
+        ):
+            self.assertEqual(MOD.cfg()["hard"], 2030.0)
+
+    def test_floor_beats_low_knob(self):
+        with mock.patch.dict(
+            os.environ,
+            {"CE_PEER_HARD_SECS": "", "CROSS_MODEL_HARD_SECS": "100"},
+        ):
+            self.assertEqual(MOD.cfg()["hard"], 1230.0)
+
+    def test_explicit_ce_peer_hard_wins(self):
+        with mock.patch.dict(
+            os.environ,
+            {"CE_PEER_HARD_SECS": "7200", "CROSS_MODEL_HARD_SECS": "2000"},
+        ):
+            self.assertEqual(MOD.cfg()["hard"], 7200.0)
+
+    def test_empty_ce_peer_hard_clears_stale_ambient(self):
+        # Cross-model start prefixes use CE_PEER_HARD_SECS= so a leftover
+        # numeric value cannot undercut derivation (#1271 / Bugbot).
+        with mock.patch.dict(
+            os.environ,
+            {"CE_PEER_HARD_SECS": "", "CROSS_MODEL_HARD_SECS": "2000"},
+        ):
+            self.assertEqual(MOD.cfg()["hard"], 2030.0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

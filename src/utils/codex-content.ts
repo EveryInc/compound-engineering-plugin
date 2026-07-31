@@ -45,7 +45,7 @@ export function transformContentForCodex(
 
     // For namespaced calls like "compound-engineering:research:repo-research-analyst",
     // use only the final segment as the skill name when no custom agent target exists.
-    const finalSegment = agentName.includes(":") ? agentName.split(":").pop()! : agentName
+    const finalSegment = agentName.split(":").pop()!
     const skillName = normalizeCodexName(finalSegment)
     return trimmedArgs
       ? `${prefix}Use the $${skillName} skill to: ${trimmedArgs}`
@@ -53,42 +53,60 @@ export function transformContentForCodex(
   })
 
   const backtickedAgentPattern = /`([a-z][a-z0-9-]*(?::[a-z][a-z0-9-]*){1,2})`/gi
-  result = result.replace(backtickedAgentPattern, (match, agentName: string) => {
-    const agentTarget = resolveAgentTarget(agentName, agentTargets)
-    return agentTarget ? `custom agent \`${agentTarget}\`` : match
-  })
+  const slashCommandPattern = /(?<![:\w>}\]\)\/])\/([a-z][a-z0-9_:-]*?)(?=[\s,."')\]}`]|$)/gi
+  const agentRefPattern = /(?<!\w)@([a-z][a-z0-9-]*-(?:agent|reviewer|researcher|analyst|specialist|oracle|sentinel|guardian|strategist))(?![\w-])/gi
+  result = transformOutsideHttpUrls(result, (segment) => {
+    let transformed = segment
+    transformed = transformed.replace(backtickedAgentPattern, (match, agentName: string) => {
+      const agentTarget = resolveAgentTarget(agentName, agentTargets)
+      return agentTarget ? `custom agent \`${agentTarget}\`` : match
+    })
+    transformed = transformed.replace(slashCommandPattern, (match, commandName: string) => {
+      if (isReservedPathRoot(commandName)) return match
 
-  const slashCommandPattern = /(?<![:\w>}\]\)])\/([a-z][a-z0-9_:-]*?)(?=[\s,."')\]}`]|$)/gi
-  result = result.replace(slashCommandPattern, (match, commandName: string) => {
-    if (commandName.includes("/")) return match
-    if (isReservedPathRoot(commandName)) return match
-
-    const normalizedName = normalizeCodexName(commandName)
-    if (promptTargets[normalizedName]) {
-      return `/prompts:${promptTargets[normalizedName]}`
-    }
-    if (skillTargets[normalizedName]) {
-      return `the ${skillTargets[normalizedName]} skill`
-    }
-    if (unknownSlashBehavior === "preserve") {
-      return match
-    }
-    return `/prompts:${normalizedName}`
-  })
-
-  result = result
-    .replace(/~\/\.claude\//g, "~/.codex/")
-    .replace(/\.claude\//g, ".codex/")
-
-  const agentRefPattern = /@([a-z][a-z0-9-]*-(?:agent|reviewer|researcher|analyst|specialist|oracle|sentinel|guardian|strategist))/gi
-  result = result.replace(agentRefPattern, (_match, agentName: string) => {
-    const agentTarget = resolveAgentTarget(agentName, agentTargets)
-    if (agentTarget) return `custom agent \`${agentTarget}\``
-    const skillName = normalizeCodexName(agentName)
-    return `$${skillName} skill`
+      const normalizedName = normalizeCodexName(commandName)
+      if (promptTargets[normalizedName]) {
+        return `/prompts:${promptTargets[normalizedName]}`
+      }
+      if (skillTargets[normalizedName]) {
+        return `the ${skillTargets[normalizedName]} skill`
+      }
+      if (unknownSlashBehavior === "preserve") {
+        return match
+      }
+      return `/prompts:${normalizedName}`
+    })
+    transformed = transformed
+      .replace(/~\/\.claude\//g, "~/.codex/")
+      .replace(/\.claude\//g, ".codex/")
+    transformed = transformed.replace(agentRefPattern, (_match, agentName: string) => {
+      const agentTarget = resolveAgentTarget(agentName, agentTargets)
+      if (agentTarget) return `custom agent \`${agentTarget}\``
+      const skillName = normalizeCodexName(agentName)
+      return `$${skillName} skill`
+    })
+    return transformed
   })
 
   return result
+}
+
+function transformOutsideHttpUrls(
+  value: string,
+  transform: (segment: string) => string,
+): string {
+  const urlPattern = /https?:\/\/\S+/gi
+  let output = ""
+  let cursor = 0
+  let match: RegExpExecArray | null
+
+  while ((match = urlPattern.exec(value))) {
+    output += transform(value.slice(cursor, match.index))
+    output += match[0]
+    cursor = match.index + match[0].length
+  }
+
+  return output + transform(value.slice(cursor))
 }
 
 function resolveAgentTarget(value: string, agentTargets: Record<string, string>): string | null {

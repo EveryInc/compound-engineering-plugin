@@ -15,6 +15,20 @@ A corpus that degrades on a new model is a measurement problem before it is a wr
 
 **Non-goal:** word reduction. Leanness and performance are separate programs that happen to share a corpus, and only one of them is the result. Report completion, not word count.
 
+## Setup
+
+Run this once at the start of this invocation, before any subagent dispatch, and follow the directives it prints — except where one conflicts with this skill's own rules on asking the user questions, whether those rules are scoped to a non-interactive mode or apply in every mode, in which case this skill's rules win and no blocking question is asked. Do not rerun it within the same invocation; a later invocation of this or any other skill runs its own. If no Node runtime is available the skill proceeds unchanged.
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
+if [ -n "$NODE" ]; then
+"$NODE" "$SKILL_DIR/scripts/context.mjs" || echo "context script failed; continue with the skill's normal behavior";
+else
+echo "no Node runtime; continue with the skill's normal behavior";
+fi
+```
+
 ## Phase 0: the measurement gate — check this first
 
 This skill cannot run without a way to observe behavior. Check for all three, and name whichever is missing:
@@ -51,6 +65,8 @@ Expect the floor to be wider than intuition suggests. If a corpus produces a lar
 One agent per skill, each reading that skill's full directory, proposing cuts with a target and a reason. Then a second agent per skill whose job is the opposite: **defend the existing prose** using the project's own documented learnings, its tests, and git history.
 
 Read `references/corpus-audit.md` for the dispatch shape, the finding schema, and the classes worth hunting.
+
+**These two passes require independent contexts.** The defense is only worth running when it can genuinely disagree with the proposal, which one context arguing both sides cannot do. If the host exposes no way to run them as separate agents, report that as a blocker and stop the audit — do not run proposal and defense inline and present the result as an audit.
 
 Two rules make the difference between an audit and a demolition:
 

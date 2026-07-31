@@ -31,7 +31,7 @@ const NEVER_FLAGS = ["--yolo", "--force", "-f", "--always-approve", "--dangerous
 const REAL_TOOLS = [
   "bash", "sh", "jq", "python3", "date", "sed", "tr", "cat", "wc", "dirname",
   "basename", "mktemp", "env", "perl", "timeout", "gtimeout", "sleep", "rm", "mv",
-  "chmod", "cp", "printf", "kill", "mkdir",
+  "chmod", "cp", "printf", "kill", "mkdir", "grep", "tail", "ps",
 ]
 let resolved: Array<[string, string]> | undefined
 function realTools(): Array<[string, string]> {
@@ -101,18 +101,34 @@ describe("ce-pov cross-model route safety", () => {
     expect(emit("claude")).toContain("--safe-mode")
     expect(emit("claude")).toContain("--disable-slash-commands")
     expect(emit("claude")).not.toContain("--bare")
+    expect(emit("claude")).toContain("--output-format stream-json")
+    expect(emit("claude")).toContain("--verbose")
     expect(emit("grok-cli")).toContain("--cwd <read-root>")
     expect(emit("grok-cli")).toContain("--deny Edit")
     expect(emit("grok-cli")).toContain("--deny Write")
     expect(emit("grok-cli")).toContain("--deny Bash")
+    expect(emit("grok-cli")).toContain("--output-format json")
+    expect(emit("grok-cli")).not.toContain("stream-json")
     for (const route of ["grok-cursor", "cursor", "composer"]) {
       expect(emit(route)).toContain("--mode ask")
       expect(emit(route)).toContain("--sandbox enabled")
       expect(emit(route)).toContain("--workspace <read-root>")
+      expect(emit(route)).toContain("--output-format stream-json")
     }
     expect(emit("cursor")).not.toContain("--model")
     expect(emit("composer")).toContain("--model")
     expect(emit("grok-cursor")).toContain("--model cursor-grok-4.5-high")
+    const source = readFileSync(SCRIPT, "utf8")
+    // Zombies report as Z+ on macOS; exact "Z" alone leaves them "alive".
+    expect(source).toContain('[ "${st#Z}" = "$st" ]')
+    // Match peer-job-runner: empty ps state => not alive; kill -0 only if ps missing.
+    expect(source).toContain("command -v ps")
+    expect(source).toContain("[ -n \"$st\" ] || return 1")
+    // Idle polls must use peer_alive (not bare kill -0) so zombies exit promptly.
+    expect(source).toContain('while peer_alive "$pid"; do')
+    expect(source).not.toMatch(/while kill -0 "\$pid"/)
+    // After reap no longer waits, TERM/INT must wait the peer leader.
+    expect(source).toMatch(/reap "\$_term_peer"[\s\S]*?wait "\$_term_peer"/)
   })
 
   test("same-family model override changes only model-specific routes", () => {

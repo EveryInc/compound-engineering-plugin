@@ -1,0 +1,10 @@
+# Bundled skill scripts run under POSIX bash/python; force LF so a CRLF
+# checkout (e.g. core.autocrlf=true on Windows) can't break them under WSL
+# or Linux bash. See #1251.
+*.sh text eol=lf
+*.py text eol=lf
+
+# Bundled scripts with no extension (shebang bash/python) need the same pin.
+skills/ce-babysit-pr/scripts/pr-snapshot text eol=lf
+skills/ce-resolve-pr-feedback/scripts/* text eol=lf
+skills/ce-setup/scripts/check-health text eol=lf

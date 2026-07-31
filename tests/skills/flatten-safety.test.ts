@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, setDefaultTimeout, test } from "bun:test"
 import { execFileSync } from "child_process"
 import { readFileSync } from "fs"
 import { Glob } from "bun"
@@ -22,6 +22,11 @@ import { extractBashBlocks } from "./fenced-blocks"
 // following command is a silent no-op, not a parse error, so `bash -n` cannot see it — keep
 // executable comments out of runnable blocks (put them in surrounding prose) rather than
 // relying on this lint to flag them.
+
+// One `bash -n` subprocess per fenced block across every skill. Fast alone,
+// but under `bun test --parallel` it contends for cores and crosses the 5000ms
+// default; raise the bound rather than thinning coverage.
+setDefaultTimeout(30_000)
 
 const SKILLS_DIR = path.join(import.meta.dir, "..", "..", "skills")
 
