@@ -423,6 +423,7 @@ class WindowsPeerJobSmoke(unittest.TestCase):
                     ["wait", "--skill", "ce-doc-review", "--max-secs", "20", job_id]
                 )
                 self.assertEqual(waited.returncode, 0, waited.stderr)
+                self.assertEqual(waited.stdout.strip(), "done")
 
     def test_env_option_terminator_allows_hyphen_prefixed_assignments(self):
         bash = self._require_git_bash()
@@ -454,14 +455,13 @@ class WindowsPeerJobSmoke(unittest.TestCase):
                     ["wait", "--skill", "ce-doc-review", "--max-secs", "20", job_id]
                 )
                 self.assertEqual(waited.returncode, 0, waited.stderr)
+                self.assertEqual(waited.stdout.strip(), "done")
 
     def test_env_exact_no_operand_long_options_rewrite_to_git_bash(self):
         bash = self._require_git_bash()
         env_exe = self._require_git_env(bash)
         stub = self._write_stub_sh()
-        for index, option in enumerate(
-            ("--ignore-environment", "--null", "--debug"), start=1
-        ):
+        for index, option in enumerate(("--ignore-environment", "--debug"), start=1):
             with self.subTest(option=option):
                 run_id = f"run-env-long-option-{index}"
                 started = self._run(
@@ -487,6 +487,7 @@ class WindowsPeerJobSmoke(unittest.TestCase):
                     ["wait", "--skill", "ce-doc-review", "--max-secs", "20", job_id]
                 )
                 self.assertEqual(waited.returncode, 0, waited.stderr)
+                self.assertEqual(waited.stdout.strip(), "done")
 
     def test_env_split_string_forms_fail_before_detach(self):
         bash = self._require_git_bash()
@@ -522,6 +523,7 @@ class WindowsPeerJobSmoke(unittest.TestCase):
             ["--chd", ".", "bash"],
             ["--unse", "FOO", "bash"],
             ["--split-s", "bash -c 'exit 0'"],
+            ["--null", "bash", "-c", "exit 0"],
             ["--unknown", "bash"],
         )
         for index, env_args in enumerate(cases, start=1):

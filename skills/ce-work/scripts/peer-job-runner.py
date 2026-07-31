@@ -1167,7 +1167,7 @@ def _env_option_advance(tok: str) -> int:
         return 2
     if tok.startswith(("--unset=", "--chdir=")):
         return 1
-    if tok in ("--ignore-environment", "--null", "--debug"):
+    if tok in ("--ignore-environment", "--debug"):
         return 1
     if not tok.startswith("-"):
         return 1

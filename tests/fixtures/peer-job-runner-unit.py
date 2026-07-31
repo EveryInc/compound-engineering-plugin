@@ -858,6 +858,7 @@ class WindowsPosixShellResolve(unittest.TestCase):
             ["env", "--chd", "/tmp", "bash", "script.sh"],
             ["env", "--unse", "FOO", "bash", "script.sh"],
             ["env", "--split-s", "bash script.sh"],
+            ["env", "--null", "bash", "script.sh"],
             ["env", "--unknown", "bash", "script.sh"],
         )
         with windows_platform():
@@ -873,7 +874,7 @@ class WindowsPosixShellResolve(unittest.TestCase):
                     self.assertIn("unsupported env long option", str(ctx.exception))
 
     def test_env_bash_index_accepts_exact_no_operand_long_options(self):
-        for option in ("--ignore-environment", "--null", "--debug"):
+        for option in ("--ignore-environment", "--debug"):
             with self.subTest(option=option):
                 self.assertEqual(
                     MOD._env_bash_index(["env", option, "bash", "script.sh"]),
@@ -881,7 +882,7 @@ class WindowsPosixShellResolve(unittest.TestCase):
                 )
 
     def test_windows_popen_rewrites_bash_after_exact_no_operand_long_options(self):
-        for option in ("--ignore-environment", "--null", "--debug"):
+        for option in ("--ignore-environment", "--debug"):
             argv = ["env", option, "bash", "script.sh"]
             with self.subTest(option=option):
                 with windows_platform():
