@@ -9,8 +9,16 @@ import path from "node:path"
 // Kept out of ce-babysit-pr-snapshot.test.ts so this stays a fast file.
 const SCRIPT = path.join(import.meta.dir, "..", "skills", "ce-babysit-pr", "scripts", "pr-snapshot")
 
+// Probe by execution, not presence: on native Windows `python3` can be the
+// Microsoft Store stub (a real file on PATH that exits non-zero). See
+// docs/solutions/conventions/resolve-python-interpreter-not-python3.md.
+const PYTHON = ["python3", "python", "py"].find(
+  (cand) => spawnSync(cand, ["-c", ""], { encoding: "utf8" }).status === 0,
+)
+if (!PYTHON) throw new Error("no working Python 3 interpreter on PATH (tried python3, python, py)")
+
 function run(args: string[]) {
-  return spawnSync("python3", [SCRIPT, ...args], { encoding: "utf8" })
+  return spawnSync(PYTHON, [SCRIPT, ...args], { encoding: "utf8" })
 }
 
 describe("pr-snapshot watch bootstrap refusal", () => {

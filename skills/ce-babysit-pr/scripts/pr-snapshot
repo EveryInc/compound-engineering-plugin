@@ -715,6 +715,7 @@ def fetch(pr, repo):
     head = v.get("headRefOid")
     return {
         "pr_state": v.get("state"),
+        "pr_is_draft": v.get("isDraft"),
         "mergeable": v.get("mergeable"),
         "merge_state_status": v.get("mergeStateStatus"),
         "review_decision": v.get("reviewDecision") or None,
@@ -1422,6 +1423,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
 
     return {
         "pr_state": cur["pr_state"],
+        "pr_is_draft": cur.get("pr_is_draft"),
         "mergeable": cur["mergeable"],
         "merge_state_status": cur["merge_state_status"],
         "review_decision": cur["review_decision"],

@@ -528,6 +528,13 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(boundary).toBeDefined()
     expect(boundary).toContain("A calling skill's automatic handoff is neither")
     expect(boundary).toContain("report the draft status and stop")
+    // Callee-side enforcement: Step 1 resolves draft state pre-bootstrap, and the snapshot
+    // helper emits it — from the current-view builder through the output payload — so every
+    // caller (LFG's auto-handoff included) hits the stop before a watcher is armed.
+    expect(babysit, "Step 1 must resolve draft state via pr_is_draft").toContain("pr_is_draft")
+    const snapshot = await readRepoFile("skills/ce-babysit-pr/scripts/pr-snapshot")
+    const emissions = snapshot.match(/"pr_is_draft"/g) ?? []
+    expect(emissions.length, "pr-snapshot must carry pr_is_draft in view builder and output payload").toBeGreaterThanOrEqual(2)
   })
 
   test("stop summaries open with a pinned status line and carry a counted run recap", async () => {
