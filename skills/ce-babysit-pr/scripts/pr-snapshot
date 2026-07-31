@@ -1286,9 +1286,6 @@ def diff(state, cur, now=None, advance_trajectory=True):
 
     prior_threads = state.get("threads", {})
     prior_feedback = state.get("feedback", {})
-    prior_thread_activity = {
-        tid: _prior_thread_activity_identity(item) for tid, item in prior_threads.items()
-    }
     prior_feedback_activity = {
         fid: item.get("edit_id") for fid, item in prior_feedback.items()
     }
@@ -1368,7 +1365,9 @@ def diff(state, cur, now=None, advance_trajectory=True):
     #     is still unresolved is reactivated once its last-comment identity moves past the one we
     #     acted on (acted_identity) — so a reviewer re-engaging is not silently dropped, yet the
     #     acting loop's own reply (captured as the baseline on first observation) does not
-    #     re-trigger. A `needs-human` thread stays parked (open_needs_human keeps merge-ready from
+    #     re-trigger. Its disappearance is likewise the resolver confirming the dispatched work,
+    #     not fresh review activity; removals of open or `needs-human` threads remain external.
+    #     A `needs-human` thread stays parked (open_needs_human keeps merge-ready from
     #     firing) until a *human* answers it — a later reply/edit past that same baseline reopens and
     #     wakes it — or an explicit `mark --disposition open` forces it.
     #   - Feedback (top-level comments + review bodies): no remote "resolve" exists, so an item
@@ -1386,6 +1385,11 @@ def diff(state, cur, now=None, advance_trajectory=True):
     current_thread_activity = {
         item.get("thread_id"): _thread_identity(item)
         for item in cur["threads"] if item.get("thread_id")
+    }
+    prior_thread_activity = {
+        tid: _prior_thread_activity_identity(item) for tid, item in prior_threads.items()
+        if not (item.get("disposition") == DISPOSITION_DISPATCHED
+                and tid not in current_thread_activity)
     }
     current_feedback_activity = {
         item.get("id"): item.get("edit_id")

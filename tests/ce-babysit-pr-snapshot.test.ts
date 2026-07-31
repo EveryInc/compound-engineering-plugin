@@ -2229,6 +2229,37 @@ m.cmd_snapshot(args)
     expect(wakeReason(reviewerObserved)).toBe("actionable")
   })
 
+  test("approval drain ignores loop-owned thread resolution but wakes for a needs-human removal", () => {
+    const gated = {
+      ...FAILING,
+      head_sha: "gated-h1",
+      merge_state_status: "UNSTABLE",
+      checks: [{ key: "Track", name: "Track", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+      threads: [{ thread_id: "T1", last_comment_id: "C1", last_comment_at: "C1" }],
+      feedback: [],
+      awaiting_approval: 1,
+    }
+    const resolved = fetchFile(dir, "approval-drain-resolved.json", { ...gated, threads: [] })
+
+    const dispatchedState = path.join(dir, "approval-drain-dispatched-resolution")
+    snapshot(dispatchedState, fetchFile(dir, "approval-drain-dispatched-start.json", gated))
+    mark(dispatchedState, ["--thread", "T1", "--disposition", "dispatched", "--fetch-file",
+      fetchFile(dir, "approval-drain-dispatched-baseline.json", gated)])
+    patchState(dispatchedState, { blocked_external_review_last_activity_at: isoAgo(10) })
+    const loopResolved = snapshot(dispatchedState, resolved)
+    expect(loopResolved.blocked_external_review_moved_this_tick).toBe(false)
+    expect(loopResolved.blocked_external_review_quiet_seconds).toBeGreaterThanOrEqual(1)
+
+    const needsHumanState = path.join(dir, "approval-drain-needs-human-removal")
+    snapshot(needsHumanState, fetchFile(dir, "approval-drain-needs-human-start.json", gated))
+    mark(needsHumanState, ["--thread", "T1", "--disposition", "needs-human", "--fetch-file",
+      fetchFile(dir, "approval-drain-needs-human-baseline.json", gated)])
+    patchState(needsHumanState, { blocked_external_review_last_activity_at: isoAgo(10) })
+    const externallyRemoved = snapshot(needsHumanState, resolved)
+    expect(externallyRemoved.blocked_external_review_moved_this_tick).toBe(true)
+    expect(externallyRemoved.blocked_external_review_quiet_seconds).toBeLessThan(2)
+  })
+
   test("approval review-drain wakes terminally after its selected quiet bound", () => {
     const sd = path.join(dir, "approval-drain-expiry")
     const gated = {
