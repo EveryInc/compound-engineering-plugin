@@ -971,7 +971,17 @@ class WindowsPosixShellResolve(unittest.TestCase):
                     self.assertIn("unsupported env long option", str(ctx.exception))
 
     def test_env_bash_index_accepts_exact_no_operand_long_options(self):
-        for option in ("--ignore-environment", "--debug"):
+        for option in (
+            "--ignore-environment",
+            "--debug",
+            "--block-signal",
+            "--block-signal=PIPE",
+            "--default-signal",
+            "--default-signal=PIPE",
+            "--ignore-signal",
+            "--ignore-signal=PIPE",
+            "--list-signal-handling",
+        ):
             with self.subTest(option=option):
                 self.assertEqual(
                     MOD._env_bash_index(["env", option, "bash", "script.sh"]),
@@ -979,7 +989,17 @@ class WindowsPosixShellResolve(unittest.TestCase):
                 )
 
     def test_windows_popen_rewrites_bash_after_exact_no_operand_long_options(self):
-        for option in ("--ignore-environment", "--debug"):
+        for option in (
+            "--ignore-environment",
+            "--debug",
+            "--block-signal",
+            "--block-signal=PIPE",
+            "--default-signal",
+            "--default-signal=PIPE",
+            "--ignore-signal",
+            "--ignore-signal=PIPE",
+            "--list-signal-handling",
+        ):
             argv = ["env", option, "bash", "script.sh"]
             with self.subTest(option=option):
                 with windows_platform():

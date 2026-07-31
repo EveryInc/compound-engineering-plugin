@@ -527,7 +527,18 @@ class WindowsPeerJobSmoke(unittest.TestCase):
         bash = self._require_git_bash()
         env_exe = self._require_git_env(bash)
         stub = self._write_stub_sh()
-        for index, option in enumerate(("--ignore-environment", "--debug"), start=1):
+        options = (
+            "--ignore-environment",
+            "--debug",
+            "--block-signal",
+            "--block-signal=PIPE",
+            "--default-signal",
+            "--default-signal=PIPE",
+            "--ignore-signal",
+            "--ignore-signal=PIPE",
+            "--list-signal-handling",
+        )
+        for index, option in enumerate(options, start=1):
             with self.subTest(option=option):
                 run_id = f"run-env-long-option-{index}"
                 started = self._run(

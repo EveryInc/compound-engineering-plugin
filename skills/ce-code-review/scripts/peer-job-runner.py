@@ -1160,7 +1160,8 @@ def _env_option_advance(tok: str) -> int:
     GNU env options that take a separate operand: -u/--unset, -C/--chdir.
     Attached `--name=value` forms are a single slot.
     Short options may be clustered. No-operand flags (-i/-v and their exact
-    long aliases) advance one slot; -u/-C consume the rest of the token as an
+    long aliases and signal-handling options) advance one slot; -u/-C consume
+    the rest of the token as an
     attached operand or the next argv slot. Unsupported options fail closed
     before worker detach.
     (#1292 Codex P2)
@@ -1170,6 +1171,16 @@ def _env_option_advance(tok: str) -> int:
     if tok.startswith(("--unset=", "--chdir=")):
         return 1
     if tok in ("--ignore-environment", "--debug"):
+        return 1
+    if tok == "--list-signal-handling" or tok in (
+        "--block-signal",
+        "--default-signal",
+        "--ignore-signal",
+    ) or tok.startswith((
+        "--block-signal=",
+        "--default-signal=",
+        "--ignore-signal=",
+    )):
         return 1
     if tok == "--null":
         raise RunnerError(
