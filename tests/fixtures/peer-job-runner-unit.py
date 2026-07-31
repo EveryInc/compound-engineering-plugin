@@ -17,7 +17,6 @@ import io
 import json
 import ntpath
 import os
-import shlex
 import stat as stat_mod
 import subprocess
 import sys
@@ -504,6 +503,36 @@ class PopenArgvBranch(unittest.TestCase):
                     ],
                 )
 
+    def test_windows_rewrites_env_prefixed_bash_after_unusual_assignment_names(self):
+        for assignment in ("1=x", "a-b=x"):
+            with self.subTest(assignment=assignment):
+                argv = ["env", assignment, "bash", "script.sh"]
+                with windows_platform():
+                    with mock.patch.object(
+                        MOD,
+                        "_resolve_windows_posix_shell",
+                        return_value=self.GIT_BASH,
+                    ):
+                        self.assertEqual(
+                            MOD._popen_argv(argv),
+                            ["env", assignment, self.GIT_BASH, "script.sh"],
+                        )
+
+    def test_windows_rewrites_env_assignment_after_option_terminator(self):
+        for assignment in ("-S=x", "--split-string=x"):
+            with self.subTest(assignment=assignment):
+                argv = ["env", "--", assignment, "bash", "script.sh"]
+                with windows_platform():
+                    with mock.patch.object(
+                        MOD,
+                        "_resolve_windows_posix_shell",
+                        return_value=self.GIT_BASH,
+                    ):
+                        self.assertEqual(
+                            MOD._popen_argv(argv),
+                            ["env", "--", assignment, self.GIT_BASH, "script.sh"],
+                        )
+
     def test_windows_env_prefixed_bash_missing_shell_raises(self):
         argv = ["env", "FOO=1", "bash", "script.sh"]
         with windows_platform():
@@ -781,43 +810,20 @@ class WindowsPosixShellResolve(unittest.TestCase):
             (2, None),
         )
 
-    def test_env_bash_index_finds_bash_inside_split_string(self):
-        # env -S/--split-string word-splits its operand and runs the first
-        # non-assignment word as the command, so a bash/sh command hidden
-        # inside the split string must be found, not silently skipped
-        # (#1292 Codex round 4: `env -S "bash script.sh"` previously returned
-        # -1 because the split string's contents were never inspected,
-        # leaving System32 WSL bash reachable through this shape).
-        self.assertEqual(
-            MOD._env_bash_index(["env", "-S", "bash script.sh"]), (2, "")
+    def test_windows_popen_rejects_env_split_string_forms(self):
+        cases = (
+            ["env", "-S", "bash script.sh"],
+            ["env", "--split-string", "bash script.sh"],
+            ["env", "-Sbash script.sh"],
+            ["env", "--split-string=bash script.sh"],
+            ["env", "-S", "python x.py"],
         )
-        self.assertEqual(
-            MOD._env_bash_index(
-                ["env", "--split-string=FOO=1 bash script.sh"]
-            ),
-            (1, "--split-string="),
-        )
-        self.assertEqual(
-            MOD._env_bash_index(["env", "-Sbash script.sh"]), (1, "-S")
-        )
-
-    def test_env_bash_index_split_string_without_bash_still_finds_later_token(self):
-        # A split-string operand that does NOT itself resolve to bash/sh
-        # (e.g. a bare assignment) must not stop the scan -- a later plain
-        # bash/sh argv token must still be found.
-        self.assertEqual(
-            MOD._env_bash_index(
-                ["env", "-S", "FOO=1", "bash", "script.sh"]
-            ),
-            (3, None),
-        )
-
-    def test_env_bash_index_raises_on_unparsable_split_string(self):
-        # Fail closed rather than guess when the operand cannot be word-split
-        # (unbalanced quoting) -- silently ignoring it could let System32 WSL
-        # bash slip through unresolved.
-        with self.assertRaises(MOD.RunnerError):
-            MOD._env_bash_index(["env", "-S", "bash 'unterminated"])
+        with windows_platform():
+            for argv in cases:
+                with self.subTest(argv=argv):
+                    with self.assertRaises(MOD.RunnerError) as ctx:
+                        MOD._popen_argv(argv)
+                    self.assertIn("split-string", str(ctx.exception))
 
     def test_env_bash_index_skips_unset_attached(self):
         self.assertEqual(
@@ -853,64 +859,6 @@ class WindowsPosixShellResolve(unittest.TestCase):
             ) as resolve:
                 self.assertEqual(MOD._popen_argv(argv), argv)
                 resolve.assert_not_called()
-
-    def test_windows_popen_rewrites_bash_inside_split_string(self):
-        # The exact shape Codex flagged as still-reachable System32 WSL bash:
-        # `env -S "bash script.sh"` must resolve and rewrite the bash word
-        # inside the split string, not pass it through untouched (#1292).
-        argv = ["env", "-S", "bash script.sh"]
-        with windows_platform():
-            with mock.patch.object(
-                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
-            ):
-                expected_value = " ".join(
-                    shlex.quote(t) for t in (self.GIT_BASH, "script.sh")
-                )
-                self.assertEqual(
-                    MOD._popen_argv(argv),
-                    ["env", "-S", expected_value],
-                )
-
-    def test_windows_popen_rewrites_bash_inside_attached_split_string(self):
-        argv = ["env", "--split-string=FOO=1 bash script.sh"]
-        with windows_platform():
-            with mock.patch.object(
-                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
-            ):
-                expected_value = " ".join(
-                    shlex.quote(t) for t in ("FOO=1", self.GIT_BASH, "script.sh")
-                )
-                self.assertEqual(
-                    MOD._popen_argv(argv),
-                    ["env", "--split-string=" + expected_value],
-                )
-
-    def test_windows_popen_keeps_absolute_portable_bash_inside_split_string(self):
-        # A literal backslash inside an env -S/--split-string operand is an
-        # escape character to env's own word-splitting (mirrored here via
-        # shlex posix mode), so a Windows path must be backslash-escaped by
-        # the caller to survive splitting intact -- same as it would need to
-        # be for real GNU env, not an artifact of this parser.
-        portable = r"C:\PortableGit\bin\bash.exe"
-        escaped = portable.replace("\\", "\\\\")
-        argv = ["env", "-S", f"{escaped} script.sh"]
-        with windows_platform(isfile_side_effect=_nt_exists(portable)):
-            with mock.patch.object(
-                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
-            ) as resolve:
-                expected_value = " ".join(shlex.quote(t) for t in (portable, "script.sh"))
-                self.assertEqual(
-                    MOD._popen_argv(argv),
-                    ["env", "-S", expected_value],
-                )
-                resolve.assert_not_called()
-
-    def test_windows_popen_raises_on_unparsable_split_string(self):
-        argv = ["env", "-S", "bash 'unterminated"]
-        with windows_platform():
-            with self.assertRaises(MOD.RunnerError):
-                MOD._popen_argv(argv)
-
 
 class BinaryRoundTrip(unittest.TestCase):
     """Windows CPython opens os.open() descriptors in CRT *text* mode: writes

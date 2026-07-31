@@ -289,6 +289,20 @@ class WindowsPeerJobSmoke(unittest.TestCase):
                 self.skipTest("no usable Git Bash / bash on this host")
             return bash
 
+    def _require_git_env(self, bash):
+        env_exe = shutil.which("env") or shutil.which("env.exe")
+        if env_exe is None:
+            candidates = (
+                os.path.join(os.path.dirname(bash), "env.exe"),
+                os.path.join(
+                    os.path.dirname(os.path.dirname(bash)), "usr", "bin", "env.exe"
+                ),
+            )
+            env_exe = next((path for path in candidates if os.path.isfile(path)), None)
+        if env_exe is None:
+            self.skipTest("no env.exe alongside Git Bash on this host")
+        return env_exe
+
     def test_bare_sh_worker_wraps_when_bash_present(self):
         # Prefer the runner's Git-Bash resolver (#1268) over bare which():
         # System32 WSL bash or a missing PATH entry must not skip this smoke.
@@ -346,18 +360,7 @@ class WindowsPeerJobSmoke(unittest.TestCase):
     def test_env_prefixed_bash_worker_sets_meta_shell(self):
         # Production cross-model shape: start -- env VAR=… bash script.sh
         bash = self._require_git_bash()
-        env_exe = shutil.which("env") or shutil.which("env.exe")
-        if env_exe is None:
-            # Git usr\bin\env.exe is usual; derive from resolved bash.
-            cand = os.path.join(os.path.dirname(bash), "env.exe")
-            if os.path.isfile(cand):
-                env_exe = cand
-            else:
-                usr = os.path.join(os.path.dirname(os.path.dirname(bash)), "usr", "bin", "env.exe")
-                if os.path.isfile(usr):
-                    env_exe = usr
-        if env_exe is None:
-            self.skipTest("no env.exe alongside Git Bash on this host")
+        env_exe = self._require_git_env(bash)
         stub = self._write_stub_sh()
         started = self._run(
             [
@@ -389,6 +392,95 @@ class WindowsPeerJobSmoke(unittest.TestCase):
         )
         waited = self._run(["wait", "--max-secs", "20", job_id])
         self.assertEqual(waited.returncode, 0, waited.stderr)
+
+    def test_env_unusual_assignment_names_rewrite_to_git_bash(self):
+        bash = self._require_git_bash()
+        env_exe = self._require_git_env(bash)
+        stub = self._write_stub_sh()
+        for index, assignment in enumerate(("1=x", "a-b=x"), start=1):
+            with self.subTest(assignment=assignment):
+                run_id = f"run-env-assignment-{index}"
+                started = self._run(
+                    [
+                        "start", "--skill", "ce-doc-review", "--run-id", run_id,
+                        "--", env_exe, assignment, "bash", stub,
+                    ]
+                )
+                self.assertEqual(started.returncode, 0, started.stderr)
+                job_id = started.stdout.strip()
+                meta_path = os.path.join(
+                    self.env["CE_PEER_JOBS_ROOT"], "ce-doc-review", run_id,
+                    "jobs", job_id, "meta.json",
+                )
+                with open(meta_path, encoding="utf-8") as f:
+                    meta = json.load(f)
+                self.assertEqual(meta["worker_argv"][1], assignment)
+                self.assertEqual(
+                    os.path.normcase(os.path.abspath(meta["worker_argv"][2])),
+                    os.path.normcase(os.path.abspath(meta["windows_posix_shell"])),
+                )
+                waited = self._run(
+                    ["wait", "--skill", "ce-doc-review", "--max-secs", "20", job_id]
+                )
+                self.assertEqual(waited.returncode, 0, waited.stderr)
+
+    def test_env_option_terminator_allows_hyphen_prefixed_assignments(self):
+        bash = self._require_git_bash()
+        env_exe = self._require_git_env(bash)
+        stub = self._write_stub_sh()
+        for index, assignment in enumerate(("-S=x", "--split-string=x"), start=1):
+            with self.subTest(assignment=assignment):
+                run_id = f"run-env-option-terminator-{index}"
+                started = self._run(
+                    [
+                        "start", "--skill", "ce-doc-review", "--run-id", run_id,
+                        "--", env_exe, "--", assignment, "bash", stub,
+                    ]
+                )
+                self.assertEqual(started.returncode, 0, started.stderr)
+                job_id = started.stdout.strip()
+                meta_path = os.path.join(
+                    self.env["CE_PEER_JOBS_ROOT"], "ce-doc-review", run_id,
+                    "jobs", job_id, "meta.json",
+                )
+                with open(meta_path, encoding="utf-8") as f:
+                    meta = json.load(f)
+                self.assertEqual(meta["worker_argv"][2], assignment)
+                self.assertEqual(
+                    os.path.normcase(os.path.abspath(meta["worker_argv"][3])),
+                    os.path.normcase(os.path.abspath(meta["windows_posix_shell"])),
+                )
+                waited = self._run(
+                    ["wait", "--skill", "ce-doc-review", "--max-secs", "20", job_id]
+                )
+                self.assertEqual(waited.returncode, 0, waited.stderr)
+
+    def test_env_split_string_forms_fail_before_detach(self):
+        bash = self._require_git_bash()
+        env_exe = self._require_git_env(bash)
+        cases = (
+            ["-S", "bash -c 'exit 0'"],
+            ["--split-string", "bash -c 'exit 0'"],
+            ["-Sbash -c 'exit 0'"],
+            ["--split-string=bash -c 'exit 0'"],
+        )
+        for index, env_args in enumerate(cases, start=1):
+            with self.subTest(env_args=env_args):
+                run_id = f"run-env-split-{index}"
+                started = self._run(
+                    [
+                        "start", "--skill", "ce-doc-review", "--run-id", run_id,
+                        "--", env_exe, *env_args,
+                    ]
+                )
+                self.assertNotEqual(started.returncode, 0)
+                self.assertIn("split-string", started.stderr)
+                jobs_root = os.path.join(
+                    self.env["CE_PEER_JOBS_ROOT"], "ce-doc-review", run_id, "jobs"
+                )
+                job_dirs = os.listdir(jobs_root)
+                self.assertEqual(len(job_dirs), 1)
+                self.assertFalse(os.path.exists(os.path.join(jobs_root, job_dirs[0], "pid")))
 
     def test_reap_during_long_poll_classifies_timeout_not_failed(self):
         # Regression (#1248): with poll=2s, min(grace, 1.0) alone races into

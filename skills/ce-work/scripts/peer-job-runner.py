@@ -119,7 +119,6 @@ import glob
 import json
 import os
 import re
-import shlex
 import shutil
 import signal
 import stat
@@ -1130,125 +1129,75 @@ def _windows_path_shell_candidates():
     return found
 
 
-def _env_assignment_token(token: str) -> bool:
+def _env_assignment_token(token: str, allow_option_like: bool = False) -> bool:
     """True for env(1) NAME=value operands (not options or the command)."""
-    if not token or token.startswith("-") or "=" not in token:
+    if (
+        not token
+        or (token.startswith("-") and not allow_option_like)
+        or "=" not in token
+    ):
         return False
     name = token.split("=", 1)[0]
-    if not name or name[0].isdigit():
-        return False
-    return all(c.isalnum() or c == "_" for c in name)
+    return bool(name)
 
 
 def _env_option_advance(tok: str) -> int:
     """How many argv slots an env(1) option occupies (incl. the option itself).
 
-    GNU env options that take a separate operand: -u/--unset, -C/--chdir,
-    -S/--split-string. Attached `--name=value` forms are a single slot.
+    GNU env options that take a separate operand: -u/--unset, -C/--chdir.
+    Attached `--name=value` forms are a single slot.
     Unknown flags advance one slot. (#1292 Codex P2)
     """
-    if tok in ("-u", "--unset", "-C", "--chdir", "-S", "--split-string"):
+    if tok in ("-u", "--unset", "-C", "--chdir"):
         return 2
-    if tok.startswith(("--unset=", "--chdir=", "--split-string=")):
+    if tok.startswith(("--unset=", "--chdir=")):
         return 1
-    # Short -uNAME (no space) is one slot; -CDIR / -SSTRING likewise.
-    if len(tok) > 2 and tok[0] == "-" and tok[1] in "uCS" and tok[2] != "-":
+    # Short -uNAME (no space) and -CDIR are one slot.
+    if len(tok) > 2 and tok[0] == "-" and tok[1] in "uC" and tok[2] != "-":
         return 1
     return 1
-
-
-def _parse_env_split_string(value):
-    """Split an env(1) -S/--split-string operand into words, or None.
-
-    Approximates GNU env's own word-splitting (backslash escapes, single/
-    double quotes) via shlex.split(posix=True) closely enough to detect a
-    bash/sh command inside it. Returns None when the value cannot be parsed
-    (unbalanced quotes) so callers fail closed instead of guessing (#1292).
-    """
-    try:
-        return shlex.split(value, posix=True)
-    except ValueError:
-        return None
-
-
-def _bash_index_in_env_tokens(tokens) -> int:
-    """Index of a bash/sh command among env-style tokens, or -1.
-
-    Tokens are NAME=value assignments followed by a command, the same shape
-    `env` itself parses — used both for top-level env argv and for the words
-    produced by splitting a -S/--split-string operand (#1292).
-    """
-    i = 0
-    while i < len(tokens):
-        tok = tokens[i]
-        if os.path.basename(tok).lower() in ("bash", "bash.exe", "sh", "sh.exe"):
-            return i
-        if _env_assignment_token(tok):
-            i += 1
-            continue
-        return -1
-    return -1
 
 
 def _env_bash_index(argv):
     """Locate the env(1)-launched bash/sh command, for #1268/#1292 rewriting.
 
     Matches the production cross-model shape `env VAR=… bash script.sh …`
-    (#1268). Operand-taking options (-u/-C/-S and long forms) consume their
-    arguments before the command token is sought (#1292).
+    (#1268). Operand-taking options (-u/-C and long forms) consume their
+    arguments before the command token is sought (#1292). Split-string forms
+    fail closed because Python shlex does not match Git env.exe semantics.
 
-    Returns (argv_index, split_prefix). split_prefix is None when
-    argv[argv_index] is itself the bare bash/sh token. It is a string
-    (possibly empty) when argv[argv_index] instead holds a -S/--split-string
-    operand with that literal prefix (e.g. "--split-string=") still attached
-    and the bash/sh command lives inside it after word-splitting — callers
-    must reparse and rewrite the operand's command word, not the whole token
-    (#1292 Codex round: `env -S "bash script.sh"` previously went unresolved
-    because the split string's contents were never inspected). Returns
-    (-1, None) when no bash/sh command is present.
+    Returns (argv_index, None), or (-1, None) when no bash/sh command is
+    present.
     """
     if not argv:
         return -1, None
     if os.path.basename(argv[0]).lower() not in ("env", "env.exe"):
         return -1, None
     i = 1
+    options_done = False
     while i < len(argv):
         tok = argv[i]
         base = os.path.basename(tok).lower()
         if base in ("bash", "bash.exe", "sh", "sh.exe"):
             return i, None
-        if _env_assignment_token(tok):
+        if tok == "--" and not options_done:
+            options_done = True
             i += 1
             continue
-        prefix = None
-        value = None
-        idx = i
-        advance = 1
-        if tok in ("-S", "--split-string"):
-            if i + 1 >= len(argv):
-                return -1, None
-            idx = i + 1
-            prefix = ""
-            value = argv[idx]
-            advance = 2
-        elif tok.startswith("--split-string="):
-            prefix = "--split-string="
-            value = tok[len(prefix):]
-        elif len(tok) > 2 and tok[0] == "-" and tok[1] == "S" and tok[2] != "-":
-            prefix = tok[:2]
-            value = tok[2:]
-        if prefix is not None:
-            tokens = _parse_env_split_string(value)
-            if tokens is None:
-                raise RunnerError(
-                    "cannot parse env -S/--split-string operand for peer "
-                    f"worker shell selection: {value!r}"
-                )
-            if _bash_index_in_env_tokens(tokens) >= 0:
-                return idx, prefix
-            i += advance
+        if _env_assignment_token(tok, allow_option_like=options_done):
+            i += 1
             continue
-        if tok.startswith("-"):
+        if not options_done and (
+            tok in ("-S", "--split-string") or tok.startswith(
+                ("-S", "--split-string=")
+            )
+        ):
+            raise RunnerError(
+                "env -S/--split-string is unsupported for native Windows "
+                "peer workers; pass env assignments and the command as "
+                "separate arguments"
+            )
+        if not options_done and tok.startswith("-"):
             span = _env_option_advance(tok)
             if span > 1 and i + 1 >= len(argv):
                 return -1, None
@@ -1282,45 +1231,20 @@ def _prefer_windows_posix_shell(token: str) -> str:
     return _resolve_windows_posix_shell()
 
 
-def _rewrite_env_split_string_value(value):
-    """Rewrite a bare/System32 bash|sh word inside an env -S operand value.
-
-    Returns (new_value, resolved_shell). Assumes `value` already contains a
-    resolvable bash/sh command, as checked by `_env_bash_index` via
-    `_bash_index_in_env_tokens` before this is called (#1292).
-    """
-    tokens = _parse_env_split_string(value)
-    if tokens is None:
-        raise RunnerError(
-            "cannot parse env -S/--split-string operand for peer worker "
-            f"shell selection: {value!r}"
-        )
-    idx = _bash_index_in_env_tokens(tokens)
-    shell = _prefer_windows_posix_shell(tokens[idx])
-    if os.path.normcase(os.path.abspath(tokens[idx])) != os.path.normcase(shell):
-        tokens[idx] = shell
-    return " ".join(shlex.quote(t) for t in tokens), shell
-
-
 def _rewrite_windows_env_bash_argv(argv):
     """Rewrite bare bash/sh inside an env-prefixed argv.
 
     Returns (argv, resolved_shell_or_None). Raises RunnerError when a bash/sh
     token is present but no usable non-WSL shell can be resolved. Absolute
-    non-WSL bash tokens are kept unchanged (#1292 P2). A bash/sh command
-    inside a -S/--split-string operand is rewritten in place within that
-    operand's word-split contents, preserving any `-S`/`--split-string=`
-    prefix still attached to the argv slot (#1292).
+    non-WSL bash tokens are kept unchanged (#1292 P2). Split-string options
+    are rejected before detach because their parser semantics are not safely
+    reproduced here (#1292).
     """
     idx, split_prefix = _env_bash_index(argv)
     if idx < 0:
         return list(argv), None
     out = list(argv)
-    if split_prefix is not None:
-        value = out[idx][len(split_prefix):]
-        new_value, shell = _rewrite_env_split_string_value(value)
-        out[idx] = split_prefix + new_value
-        return out, shell
+    assert split_prefix is None
     shell = _prefer_windows_posix_shell(out[idx])
     if os.path.normcase(os.path.abspath(out[idx])) != os.path.normcase(shell):
         out[idx] = shell
