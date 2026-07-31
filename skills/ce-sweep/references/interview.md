@@ -2,7 +2,7 @@
 
 Loaded by `SKILL.md` when `ce-sweep` runs with no `feedback_sources` configured. Captures the setup that will be merged into `<repo-root>/.compound-engineering/config.local.yaml` (the unified CE local config, gitignored, machine-local) and re-read on every subsequent run.
 
-This interview is **interactive only**. The caller refuses first-run setup in headless mode — a scheduled or piped run with no config aborts and tells the user to run `ce-sweep` interactively once. Do not attempt to infer sources, actions, or approvals without asking.
+This interview is **interactive only**. The caller refuses first-run setup in non-interactive mode — a scheduled or piped run with no config aborts and tells the user to run `ce-sweep` interactively once. Do not attempt to infer sources, actions, or approvals without asking.
 
 **User-runnable invocation rendering.** Whenever this interview prints or registers a `ce-sweep` invocation, default to `/ce-sweep` (plus any arguments); use `$ce-sweep` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
 
@@ -112,7 +112,7 @@ Let the user override the path if they want a different location. If they pick m
 
 ## 5. Acknowledgment cap
 
-**Ask:** "What's the most acknowledgments the sweep may perform on a single source in one run before it pauses? This is a circuit breaker against a runaway sweep spamming a channel or issue tracker. When the cap is hit, an interactive run pauses and asks you; a headless run stops acknowledging and defers the rest. Default is 25."
+**Ask:** "What's the most acknowledgments the sweep may perform on a single source in one run before it pauses? This is a circuit breaker against a runaway sweep spamming a channel or issue tracker. When the cap is hit, an interactive run pauses and asks you; a non-interactive run stops acknowledging and defers the rest. Default is 25."
 
 **Capture:** `sweep_ack_cap` (integer, default 25).
 

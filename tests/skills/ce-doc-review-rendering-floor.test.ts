@@ -74,14 +74,14 @@ describe("ce-doc-review shared rendering floor", () => {
     })
   }
 
-  test("headless envelope renders the decision-first fields, not a bare Why/title pair", () => {
+  test("non-interactive envelope renders the decision-first fields, not a bare Why/title pair", () => {
     expect(synth).toContain("Recommendation: <Apply | Defer | Skip>")
     expect(synth).toContain("Consequence if unchanged: <one sentence, no opaque identifier>")
   })
 })
 
 describe("ce-plan surfaces doc-review findings verbatim, not re-narrated", () => {
-  // The observed illegible output came through ce-plan re-narrating the headless
+  // The observed illegible output came through ce-plan re-narrating the non-interactive
   // envelope into denser prose. This pins the instruction that keeps the
   // returned decision-first structure intact.
   const handoff = readFileSync(

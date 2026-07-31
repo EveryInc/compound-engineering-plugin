@@ -24,21 +24,21 @@ fi
 
 ## Mode Detection
 
-Check whether the arguments you were invoked with contain `mode:non-interactive` or its deprecated alias `mode:headless`. If either is present, strip both from the arguments (use the remainder as a scope hint) and run in **headless (non-interactive) mode**. Both tokens together is not a conflict.
+Check whether the arguments you were invoked with contain `mode:non-interactive` or its deprecated alias `mode:headless`. If either is present, strip both from the arguments (use the remainder as a scope hint) and run in **non-interactive mode**. Both tokens together is not a conflict.
 
 | Mode | When | Behavior |
 |------|------|----------|
 | **Interactive** (default) | User is present and can answer questions | Ask for decisions on ambiguous cases, confirm actions |
-| **Non-interactive** (aka Headless) | `mode:non-interactive` or deprecated alias `mode:headless` in arguments | No user interaction. Apply all unambiguous actions (Keep, Update, Consolidate, auto-Delete, Replace with sufficient evidence). Mark ambiguous cases as stale. Generate a summary report at the end. |
+| **Non-interactive** | `mode:non-interactive` or deprecated alias `mode:headless` in arguments | No user interaction. Apply all unambiguous actions (Keep, Update, Consolidate, auto-Delete, Replace with sufficient evidence). Mark ambiguous cases as stale. Generate a summary report at the end. |
 
-### Headless mode rules
+### Non-interactive mode rules
 
 - **Skip all user questions.** Never pause for input.
 - **Process all docs in scope.** No scope narrowing questions — if no scope hint was provided, process everything.
 - **Attempt all safe actions:** Keep (no-op), Update (fix references), Consolidate (merge and delete subsumed doc), auto-Delete (unambiguous criteria met), Replace (when evidence is sufficient). If a write succeeds, record it as **applied**. If a write fails (e.g., permission denied), record the action as **recommended** in the report and continue — do not stop or ask for permissions.
-- **Relocations follow the auto-delete pattern: apply only when every condition holds, recommend otherwise.** Auto-apply a headless relocation only when all four hold: (1) frontmatter and directory disagree per the category mapping, (2) content evidence clearly resolves the direction — the directory is wrong, not the frontmatter, (3) the target category directory already exists, (4) all inbound citations are in-repo and mechanically rewritable. Any condition fails — including a doc whose content plausibly fits either category — record the relocation under Recommended instead. Splits are always recommend-only in headless mode: the split bar is a retrieval-value judgment with no ground truth, so record proposed fragment boundaries under Recommended.
+- **Relocations follow the auto-delete pattern: apply only when every condition holds, recommend otherwise.** Auto-apply a non-interactive relocation only when all four hold: (1) frontmatter and directory disagree per the category mapping, (2) content evidence clearly resolves the direction — the directory is wrong, not the frontmatter, (3) the target category directory already exists, (4) all inbound citations are in-repo and mechanically rewritable. Any condition fails — including a doc whose content plausibly fits either category — record the relocation under Recommended instead. Splits are always recommend-only in non-interactive mode: the split bar is a retrieval-value judgment with no ground truth, so record proposed fragment boundaries under Recommended.
 - **Mark as stale when uncertain.** If classification is genuinely ambiguous (Update vs Replace vs Consolidate vs Delete) or Replace evidence is insufficient, mark as stale with `status: stale`, `stale_reason`, and `stale_date` in the frontmatter. If even the stale-marking write fails, include it as a recommendation.
-- **Use conservative confidence.** In interactive mode, borderline cases get a user question. In headless mode, borderline cases get marked stale. Err toward stale-marking over incorrect action.
+- **Use conservative confidence.** In interactive mode, borderline cases get a user question. In non-interactive mode, borderline cases get marked stale. Err toward stale-marking over incorrect action.
 - **Always generate a report.** The report is the primary deliverable. It has two sections: **Applied** (actions that were successfully written) and **Recommended** (actions that could not be written, with full rationale so a human can apply them or run the skill interactively). The report structure is the same regardless of what permissions were granted — the only difference is which section each action lands in.
 
 ## CONCEPTS.md bootstrap requests
@@ -48,11 +48,11 @@ If invoked specifically to create or bootstrap `CONCEPTS.md` (e.g., "create a CO
 1. **Create CONCEPTS.md (build the concept map)** — seed the repo-wide concept map and commit it; skip only the <root>/solutions classification phases (Phases 0–4). Read `references/concepts-vocabulary.md` and follow its **Seed goal** and **Scope of a seed** (repo-wide) rules: seed the project's core domain nouns from the declared domain model (schema, core types, primary models, top-level domain docs), each meeting the qualifying bar, the codebase setting the count. Write the preamble (see Phase 4.5), cluster per the organization rules, and run the Discoverability Check so `AGENTS.md`/`CLAUDE.md` surface the new file. Then **enter Phase 5 (Commit Changes)** to commit/PR the new `CONCEPTS.md` and any instruction-file edit through the same durable-write flow the refresh uses — do not leave the bootstrap uncommitted.
 2. **Run a refresh cycle** — proceed with the normal refresh flow below; `CONCEPTS.md` is seeded (if absent) and reconciled as part of Phase 4.5.
 
-In headless mode there is no user to ask: default to the refresh cycle (vocabulary is seeded and reconciled within Phase 4.5 regardless) and note in the report that a standalone repo-wide bootstrap was not run.
+In non-interactive mode there is no user to ask: default to the refresh cycle (vocabulary is seeded and reconciled within Phase 4.5 regardless) and note in the report that a standalone repo-wide bootstrap was not run.
 
 ## Interaction Principles
 
-**These principles apply to interactive mode only. In headless mode, skip all user questions and apply the headless mode rules above.**
+**These principles apply to interactive mode only. In non-interactive mode, skip all user questions and apply the non-interactive mode rules above.**
 
 Follow the same interaction style as `ce-brainstorm`:
 
@@ -109,15 +109,15 @@ For each candidate artifact, classify it into one of five outcomes:
 1. **Evidence informs judgment.** The signals below are inputs, not a mechanical scorecard. Use engineering judgment to decide whether the artifact is still trustworthy.
 2. **Prefer no-write Keep.** Do not update a doc just to leave a review breadcrumb.
 3. **Match docs to reality, not the reverse.** When current code differs from a learning, update the learning to reflect the current code. The skill's job is doc accuracy, not code review — do not ask the user whether code changes were "intentional" or "a regression." If the code changed, the doc should match. If the user thinks the code is wrong, that is a separate concern outside this workflow.
-4. **Be decisive, minimize questions.** When evidence is clear (file renamed, class moved, reference broken), apply the update. In interactive mode, only ask the user when the right action is genuinely ambiguous. In headless mode, mark ambiguous cases as stale instead of asking. The goal is automated maintenance with human oversight on judgment calls, not a question for every finding.
+4. **Be decisive, minimize questions.** When evidence is clear (file renamed, class moved, reference broken), apply the update. In interactive mode, only ask the user when the right action is genuinely ambiguous. In non-interactive mode, mark ambiguous cases as stale instead of asking. The goal is automated maintenance with human oversight on judgment calls, not a question for every finding.
 5. **Avoid low-value churn.** Do not edit a doc just to fix a typo, polish wording, or make cosmetic changes that do not materially improve accuracy or usability.
-6. **Use Update only for meaningful, evidence-backed drift.** Paths, module names, related links, category metadata, code snippets, and clearly stale wording are fair game when fixing them materially improves accuracy. Misfiling is drift too: when a doc's directory and its frontmatter category disagree, or its content unambiguously belongs in a different existing category, relocate the file per the Update flow's relocation steps. A frontmatter/directory mismatch proves something is wrong but not which side — resolve the direction from content evidence before moving, and never relocate on a judgment call a later run could argue back (that is rule-5 churn). In headless mode, apply the relocation only under the four-condition gate in the headless rules; otherwise recommend.
+6. **Use Update only for meaningful, evidence-backed drift.** Paths, module names, related links, category metadata, code snippets, and clearly stale wording are fair game when fixing them materially improves accuracy. Misfiling is drift too: when a doc's directory and its frontmatter category disagree, or its content unambiguously belongs in a different existing category, relocate the file per the Update flow's relocation steps. A frontmatter/directory mismatch proves something is wrong but not which side — resolve the direction from content evidence before moving, and never relocate on a judgment call a later run could argue back (that is rule-5 churn). In non-interactive mode, apply the relocation only under the four-condition gate in the non-interactive rules; otherwise recommend.
 7. **Use Replace only when there is a real replacement.** That means either:
    - the current conversation contains a recently solved, verified replacement fix, or
    - the user has provided enough concrete replacement context to document the successor honestly, or
    - the codebase investigation found the current approach and can document it as the successor, or
    - newer docs, pattern docs, PRs, or issues provide strong successor evidence.
-8. **Delete when the code is gone, and only after checking for inbound links.** If the referenced code, controller, or workflow once lived in this repo and has since been removed, and no successor can be found, delete the file — don't default to Keep just because the general advice is still "sound." "Gone" requires that it existed here: a learning that never referenced in-repo code (developer environment, onboarding, process) is outside this rule and never auto-deletes — see the no-in-repo-implementation case in Phase 2. When in doubt between Keep and Delete, ask the user (in interactive mode) or mark as stale (in headless mode). Inbound links inform classification, not cleanup: cleanup is always mechanical, but **decorative** citations (principle stated inline) allow Delete, while **substantive** citations (citing doc relies on the cited doc) signal Replace. The auto-delete case is missing code, no matching successor, and citations absent or decorative.
+8. **Delete when the code is gone, and only after checking for inbound links.** If the referenced code, controller, or workflow once lived in this repo and has since been removed, and no successor can be found, delete the file — don't default to Keep just because the general advice is still "sound." "Gone" requires that it existed here: a learning that never referenced in-repo code (developer environment, onboarding, process) is outside this rule and never auto-deletes — see the no-in-repo-implementation case in Phase 2. When in doubt between Keep and Delete, ask the user (in interactive mode) or mark as stale (in non-interactive mode). Inbound links inform classification, not cleanup: cleanup is always mechanical, but **decorative** citations (principle stated inline) allow Delete, while **substantive** citations (citing doc relies on the cited doc) signal Replace. The auto-delete case is missing code, no matching successor, and citations absent or decorative.
 9. **Evaluate document-set design, not just accuracy.** In addition to checking whether each doc is accurate, evaluate whether it is still the right unit of knowledge. If two or more docs overlap heavily, determine whether they should remain separate, be cross-scoped more clearly, or be consolidated into one canonical document. Redundant docs are dangerous because they drift silently — two docs saying the same thing will eventually say different things.
 10. **Delete, don't archive.** There is no `_archived/` directory. When a doc is no longer useful, delete it. Git history preserves every deleted file — that is the archive. A dedicated archive directory creates problems: archived docs accumulate, pollute search results, and nobody reads them. If someone needs a deleted doc, `git log --diff-filter=D -- <root>/solutions/` will find it.
 
@@ -141,7 +141,7 @@ If a scope argument was provided, use it to narrow scope before proceeding. Try 
 3. **Filename match** — match against filenames (partial matches are fine)
 4. **Content search** — search file contents for the argument as a keyword (useful for feature names or feature areas)
 
-If no matches are found, report that and ask the user to clarify. In headless mode, when a scope hint was provided but matched nothing, report the miss in the summary and exit without widening to all docs — do not silently fall back to processing everything. (The "process everything" rule from Headless mode rules applies only when **no** scope hint was provided.)
+If no matches are found, report that and ask the user to clarify. In non-interactive mode, when a scope hint was provided but matched nothing, report the miss in the summary and exit without widening to all docs — do not silently fall back to processing everything. (The "process everything" rule from Non-interactive mode rules applies only when **no** scope hint was provided.)
 
 If no candidate docs are found, report:
 
@@ -173,7 +173,7 @@ When scope is broad (9+ candidate docs), do a lightweight triage before deep inv
 1. **Inventory** — read frontmatter of all candidate docs, group by module/component/category
 2. **Impact clustering** — identify areas with the densest clusters of learnings + pattern docs. A cluster of 5 learnings and 2 patterns covering the same module is higher-impact than 5 isolated single-doc areas, because staleness in one doc is likely to affect the others.
 3. **Spot-check drift** — for each cluster, check whether the primary referenced files still exist. Missing references in a high-impact cluster = strongest signal for where to start.
-4. **Recommend a starting area** — present the highest-impact cluster with a brief rationale and ask the user to confirm or redirect. In headless mode, skip the question and process all clusters in impact order.
+4. **Recommend a starting area** — present the highest-impact cluster with a brief rationale and ask the user to confirm or redirect. In non-interactive mode, skip the question and process all clusters in impact order.
 
 Example:
 
@@ -221,7 +221,7 @@ The critical distinction is whether the drift is **cosmetic** (references moved 
 - Prompt deeper investigation when codebase evidence is borderline
 - Add context to the evidence report ("(auto memory [claude]) notes suggest approach X may have changed since this learning was written")
 
-In headless mode, memory-only drift (no codebase corroboration) should result in stale-marking, not action.
+In non-interactive mode, memory-only drift (no codebase corroboration) should result in stale-marking, not action.
 
 ### Judgment Guidelines
 
@@ -324,7 +324,7 @@ There are two subagent roles:
 1. **Investigation subagents** — read-only. They must not edit files, create successors, or delete anything. Each returns: file path, evidence, recommended action, confidence, and open questions. These can run in parallel when artifacts are independent.
 2. **Replacement subagents** — write the successor content for a single candidate doc: one new learning for a Replace, or **every successor fragment** for a confirmed Split (one subagent still owns the whole split candidate, so no fragment is lost between workers). These run **one at a time, sequentially** (each replacement subagent may need to read significant code, and running multiple in parallel risks context exhaustion). The orchestrator handles all deletions and metadata updates after each replacement completes.
 
-The orchestrator merges investigation results, detects contradictions, coordinates replacement subagents, and performs all deletions/metadata edits centrally. In interactive mode, it asks the user questions on ambiguous cases. In headless mode, it marks ambiguous cases as stale instead. If two artifacts overlap or discuss the same root issue, investigate them together rather than parallelizing.
+The orchestrator merges investigation results, detects contradictions, coordinates replacement subagents, and performs all deletions/metadata edits centrally. In interactive mode, it asks the user questions on ambiguous cases. In non-interactive mode, it marks ambiguous cases as stale instead. If two artifacts overlap or discuss the same root issue, investigate them together rather than parallelizing.
 
 ## Phase 2: Classify the Right Maintenance Action
 
@@ -358,7 +358,7 @@ Choose **Consolidate** when Phase 1.75 identified docs that overlap heavily but 
 
 The Consolidate action is: merge unique content from the subsumed doc into the canonical doc, then delete the subsumed doc. Not archive — delete. Git history preserves it.
 
-**Split (inverse consolidation):** Consolidate also covers the reverse case — one doc holding multiple genuinely independent problems becomes focused successors, executed per the Split flow in `references/per-action-flows.md`. The bar is the Retrieval-Value Test inverted: split only when a maintainer searching for one sub-topic would be materially harmed by the other content, and each fragment has independent retrieval value. Length alone is never a reason — splitting doubles drift surface, the exact risk consolidation exists to remove. In headless mode, splits are recommend-only.
+**Split (inverse consolidation):** Consolidate also covers the reverse case — one doc holding multiple genuinely independent problems becomes focused successors, executed per the Split flow in `references/per-action-flows.md`. The bar is the Retrieval-Value Test inverted: split only when a maintainer searching for one sub-topic would be materially harmed by the other content, and each fragment has independent retrieval value. Length alone is never a reason — splitting doubles drift surface, the exact risk consolidation exists to remove. In non-interactive mode, splits are recommend-only.
 
 ### Replace
 
@@ -393,7 +393,7 @@ When a learning's referenced files are gone, that is strong evidence — but onl
 
 - A learning about session token storage where `auth_token.rb` is gone — does the application still handle session tokens? If so, the concept persists under a new implementation. That is Replace, not Delete.
 - A learning about a deprecated API endpoint where the entire feature was removed — the problem domain is gone. That is Delete.
-- A learning that references no in-repo implementation — developer-environment, onboarding, tooling-on-laptops, or process learnings — can never satisfy "the implementation is gone": the repo never witnessed its domain, so absence of supporting files is not evidence the problem stopped existing. These never auto-delete. When their currency is in doubt, stale-mark (headless) or ask (interactive).
+- A learning that references no in-repo implementation — developer-environment, onboarding, tooling-on-laptops, or process learnings — can never satisfy "the implementation is gone": the repo never witnessed its domain, so absence of supporting files is not evidence the problem stopped existing. These never auto-delete. When their currency is in doubt, stale-mark (non-interactive) or ask (interactive).
 
 Do not search mechanically for keywords from the old learning. Instead, understand what problem the learning addresses, then investigate whether that problem domain still exists in the codebase. The agent understands concepts — use that understanding to look for where the problem lives now, not where the old code used to be.
 
@@ -415,7 +415,7 @@ Classify each citation by what it does in its citing context:
 - **Substantive** — citing doc relies on the cited doc to provide content not stated inline (e.g., "see X for details on Y" with no inline Y). Signal Replace — write a successor at the same path, or **Keep with narrowed scope** if the doc's actual content is broader than its title implies.
 - **Mixed or unclear** — stale-mark.
 
-In headless mode, Delete + decorative cleanup is fine. Any substantive citation, or any genuine ambiguity, downgrades to stale-marking — writing a Replace successor is judgment-heavy and should not happen unattended.
+In non-interactive mode, Delete + decorative cleanup is fine. Any substantive citation, or any genuine ambiguity, downgrades to stale-marking — writing a Replace successor is judgment-heavy and should not happen unattended.
 
 **Auto-delete only when all three hold:**
 
@@ -437,7 +437,7 @@ Apply the same five outcomes (Keep, Update, Consolidate, Replace, Delete) to pat
 
 ## Phase 3: Ask for Decisions
 
-### Headless mode
+### Non-interactive mode
 
 **Skip this entire phase. Do not ask any questions. Do not present options. Do not wait for input.** Proceed directly to Phase 4 and execute all actions based on the classifications from Phase 2:
 
@@ -526,7 +526,7 @@ Do not front-load the user with a full maintenance queue.
 For each candidate, execute the flow that matches its classification from Phase 2 (confirmed in Phase 3). Read `references/per-action-flows.md` and follow the matching section:
 
 - **Keep** — no file edit by default; summarize why the learning remains trustworthy.
-- **Update** — in-place edits when the solution is still substantively correct (path renames, link refreshes, module renames), plus unambiguous relocations of misfiled docs (headless: only under the four-condition gate).
+- **Update** — in-place edits when the solution is still substantively correct (path renames, link refreshes, module renames), plus unambiguous relocations of misfiled docs (non-interactive: only under the four-condition gate).
 - **Consolidate** — merge overlapping docs into a canonical doc, delete subsumed docs, update cross-references. The orchestrator handles consolidation directly. The inverse case runs the Split flow: one multi-problem doc becomes focused successors via subagent (interactive mode only).
 - **Replace** — write a successor learning via subagent (passing the documentation contract files), validate frontmatter and cited claims, then delete the old. When evidence is insufficient, mark stale instead.
 - **Delete** — final inbound-link check, then remove. Reclassify if late-discovered substantive citations surface.
@@ -554,7 +554,7 @@ After the per-learning actions execute, aggregate the domain terms flagged acros
 
 If no Phase 1 signals qualified after applying the reference's criteria, record that outcome explicitly in the report's `CONCEPTS.md` line (e.g., "scanned, no qualifying terms"). Do not silently skip — the visible scan-and-no-result record is the audit signal that the reference was consulted.
 
-Note: if this run **creates** `CONCEPTS.md` from scratch, the Discoverability Check below also surfaces it so future agents can discover it — by editing `AGENTS.md`/`CLAUDE.md` in interactive mode (with consent), or, in headless mode, by emitting a "Discoverability recommendation" line in the report rather than editing instruction files (per the headless boundary in step 4c — headless does doc maintenance, not project config). Either way the created file is surfaced or flagged for surfacing; subsequent runs skip this because the instruction file is already current or the recommendation was already reported.
+Note: if this run **creates** `CONCEPTS.md` from scratch, the Discoverability Check below also surfaces it so future agents can discover it — by editing `AGENTS.md`/`CLAUDE.md` in interactive mode (with consent), or, in non-interactive mode, by emitting a "Discoverability recommendation" line in the report rather than editing instruction files (per the non-interactive boundary in step 4c — non-interactive does doc maintenance, not project config). Either way the created file is surfaced or flagged for surfacing; subsequent runs skip this because the instruction file is already current or the recommendation was already reported.
 
 **Apply edits silently — no user prompt in any mode.** Vocabulary capture is a side effect of refreshing, not a decision the user makes per run.
 
@@ -589,9 +589,9 @@ Then for EVERY file processed, list:
 
 For **Keep** outcomes, list them under a reviewed-without-edits section so the result is visible without creating git churn.
 
-### Headless mode report
+### Non-interactive mode report
 
-In headless mode, the report is the sole deliverable — there is no user present to ask follow-up questions, so the report must be self-contained and complete. **Print the full report. Do not abbreviate, summarize, or skip sections.**
+In non-interactive mode, the report is the sole deliverable — there is no user present to ask follow-up questions, so the report must be self-contained and complete. **Print the full report. Do not abbreviate, summarize, or skip sections.**
 
 Split actions into two sections:
 
@@ -624,7 +624,7 @@ Before offering options, check:
 2. Whether the working tree has other uncommitted changes beyond what compound-refresh modified
 3. Recent commit messages to match the repo's commit style
 
-### Headless mode
+### Non-interactive mode
 
 Use sensible defaults — no user to ask:
 
@@ -707,7 +707,7 @@ After the refresh report is generated, check whether the project's instruction f
 
       `<root>/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
       ```
-   c. In interactive mode, explain to the user why this matters — agents working in this repo (including fresh sessions, other tools, or collaborators without the plugin) won't know to check `<root>/solutions/` unless the instruction file surfaces it. Show the proposed change and where it would go, then use the platform's blocking question tool to get consent before making the edit: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting the proposal in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. In headless mode, include it as a "Discoverability recommendation" line in the report — do not attempt to edit instruction files (headless scope is doc maintenance, not project config).
+   c. In interactive mode, explain to the user why this matters — agents working in this repo (including fresh sessions, other tools, or collaborators without the plugin) won't know to check `<root>/solutions/` unless the instruction file surfaces it. Show the proposed change and where it would go, then use the platform's blocking question tool to get consent before making the edit: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting the proposal in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. In non-interactive mode, include it as a "Discoverability recommendation" line in the report — do not attempt to edit instruction files (non-interactive scope is doc maintenance, not project config).
 
 5. **If `CONCEPTS.md` exists at repo root, run a parallel discoverability check for it.** Use the same workflow as the `<root>/solutions/` check above: same target file, same edit-placement judgment, same consent-then-edit interaction shape per mode. Example calibration when a directory listing is present:
 

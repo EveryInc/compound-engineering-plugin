@@ -32,7 +32,7 @@ describe("ce-sweep non-interactive mode token contract", () => {
     )
     expect(skill).toMatch(/Both tokens together is not a conflict/i)
     expect(skill).toMatch(
-      /\*\*Non-interactive \/ Headless\*\* \(either token present\) never prompts/i,
+      /\*\*Non-interactive\*\* \(either token present\) never prompts/i,
     )
   })
 

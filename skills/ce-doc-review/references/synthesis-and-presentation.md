@@ -254,7 +254,7 @@ Run this pass on the merged set across all personas. Record the count dropped as
 `references/rendering-floor.md` now. It is the single source of truth for the decision-first field
 order (Recommendation → Consequence-if-unchanged → Change → Basis → Trace-on-request), the
 domain-agnostic opaque-token policy (navigation anchors, provenance anchors, mechanism symbols; at
-most two anchors per block), and the code-span budget. Every surface below — the headless envelope,
+most two anchors per block), and the code-span budget. Every surface below — the non-interactive envelope,
 the interactive template, and the bulk preview — maps its own layout onto that floor. Do not restate
 a weaker per-surface rule; the floor is authoritative.
 
@@ -297,10 +297,10 @@ so they render as a single consequence / concern / question line under the token
 field order. A line whose only description of a referenced item is a bare identifier — of any class — is
 not acceptable rendered output.
 
-**Headless mode:** Do not use interactive question tools. Output all findings as a structured text envelope the caller can parse. Internal enum values (`safe_auto`, `gated_auto`, `manual`, `FYI`) stay in the schema and synthesis prose; the envelope below uses user-facing vocabulary — "fixes", "Proposed fixes", "Decisions", "FYI observations" — so headless output reads the same way interactive output does.
+**Non-interactive mode:** Do not use interactive question tools. Output all findings as a structured text envelope the caller can parse. Internal enum values (`safe_auto`, `gated_auto`, `manual`, `FYI`) stay in the schema and synthesis prose; the envelope below uses user-facing vocabulary — "fixes", "Proposed fixes", "Decisions", "FYI observations" — so non-interactive output reads the same way interactive output does.
 
 ```
-Document review complete (headless mode).
+Document review complete (non-interactive mode).
 
 Applied N fixes:
 - <section>: <what was changed> (<reviewer>)
@@ -397,7 +397,7 @@ During synthesis, discard any finding that recommends deleting or removing a CE 
 
 ## Phase 5: Next Action — Terminal Question
 
-**Headless mode:** Return "Review complete" immediately. Do not ask questions. The caller receives the text envelope from Phase 4 and handles any remaining findings.
+**Non-interactive mode:** Return "Review complete" immediately. Do not ask questions. The caller receives the text envelope from Phase 4 and handles any remaining findings.
 
 **Interactive mode:** fire the terminal question using the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension)). In Claude Code the tool should already be loaded from the Interactive-mode pre-load step in `SKILL.md` — if it isn't, call `ToolSearch` with `select:AskUserQuestion` now. Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. This question is distinct from the mid-flow routing question (`references/walkthrough.md`) — the routing question chooses *how* to engage with findings, this one chooses *what to do next* once engagement is complete. Do not merge them.
 

@@ -36,18 +36,18 @@ fi
 
 ## Interaction Method
 
-Default to the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Never silently skip a question you owe the user; if no blocking tool exists in the harness, the run is headless (see Mode). Ask one question at a time — the decision round (2h) may group by category but still asks one blocking question per category.
+Default to the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Never silently skip a question you owe the user; if no blocking tool exists in the harness, the run is non-interactive (see Mode). Ask one question at a time — the decision round (2h) may group by category but still asks one blocking question per category.
 
 ## Mode
 
 Parse a `mode:non-interactive` token or its deprecated alias `mode:headless` from anywhere in the arguments, strip both, and treat the remaining tokens (`setup`, `reconfigure`) per Phase 0. Both tokens together is not a conflict.
 
-**Non-interactive / Headless** (either token present) never prompts:
+**Non-interactive** (either token present) never prompts:
 - Ambiguous product decisions defer into the plan's Outstanding Questions section instead of asking.
 - The circuit breaker (2c) defers instead of asking.
-- Setup cannot run headless: if routing lands on the interview while headless, report `first run requires interactive setup` and stop.
+- Setup cannot run non-interactive: if routing lands on the interview while non-interactive, report `first run requires interactive setup` and stop.
 
-**Fail safe.** If the harness exposes no usable blocking-question tool, behave as headless even when the token is absent — never block a run waiting on input that cannot arrive.
+**Fail safe.** If the harness exposes no usable blocking-question tool, behave as non-interactive even when the token is absent — never block a run waiting on input that cannot arrive.
 
 ## Artifact Root
 
@@ -81,7 +81,7 @@ This skill records swept feedback under `<root>/feedback-sweep/`. Resolve `<root
 
 ### Phase 1: First-Run Setup
 
-Read `references/interview.md` and follow it. Setup is interactive-only: if the run is headless, report `first run requires interactive setup` and stop. The interview writes `feedback_sources` and the `sweep_*` keys into `<repo-root>/.compound-engineering/config.local.yaml` and offers a scheduling handoff. When it completes, continue into Phase 2.
+Read `references/interview.md` and follow it. Setup is interactive-only: if the run is non-interactive, report `first run requires interactive setup` and stop. The interview writes `feedback_sources` and the `sweep_*` keys into `<repo-root>/.compound-engineering/config.local.yaml` and offers a scheduling handoff. When it completes, continue into Phase 2.
 
 ### Phase 2: Sweep Run
 
@@ -126,7 +126,7 @@ The persona returns mapped items (`id`, `origin`, `author_class`, `body`, `media
 
 Count new unacknowledged items per source. If the count exceeds `sweep_ack_cap`:
 - interactive -> ask whether to proceed with acking that many;
-- headless -> upsert the whole batch as `ack_deferred`, do NOT ack, and flag it prominently in the summary.
+- non-interactive -> upsert the whole batch as `ack_deferred`, do NOT ack, and flag it prominently in the summary.
 
 #### 2d. Acknowledge each item — correctness core
 
@@ -175,11 +175,11 @@ Read `references/plan-template.md` and follow it. Target the stable path `<root>
 
 **Rotation check first.** If the file exists and its frontmatter is NOT both `product_contract_source: ce-sweep` and `artifact_readiness: requirements-only`, archive it untouched to a dated sibling `<root>/plans/feedback-sweep-plan-YYYY-MM-DD.md` and write a fresh plan from the template. Never overwrite an unrelated plan in place.
 
-Rewrite ONLY the machine-owned region — the `date` frontmatter key, `### Summary`, the `<!-- sweep-items:start -->` / `<!-- sweep-items:end -->` marker region, and `### Outstanding Questions` (matching the template's reconciliation rules); never read or write inside the human-owned notes region. Append new actionable items with their state ids, drain items that are now `closed`, and land any headless-deferred decisions in the Outstanding Questions section.
+Rewrite ONLY the machine-owned region — the `date` frontmatter key, `### Summary`, the `<!-- sweep-items:start -->` / `<!-- sweep-items:end -->` marker region, and `### Outstanding Questions` (matching the template's reconciliation rules); never read or write inside the human-owned notes region. Append new actionable items with their state ids, drain items that are now `closed`, and land any non-interactive-deferred decisions in the Outstanding Questions section.
 
 #### 2h. Decision round
 
-Interactive only. For items needing a product call, ask the user — grouped by category, one blocking question per category — and fold the answers into the plan. Headless skips this; the deferrals are already in the plan's Outstanding Questions.
+Interactive only. For items needing a product call, ask the user — grouped by category, one blocking question per category — and fold the answers into the plan. Non-interactive skips this; the deferrals are already in the plan's Outstanding Questions.
 
 #### 2i. Wrap-up
 

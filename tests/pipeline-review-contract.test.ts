@@ -396,7 +396,7 @@ describe("ce-plan review contract", () => {
     expect(content).toContain("Codex `create_goal` in the available tool list")
 
     // Deeper review is a first-class menu fixture so users can engage with surfaced findings
-    // without relying on free-form prompting; routed through ce-doc-review without headless mode.
+    // without relying on free-form prompting; routed through ce-doc-review without non-interactive mode.
     expect(content).toContain("**Decide on the review's open items**")
     expect(content).toContain("`ce-doc-review`")
     expect(content).toContain("without** `mode:non-interactive`")
@@ -538,12 +538,12 @@ describe("ce-doc-review contract", () => {
     expect(synthesis).toContain("R30 Fix-Landed Matching Predicate")
   })
 
-  test("headless envelope surfaces new tiers distinctly", async () => {
+  test("non-interactive envelope surfaces new tiers distinctly", async () => {
     const synthesis = await readRepoFile(
       "skills/ce-doc-review/references/synthesis-and-presentation.md"
     )
 
-    // Bucket headers for the new tiers appear in the headless envelope template.
+    // Bucket headers for the new tiers appear in the non-interactive envelope template.
     // User-facing vocabulary: fixes / Proposed fixes / Decisions / FYI observations
     // maps to the safe_auto / gated_auto / manual / FYI internal enum values.
     expect(synthesis).toContain("Applied N fixes")
