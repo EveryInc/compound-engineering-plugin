@@ -2155,6 +2155,41 @@ m.cmd_snapshot(args)
     expect(cleared.blocked_external_review_quiet_seconds).toBe(0)
   })
 
+  test("approval drain ignores the resolver reply baseline but wakes for a later reviewer reply", () => {
+    const gated = (cid: string) => ({
+      ...FAILING,
+      head_sha: "gated-h1",
+      merge_state_status: "UNSTABLE",
+      checks: [{ key: "Track", name: "Track", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+      threads: [{ thread_id: "T1", last_comment_id: cid, last_comment_at: cid }],
+      feedback: [],
+      awaiting_approval: 1,
+    })
+
+    const drainedState = path.join(dir, "approval-drain-resolver-reply")
+    snapshot(drainedState, fetchFile(dir, "approval-drain-reviewer-c1.json", gated("C1")))
+    const resolverReply = fetchFile(dir, "approval-drain-resolver-c2.json", gated("C2"))
+    mark(drainedState, ["--thread", "T1", "--disposition", "dispatched", "--fetch-file", resolverReply])
+    patchState(drainedState, { blocked_external_review_last_activity_at: isoAgo(10) })
+    const resolverObserved = snapshot(drainedState, resolverReply)
+    expect(resolverObserved.blocked_external_review_moved_this_tick).toBe(false)
+    expect(resolverObserved.blocked_external_review_quiet_seconds).toBeGreaterThanOrEqual(1)
+    const drained = watch(drainedState, resolverReply, ["--blocked-external-drain-seconds", "1"])
+    expect(drained.reason).toBe("blocked-external-drained")
+    expect(drained.blocked_external_review_quiet_seconds).toBeGreaterThanOrEqual(1)
+
+    const wakeState = path.join(dir, "approval-drain-later-reviewer")
+    snapshot(wakeState, fetchFile(dir, "approval-drain-reviewer-start.json", gated("C1")))
+    mark(wakeState, ["--thread", "T1", "--disposition", "dispatched", "--fetch-file", resolverReply])
+    patchState(wakeState, { blocked_external_review_last_activity_at: isoAgo(10) })
+    const reviewerReply = fetchFile(dir, "approval-drain-reviewer-c3.json", gated("C3"))
+    const reviewerObserved = snapshot(wakeState, reviewerReply)
+    expect(reviewerObserved.blocked_external_review_moved_this_tick).toBe(true)
+    expect(reviewerObserved.blocked_external_review_quiet_seconds).toBeLessThan(2)
+    expect(reviewerObserved.counts.threads).toBe(1)
+    expect(wakeReason(reviewerObserved)).toBe("actionable")
+  })
+
   test("approval review-drain wakes terminally after its selected quiet bound", () => {
     const sd = path.join(dir, "approval-drain-expiry")
     const gated = {

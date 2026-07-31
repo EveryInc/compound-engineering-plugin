@@ -444,6 +444,16 @@ def _thread_identity(t):
     return (t.get("last_comment_id"), t.get("last_comment_at"))
 
 
+def _prior_thread_activity_identity(t):
+    """The last external-review baseline already accepted for this parked thread."""
+    acted_identity = t.get("acted_identity")
+    if (t.get("disposition") in (DISPOSITION_DISPATCHED, DISPOSITION_NEEDS_HUMAN)
+            and isinstance(acted_identity, (list, tuple))
+            and len(acted_identity) == 2):
+        return tuple(acted_identity)
+    return _thread_identity(t)
+
+
 def _default_pr_chain():
     """Backward-compatible neutral shape for injected/older snapshots with no chain facts."""
     return {
@@ -1276,7 +1286,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
     prior_threads = state.get("threads", {})
     prior_feedback = state.get("feedback", {})
     prior_thread_activity = {
-        tid: _thread_identity(item) for tid, item in prior_threads.items()
+        tid: _prior_thread_activity_identity(item) for tid, item in prior_threads.items()
     }
     prior_feedback_activity = {
         fid: item.get("edit_id") for fid, item in prior_feedback.items()
