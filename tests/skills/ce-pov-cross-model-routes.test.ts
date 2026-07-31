@@ -31,7 +31,7 @@ const NEVER_FLAGS = ["--yolo", "--force", "-f", "--always-approve", "--dangerous
 const REAL_TOOLS = [
   "bash", "sh", "jq", "python3", "date", "sed", "tr", "cat", "wc", "dirname",
   "basename", "mktemp", "env", "perl", "timeout", "gtimeout", "sleep", "rm", "mv",
-  "chmod", "cp", "printf", "kill", "mkdir",
+  "chmod", "cp", "printf", "kill", "mkdir", "grep", "tail", "ps",
 ]
 let resolved: Array<[string, string]> | undefined
 function realTools(): Array<[string, string]> {

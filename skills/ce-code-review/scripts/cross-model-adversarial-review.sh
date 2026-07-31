@@ -479,25 +479,31 @@ HARD_SECS="${CROSS_MODEL_HARD_SECS:-1200}"
 UNGUARDED_HARD_SECS="${CROSS_MODEL_HARD_SECS:-600}"
 TO_BIN="$(command -v gtimeout || command -v timeout || true)"
 
+# True while $1 is a live (non-zombie) process. kill -0 succeeds on zombies
+# until wait reaps them, so idle polls must not treat zombies as still running.
+peer_alive() {
+  local st
+  st="$(ps -o state= -p "$1" 2>/dev/null | tr -d ' \n')"
+  [ -n "$st" ] && [ "$st" != "Z" ]
+}
+
 reap() {
-  # TERM the process group, then wait for the *leader* in THIS shell. A subshell
-  # cannot wait on our child; kill -0 also succeeds on zombies until wait reaps
-  # them — the old kill -0 poll burned the full 5s grace on every idle/hard
-  # timeout (#1270 / Codex P1). Race wait against a grace timer that KILLs.
+  # Signal the process group and grace-poll without wait(). The caller alone
+  # wait()s the leader so RUN_SUCCEEDED reflects the real exit status — a second
+  # wait here would fail after we already reaped and mark healthy exits as
+  # timed-out (#1270 Bugbot). No background KILL timer: orphaned timers can
+  # hit recycled PIDs under bun --parallel.
   local pid="$1" grp
   if kill -TERM -- -"$pid" 2>/dev/null; then grp=1; else kill -TERM "$pid" 2>/dev/null || true; grp=0; fi
-  (
-    sleep 5
-    if kill -0 "$pid" 2>/dev/null; then
-      if [ "$grp" = 1 ]; then kill -KILL -- -"$pid" 2>/dev/null; else kill -KILL "$pid" 2>/dev/null; fi
+  for _ in 1 2 3 4 5; do
+    if ! peer_alive "$pid"; then
+      # Leader exited/zombied — sweep any group survivors; caller wait()s.
+      [ "$grp" = 1 ] && kill -KILL -- -"$pid" 2>/dev/null || true
+      return 0
     fi
-  ) &
-  local timer=$!
-  wait "$pid" 2>/dev/null || true
-  kill "$timer" 2>/dev/null || true
-  wait "$timer" 2>/dev/null || true
-  # Sweep any survivors left in the provider's own process group.
-  if [ "$grp" = 1 ]; then kill -KILL -- -"$pid" 2>/dev/null || true; fi
+    sleep 1
+  done
+  if [ "$grp" = 1 ]; then kill -KILL -- -"$pid" 2>/dev/null; else kill -KILL "$pid" 2>/dev/null; fi
 }
 
 # TERM/INT: reap the live peer group, then exit cleanly (HUP remains ignored).
@@ -602,7 +608,7 @@ run_codex_cmd() {
   start_heartbeat
   local start last=-1 lastchg now size
   start="$(date +%s)"; lastchg="$start"
-  while kill -0 "$pid" 2>/dev/null; do
+  while peer_alive "$pid"; do
     now="$(date +%s)"; size="$(wc -c <"$PEERLOG" 2>/dev/null || echo 0)"
     [ "$size" != "$last" ] && { last="$size"; lastchg="$now"; }
     if [ $(( now - lastchg )) -ge "$IDLE_SECS" ]; then
@@ -652,7 +658,7 @@ run_timeout_cmd() {
   if [ "$idle_mode" = "idle" ]; then
     local start last=-1 lastchg now size
     start="$(date +%s)"; lastchg="$start"
-    while kill -0 "$pid" 2>/dev/null; do
+    while peer_alive "$pid"; do
       now="$(date +%s)"; size="$(wc -c <"$PEERLOG" 2>/dev/null || echo 0)"
       [ "$size" != "$last" ] && { last="$size"; lastchg="$now"; }
       if [ $(( now - lastchg )) -ge "$IDLE_SECS" ]; then
