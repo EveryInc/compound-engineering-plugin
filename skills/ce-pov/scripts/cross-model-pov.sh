@@ -594,7 +594,7 @@ run_timeout_cmd() {
   if [ "$idle_mode" = "idle" ]; then
     local start last=-1 lastchg now size
     start="$(date +%s)"; lastchg="$start"
-    while kill -0 "$pid" 2>/dev/null; do
+    while peer_alive "$pid"; do
       now="$(date +%s)"; size="$(wc -c <"$PEERLOG" 2>/dev/null || echo 0)"
       [ "$size" != "$last" ] && { last="$size"; lastchg="$now"; }
       if [ $(( now - lastchg )) -ge "$IDLE_SECS" ]; then

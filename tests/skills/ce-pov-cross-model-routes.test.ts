@@ -124,6 +124,9 @@ describe("ce-pov cross-model route safety", () => {
     // Match peer-job-runner: empty ps state => not alive; kill -0 only if ps missing.
     expect(source).toContain("command -v ps")
     expect(source).toContain("[ -n \"$st\" ] || return 1")
+    // Idle polls must use peer_alive (not bare kill -0) so zombies exit promptly.
+    expect(source).toContain('while peer_alive "$pid"; do')
+    expect(source).not.toMatch(/while kill -0 "\$pid"/)
     // After reap no longer waits, TERM/INT must wait the peer leader.
     expect(source).toMatch(/reap "\$_term_peer"[\s\S]*?wait "\$_term_peer"/)
   })
