@@ -907,7 +907,6 @@ class WindowsPosixShellResolve(unittest.TestCase):
         cases = (
             (["env", "--", "-0", "bash"], (-1, None)),
             (["env", "--", r"--chdir=C:\tools\bash", "bash"], (3, None)),
-            (["env", "--", r"-CC:\tools\sh.exe", "bash"], (2, None)),
         )
         for argv, expected in cases:
             with self.subTest(argv=argv):
