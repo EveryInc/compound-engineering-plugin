@@ -362,12 +362,22 @@ describe("ce-plan review contract", () => {
     expect(content).toContain("Document review is mandatory")
   })
 
-  test("uses headless mode by default and in pipeline context", async () => {
+  test("uses non-interactive mode by default and in pipeline context", async () => {
     const content = await readRepoFile("skills/ce-plan/references/plan-handoff.md")
+    const skillStub = await readRepoFile("skills/ce-plan/SKILL.md")
 
     // Default at Phase 5.3.8 is `mode:non-interactive` so users opt into deeper interactive review
     // explicitly from the post-generation menu rather than being forced through it.
+    expect(content).toContain(
+      "Invoke the `ce-doc-review` skill with arguments `mode:non-interactive <plan-path>`",
+    )
     expect(content).toContain("ce-doc-review` with `mode:non-interactive`")
+    expect(content).toContain(
+      "Pipeline runs invoke `ce-doc-review` with `mode:non-interactive` and the plan path",
+    )
+    expect(skillStub).toContain(
+      "The default mode for markdown is non-interactive (`mode:non-interactive`)",
+    )
     expect(content).not.toContain("skip document-review and return control")
 
     // The interactive walkthrough is opt-in via the post-generation menu, not automatic
