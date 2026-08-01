@@ -8,7 +8,7 @@ Run `/ce-setup` to create or repair the file and its `.gitignore` coverage. The 
 
 By default every CE-written artifact folder lives under `docs/` — `docs/plans/`, `docs/solutions/`, and the rest. `docs_root` relocates that root to any repo-relative folder, for projects where `docs/` is already tracked content owned by something else (an Obsidian vault, a docs site). Unset, behavior is byte-identical to today.
 
-`docs_root` reads from two layers, first non-empty wins: the checkout-local `config.local.yaml` above, then a **tracked** `.compound-engineering/config.yaml`. Prefer the tracked file — it is committed, so the setting reaches every clone and worktree of the project; the local file is per-checkout and would have to be re-set in each new worktree. (The tracked `config.yaml` is a general layer; today `docs_root` is its only consumer.)
+`docs_root` reads from two layers, first non-empty wins: the checkout-local `config.local.yaml` above, then a **tracked** `.compound-engineering/config.yaml`. Prefer the tracked file — it is committed, so the setting reaches every clone and worktree of the project; the local file is per-checkout and would have to be re-set in each new worktree. (The tracked `config.yaml` is a general layer; its consumers today are `docs_root` and the `review_model`/`review_effort` keys.)
 
 Two things make `docs_root` unlike the other settings:
 
