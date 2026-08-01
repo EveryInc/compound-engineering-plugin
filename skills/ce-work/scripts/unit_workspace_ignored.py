@@ -117,7 +117,7 @@ def inspect_ignored_snapshot_capability(repo: str, paths: set[str]) -> tuple[lis
             inventory,
             key=lambda row: (not row["reasons"], -row["bytes"], row["path"]),
         )[:MAX_IGNORED_OFFENDER_SAMPLE],
-        "repair_route": "This checkout shape is unsupported by cross-model execution; use native execution.",
+        "repair_route": "Remove or reduce the reported ignored artifacts, then retry cross-model execution.",
         "limits_source": ["MAX_IGNORED_SNAPSHOT_ENTRIES", "MAX_IGNORED_SNAPSHOT_BYTES"],
     }
     return planned, directories, report

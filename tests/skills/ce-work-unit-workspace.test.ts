@@ -2072,7 +2072,7 @@ describe("ce-work unit workspace controller", () => {
     expect(statSync(ignoredDirectory).mode & 0o777).toBe(0o750)
   })
 
-  test("prepare reports every ignored snapshot blocker before external authoring", () => {
+  test("init reports every ignored snapshot blocker before route selection closes", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
     const runId = "run-ignored-capability"
@@ -2091,12 +2091,7 @@ describe("ce-work unit workspace controller", () => {
     const opaque = path.join(f.repo, "opaque")
     mkdirSync(opaque)
     git(opaque, "init")
-    init(runs, runId, f)
-
-    const refused = ctl(
-      runs, "prepare", "--run-id", runId, "--unit-id", "U",
-      "--base", f.base, "--packet", packetFile("packet"),
-    )
+    const refused = init(runs, runId, f)
 
     expect(refused.word).toBe("REFUSED")
     expect(refused.stderr).toContain("ignored artifact snapshot capability is unavailable")
@@ -2111,10 +2106,31 @@ describe("ce-work unit workspace controller", () => {
         opaque_directory: 1,
         ownership_mismatch: 0,
       },
-      repair_route: expect.stringContaining("use native execution"),
+      repair_route: expect.stringContaining("retry cross-model execution"),
     })
     expect(refused.body.blocking_counts.byte_limit).toBeGreaterThan(0)
     expect(refused.body.top_offenders.length).toBeLessThanOrEqual(10)
+    expect(existsSync(path.join(runs, runId))).toBe(false)
+  })
+
+  test("prepare rechecks ignored capability after route selection", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-ignored-capability-changed"
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "ignored-link\n")
+    expect(initWithBinding(runs, runId, f, "require").word).toBe("READY")
+    symlinkSync("missing", path.join(f.repo, "ignored-link"))
+
+    const refused = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+
+    expect(refused.word).toBe("REFUSED")
+    expect(refused.body).toMatchObject({
+      blocking_counts: { symlink: 1 },
+      repair_route: "Remove or reduce the reported ignored artifacts, then retry cross-model execution.",
+    })
     expect(existsSync(path.join(runs, runId, "units", "U", "workspace"))).toBe(false)
   })
 
