@@ -90,6 +90,14 @@ This shares the provider/route kernel with `ce-doc-review` (parity-tested in CI)
 
 Large diffs stay on the same single-peer route without being serialized into one enormous prompt. The orchestrator sends a compact semantic review map — intent, material risk divisions, generated-tree treatment, and cross-division interactions — while the worker keeps the exact diff outside the prompt as a private, selectively readable artifact. Deterministic code never invents risk groups or cuts semantic shards; the adversarial agent works within the orchestrator's divisions and narrows its reads again when needed.
 
+### 1c. Configuring the high-stakes reviewer model
+
+By default the three high-stakes reviewers — `correctness-reviewer`, `security-reviewer`, and `adversarial-reviewer` — inherit whatever model is running the current session, same as every other persona. Set `review_model` (a model alias, e.g. `opus`) to pin those three, and only those three, to a specific model regardless of the session model. This is an exact pin, not a floor: it can lower capability as well as raise it, so the choice is a trade-off the user owns deliberately.
+
+Unlike `plan_model`/`brainstorm_model`, `review_model` is read two layers deep, local-first: the checkout-local `config.local.yaml` wins if it sets the key, otherwise the **tracked** `config.yaml` supplies a repo-wide default — useful here specifically because fresh worktrees don't inherit the gitignored local file. An explicit in-run model request (naming a model in your prompt, in either direction) overrides either layer for that run only.
+
+`review_effort` (`low | medium | high | xhigh`) refines the pin's reasoning effort, but only when a `review_model` route actually resolved (from config or an in-run request) and only on a harness whose dispatch primitive exposes a per-dispatch effort control — elsewhere it's silently skipped. Invalid, commented, or missing values for either key fall through silently to today's behavior. See the [configuration reference](./configuration.md) for the shared config-layer contract.
+
 ### 2. Severity (P0-P3) and autofix class are orthogonal
 
 Severity answers **urgency** (P0=critical breakage, P3=user discretion). The autofix class is **signal** about follow-up shape (not apply permission):
