@@ -132,6 +132,88 @@ print(mod.jobs_root_base())
     )
   })
 
+  test("peer runner resume discovers jobs under owner-checked legacy /tmp when TMPDIR differs", () => {
+    const runner = path.join(SKILLS_ROOT, "ce-doc-review", "scripts/peer-job-runner.py")
+    const parent = mkdtempSync(path.join(tmpdir(), "ce-peer-legacy-fallback-"))
+    const driver = String.raw`
+import importlib.util, os, sys
+os.environ.pop("CE_PEER_JOBS_ROOT", None)
+tmpdir_parent = sys.argv[2]
+preferred = os.path.join(tmpdir_parent, "claude-sandbox")
+legacy = os.path.join(tmpdir_parent, "legacy-tmp")
+os.makedirs(preferred, mode=0o700)
+os.makedirs(legacy, mode=0o700)
+os.environ["TMPDIR"] = preferred
+uid = os.geteuid() if hasattr(os, "geteuid") else os.getuid()
+spec = importlib.util.spec_from_file_location("peer_job_runner", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+# Hermetic roots: preferred under TMPDIR-like path, legacy under a distinct tree.
+mod.DEFAULT_ROOT = os.path.join(preferred, f"compound-engineering-{uid}")
+mod.LEGACY_DEFAULT_ROOT = os.path.join(legacy, f"compound-engineering-{uid}")
+assert mod.jobs_root_base() == os.path.abspath(mod.DEFAULT_ROOT)
+job_id = "20260801T000000Z-deadbeef"
+legacy_job = os.path.join(mod.LEGACY_DEFAULT_ROOT, "ce-doc-review", "run-1", "jobs", job_id)
+os.makedirs(legacy_job, mode=0o700)
+resolved = mod.resolve_job_dir(job_id, "ce-doc-review")
+assert os.path.samefile(resolved, legacy_job), (resolved, legacy_job)
+# New writes stay under preferred TMPDIR root.
+assert mod.skill_runs_root("ce-doc-review").startswith(os.path.abspath(mod.DEFAULT_ROOT))
+print("ok")
+`
+    try {
+      const result = spawnSync("python3", ["-c", driver, runner, parent], { encoding: "utf8" })
+      expect(result.status, result.stderr + result.stdout).toBe(0)
+      expect(result.stdout.trim()).toBe("ok")
+    } finally {
+      spawnSync("chmod", ["-R", "u+rwx", parent])
+      rmSync(parent, { recursive: true, force: true })
+    }
+  })
+
+  test("ce-work run_dir falls back to owner-checked legacy /tmp when primary lacks the run", () => {
+    const state = path.join(SKILLS_ROOT, "ce-work", "scripts/unit_workspace_state.py")
+    const parent = mkdtempSync(path.join(tmpdir(), "ce-work-legacy-fallback-"))
+    const driver = String.raw`
+import importlib.util, os, stat, sys
+os.environ.pop("CE_WORK_RUNS_ROOT", None)
+os.environ.pop("CE_PEER_JOBS_ROOT", None)
+tmpdir_parent = sys.argv[2]
+preferred = os.path.join(tmpdir_parent, "claude-sandbox")
+legacy = os.path.join(tmpdir_parent, "legacy-tmp")
+os.makedirs(preferred, mode=0o700)
+os.makedirs(legacy, mode=0o700)
+os.environ["TMPDIR"] = preferred
+uid = os.geteuid() if hasattr(os, "geteuid") else os.getuid()
+spec = importlib.util.spec_from_file_location("unit_workspace_state", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+mod.OWNER_SCRATCH_ROOT = os.path.join(preferred, f"compound-engineering-{uid}")
+mod.DEFAULT_RUNS_ROOT = os.path.join(mod.OWNER_SCRATCH_ROOT, "ce-work")
+mod.LEGACY_OWNER_SCRATCH_ROOT = os.path.join(legacy, f"compound-engineering-{uid}")
+mod.LEGACY_RUNS_ROOT = os.path.join(mod.LEGACY_OWNER_SCRATCH_ROOT, "ce-work")
+os.makedirs(mod.LEGACY_OWNER_SCRATCH_ROOT, mode=0o700)
+os.makedirs(mod.LEGACY_RUNS_ROOT, mode=0o700)
+run_id = "run-legacy-1"
+legacy_run = os.path.join(mod.LEGACY_RUNS_ROOT, run_id)
+os.makedirs(legacy_run, mode=0o700)
+# New default root still prefers TMPDIR.
+assert mod.runs_root() == mod.DEFAULT_RUNS_ROOT
+assert mod.run_dir(run_id) == legacy_run
+# Unknown ids stay on the preferred write root.
+assert mod.run_dir("brand-new-run") == os.path.join(mod.DEFAULT_RUNS_ROOT, "brand-new-run")
+print("ok")
+`
+    try {
+      const result = spawnSync("python3", ["-c", driver, state, parent], { encoding: "utf8" })
+      expect(result.status, result.stderr + result.stdout).toBe(0)
+      expect(result.stdout.trim()).toBe("ok")
+    } finally {
+      spawnSync("chmod", ["-R", "u+rwx", parent])
+      rmSync(parent, { recursive: true, force: true })
+    }
+  })
+
   test("peer runner secures newly created directories under a restrictive umask", () => {
     const runner = path.join(SKILLS_ROOT, "ce-doc-review", "scripts/peer-job-runner.py")
     const parent = mkdtempSync(path.join(tmpdir(), "ce-peer-root-"))

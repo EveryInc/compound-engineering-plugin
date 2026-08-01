@@ -148,14 +148,23 @@ if IS_WINDOWS:
     # so R6 has a working default rather than a required override.
     _WIN_ROOT_BASE = os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()
     DEFAULT_ROOT = os.path.join(_WIN_ROOT_BASE, "compound-engineering-jobs")
+    LEGACY_DEFAULT_ROOT = None
 elif _EFFECTIVE_UID is not None:
     # Prefer TMPDIR when set (Claude Code sets TMPDIR=/tmp/claude-* and allowlists
     # it for writes). Fall back to /tmp outside sandboxed hosts. Do not hardcode
-    # bare /tmp — sandboxes that only allow-write $TMPDIR reject that path.
+    # bare /tmp for *writes* — sandboxes that only allow-write $TMPDIR reject that
+    # path. Resume/discovery still falls back to owner-checked legacy /tmp root.
     _tmp_parent = os.environ.get("TMPDIR") or "/tmp"
     DEFAULT_ROOT = os.path.join(_tmp_parent, f"compound-engineering-{_EFFECTIVE_UID}")
+    _legacy_root = os.path.join("/tmp", f"compound-engineering-{_EFFECTIVE_UID}")
+    LEGACY_DEFAULT_ROOT = (
+        _legacy_root
+        if os.path.abspath(_legacy_root) != os.path.abspath(DEFAULT_ROOT)
+        else None
+    )
 else:
     DEFAULT_ROOT = None
+    LEGACY_DEFAULT_ROOT = None
 O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 # Windows CPython opens os.open() descriptors in CRT *text* mode by default:
 # writes expand \n -> \r\n and reads stop at the first 0x1A (Ctrl-Z EOF), which
@@ -213,6 +222,46 @@ def jobs_root_base() -> str:
     if DEFAULT_ROOT is None:
         raise RunnerError("effective user ID is unavailable; cannot derive the jobs root")
     return os.path.abspath(DEFAULT_ROOT)
+
+
+def _owner_checked_dir(path: str) -> bool:
+    """True when path is a real directory owned by the current principal (no-follow)."""
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    if not stat.S_ISDIR(st.st_mode):
+        return False
+    if IS_WINDOWS:
+        try:
+            return _win_owns_path(path)
+        except OSError:
+            return False
+    euid = _euid()
+    return euid is None or st.st_uid == euid
+
+
+def legacy_jobs_root_base_if_usable() -> str | None:
+    """Owner-checked pre-TMPDIR jobs root for resume/discovery only.
+
+    Skipped when CE_PEER_JOBS_ROOT is set (explicit override) or when the preferred
+    default already is the legacy /tmp path. Never created here.
+    """
+    if os.environ.get("CE_PEER_JOBS_ROOT") or LEGACY_DEFAULT_ROOT is None:
+        return None
+    legacy = os.path.abspath(LEGACY_DEFAULT_ROOT)
+    if not _owner_checked_dir(legacy):
+        return None
+    return legacy
+
+
+def jobs_root_search_bases() -> list[str]:
+    """Primary write root first, then owner-checked legacy /tmp when distinct."""
+    bases = [jobs_root_base()]
+    legacy = legacy_jobs_root_base_if_usable()
+    if legacy is not None and legacy not in {os.path.abspath(b) for b in bases}:
+        bases.append(legacy)
+    return bases
 
 
 def skill_runs_root(skill: str) -> str:
@@ -825,18 +874,32 @@ def resolve_job_dir(ref: str, skill=None) -> str:
         raise RunnerError(f"no such job dir: {ref}")
     if not _is_safe_token(ref):
         raise RunnerError(f"invalid job ref: {ref!r}")
-    if skill is not None:
-        if not _is_safe_token(skill):
-            raise RunnerError(f"invalid skill: {skill!r}")
-        search_root = skill_runs_root(skill)
-        patterns = [os.path.join(search_root, "*", "jobs", ref)]
+    if skill is not None and not _is_safe_token(skill):
+        raise RunnerError(f"invalid skill: {skill!r}")
+    # Prefer primary root; fall back to owner-checked legacy /tmp for pre-TMPDIR runs.
+    search_roots: list[str] = []
+    patterns: list[str] = []
+    if skill is not None and skill == "ce-work" and os.environ.get("CE_WORK_RUNS_ROOT"):
+        search_roots = [os.path.abspath(os.environ["CE_WORK_RUNS_ROOT"])]
+        patterns = [os.path.join(search_roots[0], "*", "jobs", ref)]
+    elif skill is not None:
+        for base in jobs_root_search_bases():
+            search_roots.append(os.path.join(base, skill))
+            patterns.append(os.path.join(base, skill, "*", "jobs", ref))
     else:
-        search_root = jobs_root_base()
-        patterns = [os.path.join(search_root, "*", "*", "jobs", ref)]
+        for base in jobs_root_search_bases():
+            search_roots.append(base)
+            patterns.append(os.path.join(base, "*", "*", "jobs", ref))
     matches = sorted({match for pattern in patterns for match in glob.glob(pattern)})
     if not matches:
-        raise RunnerError(f"job not found under {search_root}: {ref}")
+        searched = ", ".join(search_roots)
+        raise RunnerError(f"job not found under {searched}: {ref}")
     if len(matches) > 1:
+        # Same id under primary + legacy: prefer the primary-root match.
+        primary_base = os.path.abspath(jobs_root_base())
+        primary_hits = [m for m in matches if os.path.abspath(m).startswith(primary_base + os.sep)]
+        if len(primary_hits) == 1:
+            return primary_hits[0]
         raise RunnerError(f"ambiguous job id {ref}: {len(matches)} matches; pass the job dir path")
     return matches[0]
 
