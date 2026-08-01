@@ -750,7 +750,7 @@ describe("ce-compound Phase 1 artifact contract", () => {
     // A run identifier scopes the per-subagent artifact files
     expect(content).toContain("RUN_ID")
     // Run dir under the validated owner-private scratch namespace
-    expect(content).toContain('SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)"')
+    expect(content).toContain('SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)"')
     expect(content).toContain('RUN_DIR="$SCRATCH_ROOT/ce-compound/$RUN_ID"')
     expect(content).toContain('(umask 077; mkdir -p "$RUN_DIR")')
   })

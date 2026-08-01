@@ -144,7 +144,7 @@ A failed ack write -> upsert the item as `ack_deferred` and hold the cursor (do 
 Resolve and create media scratch with this shell block, substituting the current run id:
 
 ```bash
-SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)";
+SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
 if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
 (umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
 if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;

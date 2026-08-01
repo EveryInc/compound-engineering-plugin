@@ -19,7 +19,7 @@ import { describe, expect, setDefaultTimeout, test } from "bun:test"
 // running it can. This file runs on every platform, and CI runs it under real win32.
 
 const SKILLS_ROOT = path.join(process.cwd(), "skills")
-const ROOT_ASSIGNMENT = 'SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)"'
+const ROOT_ASSIGNMENT = 'SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)"'
 const GUARD_END = 'chmod 700 "$SCRATCH_ROOT"'
 
 /** A POSIX shell, which these skills require (AGENTS.md: bash on macOS/Linux, Git Bash on
@@ -84,7 +84,7 @@ describe("scratch-root preamble executes on this host", () => {
       const failures: string[] = []
       blocks.forEach(({ file, script }, index) => {
         // Redirect the real root into a disposable one; everything else runs verbatim.
-        const rooted = script.replaceAll("${TMPDIR:-/tmp}/compound-engineering-$(id -u)", `$CE_ROOT/${index}`)
+        const rooted = script.replaceAll("/tmp/compound-engineering-$(id -u)", `$CE_ROOT/${index}`)
         expect(rooted, `${file}: root redirect did not apply`).not.toContain("$(id -u)")
         const r = spawnSync(SHELL, ["-c", `CE_ROOT="$1"\n${rooted}\nprintf %s "$SCRATCH_ROOT"`,
           "sh", parent], { encoding: "utf8" })
@@ -105,7 +105,7 @@ describe("scratch-root preamble executes on this host", () => {
     const blocks = preambles()
     const parent = mkdtempSync(path.join(tmpdir(), "ce-preamble-reentrant-"))
     try {
-      const rooted = blocks[0].script.replaceAll("${TMPDIR:-/tmp}/compound-engineering-$(id -u)", "$CE_ROOT/r")
+      const rooted = blocks[0].script.replaceAll("/tmp/compound-engineering-$(id -u)", "$CE_ROOT/r")
       const run = () => spawnSync(SHELL, ["-c", `CE_ROOT="$1"\n${rooted}`, "sh", parent],
         { encoding: "utf8" })
       expect(run().status, "first run").toBe(0)

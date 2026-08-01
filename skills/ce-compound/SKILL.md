@@ -153,7 +153,7 @@ Launch research subagents. Each writes its full output to a per-run scratch arti
 **Run ID and run dir (before dispatching any subagent):** generate a unique run identifier and create the run directory. This scopes every Phase 1 artifact file to the same directory so the orchestrator can Read them back in Phase 2.
 
 ```bash
-SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)";
+SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
 if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
 (umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
 if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;

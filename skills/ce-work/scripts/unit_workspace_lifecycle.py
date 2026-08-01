@@ -100,57 +100,47 @@ def unfinished_run(doc: dict, canonical_head: str) -> bool:
 def discover_resume_run(repo: str, plan_digest: str) -> tuple[str, list[dict]]:
     if not re.fullmatch(r"[0-9a-f]{64}", plan_digest):
         raise Operational("REFUSED", "plan digest must be a lowercase SHA-256 hex value")
-    ensure_root()
+    root = ensure_root()
     info = repo_info(repo)
     candidates: list[dict] = []
-    seen_ids: set[str] = set()
-    for root in discovery_runs_roots():
-        try:
-            entries = list(os.scandir(root))
-        except FileNotFoundError:
+    for entry in sorted(os.scandir(root), key=lambda row: row.name):
+        if entry.name == ".locks":
             continue
-        for entry in sorted(entries, key=lambda row: row.name):
-            if entry.name == ".locks":
-                continue
-            if not entry.is_dir(follow_symlinks=False):
-                raise TrustFailure(f"unexpected non-directory entry in run root: {entry.path}")
-            if not SAFE_ID.fullmatch(entry.name) or not entry.name.strip("."):
-                raise TrustFailure(f"unsafe run entry name: {entry.path}")
-            if entry.name in seen_ids:
-                # Prefer primary root when the same run id exists under both.
-                continue
-            seen_ids.add(entry.name)
-            validate_private_dir(entry.path)
-            doc = read_private_json(os.path.join(entry.path, "manifest.json"))
-            if doc.get("schema_version") != SCHEMA_VERSION or doc.get("run_id") != entry.name:
-                raise TrustFailure(f"manifest schema or run identity mismatch: {entry.path}")
-            repository = doc.get("repository")
-            branch = doc.get("branch")
-            plan = doc.get("plan")
-            source = doc.get("source")
-            if not isinstance(repository, dict) or not isinstance(branch, dict) or not isinstance(plan, dict):
-                raise TrustFailure(f"manifest repository, branch, or plan record is malformed: {entry.path}")
-            if (
-                repository.get("identity_digest") != info["identity_digest"]
-                or repository.get("toplevel") != info["toplevel"]
-                or repository.get("git_dir") != info["git_dir"]
-                or branch.get("ref") != info["branch_ref"]
-            ):
-                continue
-            if source is not None and not isinstance(source, dict):
-                raise TrustFailure(f"manifest source record is malformed: {entry.path}")
-            source_kind = source.get("kind") if isinstance(source, dict) else plan.get("kind", "plan")
-            source_digest = source.get("digest") if isinstance(source, dict) else plan.get("digest")
-            if source_kind != "plan" or source_digest != plan_digest:
-                continue
-            validate_source(doc)
-            if unfinished_run(doc, info["head"]):
-                candidates.append({
-                    "run_id": entry.name,
-                    "updated_at": doc.get("updated_at"),
-                    "recovery_path": entry.path,
-                    "unit_states": {uid: unit.get("state") for uid, unit in doc["units"].items()},
-                })
+        if not entry.is_dir(follow_symlinks=False):
+            raise TrustFailure(f"unexpected non-directory entry in run root: {entry.path}")
+        if not SAFE_ID.fullmatch(entry.name) or not entry.name.strip("."):
+            raise TrustFailure(f"unsafe run entry name: {entry.path}")
+        validate_private_dir(entry.path)
+        doc = read_private_json(os.path.join(entry.path, "manifest.json"))
+        if doc.get("schema_version") != SCHEMA_VERSION or doc.get("run_id") != entry.name:
+            raise TrustFailure(f"manifest schema or run identity mismatch: {entry.path}")
+        repository = doc.get("repository")
+        branch = doc.get("branch")
+        plan = doc.get("plan")
+        source = doc.get("source")
+        if not isinstance(repository, dict) or not isinstance(branch, dict) or not isinstance(plan, dict):
+            raise TrustFailure(f"manifest repository, branch, or plan record is malformed: {entry.path}")
+        if (
+            repository.get("identity_digest") != info["identity_digest"]
+            or repository.get("toplevel") != info["toplevel"]
+            or repository.get("git_dir") != info["git_dir"]
+            or branch.get("ref") != info["branch_ref"]
+        ):
+            continue
+        if source is not None and not isinstance(source, dict):
+            raise TrustFailure(f"manifest source record is malformed: {entry.path}")
+        source_kind = source.get("kind") if isinstance(source, dict) else plan.get("kind", "plan")
+        source_digest = source.get("digest") if isinstance(source, dict) else plan.get("digest")
+        if source_kind != "plan" or source_digest != plan_digest:
+            continue
+        validate_source(doc)
+        if unfinished_run(doc, info["head"]):
+            candidates.append({
+                "run_id": entry.name,
+                "updated_at": doc.get("updated_at"),
+                "recovery_path": entry.path,
+                "unit_states": {uid: unit.get("state") for uid, unit in doc["units"].items()},
+            })
     if not candidates:
         raise Operational("NOT_FOUND", "no unfinished run matches repository, branch, and plan digest", {"candidates": []})
     if len(candidates) > 1:

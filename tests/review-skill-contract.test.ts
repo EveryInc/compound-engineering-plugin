@@ -142,7 +142,7 @@ describe("ce-code-review contract", () => {
     expect(content).toContain("apply:local")
     expect(content).toContain("mode:headless")
     expect(content).toMatch(/mode:non-interactive` is \*\*not\*\* an alias for `mode:agent`/i)
-    expect(content).toContain('SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)"')
+    expect(content).toContain('SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)"')
     expect(content).toContain('RUN_DIR="$SCRATCH_ROOT/ce-code-review/$RUN_ID"')
     expect(content).toMatch(/Never push, open PRs, or file tickets/i)
     expect(content).toContain("run artifact")

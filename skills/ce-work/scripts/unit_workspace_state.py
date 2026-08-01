@@ -34,36 +34,14 @@ SCHEMA_VERSION = 1
 PLAN_CHECKPOINT_MESSAGE = "docs(ce-work): checkpoint selected implementation plan"
 _uid_getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
 _EFFECTIVE_UID = _uid_getter() if _uid_getter is not None else None
-# Prefer TMPDIR for new writes (Claude Code sandbox allowlists $TMPDIR).
 OWNER_SCRATCH_ROOT = (
-    os.path.join(os.environ.get("TMPDIR") or "/tmp", f"compound-engineering-{_EFFECTIVE_UID}")
+    os.path.join("/tmp", f"compound-engineering-{_EFFECTIVE_UID}")
     if _EFFECTIVE_UID is not None
     else None
 )
 DEFAULT_RUNS_ROOT = (
     os.path.join(OWNER_SCRATCH_ROOT, "ce-work")
     if OWNER_SCRATCH_ROOT is not None
-    else None
-)
-# Pre-TMPDIR layout under bare /tmp. Resume/discovery falls back here when the
-# preferred root differs and no CE_* override is set (owner-checked at use).
-_LEGACY_OWNER_SCRATCH = (
-    os.path.join("/tmp", f"compound-engineering-{_EFFECTIVE_UID}")
-    if _EFFECTIVE_UID is not None
-    else None
-)
-LEGACY_OWNER_SCRATCH_ROOT = (
-    _LEGACY_OWNER_SCRATCH
-    if (
-        _LEGACY_OWNER_SCRATCH is not None
-        and OWNER_SCRATCH_ROOT is not None
-        and os.path.abspath(_LEGACY_OWNER_SCRATCH) != os.path.abspath(OWNER_SCRATCH_ROOT)
-    )
-    else None
-)
-LEGACY_RUNS_ROOT = (
-    os.path.join(LEGACY_OWNER_SCRATCH_ROOT, "ce-work")
-    if LEGACY_OWNER_SCRATCH_ROOT is not None
     else None
 )
 MAX_JSON_BYTES = 2 * 1024 * 1024
@@ -129,53 +107,6 @@ def runs_root() -> str:
     if DEFAULT_RUNS_ROOT is None:
         raise TrustFailure("effective user ID is unavailable; cannot derive the runs root")
     return DEFAULT_RUNS_ROOT
-
-
-def _runs_root_override_active() -> bool:
-    return bool(os.environ.get("CE_WORK_RUNS_ROOT") or os.environ.get("CE_PEER_JOBS_ROOT"))
-
-
-def _usable_owner_checked_dir(path: str) -> bool:
-    """True when path is a real directory owned by the current user (no-follow)."""
-    try:
-        fd = os.open(path, os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
-    except OSError:
-        return False
-    try:
-        current = os.fstat(fd)
-        if not stat.S_ISDIR(current.st_mode):
-            return False
-        if _euid() is not None and current.st_uid != _euid():
-            return False
-        return True
-    finally:
-        os.close(fd)
-
-
-def legacy_runs_root_if_usable() -> str | None:
-    """Owner-checked pre-TMPDIR ce-work root, or None when unavailable/overridden.
-
-    Used only for read/resume/discovery. Never created here — new writes stay under
-    the TMPDIR-preferred runs_root().
-    """
-    if _runs_root_override_active() or LEGACY_RUNS_ROOT is None or LEGACY_OWNER_SCRATCH_ROOT is None:
-        return None
-    owner = os.path.abspath(LEGACY_OWNER_SCRATCH_ROOT)
-    root = os.path.abspath(LEGACY_RUNS_ROOT)
-    if not _usable_owner_checked_dir(owner):
-        return None
-    if not _usable_owner_checked_dir(root):
-        return None
-    return root
-
-
-def discovery_runs_roots() -> list[str]:
-    """Primary write root first, then owner-checked legacy /tmp root when distinct."""
-    roots = [runs_root()]
-    legacy = legacy_runs_root_if_usable()
-    if legacy is not None and os.path.abspath(legacy) not in {os.path.abspath(r) for r in roots}:
-        roots.append(legacy)
-    return roots
 
 
 def safe_id(value: str, label: str) -> str:
@@ -466,24 +397,14 @@ def atomic_private_json(path: str, doc: dict) -> None:
 
 
 def run_dir(run_id: str) -> str:
-    """Path for a run id: existing primary or legacy location, else primary (new write)."""
-    rid = safe_id(run_id, "run id")
-    primary = os.path.join(runs_root(), rid)
-    if os.path.lexists(primary):
-        return primary
-    legacy_root = legacy_runs_root_if_usable()
-    if legacy_root is not None:
-        legacy = os.path.join(legacy_root, rid)
-        if os.path.lexists(legacy):
-            return legacy
-    return primary
+    return os.path.join(runs_root(), safe_id(run_id, "run id"))
 
 
 @contextlib.contextmanager
 def locked_manifest(run_id: str, write: bool = False):
     run_id = safe_id(run_id, "run id")
-    ensure_root()  # keep preferred write root ready; do not force-create legacy
-    rd = run_dir(run_id)
+    root = ensure_root()
+    rd = os.path.join(root, run_id)
     validate_private_dir(rd)
     lock_path = os.path.join(rd, "manifest.lock")
     try:
@@ -802,13 +723,15 @@ def cmd_init(args) -> tuple[str, dict]:
     binding = parse_json_arg(args.binding_json, "binding")
     egress = parse_json_arg(args.egress_json, "egress")
     fixed_route_contract(binding, egress, "REFUSED")
-
-    def resume_existing(rd: str) -> tuple[str, dict]:
+    rd = os.path.join(root, rid)
+    try:
+        os.mkdir(rd, 0o700)
+    except FileExistsError:
         try:
-            existing_stat = os.lstat(rd)
+            existing = os.lstat(rd)
         except OSError as exc:
             raise TrustFailure(f"cannot safely inspect run directory {rd}: {exc}") from exc
-        if stat.S_ISDIR(existing_stat.st_mode) and not os.path.lexists(os.path.join(rd, "manifest.json")):
+        if stat.S_ISDIR(existing.st_mode) and not os.path.lexists(os.path.join(rd, "manifest.json")):
             raise Operational(
                 "BLOCKED",
                 "run directory exists without a controller manifest; choose a new run id or remove the directory after confirming no initialization is active",
@@ -844,19 +767,6 @@ def cmd_init(args) -> tuple[str, dict]:
                 "source_digest": actual_digest,
                 "recovery_path": rd,
             }
-
-    # Prefer primary for new writes; if the run already lives under primary or
-    # owner-checked legacy /tmp, resume that durable location instead of minting
-    # a second root with the same run id.
-    existing_rd = run_dir(rid)
-    if os.path.lexists(existing_rd):
-        return resume_existing(existing_rd)
-    rd = os.path.join(root, rid)
-    try:
-        os.mkdir(rd, 0o700)
-    except FileExistsError:
-        # Lost a race with another initializer on the primary root.
-        return resume_existing(rd)
     validate_private_dir(rd)
     for child in ("units", "jobs", "packets", "source"):
         ensure_private_dir(os.path.join(rd, child))
