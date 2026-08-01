@@ -82,7 +82,7 @@ function cli() {
   // show models piping this output through `head`/`tail`, which silently drops
   // directives. No single-ended cut preserves both lines, so the Setup prose
   // can detect truncation and order a verbatim rerun.
-  process.stdout.write('=== skill context (follow these directives; do not rerun this script) ===\n\n');
+  process.stdout.write('=== skill context (follow these directives; if CE_CONTEXT_END is missing below, rerun this script once; otherwise do not rerun) ===\n\n');
   process.stdout.write(parts.join('\n\n---\n\n') + '\n');
   process.stdout.write('\nCE_CONTEXT_END\n');
 }

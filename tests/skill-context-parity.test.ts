@@ -65,7 +65,7 @@ describe("skill context shared-asset parity", () => {
       { encoding: "utf8" },
     )
     const lines = out.trim().split("\n")
-    expect(lines[0]).toBe("=== skill context (follow these directives; do not rerun this script) ===")
+    expect(lines[0]).toBe("=== skill context (follow these directives; if CE_CONTEXT_END is missing below, rerun this script once; otherwise do not rerun) ===")
     expect(lines[lines.length - 1]).toBe("CE_CONTEXT_END")
     expect(out).toContain("SUBAGENT_AUTHORIZATION:")
   })
