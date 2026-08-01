@@ -58,7 +58,7 @@ outcome exactly once; when both the worker's internal cap and the
 supervisor's window fire, the supervisor's record wins.
 
 Environment overrides (defaults in parentheses):
-  CE_PEER_JOBS_ROOT         base dir (/tmp/compound-engineering-<effective-uid>)
+  CE_PEER_JOBS_ROOT         base dir (${TMPDIR:-/tmp}/compound-engineering-<effective-uid>)
   CE_WORK_RUNS_ROOT         parent CE Work dir containing all <run-id>/ dirs
   CE_PEER_IDLE_SECS         idle window, no out.log growth (240)
   CE_PEER_HARD_SECS         hard cap on worker wall clock
@@ -149,7 +149,11 @@ if IS_WINDOWS:
     _WIN_ROOT_BASE = os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()
     DEFAULT_ROOT = os.path.join(_WIN_ROOT_BASE, "compound-engineering-jobs")
 elif _EFFECTIVE_UID is not None:
-    DEFAULT_ROOT = os.path.join("/tmp", f"compound-engineering-{_EFFECTIVE_UID}")
+    # Prefer TMPDIR when set (Claude Code sets TMPDIR=/tmp/claude-* and allowlists
+    # it for writes). Fall back to /tmp outside sandboxed hosts. Do not hardcode
+    # bare /tmp — sandboxes that only allow-write $TMPDIR reject that path.
+    _tmp_parent = os.environ.get("TMPDIR") or "/tmp"
+    DEFAULT_ROOT = os.path.join(_tmp_parent, f"compound-engineering-{_EFFECTIVE_UID}")
 else:
     DEFAULT_ROOT = None
 O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)

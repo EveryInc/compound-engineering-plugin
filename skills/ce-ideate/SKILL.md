@@ -275,10 +275,10 @@ Before generating ideas, gather grounding. The dispatch set depends on the mode 
 
 Generate a `<run-id>` once at the start of Phase 1 (8 hex chars). Reuse it for the V15 cache file (this phase) and the V17 checkpoints (Phases 2 and 4) so they share one per-run scratch directory.
 
-**Pre-resolve the scratch directory path.** Scratch lives beneath the effective user's private CE root directly under `/tmp` (not under `$TMPDIR` and not under `.context/`). Run one bash command to validate the owner-private root, create the run directory, and capture its absolute path for downstream use.
+**Pre-resolve the scratch directory path.** Scratch lives beneath the effective user's private CE root under `${TMPDIR:-/tmp}` (not under `.context/`). Prefer `$TMPDIR` when set so sandboxed hosts (Claude Code sets `TMPDIR=/tmp/claude-*`) can write; fall back to `/tmp` when unset. Run one bash command to validate the owner-private root, create the run directory, and capture its absolute path for downstream use.
 
 ```bash
-SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
+SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)";
 if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
 (umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
 if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;

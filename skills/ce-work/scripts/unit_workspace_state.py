@@ -35,7 +35,7 @@ PLAN_CHECKPOINT_MESSAGE = "docs(ce-work): checkpoint selected implementation pla
 _uid_getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
 _EFFECTIVE_UID = _uid_getter() if _uid_getter is not None else None
 OWNER_SCRATCH_ROOT = (
-    os.path.join("/tmp", f"compound-engineering-{_EFFECTIVE_UID}")
+    os.path.join(os.environ.get("TMPDIR") or "/tmp", f"compound-engineering-{_EFFECTIVE_UID}")
     if _EFFECTIVE_UID is not None
     else None
 )

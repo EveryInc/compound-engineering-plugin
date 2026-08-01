@@ -145,7 +145,7 @@ A token in flag position beats inference; a colon sitting in ordinary prose does
 
 **Can I share the report with my team?** Yes — that's what the audience rendering and the publishing destinations are for. Just ask for it up front, or take the re-render offer when you pick a shared destination.
 
-**Where does the artifact go?** It's written to `/tmp/compound-engineering-<effective-uid>/ce-explain/<run-id>/` before the destination ask; choosing a destination copies it out. That path is temporary — pick a destination if you want to keep it.
+**Where does the artifact go?** It's written to `${TMPDIR:-/tmp}/compound-engineering-<effective-uid>/ce-explain/<run-id>/` before the destination ask; choosing a destination copies it out. That path is temporary — pick a destination if you want to keep it.
 
 **Is this `ce-compound` for humans?** Roughly — a Learning teaches the repo's future work; an explainer documents something for you. They're complements, not substitutes.
 

@@ -30,7 +30,7 @@ describe("ce-handoff portable runtime contract", () => {
 
   test("defines the managed store and immutable v1 frontmatter", () => {
     expect(skill).toContain('HANDOFF_DIR="$SCRATCH_ROOT/ce-handoff/<repo-namespace>"')
-    expect(skill).toContain('SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)"')
+    expect(skill).toContain('SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)"')
     expect(skill).toContain("$HANDOFF_DIR/<topic>.md")
     expect(skill).toContain("ce-handoff/v1")
     for (const key of ["created_at", "title", "summary", "keywords", "cwd"]) {

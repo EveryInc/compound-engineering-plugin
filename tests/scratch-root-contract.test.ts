@@ -15,7 +15,7 @@ function contractFiles(root: string): string[] {
 }
 
 const RUNTIME_FILES = contractFiles(SKILLS_ROOT)
-const ROOT_ASSIGNMENT = 'SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)"'
+const ROOT_ASSIGNMENT = 'SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)"'
 
 describe("owner-scoped scratch root", () => {
   test("runtime assets use the uid-scoped root, not the legacy shared root", () => {
@@ -97,11 +97,13 @@ exit 0
     }
   })
 
-  test("peer runner defaults to the effective-uid root", () => {
+  test("peer runner defaults to the effective-uid root under TMPDIR or /tmp", () => {
     const runner = path.join(SKILLS_ROOT, "ce-doc-review", "scripts/peer-job-runner.py")
     const driver = String.raw`
 import importlib.util, os, sys
 os.environ.pop("CE_PEER_JOBS_ROOT", None)
+# Unset host TMPDIR so the fallback path is deterministic in CI/dev sandboxes.
+os.environ.pop("TMPDIR", None)
 spec = importlib.util.spec_from_file_location("peer_job_runner", sys.argv[1])
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
@@ -110,6 +112,24 @@ print(mod.jobs_root_base())
     const result = spawnSync("python3", ["-c", driver, runner], { encoding: "utf8" })
     expect(result.status, result.stderr).toBe(0)
     expect(result.stdout.trim()).toBe(`/tmp/compound-engineering-${process.getuid!()}`)
+  })
+
+  test("peer runner prefers TMPDIR when set (Claude Code sandbox)", () => {
+    const runner = path.join(SKILLS_ROOT, "ce-doc-review", "scripts/peer-job-runner.py")
+    const driver = String.raw`
+import importlib.util, os, sys
+os.environ.pop("CE_PEER_JOBS_ROOT", None)
+os.environ["TMPDIR"] = "/tmp/claude-sandbox-test"
+spec = importlib.util.spec_from_file_location("peer_job_runner", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+print(mod.jobs_root_base())
+`
+    const result = spawnSync("python3", ["-c", driver, runner], { encoding: "utf8" })
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stdout.trim()).toBe(
+      `/tmp/claude-sandbox-test/compound-engineering-${process.getuid!()}`,
+    )
   })
 
   test("peer runner secures newly created directories under a restrictive umask", () => {
