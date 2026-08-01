@@ -84,6 +84,7 @@ Invoked when a specific need arises — not part of any chain.
 | Skill | Description |
 |-------|-------------|
 | [`/ce-commit`](./ce-commit.md) | Create a single, well-crafted git commit — convention-aware, sensitive-file-safe, file-level logical splitting |
+| [`/ce-quick-ship-pr`](./ce-quick-ship-pr.md) | Routine review-commit-push-open-PR path with explicit file scope, light verification, and no merge/deploy side effects |
 | [`/ce-commit-push-pr`](./ce-commit-push-pr.md) | Go from working changes to an open PR with adaptive descriptions, related-reference handling, three modes (full workflow / description update / description-only generation), and a concept-teaching section for anything the change newly introduces |
 | [`/ce-babysit-pr`](./ce-babysit-pr.md) | Watch an open PR and keep it moving toward merge — react to incoming review comments (via `/ce-resolve-pr-feedback`) and CI failures (via `/ce-debug`) as each arrives, comments-first, with a crash-safe resumable tick, continuous or checkpoint mode per harness, and a settle window that avoids premature "ready to merge" |
 | [`/ce-worktree`](./ce-worktree.md) | Ensure work happens in an isolated git worktree — detect existing isolation, prefer the harness's native worktree tool, fall back to plain git |

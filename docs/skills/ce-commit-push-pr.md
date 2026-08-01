@@ -2,7 +2,7 @@
 
 > Go from working changes to an open PR with an adaptive, value-first description that scales in depth with the change. Or rewrite an existing PR description. Or generate a description without touching git.
 
-`ce-commit-push-pr` is the **shipping** skill. Three modes — full workflow, description update on existing PR, description-only generation — handle the common shapes of "I want to ship" without forcing you through unnecessary steps. PR descriptions adapt to the change's complexity (not cookie-cutter templates) and cover the **full PR commit range**, not just the working-tree diff at invocation time.
+`ce-commit-push-pr` is the **complex shipping** skill. For routine review-commit-push-open-PR work, use [`/ce-quick-ship-pr`](./ce-quick-ship-pr.md) instead. Its three modes — full workflow, description update on existing PR, description-only generation — handle the more involved shapes of "I want to ship" without forcing you through unnecessary steps. PR descriptions adapt to the change's complexity (not cookie-cutter templates) and cover the **full PR commit range**, not just the working-tree diff at invocation time.
 
 The skill is opinionated about a few specific things that have burned past contributors: it never `git add -A`, it splits naturally distinct concerns into separate commits when present, preserves related work references with correct close-vs-link intent, and writes PR bodies via temp files (never via stdin pipes, which can silently produce empty PR bodies while `gh` still exits 0).
 
@@ -15,7 +15,7 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 | Question | Answer |
 |----------|--------|
 | What does it do? | Commits, pushes, and opens a PR — or just rewrites the description of an existing PR — or just generates a description without touching git |
-| When to use it | Anytime you want commits + PR; rewriting an existing PR description; drafting a description for a branch |
+| When to use it | Complex commits + PR; rewriting an existing PR description; drafting a description for a branch |
 | What it produces | An open PR (URL returned) — or an updated PR description — or a printed description for you to apply yourself |
 | What's next | It auto-hands off to [`/ce-babysit-pr`](./ce-babysit-pr.md) to watch CI + incoming review and drive toward merge-ready (default on; `babysit:off` or `auto_babysit: false` to opt out) — you merge when it reports ready |
 
@@ -145,6 +145,7 @@ Reach for `ce-commit-push-pr` when:
 Skip `ce-commit-push-pr` when:
 
 - You want only commits without pushing or PR → `/ce-commit`
+- You want a routine review-commit-push-open-PR path without adaptive descriptions or PR monitoring → `/ce-quick-ship-pr`
 - You're on the default branch and want to actually commit there → handle manually (this skill won't push to default without explicit feature-branch creation)
 - The PR shape is unusual enough that hand-crafted git work is needed (interactive rebase, complex history rewrite)
 
