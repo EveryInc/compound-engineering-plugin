@@ -1,7 +1,7 @@
 ---
 title: "Working around a harness default that silently disables a skill's subagents"
 date: 2026-07-28
-last_updated: 2026-07-29
+last_updated: 2026-08-01
 category: skill-design
 module: "skills (every dispatch skill: ce-plan, ce-doc-review, ce-code-review, ce-work, ce-retune, and others)"
 problem_type: design_pattern
@@ -12,6 +12,7 @@ applies_when:
   - "A skill's shipped subagents stop firing and the work silently collapses into the parent context"
   - "Deciding whether skill-authored content may assert that an operator-level constraint is satisfied"
   - "Judging review feedback on a mechanism whose whole purpose is to override a model-facing default"
+  - "A Setup fence's tool output is being piped, filtered, or truncated before its directives reach context"
 tags:
   - subagent-dispatch
   - harness-defaults
@@ -70,6 +71,17 @@ What it is *not* backed by, checked directly: no autonomy assertion appears in e
 
 Two things follow. Do not audit a counter-directive purely by string-matching the prompt — the same pressure appears in different words (this harness reserves blocking questions for cases where "proceeding under any assumption would be unsafe", which pushes toward inferring without ever claiming the user is gone). And when the evidence is observational rather than quotable, label it that way; an overstated justification is the kind a future reader trusts until they check it.
 
+**Delivery is a step that can fail, and the model is the one who fails it.** The directive outranks the system-prompt default only if it arrives in the turn as tool output — and the model can destroy that delivery without ever forming an intention about the directive. Field transcripts show the Setup fence rewritten with `| tail -6` or `| head -5` (3 of 21 invocations on one host, clustered on mid-chain `ce-doc-review`/`ce-work` runs): a generic output-minimization habit that never reads what it discards. `head -5` keeps the header and `RESOLVED_CONTEXT` and drops every directive while still looking like a successful run; `tail -6` drops `SUBAGENT_AUTHORIZATION` specifically, because it is emitted first. The observed incident session made zero dispatches across a full plan → review → work chain, and which directives survived depended purely on which truncation flag the model reached for.
+
+Two mechanisms counter this:
+
+- The Setup prose instructs running the fence exactly as written — unpiped, unfiltered, not bundled into a command batch. This is the one place prose is deliberately load-bearing: it fires before the script runs, so no executable layer can carry it.
+- The script emits a fixed header first and `CE_CONTEXT_END` last, and the Setup prose defines the check: one of those lines without the other means the output was truncated — rerun the fence verbatim once. No single-ended cut preserves both, so truncation is detectable from inside the turn.
+
+If field evidence shows the marker check being skipped too, the next escalation is an executable delivery receipt — the script records that it ran, and the first dispatch point verifies the directives arrived intact — converting the last prose control into an executable one.
+
+**A harness default must never be re-narrated as the user's instruction.** The observed override did not degrade silently — it degraded while telling the user "your standing instruction prohibits agent dispatch." The user had said nothing of the kind, and conceded confusion only when challenged. That misattribution is worse than the silent form: it launders an operator default into a fabricated user preference, invisible to the user and unfalsifiable for a later transcript reader, who sees a note saying the user asked for this. A fourth directive, `HARNESS_ATTRIBUTION`, states that a constraint originating in the system prompt or harness configuration is never described to the user as their instruction, preference, or standing request, and that any disclosure names the harness as the source.
+
 **Independence accounting must travel with it.** Restoring dispatch fixes the corrupted confidence signal only while dispatch succeeds. A third directive states that independence is a property of separate dispatched contexts — not of separate personas or lenses — so agreement reached inside one context cannot promote a finding. That rule is correct whether or not the gate is ever lifted.
 
 ## Why This Matters
@@ -127,6 +139,8 @@ Two practical constraints found the hard way:
 The first two rejections and the acceptance all came from the same reviewer in one pass. Blanket trust and blanket suspicion would both have been wrong.
 
 **Measuring whether it works.** Never score dispatch from the run's own summary — models in this investigation claimed dispatches they had not made. Count `tool_use` entries in the session transcript instead, and confirm the tool was available all along with a post-hoc probe. Probe *after* the run: asking first primes the session with dispatch reasoning and contaminates the very behavior under test.
+
+Measure *delivery* separately from *compliance*, and count delivery only inside `tool_result` blocks. A raw substring grep for a directive token also matches the model quoting the directive back in its own assistant text, which inflates the delivery count and hides truncation entirely — one audited session counted three "deliveries" where a structured re-parse found one. "Ignored the directive" and "never received the directive" need opposite fixes; an audit that cannot tell them apart files the wrong bug. Check the `tool_use` input for the Setup invocation too: a `| head`/`| tail` pipe there with a shortened result is the truncation signature.
 
 ## Related
 
