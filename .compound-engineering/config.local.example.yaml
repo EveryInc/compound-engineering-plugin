@@ -88,8 +88,11 @@
 # layer for that run only. review_effort only takes effect alongside a
 # resolved review_model route, and only on a harness whose dispatch primitive
 # exposes a per-dispatch effort control -- elsewhere it is silently skipped.
-# Invalid, commented, or missing values for either key fall through silently
-# to today's behavior (trio inherits the session model).
+# Invalid, commented, or missing values fall through independently per key --
+# for review_model, straight to today's behavior (trio inherits the session
+# model); for review_effort, it is simply omitted and never affects model
+# resolution, so a valid review_model pin is never discarded because
+# review_effort was absent or bad.
 
 # review_model: opus             # model alias for the trio (no default; exact pin, can lower capability too)
 # review_effort: high            # low | medium | high | xhigh (no default; best-effort, trio-only)

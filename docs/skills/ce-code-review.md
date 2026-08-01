@@ -96,7 +96,7 @@ By default the three high-stakes reviewers — `correctness-reviewer`, `security
 
 Unlike `plan_model`/`brainstorm_model`, `review_model` is read two layers deep, local-first: the checkout-local `config.local.yaml` wins if it sets the key, otherwise the **tracked** `config.yaml` supplies a repo-wide default — useful here specifically because fresh worktrees don't inherit the gitignored local file. An explicit in-run model request (naming a model in your prompt, in either direction) overrides either layer for that run only.
 
-`review_effort` (`low | medium | high | xhigh`) refines the pin's reasoning effort, but only when a `review_model` route actually resolved (from config or an in-run request) and only on a harness whose dispatch primitive exposes a per-dispatch effort control — elsewhere it's silently skipped. Invalid, commented, or missing values for either key fall through silently to today's behavior. See the [configuration reference](./configuration.md) for the shared config-layer contract.
+`review_effort` (`low | medium | high | xhigh`) refines the pin's reasoning effort, but only when a `review_model` route actually resolved (from config or an in-run request) and only on a harness whose dispatch primitive exposes a per-dispatch effort control — elsewhere it's silently skipped. Fall-through is independent per key: an invalid, commented, or missing `review_model` falls through silently to today's behavior (trio inherits the session model), while an invalid, commented, or missing `review_effort` is simply omitted and never discards a valid `review_model` pin. See the [configuration reference](./configuration.md) for the shared config-layer contract.
 
 ### 2. Severity (P0-P3) and autofix class are orthogonal
 
