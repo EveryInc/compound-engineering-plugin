@@ -52,7 +52,7 @@ Dispatch three generic subagents â€” code-reuse, code-quality, and efficiency â€
 
 Wait for all three reviews. Apply worthwhile findings directly; record false positives and low-value findings as skipped without asking the user.
 
-Inspect beyond the resolved scope when needed to evaluate a finding, but edit only that scope and its necessary import/export seams. If a fix requires broader caller or shared-utility changes, skip it instead of widening the user's scope.
+Inspect beyond the resolved scope when needed to evaluate a finding, but edit only that scope and its necessary import/export seams. For a user-named file or directory scope, those seams must also be inside it; skip any fix that would edit outside the mutation boundary.
 
 Each fix must preserve outputs, errors, side effects, and ordering. If that cannot be established, skip it.
 
