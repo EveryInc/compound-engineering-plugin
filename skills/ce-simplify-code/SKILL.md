@@ -34,9 +34,11 @@ If none of the above produces a non-empty scope, stop and ask the user what to s
 
 When the platform's task-tracking capability is available, show the review, apply, and verification outcomes without creating one task per reviewer. Otherwise continue without simulating a task list in chat.
 
-## Step 2: Launch 3 review agents in parallel
+## Step 2: Run 3 independent reviews
 
-Dispatch three generic subagents — code-reuse, code-quality, and efficiency — via the platform's subagent primitive where available; otherwise run the reviews inline or serially. Read and pass each persona file verbatim with the resolved scope (the full diff or file set):
+Run code-reuse, code-quality, and efficiency as three independent reviews. When subagent dispatch is available, assign one generic subagent to each review and run them concurrently up to the platform's limit. If subagents are available but concurrency is not, dispatch them sequentially. Only when the platform has no subagent capability may the parent agent perform the three reviews inline, as separate passes.
+
+Read each persona file verbatim and use it with the resolved scope (the full diff or file set):
 
 - `references/personas/code-reuse-reviewer.md`
 - `references/personas/code-quality-reviewer.md`
