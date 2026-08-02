@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Iterable
 
 from unit_workspace_state import (
+    O_DIRECTORY,
     O_NOFOLLOW,
     Operational,
     digest_bytes,
@@ -1136,88 +1137,193 @@ def _hash_file(path: str) -> str:
     return digest.hexdigest()
 
 
+def _hash_fd(fd: int) -> str:
+    digest = hashlib.sha256()
+    os.lseek(fd, 0, os.SEEK_SET)
+    while True:
+        chunk = os.read(fd, 64 * 1024)
+        if not chunk:
+            break
+        digest.update(chunk)
+    os.lseek(fd, 0, os.SEEK_SET)
+    return digest.hexdigest()
+
+
 def _record_matches(repo: str, record: dict) -> bool:
-    target = _safe_repo_path(repo, record["path"])
     try:
-        observed = os.lstat(target)
-    except OSError:
+        parent_fd, leaf = _open_restore_parent(repo, record["path"], {}, create_missing=False)
+    except (OSError, Operational):
         return False
-    if record["kind"] == "symlink":
-        return stat.S_ISLNK(observed.st_mode) and os.readlink(target) == record["link_target"]
-    return (
-        stat.S_ISREG(observed.st_mode)
-        and not stat.S_ISLNK(observed.st_mode)
-        and stat.S_IMODE(observed.st_mode) == record["mode"]
-        and observed.st_mtime_ns == record["mtime_ns"]
-        and observed.st_size == record["size"]
-        and observed.st_nlink == 1
-        and _hash_file(target) == record["sha256"]
+    try:
+        try:
+            observed = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
+        except OSError:
+            return False
+        if record["kind"] == "symlink":
+            return (
+                stat.S_ISLNK(observed.st_mode)
+                and os.readlink(leaf, dir_fd=parent_fd) == record["link_target"]
+            )
+        if not (
+            stat.S_ISREG(observed.st_mode)
+            and stat.S_IMODE(observed.st_mode) == record["mode"]
+            and observed.st_mtime_ns == record["mtime_ns"]
+            and observed.st_size == record["size"]
+            and observed.st_nlink == 1
+        ):
+            return False
+        fd = os.open(leaf, os.O_RDONLY | O_NOFOLLOW, dir_fd=parent_fd)
+        try:
+            opened = os.fstat(fd)
+            return (
+                opened.st_dev == observed.st_dev
+                and opened.st_ino == observed.st_ino
+                and _hash_fd(fd) == record["sha256"]
+            )
+        finally:
+            os.close(fd)
+    finally:
+        os.close(parent_fd)
+
+
+def _pinned_restore_supported() -> bool:
+    required = (
+        os.open, os.mkdir, os.stat, os.symlink, os.unlink, os.rename, os.utime, os.readlink,
+    )
+    return O_DIRECTORY != 0 and O_NOFOLLOW != 0 and all(
+        function in os.supports_dir_fd for function in required
     )
 
 
-def _remove_precious_target(path: str) -> None:
-    try:
-        observed = os.lstat(path)
-    except FileNotFoundError:
-        return
-    if stat.S_ISDIR(observed.st_mode) and not stat.S_ISLNK(observed.st_mode):
-        raise Operational("BLOCKED", "precious restore target became a directory", {"path": path})
-    os.unlink(path)
-
-
-def _ensure_restore_parents(repo: str, rel: str, parent_modes: dict[str, int]) -> None:
-    current = os.path.abspath(repo)
+def _open_restore_parent(
+    repo: str,
+    rel: str,
+    parent_modes: dict[str, int],
+    *,
+    create_missing: bool = True,
+) -> tuple[int, str]:
+    target = _safe_repo_path(repo, rel)
+    safe_rel = os.path.relpath(target, os.path.abspath(repo))
+    parts = Path(safe_rel).parts
+    if not _pinned_restore_supported():
+        raise Operational(
+            "BLOCKED",
+            "platform cannot safely pin precious restore parent",
+            {"path": rel, "retain_recovery_state": True},
+        )
+    current = os.open(os.path.abspath(repo), os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
     current_rel = ""
-    for part in Path(rel).parts[:-1]:
-        current_rel = f"{current_rel}/{part}".strip("/")
-        current = os.path.join(current, part)
-        try:
-            observed = os.lstat(current)
-        except FileNotFoundError:
-            os.mkdir(current, parent_modes.get(current_rel, 0o700))
-            observed = os.lstat(current)
-        if stat.S_ISLNK(observed.st_mode) or not stat.S_ISDIR(observed.st_mode):
-            raise Operational(
-                "BLOCKED",
-                "precious restore parent is not a real directory",
-                {"path": rel, "parent": current_rel},
-            )
+    try:
+        for part in parts[:-1]:
+            current_rel = f"{current_rel}/{part}".strip("/")
+            if create_missing:
+                try:
+                    os.mkdir(part, parent_modes.get(current_rel, 0o700), dir_fd=current)
+                except FileExistsError:
+                    pass
+            observed = os.stat(part, dir_fd=current, follow_symlinks=False)
+            if stat.S_ISLNK(observed.st_mode) or not stat.S_ISDIR(observed.st_mode):
+                raise Operational(
+                    "BLOCKED",
+                    "precious restore parent is not a real directory",
+                    {"path": rel, "parent": current_rel},
+                )
+            child = os.open(part, os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW, dir_fd=current)
+            os.close(current)
+            current = child
+            if current_rel in parent_modes:
+                os.fchmod(current, parent_modes[current_rel])
+        return current, parts[-1]
+    except BaseException:
+        os.close(current)
+        raise
+
+
+def _restore_parent_modes(repo: str, rel: str, parent_modes: dict[str, int]) -> None:
+    parent_fd, _ = _open_restore_parent(repo, rel, parent_modes)
+    os.close(parent_fd)
 
 
 def _restore_record(repo: str, record: dict, parent_modes: dict[str, int]) -> None:
-    _ensure_restore_parents(repo, record["path"], parent_modes)
-    target = _safe_repo_path(repo, record["path"])
-    parent = os.path.dirname(target)
-    _remove_precious_target(target)
-    temporary = os.path.join(parent, f".artifact-restore-{secrets.token_hex(8)}")
-    if record["kind"] == "symlink":
-        os.symlink(record["link_target"], temporary)
-        os.replace(temporary, target)
-        return
-    backup = record.get("backup")
-    if not isinstance(backup, str) or _hash_file(backup) != record["sha256"]:
-        raise Operational(
-            "BLOCKED",
-            "precious custody backup cannot be proven",
-            {"path": record["path"]},
-        )
-    source_fd = os.open(backup, os.O_RDONLY | O_NOFOLLOW)
-    target_fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | O_NOFOLLOW, 0o600)
+    parent_fd, leaf = _open_restore_parent(repo, record["path"], parent_modes)
+    temporary = f".artifact-restore-{secrets.token_hex(8)}"
+    staged = False
     try:
-        while True:
-            chunk = os.read(source_fd, 64 * 1024)
-            if not chunk:
-                break
-            offset = 0
-            while offset < len(chunk):
-                offset += os.write(target_fd, chunk[offset:])
-        os.fchmod(target_fd, record["mode"])
-        os.fsync(target_fd)
+        try:
+            observed = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            observed = None
+        if observed is not None and stat.S_ISDIR(observed.st_mode):
+            raise Operational(
+                "BLOCKED",
+                "precious restore target became a directory",
+                {"path": record["path"]},
+            )
+        if record["kind"] == "symlink":
+            os.symlink(record["link_target"], temporary, dir_fd=parent_fd)
+            staged = True
+        else:
+            backup = record.get("backup")
+            if not isinstance(backup, str):
+                raise Operational(
+                    "BLOCKED",
+                    "precious custody backup cannot be proven",
+                    {"path": record["path"]},
+                )
+            source_fd = os.open(backup, os.O_RDONLY | O_NOFOLLOW)
+            try:
+                source = os.fstat(source_fd)
+                if not stat.S_ISREG(source.st_mode):
+                    raise Operational(
+                        "BLOCKED",
+                        "precious custody backup cannot be proven",
+                        {"path": record["path"]},
+                    )
+                target_fd = os.open(
+                    temporary,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | O_NOFOLLOW,
+                    0o600,
+                    dir_fd=parent_fd,
+                )
+                staged = True
+                try:
+                    digest = hashlib.sha256()
+                    while True:
+                        chunk = os.read(source_fd, 64 * 1024)
+                        if not chunk:
+                            break
+                        digest.update(chunk)
+                        offset = 0
+                        while offset < len(chunk):
+                            offset += os.write(target_fd, chunk[offset:])
+                    if digest.hexdigest() != record["sha256"]:
+                        raise Operational(
+                            "BLOCKED",
+                            "precious custody backup cannot be proven",
+                            {"path": record["path"]},
+                        )
+                    os.fchmod(target_fd, record["mode"])
+                    os.fsync(target_fd)
+                finally:
+                    os.close(target_fd)
+            finally:
+                os.close(source_fd)
+            os.utime(
+                temporary,
+                ns=(record["mtime_ns"], record["mtime_ns"]),
+                dir_fd=parent_fd,
+                follow_symlinks=False,
+            )
+        os.replace(temporary, leaf, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+        staged = False
+        os.fsync(parent_fd)
     finally:
-        os.close(target_fd)
-        os.close(source_fd)
-    os.utime(temporary, ns=(record["mtime_ns"], record["mtime_ns"]))
-    os.replace(temporary, target)
+        if staged:
+            try:
+                os.unlink(temporary, dir_fd=parent_fd)
+            except FileNotFoundError:
+                pass
+        os.close(parent_fd)
 
 
 def _restore_custody(journal: ArtifactTransactionJournal) -> dict:
@@ -1233,27 +1339,15 @@ def _restore_custody(journal: ArtifactTransactionJournal) -> dict:
         raise Operational("UNREADABLE", "artifact journal parent_modes is malformed")
     for path in sorted(records):
         record = records[path]
-        if _record_matches(repo, record):
-            continue
         try:
+            _restore_parent_modes(repo, record["path"], parent_modes)
+            if _record_matches(repo, record):
+                continue
             _restore_record(repo, record, parent_modes)
         except (OSError, Operational) as exc:
             errors.append({"path": path, "error": str(exc)})
             continue
         restored.append(path)
-    for parent, mode in sorted(
-        journal.document.get("parent_modes", {}).items(),
-        key=lambda item: item[0].count("/"),
-        reverse=True,
-    ):
-        try:
-            target = _safe_repo_path(repo, parent)
-            observed = os.lstat(target)
-            if stat.S_ISLNK(observed.st_mode) or not stat.S_ISDIR(observed.st_mode):
-                raise OSError("parent is not a real directory")
-            os.chmod(target, mode)
-        except OSError as exc:
-            errors.append({"path": parent, "error": str(exc)})
     unproven = [path for path, record in records.items() if not _record_matches(repo, record)]
     if errors or unproven:
         raise Operational(

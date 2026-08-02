@@ -78,9 +78,11 @@ def _directory_paths(repo: str) -> set[str]:
     return set(_directory_snapshot(repo))
 
 
-def _directory_snapshot(repo: str) -> dict[str, int]:
+def _directory_snapshot(repo: str, pruned_roots: set[str] | None = None) -> dict[str, int]:
     """Snapshot repository directory paths and modes without traversing Git metadata."""
     repo = os.path.abspath(repo)
+    pruned_roots = pruned_roots or set()
+    pruned_prefixes = tuple(root + "/" for root in pruned_roots)
     directories: dict[str, int] = {}
     test_fault("directory-snapshot-before-walk")
 
@@ -89,6 +91,7 @@ def _directory_snapshot(repo: str) -> dict[str, int]:
 
     for parent, names, _files in os.walk(repo, topdown=True, onerror=fail, followlinks=False):
         names[:] = [name for name in names if name != ".git"]
+        retained: list[str] = []
         for name in names:
             path = os.path.join(parent, name)
             try:
@@ -96,7 +99,12 @@ def _directory_snapshot(repo: str) -> dict[str, int]:
             except OSError as exc:
                 raise Operational("BLOCKED", f"could not inspect repository directory {path}: {exc}") from exc
             if stat.S_ISDIR(entry.st_mode) and not stat.S_ISLNK(entry.st_mode):
-                directories[os.path.relpath(path, repo)] = stat.S_IMODE(entry.st_mode)
+                rel = os.path.relpath(path, repo)
+                if rel in pruned_roots or rel.startswith(pruned_prefixes):
+                    continue
+                directories[rel] = stat.S_IMODE(entry.st_mode)
+                retained.append(name)
+        names[:] = retained
     return directories
 
 
@@ -115,7 +123,7 @@ def _filtered_directory_snapshot(
     precious_paths = precious_paths or set()
     return {
         rel: mode
-        for rel, mode in _directory_snapshot(repo).items()
+        for rel, mode in _directory_snapshot(repo, regenerable_roots).items()
         if not _artifact_exempt_directory(rel, regenerable_roots, precious_paths)
     }
 
@@ -935,6 +943,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
         ))
         resolve_artifact_rerun_blockers(args.run_id, args.unit_id)
         advance_artifact_transaction(journal.path, "receipted")
+        test_fault("artifact-after-receipt-before-release")
         test_fault("before-canonical-commit")
         commit_index_tree(repo, args.commit_message)
         committed_body = cmd_mark_committed(_args(run_id=args.run_id, unit_id=args.unit_id, lock_token=token))[1]

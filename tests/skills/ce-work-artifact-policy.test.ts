@@ -486,6 +486,121 @@ describe("ce-work artifact policy module", () => {
     expect(existsSync(path.join(outside, "secret.bin"))).toBe(false)
   })
 
+  test("keeps the current precious target when its custody backup is corrupt", () => {
+    const repo = makeRepo()
+    const runDir = path.join(tmp("ce-work-artifact-run-"), "run")
+    mkdirSync(runDir, { mode: 0o700 })
+    writeFileSync(path.join(repo, "secret.bin"), "precious\n")
+    const captured = probe(repo, {
+      action: "capture",
+      run_dir: runDir,
+      transaction: "txn-corrupt-backup",
+      unit_id: null,
+      attempt_id: "attempt-corrupt-backup",
+      lock_nonce: "nonce-corrupt-backup",
+      paths: ["secret.bin"],
+    }).value
+    writeFileSync(path.join(repo, "secret.bin"), "new current state\n")
+    writeFileSync(captured.precious_records["secret.bin"].backup, "corrupt custody\n")
+
+    const result = probe(repo, { action: "resume", journal: captured.journal_path })
+
+    expect(result).toMatchObject({ ok: false, word: "BLOCKED" })
+    expect(readFileSync(path.join(repo, "secret.bin"), "utf8")).toBe("new current state\n")
+  })
+
+  test("keeps the current precious target when restore staging fails", () => {
+    const repo = makeRepo()
+    const runDir = path.join(tmp("ce-work-artifact-run-"), "run")
+    mkdirSync(runDir, { mode: 0o700 })
+    writeFileSync(path.join(repo, "secret.bin"), "precious\n")
+    const captured = probe(repo, {
+      action: "capture",
+      run_dir: runDir,
+      transaction: "txn-stage-failure",
+      unit_id: null,
+      attempt_id: "attempt-stage-failure",
+      lock_nonce: "nonce-stage-failure",
+      paths: ["secret.bin"],
+    }).value
+    writeFileSync(path.join(repo, "secret.bin"), "new current state\n")
+    const source = String.raw`
+import json, os, sys
+sys.path.insert(0, sys.argv[1])
+import unit_workspace_artifacts as artifacts
+original_open = artifacts.os.open
+def fail_restore_stage(path, flags, *args, **kwargs):
+    if os.path.basename(path).startswith(".artifact-restore-"):
+        raise OSError("injected restore staging failure")
+    return original_open(path, flags, *args, **kwargs)
+artifacts.os.open = fail_restore_stage
+try:
+    artifacts.resume_artifact_transaction(sys.argv[2])
+    output = {"ok": True}
+except artifacts.Operational as exc:
+    output = {"ok": False, "word": exc.word, "detail": exc.detail}
+print(json.dumps(output, sort_keys=True))
+`
+
+    const result = spawnSync(PYTHON, ["-c", source, SCRIPT_DIR, captured.journal_path], { encoding: "utf8" })
+
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({ ok: false, word: "BLOCKED" })
+    expect(readFileSync(path.join(repo, "secret.bin"), "utf8")).toBe("new current state\n")
+  })
+
+  test("pins the restore parent when it is swapped during replacement", () => {
+    const repo = makeRepo()
+    const runDir = path.join(tmp("ce-work-artifact-run-"), "run")
+    const outside = tmp("ce-work-artifact-outside-")
+    mkdirSync(runDir, { mode: 0o700 })
+    mkdirSync(path.join(repo, "state"))
+    writeFileSync(path.join(repo, "state", "secret.bin"), "precious\n")
+    writeFileSync(path.join(outside, "secret.bin"), "outside sentinel\n")
+    const captured = probe(repo, {
+      action: "capture",
+      run_dir: runDir,
+      transaction: "txn-parent-race",
+      unit_id: null,
+      attempt_id: "attempt-parent-race",
+      lock_nonce: "nonce-parent-race",
+      paths: ["state/secret.bin"],
+    }).value
+    writeFileSync(path.join(repo, "state", "secret.bin"), "new current state\n")
+    const detached = path.join(repo, "state-detached")
+    const source = String.raw`
+import json, os, sys
+sys.path.insert(0, sys.argv[1])
+import unit_workspace_artifacts as artifacts
+journal, parent, detached, outside = sys.argv[2:6]
+original_open = artifacts.os.open
+raced = False
+def race_parent(path, flags, *args, **kwargs):
+    global raced
+    if not raced and os.path.basename(path).startswith(".artifact-restore-"):
+        raced = True
+        os.rename(parent, detached)
+        os.symlink(outside, parent)
+    return original_open(path, flags, *args, **kwargs)
+artifacts.os.open = race_parent
+try:
+    artifacts.resume_artifact_transaction(journal)
+    output = {"ok": True}
+except artifacts.Operational as exc:
+    output = {"ok": False, "word": exc.word, "detail": exc.detail}
+print(json.dumps(output, sort_keys=True))
+`
+
+    const result = spawnSync(PYTHON, [
+      "-c", source, SCRIPT_DIR, captured.journal_path,
+      path.join(repo, "state"), detached, outside,
+    ], { encoding: "utf8" })
+
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({ ok: false, word: "BLOCKED" })
+    expect(readFileSync(path.join(outside, "secret.bin"), "utf8")).toBe("outside sentinel\n")
+  })
+
   test("hard kill mid-capture leaves durable referenced custody that resume recovers", async () => {
     const repo = makeRepo()
     const runDir = path.join(tmp("ce-work-artifact-run-"), "run")

@@ -556,10 +556,19 @@ class FeatureTest(unittest.TestCase):
     expect(verified.word).toBe("RUN_VERIFIED")
     expect(verified.body.verification_exit).toBe(0)
     expect(verified.body.cleaned_paths).toEqual(["verification-cache.tmp"])
+    expect(verified.body).toMatchObject({
+      artifact_outcome: "VERIFIED",
+      canonical_ignored_state_preserved: true,
+      repair_actions: [],
+    })
     expect(git(repo, "status", "--porcelain")).toBe("")
     expect(control(runs, "status", "--run-id", "transaction-run").body).toMatchObject({
       integration_lock: null,
-      verifications: [{ verification_exit: 0, verification_log_retained: false }],
+      verifications: [{
+        verification_exit: 0,
+        verification_log_retained: false,
+        artifact: { outcome: "VERIFIED", precious_restoration_proven: true },
+      }],
     })
 
     const failedRunVerification = controlFailure(

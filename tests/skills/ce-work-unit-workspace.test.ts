@@ -1991,6 +1991,12 @@ describe("ce-work unit workspace controller", () => {
       "unit-empty",
       "unit-empty/sub",
     ])
+    expect(integrated.body.artifact).toMatchObject({
+      outcome: "VERIFIED",
+      precious_restored: ["existing.verification-cache"],
+      precious_restoration_proven: true,
+      bulk_restored: false,
+    })
     expect(existsSync(path.join(f.repo, "unit-empty"))).toBe(false)
     expect(existsSync(path.join(f.repo, "pre-existing-empty"))).toBe(true)
     expect(statSync(ignoredDirectory).mode & 0o777).toBe(0o750)
@@ -2123,6 +2129,77 @@ describe("ce-work unit workspace controller", () => {
       },
     })
     expect(integrated.body).not.toHaveProperty("cleaned")
+  })
+
+  test("runs the full warm-checkout flow with an over-cap dependency tree", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, "bun.lock"), "lockfileVersion = 1\n")
+    git(f.repo, "add", "bun.lock")
+    git(f.repo, "commit", "-m", "test: add warm checkout lockfile")
+    f.base = git(f.repo, "rev-parse", "HEAD")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "node_modules/\n")
+    const dependencies = path.join(f.repo, "node_modules")
+    const bin = path.join(dependencies, ".bin")
+    const packageTree = path.join(dependencies, "package-a", "node_modules", "dependency-a")
+    mkdirSync(bin, { recursive: true })
+    mkdirSync(packageTree, { recursive: true })
+    writeFileSync(path.join(dependencies, "package-a", "cli.js"), "export {}\n")
+    writeFileSync(path.join(packageTree, "index.js"), "export const value = 1\n")
+    const oversized = path.join(dependencies, "package-a", "payload.bin")
+    writeFileSync(oversized, "")
+    truncateSync(oversized, 64 * 1024 * 1024 + 1)
+    for (let index = 0; index < 513; index += 1) {
+      symlinkSync("../package-a/cli.js", path.join(bin, `package-a-${index}`))
+    }
+
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-warm-end-to-end"
+    expect(init(runs, runId, f).word).toBe("READY")
+    const prepared = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("warm end-to-end packet"),
+    )
+    expect(prepared.word).toBe("PREPARED")
+    writeFileSync(path.join(prepared.body.workspace, "warm-flow.txt"), "integrated\n")
+    const job = fakeDoneJob(runs, runId, "U", "warm end-to-end packet", "warm-end-to-end-job")
+    ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U")
+    const integrated = ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U",
+      "--commit-message", "feat(test): integrate warm checkout fixture", "--", "true",
+    )
+    expect(integrated).toMatchObject({
+      word: "UNIT_COMMITTED",
+      body: { artifact: { outcome: "VERIFIED", precious_restoration_proven: true } },
+    })
+
+    const verified = ctl(
+      runs, "verify-run", "--run-id", runId,
+      "--verification-summary", "warm checkout end-to-end verification", "--",
+      process.execPath, "-e", "require('node:fs').writeFileSync('node_modules/generated.txt', 'generated')",
+    )
+    expect(verified).toMatchObject({
+      word: "RUN_VERIFIED",
+      body: {
+        artifact_outcome: "VERIFIED_WITH_REGENERABLE_DIVERGENCE",
+        repair_actions: [{ owner: "bun", argv: ["bun", "install", "--frozen-lockfile"], runnable: true }],
+      },
+    })
+    expect(ctl(runs, "status", "--run-id", runId).body).toMatchObject({
+      integration_lock: null,
+      units: { U: { state: "cleaned", integration: { verification: { artifact: { outcome: "VERIFIED" } } } } },
+      verifications: [{
+        verification_exit: 0,
+        artifact: {
+          outcome: "VERIFIED_WITH_REGENERABLE_DIVERGENCE",
+          bulk_divergence_detected: true,
+          bulk_restored: false,
+        },
+      }],
+    })
   })
 
   test("integrate reloads transported policy but retains pre-transport precious custody", () => {
@@ -2398,6 +2475,11 @@ describe("ce-work unit workspace controller", () => {
     ).body.verifications.at(-1)).toMatchObject({
       canonical_state_changed: true,
       cleaned_paths: ["local-cache"],
+      artifact: {
+        outcome: "VERIFIED",
+        precious_restoration_proven: true,
+        bulk_restored: false,
+      },
     })
 
     const failed = ctl(
@@ -2412,6 +2494,13 @@ describe("ce-work unit workspace controller", () => {
     })
     expect(existsSync(ignoredDirectory)).toBe(true)
     expect(statSync(ignoredDirectory).mode & 0o777).toBe(0o750)
+    expect(ctl(
+      runs, "status", "--run-id", "run-empty-ignored-directory",
+    ).body.verifications.at(-1).artifact).toMatchObject({
+      outcome: "VERIFICATION_FAILED",
+      precious_restoration_proven: true,
+      bulk_restored: false,
+    })
   })
 
   test("init reports every ignored snapshot blocker before route selection closes", () => {
@@ -2614,6 +2703,35 @@ describe("ce-work unit workspace controller", () => {
     expect(ctl(runs, "status", "--run-id", runId).body.integration_lock).toBeNull()
   })
 
+  test("directory snapshots prune nested regenerable trees before descent", () => {
+    const f = makeRepo()
+    mkdirSync(path.join(f.repo, "node_modules", "cache", "deep", "deeper"), { recursive: true })
+    mkdirSync(path.join(f.repo, "node_modules", "private"), { recursive: true })
+    mkdirSync(path.join(f.repo, "node_modules", "unknown"), { recursive: true })
+    writeFileSync(path.join(f.repo, "node_modules", "private", "token"), "precious\n")
+
+    const source = [
+      "import json, os, sys",
+      `sys.path.insert(0, ${JSON.stringify(path.dirname(SCRIPT))})`,
+      "import unit_workspace_transaction as transaction",
+      "repo = os.path.abspath(sys.argv[1])",
+      "pruned = os.path.join(repo, 'node_modules', 'cache') + os.sep",
+      "original_lstat = transaction.os.lstat",
+      "visited = []",
+      "def guarded_lstat(path):\n    absolute = os.path.abspath(path)\n    if absolute.startswith(pruned):\n        raise AssertionError('regenerable descendant inspected: ' + absolute)\n    visited.append(os.path.relpath(absolute, repo))\n    return original_lstat(path)",
+      "transaction.os.lstat = guarded_lstat",
+      "snapshot = transaction._filtered_directory_snapshot(repo, {'node_modules/cache'}, {'node_modules/private/token'})",
+      "print(json.dumps({'snapshot': snapshot, 'visited': visited}, sort_keys=True))",
+    ].join("\n")
+    const result = sh(f.repo, ["python3", "-c", source, f.repo], false)
+
+    expect({ status: result.status, stderr: result.stderr }).toEqual({ status: 0, stderr: "" })
+    const observation = JSON.parse(result.stdout)
+    expect(observation.snapshot).toMatchObject({ "node_modules/unknown": expect.any(Number) })
+    expect(observation.visited).toContain("node_modules/private")
+    expect(observation.visited).not.toContain("node_modules/cache/deep")
+  })
+
   test("failed unit verification reports and preserves its new ignored artifact", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
@@ -2692,6 +2810,11 @@ describe("ce-work unit workspace controller", () => {
       verification_exit: 7,
       canonical_state_changed: false,
       cleaned_paths: ["transport-only"],
+      artifact: {
+        outcome: "VERIFICATION_FAILED",
+        precious_restoration_proven: true,
+        bulk_restored: false,
+      },
     })
     expect(existsSync(path.join(f.repo, "transport-only"))).toBe(false)
     expect(existsSync(preFoldEmpty)).toBe(true)
@@ -2745,6 +2868,11 @@ describe("ce-work unit workspace controller", () => {
     expect(ctl(runs, "status", "--run-id", "run-directory-restore-blocked").body).toMatchObject({
       integration_lock: { unit_id: "U" },
       units: { U: { state: "preserved" } },
+      artifact_transactions: [{
+        unit_id: "U",
+        phase: "restored",
+        artifact_receipt: { outcome: "VERIFICATION_FAILED", bulk_restored: false },
+      }],
       blockers: [expect.objectContaining({
         unit_id: "U",
         reason: "unit verification directory restoration could not be proven",
@@ -3569,7 +3697,7 @@ describe("ce-work unit workspace controller", () => {
       "verify-run", "--run-id", runId,
       "--verification-summary", `interrupted at ${fault}`, "--",
       "python3", "-c",
-      "from pathlib import Path; Path('existing.verification-cache').write_text('mutated\\n'); Path('keep.txt').write_text('mutated\\n')",
+      "from pathlib import Path; Path('existing.verification-cache').write_text('mutated\\n')",
     )
     expect(interrupted.word).toBe("INTERRUPTED")
     const stranded = ctl(runs, "status", "--run-id", runId).body
@@ -3600,6 +3728,253 @@ describe("ce-work unit workspace controller", () => {
     if (receiptExit === null) {
       expect(ctl(runs, "status", "--run-id", runId).body.blockers.at(-1).resolved_by).toBe("verification-rerun")
     }
+  })
+
+  test.each([
+    {
+      fault: "artifact-after-reclassify",
+      journalPhase: undefined,
+      receipt: "none",
+      receiptOutcome: undefined,
+      preciousAtStrand: "preserve me\n",
+    },
+    {
+      fault: "artifact-during-precious-capture",
+      journalPhase: "capturing",
+      receipt: "none",
+      receiptOutcome: undefined,
+      preciousAtStrand: "preserve me\n",
+    },
+    {
+      fault: "artifact-before-precious-restore",
+      journalPhase: "captured",
+      receipt: "unknown",
+      receiptOutcome: "RESUMED_PRECIOUS_RESTORED",
+      preciousAtStrand: "mutated\n",
+    },
+    {
+      fault: "artifact-after-restore-before-receipt",
+      journalPhase: "restored",
+      receipt: "unknown",
+      receiptOutcome: "VERIFIED",
+      preciousAtStrand: "preserve me\n",
+    },
+    {
+      fault: "artifact-after-receipt-before-release",
+      journalPhase: "receipted",
+      receipt: "verified",
+      receiptOutcome: "VERIFIED",
+      preciousAtStrand: "preserve me\n",
+    },
+  ])("restores and retries integrate after artifact crash point $fault", ({
+    fault,
+    journalPhase,
+    receipt,
+    receiptOutcome,
+    preciousAtStrand,
+  }) => {
+    const f = makeRepo()
+    const ignored = path.join(f.repo, "existing.verification-cache")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\n")
+    writeFileSync(ignored, "preserve me\n")
+    const preciousBefore = readFileSync(ignored)
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = `run-integrate-${fault}`
+    expect(init(runs, runId, f).word).toBe("READY")
+    expect(ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("integrate artifact crash packet"),
+    ).word).toBe("PREPARED")
+    const workspace = path.join(runs, runId, "units", "U", "workspace")
+    writeFileSync(path.join(workspace, "integrated.txt"), "integrated\n")
+    const job = fakeDoneJob(runs, runId, "U", "integrate artifact crash packet")
+    expect(ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    ).word).toBe("AUTHORING")
+    expect(ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U").word).toBe("INTEGRATION_PENDING")
+
+    const interrupted = ctlWithEnv(
+      runs,
+      { CE_WORK_TEST_FAULT: fault },
+      "integrate", "--run-id", runId, "--unit-id", "U",
+      "--commit-message", `feat(test): interrupt integrate at ${fault}`, "--",
+      "python3", "-c",
+      "from pathlib import Path; Path('existing.verification-cache').write_text('mutated\\n')",
+    )
+    expect(interrupted.word).toBe("INTERRUPTED")
+    const stranded = ctl(runs, "status", "--run-id", runId).body
+    expect(stranded.units.U.state).toBe(receipt === "verified" ? "verified" : "integrated")
+    expect(stranded.integration_lock).toMatchObject({ unit_id: "U", phase: "held" })
+    expect(git(f.repo, "rev-parse", "HEAD")).toBe(f.base)
+    expect(existsSync(path.join(f.repo, "integrated.txt"))).toBe(true)
+    expect(readFileSync(ignored, "utf8")).toBe(preciousAtStrand)
+    if (journalPhase === undefined) {
+      expect(stranded.artifact_transactions).toEqual([])
+    } else {
+      expect(stranded.artifact_transactions).toMatchObject([{
+        unit_id: "U",
+        phase: journalPhase,
+      }])
+    }
+
+    const resumed = ctl(runs, "resume", "--run-id", runId)
+    expect(resumed.word).toBe("RESUMED")
+    const recovered = ctl(runs, "status", "--run-id", runId).body
+    expect(recovered.units.U.state).toBe("preserved")
+    expect(recovered.integration_lock).toBeNull()
+    expect(recovered.artifact_transactions).toEqual([])
+    expect(git(f.repo, "rev-parse", "HEAD")).toBe(f.base)
+    expect(git(f.repo, "status", "--porcelain")).toBe("")
+    expect(readFileSync(ignored)).toEqual(preciousBefore)
+    const recoveredReceipt = recovered.units.U.integration.verification
+    if (receipt === "none") {
+      expect(recoveredReceipt).toBeNull()
+    } else if (receipt === "unknown") {
+      expect(recoveredReceipt).toMatchObject({
+        passed: false,
+        verification_exit: null,
+        artifact: { outcome: receiptOutcome },
+      })
+      expect(recovered.blockers).toContainEqual(expect.objectContaining({
+        reason: "unit verification interrupted; verification result unknown and must re-run",
+        artifact_transaction_id: recoveredReceipt.artifact.transaction_id,
+      }))
+    } else {
+      expect(recoveredReceipt).toMatchObject({
+        passed: true,
+        verification_exit: 0,
+        artifact: { outcome: receiptOutcome },
+      })
+    }
+
+    expect(ctl(runs, "resume", "--run-id", runId).body.actions).toEqual([])
+    const retried = ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U",
+      "--commit-message", `feat(test): retry integrate after ${fault}`, "--", "true",
+    )
+    expect(retried).toMatchObject({
+      word: "UNIT_COMMITTED",
+      body: { artifact: { outcome: "VERIFIED", precious_restoration_proven: true } },
+    })
+    const completed = ctl(runs, "status", "--run-id", runId).body
+    expect(completed.integration_lock).toBeNull()
+    expect(completed.artifact_transactions).toEqual([])
+    expect(readFileSync(ignored)).toEqual(preciousBefore)
+    expect(readFileSync(path.join(f.repo, "integrated.txt"), "utf8")).toBe("integrated\n")
+    if (receipt === "unknown") {
+      expect(completed.blockers).toContainEqual(expect.objectContaining({
+        artifact_transaction_id: recoveredReceipt.artifact.transaction_id,
+        resolved_by: "verification-rerun",
+      }))
+    }
+  })
+
+  test.each([
+    {
+      label: "tracked",
+      path: "keep.txt",
+      content: "user tracked edit after crash\n",
+    },
+    {
+      label: "untracked",
+      path: "user-note.txt",
+      content: "user untracked edit after crash\n",
+    },
+  ])("resume preserves a $label edit created after an artifact crash", ({ path: relativePath, content }) => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = `run-post-crash-${relativePath.replaceAll(".", "-")}`
+    createAcceptedRun(runs, runId, f)
+
+    const interrupted = ctlWithEnv(
+      runs,
+      { CE_WORK_TEST_FAULT: "artifact-after-restore-before-receipt" },
+      "verify-run", "--run-id", runId,
+      "--verification-summary", "clean verification interrupted before receipt", "--", "true",
+    )
+    expect(interrupted.word).toBe("INTERRUPTED")
+    writeFileSync(path.join(f.repo, relativePath), content)
+
+    const resumed = ctl(runs, "resume", "--run-id", runId)
+
+    expect(resumed).toMatchObject({
+      word: "BLOCKED",
+      body: {
+        retain_integration_lock: true,
+        unowned_paths: [relativePath],
+      },
+    })
+    expect(resumed.body.next_action).toContain("preserve any wanted edits")
+    expect(readFileSync(path.join(f.repo, relativePath), "utf8")).toBe(content)
+    const blockedStatus = ctl(runs, "status", "--run-id", runId).body
+    expect(blockedStatus).toMatchObject({
+      integration_lock: { unit_id: "U", phase: "held" },
+      artifact_transactions: [{ phase: "restored" }],
+      blockers: [expect.objectContaining({
+        reason: "interrupted plan verification has unowned canonical changes",
+        retain_integration_lock: true,
+        unowned_paths: [relativePath],
+      })],
+    })
+
+    if (relativePath === "keep.txt") writeFileSync(path.join(f.repo, relativePath), "keep\n")
+    else rmSync(path.join(f.repo, relativePath))
+    expect(ctl(runs, "resume", "--run-id", runId).word).toBe("RESUMED")
+    expect(ctl(runs, "status", "--run-id", runId).body).toMatchObject({
+      integration_lock: null,
+      artifact_transactions: [],
+      blockers: [expect.objectContaining({
+        artifact_transaction_id: blockedStatus.artifact_transactions[0].transaction_id,
+        resolved_by: "resume",
+      })],
+    })
+  })
+
+  test("resume preserves a successful unit artifact receipt across the pre-commit crash window", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-successful-unit-artifact-receipt"
+    init(runs, runId, f)
+    ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    const workspace = path.join(runs, runId, "units", "U", "workspace")
+    writeFileSync(path.join(workspace, "integrated.txt"), "integrated\n")
+    const job = fakeDoneJob(runs, runId, "U", "packet")
+    ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U")
+
+    const interrupted = ctlWithEnv(
+      runs,
+      { CE_WORK_TEST_FAULT: "before-canonical-commit" },
+      "integrate", "--run-id", runId, "--unit-id", "U",
+      "--commit-message", "feat(test): interrupted before commit", "--", "true",
+    )
+    expect(interrupted.word).toBe("INTERRUPTED")
+    const stranded = ctl(runs, "status", "--run-id", runId).body
+    const successfulVerification = stranded.units.U.integration.verification
+    expect(successfulVerification).toMatchObject({
+      passed: true,
+      verification_exit: 0,
+      artifact: { outcome: "VERIFIED" },
+    })
+    expect(typeof successfulVerification.artifact.transaction_id).toBe("string")
+    expect(stranded.artifact_transactions).toMatchObject([{ phase: "receipted" }])
+
+    expect(ctl(runs, "resume", "--run-id", runId).word).toBe("RESUMED")
+    const recovered = ctl(runs, "status", "--run-id", runId).body
+    expect(recovered.units.U.integration.verification).toEqual(successfulVerification)
+    expect(recovered.units.U.state).toBe("preserved")
+    expect(recovered.artifact_transactions).toEqual([])
+    expect(recovered.integration_lock).toBeNull()
+    expect(recovered.blockers).not.toContainEqual(expect.objectContaining({
+      artifact_transaction_id: successfulVerification.artifact.transaction_id,
+    }))
   })
 
   test("reads a legacy verification receipt without rewriting its manifest", () => {

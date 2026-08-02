@@ -452,23 +452,45 @@ def _restore_resumed_plan_semantics(run_id: str, transaction: dict) -> None:
             "interrupted plan verification changed canonical branch or HEAD; automatic restoration refused",
             {"retain_integration_lock": True, "transaction_id": transaction["transaction_id"]},
         )
-    changed_paths = status_paths(repo)
-    git(repo, "reset", "--hard", expected["head"])
-    for rel in sorted(changed_paths, key=lambda value: (value.count("/"), value), reverse=True):
-        if git(repo, "ls-tree", "-z", "--full-tree", expected["head"], "--", rel):
-            continue
-        target = os.path.abspath(os.path.join(repo, rel))
-        if os.path.commonpath([repo, target]) != repo:
-            raise Operational("BLOCKED", "verification artifact path escaped canonical repository")
-        if os.path.islink(target) or os.path.isfile(target):
-            os.unlink(target)
-        parent = os.path.dirname(target)
-        while parent != repo:
-            try:
-                os.rmdir(parent)
-            except OSError:
-                break
-            parent = os.path.dirname(parent)
+    changed_paths = sorted(status_paths(repo))
+    if changed_paths:
+        transaction_id = transaction["transaction_id"]
+        next_action = (
+            "preserve any wanted edits, restore the listed paths to the recorded canonical "
+            "snapshot, then run resume again"
+        )
+        detail = {
+            "retain_integration_lock": True,
+            "transaction_id": transaction_id,
+            "unowned_paths": changed_paths,
+            "controller_proven_paths": [],
+            "next_action": next_action,
+        }
+        with locked_manifest(run_id, write=True) as doc:
+            duplicate = any(
+                blocker.get("artifact_transaction_id") == transaction_id
+                and blocker.get("reason") == "interrupted plan verification has unowned canonical changes"
+                and not blocker.get("resolved_at")
+                for blocker in doc.get("blockers", [])
+            )
+            if not duplicate:
+                doc["blockers"].append({
+                    "at": now_iso(),
+                    "unit_id": None,
+                    "reason": "interrupted plan verification has unowned canonical changes",
+                    "artifact_transaction_id": transaction_id,
+                    "integration_lock_nonce": transaction.get("lock_nonce"),
+                    **detail,
+                })
+                event(doc, "artifact-resume-blocked", None, {
+                    "transaction_id": transaction_id,
+                    "unowned_paths": changed_paths,
+                })
+        raise Operational(
+            "BLOCKED",
+            "interrupted plan verification has unowned canonical changes; automatic restoration refused",
+            detail,
+        )
     if semantic_snapshot(repo) != expected:
         raise Operational(
             "BLOCKED",
@@ -574,9 +596,17 @@ def _record_resumed_unit_artifact(run_id: str, transaction: dict, artifact: dict
         if not unit:
             raise TrustFailure("artifact transaction unit is missing")
         verification = unit.get("integration", {}).get("verification")
+        verification_artifact = verification.get("artifact") if isinstance(verification, dict) else None
+        recorded_transaction_id = (
+            verification.get("artifact_transaction_id")
+            if isinstance(verification, dict)
+            else None
+        )
+        if recorded_transaction_id is None and isinstance(verification_artifact, dict):
+            recorded_transaction_id = verification_artifact.get("transaction_id")
         if (
             isinstance(verification, dict)
-            and verification.get("artifact_transaction_id") == transaction_id
+            and recorded_transaction_id == transaction_id
         ):
             return False
         unit["integration"]["verification"] = {
