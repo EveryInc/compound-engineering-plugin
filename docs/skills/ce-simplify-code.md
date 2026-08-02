@@ -1,8 +1,8 @@
 # `ce-simplify-code`
 
-> Refine recently changed code — three independent reviews find reuse, quality, and efficiency issues; apply the fixes; verify behavior is preserved by typecheck, lint, and scoped tests.
+> Refine recently changed code — three focused reviews find reuse, quality, and efficiency issues; apply the fixes; verify behavior is preserved by typecheck, lint, and scoped tests.
 
-`ce-simplify-code` is the **refinement** skill. It does the homework that's easy to skip after writing code: searches for existing utilities your new code accidentally duplicates, flags hacky patterns and dead code, surfaces missed efficiency wins. Three independent reviews examine the same diff from different angles — Reuse, Quality, Efficiency — and the orchestrator applies their findings, then verifies behavior is preserved. The skill dispatches those reviews as parallel subagents when the platform supports it.
+`ce-simplify-code` is the **refinement** skill. It does the homework that's easy to skip after writing code: searches for existing utilities your new code accidentally duplicates, flags hacky patterns and dead code, surfaces missed efficiency wins. Three focused reviews examine the same diff from different angles — Reuse, Quality, Efficiency — and the orchestrator applies their findings, then verifies behavior is preserved. The skill dispatches those reviews as parallel subagents when the platform supports it, giving each an independent context.
 
 It's a **utility skill** — point it at whatever you want refined. With no argument it resolves the branch diff; given a file path or a description ("the function I just wrote") it scopes to exactly that. That makes it the natural cleanup pass for AI-generated code, which is its highest-yield use. Agents reliably write more code than a problem needs: industry analysis of hundreds of millions of changed lines shows duplicated and copy-pasted code climbing sharply since coding assistants went mainstream, while refactoring — moving and reusing existing code — has fallen by more than half. The reason is structural, not a model defect: an agent optimizes each fragment locally to *look* well-engineered without the whole-system context to notice that the helper already exists, that the abstraction is single-use, or that the comment restates the code. The result works but carries duplication, single-use wrappers, defensive over-engineering, and tutorial-style comments. `ce-simplify-code` exists to strip that back to what the change actually requires.
 
@@ -16,7 +16,7 @@ Use `ce-simplify-code` after implementation has settled and before review, commi
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Runs three independent reviews on the recently changed code, applies their findings, and verifies behavior is preserved |
+| What does it do? | Runs three focused reviews on the recently changed code, applies their findings, and verifies behavior is preserved |
 | When to use it | Before opening a PR; after writing a feature; after AI generated code that works but feels heavy |
 | What it produces | Updated code (in place) + a summary of what was changed, what was good as-is, which checks ran, and a quantified impact by dimension (fixes applied per reuse/quality/efficiency, skipped count, verification result) |
 | What's next | Continue with the validation or delivery action the change needs: deeper review, further testing, commit/PR, or handoff |
@@ -60,7 +60,7 @@ A single reviewer can find some of these but rarely all. Asking the agent to "re
 
 ## The Solution
 
-`ce-simplify-code` runs three independent reviews, each focused on one dimension. It uses parallel subagents when available, sequential subagents when only concurrency is unavailable, and separate parent-agent passes only on platforms without subagent support:
+`ce-simplify-code` runs three focused reviews, each covering one dimension. It uses parallel subagents when available, sequential subagents when only concurrency is unavailable, and separate parent-agent passes only on platforms without subagent support. Inline passes remain distinct lenses, but they are not independent corroboration because they share one context:
 
 - **Reuse Reviewer** searches for existing utilities the new code duplicates
 - **Quality Reviewer** flags hacky patterns, dead code, context-dependent vocabulary, obsolete pre-release compatibility paths, unnecessary comments, and nested conditionals
@@ -72,7 +72,7 @@ The orchestrator aggregates their findings, applies fixes, and runs typecheck + 
 
 ## What Makes It Novel
 
-### 1. Three independent reviews — different angles, same diff
+### 1. Three focused reviews — different angles, same diff
 
 A single "review and improve" prompt collapses into the agent's most-trained directions. Three reviewers each focused on one dimension cover meaningfully more ground:
 
@@ -201,7 +201,7 @@ The skill also self-guards: invoked directly on a scope with no code in it, it s
 ## FAQ
 
 **Why three reviewers instead of one?**
-A single reviewer collapses into the agent's most-trained directions. Three independent reviews focused on reuse, quality, and efficiency cover meaningfully more ground — especially the cross-cutting search for existing utilities the new code duplicates, which a generalist reviewer often misses.
+A single reviewer collapses into the agent's most-trained directions. Three focused reviews covering reuse, quality, and efficiency examine meaningfully more ground — especially the cross-cutting search for existing utilities the new code duplicates, which a generalist reviewer often misses.
 
 **What if a finding is wrong or not worth addressing?**
 The orchestrator aggregates findings and applies them directly. If a finding is a false positive, it's noted and skipped — the skill doesn't argue or surface it back to you. The summary mentions what was acted on.
@@ -210,7 +210,7 @@ The orchestrator aggregates findings and applies them directly. If a finding is 
 The skill won't relax assertions, weaken type signatures, or skip tests to paper over the break. Either it fixes the underlying issue introduced by the simplification, or it reverts the specific change that caused the regression. The premise is preservation of exact functionality.
 
 **Why isn't simplification just part of the original write?**
-It can be, but in practice the moment to find an existing utility is when you're searching for it, not when you're writing the feature. A separate refinement pass with independent cross-cutting search catches things the original write didn't.
+It can be, but in practice the moment to find an existing utility is when you're searching for it, not when you're writing the feature. A separate refinement pass with focused cross-cutting search catches things the original write didn't.
 
 **Does it run for tiny diffs?**
 By default it runs against whatever code scope it resolves, but the yield on tiny diffs (a couple of lines) is low. The skill itself does not gate on size — an explicit scope on a small function is authoritative and still runs. Larger workflows and [standing instructions](#make-it-automatic) may add their own cost threshold without changing the skill's contract.

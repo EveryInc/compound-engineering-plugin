@@ -24,7 +24,6 @@ const DISPATCH_SKILLS = [
   "ce-plan",
   "ce-pov",
   "ce-retune",
-  "ce-simplify-code",
   "ce-sweep",
   "ce-work",
 ]
