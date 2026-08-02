@@ -71,6 +71,14 @@ A conditional section of a generated PR description, added by agent judgment whe
 
 ## Skill orchestration
 
+### Dispatch skill
+A Skill whose workflow depends on delegating work to shipped subagents — reviewers, scouts, fixers — rather than performing every pass in the orchestrator's own context, and that therefore carries the shared Skill-context directives so a harness default cannot silently strip the delegation its flow assumes.
+
+Membership follows why the skill dispatches, not whether it mentions subagents: dispatch that exists for independence — separate contexts whose agreement or opposition carries evidential weight — is a correctness property and qualifies; dispatch that exists only for parallelism can be spent as time instead, so such a skill applies its work sequentially in its own context and stays outside the set.
+
+### Skill-context directives
+The counter-directive block a Dispatch skill emits as tool output at the start of each invocation — authorizing its shipped subagents against harness defaults that gate agent use, forbidding a harness constraint from being re-narrated as a user preference, keeping confirmation steps live under standing autonomy framing, and refusing independence credit for lens work done in one context. Delivery as tool output is the mechanism, not a packaging detail: the same text as static skill prose fails to outrank the harness default, and evidence that prose sufficed for one Skill transfers to no other.
+
 ### Model tier
 A semantic cost class for a dispatched sub-agent — extraction (cheapest capable, for retrieval and quoting), generation (mid-tier, for evidence-driven work and mechanical verification), or ceiling (the orchestrator's own model, inherited by omitting any model selection) — declared once per Skill and referenced by tier name so model names never hardcode into skill content.
 

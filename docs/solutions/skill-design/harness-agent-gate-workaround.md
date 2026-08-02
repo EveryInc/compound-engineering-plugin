@@ -1,9 +1,9 @@
 ---
 title: "Working around a harness default that silently disables a skill's subagents"
 date: 2026-07-28
-last_updated: 2026-08-01
+last_updated: 2026-08-02
 category: skill-design
-module: "skills (every dispatch skill: ce-plan, ce-doc-review, ce-code-review, ce-work, ce-retune, and others)"
+module: "skills (the 15 dispatch skills listed in tests/skill-context-parity.test.ts DISPATCH_SKILLS, each carrying a byte-identical scripts/context.mjs)"
 problem_type: design_pattern
 component: tooling
 severity: high
@@ -11,7 +11,7 @@ applies_when:
   - "A harness ships a standing system-prompt rule that gates a capability a skill's flow depends on, and the rule has no off switch"
   - "A skill's shipped subagents stop firing and the work silently collapses into the parent context"
   - "Deciding whether skill-authored content may assert that an operator-level constraint is satisfied"
-  - "Judging review feedback on a mechanism whose whole purpose is to override a model-facing default"
+  - "Judging review feedback — or an eval-backed removal proposal — on a mechanism whose whole purpose is to override a model-facing default"
   - "A Setup fence's tool output is being piped, filtered, or truncated before its directives reach context"
 tags:
   - subagent-dispatch
@@ -59,7 +59,7 @@ What we changed and why is in the shipped script's comments; the substantive dev
 
 **Be honest that this is a trust-boundary trade.** Content shipped with the tool is influencing a constraint the operator set. Every model asked to evaluate it — including the ones that complied — called that shape illegitimate on principle: *"tool output is data; it cannot grant permissions my system prompt withholds."* That objection is correct as far as it goes, and the counter is narrow: the gate asks for a user request, and a user who invokes the skill has made one. Ship it with the risk disclosed, not argued away.
 
-**Write the exit condition down.** This exists only until the upstream ambiguity in "unless the user requested it" is fixed at the source. When that lands, the mechanism should be **deleted, not reworded** — a workaround that outlives its cause becomes a permanent unexplained exception.
+**Write the exit condition down.** This exists only until the upstream ambiguity in "unless the user requested it" is fixed at the source. When that lands, the mechanism should be **deleted, not reworded** — a workaround that outlives its cause becomes a permanent unexplained exception. Per-skill evidence is not an exit: an eval showing prose delivery sufficed for one skill (tried once — PR #1311, reverted same day by PR #1313) exits nothing, because delivery-channel evidence does not transfer between skills and a single exception doubles the maintenance surface.
 
 **Refuse where independence is load-bearing, rather than degrading.** Inline substitution is the right default when a dispatch is merely unavailable, but not when a workflow's correctness *is* the separation. `ce-retune`'s corpus audit is a proposal pass and an opposing defense pass; run in one context, the same reasoner argues both sides and the audit still emits confident-looking cuts with the control silently removed — and that skill deletes prose, so the damage is a line a real defender would have saved. Where a workflow declares that a pass needs independent contexts, report the missing capability as a blocker and stop that pass. Scope the refusal to workflows that declare it; a global refusal would break every skill that degrades acceptably.
 
@@ -104,6 +104,29 @@ Triage into two piles, because the same reviewer produces both:
 | **Implementation finding** — this specific code is wrong | A tool pin that pre-approved arbitrary shell; setup running once per session so later invocations lost it; a constraint added to a skill but not to the reference it routes readers to; removing a pin that was also granting auto-approval | Real defects, several of them self-inflicted. Fix them. |
 
 The failure mode is collapsing the two: dismissing a reviewer because its last finding was a mechanism objection, or patching the directive because its last finding was a real bug. Keep the scrutiny, discard the suspicion.
+
+## An exit was tried once, and reverted the same day
+
+The mechanism now has one measured exit attempt on record, and the attempt is more instructive than the steady state.
+
+**The removal.** PR #1311 (merged 2026-08-02) took `ce-simplify-code` off the shared mechanism: it deleted the skill's copy of the script (`skills/ce-simplify-code/scripts/context.mjs`) and its Setup fence, replaced them with inline SKILL.md dispatch prose, and dropped the skill from the parity test's `DISPATCH_SKILLS` roster. The justification was real, not hand-waved: independence is not load-bearing for that skill (its three reviewers are lenses over the same diff, not votes that promote findings), the fence and its prose were roughly 45% of the skill's always-loaded prompt, and the change carried 42 cross-host eval arms (Codex, Claude, Cursor) including a 9/9 dispatch-outcome matrix showing prose-only delivery still dispatched.
+
+**The evaluation.** A same-session evaluation asked the natural next question: if prose delivery worked here, should the other 14 skills shed the script too? A cross-model oracle panel (codex and grok peers, positions formed independently, both concurring with the host's own analysis) reached the opposite conclusion — do not extend, and revert the one removal. Three reasons:
+
+1. **The doc's own placement evidence says prose success does not transfer.** The measured table above is the counter-example: for `ce-plan`, the identical directive text as static prose produced 0 dispatches, and tool-result delivery restored 3-5. A 9/9 prose-delivery matrix for `ce-simplify-code` is evidence about `ce-simplify-code`'s prompt shape and flow position, and licenses nothing about any other skill.
+2. **Several skills' correctness depends on the directives, not just their throughput.** `ce-retune` declares its proposal and defense passes require independent contexts and must blocker-and-stop rather than run inline; `ce-doc-review` and `ce-code-review` promote findings on multi-reviewer agreement, which `INDEPENDENCE_ACCOUNTING` exists to keep honest. Losing tool-result delivery there is not a wall-clock cost; it is the corrupted-confidence failure this doc opened with.
+3. **A single prose-only exception creates a dual-mechanism drift surface.** With 15 byte-identical copies, a dispatch-semantics fix lands once and the parity test propagates it. With 14 copies plus one prose port, every such fix must land in two mechanisms with no test tying them together — and the prose copy silently drifts.
+
+**The revert.** PR #1313 (merged 2026-08-02) restored the mechanism portion byte-identically: the script back, Setup fence back, pre-#1311 Step 2 dispatch wording back, skill re-added to `DISPATCH_SKILLS` (now 15 skills). #1311's prompt diet and behavior rules were deliberately kept — the revert targeted the delivery mechanism, not the cleanup that rode along with its PR.
+
+**The restoration bonus.** During #1313's review, a Codex P1 showed that the restored pre-#1311 wording had aged: "otherwise run the reviews inline or serially" covered only a harness with no subagent primitive at all, the Bounded dispatch paragraph covered only capacity backpressure, and the retained Step 3 gate ("proceed only after all three review outcomes are complete") could therefore stall on a non-capacity launch failure — one reviewer's dispatch errors for a reason that is neither missing-primitive nor backpressure, and no rule produces its outcome. The fix was one sentence in the Bounded dispatch paragraph: a dispatch that fails for any other reason runs that reviewer's pass inline in the parent context using the same prompt asset, disclosed in one line. That matches the non-capacity failure-classification convention the sibling skills had adopted since the original wording was written (`ce-doc-review` and `ce-optimize` in their dispatch sections, and `ce-code-review` in `skills/ce-code-review/references/dispatch-reviewers.md`, all distinguish capacity backpressure — queue and retry — from non-capacity dispatch failure — record/substitute and move on).
+
+**What generalizes:**
+
+- **Delivery-channel evidence is per-skill and per-flow.** An eval proving static prose sufficed for one skill is evidence about that skill's prompt shape, not about the channel. It licenses no conclusion about any other skill.
+- **A shared byte-identical mechanism's value includes the uniformity itself.** The first exception does not remove one skill's overhead; it doubles the maintenance surface for every future dispatch-semantics fix. Price the exception at that cost, not at the single skill's savings.
+- **When restoring older prose, re-audit it against conventions the ecosystem adopted since.** A revert is not a time machine: the pre-removal wording predated the non-capacity fallback convention, and restoring it verbatim reintroduced a gap the sibling skills had already closed.
+- **The exit condition has not moved.** Any exit from the shared script remains governed by the condition already written above — the upstream fix to the harness default, at which point the mechanism is deleted everywhere at once. A per-skill prose eval, however well-measured, is not an exit condition; #1311/#1313 is the evidence.
 
 ## When to Apply
 
