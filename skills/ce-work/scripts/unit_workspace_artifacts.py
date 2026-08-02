@@ -11,15 +11,30 @@ import hashlib
 import json
 import os
 import re
+import secrets
+import shutil
+import stat
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterable
 
-from unit_workspace_state import Operational, git
+from unit_workspace_state import (
+    O_NOFOLLOW,
+    Operational,
+    digest_bytes,
+    ensure_private_dir,
+    git,
+    read_private_json,
+    safe_id,
+    test_fault,
+    validate_private_dir,
+)
 
 
 POLICY_SCHEMA = "artifact-policy.repo.v1"
 PREFLIGHT_SCHEMA = "artifact-policy.preflight.v1"
 RECEIPT_SCHEMA = "artifact-policy.receipt.v1"
+JOURNAL_SCHEMA = "artifact-transaction.phase.v1"
 POLICY_PATH = ".ce-artifact-policy.json"
 PRECIOUS_MAX_ENTRIES = 512
 PRECIOUS_MAX_BYTES = 64 * 1024 * 1024
@@ -51,7 +66,7 @@ def _refuse(reason: str, message: str, **detail: object) -> None:
 
 def _json_digest(value: object) -> str:
     raw = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
-    return hashlib.sha256(raw).hexdigest()
+    return digest_bytes(raw)
 
 
 def _normalise_root(value: object, field: str) -> str:
@@ -352,7 +367,6 @@ class ArtifactPolicyModule:
         return [rule.lifecycle.action(rule.root) for rule in self.regenerable_rules]
 
     def inspect_entries(self, entries: Iterable[ArtifactEntry], phase: str) -> dict:
-        entries = list(entries)
         classified = self.classify(entries)
         precious = [row for row in classified if row.artifact_class == "precious"]
         regenerable = [row for row in classified if row.artifact_class == "regenerable"]
@@ -380,7 +394,7 @@ class ArtifactPolicyModule:
             "eligible": not blockers,
             "policy_digest": self.digest,
             "policy": self.policy_document(),
-            "inventory": _inventory_summary(entries),
+            "inventory": _inventory_summary(row.entry for row in classified),
             "classes": {
                 "precious": _class_summary(precious),
                 "regenerable": _class_summary(regenerable),
@@ -541,14 +555,18 @@ def _enforce_after_classification(
 
 
 def _inventory_summary(entries: Iterable[ArtifactEntry]) -> dict:
-    entries = list(entries)
     types = {kind: 0 for kind in ("regular", "symlink", "directory", "other")}
+    count = 0
+    regular_bytes = 0
     for entry in entries:
+        count += 1
         types.setdefault(entry.kind, 0)
         types[entry.kind] += 1
+        if entry.kind == "regular":
+            regular_bytes += entry.size
     return {
-        "entries": len(entries),
-        "regular_bytes": sum(entry.size for entry in entries if entry.kind == "regular"),
+        "entries": count,
+        "regular_bytes": regular_bytes,
         "types": types,
     }
 
@@ -583,3 +601,664 @@ def _top_offenders(reasons: dict[str, dict[str, list[str]]]) -> list[dict]:
         if values
     ]
     return sorted(rows, key=lambda row: (row["class"], row["path"]))[:OFFENDER_SAMPLE]
+
+
+def _safe_repo_path(repo: str, rel: str) -> str:
+    repo = os.path.abspath(repo)
+    if os.path.isabs(rel) or rel in {"", "."} or "\0" in rel:
+        _refuse("artifact-path-unsafe", "artifact path must be repository-relative", path=rel)
+    target = os.path.abspath(os.path.join(repo, rel))
+    if target == repo or os.path.commonpath([repo, target]) != repo:
+        _refuse("artifact-path-escaped", "artifact path escaped the repository", path=rel)
+    return target
+
+
+def _validate_repo_parents(repo: str, rel: str) -> None:
+    repo = os.path.abspath(repo)
+    current = repo
+    for part in Path(rel).parts[:-1]:
+        current = os.path.join(current, part)
+        try:
+            observed = os.lstat(current)
+        except OSError as exc:
+            _refuse(
+                "artifact-parent-unreadable",
+                "artifact parent cannot be inspected",
+                path=rel,
+                parent=os.path.relpath(current, repo),
+                error=str(exc),
+            )
+        if stat.S_ISLNK(observed.st_mode) or not stat.S_ISDIR(observed.st_mode):
+            _refuse(
+                "artifact-parent-unsafe",
+                "artifact parent is not a real directory",
+                path=rel,
+                parent=os.path.relpath(current, repo),
+            )
+
+
+def artifact_entry(repo: str, rel: str) -> ArtifactEntry:
+    """Inspect one ignored path without following its final symlink."""
+    _validate_repo_parents(repo, rel)
+    target = _safe_repo_path(repo, rel)
+    try:
+        observed = os.lstat(target)
+    except OSError as exc:
+        _refuse(
+            "artifact-entry-unreadable",
+            "artifact entry cannot be inspected",
+            path=rel,
+            error=str(exc),
+        )
+    if stat.S_ISLNK(observed.st_mode):
+        kind = "symlink"
+        link_target = os.readlink(target)
+        size = 0
+    elif stat.S_ISREG(observed.st_mode):
+        kind = "regular"
+        link_target = None
+        size = observed.st_size
+    elif stat.S_ISDIR(observed.st_mode):
+        kind = "directory"
+        link_target = None
+        size = 0
+    else:
+        kind = "other"
+        link_target = None
+        size = 0
+    return ArtifactEntry(
+        path=rel,
+        kind=kind,
+        size=size,
+        mode=stat.S_IMODE(observed.st_mode),
+        dev=observed.st_dev,
+        ino=observed.st_ino,
+        nlink=observed.st_nlink,
+        uid=observed.st_uid,
+        mtime_ns=observed.st_mtime_ns,
+        ctime_ns=observed.st_ctime_ns,
+        link_target=link_target,
+    )
+
+
+def _entry_document(entry: ArtifactEntry) -> dict:
+    return {
+        "path": entry.path,
+        "kind": entry.kind,
+        "size": entry.size,
+        "mode": entry.mode,
+        "dev": entry.dev,
+        "ino": entry.ino,
+        "nlink": entry.nlink,
+        "uid": entry.uid,
+        "mtime_ns": entry.mtime_ns,
+        "ctime_ns": entry.ctime_ns,
+        "link_target": entry.link_target,
+    }
+
+
+def _entry_from_document(document: dict) -> ArtifactEntry:
+    required = {
+        "path", "kind", "size", "mode", "dev", "ino", "nlink", "uid",
+        "mtime_ns", "ctime_ns", "link_target",
+    }
+    if set(document) != required:
+        raise Operational("UNREADABLE", "artifact journal entry shape is malformed")
+    return ArtifactEntry(**document)
+
+
+def _entry_identity_matches(expected: ArtifactEntry, actual: ArtifactEntry) -> bool:
+    return (
+        expected.path == actual.path
+        and expected.kind == actual.kind
+        and expected.size == actual.size
+        and expected.mode == actual.mode
+        and expected.dev == actual.dev
+        and expected.ino == actual.ino
+        and expected.nlink == actual.nlink
+        and expected.uid == actual.uid
+        and expected.mtime_ns == actual.mtime_ns
+        and expected.ctime_ns == actual.ctime_ns
+        and expected.link_target == actual.link_target
+    )
+
+
+def _validate_precious_capture(entries: list[ArtifactEntry]) -> None:
+    folded: dict[str, list[str]] = {}
+    current_uid = effective_uid()
+    for entry in entries:
+        folded.setdefault(entry.path.casefold(), []).append(entry.path)
+        if entry.kind not in {"regular", "symlink"}:
+            _refuse(
+                "precious-entry-type-unsupported",
+                "precious custody supports regular files and symlinks only",
+                path=entry.path,
+                kind=entry.kind,
+            )
+        if entry.kind == "regular" and entry.nlink != 1:
+            _refuse(
+                "precious-hardlink-topology-unsupported",
+                "precious custody refuses external hardlink topology",
+                path=entry.path,
+                nlink=entry.nlink,
+            )
+        if current_uid is not None and entry.uid is not None and entry.uid != current_uid:
+            _refuse(
+                "precious-ownership-mismatch",
+                "precious custody requires current-user ownership",
+                path=entry.path,
+            )
+    collisions = sorted(path for paths in folded.values() if len(paths) > 1 for path in paths)
+    if collisions:
+        _refuse(
+            "precious-case-collision",
+            "precious custody refuses case-folded path collisions",
+            paths=collisions,
+        )
+
+
+def _parent_modes(repo: str, entries: list[ArtifactEntry]) -> dict[str, int]:
+    modes: dict[str, int] = {}
+    for entry in entries:
+        parent = os.path.dirname(entry.path)
+        while parent and parent != ".":
+            target = _safe_repo_path(repo, parent)
+            observed = os.lstat(target)
+            if stat.S_ISLNK(observed.st_mode) or not stat.S_ISDIR(observed.st_mode):
+                _refuse(
+                    "precious-parent-unsafe",
+                    "precious parent is not a real directory",
+                    path=entry.path,
+                    parent=parent,
+                )
+            modes[parent] = stat.S_IMODE(observed.st_mode)
+            parent = os.path.dirname(parent)
+    return dict(sorted(modes.items()))
+
+
+def _artifact_root(run_dir: str) -> str:
+    run_dir = os.path.abspath(run_dir)
+    validate_private_dir(run_dir)
+    root = os.path.join(run_dir, "artifact-custody")
+    ensure_private_dir(root)
+    return root
+
+
+def _atomic_write_json(path: str, document: dict) -> None:
+    parent = os.path.dirname(path)
+    validate_private_dir(parent)
+    temporary = os.path.join(parent, f".artifact-{secrets.token_hex(8)}.tmp")
+    data = (json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | O_NOFOLLOW, 0o600)
+    try:
+        offset = 0
+        while offset < len(data):
+            offset += os.write(fd, data[offset:])
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.replace(temporary, path)
+    directory_fd = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | O_NOFOLLOW)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+@dataclass
+class ArtifactTransactionJournal:
+    """Durable phase owner for one artifact custody transaction."""
+
+    path: str
+    document: dict
+
+    def write(self) -> None:
+        _atomic_write_json(self.path, self.document)
+
+    def set_phase(self, phase: str) -> None:
+        transitions = {
+            "capturing": {"captured"},
+            "captured": {"restored"},
+            "restored": {"receipted"},
+            "receipted": {"complete"},
+            "complete": set(),
+        }
+        current = self.document.get("phase")
+        if phase == current:
+            return
+        if current not in transitions or phase not in transitions[current]:
+            raise Operational(
+                "BLOCKED",
+                "artifact journal phase transition is invalid",
+                {"current": current, "requested": phase, "journal": self.path},
+            )
+        self.document["phase"] = phase
+        self.write()
+
+
+def _load_journal(path: str) -> ArtifactTransactionJournal:
+    document = read_private_json(path)
+    if document.get("schema") != JOURNAL_SCHEMA:
+        raise Operational("UNREADABLE", "artifact journal schema is unsupported")
+    expected = os.path.join(os.path.dirname(path), f"{document.get('transaction_id')}.json")
+    if os.path.abspath(path) != os.path.abspath(expected):
+        raise Operational("UNREADABLE", "artifact journal path does not match transaction identity")
+    expected_custody = os.path.join(
+        os.path.dirname(path),
+        f"{document.get('transaction_id')}.custody",
+    )
+    if os.path.abspath(str(document.get("custody_root"))) != os.path.abspath(expected_custody):
+        raise Operational("UNREADABLE", "artifact journal custody root does not match transaction identity")
+    return ArtifactTransactionJournal(path, document)
+
+
+def _backup_path(custody_root: str, rel: str) -> str:
+    return os.path.join(custody_root, hashlib.sha256(rel.encode("utf-8", "surrogateescape")).hexdigest())
+
+
+def _copy_regular_exact(repo: str, entry: ArtifactEntry, custody_root: str) -> dict:
+    source = _safe_repo_path(repo, entry.path)
+    backup = _backup_path(custody_root, entry.path)
+    if os.path.lexists(backup):
+        observed = os.lstat(backup)
+        if not stat.S_ISREG(observed.st_mode) or stat.S_ISLNK(observed.st_mode):
+            raise Operational("UNREADABLE", "partial custody backup is not a regular file")
+        os.unlink(backup)
+    source_fd = os.open(source, os.O_RDONLY | O_NOFOLLOW)
+    backup_fd = os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL | O_NOFOLLOW, 0o600)
+    digest = hashlib.sha256()
+    copied = 0
+    try:
+        before = os.fstat(source_fd)
+        actual = artifact_entry(repo, entry.path)
+        if not _entry_identity_matches(entry, actual) or before.st_dev != entry.dev or before.st_ino != entry.ino:
+            raise Operational(
+                "BLOCKED",
+                "precious artifact changed before custody copy",
+                {"path": entry.path},
+            )
+        while True:
+            chunk = os.read(source_fd, 64 * 1024)
+            if not chunk:
+                break
+            offset = 0
+            while offset < len(chunk):
+                offset += os.write(backup_fd, chunk[offset:])
+            digest.update(chunk)
+            copied += len(chunk)
+            test_fault("artifact-during-precious-capture")
+        os.fsync(backup_fd)
+        after = os.fstat(source_fd)
+        if (
+            after.st_dev != before.st_dev
+            or after.st_ino != before.st_ino
+            or after.st_size != before.st_size
+            or after.st_mtime_ns != before.st_mtime_ns
+            or after.st_ctime_ns != before.st_ctime_ns
+            or copied != entry.size
+        ):
+            raise Operational(
+                "BLOCKED",
+                "precious artifact changed during custody copy",
+                {"path": entry.path},
+            )
+    finally:
+        os.close(backup_fd)
+        os.close(source_fd)
+    return {
+        "path": entry.path,
+        "kind": "regular",
+        "mode": entry.mode,
+        "mtime_ns": entry.mtime_ns,
+        "size": entry.size,
+        "sha256": digest.hexdigest(),
+        "link_target": None,
+        "backup": backup,
+    }
+
+
+def _capture_record(repo: str, entry: ArtifactEntry, custody_root: str) -> dict:
+    if entry.kind == "regular":
+        return _copy_regular_exact(repo, entry, custody_root)
+    actual = artifact_entry(repo, entry.path)
+    if not _entry_identity_matches(entry, actual):
+        raise Operational("BLOCKED", "precious symlink changed before custody", {"path": entry.path})
+    test_fault("artifact-during-precious-capture")
+    return {
+        "path": entry.path,
+        "kind": "symlink",
+        "mode": entry.mode,
+        "mtime_ns": entry.mtime_ns,
+        "size": 0,
+        "sha256": None,
+        "link_target": entry.link_target,
+        "backup": None,
+    }
+
+
+def _open_journals(root: str) -> list[ArtifactTransactionJournal]:
+    journals: list[ArtifactTransactionJournal] = []
+    for name in sorted(os.listdir(root)):
+        if not name.endswith(".json"):
+            continue
+        journals.append(_load_journal(os.path.join(root, name)))
+    return journals
+
+
+def capture_artifact_transaction(
+    repo: str,
+    run_dir: str,
+    transaction_id: str,
+    unit_id: str | None,
+    attempt_id: str,
+    lock_nonce: str,
+    policy_digest: str,
+    precious_entries: Iterable[ArtifactEntry],
+    regenerable_manifest: dict,
+) -> ArtifactTransactionJournal:
+    """Create capturing-first custody and advance it durably to captured."""
+    repo = os.path.abspath(repo)
+    transaction_id = safe_id(transaction_id, "artifact transaction id")
+    attempt_id = safe_id(attempt_id, "artifact attempt id")
+    lock_nonce = safe_id(lock_nonce, "artifact lock nonce")
+    if unit_id is not None:
+        unit_id = safe_id(unit_id, "artifact unit id")
+    entries = sorted(precious_entries, key=lambda entry: entry.path)
+    _validate_precious_capture(entries)
+    root = _artifact_root(run_dir)
+    journal_path = os.path.join(root, f"{transaction_id}.json")
+    identity = {
+        "run_id": os.path.basename(os.path.abspath(run_dir)),
+        "unit_id": unit_id,
+        "attempt_id": attempt_id,
+        "lock_nonce": lock_nonce,
+    }
+    for existing in _open_journals(root):
+        if existing.document.get("phase") == "complete":
+            continue
+        if existing.document.get("transaction_id") != transaction_id:
+            raise Operational(
+                "REFUSED",
+                "another artifact transaction is unfinished",
+                {
+                    "open_transaction": existing.document.get("transaction_id"),
+                    "journal": existing.path,
+                },
+            )
+    if os.path.lexists(journal_path):
+        journal = _load_journal(journal_path)
+        recorded_identity = {key: journal.document.get(key) for key in identity}
+        if recorded_identity != identity or journal.document.get("repo") != repo:
+            raise Operational("REFUSED", "artifact transaction identity does not match its journal")
+        return _continue_capture(journal)
+    custody_root = os.path.join(root, f"{transaction_id}.custody")
+    ensure_private_dir(custody_root)
+    document = {
+        "schema": JOURNAL_SCHEMA,
+        "phase": "capturing",
+        "transaction_id": transaction_id,
+        **identity,
+        "repo": repo,
+        "policy_digest": policy_digest,
+        "custody_root": custody_root,
+        "journal_path": journal_path,
+        "precious_entries": {entry.path: _entry_document(entry) for entry in entries},
+        "precious_records": {},
+        "parent_modes": _parent_modes(repo, entries),
+        "regenerable_manifest": regenerable_manifest,
+    }
+    journal = ArtifactTransactionJournal(journal_path, document)
+    journal.write()
+    test_fault("artifact-after-capture-journal")
+    return _continue_capture(journal)
+
+
+def _continue_capture(journal: ArtifactTransactionJournal) -> ArtifactTransactionJournal:
+    if journal.document.get("phase") != "capturing":
+        return journal
+    repo = journal.document["repo"]
+    custody_root = journal.document["custody_root"]
+    validate_private_dir(custody_root)
+    entries = {
+        path: _entry_from_document(value)
+        for path, value in journal.document.get("precious_entries", {}).items()
+    }
+    records = journal.document.get("precious_records")
+    if not isinstance(records, dict):
+        raise Operational("UNREADABLE", "artifact journal precious_records is malformed")
+    for path in sorted(entries):
+        if path in records:
+            continue
+        expected = entries[path]
+        actual = artifact_entry(repo, path)
+        if not _entry_identity_matches(expected, actual):
+            raise Operational(
+                "BLOCKED",
+                "capturing artifact changed before custody could complete",
+                {"path": path, "journal": journal.path},
+            )
+        records[path] = _capture_record(repo, expected, custody_root)
+        journal.write()
+    journal.set_phase("captured")
+    return journal
+
+
+def _hash_file(path: str) -> str:
+    digest = hashlib.sha256()
+    fd = os.open(path, os.O_RDONLY | O_NOFOLLOW)
+    try:
+        while True:
+            chunk = os.read(fd, 64 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    finally:
+        os.close(fd)
+    return digest.hexdigest()
+
+
+def _record_matches(repo: str, record: dict) -> bool:
+    target = _safe_repo_path(repo, record["path"])
+    try:
+        observed = os.lstat(target)
+    except OSError:
+        return False
+    if record["kind"] == "symlink":
+        return stat.S_ISLNK(observed.st_mode) and os.readlink(target) == record["link_target"]
+    return (
+        stat.S_ISREG(observed.st_mode)
+        and not stat.S_ISLNK(observed.st_mode)
+        and stat.S_IMODE(observed.st_mode) == record["mode"]
+        and observed.st_mtime_ns == record["mtime_ns"]
+        and observed.st_size == record["size"]
+        and observed.st_nlink == 1
+        and _hash_file(target) == record["sha256"]
+    )
+
+
+def _remove_precious_target(path: str) -> None:
+    try:
+        observed = os.lstat(path)
+    except FileNotFoundError:
+        return
+    if stat.S_ISDIR(observed.st_mode) and not stat.S_ISLNK(observed.st_mode):
+        raise Operational("BLOCKED", "precious restore target became a directory", {"path": path})
+    os.unlink(path)
+
+
+def _ensure_restore_parents(repo: str, rel: str, parent_modes: dict[str, int]) -> None:
+    current = os.path.abspath(repo)
+    current_rel = ""
+    for part in Path(rel).parts[:-1]:
+        current_rel = f"{current_rel}/{part}".strip("/")
+        current = os.path.join(current, part)
+        try:
+            observed = os.lstat(current)
+        except FileNotFoundError:
+            os.mkdir(current, parent_modes.get(current_rel, 0o700))
+            observed = os.lstat(current)
+        if stat.S_ISLNK(observed.st_mode) or not stat.S_ISDIR(observed.st_mode):
+            raise Operational(
+                "BLOCKED",
+                "precious restore parent is not a real directory",
+                {"path": rel, "parent": current_rel},
+            )
+
+
+def _restore_record(repo: str, record: dict, parent_modes: dict[str, int]) -> None:
+    _ensure_restore_parents(repo, record["path"], parent_modes)
+    target = _safe_repo_path(repo, record["path"])
+    parent = os.path.dirname(target)
+    _remove_precious_target(target)
+    temporary = os.path.join(parent, f".artifact-restore-{secrets.token_hex(8)}")
+    if record["kind"] == "symlink":
+        os.symlink(record["link_target"], temporary)
+        os.replace(temporary, target)
+        return
+    backup = record.get("backup")
+    if not isinstance(backup, str) or _hash_file(backup) != record["sha256"]:
+        raise Operational(
+            "BLOCKED",
+            "precious custody backup cannot be proven",
+            {"path": record["path"]},
+        )
+    source_fd = os.open(backup, os.O_RDONLY | O_NOFOLLOW)
+    target_fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | O_NOFOLLOW, 0o600)
+    try:
+        while True:
+            chunk = os.read(source_fd, 64 * 1024)
+            if not chunk:
+                break
+            offset = 0
+            while offset < len(chunk):
+                offset += os.write(target_fd, chunk[offset:])
+        os.fchmod(target_fd, record["mode"])
+        os.fsync(target_fd)
+    finally:
+        os.close(target_fd)
+        os.close(source_fd)
+    os.utime(temporary, ns=(record["mtime_ns"], record["mtime_ns"]))
+    os.replace(temporary, target)
+
+
+def _restore_custody(journal: ArtifactTransactionJournal) -> dict:
+    repo = journal.document["repo"]
+    records = journal.document.get("precious_records", {})
+    restored: list[str] = []
+    errors: list[dict] = []
+    parent_modes = journal.document.get("parent_modes", {})
+    if not isinstance(parent_modes, dict) or any(
+        not isinstance(path, str) or not isinstance(mode, int)
+        for path, mode in parent_modes.items()
+    ):
+        raise Operational("UNREADABLE", "artifact journal parent_modes is malformed")
+    for path in sorted(records):
+        record = records[path]
+        if _record_matches(repo, record):
+            continue
+        try:
+            _restore_record(repo, record, parent_modes)
+        except (OSError, Operational) as exc:
+            errors.append({"path": path, "error": str(exc)})
+            continue
+        restored.append(path)
+    for parent, mode in sorted(
+        journal.document.get("parent_modes", {}).items(),
+        key=lambda item: item[0].count("/"),
+        reverse=True,
+    ):
+        try:
+            target = _safe_repo_path(repo, parent)
+            observed = os.lstat(target)
+            if stat.S_ISLNK(observed.st_mode) or not stat.S_ISDIR(observed.st_mode):
+                raise OSError("parent is not a real directory")
+            os.chmod(target, mode)
+        except OSError as exc:
+            errors.append({"path": parent, "error": str(exc)})
+    unproven = [path for path, record in records.items() if not _record_matches(repo, record)]
+    if errors or unproven:
+        raise Operational(
+            "BLOCKED",
+            "precious restoration could not be proven",
+            {
+                "journal": journal.path,
+                "errors": errors,
+                "unproven_paths": sorted(unproven),
+                "retain_recovery_state": True,
+            },
+        )
+    return {
+        "phase": journal.document["phase"],
+        "restored_paths": restored,
+        "precious_restoration_proven": True,
+        "journal_path": journal.path,
+        "custody_root": journal.document["custody_root"],
+    }
+
+
+def resume_artifact_transaction(journal_path: str) -> dict:
+    """Complete interrupted capture and restore precious state idempotently."""
+    journal = _load_journal(journal_path)
+    if journal.document.get("phase") == "capturing":
+        journal = _continue_capture(journal)
+    if journal.document.get("phase") not in {"captured", "restored", "receipted", "complete"}:
+        raise Operational("UNREADABLE", "artifact journal phase is unsupported")
+    result = _restore_custody(journal)
+    if journal.document.get("phase") == "captured":
+        journal.set_phase("restored")
+    result["phase"] = journal.document["phase"]
+    return result
+
+
+def regenerable_stat_manifest(classified: Iterable[ClassifiedEntry]) -> dict:
+    """Build detect-only stat state and one repair action per lifecycle root."""
+    rows = [row for row in classified if row.artifact_class == "regenerable"]
+    entries = {row.entry.path: row.entry.stat_manifest() for row in sorted(rows, key=lambda row: row.entry.path)}
+    roots: dict[str, dict] = {}
+    for row in rows:
+        if row.rule_root is None or row.lifecycle is None:
+            continue
+        roots[row.rule_root] = {
+            "root": row.rule_root,
+            "repair_action": row.lifecycle.action(row.rule_root),
+        }
+    return {"entries": entries, "roots": {key: roots[key] for key in sorted(roots)}}
+
+
+def sweep_artifact_custody(run_dir: str) -> dict:
+    """Remove only unreferenced or complete controller-private custody roots."""
+    root = _artifact_root(run_dir)
+    referenced = {
+        os.path.abspath(journal.document["custody_root"]): journal.document.get("phase")
+        for journal in _open_journals(root)
+    }
+    removed: list[str] = []
+    retained: list[str] = []
+    for name in sorted(os.listdir(root)):
+        candidate = os.path.join(root, name)
+        if not name.endswith(".custody") or not os.path.isdir(candidate) or os.path.islink(candidate):
+            continue
+        validate_private_dir(candidate)
+        phase = referenced.get(os.path.abspath(candidate))
+        if phase is not None and phase != "complete":
+            retained.append(candidate)
+            continue
+        shutil.rmtree(candidate)
+        removed.append(candidate)
+    return {"removed": removed, "retained": retained}
+
+
+def artifact_fingerprint(repo: str, paths: Iterable[str]) -> dict:
+    """Return exact observable fields used by custody regression probes."""
+    output: dict[str, dict] = {}
+    for rel in paths:
+        entry = artifact_entry(repo, rel)
+        output[rel] = {
+            "kind": entry.kind,
+            "mode": entry.mode if entry.kind == "regular" else None,
+            "mtime_ns": entry.mtime_ns if entry.kind == "regular" else None,
+            "size": entry.size,
+            "sha256": _hash_file(_safe_repo_path(repo, rel)) if entry.kind == "regular" else None,
+            "link_target": entry.link_target,
+        }
+    return output

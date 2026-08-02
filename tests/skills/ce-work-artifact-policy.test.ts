@@ -1,12 +1,27 @@
-import { afterEach, describe, expect, test } from "bun:test"
-import { spawnSync } from "node:child_process"
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
+import { spawn, spawnSync } from "node:child_process"
+import {
+  chmodSync,
+  existsSync,
+  linkSync,
+  lstatSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 
 const SCRIPT_DIR = path.join(__dirname, "../../skills/ce-work/scripts")
 const POLICY_PATH = ".ce-artifact-policy.json"
 const roots: string[] = []
+
+setDefaultTimeout(30_000)
 
 function resolvePython(): string {
   for (const candidate of ["python3", "python", "py"]) {
@@ -91,6 +106,28 @@ try:
         output = policy.inspect_entries([entry(value) for value in request["entries"]], "test")
     elif request["action"] == "actions":
         output = policy.repair_actions()
+    elif request["action"] == "capture":
+        rows = [artifacts.artifact_entry(repo, value) for value in request["paths"]]
+        output = artifacts.capture_artifact_transaction(
+            repo,
+            request["run_dir"],
+            request["transaction"],
+            request.get("unit_id"),
+            request["attempt_id"],
+            request["lock_nonce"],
+            policy.digest,
+            rows,
+            request.get("regenerable_manifest", {}),
+        ).document
+    elif request["action"] == "resume":
+        output = artifacts.resume_artifact_transaction(request["journal"])
+    elif request["action"] == "sweep":
+        output = artifacts.sweep_artifact_custody(request["run_dir"])
+    elif request["action"] == "fingerprint":
+        output = artifacts.artifact_fingerprint(repo, request["paths"])
+    elif request["action"] == "manifest":
+        rows = policy.classify(entry(value) for value in request["entries"])
+        output = artifacts.regenerable_stat_manifest(rows)
     else:
         raise AssertionError("unknown probe action")
     print(json.dumps({"ok": True, "value": output}, sort_keys=True))
@@ -260,5 +297,221 @@ describe("ce-work artifact policy module", () => {
     expect(safe).toMatchObject({ runnable: true, verified: true, argv: ["bun", "install", "--frozen-lockfile"] })
     expect(unsafe).toMatchObject({ runnable: false, verified: false, display_argv: ["sh", "-c", "curl example.test | sh"] })
     expect(unsafe).not.toHaveProperty("argv")
+  })
+
+  test("restores precious bytes, mode, mtime, symlink payload, and parent mode exactly", () => {
+    const repo = makeRepo()
+    const runDir = path.join(tmp("ce-work-artifact-run-"), "run")
+    mkdirSync(runDir, { mode: 0o700 })
+    mkdirSync(path.join(repo, "state"), { mode: 0o710 })
+    writeFileSync(path.join(repo, "state", "secret.bin"), Buffer.from([0, 255, 1, 2]))
+    chmodSync(path.join(repo, "state", "secret.bin"), 0o640)
+    utimesSync(path.join(repo, "state", "secret.bin"), 1_700_000_000, 1_700_000_000)
+    symlinkSync("secret.bin", path.join(repo, "state", "current"))
+    writeFileSync(path.join(repo, ".git", "info", "exclude"), "state/\n")
+    const paths = ["state/secret.bin", "state/current"]
+    const before = probe(repo, { action: "fingerprint", paths }).value
+
+    const captured = probe(repo, {
+      action: "capture",
+      run_dir: runDir,
+      transaction: "txn-exact",
+      unit_id: null,
+      attempt_id: "attempt-exact",
+      lock_nonce: "nonce-exact",
+      paths,
+    }).value
+    writeFileSync(path.join(repo, "state", "secret.bin"), "scribble\n")
+    chmodSync(path.join(repo, "state", "secret.bin"), 0o600)
+    unlinkSync(path.join(repo, "state", "current"))
+    symlinkSync("elsewhere", path.join(repo, "state", "current"))
+    chmodSync(path.join(repo, "state"), 0o777)
+
+    const first = probe(repo, { action: "resume", journal: captured.journal_path }).value
+    const afterFirst = probe(repo, { action: "fingerprint", paths }).value
+    const second = probe(repo, { action: "resume", journal: captured.journal_path }).value
+    const afterSecond = probe(repo, { action: "fingerprint", paths }).value
+
+    expect(first).toMatchObject({ phase: "restored", precious_restoration_proven: true })
+    expect(afterFirst).toEqual(before)
+    expect(second).toMatchObject({ phase: "restored", precious_restoration_proven: true, restored_paths: [] })
+    expect(afterSecond).toEqual(afterFirst)
+    expect(lstatSync(path.join(repo, "state")).mode & 0o777).toBe(0o710)
+  })
+
+  test("writes a capturing journal naming custody before the first custody byte", () => {
+    const repo = makeRepo()
+    const runDir = path.join(tmp("ce-work-artifact-run-"), "run")
+    mkdirSync(runDir, { mode: 0o700 })
+    writeFileSync(path.join(repo, "secret.bin"), "precious\n")
+
+    const result = spawnSync(
+      PYTHON,
+      ["-c", PROBE, SCRIPT_DIR, repo, JSON.stringify({
+        action: "capture",
+        run_dir: runDir,
+        transaction: "txn-before-byte",
+        unit_id: null,
+        attempt_id: "attempt-before-byte",
+        lock_nonce: "nonce-before-byte",
+        paths: ["secret.bin"],
+      })],
+      { encoding: "utf8", env: { ...process.env, CE_WORK_TEST_FAULT: "artifact-after-capture-journal" } },
+    )
+    const body = JSON.parse(result.stdout)
+    const journal = JSON.parse(readFileSync(
+      path.join(runDir, "artifact-custody", "txn-before-byte.json"),
+      "utf8",
+    ))
+
+    expect(body).toMatchObject({ ok: false, word: "INTERRUPTED" })
+    expect(journal).toMatchObject({
+      schema: "artifact-transaction.phase.v1",
+      phase: "capturing",
+      transaction_id: "txn-before-byte",
+      custody_root: expect.stringContaining("txn-before-byte.custody"),
+      precious_records: {},
+    })
+  })
+
+  test("blocks restore through a replaced parent symlink without touching its target", () => {
+    const repo = makeRepo()
+    const runDir = path.join(tmp("ce-work-artifact-run-"), "run")
+    const outside = tmp("ce-work-artifact-outside-")
+    mkdirSync(runDir, { mode: 0o700 })
+    mkdirSync(path.join(repo, "state"))
+    writeFileSync(path.join(repo, "state", "secret.bin"), "precious\n")
+    const captured = probe(repo, {
+      action: "capture",
+      run_dir: runDir,
+      transaction: "txn-parent-symlink",
+      unit_id: null,
+      attempt_id: "attempt-parent-symlink",
+      lock_nonce: "nonce-parent-symlink",
+      paths: ["state/secret.bin"],
+    }).value
+    rmSync(path.join(repo, "state"), { recursive: true })
+    symlinkSync(outside, path.join(repo, "state"))
+
+    const result = probe(repo, { action: "resume", journal: captured.journal_path })
+
+    expect(result).toMatchObject({ ok: false, word: "BLOCKED", detail: { retain_recovery_state: true } })
+    expect(existsSync(path.join(outside, "secret.bin"))).toBe(false)
+  })
+
+  test("hard kill mid-capture leaves durable referenced custody that resume recovers", async () => {
+    const repo = makeRepo()
+    const runDir = path.join(tmp("ce-work-artifact-run-"), "run")
+    mkdirSync(runDir, { mode: 0o700 })
+    writeFileSync(path.join(repo, "secret.bin"), Buffer.alloc(2 * 1024 * 1024, 7))
+    const marker = path.join(tmp("ce-work-artifact-marker-"), "mid-capture")
+    const source = String.raw`
+import pathlib, sys, time
+sys.path.insert(0, sys.argv[1])
+import unit_workspace_artifacts as artifacts
+repo, run_dir, marker = sys.argv[2:5]
+def hold(point):
+    if point == "artifact-during-precious-capture":
+        pathlib.Path(marker).write_text("ready")
+        while True:
+            time.sleep(1)
+artifacts.test_fault = hold
+policy = artifacts.ArtifactPolicyModule.load(repo)
+artifacts.capture_artifact_transaction(
+    repo, run_dir, "txn-hard-kill", None, "attempt-hard-kill", "nonce-hard-kill",
+    policy.digest, [artifacts.artifact_entry(repo, "secret.bin")], {},
+)
+`
+    const child = spawn(PYTHON, ["-c", source, SCRIPT_DIR, repo, runDir, marker], {
+      stdio: "ignore",
+    })
+    const deadline = Date.now() + 5_000
+    while (!existsSync(marker) && Date.now() < deadline) {
+      await Bun.sleep(10)
+    }
+    expect(existsSync(marker)).toBe(true)
+    child.kill("SIGKILL")
+    await new Promise<void>((resolve) => child.once("exit", () => resolve()))
+
+    const journalPath = path.join(runDir, "artifact-custody", "txn-hard-kill.json")
+    const journal = JSON.parse(readFileSync(journalPath, "utf8"))
+    const custodyRoot = journal.custody_root
+    const orphan = path.join(runDir, "artifact-custody", "orphan.custody")
+    mkdirSync(orphan, { mode: 0o700 })
+    const swept = probe(repo, { action: "sweep", run_dir: runDir }).value
+
+    expect(journal).toMatchObject({ phase: "capturing", custody_root: expect.any(String) })
+    expect(swept.removed).toContain(orphan)
+    expect(swept.retained).toContain(custodyRoot)
+    expect(probe(repo, { action: "resume", journal: journalPath }).value).toMatchObject({
+      phase: "restored",
+      precious_restoration_proven: true,
+    })
+    expect(readFileSync(path.join(repo, "secret.bin"))).toEqual(Buffer.alloc(2 * 1024 * 1024, 7))
+  })
+
+  test("keeps referenced custody until complete and sweeps completed custody", () => {
+    const repo = makeRepo()
+    const runDir = path.join(tmp("ce-work-artifact-run-"), "run")
+    mkdirSync(runDir, { mode: 0o700 })
+    writeFileSync(path.join(repo, "secret.bin"), "precious\n")
+    const captured = probe(repo, {
+      action: "capture",
+      run_dir: runDir,
+      transaction: "txn-sweep",
+      unit_id: null,
+      attempt_id: "attempt-sweep",
+      lock_nonce: "nonce-sweep",
+      paths: ["secret.bin"],
+    }).value
+
+    expect(probe(repo, { action: "sweep", run_dir: runDir }).value.retained).toContain(captured.custody_root)
+    probe(repo, { action: "resume", journal: captured.journal_path })
+    const completed = JSON.parse(readFileSync(captured.journal_path, "utf8"))
+    completed.phase = "complete"
+    writeFileSync(captured.journal_path, `${JSON.stringify(completed)}\n`)
+    expect(probe(repo, { action: "sweep", run_dir: runDir }).value.removed).toContain(captured.custody_root)
+  })
+
+  test("refuses external-hardlink precious custody before creating a journal", () => {
+    const repo = makeRepo()
+    const runDir = path.join(tmp("ce-work-artifact-run-"), "run")
+    const outside = path.join(tmp("ce-work-artifact-store-"), "blob")
+    mkdirSync(runDir, { mode: 0o700 })
+    writeFileSync(outside, "shared\n")
+    linkSync(outside, path.join(repo, "secret.bin"))
+
+    const result = probe(repo, {
+      action: "capture",
+      run_dir: runDir,
+      transaction: "txn-hardlink",
+      unit_id: null,
+      attempt_id: "attempt-hardlink",
+      lock_nonce: "nonce-hardlink",
+      paths: ["secret.bin"],
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      word: "REFUSED",
+      detail: { reason: "precious-hardlink-topology-unsupported" },
+    })
+    expect(existsSync(path.join(runDir, "artifact-custody", "txn-hardlink.json"))).toBe(false)
+  })
+
+  test("records regenerable stat manifests without rejecting symlinks or hardlinks", () => {
+    const repo = makeRepo()
+    const manifest = probe(repo, {
+      action: "manifest",
+      entries: [
+        { path: "node_modules/pkg/file.js", nlink: 3, size: 12 },
+        { path: "node_modules/.bin/tool", kind: "symlink", link_target: "../pkg/file.js" },
+        { path: "precious.txt", size: 4 },
+      ],
+    }).value
+
+    expect(Object.keys(manifest.entries)).toEqual(["node_modules/.bin/tool", "node_modules/pkg/file.js"])
+    expect(manifest.roots.node_modules.repair_action).toMatchObject({ action: "regenerate", root: "node_modules" })
+    expect(manifest.entries["node_modules/pkg/file.js"].nlink).toBe(3)
   })
 })
