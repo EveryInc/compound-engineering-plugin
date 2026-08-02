@@ -191,6 +191,22 @@ function createAcceptedRun(
   return integrated
 }
 
+function configureNestedRegenerableRoot(fixture: ReturnType<typeof makeRepo>): void {
+  writeFileSync(path.join(fixture.repo, ".ce-artifact-policy.json"), `${JSON.stringify({
+    schema: "artifact-policy.repo.v1",
+    precious_roots: [],
+    regenerable_roots: [{
+      root: "build/cache",
+      owner: "bun",
+      repair_argv: ["bun", "install", "--frozen-lockfile"],
+    }],
+  })}\n`)
+  git(fixture.repo, "add", ".ce-artifact-policy.json")
+  git(fixture.repo, "commit", "-m", "test: add nested regenerable root policy")
+  fixture.base = git(fixture.repo, "rev-parse", "HEAD")
+  writeFileSync(path.join(fixture.repo, ".git", "info", "exclude"), "build/cache/\n")
+}
+
 function authorizeDispatch(
   runsRoot: string,
   runId: string,
@@ -2222,6 +2238,47 @@ describe("ce-work unit workspace controller", () => {
     expect(readFileSync(path.join(f.repo, "node_modules", "generated.txt"), "utf8")).toBe("generated")
   })
 
+  test("unit verification preserves a new ancestor of a nested regenerable root", () => {
+    const f = makeRepo()
+    configureNestedRegenerableRoot(f)
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-nested-cold-artifact-integration"
+    const packet = "nested cold artifact integration packet"
+    expect(init(runs, runId, f).word).toBe("READY")
+    const prepared = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile(packet),
+    )
+    writeFileSync(path.join(prepared.body.workspace, "integrated.txt"), "integrated\n")
+    const job = fakeDoneJob(runs, runId, "U", packet, "nested-cold-artifact-integration-job")
+    ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U")
+
+    const integrated = ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U",
+      "--commit-message", "feat(test): integrate nested cold checkout fixture", "--",
+      process.execPath, "-e", "require('node:fs').mkdirSync('build/cache', { recursive: true }); require('node:fs').writeFileSync('build/cache/generated.txt', 'generated')",
+    )
+
+    expect(integrated).toMatchObject({
+      word: "UNIT_COMMITTED",
+      body: {
+        artifact: {
+          schema: "artifact-policy.receipt.v1",
+          outcome: "VERIFIED_WITH_REGENERABLE_DIVERGENCE",
+          bulk_divergence_detected: true,
+          bulk_restored: false,
+        },
+      },
+    })
+    expect(existsSync(path.join(f.repo, "build"))).toBe(true)
+    expect(existsSync(path.join(f.repo, "build", "cache"))).toBe(true)
+    expect(readFileSync(path.join(f.repo, "build", "cache", "generated.txt"), "utf8")).toBe("generated")
+  })
+
   test("plan-wide verification preserves a newly introduced regenerable root", () => {
     const f = makeRepo()
     writeFileSync(path.join(f.repo, "bun.lock"), "lockfileVersion = 1\n")
@@ -2254,6 +2311,99 @@ describe("ce-work unit workspace controller", () => {
       bulk_restored: false,
     })
   })
+
+  test("plan-wide verification preserves a new ancestor of a nested regenerable root", () => {
+    const f = makeRepo()
+    configureNestedRegenerableRoot(f)
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-nested-cold-artifact-verification"
+    createAcceptedRun(runs, runId, f)
+
+    const verified = ctl(
+      runs, "verify-run", "--run-id", runId,
+      "--verification-summary", "nested cold checkout artifact verification", "--",
+      process.execPath, "-e", "require('node:fs').mkdirSync('build/cache', { recursive: true }); require('node:fs').writeFileSync('build/cache/generated.txt', 'generated')",
+    )
+
+    expect(verified).toMatchObject({
+      word: "RUN_VERIFIED",
+      body: {
+        artifact_outcome: "VERIFIED_WITH_REGENERABLE_DIVERGENCE",
+        repair_actions: [{ owner: "bun", argv: ["bun", "install", "--frozen-lockfile"], runnable: true }],
+      },
+    })
+    expect(existsSync(path.join(f.repo, "build"))).toBe(true)
+    expect(existsSync(path.join(f.repo, "build", "cache"))).toBe(true)
+    expect(readFileSync(path.join(f.repo, "build", "cache", "generated.txt"), "utf8")).toBe("generated")
+    expect(ctl(runs, "status", "--run-id", runId).body.verifications.at(-1).artifact).toMatchObject({
+      schema: "artifact-policy.receipt.v1",
+      outcome: "VERIFIED_WITH_REGENERABLE_DIVERGENCE",
+      bulk_divergence_detected: true,
+      bulk_restored: false,
+    })
+  })
+
+  test.each(["verify-run", "unit-integration"] as const)(
+    "%s restores a preexisting regenerable-root ancestor mode while preserving cache content",
+    (verificationPath) => {
+      const f = makeRepo()
+      configureNestedRegenerableRoot(f)
+      const build = path.join(f.repo, "build")
+      mkdirSync(build, { mode: 0o755 })
+      chmodSync(build, 0o755)
+      const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+      const runId = `run-regenerable-ancestor-restore-${verificationPath}`
+      const mutateAncestorAndCreateCache = [
+        "from pathlib import Path",
+        "Path('build').chmod(0o700)",
+        "Path('build/cache').mkdir(parents=True)",
+        "Path('build/cache/generated.txt').write_text('generated\\n')",
+      ].join("; ")
+
+      let result: ReturnType<typeof ctl>
+      if (verificationPath === "verify-run") {
+        createAcceptedRun(runs, runId, f)
+        result = ctl(
+          runs, "verify-run", "--run-id", runId,
+          "--verification-summary", "regenerable ancestor restore verification", "--",
+          "python3", "-c", mutateAncestorAndCreateCache,
+        )
+        expect(result.word).toBe("RUN_VERIFIED")
+      } else {
+        const packet = "regenerable ancestor restore integration packet"
+        expect(init(runs, runId, f).word).toBe("READY")
+        const prepared = ctl(
+          runs, "prepare", "--run-id", runId, "--unit-id", "U",
+          "--base", f.base, "--packet", packetFile(packet),
+        )
+        writeFileSync(path.join(prepared.body.workspace, "integrated.txt"), "integrated\n")
+        const job = fakeDoneJob(runs, runId, "U", packet, "regenerable-ancestor-restore-job")
+        ctl(
+          runs, "record-job", "--run-id", runId, "--unit-id", "U",
+          "--attempt-id", "attempt-1", "--job-id", job,
+        )
+        ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U")
+        result = ctl(
+          runs, "integrate", "--run-id", runId, "--unit-id", "U",
+          "--commit-message", "feat(test): integrate ancestor restore fixture", "--",
+          "python3", "-c", mutateAncestorAndCreateCache,
+        )
+        expect(result.word).toBe("UNIT_COMMITTED")
+      }
+
+      const artifact = verificationPath === "verify-run"
+        ? ctl(runs, "status", "--run-id", runId).body.verifications.at(-1).artifact
+        : result.body.artifact
+      expect(artifact).toMatchObject({
+        schema: "artifact-policy.receipt.v1",
+        outcome: "VERIFIED_WITH_REGENERABLE_DIVERGENCE",
+        bulk_divergence_detected: true,
+        bulk_restored: false,
+      })
+      expect(statSync(build).mode & 0o777).toBe(0o755)
+      expect(readFileSync(path.join(build, "cache", "generated.txt"), "utf8")).toBe("generated\n")
+    },
+  )
 
   test("integrate commits successfully with an over-cap warm root node_modules", () => {
     const f = makeRepo()

@@ -112,6 +112,13 @@ def _artifact_exempt_directory(rel: str, regenerable_roots: set[str], precious_p
     )
 
 
+def _directory_protected_from_cleanup(rel: str, regenerable_roots: set[str]) -> bool:
+    return any(
+        rel == root or rel.startswith(root + "/") or root.startswith(rel + "/")
+        for root in regenerable_roots
+    )
+
+
 def _filtered_directory_snapshot(
     repo: str,
     precious_paths: set[str] | None = None,
@@ -143,6 +150,18 @@ def _restorable_directory_snapshot(
         rel: mode
         for rel, mode in snapshot.items()
         if not _artifact_exempt_directory(rel, regenerable_roots, set())
+    }
+
+
+def _restored_directory_snapshot_for_proof(
+    snapshot: dict[str, int],
+    target_snapshot: dict[str, int],
+    regenerable_roots: set[str],
+) -> dict[str, int]:
+    return {
+        rel: mode
+        for rel, mode in _restorable_directory_snapshot(snapshot, regenerable_roots).items()
+        if rel in target_snapshot or not _directory_protected_from_cleanup(rel, regenerable_roots)
     }
 
 
@@ -504,7 +523,7 @@ def _verify_run_locked(
     new_directories = {
         rel
         for rel in set(after_directory_snapshot) - set(comparable_before_directories)
-        if not _artifact_exempt_directory(rel, after_regenerable_roots, set())
+        if not _directory_protected_from_cleanup(rel, after_regenerable_roots)
     }
     directory_state_changed = after_directory_snapshot != comparable_before_directories
     _remove_owned_new_paths(repo, new_directories, before["head"])
@@ -549,8 +568,9 @@ def _verify_run_locked(
         repo,
         introduced_precious,
     )
-    restored_restorable_directories = _restorable_directory_snapshot(
+    restored_restorable_directories = _restored_directory_snapshot_for_proof(
         restored_directory_snapshot,
+        restorable_before_directories,
         after_regenerable_roots,
     )
     if (
@@ -906,7 +926,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
         new_directories = {
             rel
             for rel in set(after_directory_snapshot) - set(comparable_before_directories)
-            if not _artifact_exempt_directory(rel, after_regenerable_roots, set())
+            if not _directory_protected_from_cleanup(rel, after_regenerable_roots)
         }
         directory_state_changed = after_directory_snapshot != comparable_before_directories
         _remove_owned_new_paths(repo, new_directories, before["head"])
@@ -963,8 +983,9 @@ def cmd_integrate(args) -> tuple[str, dict]:
             repo,
             introduced_precious,
         )
-        restored_restorable_directories = _restorable_directory_snapshot(
+        restored_restorable_directories = _restored_directory_snapshot_for_proof(
             restored_directory_snapshot,
+            target_directory_snapshot,
             restoration_regenerable_roots,
         )
         directory_restoration_unproven = (
