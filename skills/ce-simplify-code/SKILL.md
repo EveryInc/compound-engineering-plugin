@@ -56,7 +56,7 @@ Inspect beyond the resolved scope when needed to evaluate a finding, but edit on
 
 Each fix must preserve outputs, errors, side effects, and ordering. If that cannot be established, skip it.
 
-An interface or data shape that existed only in an earlier iteration of the current unshipped scope is not protected behavior once you verify it has no deployed, persisted, public, external, or dependent-branch consumer. Remove that compatibility path and update every in-scope caller. If verification is incomplete, preserve it.
+An interface or data shape that existed only in an earlier iteration of the current unshipped scope is not protected behavior once you verify it has no deployed, persisted, public, external, dependent-branch, or in-repo caller outside the resolved scope. Remove that compatibility path only when every required caller update fits the existing mutation boundary; otherwise preserve it.
 
 **Never simplify away a safety check.** Preserve trust-boundary validation, data-loss protection, security checks, and accessibility affordances. Skip any finding that would thin or remove one.
 
