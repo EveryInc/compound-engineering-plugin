@@ -142,6 +142,16 @@ try:
             {"path": row.entry.path, "class": row.artifact_class, "root": row.rule_root}
             for row in rows
         ]
+    elif request["action"] == "inventory_regenerable_referents":
+        rows = policy.classify(artifacts.inventory_artifacts(
+            repo,
+            ignored.ignored_paths(repo),
+            [rule.root for rule in policy.regenerable_rules],
+        ))
+        output = [
+            {"path": row.entry.path, "class": row.artifact_class, "root": row.rule_root}
+            for row in rows
+        ]
     else:
         raise AssertionError("unknown probe action")
     print(json.dumps({"ok": True, "value": output}, sort_keys=True))
@@ -738,5 +748,23 @@ artifacts.capture_artifact_transaction(
     expect(Object.keys(manifest.entries)).toEqual(["node_modules/.bin/tool", "node_modules/pkg/file.js"])
     expect(manifest.roots.node_modules.repair_action).toMatchObject({ action: "regenerate", root: "node_modules" })
     expect(manifest.entries["node_modules/pkg/file.js"].nlink).toBe(3)
+  })
+
+  test("inventories an in-repo symlinked regenerable referent under its logical root", () => {
+    const repo = makeRepo()
+    writeFileSync(path.join(repo, "bun.lock"), "lockfileVersion = 1\n")
+    git(repo, "add", "bun.lock")
+    git(repo, "commit", "-m", "test: add regenerable owner")
+    writeFileSync(path.join(repo, ".git", "info", "exclude"), "node_modules\n")
+    const referent = path.join(repo, "shared-dependencies")
+    mkdirSync(path.join(referent, "pkg"), { recursive: true })
+    writeFileSync(path.join(referent, "pkg", "index.js"), "export const value = 1\n")
+    symlinkSync("shared-dependencies", path.join(repo, "node_modules"), "dir")
+
+    expect(probe(repo, { action: "inventory_regenerable_referents" }).value).toEqual([
+      { path: "node_modules", class: "regenerable", root: "node_modules" },
+      { path: "node_modules/pkg", class: "regenerable", root: "node_modules" },
+      { path: "node_modules/pkg/index.js", class: "regenerable", root: "node_modules" },
+    ])
   })
 })

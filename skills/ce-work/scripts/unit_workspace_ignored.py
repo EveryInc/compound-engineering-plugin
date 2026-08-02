@@ -9,7 +9,7 @@ from unit_workspace_artifacts import (
     PRECIOUS_MAX_BYTES,
     PRECIOUS_MAX_ENTRIES,
     ArtifactPolicyModule,
-    artifact_entry,
+    inventory_artifacts,
 )
 from unit_workspace_state import Operational, git
 
@@ -31,8 +31,8 @@ def artifact_path(repo: str, rel: str) -> str:
 def inspect_ignored_snapshot_capability(repo: str, paths: set[str]) -> tuple[list[dict], dict[str, int], dict]:
     """Classify ignored inventory before applying class-specific probe limits."""
     repo = os.path.abspath(repo)
-    entries = [artifact_entry(repo, rel) for rel in sorted(paths)]
     policy = ArtifactPolicyModule.load(repo)
+    entries = inventory_artifacts(repo, paths, (rule.root for rule in policy.regenerable_rules))
     classified = policy.classify(entries)
     report = policy.inspect_entries(entries, "advisory")
     precious = [row for row in classified if row.artifact_class == "precious"]

@@ -2103,6 +2103,82 @@ describe("ce-work unit workspace controller", () => {
     })
   })
 
+  test("verify-run discloses an unverifiable external symlinked regenerable referent without refusing it", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, "bun.lock"), "lockfileVersion = 1\n")
+    git(f.repo, "add", "bun.lock")
+    git(f.repo, "commit", "-m", "test: add symlinked regenerable owner")
+    f.base = git(f.repo, "rev-parse", "HEAD")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "node_modules\n")
+    const referent = tmp("ce-work-shared-node-modules-")
+    writeFileSync(path.join(referent, "shared.txt"), "before\n")
+    symlinkSync(referent, path.join(f.repo, "node_modules"), "dir")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-symlinked-regenerable-referent"
+
+    expect(createAcceptedRun(runs, runId, f).word).toBe("UNIT_COMMITTED")
+    const verified = ctl(
+      runs, "verify-run", "--run-id", runId,
+      "--verification-summary", "symlinked regenerable referent verification", "--",
+      "python3", "-c", "from pathlib import Path; Path('node_modules/shared.txt').write_text('after\\n')",
+    )
+
+    expect(verified).toMatchObject({
+      word: "RUN_VERIFIED",
+      body: {
+        canonical_ignored_state_preserved: false,
+      },
+    })
+    expect(readFileSync(path.join(referent, "shared.txt"), "utf8")).toBe("after\n")
+    expect(ctl(runs, "status", "--run-id", runId).body.verifications.at(-1).artifact).toMatchObject({
+      schema: "artifact-policy.receipt.v1",
+      bulk_observation_complete: false,
+      artifact_observation_error: {
+        detail: { unverifiable_roots: ["node_modules"] },
+      },
+      bulk_restored: false,
+      canonical_ignored_state_preserved: false,
+    })
+  })
+
+  test("verify-run detects but does not restore a deleted regenerable directory", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, "bun.lock"), "lockfileVersion = 1\n")
+    git(f.repo, "add", "bun.lock")
+    git(f.repo, "commit", "-m", "test: add directory divergence owner")
+    f.base = git(f.repo, "rev-parse", "HEAD")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "node_modules/\n")
+    const dependencies = path.join(f.repo, "node_modules")
+    const emptyDirectory = path.join(dependencies, "pkg", "empty-cache")
+    mkdirSync(emptyDirectory, { recursive: true })
+    writeFileSync(path.join(dependencies, "pkg", "index.js"), "export const value = 1\n")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-regenerable-directory-divergence"
+    createAcceptedRun(runs, runId, f)
+
+    const verified = ctl(
+      runs, "verify-run", "--run-id", runId,
+      "--verification-summary", "regenerable directory divergence verification", "--",
+      "python3", "-c", "import shutil; shutil.rmtree('node_modules/pkg/empty-cache')",
+    )
+
+    expect(verified).toMatchObject({
+      word: "RUN_VERIFIED",
+      body: {
+        artifact_outcome: "VERIFIED_WITH_REGENERABLE_DIVERGENCE",
+        canonical_ignored_state_preserved: false,
+      },
+    })
+    expect(existsSync(emptyDirectory)).toBe(false)
+    expect(ctl(runs, "status", "--run-id", runId).body.verifications.at(-1).artifact).toMatchObject({
+      schema: "artifact-policy.receipt.v1",
+      bulk_deleted: { paths: ["node_modules/pkg/empty-cache"] },
+      bulk_divergence_detected: true,
+      bulk_restored: false,
+      canonical_ignored_state_preserved: false,
+    })
+  })
+
   test("unit verification preserves a newly introduced regenerable root", () => {
     const f = makeRepo()
     writeFileSync(path.join(f.repo, "bun.lock"), "lockfileVersion = 1\n")
@@ -2779,7 +2855,7 @@ describe("ce-work unit workspace controller", () => {
     expect(ctl(runs, "status", "--run-id", runId).body.integration_lock).toBeNull()
   })
 
-  test("directory snapshots prune nested regenerable trees before descent", () => {
+  test("directory snapshots preserve nested regenerable directory modes for detect-only comparison", () => {
     const f = makeRepo()
     mkdirSync(path.join(f.repo, "node_modules", "cache", "deep", "deeper"), { recursive: true })
     mkdirSync(path.join(f.repo, "node_modules", "private"), { recursive: true })
@@ -2791,21 +2867,20 @@ describe("ce-work unit workspace controller", () => {
       `sys.path.insert(0, ${JSON.stringify(path.dirname(SCRIPT))})`,
       "import unit_workspace_transaction as transaction",
       "repo = os.path.abspath(sys.argv[1])",
-      "pruned = os.path.join(repo, 'node_modules', 'cache') + os.sep",
-      "original_lstat = transaction.os.lstat",
-      "visited = []",
-      "def guarded_lstat(path):\n    absolute = os.path.abspath(path)\n    if absolute.startswith(pruned):\n        raise AssertionError('regenerable descendant inspected: ' + absolute)\n    visited.append(os.path.relpath(absolute, repo))\n    return original_lstat(path)",
-      "transaction.os.lstat = guarded_lstat",
-      "snapshot = transaction._filtered_directory_snapshot(repo, {'node_modules/cache'}, {'node_modules/private/token'})",
-      "print(json.dumps({'snapshot': snapshot, 'visited': visited}, sort_keys=True))",
+      "snapshot = transaction._filtered_directory_snapshot(repo, {'node_modules/private/token'})",
+      "print(json.dumps(snapshot, sort_keys=True))",
     ].join("\n")
     const result = sh(f.repo, ["python3", "-c", source, f.repo], false)
 
     expect({ status: result.status, stderr: result.stderr }).toEqual({ status: 0, stderr: "" })
-    const observation = JSON.parse(result.stdout)
-    expect(observation.snapshot).toMatchObject({ "node_modules/unknown": expect.any(Number) })
-    expect(observation.visited).toContain("node_modules/private")
-    expect(observation.visited).not.toContain("node_modules/cache/deep")
+    const snapshot = JSON.parse(result.stdout)
+    expect(snapshot).toMatchObject({
+      "node_modules/cache": expect.any(Number),
+      "node_modules/cache/deep": expect.any(Number),
+      "node_modules/cache/deep/deeper": expect.any(Number),
+      "node_modules/unknown": expect.any(Number),
+    })
+    expect(snapshot).not.toHaveProperty("node_modules/private")
   })
 
   test("failed unit verification reports and preserves its new ignored artifact", () => {

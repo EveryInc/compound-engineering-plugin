@@ -18,6 +18,7 @@ from unit_workspace_artifacts import (
     advance_artifact_transaction,
     inventory_artifacts,
     open_artifact_transactions,
+    regenerable_directory_stat_manifest,
     settle_artifact_transaction,
     sweep_artifact_custody,
 )
@@ -419,8 +420,15 @@ def _resume_artifact_receipt(run_id: str, transaction: dict) -> dict:
         repo = validate_repo(doc)["toplevel"]
     policy = ArtifactPolicyModule.from_document(repo, transaction.get("policy_document", {}))
     observation_error = None
+    after_regenerable_directories = None
     try:
-        classified = policy.classify(inventory_artifacts(repo, ignored_paths(repo)))
+        classified = policy.classify(inventory_artifacts(
+            repo,
+            ignored_paths(repo),
+            (rule.root for rule in policy.regenerable_rules),
+        ))
+        roots = {rule.root for rule in policy.regenerable_rules}
+        after_regenerable_directories = regenerable_directory_stat_manifest(repo, roots)
     except Operational as exc:
         classified = None
         observation_error = {"word": exc.word, "message": str(exc), "detail": exc.detail}
@@ -432,6 +440,7 @@ def _resume_artifact_receipt(run_id: str, transaction: dict) -> dict:
         None,
         context.get("argv", []),
         observation_error,
+        after_regenerable_directories,
     )
 
 

@@ -39,6 +39,7 @@ from unit_workspace_artifacts import (
     advance_artifact_transaction,
     capture_artifact_transaction,
     inventory_artifacts,
+    regenerable_directory_stat_manifest,
     regenerable_stat_manifest,
     settle_artifact_transaction,
 )
@@ -78,11 +79,9 @@ def _directory_paths(repo: str) -> set[str]:
     return set(_directory_snapshot(repo))
 
 
-def _directory_snapshot(repo: str, pruned_roots: set[str] | None = None) -> dict[str, int]:
+def _directory_snapshot(repo: str) -> dict[str, int]:
     """Snapshot repository directory paths and modes without traversing Git metadata."""
     repo = os.path.abspath(repo)
-    pruned_roots = pruned_roots or set()
-    pruned_prefixes = tuple(root + "/" for root in pruned_roots)
     directories: dict[str, int] = {}
     test_fault("directory-snapshot-before-walk")
 
@@ -100,8 +99,6 @@ def _directory_snapshot(repo: str, pruned_roots: set[str] | None = None) -> dict
                 raise Operational("BLOCKED", f"could not inspect repository directory {path}: {exc}") from exc
             if stat.S_ISDIR(entry.st_mode) and not stat.S_ISLNK(entry.st_mode):
                 rel = os.path.relpath(path, repo)
-                if rel in pruned_roots or rel.startswith(pruned_prefixes):
-                    continue
                 directories[rel] = stat.S_IMODE(entry.st_mode)
                 retained.append(name)
         names[:] = retained
@@ -117,14 +114,35 @@ def _artifact_exempt_directory(rel: str, regenerable_roots: set[str], precious_p
 
 def _filtered_directory_snapshot(
     repo: str,
-    regenerable_roots: set[str],
     precious_paths: set[str] | None = None,
 ) -> dict[str, int]:
     precious_paths = precious_paths or set()
     return {
         rel: mode
-        for rel, mode in _directory_snapshot(repo, regenerable_roots).items()
-        if not _artifact_exempt_directory(rel, regenerable_roots, precious_paths)
+        for rel, mode in _directory_snapshot(repo).items()
+        if not _artifact_exempt_directory(rel, set(), precious_paths)
+    }
+
+
+def _regenerable_directory_snapshot(
+    snapshot: dict[str, int],
+    regenerable_roots: set[str],
+) -> dict[str, int]:
+    return {
+        rel: mode
+        for rel, mode in snapshot.items()
+        if any(rel == root or rel.startswith(root + "/") for root in regenerable_roots)
+    }
+
+
+def _restorable_directory_snapshot(
+    snapshot: dict[str, int],
+    regenerable_roots: set[str],
+) -> dict[str, int]:
+    return {
+        rel: mode
+        for rel, mode in snapshot.items()
+        if not _artifact_exempt_directory(rel, regenerable_roots, set())
     }
 
 
@@ -371,13 +389,22 @@ def _verify_run_locked(
     if accepted_units is None:
         raise Operational("BLOCKED", "unit completion evidence changed before plan-wide verification")
     policy = ArtifactPolicyModule.load(repo)
-    before_entries = inventory_artifacts(repo, _ignored_paths(repo))
+    before_entries = inventory_artifacts(
+        repo,
+        _ignored_paths(repo),
+        (rule.root for rule in policy.regenerable_rules),
+    )
     policy.require_entries_eligible(before_entries, "authoritative-verification")
     before_classified = policy.classify(before_entries)
     test_fault("artifact-after-reclassify")
     precious_before = [row.entry for row in before_classified if row.artifact_class == "precious"]
-    regenerable_manifest = regenerable_stat_manifest(before_classified)
+    regenerable_manifest = regenerable_stat_manifest(before_classified, policy.regenerable_rules)
     regenerable_roots = set(regenerable_manifest["roots"])
+    before_directory_snapshot = _filtered_directory_snapshot(repo)
+    regenerable_manifest["directories"] = _regenerable_directory_snapshot(
+        before_directory_snapshot,
+        regenerable_roots,
+    )
     journal = capture_artifact_transaction(
         repo,
         run_dir(args.run_id),
@@ -398,7 +425,6 @@ def _verify_run_locked(
         },
         policy_document=policy.policy_document(),
     )
-    before_directory_snapshot = _filtered_directory_snapshot(repo, regenerable_roots)
     before_directories = set(before_directory_snapshot)
 
     verification_log, stream = _run_verification_log(args.run_id)
@@ -432,7 +458,11 @@ def _verify_run_locked(
     after_paths = status_paths(repo)
     observation_error = None
     try:
-        after_entries = inventory_artifacts(repo, _ignored_paths(repo))
+        after_entries = inventory_artifacts(
+            repo,
+            _ignored_paths(repo),
+            (rule.root for rule in policy.regenerable_rules),
+        )
         after_classified = policy.classify(after_entries)
     except Operational as exc:
         after_classified = None
@@ -441,6 +471,11 @@ def _verify_run_locked(
             "message": str(exc),
             "detail": exc.detail,
         }
+    after_regenerable_roots = set(regenerable_roots)
+    if after_classified is not None:
+        after_regenerable_roots.update(
+            regenerable_stat_manifest(after_classified, policy.regenerable_rules)["roots"]
+        )
     test_fault("artifact-before-precious-restore")
     artifact = settle_artifact_transaction(
         policy,
@@ -449,15 +484,12 @@ def _verify_run_locked(
         verification_exit,
         command,
         observation_error,
+        regenerable_directory_stat_manifest(repo, after_regenerable_roots),
     )
     test_fault("artifact-after-restore-before-receipt")
     introduced_precious = set(artifact["precious_introduced"])
-    after_regenerable_roots = set(regenerable_roots)
-    if after_classified is not None:
-        after_regenerable_roots.update(regenerable_stat_manifest(after_classified)["roots"])
     after_directory_snapshot = _filtered_directory_snapshot(
         repo,
-        after_regenerable_roots,
         introduced_precious,
     )
     comparable_before_directories = {
@@ -465,7 +497,15 @@ def _verify_run_locked(
         for rel, mode in before_directory_snapshot.items()
         if not _artifact_exempt_directory(rel, set(), introduced_precious)
     }
-    new_directories = set(after_directory_snapshot) - set(comparable_before_directories)
+    restorable_before_directories = _restorable_directory_snapshot(
+        comparable_before_directories,
+        after_regenerable_roots,
+    )
+    new_directories = {
+        rel
+        for rel in set(after_directory_snapshot) - set(comparable_before_directories)
+        if not _artifact_exempt_directory(rel, after_regenerable_roots, set())
+    }
     directory_state_changed = after_directory_snapshot != comparable_before_directories
     _remove_owned_new_paths(repo, new_directories, before["head"])
     cleaned_paths = sorted(set(artifact["precious_restored"]) | new_directories)
@@ -499,7 +539,7 @@ def _verify_run_locked(
         _remove_owned_new_paths(repo, deletion_paths | created_directories, before["head"])
     directory_restore_error = None
     try:
-        restored_directories = _restore_directory_snapshot(repo, comparable_before_directories)
+        restored_directories = _restore_directory_snapshot(repo, restorable_before_directories)
     except Operational as exc:
         restored_directories = set()
         directory_restore_error = str(exc)
@@ -507,10 +547,17 @@ def _verify_run_locked(
     restored = semantic_snapshot(repo)
     restored_directory_snapshot = _filtered_directory_snapshot(
         repo,
-        after_regenerable_roots,
         introduced_precious,
     )
-    if restored != before or restored_directory_snapshot != comparable_before_directories or directory_restore_error:
+    restored_restorable_directories = _restorable_directory_snapshot(
+        restored_directory_snapshot,
+        after_regenerable_roots,
+    )
+    if (
+        restored != before
+        or restored_restorable_directories != restorable_before_directories
+        or directory_restore_error
+    ):
         with locked_manifest(args.run_id, write=True) as doc:
             lock = doc.get("integration_lock") or {}
             blocker = {
@@ -706,7 +753,11 @@ def cmd_integrate(args) -> tuple[str, dict]:
             transport = unit["transport"]["commit"]
             attempt_id = find_attempt(unit)["attempt_id"]
         pre_transport_policy = ArtifactPolicyModule.load(repo)
-        pre_transport_entries = inventory_artifacts(repo, _ignored_paths(repo))
+        pre_transport_entries = inventory_artifacts(
+            repo,
+            _ignored_paths(repo),
+            (rule.root for rule in pre_transport_policy.regenerable_rules),
+        )
         pre_transport_policy.require_entries_eligible(pre_transport_entries, "advisory-integration")
         pre_transport_classified = pre_transport_policy.classify(pre_transport_entries)
         pre_transport_precious = {
@@ -719,10 +770,10 @@ def cmd_integrate(args) -> tuple[str, dict]:
             for row in pre_transport_classified
             if row.artifact_class == "regenerable" and row.rule_root is not None
         }
-        pre_fold_directory_snapshot = _filtered_directory_snapshot(
-            repo,
-            pre_transport_regenerable_roots,
+        pre_transport_regenerable_roots.update(
+            rule.root for rule in pre_transport_policy.regenerable_rules
         )
+        pre_fold_directory_snapshot = _filtered_directory_snapshot(repo)
         git(repo, "cherry-pick", "--no-commit", transport)
         cmd_mark_applied(_args(run_id=args.run_id, unit_id=args.unit_id, lock_token=token))
         with locked_manifest(args.run_id) as doc:
@@ -732,7 +783,11 @@ def cmd_integrate(args) -> tuple[str, dict]:
         before = semantic_snapshot(repo)
         before_paths = status_paths(repo)
         policy = ArtifactPolicyModule.load(repo)
-        before_entries = inventory_artifacts(repo, _ignored_paths(repo))
+        before_entries = inventory_artifacts(
+            repo,
+            _ignored_paths(repo),
+            (rule.root for rule in policy.regenerable_rules),
+        )
         policy.require_entries_eligible(before_entries, "authoritative-integration")
         before_classified = policy.classify(before_entries)
         test_fault("artifact-after-reclassify")
@@ -752,8 +807,13 @@ def cmd_integrate(args) -> tuple[str, dict]:
             row = classified_by_path.get(path)
             if row is not None:
                 precious_capture[path] = row.entry
-        regenerable_manifest = regenerable_stat_manifest(before_classified)
+        regenerable_manifest = regenerable_stat_manifest(before_classified, policy.regenerable_rules)
         regenerable_roots = set(regenerable_manifest["roots"])
+        before_directory_snapshot = _filtered_directory_snapshot(repo)
+        regenerable_manifest["directories"] = _regenerable_directory_snapshot(
+            before_directory_snapshot,
+            regenerable_roots,
+        )
         journal = capture_artifact_transaction(
             repo,
             run_dir(args.run_id),
@@ -774,7 +834,6 @@ def cmd_integrate(args) -> tuple[str, dict]:
             },
             policy.policy_document(),
         )
-        before_directory_snapshot = _filtered_directory_snapshot(repo, regenerable_roots)
         before_directories = set(before_directory_snapshot)
 
         verification_log, stream = _verification_log(args.run_id, args.unit_id)
@@ -797,7 +856,11 @@ def cmd_integrate(args) -> tuple[str, dict]:
         after_paths = status_paths(repo)
         observation_error = None
         try:
-            after_entries = inventory_artifacts(repo, _ignored_paths(repo))
+            after_entries = inventory_artifacts(
+                repo,
+                _ignored_paths(repo),
+                (rule.root for rule in policy.regenerable_rules),
+            )
             after_classified = policy.classify(after_entries)
         except Operational as exc:
             after_classified = None
@@ -806,6 +869,11 @@ def cmd_integrate(args) -> tuple[str, dict]:
                 "message": str(exc),
                 "detail": exc.detail,
             }
+        after_regenerable_roots = set(regenerable_roots)
+        if after_classified is not None:
+            after_regenerable_roots.update(
+                regenerable_stat_manifest(after_classified, policy.regenerable_rules)["roots"]
+            )
         test_fault("artifact-before-precious-restore")
         artifact = settle_artifact_transaction(
             policy,
@@ -814,6 +882,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
             verification_exit,
             command,
             observation_error,
+            regenerable_directory_stat_manifest(repo, after_regenerable_roots),
         )
         test_fault("artifact-after-restore-before-receipt")
         artifact_blocked = artifact["outcome"] not in {
@@ -821,12 +890,8 @@ def cmd_integrate(args) -> tuple[str, dict]:
             "VERIFIED_WITH_REGENERABLE_DIVERGENCE",
         }
         introduced_precious = set(artifact["precious_introduced"])
-        after_regenerable_roots = set(regenerable_roots)
-        if after_classified is not None:
-            after_regenerable_roots.update(regenerable_stat_manifest(after_classified)["roots"])
         after_directory_snapshot = _filtered_directory_snapshot(
             repo,
-            after_regenerable_roots,
             introduced_precious,
         )
         comparable_before_directories = {
@@ -834,25 +899,46 @@ def cmd_integrate(args) -> tuple[str, dict]:
             for rel, mode in before_directory_snapshot.items()
             if not _artifact_exempt_directory(rel, set(), introduced_precious)
         }
-        new_directories = set(after_directory_snapshot) - set(comparable_before_directories)
+        restorable_before_directories = _restorable_directory_snapshot(
+            comparable_before_directories,
+            after_regenerable_roots,
+        )
+        new_directories = {
+            rel
+            for rel in set(after_directory_snapshot) - set(comparable_before_directories)
+            if not _artifact_exempt_directory(rel, after_regenerable_roots, set())
+        }
         directory_state_changed = after_directory_snapshot != comparable_before_directories
         _remove_owned_new_paths(repo, new_directories, before["head"])
         verification_failed = verification_exit != 0 or after != before or artifact_blocked
-        target_directory_snapshot = comparable_before_directories
+        target_directory_snapshot = restorable_before_directories
         rollback_directories: set[str] = set()
         if verification_failed:
-            target_directory_snapshot = {
+            restoration_regenerable_roots = pre_transport_regenerable_roots | after_regenerable_roots
+            pre_fold_comparable_directories = {
                 rel: mode
                 for rel, mode in pre_fold_directory_snapshot.items()
                 if not _artifact_exempt_directory(rel, set(), introduced_precious)
             }
-            rollback_directories = set(comparable_before_directories) - set(target_directory_snapshot)
+            target_directory_snapshot = _restorable_directory_snapshot(
+                pre_fold_comparable_directories,
+                restoration_regenerable_roots,
+            )
+            rollback_directories = (
+                set(restorable_before_directories) - set(target_directory_snapshot)
+            )
             _restore_owned_verification(args.run_id, args.unit_id, token, before, before_paths, after_paths)
-            rollback_directories |= set(_filtered_directory_snapshot(
+            rollback_snapshot = _filtered_directory_snapshot(
                 repo,
-                pre_transport_regenerable_roots,
                 introduced_precious,
-            )) - set(target_directory_snapshot)
+            )
+            rollback_directories |= (
+                set(_restorable_directory_snapshot(
+                    rollback_snapshot,
+                    restoration_regenerable_roots,
+                ))
+                - set(target_directory_snapshot)
+            )
             _remove_owned_new_paths(repo, rollback_directories, before["head"])
         directory_restore_error = None
         try:
@@ -868,13 +954,21 @@ def cmd_integrate(args) -> tuple[str, dict]:
             | set(artifact["precious_restored"])
             | restored_directories
         )
+        restoration_regenerable_roots = (
+            pre_transport_regenerable_roots | after_regenerable_roots
+            if verification_failed
+            else after_regenerable_roots
+        )
         restored_directory_snapshot = _filtered_directory_snapshot(
             repo,
-            pre_transport_regenerable_roots if verification_failed else after_regenerable_roots,
             introduced_precious,
         )
+        restored_restorable_directories = _restorable_directory_snapshot(
+            restored_directory_snapshot,
+            restoration_regenerable_roots,
+        )
         directory_restoration_unproven = (
-            restored_directory_snapshot != target_directory_snapshot or directory_restore_error
+            restored_restorable_directories != target_directory_snapshot or directory_restore_error
         )
         log_digest = hashlib.sha256(Path(verification_log).read_bytes()).hexdigest()
         if directory_restoration_unproven:

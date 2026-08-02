@@ -14,7 +14,7 @@ import re
 import secrets
 import shutil
 import stat
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Iterable
 
@@ -148,9 +148,10 @@ class ArtifactEntry:
     mtime_ns: int
     ctime_ns: int
     link_target: str | None
+    referent_manifest: dict | None = None
 
     def stat_manifest(self) -> dict:
-        return {
+        manifest = {
             "kind": self.kind,
             "size": self.size,
             "mode": self.mode,
@@ -161,6 +162,9 @@ class ArtifactEntry:
             "ctime_ns": self.ctime_ns,
             "link_target": self.link_target,
         }
+        if self.referent_manifest is not None:
+            manifest["referent_manifest"] = self.referent_manifest
+        return manifest
 
 
 @dataclass(frozen=True)
@@ -753,8 +757,123 @@ def artifact_entry(repo: str, rel: str) -> ArtifactEntry:
     )
 
 
-def _entry_document(entry: ArtifactEntry) -> dict:
+def _referent_root_manifest(repo: str, target: str, observed: os.stat_result) -> dict:
     return {
+        "status": "inventoried",
+        "target": os.path.relpath(target, repo).replace(os.sep, "/"),
+        "kind": "directory",
+        "mode": stat.S_IMODE(observed.st_mode),
+        "dev": observed.st_dev,
+        "ino": observed.st_ino,
+        "nlink": observed.st_nlink,
+        "mtime_ns": observed.st_mtime_ns,
+        "ctime_ns": observed.st_ctime_ns,
+    }
+
+
+def _unverifiable_referent(reason: str) -> dict:
+    return {"status": "unverifiable", "reason": reason}
+
+
+def _inventory_regenerable_symlink_referent(
+    repo: str,
+    root: str,
+    root_entry: ArtifactEntry,
+) -> tuple[ArtifactEntry, list[ArtifactEntry]]:
+    root_path = _safe_repo_path(repo, root)
+    try:
+        real_repo = str(Path(repo).resolve(strict=True))
+        referent = str(Path(root_path).resolve(strict=True))
+    except (OSError, RuntimeError):
+        return replace(
+            root_entry,
+            referent_manifest=_unverifiable_referent("referent-resolution-failed"),
+        ), []
+    git_dir = os.path.join(real_repo, ".git")
+    try:
+        inside_repo = os.path.commonpath([real_repo, referent]) == real_repo
+        inside_git = os.path.commonpath([git_dir, referent]) == git_dir
+    except ValueError:
+        inside_repo = False
+        inside_git = False
+    if not inside_repo or referent == real_repo or inside_git:
+        return replace(
+            root_entry,
+            referent_manifest=_unverifiable_referent("referent-outside-safe-repository"),
+        ), []
+    try:
+        referent_entry = os.lstat(referent)
+    except OSError:
+        return replace(
+            root_entry,
+            referent_manifest=_unverifiable_referent("referent-inspection-failed"),
+        ), []
+    if not stat.S_ISDIR(referent_entry.st_mode) or stat.S_ISLNK(referent_entry.st_mode):
+        return replace(
+            root_entry,
+            referent_manifest=_unverifiable_referent("referent-is-not-a-directory"),
+        ), []
+    entries: list[ArtifactEntry] = []
+
+    def fail(_error: OSError) -> None:
+        raise RuntimeError("referent traversal failed")
+
+    try:
+        for parent, names, files in os.walk(referent, topdown=True, onerror=fail, followlinks=False):
+            if ".git" in names:
+                raise RuntimeError("referent traversal reached Git metadata")
+            for name in sorted(names + files):
+                target = os.path.join(parent, name)
+                observed = os.lstat(target)
+                relative = os.path.relpath(target, referent).replace(os.sep, "/")
+                logical = f"{root}/{relative}"
+                if stat.S_ISLNK(observed.st_mode):
+                    kind = "symlink"
+                    link_target = os.readlink(target)
+                    size = 0
+                elif stat.S_ISREG(observed.st_mode):
+                    kind = "regular"
+                    link_target = None
+                    size = observed.st_size
+                elif stat.S_ISDIR(observed.st_mode):
+                    kind = "directory"
+                    link_target = None
+                    size = 0
+                else:
+                    kind = "other"
+                    link_target = None
+                    size = 0
+                entries.append(ArtifactEntry(
+                    path=logical,
+                    kind=kind,
+                    size=size,
+                    mode=stat.S_IMODE(observed.st_mode),
+                    dev=observed.st_dev,
+                    ino=observed.st_ino,
+                    nlink=observed.st_nlink,
+                    uid=observed.st_uid,
+                    mtime_ns=observed.st_mtime_ns,
+                    ctime_ns=observed.st_ctime_ns,
+                    link_target=link_target,
+                ))
+                if len(entries) > REGENERABLE_MANIFEST_MAX_ENTRIES:
+                    return replace(
+                        root_entry,
+                        referent_manifest=_referent_root_manifest(real_repo, referent, referent_entry),
+                    ), entries
+    except (OSError, RuntimeError):
+        return replace(
+            root_entry,
+            referent_manifest=_unverifiable_referent("referent-traversal-failed"),
+        ), []
+    return replace(
+        root_entry,
+        referent_manifest=_referent_root_manifest(real_repo, referent, referent_entry),
+    ), entries
+
+
+def _entry_document(entry: ArtifactEntry) -> dict:
+    document = {
         "path": entry.path,
         "kind": entry.kind,
         "size": entry.size,
@@ -767,6 +886,9 @@ def _entry_document(entry: ArtifactEntry) -> dict:
         "ctime_ns": entry.ctime_ns,
         "link_target": entry.link_target,
     }
+    if entry.referent_manifest is not None:
+        document["referent_manifest"] = entry.referent_manifest
+    return document
 
 
 def _entry_from_document(document: dict) -> ArtifactEntry:
@@ -774,7 +896,7 @@ def _entry_from_document(document: dict) -> ArtifactEntry:
         "path", "kind", "size", "mode", "dev", "ino", "nlink", "uid",
         "mtime_ns", "ctime_ns", "link_target",
     }
-    if set(document) != required:
+    if frozenset(document) not in {frozenset(required), frozenset(required | {"referent_manifest"})}:
         raise Operational("UNREADABLE", "artifact journal entry shape is malformed")
     return ArtifactEntry(**document)
 
@@ -792,6 +914,7 @@ def _entry_identity_matches(expected: ArtifactEntry, actual: ArtifactEntry) -> b
         and expected.mtime_ns == actual.mtime_ns
         and expected.ctime_ns == actual.ctime_ns
         and expected.link_target == actual.link_target
+        and expected.referent_manifest == actual.referent_manifest
     )
 
 
@@ -1398,7 +1521,10 @@ def resume_artifact_transaction(journal_path: str) -> dict:
     return result
 
 
-def regenerable_stat_manifest(classified: Iterable[ClassifiedEntry]) -> dict:
+def regenerable_stat_manifest(
+    classified: Iterable[ClassifiedEntry],
+    regenerable_rules: Iterable[RegenerableRule] = (),
+) -> dict:
     """Build detect-only stat state and one repair action per lifecycle root."""
     rows = [row for row in classified if row.artifact_class == "regenerable"]
     entries = {row.entry.path: row.entry.stat_manifest() for row in sorted(rows, key=lambda row: row.entry.path)}
@@ -1410,12 +1536,65 @@ def regenerable_stat_manifest(classified: Iterable[ClassifiedEntry]) -> dict:
             "root": row.rule_root,
             "repair_action": row.lifecycle.action(row.rule_root),
         }
+    for rule in regenerable_rules:
+        roots.setdefault(rule.root, {
+            "root": rule.root,
+            "repair_action": rule.lifecycle.action(rule.root),
+        })
     return {"entries": entries, "roots": {key: roots[key] for key in sorted(roots)}}
 
 
-def inventory_artifacts(repo: str, paths: Iterable[str]) -> list[ArtifactEntry]:
+def inventory_artifacts(
+    repo: str,
+    paths: Iterable[str],
+    regenerable_roots: Iterable[str] = (),
+) -> list[ArtifactEntry]:
     """Inspect ignored paths into the representation-only policy inventory."""
-    return [artifact_entry(repo, path) for path in sorted(paths)]
+    entries = {path: artifact_entry(repo, path) for path in sorted(paths)}
+    for root in sorted(set(regenerable_roots)):
+        root_entry = entries.get(root)
+        if root_entry is None or root_entry.kind != "symlink":
+            continue
+        root_entry, referent_entries = _inventory_regenerable_symlink_referent(repo, root, root_entry)
+        entries[root] = root_entry
+        for entry in referent_entries:
+            entries.setdefault(entry.path, entry)
+    return [entries[path] for path in sorted(entries)]
+
+
+def regenerable_directory_stat_manifest(repo: str, roots: Iterable[str]) -> dict[str, int]:
+    """Inventory real directory modes under regenerable roots without following symlinks."""
+    directories: dict[str, int] = {}
+    for root in sorted(set(roots)):
+        if root == ".git" or root.startswith(".git/"):
+            raise Operational("BLOCKED", "regenerable directory inventory cannot inspect Git metadata")
+        target = _safe_repo_path(repo, root)
+        try:
+            root_entry = os.lstat(target)
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise Operational("BLOCKED", f"could not inspect regenerable directory {root}: {exc}") from exc
+        if not stat.S_ISDIR(root_entry.st_mode) or stat.S_ISLNK(root_entry.st_mode):
+            continue
+
+        def fail(error: OSError) -> None:
+            raise Operational("BLOCKED", f"could not inspect regenerable directories: {error}")
+
+        for parent, names, _files in os.walk(target, topdown=True, onerror=fail, followlinks=False):
+            names[:] = sorted(names)
+            for name in names:
+                path = os.path.join(parent, name)
+                try:
+                    entry = os.lstat(path)
+                except OSError as exc:
+                    raise Operational("BLOCKED", f"could not inspect regenerable directory {path}: {exc}") from exc
+                if not stat.S_ISDIR(entry.st_mode) or stat.S_ISLNK(entry.st_mode):
+                    continue
+                relative = os.path.relpath(path, repo).replace(os.sep, "/")
+                directories[relative] = stat.S_IMODE(entry.st_mode)
+        directories[root] = stat.S_IMODE(root_entry.st_mode)
+    return dict(sorted(directories.items()))
 
 
 def _diff_summary(paths: Iterable[str]) -> dict:
@@ -1430,6 +1609,18 @@ def _roots_for_paths(paths: set[str], manifests: Iterable[dict]) -> set[str]:
         for root in manifest.get("roots", {})
     }
     return {root for root in roots if any(_path_under(path, root) for path in paths)}
+
+
+def _unverifiable_referent_roots(manifests: Iterable[dict]) -> set[str]:
+    roots: set[str] = set()
+    for manifest in manifests:
+        entries = manifest.get("entries", {})
+        for root in manifest.get("roots", {}):
+            entry = entries.get(root, {})
+            referent = entry.get("referent_manifest") if isinstance(entry, dict) else None
+            if isinstance(referent, dict) and referent.get("status") == "unverifiable":
+                roots.add(root)
+    return roots
 
 
 def regenerable_divergence_decision(
@@ -1466,6 +1657,7 @@ def settle_artifact_transaction(
     verification_exit: int | None,
     verification_argv: Iterable[str],
     observation_error: dict | None = None,
+    after_regenerable_directories: dict[str, int] | None = None,
 ) -> dict:
     """Restore precious custody and build truthful artifact receipt fields."""
     journal = _load_journal(journal_path)
@@ -1496,6 +1688,22 @@ def settle_artifact_transaction(
     }
     before_paths = set(before_entries)
     after_paths = set(after_entries)
+    unverifiable_roots = _unverifiable_referent_roots((before_manifest, after_manifest))
+    precious_paths = before_precious | after_precious
+
+    def comparable_directories(values: dict) -> dict:
+        return {
+            path: mode
+            for path, mode in values.items()
+            if not any(
+                precious == path or precious.startswith(path + "/")
+                for precious in precious_paths
+            )
+        }
+
+    before_directories = comparable_directories(before_manifest.get("directories", {}))
+    after_directories = comparable_directories(after_regenerable_directories or {})
+    compare_directories = "directories" in before_manifest and after_regenerable_directories is not None
     if observation_error is None:
         changed = {
             path
@@ -1504,12 +1712,22 @@ def settle_artifact_transaction(
         }
         deleted = before_paths - after_paths
         introduced = after_paths - before_paths
+        if compare_directories:
+            before_directory_paths = set(before_directories)
+            after_directory_paths = set(after_directories)
+            changed.update({
+                path
+                for path in before_directory_paths & after_directory_paths
+                if before_directories[path] != after_directories[path]
+            })
+            deleted.update(before_directory_paths - after_directory_paths)
+            introduced.update(after_directory_paths - before_directory_paths)
     else:
         changed = set()
         deleted = set()
         introduced = set()
     divergent_paths = changed | deleted | introduced
-    affected_roots = _roots_for_paths(divergent_paths, (before_manifest, after_manifest))
+    affected_roots = _roots_for_paths(divergent_paths, (before_manifest, after_manifest)) | unverifiable_roots
     divergence = regenerable_divergence_decision(policy, affected_roots, verification_argv)
     exempt_roots = set(divergence["exempt_roots"])
     blocked_roots = set(divergence["blocked_roots"])
@@ -1529,10 +1747,23 @@ def settle_artifact_transaction(
             "paths": introduced_precious[:OFFENDER_SAMPLE],
             "reason": "not present at transaction start; controller refused destructive cleanup",
         })
+    effective_observation_error = observation_error
+    if effective_observation_error is None and unverifiable_roots:
+        effective_observation_error = {
+            "word": "UNVERIFIABLE_REGENERABLE_REFERENT",
+            "message": "one or more regenerable symlink referents could not be safely inventoried",
+            "detail": {"unverifiable_roots": sorted(unverifiable_roots)},
+        }
     if observation_error is not None:
         repair_actions.append({
             "action": "inspect-artifact-state-before-retry",
             "reason": "post-verification inventory was not trustworthy",
+        })
+    elif unverifiable_roots:
+        repair_actions.append({
+            "action": "inspect-unverifiable-regenerable-referents",
+            "roots": sorted(unverifiable_roots),
+            "reason": "referent state could not be safely inventoried inside the repository",
         })
     if policy.untracked_policy_present:
         repair_actions.append({
@@ -1554,7 +1785,7 @@ def settle_artifact_transaction(
         outcome = "VERIFICATION_FAILED"
     elif policy.divergence_mode == "block" and blocked_roots:
         outcome = "BLOCKED_REGENERABLE_DIVERGENCE"
-    elif bulk_diverged:
+    elif bulk_diverged or unverifiable_roots:
         outcome = "VERIFIED_WITH_REGENERABLE_DIVERGENCE"
     else:
         outcome = "VERIFIED"
@@ -1575,12 +1806,17 @@ def settle_artifact_transaction(
         "bulk_deleted": _diff_summary(deleted),
         "bulk_introduced": _diff_summary(introduced),
         "bulk_divergence_detected": bulk_diverged,
-        "bulk_observation_complete": observation_error is None,
-        "artifact_observation_error": observation_error,
+        "bulk_observation_complete": effective_observation_error is None,
+        "artifact_observation_error": effective_observation_error,
+        "bulk_divergence_unverifiable_roots": sorted(unverifiable_roots),
         "bulk_divergence_blocked": bool(blocked_roots) and policy.divergence_mode == "block",
         "bulk_divergence_exempt_roots": sorted(exempt_roots),
         "bulk_restored": False,
-        "canonical_ignored_state_preserved": restoration_proven and not bulk_diverged and observation_error is None,
+        "canonical_ignored_state_preserved": (
+            restoration_proven
+            and not bulk_diverged
+            and effective_observation_error is None
+        ),
         "repair_actions": repair_actions,
         "journal_path": journal_path,
     }
