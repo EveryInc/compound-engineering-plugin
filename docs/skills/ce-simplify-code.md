@@ -51,6 +51,8 @@ After writing a feature, the code usually has refinement debt that's easy to mis
 - **Hacky patterns** — copy-paste with slight variation, redundant state, parameter sprawl, leaky abstractions
 - **Dead code** — unused imports, exports nothing references, code paths no longer reachable
 - **Stringly-typed values** where an enum or branded type already exists
+- **Context-bound vocabulary** — names that make sense only if you followed the conversation or earlier branch iterations
+- **Pre-release compatibility scaffolding** — aliases and fallback shapes kept for superseded code that never reached a consumer
 - **Missed efficiency** — sequential operations that could be parallel, redundant computations, N+1 patterns
 - **Comments that explain WHAT** the code does (which the identifiers already do) instead of non-obvious WHY
 
@@ -61,7 +63,7 @@ A single reviewer can find some of these but rarely all. Asking the agent to "re
 `ce-simplify-code` runs three parallel reviewers, each focused on one dimension:
 
 - **Reuse Reviewer** searches for existing utilities the new code duplicates
-- **Quality Reviewer** flags hacky patterns, dead code, stringly-typed code, unnecessary comments, nested conditionals
+- **Quality Reviewer** flags hacky patterns, dead code, context-dependent vocabulary, obsolete pre-release compatibility paths, unnecessary comments, and nested conditionals
 - **Efficiency Reviewer** finds missed concurrency, hot-path bloat, recurring no-op updates, broad operations
 
 The orchestrator aggregates their findings, applies fixes, and runs typecheck + lint + scoped tests to verify behavior is preserved.
@@ -75,7 +77,7 @@ The orchestrator aggregates their findings, applies fixes, and runs typecheck + 
 A single "review and improve" prompt collapses into the agent's most-trained directions. Three reviewers each focused on one dimension cover meaningfully more ground:
 
 - **Reuse** — searches for existing utilities and helpers; flags new functions that duplicate existing ones; flags inline logic that could use an existing utility; flags diff code that reimplements a language standard-library or runtime primitive (gated on behavior-equivalence, excluding UX-changing swaps); flags code that hand-maintains a verified guarantee the platform, framework, or downstream layer already provides
-- **Quality** — redundant state, parameter sprawl, copy-paste with variation (checking whether the duplicated construct can be eliminated before proposing a merge), leaky abstractions, stringly-typed code, unnecessary wrappers (in component-tree UI frameworks), deeply nested conditionals, unnecessary comments, dead code / unused imports / unused exports
+- **Quality** — redundant state, parameter sprawl, copy-paste with variation (checking whether the duplicated construct can be eliminated before proposing a merge), leaky abstractions, stringly-typed code, unnecessary wrappers (in component-tree UI frameworks), deeply nested conditionals, unnecessary comments, dead code / unused imports / unused exports, context-dependent vocabulary, and pre-release compatibility scaffolding with no deployed, persisted, public, external, or dependent-branch consumer
 - **Efficiency** — unnecessary work (redundant computations, repeat reads), missed concurrency, hot-path bloat, recurring no-op updates, TOCTOU pre-checks, memory issues, overly broad operations
 
 ### 2. Smart scope detection — user-named > git diff > recent edits
@@ -84,7 +86,7 @@ The skill resolves the simplification scope in priority order: explicit user-nam
 
 ### 3. Behavior preservation verification
 
-After applying fixes, the skill runs typecheck and lint over the project and runs tests scoped to the changed paths (broadening when the change has wide reach — e.g., a heavily-imported utility was rewritten). Failures are surfaced clearly with the failing check name and relevant output. **The skill refuses to relax assertions, weaken type signatures, or skip tests to make checks pass** — either fix the underlying break or revert the specific simplification that caused it. It also **never simplifies away a safety check** — input validation at trust boundaries, data-loss-preventing error handling, security checks, and accessibility affordances are preserved even when a finding frames them as removable boilerplate.
+After applying fixes, the skill runs typecheck and lint over the project and runs tests scoped to the changed paths (broadening when the change has wide reach — e.g., a heavily-imported utility was rewritten). Failures are surfaced clearly with the failing check name and relevant output. **The skill refuses to relax assertions, weaken type signatures, or skip tests to make checks pass** — either fix the underlying break or revert the specific simplification that caused it. It also **never simplifies away a safety check** — input validation at trust boundaries, data-loss-preventing error handling, security checks, and accessibility affordances are preserved even when a finding frames them as removable boilerplate. A compatibility path for an earlier form of the current unshipped change may be removed only after verifying that form has no deployed, persisted, public, external, or dependent-branch consumer.
 
 ### 4. Mid-tier model selection — cost-aware
 
