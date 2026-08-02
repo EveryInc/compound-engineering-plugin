@@ -72,7 +72,7 @@ import unit_workspace_artifacts as artifacts
 import unit_workspace_ignored as ignored
 
 repo = sys.argv[2]
-request = json.loads(sys.argv[3])
+request = json.loads(sys.stdin.read())
 
 def entry(row):
     return artifacts.ArtifactEntry(
@@ -154,8 +154,10 @@ except artifacts.Operational as exc:
 `
 
 function probe(repo: string, request: Record<string, unknown>): any {
-  const result = spawnSync(PYTHON, ["-c", PROBE, SCRIPT_DIR, repo, JSON.stringify(request)], {
+  const result = spawnSync(PYTHON, ["-c", PROBE, SCRIPT_DIR, repo], {
     encoding: "utf8",
+    input: JSON.stringify(request),
+    maxBuffer: 64 * 1024 * 1024,
   })
   if (result.status !== 0) throw new Error(result.stderr || result.stdout)
   return JSON.parse(result.stdout)
@@ -434,16 +436,21 @@ describe("ce-work artifact policy module", () => {
 
     const result = spawnSync(
       PYTHON,
-      ["-c", PROBE, SCRIPT_DIR, repo, JSON.stringify({
-        action: "capture",
-        run_dir: runDir,
-        transaction: "txn-before-byte",
-        unit_id: null,
-        attempt_id: "attempt-before-byte",
-        lock_nonce: "nonce-before-byte",
-        paths: ["secret.bin"],
-      })],
-      { encoding: "utf8", env: { ...process.env, CE_WORK_TEST_FAULT: "artifact-after-capture-journal" } },
+      ["-c", PROBE, SCRIPT_DIR, repo],
+      {
+        encoding: "utf8",
+        env: { ...process.env, CE_WORK_TEST_FAULT: "artifact-after-capture-journal" },
+        input: JSON.stringify({
+          action: "capture",
+          run_dir: runDir,
+          transaction: "txn-before-byte",
+          unit_id: null,
+          attempt_id: "attempt-before-byte",
+          lock_nonce: "nonce-before-byte",
+          paths: ["secret.bin"],
+        }),
+        maxBuffer: 64 * 1024 * 1024,
+      },
     )
     const body = JSON.parse(result.stdout)
     const journal = JSON.parse(readFileSync(
