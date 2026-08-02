@@ -3,6 +3,7 @@ import { createHash } from "node:crypto"
 import { spawnSync } from "node:child_process"
 import {
   chmodSync,
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readdirSync,
@@ -614,6 +615,12 @@ class FeatureTest(unittest.TestCase):
       unit_id: "U2",
       lock_nonce: interruptedStatus.integration_lock.nonce,
     })
+    const blockedCleanup = controlFailure(
+      runs, "cleanup", "--run-id", "transaction-run", "--unit-id", "U2",
+    )
+    expect(blockedCleanup.word).toBe("BLOCKED")
+    expect(blockedCleanup.body.artifact_transactions).toHaveLength(1)
+    expect(existsSync(second.workspace)).toBe(true)
     const resumed = control(runs, "resume", "--run-id", "transaction-run")
     expect(resumed.body.actions.map((action: any) => action.action)).toContain("committed-unit-finalized")
     expect(git(repo, "rev-parse", "HEAD")).toBe(acceptedHead)

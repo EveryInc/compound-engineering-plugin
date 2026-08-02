@@ -94,7 +94,7 @@ def test_fault(point: str) -> None:
     """Deterministic crash-window injection for the repository test suite."""
     configured = {value.strip() for value in os.environ.get("CE_WORK_TEST_FAULT", "").split(",") if value.strip()}
     if point in configured:
-        raise Operational("INTERRUPTED", f"injected test interruption at {point}")
+        raise Operational("INTERRUPTED", f"injected test interruption at {point}", {"fault_point": point})
 
 
 def runs_root() -> str:

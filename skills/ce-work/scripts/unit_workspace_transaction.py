@@ -32,6 +32,7 @@ from unit_workspace_lifecycle import (
     pending_plan_wide_verification,
     plan_wide_verification_attempts,
     receipted_plan_wide_verification,
+    resolve_artifact_rerun_blockers,
 )
 from unit_workspace_artifacts import (
     ArtifactPolicyModule,
@@ -379,6 +380,15 @@ def _verify_run_locked(
         policy.digest,
         precious_before,
         regenerable_manifest,
+        transaction_context={
+            "kind": "plan-verification",
+            "argv": command,
+            "summary": args.verification_summary,
+            "canonical_head": before["head"],
+            "canonical_snapshot": before,
+            "accepted_units": accepted_units,
+        },
+        policy_document=policy.policy_document(),
     )
     before_directory_snapshot = _filtered_directory_snapshot(repo, regenerable_roots)
     before_directories = set(before_directory_snapshot)
@@ -538,6 +548,7 @@ def _verify_run_locked(
     }
     receipt["evidence_digest"] = digest_bytes(json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode())
     _record_run_verification_receipt(args, attempt_id, lock_token, receipt)
+    resolve_artifact_rerun_blockers(args.run_id, None)
     advance_artifact_transaction(journal.path, "receipted")
     test_fault("artifact-after-receipt-before-release")
     advance_artifact_transaction(journal.path, "complete")
@@ -616,6 +627,8 @@ def cmd_verify_run(args) -> tuple[str, dict]:
             token,
         )
     except Operational as exc:
+        if exc.detail.get("fault_point", "").startswith("artifact-"):
+            raise
         with locked_manifest(args.run_id) as doc:
             lock = doc.get("integration_lock")
             pending = pending_plan_wide_verification(doc, lock) if isinstance(lock, dict) else None
@@ -742,6 +755,13 @@ def cmd_integrate(args) -> tuple[str, dict]:
             regenerable_manifest,
             pre_transport_policy.digest,
             classification_downgrades,
+            {
+                "kind": "unit-integration",
+                "argv": command,
+                "summary": args.verification_summary,
+                "pre_fold_head": unit["integration"]["pre_fold"]["head"],
+            },
+            policy.policy_document(),
         )
         before_directory_snapshot = _filtered_directory_snapshot(repo, regenerable_roots)
         before_directories = set(before_directory_snapshot)
@@ -887,6 +907,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
                 verification_exit,
                 artifact,
             )
+            resolve_artifact_rerun_blockers(args.run_id, args.unit_id)
             advance_artifact_transaction(journal.path, "receipted")
             advance_artifact_transaction(journal.path, "complete")
             cmd_integration_release(_args(run_id=args.run_id, unit_id=args.unit_id, lock_token=token))
@@ -912,6 +933,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
             verification_exit=verification_exit,
             artifact=artifact,
         ))
+        resolve_artifact_rerun_blockers(args.run_id, args.unit_id)
         advance_artifact_transaction(journal.path, "receipted")
         test_fault("before-canonical-commit")
         commit_index_tree(repo, args.commit_message)
@@ -947,6 +969,8 @@ def cmd_integrate(args) -> tuple[str, dict]:
             "artifact": artifact,
         }
     except (Operational, TrustFailure) as original:
+        if original.detail.get("fault_point", "").startswith("artifact-"):
+            raise
         if token is not None and committed:
             detail = {
                 "reason": "canonical commit accepted but post-commit finalization is incomplete",

@@ -12,19 +12,30 @@ from types import SimpleNamespace
 from unit_workspace_state import *
 from unit_workspace_jobs import *
 from unit_workspace_integration import *
+from unit_workspace_artifacts import (
+    ArtifactPolicyModule,
+    abort_artifact_capture,
+    advance_artifact_transaction,
+    inventory_artifacts,
+    open_artifact_transactions,
+    settle_artifact_transaction,
+    sweep_artifact_custody,
+)
+from unit_workspace_ignored import ignored_paths
 
 
 def cmd_status(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id) as doc:
         validate_repo(doc)
+        artifact_transactions = open_artifact_transactions(run_dir(args.run_id))
         source = doc.get("source") or {"kind": "plan", **doc.get("plan", {})}
         if args.unit_id:
             unit = doc["units"].get(args.unit_id)
             if not unit:
                 raise Operational("REFUSED", "unknown unit")
-            body = {"run_id": args.run_id, "revision": doc["revision"], "source": source, "unit": unit, "integration_lock": doc.get("integration_lock"), "verifications": doc.get("verifications", []), "blockers": doc.get("blockers", [])}
+            body = {"run_id": args.run_id, "revision": doc["revision"], "source": source, "unit": unit, "integration_lock": doc.get("integration_lock"), "verifications": doc.get("verifications", []), "blockers": doc.get("blockers", []), "artifact_transactions": [transaction for transaction in artifact_transactions if transaction.get("unit_id") == args.unit_id]}
         else:
-            body = {"run_id": args.run_id, "revision": doc["revision"], "source": source, "units": doc["units"], "integration_lock": doc.get("integration_lock"), "verifications": doc.get("verifications", []), "blockers": doc.get("blockers", []), "recovery_path": run_dir(args.run_id)}
+            body = {"run_id": args.run_id, "revision": doc["revision"], "source": source, "units": doc["units"], "integration_lock": doc.get("integration_lock"), "verifications": doc.get("verifications", []), "blockers": doc.get("blockers", []), "recovery_path": run_dir(args.run_id), "artifact_transactions": artifact_transactions}
     return "STATUS", body
 
 
@@ -88,7 +99,7 @@ def unfinished_run(doc: dict, canonical_head: str) -> bool:
     accepted_units = accepted_unit_commit_snapshot(units)
     if accepted_units is None:
         return True
-    return doc.get("integration_lock") is not None or not any(
+    return bool(open_artifact_transactions(run_dir(doc["run_id"]))) or doc.get("integration_lock") is not None or not any(
         receipt.get("verification_exit") == 0
         and (
             not isinstance(receipt.get("artifact"), dict)
@@ -232,6 +243,22 @@ def resolve_unit_recovery_blockers(run_id: str, unit_id: str, reason: str | None
                 resolved += 1
         if resolved:
             event(doc, "recovery-blockers-resolved", unit_id, {"count": resolved})
+
+
+def resolve_artifact_rerun_blockers(run_id: str, unit_id: str | None) -> None:
+    with locked_manifest(run_id, write=True) as doc:
+        resolved = 0
+        for blocker in doc.get("blockers", []):
+            if (
+                blocker.get("unit_id") == unit_id
+                and isinstance(blocker.get("artifact_transaction_id"), str)
+                and not blocker.get("resolved_at")
+            ):
+                blocker["resolved_at"] = now_iso()
+                blocker["resolved_by"] = "verification-rerun"
+                resolved += 1
+        if resolved:
+            event(doc, "artifact-rerun-blockers-resolved", unit_id, {"count": resolved})
 
 
 def plan_wide_verification_attempts(doc: dict) -> list[dict]:
@@ -384,6 +411,197 @@ def resume_finalize_committed(run_id: str, unit_id: str) -> list[dict]:
     return actions
 
 
+def _resume_artifact_receipt(run_id: str, transaction: dict) -> dict:
+    recorded = transaction.get("artifact_receipt")
+    if isinstance(recorded, dict):
+        return recorded
+    with locked_manifest(run_id) as doc:
+        repo = validate_repo(doc)["toplevel"]
+    policy = ArtifactPolicyModule.from_document(repo, transaction.get("policy_document", {}))
+    observation_error = None
+    try:
+        classified = policy.classify(inventory_artifacts(repo, ignored_paths(repo)))
+    except Operational as exc:
+        classified = None
+        observation_error = {"word": exc.word, "message": str(exc), "detail": exc.detail}
+    context = transaction.get("transaction_context", {})
+    return settle_artifact_transaction(
+        policy,
+        transaction["journal_path"],
+        classified,
+        None,
+        context.get("argv", []),
+        observation_error,
+    )
+
+
+def _restore_resumed_plan_semantics(run_id: str, transaction: dict) -> None:
+    context = transaction.get("transaction_context", {})
+    expected = context.get("canonical_snapshot")
+    if not isinstance(expected, dict):
+        raise TrustFailure("artifact transaction canonical snapshot is missing")
+    with locked_manifest(run_id) as doc:
+        repo = validate_repo(doc)["toplevel"]
+    observed = semantic_snapshot(repo)
+    if (
+        observed.get("head") != expected.get("head")
+        or observed.get("branch_ref") != expected.get("branch_ref")
+    ):
+        raise Operational(
+            "BLOCKED",
+            "interrupted plan verification changed canonical branch or HEAD; automatic restoration refused",
+            {"retain_integration_lock": True, "transaction_id": transaction["transaction_id"]},
+        )
+    changed_paths = status_paths(repo)
+    git(repo, "reset", "--hard", expected["head"])
+    for rel in sorted(changed_paths, key=lambda value: (value.count("/"), value), reverse=True):
+        if git(repo, "ls-tree", "-z", "--full-tree", expected["head"], "--", rel):
+            continue
+        target = os.path.abspath(os.path.join(repo, rel))
+        if os.path.commonpath([repo, target]) != repo:
+            raise Operational("BLOCKED", "verification artifact path escaped canonical repository")
+        if os.path.islink(target) or os.path.isfile(target):
+            os.unlink(target)
+        parent = os.path.dirname(target)
+        while parent != repo:
+            try:
+                os.rmdir(parent)
+            except OSError:
+                break
+            parent = os.path.dirname(parent)
+    if semantic_snapshot(repo) != expected:
+        raise Operational(
+            "BLOCKED",
+            "interrupted plan verification semantic restoration could not be proven",
+            {"retain_integration_lock": True, "transaction_id": transaction["transaction_id"]},
+        )
+
+
+def _record_resumed_plan_artifact(run_id: str, transaction: dict, artifact: dict) -> bool:
+    transaction_id = transaction["transaction_id"]
+    context = transaction.get("transaction_context", {})
+    with locked_manifest(run_id, write=True) as doc:
+        receipts = doc.setdefault("verifications", [])
+        matches = [
+            receipt
+            for receipt in receipts
+            if isinstance(receipt.get("artifact"), dict)
+            and receipt["artifact"].get("transaction_id") == transaction_id
+        ]
+        if len(matches) > 1:
+            raise TrustFailure("artifact transaction verification receipt is duplicated")
+        if matches:
+            return False
+        receipt = {
+            "attempt_id": transaction["attempt_id"],
+            "at": now_iso(),
+            "argv": context.get("argv", []),
+            "summary": "resumed after interruption; verification result unknown and must re-run",
+            "verification_exit": None,
+            "log_sha256": None,
+            "canonical_head": context.get("canonical_head"),
+            "accepted_units": context.get("accepted_units"),
+            "canonical_state_changed": not artifact.get("canonical_ignored_state_preserved", False),
+            "cleaned_paths": artifact.get("precious_restored", []),
+            "verification_log": None,
+            "verification_log_retained": False,
+            "artifact": artifact,
+        }
+        receipt["evidence_digest"] = digest_bytes(
+            json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode()
+        )
+        receipts.append(receipt)
+        attempts = plan_wide_verification_attempts(doc)
+        matching_attempts = [
+            attempt
+            for attempt in attempts
+            if attempt.get("attempt_id") == transaction["attempt_id"]
+        ]
+        if len(matching_attempts) > 1:
+            raise TrustFailure("artifact transaction verification attempt is duplicated")
+        if matching_attempts:
+            matching_attempts[0].update({
+                "status": "receipt-recorded",
+                "completed_at": now_iso(),
+                "evidence_digest": receipt["evidence_digest"],
+            })
+        else:
+            attempts.append({
+                "attempt_id": transaction["attempt_id"],
+                "started_at": now_iso(),
+                "status": "receipt-recorded",
+                "integration_lock_nonce": transaction["lock_nonce"],
+                "lock_unit_id": next(iter(context.get("accepted_units", {})), "run"),
+                "argv": context.get("argv", []),
+                "summary": context.get("summary", ""),
+                "canonical_snapshot": None,
+                "verification_log": None,
+                "completed_at": now_iso(),
+                "evidence_digest": receipt["evidence_digest"],
+            })
+        blocker_exists = any(
+            blocker.get("artifact_transaction_id") == transaction_id
+            for blocker in doc.get("blockers", [])
+        )
+        if not blocker_exists:
+            doc["blockers"].append({
+                "at": now_iso(),
+                "unit_id": None,
+                "reason": "plan-wide verification interrupted; verification result unknown and must re-run",
+                "artifact_transaction_id": transaction_id,
+                "evidence_digest": receipt["evidence_digest"],
+            })
+        for blocker in doc.get("blockers", []):
+            if (
+                blocker.get("integration_lock_nonce") == transaction["lock_nonce"]
+                and blocker.get("retain_integration_lock") is True
+                and not blocker.get("resolved_at")
+            ):
+                blocker["resolved_at"] = now_iso()
+                blocker["resolved_by"] = "resume"
+        event(doc, "artifact-resume-receipt", None, {
+            "transaction_id": transaction_id,
+            "evidence_digest": receipt["evidence_digest"],
+        })
+    return True
+
+
+def _record_resumed_unit_artifact(run_id: str, transaction: dict, artifact: dict) -> bool:
+    transaction_id = transaction["transaction_id"]
+    unit_id = transaction["unit_id"]
+    with locked_manifest(run_id, write=True) as doc:
+        unit = doc["units"].get(unit_id)
+        if not unit:
+            raise TrustFailure("artifact transaction unit is missing")
+        verification = unit.get("integration", {}).get("verification")
+        if (
+            isinstance(verification, dict)
+            and verification.get("artifact_transaction_id") == transaction_id
+        ):
+            return False
+        unit["integration"]["verification"] = {
+            "at": now_iso(),
+            "digest": None,
+            "summary": "resumed after interruption; verification result unknown and must re-run",
+            "verification_exit": None,
+            "passed": False,
+            "artifact_transaction_id": transaction_id,
+            "artifact": artifact,
+        }
+        if not any(
+            blocker.get("artifact_transaction_id") == transaction_id
+            for blocker in doc.get("blockers", [])
+        ):
+            doc["blockers"].append({
+                "at": now_iso(),
+                "unit_id": unit_id,
+                "reason": "unit verification interrupted; verification result unknown and must re-run",
+                "artifact_transaction_id": transaction_id,
+            })
+        event(doc, "artifact-resume-receipt", unit_id, {"transaction_id": transaction_id})
+    return True
+
+
 def cmd_resume(args) -> tuple[str, dict]:
     run_id = resolve_resume_run(args)
     actions: list[dict] = []
@@ -416,6 +634,78 @@ def cmd_resume(args) -> tuple[str, dict]:
             recover_only=True,
         ))
         actions.append({"unit_id": orphan_unit, "action": "integration-lock-adopted"})
+    artifact_transactions = open_artifact_transactions(run_dir(run_id))
+    for transaction in [row for row in artifact_transactions if row.get("unit_id") is None]:
+        if transaction.get("phase") == "capturing":
+            abort_artifact_capture(transaction["journal_path"])
+            with locked_manifest(run_id) as doc:
+                lock = doc.get("integration_lock")
+                known_units = set(doc.get("units", {}))
+            if (
+                isinstance(lock, dict)
+                and lock.get("nonce") == transaction.get("lock_nonce")
+                and lock.get("unit_id") in known_units
+            ):
+                integration_release(run_id, lock["unit_id"], lock["nonce"])
+            actions.append({
+                "unit_id": None,
+                "action": "artifact-capture-aborted",
+                "transaction_id": transaction["transaction_id"],
+                "receipt_recorded": False,
+            })
+            continue
+        artifact = _resume_artifact_receipt(run_id, transaction)
+        _restore_resumed_plan_semantics(run_id, transaction)
+        receipt_recorded = _record_resumed_plan_artifact(run_id, transaction, artifact)
+        advance_artifact_transaction(transaction["journal_path"], "receipted")
+        with locked_manifest(run_id) as doc:
+            lock = doc.get("integration_lock")
+            known_units = set(doc.get("units", {}))
+        if (
+            isinstance(lock, dict)
+            and lock.get("nonce") == transaction.get("lock_nonce")
+            and lock.get("unit_id") in known_units
+        ):
+            integration_release(run_id, lock["unit_id"], lock["nonce"])
+        advance_artifact_transaction(transaction["journal_path"], "complete")
+        actions.append({
+            "unit_id": None,
+            "action": "artifact-transaction-resumed",
+            "transaction_id": transaction["transaction_id"],
+            "receipt_recorded": receipt_recorded,
+        })
+    for transaction in [row for row in artifact_transactions if row.get("unit_id") is not None]:
+        if transaction.get("phase") == "capturing":
+            abort_artifact_capture(transaction["journal_path"])
+            actions.append({
+                "unit_id": transaction["unit_id"],
+                "action": "artifact-capture-aborted",
+                "transaction_id": transaction["transaction_id"],
+                "receipt_recorded": False,
+            })
+            continue
+        artifact = _resume_artifact_receipt(run_id, transaction)
+        with locked_manifest(run_id) as doc:
+            unit = doc["units"].get(transaction["unit_id"])
+            state = unit.get("state") if unit else None
+        if state == "committed":
+            advance_artifact_transaction(transaction["journal_path"], "receipted")
+            advance_artifact_transaction(transaction["journal_path"], "complete")
+            actions.append({
+                "unit_id": transaction["unit_id"],
+                "action": "artifact-post-commit-reconciled",
+                "transaction_id": transaction["transaction_id"],
+                "receipt_recorded": False,
+            })
+        else:
+            receipt_recorded = _record_resumed_unit_artifact(run_id, transaction, artifact)
+            advance_artifact_transaction(transaction["journal_path"], "receipted")
+            actions.append({
+                "unit_id": transaction["unit_id"],
+                "action": "artifact-transaction-resumed",
+                "transaction_id": transaction["transaction_id"],
+                "receipt_recorded": receipt_recorded,
+            })
     for uid in unit_ids:
         with locked_manifest(run_id) as doc:
             unit = doc["units"][uid]
@@ -537,6 +827,19 @@ def cmd_resume(args) -> tuple[str, dict]:
                 })
         elif state in {"committed", "cleaned", "native-completed"}:
             actions.extend(resume_finalize_committed(run_id, uid))
+    for transaction in open_artifact_transactions(run_dir(run_id)):
+        unit_id = transaction.get("unit_id")
+        if unit_id is None:
+            continue
+        with locked_manifest(run_id) as doc:
+            unit = doc["units"].get(unit_id)
+            lock = doc.get("integration_lock")
+            state = unit.get("state") if unit else None
+        if state in {"preserved", "cleaned", "native-completed"} and not (
+            isinstance(lock, dict) and lock.get("unit_id") == unit_id
+        ):
+            advance_artifact_transaction(transaction["journal_path"], "complete")
+    sweep_artifact_custody(run_dir(run_id))
     return "RESUMED", {"run_id": run_id, "actions": actions, "redispatched": False, "applied": False}
 
 
@@ -819,6 +1122,17 @@ def cmd_reap(args) -> tuple[str, dict]:
 
 def remove_finalized_artifacts(run_id: str, unit_id: str) -> None:
     """Prune bulky controller-owned artifacts only after a unit is finalized."""
+    open_transactions = [
+        transaction
+        for transaction in open_artifact_transactions(run_dir(run_id))
+        if transaction.get("unit_id") == unit_id
+    ]
+    if open_transactions:
+        raise Operational(
+            "BLOCKED",
+            "artifact custody remains open; resume the owning transaction before cleanup",
+            {"unit_id": unit_id, "artifact_transactions": open_transactions},
+        )
     with locked_manifest(run_id) as doc:
         unit = doc["units"].get(unit_id)
         cleanup = unit.get("cleanup") if unit else None
@@ -910,6 +1224,17 @@ def remove_unregistered_owned_workspace(run_id: str, unit_id: str, recorded_work
 
 
 def cmd_cleanup(args) -> tuple[str, dict]:
+    open_transactions = [
+        transaction
+        for transaction in open_artifact_transactions(run_dir(args.run_id))
+        if transaction.get("unit_id") == args.unit_id
+    ]
+    if open_transactions:
+        raise Operational(
+            "BLOCKED",
+            "artifact custody remains open; resume the owning transaction before cleanup",
+            {"unit_id": args.unit_id, "artifact_transactions": open_transactions},
+        )
     with locked_manifest(args.run_id) as doc:
         validate_repo(doc)
         unit = doc["units"].get(args.unit_id)

@@ -328,6 +328,66 @@ class ArtifactPolicyModule:
             raw is None and os.path.lexists(policy_path),
         )
 
+    @classmethod
+    def from_document(cls, repo: str, document: dict) -> "ArtifactPolicyModule":
+        """Rehydrate the trusted policy snapshot stored in a private journal."""
+        try:
+            if not isinstance(document, dict) or document.get("schema") != POLICY_SCHEMA:
+                raise ValueError("schema")
+            raw_precious = document["precious_roots"]
+            raw_rules = document["regenerable_roots"]
+            if not isinstance(raw_precious, list) or not isinstance(raw_rules, list):
+                raise ValueError("roots")
+            precious = [_normalise_root(root, "journal precious root") for root in raw_precious]
+            rules: list[RegenerableRule] = []
+            for row in raw_rules:
+                if not isinstance(row, dict):
+                    raise ValueError("rule")
+                root = _normalise_root(row["root"], "journal regenerable root")
+                owner = row["owner"]
+                raw_argv = row["repair_argv"]
+                source = row["source"]
+                runnable = row["runnable"]
+                verified = row["verified"]
+                expected = row.get("divergence_expected_during_verification", False)
+                if (
+                    not isinstance(owner, str)
+                    or not owner
+                    or "\0" in owner
+                    or not isinstance(raw_argv, list)
+                    or not raw_argv
+                    or any(not isinstance(value, str) or not value or "\0" in value for value in raw_argv)
+                    or not isinstance(source, str)
+                    or not (source == "repo-override" or source.startswith("built-in:"))
+                    or not isinstance(runnable, bool)
+                    or not isinstance(verified, bool)
+                    or runnable != verified
+                    or (runnable and not _repair_argv_allowed(tuple(raw_argv)))
+                    or not isinstance(expected, bool)
+                ):
+                    raise ValueError("owner")
+                rules.append(RegenerableRule(
+                    root,
+                    LifecycleOwner(owner, tuple(raw_argv), source, runnable, verified),
+                    expected,
+                ))
+            override_source = document.get("override_source")
+            untracked = document.get("untracked_policy_present", False)
+            if override_source is not None and not isinstance(override_source, str):
+                raise ValueError("override source")
+            if not isinstance(untracked, bool):
+                raise ValueError("untracked policy")
+            return cls(
+                repo,
+                precious,
+                rules,
+                document["regenerable_divergence"],
+                override_source,
+                untracked,
+            )
+        except (KeyError, TypeError, ValueError, Operational) as exc:
+            raise Operational("UNREADABLE", "artifact journal policy snapshot is malformed") from exc
+
     def policy_document(self) -> dict:
         return {
             "schema": POLICY_SCHEMA,
@@ -347,6 +407,7 @@ class ArtifactPolicyModule:
             ],
             "regenerable_divergence": self.divergence_mode,
             "override_source": self.override_source,
+            "untracked_policy_present": self.untracked_policy_present,
         }
 
     @property
@@ -967,6 +1028,8 @@ def capture_artifact_transaction(
     regenerable_manifest: dict,
     policy_digest_before_transport: str | None = None,
     classification_downgrades: Iterable[str] = (),
+    transaction_context: dict | None = None,
+    policy_document: dict | None = None,
 ) -> ArtifactTransactionJournal:
     """Create capturing-first custody and advance it durably to captured."""
     repo = os.path.abspath(repo)
@@ -1014,6 +1077,8 @@ def capture_artifact_transaction(
         "policy_digest": policy_digest,
         "policy_digest_before_transport": policy_digest_before_transport,
         "classification_downgrades": sorted(classification_downgrades),
+        "transaction_context": transaction_context or {},
+        "policy_document": policy_document or {},
         "custody_root": custody_root,
         "journal_path": journal_path,
         "precious_entries": {entry.path: _entry_document(entry) for entry in entries},
@@ -1295,6 +1360,10 @@ def settle_artifact_transaction(
 ) -> dict:
     """Restore precious custody and build truthful artifact receipt fields."""
     journal = _load_journal(journal_path)
+    recorded_receipt = journal.document.get("artifact_receipt")
+    if isinstance(recorded_receipt, dict):
+        resume_artifact_transaction(journal_path)
+        return recorded_receipt
     after_rows = list(after_classified or [])
     after_precious = {
         row.entry.path
@@ -1380,8 +1449,9 @@ def settle_artifact_transaction(
         outcome = "VERIFIED_WITH_REGENERABLE_DIVERGENCE"
     else:
         outcome = "VERIFIED"
-    return {
+    receipt = {
         "schema": RECEIPT_SCHEMA,
+        "transaction_id": journal.document.get("transaction_id"),
         "outcome": outcome,
         "policy_digest": journal.document.get("policy_digest"),
         "policy_digest_before_transport": journal.document.get("policy_digest_before_transport"),
@@ -1405,6 +1475,10 @@ def settle_artifact_transaction(
         "repair_actions": repair_actions,
         "journal_path": journal_path,
     }
+    settled = _load_journal(journal_path)
+    settled.document["artifact_receipt"] = receipt
+    settled.write()
+    return receipt
 
 
 def advance_artifact_transaction(journal_path: str, phase: str) -> dict:
@@ -1415,9 +1489,50 @@ def advance_artifact_transaction(journal_path: str, phase: str) -> dict:
     return journal.document
 
 
+def abort_artifact_capture(journal_path: str) -> dict:
+    """Close a pre-verification capture interrupted before custody completed."""
+    journal = _load_journal(journal_path)
+    if journal.document.get("phase") != "capturing":
+        raise Operational("BLOCKED", "only an interrupted capturing journal can abort without a receipt")
+    journal.document["phase"] = "complete"
+    journal.document["abort_reason"] = "interrupted-before-verification"
+    journal.write()
+    return journal.document
+
+
+def open_artifact_transactions(run_dir: str, include_complete: bool = False) -> list[dict]:
+    """Return validated artifact transaction summaries without creating state."""
+    root = os.path.join(os.path.abspath(run_dir), "artifact-custody")
+    if not os.path.lexists(root):
+        return []
+    validate_private_dir(root)
+    transactions: list[dict] = []
+    for journal in _open_journals(root):
+        phase = journal.document.get("phase")
+        if phase == "complete" and not include_complete:
+            continue
+        transactions.append({
+            "transaction_id": journal.document.get("transaction_id"),
+            "run_id": journal.document.get("run_id"),
+            "unit_id": journal.document.get("unit_id"),
+            "attempt_id": journal.document.get("attempt_id"),
+            "lock_nonce": journal.document.get("lock_nonce"),
+            "phase": phase,
+            "journal_path": journal.path,
+            "custody_root": journal.document.get("custody_root"),
+            "transaction_context": journal.document.get("transaction_context", {}),
+            "policy_document": journal.document.get("policy_document", {}),
+            "artifact_receipt": journal.document.get("artifact_receipt"),
+        })
+    return transactions
+
+
 def sweep_artifact_custody(run_dir: str) -> dict:
     """Remove only unreferenced or complete controller-private custody roots."""
-    root = _artifact_root(run_dir)
+    root = os.path.join(os.path.abspath(run_dir), "artifact-custody")
+    if not os.path.lexists(root):
+        return {"removed": [], "retained": []}
+    validate_private_dir(root)
     referenced = {
         os.path.abspath(journal.document["custody_root"]): journal.document.get("phase")
         for journal in _open_journals(root)

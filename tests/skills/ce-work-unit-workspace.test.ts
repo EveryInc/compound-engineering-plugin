@@ -3549,53 +3549,78 @@ describe("ce-work unit workspace controller", () => {
     ).body.integration_lock).toBeNull()
   })
 
-  test("retains a plan verification lock interrupted before its receipt", () => {
+  test.each([
+    { fault: "artifact-after-reclassify", openBeforeResume: 0, receiptExit: undefined },
+    { fault: "artifact-during-precious-capture", openBeforeResume: 1, receiptExit: undefined },
+    { fault: "artifact-before-precious-restore", openBeforeResume: 1, receiptExit: null },
+    { fault: "artifact-after-restore-before-receipt", openBeforeResume: 1, receiptExit: null },
+    { fault: "artifact-after-receipt-before-release", openBeforeResume: 1, receiptExit: 0 },
+  ])("resumes artifact crash point $fault exactly once", ({ fault, openBeforeResume, receiptExit }) => {
     const f = makeRepo()
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\n")
+    writeFileSync(path.join(f.repo, "existing.verification-cache"), "preserve me\n")
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
-    init(runs, "run-verify-pre-receipt-crash", f)
-    const prepared = ctl(
-      runs, "prepare", "--run-id", "run-verify-pre-receipt-crash", "--unit-id", "U",
-      "--base", f.base, "--packet", packetFile("packet"),
-    )
-    writeFileSync(path.join(prepared.body.workspace, "verified.txt"), "verified\n")
-    const job = fakeDoneJob(runs, "run-verify-pre-receipt-crash", "U", "packet")
-    ctl(
-      runs, "record-job", "--run-id", "run-verify-pre-receipt-crash", "--unit-id", "U",
-      "--attempt-id", "attempt-1", "--job-id", job,
-    )
-    ctl(runs, "terminalize", "--run-id", "run-verify-pre-receipt-crash", "--unit-id", "U")
-    expect(ctl(
-      runs, "integrate", "--run-id", "run-verify-pre-receipt-crash", "--unit-id", "U",
-      "--commit-message", "feat(test): integrate pre-receipt crash fixture", "--", "true",
-    ).word).toBe("UNIT_COMMITTED")
+    const runId = `run-${fault}`
+    createAcceptedRun(runs, runId, f)
 
     const interrupted = ctlWithEnv(
       runs,
-      { CE_WORK_TEST_FAULT: "verify-run-before-receipt" },
-      "verify-run", "--run-id", "run-verify-pre-receipt-crash",
-      "--verification-summary", "interrupted plan verification", "--",
-      "python3", "-c", "from pathlib import Path; Path('verified.txt').write_text('mutated\\n')",
+      { CE_WORK_TEST_FAULT: fault },
+      "verify-run", "--run-id", runId,
+      "--verification-summary", `interrupted at ${fault}`, "--",
+      "python3", "-c",
+      "from pathlib import Path; Path('existing.verification-cache').write_text('mutated\\n'); Path('keep.txt').write_text('mutated\\n')",
     )
     expect(interrupted.word).toBe("INTERRUPTED")
-    const manifest = JSON.parse(readFileSync(path.join(runs, "run-verify-pre-receipt-crash", "manifest.json"), "utf8"))
-    expect(manifest.verification_attempts.at(-1)).toMatchObject({
-      status: "pending",
-      integration_lock_nonce: manifest.integration_lock.nonce,
-      lock_unit_id: "U",
-    })
-    expect(manifest.verifications).toEqual([])
-    expect(git(f.repo, "status", "--porcelain")).toBe("M verified.txt")
+    const stranded = ctl(runs, "status", "--run-id", runId).body
+    expect(stranded.artifact_transactions).toHaveLength(openBeforeResume)
+    expect(stranded.integration_lock).toMatchObject({ unit_id: "U", phase: "held" })
 
-    const resumed = ctl(runs, "resume", "--run-id", "run-verify-pre-receipt-crash")
-    expect(resumed.word).toBe("BLOCKED")
-    expect(resumed.body).toMatchObject({
-      verification_attempt_id: manifest.verification_attempts.at(-1).attempt_id,
-      retain_integration_lock: true,
-    })
-    expect(ctl(runs, "status", "--run-id", "run-verify-pre-receipt-crash").body.integration_lock).toMatchObject({
-      unit_id: "U",
-      phase: "held",
-    })
+    const resumed = ctl(runs, "resume", "--run-id", runId)
+    expect(resumed.word).toBe("RESUMED")
+    const recovered = ctl(runs, "status", "--run-id", runId).body
+    expect(recovered.artifact_transactions).toEqual([])
+    expect(recovered.integration_lock).toBeNull()
+    expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
+    expect(readFileSync(path.join(f.repo, "keep.txt"), "utf8")).toBe("keep\n")
+    if (receiptExit === undefined) {
+      expect(recovered.verifications).toEqual([])
+    } else {
+      expect(recovered.verifications).toHaveLength(1)
+      expect(recovered.verifications[0].verification_exit).toBe(receiptExit)
+      expect(recovered.verifications[0].artifact.transaction_id).toBeTruthy()
+    }
+
+    expect(ctl(runs, "resume", "--run-id", runId).body.actions).toEqual([])
+    const retried = ctl(
+      runs, "verify-run", "--run-id", runId,
+      "--verification-summary", "fresh verification after artifact recovery", "--", "true",
+    )
+    expect(retried.word).toBe("RUN_VERIFIED")
+    if (receiptExit === null) {
+      expect(ctl(runs, "status", "--run-id", runId).body.blockers.at(-1).resolved_by).toBe("verification-rerun")
+    }
+  })
+
+  test("reads a legacy verification receipt without rewriting its manifest", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-legacy-artifact-receipt"
+    createAcceptedRun(runs, runId, f)
+    expect(ctl(
+      runs, "verify-run", "--run-id", runId,
+      "--verification-summary", "legacy receipt fixture", "--", "true",
+    ).word).toBe("RUN_VERIFIED")
+
+    const manifestPath = path.join(runs, runId, "manifest.json")
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"))
+    delete manifest.verifications.at(-1).artifact
+    writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`)
+    const legacyBytes = readFileSync(manifestPath)
+
+    expect(ctl(runs, "status", "--run-id", runId).body.verifications.at(-1)).not.toHaveProperty("artifact")
+    expect(ctl(runs, "resume", "--run-id", runId).word).toBe("RESUMED")
+    expect(readFileSync(manifestPath)).toEqual(legacyBytes)
   })
 
   test("resume finishes interrupted abandoned artifact cleanup and restores retry eligibility", () => {
