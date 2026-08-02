@@ -60,7 +60,7 @@ A single reviewer can find some of these but rarely all. Asking the agent to "re
 
 ## The Solution
 
-`ce-simplify-code` runs three focused reviews, each covering one dimension. It uses parallel subagents when available and sequential subagents when only concurrency is unavailable. An explicit authorization result takes precedence even without a handle and prompts one retry after authorization; declined or unavailable authorization and other non-backpressure failures fall back only the affected lenses inline. Completed reviews need no wait, and only acknowledged asynchronous launches are waited on. No review, launch acknowledgement, or diagnostic means generic failure, not a permission problem. Inline passes remain distinct lenses, but they are not independent corroboration because they share one context:
+`ce-simplify-code` runs three parallel reviewers, each focused on one dimension:
 
 - **Reuse Reviewer** searches for existing utilities the new code duplicates
 - **Quality Reviewer** flags hacky patterns, dead code, context-dependent vocabulary, obsolete pre-release compatibility paths, unnecessary comments, and nested conditionals

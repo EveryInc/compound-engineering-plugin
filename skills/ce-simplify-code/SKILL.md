@@ -6,6 +6,20 @@ argument-hint: "[blank to simplify current branch changes, or describe what to s
 
 Simplify recently changed code for clarity, reuse, quality, and efficiency while preserving exact behavior. Prioritize readable, explicit code over compact code — fewer lines is not the goal.
 
+## Setup
+
+Run this once at the start of this invocation, before any subagent dispatch, and follow the directives it prints — except where one conflicts with this skill's own rules on asking the user questions, whether those rules are scoped to a non-interactive mode or apply in every mode, in which case this skill's rules win and no blocking question is asked. Run the fence exactly as written, as its own command: do not pipe or filter it (no `head`, `tail`, or `grep`), do not truncate its output, and do not bundle it into a batch with other commands. Its output opens with a `=== skill context` header and ends with `CE_CONTEXT_END`; if you received one of those lines without the other, the output was truncated — rerun the fence verbatim once. That recovery is the only rerun: otherwise do not rerun it within the same invocation; a later invocation of this or any other skill runs its own. If no Node runtime is available the skill proceeds unchanged.
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
+if [ -n "$NODE" ]; then
+"$NODE" "$SKILL_DIR/scripts/context.mjs" || echo "context script failed; continue with the skill's normal behavior";
+else
+echo "no Node runtime; continue with the skill's normal behavior";
+fi
+```
+
 ## Step 1: Identify scope
 
 Resolve the simplification scope in this order:
@@ -20,19 +34,19 @@ If none of the above produces a non-empty scope, stop and ask the user what to s
 
 When the platform's task-tracking capability is available, show the review, apply, and verification outcomes without creating one task per reviewer. Otherwise continue without simulating a task list in chat.
 
-## Step 2: Run 3 focused reviews
+## Step 2: Launch 3 review agents in parallel
 
-Before any review or dispatch, read each persona file verbatim:
+Dispatch three generic subagents — code-reuse, code-quality, and efficiency reviewers — via the platform's subagent primitive (`Agent`/`Task` in Claude Code, `spawn_agent` in Codex) where available; otherwise run the reviews inline or serially. For each reviewer, read its prompt asset from this skill's directory and pass the **full file content** as the subagent's prompt, together with the resolved scope (the full diff or file set) so it has complete context:
 
 - `references/personas/code-reuse-reviewer.md`
 - `references/personas/code-quality-reviewer.md`
 - `references/personas/efficiency-reviewer.md`
 
-Run code-reuse, code-quality, and efficiency as three distinct review lenses; separate contexts are preferred, not required. When the current tool surface exposes subagent dispatch, attempt one generic subagent launch per review with the corresponding persona text verbatim plus the resolved scope (the full diff or file set). Run them concurrently up to the platform's limit, or dispatch the same three payloads sequentially when concurrency is unavailable. Without a subagent primitive, the parent agent performs the reviews inline, following each persona as a separate pass. An explicit authorization result takes precedence even without an agent handle: ask the user to grant it and retry once. If declined or unavailable, run that review inline and disclose it. Completed reviews need no wait; wait only on acknowledged asynchronous launches. No review, launch acknowledgement, or diagnostic means generic failure, not a permission problem. Any other failure besides concurrency backpressure runs only the affected review inline with disclosure. Describe a review as delegated or independent only when a subagent actually returned it; inline agreement is not independent corroboration.
+Do not paraphrase these rubrics from memory — read each file and pass it verbatim, or the reviewer loses the gating rules that keep the pass behavior-preserving.
 
 **Bounded dispatch.** Queue the three reviewers and launch only as many as the harness accepts at once; treat a concurrency/active-agent-limit error as backpressure (leave the reviewer queued and retry after a slot frees), not as reviewer failure.
 
-**Model selection.** Use the platform's balanced mid-tier model when a known override exists. In Claude Code this is the Sonnet class. In Codex, do this only when the dispatch primitive exposes an explicit model or custom-agent selector; task wording alone does not select a different model. Otherwise inherit the parent model.
+**Model selection.** Use the platform's balanced mid-tier model for these reviewers when the current harness exposes a known override. In Claude Code this is the Sonnet class. In Codex, apply this tier only when the active dispatch primitive exposes an explicit model or custom-agent selector; task wording alone does not select a different model. Otherwise omit the override and inherit the parent model -- a working pass on the parent model beats a broken dispatch.
 
 **Permission mode.** Omit the `mode` parameter on the dispatch call so the user's configured permission settings apply.
 
