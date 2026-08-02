@@ -36,13 +36,13 @@ When the platform's task-tracking capability is available, show the review, appl
 
 ## Step 2: Run 3 independent reviews
 
-Run code-reuse, code-quality, and efficiency as three independent reviews. When subagent dispatch is available, assign one generic subagent to each review and run them concurrently up to the platform's limit. If subagents are available but concurrency is not, dispatch them sequentially. Only when the platform has no subagent capability may the parent agent perform the three reviews inline, as separate passes.
-
-Read each persona file verbatim and use it with the resolved scope (the full diff or file set):
+Before any review or dispatch, read each persona file verbatim:
 
 - `references/personas/code-reuse-reviewer.md`
 - `references/personas/code-quality-reviewer.md`
 - `references/personas/efficiency-reviewer.md`
+
+Run code-reuse, code-quality, and efficiency as three independent reviews. When subagent dispatch is available, assign one generic subagent to each review and give it the corresponding persona text verbatim plus the resolved scope (the full diff or file set). Run them concurrently up to the platform's limit, or dispatch the same three payloads sequentially when concurrency is unavailable. Only when the platform has no subagent capability may the parent agent perform the reviews inline, following each persona as a separate pass.
 
 **Bounded dispatch.** Queue the three reviewers and launch only as many as the harness accepts at once; treat a concurrency/active-agent-limit error as backpressure (leave the reviewer queued and retry after a slot frees), not as reviewer failure.
 
