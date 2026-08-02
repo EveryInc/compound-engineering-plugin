@@ -2100,7 +2100,7 @@ describe("ce-work unit workspace controller", () => {
       effective_limits: { max_entries: 512, max_bytes: 64 * 1024 * 1024 },
       blocking_counts: {
         entry_limit: 1,
-        symlink: 1,
+        symlink: 0,
         non_regular: 0,
         multiple_links: 2,
         opaque_directory: 1,
@@ -2113,7 +2113,71 @@ describe("ce-work unit workspace controller", () => {
     expect(existsSync(path.join(runs, runId))).toBe(false)
   })
 
-  test("prepare rechecks ignored capability after route selection", () => {
+  test("init and prepare accept warm root node_modules above precious limits", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "node_modules/\n")
+    const dependencies = path.join(f.repo, "node_modules")
+    mkdirSync(dependencies)
+    const oversized = path.join(dependencies, "oversized.bin")
+    writeFileSync(oversized, "")
+    truncateSync(oversized, 64 * 1024 * 1024 + 1)
+    for (let index = 0; index < 513; index += 1) {
+      symlinkSync("oversized.bin", path.join(dependencies, `dependency-${index}`))
+    }
+
+    expect(init(runs, "run-warm-root-node-modules", f).word).toBe("READY")
+    expect(ctl(
+      runs, "prepare", "--run-id", "run-warm-root-node-modules", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    ).word).toBe("PREPARED")
+  })
+
+  test("init refuses 600 unknown precious files with bounded diagnostics", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "unknown-cache/\n")
+    const unknown = path.join(f.repo, "unknown-cache")
+    mkdirSync(unknown)
+    for (let index = 0; index < 600; index += 1) {
+      writeFileSync(path.join(unknown, index.toString().padStart(4, "0")), "x")
+    }
+
+    const refused = init(runs, "run-unknown-precious-limit", f)
+
+    expect(refused.word).toBe("REFUSED")
+    expect(refused.body.blocking_counts_by_class.precious.entry_limit).toBe(88)
+    expect(refused.body.top_offenders).toHaveLength(10)
+    expect(refused.body.top_offenders[0]).toMatchObject({
+      class: "precious",
+      reasons: ["entry_limit"],
+    })
+  })
+
+  test("monorepo refusal emits a tracked override that makes init pass verbatim", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "packages/app/node_modules/\n")
+    const dependencies = path.join(f.repo, "packages", "app", "node_modules")
+    mkdirSync(dependencies, { recursive: true })
+    for (let index = 0; index < 513; index += 1) {
+      writeFileSync(path.join(dependencies, index.toString().padStart(4, "0")), "x")
+    }
+
+    const refused = init(runs, "run-monorepo-precious-limit", f)
+    const repairPrefix = "Track .ce-artifact-policy.json with this regenerable_roots override: "
+
+    expect(refused.word).toBe("REFUSED")
+    expect(refused.body.repair_route.startsWith(repairPrefix)).toBe(true)
+    expect(refused.body.regenerable_roots).toEqual([])
+    const override = refused.body.repair_route.slice(repairPrefix.length)
+    writeFileSync(path.join(f.repo, ".ce-artifact-policy.json"), `${override}\n`)
+    git(f.repo, "add", ".ce-artifact-policy.json")
+
+    expect(init(runs, "run-monorepo-policy-override", f).word).toBe("READY")
+  })
+
+  test("prepare accepts a newly introduced precious symlink", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
     const runId = "run-ignored-capability-changed"
@@ -2121,17 +2185,13 @@ describe("ce-work unit workspace controller", () => {
     expect(initWithBinding(runs, runId, f, "require").word).toBe("READY")
     symlinkSync("missing", path.join(f.repo, "ignored-link"))
 
-    const refused = ctl(
+    const prepared = ctl(
       runs, "prepare", "--run-id", runId, "--unit-id", "U",
       "--base", f.base, "--packet", packetFile("packet"),
     )
 
-    expect(refused.word).toBe("REFUSED")
-    expect(refused.body).toMatchObject({
-      blocking_counts: { symlink: 1 },
-      repair_route: "Remove or reduce the reported ignored artifacts, then retry cross-model execution.",
-    })
-    expect(existsSync(path.join(runs, runId, "units", "U", "workspace"))).toBe(false)
+    expect(prepared.word).toBe("PREPARED")
+    expect(existsSync(path.join(runs, runId, "units", "U", "workspace"))).toBe(true)
   })
 
   test("ignored capability probe reports ownership mismatch from a scratch repository", () => {
@@ -2141,8 +2201,9 @@ describe("ce-work unit workspace controller", () => {
     const source = [
       "import json, os, sys",
       `sys.path.insert(0, ${JSON.stringify(path.dirname(SCRIPT))})`,
+      "import unit_workspace_artifacts as artifacts",
       "import unit_workspace_ignored as ignored",
-      "ignored._effective_uid = lambda: os.geteuid() + 1",
+      "artifacts.effective_uid = lambda: os.geteuid() + 1",
       "paths = ignored.ignored_paths(sys.argv[1])",
       "_, _, report = ignored.inspect_ignored_snapshot_capability(sys.argv[1], paths)",
       "print(json.dumps(report, sort_keys=True))",
