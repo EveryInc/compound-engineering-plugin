@@ -2103,6 +2103,82 @@ describe("ce-work unit workspace controller", () => {
     })
   })
 
+  test("unit verification preserves a newly introduced regenerable root", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, "bun.lock"), "lockfileVersion = 1\n")
+    git(f.repo, "add", "bun.lock")
+    git(f.repo, "commit", "-m", "test: add cold checkout lockfile")
+    f.base = git(f.repo, "rev-parse", "HEAD")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "node_modules/\n")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-cold-artifact-integration"
+    const packet = "cold artifact integration packet"
+    expect(init(runs, runId, f).word).toBe("READY")
+    const prepared = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile(packet),
+    )
+    writeFileSync(path.join(prepared.body.workspace, "integrated.txt"), "integrated\n")
+    const job = fakeDoneJob(runs, runId, "U", packet, "cold-artifact-integration-job")
+    ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U")
+
+    const integrated = ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U",
+      "--commit-message", "feat(test): integrate cold checkout fixture", "--",
+      process.execPath, "-e", "require('node:fs').mkdirSync('node_modules', { recursive: true }); require('node:fs').writeFileSync('node_modules/generated.txt', 'generated')",
+    )
+
+    expect(integrated).toMatchObject({
+      word: "UNIT_COMMITTED",
+      body: {
+        artifact: {
+          schema: "artifact-policy.receipt.v1",
+          outcome: "VERIFIED_WITH_REGENERABLE_DIVERGENCE",
+          bulk_divergence_detected: true,
+          bulk_restored: false,
+        },
+      },
+    })
+    expect(readFileSync(path.join(f.repo, "node_modules", "generated.txt"), "utf8")).toBe("generated")
+  })
+
+  test("plan-wide verification preserves a newly introduced regenerable root", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, "bun.lock"), "lockfileVersion = 1\n")
+    git(f.repo, "add", "bun.lock")
+    git(f.repo, "commit", "-m", "test: add cold checkout lockfile")
+    f.base = git(f.repo, "rev-parse", "HEAD")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "node_modules/\n")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-cold-artifact-verification"
+    createAcceptedRun(runs, runId, f)
+
+    const verified = ctl(
+      runs, "verify-run", "--run-id", runId,
+      "--verification-summary", "cold checkout artifact verification", "--",
+      process.execPath, "-e", "require('node:fs').mkdirSync('node_modules', { recursive: true }); require('node:fs').writeFileSync('node_modules/generated.txt', 'generated')",
+    )
+
+    expect(verified).toMatchObject({
+      word: "RUN_VERIFIED",
+      body: {
+        artifact_outcome: "VERIFIED_WITH_REGENERABLE_DIVERGENCE",
+        repair_actions: [{ owner: "bun", argv: ["bun", "install", "--frozen-lockfile"], runnable: true }],
+      },
+    })
+    expect(readFileSync(path.join(f.repo, "node_modules", "generated.txt"), "utf8")).toBe("generated")
+    expect(ctl(runs, "status", "--run-id", runId).body.verifications.at(-1).artifact).toMatchObject({
+      schema: "artifact-policy.receipt.v1",
+      outcome: "VERIFIED_WITH_REGENERABLE_DIVERGENCE",
+      bulk_divergence_detected: true,
+      bulk_restored: false,
+    })
+  })
+
   test("integrate commits successfully with an over-cap warm root node_modules", () => {
     const f = makeRepo()
     writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "node_modules/\n")

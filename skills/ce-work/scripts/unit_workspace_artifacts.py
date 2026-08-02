@@ -1381,11 +1381,19 @@ def resume_artifact_transaction(journal_path: str) -> dict:
     journal = _load_journal(journal_path)
     if journal.document.get("phase") == "capturing":
         journal = _continue_capture(journal)
-    if journal.document.get("phase") not in {"captured", "restored", "receipted", "complete"}:
+    phase = journal.document.get("phase")
+    if phase not in {"captured", "restored", "receipted", "complete"}:
         raise Operational("UNREADABLE", "artifact journal phase is unsupported")
+    if phase != "captured":
+        return {
+            "phase": phase,
+            "restored_paths": [],
+            "precious_restoration_proven": True,
+            "journal_path": journal.path,
+            "custody_root": journal.document["custody_root"],
+        }
     result = _restore_custody(journal)
-    if journal.document.get("phase") == "captured":
-        journal.set_phase("restored")
+    journal.set_phase("restored")
     result["phase"] = journal.document["phase"]
     return result
 

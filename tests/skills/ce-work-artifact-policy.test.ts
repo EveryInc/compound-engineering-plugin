@@ -427,14 +427,20 @@ describe("ce-work artifact policy module", () => {
 
     const first = probe(repo, { action: "resume", journal: captured.journal_path }).value
     const afterFirst = probe(repo, { action: "fingerprint", paths }).value
+    writeFileSync(path.join(repo, "state", "secret.bin"), "post-restore edit\n")
     const second = probe(repo, { action: "resume", journal: captured.journal_path }).value
-    const afterSecond = probe(repo, { action: "fingerprint", paths }).value
 
     expect(first).toMatchObject({ phase: "restored", precious_restoration_proven: true })
     expect(afterFirst).toEqual(before)
     expect(lstatSync(symlinkPath, { bigint: true }).mtimeNs).toBe(symlinkMtimeBefore)
-    expect(second).toMatchObject({ phase: "restored", precious_restoration_proven: true, restored_paths: [] })
-    expect(afterSecond).toEqual(afterFirst)
+    expect(second).toEqual({
+      phase: "restored",
+      restored_paths: [],
+      precious_restoration_proven: true,
+      journal_path: captured.journal_path,
+      custody_root: captured.custody_root,
+    })
+    expect(readFileSync(path.join(repo, "state", "secret.bin"), "utf8")).toBe("post-restore edit\n")
     expect(lstatSync(path.join(repo, "state")).mode & 0o777).toBe(0o710)
   })
 

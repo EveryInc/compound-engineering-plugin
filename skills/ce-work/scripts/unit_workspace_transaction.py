@@ -452,9 +452,12 @@ def _verify_run_locked(
     )
     test_fault("artifact-after-restore-before-receipt")
     introduced_precious = set(artifact["precious_introduced"])
+    after_regenerable_roots = set(regenerable_roots)
+    if after_classified is not None:
+        after_regenerable_roots.update(regenerable_stat_manifest(after_classified)["roots"])
     after_directory_snapshot = _filtered_directory_snapshot(
         repo,
-        regenerable_roots,
+        after_regenerable_roots,
         introduced_precious,
     )
     comparable_before_directories = {
@@ -504,7 +507,7 @@ def _verify_run_locked(
     restored = semantic_snapshot(repo)
     restored_directory_snapshot = _filtered_directory_snapshot(
         repo,
-        regenerable_roots,
+        after_regenerable_roots,
         introduced_precious,
     )
     if restored != before or restored_directory_snapshot != comparable_before_directories or directory_restore_error:
@@ -818,9 +821,12 @@ def cmd_integrate(args) -> tuple[str, dict]:
             "VERIFIED_WITH_REGENERABLE_DIVERGENCE",
         }
         introduced_precious = set(artifact["precious_introduced"])
+        after_regenerable_roots = set(regenerable_roots)
+        if after_classified is not None:
+            after_regenerable_roots.update(regenerable_stat_manifest(after_classified)["roots"])
         after_directory_snapshot = _filtered_directory_snapshot(
             repo,
-            regenerable_roots,
+            after_regenerable_roots,
             introduced_precious,
         )
         comparable_before_directories = {
@@ -864,7 +870,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
         )
         restored_directory_snapshot = _filtered_directory_snapshot(
             repo,
-            pre_transport_regenerable_roots if verification_failed else regenerable_roots,
+            pre_transport_regenerable_roots if verification_failed else after_regenerable_roots,
             introduced_precious,
         )
         directory_restoration_unproven = (
