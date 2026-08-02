@@ -136,6 +136,11 @@ try:
             set(request["roots"]),
             request["argv"],
         )
+    elif request["action"] == "roots_for_paths":
+        output = sorted(artifacts._roots_for_paths(
+            set(request["paths"]),
+            request["manifests"],
+        ))
     elif request["action"] == "classify_repo":
         rows = policy.classify(artifacts.inventory_artifacts(repo, ignored.ignored_paths(repo)))
         output = [
@@ -373,6 +378,15 @@ describe("ce-work artifact policy module", () => {
       roots: ["node_modules"],
       argv: ["./verify-wrapper"],
     }).value).toMatchObject({ blocked_roots: ["node_modules"], exempt_roots: [] })
+  })
+
+  test("attributes divergent paths only to the most-specific regenerable root", () => {
+    const repo = makeRepo()
+    expect(probe(repo, {
+      action: "roots_for_paths",
+      paths: ["build/cache/output.js"],
+      manifests: [{ roots: { build: {}, "build/cache": {} } }],
+    }).value).toEqual(["build/cache"])
   })
 
   test("post-transport inventory captures paths newly ignored by a tracked rule", () => {

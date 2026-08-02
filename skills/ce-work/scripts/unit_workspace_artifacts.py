@@ -1608,7 +1608,12 @@ def _roots_for_paths(paths: set[str], manifests: Iterable[dict]) -> set[str]:
         for manifest in manifests
         for root in manifest.get("roots", {})
     }
-    return {root for root in roots if any(_path_under(path, root) for path in paths)}
+    affected_roots: set[str] = set()
+    for path in paths:
+        matching_roots = [root for root in roots if _path_under(path, root)]
+        if matching_roots:
+            affected_roots.add(max(matching_roots, key=len))
+    return affected_roots
 
 
 def _unverifiable_referent_roots(manifests: Iterable[dict]) -> set[str]:
