@@ -828,9 +828,10 @@ def _inventory_regenerable_symlink_referent(
                 relative = os.path.relpath(target, referent).replace(os.sep, "/")
                 logical = f"{root}/{relative}"
                 if stat.S_ISLNK(observed.st_mode):
-                    kind = "symlink"
-                    link_target = os.readlink(target)
-                    size = 0
+                    return replace(
+                        root_entry,
+                        referent_manifest=_unverifiable_referent("nested-symlink-referent"),
+                    ), []
                 elif stat.S_ISREG(observed.st_mode):
                     kind = "regular"
                     link_target = None

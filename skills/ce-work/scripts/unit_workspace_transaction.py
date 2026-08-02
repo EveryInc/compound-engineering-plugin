@@ -208,6 +208,7 @@ def _restore_owned_verification(
     before: dict,
     before_paths: set[str],
     after_paths: set[str],
+    precious_restored: set[str],
 ) -> None:
     with locked_manifest(run_id) as doc:
         validate_repo(doc)
@@ -226,7 +227,7 @@ def _restore_owned_verification(
             raise Operational("BLOCKED", "owned verification did not start from the expected transport application")
         if git_text(repo, "rev-parse", "HEAD") != pre["head"]:
             raise Operational("BLOCKED", "verification changed canonical HEAD; refusing automatic restoration")
-        verification_paths = after_paths - before_paths
+        verification_paths = (after_paths - before_paths) - precious_restored
     with locked_manifest(run_id, write=True) as doc:
         doc["units"][unit_id]["state"] = "restoring"
         event(doc, "restore-intent", unit_id, {"source": "controller-owned-verification"})
@@ -551,7 +552,7 @@ def _verify_run_locked(
                     "retain_integration_lock": True,
                 },
             )
-        deletion_paths = after_paths - before_paths
+        deletion_paths = (after_paths - before_paths) - set(artifact["precious_restored"])
         cleaned_paths = sorted(set(cleaned_paths) | deletion_paths)
         git(repo, "reset", "--hard", before["head"])
         created_directories = _new_parent_directories(deletion_paths, before_directories)
@@ -947,7 +948,15 @@ def cmd_integrate(args) -> tuple[str, dict]:
             rollback_directories = (
                 set(restorable_before_directories) - set(target_directory_snapshot)
             )
-            _restore_owned_verification(args.run_id, args.unit_id, token, before, before_paths, after_paths)
+            _restore_owned_verification(
+                args.run_id,
+                args.unit_id,
+                token,
+                before,
+                before_paths,
+                after_paths,
+                set(artifact["precious_restored"]),
+            )
             rollback_snapshot = _filtered_directory_snapshot(
                 repo,
                 introduced_precious,

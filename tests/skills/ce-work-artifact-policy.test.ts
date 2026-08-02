@@ -157,6 +157,13 @@ try:
             {"path": row.entry.path, "class": row.artifact_class, "root": row.rule_root}
             for row in rows
         ]
+    elif request["action"] == "inventory_regenerable_manifest":
+        rows = policy.classify(artifacts.inventory_artifacts(
+            repo,
+            ignored.ignored_paths(repo),
+            [rule.root for rule in policy.regenerable_rules],
+        ))
+        output = artifacts.regenerable_stat_manifest(rows)
     else:
         raise AssertionError("unknown probe action")
     print(json.dumps({"ok": True, "value": output}, sort_keys=True))
@@ -780,5 +787,24 @@ artifacts.capture_artifact_transaction(
       { path: "node_modules/pkg", class: "regenerable", root: "node_modules" },
       { path: "node_modules/pkg/index.js", class: "regenerable", root: "node_modules" },
     ])
+  })
+
+  test("marks a nested regenerable symlink referent unverifiable", () => {
+    const repo = makeRepo()
+    writeFileSync(path.join(repo, "bun.lock"), "lockfileVersion = 1\n")
+    git(repo, "add", "bun.lock")
+    git(repo, "commit", "-m", "test: add regenerable owner")
+    writeFileSync(path.join(repo, ".git", "info", "exclude"), "node_modules\n")
+    const referent = path.join(repo, "shared-dependencies")
+    const outside = tmp("ce-work-external-dependencies-")
+    mkdirSync(referent)
+    symlinkSync(outside, path.join(referent, "external"), "dir")
+    symlinkSync("shared-dependencies", path.join(repo, "node_modules"), "dir")
+
+    const manifest = probe(repo, { action: "inventory_regenerable_manifest" }).value
+    expect(manifest.entries.node_modules.referent_manifest).toEqual({
+      status: "unverifiable",
+      reason: "nested-symlink-referent",
+    })
   })
 })

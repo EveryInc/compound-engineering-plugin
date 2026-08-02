@@ -2066,6 +2066,61 @@ describe("ce-work unit workspace controller", () => {
     })
   })
 
+  test.each(["verify-run", "unit-integration"] as const)(
+    "%s preserves restored precious data when verification removes its tracked ignore rule",
+    (verificationPath) => {
+      const f = makeRepo()
+      writeFileSync(path.join(f.repo, ".gitignore"), "*.precious\n")
+      git(f.repo, "add", ".gitignore")
+      git(f.repo, "commit", "-m", "test: ignore precious fixture")
+      f.base = git(f.repo, "rev-parse", "HEAD")
+      const precious = path.join(f.repo, "existing.precious")
+      writeFileSync(precious, "preserve me\n")
+      const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+      const runId = `run-unignored-precious-${verificationPath}`
+
+      let result: ReturnType<typeof ctl>
+      if (verificationPath === "verify-run") {
+        createAcceptedRun(runs, runId, f)
+        result = ctl(
+          runs, "verify-run", "--run-id", runId,
+          "--verification-summary", "tracked ignore rule changed", "--",
+          "python3", "-c", "from pathlib import Path; Path('existing.precious').write_text('mutated'); Path('.gitignore').write_text('')",
+        )
+      } else {
+        const packet = "unignored precious integration packet"
+        init(runs, runId, f)
+        ctl(
+          runs, "prepare", "--run-id", runId, "--unit-id", "U",
+          "--base", f.base, "--packet", packetFile(packet),
+        )
+        const workspace = path.join(runs, runId, "units", "U", "workspace")
+        writeFileSync(path.join(workspace, "integrated.txt"), "integrated\n")
+        const job = fakeDoneJob(runs, runId, "U", packet)
+        ctl(
+          runs, "record-job", "--run-id", runId, "--unit-id", "U",
+          "--attempt-id", "attempt-1", "--job-id", job,
+        )
+        ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U")
+        result = ctl(
+          runs, "integrate", "--run-id", runId, "--unit-id", "U",
+          "--commit-message", "feat(test): integrate unignored precious fixture", "--",
+          "python3", "-c", "from pathlib import Path; Path('existing.precious').write_text('mutated'); Path('.gitignore').write_text('')",
+        )
+      }
+
+      expect(result.body.cleaned_paths).toContain("existing.precious")
+      const artifact = verificationPath === "verify-run"
+        ? ctl(runs, "status", "--run-id", runId).body.verifications.at(-1).artifact
+        : result.body.artifact
+      expect(artifact).toMatchObject({
+        precious_restored: ["existing.precious"],
+        precious_restoration_proven: true,
+      })
+      expect(readFileSync(precious, "utf8")).toBe("preserve me\n")
+    },
+  )
+
   test("verify-run discloses warm regenerable divergence and proves precious restoration", () => {
     const f = makeRepo()
     writeFileSync(path.join(f.repo, "bun.lock"), "lockfileVersion = 1\n")
