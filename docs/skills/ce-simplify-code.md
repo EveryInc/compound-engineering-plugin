@@ -60,7 +60,7 @@ A single reviewer can find some of these but rarely all. Asking the agent to "re
 
 ## The Solution
 
-`ce-simplify-code` runs three focused reviews, each covering one dimension. It uses parallel subagents when available, sequential subagents when only concurrency is unavailable, and parent-agent passes when dispatch is absent or a non-backpressure launch fails. Inline passes remain distinct lenses, but they are not independent corroboration because they share one context:
+`ce-simplify-code` runs three focused reviews, each covering one dimension. It uses parallel subagents when available and sequential subagents when only concurrency is unavailable. A permission-gated launch asks the user to authorize the remaining reviewers before retrying; absent dispatch, declined permission, or another non-backpressure failure falls back only the affected lenses to the parent agent. Inline passes remain distinct lenses, but they are not independent corroboration because they share one context:
 
 - **Reuse Reviewer** searches for existing utilities the new code duplicates
 - **Quality Reviewer** flags hacky patterns, dead code, context-dependent vocabulary, obsolete pre-release compatibility paths, unnecessary comments, and nested conditionals
