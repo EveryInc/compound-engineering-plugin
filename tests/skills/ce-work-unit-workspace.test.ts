@@ -4086,6 +4086,38 @@ describe("ce-work unit workspace controller", () => {
     }
   })
 
+  test("restores precious custody when regenerable directory inventory fails", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\n")
+    const precious = path.join(f.repo, "existing.verification-cache")
+    writeFileSync(precious, "preserve me\n")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-directory-inventory-failure"
+    createAcceptedRun(runs, runId, f)
+
+    const blocked = ctlWithEnv(
+      runs,
+      { CE_WORK_TEST_FAULT: "artifact-during-directory-inventory" },
+      "verify-run", "--run-id", runId,
+      "--verification-summary", "directory inventory failure", "--",
+      "python3", "-c",
+      "from pathlib import Path; Path('existing.verification-cache').write_text('mutated\\n')",
+    )
+
+    expect(blocked.word).toBe("BLOCKED")
+    expect(readFileSync(precious, "utf8")).toBe("preserve me\n")
+    expect(ctl(runs, "status", "--run-id", runId).body.verifications.at(-1).artifact).toMatchObject({
+      outcome: "BLOCKED_ARTIFACT_OBSERVATION",
+      precious_restoration_proven: true,
+      bulk_observation_complete: false,
+      artifact_observation_error: {
+        word: "INTERRUPTED",
+        detail: { fault_point: "artifact-during-directory-inventory" },
+      },
+      canonical_ignored_state_preserved: false,
+    })
+  })
+
   test.each([
     {
       fault: "artifact-after-reclassify",

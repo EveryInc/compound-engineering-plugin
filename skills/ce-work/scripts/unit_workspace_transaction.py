@@ -497,6 +497,27 @@ def _verify_run_locked(
             regenerable_stat_manifest(after_classified, policy.regenerable_rules)["roots"]
         )
     test_fault("artifact-before-precious-restore")
+    try:
+        test_fault("artifact-during-directory-inventory")
+        directory_manifest = regenerable_directory_stat_manifest(repo, after_regenerable_roots)
+    except Exception as exc:
+        directory_error = {
+            "word": exc.word if isinstance(exc, Operational) else "BLOCKED",
+            "message": str(exc) if isinstance(exc, Operational) else "regenerable directory inventory failed",
+            "detail": exc.detail if isinstance(exc, Operational) else {},
+        }
+        if observation_error is None:
+            observation_error = directory_error
+        else:
+            observation_error = {
+                **observation_error,
+                "message": f"{observation_error['message']}; {directory_error['message']}",
+                "detail": {
+                    "primary": observation_error.get("detail", {}),
+                    "regenerable_directory_inventory": directory_error["detail"],
+                },
+            }
+        directory_manifest = {}
     artifact = settle_artifact_transaction(
         policy,
         journal.path,
@@ -504,7 +525,7 @@ def _verify_run_locked(
         verification_exit,
         command,
         observation_error,
-        regenerable_directory_stat_manifest(repo, after_regenerable_roots),
+        directory_manifest,
     )
     test_fault("artifact-after-restore-before-receipt")
     introduced_precious = set(artifact["precious_introduced"])
@@ -896,6 +917,27 @@ def cmd_integrate(args) -> tuple[str, dict]:
                 regenerable_stat_manifest(after_classified, policy.regenerable_rules)["roots"]
             )
         test_fault("artifact-before-precious-restore")
+        try:
+            test_fault("artifact-during-directory-inventory")
+            directory_manifest = regenerable_directory_stat_manifest(repo, after_regenerable_roots)
+        except Exception as exc:
+            directory_error = {
+                "word": exc.word if isinstance(exc, Operational) else "BLOCKED",
+                "message": str(exc) if isinstance(exc, Operational) else "regenerable directory inventory failed",
+                "detail": exc.detail if isinstance(exc, Operational) else {},
+            }
+            if observation_error is None:
+                observation_error = directory_error
+            else:
+                observation_error = {
+                    **observation_error,
+                    "message": f"{observation_error['message']}; {directory_error['message']}",
+                    "detail": {
+                        "primary": observation_error.get("detail", {}),
+                        "regenerable_directory_inventory": directory_error["detail"],
+                    },
+                }
+            directory_manifest = {}
         artifact = settle_artifact_transaction(
             policy,
             journal.path,
@@ -903,7 +945,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
             verification_exit,
             command,
             observation_error,
-            regenerable_directory_stat_manifest(repo, after_regenerable_roots),
+            directory_manifest,
         )
         test_fault("artifact-after-restore-before-receipt")
         artifact_blocked = artifact["outcome"] not in {
