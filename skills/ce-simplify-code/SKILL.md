@@ -38,7 +38,7 @@ Run code-reuse, code-quality, and efficiency as three distinct review lenses; se
 
 ## Step 3: Fix issues
 
-Wait for all three reviews. Apply worthwhile findings directly; record false positives and low-value findings as skipped without asking the user.
+Proceed only after all three review outcomes are complete, whether returned by subagents or produced inline. Apply worthwhile findings directly; record false positives and low-value findings as skipped without asking the user.
 
 Inspect beyond the resolved scope when needed to evaluate a finding, but edit only that scope and its necessary import/export seams. For a user-named file or directory scope, those seams must also be inside it; skip any fix that would edit outside the mutation boundary.
 
