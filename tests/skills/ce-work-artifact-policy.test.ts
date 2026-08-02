@@ -69,6 +69,7 @@ const PROBE = String.raw`
 import json, sys
 sys.path.insert(0, sys.argv[1])
 import unit_workspace_artifacts as artifacts
+import unit_workspace_ignored as ignored
 
 repo = sys.argv[2]
 request = json.loads(sys.argv[3])
@@ -134,6 +135,12 @@ try:
             set(request["roots"]),
             request["argv"],
         )
+    elif request["action"] == "classify_repo":
+        rows = policy.classify(artifacts.inventory_artifacts(repo, ignored.ignored_paths(repo)))
+        output = [
+            {"path": row.entry.path, "class": row.artifact_class, "root": row.rule_root}
+            for row in rows
+        ]
     else:
         raise AssertionError("unknown probe action")
     print(json.dumps({"ok": True, "value": output}, sort_keys=True))
@@ -353,6 +360,30 @@ describe("ce-work artifact policy module", () => {
       roots: ["node_modules"],
       argv: ["./verify-wrapper"],
     }).value).toMatchObject({ blocked_roots: ["node_modules"], exempt_roots: [] })
+  })
+
+  test("post-transport inventory captures paths newly ignored by a tracked rule", () => {
+    const repo = makeRepo()
+    writeFileSync(path.join(repo, ".gitignore"), "node_modules/\n")
+    git(repo, "add", ".gitignore")
+    git(repo, "commit", "-m", "test: ignore dependencies")
+    mkdirSync(path.join(repo, "node_modules"))
+    writeFileSync(path.join(repo, "node_modules", "dependency.js"), "dependency\n")
+
+    expect(probe(repo, { action: "classify_repo" }).value).toEqual([
+      { path: "node_modules/dependency.js", class: "regenerable", root: "node_modules" },
+    ])
+
+    writeFileSync(path.join(repo, ".gitignore"), "node_modules/\ngenerated/\n")
+    git(repo, "add", ".gitignore")
+    git(repo, "commit", "-m", "transport: ignore generated output")
+    mkdirSync(path.join(repo, "generated"))
+    writeFileSync(path.join(repo, "generated", "cache.bin"), "generated precious\n")
+
+    expect(probe(repo, { action: "classify_repo" }).value).toEqual([
+      { path: "generated/cache.bin", class: "precious", root: null },
+      { path: "node_modules/dependency.js", class: "regenerable", root: "node_modules" },
+    ])
   })
 
   test("restores precious bytes, mode, mtime, symlink payload, and parent mode exactly", () => {

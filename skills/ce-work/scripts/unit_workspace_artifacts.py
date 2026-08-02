@@ -965,6 +965,8 @@ def capture_artifact_transaction(
     policy_digest: str,
     precious_entries: Iterable[ArtifactEntry],
     regenerable_manifest: dict,
+    policy_digest_before_transport: str | None = None,
+    classification_downgrades: Iterable[str] = (),
 ) -> ArtifactTransactionJournal:
     """Create capturing-first custody and advance it durably to captured."""
     repo = os.path.abspath(repo)
@@ -1010,6 +1012,8 @@ def capture_artifact_transaction(
         **identity,
         "repo": repo,
         "policy_digest": policy_digest,
+        "policy_digest_before_transport": policy_digest_before_transport,
+        "classification_downgrades": sorted(classification_downgrades),
         "custody_root": custody_root,
         "journal_path": journal_path,
         "precious_entries": {entry.path: _entry_document(entry) for entry in entries},
@@ -1301,8 +1305,17 @@ def settle_artifact_transaction(
     introduced_precious = sorted(after_precious - before_precious)
     before_manifest = journal.document.get("regenerable_manifest", {})
     after_manifest = regenerable_stat_manifest(after_rows)
-    before_entries = before_manifest.get("entries", {})
-    after_entries = after_manifest.get("entries", {})
+    classification_downgrades = set(journal.document.get("classification_downgrades", []))
+    before_entries = {
+        path: value
+        for path, value in before_manifest.get("entries", {}).items()
+        if path not in classification_downgrades
+    }
+    after_entries = {
+        path: value
+        for path, value in after_manifest.get("entries", {}).items()
+        if path not in classification_downgrades
+    }
     before_paths = set(before_entries)
     after_paths = set(after_entries)
     if observation_error is None:
@@ -1343,6 +1356,13 @@ def settle_artifact_transaction(
             "action": "inspect-artifact-state-before-retry",
             "reason": "post-verification inventory was not trustworthy",
         })
+    if policy.untracked_policy_present:
+        repair_actions.append({
+            "action": "track-artifact-policy",
+            "path": POLICY_PATH,
+            "display": f"git add {POLICY_PATH}",
+            "reason": "working-copy policy is not authoritative until tracked",
+        })
     bulk_diverged = bool(divergent_paths)
     if introduced_precious:
         outcome = "BLOCKED_PRECIOUS_INTRODUCED"
@@ -1364,6 +1384,9 @@ def settle_artifact_transaction(
         "schema": RECEIPT_SCHEMA,
         "outcome": outcome,
         "policy_digest": journal.document.get("policy_digest"),
+        "policy_digest_before_transport": journal.document.get("policy_digest_before_transport"),
+        "policy_digest_authoritative": policy.digest,
+        "classification_downgrades": journal.document.get("classification_downgrades", []),
         "ignored_state_policy": "typed-artifacts-v1",
         "precious_captured": len(before_precious),
         "precious_restored": restoration.get("restored_paths", []),

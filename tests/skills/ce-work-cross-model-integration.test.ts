@@ -5,6 +5,7 @@ import {
   chmodSync,
   mkdtempSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -531,9 +532,19 @@ class FeatureTest(unittest.TestCase):
     )
     expect(integrated.word).toBe("UNIT_COMMITTED")
     expect(integrated.body.canonical_commit).toBe(git(repo, "rev-parse", "HEAD"))
+    expect(integrated.body.artifact).toMatchObject({
+      schema: "artifact-policy.receipt.v1",
+      outcome: "VERIFIED",
+      precious_restoration_proven: true,
+      bulk_restored: false,
+      canonical_ignored_state_preserved: true,
+    })
+    expect(integrated.body).not.toHaveProperty("cleaned")
     expect(git(repo, "status", "--porcelain")).toBe("")
     expect(git(repo, "show", "--format=", "--name-only", "HEAD")).not.toContain("hook-generated.txt")
-    expect(control(runs, "status", "--run-id", "transaction-run", "--unit-id", "U1").body.unit.state).toBe("cleaned")
+    const integratedStatus = control(runs, "status", "--run-id", "transaction-run", "--unit-id", "U1").body.unit
+    expect(integratedStatus.state).toBe("cleaned")
+    expect(integratedStatus.integration.verification.artifact).toMatchObject({ outcome: "VERIFIED" })
     expect(control(runs, "status", "--run-id", "transaction-run").body.integration_lock).toBeNull()
 
     const verified = control(
@@ -585,9 +596,23 @@ class FeatureTest(unittest.TestCase):
     expect(interruptedFinalization.body.reason).toBe("canonical commit accepted but post-commit finalization is incomplete")
     expect(interruptedFinalization.body.retain_integration_lock).toBe(true)
     const acceptedHead = git(repo, "rev-parse", "HEAD")
-    expect(control(runs, "status", "--run-id", "transaction-run").body).toMatchObject({
+    const interruptedStatus = control(runs, "status", "--run-id", "transaction-run").body
+    expect(interruptedStatus).toMatchObject({
       integration_lock: { unit_id: "U2" },
       units: { U2: { state: "committed" } },
+    })
+    const openJournalPath = path.join(
+      runs,
+      "transaction-run",
+      "artifact-custody",
+      readdirSync(path.join(runs, "transaction-run", "artifact-custody")).find(
+        (name) => name.startsWith("U2-") && name.endsWith(".json"),
+      )!,
+    )
+    expect(JSON.parse(readFileSync(openJournalPath, "utf8"))).toMatchObject({
+      phase: "receipted",
+      unit_id: "U2",
+      lock_nonce: interruptedStatus.integration_lock.nonce,
     })
     const resumed = control(runs, "resume", "--run-id", "transaction-run")
     expect(resumed.body.actions.map((action: any) => action.action)).toContain("committed-unit-finalized")
@@ -741,6 +766,8 @@ class FeatureTest(unittest.TestCase):
     git(repo, "commit", "-m", "seed")
     const base = git(repo, "rev-parse", "HEAD")
     const planDigest = createHash("sha256").update(readFileSync(plan)).digest("hex")
+    writeFileSync(path.join(repo, ".git", "info", "exclude"), "precious.cache\n")
+    writeFileSync(path.join(repo, "precious.cache"), "preserve\n")
 
     control(
       runs, "init", "--run-id", "transaction-fail", "--repo", repo, "--plan", plan,
@@ -779,7 +806,7 @@ class FeatureTest(unittest.TestCase):
       runs, "integrate", "--run-id", "transaction-fail", "--unit-id", "U1",
       "--commit-message", "feat(test): must not land",
       "--verification-summary", "expected failure",
-      "--", "python3", "-c", "open('verification-dirt.txt','w').write('dirt'); raise SystemExit(7)",
+      "--", "python3", "-c", "open('precious.cache','w').write('mutated'); open('verification-dirt.txt','w').write('dirt'); raise SystemExit(7)",
     )
     expect(failed.status).not.toBe(0)
     expect(failed.word).toBe("BLOCKED")
@@ -787,8 +814,17 @@ class FeatureTest(unittest.TestCase):
     expect(failed.body.verification_exit).toBe(7)
     expect(git(repo, "rev-parse", "HEAD")).toBe(base)
     expect(git(repo, "status", "--porcelain")).toBe("")
+    expect(readFileSync(path.join(repo, "precious.cache"), "utf8")).toBe("preserve\n")
     const status = control(runs, "status", "--run-id", "transaction-fail").body
     expect(status.units.U1.state).toBe("preserved")
+    expect(status.units.U1.integration.verification).toMatchObject({
+      verification_exit: 7,
+      passed: false,
+      artifact: {
+        outcome: "VERIFICATION_FAILED",
+        precious_restoration_proven: true,
+      },
+    })
     expect(status.integration_lock).toBeNull()
   })
 
@@ -841,6 +877,19 @@ class FeatureTest(unittest.TestCase):
     const status = control(runs, "status", "--run-id", "transaction-restore-fail").body
     expect(status.integration_lock).not.toBeNull()
     expect(status.units.U1.state).toBe("restoring")
+    const openJournal = JSON.parse(readFileSync(path.join(
+      runs,
+      "transaction-restore-fail",
+      "artifact-custody",
+      readdirSync(path.join(runs, "transaction-restore-fail", "artifact-custody")).find(
+        (name) => name.startsWith("U1-") && name.endsWith(".json"),
+      )!,
+    ), "utf8"))
+    expect(openJournal).toMatchObject({
+      phase: "receipted",
+      unit_id: "U1",
+      lock_nonce: status.integration_lock.nonce,
+    })
     const resumed = control(runs, "resume", "--run-id", "transaction-restore-fail")
     expect(resumed.body.actions.map((action: any) => action.action)).toContain("restored")
     const recovered = control(runs, "status", "--run-id", "transaction-restore-fail").body

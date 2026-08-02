@@ -43,7 +43,7 @@ from unit_workspace_artifacts import (
 )
 from unit_workspace_ignored import artifact_path as _artifact_path
 from unit_workspace_ignored import ignored_paths as _ignored_paths
-from unit_workspace_ignored import preflight_ignored_artifacts as _preflight_ignored_artifacts
+from unit_workspace_jobs import find_attempt
 
 
 def _args(**values):
@@ -153,147 +153,6 @@ def _new_parent_directories(paths: set[str], before: set[str]) -> set[str]:
             directories.add(parent)
             parent = os.path.dirname(parent)
     return directories
-
-
-def _snapshot_ignored_artifacts(repo: str, paths: set[str], private_parent: str) -> dict:
-    """Copy bounded ignored regular files to private state without following symlinks."""
-    validate_private_dir(private_parent)
-    planned, directories = _preflight_ignored_artifacts(repo, paths)
-    backup_root = os.path.join(private_parent, f"ignored-snapshot-{secrets.token_hex(8)}")
-    os.mkdir(backup_root, 0o700)
-    validate_private_dir(backup_root)
-    files: dict[str, dict] = {}
-    try:
-        for index, plan in enumerate(planned):
-            rel = plan["rel"]
-            target = plan["target"]
-            before = plan["before"]
-            source_fd = os.open(target, os.O_RDONLY | O_NOFOLLOW)
-            backup = os.path.join(backup_root, f"{index:08d}")
-            backup_fd = os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL | O_NOFOLLOW, 0o600)
-            digest = hashlib.sha256()
-            try:
-                opened = os.fstat(source_fd)
-                if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino) or not stat.S_ISREG(opened.st_mode):
-                    raise Operational("BLOCKED", f"ignored artifact changed while being snapshotted: {rel}")
-                remaining = before.st_size
-                while remaining:
-                    chunk = os.read(source_fd, min(1024 * 1024, remaining))
-                    if not chunk:
-                        raise Operational("BLOCKED", f"ignored artifact changed while being snapshotted: {rel}")
-                    remaining -= len(chunk)
-                    digest.update(chunk)
-                    view = memoryview(chunk)
-                    while view:
-                        written = os.write(backup_fd, view)
-                        view = view[written:]
-                if os.read(source_fd, 1):
-                    raise Operational("BLOCKED", f"ignored artifact changed while being snapshotted: {rel}")
-                finished = os.fstat(source_fd)
-                if (
-                    finished.st_size != before.st_size
-                    or finished.st_mtime_ns != before.st_mtime_ns
-                    or finished.st_ctime_ns != before.st_ctime_ns
-                ):
-                    raise Operational("BLOCKED", f"ignored artifact changed while being snapshotted: {rel}")
-            finally:
-                os.close(source_fd)
-                os.close(backup_fd)
-            files[rel] = {
-                "backup": backup,
-                "digest": digest.hexdigest(),
-                "mode": stat.S_IMODE(before.st_mode),
-                "size": before.st_size,
-            }
-    except Exception:
-        shutil.rmtree(backup_root)
-        raise
-    return {"root": backup_root, "files": files, "directories": directories}
-
-
-def _artifact_matches(target: str, record: dict) -> bool:
-    try:
-        before = os.lstat(target)
-        if not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode):
-            return False
-        fd = os.open(target, os.O_RDONLY | O_NOFOLLOW)
-    except (FileNotFoundError, OSError):
-        return False
-    digest = hashlib.sha256()
-    try:
-        opened = os.fstat(fd)
-        if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino) or not stat.S_ISREG(opened.st_mode):
-            return False
-        while True:
-            chunk = os.read(fd, 1024 * 1024)
-            if not chunk:
-                break
-            digest.update(chunk)
-    finally:
-        os.close(fd)
-    return (
-        before.st_size == record["size"]
-        and stat.S_IMODE(before.st_mode) == record["mode"]
-        and digest.hexdigest() == record["digest"]
-    )
-
-
-def _remove_artifact_entry(path: str) -> None:
-    try:
-        entry = os.lstat(path)
-    except FileNotFoundError:
-        return
-    if stat.S_ISDIR(entry.st_mode) and not stat.S_ISLNK(entry.st_mode):
-        shutil.rmtree(path)
-    else:
-        os.unlink(path)
-
-
-def _restore_ignored_artifacts(repo: str, snapshot: dict) -> set[str]:
-    """Restore snapshotted ignored files and parent directory modes exactly."""
-    repo = os.path.abspath(repo)
-    restored: set[str] = set()
-    for rel, mode in sorted(snapshot["directories"].items(), key=lambda item: item[0].count("/")):
-        directory = _artifact_path(repo, rel)
-        try:
-            entry = os.lstat(directory)
-        except FileNotFoundError:
-            entry = None
-        if entry is not None and (not stat.S_ISDIR(entry.st_mode) or stat.S_ISLNK(entry.st_mode)):
-            _remove_artifact_entry(directory)
-            entry = None
-        if entry is None:
-            os.mkdir(directory, mode)
-        os.chmod(directory, mode, follow_symlinks=False)
-
-    for rel, record in sorted(snapshot["files"].items()):
-        target = _artifact_path(repo, rel)
-        if _artifact_matches(target, record):
-            continue
-        restored.add(rel)
-        _remove_artifact_entry(target)
-        parent = os.path.dirname(target)
-        temporary = os.path.join(parent, f".ce-work-restore-{secrets.token_hex(8)}")
-        source_fd = os.open(record["backup"], os.O_RDONLY | O_NOFOLLOW)
-        target_fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | O_NOFOLLOW, record["mode"])
-        try:
-            while True:
-                chunk = os.read(source_fd, 1024 * 1024)
-                if not chunk:
-                    break
-                view = memoryview(chunk)
-                while view:
-                    written = os.write(target_fd, view)
-                    view = view[written:]
-            os.fchmod(target_fd, record["mode"])
-        finally:
-            os.close(source_fd)
-            os.close(target_fd)
-        os.replace(temporary, target)
-        if not _artifact_matches(target, record):
-            raise Operational("BLOCKED", f"ignored artifact restoration could not be proven: {rel}")
-    shutil.rmtree(snapshot["root"])
-    return restored
 
 
 def _restore_owned_verification(
@@ -456,6 +315,33 @@ def _record_run_verification_receipt(args, attempt_id: str, lock_token: str, rec
                 "reason": "plan-wide verification failed" if receipt["verification_exit"] != 0 else "artifact policy blocked plan-wide verification",
                 "evidence_digest": receipt["evidence_digest"],
             })
+
+
+def _record_failed_unit_verification(
+    args,
+    lock_token: str,
+    evidence_digest: str,
+    verification_exit: int,
+    artifact: dict,
+) -> None:
+    with locked_manifest(args.run_id, write=True) as doc:
+        validate_lock(doc, args.unit_id, lock_token)
+        unit = doc["units"].get(args.unit_id)
+        if not unit or unit.get("state") not in {"integrated", "preserved"}:
+            raise Operational("BLOCKED", "unit verification receipt lost integration ownership")
+        unit["integration"]["verification"] = {
+            "at": now_iso(),
+            "digest": evidence_digest,
+            "summary": args.verification_summary,
+            "verification_exit": verification_exit,
+            "passed": False,
+            "artifact": artifact,
+        }
+        event(doc, "canonical-verification-failed", args.unit_id, {
+            "digest": evidence_digest,
+            "verification_exit": verification_exit,
+            "artifact_outcome": artifact.get("outcome"),
+        })
 
 
 def _verify_run_locked(
@@ -792,9 +678,27 @@ def cmd_integrate(args) -> tuple[str, dict]:
         ))
         with locked_manifest(args.run_id) as doc:
             repo = doc["repository"]["toplevel"]
-            transport = doc["units"][args.unit_id]["transport"]["commit"]
-        _preflight_ignored_artifacts(repo, _ignored_paths(repo))
-        pre_fold_directory_snapshot = _directory_snapshot(repo)
+            unit = doc["units"][args.unit_id]
+            transport = unit["transport"]["commit"]
+            attempt_id = find_attempt(unit)["attempt_id"]
+        pre_transport_policy = ArtifactPolicyModule.load(repo)
+        pre_transport_entries = inventory_artifacts(repo, _ignored_paths(repo))
+        pre_transport_policy.require_entries_eligible(pre_transport_entries, "advisory-integration")
+        pre_transport_classified = pre_transport_policy.classify(pre_transport_entries)
+        pre_transport_precious = {
+            row.entry.path
+            for row in pre_transport_classified
+            if row.artifact_class == "precious"
+        }
+        pre_transport_regenerable_roots = {
+            row.rule_root
+            for row in pre_transport_classified
+            if row.artifact_class == "regenerable" and row.rule_root is not None
+        }
+        pre_fold_directory_snapshot = _filtered_directory_snapshot(
+            repo,
+            pre_transport_regenerable_roots,
+        )
         git(repo, "cherry-pick", "--no-commit", transport)
         cmd_mark_applied(_args(run_id=args.run_id, unit_id=args.unit_id, lock_token=token))
         with locked_manifest(args.run_id) as doc:
@@ -803,15 +707,44 @@ def cmd_integrate(args) -> tuple[str, dict]:
                 raise Operational("BLOCKED", "canonical apply changed before verification")
         before = semantic_snapshot(repo)
         before_paths = status_paths(repo)
-        before_ignored = _ignored_paths(repo)
-        _preflight_ignored_artifacts(repo, before_ignored)
-        before_directory_snapshot = _directory_snapshot(repo)
-        before_directories = set(before_directory_snapshot)
-        ignored_snapshot = _snapshot_ignored_artifacts(
-            repo,
-            before_ignored,
-            os.path.join(run_dir(args.run_id), "units", args.unit_id, "result"),
+        policy = ArtifactPolicyModule.load(repo)
+        before_entries = inventory_artifacts(repo, _ignored_paths(repo))
+        policy.require_entries_eligible(before_entries, "authoritative-integration")
+        before_classified = policy.classify(before_entries)
+        test_fault("artifact-after-reclassify")
+        classified_by_path = {row.entry.path: row for row in before_classified}
+        classification_downgrades = sorted(
+            path
+            for path in pre_transport_precious
+            if path in classified_by_path
+            and classified_by_path[path].artifact_class == "regenerable"
         )
+        precious_capture = {
+            row.entry.path: row.entry
+            for row in before_classified
+            if row.artifact_class == "precious"
+        }
+        for path in pre_transport_precious:
+            row = classified_by_path.get(path)
+            if row is not None:
+                precious_capture[path] = row.entry
+        regenerable_manifest = regenerable_stat_manifest(before_classified)
+        regenerable_roots = set(regenerable_manifest["roots"])
+        journal = capture_artifact_transaction(
+            repo,
+            run_dir(args.run_id),
+            f"{args.unit_id}-{token}",
+            args.unit_id,
+            attempt_id,
+            token,
+            policy.digest,
+            precious_capture.values(),
+            regenerable_manifest,
+            pre_transport_policy.digest,
+            classification_downgrades,
+        )
+        before_directory_snapshot = _filtered_directory_snapshot(repo, regenerable_roots)
+        before_directories = set(before_directory_snapshot)
 
         verification_log, stream = _verification_log(args.run_id, args.unit_id)
         with stream:
@@ -831,21 +764,61 @@ def cmd_integrate(args) -> tuple[str, dict]:
                 verification_exit = 127
         after = semantic_snapshot(repo)
         after_paths = status_paths(repo)
-        new_ignored = _ignored_paths(repo) - before_ignored
-        after_directory_snapshot = _directory_snapshot(repo)
-        new_directories = set(after_directory_snapshot) - before_directories
-        directory_state_changed = after_directory_snapshot != before_directory_snapshot
-        ignored_directories = _new_parent_directories(new_ignored, before_directories)
-        _remove_owned_new_paths(repo, new_ignored | new_directories | ignored_directories, before["head"])
-        restored_ignored = _restore_ignored_artifacts(repo, ignored_snapshot)
-        verification_failed = verification_exit != 0 or after != before
-        target_directory_snapshot = before_directory_snapshot
+        observation_error = None
+        try:
+            after_entries = inventory_artifacts(repo, _ignored_paths(repo))
+            after_classified = policy.classify(after_entries)
+        except Operational as exc:
+            after_classified = None
+            observation_error = {
+                "word": exc.word,
+                "message": str(exc),
+                "detail": exc.detail,
+            }
+        test_fault("artifact-before-precious-restore")
+        artifact = settle_artifact_transaction(
+            policy,
+            journal.path,
+            after_classified,
+            verification_exit,
+            command,
+            observation_error,
+        )
+        test_fault("artifact-after-restore-before-receipt")
+        artifact_blocked = artifact["outcome"] not in {
+            "VERIFIED",
+            "VERIFIED_WITH_REGENERABLE_DIVERGENCE",
+        }
+        introduced_precious = set(artifact["precious_introduced"])
+        after_directory_snapshot = _filtered_directory_snapshot(
+            repo,
+            regenerable_roots,
+            introduced_precious,
+        )
+        comparable_before_directories = {
+            rel: mode
+            for rel, mode in before_directory_snapshot.items()
+            if not _artifact_exempt_directory(rel, set(), introduced_precious)
+        }
+        new_directories = set(after_directory_snapshot) - set(comparable_before_directories)
+        directory_state_changed = after_directory_snapshot != comparable_before_directories
+        _remove_owned_new_paths(repo, new_directories, before["head"])
+        verification_failed = verification_exit != 0 or after != before or artifact_blocked
+        target_directory_snapshot = comparable_before_directories
         rollback_directories: set[str] = set()
         if verification_failed:
-            rollback_directories = set(before_directory_snapshot) - set(pre_fold_directory_snapshot)
+            target_directory_snapshot = {
+                rel: mode
+                for rel, mode in pre_fold_directory_snapshot.items()
+                if not _artifact_exempt_directory(rel, set(), introduced_precious)
+            }
+            rollback_directories = set(comparable_before_directories) - set(target_directory_snapshot)
             _restore_owned_verification(args.run_id, args.unit_id, token, before, before_paths, after_paths)
-            target_directory_snapshot = pre_fold_directory_snapshot
-            rollback_directories |= set(_directory_snapshot(repo)) - set(target_directory_snapshot)
+            rollback_directories |= set(_filtered_directory_snapshot(
+                repo,
+                pre_transport_regenerable_roots,
+                introduced_precious,
+            )) - set(target_directory_snapshot)
             _remove_owned_new_paths(repo, rollback_directories, before["head"])
         directory_restore_error = None
         try:
@@ -856,13 +829,16 @@ def cmd_integrate(args) -> tuple[str, dict]:
             directory_restore_error = str(exc)
         cleaned_paths = sorted(
             (after_paths - before_paths)
-            | new_ignored
             | new_directories
             | rollback_directories
-            | restored_ignored
+            | set(artifact["precious_restored"])
             | restored_directories
         )
-        restored_directory_snapshot = _directory_snapshot(repo)
+        restored_directory_snapshot = _filtered_directory_snapshot(
+            repo,
+            pre_transport_regenerable_roots if verification_failed else regenerable_roots,
+            introduced_precious,
+        )
         directory_restoration_unproven = (
             restored_directory_snapshot != target_directory_snapshot or directory_restore_error
         )
@@ -893,7 +869,26 @@ def cmd_integrate(args) -> tuple[str, dict]:
                 "unit verification directory restoration could not be proven",
                 detail,
             )
+        evidence = digest_bytes(json.dumps({
+            "argv": command,
+            "exit": verification_exit,
+            "log_sha256": log_digest,
+            "before": before,
+            "after": after,
+            "directory_state_changed": directory_state_changed,
+            "cleaned_paths": cleaned_paths,
+            "artifact": artifact,
+        }, sort_keys=True, separators=(",", ":")).encode())
         if verification_failed:
+            _record_failed_unit_verification(
+                args,
+                token,
+                evidence,
+                verification_exit,
+                artifact,
+            )
+            advance_artifact_transaction(journal.path, "receipted")
+            advance_artifact_transaction(journal.path, "complete")
             cmd_integration_release(_args(run_id=args.run_id, unit_id=args.unit_id, lock_token=token))
             token = None
             raise Operational(
@@ -905,30 +900,26 @@ def cmd_integrate(args) -> tuple[str, dict]:
                     "verification_log": verification_log,
                     "canonical_state_changed": after != before,
                     "cleaned_paths": cleaned_paths,
+                    "artifact": artifact,
                 },
             )
-        evidence = digest_bytes(json.dumps({
-            "argv": command,
-            "exit": verification_exit,
-            "log_sha256": log_digest,
-            "before": before,
-            "after": after,
-            "directory_state_changed": directory_state_changed,
-            "cleaned_paths": cleaned_paths,
-        }, sort_keys=True, separators=(",", ":")).encode())
         cmd_mark_verified(_args(
             run_id=args.run_id,
             unit_id=args.unit_id,
             lock_token=token,
             evidence_digest=evidence,
             summary=args.verification_summary,
+            verification_exit=verification_exit,
+            artifact=artifact,
         ))
+        advance_artifact_transaction(journal.path, "receipted")
         test_fault("before-canonical-commit")
         commit_index_tree(repo, args.commit_message)
         committed_body = cmd_mark_committed(_args(run_id=args.run_id, unit_id=args.unit_id, lock_token=token))[1]
         committed = True
         canonical = committed_body["canonical_commit"]["commit"]
         test_fault("after-canonical-commit-confirmed")
+        advance_artifact_transaction(journal.path, "complete")
         with locked_manifest(args.run_id) as doc:
             wave_id = doc["units"][args.unit_id].get("wave", {}).get("id")
         if wave_id:
@@ -953,7 +944,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
             "verification_digest": evidence,
             "verification_log_retained": False,
             "cleaned_paths": cleaned_paths,
-            "cleaned": True,
+            "artifact": artifact,
         }
     except (Operational, TrustFailure) as original:
         if token is not None and committed:

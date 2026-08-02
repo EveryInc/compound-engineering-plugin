@@ -440,7 +440,16 @@ def cmd_mark_verified(args) -> tuple[str, dict]:
                     "reason": "canonical state no longer matches the expected transport application",
                 },
             )
-        evidence = {"at": now_iso(), "digest": args.evidence_digest, "summary": args.summary}
+        evidence = {
+            "at": now_iso(),
+            "digest": args.evidence_digest,
+            "summary": args.summary,
+            "verification_exit": getattr(args, "verification_exit", 0),
+            "passed": True,
+        }
+        artifact = getattr(args, "artifact", None)
+        if artifact is not None:
+            evidence["artifact"] = artifact
         unit["integration"]["verification"] = evidence
         unit["state"] = "verified"
         event(doc, "canonical-verification-passed", args.unit_id, {"digest": args.evidence_digest})
