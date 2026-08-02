@@ -33,6 +33,14 @@ from unit_workspace_lifecycle import (
     plan_wide_verification_attempts,
     receipted_plan_wide_verification,
 )
+from unit_workspace_artifacts import (
+    ArtifactPolicyModule,
+    advance_artifact_transaction,
+    capture_artifact_transaction,
+    inventory_artifacts,
+    regenerable_stat_manifest,
+    settle_artifact_transaction,
+)
 from unit_workspace_ignored import artifact_path as _artifact_path
 from unit_workspace_ignored import ignored_paths as _ignored_paths
 from unit_workspace_ignored import preflight_ignored_artifacts as _preflight_ignored_artifacts
@@ -89,6 +97,26 @@ def _directory_snapshot(repo: str) -> dict[str, int]:
             if stat.S_ISDIR(entry.st_mode) and not stat.S_ISLNK(entry.st_mode):
                 directories[os.path.relpath(path, repo)] = stat.S_IMODE(entry.st_mode)
     return directories
+
+
+def _artifact_exempt_directory(rel: str, regenerable_roots: set[str], precious_paths: set[str]) -> bool:
+    return any(rel == root or rel.startswith(root + "/") for root in regenerable_roots) or any(
+        path == rel or path.startswith(rel + "/")
+        for path in precious_paths
+    )
+
+
+def _filtered_directory_snapshot(
+    repo: str,
+    regenerable_roots: set[str],
+    precious_paths: set[str] | None = None,
+) -> dict[str, int]:
+    precious_paths = precious_paths or set()
+    return {
+        rel: mode
+        for rel, mode in _directory_snapshot(repo).items()
+        if not _artifact_exempt_directory(rel, regenerable_roots, precious_paths)
+    }
 
 
 def _restore_directory_snapshot(repo: str, snapshot: dict[str, int]) -> set[str]:
@@ -410,16 +438,22 @@ def _record_run_verification_receipt(args, attempt_id: str, lock_token: str, rec
             "completed_at": now_iso(),
             "evidence_digest": receipt["evidence_digest"],
         })
-        event(doc, "run-verification-passed" if receipt["verification_exit"] == 0 else "run-verification-failed", None, {
+        artifact = receipt.get("artifact")
+        artifact_passed = not isinstance(artifact, dict) or artifact.get("outcome") in {
+            "VERIFIED",
+            "VERIFIED_WITH_REGENERABLE_DIVERGENCE",
+        }
+        passed = receipt["verification_exit"] == 0 and artifact_passed
+        event(doc, "run-verification-passed" if passed else "run-verification-failed", None, {
             "attempt_id": attempt_id,
             "evidence_digest": receipt["evidence_digest"],
             "verification_exit": receipt["verification_exit"],
         })
-        if receipt["verification_exit"] != 0:
+        if not passed:
             doc["blockers"].append({
                 "at": now_iso(),
                 "unit_id": None,
-                "reason": "plan-wide verification failed",
+                "reason": "plan-wide verification failed" if receipt["verification_exit"] != 0 else "artifact policy blocked plan-wide verification",
                 "evidence_digest": receipt["evidence_digest"],
             })
 
@@ -435,21 +469,33 @@ def _verify_run_locked(
 ) -> tuple[str, dict]:
     before = semantic_snapshot(repo)
     before_paths = status_paths(repo)
-    before_ignored = _ignored_paths(repo)
     if not before["status_empty"] or before_paths:
         raise Operational("BLOCKED", "verify-run requires a clean canonical checkout")
     _validate_accepted_run_head(repo, units, before["head"])
     accepted_units = accepted_unit_commit_snapshot(units)
     if accepted_units is None:
         raise Operational("BLOCKED", "unit completion evidence changed before plan-wide verification")
-    _preflight_ignored_artifacts(repo, before_ignored)
-    before_directory_snapshot = _directory_snapshot(repo)
-    before_directories = set(before_directory_snapshot)
-    ignored_snapshot = _snapshot_ignored_artifacts(
+    policy = ArtifactPolicyModule.load(repo)
+    before_entries = inventory_artifacts(repo, _ignored_paths(repo))
+    policy.require_entries_eligible(before_entries, "authoritative-verification")
+    before_classified = policy.classify(before_entries)
+    test_fault("artifact-after-reclassify")
+    precious_before = [row.entry for row in before_classified if row.artifact_class == "precious"]
+    regenerable_manifest = regenerable_stat_manifest(before_classified)
+    regenerable_roots = set(regenerable_manifest["roots"])
+    journal = capture_artifact_transaction(
         repo,
-        before_ignored,
-        os.path.join(run_dir(args.run_id), "jobs"),
+        run_dir(args.run_id),
+        attempt_id,
+        None,
+        attempt_id,
+        lock_token,
+        policy.digest,
+        precious_before,
+        regenerable_manifest,
     )
+    before_directory_snapshot = _filtered_directory_snapshot(repo, regenerable_roots)
+    before_directories = set(before_directory_snapshot)
 
     verification_log, stream = _run_verification_log(args.run_id)
     with stream:
@@ -480,14 +526,42 @@ def _verify_run_locked(
 
     after = semantic_snapshot(repo)
     after_paths = status_paths(repo)
-    new_ignored = _ignored_paths(repo) - before_ignored
-    after_directory_snapshot = _directory_snapshot(repo)
-    new_directories = set(after_directory_snapshot) - before_directories
-    directory_state_changed = after_directory_snapshot != before_directory_snapshot
-    ignored_directories = _new_parent_directories(new_ignored, before_directories)
-    _remove_owned_new_paths(repo, new_ignored | new_directories | ignored_directories, before["head"])
-    restored_ignored = _restore_ignored_artifacts(repo, ignored_snapshot)
-    cleaned_paths = sorted(new_ignored | new_directories | restored_ignored)
+    observation_error = None
+    try:
+        after_entries = inventory_artifacts(repo, _ignored_paths(repo))
+        after_classified = policy.classify(after_entries)
+    except Operational as exc:
+        after_classified = None
+        observation_error = {
+            "word": exc.word,
+            "message": str(exc),
+            "detail": exc.detail,
+        }
+    test_fault("artifact-before-precious-restore")
+    artifact = settle_artifact_transaction(
+        policy,
+        journal.path,
+        after_classified,
+        verification_exit,
+        command,
+        observation_error,
+    )
+    test_fault("artifact-after-restore-before-receipt")
+    introduced_precious = set(artifact["precious_introduced"])
+    after_directory_snapshot = _filtered_directory_snapshot(
+        repo,
+        regenerable_roots,
+        introduced_precious,
+    )
+    comparable_before_directories = {
+        rel: mode
+        for rel, mode in before_directory_snapshot.items()
+        if not _artifact_exempt_directory(rel, set(), introduced_precious)
+    }
+    new_directories = set(after_directory_snapshot) - set(comparable_before_directories)
+    directory_state_changed = after_directory_snapshot != comparable_before_directories
+    _remove_owned_new_paths(repo, new_directories, before["head"])
+    cleaned_paths = sorted(set(artifact["precious_restored"]) | new_directories)
     if after != before:
         if after["branch_ref"] != before["branch_ref"] or after["head"] != before["head"]:
             with locked_manifest(args.run_id, write=True) as doc:
@@ -511,21 +585,25 @@ def _verify_run_locked(
                     "retain_integration_lock": True,
                 },
             )
-        deletion_paths = (after_paths - before_paths) | new_ignored | new_directories
-        cleaned_paths = sorted(deletion_paths | restored_ignored)
+        deletion_paths = after_paths - before_paths
+        cleaned_paths = sorted(set(cleaned_paths) | deletion_paths)
         git(repo, "reset", "--hard", before["head"])
         created_directories = _new_parent_directories(deletion_paths, before_directories)
         _remove_owned_new_paths(repo, deletion_paths | created_directories, before["head"])
     directory_restore_error = None
     try:
-        restored_directories = _restore_directory_snapshot(repo, before_directory_snapshot)
+        restored_directories = _restore_directory_snapshot(repo, comparable_before_directories)
     except Operational as exc:
         restored_directories = set()
         directory_restore_error = str(exc)
     cleaned_paths = sorted(set(cleaned_paths) | restored_directories)
     restored = semantic_snapshot(repo)
-    restored_directory_snapshot = _directory_snapshot(repo)
-    if restored != before or restored_directory_snapshot != before_directory_snapshot or directory_restore_error:
+    restored_directory_snapshot = _filtered_directory_snapshot(
+        repo,
+        regenerable_roots,
+        introduced_precious,
+    )
+    if restored != before or restored_directory_snapshot != comparable_before_directories or directory_restore_error:
         with locked_manifest(args.run_id, write=True) as doc:
             lock = doc.get("integration_lock") or {}
             blocker = {
@@ -549,6 +627,8 @@ def _verify_run_locked(
             },
         )
 
+    artifact_blocked = artifact["outcome"] not in {"VERIFIED", "VERIFIED_WITH_REGENERABLE_DIVERGENCE"}
+    log_retained = verification_exit != 0 or artifact_blocked
     log_digest = hashlib.sha256(Path(verification_log).read_bytes()).hexdigest()
     receipt = {
         "attempt_id": attempt_id,
@@ -559,13 +639,22 @@ def _verify_run_locked(
         "log_sha256": log_digest,
         "canonical_head": before["head"],
         "accepted_units": accepted_units,
-        "canonical_state_changed": after != before or directory_state_changed,
+        "canonical_state_changed": (
+            after != before
+            or directory_state_changed
+            or artifact["bulk_divergence_detected"]
+            or bool(introduced_precious)
+        ),
         "cleaned_paths": cleaned_paths,
-        "verification_log": verification_log if verification_exit != 0 else None,
-        "verification_log_retained": verification_exit != 0,
+        "verification_log": verification_log if log_retained else None,
+        "verification_log_retained": log_retained,
+        "artifact": artifact,
     }
     receipt["evidence_digest"] = digest_bytes(json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode())
     _record_run_verification_receipt(args, attempt_id, lock_token, receipt)
+    advance_artifact_transaction(journal.path, "receipted")
+    test_fault("artifact-after-receipt-before-release")
+    advance_artifact_transaction(journal.path, "complete")
     if verification_exit != 0:
         raise Operational(
             "BLOCKED",
@@ -577,6 +666,17 @@ def _verify_run_locked(
                 "cleaned_paths": cleaned_paths,
             },
         )
+    if artifact_blocked:
+        raise Operational(
+            "BLOCKED",
+            "artifact policy blocked plan-wide verification",
+            {
+                "outcome": artifact["outcome"],
+                "evidence_digest": receipt["evidence_digest"],
+                "repair_actions": artifact["repair_actions"],
+                "verification_log": verification_log,
+            },
+        )
     os.unlink(verification_log)
     return "RUN_VERIFIED", {
         "verification_exit": 0,
@@ -584,6 +684,9 @@ def _verify_run_locked(
         "canonical_head": before["head"],
         "cleaned_paths": cleaned_paths,
         "verification_log_retained": False,
+        "artifact_outcome": artifact["outcome"],
+        "canonical_ignored_state_preserved": artifact["canonical_ignored_state_preserved"],
+        "repair_actions": artifact["repair_actions"],
     }
 
 

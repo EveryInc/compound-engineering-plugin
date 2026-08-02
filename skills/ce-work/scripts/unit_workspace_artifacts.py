@@ -129,6 +129,7 @@ class RegenerableRule:
 
     root: str
     lifecycle: LifecycleOwner
+    divergence_expected_during_verification: bool = False
 
 
 @dataclass(frozen=True)
@@ -302,9 +303,17 @@ class ArtifactPolicyModule:
                     )
                 repair_argv = tuple(argv)
                 runnable = _repair_argv_allowed(repair_argv)
+                expected_divergence = row.get("divergence_expected_during_verification", False)
+                if not isinstance(expected_divergence, bool):
+                    _refuse(
+                        "policy-regenerable-expected-divergence-invalid",
+                        "divergence_expected_during_verification must be boolean",
+                        root=root,
+                    )
                 rules.append(RegenerableRule(
                     root,
                     LifecycleOwner(owner, repair_argv, "repo-override", runnable, runnable),
+                    expected_divergence,
                 ))
             divergence_mode = document.get("regenerable_divergence", "disclose")
             override_source = f"index:{POLICY_PATH}"
@@ -332,6 +341,7 @@ class ArtifactPolicyModule:
                     "source": rule.lifecycle.source,
                     "runnable": rule.lifecycle.runnable,
                     "verified": rule.lifecycle.verified,
+                    "divergence_expected_during_verification": rule.divergence_expected_during_verification,
                 }
                 for rule in self.regenerable_rules
             ],
@@ -1223,6 +1233,163 @@ def regenerable_stat_manifest(classified: Iterable[ClassifiedEntry]) -> dict:
             "repair_action": row.lifecycle.action(row.rule_root),
         }
     return {"entries": entries, "roots": {key: roots[key] for key in sorted(roots)}}
+
+
+def inventory_artifacts(repo: str, paths: Iterable[str]) -> list[ArtifactEntry]:
+    """Inspect ignored paths into the representation-only policy inventory."""
+    return [artifact_entry(repo, path) for path in sorted(paths)]
+
+
+def _diff_summary(paths: Iterable[str]) -> dict:
+    ordered = sorted(paths)
+    return {"count": len(ordered), "paths": ordered[:OFFENDER_SAMPLE]}
+
+
+def _roots_for_paths(paths: set[str], manifests: Iterable[dict]) -> set[str]:
+    roots = {
+        root
+        for manifest in manifests
+        for root in manifest.get("roots", {})
+    }
+    return {root for root in roots if any(_path_under(path, root) for path in paths)}
+
+
+def regenerable_divergence_decision(
+    policy: ArtifactPolicyModule,
+    affected_roots: set[str],
+    verification_argv: Iterable[str],
+) -> dict:
+    argv = tuple(verification_argv)
+    exempt: set[str] = set()
+    for rule in policy.regenerable_rules:
+        if rule.root not in affected_roots:
+            continue
+        if rule.divergence_expected_during_verification:
+            exempt.add(rule.root)
+            continue
+        repair = rule.lifecycle.repair_argv
+        if (
+            rule.lifecycle.source.startswith("built-in:")
+            and repair
+            and argv[:len(repair)] == repair
+        ):
+            exempt.add(rule.root)
+    return {
+        "affected_roots": sorted(affected_roots),
+        "exempt_roots": sorted(exempt),
+        "blocked_roots": sorted(affected_roots - exempt),
+    }
+
+
+def settle_artifact_transaction(
+    policy: ArtifactPolicyModule,
+    journal_path: str,
+    after_classified: Iterable[ClassifiedEntry] | None,
+    verification_exit: int | None,
+    verification_argv: Iterable[str],
+    observation_error: dict | None = None,
+) -> dict:
+    """Restore precious custody and build truthful artifact receipt fields."""
+    journal = _load_journal(journal_path)
+    after_rows = list(after_classified or [])
+    after_precious = {
+        row.entry.path
+        for row in after_rows
+        if row.artifact_class == "precious"
+    }
+    before_precious = set(journal.document.get("precious_entries", {}))
+    introduced_precious = sorted(after_precious - before_precious)
+    before_manifest = journal.document.get("regenerable_manifest", {})
+    after_manifest = regenerable_stat_manifest(after_rows)
+    before_entries = before_manifest.get("entries", {})
+    after_entries = after_manifest.get("entries", {})
+    before_paths = set(before_entries)
+    after_paths = set(after_entries)
+    if observation_error is None:
+        changed = {
+            path
+            for path in before_paths & after_paths
+            if before_entries[path] != after_entries[path]
+        }
+        deleted = before_paths - after_paths
+        introduced = after_paths - before_paths
+    else:
+        changed = set()
+        deleted = set()
+        introduced = set()
+    divergent_paths = changed | deleted | introduced
+    affected_roots = _roots_for_paths(divergent_paths, (before_manifest, after_manifest))
+    divergence = regenerable_divergence_decision(policy, affected_roots, verification_argv)
+    exempt_roots = set(divergence["exempt_roots"])
+    blocked_roots = set(divergence["blocked_roots"])
+    restoration = resume_artifact_transaction(journal_path)
+    restoration_proven = (
+        restoration.get("precious_restoration_proven") is True
+        and not introduced_precious
+    )
+    repair_actions: list[dict] = []
+    for root in sorted(affected_roots):
+        root_record = after_manifest.get("roots", {}).get(root) or before_manifest.get("roots", {}).get(root)
+        if isinstance(root_record, dict) and isinstance(root_record.get("repair_action"), dict):
+            repair_actions.append(root_record["repair_action"])
+    if introduced_precious:
+        repair_actions.append({
+            "action": "inspect-preserved-introduced-precious-state",
+            "paths": introduced_precious[:OFFENDER_SAMPLE],
+            "reason": "not present at transaction start; controller refused destructive cleanup",
+        })
+    if observation_error is not None:
+        repair_actions.append({
+            "action": "inspect-artifact-state-before-retry",
+            "reason": "post-verification inventory was not trustworthy",
+        })
+    bulk_diverged = bool(divergent_paths)
+    if introduced_precious:
+        outcome = "BLOCKED_PRECIOUS_INTRODUCED"
+    elif not restoration_proven:
+        outcome = "BLOCKED_PRECIOUS_RESTORATION"
+    elif observation_error is not None:
+        outcome = "BLOCKED_ARTIFACT_OBSERVATION"
+    elif verification_exit is None:
+        outcome = "RESUMED_WITH_REGENERABLE_DIVERGENCE" if bulk_diverged else "RESUMED_PRECIOUS_RESTORED"
+    elif verification_exit != 0:
+        outcome = "VERIFICATION_FAILED"
+    elif policy.divergence_mode == "block" and blocked_roots:
+        outcome = "BLOCKED_REGENERABLE_DIVERGENCE"
+    elif bulk_diverged:
+        outcome = "VERIFIED_WITH_REGENERABLE_DIVERGENCE"
+    else:
+        outcome = "VERIFIED"
+    return {
+        "schema": RECEIPT_SCHEMA,
+        "outcome": outcome,
+        "policy_digest": journal.document.get("policy_digest"),
+        "ignored_state_policy": "typed-artifacts-v1",
+        "precious_captured": len(before_precious),
+        "precious_restored": restoration.get("restored_paths", []),
+        "precious_introduced": introduced_precious,
+        "precious_restoration_proven": restoration_proven,
+        "bulk_changed": _diff_summary(changed),
+        "bulk_deleted": _diff_summary(deleted),
+        "bulk_introduced": _diff_summary(introduced),
+        "bulk_divergence_detected": bulk_diverged,
+        "bulk_observation_complete": observation_error is None,
+        "artifact_observation_error": observation_error,
+        "bulk_divergence_blocked": bool(blocked_roots) and policy.divergence_mode == "block",
+        "bulk_divergence_exempt_roots": sorted(exempt_roots),
+        "bulk_restored": False,
+        "canonical_ignored_state_preserved": restoration_proven and not bulk_diverged and observation_error is None,
+        "repair_actions": repair_actions,
+        "journal_path": journal_path,
+    }
+
+
+def advance_artifact_transaction(journal_path: str, phase: str) -> dict:
+    """Advance a durable artifact journal through its settled receipt phases."""
+    journal = _load_journal(journal_path)
+    if journal.document.get("phase") != phase:
+        journal.set_phase(phase)
+    return journal.document
 
 
 def sweep_artifact_custody(run_dir: str) -> dict:

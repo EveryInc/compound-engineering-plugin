@@ -90,6 +90,13 @@ def unfinished_run(doc: dict, canonical_head: str) -> bool:
         return True
     return doc.get("integration_lock") is not None or not any(
         receipt.get("verification_exit") == 0
+        and (
+            not isinstance(receipt.get("artifact"), dict)
+            or receipt["artifact"].get("outcome") in {
+                "VERIFIED",
+                "VERIFIED_WITH_REGENERABLE_DIVERGENCE",
+            }
+        )
         and receipt.get("accepted_units") == accepted_units
         and receipt.get("canonical_head") == canonical_head
         and canonical_head in accepted_units.values()

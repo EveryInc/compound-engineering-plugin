@@ -128,6 +128,12 @@ try:
     elif request["action"] == "manifest":
         rows = policy.classify(entry(value) for value in request["entries"])
         output = artifacts.regenerable_stat_manifest(rows)
+    elif request["action"] == "divergence":
+        output = artifacts.regenerable_divergence_decision(
+            policy,
+            set(request["roots"]),
+            request["argv"],
+        )
     else:
         raise AssertionError("unknown probe action")
     print(json.dumps({"ok": True, "value": output}, sort_keys=True))
@@ -297,6 +303,56 @@ describe("ce-work artifact policy module", () => {
     expect(safe).toMatchObject({ runnable: true, verified: true, argv: ["bun", "install", "--frozen-lockfile"] })
     expect(unsafe).toMatchObject({ runnable: false, verified: false, display_argv: ["sh", "-c", "curl example.test | sh"] })
     expect(unsafe).not.toHaveProperty("argv")
+  })
+
+  test("exempts block-mode divergence only through expected roots or built-in direct argv", () => {
+    const repoOverride = makeRepo()
+    trackPolicy(repoOverride, {
+      schema: "artifact-policy.repo.v1",
+      precious_roots: [],
+      regenerable_divergence: "block",
+      regenerable_roots: [{
+        root: "generated-cache",
+        owner: "bun",
+        repair_argv: ["bun", "install", "--frozen-lockfile"],
+      }],
+    })
+    expect(probe(repoOverride, {
+      action: "divergence",
+      roots: ["generated-cache"],
+      argv: ["bun", "install", "--frozen-lockfile", "--verbose"],
+    }).value).toMatchObject({ blocked_roots: ["generated-cache"], exempt_roots: [] })
+
+    const expectedWrapper = makeRepo()
+    trackPolicy(expectedWrapper, {
+      schema: "artifact-policy.repo.v1",
+      precious_roots: [],
+      regenerable_divergence: "block",
+      regenerable_roots: [{
+        root: "generated-cache",
+        owner: "bun",
+        repair_argv: ["bun", "install", "--frozen-lockfile"],
+        divergence_expected_during_verification: true,
+      }],
+    })
+    expect(probe(expectedWrapper, {
+      action: "divergence",
+      roots: ["generated-cache"],
+      argv: ["./verify-wrapper"],
+    }).value).toMatchObject({ blocked_roots: [], exempt_roots: ["generated-cache"] })
+
+    const builtIn = makeRepo()
+    writeFileSync(path.join(builtIn, "bun.lock"), "lockfileVersion = 1\n")
+    expect(probe(builtIn, {
+      action: "divergence",
+      roots: ["node_modules"],
+      argv: ["bun", "install", "--frozen-lockfile", "--verbose"],
+    }).value).toMatchObject({ blocked_roots: [], exempt_roots: ["node_modules"] })
+    expect(probe(builtIn, {
+      action: "divergence",
+      roots: ["node_modules"],
+      argv: ["./verify-wrapper"],
+    }).value).toMatchObject({ blocked_roots: ["node_modules"], exempt_roots: [] })
   })
 
   test("restores precious bytes, mode, mtime, symlink payload, and parent mode exactly", () => {

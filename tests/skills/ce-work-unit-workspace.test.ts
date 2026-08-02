@@ -163,6 +163,32 @@ function initWithPrompt(
   }
 }
 
+function createAcceptedRun(
+  runsRoot: string,
+  runId: string,
+  fixture: ReturnType<typeof makeRepo>,
+) {
+  const packet = `${runId} packet`
+  expect(init(runsRoot, runId, fixture).word).toBe("READY")
+  expect(ctl(
+    runsRoot, "prepare", "--run-id", runId, "--unit-id", "U",
+    "--base", fixture.base, "--packet", packetFile(packet),
+  ).word).toBe("PREPARED")
+  const workspace = path.join(runsRoot, runId, "units", "U", "workspace")
+  writeFileSync(path.join(workspace, "integrated.txt"), "integrated\n")
+  const job = fakeDoneJob(runsRoot, runId, "U", packet, `${runId}-job`)
+  expect(ctl(
+    runsRoot, "record-job", "--run-id", runId, "--unit-id", "U",
+    "--attempt-id", "attempt-1", "--job-id", job,
+  ).word).toBe("AUTHORING")
+  expect(ctl(runsRoot, "terminalize", "--run-id", runId, "--unit-id", "U").word).toBe("INTEGRATION_PENDING")
+  expect(ctl(
+    runsRoot, "integrate", "--run-id", runId, "--unit-id", "U",
+    "--commit-message", "feat(test): create accepted run fixture",
+    "--", "python3", "-c", "pass",
+  ).word).toBe("UNIT_COMMITTED")
+}
+
 function authorizeDispatch(
   runsRoot: string,
   runId: string,
@@ -1928,7 +1954,7 @@ describe("ce-work unit workspace controller", () => {
     ).word).toBe("RELEASED")
   })
 
-  test("unit and plan-wide verification restore existing ignored artifacts and clean new ones", () => {
+  test("unit and plan-wide verification restore existing ignored artifacts and owned directories", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
     writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\nlocal-cache/\n")
@@ -1976,18 +2002,14 @@ describe("ce-work unit workspace controller", () => {
       runs, "verify-run", "--run-id", "run-ignored-verification",
       "--verification-summary", "ignored plan artifact cleanup",
       "--", "python3", "-c",
-      "from pathlib import Path; Path('existing.verification-cache').unlink(); Path('plan-empty/sub').mkdir(parents=True); p = Path('plan-build/sub/plan.verification-cache'); p.parent.mkdir(parents=True); p.write_text('plan')",
+      "from pathlib import Path; Path('existing.verification-cache').unlink(); Path('plan-empty/sub').mkdir(parents=True)",
     )
     expect(verified.word).toBe("RUN_VERIFIED")
     expect(verified.body.cleaned_paths).toEqual([
       "existing.verification-cache",
-      "plan-build",
-      "plan-build/sub",
-      "plan-build/sub/plan.verification-cache",
       "plan-empty",
       "plan-empty/sub",
     ])
-    expect(existsSync(path.join(f.repo, "plan-build"))).toBe(false)
     expect(existsSync(path.join(f.repo, "plan-empty"))).toBe(false)
     expect(existsSync(path.join(f.repo, "pre-existing-empty"))).toBe(true)
     expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
@@ -1995,12 +2017,14 @@ describe("ce-work unit workspace controller", () => {
       verification_exit: 0,
       cleaned_paths: [
         "existing.verification-cache",
-        "plan-build",
-        "plan-build/sub",
-        "plan-build/sub/plan.verification-cache",
         "plan-empty",
         "plan-empty/sub",
       ],
+      artifact: {
+        outcome: "VERIFIED",
+        precious_restoration_proven: true,
+        canonical_ignored_state_preserved: true,
+      },
     })
 
     const failedPlan = ctl(
@@ -2016,6 +2040,233 @@ describe("ce-work unit workspace controller", () => {
     })
     expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
     expect(readFileSync(path.join(f.repo, "keep.txt"), "utf8")).toBe("keep\n")
+    expect(ctl(runs, "status", "--run-id", "run-ignored-verification").body.verifications.at(-1).artifact).toMatchObject({
+      outcome: "VERIFICATION_FAILED",
+      precious_restoration_proven: true,
+    })
+  })
+
+  test("verify-run discloses warm regenerable divergence and proves precious restoration", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, "bun.lock"), "lockfileVersion = 1\n")
+    git(f.repo, "add", "bun.lock")
+    git(f.repo, "commit", "-m", "test: add bun owner lockfile")
+    f.base = git(f.repo, "rev-parse", "HEAD")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "node_modules/\n*.verification-cache\n")
+    writeFileSync(path.join(f.repo, "existing.verification-cache"), "preserve me\n")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-warm-artifact-verification"
+    createAcceptedRun(runs, runId, f)
+    const dependencies = path.join(f.repo, "node_modules")
+    mkdirSync(dependencies)
+    const oversized = path.join(dependencies, "oversized.bin")
+    writeFileSync(oversized, "")
+    truncateSync(oversized, 64 * 1024 * 1024 + 1)
+    for (let index = 0; index < 513; index += 1) {
+      symlinkSync("oversized.bin", path.join(dependencies, `dependency-${index}`))
+    }
+
+    const verified = ctl(
+      runs, "verify-run", "--run-id", runId,
+      "--verification-summary", "warm artifact policy verification",
+      "--", "python3", "-c",
+      "from pathlib import Path; Path('existing.verification-cache').write_text('mutated'); Path('node_modules/generated.txt').write_text('generated')",
+    )
+
+    expect(verified.word).toBe("RUN_VERIFIED")
+    expect(verified.body).toMatchObject({
+      artifact_outcome: "VERIFIED_WITH_REGENERABLE_DIVERGENCE",
+      canonical_ignored_state_preserved: false,
+      repair_actions: [{
+        root: "node_modules",
+        owner: "bun",
+        argv: ["bun", "install", "--frozen-lockfile"],
+        runnable: true,
+      }],
+    })
+    expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
+    expect(readFileSync(path.join(f.repo, "node_modules", "generated.txt"), "utf8")).toBe("generated")
+    expect(ctl(runs, "status", "--run-id", runId).body.verifications.at(-1)).toMatchObject({
+      verification_exit: 0,
+      artifact: {
+        schema: "artifact-policy.receipt.v1",
+        precious_restoration_proven: true,
+        precious_introduced: [],
+        bulk_divergence_detected: true,
+        bulk_restored: false,
+        canonical_ignored_state_preserved: false,
+      },
+    })
+  })
+
+  test("verify-run records a clean artifact receipt without repair actions", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-clean-artifact-verification"
+    createAcceptedRun(runs, runId, f)
+
+    expect(ctl(
+      runs, "verify-run", "--run-id", runId,
+      "--verification-summary", "clean artifact policy verification",
+      "--", "python3", "-c", "pass",
+    )).toMatchObject({
+      word: "RUN_VERIFIED",
+      body: {
+        artifact_outcome: "VERIFIED",
+        canonical_ignored_state_preserved: true,
+        repair_actions: [],
+      },
+    })
+    expect(ctl(runs, "status", "--run-id", runId).body.verifications.at(-1).artifact).toMatchObject({
+      precious_restoration_proven: true,
+      precious_introduced: [],
+      bulk_divergence_detected: false,
+      bulk_restored: false,
+      canonical_ignored_state_preserved: true,
+      repair_actions: [],
+    })
+  })
+
+  test("verify-run preserves introduced precious state and remains retryable after user cleanup", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "introduced.verification-cache\n")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-introduced-precious-verification"
+    createAcceptedRun(runs, runId, f)
+    const introduced = path.join(f.repo, "introduced.verification-cache")
+
+    const blocked = ctl(
+      runs, "verify-run", "--run-id", runId,
+      "--verification-summary", "introduced precious verification",
+      "--", "python3", "-c", "from pathlib import Path; Path('introduced.verification-cache').write_text('preserve')",
+    )
+
+    expect(blocked).toMatchObject({
+      word: "BLOCKED",
+      body: {
+        outcome: "BLOCKED_PRECIOUS_INTRODUCED",
+        repair_actions: [{
+          action: "inspect-preserved-introduced-precious-state",
+          paths: ["introduced.verification-cache"],
+        }],
+      },
+    })
+    expect(readFileSync(introduced, "utf8")).toBe("preserve")
+    const status = ctl(runs, "status", "--run-id", runId).body
+    expect(status.integration_lock).toBeNull()
+    expect(status.verifications.at(-1)).toMatchObject({
+      verification_exit: 0,
+      artifact: {
+        precious_introduced: ["introduced.verification-cache"],
+        precious_restoration_proven: false,
+        canonical_ignored_state_preserved: false,
+      },
+    })
+
+    rmSync(introduced)
+    expect(ctl(
+      runs, "verify-run", "--run-id", runId,
+      "--verification-summary", "retry after precious cleanup",
+      "--", "python3", "-c", "pass",
+    ).word).toBe("RUN_VERIFIED")
+  })
+
+  test("verify-run blocks regenerable divergence when tracked policy selects block mode", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, "bun.lock"), "lockfileVersion = 1\n")
+    writeFileSync(path.join(f.repo, ".ce-artifact-policy.json"), `${JSON.stringify({
+      schema: "artifact-policy.repo.v1",
+      precious_roots: [],
+      regenerable_roots: [],
+      regenerable_divergence: "block",
+    })}\n`)
+    git(f.repo, "add", "bun.lock", ".ce-artifact-policy.json")
+    git(f.repo, "commit", "-m", "test: select blocking artifact policy")
+    f.base = git(f.repo, "rev-parse", "HEAD")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "node_modules/\n")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-blocked-regenerable-divergence"
+    createAcceptedRun(runs, runId, f)
+    mkdirSync(path.join(f.repo, "node_modules"))
+    writeFileSync(path.join(f.repo, "node_modules", "before.txt"), "before\n")
+
+    const blocked = ctl(
+      runs, "verify-run", "--run-id", runId,
+      "--verification-summary", "blocked regenerable divergence",
+      "--", "python3", "-c", "from pathlib import Path; Path('node_modules/after.txt').write_text('after')",
+    )
+
+    expect(blocked).toMatchObject({
+      word: "BLOCKED",
+      body: {
+        outcome: "BLOCKED_REGENERABLE_DIVERGENCE",
+        repair_actions: [{ root: "node_modules", owner: "bun" }],
+      },
+    })
+    const status = ctl(runs, "status", "--run-id", runId).body
+    expect(status.integration_lock).toBeNull()
+    expect(status.verifications.at(-1).artifact).toMatchObject({
+      outcome: "BLOCKED_REGENERABLE_DIVERGENCE",
+      bulk_divergence_detected: true,
+      bulk_divergence_blocked: true,
+      bulk_restored: false,
+    })
+    expect(ctl(
+      runs, "resume", "--repo", f.repo, "--plan-digest", f.digest,
+    )).toMatchObject({ word: "RESUMED", body: { run_id: runId } })
+  })
+
+  test("expected-divergence policy exempts a script-wrapped install in block mode", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, ".ce-artifact-policy.json"), `${JSON.stringify({
+      schema: "artifact-policy.repo.v1",
+      precious_roots: [],
+      regenerable_divergence: "block",
+      regenerable_roots: [{
+        root: "generated-cache",
+        owner: "bun",
+        repair_argv: ["bun", "install", "--frozen-lockfile"],
+        divergence_expected_during_verification: true,
+      }],
+    })}\n`)
+    writeFileSync(path.join(f.repo, "verify-wrapper.sh"), "#!/bin/sh\nexec bun install --frozen-lockfile\n")
+    chmodSync(path.join(f.repo, "verify-wrapper.sh"), 0o755)
+    git(f.repo, "add", ".ce-artifact-policy.json", "verify-wrapper.sh")
+    git(f.repo, "commit", "-m", "test: add expected divergence wrapper")
+    f.base = git(f.repo, "rev-parse", "HEAD")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "generated-cache/\n")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-expected-wrapper-divergence"
+    createAcceptedRun(runs, runId, f)
+    mkdirSync(path.join(f.repo, "generated-cache"))
+    writeFileSync(path.join(f.repo, "generated-cache", "before.txt"), "before\n")
+    const fakeBin = tmp("ce-work-fake-bin-")
+    writeFileSync(
+      path.join(fakeBin, "bun"),
+      "#!/bin/sh\nprintf generated > generated-cache/after.txt\n",
+    )
+    chmodSync(path.join(fakeBin, "bun"), 0o755)
+
+    const verified = ctlWithEnv(
+      runs,
+      { PATH: `${fakeBin}:${process.env.PATH}` },
+      "verify-run", "--run-id", runId,
+      "--verification-summary", "expected wrapper divergence",
+      "--", "./verify-wrapper.sh",
+    )
+
+    expect(verified).toMatchObject({
+      word: "RUN_VERIFIED",
+      body: {
+        artifact_outcome: "VERIFIED_WITH_REGENERABLE_DIVERGENCE",
+        canonical_ignored_state_preserved: false,
+      },
+    })
+    expect(ctl(runs, "status", "--run-id", runId).body.verifications.at(-1).artifact).toMatchObject({
+      bulk_divergence_detected: true,
+      bulk_divergence_blocked: false,
+      bulk_divergence_exempt_roots: ["generated-cache"],
+    })
   })
 
   test("plan-wide verification restores a preexisting empty ignored directory", () => {
@@ -2266,7 +2517,7 @@ describe("ce-work unit workspace controller", () => {
       `from pathlib import Path; Path(${JSON.stringify(marker)}).write_text('ran')`,
     )
     expect(refused.word).toBe("REFUSED")
-    expect(refused.stderr).toContain("ignored artifact snapshot capability is unavailable")
+    expect(refused.stderr).toContain("artifact policy preflight refused dispatch or verification")
     expect(refused.body.blocking_counts.entry_limit).toBe(1)
     expect(existsSync(marker)).toBe(false)
     expect(ctl(runs, "status", "--run-id", runId).body.integration_lock).toBeNull()
