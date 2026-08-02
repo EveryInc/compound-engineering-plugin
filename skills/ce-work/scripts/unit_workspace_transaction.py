@@ -42,6 +42,7 @@ from unit_workspace_artifacts import (
     regenerable_directory_stat_manifest,
     regenerable_stat_manifest,
     settle_artifact_transaction,
+    sweep_artifact_custody,
 )
 from unit_workspace_ignored import artifact_path as _artifact_path
 from unit_workspace_ignored import ignored_paths as _ignored_paths
@@ -674,6 +675,7 @@ def _verify_run_locked(
                 "verification_log": verification_log,
             },
         )
+    sweep_artifact_custody(run_dir(args.run_id))
     os.unlink(verification_log)
     return "RUN_VERIFIED", {
         "verification_exit": 0,
@@ -1141,6 +1143,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
         ))
         cmd_integration_release(_args(run_id=args.run_id, unit_id=args.unit_id, lock_token=token))
         token = None
+        sweep_artifact_custody(run_dir(args.run_id))
         return "UNIT_COMMITTED", {
             "unit_id": args.unit_id,
             "canonical_commit": canonical,

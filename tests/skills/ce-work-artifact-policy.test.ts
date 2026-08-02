@@ -387,6 +387,23 @@ describe("ce-work artifact policy module", () => {
     }).value).toMatchObject({ blocked_roots: ["node_modules"], exempt_roots: [] })
   })
 
+  test("repository block override shadows built-in divergence exemption for the same root", () => {
+    const repo = makeRepo()
+    writeFileSync(path.join(repo, "package-lock.json"), "{}\n")
+    trackPolicy(repo, {
+      schema: "artifact-policy.repo.v1",
+      precious_roots: [],
+      regenerable_divergence: "block",
+      regenerable_roots: [{ root: "node_modules", owner: "npm", repair_argv: ["npm", "ci"] }],
+    })
+
+    expect(probe(repo, {
+      action: "divergence",
+      roots: ["node_modules"],
+      argv: ["npm", "ci"],
+    }).value).toMatchObject({ blocked_roots: ["node_modules"], exempt_roots: [] })
+  })
+
   test("attributes divergent paths only to the most-specific regenerable root", () => {
     const repo = makeRepo()
     expect(probe(repo, {
@@ -473,6 +490,43 @@ describe("ce-work artifact policy module", () => {
     })
     expect(readFileSync(path.join(repo, "state", "secret.bin"), "utf8")).toBe("post-restore edit\n")
     expect(lstatSync(path.join(repo, "state")).mode & 0o777).toBe(0o710)
+  })
+
+  test("rejects precious symlinks outside repository custody while in-repo symlinks still prove", () => {
+    const repo = makeRepo()
+    const runDir = path.join(tmp("ce-work-artifact-run-"), "run")
+    const outside = tmp("ce-work-artifact-outside-")
+    mkdirSync(runDir, { mode: 0o700 })
+    mkdirSync(path.join(repo, "state"))
+    mkdirSync(path.join(repo, "state", "owned"))
+    symlinkSync(outside, path.join(repo, "state", "external"))
+    symlinkSync("owned", path.join(repo, "state", "internal"))
+    writeFileSync(path.join(repo, ".git", "info", "exclude"), "state/\n")
+
+    expect(probe(repo, {
+      action: "capture",
+      run_dir: runDir,
+      transaction: "txn-external-symlink",
+      unit_id: null,
+      attempt_id: "attempt-external-symlink",
+      lock_nonce: "nonce-external-symlink",
+      paths: ["state/external"],
+    })).toMatchObject({ ok: false, word: "BLOCKED" })
+
+    const internalRunDir = path.join(tmp("ce-work-artifact-run-"), "run")
+    mkdirSync(internalRunDir, { mode: 0o700 })
+    const captured = probe(repo, {
+      action: "capture",
+      run_dir: internalRunDir,
+      transaction: "txn-internal-symlink",
+      unit_id: null,
+      attempt_id: "attempt-internal-symlink",
+      lock_nonce: "nonce-internal-symlink",
+      paths: ["state/internal"],
+    }).value
+    expect(probe(repo, { action: "resume", journal: captured.journal_path }).value).toMatchObject({
+      precious_restoration_proven: true,
+    })
   })
 
   test("writes a capturing journal naming custody before the first custody byte", () => {

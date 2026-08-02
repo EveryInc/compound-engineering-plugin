@@ -1119,6 +1119,24 @@ def _capture_record(repo: str, entry: ArtifactEntry, custody_root: str) -> dict:
     actual = artifact_entry(repo, entry.path)
     if not _entry_identity_matches(entry, actual):
         raise Operational("BLOCKED", "precious symlink changed before custody", {"path": entry.path})
+    try:
+        real_repo = str(Path(repo).resolve(strict=True))
+        referent = str(Path(_safe_repo_path(repo, entry.path)).resolve(strict=True))
+        git_dir = os.path.join(real_repo, ".git")
+        inside_repo = os.path.commonpath([real_repo, referent]) == real_repo
+        inside_git = os.path.commonpath([git_dir, referent]) == git_dir
+    except (OSError, RuntimeError, ValueError):
+        raise Operational(
+            "BLOCKED",
+            "precious symlink referent cannot be proven within repository custody",
+            {"path": entry.path, "reason": "referent-resolution-failed"},
+        )
+    if not inside_repo or referent == real_repo or inside_git:
+        raise Operational(
+            "BLOCKED",
+            "precious symlink referent is outside repository custody",
+            {"path": entry.path, "reason": "referent-outside-safe-repository"},
+        )
     test_fault("artifact-during-precious-capture")
     return {
         "path": entry.path,
@@ -1636,9 +1654,11 @@ def regenerable_divergence_decision(
 ) -> dict:
     argv = tuple(verification_argv)
     exempt: set[str] = set()
+    resolved_roots: set[str] = set()
     for rule in policy.regenerable_rules:
-        if rule.root not in affected_roots:
+        if rule.root not in affected_roots or rule.root in resolved_roots:
             continue
+        resolved_roots.add(rule.root)
         if rule.divergence_expected_during_verification:
             exempt.add(rule.root)
             continue

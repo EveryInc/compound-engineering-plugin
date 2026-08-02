@@ -4118,6 +4118,36 @@ describe("ce-work unit workspace controller", () => {
     })
   })
 
+  test("successful verify-run sweeps completed precious custody while blocked verification retains it", () => {
+    const custodyBackups = (runs: string, runId: string) => {
+      const custodyRoot = path.join(runs, runId, "artifact-custody")
+      return existsSync(custodyRoot)
+        ? readdirSync(custodyRoot).filter((name) => name.endsWith(".custody"))
+        : []
+    }
+
+    const successful = makeRepo()
+    writeFileSync(path.join(successful.repo, ".git", "info", "exclude"), "*.verification-cache\n")
+    writeFileSync(path.join(successful.repo, "existing.verification-cache"), "preserve me\n")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    createAcceptedRun(runs, "run-swept-custody", successful)
+    expect(ctl(
+      runs, "verify-run", "--run-id", "run-swept-custody", "--", "python3", "-c",
+      "from pathlib import Path; Path('existing.verification-cache').write_text('mutated\\n')",
+    ).word).toBe("RUN_VERIFIED")
+    expect(custodyBackups(runs, "run-swept-custody")).toEqual([])
+
+    const blocked = makeRepo()
+    writeFileSync(path.join(blocked.repo, ".git", "info", "exclude"), "*.verification-cache\n")
+    writeFileSync(path.join(blocked.repo, "existing.verification-cache"), "preserve me\n")
+    createAcceptedRun(runs, "run-retained-custody", blocked)
+    expect(ctl(
+      runs, "verify-run", "--run-id", "run-retained-custody", "--", "python3", "-c",
+      "from pathlib import Path; Path('existing.verification-cache').write_text('mutated\\n'); raise SystemExit(7)",
+    ).word).toBe("BLOCKED")
+    expect(custodyBackups(runs, "run-retained-custody")).toHaveLength(1)
+  })
+
   test.each([
     {
       fault: "artifact-after-reclassify",
