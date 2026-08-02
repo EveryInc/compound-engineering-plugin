@@ -1162,6 +1162,7 @@ def _record_matches(repo: str, record: dict) -> bool:
         if record["kind"] == "symlink":
             return (
                 stat.S_ISLNK(observed.st_mode)
+                and observed.st_mtime_ns == record["mtime_ns"]
                 and os.readlink(leaf, dir_fd=parent_fd) == record["link_target"]
             )
         if not (
@@ -1262,6 +1263,12 @@ def _restore_record(repo: str, record: dict, parent_modes: dict[str, int]) -> No
         if record["kind"] == "symlink":
             os.symlink(record["link_target"], temporary, dir_fd=parent_fd)
             staged = True
+            os.utime(
+                temporary,
+                ns=(record["mtime_ns"], record["mtime_ns"]),
+                dir_fd=parent_fd,
+                follow_symlinks=False,
+            )
         else:
             backup = record.get("backup")
             if not isinstance(backup, str):

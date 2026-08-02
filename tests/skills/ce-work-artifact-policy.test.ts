@@ -5,6 +5,7 @@ import {
   existsSync,
   linkSync,
   lstatSync,
+  lutimesSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -396,9 +397,13 @@ describe("ce-work artifact policy module", () => {
     writeFileSync(path.join(repo, "state", "secret.bin"), Buffer.from([0, 255, 1, 2]))
     chmodSync(path.join(repo, "state", "secret.bin"), 0o640)
     utimesSync(path.join(repo, "state", "secret.bin"), 1_700_000_000, 1_700_000_000)
-    symlinkSync("secret.bin", path.join(repo, "state", "current"))
+    const symlinkPath = path.join(repo, "state", "current")
+    const payloadSymlinkPath = path.join(repo, "state", "payload")
+    symlinkSync("secret.bin", symlinkPath)
+    symlinkSync("secret.bin", payloadSymlinkPath)
+    const symlinkMtimeBefore = lstatSync(symlinkPath, { bigint: true }).mtimeNs
     writeFileSync(path.join(repo, ".git", "info", "exclude"), "state/\n")
-    const paths = ["state/secret.bin", "state/current"]
+    const paths = ["state/secret.bin", "state/current", "state/payload"]
     const before = probe(repo, { action: "fingerprint", paths }).value
 
     const captured = probe(repo, {
@@ -412,8 +417,12 @@ describe("ce-work artifact policy module", () => {
     }).value
     writeFileSync(path.join(repo, "state", "secret.bin"), "scribble\n")
     chmodSync(path.join(repo, "state", "secret.bin"), 0o600)
-    unlinkSync(path.join(repo, "state", "current"))
-    symlinkSync("elsewhere", path.join(repo, "state", "current"))
+    unlinkSync(symlinkPath)
+    symlinkSync("secret.bin", symlinkPath)
+    lutimesSync(symlinkPath, 1_600_000_000, 1_600_000_000)
+    expect(lstatSync(symlinkPath, { bigint: true }).mtimeNs).not.toBe(symlinkMtimeBefore)
+    unlinkSync(payloadSymlinkPath)
+    symlinkSync("elsewhere", payloadSymlinkPath)
     chmodSync(path.join(repo, "state"), 0o777)
 
     const first = probe(repo, { action: "resume", journal: captured.journal_path }).value
@@ -423,6 +432,7 @@ describe("ce-work artifact policy module", () => {
 
     expect(first).toMatchObject({ phase: "restored", precious_restoration_proven: true })
     expect(afterFirst).toEqual(before)
+    expect(lstatSync(symlinkPath, { bigint: true }).mtimeNs).toBe(symlinkMtimeBefore)
     expect(second).toMatchObject({ phase: "restored", precious_restoration_proven: true, restored_paths: [] })
     expect(afterSecond).toEqual(afterFirst)
     expect(lstatSync(path.join(repo, "state")).mode & 0o777).toBe(0o710)
