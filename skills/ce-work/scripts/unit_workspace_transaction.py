@@ -36,6 +36,7 @@ from unit_workspace_lifecycle import (
 )
 from unit_workspace_artifacts import (
     ArtifactPolicyModule,
+    _process_start_time,
     advance_artifact_transaction,
     capture_artifact_transaction,
     inventory_artifacts,
@@ -460,16 +461,22 @@ def _verify_run_locked(
             verification_log,
         )
         try:
-            proc = subprocess.run(
+            proc = subprocess.Popen(
                 command,
                 cwd=repo,
                 stdin=subprocess.DEVNULL,
                 stdout=stream,
                 stderr=subprocess.STDOUT,
                 env=sanitized_git_environment({"PYTHONDONTWRITEBYTECODE": "1"}),
-                check=False,
+                start_new_session=True,
             )
-            verification_exit = proc.returncode
+            journal.document["verification_process"] = {
+                "pid": proc.pid,
+                "pgid": proc.pid,
+                "started_at": _process_start_time(proc.pid),
+            }
+            journal.write()
+            verification_exit = proc.wait()
         except OSError as exc:
             stream.write(f"verification launch failed: {exc}\n".encode("utf-8", "replace"))
             verification_exit = 127
@@ -883,16 +890,22 @@ def cmd_integrate(args) -> tuple[str, dict]:
         verification_log, stream = _verification_log(args.run_id, args.unit_id)
         with stream:
             try:
-                proc = subprocess.run(
+                proc = subprocess.Popen(
                     command,
                     cwd=repo,
                     stdin=subprocess.DEVNULL,
                     stdout=stream,
                     stderr=subprocess.STDOUT,
                     env=sanitized_git_environment({"PYTHONDONTWRITEBYTECODE": "1"}),
-                    check=False,
+                    start_new_session=True,
                 )
-                verification_exit = proc.returncode
+                journal.document["verification_process"] = {
+                    "pid": proc.pid,
+                    "pgid": proc.pid,
+                    "started_at": _process_start_time(proc.pid),
+                }
+                journal.write()
+                verification_exit = proc.wait()
             except OSError as exc:
                 stream.write(f"verification launch failed: {exc}\n".encode("utf-8", "replace"))
                 verification_exit = 127

@@ -83,7 +83,7 @@ def _record_retry_base(doc: dict, unit: dict, requested_base: str) -> None:
 
 
 def cmd_prepare(args) -> tuple[str, dict]:
-    uid = safe_id(args.unit_id, "unit id")
+    uid = safe_unit_id(args.unit_id)
     attempt_id = safe_id(args.attempt_id, "attempt id")
     packet_bytes = read_external_packet(args.packet)
     packet_digest = digest_bytes(packet_bytes)

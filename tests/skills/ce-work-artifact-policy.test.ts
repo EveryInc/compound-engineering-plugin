@@ -110,7 +110,7 @@ try:
         output = policy.repair_actions()
     elif request["action"] == "capture":
         rows = [artifacts.artifact_entry(repo, value) for value in request["paths"]]
-        output = artifacts.capture_artifact_transaction(
+        journal = artifacts.capture_artifact_transaction(
             repo,
             request["run_dir"],
             request["transaction"],
@@ -120,7 +120,15 @@ try:
             policy.digest,
             rows,
             request.get("regenerable_manifest", {}),
-        ).document
+        )
+        if request.get("record_verification_process", True):
+            journal.document["verification_process"] = {
+                "pid": 2147483647,
+                "pgid": 2147483647,
+                "started_at": "test:provably-dead",
+            }
+            journal.write()
+        output = journal.document
     elif request["action"] == "resume":
         output = artifacts.resume_artifact_transaction(request["journal"])
     elif request["action"] == "sweep":
@@ -492,6 +500,105 @@ describe("ce-work artifact policy module", () => {
     expect(lstatSync(path.join(repo, "state")).mode & 0o777).toBe(0o710)
   })
 
+  test("fails closed without a recorded verification process and does not restore", () => {
+    const repo = makeRepo()
+    const runDir = path.join(tmp("ce-work-artifact-run-"), "run")
+    mkdirSync(runDir, { mode: 0o700 })
+    writeFileSync(path.join(repo, "secret.bin"), "precious\n")
+    const captured = probe(repo, {
+      action: "capture",
+      run_dir: runDir,
+      transaction: "txn-no-verification-identity",
+      unit_id: null,
+      attempt_id: "attempt-no-verification-identity",
+      lock_nonce: "nonce-no-verification-identity",
+      paths: ["secret.bin"],
+      record_verification_process: false,
+    }).value
+    writeFileSync(path.join(repo, "secret.bin"), "current state\n")
+
+    const result = probe(repo, { action: "resume", journal: captured.journal_path })
+
+    expect(result).toMatchObject({
+      ok: false,
+      word: "BLOCKED",
+      detail: {
+        retain_recovery_state: true,
+        retained_integration_lock: true,
+        operator_handoff: true,
+      },
+    })
+    expect(readFileSync(path.join(repo, "secret.bin"), "utf8")).toBe("current state\n")
+    expect(JSON.parse(readFileSync(captured.journal_path, "utf8"))).toMatchObject({ phase: "captured" })
+  })
+
+  test("restores when the recorded verification process group is provably dead", () => {
+    const repo = makeRepo()
+    const runDir = path.join(tmp("ce-work-artifact-run-"), "run")
+    mkdirSync(runDir, { mode: 0o700 })
+    writeFileSync(path.join(repo, "secret.bin"), "precious\n")
+    const captured = probe(repo, {
+      action: "capture",
+      run_dir: runDir,
+      transaction: "txn-dead-verification-child",
+      unit_id: null,
+      attempt_id: "attempt-dead-verification-child",
+      lock_nonce: "nonce-dead-verification-child",
+      paths: ["secret.bin"],
+    }).value
+    writeFileSync(path.join(repo, "secret.bin"), "scribble\n")
+
+    expect(probe(repo, { action: "resume", journal: captured.journal_path }).value).toMatchObject({
+      phase: "restored",
+      precious_restoration_proven: true,
+    })
+    expect(readFileSync(path.join(repo, "secret.bin"), "utf8")).toBe("precious\n")
+  })
+
+  test("fails closed while a matching verification process group is alive", () => {
+    const repo = makeRepo()
+    const runDir = path.join(tmp("ce-work-artifact-run-"), "run")
+    mkdirSync(runDir, { mode: 0o700 })
+    writeFileSync(path.join(repo, "secret.bin"), "precious\n")
+    const captured = probe(repo, {
+      action: "capture",
+      run_dir: runDir,
+      transaction: "txn-live-verification-child",
+      unit_id: null,
+      attempt_id: "attempt-live-verification-child",
+      lock_nonce: "nonce-live-verification-child",
+      paths: ["secret.bin"],
+    }).value
+    writeFileSync(path.join(repo, "secret.bin"), "current state\n")
+    const journal = JSON.parse(readFileSync(captured.journal_path, "utf8"))
+    journal.verification_process = { pid: 12345, pgid: 12345, started_at: "test:live" }
+    writeFileSync(captured.journal_path, `${JSON.stringify(journal)}\n`)
+    const source = String.raw`
+import json, sys
+sys.path.insert(0, sys.argv[1])
+import unit_workspace_artifacts as artifacts
+artifacts.os.killpg = lambda pgid, signal: None
+artifacts._process_start_time = lambda pid: "test:live"
+try:
+    artifacts.resume_artifact_transaction(sys.argv[2])
+    output = {"ok": True}
+except artifacts.Operational as exc:
+    output = {"ok": False, "word": exc.word, "detail": exc.detail}
+print(json.dumps(output, sort_keys=True))
+`
+    const result = spawnSync(PYTHON, ["-c", source, SCRIPT_DIR, captured.journal_path], {
+      encoding: "utf8",
+    })
+
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: false,
+      word: "BLOCKED",
+      detail: { retain_recovery_state: true, retained_integration_lock: true },
+    })
+    expect(readFileSync(path.join(repo, "secret.bin"), "utf8")).toBe("current state\n")
+  })
+
   test("rejects precious symlinks outside repository custody while in-repo symlinks still prove", () => {
     const repo = makeRepo()
     const runDir = path.join(tmp("ce-work-artifact-run-"), "run")
@@ -709,7 +816,7 @@ print(json.dumps(output, sort_keys=True))
     expect(readFileSync(path.join(outside, "secret.bin"), "utf8")).toBe("outside sentinel\n")
   })
 
-  test("hard kill mid-capture leaves durable referenced custody that resume recovers", async () => {
+  test("hard kill mid-capture leaves durable referenced custody and resume fails closed", async () => {
     const repo = makeRepo()
     const runDir = path.join(tmp("ce-work-artifact-run-"), "run")
     mkdirSync(runDir, { mode: 0o700 })
@@ -753,9 +860,10 @@ artifacts.capture_artifact_transaction(
     expect(journal).toMatchObject({ phase: "capturing", custody_root: expect.any(String) })
     expect(swept.removed).toContain(orphan)
     expect(swept.retained).toContain(custodyRoot)
-    expect(probe(repo, { action: "resume", journal: journalPath }).value).toMatchObject({
-      phase: "restored",
-      precious_restoration_proven: true,
+    expect(probe(repo, { action: "resume", journal: journalPath })).toMatchObject({
+      ok: false,
+      word: "BLOCKED",
+      detail: { retain_recovery_state: true },
     })
     expect(readFileSync(path.join(repo, "secret.bin"))).toEqual(Buffer.alloc(2 * 1024 * 1024, 7))
   })

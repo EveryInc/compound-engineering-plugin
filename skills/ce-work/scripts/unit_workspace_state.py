@@ -47,6 +47,10 @@ DEFAULT_RUNS_ROOT = (
 MAX_JSON_BYTES = 2 * 1024 * 1024
 MAX_PACKET_BYTES = 200_000
 SAFE_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+# unit_workspace_transaction.py composes artifact transaction IDs as
+# "<unit_id>-<48-char token>", which must fit SAFE_ID's 128-character limit.
+ARTIFACT_LOCK_TOKEN_LEN = 48  # Hex characters from secrets.token_hex(24).
+MAX_UNIT_ID_LEN = 128 - 1 - ARTIFACT_LOCK_TOKEN_LEN
 O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
 TERMINAL_PROCESS = {"done", "failed", "timeout", "died-without-result"}
@@ -113,6 +117,17 @@ def safe_id(value: str, label: str) -> str:
     if not SAFE_ID.fullmatch(value) or not value.strip("."):
         raise Operational("REFUSED", f"unsafe {label}: {value!r}")
     return value
+
+
+def safe_unit_id(value: str) -> str:
+    unit_id = safe_id(value, "unit id")
+    if len(unit_id) > MAX_UNIT_ID_LEN:
+        raise Operational(
+            "REFUSED",
+            f"unit id {unit_id!r} is {len(unit_id)} characters; maximum is {MAX_UNIT_ID_LEN} "
+            "so the composed artifact transaction id fits SAFE_ID's 128-character limit",
+        )
+    return unit_id
 
 
 def digest_bytes(data: bytes) -> str:

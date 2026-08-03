@@ -14,6 +14,7 @@ import re
 import secrets
 import shutil
 import stat
+import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Iterable
@@ -59,6 +60,45 @@ def effective_uid() -> int | None:
     """Return the current effective user where the platform exposes one."""
     getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
     return getter() if getter is not None else None
+
+
+def _process_start_time(pid: int) -> str | None:
+    """Return a stable OS process create-time identity, or None when unreadable.
+
+    Callers must treat ``None`` as uncertainty. The fallbacks are best effort so
+    an unavailable process API can only make recovery fail closed.
+    """
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+        return None
+    try:
+        import psutil  # type: ignore[import-not-found]
+
+        return f"psutil:{psutil.Process(pid).create_time():.6f}"
+    except Exception:
+        pass
+    try:
+        with open(f"/proc/{pid}/stat", encoding="utf-8") as handle:
+            stat_fields = handle.read().rsplit(")", 1)[1].split()
+        start_ticks = int(stat_fields[19])
+        with open("/proc/stat", encoding="utf-8") as handle:
+            boot_time = next(
+                int(line.split()[1])
+                for line in handle
+                if line.startswith("btime ")
+            )
+        clock_ticks = int(os.sysconf("SC_CLK_TCK"))
+        return f"linux:{boot_time}:{start_ticks}:{clock_ticks}"
+    except (IndexError, OSError, StopIteration, ValueError):
+        pass
+    try:
+        started_at = subprocess.check_output(
+            ["ps", "-o", "lstart=", "-p", str(pid)],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+        return f"ps:{started_at}" if started_at else None
+    except (OSError, subprocess.SubprocessError):
+        return None
 
 
 def _refuse(reason: str, message: str, **detail: object) -> None:
@@ -1518,6 +1558,36 @@ def _restore_custody(journal: ArtifactTransactionJournal) -> dict:
     }
 
 
+def _verification_child_provably_dead(identity: object) -> bool:
+    """Return True only when the recorded verification process group is dead."""
+    if not isinstance(identity, dict):
+        return False
+    pid = identity.get("pid")
+    pgid = identity.get("pgid")
+    started_at = identity.get("started_at")
+    if (
+        not isinstance(pid, int)
+        or isinstance(pid, bool)
+        or pid <= 0
+        or not isinstance(pgid, int)
+        or isinstance(pgid, bool)
+        or pgid <= 0
+        or not isinstance(started_at, str)
+        or not started_at
+    ):
+        return False
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return True
+    except (OSError, ValueError):
+        return False
+    observed_started_at = _process_start_time(pid)
+    if observed_started_at is None:
+        return False
+    return observed_started_at != started_at
+
+
 def resume_artifact_transaction(journal_path: str) -> dict:
     """Complete interrupted capture and restore precious state idempotently."""
     journal = _load_journal(journal_path)
@@ -1534,6 +1604,19 @@ def resume_artifact_transaction(journal_path: str) -> dict:
             "journal_path": journal.path,
             "custody_root": journal.document["custody_root"],
         }
+    verification_process = journal.document.get("verification_process")
+    if not _verification_child_provably_dead(verification_process):
+        raise Operational(
+            "BLOCKED",
+            "verification child death could not be proven",
+            {
+                "journal": journal.path,
+                "verification_process": verification_process,
+                "retain_recovery_state": True,
+                "retained_integration_lock": True,
+                "operator_handoff": True,
+            },
+        )
     result = _restore_custody(journal)
     journal.set_phase("restored")
     result["phase"] = journal.document["phase"]
@@ -1757,7 +1840,9 @@ def settle_artifact_transaction(
     divergence = regenerable_divergence_decision(policy, affected_roots, verification_argv)
     exempt_roots = set(divergence["exempt_roots"])
     blocked_roots = set(divergence["blocked_roots"])
-    restoration = resume_artifact_transaction(journal_path)
+    restoration = _restore_custody(journal)
+    journal.set_phase("restored")
+    restoration["phase"] = journal.document["phase"]
     restoration_proven = (
         restoration.get("precious_restoration_proven") is True
         and not introduced_precious

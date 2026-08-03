@@ -361,6 +361,26 @@ afterEach(() => {
 })
 
 describe("ce-work unit workspace controller", () => {
+  test("enforces the artifact-safe unit id length at registration", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    expect(init(runs, "run-unit-id-length", f).word).toBe("READY")
+
+    const accepted = ctl(
+      runs, "prepare", "--run-id", "run-unit-id-length", "--unit-id", "u".repeat(79),
+      "--base", f.base, "--packet", packetFile("accepted boundary"),
+    )
+    expect(accepted.word).toBe("PREPARED")
+
+    const refused = ctl(
+      runs, "prepare", "--run-id", "run-unit-id-length", "--unit-id", "u".repeat(80),
+      "--base", f.base, "--packet", packetFile("refused boundary"),
+    )
+    expect(refused.word).toBe("REFUSED")
+    expect(refused.stderr).toContain("is 80 characters; maximum is 79")
+    expect(refused.stderr).toContain("composed artifact transaction id fits SAFE_ID's 128-character limit")
+  })
+
   test("ignores inherited Git repository-selection and index variables", () => {
     const f = makeRepo()
     const decoy = makeRepo()
