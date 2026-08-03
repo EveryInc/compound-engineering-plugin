@@ -55,10 +55,11 @@ By default, the skill writes one pointer-first Markdown document with:
 
 - A flat `ce-handoff/v1` frontmatter index for later discovery
 - The objective and latest user intent
-- Meaningful progress, decisions, constraints, blockers, and verification
-- References to authoritative plans, issues, commits, diffs, docs, and repository files
+- Meaningful progress, decisions, constraints, blockers, verification, and abandoned wrong turns
+- Current-state phrasing that distinguishes complete, in-progress, and not-started work when those differ
+- References to authoritative plans, issues, commits, diffs, docs, and repository files, each saying what is load-bearing there
 - Clear labels for machine-local paths and fragile worktree state
-- Plausible next steps for a receiving agent to consider (exclusive forks as alternatives; related sequential work as one path)
+- Plausible next steps framed as remaining status and dependencies by default; user-requested directives only when asked for; context-loading pointers (what to read) remain welcome
 
 Only managed-store frontmatter has a fixed contract because default discovery depends on it. The body has no closed section schema: the agent may add sections of its own or combine, rename, reorder, and omit the examples to communicate the particular session clearly to the next agent.
 

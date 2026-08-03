@@ -138,6 +138,16 @@ describe("ce-handoff portable runtime contract", () => {
     expect(skill).toMatch(/Plausible next steps.*exclusive forks as alternatives.*related sequential work as one path/i)
   })
 
+  test("create body prefers verifiable status, specific pointers, and residual traps", () => {
+    expect(skill).toMatch(/complete, in progress.*not started/i)
+    expect(skill).toMatch(/Failed approaches already abandoned.*wrong paths the next agent is likely to retry/i)
+    expect(skill).toMatch(/Default the body to ground truth/i)
+    expect(skill).toMatch(/Prefer that status framing over work orders/i)
+    expect(skill).toMatch(/Orientation aids that load context without granting action authority/i)
+    expect(skill).toMatch(/Carry explicit directives only when the user asked/i)
+    expect(skill).toMatch(/name what specifically matters there.*line range when that narrows/i)
+  })
+
   test("creation reports a written artifact rather than claiming a draft is complete", () => {
     expect(skill).toMatch(/final path.*retention.*warnings/i)
     expect(skill).toMatch(/confirming the destination contains the handoff/i)
