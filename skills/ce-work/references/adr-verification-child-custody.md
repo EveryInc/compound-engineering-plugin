@@ -23,6 +23,12 @@ To make that decidable, the verification child is spawned in its own session/pro
 
 Recovery from a fail-closed state is the existing operator handoff (`retain_recovery_state`, retained integration lock) — the same path already used when precious restoration cannot be proven.
 
+The guarantee holds on **every** path that could restore custody, not just interrupted `resume`:
+
+- **Success path.** After `proc.wait()` returns (the session leader exited), the process group is proven empty (`_verification_group_drained`) before restoring — a backgrounded worker still alive in the group fails closed.
+- **Post-spawn persistence failure.** If recording the child identity fails after a successful spawn, the group is killed and reaped and the run fails closed — never left as a launch-failure exit code with a live orphan.
+- **Resume via settlement.** The lifecycle resume path reaches restoration through `settle_artifact_transaction`, not `resume_artifact_transaction`; it passes `require_child_provably_dead=True`, so that entry applies the same liveness gate. Live (non-resume) settlement callers, which have just awaited and drained the child, restore directly.
+
 ## Considered options
 
 - **Terminate the child first, then restore.** Rejected: signalling an arbitrary verification command (a test runner, `npm ci`, a script forking workers) and *proving* it and its descendants are gone is strictly harder than refusing to act; a missed grandchild reintroduces the corruption. Fail-closed is the safe floor. Recording `pgid` keeps this option open later without a schema change.

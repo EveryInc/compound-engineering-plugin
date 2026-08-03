@@ -131,6 +131,15 @@ try:
         output = journal.document
     elif request["action"] == "resume":
         output = artifacts.resume_artifact_transaction(request["journal"])
+    elif request["action"] == "settle_resume":
+        output = artifacts.settle_artifact_transaction(
+            policy,
+            request["journal"],
+            [],
+            None,
+            [],
+            require_child_provably_dead=True,
+        )
     elif request["action"] == "sweep":
         output = artifacts.sweep_artifact_custody(request["run_dir"])
     elif request["action"] == "fingerprint":
@@ -553,6 +562,135 @@ describe("ce-work artifact policy module", () => {
       precious_restoration_proven: true,
     })
     expect(readFileSync(path.join(repo, "secret.bin"), "utf8")).toBe("precious\n")
+  })
+
+  test("resume settlement fails closed without child death proof and restores once provably dead", () => {
+    const repo = makeRepo()
+    const runDir = path.join(tmp("ce-work-artifact-run-"), "run")
+    mkdirSync(runDir, { mode: 0o700 })
+    writeFileSync(path.join(repo, "secret.bin"), "precious\n")
+    const captured = probe(repo, {
+      action: "capture",
+      run_dir: runDir,
+      transaction: "txn-resume-settle-liveness",
+      unit_id: null,
+      attempt_id: "attempt-resume-settle-liveness",
+      lock_nonce: "nonce-resume-settle-liveness",
+      paths: ["secret.bin"],
+      record_verification_process: false,
+    }).value
+    writeFileSync(path.join(repo, "secret.bin"), "current state\n")
+
+    expect(probe(repo, { action: "settle_resume", journal: captured.journal_path })).toMatchObject({
+      ok: false,
+      word: "BLOCKED",
+      detail: {
+        retain_recovery_state: true,
+        retained_integration_lock: true,
+        operator_handoff: true,
+      },
+    })
+    expect(readFileSync(path.join(repo, "secret.bin"), "utf8")).toBe("current state\n")
+
+    const journal = JSON.parse(readFileSync(captured.journal_path, "utf8"))
+    journal.verification_process = {
+      pid: 2147483647,
+      pgid: 2147483647,
+      started_at: "test:provably-dead",
+    }
+    writeFileSync(captured.journal_path, `${JSON.stringify(journal)}\n`)
+
+    expect(probe(repo, { action: "settle_resume", journal: captured.journal_path }).value).toMatchObject({
+      outcome: "RESUMED_PRECIOUS_RESTORED",
+      precious_restoration_proven: true,
+    })
+    expect(readFileSync(path.join(repo, "secret.bin"), "utf8")).toBe("precious\n")
+  })
+
+  test("post-spawn journal failure kills and reaps the verification group", () => {
+    const source = String.raw`
+import json, os, sys, tempfile
+sys.path.insert(0, sys.argv[1])
+import unit_workspace_transaction as transaction
+
+class Journal:
+    path = "/tmp/test-verification-journal"
+    document = {}
+    def write(self):
+        raise OSError("injected journal failure")
+
+journal = Journal()
+try:
+    with tempfile.TemporaryFile() as stream:
+        transaction._run_verification_child(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            os.getcwd(),
+            stream,
+            journal,
+        )
+    output = {"ok": True}
+except transaction.Operational as exc:
+    identity = journal.document.get("verification_process", {})
+    pid = identity.get("pid")
+    try:
+        os.kill(pid, 0)
+        reaped = False
+    except ProcessLookupError:
+        reaped = True
+    output = {"ok": False, "word": exc.word, "detail": exc.detail, "reaped": reaped}
+print(json.dumps(output, sort_keys=True))
+`
+    const result = spawnSync(PYTHON, ["-c", source, SCRIPT_DIR], { encoding: "utf8" })
+
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: false,
+      word: "BLOCKED",
+      reaped: true,
+      detail: { retain_recovery_state: true, retained_integration_lock: true },
+    })
+  })
+
+  test("blocks settlement while verification workers remain after the leader exits", () => {
+    const source = String.raw`
+import json, os, signal, sys, tempfile
+sys.path.insert(0, sys.argv[1])
+import unit_workspace_transaction as transaction
+
+class Journal:
+    path = "/tmp/test-verification-journal"
+    document = {}
+    def write(self):
+        pass
+
+journal = Journal()
+try:
+    with tempfile.TemporaryFile() as stream:
+        transaction._run_verification_child(
+            ["sh", "-c", "sleep 30 &"],
+            os.getcwd(),
+            stream,
+            journal,
+        )
+    output = {"ok": True}
+except transaction.Operational as exc:
+    identity = journal.document.get("verification_process", {})
+    output = {"ok": False, "word": exc.word, "message": str(exc), "detail": exc.detail}
+    try:
+        os.killpg(identity["pgid"], signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+print(json.dumps(output, sort_keys=True))
+`
+    const result = spawnSync(PYTHON, ["-c", source, SCRIPT_DIR], { encoding: "utf8" })
+
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: false,
+      word: "BLOCKED",
+      message: "verification workers still alive after leader exit",
+      detail: { retain_recovery_state: true, retained_integration_lock: true },
+    })
   })
 
   test("fails closed while a matching verification process group is alive", () => {

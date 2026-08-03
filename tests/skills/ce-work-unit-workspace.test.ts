@@ -4056,10 +4056,10 @@ describe("ce-work unit workspace controller", () => {
   test.each([
     { fault: "artifact-after-reclassify", openBeforeResume: 0, receiptExit: undefined },
     { fault: "artifact-during-precious-capture", openBeforeResume: 1, receiptExit: undefined },
-    { fault: "artifact-before-precious-restore", openBeforeResume: 1, receiptExit: null },
+    { fault: "artifact-before-precious-restore", openBeforeResume: 1, receiptExit: null, failsClosed: true },
     { fault: "artifact-after-restore-before-receipt", openBeforeResume: 1, receiptExit: null },
     { fault: "artifact-after-receipt-before-release", openBeforeResume: 1, receiptExit: 0 },
-  ])("resumes artifact crash point $fault exactly once", ({ fault, openBeforeResume, receiptExit }) => {
+  ])("resumes artifact crash point $fault exactly once", ({ fault, openBeforeResume, receiptExit, failsClosed }) => {
     const f = makeRepo()
     writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\n")
     writeFileSync(path.join(f.repo, "existing.verification-cache"), "preserve me\n")
@@ -4081,6 +4081,22 @@ describe("ce-work unit workspace controller", () => {
     expect(stranded.integration_lock).toMatchObject({ unit_id: "U", phase: "held" })
 
     const resumed = ctl(runs, "resume", "--run-id", runId)
+    if (failsClosed) {
+      expect(resumed).toMatchObject({
+        word: "BLOCKED",
+        body: {
+          retain_recovery_state: true,
+          retained_integration_lock: true,
+          operator_handoff: true,
+        },
+      })
+      expect(ctl(runs, "status", "--run-id", runId).body).toMatchObject({
+        integration_lock: { unit_id: "U", phase: "held" },
+        artifact_transactions: [{ phase: "captured" }],
+      })
+      expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("mutated\n")
+      return
+    }
     expect(resumed.word).toBe("RESUMED")
     const recovered = ctl(runs, "status", "--run-id", runId).body
     expect(recovered.artifact_transactions).toEqual([])
@@ -4189,6 +4205,7 @@ describe("ce-work unit workspace controller", () => {
       receipt: "unknown",
       receiptOutcome: "RESUMED_PRECIOUS_RESTORED",
       preciousAtStrand: "mutated\n",
+      failsClosed: true,
     },
     {
       fault: "artifact-after-restore-before-receipt",
@@ -4210,6 +4227,7 @@ describe("ce-work unit workspace controller", () => {
     receipt,
     receiptOutcome,
     preciousAtStrand,
+    failsClosed,
   }) => {
     const f = makeRepo()
     const ignored = path.join(f.repo, "existing.verification-cache")
@@ -4257,6 +4275,22 @@ describe("ce-work unit workspace controller", () => {
     }
 
     const resumed = ctl(runs, "resume", "--run-id", runId)
+    if (failsClosed) {
+      expect(resumed).toMatchObject({
+        word: "BLOCKED",
+        body: {
+          retain_recovery_state: true,
+          retained_integration_lock: true,
+          operator_handoff: true,
+        },
+      })
+      expect(ctl(runs, "status", "--run-id", runId).body).toMatchObject({
+        integration_lock: { unit_id: "U", phase: "held" },
+        artifact_transactions: [{ phase: "captured" }],
+      })
+      expect(readFileSync(ignored, "utf8")).toBe("mutated\n")
+      return
+    }
     expect(resumed.word).toBe("RESUMED")
     const recovered = ctl(runs, "status", "--run-id", runId).body
     expect(recovered.units.U.state).toBe("preserved")

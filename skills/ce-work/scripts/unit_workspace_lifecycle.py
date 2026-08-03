@@ -441,6 +441,7 @@ def _resume_artifact_receipt(run_id: str, transaction: dict) -> dict:
         context.get("argv", []),
         observation_error,
         after_regenerable_directories,
+        require_child_provably_dead=True,
     )
 
 

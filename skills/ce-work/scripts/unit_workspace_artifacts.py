@@ -17,7 +17,7 @@ import stat
 import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, NoReturn
 
 from unit_workspace_state import (
     O_DIRECTORY,
@@ -1588,6 +1588,34 @@ def _verification_child_provably_dead(identity: object) -> bool:
     return observed_started_at != started_at
 
 
+def _verification_group_drained(pgid: object) -> bool:
+    """Return True only when the verification process group is empty."""
+    if not isinstance(pgid, int) or isinstance(pgid, bool) or pgid <= 0:
+        return False
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return True
+    except (OSError, ValueError):
+        return False
+    return False
+
+
+def _raise_verification_child_unproven(journal: ArtifactTransactionJournal) -> NoReturn:
+    verification_process = journal.document.get("verification_process")
+    raise Operational(
+        "BLOCKED",
+        "verification child death could not be proven",
+        {
+            "journal": journal.path,
+            "verification_process": verification_process,
+            "retain_recovery_state": True,
+            "retained_integration_lock": True,
+            "operator_handoff": True,
+        },
+    )
+
+
 def resume_artifact_transaction(journal_path: str) -> dict:
     """Complete interrupted capture and restore precious state idempotently."""
     journal = _load_journal(journal_path)
@@ -1606,17 +1634,7 @@ def resume_artifact_transaction(journal_path: str) -> dict:
         }
     verification_process = journal.document.get("verification_process")
     if not _verification_child_provably_dead(verification_process):
-        raise Operational(
-            "BLOCKED",
-            "verification child death could not be proven",
-            {
-                "journal": journal.path,
-                "verification_process": verification_process,
-                "retain_recovery_state": True,
-                "retained_integration_lock": True,
-                "operator_handoff": True,
-            },
-        )
+        _raise_verification_child_unproven(journal)
     result = _restore_custody(journal)
     journal.set_phase("restored")
     result["phase"] = journal.document["phase"]
@@ -1767,6 +1785,8 @@ def settle_artifact_transaction(
     verification_argv: Iterable[str],
     observation_error: dict | None = None,
     after_regenerable_directories: dict[str, int] | None = None,
+    *,
+    require_child_provably_dead: bool = False,
 ) -> dict:
     """Restore precious custody and build truthful artifact receipt fields."""
     journal = _load_journal(journal_path)
@@ -1774,6 +1794,12 @@ def settle_artifact_transaction(
     if isinstance(recorded_receipt, dict):
         resume_artifact_transaction(journal_path)
         return recorded_receipt
+    if (
+        require_child_provably_dead
+        and journal.document.get("phase") == "captured"
+        and not _verification_child_provably_dead(journal.document.get("verification_process"))
+    ):
+        _raise_verification_child_unproven(journal)
     after_rows = list(after_classified or [])
     after_precious = {
         row.entry.path

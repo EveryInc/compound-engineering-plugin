@@ -7,6 +7,7 @@ import json
 import os
 import secrets
 import shutil
+import signal
 import stat
 import subprocess
 from pathlib import Path
@@ -37,6 +38,7 @@ from unit_workspace_lifecycle import (
 from unit_workspace_artifacts import (
     ArtifactPolicyModule,
     _process_start_time,
+    _verification_group_drained,
     advance_artifact_transaction,
     capture_artifact_transaction,
     inventory_artifacts,
@@ -61,6 +63,79 @@ def _verification_command(args, operation: str = "integrate") -> list[str]:
     if not command or any(not value or "\0" in value for value in command):
         raise Operational("REFUSED", f"{operation} requires a non-empty verification command after --")
     return command
+
+
+def _run_verification_child(command: list[str], repo: str, stream, journal) -> int:
+    try:
+        proc = subprocess.Popen(
+            command,
+            cwd=repo,
+            stdin=subprocess.DEVNULL,
+            stdout=stream,
+            stderr=subprocess.STDOUT,
+            env=sanitized_git_environment({"PYTHONDONTWRITEBYTECODE": "1"}),
+            start_new_session=True,
+        )
+    except OSError as exc:
+        stream.write(f"verification launch failed: {exc}\n".encode("utf-8", "replace"))
+        return 127
+
+    try:
+        pgid = os.getpgid(proc.pid)
+        journal.document["verification_process"] = {
+            "pid": proc.pid,
+            "pgid": pgid,
+            "started_at": _process_start_time(proc.pid),
+        }
+        journal.write()
+        verification_exit = proc.wait()
+    except OSError as exc:
+        termination_errors: list[str] = []
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except OSError as kill_exc:
+            termination_errors.append(str(kill_exc))
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            except OSError as fallback_exc:
+                termination_errors.append(str(fallback_exc))
+        try:
+            proc.wait()
+        except OSError as wait_exc:
+            termination_errors.append(str(wait_exc))
+        raise Operational(
+            "BLOCKED",
+            "verification child identity could not be durably persisted",
+            {
+                "journal": journal.path,
+                "verification_process": journal.document.get("verification_process"),
+                "persistence_error": str(exc),
+                "termination_errors": termination_errors,
+                "retain_recovery_state": True,
+                "retained_integration_lock": True,
+                "retain_integration_lock": True,
+                "operator_handoff": True,
+            },
+        ) from exc
+
+    if not _verification_group_drained(pgid):
+        raise Operational(
+            "BLOCKED",
+            "verification workers still alive after leader exit",
+            {
+                "journal": journal.path,
+                "verification_process": journal.document.get("verification_process"),
+                "retain_recovery_state": True,
+                "retained_integration_lock": True,
+                "retain_integration_lock": True,
+                "operator_handoff": True,
+            },
+        )
+    return verification_exit
 
 
 def _remove_owned_new_paths(repo: str, paths: set[str], pre_head: str) -> None:
@@ -460,26 +535,7 @@ def _verify_run_locked(
             before,
             verification_log,
         )
-        try:
-            proc = subprocess.Popen(
-                command,
-                cwd=repo,
-                stdin=subprocess.DEVNULL,
-                stdout=stream,
-                stderr=subprocess.STDOUT,
-                env=sanitized_git_environment({"PYTHONDONTWRITEBYTECODE": "1"}),
-                start_new_session=True,
-            )
-            journal.document["verification_process"] = {
-                "pid": proc.pid,
-                "pgid": proc.pid,
-                "started_at": _process_start_time(proc.pid),
-            }
-            journal.write()
-            verification_exit = proc.wait()
-        except OSError as exc:
-            stream.write(f"verification launch failed: {exc}\n".encode("utf-8", "replace"))
-            verification_exit = 127
+        verification_exit = _run_verification_child(command, repo, stream, journal)
     test_fault("verify-run-before-receipt")
 
     after = semantic_snapshot(repo)
@@ -889,26 +945,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
 
         verification_log, stream = _verification_log(args.run_id, args.unit_id)
         with stream:
-            try:
-                proc = subprocess.Popen(
-                    command,
-                    cwd=repo,
-                    stdin=subprocess.DEVNULL,
-                    stdout=stream,
-                    stderr=subprocess.STDOUT,
-                    env=sanitized_git_environment({"PYTHONDONTWRITEBYTECODE": "1"}),
-                    start_new_session=True,
-                )
-                journal.document["verification_process"] = {
-                    "pid": proc.pid,
-                    "pgid": proc.pid,
-                    "started_at": _process_start_time(proc.pid),
-                }
-                journal.write()
-                verification_exit = proc.wait()
-            except OSError as exc:
-                stream.write(f"verification launch failed: {exc}\n".encode("utf-8", "replace"))
-                verification_exit = 127
+            verification_exit = _run_verification_child(command, repo, stream, journal)
         after = semantic_snapshot(repo)
         after_paths = status_paths(repo)
         observation_error = None
