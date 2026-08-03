@@ -24,7 +24,7 @@ It is explicit-invocation only (`disable-model-invocation: true`) so it never ru
 Compound Engineering has two kinds of setup:
 
 - **Repo-local state** that should be consistent and safe: the committed config example, the optional machine-local config file, and `.gitignore` coverage for local settings.
-- **Optional external tools** used by specific workflows: `agent-browser` for browser testing/polish, `gh` for GitHub workflows, `jq` for shell JSON inspection, `ast-grep` for structural code search, and `ffmpeg` for Riffrec media analysis.
+- **Optional external tools** used by specific workflows: `agent-browser` for browser testing/polish, `chrome-devtools-mcp` for Chrome DevTools network/console/performance/Lighthouse/heap inspection alongside `agent-browser`, `gh` for GitHub workflows, `jq` for shell JSON inspection, `ast-grep` for structural code search, and `ffmpeg` for Riffrec media analysis.
 
 Those are different concerns. Missing optional tools should not make the whole plugin feel broken.
 
@@ -45,6 +45,7 @@ Those are different concerns. Missing optional tools should not make the whole p
 | Tool | Capability |
 |------|------------|
 | `agent-browser` | Browser testing, dogfood QA, and visual polish inspection |
+| `chrome-devtools-mcp` | Network inspection, console filtering, performance traces (LCP/INP/CLS), Lighthouse audits, heap snapshots — alongside `agent-browser` |
 | `gh` | GitHub PR, issue, and review workflows |
 | `jq` | JSON inspection in shell-based workflows |
 | `ast-grep` | Syntax-aware structural code search |
@@ -97,13 +98,46 @@ Skip it when:
 
 ---
 
+## chrome-devtools-mcp (Optional Phase)
+
+### The Problem
+
+`agent-browser` is excellent at navigation and interaction (real keystrokes for React controlled inputs, persistent sessions, fast CLI ergonomics) but cannot inspect network requests, filter console messages by type, run Chrome DevTools performance traces (LCP/INP/CLS), run Lighthouse audits, take heap snapshots, emulate devices, or manage multiple tabs. Browser-driven skills that need those capabilities have no path to them through `agent-browser` alone.
+
+A second tool — `chrome-devtools-mcp` — covers exactly those capabilities. But two gotchas make wiring it in non-obvious:
+
+1. **Shared Chrome.** `chrome-devtools-mcp` is an MCP server that speaks the Chrome DevTools Protocol. Rather than spawning its own browser, it connects to a Chrome launched with `--remote-debugging-port=9222`. `agent-browser` connects to the same Chrome via `agent-browser connect 9222`. The two then share tabs, auth, cookies, and state — they are co-equal clients of one browser, not competing stacks.
+2. **Node version.** `chrome-devtools-mcp` requires Node >= 20.19. Many projects pin an older Node via `.nvmrc`, and `npx` inherits whichever Node is on `PATH`, so an MCP server launched via `npx` silently fails to start.
+
+### The Solution
+
+The chrome-devtools-mcp phase runs a readiness script (`scripts/install-chrome-devtools-mcp`) that:
+
+- Detects the active `node` version; if < 20.19, scans nvm/asdf/common system paths for a compatible Node and resolves its absolute path.
+- Locates the `chrome-devtools-mcp` package (npx cache > global install > PATH shim); if missing and the user accepted setup, installs it globally and re-resolves.
+- Checks the opencode config for an existing `chrome-devtools` MCP entry; flags it stale if the `command` array lacks `--browserUrl=http://localhost:9222`.
+
+On the user's acceptance, it installs the package and writes a non-destructive `chrome-devtools` entry under `mcp` in `~/.config/opencode/opencode.json` (or `.jsonc`), using the absolute Node path and the absolute `chrome-devtools-mcp.js` entrypoint — never `npx -y chrome-devtools-mcp`. Existing MCP entries (`mcp-atlassian`, `figma`, etc.) are preserved. For `.jsonc`, a brace-balanced text merge preserves `//` comments.
+
+It then prints the Chrome launch instructions (`scripts/launch-chrome-debug`) so the user starts the shared Chrome before running browser-driven skills.
+
+### What It Does Not Do
+
+- It does not launch Chrome automatically — the user controls when the shared Chrome runs; some setups use a different machine or a remote Chrome.
+- It does not make `chrome-devtools-mcp` required. Browser-driven skills (`ce-test-browser`, `ce-dogfood`, `ce-polish`) degrade to `agent-browser`-only with a one-line log when `chrome-devtools-mcp` is unavailable.
+- It does not replace `agent-browser` as the primary driver. `chrome-devtools-mcp` is the complementary inspector; `agent-browser` remains the driver for navigation and interaction.
+
+---
+
 ## Reference
 
 | Phase | Step |
 |-------|------|
 | Diagnose | Determine plugin version, run health check, report optional capabilities and project config |
 | Fix | Remove obsolete local config, refresh example config, create local config if wanted, ensure gitignore safety |
-| Summary | Report fixes applied, skipped actions, and missing optional tools |
+| Atlassian MCP (optional) | Run readiness check, collect/export Jira credentials, write `mcp-atlassian` opencode entry |
+| chrome-devtools-mcp (optional) | Run readiness check, resolve a compatible Node (>= 20.19), install/configure the `chrome-devtools` opencode entry pointed at a shared Chrome on :9222 |
+| Summary | Report fixes applied, skipped actions, Atlassian and chrome-devtools status, and missing optional tools |
 
 ---
 
@@ -125,5 +159,5 @@ Yes. When the bundled health script is not directly runnable, the skill falls ba
 
 ## See Also
 
-- [`/ce-test-browser`](./ce-test-browser.md) — uses `agent-browser` when no capable host-native browser is available
-- [`/ce-dogfood`](./ce-dogfood.md) — uses `agent-browser` for diff-scoped QA
+- [`/ce-test-browser`](./ce-test-browser.md) — uses `agent-browser` as the primary driver, with `chrome-devtools-mcp` as the complementary inspector when available
+- [`/ce-dogfood`](./ce-dogfood.md) — uses the hybrid driver (`agent-browser` + `chrome-devtools-mcp`) for diff-scoped QA

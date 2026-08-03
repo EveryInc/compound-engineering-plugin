@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+# Launch (or detect) a Chrome instance with remote debugging on port 9222 so
+# that agent-browser (via `agent-browser connect 9222`) and chrome-devtools-mcp
+# (via --browserUrl=http://localhost:9222) share the same browser: tabs, auth,
+# cookies, localStorage, and history.
+#
+# Idempotent: if :9222 is already answering, prints "already running" and
+# exits 0. Uses a dedicated profile dir so the user's normal browsing profile
+# is untouched and auth/cookies stay scoped to the debug instance.
+
+set -o pipefail
+
+PORT="9222"
+PROFILE_DIR="$HOME/.compound-engineering/chrome-debug-profile"
+LOG_FILE="/tmp/ce-chrome-debug.log"
+
+# =====================================================
+#  Helpers
+# =====================================================
+
+ok()     { echo "  🟢  $1"; }
+warn()   { echo "  🟡  $1"; }
+detail() { echo "       $1"; }
+
+# =====================================================
+#  Idempotency: is :9222 already up?
+# =====================================================
+
+if command -v curl >/dev/null 2>&1; then
+  if curl -s --max-time 2 "http://localhost:${PORT}/json/version" >/dev/null 2>&1; then
+    ok "Chrome debug instance already running on :${PORT}"
+    if command -v jq >/dev/null 2>&1; then
+      ws=$(curl -s --max-time 2 "http://localhost:${PORT}/json/version" 2>/dev/null | jq -r '.webSocketDebuggerUrl // empty' 2>/dev/null)
+      [ -n "$ws" ] && detail "webSocketDebuggerUrl: $ws"
+    fi
+    detail "agent-browser connect ${PORT}"
+    detail "chrome-devtools-mcp uses --browserUrl=http://localhost:${PORT} (from opencode config)"
+    exit 0
+  fi
+fi
+
+# =====================================================
+#  Detect the Chrome binary
+# =====================================================
+
+os=$(uname -s)
+chrome_bin=""
+
+case "$os" in
+  Darwin)
+    for candidate in \
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+      "/Applications/Chromium.app/Contents/MacOS/Chromium" \
+      "$HOME/.cache/chrome-for-testing/"*/chrome-mac*/"Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"; do
+      if [ -x "$candidate" ]; then
+        chrome_bin="$candidate"
+        break
+      fi
+    done
+    ;;
+  Linux)
+    for candidate in google-chrome google-chrome-stable chromium chromium-browser; do
+      if command -v "$candidate" >/dev/null 2>&1; then
+        chrome_bin=$(command -v "$candidate")
+        break
+      fi
+    done
+    ;;
+  MINGW*|MSYS*|CYGWIN*)
+    for candidate in \
+      "/c/Program Files/Google/Chrome/Application/chrome.exe" \
+      "/c/Program Files (x86)/Google/Chrome/Application/chrome.exe"; do
+      if [ -x "$candidate" ]; then
+        chrome_bin="$candidate"
+        break
+      fi
+    done
+    ;;
+  *)
+    echo "Unsupported OS ($os) for Chrome launch; start Chrome manually with --remote-debugging-port=${PORT}" >&2
+    exit 1
+    ;;
+esac
+
+if [ -z "$chrome_bin" ]; then
+  warn "Could not find a Chrome binary on ${os}."
+  detail "Start Chrome manually with --remote-debugging-port=${PORT}."
+  case "$os" in
+    Darwin) detail '  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222 --user-data-dir="$HOME/.compound-engineering/chrome-debug-profile" --no-first-run --no-default-browser-check' ;;
+    Linux)  detail "  google-chrome --remote-debugging-port=9222 --user-data-dir=\$HOME/.compound-engineering/chrome-debug-profile --no-first-run --no-default-browser-check" ;;
+  esac
+  exit 1
+fi
+
+ok "Found Chrome: $chrome_bin"
+
+# =====================================================
+#  Prepare the dedicated profile dir
+# =====================================================
+
+mkdir -p "$PROFILE_DIR" 2>/dev/null || {
+  warn "Could not create profile dir $PROFILE_DIR"
+  exit 1
+}
+chmod 700 "$PROFILE_DIR" 2>/dev/null
+
+# =====================================================
+#  Launch Chrome in the background
+# =====================================================
+
+echo "       Launching Chrome with --remote-debugging-port=${PORT} ..."
+# Fully detach Chrome so it survives the parent shell's exit: nohup ignores
+# SIGHUP, setsid starts a new session so it is not in the parent's process
+# group (the Bash tool terminates the group when the command returns), and
+# the redirects detach stdout/stderr from the tool's pipe.
+nohup "$chrome_bin" \
+  --remote-debugging-port="$PORT" \
+  --user-data-dir="$PROFILE_DIR" \
+  --no-first-run \
+  --no-default-browser-check \
+  >"$LOG_FILE" 2>&1 &
+chrome_pid=$!
+disown 2>/dev/null || true
+
+# =====================================================
+#  Poll :9222 for up to 10 seconds
+# =====================================================
+
+up="no"
+for i in $(seq 1 20); do
+  if curl -s --max-time 1 "http://localhost:${PORT}/json/version" >/dev/null 2>&1; then
+    up="yes"
+    break
+  fi
+  sleep 0.5
+done
+
+if [ "$up" = "yes" ]; then
+  ok "Chrome debug instance is up on :${PORT} (pid ${chrome_pid})"
+  if command -v jq >/dev/null 2>&1; then
+    info=$(curl -s --max-time 2 "http://localhost:${PORT}/json/version" 2>/dev/null)
+    ws=$(printf '%s' "$info" | jq -r '.webSocketDebuggerUrl // empty' 2>/dev/null)
+    browser=$(printf '%s' "$info" | jq -r '.Browser // empty' 2>/dev/null)
+    devtools_url=$(printf '%s' "$info" | jq -r '.webSocketDebuggerUrl // empty' 2>/dev/null)
+    [ -n "$browser" ] && detail "Browser: $browser"
+    [ -n "$ws" ] && detail "webSocketDebuggerUrl: $ws"
+  fi
+  detail "agent-browser connect ${PORT}"
+  detail "chrome-devtools-mcp uses --browserUrl=http://localhost:${PORT} (from opencode config)"
+  exit 0
+else
+  warn "Chrome did not expose :${PORT} within 10 seconds."
+  detail "Last 20 lines of $LOG_FILE:"
+  tail -20 "$LOG_FILE" 2>/dev/null | while IFS= read -r line; do detail "$line"; done
+  exit 1
+fi

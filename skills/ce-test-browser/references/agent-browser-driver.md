@@ -1,5 +1,7 @@
 # `agent-browser` Fallback Driver
 
+This file covers `agent-browser`-specific commands. For the complementary `chrome-devtools-mcp` inspector and the shared-Chrome connection model, see `hybrid-driver.md` in this directory.
+
 Read this file only after the main skill selects `agent-browser` because no qualifying host-native integrated browser is available.
 
 ## Bootstrap

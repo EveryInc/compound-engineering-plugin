@@ -227,9 +227,82 @@ The entry uses opencode's `{env:VAR}` substitution so the secrets are read from 
 Notes for the agent:
 - `JIRA_USERNAME`, `JIRA_API_TOKEN`, and `GITHUB_PR_PREFIX_USERNAME` are exported in the shell profile (Step 10 wrote them). `JIRA_URL` defaults to `https://chatous.atlassian.net` via the readiness script; if the user did not set it themselves and the org is the default, Step 10 also wrote the `JIRA_URL` export. If any value is unset when the container starts, the `{env:...}` resolves to empty and the container will fail to authenticate on first use. Step 11 already stopped & removed any stale container so this `docker run` is fresh.
 - Use `jq` to merge the entry into an existing config non-destructively. If `jq` is unavailable, read the file as JSON, add the key, and write it back with proper formatting. Never overwrite the entire file; preserve all existing keys, comments (in `.jsonc`), and whitespace where feasible.
-- If the `mcp-atlassian` entry already exists, leave it unless the user asks to rewrite it.
+   - If the `mcp-atlassian` entry already exists, leave it unless the user asks to rewrite it.
 
-## Phase 4: Summary
+## Phase 4: chrome-devtools-mcp (optional)
+
+This phase sets up the `chrome-devtools-mcp` MCP server, which complements `agent-browser` with network request inspection, console-message filtering, Chrome DevTools performance traces (LCP/INP/CLS), Lighthouse audits, heap snapshots, page emulation, and multi-tab management. `agent-browser` remains the primary driver for navigation and interaction; `chrome-devtools-mcp` is the inspector for capabilities `agent-browser` lacks. Both connect to the same Chrome instance via `--remote-debugging-port=9222` and share tabs, auth, cookies, and state. This phase is entirely optional — declining skips the whole phase, and browser-driven skills degrade to `agent-browser`-only when the MCP server is absent.
+
+`chrome-devtools-mcp` requires Node >= 20.19. The readiness script resolves a compatible Node binary by absolute path (nvm > asdf > system) rather than relying on `npx`, because `npx` inherits whichever Node is on `PATH` and many projects pin an older Node via `.nvmrc`. The MCP server connects to the shared Chrome via `--browserUrl=http://localhost:9222` instead of spawning its own browser.
+
+### Step 14: Run the chrome-devtools-mcp readiness check
+
+Set `SKILL_DIR` to the absolute directory you loaded this `SKILL.md` from:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
+if [ -f "$SKILL_DIR/scripts/install-chrome-devtools-mcp" ]; then bash "$SKILL_DIR/scripts/install-chrome-devtools-mcp"; else echo "Bundled script not found at $SKILL_DIR/scripts/install-chrome-devtools-mcp; skipping chrome-devtools-mcp phase."; fi
+```
+
+Display the output to the user. The script reports three readiness dimensions: Node compatible (>= 20.19), `chrome-devtools-mcp` package installed, and opencode MCP config present and pointing at `--browserUrl=http://localhost:9222`.
+
+### Step 15: Ask Whether to Set Up chrome-devtools-mcp
+
+Ask the user:
+
+```text
+Set up chrome-devtools-mcp (Chrome DevTools MCP server)?
+This installs a chrome-devtools MCP entry in your opencode config, connected to a shared Chrome with remote debugging on port 9222. It complements agent-browser with network request inspection, console-message filtering, performance traces (LCP/INP/CLS), Lighthouse audits, and heap snapshots.
+
+1. Yes, set it up
+2. No thanks
+```
+
+If the user declines, skip the rest of this phase. If the user accepts, continue.
+
+### Step 16: Install and configure chrome-devtools-mcp
+
+Act on the readiness dimensions from Step 14:
+
+- If `node_ok=no`, stop this phase with the install instructions: `nvm install 20` (or https://nodejs.org/). Do not proceed to package install or config write — the MCP server cannot start without a compatible Node.
+- If the package is missing, run the install action:
+
+  ```bash
+  SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
+  if [ -f "$SKILL_DIR/scripts/install-chrome-devtools-mcp" ]; then bash "$SKILL_DIR/scripts/install-chrome-devtools-mcp" --install; else echo "Bundled script not found at $SKILL_DIR/scripts/install-chrome-devtools-mcp; skipping chrome-devtools-mcp install."; fi
+  ```
+
+- If the package is present but the config is missing or stale (lacking `--browserUrl`), run the config-only action:
+
+  ```bash
+  SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
+  if [ -f "$SKILL_DIR/scripts/install-chrome-devtools-mcp" ]; then bash "$SKILL_DIR/scripts/install-chrome-devtools-mcp" --update-config; else echo "Bundled script not found at $SKILL_DIR/scripts/install-chrome-devtools-mcp; skipping chrome-devtools-mcp config."; fi
+  ```
+
+After install or config update, re-run the readiness check from Step 14 to confirm 3/3. Do not launch Chrome automatically — the user controls when the shared Chrome runs; some setups use a different machine or a remote Chrome.
+
+Print the Chrome launch instructions so the user can start the shared Chrome before running browser-driven skills:
+
+```text
+Launch Chrome with remote debugging before running browser-driven skills. Run this once per working session:
+
+  bash "$SKILL_DIR/scripts/launch-chrome-debug"
+
+Or start Chrome manually:
+
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+    --remote-debugging-port=9222 \
+    --user-data-dir="$HOME/.compound-engineering/chrome-debug-profile" \
+    --no-first-run --no-default-browser-check
+
+Then point agent-browser at it:
+
+  agent-browser connect 9222
+
+The chrome-devtools MCP server (configured in opencode) connects automatically.
+```
+
+## Phase 5: Summary
 
 Display a brief summary:
 
@@ -239,6 +312,7 @@ Display a brief summary:
 Fixed:      <repo-local fixes applied, or none>
 Skipped:    <repo-local fixes declined, or none>
 Atlassian:  <mcp-atlassian status: configured | declined | blocked (reason) | not attempted>
+chrome-devtools: <chrome-devtools-mcp status: configured | declined | blocked (reason) | not attempted>
 Optional:   <missing optional tools, or all available>
 
 Run `<rendered invocation>` anytime to re-check.

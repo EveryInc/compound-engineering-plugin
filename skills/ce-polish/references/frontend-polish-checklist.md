@@ -104,7 +104,7 @@ Every interactive element has all of:
 
 ## Performance polish
 
-Performance rules are not duplicated here. Render performance (re-renders, virtualization, memoization) is in `ce-ui-engineering` `## React Rendering Performance`. Web Vitals thresholds (LCP <= 2.5s, CLS <= 0.1, INP <= 200ms) and the performance budget are in `ce-plan`'s `references/frontend-architecture-guide.md` `## Web Vitals / Performance Budget Planning`. Cite the signal against those sections.
+Performance rules are not duplicated here. Render performance (re-renders, virtualization, memoization) is in `ce-ui-engineering` `## React Rendering Performance`. Web Vitals thresholds (LCP <= 2.5s, CLS <= 0.1, INP <= 200ms) and the performance budget are in the `frontend-architecture-guide` reference in the `ce-plan` skill, `## Web Vitals / Performance Budget Planning`. Cite the signal against those sections.
 
 ## React-specific inspection
 

@@ -20,7 +20,7 @@ CSS/Tailwind simplification rules (redundant utility classes, dead design tokens
 
 ## Deep Module Vocabulary
 
-The Deep Module vocabulary table (Module, Interface, Depth, Seam, Adapter, Leverage, Locality), the deletion test, the one-adapter principle, and TypeScript testability patterns are in `ce-plan`'s `references/frontend-architecture-guide.md` `## Deep Module Design`. Do not re-list them here; cite the simplification signal against that section.
+The Deep Module vocabulary table (Module, Interface, Depth, Seam, Adapter, Leverage, Locality), the deletion test, the one-adapter principle, and TypeScript testability patterns are in the `frontend-architecture-guide` reference in the `ce-plan` skill, `## Deep Module Design`. Do not re-list them here; cite the simplification signal against that section.
 
 ## Structural Complexity Signals
 

@@ -1,0 +1,561 @@
+#!/usr/bin/env bash
+# chrome-devtools-mcp MCP server setup helper.
+# Checks Node compatibility (>= 20.19), chrome-devtools-mcp package presence,
+# and opencode MCP config. Optionally installs the package and writes the
+# config entry non-destructively.
+#
+# chrome-devtools-mcp requires Node >= 20.19. Many projects pin an older Node
+# via .nvmrc, and `npx` inherits whichever Node is on PATH. So we resolve a
+# compatible Node binary by absolute path (nvm > asdf > system) and pair it
+# with the absolute path to the chrome-devtools-mcp entrypoint, rather than
+# relying on `npx -y chrome-devtools-mcp`.
+#
+# The MCP server connects to a shared Chrome via --browserUrl=http://localhost:9222
+# (see launch-chrome-debug).
+
+set -o pipefail
+
+OPENCODE_GLOBAL="$HOME/.config/opencode/opencode.json"
+OPENCODE_GLOBALC="$HOME/.config/opencode/opencode.jsonc"
+
+# The minimum Node major.minor chrome-devtools-mcp requires.
+MIN_NODE_MAJOR=20
+MIN_NODE_MINOR=19
+
+action="check"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --install)        action="install"; shift ;;
+    --update-config)  action="update-config"; shift ;;
+    *) shift ;;
+  esac
+done
+
+# =====================================================
+#  Helpers
+# =====================================================
+
+ok()      { echo "  🟢  $1"; }
+warn()    { echo "  🟡  $1"; }
+skip()    { echo "  ➖  $1"; }
+detail()  { echo "       $1"; }
+section() { echo ""; echo " $1"; }
+
+# Extract the numeric major version from a `node -v` string like "v20.19.0".
+node_major() {
+  printf '%s' "$1" | sed -E 's/^v([0-9]+)\.[0-9]+\.[0-9]+$/\1/'
+}
+
+# Extract the numeric minor version from a `node -v` string.
+node_minor() {
+  printf '%s' "$1" | sed -E 's/^v[0-9]+\.([0-9]+)\.[0-9]+$/\1/'
+}
+
+# Return 0 if the given `node -v` string is >= the required major.minor.
+node_is_compatible() {
+  local ver="$1"
+  local major minor
+  major=$(node_major "$ver")
+  minor=$(node_minor "$ver")
+  [ -n "$major" ] && [ -n "$minor" ] || return 1
+  [ "$major" -gt "$MIN_NODE_MAJOR" ] && return 0
+  [ "$major" -eq "$MIN_NODE_MAJOR" ] && [ "$minor" -ge "$MIN_NODE_MINOR" ]
+}
+
+# =====================================================
+#  Node compatibility
+# =====================================================
+
+section "Node.js (>= ${MIN_NODE_MAJOR}.${MIN_NODE_MINOR})"
+
+node_path=""
+node_ok="no"
+
+# First, try the node currently on PATH.
+if command -v node >/dev/null 2>&1; then
+  current_ver=$(node --version 2>/dev/null)
+  if [ -n "$current_ver" ] && node_is_compatible "$current_ver"; then
+    resolved=$(command -v node)
+    # Resolve symlinks to the real binary.
+    if command -v realpath >/dev/null 2>&1; then
+      resolved=$(realpath "$resolved" 2>/dev/null || printf '%s' "$resolved")
+    fi
+    if [ -x "$resolved" ]; then
+      node_path="$resolved"
+      node_ok="yes"
+      ok "Active node is compatible ($current_ver at $node_path)"
+    fi
+  else
+    warn "Active node is $current_ver -- needs >= ${MIN_NODE_MAJOR}.${MIN_NODE_MINOR}"
+    detail "Scanning nvm / asdf / system for a compatible Node..."
+  fi
+else
+  warn "node is not on PATH"
+  detail "Scanning nvm / asdf / system for a compatible Node..."
+fi
+
+# If the active node is not compatible, scan nvm dirs for the highest compatible.
+if [ "$node_ok" != "yes" ]; then
+  nvm_root="$HOME/.nvm/versions/node"
+  if [ -d "$nvm_root" ]; then
+    best_dir=""
+    best_ver=""
+    # List v<Major>.<minor>.<patch> dirs, sort by version descending, pick the
+    # first that has a bin/node and reports a compatible version.
+    for dir in "$nvm_root"/v[0-9]*; do
+      [ -d "$dir" ] || continue
+      node_bin="$dir/bin/node"
+      [ -x "$node_bin" ] || continue
+      ver=$("$node_bin" --version 2>/dev/null) || continue
+      if node_is_compatible "$ver"; then
+        if [ -z "$best_ver" ] || [ "$(printf '%s\n%s' "$ver" "$best_ver" | sort -V | tail -1)" = "$ver" ]; then
+          best_ver="$ver"
+          best_dir="$dir"
+        fi
+      fi
+    done
+    if [ -n "$best_dir" ]; then
+      node_path="$best_dir/bin/node"
+      node_ok="yes"
+      ok "Found compatible node via nvm ($best_ver at $node_path)"
+    fi
+  fi
+fi
+
+# If still not found, check asdf.
+if [ "$node_ok" != "yes" ]; then
+  if command -v asdf >/dev/null 2>&1; then
+    asdf_list=$(asdf list node 2>/dev/null)
+    if [ -n "$asdf_list" ]; then
+      best_asdf=""
+      best_asdf_ver=""
+      for entry in $asdf_list; do
+        # asdf list entries may have a leading "* " for current; strip it.
+        ver_name=$(printf '%s' "$entry" | sed -E 's/^[[:space:]]*\*?[[:space:]]*//')
+        asdf_node_bin=$(asdf where node "$ver_name" 2>/dev/null)/bin/node
+        if [ -x "$asdf_node_bin" ]; then
+          ver=$("$asdf_node_bin" --version 2>/dev/null) || continue
+          if node_is_compatible "$ver"; then
+            if [ -z "$best_asdf_ver" ] || [ "$(printf '%s\n%s' "$ver" "$best_asdf_ver" | sort -V | tail -1)" = "$ver" ]; then
+              best_asdf_ver="$ver"
+              best_asdf="$asdf_node_bin"
+            fi
+          fi
+        fi
+      done
+      if [ -n "$best_asdf" ]; then
+        node_path="$best_asdf"
+        node_ok="yes"
+        ok "Found compatible node via asdf ($best_asdf_ver at $node_path)"
+      fi
+    fi
+  fi
+fi
+
+# Fallback: check common system paths.
+if [ "$node_ok" != "yes" ]; then
+  for candidate in /usr/local/bin/node /opt/homebrew/bin/node /usr/bin/node; do
+    if [ -x "$candidate" ]; then
+      ver=$("$candidate" --version 2>/dev/null) || continue
+      if node_is_compatible "$ver"; then
+        node_path="$candidate"
+        node_ok="yes"
+        ok "Found compatible system node ($ver at $node_path)"
+        break
+      fi
+    fi
+  done
+fi
+
+if [ "$node_ok" != "yes" ]; then
+  warn "No Node >= ${MIN_NODE_MAJOR}.${MIN_NODE_MINOR} found"
+  detail "Install a compatible Node:"
+  detail "  nvm install 20     (or download from https://nodejs.org/)"
+  detail "Then re-run this check."
+fi
+
+# =====================================================
+#  chrome-devtools-mcp package resolution
+# =====================================================
+
+section "chrome-devtools-mcp package"
+
+pkg_path=""
+pkg_ok="no"
+
+# 1. npx cache: $HOME/.npm/_npx/<hash>/node_modules/chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js
+npx_cache="$HOME/.npm/_npx"
+if [ -d "$npx_cache" ]; then
+  found_js=$(find "$npx_cache" -path "*/node_modules/chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js" -type f 2>/dev/null | head -1)
+  if [ -n "$found_js" ] && [ -f "$found_js" ]; then
+    pkg_path="$found_js"
+    pkg_ok="yes"
+    ok "chrome-devtools-mcp found in npx cache"
+    detail "$pkg_path"
+  fi
+fi
+
+# 2. Global install: npm ls -g chrome-devtools-mcp --parseable, then append the entrypoint.
+if [ "$pkg_ok" != "yes" ]; then
+  if command -v npm >/dev/null 2>&1; then
+    global_root=$(npm ls -g chrome-devtools-mcp --parseable 2>/dev/null | head -1)
+    if [ -n "$global_root" ] && [ -d "$global_root" ]; then
+      candidate="$global_root/build/src/bin/chrome-devtools-mcp.js"
+      if [ -f "$candidate" ]; then
+        pkg_path="$candidate"
+        pkg_ok="yes"
+        ok "chrome-devtools-mcp found as a global install"
+        detail "$pkg_path"
+      fi
+    fi
+  fi
+fi
+
+# 3. A chrome-devtools-mcp binary on PATH (some installs expose a bin shim).
+if [ "$pkg_ok" != "yes" ]; then
+  if command -v chrome-devtools-mcp >/dev/null 2>&1; then
+    # A bin shim exists, but we prefer the .js entrypoint for the command array.
+    # Try to resolve the underlying package from the shim's neighborhood.
+    shim_path=$(command -v chrome-devtools-mcp)
+    shim_dir=$(dirname "$shim_path")
+    # npm global bin shims sit in .../bin; the package is usually a sibling lib dir
+    # or in node_modules. Scan upward for chrome-devtools-mcp.
+    resolved_js=$(find "$shim_dir/.." -path "*/chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js" -type f 2>/dev/null | head -1)
+    if [ -n "$resolved_js" ] && [ -f "$resolved_js" ]; then
+      pkg_path="$resolved_js"
+      pkg_ok="yes"
+      ok "chrome-devtools-mcp found via PATH shim"
+      detail "$pkg_path"
+    fi
+  fi
+fi
+
+# Install if missing and action is install.
+if [ "$pkg_ok" != "yes" ] && [ "$action" = "install" ]; then
+  if [ "$node_ok" != "yes" ]; then
+    warn "Cannot install chrome-devtools-mcp without a compatible Node"
+    detail "Resolve the Node issue first, then re-run with --install."
+  elif command -v npm >/dev/null 2>&1; then
+    echo "       Installing chrome-devtools-mcp globally..."
+    if npm install -g chrome-devtools-mcp 2>&1 | tail -2; then
+      # Re-resolve: global install first, then npx cache.
+      global_root=$(npm ls -g chrome-devtools-mcp --parseable 2>/dev/null | head -1)
+      if [ -n "$global_root" ] && [ -d "$global_root" ]; then
+        candidate="$global_root/build/src/bin/chrome-devtools-mcp.js"
+        if [ -f "$candidate" ]; then
+          pkg_path="$candidate"
+          pkg_ok="yes"
+          ok "chrome-devtools-mcp installed globally"
+        fi
+      fi
+      if [ "$pkg_ok" != "yes" ] && [ -d "$npx_cache" ]; then
+        found_js=$(find "$npx_cache" -path "*/node_modules/chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js" -type f 2>/dev/null | head -1)
+        if [ -n "$found_js" ] && [ -f "$found_js" ]; then
+          pkg_path="$found_js"
+          pkg_ok="yes"
+          ok "chrome-devtools-mcp resolved from npx cache after install"
+        fi
+      fi
+    else
+      warn "Failed to install chrome-devtools-mcp globally"
+    fi
+  else
+    warn "npm is not available -- cannot install chrome-devtools-mcp"
+    detail "Install npm (comes with Node.js), then re-run with --install."
+  fi
+fi
+
+if [ "$pkg_ok" != "yes" ]; then
+  warn "chrome-devtools-mcp package not found"
+  detail "Install: npm install -g chrome-devtools-mcp"
+  detail "Project: https://github.com/ChromeDevTools/chrome-devtools-mcp"
+fi
+
+# =====================================================
+#  opencode config check
+# =====================================================
+
+section "opencode MCP config"
+
+config_file=""
+for f in "$OPENCODE_GLOBAL" "$OPENCODE_GLOBALC"; do
+  [ -f "$f" ] && config_file="$f" && break
+done
+
+config_ok="no"
+if [ -n "$config_file" ]; then
+  case "$config_file" in
+    *.jsonc)
+      # jq cannot parse .jsonc (it strips comments); use a text-based check.
+      if grep -q '"chrome-devtools"' "$config_file" 2>/dev/null; then
+        if grep -q -- '--browserUrl=http://localhost:9222' "$config_file" 2>/dev/null; then
+          ok "chrome-devtools entry found in $config_file (with --browserUrl)"
+          config_ok="yes"
+        else
+          warn "chrome-devtools entry found but missing --browserUrl=http://localhost:9222"
+          detail "Run with --update-config to rewrite it."
+          config_ok="stale"
+        fi
+      else
+        warn "chrome-devtools entry not found in $config_file"
+        [ "$action" = "install" ] || [ "$action" = "update-config" ] && detail "Will add it now."
+      fi
+      ;;
+    *)
+      if command -v jq >/dev/null 2>&1; then
+        if jq -e '.mcp["chrome-devtools"]' "$config_file" >/dev/null 2>&1; then
+          # Check whether the command array ends with --browserUrl=http://localhost:9222.
+          last_elem=$(jq -r '.mcp["chrome-devtools"].command[-1]' "$config_file" 2>/dev/null)
+          if [ "$last_elem" = "--browserUrl=http://localhost:9222" ]; then
+            ok "chrome-devtools entry found in $config_file (with --browserUrl)"
+            config_ok="yes"
+          else
+            warn "chrome-devtools entry found but missing --browserUrl=http://localhost:9222"
+            detail "Run with --update-config to rewrite it."
+            config_ok="stale"
+          fi
+        else
+          warn "chrome-devtools entry not found in $config_file"
+          [ "$action" = "install" ] || [ "$action" = "update-config" ] && detail "Will add it now."
+        fi
+      else
+        # No jq: fall back to a text-based check for .json too.
+        if grep -q '"chrome-devtools"' "$config_file" 2>/dev/null; then
+          if grep -q -- '--browserUrl=http://localhost:9222' "$config_file" 2>/dev/null; then
+            ok "chrome-devtools entry found in $config_file (with --browserUrl)"
+            config_ok="yes"
+          else
+            warn "chrome-devtools entry found but missing --browserUrl=http://localhost:9222"
+            detail "Run with --update-config to rewrite it."
+            config_ok="stale"
+          fi
+        else
+          warn "chrome-devtools entry not found in $config_file"
+          [ "$action" = "install" ] || [ "$action" = "update-config" ] && detail "Will add it now."
+        fi
+      fi
+      ;;
+  esac
+else
+  warn "No global opencode config found"
+  detail "Expected: $OPENCODE_GLOBAL"
+  [ "$action" = "install" ] || [ "$action" = "update-config" ] && detail "Will create it."
+fi
+
+# =====================================================
+#  Write config (non-destructive)
+# =====================================================
+
+write_config() {
+  if [ "$node_ok" != "yes" ]; then
+    warn "Cannot write config -- no compatible Node resolved."
+    return 1
+  fi
+  if [ "$pkg_ok" != "yes" ]; then
+    warn "Cannot write config -- chrome-devtools-mcp package not resolved."
+    return 1
+  fi
+
+  # Write to the same file the read phase inspected so the check and the edit
+  # agree on a single target. If no config file exists yet, prefer .json (jq
+  # can parse it; .jsonc is opt-in for users who want comments).
+  target="$config_file"
+  if [ -z "$target" ]; then
+    target="$OPENCODE_GLOBAL"
+  fi
+
+  # Build the JSON fragment for the chrome-devtools entry.
+  entry_json=$(printf '{"type":"local","command":["%s","%s","--browserUrl=http://localhost:9222"],"enabled":true}' \
+    "$node_path" "$pkg_path")
+
+  # Ensure the target directory exists.
+  mkdir -p "$(dirname "$target")" 2>/dev/null
+
+  if [ -f "$target" ] && command -v jq >/dev/null 2>&1; then
+    # For .json (jq can parse it), use jq to merge non-destructively.
+    # For .jsonc, jq would strip comments, so fall back to a text-based merge.
+    case "$target" in
+      *.jsonc)
+        # Text-based merge: append/replace the chrome-devtools entry before the
+        # closing brace of the mcp object, preserving comments.
+        merge_jsonc "$target" "$entry_json"
+        ;;
+      *)
+        # jq merge: add the key under .mcp without disturbing other keys.
+        tmp_file=$(mktemp)
+        if jq --argjson entry "$entry_json" '.mcp["chrome-devtools"] = $entry' "$target" > "$tmp_file" 2>/dev/null; then
+          mv "$tmp_file" "$target"
+          ok "Wrote chrome-devtools entry into $target (jq merge)"
+        else
+          rm -f "$tmp_file"
+          warn "jq merge failed -- attempting text-based fallback"
+          merge_text "$target" "$entry_json"
+        fi
+        ;;
+    esac
+  elif [ -f "$target" ]; then
+    # jq not available: text-based merge for both .json and .jsonc.
+    merge_text "$target" "$entry_json"
+  else
+    # No config file exists yet: create one with the mcp key.
+    printf '{"mcp":{"chrome-devtools":%s}}' "$entry_json" > "$target"
+    ok "Created $target with chrome-devtools entry"
+  fi
+}
+
+# Text-based merge for .jsonc (and .json when jq is unavailable).
+# Uses a brace-balanced Python pass so nested objects are handled correctly:
+# the chrome-devtools entry is inserted (or replaced) inside the "mcp" object
+# without disturbing comments, other keys, or nested braces. Falls back to
+# appending a new "mcp" key before the document's final top-level closing
+# brace when no "mcp" object exists.
+merge_text() {
+  local file="$1"
+  local entry="$2"
+
+  python3 - "$file" "$entry" <<'PYEOF'
+import sys
+
+path, entry = sys.argv[1], sys.argv[2]
+with open(path, "r") as fh:
+    text = fh.read()
+
+def find_key_block(text, key):
+    """Find the start index of `key`'s value-opening brace and return
+    (key_start, brace_open_index). brace_open_index is the index of the '{'
+    that begins the value mapped to `key`. Returns (None, None) if not found."""
+    needle = '"%s"' % key
+    i = text.find(needle)
+    while i != -1:
+        j = i + len(needle)
+        # Skip whitespace and a single colon between the key and its value.
+        while j < len(text) and text[j] in ' \t\r\n':
+            j += 1
+        if j < len(text) and text[j] == ':':
+            j += 1
+            while j < len(text) and text[j] in ' \t\r\n':
+                j += 1
+            if j < len(text) and text[j] == '{':
+                return i, j
+        i = text.find(needle, i + 1)
+    return None, None
+
+def matching_brace(text, open_idx):
+    """Return the index of the '}' that closes the '{' at open_idx, honoring
+    nested braces and string literals (so braces inside strings do not count)."""
+    depth = 0
+    in_str = False
+    esc = False
+    i = open_idx
+    while i < len(text):
+        ch = text[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == '\\':
+                esc = True
+            elif ch == '"':
+                in_str = False
+        else:
+            if ch == '"':
+                in_str = True
+            elif ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    return i
+        i += 1
+    return -1
+
+# 1. If a chrome-devtools key already exists, replace its value in place.
+cd_key, cd_open = find_key_block(text, "chrome-devtools")
+if cd_key is not None:
+    cd_close = matching_brace(text, cd_open)
+    if cd_close == -1:
+        print("WARN: unbalanced braces while replacing chrome-devtools", file=sys.stderr)
+        sys.exit(1)
+    new_text = text[:cd_key] + '"chrome-devtools": ' + entry + text[cd_close + 1:]
+    with open(path, "w") as fh:
+        fh.write(new_text)
+    sys.exit(0)
+
+# 2. Otherwise, insert the entry inside the "mcp" object (balanced), or
+#    append a new "mcp" key before the document's final top-level '}'.
+mcp_key, mcp_open = find_key_block(text, "mcp")
+if mcp_key is not None:
+    mcp_close = matching_brace(text, mcp_open)
+    if mcp_close == -1:
+        print("WARN: unbalanced braces while inserting into mcp", file=sys.stderr)
+        sys.exit(1)
+    # Insert just before the closing brace of the mcp object.
+    before_close = text[:mcp_close].rstrip()
+    if before_close and not before_close.endswith(",") and not before_close.endswith("{"):
+        before_close += ","
+    indent = "\n    "
+    new_text = before_close + indent + '"chrome-devtools": ' + entry + text[mcp_close:]
+    with open(path, "w") as fh:
+        fh.write(new_text)
+    sys.exit(0)
+
+# 3. No mcp object at all: append a new top-level "mcp" key before the final '}'.
+end = text.rstrip()
+idx = end.rfind("}")
+if idx == -1:
+    print("WARN: no closing brace found to append mcp key", file=sys.stderr)
+    sys.exit(1)
+prefix = end[:idx].rstrip()
+if prefix and not prefix.endswith(",") and not prefix.endswith("{"):
+    prefix += ","
+new_text = prefix + '\n  "mcp": {"chrome-devtools": ' + entry + "}\n}\n"
+with open(path, "w") as fh:
+    fh.write(new_text)
+PYEOF
+  if [ $? -eq 0 ]; then
+    ok "Merged chrome-devtools entry into $file (text merge)"
+  else
+    warn "Text-based merge failed for $file"
+    return 1
+  fi
+}
+
+# Convenience alias for the jsonc path.
+merge_jsonc() { merge_text "$1" "$2"; }
+
+if [ "$action" = "install" ] || [ "$action" = "update-config" ]; then
+  if [ "$config_ok" != "yes" ]; then
+    write_config
+  else
+    skip "Config already up to date -- nothing to write"
+  fi
+fi
+
+# =====================================================
+#  Summary
+# =====================================================
+
+echo ""
+ready=0
+[ "$node_ok" = "yes" ]   && ready=$((ready + 1))
+[ "$pkg_ok" = "yes" ]    && ready=$((ready + 1))
+[ "$config_ok" = "yes" ] && ready=$((ready + 1))
+
+if [ "$ready" -eq 3 ]; then
+  echo " ✅  chrome-devtools-mcp is fully configured ($ready/3)"
+elif [ "$ready" -eq 0 ]; then
+  echo " ❌  chrome-devtools-mcp is not set up yet (0/3)"
+else
+  echo " ⚠️  chrome-devtools-mcp partially ready ($ready/3)"
+fi
+
+if [ "$node_ok" != "yes" ]; then
+  detail "Fix Node first: nvm install 20  (or https://nodejs.org/)"
+fi
+if [ "$pkg_ok" != "yes" ] && [ "$node_ok" = "yes" ]; then
+  detail "Install the package: npm install -g chrome-devtools-mcp"
+  [ "$action" = "install" ] || detail "Re-run with --install to install + configure"
+fi
+if [ "$config_ok" != "yes" ] && [ "$node_ok" = "yes" ] && [ "$pkg_ok" = "yes" ]; then
+  detail "Configure: re-run with --update-config (or --install)"
+fi
+echo ""

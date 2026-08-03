@@ -2,7 +2,7 @@
 
 > Run end-to-end browser tests on pages affected by the current PR or branch using the best approved browser driver available.
 
-`ce-test-browser` is the **end-to-end browser testing** skill. It maps changed files to testable routes, starts (or verifies) the dev server, drives each affected page through a host-native integrated browser when available, and falls back to `agent-browser` elsewhere. It captures rendered state and screenshots, exercises critical interactions, pauses for human verification on external flows, and produces a structured test summary.
+`ce-test-browser` is the **end-to-end browser testing** skill. It maps changed files to testable routes, starts (or verifies) the dev server, drives each affected page through a host-native integrated browser when available, and falls back to `agent-browser` elsewhere. When `chrome-devtools-mcp` is available, it augments the run with network request inspection, filtered console messages, Chrome DevTools performance traces (LCP/INP/CLS), Lighthouse audits, and heap snapshots — capabilities `agent-browser` lacks. It captures rendered state and screenshots, exercises critical interactions, pauses for human verification on external flows, and produces a structured test summary.
 
 ---
 
@@ -32,7 +32,7 @@ End-to-end browser testing is fragmented across tools and easy to skip:
 
 `ce-test-browser` runs end-to-end tests as a structured flow:
 
-- **Approved driver hierarchy** — prefer a host-native integrated browser, then fall back to `agent-browser`; never introduce a third standalone automation stack
+- **Approved driver hierarchy** — prefer a host-native integrated browser, then fall back to `agent-browser`; use `chrome-devtools-mcp` as the complementary inspector alongside whichever driver is selected for network, console, performance, Lighthouse, heap, and emulation capabilities; never introduce a third standalone automation stack
 - **File-to-route mapping** translates changed files into the URLs that need testing
 - **Server orchestration** — manual mode requires the user-started server; pipeline mode auto-starts and scans for a free port
 - **Per-page test loop** — navigate, snapshot, verify elements, exercise critical interactions, capture screenshots
@@ -54,6 +54,8 @@ The skill distinguishes browser surfaces embedded in or directly owned by the ac
 - Standalone Playwright, Puppeteer, separately configured browser extensions or MCPs, and ad hoc browser automation remain prohibited substitutes.
 
 A Playwright API exposed by a host-native browser remains part of that integrated capability; it is not standalone Playwright. When no qualifying native browser exists and `agent-browser` is not installed, the skill stops and points to `/ce-setup`.
+
+When `chrome-devtools-mcp` is available in the harness (see `references/hybrid-driver.md` in the skill's directory for detection and the division of labor), the run augments each page with network/console/performance/Lighthouse evidence from the inspector, which connects to the same Chrome via `--remote-debugging-port=9222`. If it is unavailable, the run degrades to `agent-browser`-only with a one-line log — the inspector is optional and never gates the run.
 
 ### 2. File-to-route mapping table
 
@@ -213,7 +215,7 @@ The selected driver must support local navigation, rendered and interactive stat
 A host-native integrated browser is materially different from an arbitrary substitute automation stack: it is embedded in or directly owned by the harness, follows that harness's browser instructions, and can provide a better observable experience. A separately configured browser extension or integration does not qualify. `agent-browser` remains the consistent fallback for CLI environments and harnesses without an integrated browser.
 
 **What alternatives remain prohibited?**
-The skill does not install or switch to standalone Playwright, Puppeteer, separately configured browser extensions or MCPs, or ad hoc browser automation. An API named Playwright inside the selected host-native browser is still part of that browser, not a standalone substitution.
+The skill does not install or switch to standalone Playwright, Puppeteer, separately configured browser extensions or MCPs, or ad hoc browser automation. An API named Playwright inside the selected host-native browser is still part of that browser, not a standalone substitution. `chrome-devtools-mcp` is not a prohibited substitute — it is an MCP server that connects to the same Chrome via CDP and shares the driver's session; see `references/hybrid-driver.md` in the skill's directory for the division of labor.
 
 **What does pipeline mode do differently?**
 Pipeline mode is for automated runners such as LFG where the preferred port might be claimed. It scans for a free port, auto-starts the dev server, suppresses blocking questions, and skips human-only flows. It does not change driver selection or force a host-native browser to be hidden.
@@ -234,4 +236,4 @@ Only when code review uses `mode:agent` (read-only). Interactive review may muta
 - [`ce-code-review`](./ce-code-review.md) — can spawn this skill for browser-affecting PRs (use `mode:agent` for concurrent runs on the same checkout)
 - [`ce-commit-push-pr`](./ce-commit-push-pr.md) — can include user-supplied evidence or summarize validation in PR descriptions
 - [`ce-work`](./ce-work.md) — orchestrator that may invoke this skill during Phase 3 verification
-- [`ce-setup`](./ce-setup.md) — reports whether `agent-browser` is available and prints the install command when missing
+- [`ce-setup`](./ce-setup.md) — reports whether `agent-browser` and `chrome-devtools-mcp` are available and prints the install commands when missing

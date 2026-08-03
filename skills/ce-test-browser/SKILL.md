@@ -19,9 +19,10 @@ Select the driver before the first browser action:
 
 1. **Prefer a host-native integrated browser.** Use a browser-control surface embedded in or directly owned by the active harness when it can navigate local URLs, inspect rendered and interactive state, click/fill/press, capture screenshots, and inspect console errors. A separately configured browser extension or integration is not host-native. Load and follow the selected capability's own instructions before browser work.
 2. **Otherwise fall back to `agent-browser`.** Read `references/agent-browser-driver.md` before running any command.
-3. **Do not introduce a third browser stack.** Never install or substitute standalone Playwright, Puppeteer, a separately configured browser extension or MCP, or other ad hoc browser automation. A Playwright API exposed inside the selected host-native browser remains host-native; it is not standalone Playwright.
+3. **Use `chrome-devtools-mcp` as the complementary inspector** alongside whichever driver is selected, for capabilities the primary driver lacks: network request inspection, filtered console messages, performance traces, Lighthouse audits, heap snapshots, page emulation, multi-tab management. Read `references/hybrid-driver.md` before using it. Detect availability (see the Detection section in `hybrid-driver.md`); if unavailable, degrade to `agent-browser`-only with a one-line log: `chrome-devtools-mcp not available; degrading to agent-browser-only for this run`.
+4. **Do not introduce a third browser stack.** Never install or substitute standalone Playwright, Puppeteer, a separately configured browser extension or MCP, or other ad hoc browser automation. A Playwright API exposed inside the selected host-native browser remains host-native; it is not standalone Playwright. `chrome-devtools-mcp` is not a third stack — it is an MCP server that connects to the same Chrome via CDP and shares the driver's session, so it does not violate this rule.
 
-Use one driver for the entire run. A selected host-native driver may fall back to `agent-browser` only if initialization fails before the first route is tested. After testing begins, do not mix driver sessions, element references, screenshots, or authentication state.
+Use one driver for the entire run. A selected host-native driver may fall back to `agent-browser` only if initialization fails before the first route is tested. After testing begins, do not mix driver sessions, element references, screenshots, or authentication state. The `chrome-devtools-mcp` inspector augments the driver; it does not replace it for navigation or interaction.
 
 ## Workflow
 
@@ -140,6 +141,16 @@ For each affected route, use the selected driver to navigate and capture fresh r
 
 **Take screenshots:** capture viewport and full-page evidence when the selected driver supports it. Materialize screenshots as local artifacts when a later workflow or report needs file paths; otherwise in-app evidence is sufficient.
 
+### 7b. Inspect with chrome-devtools-mcp
+
+For each tested page, if `chrome-devtools-mcp` is available (see `references/hybrid-driver.md`), augment the driver's evidence with the inspector. Do not let the inspector replace the driver for navigation or interaction — it appends to the per-page test record from step 7.
+
+- `list_network_requests` — capture all requests; flag any 4xx/5xx response as a failure with the URL and status. Optionally `get_network_request` for the request/response bodies of any flagged request.
+- `list_console_messages` with `types: ["error", "warn"]` — flag any console error as a failure.
+- For pages where performance matters (landing pages, dashboards, lists): `performance_start_trace` with `reload: true`, then `performance_stop_trace`, then `performance_analyze_insight` for the `LCPBreakdown`, `INPBreakdown`, and `CLSCulprits` insight sets. Record the Core Web Vitals values in the test summary.
+- For pages where accessibility matters: `lighthouse_audit` with `mode: navigation` and `device: desktop`. Record the accessibility, SEO, and best-practices scores. Flag any accessibility score < 90 as a paper cut (not a hard failure — these go in the report for `ce-dogfood` to pick up).
+- For pages where the user reports a memory concern: `take_heapsnapshot` to a temp file under a stable OS-temp path (for example `/tmp/compound-engineering-<uid>/ce-test-browser/<run-id>/`). Do not run heap snapshots by default — they are slow and large; only when the test scope mentions memory or leaks.
+
 ### 8. Human Verification (When Required)
 
 Pause for human input when testing touches flows that require external interaction. **Pipeline mode:** do not pause — log each such flow as Skip with the reason and continue.
@@ -240,4 +251,4 @@ After all tests complete, present a summary:
 
 ## Driver Reference
 
-When `agent-browser` is selected as the fallback, read `references/agent-browser-driver.md` from this skill's directory before running its commands. Host-native drivers follow their harness-provided instructions instead.
+When `agent-browser` is selected as the fallback, read `references/agent-browser-driver.md` from this skill's directory before running its commands. Before using `chrome-devtools-mcp` as the complementary inspector, read `references/hybrid-driver.md` for the shared-Chrome connection model, the division of labor, and the React controlled-input rule. Host-native drivers follow their harness-provided instructions instead.

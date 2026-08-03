@@ -11,9 +11,9 @@ Act as a QA engineer who dogfoods the **active branch** end-to-end: understand e
 
 This is **diff-scoped**, not whole-app exploration. You test what *this branch* introduced or modified versus the trunk.
 
-## Use `agent-browser` Only For Browser Automation
+## Use the hybrid browser driver
 
-This workflow drives the browser exclusively through the `agent-browser` CLI. Do not use Chrome MCP tools (`mcp__claude-in-chrome__*`), any browser MCP integration, or other built-in browser-control tools. If the platform offers multiple ways to control a browser, always choose `agent-browser`. Use the direct binary, never `npx agent-browser` (the direct binary uses the fast Rust client).
+`agent-browser` is the primary driver for navigation and interaction — real keystrokes via `type` for React controlled inputs, persistent sessions, fast CLI ergonomics. `chrome-devtools-mcp` is the complementary inspector for network, console, performance, Lighthouse, and heap analysis — capabilities `agent-browser` lacks. The two connect to the same Chrome instance via `--remote-debugging-port=9222` (see the hybrid-driver reference in the `ce-test-browser` skill for the division of labor and the connection flow). If `chrome-devtools-mcp` is not available in the harness, degrade to `agent-browser`-only with a one-line log: `chrome-devtools-mcp not available; degrading to agent-browser-only for this run`. Do not use standalone Playwright, Puppeteer, a separately configured browser extension, or any ad-hoc browser stack — those remain prohibited. Use the direct `agent-browser` binary, never `npx agent-browser` (the direct binary uses the fast Rust client).
 
 ## Prerequisites
 
@@ -165,6 +165,15 @@ Work the task list **one item at a time**. For each scenario, mark the task `in_
    ```
 
    Write transient screenshots to OS temp (e.g. `mktemp -d`), never the repo root. Only copy a screenshot into the report's location if you intend to embed it in the final report.
+
+2b. **Inspect with `chrome-devtools-mcp`** (if available). For each scenario, augment `agent-browser`'s evidence with the inspector — do not let it replace `agent-browser` for navigation or interaction:
+
+   - `list_network_requests` — flag any 4xx/5xx API call. `get_network_request` for bodies of any flagged request. A 5xx response that the UI silently swallows is a bug; a 4xx that the UI surfaces is expected behavior (note in the scenario record).
+   - `list_console_messages --types error` — flag any uncaught console error. Distinguish errors caused by the scenario under test from errors that existed on the page before the scenario started (capture a baseline `list_console_messages` at page load).
+   - For scenarios tagged "performance" in the matrix (slow load, janky scroll, large list): `performance_start_trace` + `performance_stop_trace` + `performance_analyze_insight`. Record LCP, INP, CLS.
+   - For scenarios tagged "accessibility": `lighthouse_audit` (mode: navigation, device: desktop). Record scores.
+
+   Keep `agent-browser errors` as the fallback console-error check when `chrome-devtools-mcp` is unavailable.
 
 3. **Judge** both correctness and experience: right data, right destination, sensible content, no console errors, and does it feel aligned with the product?
 4. **Walk it as each persona.** Re-run the journey in your head from each primary persona's perspective (from Phase 1) and ask where they'd feel a **paper cut** — a small friction that wouldn't fail a functional test but degrades the experience: a confusing label, an extra click, an unexpected jump, a slow-feeling step, missing feedback, copy that doesn't match how that persona thinks. A scenario can be functionally `Pass` yet still carry paper cuts. Note each paper cut, which persona feels it, and its severity.
