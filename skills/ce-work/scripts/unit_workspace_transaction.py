@@ -287,7 +287,7 @@ def _restore_owned_verification(
     before: dict,
     before_paths: set[str],
     after_paths: set[str],
-    precious_restored: set[str],
+    captured_precious_paths: set[str],
 ) -> None:
     with locked_manifest(run_id) as doc:
         validate_repo(doc)
@@ -306,7 +306,7 @@ def _restore_owned_verification(
             raise Operational("BLOCKED", "owned verification did not start from the expected transport application")
         if git_text(repo, "rev-parse", "HEAD") != pre["head"]:
             raise Operational("BLOCKED", "verification changed canonical HEAD; refusing automatic restoration")
-        verification_paths = (after_paths - before_paths) - precious_restored
+        verification_paths = (after_paths - before_paths) - captured_precious_paths
     with locked_manifest(run_id, write=True) as doc:
         doc["units"][unit_id]["state"] = "restoring"
         event(doc, "restore-intent", unit_id, {"source": "controller-owned-verification"})
@@ -524,6 +524,7 @@ def _verify_run_locked(
         },
         policy_document=policy.policy_document(),
     )
+    captured_precious_paths = set(journal.document["precious_entries"])
     before_directories = set(before_directory_snapshot)
 
     verification_log, stream = _run_verification_log(args.run_id)
@@ -565,7 +566,11 @@ def _verify_run_locked(
     test_fault("artifact-before-precious-restore")
     try:
         test_fault("artifact-during-directory-inventory")
-        directory_manifest = regenerable_directory_stat_manifest(repo, after_regenerable_roots)
+        directory_manifest = regenerable_directory_stat_manifest(
+            repo,
+            after_regenerable_roots,
+            policy.precious_roots,
+        )
     except Exception as exc:
         directory_error = {
             "word": exc.word if isinstance(exc, Operational) else "BLOCKED",
@@ -639,10 +644,17 @@ def _verify_run_locked(
                     "retain_integration_lock": True,
                 },
             )
-        deletion_paths = (after_paths - before_paths) - set(artifact["precious_restored"])
+        deletion_paths = (after_paths - before_paths) - captured_precious_paths
         cleaned_paths = sorted(set(cleaned_paths) | deletion_paths)
         git(repo, "reset", "--hard", before["head"])
-        created_directories = _new_parent_directories(deletion_paths, before_directories)
+        captured_precious_directories = _new_parent_directories(
+            captured_precious_paths,
+            before_directories,
+        )
+        created_directories = (
+            _new_parent_directories(deletion_paths, before_directories)
+            - captured_precious_directories
+        )
         _remove_owned_new_paths(repo, deletion_paths | created_directories, before["head"])
     directory_restore_error = None
     try:
@@ -943,6 +955,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
             },
             policy.policy_document(),
         )
+        captured_precious_paths = set(journal.document["precious_entries"])
         before_directories = set(before_directory_snapshot)
 
         verification_log, stream = _verification_log(args.run_id, args.unit_id)
@@ -973,7 +986,11 @@ def cmd_integrate(args) -> tuple[str, dict]:
         test_fault("artifact-before-precious-restore")
         try:
             test_fault("artifact-during-directory-inventory")
-            directory_manifest = regenerable_directory_stat_manifest(repo, after_regenerable_roots)
+            directory_manifest = regenerable_directory_stat_manifest(
+                repo,
+                after_regenerable_roots,
+                policy.precious_roots,
+            )
         except Exception as exc:
             directory_error = {
                 "word": exc.word if isinstance(exc, Operational) else "BLOCKED",
@@ -1051,7 +1068,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
                 before,
                 before_paths,
                 after_paths,
-                set(artifact["precious_restored"]),
+                captured_precious_paths,
             )
             rollback_snapshot = _filtered_directory_snapshot(
                 repo,

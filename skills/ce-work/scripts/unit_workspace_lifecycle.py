@@ -428,7 +428,11 @@ def _resume_artifact_receipt(run_id: str, transaction: dict) -> dict:
             (rule.root for rule in policy.regenerable_rules),
         ))
         roots = {rule.root for rule in policy.regenerable_rules}
-        after_regenerable_directories = regenerable_directory_stat_manifest(repo, roots)
+        after_regenerable_directories = regenerable_directory_stat_manifest(
+            repo,
+            roots,
+            policy.precious_roots,
+        )
     except Operational as exc:
         classified = None
         observation_error = {"word": exc.word, "message": str(exc), "detail": exc.detail}

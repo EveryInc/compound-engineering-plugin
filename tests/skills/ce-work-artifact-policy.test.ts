@@ -181,6 +181,12 @@ try:
             [rule.root for rule in policy.regenerable_rules],
         ))
         output = artifacts.regenerable_stat_manifest(rows)
+    elif request["action"] == "regenerable_directory_manifest":
+        output = artifacts.regenerable_directory_stat_manifest(
+            repo,
+            [rule.root for rule in policy.regenerable_rules],
+            policy.precious_roots,
+        )
     else:
         raise AssertionError("unknown probe action")
     print(json.dumps({"ok": True, "value": output}, sort_keys=True))
@@ -1247,6 +1253,59 @@ artifacts.capture_artifact_transaction(
     expect(manifest.entries.node_modules.referent_manifest).toEqual({
       status: "unverifiable",
       reason: "nested-symlink-referent",
+    })
+  })
+
+  test("marks an external nested symlink in a directory regenerable root unverifiable", () => {
+    const repo = makeRepo()
+    writeFileSync(path.join(repo, "bun.lock"), "lockfileVersion = 1\n")
+    git(repo, "add", "bun.lock")
+    git(repo, "commit", "-m", "test: add regenerable owner")
+    writeFileSync(path.join(repo, ".git", "info", "exclude"), "node_modules\n")
+    mkdirSync(path.join(repo, "node_modules"))
+    symlinkSync(tmp("ce-work-external-dependencies-"), path.join(repo, "node_modules", "external"), "dir")
+
+    const manifest = probe(repo, { action: "inventory_regenerable_manifest" }).value
+    expect(manifest.entries.node_modules.referent_manifest).toEqual({
+      status: "unverifiable",
+      reason: "nested-symlink-referent",
+    })
+  })
+
+  test("marks a hardlink in a directory regenerable root unverifiable", () => {
+    const repo = makeRepo()
+    writeFileSync(path.join(repo, "bun.lock"), "lockfileVersion = 1\n")
+    git(repo, "add", "bun.lock")
+    git(repo, "commit", "-m", "test: add regenerable owner")
+    writeFileSync(path.join(repo, ".git", "info", "exclude"), "node_modules\n")
+    mkdirSync(path.join(repo, "node_modules"))
+    const outside = path.join(tmp("ce-work-artifact-store-"), "blob")
+    writeFileSync(outside, "shared\n")
+    linkSync(outside, path.join(repo, "node_modules", "shared"))
+
+    const manifest = probe(repo, { action: "inventory_regenerable_manifest" }).value
+    expect(manifest.entries.node_modules.referent_manifest).toEqual({
+      status: "unverifiable",
+      reason: "hardlink-topology-unverifiable",
+    })
+  })
+
+  test("excludes nested precious roots from the regenerable directory manifest", () => {
+    const repo = makeRepo()
+    trackPolicy(repo, {
+      schema: "artifact-policy.repo.v1",
+      precious_roots: ["node_modules/private"],
+      regenerable_roots: [
+        { root: "node_modules", owner: "repo-bun", repair_argv: ["bun", "install", "--frozen-lockfile"] },
+      ],
+    })
+    mkdirSync(path.join(repo, "node_modules", "private", "empty"), { recursive: true })
+    mkdirSync(path.join(repo, "node_modules", "public"), { recursive: true })
+
+    const manifest = probe(repo, { action: "regenerable_directory_manifest" }).value
+    expect(manifest).toEqual({
+      node_modules: 0o755,
+      "node_modules/public": 0o755,
     })
   })
 })

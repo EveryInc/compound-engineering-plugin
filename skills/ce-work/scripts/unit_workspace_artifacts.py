@@ -913,6 +913,49 @@ def _inventory_regenerable_symlink_referent(
     ), entries
 
 
+def _inventory_regenerable_directory_referent(
+    repo: str,
+    root: str,
+    root_entry: ArtifactEntry,
+) -> ArtifactEntry:
+    root_path = _safe_repo_path(repo, root)
+    try:
+        real_repo = str(Path(repo).resolve(strict=True))
+        git_dir = os.path.join(real_repo, ".git")
+
+        def fail(_error: OSError) -> None:
+            raise RuntimeError("regenerable directory traversal failed")
+
+        for parent, names, files in os.walk(root_path, topdown=True, onerror=fail, followlinks=False):
+            for name in sorted(names + files):
+                target = os.path.join(parent, name)
+                observed = os.lstat(target)
+                if stat.S_ISREG(observed.st_mode) and observed.st_nlink != 1:
+                    return replace(
+                        root_entry,
+                        referent_manifest=_unverifiable_referent("hardlink-topology-unverifiable"),
+                    )
+                if not stat.S_ISLNK(observed.st_mode):
+                    continue
+                try:
+                    resolved = str(Path(target).resolve(strict=True))
+                    inside_repo = os.path.commonpath([real_repo, resolved]) == real_repo
+                    inside_git = os.path.commonpath([git_dir, resolved]) == git_dir
+                except (OSError, RuntimeError, ValueError):
+                    continue
+                if not inside_repo or resolved == real_repo or inside_git:
+                    return replace(
+                        root_entry,
+                        referent_manifest=_unverifiable_referent("nested-symlink-referent"),
+                    )
+    except (OSError, RuntimeError):
+        return replace(
+            root_entry,
+            referent_manifest=_unverifiable_referent("referent-traversal-failed"),
+        )
+    return root_entry
+
+
 def _entry_document(entry: ArtifactEntry) -> dict:
     document = {
         "path": entry.path,
@@ -1676,21 +1719,40 @@ def inventory_artifacts(
     entries = {path: artifact_entry(repo, path) for path in sorted(paths)}
     for root in sorted(set(regenerable_roots)):
         root_entry = entries.get(root)
-        if root_entry is None or root_entry.kind != "symlink":
+        if root_entry is None:
+            try:
+                candidate = artifact_entry(repo, root)
+            except Operational:
+                continue
+            if candidate.kind != "directory":
+                continue
+            inventoried = _inventory_regenerable_directory_referent(repo, root, candidate)
+            if inventoried.referent_manifest is not None:
+                entries[root] = inventoried
             continue
-        root_entry, referent_entries = _inventory_regenerable_symlink_referent(repo, root, root_entry)
-        entries[root] = root_entry
-        for entry in referent_entries:
-            entries.setdefault(entry.path, entry)
+        if root_entry.kind == "symlink":
+            root_entry, referent_entries = _inventory_regenerable_symlink_referent(repo, root, root_entry)
+            entries[root] = root_entry
+            for entry in referent_entries:
+                entries.setdefault(entry.path, entry)
+        elif root_entry.kind == "directory":
+            entries[root] = _inventory_regenerable_directory_referent(repo, root, root_entry)
     return [entries[path] for path in sorted(entries)]
 
 
-def regenerable_directory_stat_manifest(repo: str, roots: Iterable[str]) -> dict[str, int]:
+def regenerable_directory_stat_manifest(
+    repo: str,
+    roots: Iterable[str],
+    precious_roots: Iterable[str],
+) -> dict[str, int]:
     """Inventory real directory modes under regenerable roots without following symlinks."""
     directories: dict[str, int] = {}
+    precious = tuple(set(precious_roots))
     for root in sorted(set(roots)):
         if root == ".git" or root.startswith(".git/"):
             raise Operational("BLOCKED", "regenerable directory inventory cannot inspect Git metadata")
+        if any(_path_under(root, precious_root) for precious_root in precious):
+            continue
         target = _safe_repo_path(repo, root)
         try:
             root_entry = os.lstat(target)
@@ -1706,16 +1768,21 @@ def regenerable_directory_stat_manifest(repo: str, roots: Iterable[str]) -> dict
 
         for parent, names, _files in os.walk(target, topdown=True, onerror=fail, followlinks=False):
             names[:] = sorted(names)
+            included_names: list[str] = []
             for name in names:
                 path = os.path.join(parent, name)
+                relative = os.path.relpath(path, repo).replace(os.sep, "/")
+                if any(_path_under(relative, precious_root) for precious_root in precious):
+                    continue
+                included_names.append(name)
                 try:
                     entry = os.lstat(path)
                 except OSError as exc:
                     raise Operational("BLOCKED", f"could not inspect regenerable directory {path}: {exc}") from exc
                 if not stat.S_ISDIR(entry.st_mode) or stat.S_ISLNK(entry.st_mode):
                     continue
-                relative = os.path.relpath(path, repo).replace(os.sep, "/")
                 directories[relative] = stat.S_IMODE(entry.st_mode)
+            names[:] = included_names
         directories[root] = stat.S_IMODE(root_entry.st_mode)
     return dict(sorted(directories.items()))
 
