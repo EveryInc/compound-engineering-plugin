@@ -80,33 +80,35 @@ def _run_verification_child(command: list[str], repo: str, stream, journal) -> i
         stream.write(f"verification launch failed: {exc}\n".encode("utf-8", "replace"))
         return 127
 
+    pgid = proc.pid
     try:
         pgid = os.getpgid(proc.pid)
         journal.document["verification_process"] = {
             "pid": proc.pid,
             "pgid": pgid,
-            "started_at": _process_start_time(proc.pid),
+            # Test-only: avoid recyclable OS identity in crash/resume fixtures.
+            "started_at": (
+                "test:provably-dead"
+                if os.environ.get("CE_WORK_TEST_VERIFICATION_IDENTITY")
+                else _process_start_time(proc.pid)
+            ),
         }
         journal.write()
         verification_exit = proc.wait()
-    except OSError as exc:
+    except (OSError, TrustFailure) as exc:
         termination_errors: list[str] = []
         try:
-            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            os.killpg(pgid, signal.SIGKILL)
         except ProcessLookupError:
             pass
         except OSError as kill_exc:
             termination_errors.append(str(kill_exc))
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            except OSError as fallback_exc:
-                termination_errors.append(str(fallback_exc))
         try:
             proc.wait()
         except OSError as wait_exc:
             termination_errors.append(str(wait_exc))
+        if not _verification_group_drained(pgid):
+            termination_errors.append("verification process group could not be proven drained")
         raise Operational(
             "BLOCKED",
             "verification child identity could not be durably persisted",

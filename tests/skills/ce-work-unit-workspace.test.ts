@@ -4069,7 +4069,12 @@ describe("ce-work unit workspace controller", () => {
 
     const interrupted = ctlWithEnv(
       runs,
-      { CE_WORK_TEST_FAULT: fault },
+      {
+        CE_WORK_TEST_FAULT: fault,
+        ...(["artifact-before-precious-restore", "artifact-after-restore-before-receipt", "artifact-after-receipt-before-release"].includes(fault)
+          ? { CE_WORK_TEST_VERIFICATION_IDENTITY: "provably-dead" }
+          : {}),
+      },
       "verify-run", "--run-id", runId,
       "--verification-summary", `interrupted at ${fault}`, "--",
       "python3", "-c",
@@ -4234,7 +4239,12 @@ describe("ce-work unit workspace controller", () => {
 
     const interrupted = ctlWithEnv(
       runs,
-      { CE_WORK_TEST_FAULT: fault },
+      {
+        CE_WORK_TEST_FAULT: fault,
+        ...(["artifact-before-precious-restore", "artifact-after-restore-before-receipt", "artifact-after-receipt-before-release"].includes(fault)
+          ? { CE_WORK_TEST_VERIFICATION_IDENTITY: "provably-dead" }
+          : {}),
+      },
       "integrate", "--run-id", runId, "--unit-id", "U",
       "--commit-message", `feat(test): interrupt integrate at ${fault}`, "--",
       "python3", "-c",

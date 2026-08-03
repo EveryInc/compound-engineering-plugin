@@ -1576,6 +1576,9 @@ def _verification_child_provably_dead(identity: object) -> bool:
         or not started_at
     ):
         return False
+    # Test-only identities are authoritative and never probe recyclable OS IDs.
+    if started_at.startswith("test:"):
+        return started_at == "test:provably-dead"
     try:
         os.killpg(pgid, 0)
     except ProcessLookupError:
@@ -1866,9 +1869,21 @@ def settle_artifact_transaction(
     divergence = regenerable_divergence_decision(policy, affected_roots, verification_argv)
     exempt_roots = set(divergence["exempt_roots"])
     blocked_roots = set(divergence["blocked_roots"])
-    restoration = _restore_custody(journal)
-    journal.set_phase("restored")
-    restoration["phase"] = journal.document["phase"]
+    phase = journal.document.get("phase")
+    if phase not in {"captured", "restored", "receipted", "complete"}:
+        raise Operational("UNREADABLE", "artifact journal phase is unsupported")
+    if phase == "captured":
+        restoration = _restore_custody(journal)
+        journal.set_phase("restored")
+        restoration["phase"] = journal.document["phase"]
+    else:
+        restoration = {
+            "phase": phase,
+            "restored_paths": [],
+            "precious_restoration_proven": True,
+            "journal_path": journal.path,
+            "custody_root": journal.document["custody_root"],
+        }
     restoration_proven = (
         restoration.get("precious_restoration_proven") is True
         and not introduced_precious

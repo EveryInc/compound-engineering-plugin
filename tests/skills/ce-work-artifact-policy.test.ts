@@ -607,6 +607,33 @@ describe("ce-work artifact policy module", () => {
     expect(readFileSync(path.join(repo, "secret.bin"), "utf8")).toBe("precious\n")
   })
 
+  test("settlement preserves a post-crash edit after custody is already restored", () => {
+    const repo = makeRepo()
+    const runDir = path.join(tmp("ce-work-artifact-run-"), "run")
+    mkdirSync(runDir, { mode: 0o700 })
+    writeFileSync(path.join(repo, "secret.bin"), "precious\n")
+    const captured = probe(repo, {
+      action: "capture",
+      run_dir: runDir,
+      transaction: "txn-restored-settlement-idempotence",
+      unit_id: null,
+      attempt_id: "attempt-restored-settlement-idempotence",
+      lock_nonce: "nonce-restored-settlement-idempotence",
+      paths: ["secret.bin"],
+    }).value
+    writeFileSync(path.join(repo, "secret.bin"), "verification mutation\n")
+    expect(probe(repo, { action: "resume", journal: captured.journal_path }).value).toMatchObject({
+      phase: "restored",
+      precious_restoration_proven: true,
+    })
+    writeFileSync(path.join(repo, "secret.bin"), "post-crash user edit\n")
+
+    expect(probe(repo, { action: "settle_resume", journal: captured.journal_path }).value).toMatchObject({
+      precious_restoration_proven: true,
+    })
+    expect(readFileSync(path.join(repo, "secret.bin"), "utf8")).toBe("post-crash user edit\n")
+  })
+
   test("post-spawn journal failure kills and reaps the verification group", () => {
     const source = String.raw`
 import json, os, sys, tempfile
@@ -647,6 +674,121 @@ print(json.dumps(output, sort_keys=True))
       ok: false,
       word: "BLOCKED",
       reaped: true,
+      detail: { retain_recovery_state: true, retained_integration_lock: true },
+    })
+  })
+
+  test("post-spawn TrustFailure kills and reaps the verification group", () => {
+    const source = String.raw`
+import json, os, sys, tempfile
+sys.path.insert(0, sys.argv[1])
+import unit_workspace_transaction as transaction
+
+class Journal:
+    path = "/tmp/test-verification-journal"
+    document = {}
+    def write(self):
+        raise transaction.TrustFailure("injected custody trust failure")
+
+journal = Journal()
+try:
+    with tempfile.TemporaryFile() as stream:
+        transaction._run_verification_child(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            os.getcwd(),
+            stream,
+            journal,
+        )
+    output = {"ok": True}
+except transaction.Operational as exc:
+    identity = journal.document.get("verification_process", {})
+    pid = identity.get("pid")
+    output = {
+        "ok": False,
+        "word": exc.word,
+        "detail": exc.detail,
+        "reaped": pid is not None and transaction._verification_group_drained(identity.get("pgid")),
+    }
+print(json.dumps(output, sort_keys=True))
+`
+    const result = spawnSync(PYTHON, ["-c", source, SCRIPT_DIR], { encoding: "utf8" })
+
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: false,
+      word: "BLOCKED",
+      reaped: true,
+      detail: { retain_recovery_state: true, retained_integration_lock: true },
+    })
+  })
+
+  test("kills the saved verification group after its leader exits before persistence fails", () => {
+    const source = String.raw`
+import ctypes, json, os, sys, tempfile, time
+sys.path.insert(0, sys.argv[1])
+import unit_workspace_transaction as transaction
+
+if sys.platform.startswith("linux"):
+    ctypes.CDLL(None).prctl(36, 1, 0, 0, 0)
+
+original_killpg = transaction.os.killpg
+killed_pgids = []
+def record_killpg(pgid, sig):
+    killed_pgids.append(pgid)
+    return original_killpg(pgid, sig)
+transaction.os.killpg = record_killpg
+original_group_drained = transaction._verification_group_drained
+drain_checks = []
+def record_group_drained(pgid):
+    drain_checks.append(pgid)
+    return original_group_drained(pgid)
+transaction._verification_group_drained = record_group_drained
+
+class Journal:
+    path = "/tmp/test-verification-journal"
+    document = {}
+    def write(self):
+        time.sleep(0.2)
+        raise OSError("injected journal failure after leader exit")
+
+journal = Journal()
+try:
+    with tempfile.TemporaryFile() as stream:
+        transaction._run_verification_child(
+            ["sh", "-c", "sleep 30 &"],
+            os.getcwd(),
+            stream,
+            journal,
+        )
+    output = {"ok": True}
+except transaction.Operational as exc:
+    identity = journal.document.get("verification_process", {})
+    while True:
+        try:
+            reaped_pid, _ = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            break
+        if reaped_pid == 0:
+            time.sleep(0.01)
+            continue
+    output = {
+        "ok": False,
+        "word": exc.word,
+        "detail": exc.detail,
+        "group_drained": transaction._verification_group_drained(identity.get("pgid")),
+        "saved_group_killed": identity.get("pgid") in killed_pgids,
+        "saved_group_drain_checked": identity.get("pgid") in drain_checks,
+    }
+print(json.dumps(output, sort_keys=True))
+`
+    const result = spawnSync(PYTHON, ["-c", source, SCRIPT_DIR], { encoding: "utf8" })
+
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      ok: false,
+      word: "BLOCKED",
+      saved_group_killed: true,
+      saved_group_drain_checked: true,
       detail: { retain_recovery_state: true, retained_integration_lock: true },
     })
   })
