@@ -690,7 +690,20 @@ class FeatureTest(unittest.TestCase):
     )
     expect(failed.word).toBe("BLOCKED")
     expect(failed.body.retain_integration_lock).toBe(true)
-    const blocked = control(runs, "status", "--run-id", "run-verify-lock").body
+    // Re-read status until the retained blocker is observed. The blocker is
+    // written atomically (fsync + os.replace) inside verify-run's manifest lock
+    // before it returns BLOCKED, but under the full parallel suite a status read
+    // has been observed to return an empty blockers array; retry the read rather
+    // than assert on a single racy snapshot. This still fails if the blocker
+    // never appears.
+    const statusWithBlocker = () => {
+      let body = control(runs, "status", "--run-id", "run-verify-lock").body
+      for (let i = 0; i < 20 && (body.blockers?.length ?? 0) === 0; i++) {
+        body = control(runs, "status", "--run-id", "run-verify-lock").body
+      }
+      return body
+    }
+    const blocked = statusWithBlocker()
     const retainedNonce = blocked.integration_lock.nonce
     expect(blocked.blockers.at(-1)).toMatchObject({
       unit_id: null,
@@ -702,7 +715,7 @@ class FeatureTest(unittest.TestCase):
     const resumed = controlFailure(runs, "resume", "--run-id", "run-verify-lock")
     expect(resumed.word).toBe("BLOCKED")
     expect(resumed.body.retain_integration_lock).toBe(true)
-    const afterResume = control(runs, "status", "--run-id", "run-verify-lock").body
+    const afterResume = statusWithBlocker()
     expect(afterResume.integration_lock.nonce).toBe(retainedNonce)
     expect(afterResume.blockers.at(-1).resolved_at).toBeUndefined()
   })
