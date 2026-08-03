@@ -1273,12 +1273,35 @@ def cmd_cleanup(args) -> tuple[str, dict]:
         for transaction in open_artifact_transactions(run_dir(args.run_id))
         if transaction.get("unit_id") == args.unit_id
     ]
-    if open_transactions:
+    if open_transactions and not args.abandon:
         raise Operational(
             "BLOCKED",
             "artifact custody remains open; resume the owning transaction before cleanup",
             {"unit_id": args.unit_id, "artifact_transactions": open_transactions},
         )
+    if open_transactions:
+        phase_order = ["capturing", "captured", "restored", "receipted", "complete"]
+        resolved_transactions = []
+        for transaction in open_transactions:
+            current = transaction.get("phase")
+            if current not in phase_order:
+                raise Operational(
+                    "BLOCKED",
+                    "artifact journal phase is invalid",
+                    {"unit_id": args.unit_id, "artifact_transaction": transaction},
+                )
+            for phase in phase_order[phase_order.index(current) + 1:]:
+                advance_artifact_transaction(transaction["journal_path"], phase)
+            resolved_transactions.append({
+                "transaction_id": transaction.get("transaction_id"),
+                "prior_phase": current,
+                "terminal_phase": "complete",
+            })
+        sweep_artifact_custody(run_dir(args.run_id))
+        with locked_manifest(args.run_id, write=True) as doc:
+            event(doc, "artifact-custody-abandoned", args.unit_id, {
+                "artifact_transactions": resolved_transactions,
+            })
     with locked_manifest(args.run_id) as doc:
         validate_repo(doc)
         unit = doc["units"].get(args.unit_id)

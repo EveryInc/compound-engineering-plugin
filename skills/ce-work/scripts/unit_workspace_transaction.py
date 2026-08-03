@@ -731,6 +731,7 @@ def _verify_run_locked(
     test_fault("artifact-after-receipt-before-release")
     advance_artifact_transaction(journal.path, "complete")
     if verification_exit != 0:
+        sweep_artifact_custody(run_dir(args.run_id))
         raise Operational(
             "BLOCKED",
             "plan-wide authoritative verification failed",
@@ -742,6 +743,7 @@ def _verify_run_locked(
             },
         )
     if artifact_blocked:
+        sweep_artifact_custody(run_dir(args.run_id))
         raise Operational(
             "BLOCKED",
             "artifact policy blocked plan-wide verification",
@@ -1163,6 +1165,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
             advance_artifact_transaction(journal.path, "complete")
             cmd_integration_release(_args(run_id=args.run_id, unit_id=args.unit_id, lock_token=token))
             token = None
+            sweep_artifact_custody(run_dir(args.run_id))
             raise Operational(
                 "BLOCKED",
                 "authoritative verification failed or changed canonical state",

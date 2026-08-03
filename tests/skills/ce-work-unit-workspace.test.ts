@@ -4189,7 +4189,7 @@ describe("ce-work unit workspace controller", () => {
     })
   })
 
-  test("successful verify-run sweeps completed precious custody while blocked verification retains it", () => {
+  test("verify-run sweeps completed precious custody on success and blocked verification", () => {
     const custodyBackups = (runs: string, runId: string) => {
       const custodyRoot = path.join(runs, runId, "artifact-custody")
       return existsSync(custodyRoot)
@@ -4216,7 +4216,7 @@ describe("ce-work unit workspace controller", () => {
       runs, "verify-run", "--run-id", "run-retained-custody", "--", "python3", "-c",
       "from pathlib import Path; Path('existing.verification-cache').write_text('mutated\\n'); raise SystemExit(7)",
     ).word).toBe("BLOCKED")
-    expect(custodyBackups(runs, "run-retained-custody")).toHaveLength(1)
+    expect(custodyBackups(runs, "run-retained-custody")).toEqual([])
   })
 
   test.each([
@@ -4362,6 +4362,67 @@ describe("ce-work unit workspace controller", () => {
         resolved_by: "verification-rerun",
       }))
     }
+  })
+
+  test("cleanup requires resume for open custody unless abandon resolves and sweeps it", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\n")
+    writeFileSync(path.join(f.repo, "existing.verification-cache"), "preserve me\n")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-abandon-open-artifact-custody"
+    expect(init(runs, runId, f).word).toBe("READY")
+    expect(ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("abandon custody packet"),
+    ).word).toBe("PREPARED")
+    const workspace = path.join(runs, runId, "units", "U", "workspace")
+    writeFileSync(path.join(workspace, "integrated.txt"), "integrated\n")
+    const job = fakeDoneJob(runs, runId, "U", "abandon custody packet")
+    expect(ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    ).word).toBe("AUTHORING")
+    const transport = ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U").body.transport
+
+    expect(ctlWithEnv(
+      runs,
+      { CE_WORK_TEST_FAULT: "artifact-before-precious-restore", CE_WORK_TEST_VERIFICATION_IDENTITY: "provably-dead" },
+      "integrate", "--run-id", runId, "--unit-id", "U",
+      "--commit-message", "feat(test): strand custody before restore", "--",
+      "python3", "-c", "from pathlib import Path; Path('existing.verification-cache').write_text('mutated\\n')",
+    ).word).toBe("INTERRUPTED")
+
+    const stranded = ctl(runs, "status", "--run-id", runId).body
+    expect(stranded.artifact_transactions).toMatchObject([{ unit_id: "U", phase: "captured" }])
+    const custodyRoot = path.join(runs, runId, "artifact-custody")
+    expect(readdirSync(custodyRoot).filter((name) => name.endsWith(".custody"))).toHaveLength(1)
+
+    const refused = ctl(runs, "cleanup", "--run-id", runId, "--unit-id", "U")
+    expect(refused.word).toBe("BLOCKED")
+    expect(refused.stderr).toContain("artifact custody remains open; resume the owning transaction before cleanup")
+    expect(ctl(runs, "status", "--run-id", runId).body.artifact_transactions).toMatchObject([
+      { unit_id: "U", phase: "captured" },
+    ])
+    expect(readdirSync(custodyRoot).filter((name) => name.endsWith(".custody"))).toHaveLength(1)
+
+    expect(ctl(
+      runs, "cleanup", "--run-id", runId, "--unit-id", "U",
+      "--abandon", "--expect-transport", transport.commit,
+    ).word).toBe("CLEANED")
+    const cleaned = ctl(runs, "status", "--run-id", runId).body
+    expect(cleaned.artifact_transactions).toEqual([])
+    expect(readdirSync(custodyRoot).filter((name) => name.endsWith(".custody"))).toEqual([])
+    const manifest = JSON.parse(readFileSync(path.join(runs, runId, "manifest.json"), "utf8"))
+    expect(manifest.events).toContainEqual(expect.objectContaining({
+      kind: "artifact-custody-abandoned",
+      unit_id: "U",
+      detail: {
+        artifact_transactions: [expect.objectContaining({
+          prior_phase: "captured",
+          terminal_phase: "complete",
+        })],
+      },
+    }))
   })
 
   test.each([
