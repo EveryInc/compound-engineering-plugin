@@ -1,6 +1,6 @@
 {
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "compound-engineering",
-  "version": "3.21.0",
+  "version": "3.21.1",
   "description": "Brainstorm, plan, debug, review, and compound learnings with AI agents"
 }
