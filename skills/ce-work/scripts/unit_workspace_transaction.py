@@ -185,6 +185,8 @@ def _directory_snapshot(repo: str) -> dict[str, int]:
 
 
 def _artifact_exempt_directory(rel: str, regenerable_roots: set[str], precious_paths: set[str]) -> bool:
+    if any(rel == path or rel.startswith(path + "/") for path in precious_paths):
+        return False
     return any(rel == root or rel.startswith(root + "/") for root in regenerable_roots) or any(
         path == rel or path.startswith(rel + "/")
         for path in precious_paths
@@ -213,22 +215,25 @@ def _filtered_directory_snapshot(
 def _regenerable_directory_snapshot(
     snapshot: dict[str, int],
     regenerable_roots: set[str],
+    precious_roots: set[str],
 ) -> dict[str, int]:
     return {
         rel: mode
         for rel, mode in snapshot.items()
         if any(rel == root or rel.startswith(root + "/") for root in regenerable_roots)
+        and not any(rel == root or rel.startswith(root + "/") for root in precious_roots)
     }
 
 
 def _restorable_directory_snapshot(
     snapshot: dict[str, int],
     regenerable_roots: set[str],
+    precious_roots: set[str],
 ) -> dict[str, int]:
     return {
         rel: mode
         for rel, mode in snapshot.items()
-        if not _artifact_exempt_directory(rel, regenerable_roots, set())
+        if not _artifact_exempt_directory(rel, regenerable_roots, precious_roots)
     }
 
 
@@ -236,10 +241,15 @@ def _restored_directory_snapshot_for_proof(
     snapshot: dict[str, int],
     target_snapshot: dict[str, int],
     regenerable_roots: set[str],
+    precious_roots: set[str],
 ) -> dict[str, int]:
     return {
         rel: mode
-        for rel, mode in _restorable_directory_snapshot(snapshot, regenerable_roots).items()
+        for rel, mode in _restorable_directory_snapshot(
+            snapshot,
+            regenerable_roots,
+            precious_roots,
+        ).items()
         if rel in target_snapshot or not _directory_protected_from_cleanup(rel, regenerable_roots)
     }
 
@@ -488,6 +498,7 @@ def _verify_run_locked(
     if accepted_units is None:
         raise Operational("BLOCKED", "unit completion evidence changed before plan-wide verification")
     policy = ArtifactPolicyModule.load(repo)
+    precious_roots = set(policy.precious_roots)
     before_entries = inventory_artifacts(
         repo,
         _ignored_paths(repo),
@@ -503,6 +514,7 @@ def _verify_run_locked(
     regenerable_manifest["directories"] = _regenerable_directory_snapshot(
         before_directory_snapshot,
         regenerable_roots,
+        precious_roots,
     )
     journal = capture_artifact_transaction(
         repo,
@@ -612,6 +624,7 @@ def _verify_run_locked(
     restorable_before_directories = _restorable_directory_snapshot(
         comparable_before_directories,
         after_regenerable_roots,
+        precious_roots,
     )
     new_directories = {
         rel
@@ -672,6 +685,7 @@ def _verify_run_locked(
         restored_directory_snapshot,
         restorable_before_directories,
         after_regenerable_roots,
+        precious_roots,
     )
     if (
         restored != before
@@ -906,6 +920,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
         before = semantic_snapshot(repo)
         before_paths = status_paths(repo)
         policy = ArtifactPolicyModule.load(repo)
+        precious_roots = set(policy.precious_roots)
         before_entries = inventory_artifacts(
             repo,
             _ignored_paths(repo),
@@ -936,6 +951,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
         regenerable_manifest["directories"] = _regenerable_directory_snapshot(
             before_directory_snapshot,
             regenerable_roots,
+            precious_roots,
         )
         journal = capture_artifact_transaction(
             repo,
@@ -1038,6 +1054,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
         restorable_before_directories = _restorable_directory_snapshot(
             comparable_before_directories,
             after_regenerable_roots,
+            precious_roots,
         )
         new_directories = {
             rel
@@ -1059,6 +1076,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
             target_directory_snapshot = _restorable_directory_snapshot(
                 pre_fold_comparable_directories,
                 restoration_regenerable_roots,
+                precious_roots,
             )
             rollback_directories = (
                 set(restorable_before_directories) - set(target_directory_snapshot)
@@ -1080,6 +1098,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
                 set(_restorable_directory_snapshot(
                     rollback_snapshot,
                     restoration_regenerable_roots,
+                    precious_roots,
                 ))
                 - set(target_directory_snapshot)
             )
@@ -1111,6 +1130,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
             restored_directory_snapshot,
             target_directory_snapshot,
             restoration_regenerable_roots,
+            precious_roots,
         )
         directory_restoration_unproven = (
             restored_restorable_directories != target_directory_snapshot or directory_restore_error

@@ -633,6 +633,10 @@ def _enforce_after_classification(
         if effective is not None and entry.uid is not None and entry.uid != effective:
             mark("precious", entry.path, "ownership_mismatch")
         case_groups.setdefault(entry.path.casefold(), []).append(entry.path)
+    for row in regenerable:
+        entry = row.entry
+        if entry.kind == "regular" and entry.nlink != 1:
+            mark("regenerable", entry.path, "multiple_links")
     for paths in case_groups.values():
         if len(paths) > 1:
             for path in paths:
@@ -667,6 +671,18 @@ def _enforce_after_classification(
                 "count_key": reason,
                 "class": "precious",
             })
+    regenerable_multiple_links = sorted(
+        path
+        for path, values in reasons["regenerable"].items()
+        if "multiple_links" in values
+    )
+    if regenerable_multiple_links:
+        blockers.append({
+            "reason": "regenerable-hardlink-topology-unsupported",
+            "paths": regenerable_multiple_links[:OFFENDER_SAMPLE],
+            "count_key": "multiple_links",
+            "class": "regenerable",
+        })
     return blockers, reasons
 
 

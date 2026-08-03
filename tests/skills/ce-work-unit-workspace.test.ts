@@ -2926,6 +2926,44 @@ describe("ce-work unit workspace controller", () => {
     })
   })
 
+  test("plan-wide verification restores an empty precious directory nested under a regenerable root", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, ".ce-artifact-policy.json"), `${JSON.stringify({
+      schema: "artifact-policy.repo.v1",
+      precious_roots: ["node_modules/private"],
+      regenerable_roots: [{
+        root: "node_modules",
+        owner: "bun",
+        repair_argv: ["bun", "install", "--frozen-lockfile"],
+      }],
+    })}\n`)
+    git(f.repo, "add", ".ce-artifact-policy.json")
+    git(f.repo, "commit", "-m", "test: protect nested precious directory")
+    f.base = git(f.repo, "rev-parse", "HEAD")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "node_modules/\n")
+    const empty = path.join(f.repo, "node_modules", "private", "empty")
+    mkdirSync(empty, { recursive: true })
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-nested-precious-empty-directory"
+    createAcceptedRun(runs, runId, f)
+
+    const verified = ctl(
+      runs, "verify-run", "--run-id", runId,
+      "--", "python3", "-c", "import shutil; shutil.rmtree('node_modules/private/empty')",
+    )
+    expect(verified).toMatchObject({
+      word: "RUN_VERIFIED",
+      body: { artifact_outcome: "VERIFIED" },
+    })
+    expect(existsSync(empty)).toBe(true)
+    expect(ctl(runs, "status", "--run-id", runId).body.verifications.at(-1)).toMatchObject({
+      artifact: {
+        outcome: "VERIFIED",
+        bulk_divergence_detected: false,
+      },
+    })
+  })
+
   test("init reports every ignored snapshot blocker before route selection closes", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
@@ -3124,6 +3162,40 @@ describe("ce-work unit workspace controller", () => {
     expect(refused.body.blocking_counts.entry_limit).toBe(1)
     expect(existsSync(marker)).toBe(false)
     expect(ctl(runs, "status", "--run-id", runId).body.integration_lock).toBeNull()
+  })
+
+  test("plan verification refuses a regenerable external hardlink before dispatch", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, "bun.lock"), "lockfileVersion = 1\n")
+    git(f.repo, "add", "bun.lock")
+    git(f.repo, "commit", "-m", "test: add regenerable owner")
+    f.base = git(f.repo, "rev-parse", "HEAD")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "node_modules/\n")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-regenerable-external-hardlink"
+    createAcceptedRun(runs, runId, f)
+    mkdirSync(path.join(f.repo, "node_modules"))
+    const outside = path.join(tmp("ce-work-artifact-store-"), "shared")
+    writeFileSync(outside, "preserve\n")
+    linkSync(outside, path.join(f.repo, "node_modules", "shared"))
+    const marker = path.join(tmp("ce-work-verification-marker-"), "ran")
+
+    const refused = ctl(
+      runs, "verify-run", "--run-id", runId,
+      "--", "python3", "-c", `from pathlib import Path; Path(${JSON.stringify(marker)}).write_text('ran')`,
+    )
+
+    expect(refused).toMatchObject({
+      word: "REFUSED",
+      body: {
+        blockers: [{
+          reason: "regenerable-hardlink-topology-unsupported",
+          paths: ["node_modules/shared"],
+        }],
+      },
+    })
+    expect(existsSync(marker)).toBe(false)
+    expect(readFileSync(outside, "utf8")).toBe("preserve\n")
   })
 
   test("directory snapshots preserve nested regenerable directory modes for detect-only comparison", () => {

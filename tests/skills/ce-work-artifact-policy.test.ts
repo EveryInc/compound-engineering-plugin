@@ -329,6 +329,23 @@ describe("ce-work artifact policy module", () => {
     expect(Object.values(refused.blocking_counts).filter(Boolean)).toHaveLength(1)
   })
 
+  test("refuses external-hardlink topology in regenerable custody", () => {
+    const repo = makeRepo()
+    const report = probe(repo, {
+      action: "inspect",
+      entries: [{ path: "node_modules/pkg/shared", nlink: 2 }],
+    }).value
+
+    expect(report).toMatchObject({
+      eligible: false,
+      blocking_counts_by_class: { regenerable: { multiple_links: 1 } },
+      blockers: [{
+        reason: "regenerable-hardlink-topology-unsupported",
+        paths: ["node_modules/pkg/shared"],
+      }],
+    })
+  })
+
   test("refuses case-folded precious path collisions with a named reason", () => {
     const repo = makeRepo()
     const report = probe(repo, {
