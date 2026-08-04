@@ -142,10 +142,12 @@ If left as-is: {one-sentence downstream cost}
 Where:
 
 - **Short handle** matches the `{plain-English title}` from the terminal block heading.
-- **What's wrong / Proposed fix / If left as-is** — the same three fields as the terminal block, compressed to one sentence each, obeying the shared rendering floor (`references/rendering-floor.md`) opaque-token policy and two-anchor budget. Derive them from the block already rendered; do not invent a second narrative. Omit a field only when the merged finding has no `suggested_fix` (write `Proposed fix: none`).
+- **What's wrong / Proposed fix / If left as-is** — the same three fields as the terminal block, compressed to one sentence each, obeying the shared rendering floor (`references/rendering-floor.md`) opaque-token policy and two-anchor budget. Derive them from the block already rendered; do not invent a second narrative. Always emit all three labeled lines. When the merged finding has no `suggested_fix`, write `Proposed fix: none` — do not drop the line.
 - **Action framing** — one phrase describing what the single recommended action does, as a yes/no question. Examples: `Apply the rename?`, `Defer to Open Questions since the tradeoff is genuine?`, `Skip since the document already resolves this elsewhere?`.
 
 Never enumerate alternatives in the question string. One recommendation as a yes/no — the option list carries the alternatives. When the recommendation is close, surface the disagreement in the terminal block's conflict-context line, not as a multi-option stem. Do not put the proposed-fix text into the Apply option label; keep labels short per "Options" below.
+
+If the blocking-question tool rejects the multi-line question string (schema / length / single-prompt constraints on a host), retry once with a short action-framing stem only — the terminal block already carries What's wrong / Proposed fix / If left as-is. Do not skip the question, and do not treat that retry as license to omit the three fields on hosts that accept the full string.
 
 ### Confirmation between findings
 

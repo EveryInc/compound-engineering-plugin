@@ -131,7 +131,11 @@ describe("ce-doc-review interaction-order decision context", () => {
     expect(walkthrough).toContain("What's wrong:")
     expect(walkthrough).toContain("Proposed fix:")
     expect(walkthrough).toContain("If left as-is:")
+    expect(walkthrough).toContain("Proposed fix: none")
+    expect(walkthrough).toMatch(/Always emit all three labeled lines/)
+    expect(walkthrough).toMatch(/rejects the multi-line question string/)
     expect(walkthrough).not.toContain("compact two-line stem")
+    expect(walkthrough).not.toMatch(/Omit a field only when/)
   })
 
   test("plan-handoff clarifies re-entry reuses state and does not skip presentation", () => {
