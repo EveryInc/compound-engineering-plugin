@@ -2055,4 +2055,53 @@ describe("discover-sessions", () => {
       expect(file).toMatch(/\.omp\//)
     }
   })
+
+  test("--platform omp matches buckets whose basename omp sanitized", async () => {
+    // omp normalizes bucket basenames ([^a-zA-Z0-9._-]+ -> "-"), so a repo
+    // named "my repo" lands in a "home-my-repo-<hash>" bucket. The raw
+    // REPO_NAME glob would never match it.
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const bucket =
+      "home-my-repo-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    const sessionPath = path.join(
+      tempHome,
+      `.omp/agent/sessions/${bucket}/2026-04-07T09-00-00-000Z_test.jsonl`
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my repo", "7", "--platform", "omp"],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("all-platform discovery deduplicates the shared PI_CODING_AGENT_SESSION_DIR override", async () => {
+    // Pi and omp both honor the flat session-dir override, so without
+    // deduplication each file is emitted twice (once per discoverer).
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const sessionBase = fs.mkdtempSync(path.join(os.tmpdir(), "omp-sessions-"))
+    const sessionPath = path.join(
+      sessionBase,
+      "2026-04-07T09-00-00-000Z_test.jsonl"
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--cwd", "/Users/test/Code/my-repo"],
+      {
+        HOME: tempHome,
+        PI_CODING_AGENT_SESSION_DIR: sessionBase,
+      }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
 })

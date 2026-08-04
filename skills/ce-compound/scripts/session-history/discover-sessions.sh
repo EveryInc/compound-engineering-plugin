@@ -138,11 +138,20 @@ discover_omp() {
     # root; exact repo attribution comes from the downstream header `cwd`
     # filter (extract-metadata.py --cwd-filter reads the type:"session"
     # header).
+    # omp sanitizes the bucket basename before hashing: runs of characters
+    # outside [a-zA-Z0-9._-] become "-", edge dashes are stripped, the result
+    # is capped at its last 80 chars, and an empty result falls back to
+    # "project" (session-paths.ts getDefaultSessionDirName). Glob the
+    # sanitized form so repos whose basename contains characters omp
+    # normalizes (e.g. spaces) still match their buckets.
+    local sanitized
+    sanitized="$(printf '%s' "$REPO_NAME" | sed -E 's/[^a-zA-Z0-9._-]+/-/g; s/^-+//; s/-+$//' | tail -c 80)"
+    [ -n "$sanitized" ] || sanitized="project"
     local agent_dir="${PI_CODING_AGENT_DIR:-$HOME/$config_dir/agent}"
     local root
     for root in "$agent_dir/sessions" "$HOME/$config_dir"/profiles/*/agent/sessions; do
         [ -d "$root" ] || continue
-        for dir in "$root"/*"$REPO_NAME"*/; do
+        for dir in "$root"/*"$sanitized"*/; do
             [ -d "$dir" ] || continue
             find "$dir" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
         done
@@ -157,11 +166,12 @@ case "$PLATFORM" in
     pi)      discover_pi ;;
     omp)     discover_omp ;;
     all)
-        discover_claude
-        discover_codex
-        discover_cursor
-        discover_pi
-        discover_omp
+        # Pi and omp share the PI_CODING_AGENT_SESSION_DIR override: when it
+        # is set, both discover functions emit the same flat-dir files, and
+        # the downstream xargs call does not deduplicate. Emit each path once;
+        # platform attribution is unaffected because extract-metadata.py
+        # detects the file shape (title slot => omp, otherwise pi).
+        { discover_claude; discover_codex; discover_cursor; discover_pi; discover_omp; } | awk '!seen[$0]++'
         ;;
     *)
         echo "Unknown platform: $PLATFORM" >&2
