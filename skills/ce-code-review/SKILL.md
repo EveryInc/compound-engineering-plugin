@@ -10,7 +10,7 @@ Reviews code changes using dynamically selected reviewer personas. Dispatches bo
 
 ## Setup
 
-Run this once at the start of this invocation, before any subagent dispatch, and follow the directives it prints — except where one conflicts with this skill's own rules on asking the user questions, whether those rules are scoped to a non-interactive mode or apply in every mode, in which case this skill's rules win and no blocking question is asked. Do not rerun it within the same invocation; a later invocation of this or any other skill runs its own. If no Node runtime is available the skill proceeds unchanged.
+Run this once at the start of this invocation, before any subagent dispatch, and follow the directives it prints — except where one conflicts with this skill's own rules on asking the user questions, whether those rules are scoped to a non-interactive mode or apply in every mode, in which case this skill's rules win and no blocking question is asked. Run the fence exactly as written, as its own command: do not pipe or filter it (no `head`, `tail`, or `grep`), do not truncate its output, and do not bundle it into a batch with other commands. Its output opens with a `=== skill context` header and ends with `CE_CONTEXT_END`; if you received one of those lines without the other, the output was truncated — rerun the fence verbatim once. That recovery is the only rerun: otherwise do not rerun it within the same invocation; a later invocation of this or any other skill runs its own. If no Node runtime is available the skill proceeds unchanged.
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
@@ -78,11 +78,12 @@ Parse the arguments you were invoked with for optional tokens. Strip each recogn
 
 **Grouping is presentation, not a mode.** The `grouping:` tokens change how the finding set is organized for triage — never reviewer selection, merge logic, scope rules, or the Stage 5c apply decision.
 
-**Mode alias:** `mode:headless` normalizes to `mode:agent`. `mode:agent` + `mode:headless` is not a conflict.
+**Mode alias:** `mode:headless` normalizes to `mode:agent`. `mode:agent` + `mode:headless` is not a conflict. `mode:non-interactive` is **not** an alias for `mode:agent` — that token means “suppress prompts” in other CE skills; if it appears here, treat it as an unrecognized/conflicting `mode:` token and stop (fail closed).
 
 **Conflicting arguments:** Stop without dispatching reviewers when:
 - Multiple incompatible scope selectors appear together (e.g. `base:` **and** a PR number/branch target — `base:` means "review the current checkout against this base")
 - Multiple distinct `mode:` tokens other than the `mode:agent`/`mode:headless` alias pair
+- `mode:non-interactive` (alone or with other modes) — not valid for this skill; use `mode:agent` for JSON
 - `apply:local` together with `mode:agent` — pipeline handoffs are always report-only
 - Multiple distinct `grouping:` tokens (e.g. `grouping:off` **and** `grouping:always`)
 

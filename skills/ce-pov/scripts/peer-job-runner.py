@@ -70,6 +70,10 @@ Environment overrides (defaults in parentheses):
   CE_PEER_RESULT_MAX_BYTES  result byte cap, supervise + read (5242880)
   CE_PEER_POLL_SECS         supervisor poll interval (2)
   CE_PEER_GRACE_SECS        TERM-to-KILL grace during reap (5)
+  CE_PEER_BASH              Windows: absolute bash.exe for peer workers
+                            (preferred over PATH / WSL System32 bash)
+  CLAUDE_CODE_GIT_BASH_PATH Claude Code Git Bash path; used on Windows when
+                            CE_PEER_BASH is unset (#1268)
 
 Security posture: the job root is a predictable, owner-private directory under
 world-shared /tmp. Every read of job state opens the file first (no-follow) and
@@ -1067,30 +1071,311 @@ def _interruptible_sleep(secs: float, flag: dict, job_dir: str) -> None:
         time.sleep(min(0.1, max(0.01, end - time.monotonic())))
 
 
+def _is_system32_wsl_bash(path: str) -> bool:
+    """True for Windows System32 WSL launchers, including Sysnative aliases."""
+    if not path:
+        return False
+    base = os.path.basename(path).lower()
+    if base not in ("bash", "bash.exe", "sh", "sh.exe"):
+        return False
+    system_root = os.environ.get("SystemRoot") or r"C:\Windows"
+    windows_root = os.path.abspath(system_root)
+    blocked_parents = {
+        os.path.normcase(os.path.join(windows_root, name))
+        for name in ("System32", "Sysnative")
+    }
+    parent = os.path.normcase(os.path.dirname(os.path.abspath(path)))
+    return parent in blocked_parents
+
+
+def _git_bash_well_known_paths():
+    """Standard Git for Windows bash.exe locations."""
+    pf64 = os.environ.get("ProgramW6432") or ""
+    pf = os.environ.get("ProgramFiles") or r"C:\Program Files"
+    pf86 = os.environ.get("ProgramFiles(x86)") or r"C:\Program Files (x86)"
+    local = os.environ.get("LOCALAPPDATA") or ""
+    roots = []
+    seen = set()
+    for root in (pf64, pf, pf86):
+        if not root:
+            continue
+        key = os.path.normcase(os.path.abspath(root))
+        if key in seen:
+            continue
+        seen.add(key)
+        roots.append(root)
+    paths = []
+    for root in roots:
+        paths.extend([
+            os.path.join(root, "Git", "bin", "bash.exe"),
+            os.path.join(root, "Git", "usr", "bin", "bash.exe"),
+        ])
+    if local:
+        paths.extend([
+            os.path.join(local, "Programs", "Git", "bin", "bash.exe"),
+            os.path.join(local, "Programs", "Git", "usr", "bin", "bash.exe"),
+        ])
+    return paths
+
+
+def _windows_path_shell_candidates():
+    """Every bash/sh on PATH in PATH order (not only shutil.which's first hit)."""
+    path_env = os.environ.get("PATH") or ""
+    names = ("bash.exe", "bash", "sh.exe", "sh")
+    found = []
+    seen = set()
+    for directory in path_env.split(os.pathsep):
+        if not directory:
+            continue
+        for name in names:
+            candidate = os.path.join(directory, name)
+            try:
+                if not os.path.isfile(candidate):
+                    continue
+            except OSError:
+                continue
+            key = os.path.normcase(os.path.abspath(candidate))
+            if key in seen:
+                continue
+            seen.add(key)
+            found.append(candidate)
+    return found
+
+
+def _env_assignment_token(token: str, allow_option_like: bool = False) -> bool:
+    """True for env(1) NAME=value operands (not options or the command)."""
+    if (
+        not token
+        or (token.startswith("-") and not allow_option_like)
+        or "=" not in token
+    ):
+        return False
+    return True
+
+
+def _env_option_advance(tok: str) -> int:
+    """How many argv slots an env(1) option occupies (incl. the option itself).
+
+    GNU env options that take a separate operand: -u/--unset, -C/--chdir.
+    Attached `--name=value` forms are a single slot.
+    Short options may be clustered. No-operand flags (-i/-v and their exact
+    long aliases and signal-handling options) advance one slot; -u/-C consume
+    the rest of the token as an
+    attached operand or the next argv slot. Unsupported options fail closed
+    before worker detach.
+    (#1292 Codex P2)
+    """
+    if tok in ("-u", "--unset", "-C", "--chdir"):
+        return 2
+    if tok.startswith(("--unset=", "--chdir=")):
+        return 1
+    if tok in ("--ignore-environment", "--debug"):
+        return 1
+    if tok == "--list-signal-handling" or tok in (
+        "--block-signal",
+        "--default-signal",
+        "--ignore-signal",
+    ) or tok.startswith((
+        "--block-signal=",
+        "--default-signal=",
+        "--ignore-signal=",
+    )):
+        return 1
+    if tok == "--null":
+        raise RunnerError(
+            "env -0/--null cannot be used with a command by native Windows "
+            "peer workers; remove the null-output option"
+        )
+    if not tok.startswith("-"):
+        return 1
+    if tok.startswith("--"):
+        raise RunnerError(
+            f"unsupported env long option {tok!r} for native Windows peer "
+            "workers; use an exact supported option or pass -- before "
+            "option-like assignments"
+        )
+
+    cluster = tok[1:]
+    for index, option in enumerate(cluster):
+        if option in "iv":
+            continue
+        if option == "0":
+            raise RunnerError(
+                "env -0/--null cannot be used with a command by native "
+                "Windows peer workers; remove the null-output option"
+            )
+        if option == "S":
+            raise RunnerError(
+                "env -S/--split-string is unsupported for native Windows "
+                "peer workers; pass env assignments and the command as "
+                "separate arguments"
+            )
+        if option in "uC":
+            return 1 if index + 1 < len(cluster) else 2
+        raise RunnerError(
+            f"unsupported env short-option cluster {tok!r} for native "
+            "Windows peer workers; pass env options separately"
+        )
+    return 1
+
+
+def _env_bash_index(argv):
+    """Locate the env(1)-launched bash/sh command, for #1268/#1292 rewriting.
+
+    Matches the production cross-model shape `env VAR=… bash script.sh …`
+    (#1268). Operand-taking options (-u/-C and long forms) consume their
+    arguments before the command token is sought (#1292). Split-string forms
+    fail closed because Python shlex does not match Git env.exe semantics.
+
+    Returns (argv_index, None), or (-1, None) when no bash/sh command is
+    present.
+    """
+    if not argv:
+        return -1, None
+    if os.path.basename(argv[0]).lower() not in ("env", "env.exe"):
+        return -1, None
+    i = 1
+    options_done = False
+    while i < len(argv):
+        tok = argv[i]
+        if tok in ("-", "--") and not options_done:
+            options_done = True
+            i += 1
+            continue
+        if _env_assignment_token(tok, allow_option_like=options_done):
+            options_done = True
+            i += 1
+            continue
+        if not options_done and (
+            tok in ("-S", "--split-string") or tok.startswith(
+                ("-S", "--split-string=")
+            )
+        ):
+            raise RunnerError(
+                "env -S/--split-string is unsupported for native Windows "
+                "peer workers; pass env assignments and the command as "
+                "separate arguments"
+            )
+        if not options_done and tok.startswith("-"):
+            span = _env_option_advance(tok)
+            if span > 1 and i + 1 >= len(argv):
+                return -1, None
+            i += span
+            continue
+        base = os.path.basename(tok).lower()
+        if base in ("bash", "bash.exe", "sh", "sh.exe"):
+            return i, None
+        return -1, None
+    return -1, None
+
+
+def _windows_path_is_absolute(path: str) -> bool:
+    """True for Windows absolute paths (drive letter or path separator)."""
+    return os.sep in path or (len(path) >= 2 and path[1] == ":")
+
+
+def _prefer_windows_posix_shell(token: str) -> str:
+    """Absolute non-WSL bash/sh kept; bare names and System32 go through resolve.
+
+    Explicit absolute paths (portable Git, custom installs) must not be
+    substituted by the preferred resolver (#1292 Codex P2). Bare `bash`/`sh`
+    and System32 WSL launchers still use `_resolve_windows_posix_shell()`.
+    """
+    if _windows_path_is_absolute(token):
+        path = os.path.abspath(token)
+        if not os.path.isfile(path):
+            raise RunnerError(
+                f"peer worker shell does not exist or is not a regular file: {token}"
+            )
+        if _is_system32_wsl_bash(path):
+            return _resolve_windows_posix_shell()
+        return path
+    return _resolve_windows_posix_shell()
+
+
+def _rewrite_windows_env_bash_argv(argv):
+    """Rewrite bare bash/sh inside an env-prefixed argv.
+
+    Returns (argv, resolved_shell_or_None). Raises RunnerError when a bash/sh
+    token is present but no usable non-WSL shell can be resolved. Absolute
+    non-WSL bash tokens are kept unchanged (#1292 P2). Split-string options
+    are rejected before detach because their parser semantics are not safely
+    reproduced here (#1292).
+    """
+    idx, split_prefix = _env_bash_index(argv)
+    if idx < 0:
+        return list(argv), None
+    out = list(argv)
+    assert split_prefix is None
+    shell = _prefer_windows_posix_shell(out[idx])
+    if os.path.normcase(os.path.abspath(out[idx])) != os.path.normcase(shell):
+        out[idx] = shell
+    return out, shell
+
+
+def _resolve_windows_posix_shell() -> str:
+    """Absolute path to a non-WSL POSIX shell for native Windows peer workers.
+
+    Order: CE_PEER_BASH, CLAUDE_CODE_GIT_BASH_PATH, well-known Git Bash
+    installs, then every PATH bash/sh excluding System32 WSL. Fail closed when
+    nothing usable remains — never select System32\\bash.exe (#1268).
+    """
+    candidates = []
+    for key in ("CE_PEER_BASH", "CLAUDE_CODE_GIT_BASH_PATH"):
+        val = (os.environ.get(key) or "").strip()
+        if val:
+            candidates.append(val)
+    candidates.extend(_git_bash_well_known_paths())
+    candidates.extend(_windows_path_shell_candidates())
+
+    seen = set()
+    for raw in candidates:
+        path = os.path.abspath(raw)
+        key = os.path.normcase(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        if not os.path.isfile(path):
+            continue
+        if _is_system32_wsl_bash(path):
+            continue
+        return path
+
+    raise RunnerError(
+        "no usable Git Bash (or other non-WSL POSIX shell) for native Windows "
+        "peer workers; install Git for Windows or set CE_PEER_BASH / "
+        "CLAUDE_CODE_GIT_BASH_PATH to an absolute bash.exe path "
+        "(System32\\bash.exe / WSL is not used)"
+    )
+
+
 def _popen_argv(argv):
     """Argv for subprocess.Popen.
 
     On Windows, CreateProcess does not honor shebang, so a bare *.sh / *.bash
-    worker must be launched through bash/sh. meta.json still records the
-    caller argv so authorize-dispatch contracts that forbid a shell prefix
-    stay exact. Already-prefixed workers (review skills use `bash script.sh`)
-    are left alone.
+    worker must be launched through bash/sh. Prefer Git Bash over System32
+    WSL bash (#1268). Bare `bash`/`sh` prefixes (review skills) and bare
+    `bash`/`sh` tokens after `env VAR=…` (cross-model) are rewritten to that
+    absolute path. Explicit absolute non-WSL bash/sh paths are kept (#1292 P2).
+    meta.json still records the caller argv for authorize-dispatch contracts
+    that forbid a shell prefix on ce-work.
     """
     if not IS_WINDOWS or not argv:
         return list(argv)
     head = argv[0]
     base = os.path.basename(head).lower()
-    if base in ("bash", "bash.exe", "sh", "sh.exe", "env", "env.exe"):
-        return list(argv)
+    if base in ("env", "env.exe"):
+        rewritten, _shell = _rewrite_windows_env_bash_argv(argv)
+        return rewritten
+    if base in ("bash", "bash.exe", "sh", "sh.exe"):
+        shell = _prefer_windows_posix_shell(head)
+        if os.path.normcase(os.path.abspath(head)) == os.path.normcase(shell):
+            return list(argv)
+        return [shell] + list(argv[1:])
     lower = head.lower()
     if not (lower.endswith(".sh") or lower.endswith(".bash")):
         return list(argv)
-    shell = shutil.which("bash") or shutil.which("sh")
-    if shell is None:
-        raise RunnerError(
-            "worker is a shell script but neither bash nor sh is on PATH; "
-            "install Git Bash or another POSIX shell to run it on Windows"
-        )
+    shell = _resolve_windows_posix_shell()
     return [shell, head] + list(argv[1:])
 
 
@@ -1484,18 +1769,48 @@ def cmd_start(args, worker_argv) -> int:
 
     argv0 = worker_argv[0]
     problem = None
-    if os.sep in argv0:
+    windows_posix_shell = None
+    base0 = os.path.basename(argv0).lower()
+    if IS_WINDOWS and base0 in ("bash", "bash.exe", "sh", "sh.exe"):
+        # Prefer Git Bash over PATH/System32 WSL before meta + detach (#1268).
+        # Keep an explicit absolute non-WSL bash (portable Git) (#1292 P2).
+        try:
+            resolved = _prefer_windows_posix_shell(argv0)
+            windows_posix_shell = resolved
+        except RunnerError as exc:
+            problem = str(exc)
+            resolved = argv0
+    elif IS_WINDOWS and base0 in ("env", "env.exe"):
+        # Production cross-model: env VAR=… bash script.sh — rewrite bash
+        # before detach so env cannot PATH-resolve System32 WSL (#1268).
+        if os.sep in argv0 or (len(argv0) >= 2 and argv0[1] == ":"):
+            resolved = os.path.abspath(argv0)
+            if not os.path.isfile(resolved):
+                problem = "does not exist or is not a regular file"
+        else:
+            resolved = shutil.which(argv0)
+            if resolved is None:
+                problem = "was not found on PATH"
+                resolved = argv0
+        try:
+            rewritten, shell = _rewrite_windows_env_bash_argv(list(worker_argv))
+            if shell is not None:
+                windows_posix_shell = shell
+                worker_argv = rewritten
+        except RunnerError as exc:
+            problem = str(exc) if problem is None else f"{problem}; {exc}"
+    elif os.sep in argv0 or (IS_WINDOWS and len(argv0) >= 2 and argv0[1] == ":"):
         resolved = os.path.abspath(argv0)
         if not os.path.isfile(resolved):
             problem = "does not exist or is not a regular file"
         elif IS_WINDOWS and resolved.lower().endswith((".sh", ".bash")):
             # CreateProcess cannot run shebang scripts; _popen_argv wraps with
-            # bash/sh. Require that shell now so start fails closed, not after
+            # Git Bash. Require that shell now so start fails closed, not after
             # detach. Skip the X_OK check — Windows often marks .sh non-exec.
-            if shutil.which("bash") is None and shutil.which("sh") is None:
-                problem = (
-                    "is a shell script but neither bash nor sh is on PATH"
-                )
+            try:
+                windows_posix_shell = _resolve_windows_posix_shell()
+            except RunnerError as exc:
+                problem = str(exc)
         elif not os.access(resolved, os.X_OK):
             problem = "is not executable"
     else:
@@ -1504,12 +1819,19 @@ def cmd_start(args, worker_argv) -> int:
             problem = "was not found on PATH"
             resolved = argv0
         elif IS_WINDOWS and resolved.lower().endswith((".sh", ".bash")):
-            # Same shell requirement as the path-separator branch: a PATH hit
-            # on a bare `foo.sh` must not detach when bash/sh is missing.
-            if shutil.which("bash") is None and shutil.which("sh") is None:
-                problem = (
-                    "is a shell script but neither bash nor sh is on PATH"
-                )
+            try:
+                windows_posix_shell = _resolve_windows_posix_shell()
+            except RunnerError as exc:
+                problem = str(exc)
+        elif IS_WINDOWS and os.path.basename(resolved).lower() in (
+            "bash", "bash.exe", "sh", "sh.exe",
+        ):
+            # which() may have returned System32 WSL — rewrite now.
+            try:
+                resolved = _resolve_windows_posix_shell()
+                windows_posix_shell = resolved
+            except RunnerError as exc:
+                problem = str(exc)
     argv = [resolved] + list(worker_argv[1:])
 
     conf = cfg(args.skill)
@@ -1525,6 +1847,8 @@ def cmd_start(args, worker_argv) -> int:
         "sweep_enabled": not args.no_sweep,
         "supervision": conf,
     }
+    if windows_posix_shell:
+        meta["windows_posix_shell"] = windows_posix_shell
     try:
         create_exclusive(
             os.path.join(job_dir, "meta.json"),

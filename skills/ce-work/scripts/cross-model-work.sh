@@ -95,8 +95,11 @@ validate_model_override() {
 adapter_argv() {
   case "$1" in
     codex)
+      # --ignore-user-config drops the user's model_reasoning_effort, so pin the
+      # editorial tier explicitly, matching the claude/grok routes' --effort high.
       printf '%s\0' codex exec --ignore-user-config --ignore-rules --ephemeral \
-        -s workspace-write -C "$WORKSPACE" --json -o "$RAW_RESULT"
+        -s workspace-write -C "$WORKSPACE" --json -o "$RAW_RESULT" \
+        -c model_reasoning_effort=high
       [ "$(route_model codex)" = auto ] || printf '%s\0' -m "$(route_model codex)"
       printf '%s\0' -
       ;;

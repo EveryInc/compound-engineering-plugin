@@ -1,8 +1,8 @@
 ---
 name: ce-sweep
-description: "Sweep configured feedback sources (Slack, GitHub Issues; email experimental) for new items: acknowledge at source, analyze recordings, verify fixes merged to main, and emit an `lfg`-ready plan. First run sets up sources; supports mode:headless for scheduled runs."
+description: "Sweep configured feedback sources (Slack, GitHub Issues; email experimental) for new items: acknowledge at source, analyze recordings, verify fixes merged to main, and emit an `lfg`-ready plan. First run sets up sources; supports mode:non-interactive for scheduled runs."
 disable-model-invocation: true
-argument-hint: "[setup|reconfigure] [mode:headless]"
+argument-hint: "[setup|reconfigure] [mode:non-interactive]"
 allowed-tools:
   - Read
   - Write
@@ -22,7 +22,7 @@ allowed-tools:
 
 ## Setup
 
-Run this once at the start of this invocation, before any subagent dispatch, and follow the directives it prints — except where one conflicts with this skill's own rules on asking the user questions, whether those rules are scoped to a non-interactive mode or apply in every mode, in which case this skill's rules win and no blocking question is asked. Do not rerun it within the same invocation; a later invocation of this or any other skill runs its own. If no Node runtime is available the skill proceeds unchanged.
+Run this once at the start of this invocation, before any subagent dispatch, and follow the directives it prints — except where one conflicts with this skill's own rules on asking the user questions, whether those rules are scoped to a non-interactive mode or apply in every mode, in which case this skill's rules win and no blocking question is asked. Run the fence exactly as written, as its own command: do not pipe or filter it (no `head`, `tail`, or `grep`), do not truncate its output, and do not bundle it into a batch with other commands. Its output opens with a `=== skill context` header and ends with `CE_CONTEXT_END`; if you received one of those lines without the other, the output was truncated — rerun the fence verbatim once. That recovery is the only rerun: otherwise do not rerun it within the same invocation; a later invocation of this or any other skill runs its own. If no Node runtime is available the skill proceeds unchanged.
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
@@ -36,18 +36,18 @@ fi
 
 ## Interaction Method
 
-Default to the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Never silently skip a question you owe the user; if no blocking tool exists in the harness, the run is headless (see Mode). Ask one question at a time — the decision round (2h) may group by category but still asks one blocking question per category.
+Default to the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Never silently skip a question you owe the user; if no blocking tool exists in the harness, the run is non-interactive (see Mode). Ask one question at a time — the decision round (2h) may group by category but still asks one blocking question per category.
 
 ## Mode
 
-Parse a `mode:headless` token from anywhere in the arguments, strip it, and treat the remaining tokens (`setup`, `reconfigure`) per Phase 0.
+Parse a `mode:non-interactive` token or its deprecated alias `mode:headless` from anywhere in the arguments, strip both, and treat the remaining tokens (`setup`, `reconfigure`) per Phase 0. Both tokens together is not a conflict.
 
-**Headless** (token present) never prompts:
+**Non-interactive** (either token present) never prompts:
 - Ambiguous product decisions defer into the plan's Outstanding Questions section instead of asking.
 - The circuit breaker (2c) defers instead of asking.
-- Setup cannot run headless: if routing lands on the interview while headless, report `first run requires interactive setup` and stop.
+- Setup cannot run non-interactive: if routing lands on the interview while non-interactive, report `first run requires interactive setup` and stop.
 
-**Fail safe.** If the harness exposes no usable blocking-question tool, behave as headless even when the token is absent — never block a run waiting on input that cannot arrive.
+**Fail safe.** If the harness exposes no usable blocking-question tool, behave as non-interactive even when the token is absent — never block a run waiting on input that cannot arrive.
 
 ## Artifact Root
 
@@ -81,7 +81,7 @@ This skill records swept feedback under `<root>/feedback-sweep/`. Resolve `<root
 
 ### Phase 1: First-Run Setup
 
-Read `references/interview.md` and follow it. Setup is interactive-only: if the run is headless, report `first run requires interactive setup` and stop. The interview writes `feedback_sources` and the `sweep_*` keys into `<repo-root>/.compound-engineering/config.local.yaml` and offers a scheduling handoff. When it completes, continue into Phase 2.
+Read `references/interview.md` and follow it. Setup is interactive-only: if the run is non-interactive, report `first run requires interactive setup` and stop. The interview writes `feedback_sources` and the `sweep_*` keys into `<repo-root>/.compound-engineering/config.local.yaml` and offers a scheduling handoff. When it completes, continue into Phase 2.
 
 ### Phase 2: Sweep Run
 
@@ -126,7 +126,7 @@ The persona returns mapped items (`id`, `origin`, `author_class`, `body`, `media
 
 Count new unacknowledged items per source. If the count exceeds `sweep_ack_cap`:
 - interactive -> ask whether to proceed with acking that many;
-- headless -> upsert the whole batch as `ack_deferred`, do NOT ack, and flag it prominently in the summary.
+- non-interactive -> upsert the whole batch as `ack_deferred`, do NOT ack, and flag it prominently in the summary.
 
 #### 2d. Acknowledge each item — correctness core
 
@@ -175,11 +175,11 @@ Read `references/plan-template.md` and follow it. Target the stable path `<root>
 
 **Rotation check first.** If the file exists and its frontmatter is NOT both `product_contract_source: ce-sweep` and `artifact_readiness: requirements-only`, archive it untouched to a dated sibling `<root>/plans/feedback-sweep-plan-YYYY-MM-DD.md` and write a fresh plan from the template. Never overwrite an unrelated plan in place.
 
-Rewrite ONLY the machine-owned region — the `date` frontmatter key, `### Summary`, the `<!-- sweep-items:start -->` / `<!-- sweep-items:end -->` marker region, and `### Outstanding Questions` (matching the template's reconciliation rules); never read or write inside the human-owned notes region. Append new actionable items with their state ids, drain items that are now `closed`, and land any headless-deferred decisions in the Outstanding Questions section.
+Rewrite ONLY the machine-owned region — the `date` frontmatter key, `### Summary`, the `<!-- sweep-items:start -->` / `<!-- sweep-items:end -->` marker region, and `### Outstanding Questions` (matching the template's reconciliation rules); never read or write inside the human-owned notes region. Append new actionable items with their state ids, drain items that are now `closed`, and land any non-interactive-deferred decisions in the Outstanding Questions section.
 
 #### 2h. Decision round
 
-Interactive only. For items needing a product call, ask the user — grouped by category, one blocking question per category — and fold the answers into the plan. Headless skips this; the deferrals are already in the plan's Outstanding Questions.
+Interactive only. For items needing a product call, ask the user — grouped by category, one blocking question per category — and fold the answers into the plan. Non-interactive skips this; the deferrals are already in the plan's Outstanding Questions.
 
 #### 2i. Wrap-up
 

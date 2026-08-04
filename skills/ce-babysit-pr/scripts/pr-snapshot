@@ -444,6 +444,16 @@ def _thread_identity(t):
     return (t.get("last_comment_id"), t.get("last_comment_at"))
 
 
+def _prior_thread_activity_identity(t):
+    """The last external-review baseline already accepted for this parked thread."""
+    acted_identity = t.get("acted_identity")
+    if (t.get("disposition") in (DISPOSITION_DISPATCHED, DISPOSITION_NEEDS_HUMAN)
+            and isinstance(acted_identity, (list, tuple))
+            and len(acted_identity) == 2):
+        return tuple(acted_identity)
+    return _thread_identity(t)
+
+
 def _default_pr_chain():
     """Backward-compatible neutral shape for injected/older snapshots with no chain facts."""
     return {
@@ -659,7 +669,7 @@ def fetch(pr, repo):
     """Fetch both event streams via gh into one combined snapshot dict."""
     repo_args = ["--repo", repo] if repo else []
     view = _run_checked(["gh", "pr", "view", str(pr), *repo_args, "--json",
-                         "state,mergeable,mergeStateStatus,reviewDecision,headRefOid,baseRefOid,baseRefName,headRefName,url,number,"
+                         "state,mergeable,mergeStateStatus,reviewDecision,headRefOid,baseRefOid,baseRefName,headRefName,url,number,isDraft,"
                          "statusCheckRollup,author,comments,reviews"],
                         "gh pr view")
     v = json.loads(view.stdout)
@@ -715,6 +725,7 @@ def fetch(pr, repo):
     head = v.get("headRefOid")
     return {
         "pr_state": v.get("state"),
+        "pr_is_draft": v.get("isDraft"),
         "mergeable": v.get("mergeable"),
         "merge_state_status": v.get("mergeStateStatus"),
         "review_decision": v.get("reviewDecision") or None,
@@ -767,7 +778,8 @@ def fetch_awaiting_approval(owner, name, head, host=None):
     """Count Actions workflow runs on this head that are awaiting maintainer approval —
     the fork-PR security gate. Such a run has created NO check-run yet, so it is invisible
     to statusCheckRollup; without this, a fork PR blocked on approval reads as 'all checks ok'.
-    Best-effort: any API/permission failure returns 0 rather than failing the tick."""
+    Best-effort: an API/permission failure returns None so the tick can preserve the
+    last proven gate state rather than treating an unknown result as a proven clear."""
     if not head:
         return 0
     r = _run(["gh", "api", *_host_args(host),
@@ -775,11 +787,11 @@ def fetch_awaiting_approval(owner, name, head, host=None):
               "--jq", '[.workflow_runs[] | select(.status==\"action_required\" or .status==\"waiting\" '
                       'or .conclusion==\"action_required\")] | length'])
     if r.returncode != 0:
-        return 0
+        return None
     try:
         return int((r.stdout or "").strip() or 0)
     except ValueError:
-        return 0
+        return None
 
 
 def fetch_threads(pr, owner, name, host=None):
@@ -838,6 +850,9 @@ def _empty_state(pr, repo, url, now):
         "review_in_progress": False, "review_signal_count": 0, "review_signal_identities": [],
         "review_signal_seen_on_head": False,
         "review_signal_first_seen_at": None, "review_signal_last_changed_at": None,
+        "blocked_external_head_sha": None,
+        "blocked_external_first_seen_at": None,
+        "blocked_external_review_last_activity_at": None,
         "pr_chain": _default_pr_chain(),
         "base": None,
         "branch_currency_state": _empty_branch_currency_state(),
@@ -1271,6 +1286,10 @@ def diff(state, cur, now=None, advance_trajectory=True):
 
     prior_threads = state.get("threads", {})
     prior_feedback = state.get("feedback", {})
+    prior_feedback_activity = {
+        fid: item.get("edit_id") for fid, item in prior_feedback.items()
+    }
+    prior_review_decision = state.get("review_decision")
     prior_change_sig = _change_sig(state)
     prior_review_in_progress = bool(state.get("review_in_progress", False))
     prior_review_signal_count = state.get("review_signal_count")
@@ -1292,6 +1311,9 @@ def diff(state, cur, now=None, advance_trajectory=True):
         review_signal_identities = sorted(set(map(str, review_signal_identities)))
         review_signal_count = len(review_signal_identities)
     review_in_progress = review_signal_count > 0
+    signal_changed = (review_signal_identities != prior_review_signal_identities
+                      if review_signal_identities is not None else
+                      review_signal_count != prior_review_signal_count)
 
     if head_changed:
         # SHA-scoped state is meaningless on a new head.
@@ -1306,9 +1328,6 @@ def diff(state, cur, now=None, advance_trajectory=True):
             state["review_signal_seen_on_head"] = True
             legacy_seen_at = state.get("last_change_at") if prior_review_in_progress else None
             state["review_signal_first_seen_at"] = legacy_seen_at or _iso(now)
-        signal_changed = (review_signal_identities != prior_review_signal_identities
-                          if review_signal_identities is not None else
-                          review_signal_count != prior_review_signal_count)
         if signal_changed:
             state["review_signal_last_changed_at"] = _iso(now)
 
@@ -1346,7 +1365,9 @@ def diff(state, cur, now=None, advance_trajectory=True):
     #     is still unresolved is reactivated once its last-comment identity moves past the one we
     #     acted on (acted_identity) — so a reviewer re-engaging is not silently dropped, yet the
     #     acting loop's own reply (captured as the baseline on first observation) does not
-    #     re-trigger. A `needs-human` thread stays parked (open_needs_human keeps merge-ready from
+    #     re-trigger. Its disappearance is likewise the resolver confirming the dispatched work,
+    #     not fresh review activity; removals of open or `needs-human` threads remain external.
+    #     A `needs-human` thread stays parked (open_needs_human keeps merge-ready from
     #     firing) until a *human* answers it — a later reply/edit past that same baseline reopens and
     #     wakes it — or an explicit `mark --disposition open` forces it.
     #   - Feedback (top-level comments + review bodies): no remote "resolve" exists, so an item
@@ -1361,6 +1382,26 @@ def diff(state, cur, now=None, advance_trajectory=True):
         identity_fn=lambda t: [t.get("last_comment_id"), t.get("last_comment_at")])
     new_feedback, actionable_feedback, human_feedback = _apply_dispositions(
         cur.get("feedback") or [], "id", prior_feedback, identity_fn=lambda c: [c.get("edit_id")])
+    current_thread_activity = {
+        item.get("thread_id"): _thread_identity(item)
+        for item in cur["threads"] if item.get("thread_id")
+    }
+    prior_thread_activity = {
+        tid: _prior_thread_activity_identity(item) for tid, item in prior_threads.items()
+        if not (item.get("disposition") == DISPOSITION_DISPATCHED
+                and tid not in current_thread_activity)
+    }
+    current_feedback_activity = {
+        item.get("id"): item.get("edit_id")
+        for item in (cur.get("feedback") or []) if item.get("id")
+    }
+    external_review_moved = (
+        head_changed
+        or current_thread_activity != prior_thread_activity
+        or current_feedback_activity != prior_feedback_activity
+        or cur.get("review_decision") != prior_review_decision
+        or signal_changed
+    )
     open_needs_human = human_threads + human_feedback
     # Identities of the currently-parked needs-human items, so the watch can tell an already-
     # surfaced residual (do not re-wake) from a newly-arrived one (wake) — a parked human decision
@@ -1379,7 +1420,29 @@ def diff(state, cur, now=None, advance_trajectory=True):
     state["review_in_progress"] = review_in_progress
     state["review_signal_count"] = review_signal_count
     state["review_signal_identities"] = review_signal_identities
-    state["awaiting_approval"] = cur.get("awaiting_approval", 0)
+    observed_awaiting_approval = cur.get("awaiting_approval")
+    approval_probe_succeeded = observed_awaiting_approval is not None
+    awaiting_approval = (
+        observed_awaiting_approval
+        if approval_probe_succeeded
+        else state.get("awaiting_approval", 0)
+    )
+    state["awaiting_approval"] = awaiting_approval
+    if awaiting_approval > 0:
+        gate_is_new_for_head = (
+            state.get("blocked_external_head_sha") != head
+            or not state.get("blocked_external_review_last_activity_at")
+        )
+        if gate_is_new_for_head:
+            state["blocked_external_head_sha"] = head
+            state["blocked_external_first_seen_at"] = _iso(now)
+            state["blocked_external_review_last_activity_at"] = _iso(now)
+        elif external_review_moved:
+            state["blocked_external_review_last_activity_at"] = _iso(now)
+    elif approval_probe_succeeded:
+        state["blocked_external_head_sha"] = None
+        state["blocked_external_first_seen_at"] = None
+        state["blocked_external_review_last_activity_at"] = None
     state["pr_chain"] = cur.get("pr_chain") or _default_pr_chain()
     state["base"] = cur.get("base")
     branch_currency = _apply_branch_currency(state, cur, head, head_changed, now)
@@ -1413,6 +1476,10 @@ def diff(state, cur, now=None, advance_trajectory=True):
     # gated. blocked_external = the loop cannot progress (no failing check to fix, but CI can't run)
     # and no one in this loop can unblock it — it is up to a maintainer of the base repo.
     awaiting_approval = state["awaiting_approval"]
+    blocked_external_review_quiet_seconds = (
+        _elapsed(state.get("blocked_external_review_last_activity_at"), now)
+        if awaiting_approval > 0 else 0
+    )
     # "OK" requires every check terminal, none failing, AND none gated on approval. A still-
     # IN_PROGRESS or awaiting-approval check is neither ok nor failing — do not exit green.
     all_checks_ok = checks_terminal and not has_failing and bool(cur["checks"]) and awaiting_approval == 0
@@ -1422,6 +1489,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
 
     return {
         "pr_state": cur["pr_state"],
+        "pr_is_draft": cur.get("pr_is_draft"),
         "mergeable": cur["mergeable"],
         "merge_state_status": cur["merge_state_status"],
         "review_decision": cur["review_decision"],
@@ -1451,6 +1519,12 @@ def diff(state, cur, now=None, advance_trajectory=True):
         "review_signal_last_changed_at": state.get("review_signal_last_changed_at"),
         "checks_awaiting_approval": awaiting_approval,
         "blocked_external": blocked_external,
+        "blocked_external_first_seen_at": state.get("blocked_external_first_seen_at"),
+        "blocked_external_review_last_activity_at": state.get(
+            "blocked_external_review_last_activity_at"),
+        "blocked_external_review_quiet_seconds": blocked_external_review_quiet_seconds,
+        "blocked_external_review_moved_this_tick": (
+            awaiting_approval > 0 and external_review_moved),
         "pr_chain": state["pr_chain"],
         "stack_blocker": _stack_blocker(state["pr_chain"]),
         "open_needs_human": open_needs_human,
@@ -1814,6 +1888,8 @@ def _blocker_sig(a):
         sig.add("__terminal_red__")
     if a.get("blocked_external"):
         sig.add("__blocked_external__")
+        sig.add(("approval-review-state", bool(a.get("review_signal_seen_on_head")),
+                 tuple(a.get("review_signal_identities") or []), a.get("review_decision")))
     if a.get("stack_blocker"):
         sig.add(f"__stack__:{a['stack_blocker']}")
     if a.get("base_ref_blocker"):
@@ -2068,8 +2144,23 @@ def cmd_watch(args):
                     persisted_state_age_seconds=actionable.get("persisted_state_age_seconds"),
                 )
                 return
-            if reason in ("needs-human", "blocked-failing", "blocked-external",
-                          "stack-blocked", "base-ref-blocked") and _blocker_sig(actionable) <= armed:
+            drain_seconds = getattr(args, "blocked_external_drain_seconds", None)
+            drain_quiet = actionable.get("blocked_external_review_quiet_seconds", 0)
+            if (drain_seconds is not None and actionable.get("blocked_external")
+                    and drain_quiet >= drain_seconds):
+                _emit_wake_if_current(
+                    args, generation, "blocked-external-drained", url=actionable.get("url"),
+                    pr_state=actionable.get("pr_state"), counts=actionable.get("counts"),
+                    blocked_external_review_quiet_seconds=drain_quiet,
+                    blocked_external_drain_seconds=drain_seconds,
+                )
+                return
+            approval_review_moved = (
+                reason == "blocked-external"
+                and actionable.get("blocked_external_review_moved_this_tick"))
+            if (reason in ("needs-human", "blocked-failing", "blocked-external",
+                           "stack-blocked", "base-ref-blocked")
+                    and not approval_review_moved and _blocker_sig(actionable) <= armed):
                 reason = None   # already-surfaced residual — keep watching, do not re-wake or terminate
             if reason:
                 _emit_wake_if_current(args, generation, reason, url=actionable.get("url"),
@@ -2303,9 +2394,34 @@ def cmd_mark(args):
     print(json.dumps({"marked": args.currency_key or args.check or args.thread or args.comment}))
 
 
+WATCH_BOOTSTRAP_FLAGS = ("--state-dir", "--invocation-id", "--session-started-at",
+                         "--invocation-budget-seconds")
+WATCH_BOOTSTRAP_HINT = """\
+watch cannot start a babysit run: it only arms the change detector for an
+invocation that was already bootstrapped by a snapshot --start-invocation run
+(the ce-babysit-pr Step 2 bootstrap).
+To recover, invoke the ce-babysit-pr skill through your harness's callable
+skill mechanism with this PR: its instructions own the bootstrap, arming,
+marks, and stop protocol. Do not drive pr-snapshot directly outside that skill.
+Never mint the bootstrap values yourself; they come from the skill's
+bootstrap snapshot."""
+
+
+class _WatchHintingParser(argparse.ArgumentParser):
+    # A bare `watch --pr N` is the observed illegal start path (an agent arming the
+    # detector without the Step 2 bootstrap). Keep the fail-closed exit 2, but make
+    # the refusal carry its own recovery path instead of a raw usage dump.
+    def error(self, message):
+        if (self.prog.endswith(" watch") and "required" in message
+                and any(flag in message for flag in WATCH_BOOTSTRAP_FLAGS)):
+            self.print_usage(sys.stderr)
+            self.exit(2, f"{self.prog}: error: {message}\n\n{WATCH_BOOTSTRAP_HINT}\n")
+        super().error(message)
+
+
 def main():
     p = argparse.ArgumentParser(prog="pr-snapshot")
-    sub = p.add_subparsers(dest="cmd", required=True)
+    sub = p.add_subparsers(dest="cmd", required=True, parser_class=_WatchHintingParser)
 
     s = sub.add_parser("snapshot")
     s.add_argument("--pr", type=int, required=True)
@@ -2367,6 +2483,8 @@ def main():
     w.add_argument("--state-dir", required=True)
     w.add_argument("--interval", type=float, default=150.0, help="poll cadence seconds")
     w.add_argument("--settle-seconds", type=float, default=300.0, help="quiet window before a merge-ready wake")
+    w.add_argument("--blocked-external-drain-seconds", type=float, default=None,
+                   help="head-scoped review-quiet bound before a gated-CI handback")
     w.add_argument("--stop-file", default=None, help="path whose existence stops the watch")
     w.add_argument("--fetch-file", default=None)
     w.add_argument("--invocation-id", required=True,
@@ -2382,6 +2500,9 @@ def main():
             and args.invocation_budget_seconds is not None
             and args.invocation_budget_seconds <= 0):
         p.error("--invocation-budget-seconds must be positive")
+    if (args.cmd == "watch" and args.blocked_external_drain_seconds is not None
+            and args.blocked_external_drain_seconds <= 0):
+        p.error("--blocked-external-drain-seconds must be positive")
     if args.cmd == "snapshot":
         starting = args.start_invocation or args.reset_session
         continuing = args.continue_invocation

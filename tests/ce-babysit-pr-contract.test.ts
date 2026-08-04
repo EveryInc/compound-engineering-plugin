@@ -113,7 +113,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     // producer side: the watch subcommand emits the sentinel and can wake on each precedence reason
     expect(script).toContain("def cmd_watch")
     expect(script).toContain("BABYSIT_WAKE")
-    for (const reason of ["terminal", "blocked-external", "actionable", "feedback-candidate", "stack-blocked", "needs-human", "branch-currency", "merge-ready", "invocation-superseded"]) {
+    for (const reason of ["terminal", "blocked-external", "blocked-external-drained", "actionable", "feedback-candidate", "stack-blocked", "needs-human", "branch-currency", "merge-ready", "invocation-superseded"]) {
       expect(script, `watch must be able to wake on '${reason}'`).toContain(reason)
     }
   })
@@ -385,11 +385,13 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(script).toMatch(/def cmd_mark\(args\):[\s\S]{0,180}_apply_invocation\(box, args, now\)/)
   })
 
-  test("blocked approval watching stays inside the invocation budget", async () => {
+  test("blocked approval drains review automatically before a bounded handback", async () => {
     const babysit = await readRepoFile(BABYSIT)
-    expect(babysit).toContain("within this invocation's remaining fixed budget")
-    expect(babysit).toContain("never promise or mint a longer approval-watch window after invocation entry")
-    expect(babysit).not.toContain("hard-capped at 24h")
+    expect(babysit).toContain("blocked-external-drained")
+    expect(babysit).toContain("--blocked-external-drain-seconds")
+    for (const bound of ["300", "900", "1800"]) expect(babysit).toContain(bound)
+    expect(babysit).toMatch(/without asking|do not ask/i)
+    expect(babysit).toMatch(/pipeline[^.]{0,300}(terminate|return)/i)
   })
 
   test("deadline precedence preserves stop results without starting another work round", async () => {
@@ -517,5 +519,43 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(rubric).toContain("A validated finding can span sites this PR itself introduced")
     expect(fullMode).toMatch(/Class fix:/)
     expect(fixer, "class-fix mutation boundary must reach the fixer prompt").toMatch(/enumerated set is the mutation boundary/i)
+  })
+
+  test("drafts stay opt-in against automatic skill handoffs", async () => {
+    // A calling skill's auto-handoff (ce-commit-push-pr post-PR) must not count as the user
+    // explicitly naming a draft; only a human's invocation or an explicit watch-mode token may
+    // arm a watch on one.
+    const babysit = await readRepoFile(BABYSIT)
+    const boundary = babysit.match(/\*\*Draft PRs are opt-in\.\*\*[\s\S]+?(?=\n-)/)?.[0]
+    expect(boundary).toBeDefined()
+    expect(boundary).toContain("A calling skill's automatic handoff is neither")
+    expect(boundary).toContain("report the draft status and stop")
+    // Callee-side enforcement: Step 1 resolves draft state pre-bootstrap, and the snapshot
+    // helper emits it — from the current-view builder through the output payload — so every
+    // caller (LFG's auto-handoff included) hits the stop before a watcher is armed.
+    expect(babysit, "Step 1 must resolve draft state via pr_is_draft").toContain("pr_is_draft")
+    const snapshot = await readRepoFile("skills/ce-babysit-pr/scripts/pr-snapshot")
+    const emissions = snapshot.match(/"pr_is_draft"/g) ?? []
+    expect(emissions.length, "pr-snapshot must carry pr_is_draft in view builder and output payload").toBeGreaterThanOrEqual(2)
+    // The live fetch must actually request the field, or every emission is null (Bugbot round 3).
+    expect(snapshot, "fetch()'s gh pr view field list must request isDraft").toContain("url,number,isDraft,")
+  })
+
+  test("stop summaries open with a pinned status line and carry a counted run recap", async () => {
+    // Observed drift: merge-ready stops reported only current PR state (CI green, no threads),
+    // burying the ready call in prose and dropping the hour of resolved feedback/CI work entirely.
+    const babysit = await readRepoFile(BABYSIT)
+    const step4 = babysit.match(/## Step 4: Report \/ summary([\s\S]+?)## Step 5:/)?.[1]
+    expect(step4).toBeDefined()
+    // Ready declarations are pinned to the two ready emoji; merged celebrates distinctly.
+    expect(step4).toContain("✅ Looks merge-ready")
+    expect(step4).toContain("🟡 Cautiously looks ready")
+    expect(step4).toContain("🎉 Merged")
+    expect(step4).toContain("Your call to merge")
+    expect(step4).toMatch(/never opens with anything but ✅ or 🟡/)
+    // The recap must be rebuilt from durable sources (the PR's remote record), never memory alone.
+    expect(step4).toContain("A run recap at every true stop")
+    expect(step4).toMatch(/never from conversation memory alone/)
+    expect(step4).toContain("remote record")
   })
 })

@@ -2,7 +2,7 @@
 
 The single source of truth for how any finding is rendered for a human decision — across **every**
 presentation surface: the interactive walkthrough terminal block (`references/walkthrough.md`), the
-batch report table (`references/review-output-template.md`), the headless envelope
+batch report table (`references/review-output-template.md`), the non-interactive envelope
 (`references/synthesis-and-presentation.md` Phase 4), the bulk-action preview line
 (`references/bulk-preview.md`), and the Open Questions entry a Defer persists into the document
 (`references/open-questions-defer.md`). Each surface keeps its own layout and maps that layout onto the
@@ -27,7 +27,7 @@ depth, and every distinct consequence, qualification, or required action.
 Every actionable finding carries these fields, and each surface makes them decision-first in its own
 idiom rather than reproducing the exact label sequence. The invariant both share: the **consequence is
 legible up front with no opaque token**, and the **recommendation is unmistakably marked**. Concretely:
-the **headless envelope** prints them as explicit labeled lines; the **walkthrough block** leads with a
+the **non-interactive envelope** prints them as explicit labeled lines; the **walkthrough block** leads with a
 consequence-phrased title, then What's-wrong / Proposed-fix / If-left-as-is, and marks the recommendation
 on its question options; the **batch table** leads its Issue cell with the consequence and carries the
 recommendation in its Tier/action column; the **bulk-preview line** leads with the consequence and

@@ -33,9 +33,9 @@ from unit_workspace_lifecycle import (
     plan_wide_verification_attempts,
     receipted_plan_wide_verification,
 )
-
-MAX_IGNORED_SNAPSHOT_ENTRIES = 512
-MAX_IGNORED_SNAPSHOT_BYTES = 64 * 1024 * 1024
+from unit_workspace_ignored import artifact_path as _artifact_path
+from unit_workspace_ignored import ignored_paths as _ignored_paths
+from unit_workspace_ignored import preflight_ignored_artifacts as _preflight_ignored_artifacts
 
 
 def _args(**values):
@@ -125,64 +125,6 @@ def _new_parent_directories(paths: set[str], before: set[str]) -> set[str]:
             directories.add(parent)
             parent = os.path.dirname(parent)
     return directories
-
-
-def _ignored_paths(repo: str) -> set[str]:
-    """Return ignored, untracked files without changing ordinary clean-state rules."""
-    raw = git(repo, "ls-files", "--others", "--ignored", "--exclude-standard", "-z", "--")
-    return set(filter(None, raw.decode("utf-8", "surrogateescape").split("\0")))
-
-
-def _artifact_path(repo: str, rel: str) -> str:
-    repo = os.path.abspath(repo)
-    target = os.path.abspath(os.path.join(repo, rel))
-    if target == repo or os.path.commonpath([repo, target]) != repo:
-        raise Operational("BLOCKED", "ignored artifact path escaped canonical repository")
-    return target
-
-
-def _preflight_ignored_artifacts(repo: str, paths: set[str]) -> tuple[list[dict], dict[str, int]]:
-    if len(paths) > MAX_IGNORED_SNAPSHOT_ENTRIES:
-        raise Operational(
-            "REFUSED",
-            f"ignored artifact snapshot exceeds {MAX_IGNORED_SNAPSHOT_ENTRIES} entries",
-            {"entries": len(paths), "max_entries": MAX_IGNORED_SNAPSHOT_ENTRIES},
-        )
-
-    planned: list[dict] = []
-    directories: dict[str, int] = {}
-    total_bytes = 0
-    repo = os.path.abspath(repo)
-    for rel in sorted(paths):
-        target = _artifact_path(repo, rel)
-        parent = os.path.dirname(target)
-        ancestors: list[str] = []
-        while parent != repo:
-            ancestors.append(parent)
-            parent = os.path.dirname(parent)
-        for directory in reversed(ancestors):
-            directory_rel = os.path.relpath(directory, repo)
-            entry = os.lstat(directory)
-            if not stat.S_ISDIR(entry.st_mode) or stat.S_ISLNK(entry.st_mode):
-                raise Operational("REFUSED", f"ignored artifact parent is not a real directory: {directory_rel}")
-            directories[directory_rel] = stat.S_IMODE(entry.st_mode)
-
-        before = os.lstat(target)
-        if not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode) or before.st_nlink != 1:
-            raise Operational("REFUSED", f"cannot safely snapshot ignored artifact: {rel}")
-        uid_getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
-        effective_uid = uid_getter() if uid_getter is not None else None
-        if effective_uid is not None and before.st_uid != effective_uid:
-            raise Operational("REFUSED", f"ignored artifact is not owned by the current user: {rel}")
-        total_bytes += before.st_size
-        if total_bytes > MAX_IGNORED_SNAPSHOT_BYTES:
-            raise Operational(
-                "REFUSED",
-                f"ignored artifact snapshot exceeds {MAX_IGNORED_SNAPSHOT_BYTES} bytes",
-                {"bytes": total_bytes, "max_bytes": MAX_IGNORED_SNAPSHOT_BYTES},
-            )
-        planned.append({"rel": rel, "target": target, "before": before})
-    return planned, directories
 
 
 def _snapshot_ignored_artifacts(repo: str, paths: set[str], private_parent: str) -> dict:

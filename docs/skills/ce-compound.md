@@ -29,10 +29,10 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 /ce-compound the email digest race condition we fixed
 
 # Capture unattended when invoked from automation or standing instructions
-/ce-compound mode:headless the verified caching fix
+/ce-compound mode:non-interactive the verified caching fix
 ```
 
-Use headless mode only when the caller should own any follow-up decisions; ordinary interactive capture can still ask before changing project guidance.
+Use non-interactive mode only when the caller should own any follow-up decisions; ordinary interactive capture can still ask before changing project guidance.
 
 ---
 
@@ -53,7 +53,7 @@ Most teams solve the same problem twice — sometimes with the same person — b
 - Two modes — **Full** (parallel subagents for cross-referencing and duplicate detection) and **Lightweight** (single-pass, faster, fewer tokens)
 - Bug track and knowledge track produce different section structures matched to the doc type
 - An overlap check decides whether to update an existing doc rather than create a duplicate
-- A discoverability check ensures the project's `AGENTS.md`/`CLAUDE.md` surfaces `docs/solutions/` so future agents find it (interactive Full asks consent before editing; headless and lightweight report or tip only)
+- A discoverability check ensures the project's `AGENTS.md`/`CLAUDE.md` surfaces `docs/solutions/` so future agents find it (interactive Full asks consent before editing; non-interactive and lightweight report or tip only)
 - Specialized post-review optionally enhances the doc: performance, security, data-integrity, and read-only simplification checks review the drafted learning without mutating product code
 
 ---
@@ -68,7 +68,7 @@ Most teams solve the same problem twice — sometimes with the same person — b
 
 **The skill picks the mode itself — it does not ask.** Full is the default because its token cost is small next to the work that produced the learning; Lightweight is chosen only under real context pressure (session near its limit, or a trivial fix where cross-referencing adds nothing). Those are conditions the agent can observe and the user can't, so a prompt would just ask you to guess. The skill states which mode it ran, and why, on the first line of its output; if it guessed wrong for your taste, re-running is a cheap correction.
 
-Automations can select the same tradeoff without a prompt: `mode:headless depth:lightweight` runs the single-pass workflow, while `mode:headless depth:full` runs the complete workflow, including its automatic session-history probe. Existing `mode:headless` calls remain Full by default. Depth is headless-only; a depth flag without headless intent, an unknown value, or conflicting depth flags fails explicitly instead of silently choosing a workflow.
+Automations can select the same tradeoff without a prompt: `mode:non-interactive depth:lightweight` runs the single-pass workflow, while `mode:non-interactive depth:full` runs the complete workflow, including its automatic session-history probe. Bare `mode:non-interactive` (and the deprecated alias `mode:headless`) remains Full by default. Depth is non-interactive-only; a depth flag without non-interactive intent, an unknown value, or conflicting depth flags fails explicitly instead of silently choosing a workflow.
 
 ### 2. Bug track vs knowledge track — different structures for different shapes
 
@@ -89,7 +89,7 @@ The Related Docs Finder scores overlap with existing `docs/solutions/` content a
 
 ### 4. Discoverability check — knowledge only compounds if agents can find it
 
-Every run checks whether the project's instruction file (`AGENTS.md` or `CLAUDE.md`) would lead a future agent to discover `docs/solutions/`. If not, interactive Full proposes the smallest addition that surfaces the knowledge store, asks for consent, and applies it. Headless reports `Instruction-file edit: gap noted, not applied` without editing — skill-to-skill handoffs must not amend the repo's operating contract past an upstream approval gate. Lightweight tips only. The check runs every time because the knowledge store only compounds value when it's findable.
+Every run checks whether the project's instruction file (`AGENTS.md` or `CLAUDE.md`) would lead a future agent to discover `docs/solutions/`. If not, interactive Full proposes the smallest addition that surfaces the knowledge store, asks for consent, and applies it. Non-interactive reports `Instruction-file edit: gap noted, not applied` without editing — skill-to-skill handoffs must not amend the repo's operating contract past an upstream approval gate. Lightweight tips only. The check runs every time because the knowledge store only compounds value when it's findable.
 
 The proposed addition matches the existing file's tone and density — a single-line entry in an existing directory listing when one fits, a small headed section only when nothing else does.
 
@@ -97,7 +97,7 @@ The proposed addition matches the existing file's tone and density — a single-
 
 A solution doc is only as valuable as its claims are true, and drafting from conversation evidence invites three failure shapes: code-behavior claims written from a session-level summary instead of the source, "fixed in X" claims about merges the current checkout can't see, and drafting scaffold ("Learning 3") leaking into the written doc.
 
-Phase 2.45 closes this in two layers. A deterministic script (`scripts/validate-doc-claims.py`) checks cited repo paths, commit SHAs (classified by reachability from HEAD vs the upstream default branch, so a stale checkout is distinguished from a fabricated citation), relative links, and dangling scaffold — its flags are adjudicated, not auto-failed, because a doc may legitimately cite a path deleted by the very fix it documents. Then a read-only validator subagent (Full mode, including headless Full) verifies code-behavior claims by quoting the defining source line, merge-state claims against remote truth (`gh` primary, local git fallback), and internal completeness of countable assertions. Lightweight keeps the deterministic check and skips the validator subagent. The same discipline applies at draft time: the Solution Extractor must read the defining line before asserting behavior, and cite PR numbers over rebase-fragile SHAs.
+Phase 2.45 closes this in two layers. A deterministic script (`scripts/validate-doc-claims.py`) checks cited repo paths, commit SHAs (classified by reachability from HEAD vs the upstream default branch, so a stale checkout is distinguished from a fabricated citation), relative links, and dangling scaffold — its flags are adjudicated, not auto-failed, because a doc may legitimately cite a path deleted by the very fix it documents. Then a read-only validator subagent (Full mode, including non-interactive Full) verifies code-behavior claims by quoting the defining source line, merge-state claims against remote truth (`gh` primary, local git fallback), and internal completeness of countable assertions. Lightweight keeps the deterministic check and skips the validator subagent. The same discipline applies at draft time: the Solution Extractor must read the defining line before asserting behavior, and cite PR numbers over rebase-fragile SHAs.
 
 ### 6. Selective refresh trigger
 
@@ -109,7 +109,7 @@ Based on the problem type, optional skill-local prompt assets review the documen
 
 ### 8. Session history integration (automatic probe, not a question)
 
-Searching prior sessions pays off when an *unrelated* earlier session holds related problem-solving — something neither the agent nor the user can know a priori, which is why it was a poor fit for a yes/no prompt. Full mode instead resolves it with a cheap two-stage probe: a discovery+metadata pass always runs (in parallel with the research subagents, so it's near-free on wall-clock), and it escalates to the expensive extraction+synthesis only when a candidate session clears a relevance bar — a current-branch match or ≥2 topic-keyword hits. On a hit, findings fold into "What Didn't Work" (bug track) or "Context" (knowledge track); on a miss, the run records "no relevant prior sessions" and moves on. The gate is what keeps an always-on probe cheap — cheap enough that headless runs it too, since it prompts for nothing and so preserves headless's non-interactive contract. Only lightweight mode skips it entirely.
+Searching prior sessions pays off when an *unrelated* earlier session holds related problem-solving — something neither the agent nor the user can know a priori, which is why it was a poor fit for a yes/no prompt. Full mode instead resolves it with a cheap two-stage probe: a discovery+metadata pass always runs (in parallel with the research subagents, so it's near-free on wall-clock), and it escalates to the expensive extraction+synthesis only when a candidate session clears a relevance bar — a current-branch match or ≥2 topic-keyword hits. On a hit, findings fold into "What Didn't Work" (bug track) or "Context" (knowledge track); on a miss, the run records "no relevant prior sessions" and moves on. The gate is what keeps an always-on probe cheap — cheap enough that non-interactive runs it too, since it prompts for nothing and so preserves the non-interactive contract. Only lightweight mode skips it entirely.
 
 ### 9. Auto-invoke triggers
 
@@ -173,8 +173,8 @@ The skill is its own complete cycle:
 - **Just-finished problem** — `/ce-compound` (or auto-invoked from "that worked")
 - **With context hint** — `/ce-compound "the email digest race condition we fixed"`
 - **Lightweight on a long session** — when context is tight, the skill selects lightweight mode on its own and says so in its output
-- **Lower-overhead unattended capture** — `/ce-compound mode:headless depth:lightweight "the verified fix"`
-- **Full unattended capture** — `/ce-compound mode:headless depth:full "the verified fix"` (plain `mode:headless` is equivalent)
+- **Lower-overhead unattended capture** — `/ce-compound mode:non-interactive depth:lightweight "the verified fix"`
+- **Full unattended capture** — `/ce-compound mode:non-interactive depth:full "the verified fix"` (plain `mode:non-interactive` is equivalent)
 
 The auto-invoke triggers happen mid-conversation; you don't need to remember the slash command if you've just confirmed something works.
 
@@ -192,11 +192,11 @@ Put it in the repo's `AGENTS.md`/`CLAUDE.md`, or in your global instruction file
 
 **Run it automatically** — no prompt, because not being interrupted is the whole point of automating it:
 
-> After a solved, verified problem produces a non-trivial, reusable learning, automatically invoke the `ce-compound` skill, passing `mode:headless` as the skill argument. Only in repositories that accept `docs/solutions/` as a tracked knowledge store.
+> After a solved, verified problem produces a non-trivial, reusable learning, automatically invoke the `ce-compound` skill, passing `mode:non-interactive` as the skill argument. Only in repositories that accept `docs/solutions/` as a tracked knowledge store.
 
-Use `mode:headless depth:lightweight` instead when the standing workflow deliberately accepts reduced research and validation in exchange for a single-pass, no-subagent closure.
+Use `mode:non-interactive depth:lightweight` instead when the standing workflow deliberately accepts reduced research and validation in exchange for a single-pass, no-subagent closure.
 
-Auto-run writes to `docs/solutions/` (and may touch `CONCEPTS.md`) without asking — but that's the point, and it's no scarier than the other edits you're already making on the branch and reviewing before you commit. Headless never edits `AGENTS.md`/`CLAUDE.md`; if discoverability is missing it reports `gap noted, not applied` so a later interactive run can apply it with consent. Passing `mode:headless` as an argument is the explicit, unambiguous form: the skill also honors a clear "run headless / without prompts" request, but the token removes all doubt — without a headless signal the run stays interactive and can stop for the one-time discoverability-consent prompt.
+Auto-run writes to `docs/solutions/` (and may touch `CONCEPTS.md`) without asking — but that's the point, and it's no scarier than the other edits you're already making on the branch and reviewing before you commit. Non-interactive never edits `AGENTS.md`/`CLAUDE.md`; if discoverability is missing it reports `gap noted, not applied` so a later interactive run can apply it with consent. Passing `mode:non-interactive` as an argument is the explicit, unambiguous form: the skill also honors a clear "run headless / without prompts" request, but the token removes all doubt — without a non-interactive signal the run stays interactive and can stop for the one-time discoverability-consent prompt.
 
 Every other phrase in those lines is deliberate too:
 
@@ -217,7 +217,7 @@ Categories are auto-detected. Bug-track examples: `build-errors/`, `test-failure
 
 The doc carries YAML frontmatter (`module`, `tags`, `problem_type`, etc.) for searchability. Validation runs through `scripts/validate-frontmatter.py` to catch silent corruption (malformed `---` delimiters, unquoted `:` in scalar values), and `scripts/validate-doc-claims.py` checks the body's cited paths, SHAs, links, and drafting scaffold against the tree.
 
-In interactive Full mode, the skill may also produce a small edit to `AGENTS.md`/`CLAUDE.md` if the discoverability check finds the knowledge store isn't surfaced and you consent. Headless and lightweight never apply that edit.
+In interactive Full mode, the skill may also produce a small edit to `AGENTS.md`/`CLAUDE.md` if the discoverability check finds the knowledge store isn't surfaced and you consent. Non-interactive and lightweight never apply that edit.
 
 ---
 
@@ -247,7 +247,7 @@ Two docs describing the same problem inevitably drift apart. The newer context i
 Knowledge track generalizes (conventions, decisions, workflow practices), but the skill assumes a code repo, `docs/solutions/` directory, and YAML-frontmatter conventions. It's primarily a software-team tool.
 
 **What if I don't want the discoverability edit to AGENTS.md?**
-In interactive Full mode, the skill asks for consent before applying the edit — decline and the doc still gets written. Headless and lightweight never edit the instruction file; they report or tip the gap instead. The discoverability prompt won't fire if your AGENTS.md already mentions `docs/solutions/`.
+In interactive Full mode, the skill asks for consent before applying the edit — decline and the doc still gets written. Non-interactive and lightweight never edit the instruction file; they report or tip the gap instead. The discoverability prompt won't fire if your AGENTS.md already mentions `docs/solutions/`.
 
 ---
 

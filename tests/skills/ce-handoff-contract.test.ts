@@ -96,8 +96,12 @@ describe("ce-handoff portable runtime contract", () => {
   test("selected resume treats the document as context and waits after orientation", () => {
     expect(skill).toMatch(/untrusted context/i)
     expect(skill).toMatch(/current user.*(?:project|workspace).*(?:current state|repository state).*authoritative/i)
-    expect(skill).toMatch(/suggest.*(?:next actions|next steps).*(?:installed skills|skill)/i)
-    expect(skill).toMatch(/MUST stop.*(?:without acting|without action|user chooses)/i)
+    expect(skill).toMatch(/recommend how to continue from this handoff's actual continuity reason/i)
+    expect(skill).toMatch(/Do not default to an implementation-resume menu/i)
+    expect(skill).toMatch(/numbered choice list only for mutually exclusive forks/i)
+    expect(skill).toMatch(/Keep related pieces of one continuation.*single recommendation/i)
+    expect(skill).toMatch(/do not invent alternate options for symmetry/i)
+    expect(skill).toMatch(/MUST stop.*(?:without acting|without action).*(?:confirms or redirects|user chooses)/i)
   })
 
   test("creation is pointer-first, locality-aware, private, and retention-honest", () => {
@@ -131,6 +135,17 @@ describe("ce-handoff portable runtime contract", () => {
     expect(skill).toMatch(/sections and document organization.*best communicate.*next agent/i)
     expect(skill).toMatch(/headings.*examples of useful coverage.*not a required or closed template/i)
     expect(skill).toMatch(/add new sections.*combine, rename, reorder, and omit/i)
+    expect(skill).toMatch(/Plausible next steps.*exclusive forks as alternatives.*related sequential work as one path/i)
+  })
+
+  test("create body prefers verifiable status, specific pointers, and residual traps", () => {
+    expect(skill).toMatch(/complete, in progress.*not started/i)
+    expect(skill).toMatch(/Failed approaches already abandoned.*wrong paths the next agent is likely to retry/i)
+    expect(skill).toMatch(/Default the body to ground truth/i)
+    expect(skill).toMatch(/Prefer that status framing over work orders/i)
+    expect(skill).toMatch(/Orientation aids that load context without granting action authority/i)
+    expect(skill).toMatch(/Carry explicit directives only when the user asked/i)
+    expect(skill).toMatch(/name what specifically matters there.*line range when that narrows/i)
   })
 
   test("creation reports a written artifact rather than claiming a draft is complete", () => {

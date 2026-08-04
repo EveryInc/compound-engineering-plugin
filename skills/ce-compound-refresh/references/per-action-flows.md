@@ -33,7 +33,7 @@ Those cases require **Replace**, not Update.
 
 Relocate only when the misfiling is unambiguous: the doc's directory and its frontmatter category disagree, or the content plainly belongs in a different **existing** category. A mismatch proves something is wrong but not which side — read the content and decide whether the directory is wrong (relocate) or the frontmatter is wrong (fix the frontmatter in place; that is an ordinary Update, not a move). Never create a new category directory for a relocation, and never relocate on a judgment call — placement has no ground truth, and a move a later run could argue back is churn.
 
-In headless mode, apply the relocation only when all four conditions hold, mirroring the auto-delete pattern: (1) frontmatter and directory disagree per the category mapping, (2) content evidence clearly resolves the direction as directory-wrong, (3) the target category directory already exists, (4) every inbound citation is in-repo and mechanically rewritable. If any condition fails — including content that plausibly fits either category — record the relocation (doc, proposed target, which condition failed) under Recommended instead of moving.
+In non-interactive mode, apply the relocation only when all four conditions hold, mirroring the auto-delete pattern: (1) frontmatter and directory disagree per the category mapping, (2) content evidence clearly resolves the direction as directory-wrong, (3) the target category directory already exists, (4) every inbound citation is in-repo and mechanically rewritable. If any condition fails — including content that plausibly fits either category — record the relocation (doc, proposed target, which condition failed) under Recommended instead of moving.
 
 1. Confirm the target category directory exists.
 2. Move the file with `git mv` so history follows the rename.
@@ -61,7 +61,7 @@ After the merge, run the mechanical claims check on the canonical doc (step 4 of
 
 Split is the inverse of Consolidate: one multi-problem doc becomes N focused successors. The bar is high — splitting doubles drift surface, the exact risk consolidation exists to remove. Split only when the Retrieval-Value Test inverts: a maintainer searching for one sub-topic would be materially harmed by wading through the other content, and each fragment has independent retrieval value. Length alone is never a reason.
 
-In headless mode, do not split; record the recommendation (doc, proposed fragment boundaries, evidence) under Recommended.
+In non-interactive mode, do not split; record the recommendation (doc, proposed fragment boundaries, evidence) under Recommended.
 
 Process splits **one at a time, sequentially**, reusing the Replace machinery:
 

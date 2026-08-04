@@ -61,9 +61,9 @@ fi
 # limited to structural loop-prevention facts: blank bodies and messages known
 # to come from the PR author. If the PR author is unavailable, fail open.
 
-tmp_threads=$(mktemp)
-tmp_comments=$(mktemp)
-tmp_reviews=$(mktemp)
+tmp_threads=$(mktemp "${TMPDIR:-/tmp}/ce-pr-threads.XXXXXX")
+tmp_comments=$(mktemp "${TMPDIR:-/tmp}/ce-pr-comments.XXXXXX")
+tmp_reviews=$(mktemp "${TMPDIR:-/tmp}/ce-pr-reviews.XXXXXX")
 trap 'rm -f "$tmp_threads" "$tmp_comments" "$tmp_reviews"' EXIT
 
 gh api graphql --paginate --slurp \

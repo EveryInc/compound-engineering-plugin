@@ -1,16 +1,16 @@
 ---
 name: ce-compound-refresh
 description: Refresh the repo's captured learnings against the current codebase. Use when auditing stale, overlapping, superseded, or drifted learnings; avoid general refactor, debugging, or code review unless the learnings store is explicit.
-argument-hint: "[optional: scope hint — directory, filename, module, or keyword] [mode:headless] "
+argument-hint: "[optional: scope hint — directory, filename, module, or keyword] [mode:non-interactive] "
 ---
 
 # Compound Refresh
 
-Maintain the quality of `<root>/solutions/` over time. This workflow reviews existing learnings against the current codebase, then refreshes any derived pattern docs that depend on them.
+Audit the learnings under `<root>/solutions/` against the current codebase, apply the maintenance actions the evidence supports, and deliver a complete per-doc report plus committed changes. The report and the corrected document set are the deliverables; the store only compounds value if every doc in it can be trusted.
 
 ## Setup
 
-Run this once at the start of this invocation, before any subagent dispatch, and follow the directives it prints — except where one conflicts with this skill's own rules on asking the user questions, whether those rules are scoped to a non-interactive mode or apply in every mode, in which case this skill's rules win and no blocking question is asked. Do not rerun it within the same invocation; a later invocation of this or any other skill runs its own. If no Node runtime is available the skill proceeds unchanged.
+Run this once at the start of this invocation, before any subagent dispatch, and follow the directives it prints — except where one conflicts with this skill's own rules on asking the user questions, whether those rules are scoped to a non-interactive mode or apply in every mode, in which case this skill's rules win and no blocking question is asked. Run the fence exactly as written, as its own command: do not pipe or filter it (no `head`, `tail`, or `grep`), do not truncate its output, and do not bundle it into a batch with other commands. Its output opens with a `=== skill context` header and ends with `CE_CONTEXT_END`; if you received one of those lines without the other, the output was truncated — rerun the fence verbatim once. That recovery is the only rerun: otherwise do not rerun it within the same invocation; a later invocation of this or any other skill runs its own. If no Node runtime is available the skill proceeds unchanged.
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
@@ -22,47 +22,32 @@ echo "no Node runtime; continue with the skill's normal behavior";
 fi
 ```
 
-## Mode Detection
+## Mode
 
-Check whether the arguments you were invoked with contain `mode:headless`. If present, strip it from the arguments (use the remainder as a scope hint) and run in **headless mode**.
+If the arguments contain `mode:non-interactive` (or its deprecated alias `mode:headless`), strip those tokens (the remainder is a scope hint) and run **non-interactive**; otherwise run **interactive**.
 
-| Mode | When | Behavior |
-|------|------|----------|
-| **Interactive** (default) | User is present and can answer questions | Ask for decisions on ambiguous cases, confirm actions |
-| **Headless** | `mode:headless` in arguments | No user interaction. Apply all unambiguous actions (Keep, Update, Consolidate, auto-Delete, Replace with sufficient evidence). Mark ambiguous cases as stale. Generate a summary report at the end. |
+**Interactive:** apply unambiguous actions directly; ask the user only on genuine judgment calls (see Decide).
 
-### Headless mode rules
+**Non-interactive:** never pause for input, in any phase.
 
-- **Skip all user questions.** Never pause for input.
-- **Process all docs in scope.** No scope narrowing questions — if no scope hint was provided, process everything.
-- **Attempt all safe actions:** Keep (no-op), Update (fix references), Consolidate (merge and delete subsumed doc), auto-Delete (unambiguous criteria met), Replace (when evidence is sufficient). If a write succeeds, record it as **applied**. If a write fails (e.g., permission denied), record the action as **recommended** in the report and continue — do not stop or ask for permissions.
-- **Relocations follow the auto-delete pattern: apply only when every condition holds, recommend otherwise.** Auto-apply a headless relocation only when all four hold: (1) frontmatter and directory disagree per the category mapping, (2) content evidence clearly resolves the direction — the directory is wrong, not the frontmatter, (3) the target category directory already exists, (4) all inbound citations are in-repo and mechanically rewritable. Any condition fails — including a doc whose content plausibly fits either category — record the relocation under Recommended instead. Splits are always recommend-only in headless mode: the split bar is a retrieval-value judgment with no ground truth, so record proposed fragment boundaries under Recommended.
-- **Mark as stale when uncertain.** If classification is genuinely ambiguous (Update vs Replace vs Consolidate vs Delete) or Replace evidence is insufficient, mark as stale with `status: stale`, `stale_reason`, and `stale_date` in the frontmatter. If even the stale-marking write fails, include it as a recommendation.
-- **Use conservative confidence.** In interactive mode, borderline cases get a user question. In headless mode, borderline cases get marked stale. Err toward stale-marking over incorrect action.
-- **Always generate a report.** The report is the primary deliverable. It has two sections: **Applied** (actions that were successfully written) and **Recommended** (actions that could not be written, with full rationale so a human can apply them or run the skill interactively). The report structure is the same regardless of what permissions were granted — the only difference is which section each action lands in.
+- Apply all safe actions: Keep, Update, Consolidate, auto-Delete (gate below), Replace (when evidence is sufficient). If a write succeeds, record it as **applied**; if it fails (e.g., permission denied), record it as **recommended** and continue — never stop to ask for permissions.
+- When classification is genuinely ambiguous or Replace evidence is insufficient, mark the doc stale instead: add `status: stale`, `stale_reason: [what you found]`, `stale_date: YYYY-MM-DD` to its frontmatter. Err toward stale-marking over incorrect action. If even that write fails, record it as recommended.
+- Relocations auto-apply only under the four-condition gate (see Classify); otherwise recommend. Splits are always recommend-only: fragment boundaries are a retrieval-value judgment with no ground truth.
+- With no scope hint, process everything — no scope-narrowing questions. With a scope hint that matches nothing, report the miss and exit; do not widen to all docs.
+- The report (see Report) is the primary deliverable.
+
+## Blocking questions
+
+Wherever this skill asks the user something, use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. Ask one question at a time, prefer multiple choice, lead with the recommended option and a one-sentence rationale.
 
 ## CONCEPTS.md bootstrap requests
 
-If invoked specifically to create or bootstrap `CONCEPTS.md` (e.g., "create a CONCEPTS.md", "build the concept map", "set up shared vocabulary"), the intent is ambiguous between two jobs — building the vocabulary file and running a <root>/solutions refresh — so disambiguate before proceeding. Use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. Two options:
+If invoked specifically to create or bootstrap `CONCEPTS.md` ("create a CONCEPTS.md", "build the concept map"), the intent is ambiguous between two jobs — disambiguate with a blocking question:
 
-1. **Create CONCEPTS.md (build the concept map)** — seed the repo-wide concept map and commit it; skip only the <root>/solutions classification phases (Phases 0–4). Read `references/concepts-vocabulary.md` and follow its **Seed goal** and **Scope of a seed** (repo-wide) rules: seed the project's core domain nouns from the declared domain model (schema, core types, primary models, top-level domain docs), each meeting the qualifying bar, the codebase setting the count. Write the preamble (see Phase 4.5), cluster per the organization rules, and run the Discoverability Check so `AGENTS.md`/`CLAUDE.md` surface the new file. Then **enter Phase 5 (Commit Changes)** to commit/PR the new `CONCEPTS.md` and any instruction-file edit through the same durable-write flow the refresh uses — do not leave the bootstrap uncommitted.
-2. **Run a refresh cycle** — proceed with the normal refresh flow below; `CONCEPTS.md` is seeded (if absent) and reconciled as part of Phase 4.5.
+1. **Create CONCEPTS.md (build the concept map)** — skip the `<root>/solutions/` classification work. Read `references/concepts-vocabulary.md` and follow its **Seed goal** and **Scope of a seed** (repo-wide) rules: seed the project's core domain nouns from the declared domain model, write the preamble (see Vocabulary Capture), cluster per the organization rules, run the Discoverability Check, then commit via the Commit flow — do not leave the bootstrap uncommitted.
+2. **Run a refresh cycle** — proceed normally; `CONCEPTS.md` is seeded (if absent) and reconciled during Vocabulary Capture.
 
-In headless mode there is no user to ask: default to the refresh cycle (vocabulary is seeded and reconciled within Phase 4.5 regardless) and note in the report that a standalone repo-wide bootstrap was not run.
-
-## Interaction Principles
-
-**These principles apply to interactive mode only. In headless mode, skip all user questions and apply the headless mode rules above.**
-
-Follow the same interaction style as `ce-brainstorm`:
-
-- Ask questions **one at a time** — use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in plain text only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question
-- Prefer **multiple choice** when natural options exist
-- Start with **scope and intent**, then narrow only when needed
-- Do **not** ask the user to make decisions before you have evidence
-- Lead with a recommendation and explain it briefly
-
-The goal is not to force the user through a checklist. The goal is to help them make a good maintenance decision with the smallest amount of friction.
+In non-interactive mode, default to the refresh cycle and note in the report that a standalone repo-wide bootstrap was not run.
 
 ## Artifact Root
 
@@ -76,493 +61,96 @@ This skill reviews and refreshes learnings under `<root>/solutions/`. Resolve `<
 - **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
 <!-- ce-docs-root:end -->
 
-## Refresh Order
+## Scope
 
-Refresh in this order:
+Find all `.md` files under `<root>/solutions/`, excluding `README.md` files and anything under `_archived/` (if `_archived/` exists, flag it in the report as legacy to clean up). READMEs are excluded as review *candidates* only: whenever an action deletes, renames, moves, consolidates, or replaces a doc a catalog README lists, update that README's rows mechanically as part of the action's cleanup.
 
-1. Review the relevant individual learning docs first
-2. Note which learnings stayed valid, were updated, were consolidated, were replaced, or were deleted
-3. Then review any pattern docs that depend on those learnings
+If a scope argument was provided, narrow with the first strategy that produces results: subdirectory name → frontmatter (`module`/`component`/`tags`) → filename → content keyword. No matches: ask the user to clarify (interactive) or report the miss and exit (non-interactive).
 
-Why this order:
-
-- learning docs are the primary evidence
-- pattern docs are derived from one or more learnings
-- stale learnings can make a pattern look more valid than it really is
-
-If the user starts by naming a pattern doc, you may begin there to understand the concern, but inspect the supporting learning docs before changing the pattern.
-
-## Maintenance Model
-
-For each candidate artifact, classify it into one of five outcomes:
-
-| Outcome | Meaning | Default action |
-|---------|---------|----------------|
-| **Keep** | Still accurate and still useful | No file edit by default; report that it was reviewed and remains trustworthy |
-| **Update** | Core solution is still correct, but references drifted | Apply evidence-backed in-place edits |
-| **Consolidate** | Two or more docs overlap heavily but are both correct | Merge unique content into the canonical doc, delete the subsumed doc |
-| **Replace** | The old artifact is now misleading, but there is a known better replacement | Create a trustworthy successor, then delete the old artifact |
-| **Delete** | No longer useful, applicable, or distinct | Delete the file — git history preserves it if anyone needs to recover it later |
-
-## Core Rules
-
-1. **Evidence informs judgment.** The signals below are inputs, not a mechanical scorecard. Use engineering judgment to decide whether the artifact is still trustworthy.
-2. **Prefer no-write Keep.** Do not update a doc just to leave a review breadcrumb.
-3. **Match docs to reality, not the reverse.** When current code differs from a learning, update the learning to reflect the current code. The skill's job is doc accuracy, not code review — do not ask the user whether code changes were "intentional" or "a regression." If the code changed, the doc should match. If the user thinks the code is wrong, that is a separate concern outside this workflow.
-4. **Be decisive, minimize questions.** When evidence is clear (file renamed, class moved, reference broken), apply the update. In interactive mode, only ask the user when the right action is genuinely ambiguous. In headless mode, mark ambiguous cases as stale instead of asking. The goal is automated maintenance with human oversight on judgment calls, not a question for every finding.
-5. **Avoid low-value churn.** Do not edit a doc just to fix a typo, polish wording, or make cosmetic changes that do not materially improve accuracy or usability.
-6. **Use Update only for meaningful, evidence-backed drift.** Paths, module names, related links, category metadata, code snippets, and clearly stale wording are fair game when fixing them materially improves accuracy. Misfiling is drift too: when a doc's directory and its frontmatter category disagree, or its content unambiguously belongs in a different existing category, relocate the file per the Update flow's relocation steps. A frontmatter/directory mismatch proves something is wrong but not which side — resolve the direction from content evidence before moving, and never relocate on a judgment call a later run could argue back (that is rule-5 churn). In headless mode, apply the relocation only under the four-condition gate in the headless rules; otherwise recommend.
-7. **Use Replace only when there is a real replacement.** That means either:
-   - the current conversation contains a recently solved, verified replacement fix, or
-   - the user has provided enough concrete replacement context to document the successor honestly, or
-   - the codebase investigation found the current approach and can document it as the successor, or
-   - newer docs, pattern docs, PRs, or issues provide strong successor evidence.
-8. **Delete when the code is gone, and only after checking for inbound links.** If the referenced code, controller, or workflow once lived in this repo and has since been removed, and no successor can be found, delete the file — don't default to Keep just because the general advice is still "sound." "Gone" requires that it existed here: a learning that never referenced in-repo code (developer environment, onboarding, process) is outside this rule and never auto-deletes — see the no-in-repo-implementation case in Phase 2. When in doubt between Keep and Delete, ask the user (in interactive mode) or mark as stale (in headless mode). Inbound links inform classification, not cleanup: cleanup is always mechanical, but **decorative** citations (principle stated inline) allow Delete, while **substantive** citations (citing doc relies on the cited doc) signal Replace. The auto-delete case is missing code, no matching successor, and citations absent or decorative.
-9. **Evaluate document-set design, not just accuracy.** In addition to checking whether each doc is accurate, evaluate whether it is still the right unit of knowledge. If two or more docs overlap heavily, determine whether they should remain separate, be cross-scoped more clearly, or be consolidated into one canonical document. Redundant docs are dangerous because they drift silently — two docs saying the same thing will eventually say different things.
-10. **Delete, don't archive.** There is no `_archived/` directory. When a doc is no longer useful, delete it. Git history preserves every deleted file — that is the archive. A dedicated archive directory creates problems: archived docs accumulate, pollute search results, and nobody reads them. If someone needs a deleted doc, `git log --diff-filter=D -- <root>/solutions/` will find it.
-
-## Scope Selection
-
-Start by discovering learnings and pattern docs under `<root>/solutions/`.
-
-Exclude:
-
-- `README.md`
-- `<root>/solutions/_archived/` (legacy — if this directory exists, flag it for cleanup in the report)
-
-Find all `.md` files under `<root>/solutions/`, excluding `README.md` files and anything under `_archived/`. If an `_archived/` directory exists, note it in the report as a legacy artifact that should be cleaned up (files either restored or deleted).
-
-`README.md` files are excluded as review *candidates*, not from cleanup: when an action deletes, renames, moves, consolidates, or replaces a doc that a catalog README lists, update that README's rows mechanically as part of the action's cross-reference cleanup — otherwise every delete leaves a dangling catalog row.
-
-If a scope argument was provided, use it to narrow scope before proceeding. Try these matching strategies in order, stopping at the first that produces results:
-
-1. **Directory match** — check if the argument matches a subdirectory name under `<root>/solutions/` (e.g., `performance-issues`, `database-issues`)
-2. **Frontmatter match** — search `module`, `component`, or `tags` fields in learning frontmatter for the argument
-3. **Filename match** — match against filenames (partial matches are fine)
-4. **Content search** — search file contents for the argument as a keyword (useful for feature names or feature areas)
-
-If no matches are found, report that and ask the user to clarify. In headless mode, when a scope hint was provided but matched nothing, report the miss in the summary and exit without widening to all docs — do not silently fall back to processing everything. (The "process everything" rule from Headless mode rules applies only when **no** scope hint was provided.)
-
-If no candidate docs are found, report:
+If the store is empty, report:
 
 ```text
 No candidate docs found in <root>/solutions/.
 Run `ce-compound` after solving problems to start building your knowledge base.
 ```
 
-## Phase 0: Assess and Route
+For a broad sweep (9+ docs), triage before deep investigation: read all frontmatter, cluster by module/category, spot-check whether primary referenced files still exist, and start with the highest-impact cluster (interactive: confirm the starting area with the user; non-interactive: process all clusters in impact order). Review individual learning docs before the pattern docs that depend on them — stale learnings make a pattern look more valid than it is. If the user named a pattern doc, you may start there, but inspect its supporting learnings before changing it.
 
-Before asking the user to classify anything:
+## Investigate
 
-1. Discover candidate artifacts
-2. Estimate scope
-3. Choose the lightest interaction path that fits
+For each learning in scope, read it and cross-reference its claims against the current codebase. Dimensions that go stale independently: referenced paths/classes/modules; the recommended solution itself (does it still match how the code works?); code snippets; cross-referenced docs; overlap with other in-scope docs (note pairs covering the same problem/files/solution and which appears broader or more current); and domain vocabulary (note project-specific terms and whether `CONCEPTS.md` defines them accurately — collect the signal, don't edit yet). On Claude Code only, also scan the injected auto-memory block for same-domain notes: memory-sourced signals are supplementary — they corroborate codebase evidence or prompt deeper investigation, never alone justify Replace or Delete, and in non-interactive mode memory-only drift means stale-mark. Match depth to specificity: a doc citing exact paths and snippets needs more verification than a general principle.
 
-### Route by Scope
+After individual docs, evaluate the set: overlaps, supersession (an older narrow doc a newer doc subsumes), and outright contradictions between docs — contradictions actively mislead and outrank individual staleness. Note category-shape problems (a directory whose docs span unrelated themes, a near-empty category) as report-only observations — never restructure directories or create categories.
 
-| Scope | When to use it | Interaction style |
-|-------|----------------|-------------------|
-| **Focused** | 1-2 likely files or user named a specific doc | Investigate directly, then present a recommendation |
-| **Batch** | Up to ~8 mostly independent docs | Investigate first, then present grouped recommendations |
-| **Broad** | 9+ docs, ambiguous, or repo-wide stale-doc sweep | Triage first, then investigate in batches |
-
-### Broad Scope Triage
-
-When scope is broad (9+ candidate docs), do a lightweight triage before deep investigation:
-
-1. **Inventory** — read frontmatter of all candidate docs, group by module/component/category
-2. **Impact clustering** — identify areas with the densest clusters of learnings + pattern docs. A cluster of 5 learnings and 2 patterns covering the same module is higher-impact than 5 isolated single-doc areas, because staleness in one doc is likely to affect the others.
-3. **Spot-check drift** — for each cluster, check whether the primary referenced files still exist. Missing references in a high-impact cluster = strongest signal for where to start.
-4. **Recommend a starting area** — present the highest-impact cluster with a brief rationale and ask the user to confirm or redirect. In headless mode, skip the question and process all clusters in impact order.
-
-Example:
-
-```text
-Found 24 learnings across 5 areas.
-
-The auth module has 5 learnings and 2 pattern docs that cross-reference
-each other — and 3 of those reference files that no longer exist.
-I'd start there.
-
-1. Start with auth (recommended)
-2. Pick a different area
-3. Review everything
-```
-
-Do not ask action-selection questions yet. First gather evidence.
-
-## Phase 1: Investigate Candidate Learnings
-
-For each learning in scope, read it, cross-reference its claims against the current codebase, and form a recommendation.
-
-A learning has several dimensions that can independently go stale. Surface-level checks catch the obvious drift, but staleness often hides deeper:
-
-- **References** — do the file paths, class names, and modules it mentions still exist or have they moved?
-- **Recommended solution** — does the fix still match how the code actually works today? A renamed file with a completely different implementation pattern is not just a path update.
-- **Code examples** — if the learning includes code snippets, do they still reflect the current implementation?
-- **Related docs** — are cross-referenced learnings and patterns still present and consistent?
-- **Auto memory** (Claude Code only) — does the injected auto-memory block in your system prompt contain entries in the same problem domain? Scan that block directly. If the block is absent, skip this dimension. A memory note describing a different approach than what the learning recommends is a supplementary drift signal.
-- **Overlap** — while investigating, note when another doc in scope covers the same problem domain, references the same files, or recommends a similar solution. For each overlap, record: the two file paths, which dimensions overlap (problem, solution, root cause, files, prevention), and which doc appears broader or more current. These signals feed Phase 1.75 (Document-Set Analysis).
-- **Vocabulary** — note domain terms the learning cites (entities, named processes, status concepts with project-specific meaning). For each term: does it appear in `CONCEPTS.md`? If yes, does the definition still match how the code uses the term? If no, flag the term for Phase 4.5 to add or bootstrap. Do not edit `CONCEPTS.md` during investigation — just collect the signal centrally.
-
-Match investigation depth to the learning's specificity — a learning referencing exact file paths and code snippets needs more verification than one describing a general principle.
-
-### Drift Classification: Update vs Replace
-
-The critical distinction is whether the drift is **cosmetic** (references moved but the solution is the same) or **substantive** (the solution itself changed):
-
-- **Update territory** — file paths moved, classes renamed, links broke, metadata drifted, but the core recommended approach is still how the code works. `ce-compound-refresh` fixes these directly.
-- **Replace territory** — the recommended solution conflicts with current code, the architectural approach changed, or the pattern is no longer the preferred way. This means a new learning needs to be written. A replacement subagent writes the successor following `ce-compound`'s document format (frontmatter, problem, root cause, solution, prevention), using the investigation evidence already gathered. The orchestrator does not rewrite learnings inline — it delegates to a subagent for context isolation.
-
-**The boundary:** if you find yourself rewriting the solution section or changing what the learning recommends, stop — that is Replace, not Update.
-
-**Memory-sourced drift signals** are supplementary, not primary. A memory note describing a different approach does not alone justify Replace or Delete. Use memory signals to:
-- Corroborate codebase-sourced drift (strengthens the case for Replace)
-- Prompt deeper investigation when codebase evidence is borderline
-- Add context to the evidence report ("(auto memory [claude]) notes suggest approach X may have changed since this learning was written")
-
-In headless mode, memory-only drift (no codebase corroboration) should result in stale-marking, not action.
-
-### Judgment Guidelines
-
-Three guidelines that are easy to get wrong:
-
-1. **Contradiction = strong Replace signal.** If the learning's recommendation conflicts with current code patterns or a recently verified fix, that is not a minor drift — the learning is actively misleading. Classify as Replace.
-2. **Age alone is not a stale signal.** A 2-year-old learning that still matches current code is fine. Only use age as a prompt to inspect more carefully.
-3. **Check for successors before deleting.** Before recommending Replace or Delete, look for newer learnings, pattern docs, PRs, or issues covering the same problem space. If successor evidence exists, prefer Replace over Delete so readers are directed to the newer guidance.
-
-## Phase 1.5: Investigate Pattern Docs
-
-After reviewing the underlying learning docs, investigate any relevant pattern docs under `<root>/solutions/patterns/`.
-
-Pattern docs are high-leverage — a stale pattern is more dangerous than a stale individual learning because future work may treat it as broadly applicable guidance. Evaluate whether the generalized rule still holds given the refreshed state of the learnings it depends on.
-
-A pattern doc with no clear supporting learnings is a stale signal — investigate carefully before keeping it unchanged.
-
-## Phase 1.75: Document-Set Analysis
-
-After investigating individual docs, step back and evaluate the document set as a whole. The goal is to catch problems that only become visible when comparing docs to each other — not just to reality.
-
-### Overlap Detection
-
-For docs that share the same module, component, tags, or problem domain, compare them across these dimensions:
-
-- **Problem statement** — do they describe the same underlying problem?
-- **Solution shape** — do they recommend the same approach, even if worded differently?
-- **Referenced files** — do they point to the same code paths?
-- **Prevention rules** — do they repeat the same prevention bullets?
-- **Root cause** — do they identify the same root cause?
-
-High overlap across 3+ dimensions is a strong Consolidate signal. The question to ask: "Would a future maintainer need to read both docs to get the current truth, or is one mostly repeating the other?"
-
-### Supersession Signals
-
-Detect "older narrow precursor, newer canonical doc" patterns:
-
-- A newer doc covers the same files, same workflow, and broader runtime behavior than an older doc
-- An older doc describes a specific incident that a newer doc generalizes into a pattern
-- Two docs recommend the same fix but the newer one has better context, examples, or scope
-
-When a newer doc clearly subsumes an older one, the older doc is a consolidation candidate — its unique content (if any) should be merged into the newer doc, and the older doc should be deleted.
-
-### Canonical Doc Identification
-
-For each topic cluster (docs sharing a problem domain), identify which doc is the **canonical source of truth**:
-
-- Usually the most recent, broadest, most accurate doc in the cluster
-- The one a maintainer should find first when searching for this topic
-- The one that other docs should point to, not duplicate
-
-All other docs in the cluster are either:
-- **Distinct** — they cover a meaningfully different sub-problem and have independent retrieval value. Keep them separate.
-- **Subsumed** — their unique content fits as a section in the canonical doc. Consolidate.
-- **Redundant** — they add nothing the canonical doc doesn't already say. Delete.
-
-### Retrieval-Value Test
-
-Before recommending that two docs stay separate, apply this test: "If a maintainer searched for this topic six months from now, would having these as separate docs improve discoverability, or just create drift risk?"
-
-Separate docs earn their keep only when:
-- They cover genuinely different sub-problems that someone might search for independently
-- They target different audiences or contexts (e.g., one is about debugging, another about prevention)
-- Merging them would create an unwieldy doc that is harder to navigate than two focused ones
-
-If none of these apply, prefer consolidation. Two docs covering the same ground will eventually drift apart and contradict each other — that is worse than a slightly longer single doc.
-
-### Category-Shape Signal (report-only)
-
-While clustering, note category-level shape problems: a directory whose docs span several distinct themes, a near-empty category, or docs filed under a directory that disagrees with their frontmatter category. Report these as recommendations — never restructure directories, rename categories, or create new ones. The only structural action this skill takes is the per-doc kind: an unambiguous misfiling feeds the Update flow's relocation steps, and an unwieldy multi-problem doc feeds the Split flow.
-
-### Cross-Doc Conflict Check
-
-Look for outright contradictions between docs in scope:
-- Doc A says "always use approach X" while Doc B says "avoid approach X"
-- Doc A references a file path that Doc B says was deprecated
-- Doc A and Doc B describe different root causes for what appears to be the same problem
-
-Contradictions between docs are more urgent than individual staleness — they actively confuse readers. Flag these for immediate resolution, either through Consolidate (if one is right and the other is a stale version of the same truth) or through targeted Update/Replace.
-
-## Subagent Strategy
-
-Use subagents for context isolation when investigating multiple artifacts — not just because the task sounds complex. Choose the lightest approach that fits:
-
-| Approach | When to use |
-|----------|-------------|
-| **Main thread only** | Small scope, short docs |
-| **Sequential subagents** | 1-2 artifacts with many supporting files to read |
-| **Parallel subagents** | 3+ truly independent artifacts with low overlap |
-| **Batched subagents** | Broad sweeps — narrow scope first, then investigate in batches |
-
-**When spawning any subagent**, omit the `mode` parameter so the user's configured permission settings apply. Include this instruction in its task prompt:
+**Subagents.** Use them for context isolation, choosing the lightest approach that fits: main thread for small scopes, parallel investigation subagents for 3+ independent docs, batches for broad sweeps; docs that overlap or share a root issue are investigated together, not parallelized. When spawning any subagent, omit the `mode` parameter so the user's permission settings apply, and include in its prompt:
 
 > Use dedicated file search and read tools (Glob, Grep, Read) for all investigation. Do NOT use shell commands (ls, find, cat, grep, test, bash) for file operations. This avoids permission prompts and is more reliable.
 >
 > Also scan the "user's auto-memory" block injected into your system prompt (Claude Code only). Check for notes related to the learning's problem domain. Report any memory-sourced drift signals separately from codebase-sourced evidence, tagged with "(auto memory [claude])" in the evidence section. If the block is not present in your context, skip this check.
 
-There are two subagent roles:
+Two subagent roles: **investigation** subagents are read-only and return evidence + a recommended action; **replacement** subagents write successor docs (one per Replace or Split candidate, run one at a time, sequentially). The orchestrator merges results, resolves contradictions, and performs all deletions and metadata edits centrally.
 
-1. **Investigation subagents** — read-only. They must not edit files, create successors, or delete anything. Each returns: file path, evidence, recommended action, confidence, and open questions. These can run in parallel when artifacts are independent.
-2. **Replacement subagents** — write the successor content for a single candidate doc: one new learning for a Replace, or **every successor fragment** for a confirmed Split (one subagent still owns the whole split candidate, so no fragment is lost between workers). These run **one at a time, sequentially** (each replacement subagent may need to read significant code, and running multiple in parallel risks context exhaustion). The orchestrator handles all deletions and metadata updates after each replacement completes.
+## Classify
 
-The orchestrator merges investigation results, detects contradictions, coordinates replacement subagents, and performs all deletions/metadata edits centrally. In interactive mode, it asks the user questions on ambiguous cases. In headless mode, it marks ambiguous cases as stale instead. If two artifacts overlap or discuss the same root issue, investigate them together rather than parallelizing.
+Assign each doc one outcome:
 
-## Phase 2: Classify the Right Maintenance Action
+| Outcome | Meaning | Action |
+|---------|---------|--------|
+| **Keep** | Still accurate and useful | No edit — report it as reviewed. Do not write a review breadcrumb or `last_refreshed` on its own. |
+| **Update** | Solution still correct; references drifted (paths, names, links, snippets, metadata, misfiling) | Fix in place |
+| **Consolidate** | Docs overlap heavily, both correct | Merge unique content into the canonical doc, delete the subsumed one |
+| **Replace** | Guidance is now misleading; a trustworthy successor can be written | Successor via subagent, then delete the old |
+| **Delete** | No longer useful, applicable, or distinct | Delete the file — git history is the archive; there is no `_archived/` |
 
-After gathering evidence, assign one recommended action.
+Judgment rules that are easy to get wrong:
 
-### Keep
+- **Match docs to reality, not the reverse.** When code and doc disagree, the doc is what changes. Never ask whether a code change was "intentional" or amounts to a regression — code review is out of scope.
+- **The Update/Replace boundary:** if you find yourself rewriting the solution section or changing what the doc recommends, that is Replace, not Update. A contradiction between the doc's recommendation and current code is a strong Replace signal, not minor drift.
+- **Age alone is not staleness** — a two-year-old doc that still matches the code is a Keep; use age only as a prompt to inspect harder.
+- **No churn:** never edit just for typos, wording, or cosmetics.
+- **Replace needs real evidence** — from the investigation itself, the conversation, newer docs/PRs, or the user. If you cannot confidently document the current approach, stale-mark and recommend `ce-compound` for the user's next encounter with that area instead of guessing.
+- **Consolidate vs separate — the retrieval-value test:** would a maintainer searching this topic in six months benefit from separate docs (genuinely different sub-problems, different audiences), or do they just create drift risk? Two docs saying the same thing will eventually say different things. Two accurate docs about *different sub-problems* of one feature (e.g., request volume vs response ordering) stay separate even when they cite the same file — shared code is not shared problem. If the subsumed doc adds nothing unique, it's a straight Delete. Deleting the subsumed doc after merging its unique content is part of the Consolidate action itself — it is a safe, unattended-appliable step and does not require the auto-delete gate below.
+- **Unverifiable is not false.** A claim the repo cannot corroborate — a schema or index fact, an operational practice, an environment behavior — is not thereby wrong; repos rarely witness their own operations. Never delete, strip during a merge, or stale-mark content solely because no in-repo artifact confirms it. Act only on contradiction (code demonstrably does otherwise); for unverifiable-but-plausible claims, keep them and note the verification gap in the report. **Split** (one doc holding several independent problems → focused successors) is the inverse and the bar is high: each fragment must have independent retrieval value; length alone is never a reason.
+- **Relocation** (an Update variant): move a doc only when directory and frontmatter category disagree or content unambiguously belongs in a different **existing** category. A mismatch proves something is wrong, not which side — resolve the direction from content before moving, and never relocate on an arguable judgment call. Non-interactive auto-relocation requires all four: (1) frontmatter and directory disagree per the category mapping, (2) content clearly resolves the direction as directory-wrong, (3) the target category directory exists, (4) all inbound citations are in-repo and mechanically rewritable. Otherwise recommend.
 
-The learning is still accurate and useful. Do not edit the file — report that it was reviewed and remains trustworthy. Only add `last_refreshed` if you are already making a meaningful update for another reason.
+**Before any Delete**, two checks:
 
-### Update
+1. **Is the problem domain still active?** Missing files prove the *implementation* is gone, not the problem. If the app still deals with what the doc addresses (e.g., the auth-token file is gone but sessions are still handled), that is Replace, not Delete. A doc that never referenced in-repo code (developer environment, onboarding, process) can never satisfy "implementation gone" and **never auto-deletes** — stale-mark (non-interactive) or ask (interactive) when its currency is in doubt.
+2. **Inbound links.** Search the repo's markdown (not source code) for the filename slug; read context around matches. **Decorative** citations (see-also pointers, principle already stated inline) permit Delete with mechanical cleanup in the same commit. **Substantive** citations (the citing doc relies on the cited content) signal Replace — or Keep with narrowed scope. Mixed or unclear: stale-mark.
 
-The core solution is still valid but references have drifted (paths, class names, links, code snippets, metadata). Apply the fixes directly.
+**Auto-delete (no confirmation needed, either mode) only when all three hold:** the implementation once lived in this repo and is gone (or the doc is fully superseded or plainly redundant); the problem domain is gone — or, for a superseded/redundant doc, the surviving canonical doc itself already states the subsumed doc's guidance (topical overlap is not coverage: verify the specific content exists there before deleting); inbound citations are absent or unambiguously decorative. Any condition fails → Replace, Update, Consolidate, stale-mark, or ask.
 
-### Consolidate
+**Pattern docs** (`<root>/solutions/patterns/`) get the same five outcomes evaluated as *derived* guidance: does the generalized rule still hold given the refreshed learnings beneath it? A pattern with no supporting learnings is itself a stale signal. Base any pattern Replace on the refreshed learning set, not fresh invention.
 
-Choose **Consolidate** when Phase 1.75 identified docs that overlap heavily but are both materially correct. This is different from Update (which fixes drift in a single doc) and Replace (which rewrites misleading guidance). Consolidate handles the "both right, one subsumes the other" case.
+## Decide (interactive mode only)
 
-**When to consolidate:**
+Apply unambiguous Keeps, Updates, and Consolidations directly — no confirmation. Ask (per Blocking questions) only when: the action is genuinely ambiguous; a Delete fails the auto-delete gate; the canonical doc in a Consolidate isn't clear-cut; you are about to Replace; or you are about to Split (it writes successors and deletes the original — confirm fragment boundaries like a Replace). Present the file path, 2-4 evidence bullets, and the recommended action; offer only plausible alternatives plus "skip for now". For broad sweeps, work in batches and confirm continuation between them rather than front-loading a full maintenance queue.
 
-- Two docs describe the same problem and recommend the same (or compatible) solution
-- One doc is a narrow precursor and a newer doc covers the same ground more broadly
-- The unique content from the subsumed doc can fit as a section or addendum in the canonical doc
-- Keeping both creates drift risk without meaningful retrieval benefit
+## Execute
 
-**When NOT to consolidate** (apply the Retrieval-Value Test from Phase 1.75):
+Read `references/per-action-flows.md` and follow the section matching each doc's classification — it owns the step-by-step criteria, the relocation and split procedures, the replacement subagent contract (pass `references/schema.yaml`, `references/yaml-schema.md`, and `assets/resolution-template.md`; validate with the bundled frontmatter and doc-claims scripts), and citation cleanup. One flow per doc.
 
-- The docs cover genuinely different sub-problems that someone would search for independently
-- Merging would create an unwieldy doc that harms navigation more than drift risk harms accuracy
+## Vocabulary Capture
 
-**Consolidate vs Delete:** If the subsumed doc has unique content worth preserving (edge cases, alternative approaches, extra prevention rules), use Consolidate to merge that content first. If the subsumed doc adds nothing the canonical doc doesn't already say, skip straight to Delete.
+After the per-doc actions execute, reconcile the domain terms flagged during investigation with `CONCEPTS.md`.
 
-The Consolidate action is: merge unique content from the subsumed doc into the canonical doc, then delete the subsumed doc. Not archive — delete. Git history preserves it.
+**First, read `references/concepts-vocabulary.md` — unconditionally.** Its qualifying criteria are non-obvious; a "nothing qualifies" judgment without reading it is a shortcut, not a result.
 
-**Split (inverse consolidation):** Consolidate also covers the reverse case — one doc holding multiple genuinely independent problems becomes focused successors, executed per the Split flow in `references/per-action-flows.md`. The bar is the Retrieval-Value Test inverted: split only when a maintainer searching for one sub-topic would be materially harmed by the other content, and each fragment has independent retrieval value. Length alone is never a reason — splitting doubles drift surface, the exact risk consolidation exists to remove. In headless mode, splits are recommend-only.
-
-### Replace
-
-Choose **Replace** when the learning's core guidance is now misleading — the recommended fix changed materially, the root cause or architecture shifted, or the preferred pattern is different.
-
-The user may have invoked the refresh months after the original learning was written. Do not ask them for replacement context they are unlikely to have — use agent intelligence to investigate the codebase and synthesize the replacement.
-
-**Evidence assessment:**
-
-By the time you identify a Replace candidate, Phase 1 investigation has already gathered significant evidence: the old learning's claims, what the current code actually does, and where the drift occurred. Assess whether this evidence is sufficient to write a trustworthy replacement:
-
-- **Sufficient evidence** — you understand both what the old learning recommended AND what the current approach is. The investigation found the current code patterns, the new file locations, the changed architecture. → Proceed to write the replacement (see Phase 4 Replace Flow).
-- **Insufficient evidence** — the drift is so fundamental that you cannot confidently document the current approach. The entire subsystem was replaced, or the new architecture is too complex to understand from a file scan alone. → Mark as stale in place:
-   - Add `status: stale`, `stale_reason: [what you found]`, `stale_date: YYYY-MM-DD` to the frontmatter
-   - Report what evidence you found and what is missing
-   - Recommend the user run `ce-compound` after their next encounter with that area, when they have fresh problem-solving context
-
-### Delete
-
-Choose **Delete** when:
-
-- The code or workflow no longer exists and the problem domain is gone
-- The learning is obsolete and has no modern replacement worth documenting
-- The learning is fully redundant with another doc (use Consolidate if there is unique content to merge first)
-- There is no meaningful successor evidence suggesting it should be replaced instead
-
-Action: delete the file. No archival directory, no metadata — just delete it. Git history preserves every deleted file if recovery is ever needed.
-
-### Before deleting: check if the problem domain is still active
-
-When a learning's referenced files are gone, that is strong evidence — but only that the **implementation** is gone. Before deleting, reason about whether the **problem the learning solves** is still a concern in the codebase:
-
-- A learning about session token storage where `auth_token.rb` is gone — does the application still handle session tokens? If so, the concept persists under a new implementation. That is Replace, not Delete.
-- A learning about a deprecated API endpoint where the entire feature was removed — the problem domain is gone. That is Delete.
-- A learning that references no in-repo implementation — developer-environment, onboarding, tooling-on-laptops, or process learnings — can never satisfy "the implementation is gone": the repo never witnessed its domain, so absence of supporting files is not evidence the problem stopped existing. These never auto-delete. When their currency is in doubt, stale-mark (headless) or ask (interactive).
-
-Do not search mechanically for keywords from the old learning. Instead, understand what problem the learning addresses, then investigate whether that problem domain still exists in the codebase. The agent understands concepts — use that understanding to look for where the problem lives now, not where the old code used to be.
-
-### Before deleting: check for inbound links
-
-A doc that other files cite is load-bearing in a way the doc itself does not announce. Before classifying as Delete, search the repo's markdown content (other docs, plans, instruction files, READMEs) for citations of the file — not source code, where citations are rare and only appear in comments. The filename slug is usually unique enough that one query covers all citation sites.
-
-Search efficiently:
-
-- Prefer the platform's native content-search tool (e.g., Grep in Claude Code) over shell. Drop to shell when materially better for the case.
-- Search the filename slug (without `.md`); narrow to the full path only if matches are noisy.
-- Read context lines around each match (e.g., Grep's `-B`/`-A`), not whole files.
-
-**Inbound links inform the classification, not the cleanup.** Removing a citation is always mechanical (drop the parenthetical, the bare entry, or the deferring clause). The judgment is upstream: given these citations, is Delete still right, or is Replace closer to right?
-
-Classify each citation by what it does in its citing context:
-
-- **Decorative** — principle stated inline, citation is a "see also" pointer or bare attribution. Delete is fine; clean up citations in the same commit.
-- **Substantive** — citing doc relies on the cited doc to provide content not stated inline (e.g., "see X for details on Y" with no inline Y). Signal Replace — write a successor at the same path, or **Keep with narrowed scope** if the doc's actual content is broader than its title implies.
-- **Mixed or unclear** — stale-mark.
-
-In headless mode, Delete + decorative cleanup is fine. Any substantive citation, or any genuine ambiguity, downgrades to stale-marking — writing a Replace successor is judgment-heavy and should not happen unattended.
-
-**Auto-delete only when all three hold:**
-
-- The implementation is gone — it once lived in this repo and was removed (or is fully superseded by a clearly better successor, or the doc is plainly redundant).
-- The problem domain is gone — the app no longer deals with what the learning addresses.
-- Inbound links are absent or unambiguously decorative.
-
-If any condition fails, classify as Replace, Update, Consolidate, or stale-mark per the rules above. Do not delete a learning whose problem domain is still active or whose principles are cited substantively — fill the gap with a replacement instead.
-
-## Pattern Guidance
-
-Apply the same five outcomes (Keep, Update, Consolidate, Replace, Delete) to pattern docs, but evaluate them as **derived guidance** rather than incident-level learnings. Key differences:
-
-- **Keep**: the underlying learnings still support the generalized rule and examples remain representative
-- **Update**: the rule holds but examples, links, scope, or supporting references drifted
-- **Consolidate**: two pattern docs generalize the same set of learnings or cover the same design concern — merge into one canonical pattern
-- **Replace**: the generalized rule is now misleading, or the underlying learnings support a different synthesis. Base the replacement on the refreshed learning set — do not invent new rules from guesswork
-- **Delete**: the pattern is no longer valid, no longer recurring, or fully subsumed by a stronger pattern doc with no unique content remaining
-
-## Phase 3: Ask for Decisions
-
-### Headless mode
-
-**Skip this entire phase. Do not ask any questions. Do not present options. Do not wait for input.** Proceed directly to Phase 4 and execute all actions based on the classifications from Phase 2:
-
-- Unambiguous Keep, Update, Consolidate, auto-Delete, and Replace (with sufficient evidence) → execute directly
-- Ambiguous cases → mark as stale
-- Then generate the report (see Output Format)
-
-### Interactive mode
-
-Most Updates and Consolidations should be applied directly without asking. Only ask the user when:
-
-- The right action is genuinely ambiguous (Update vs Replace vs Consolidate vs Delete)
-- You are about to Delete a document **and** the evidence is not unambiguous (see auto-delete criteria in Phase 2). When auto-delete criteria are met, proceed without asking.
-- You are about to Consolidate and the choice of canonical doc is not clear-cut
-- You are about to create a successor via Replace
-- You are about to execute a Split — it writes successors and deletes the original, so confirm the fragment boundaries like a Replace; the apply-without-asking default for Consolidations covers merges only, never splits
-
-Do **not** ask questions about whether code changes were intentional, whether the user wants to fix bugs in the code, or other concerns outside doc maintenance. Stay in your lane — doc accuracy.
-
-#### Question Style
-
-Always present choices using the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in plain text only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
-
-Question rules:
-
-- Ask **one question at a time**
-- Prefer **multiple choice**
-- Lead with the **recommended option**
-- Explain the rationale for the recommendation in one concise sentence
-- Avoid asking the user to choose from actions that are not actually plausible
-
-#### Focused Scope
-
-For a single artifact, present:
-
-- file path
-- 2-4 bullets of evidence
-- recommended action
-
-Then ask:
-
-```text
-This [learning/pattern] looks like a [Keep/Update/Consolidate/Replace/Delete].
-
-Why: [one-sentence rationale based on the evidence]
-
-What would you like to do?
-
-1. [Recommended action]
-2. [Second plausible action]
-3. Skip for now
-```
-
-Do not list all five actions unless all five are genuinely plausible.
-
-#### Batch Scope
-
-For several learnings:
-
-1. Group obvious **Keep** cases together
-2. Group obvious **Update** cases together when the fixes are straightforward
-3. Present **Consolidate** cases together when the canonical doc is clear
-4. Present **Replace** cases individually or in very small groups
-5. Present **Delete** cases individually unless they are strong auto-delete candidates
-
-Ask for confirmation in stages:
-
-1. Confirm grouped Keep/Update recommendations
-2. Then handle Consolidate groups (present the canonical doc and what gets merged)
-3. Then handle Replace one at a time
-4. Then handle Delete one at a time unless the deletion is unambiguous and safe to auto-apply
-
-#### Broad Scope
-
-If the user asked for a sweeping refresh, keep the interaction incremental:
-
-1. Narrow scope first
-2. Investigate a manageable batch
-3. Present recommendations
-4. Ask whether to continue to the next batch
-
-Do not front-load the user with a full maintenance queue.
-
-## Phase 4: Execute the Chosen Action
-
-For each candidate, execute the flow that matches its classification from Phase 2 (confirmed in Phase 3). Read `references/per-action-flows.md` and follow the matching section:
-
-- **Keep** — no file edit by default; summarize why the learning remains trustworthy.
-- **Update** — in-place edits when the solution is still substantively correct (path renames, link refreshes, module renames), plus unambiguous relocations of misfiled docs (headless: only under the four-condition gate).
-- **Consolidate** — merge overlapping docs into a canonical doc, delete subsumed docs, update cross-references. The orchestrator handles consolidation directly. The inverse case runs the Split flow: one multi-problem doc becomes focused successors via subagent (interactive mode only).
-- **Replace** — write a successor learning via subagent (passing the documentation contract files), validate frontmatter and cited claims, then delete the old. When evidence is insufficient, mark stale instead.
-- **Delete** — final inbound-link check, then remove. Reclassify if late-discovered substantive citations surface.
-
-Only one flow runs per candidate; the reference contains the per-action criteria, examples, and step-by-step instructions.
-
-## Phase 4.5: Vocabulary Capture
-
-After the per-learning actions execute, aggregate the domain terms flagged across Phase 1's Vocabulary dimension and reconcile them with `CONCEPTS.md`.
-
-**First, read `references/concepts-vocabulary.md`.** This is unconditional. Do not pre-judge from memory which Phase 1 signals qualify — the reference's criteria are non-obvious and a "nothing qualifies" judgment without reading is a shortcut, not a result.
-
-**Procedure:**
-
-1. **Aggregate.** Collect qualifying terms surfaced across the learnings in scope, applying the reference's criteria. If the same term surfaced in multiple learnings with different shades of precision, **union the shades into one entry** — not three entries, not most-recent-wins.
-2. **If `CONCEPTS.md` exists**, add missing terms and refine existing entries when the corpus surfaced new precision. Do not duplicate entries already present. **Then reconcile the in-scope core nouns:** re-derive the core domain nouns of the area in scope from its declared model (per the **Seed goal** in the reference) and backfill any that are central but missing. This is the every-run safety net for stable-central terms that friction never surfaces — bounded to the area in scope, defining only terms investigated this run, never a repo-wide sweep.
-3. **If `CONCEPTS.md` does not exist** and at least one qualifying term was surfaced, **bootstrap it — and seed, don't write a single term.** Alongside the surfaced term(s), seed the core domain nouns of the area in scope per the reference's **Seed goal**, so the file is anchored from creation rather than a lone peripheral entry (and so captured terms don't dangle against undefined siblings). The seed stays scoped to the area in scope — a repo-wide concept map comes only from the explicit bootstrap path above, not from a scoped refresh. **At creation, hold the qualifying bar conservatively for borderline terms** — a borderline term or a class/table/file name dressed up as an entity defers to a later run; clear core nouns are seeded, borderline ones wait. The conservatism is about quality, not count; updates to an existing file follow normal criteria.
-4. **Scope discipline and citation hygiene.** Bootstrap, seed, and reconcile reflect only the area in scope — do not expand to other categories, and do not retroactively inject `(see CONCEPTS.md)` pointers into existing learnings. (The repo-wide bootstrap path above is the deliberate exception — it intentionally covers the whole declared model.) The report should note that additional entries are likely from refresh runs on other scopes.
-5. **Initial structure.** When bootstrapping, start the file with this preamble under the `# Concepts` heading:
+1. **Aggregate** qualifying terms across the learnings in scope; when one term surfaced with different shades of precision, union the shades into one entry.
+2. **If `CONCEPTS.md` exists:** add missing terms, refine entries where the corpus surfaced new precision, then reconcile the in-scope core nouns — re-derive the area's core domain nouns per the reference's **Seed goal** and backfill any central-but-missing ones. Bounded to the area in scope; never a repo-wide sweep.
+3. **If it doesn't exist** and at least one term qualified: bootstrap it — seed the in-scope area's core domain nouns per the Seed goal alongside the surfaced terms, holding the bar conservatively for borderline terms at creation. Start the file with this preamble under a `# Concepts` heading:
 
    > Shared domain vocabulary for this project — entities, named processes, and status concepts with project-specific meaning. Seeded with core domain vocabulary, then accretes as ce-compound and ce-compound-refresh process learnings; direct edits are fine. Glossary only, not a spec or catch-all.
 
-   Then add entries. Let term count drive shape: 1-4 terms → flat headings, more → cluster by domain relationship per the rules in `references/concepts-vocabulary.md`.
-6. **Scrub violations.** Scan existing entries for content that violates `references/concepts-vocabulary.md` criteria — implementation specifics (file paths, class names, function signatures, code references), current-config values (thresholds, counts, enum values that will drift), status/owner/date metadata, duplicates of terms covered under a different name, or entries that lean on an undefined project-specific sibling (add the sibling or rephrase). Rewrite or consolidate. The full sweep is appropriate here because refresh is an audit; ce-compound's same-named phase scopes corrections to the coherence neighborhood of entries being touched.
+   1-4 terms → flat headings; more → cluster by domain relationship per the reference.
+4. **Scrub violations** in existing entries per the reference's criteria (implementation specifics, config values that drift, status/owner/date metadata, duplicates, undefined project-specific siblings). The full sweep is appropriate here because refresh is an audit.
+5. Do not expand beyond the area in scope (the explicit repo-wide bootstrap path is the exception), and do not retroactively inject `(see CONCEPTS.md)` pointers into learnings.
 
-If no Phase 1 signals qualified after applying the reference's criteria, record that outcome explicitly in the report's `CONCEPTS.md` line (e.g., "scanned, no qualifying terms"). Do not silently skip — the visible scan-and-no-result record is the audit signal that the reference was consulted.
+If nothing qualified, record that explicitly in the report's `CONCEPTS.md` line (e.g., "scanned, no qualifying terms") — the visible scan record is the audit signal that the reference was consulted. Apply vocabulary edits silently in every mode — no user prompt.
 
-Note: if this run **creates** `CONCEPTS.md` from scratch, the Discoverability Check below also surfaces it so future agents can discover it — by editing `AGENTS.md`/`CLAUDE.md` in interactive mode (with consent), or, in headless mode, by emitting a "Discoverability recommendation" line in the report rather than editing instruction files (per the headless boundary in step 4c — headless does doc maintenance, not project config). Either way the created file is surfaced or flagged for surfacing; subsequent runs skip this because the instruction file is already current or the recommendation was already reported.
+## Report
 
-**Apply edits silently — no user prompt in any mode.** Vocabulary capture is a side effect of refreshing, not a decision the user makes per run.
-
-## Output Format
-
-**The full report MUST be printed as markdown output.** Do not summarize findings internally and then output a one-liner. The report is the deliverable — print every section in full, formatted as readable markdown with headers, tables, and bullet points.
-
-After processing the selected scope, output the following report:
+**Print the full report as markdown — it is the deliverable, not an internal summary.** After processing the scope:
 
 ```text
 Compound Refresh Summary
@@ -580,141 +168,34 @@ Marked stale: S
 CONCEPTS.md: <scanned, no qualifying terms | created with N entries (M seeded) | updated — N added, N refined, N reconciled, N scrubbed | repo-wide map created with N entries>
 ```
 
-Then for EVERY file processed, list:
-- The file path
-- The classification (Keep/Update/Consolidate/Replace/Delete/Stale)
-- What evidence was found -- tag any memory-sourced findings with "(auto memory [claude])" to distinguish them from codebase-sourced evidence
-- What action was taken (or recommended)
-- For Consolidate: which doc was canonical, what unique content was merged, what was deleted
+Then, for EVERY file processed: path, classification, evidence found (tag memory-sourced findings "(auto memory [claude])"), and the action taken or recommended; for Consolidate, which doc was canonical, what was merged, what was deleted. Group Keeps under a reviewed-without-edits section.
 
-For **Keep** outcomes, list them under a reviewed-without-edits section so the result is visible without creating git churn.
+In non-interactive mode the report is the sole deliverable — self-contained, never abbreviated — and actions split into two sections. **Applied:** writes that succeeded, with the same per-file detail. **Recommended:** writes that failed (with enough context for a human to apply them), plus everything that never runs unattended — relocations that failed the four-condition gate (doc, target, failing condition), splits (doc, proposed fragment boundaries), category-shape observations, and the discoverability recommendation if any. If no writes succeed, the report is a maintenance plan. If `_archived/` exists, list its files and recommend disposition (restore, delete, or consolidate).
 
-### Headless mode report
+## Commit
 
-In headless mode, the report is the sole deliverable — there is no user present to ask follow-up questions, so the report must be self-contained and complete. **Print the full report. Do not abbreviate, summarize, or skip sections.**
+Skip if no files changed. Check the current branch, whether the tree has unrelated uncommitted changes, and recent commit style. Stage **only** the files this refresh modified. Write a descriptive message summarizing the refresh (e.g., "update 3 stale learnings, consolidate 2 overlapping docs, delete 1 obsolete doc") in the repo's convention.
 
-Split actions into two sections:
+Non-interactive defaults: on the repo's default branch (main, master, or whatever the remote designates) → create a branch named for what was refreshed (e.g., `docs/refresh-auth-learnings`), commit, attempt a PR (if PR creation fails, report the branch name); on a feature branch → separate commit on that branch; git failures → put the recommended commands in the report and continue.
 
-**Applied** (writes that succeeded):
-- For each **Updated** file: the file path, what references were fixed, and why
-- For each **Consolidated** cluster: the canonical doc, what unique content was merged from each subsumed doc, and the subsumed docs that were deleted
-- For each **Replaced** file: what the old learning recommended vs what the current code does, and the path to the new successor
-- For each **Deleted** file: the file path and why it was removed (problem domain gone, fully redundant, etc.)
-- For each **Marked stale** file: the file path, what evidence was found, and why it was ambiguous
-
-**Recommended** (actions that could not be written — e.g., permission denied — plus actions that never run unattended):
-- Same detail as above, but framed as recommendations for a human to apply
-- Include enough context that the user can apply the change manually or re-run the skill interactively
-- Each relocation that failed the four-condition gate (doc, proposed target category, which condition failed) and each split (doc, proposed fragment boundaries — splits are always recommend-only)
-- Any category-shape observations from Phase 1.75
-
-The Recommended section is empty only when all writes succeeded **and** there are no report-only items — recommend-only relocations and splits, and category-shape observations, appear under Recommended even in a run where every write succeeded. If no writes succeed (e.g., read-only invocation), all actions appear under Recommended — the report becomes a maintenance plan.
-
-**Legacy cleanup** (if `<root>/solutions/_archived/` exists):
-- List archived files found and recommend disposition: restore (if still relevant), delete (if truly obsolete), or consolidate (if overlapping with active docs)
-
-## Phase 5: Commit Changes
-
-After all actions are executed and the report is generated, handle committing the changes. Skip this phase if no files were modified (all Keep, or all writes failed).
-
-### Detect git context
-
-Before offering options, check:
-1. Which branch is currently checked out (main/master vs feature branch)
-2. Whether the working tree has other uncommitted changes beyond what compound-refresh modified
-3. Recent commit messages to match the repo's commit style
-
-### Headless mode
-
-Use sensible defaults — no user to ask:
-
-| Context | Default action |
-|---------|---------------|
-| On main/master | Create a branch named for what was refreshed (e.g., `docs/refresh-auth-and-ci-learnings`), commit, attempt to open a PR. If PR creation fails, report the branch name. |
-| On a feature branch | Commit as a separate commit on the current branch |
-| Git operations fail | Include the recommended git commands in the report and continue |
-
-Stage only the files that compound-refresh modified — not other dirty files in the working tree.
-
-### Interactive mode
-
-First, run `git branch --show-current` to determine the current branch. Then present the correct options based on the result. Stage only compound-refresh files regardless of which option the user picks.
-
-**If the current branch is main, master, or the repo's default branch:**
-
-1. Create a branch, commit, and open a PR (recommended) — the branch name should be specific to what was refreshed, not generic (e.g., `docs/refresh-auth-learnings` not `docs/compound-refresh`)
-2. Commit directly to `{current branch name}`
-3. Don't commit — I'll handle it
-
-**If the current branch is a feature branch, clean working tree:**
-
-1. Commit to `{current branch name}` as a separate commit (recommended)
-2. Create a separate branch and commit
-3. Don't commit
-
-**If the current branch is a feature branch, dirty working tree (other uncommitted changes):**
-
-1. Commit only the compound-refresh changes to `{current branch name}` (selective staging — other dirty files stay untouched)
-2. Don't commit
-
-### Commit message
-
-Write a descriptive commit message that:
-- Summarizes what was refreshed (e.g., "update 3 stale learnings, consolidate 2 overlapping docs, delete 1 obsolete doc")
-- Follows the repo's existing commit conventions (check recent git log for style)
-- Is succinct — the details are in the changed files themselves
-
-## Relationship to ce-compound
-
-- `ce-compound` captures a newly solved, verified problem
-- `ce-compound-refresh` maintains older learnings as the codebase evolves — both their individual accuracy and their collective design as a document set
-
-Use **Replace** only when the refresh process has enough real evidence to write a trustworthy successor. When evidence is insufficient, mark as stale and recommend `ce-compound` for when the user next encounters that problem area.
-
-Use **Consolidate** proactively when the document set has grown organically and redundancy has crept in. Every `ce-compound` invocation adds a new doc — over time, multiple docs may cover the same problem from slightly different angles. Periodic consolidation keeps the document set lean and authoritative.
+Interactive: ask (per Blocking questions), with the recommended option first. On the default branch: branch+commit+PR (recommended; specific branch name) / commit directly to the current branch / don't commit. On a clean feature branch: commit to it (recommended) / separate branch / don't commit. On a dirty feature branch: selective-stage and commit only refresh changes / don't commit.
 
 ## Discoverability Check
 
-After the refresh report is generated, check whether the project's instruction files would lead an agent to discover and search `<root>/solutions/` before starting work in a documented area. This runs every time — the knowledge store only compounds value when agents can find it. If this check produces edits, they are committed as part of (or immediately after) the Phase 5 commit flow — see step 5 below.
+After the report, check that the project's instruction files would lead an agent to discover `<root>/solutions/` before working in a documented area. Runs every time — the store only compounds value when agents can find it.
 
-1. Identify which root-level instruction files exist (AGENTS.md, CLAUDE.md, or both). Read the file(s) and determine which holds the substantive content — one file may just be a shim that `@`-includes the other (e.g., `CLAUDE.md` containing only `@AGENTS.md`, or vice versa). The substantive file is the assessment and edit target; ignore shims. If neither file exists, skip this check entirely.
-2. Assess whether an agent reading the instruction files would learn three things:
-   - That a searchable knowledge store of documented solutions exists
-   - Enough about its structure to search effectively (category organization, YAML frontmatter fields like `module`, `tags`, `problem_type`)
-   - When to search it (before implementing features, debugging issues, or making decisions in documented areas — learnings may cover bugs, best practices, workflow patterns, or other institutional knowledge)
-
-   This is a semantic assessment, not a string match. The information could be a line in an architecture section, a bullet in a gotchas section, spread across multiple places, or expressed without ever using the exact path `<root>/solutions/`. Use judgment — if an agent would reasonably discover and use the knowledge store after reading the file, the check passes.
-
-3. If the spirit is already met, no action needed.
-4. If not:
-   a. Based on the file's existing structure, tone, and density, identify where a mention fits naturally. Before creating a new section, check whether the information could be a single line in the closest related section — an architecture tree, a directory listing, a documentation section, or a conventions block. A line added to an existing section is almost always better than a new headed section. Only add a new section as a last resort when the file has clear sectioned structure and nothing is even remotely related.
-   b. Draft the smallest addition that communicates the three things. Match the file's existing style and density. The addition should describe the knowledge store itself, not the plugin.
-
-      Keep the tone informational, not imperative. Express timing as description, not instruction — "relevant when implementing or debugging in documented areas" rather than "check before implementing or debugging." Imperative directives like "always search before implementing" cause redundant reads when a workflow already includes a dedicated search step. The goal is awareness: agents learn the folder exists and what's in it, then use their own judgment about when to consult it.
-
-      **Substitute the concrete root in what you write.** The examples below show `<root>/solutions/`, but the instruction file is read by agents without this plugin (and by people), who cannot resolve `<root>`. When you insert the text, replace `<root>` with the resolved concrete path — the actual artifact directory, which is the default `docs` root's `solutions/` unless a `docs_root` is configured — never the literal placeholder.
-
-      Examples of calibration (not templates — adapt to the file):
-
-      When there's an existing directory listing or architecture section — add a line:
-      ```
-      <root>/solutions/  # documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (module, tags, problem_type)
-      ```
-
-      When nothing in the file is a natural fit — a small headed section is appropriate:
-      ```
-      ## Documented Solutions
-
-      `<root>/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
-      ```
-   c. In interactive mode, explain to the user why this matters — agents working in this repo (including fresh sessions, other tools, or collaborators without the plugin) won't know to check `<root>/solutions/` unless the instruction file surfaces it. Show the proposed change and where it would go, then use the platform's blocking question tool to get consent before making the edit: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting the proposal in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. In headless mode, include it as a "Discoverability recommendation" line in the report — do not attempt to edit instruction files (headless scope is doc maintenance, not project config).
-
-5. **If `CONCEPTS.md` exists at repo root, run a parallel discoverability check for it.** Use the same workflow as the `<root>/solutions/` check above: same target file, same edit-placement judgment, same consent-then-edit interaction shape per mode. Example calibration when a directory listing is present:
+1. Find the root instruction files (AGENTS.md, CLAUDE.md, or both); the substantive file is the target — ignore a shim that just `@`-includes the other. Neither exists: skip this check.
+2. Assess semantically (not by string match) whether a reader would learn: the store exists, enough structure to search it (categories, frontmatter fields like `module`, `tags`, `problem_type`), and when it's relevant. If the spirit is met, done.
+3. If not, draft the smallest addition that communicates those three things, matching the file's style — prefer one line in an existing related section (a directory listing, architecture tree, conventions block) over a new headed section. Keep the tone informational, not imperative ("relevant when implementing or debugging in documented areas", not "always search before implementing" — imperatives cause redundant reads when a workflow already searches). Substitute the resolved concrete root for `<root>` in what you write — readers without this plugin cannot resolve the placeholder. Calibration example for a directory listing:
 
    ```
-   CONCEPTS.md  # shared domain vocabulary — read when orienting to the codebase or before discussing domain concepts
+   <root>/solutions/  # documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (module, tags, problem_type)
    ```
 
-   **Skip this step entirely if `CONCEPTS.md` does not exist** — never nag for an artifact the project has not adopted. When skipped, this step produces no output and no edit.
+4. Interactive: show the proposed change and where it goes, explain why it matters (fresh sessions and plugin-less collaborators won't find the store otherwise), and get consent via a blocking question before editing. Non-interactive: emit a "Discoverability recommendation" line in the report instead of editing instruction files — non-interactive scope is doc maintenance, not project config.
+5. If `CONCEPTS.md` exists at the repo root, run the same check for it (e.g., a `CONCEPTS.md  # shared domain vocabulary — read when orienting to the codebase` line). Skip entirely when it doesn't exist — never nag for an artifact the project hasn't adopted.
+6. If this check edited an instruction file after Commit already ran, amend the commit (same branch, not yet pushed) or add a small follow-up commit (e.g., `docs: add solutions discoverability to AGENTS.md`), and push it if the branch was already pushed so an open PR includes it. If the user chose "don't commit", leave the edits uncommitted alongside the rest.
 
-6. **Amend or create a follow-up commit when the check produces edits.** If step 4 or step 5 resulted in an edit to an instruction file and Phase 5 already committed the refresh changes, stage the newly edited file and either amend the existing commit (if still on the same branch and no push has occurred) or create a small follow-up commit (e.g., `docs: add <root>/solutions/ discoverability to AGENTS.md`, or `docs: add CONCEPTS.md discoverability to AGENTS.md`, or a combined message when both edits landed). If Phase 5 already pushed the branch to a remote (e.g., the branch+PR path), push the follow-up commit as well so the open PR includes the discoverability change. This keeps the working tree clean and the remote in sync at the end of the run. If the user chose "Don't commit" in Phase 5, leave the instruction-file edits unstaged alongside the other uncommitted refresh changes — no separate commit logic needed.
+## Relationship to ce-compound
+
+`ce-compound` captures a newly solved, verified problem; this skill maintains the store as the codebase evolves — each doc's accuracy and the set's design. Replace only with real evidence; otherwise stale-mark and point the user at `ce-compound`. Consolidate proactively: every capture adds a doc, and redundant docs drift silently.

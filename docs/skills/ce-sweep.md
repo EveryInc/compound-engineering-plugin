@@ -3,9 +3,9 @@
 | | |
 |---|---|
 | **Purpose** | Sweep configured feedback sources for new items, track each item's lifecycle to verified resolution, and emit an `/lfg`-ready plan |
-| **Inputs** | `feedback_sources` config (set up on first run); optional `setup`/`reconfigure` and `mode:headless` tokens |
+| **Inputs** | `feedback_sources` config (set up on first run); optional `setup`/`reconfigure` and `mode:non-interactive` tokens (deprecated alias `mode:headless`) |
 | **Outputs** | A rolling requirements-only unified plan (`docs/plans/feedback-sweep-plan.md`), a durable state file, source-side acknowledgments, a run summary |
-| **Invocation** | Manual (`/ce-sweep`) or scheduled (`/ce-sweep mode:headless`); never model-invoked |
+| **Invocation** | Manual (`/ce-sweep`) or scheduled (`/ce-sweep mode:non-interactive`); never model-invoked |
 | **Position** | Around the loop — feeds `/lfg` and `ce-plan` from customer feedback |
 
 ## Example invocations
@@ -18,7 +18,7 @@
 /ce-sweep
 
 # Scheduled or unattended run: defer ambiguous decisions into the plan
-/ce-sweep mode:headless
+/ce-sweep mode:non-interactive
 
 # Re-enter setup to add or edit feedback sources
 /ce-sweep reconfigure
@@ -45,7 +45,7 @@ Every item's lifecycle lives in a durable YAML state file with a versioned schem
 2. **Per-item durability ordering.** Acknowledge at source → confirm it's readable → write state → advance the cursor last. A crash at any point recovers without duplicate customer-visible actions.
 3. **Fix verification trusts only merge evidence.** Thread claims never close an item — only a verified merge to the default branch does, recorded with the merge SHA.
 4. **The plan is a view, not a log.** One rolling plan at a stable path is reconciled every run: new items append, verified-fixed items drain, and a human-owned notes region survives untouched. If `/lfg` has enriched the plan in place, the sweep archives it and starts a fresh view rather than clobbering execution state.
-5. **Headless-safe by contract.** `mode:headless` never prompts: ambiguous product calls defer into the plan's outstanding questions, and an acknowledgment volume circuit-breaker defers rather than mass-reacting when a cursor looks wrong.
+5. **Non-interactive-safe by contract.** `mode:non-interactive` never prompts: ambiguous product calls defer into the plan's outstanding questions, and an acknowledgment volume circuit-breaker defers rather than mass-reacting when a cursor looks wrong.
 
 ## When to Reach For It
 

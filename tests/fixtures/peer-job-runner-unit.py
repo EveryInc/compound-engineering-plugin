@@ -15,6 +15,7 @@ surface:
 import importlib.util
 import io
 import json
+import ntpath
 import os
 import stat as stat_mod
 import subprocess
@@ -23,7 +24,7 @@ import tempfile
 import time
 import types
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import ExitStack, contextmanager, redirect_stderr, redirect_stdout
 from unittest import mock
 
 IS_WINDOWS = sys.platform == "win32"
@@ -46,6 +47,46 @@ def load_runner():
 
 MOD = load_runner()
 REAL_FSTAT = os.fstat
+
+# Patching IS_WINDOWS alone leaves MOD.os.path as host posixpath on Ubuntu CI,
+# so Windows drive strings break abspath/dirname/basename/normcase (#1268 / PR
+# #1292 Codex P1). Delegate those ops to ntpath while simulating Windows.
+_WIN_PATH_ATTRS = ("abspath", "normcase", "dirname", "basename", "join")
+
+
+@contextmanager
+def windows_ntpath():
+    """Patch MOD.os.path path ops to ntpath (portable Windows path semantics)."""
+    with ExitStack() as stack:
+        for name in _WIN_PATH_ATTRS:
+            stack.enter_context(
+                mock.patch.object(MOD.os.path, name, getattr(ntpath, name))
+            )
+        yield ntpath
+
+
+@contextmanager
+def windows_platform(*, isfile_side_effect=None):
+    """IS_WINDOWS=True + ntpath path ops; optional isfile mock."""
+    with mock.patch.object(MOD, "IS_WINDOWS", True):
+        with windows_ntpath():
+            if isfile_side_effect is None:
+                yield ntpath
+            else:
+                with mock.patch.object(
+                    MOD.os.path, "isfile", side_effect=isfile_side_effect
+                ):
+                    yield ntpath
+
+
+def _nt_exists(*paths):
+    """isfile side_effect: True when path matches any of the given Windows paths."""
+    want = {ntpath.normcase(p) for p in paths}
+
+    def _check(p):
+        return ntpath.normcase(p) in want
+
+    return _check
 
 
 def uid_mismatch_fstat(only_devino=None):
@@ -380,7 +421,12 @@ class ClassifyExitWithPendingReap(unittest.TestCase):
 
 class PopenArgvBranch(unittest.TestCase):
     """Windows CreateProcess cannot honor shebang; bare *.sh must go through
-    bash/sh at spawn time. meta.json still records the caller argv."""
+    a preferred non-WSL bash at spawn time (#1268). meta.json still records
+    the caller argv for authorize-dispatch (ce-work bare adapter)."""
+
+    GIT_BASH = r"C:\Program Files\Git\bin\bash.exe"
+    SYSTEM32_BASH = r"C:\Windows\System32\bash.exe"
+    SYSNATIVE_BASH = r"C:\Windows\Sysnative\bash.exe"
 
     def test_posix_passthrough(self):
         argv = ["/tmp/cross-model-work.sh", "a", "b"]
@@ -389,28 +435,696 @@ class PopenArgvBranch(unittest.TestCase):
 
     def test_windows_wraps_bare_shell_script(self):
         argv = [r"C:\skills\ce-work\scripts\cross-model-work.sh", "a", "b"]
-        with mock.patch.object(MOD, "IS_WINDOWS", True):
-            with mock.patch.object(MOD.shutil, "which", side_effect=lambda n: {
-                "bash": r"C:\Git\bin\bash.exe",
-                "sh": None,
-            }.get(n)):
+        with windows_platform():
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ):
                 self.assertEqual(
                     MOD._popen_argv(argv),
-                    [r"C:\Git\bin\bash.exe"] + argv,
+                    [self.GIT_BASH] + argv,
                 )
 
-    def test_windows_leaves_explicit_bash_prefix(self):
+    def test_windows_rewrites_bare_bash_prefix(self):
+        # Review skills launch as `bash script.sh`; bare name must not stay
+        # on PATH (System32 WSL) — rewrite to preferred absolute Git Bash.
         argv = ["bash", "/tmp/cross-model-adversarial-review.sh", "x"]
-        with mock.patch.object(MOD, "IS_WINDOWS", True):
-            self.assertEqual(MOD._popen_argv(argv), argv)
+        with windows_platform():
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ):
+                self.assertEqual(
+                    MOD._popen_argv(argv),
+                    [self.GIT_BASH, argv[1], "x"],
+                )
 
     def test_windows_missing_shell_raises(self):
         argv = [r"C:\skills\ce-work\scripts\cross-model-work.sh"]
-        with mock.patch.object(MOD, "IS_WINDOWS", True):
-            with mock.patch.object(MOD.shutil, "which", return_value=None):
+        with windows_platform():
+            with mock.patch.object(
+                MOD,
+                "_resolve_windows_posix_shell",
+                side_effect=MOD.RunnerError("no usable Git Bash"),
+            ):
                 with self.assertRaises(MOD.RunnerError):
                     MOD._popen_argv(argv)
 
+    def test_windows_env_exe_passthrough_without_bash(self):
+        # env without a bash/sh token must stay unchanged (no false wrap).
+        argv = ["env", "CE_PEER_HARD_SECS=", "python", "x.py"]
+        with windows_platform():
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ) as resolve:
+                self.assertEqual(MOD._popen_argv(argv), argv)
+                resolve.assert_not_called()
+
+    def test_windows_rewrites_env_prefixed_bash(self):
+        # Production cross-model: start -- env VAR=… bash script.sh
+        argv = [
+            "env",
+            "CROSS_MODEL_HOST_HARNESS=claude",
+            "CROSS_MODEL_FIXED_ROUTE=codex",
+            "bash",
+            r"C:\skills\ce-code-review\scripts\cross-model-adversarial-review.sh",
+            "x",
+        ]
+        with windows_platform():
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ):
+                self.assertEqual(
+                    MOD._popen_argv(argv),
+                    [
+                        "env",
+                        "CROSS_MODEL_HOST_HARNESS=claude",
+                        "CROSS_MODEL_FIXED_ROUTE=codex",
+                        self.GIT_BASH,
+                        argv[4],
+                        "x",
+                    ],
+                )
+
+    def test_windows_rewrites_env_prefixed_bash_after_unusual_assignment_names(self):
+        for assignment in ("=x", "1=x", "a-b=x"):
+            with self.subTest(assignment=assignment):
+                argv = ["env", assignment, "bash", "script.sh"]
+                with windows_platform():
+                    with mock.patch.object(
+                        MOD,
+                        "_resolve_windows_posix_shell",
+                        return_value=self.GIT_BASH,
+                    ):
+                        self.assertEqual(
+                            MOD._popen_argv(argv),
+                            ["env", assignment, self.GIT_BASH, "script.sh"],
+                        )
+
+    def test_windows_rewrites_env_assignment_after_option_terminator(self):
+        for terminator in ("-", "--"):
+            for assignment in ("-S=x", "--split-string=x"):
+                with self.subTest(terminator=terminator, assignment=assignment):
+                    argv = ["env", terminator, assignment, "bash", "script.sh"]
+                    with windows_platform():
+                        with mock.patch.object(
+                            MOD,
+                            "_resolve_windows_posix_shell",
+                            return_value=self.GIT_BASH,
+                        ):
+                            self.assertEqual(
+                                MOD._popen_argv(argv),
+                                [
+                                    "env", terminator, assignment,
+                                    self.GIT_BASH, "script.sh",
+                                ],
+                            )
+
+    def test_windows_rewrites_after_option_like_assignment_in_assignment_phase(self):
+        for assignment in ("-S=x", "--split-string=x"):
+            with self.subTest(assignment=assignment):
+                argv = ["env", "A=1", assignment, "bash", "script.sh"]
+                with windows_platform():
+                    with mock.patch.object(
+                        MOD,
+                        "_resolve_windows_posix_shell",
+                        return_value=self.GIT_BASH,
+                    ):
+                        self.assertEqual(
+                            MOD._popen_argv(argv),
+                            [
+                                "env", "A=1", assignment,
+                                self.GIT_BASH, "script.sh",
+                            ],
+                        )
+
+    def test_windows_env_prefixed_bash_missing_shell_raises(self):
+        argv = ["env", "FOO=1", "bash", "script.sh"]
+        with windows_platform():
+            with mock.patch.object(
+                MOD,
+                "_resolve_windows_posix_shell",
+                side_effect=MOD.RunnerError("no usable Git Bash"),
+            ):
+                with self.assertRaises(MOD.RunnerError):
+                    MOD._popen_argv(argv)
+
+    def test_windows_keeps_absolute_non_wsl_bash(self):
+        # Portable / non-well-known absolute bash must not be substituted (#1292 P2).
+        portable = r"C:\PortableGit\bin\bash.exe"
+        argv = [portable, "script.sh", "x"]
+        with windows_platform(isfile_side_effect=_nt_exists(portable)):
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ) as resolve:
+                self.assertEqual(MOD._popen_argv(argv), argv)
+                resolve.assert_not_called()
+
+    def test_windows_rewrites_absolute_system32_bash(self):
+        argv = [self.SYSTEM32_BASH, "script.sh"]
+        with windows_platform(isfile_side_effect=_nt_exists(self.SYSTEM32_BASH)):
+            with mock.patch.dict(
+                os.environ, {"SystemRoot": r"C:\Windows"}, clear=False
+            ):
+                with mock.patch.object(
+                    MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+                ):
+                    self.assertEqual(
+                        MOD._popen_argv(argv),
+                        [self.GIT_BASH, "script.sh"],
+                    )
+
+    def test_windows_rewrites_absolute_sysnative_bash(self):
+        argv = [self.SYSNATIVE_BASH, "script.sh"]
+        with windows_platform(isfile_side_effect=_nt_exists(self.SYSNATIVE_BASH)):
+            with mock.patch.dict(
+                os.environ, {"SystemRoot": r"C:\Windows"}, clear=False
+            ):
+                with mock.patch.object(
+                    MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+                ):
+                    self.assertEqual(
+                        MOD._popen_argv(argv),
+                        [self.GIT_BASH, "script.sh"],
+                    )
+
+    def test_windows_keeps_env_prefixed_absolute_non_wsl_bash(self):
+        portable = r"C:\PortableGit\bin\bash.exe"
+        argv = ["env", "FOO=1", portable, "script.sh"]
+        with windows_platform(isfile_side_effect=_nt_exists(portable)):
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ) as resolve:
+                self.assertEqual(MOD._popen_argv(argv), argv)
+                resolve.assert_not_called()
+
+    def test_windows_absolute_bash_missing_raises(self):
+        missing = r"C:\Missing\PortableGit\bin\bash.exe"
+        argv = [missing, "script.sh"]
+        with windows_platform(isfile_side_effect=_nt_exists()):
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ) as resolve:
+                with self.assertRaises(MOD.RunnerError) as ctx:
+                    MOD._popen_argv(argv)
+                resolve.assert_not_called()
+        self.assertIn("does not exist", str(ctx.exception).lower())
+
+
+class WindowsPosixShellResolve(unittest.TestCase):
+    """#1268: prefer Git Bash over System32 WSL bash; fail closed otherwise.
+
+    Runs under ntpath path ops so Ubuntu CI matches native Windows semantics
+    (PR #1292 Codex P1).
+    """
+
+    GIT_BASH = r"C:\Program Files\Git\bin\bash.exe"
+    SYSTEM32_BASH = r"C:\Windows\System32\bash.exe"
+    SYSNATIVE_BASH = r"C:\Windows\Sysnative\bash.exe"
+    PATH_GIT_BASH = r"C:\Tools\Git\bin\bash.exe"
+    LOCAL_GIT_BASH = r"C:\Users\me\AppData\Local\Programs\Git\bin\bash.exe"
+
+    def test_well_known_paths_prefer_distinct_programw6432_root(self):
+        with windows_ntpath():
+            with mock.patch.dict(os.environ, {
+                "ProgramW6432": r"C:\Program Files",
+                "ProgramFiles": r"C:\Program Files (x86)",
+                "ProgramFiles(x86)": r"C:\Program Files (x86)",
+                "LOCALAPPDATA": "",
+            }, clear=False):
+                paths = MOD._git_bash_well_known_paths()
+        self.assertEqual(paths, [
+            r"C:\Program Files\Git\bin\bash.exe",
+            r"C:\Program Files\Git\usr\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\usr\bin\bash.exe",
+        ])
+
+    def test_well_known_paths_deduplicate_matching_program_roots(self):
+        with windows_ntpath():
+            with mock.patch.dict(os.environ, {
+                "ProgramW6432": r"C:\Program Files",
+                "ProgramFiles": r"C:\Program Files",
+                "ProgramFiles(x86)": r"C:\Program Files (x86)",
+                "LOCALAPPDATA": "",
+            }, clear=False):
+                paths = MOD._git_bash_well_known_paths()
+        self.assertEqual(len(paths), 4)
+        self.assertEqual(paths[0], r"C:\Program Files\Git\bin\bash.exe")
+
+    def test_prefers_git_bash_when_system32_first_on_path(self):
+        with windows_platform(
+            isfile_side_effect=_nt_exists(self.GIT_BASH, self.SYSTEM32_BASH)
+        ):
+            with mock.patch.dict(os.environ, {
+                "CE_PEER_BASH": "",
+                "CLAUDE_CODE_GIT_BASH_PATH": "",
+                "SystemRoot": r"C:\Windows",
+                "ProgramFiles": r"C:\Program Files",
+                "ProgramFiles(x86)": r"C:\Program Files (x86)",
+                "LOCALAPPDATA": "",
+                "PATH": r"C:\Windows\System32",
+            }, clear=False):
+                with mock.patch.object(
+                    MOD, "_windows_path_shell_candidates",
+                    return_value=[self.SYSTEM32_BASH],
+                ):
+                    got = MOD._resolve_windows_posix_shell()
+        self.assertEqual(ntpath.normcase(got), ntpath.normcase(self.GIT_BASH))
+
+    def test_ce_peer_bash_overrides_path(self):
+        override = r"C:\Custom\Git\bin\bash.exe"
+        with windows_platform(isfile_side_effect=_nt_exists(override)):
+            with mock.patch.dict(os.environ, {
+                "CE_PEER_BASH": override,
+                "CLAUDE_CODE_GIT_BASH_PATH": "",
+                "SystemRoot": r"C:\Windows",
+            }, clear=False):
+                with mock.patch.object(
+                    MOD, "_windows_path_shell_candidates",
+                    return_value=[self.SYSTEM32_BASH],
+                ):
+                    got = MOD._resolve_windows_posix_shell()
+        self.assertEqual(ntpath.normcase(got), ntpath.normcase(override))
+
+    def test_claude_code_git_bash_path_when_ce_unset(self):
+        override = r"D:\Tools\Git\bin\bash.exe"
+        with windows_platform(isfile_side_effect=_nt_exists(override)):
+            with mock.patch.dict(os.environ, {
+                "CE_PEER_BASH": "",
+                "CLAUDE_CODE_GIT_BASH_PATH": override,
+                "SystemRoot": r"C:\Windows",
+            }, clear=False):
+                with mock.patch.object(
+                    MOD, "_windows_path_shell_candidates",
+                    return_value=[self.SYSTEM32_BASH],
+                ):
+                    got = MOD._resolve_windows_posix_shell()
+        self.assertEqual(ntpath.normcase(got), ntpath.normcase(override))
+
+    def test_whitespace_only_env_falls_through(self):
+        with windows_platform(isfile_side_effect=_nt_exists(self.GIT_BASH)):
+            with mock.patch.dict(os.environ, {
+                "CE_PEER_BASH": "   ",
+                "CLAUDE_CODE_GIT_BASH_PATH": "\t",
+                "SystemRoot": r"C:\Windows",
+                "ProgramFiles": r"C:\Program Files",
+                "ProgramFiles(x86)": r"C:\Program Files (x86)",
+                "LOCALAPPDATA": "",
+            }, clear=False):
+                with mock.patch.object(
+                    MOD, "_windows_path_shell_candidates", return_value=[]
+                ):
+                    got = MOD._resolve_windows_posix_shell()
+        self.assertEqual(ntpath.normcase(got), ntpath.normcase(self.GIT_BASH))
+
+    def test_path_walk_skips_system32_then_finds_later_bash(self):
+        # shutil.which would stop at System32; walk must keep going (#1268 review).
+        with windows_platform(
+            isfile_side_effect=_nt_exists(self.SYSTEM32_BASH, self.PATH_GIT_BASH)
+        ):
+            with mock.patch.dict(os.environ, {
+                "CE_PEER_BASH": "",
+                "CLAUDE_CODE_GIT_BASH_PATH": "",
+                "SystemRoot": r"C:\Windows",
+                "ProgramFiles": r"C:\Program Files",
+                "ProgramFiles(x86)": r"C:\Program Files (x86)",
+                "LOCALAPPDATA": "",
+            }, clear=False):
+                with mock.patch.object(
+                    MOD, "_windows_path_shell_candidates",
+                    return_value=[self.SYSTEM32_BASH, self.PATH_GIT_BASH],
+                ):
+                    got = MOD._resolve_windows_posix_shell()
+        self.assertEqual(ntpath.normcase(got), ntpath.normcase(self.PATH_GIT_BASH))
+
+    def test_localappdata_well_known_git(self):
+        with windows_platform(
+            isfile_side_effect=_nt_exists(self.SYSTEM32_BASH, self.LOCAL_GIT_BASH)
+        ):
+            with mock.patch.dict(os.environ, {
+                "CE_PEER_BASH": "",
+                "CLAUDE_CODE_GIT_BASH_PATH": "",
+                "SystemRoot": r"C:\Windows",
+                "ProgramFiles": r"C:\Program Files",
+                "ProgramFiles(x86)": r"C:\Program Files (x86)",
+                "LOCALAPPDATA": r"C:\Users\me\AppData\Local",
+            }, clear=False):
+                with mock.patch.object(
+                    MOD, "_windows_path_shell_candidates",
+                    return_value=[self.SYSTEM32_BASH],
+                ):
+                    got = MOD._resolve_windows_posix_shell()
+        self.assertEqual(ntpath.normcase(got), ntpath.normcase(self.LOCAL_GIT_BASH))
+
+    def test_rejects_system32_only(self):
+        with windows_platform(isfile_side_effect=_nt_exists(self.SYSTEM32_BASH)):
+            with mock.patch.dict(os.environ, {
+                "CE_PEER_BASH": "",
+                "CLAUDE_CODE_GIT_BASH_PATH": "",
+                "SystemRoot": r"C:\Windows",
+                "ProgramFiles": r"C:\Program Files",
+                "ProgramFiles(x86)": r"C:\Program Files (x86)",
+                "LOCALAPPDATA": "",
+            }, clear=False):
+                with mock.patch.object(
+                    MOD, "_windows_path_shell_candidates",
+                    return_value=[self.SYSTEM32_BASH],
+                ):
+                    with self.assertRaises(MOD.RunnerError) as ctx:
+                        MOD._resolve_windows_posix_shell()
+        msg = str(ctx.exception).lower()
+        self.assertIn("git", msg)
+        self.assertTrue(
+            "ce_peer_bash" in msg or "claude_code_git_bash_path" in msg
+        )
+
+    def test_rejects_sysnative_only(self):
+        with windows_platform(isfile_side_effect=_nt_exists(self.SYSNATIVE_BASH)):
+            with mock.patch.dict(os.environ, {
+                "CE_PEER_BASH": "",
+                "CLAUDE_CODE_GIT_BASH_PATH": "",
+                "SystemRoot": r"C:\Windows",
+                "ProgramFiles": r"C:\Missing",
+                "ProgramFiles(x86)": r"C:\Missing (x86)",
+                "LOCALAPPDATA": "",
+            }, clear=False):
+                with mock.patch.object(
+                    MOD, "_windows_path_shell_candidates",
+                    return_value=[self.SYSNATIVE_BASH],
+                ):
+                    with self.assertRaises(MOD.RunnerError):
+                        MOD._resolve_windows_posix_shell()
+
+    def test_missing_override_falls_through(self):
+        with windows_platform(isfile_side_effect=_nt_exists(self.GIT_BASH)):
+            with mock.patch.dict(os.environ, {
+                "CE_PEER_BASH": r"C:\Missing\bash.exe",
+                "CLAUDE_CODE_GIT_BASH_PATH": "",
+                "SystemRoot": r"C:\Windows",
+                "ProgramFiles": r"C:\Program Files",
+                "LOCALAPPDATA": "",
+            }, clear=False):
+                with mock.patch.object(
+                    MOD, "_windows_path_shell_candidates", return_value=[]
+                ):
+                    got = MOD._resolve_windows_posix_shell()
+        self.assertEqual(ntpath.normcase(got), ntpath.normcase(self.GIT_BASH))
+
+    def test_is_system32_wsl_bash(self):
+        with windows_ntpath():
+            with mock.patch.dict(os.environ, {"SystemRoot": r"C:\Windows"}, clear=False):
+                self.assertTrue(MOD._is_system32_wsl_bash(self.SYSTEM32_BASH))
+                self.assertTrue(MOD._is_system32_wsl_bash(self.SYSNATIVE_BASH))
+                self.assertFalse(MOD._is_system32_wsl_bash(self.GIT_BASH))
+
+    def test_prefer_keeps_absolute_portable(self):
+        portable = r"C:\PortableGit\bin\bash.exe"
+        with windows_platform(isfile_side_effect=_nt_exists(portable)):
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ) as resolve:
+                got = MOD._prefer_windows_posix_shell(portable)
+                resolve.assert_not_called()
+        self.assertEqual(ntpath.normcase(got), ntpath.normcase(portable))
+
+    def test_prefer_rewrites_system32_via_resolver(self):
+        with windows_platform(isfile_side_effect=_nt_exists(self.SYSTEM32_BASH)):
+            with mock.patch.dict(
+                os.environ, {"SystemRoot": r"C:\Windows"}, clear=False
+            ):
+                with mock.patch.object(
+                    MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+                ):
+                    got = MOD._prefer_windows_posix_shell(self.SYSTEM32_BASH)
+        self.assertEqual(ntpath.normcase(got), ntpath.normcase(self.GIT_BASH))
+
+    def test_prefer_bare_delegates_to_resolver(self):
+        with windows_platform():
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ) as resolve:
+                got = MOD._prefer_windows_posix_shell("bash")
+                resolve.assert_called_once_with()
+        self.assertEqual(ntpath.normcase(got), ntpath.normcase(self.GIT_BASH))
+
+    def test_env_bash_index_finds_token_after_assignments(self):
+        argv = ["env", "A=1", "B=2", "bash", "script.sh"]
+        self.assertEqual(MOD._env_bash_index(argv), (3, None))
+        self.assertEqual(MOD._env_bash_index(["env", "python", "x.py"]), (-1, None))
+        self.assertEqual(MOD._env_bash_index(["bash", "x.sh"]), (-1, None))
+
+    def test_env_bash_index_does_not_match_assignment_value_as_command(self):
+        for assignment in (r"FOO=C:\tools\bash", r"FOO=C:\tools\sh.exe"):
+            with self.subTest(assignment=assignment):
+                self.assertEqual(
+                    MOD._env_bash_index(["env", assignment, "bash", "script.sh"]),
+                    (2, None),
+                )
+
+    def test_windows_popen_preserves_assignment_value_ending_in_shell_name(self):
+        for assignment in (r"FOO=C:\tools\bash", r"FOO=C:\tools\sh.exe"):
+            argv = ["env", assignment, "bash", "script.sh"]
+            with self.subTest(assignment=assignment):
+                with windows_platform():
+                    with mock.patch.object(
+                        MOD,
+                        "_resolve_windows_posix_shell",
+                        return_value=self.GIT_BASH,
+                    ):
+                        self.assertEqual(
+                            MOD._popen_argv(argv),
+                            ["env", assignment, self.GIT_BASH, "script.sh"],
+                        )
+
+    def test_env_bash_index_skips_chdir_operand(self):
+        # -C / --chdir take DIR; a directory named bash must not be treated as
+        # the command, and bash after a real DIR must still be found (#1292 P2).
+        self.assertEqual(
+            MOD._env_bash_index(["env", "-C", "bash", "python", "x.py"]), (-1, None)
+        )
+        self.assertEqual(
+            MOD._env_bash_index(["env", "-C", "/tmp", "bash", "script.sh"]), (3, None)
+        )
+        self.assertEqual(
+            MOD._env_bash_index(
+                ["env", "--chdir", "bash", "python", "x.py"]
+            ),
+            (-1, None),
+        )
+        self.assertEqual(
+            MOD._env_bash_index(
+                ["env", "--chdir=/tmp", "bash", "script.sh"]
+            ),
+            (2, None),
+        )
+
+    def test_env_bash_index_classifies_attached_chdir_before_shell_name(self):
+        for option in (r"--chdir=C:\tools\bash", r"-CC:\tools\sh.exe"):
+            with self.subTest(option=option):
+                self.assertEqual(
+                    MOD._env_bash_index(["env", option, "bash", "script.sh"]),
+                    (2, None),
+                )
+
+    def test_env_bash_index_does_not_parse_options_after_terminator(self):
+        cases = (
+            (["env", "--", "-0", "bash"], (-1, None)),
+            (["env", "--", r"--chdir=C:\tools\bash", "bash"], (3, None)),
+            (["env", "-", "-S=x", "bash"], (3, None)),
+            (["env", "A=1", "-S=x", "bash"], (3, None)),
+        )
+        for argv, expected in cases:
+            with self.subTest(argv=argv):
+                self.assertEqual(MOD._env_bash_index(argv), expected)
+
+    def test_windows_popen_rejects_env_split_string_forms(self):
+        cases = (
+            ["env", "-S", "bash script.sh"],
+            ["env", "--split-string", "bash script.sh"],
+            ["env", "-Sbash script.sh"],
+            ["env", "--split-string=bash script.sh"],
+            ["env", "-S", "python x.py"],
+        )
+        with windows_platform():
+            for argv in cases:
+                with self.subTest(argv=argv):
+                    with self.assertRaises(MOD.RunnerError) as ctx:
+                        MOD._popen_argv(argv)
+                    self.assertIn("split-string", str(ctx.exception))
+
+    def test_windows_popen_rejects_abbreviated_and_unknown_env_long_options(self):
+        cases = (
+            ["env", "--chd", "/tmp", "bash", "script.sh"],
+            ["env", "--unse", "FOO", "bash", "script.sh"],
+            ["env", "--split-s", "bash script.sh"],
+            ["env", "--unknown", "bash", "script.sh"],
+        )
+        with windows_platform():
+            for argv in cases:
+                with self.subTest(argv=argv):
+                    with mock.patch.object(
+                        MOD,
+                        "_resolve_windows_posix_shell",
+                        side_effect=AssertionError("must fail before shell resolution"),
+                    ):
+                        with self.assertRaises(MOD.RunnerError) as ctx:
+                            MOD._popen_argv(argv)
+                    self.assertIn("unsupported env long option", str(ctx.exception))
+
+    def test_env_bash_index_accepts_exact_no_operand_long_options(self):
+        for option in (
+            "--ignore-environment",
+            "--debug",
+            "--block-signal",
+            "--block-signal=PIPE",
+            "--default-signal",
+            "--default-signal=PIPE",
+            "--ignore-signal",
+            "--ignore-signal=PIPE",
+            "--list-signal-handling",
+        ):
+            with self.subTest(option=option):
+                self.assertEqual(
+                    MOD._env_bash_index(["env", option, "bash", "script.sh"]),
+                    (2, None),
+                )
+
+    def test_windows_popen_rewrites_bash_after_exact_no_operand_long_options(self):
+        for option in (
+            "--ignore-environment",
+            "--debug",
+            "--block-signal",
+            "--block-signal=PIPE",
+            "--default-signal",
+            "--default-signal=PIPE",
+            "--ignore-signal",
+            "--ignore-signal=PIPE",
+            "--list-signal-handling",
+        ):
+            argv = ["env", option, "bash", "script.sh"]
+            with self.subTest(option=option):
+                with windows_platform():
+                    with mock.patch.object(
+                        MOD,
+                        "_resolve_windows_posix_shell",
+                        return_value=self.GIT_BASH,
+                    ):
+                        self.assertEqual(
+                            MOD._popen_argv(argv),
+                            ["env", option, self.GIT_BASH, "script.sh"],
+                        )
+
+    def test_env_bash_index_skips_unset_attached(self):
+        self.assertEqual(
+            MOD._env_bash_index(["env", "-u", "FOO", "bash", "script.sh"]), (3, None)
+        )
+        self.assertEqual(
+            MOD._env_bash_index(["env", "--unset=FOO", "bash", "script.sh"]), (2, None)
+        )
+
+    def test_env_bash_index_parses_clustered_options_with_separate_operands(self):
+        self.assertEqual(
+            MOD._env_bash_index(["env", "-iu", "FOO", "bash", "script.sh"]),
+            (3, None),
+        )
+        self.assertEqual(
+            MOD._env_bash_index(["env", "-iC", "/tmp", "bash", "script.sh"]),
+            (3, None),
+        )
+
+    def test_env_bash_index_parses_clustered_options_with_attached_operands(self):
+        self.assertEqual(
+            MOD._env_bash_index(["env", "-iuFOO", "bash", "script.sh"]),
+            (2, None),
+        )
+        self.assertEqual(
+            MOD._env_bash_index(["env", "-iC/tmp", "bash", "script.sh"]),
+            (2, None),
+        )
+
+    def test_windows_popen_rejects_unsupported_env_short_option_clusters(self):
+        cases = (["env", "-iSvalue", "bash"], ["env", "-ix", "bash"])
+        with windows_platform():
+            for argv in cases:
+                with self.subTest(argv=argv):
+                    with self.assertRaises(MOD.RunnerError):
+                        MOD._popen_argv(argv)
+
+    def test_windows_popen_rejects_env_null_option_before_shell_resolution(self):
+        cases = (
+            ["env", "-0", "bash", "script.sh"],
+            ["env", "-i0", "bash", "script.sh"],
+            ["env", "-0v", "bash", "script.sh"],
+            ["env", "--null", "bash", "script.sh"],
+        )
+        with windows_platform():
+            for argv in cases:
+                with self.subTest(argv=argv):
+                    with mock.patch.object(
+                        MOD,
+                        "_resolve_windows_posix_shell",
+                        side_effect=AssertionError("must fail before shell resolution"),
+                    ):
+                        with self.assertRaises(MOD.RunnerError) as ctx:
+                            MOD._popen_argv(argv)
+                    self.assertIn("-0/--null", str(ctx.exception))
+
+    def test_windows_popen_rewrites_shell_after_attached_chdir(self):
+        for option in (r"--chdir=C:\tools\bash", r"-CC:\tools\sh.exe"):
+            argv = ["env", option, "bash", "script.sh"]
+            with self.subTest(option=option):
+                with windows_platform():
+                    with mock.patch.object(
+                        MOD,
+                        "_resolve_windows_posix_shell",
+                        return_value=self.GIT_BASH,
+                    ):
+                        self.assertEqual(
+                            MOD._popen_argv(argv),
+                            ["env", option, self.GIT_BASH, "script.sh"],
+                        )
+
+    def test_windows_popen_rewrites_bash_after_clustered_env_options(self):
+        for argv in (
+            ["env", "-iu", "FOO", "bash", "script.sh"],
+            ["env", "-iC", r"C:\workdir", "bash", "script.sh"],
+        ):
+            with self.subTest(argv=argv):
+                with windows_platform():
+                    with mock.patch.object(
+                        MOD,
+                        "_resolve_windows_posix_shell",
+                        return_value=self.GIT_BASH,
+                    ):
+                        expected = list(argv)
+                        expected[-2] = self.GIT_BASH
+                        self.assertEqual(MOD._popen_argv(argv), expected)
+
+    def test_windows_popen_rewrites_bash_after_chdir(self):
+        argv = ["env", "-C", r"C:\workdir", "bash", "script.sh", "x"]
+        with windows_platform():
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ):
+                self.assertEqual(
+                    MOD._popen_argv(argv),
+                    [
+                        "env",
+                        "-C",
+                        r"C:\workdir",
+                        self.GIT_BASH,
+                        "script.sh",
+                        "x",
+                    ],
+                )
+
+    def test_windows_popen_does_not_rewrite_chdir_named_bash(self):
+        argv = ["env", "-C", "bash", "python", "x.py"]
+        with windows_platform():
+            with mock.patch.object(
+                MOD, "_resolve_windows_posix_shell", return_value=self.GIT_BASH
+            ) as resolve:
+                self.assertEqual(MOD._popen_argv(argv), argv)
+                resolve.assert_not_called()
 
 class BinaryRoundTrip(unittest.TestCase):
     """Windows CPython opens os.open() descriptors in CRT *text* mode: writes

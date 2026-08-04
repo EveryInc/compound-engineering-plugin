@@ -31,7 +31,7 @@ If the script cannot be resolved on this platform, apply its checks manually at 
 
 After any body edit from this step or Step 2, re-run the script until it reports clean or every remaining flag is confirmed intentional.
 
-## Step 2: Semantic validator subagent (Full and headless; skipped in lightweight)
+## Step 2: Semantic validator subagent (Full and non-interactive; skipped in lightweight)
 
 Dispatch **one generic read-only subagent** covering the written solution doc plus any `CONCEPTS.md` entries added or edited this run (Phase 2.4's entries are claims too — a glossary entry written from a session-level summary is exactly how wrong semantics enter the vocabulary). Use the same mid-tier model class as other reviewer subagents when the platform exposes one. Build its prompt from this template:
 
@@ -81,4 +81,4 @@ Return a structured list, one entry per claim checked:
 
 ## Reporting
 
-Summarize the phase in one line of the run output (headless report's `Grounding:` line; interactive success output): flags adjudicated (fixed / annotated / confirmed), claims checked, claims softened or corrected, and `degraded — merge-state claims unverified offline` when applicable.
+Summarize the phase in one line of the run output (non-interactive report's `Grounding:` line; interactive success output): flags adjudicated (fixed / annotated / confirmed), claims checked, claims softened or corrected, and `degraded — merge-state claims unverified offline` when applicable.

@@ -32,6 +32,24 @@ describe("owner-scoped scratch root", () => {
     expect(panel).toContain('chmod 600 "$PAYLOAD_PATH"')
   })
 
+  test("per-run mktemp call sites do not use macOS forms that ignore TMPDIR", () => {
+    const forbidden = [
+      /\$\(\s*mktemp\s*\)/,
+      /\$\(\s*mktemp\s+-d\s*\)/,
+      /\$\(\s*mktemp(?:\s+-d)?\s+-t\b/,
+    ]
+    const offenders = RUNTIME_FILES.flatMap((file) =>
+      readFileSync(file, "utf8")
+        .split("\n")
+        .flatMap((line, index) =>
+          forbidden.some((pattern) => pattern.test(line))
+            ? [`${path.relative(process.cwd(), file)}:${index + 1}`]
+            : [],
+        ),
+    )
+    expect(offenders).toEqual([])
+  })
+
   test("every shell root assignment enforces private ownership without helper copies", () => {
     const helperCopies = RUNTIME_FILES.filter((file) => file.endsWith("scripts/scratch-root.py"))
     expect(helperCopies).toEqual([])

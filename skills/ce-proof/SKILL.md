@@ -321,7 +321,7 @@ SLUG=<slug>
 TOKEN=<accessToken>
 LOCAL=<absolute-path>
 
-STATE_TMP=$(mktemp)
+STATE_TMP=$(mktemp "${TMPDIR:-/tmp}/ce-proof-state.XXXXXX")
 curl -sS "https://www.proofeditor.ai/api/agent/$SLUG/v3/document" \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Agent-Id: ai:compound-engineering" > "$STATE_TMP"

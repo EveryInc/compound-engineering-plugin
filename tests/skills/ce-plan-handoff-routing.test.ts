@@ -213,12 +213,12 @@ describe("ce-plan post-generation menu routing", () => {
 
   test("caller and callee responsibilities stay explicit in failure paths", () => {
     expect(
-      /\*\*Headless argument contract:\*\*/.test(DOC_REVIEW_BODY),
-      "ce-doc-review must present mode:headless as its input contract, not as an instruction to invoke itself.",
+      /\*\*Non-interactive argument contract:\*\*/.test(DOC_REVIEW_BODY),
+      "ce-doc-review must present mode:non-interactive as its input contract, not as an instruction to invoke itself.",
     ).toBe(true)
     expect(
       DOC_REVIEW_BODY.includes(
-        "Review failed: headless mode requires a document path. Expected arguments: mode:headless <path>",
+        "Review failed: non-interactive mode requires a document path. Expected arguments: mode:non-interactive <path>",
       ),
       "ce-doc-review's missing-path error must report the expected arguments without telling the skill to re-invoke itself.",
     ).toBe(true)
@@ -274,7 +274,7 @@ describe("ce-plan post-generation menu routing", () => {
       "ce-plan's completion guard must attribute its synthetic pre-entry envelope to ce-plan, not to ce-doc-review.",
     ).toBe(true)
     expect(
-      /ce-doc-review` has run in headless mode or returned the documented `skill_unreachable` envelope/.test(
+      /ce-doc-review` has run in (?:headless|non-interactive) mode or returned the documented `skill_unreachable` envelope/.test(
         SKILL_BODY,
       ),
       "a review workflow that never started cannot return ce-plan's synthetic envelope.",
@@ -356,8 +356,8 @@ describe("ce-plan post-generation menu routing", () => {
       "Top completion contract must include the literal Phase 5.4 handoff question.",
     ).toBe(true)
     expect(
-      /headless review state or documented skip state is summarized/i.test(topContract),
-      "Top completion contract must allow documented skip-state summaries, not only headless review summaries.",
+      /non-interactive review state or documented skip state is summarized/i.test(topContract),
+      "Top completion contract must allow documented skip-state summaries, not only non-interactive review summaries.",
     ).toBe(true)
 
     const checklistStart = SKILL_BODY.indexOf("**Final pre-response checklist:**")
@@ -378,7 +378,7 @@ describe("ce-plan post-generation menu routing", () => {
     const finalGuard = SKILL_BODY.slice(checklistStart, SKILL_BODY.indexOf("**Pipeline mode exception:**"))
     for (const expected of [
       "Plan file exists on disk",
-      "Headless review state or documented skip state was summarized above the menu",
+      "Non-interactive review state or documented skip state was summarized above the menu",
       "Phase 5.4 menu was presented for software implementation-plan runs, even if the user only asked to create the plan or run doc review, unless pipeline mode returned control to the caller",
       "If the user selected an action, the selected routing was executed",
       'Incorrect final response: "Created the plan and ran doc review."',

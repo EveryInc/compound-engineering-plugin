@@ -15,7 +15,7 @@ It pairs with `ce-compound`: that skill **captures** new learnings; this skill *
 | What does it do? | Reviews learnings in `docs/solutions/` against the current codebase and applies one of five outcomes: Keep, Update, Consolidate, Replace, Delete |
 | When to use it | After significant refactors; when `ce-compound` flags an older doc as superseded; when learnings are accumulating drift; periodic hygiene sweeps |
 | What it produces | Updated, consolidated, replaced, or deleted docs — plus a maintenance report |
-| Modes | **Interactive** (default) and **Headless** (`mode:headless`) |
+| Modes | **Interactive** (default) and **Non-interactive** (`mode:non-interactive`; deprecated alias `mode:headless`) |
 
 ---
 
@@ -32,7 +32,7 @@ It pairs with `ce-compound`: that skill **captures** new learnings; this skill *
 /ce-compound-refresh
 
 # Apply unambiguous maintenance without interactive decisions
-/ce-compound-refresh authentication mode:headless
+/ce-compound-refresh authentication mode:non-interactive
 ```
 
 Prefer a topic, module, category, or filename hint: an unscoped run first has to triage the entire learning set.
@@ -72,9 +72,9 @@ The skill investigates first (Phase 1 reads each doc against the current codebas
 
 Most "review the docs" prompts collapse into "is this still right?" → vague answers. The five-outcome model forces a specific decision per doc and a specific action: Keep does nothing, Update applies in-place fixes, Consolidate merges and deletes, Replace writes a successor, Delete removes the file. Each has its own evidence bar.
 
-### 2. Two modes — Interactive default, Headless on `mode:headless`
+### 2. Two modes — Interactive default, Non-interactive on `mode:non-interactive`
 
-**Interactive** (default) asks one question at a time on ambiguous cases, leads with a recommendation. **Headless** processes all docs without user interaction, applies all unambiguous actions, and marks ambiguous cases as stale (with `status: stale`, `stale_reason`, `stale_date` in frontmatter) for later human review. The headless report has two sections: **Applied** (writes that succeeded) and **Recommended** (writes that couldn't be applied — e.g., permission denied — with full rationale so a human can apply them).
+**Interactive** (default) asks one question at a time on ambiguous cases, leads with a recommendation. **Non-interactive** processes all docs without user interaction, applies all unambiguous actions, and marks ambiguous cases as stale (with `status: stale`, `stale_reason`, `stale_date` in frontmatter) for later human review. The non-interactive report has two sections: **Applied** (writes that succeeded) and **Recommended** (writes that couldn't be applied — e.g., permission denied — with full rationale so a human can apply them).
 
 ### 3. Document-set analysis — catches what per-doc review misses
 
@@ -118,7 +118,7 @@ Deleted docs are deleted, not moved to `_archived/`. Git history preserves every
 
 ### 10. Discoverability check carries over
 
-Like `ce-compound`, every refresh run checks whether `AGENTS.md`/`CLAUDE.md` surfaces `docs/solutions/`. The check runs every time — knowledge only compounds value when agents can find it. In headless mode, the recommendation appears in the report rather than being applied (headless scope is doc maintenance, not project config).
+Like `ce-compound`, every refresh run checks whether `AGENTS.md`/`CLAUDE.md` surfaces `docs/solutions/`. The check runs every time — knowledge only compounds value when agents can find it. In non-interactive mode, the recommendation appears in the report rather than being applied (non-interactive scope is doc maintenance, not project config).
 
 ---
 
@@ -178,7 +178,7 @@ The skill is invoked directly with a scope hint that narrows the review:
 - **Module/component** — `/ce-compound-refresh payments`
 - **Category** — `/ce-compound-refresh performance-issues`
 - **Pattern topic** — `/ce-compound-refresh critical-patterns`
-- **Headless mode** — `/ce-compound-refresh auth mode:headless` (no user interaction; report is the deliverable)
+- **Non-interactive mode** — `/ce-compound-refresh auth mode:non-interactive` (no user interaction; report is the deliverable)
 - **Broad sweep** (rare) — `/ce-compound-refresh` with no scope, processes everything
 
 Without a scope hint, the skill discovers the candidate set, does broad-scope triage (groups by module/component, identifies highest-impact clusters), and recommends a starting area before deep investigation.
@@ -193,7 +193,7 @@ Without a scope hint, the skill discovers the candidate set, does broad-scope tr
 | `<directory>` | e.g., `performance-issues` — narrows by category |
 | `<filename slug>` | e.g., `plugin-versioning-requirements` — narrows by file |
 | `<module/keyword>` | e.g., `auth`, `payments` — narrows by content/frontmatter |
-| `mode:headless` | Append to any of the above; runs without user interaction, applies all unambiguous actions, marks ambiguous as stale |
+| `mode:non-interactive` | Append to any of the above; runs without user interaction, applies all unambiguous actions, marks ambiguous as stale. Deprecated alias: `mode:headless`. |
 
 ---
 
@@ -205,17 +205,17 @@ Update fixes drift while keeping the core solution intact (renamed file, moved c
 **Why doesn't the skill ask whether code changes were intentional?**
 Stay-in-your-lane discipline. The skill's job is doc accuracy — match the doc to current code. Whether the code change was right or wrong is a code-review concern; if the user thinks the code is wrong, that's a separate workflow.
 
-**When should I use headless mode?**
-For periodic sweeps, scheduled maintenance runs, or large-scope reviews where stopping for every question would be impractical. Headless mode marks ambiguous cases as stale rather than incorrectly resolving them, so the deliverable is a self-contained report a human can review.
+**When should I use non-interactive mode?**
+For periodic sweeps, scheduled maintenance runs, or large-scope reviews where stopping for every question would be impractical. Non-interactive mode marks ambiguous cases as stale rather than incorrectly resolving them, so the deliverable is a self-contained report a human can review.
 
 **What if the skill wants to delete a doc I think should be kept?**
-In interactive mode, you'll see the recommendation with evidence before deletion. Decline and the doc stays. In headless mode, the auto-delete safety conditions are conservative — substantive citations downgrade to stale-marking automatically.
+In interactive mode, you'll see the recommendation with evidence before deletion. Decline and the doc stays. In non-interactive mode, the auto-delete safety conditions are conservative — substantive citations downgrade to stale-marking automatically.
 
 **Why delete instead of archive?**
 Archive folders accumulate and pollute search results, nobody reads them, and they create the illusion of "we'll come back to this" without actually doing it. Git history preserves every deleted file. `git log --diff-filter=D -- docs/solutions/` finds anything you need to recover.
 
 **Does it reorganize the solutions folder?**
-Only the safe subset, with a deliberate asymmetry: content drift is auto-fixed, structural drift is auto-fixed only when it is as falsifiable as content drift. Unambiguous misfilings are relocated via `git mv` plus inbound-link rewrite — in headless mode only under a four-condition gate mirroring auto-delete (frontmatter/directory disagree, content clearly resolves the direction, target category exists, all citations in-repo); anything short of that is recommended, not applied. One multi-problem doc can be split into focused successors (high bar; always recommend-only in headless — the split bar is a retrieval-value judgment with no ground truth). Catalog README rows are updated whenever a listed doc is removed or renamed. Directory-level restructuring — renaming categories, creating new ones, re-taxonomizing — is never automated; Phase 1.75 reports category-shape observations as recommendations.
+Only the safe subset, with a deliberate asymmetry: content drift is auto-fixed, structural drift is auto-fixed only when it is as falsifiable as content drift. Unambiguous misfilings are relocated via `git mv` plus inbound-link rewrite — in non-interactive mode only under a four-condition gate mirroring auto-delete (frontmatter/directory disagree, content clearly resolves the direction, target category exists, all citations in-repo); anything short of that is recommended, not applied. One multi-problem doc can be split into focused successors (high bar; always recommend-only in non-interactive — the split bar is a retrieval-value judgment with no ground truth). Catalog README rows are updated whenever a listed doc is removed or renamed. Directory-level restructuring — renaming categories, creating new ones, re-taxonomizing — is never automated; Phase 1.75 reports category-shape observations as recommendations.
 
 **Does it handle pattern docs differently from learning docs?**
 Yes — pattern docs are derived guidance, not incident-level learnings. The five outcomes apply, but with different evidence: Keep means underlying learnings still support the rule; Replace means the synthesis is misleading and a different generalization is needed based on refreshed learnings.

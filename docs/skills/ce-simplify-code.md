@@ -1,14 +1,14 @@
 # `ce-simplify-code`
 
-> Refine recently changed code — three parallel reviewer agents find reuse, quality, and efficiency issues; apply the fixes; verify behavior is preserved by typecheck, lint, and scoped tests.
+> Refine recently changed code — three focused reviews find reuse, quality, and efficiency issues; apply the fixes; verify behavior is preserved by typecheck, lint, and scoped tests.
 
-`ce-simplify-code` is the **refinement** skill. It does the homework that's easy to skip after writing code: searches for existing utilities your new code accidentally duplicates, flags hacky patterns and dead code, surfaces missed efficiency wins. Three parallel reviewer agents work the same diff from different angles — Reuse, Quality, Efficiency — and the orchestrator applies their findings, then verifies behavior is preserved.
+`ce-simplify-code` is the **refinement** skill. It does the homework that's easy to skip after writing code: searches for existing utilities your new code accidentally duplicates, flags hacky patterns and dead code, surfaces missed efficiency wins. Three focused reviews examine the same diff from different angles — Reuse, Quality, Efficiency — and the orchestrator applies their findings, then verifies behavior is preserved. The skill dispatches those reviews as parallel subagents when the platform supports it, giving each an independent context.
 
 It's a **utility skill** — point it at whatever you want refined. With no argument it resolves the branch diff; given a file path or a description ("the function I just wrote") it scopes to exactly that. That makes it the natural cleanup pass for AI-generated code, which is its highest-yield use. Agents reliably write more code than a problem needs: industry analysis of hundreds of millions of changed lines shows duplicated and copy-pasted code climbing sharply since coding assistants went mainstream, while refactoring — moving and reusing existing code — has fallen by more than half. The reason is structural, not a model defect: an agent optimizes each fragment locally to *look* well-engineered without the whole-system context to notice that the helper already exists, that the abstraction is single-use, or that the comment restates the code. The result works but carries duplication, single-use wrappers, defensive over-engineering, and tutorial-style comments. `ce-simplify-code` exists to strip that back to what the change actually requires.
 
 The premise is that simplification preserves exact functionality. The skill enforces this by running typecheck, lint, and scoped tests after fixes. **It refuses to relax assertions, weaken type signatures, or skip tests to make checks pass** — that defeats the guarantee.
 
-The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-simplify-code` runs automatically as a quality gate inside `/ce-work` Phase 3 (for diffs with ≥30 substantive code lines) and as step 3 of the autonomous `/lfg` loop (before review, skipped for docs-only or trivial changes), and is directly invocable for refining a feature branch before you open a PR.
+Use `ce-simplify-code` after implementation has settled and before review, commit, or handoff. It can run as a refinement gate within a larger workflow or directly on a branch, file, or described scope; either way, its job is to simplify the completed change without altering behavior.
 
 ---
 
@@ -16,10 +16,10 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Spawns three parallel reviewer agents on the recently-changed code, applies their findings, and verifies behavior is preserved |
+| What does it do? | Runs three focused reviews on the recently changed code, applies their findings, and verifies behavior is preserved |
 | When to use it | Before opening a PR; after writing a feature; after AI generated code that works but feels heavy |
 | What it produces | Updated code (in place) + a summary of what was changed, what was good as-is, which checks ran, and a quantified impact by dimension (fixes applied per reuse/quality/efficiency, skipped count, verification result) |
-| What's next | Open the PR via `/ce-commit-push-pr` |
+| What's next | Continue with the validation or delivery action the change needs: deeper review, further testing, commit/PR, or handoff |
 
 ---
 
@@ -51,6 +51,8 @@ After writing a feature, the code usually has refinement debt that's easy to mis
 - **Hacky patterns** — copy-paste with slight variation, redundant state, parameter sprawl, leaky abstractions
 - **Dead code** — unused imports, exports nothing references, code paths no longer reachable
 - **Stringly-typed values** where an enum or branded type already exists
+- **Context-bound vocabulary** — names that make sense only if you followed the conversation or earlier branch iterations
+- **Pre-release compatibility scaffolding** — aliases and fallback shapes kept for superseded code that never reached a consumer
 - **Missed efficiency** — sequential operations that could be parallel, redundant computations, N+1 patterns
 - **Comments that explain WHAT** the code does (which the identifiers already do) instead of non-obvious WHY
 
@@ -61,7 +63,7 @@ A single reviewer can find some of these but rarely all. Asking the agent to "re
 `ce-simplify-code` runs three parallel reviewers, each focused on one dimension:
 
 - **Reuse Reviewer** searches for existing utilities the new code duplicates
-- **Quality Reviewer** flags hacky patterns, dead code, stringly-typed code, unnecessary comments, nested conditionals
+- **Quality Reviewer** flags hacky patterns, dead code, context-dependent vocabulary, obsolete pre-release compatibility paths, unnecessary comments, and nested conditionals
 - **Efficiency Reviewer** finds missed concurrency, hot-path bloat, recurring no-op updates, broad operations
 
 The orchestrator aggregates their findings, applies fixes, and runs typecheck + lint + scoped tests to verify behavior is preserved.
@@ -70,12 +72,12 @@ The orchestrator aggregates their findings, applies fixes, and runs typecheck + 
 
 ## What Makes It Novel
 
-### 1. Three parallel reviewer agents — different angles, same diff
+### 1. Three focused reviews — different angles, same diff
 
 A single "review and improve" prompt collapses into the agent's most-trained directions. Three reviewers each focused on one dimension cover meaningfully more ground:
 
 - **Reuse** — searches for existing utilities and helpers; flags new functions that duplicate existing ones; flags inline logic that could use an existing utility; flags diff code that reimplements a language standard-library or runtime primitive (gated on behavior-equivalence, excluding UX-changing swaps); flags code that hand-maintains a verified guarantee the platform, framework, or downstream layer already provides
-- **Quality** — redundant state, parameter sprawl, copy-paste with variation (checking whether the duplicated construct can be eliminated before proposing a merge), leaky abstractions, stringly-typed code, unnecessary wrappers (in component-tree UI frameworks), deeply nested conditionals, unnecessary comments, dead code / unused imports / unused exports
+- **Quality** — redundant state, parameter sprawl, copy-paste with variation (checking whether the duplicated construct can be eliminated before proposing a merge), leaky abstractions, stringly-typed code, unnecessary wrappers (in component-tree UI frameworks), deeply nested conditionals, unnecessary comments, dead code / unused imports / unused exports, context-dependent vocabulary, and pre-release compatibility scaffolding with no deployed, persisted, public, external, or dependent-branch consumer
 - **Efficiency** — unnecessary work (redundant computations, repeat reads), missed concurrency, hot-path bloat, recurring no-op updates, TOCTOU pre-checks, memory issues, overly broad operations
 
 ### 2. Smart scope detection — user-named > git diff > recent edits
@@ -84,7 +86,7 @@ The skill resolves the simplification scope in priority order: explicit user-nam
 
 ### 3. Behavior preservation verification
 
-After applying fixes, the skill runs typecheck and lint over the project and runs tests scoped to the changed paths (broadening when the change has wide reach — e.g., a heavily-imported utility was rewritten). Failures are surfaced clearly with the failing check name and relevant output. **The skill refuses to relax assertions, weaken type signatures, or skip tests to make checks pass** — either fix the underlying break or revert the specific simplification that caused it. It also **never simplifies away a safety check** — input validation at trust boundaries, data-loss-preventing error handling, security checks, and accessibility affordances are preserved even when a finding frames them as removable boilerplate.
+After applying fixes, the skill runs typecheck and lint over the project and runs tests scoped to the changed paths (broadening when the change has wide reach — e.g., a heavily-imported utility was rewritten). Failures are surfaced clearly with the failing check name and relevant output. **The skill refuses to relax assertions, weaken type signatures, or skip tests to make checks pass** — either fix the underlying break or revert the specific simplification that caused it. It also **never simplifies away a safety check** — input validation at trust boundaries, data-loss-preventing error handling, security checks, and accessibility affordances are preserved even when a finding frames them as removable boilerplate. A compatibility path for an earlier form of the current unshipped change may be removed only after verifying that form has no deployed, persisted, public, external, or dependent-branch consumer.
 
 ### 4. Mid-tier model selection — cost-aware
 
@@ -92,7 +94,7 @@ The reviewer agents are dispatched on the platform's mid-tier model. Code review
 
 ### 5. Honors caller-passed structure pins
 
-When a caller (`/ce-work` or `/lfg`) passes a plan path whose labeled `session-settled:` KTDs name structural constraints, `ce-simplify-code` treats those as pins: a deliberately duplicated block stays duplicated, an intentional wrapper stays. A settled structural decision the user made on purpose isn't collapsed just because it looks reducible in isolation.
+When a caller passes a plan path whose labeled `session-settled:` KTDs name structural constraints, `ce-simplify-code` treats those as pins: a deliberately duplicated block stays duplicated, an intentional wrapper stays. A settled structural decision the user made on purpose isn't collapsed just because it looks reducible in isolation.
 
 ---
 
@@ -100,7 +102,7 @@ When a caller (`/ce-work` or `/lfg`) passes a plan path whose labeled `session-s
 
 You've spent an hour writing a notification-mute feature. Before opening the PR, you invoke `/ce-simplify-code`.
 
-The skill detects you're on a feature branch with a base of `origin/main`, takes the diff as the scope, and dispatches three reviewers in parallel.
+The skill detects you're on a feature branch with a base of `origin/main`, takes the diff as the scope, and dispatches three reviewers in parallel on a platform with subagent concurrency.
 
 Reuse comes back with three findings: your new `formatDuration` function is a near-duplicate of `lib/utils/formatTime.ts`; your inline path-handling logic should use `path.join` instead; a custom env check should use the existing `isProduction()` helper.
 
@@ -129,20 +131,13 @@ Skip `ce-simplify-code` when:
 
 ---
 
-## Use as Part of the Workflow
+## Position in a Workflow
 
-`ce-simplify-code` is invoked automatically by two workflows, always **before** the review step so reviewers see the simplified diff:
+Run `ce-simplify-code` after implementation has settled and before code review, commit, or handoff. That ordering is the durable contract: the skill sees a complete change, and the next reviewer or shipping step sees the refined diff.
 
-- **`/ce-work` Phase 3** — runs when a diff has ≥30 substantive code lines, ahead of the harness-native or `/ce-code-review` review tier.
-- **`/lfg` step 3** — the autonomous build loop runs it on the branch diff after the build step and before code review. It's skipped only for docs-only changes (markdown/docs paths) or trivial ones (roughly under 10 changed lines), and it leaves its edits uncommitted so the loop's later commit step sweeps them up with the rest of the work.
+Larger workflows may invoke it automatically, but they own their activation policies — size or cost thresholds, non-code exclusions, and exact sequencing. Keep those mechanics with the caller so workflow changes do not redefine this skill.
 
-It's also commonly invoked manually before `/ce-commit-push-pr`, when you want a refinement pass on a branch you've been building over multiple sessions.
-
-The flow when manually invoked typically looks like:
-
-```text
-write code → /ce-simplify-code → /ce-commit-push-pr
-```
+After it finishes, continue with the action the change actually needs. That may be deeper code review, additional testing, commit/PR creation, or handoff; `ce-simplify-code` does not prescribe the next workflow stage.
 
 ---
 
@@ -186,8 +181,8 @@ Every other phrase is deliberate too:
 - **"before review, commit, or handoff"**, not "at the end of the session" — an agent can't reliably tell when a session has *ended*, but it does know when it's about to review, commit, or hand a change back to you, which is exactly when the diff should already be refined.
 - **"offer once"** — without it, an offer-first instruction re-asks after every verification step.
 - **"human-authored code"**, not a filename allowlist — tests, migrations, and code-bearing config can all carry real simplification yield, so the boundary is *substantive code you wrote*, not a fixed set of extensions. A mixed code-and-docs diff still qualifies; the reviewers scope to the code.
-- **"at least 10 substantive code lines"** — the yield on a couple of changed lines is below the review overhead. 10 matches the floor `/lfg` already uses; raise it to 30 (the `ce-work` floor) for a quieter policy that only fires on larger changes.
-- **"hasn't already run since the last code edit"** — `/ce-work` and `/lfg` already run this pass inside their own flows, so this keeps a global instruction from duplicating a pass those workflows just did, while still letting it fire on branches you built by hand.
+- **"at least 10 substantive code lines"** — the yield on a couple of changed lines is below the review overhead. Treat 10 as a starting cost policy for this standing instruction; raise it if you prefer fewer automatic passes.
+- **"hasn't already run since the last code edit"** — a larger workflow may already have run the pass, so this keeps a global instruction from duplicating completed work while still letting it fire after later edits.
 
 The skill also self-guards: invoked directly on a scope with no code in it, it stops with a short "nothing to simplify" note instead of dispatching reviewers. So the exclusions above are belt-and-suspenders — but the standing instruction still carries the full gate (including the size floor), because not invoking the skill at all is cheaper than invoking it only to have it bail.
 
@@ -206,7 +201,7 @@ The skill also self-guards: invoked directly on a scope with no code in it, it s
 ## FAQ
 
 **Why three reviewers instead of one?**
-A single reviewer collapses into the agent's most-trained directions. Three reviewers each focused on one dimension (reuse / quality / efficiency) cover meaningfully more ground in parallel — especially the cross-cutting search for existing utilities the new code duplicates, which a generalist reviewer often misses.
+A single reviewer collapses into the agent's most-trained directions. Three focused reviews covering reuse, quality, and efficiency examine meaningfully more ground — especially the cross-cutting search for existing utilities the new code duplicates, which a generalist reviewer often misses.
 
 **What if a finding is wrong or not worth addressing?**
 The orchestrator aggregates findings and applies them directly. If a finding is a false positive, it's noted and skipped — the skill doesn't argue or surface it back to you. The summary mentions what was acted on.
@@ -215,10 +210,10 @@ The orchestrator aggregates findings and applies them directly. If a finding is 
 The skill won't relax assertions, weaken type signatures, or skip tests to paper over the break. Either it fixes the underlying issue introduced by the simplification, or it reverts the specific change that caused the regression. The premise is preservation of exact functionality.
 
 **Why isn't simplification just part of the original write?**
-It can be, but in practice the moment to find an existing utility is when you're searching for it, not when you're writing the feature. A separate refinement pass with parallel cross-cutting search catches things the original write didn't.
+It can be, but in practice the moment to find an existing utility is when you're searching for it, not when you're writing the feature. A separate refinement pass with focused cross-cutting search catches things the original write didn't.
 
 **Does it run for tiny diffs?**
-By default it runs against whatever code scope it resolves, but the yield on tiny diffs (a couple of lines) is low. The automated callers gate on size for that reason: `ce-work` runs it only for diffs with ≥30 substantive code lines, and `/lfg` skips it for docs-only or trivial (roughly under 10 changed lines) changes. The skill itself does not gate on size — an explicit scope on a small function is authoritative and still runs; the size floor is a cost policy that lives in the callers and in any [standing instruction](#make-it-automatic) you add.
+By default it runs against whatever code scope it resolves, but the yield on tiny diffs (a couple of lines) is low. The skill itself does not gate on size — an explicit scope on a small function is authoritative and still runs. Larger workflows and [standing instructions](#make-it-automatic) may add their own cost threshold without changing the skill's contract.
 
 **What if I point it at a docs-only or mechanical diff?**
 The skill detects when the resolved scope has no substantive code — documentation/Markdown-only, or only generated, vendored, lockfile, or purely mechanical churn — and stops with a short "nothing to simplify" note instead of dispatching the three reviewers, which would find nothing there. On a mixed diff it narrows to the code files and continues. This self-guard keys on the *kind* of change, not its size.
@@ -227,7 +222,7 @@ The skill detects when the resolved scope has no substantive code — documentat
 
 ## See Also
 
-- [`ce-work`](./ce-work.md) — calls this skill in Phase 3 for diffs of significant size
-- `lfg` — the autonomous build loop runs this skill as step 3, before its review step
-- [`ce-commit-push-pr`](./ce-commit-push-pr.md) — usual next step after a refinement pass
-- [`ce-code-review`](./ce-code-review.md) — the deeper code review skill; `ce-simplify-code` is a complement, not a substitute
+- [`ce-work`](./ce-work.md) — implementation workflow that may use this as its pre-review refinement pass
+- `lfg` — autonomous workflow that may use this before review
+- [`ce-code-review`](./ce-code-review.md) — use when the refined change still needs deeper review
+- [`ce-commit-push-pr`](./ce-commit-push-pr.md) — use when review and validation are complete and the change is ready to ship

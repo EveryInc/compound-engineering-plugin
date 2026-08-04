@@ -37,7 +37,7 @@ fi
 # more than one page of threads can still resolve a comment to its parent
 # thread. Per-thread comments are still capped at 100 -- threads exceeding
 # that depth are not paginated here.
-tmp_threads=$(mktemp)
+tmp_threads=$(mktemp "${TMPDIR:-/tmp}/ce-pr-threads.XXXXXX")
 trap 'rm -f "$tmp_threads"' EXIT
 
 gh api graphql --paginate --slurp \

@@ -206,6 +206,7 @@ describe("ce-work fixed write routes", () => {
     expect(codex).toContain("--ephemeral")
     expect(codex).toContain("-s workspace-write")
     expect(codex).toContain("-C <workspace>")
+    expect(codex).toContain("-c model_reasoning_effort=high")
 
     const claude = emit("claude").stdout
     expect(claude).toContain("--safe-mode")

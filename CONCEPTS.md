@@ -71,6 +71,14 @@ A conditional section of a generated PR description, added by agent judgment whe
 
 ## Skill orchestration
 
+### Dispatch skill
+A Skill whose workflow depends on delegating work to shipped subagents — reviewers, scouts, fixers — rather than performing every pass in the orchestrator's own context, and that therefore carries the shared Skill-context directives so a harness default cannot silently strip the delegation its flow assumes.
+
+Membership follows whether the workflow depends on dispatch actually happening — for independent contexts whose agreement carries evidential weight, or for the isolation and coverage a single context cannot provide. A skill stays outside the set only when performing the delegated work in its own context is a first-class path rather than a degrade: delegation that exists purely for parallelism can be spent as time instead, so such a skill applies its work sequentially in-context and ships no directives.
+
+### Skill-context directives
+The counter-directive block a Dispatch skill emits as tool output at the start of each invocation — authorizing its shipped subagents against harness defaults that gate agent use, forbidding a harness constraint from being re-narrated as a user preference, keeping confirmation steps live under standing autonomy framing, and refusing independence credit for lens work done in one context. Delivery as tool output is the mechanism, not a packaging detail: the same text as static skill prose fails to outrank the harness default, and evidence that prose sufficed for one Skill transfers to no other.
+
 ### Model tier
 A semantic cost class for a dispatched sub-agent — extraction (cheapest capable, for retrieval and quoting), generation (mid-tier, for evidence-driven work and mechanical verification), or ceiling (the orchestrator's own model, inherited by omitting any model selection) — declared once per Skill and referenced by tier name so model names never hardcode into skill content.
 
@@ -94,6 +102,12 @@ An additive delegated run that sends the host workflow's review or judgment brie
 
 ### Model identity receipt
 The serving backend's own report of which model actually handled a delegated run, recorded alongside the requested model so the two can disagree visibly. A run's model identity is verified only by such a receipt — never by the request parameters or the model's own text — and outputs without one are labeled as requested-but-unverified; logic that weights cross-model agreement follows the receipt, not the request.
+
+### Handoff seam
+The point in a calling Skill where completed work triggers a follow-on Skill in the same run — distinct from a Session handoff, which carries continuity to a fresh session. A seam that states only intent ("auto-invoke X") invites the caller's agent to reproduce the callee's mechanics from memory; a hardened seam pins the invocation mechanism (the platform's skill-invocation primitive, so the callee's instructions actually load) and, when the callee runs a stateful protocol, explicitly forbids starting that protocol's mechanics directly.
+
+### Context-absent agent
+An agent performing a Skill-shaped action without that Skill's instructions loaded in context — typically reconstructing a half-remembered command, recognizable by parameter values that drift from the Skill's documented defaults. Prose in the unloaded Skill cannot reach it; the only channels that do are the seam it entered through and the output of the tools it runs, which is why fail-closed refusals in bundled CLIs carry their own recovery path.
 
 ## Review and workflow vocabulary
 

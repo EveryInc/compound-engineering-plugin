@@ -32,7 +32,7 @@ Or search for "compound engineering" in the plugin marketplace.
 Compound Engineering is not listed in Codex's built-in plugin marketplace yet. Add it as a custom marketplace:
 
 1. In the Codex app, open **Plugins** from the sidebar.
-2. Click **Add** / **Add plugin marketplace**.
+2. Click the arrow next to **Create**, then select **Add marketplace**.
 3. Enter:
 
    | Field | Value |
@@ -42,7 +42,7 @@ Compound Engineering is not listed in Codex's built-in plugin marketplace yet. A
    | Sparse paths | leave blank |
 
 4. Click **Add marketplace**.
-5. Select **Compound Engineering**, install **compound-engineering**, then restart Codex.
+5. Search for **Compound Engineering**, install **compound-engineering-plugin**, then restart Codex.
 
 The Codex app install is self-contained for Compound Engineering. Specialist reviewer and research behavior lives inside the skills as local prompt assets; no separate custom-agent install step is required.
 

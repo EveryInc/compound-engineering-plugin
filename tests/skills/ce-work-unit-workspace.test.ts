@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process"
 import {
   chmodSync,
   existsSync,
+  linkSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -2071,56 +2072,102 @@ describe("ce-work unit workspace controller", () => {
     expect(statSync(ignoredDirectory).mode & 0o777).toBe(0o750)
   })
 
-  test("refuses ignored snapshots over deterministic entry or byte bounds before verification", () => {
-    const cases: Array<[string, (repo: string) => void]> = [
-      ["bytes", (repo) => {
-        const oversized = path.join(repo, "oversized.verification-cache")
-        writeFileSync(oversized, "")
-        truncateSync(oversized, 64 * 1024 * 1024 + 1)
-      }],
-      ["entries", (repo) => {
-        const cache = path.join(repo, "many-ignored")
-        mkdirSync(cache)
-        for (let index = 0; index < 513; index += 1) {
-          writeFileSync(path.join(cache, `${index.toString().padStart(4, "0")}.verification-cache`), "x")
-        }
-      }],
-    ]
-
-    for (const [limit, populate] of cases) {
-      const f = makeRepo()
-      const runs = path.join(tmp("ce-work-runs-"), "ce-work")
-      const runId = `run-ignored-limit-${limit}`
-      writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\n")
-      populate(f.repo)
-      init(runs, runId, f)
-      ctl(
-        runs, "prepare", "--run-id", runId, "--unit-id", "U",
-        "--base", f.base, "--packet", packetFile("packet"),
-      )
-      const workspace = path.join(runs, runId, "units", "U", "workspace")
-      writeFileSync(path.join(workspace, "integrated.txt"), "integrated\n")
-      const job = fakeDoneJob(runs, runId, "U", "packet")
-      ctl(
-        runs, "record-job", "--run-id", runId, "--unit-id", "U",
-        "--attempt-id", "attempt-1", "--job-id", job,
-      )
-      ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U")
-      const marker = path.join(tmp("ce-work-verification-marker-"), "ran")
-
-      const refused = ctlWithEnv(
-        runs, { CE_WORK_TEST_FAULT: "directory-snapshot-before-walk" },
-        "integrate", "--run-id", runId, "--unit-id", "U",
-        "--commit-message", "feat(test): verification must not run",
-        "--", "python3", "-c",
-        `from pathlib import Path; Path(${JSON.stringify(marker)}).write_text('ran')`,
-      )
-      expect(refused.word).toBe("REFUSED")
-      expect(refused.stderr).toContain("ignored artifact snapshot exceeds")
-      expect(existsSync(marker)).toBe(false)
-      const resultDir = path.join(runs, runId, "units", "U", "result")
-      expect(readdirSync(resultDir).some((name) => name.startsWith("ignored-snapshot-"))).toBe(false)
+  test("init reports every ignored snapshot blocker before route selection closes", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-ignored-capability"
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "ignored/\nopaque/\n")
+    const ignored = path.join(f.repo, "ignored")
+    mkdirSync(ignored)
+    const oversized = path.join(ignored, "oversized")
+    writeFileSync(oversized, "")
+    truncateSync(oversized, 64 * 1024 * 1024 + 1)
+    symlinkSync("oversized", path.join(ignored, "link"))
+    writeFileSync(path.join(ignored, "hard-a"), "hard")
+    linkSync(path.join(ignored, "hard-a"), path.join(ignored, "hard-b"))
+    for (let index = 0; index < 508; index += 1) {
+      writeFileSync(path.join(ignored, `${index.toString().padStart(4, "0")}`), "x")
     }
+    const opaque = path.join(f.repo, "opaque")
+    mkdirSync(opaque)
+    git(opaque, "init")
+    const refused = init(runs, runId, f)
+
+    expect(refused.word).toBe("REFUSED")
+    expect(refused.stderr).toContain("ignored artifact snapshot capability is unavailable")
+    expect(refused.body).toMatchObject({
+      inventory: { entries: 513 },
+      effective_limits: { max_entries: 512, max_bytes: 64 * 1024 * 1024 },
+      blocking_counts: {
+        entry_limit: 1,
+        symlink: 1,
+        non_regular: 0,
+        multiple_links: 2,
+        opaque_directory: 1,
+        ownership_mismatch: 0,
+      },
+      repair_route: expect.stringContaining("retry cross-model execution"),
+    })
+    expect(refused.body.blocking_counts.byte_limit).toBeGreaterThan(0)
+    expect(refused.body.top_offenders.length).toBeLessThanOrEqual(10)
+    expect(existsSync(path.join(runs, runId))).toBe(false)
+  })
+
+  test("prepare rechecks ignored capability after route selection", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-ignored-capability-changed"
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "ignored-link\n")
+    expect(initWithBinding(runs, runId, f, "require").word).toBe("READY")
+    symlinkSync("missing", path.join(f.repo, "ignored-link"))
+
+    const refused = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+
+    expect(refused.word).toBe("REFUSED")
+    expect(refused.body).toMatchObject({
+      blocking_counts: { symlink: 1 },
+      repair_route: "Remove or reduce the reported ignored artifacts, then retry cross-model execution.",
+    })
+    expect(existsSync(path.join(runs, runId, "units", "U", "workspace"))).toBe(false)
+  })
+
+  test("ignored capability probe reports ownership mismatch from a scratch repository", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "owned.verification-cache\n")
+    writeFileSync(path.join(f.repo, "owned.verification-cache"), "owned\n")
+    const source = [
+      "import json, os, sys",
+      `sys.path.insert(0, ${JSON.stringify(path.dirname(SCRIPT))})`,
+      "import unit_workspace_ignored as ignored",
+      "ignored._effective_uid = lambda: os.geteuid() + 1",
+      "paths = ignored.ignored_paths(sys.argv[1])",
+      "_, _, report = ignored.inspect_ignored_snapshot_capability(sys.argv[1], paths)",
+      "print(json.dumps(report, sort_keys=True))",
+    ].join("; ")
+
+    const result = sh(f.repo, ["python3", "-c", source, f.repo])
+    const report = JSON.parse(result.stdout)
+    expect(report.blocking_counts.ownership_mismatch).toBe(1)
+    expect(report.top_offenders[0]).toMatchObject({
+      path: "owned.verification-cache",
+      reasons: ["ownership_mismatch"],
+    })
+  })
+
+  test("prepare passes through supported ignored regular files", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "supported.verification-cache\n")
+    writeFileSync(path.join(f.repo, "supported.verification-cache"), "supported\n")
+    init(runs, "run-ignored-capability-clear", f)
+
+    expect(ctl(
+      runs, "prepare", "--run-id", "run-ignored-capability-clear", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    ).word).toBe("PREPARED")
   })
 
   test("plan verification refuses oversized ignored state before directory traversal", () => {
@@ -2158,7 +2205,8 @@ describe("ce-work unit workspace controller", () => {
       `from pathlib import Path; Path(${JSON.stringify(marker)}).write_text('ran')`,
     )
     expect(refused.word).toBe("REFUSED")
-    expect(refused.stderr).toContain("ignored artifact snapshot exceeds")
+    expect(refused.stderr).toContain("ignored artifact snapshot capability is unavailable")
+    expect(refused.body.blocking_counts.entry_limit).toBe(1)
     expect(existsSync(marker)).toBe(false)
     expect(ctl(runs, "status", "--run-id", runId).body.integration_lock).toBeNull()
   })

@@ -391,7 +391,7 @@ log "fixed cross-model POV route: target=$TARGET route=$FIXED_ROUTE (host $HOST_
 # The payload is prepared by ce-pov and embeds the framed question plus any
 # conversation-only subject material needed for this round. Repository evidence
 # stays in the shared working tree for the peer to inspect directly.
-SCRATCH_PARENT="${CROSS_MODEL_SCRATCH_PARENT:-/tmp}"
+SCRATCH_PARENT="${CROSS_MODEL_SCRATCH_PARENT:-${TMPDIR:-/tmp}}"
 [ -d "$SCRATCH_PARENT" ] || mkdir -p "$SCRATCH_PARENT" 2>/dev/null || skip "private scratch parent '$SCRATCH_PARENT' unavailable"
 SCRATCH_PARENT="$(cd "$SCRATCH_PARENT" && pwd -P)" || skip "cannot resolve private scratch parent"
 case "$SCRATCH_PARENT/" in "$REPO_ROOT/"*) skip "private scratch parent must be outside the repository" ;; esac

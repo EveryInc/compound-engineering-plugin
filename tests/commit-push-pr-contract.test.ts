@@ -56,7 +56,7 @@ describe("ce-commit-push-pr contract", () => {
 
     // Existing-PR detection uses `gh pr list` (exits 0, returns `[]` when none)
     // rather than `gh pr view` (exits 1 with no PR, which aborted `!` load).
-    expect(content).toContain("gh pr list --head <branch> --state open --json number,url,title,body,state,headRefName,headRepositoryOwner")
+    expect(content).toContain("gh pr list --head <branch> --state open --json number,url,title,body,state,isDraft,headRefName,headRepositoryOwner")
     // Multi-fork same-branch matches are disambiguated by head owner, not index 0 (PR #1109 review).
     expect(content).toContain("do **not** blindly take index 0")
     expect(content).toContain("Note the URL and body from that entry")
@@ -211,5 +211,27 @@ describe("PR concept teaching contract", () => {
 
     expect(template).toContain("pr_teaching_section")
     expect(template).toContain("pr_teaching_archive")
+  })
+
+  test("babysit handoff is a hard skill invocation, never ad-hoc babysit mechanics", async () => {
+    const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+
+    const handoff = content.match(/\*\*Babysit handoff — default on\.\*\*[\s\S]+?(?=\n\n)/)?.[0]
+    expect(handoff).toBeDefined()
+    // Observed drift (Nugget PR #1933): the shipping agent ran a bare
+    // `pr-snapshot watch --pr N` instead of invoking ce-babysit-pr, skipping its
+    // Step 2 bootstrap. The handoff must pin the invocation mechanism and forbid
+    // reconstructing babysit's loop at this seam.
+    expect(handoff).toContain("skill-invocation primitive")
+    expect(handoff).toContain("Never start babysit mechanics yourself")
+    expect(handoff).toContain("`pr-snapshot`")
+
+    // Observed drift (Nugget PR #1934): auto-babysit fired on a draft design PR, forcing the
+    // session to improvise "never mark ready" caveats. Drafts are a not-ready signal; the
+    // auto-handoff must not fire on them (explicit babysit tokens still force it).
+    const doNotFire = content.match(/\*\*Do not fire \(auto-detected[\s\S]+?(?=\n\n)/)?.[0]
+    expect(doNotFire).toBeDefined()
+    expect(doNotFire).toContain("draft")
+    expect(doNotFire).toContain("`babysit:continuous`")
   })
 })

@@ -81,7 +81,7 @@ PATH — and cross-host per the repo's eval default: Claude Code AND Codex.
    scope. Call it independent only when serving families are attestably
    different. A failed route never changes recipients internally; any retry is
    a new host decision requiring a new disclosure and sanction.
-   Headless mode → no user-facing prose about the pass (the script still emits the
+   Non-interactive mode → no user-facing prose about the pass (the script still emits the
    stderr egress audit log).
 
 9. **Non-blocking (R11).** With the peer CLI absent/unauthed, or with the fixed

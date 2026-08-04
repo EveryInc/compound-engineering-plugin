@@ -15,7 +15,7 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 | What does it do? | Selects reviewer personas based on doc content, dispatches them in parallel, applies `safe_auto` fixes, routes remaining findings through structured interaction |
 | When to use it | After `ce-brainstorm` produces a requirements-only unified plan; after `ce-plan` writes or enriches a plan; before handing an implementation-ready plan to execution |
 | What it produces | An updated markdown doc with `safe_auto` fixes applied, plus structured handling of `gated_auto` / `manual` findings; HTML unified plans are report-only/skipped until HTML-safe mutation exists |
-| Modes | Interactive (direct invocation), Headless (default when chained from `/ce-plan`) |
+| Modes | Interactive (direct invocation), Non-interactive (default when chained from `/ce-plan`) |
 
 ---
 
@@ -111,14 +111,14 @@ The walk-through itself supports an "auto-resolve the rest" escape mid-flow if t
 
 When the user picks "Auto-resolve with best judgment" or "Append to Open Questions" — or escapes mid walk-through to "Auto-resolve the rest" — the skill shows a preview of every change before applying. The preview includes the section, finding title, action (apply / skip / defer / acknowledge), and brief rationale. The user confirms or cancels. This is the safety valve for bulk operations: the user sees what's about to land before it does.
 
-### 6. Two modes — Interactive and Headless
+### 6. Two modes — Interactive and Non-interactive
 
 | Mode | When | Behavior |
 |------|------|----------|
 | **Interactive** | Direct user invocation, or opt-in via `Run deeper doc review` from a caller's post-generation menu | Routing question, per-finding walk-through, bulk-preview confirmations |
-| **Headless** _(default for chained invocation)_ | `mode:headless`; default at `/ce-plan` Phase 5.3.8 | Apply `safe_auto` silently; return all other findings as structured text; surface a one-line summary above the caller's next menu; no prompts |
+| **Non-interactive** _(default for chained invocation)_ | `mode:non-interactive` (deprecated alias `mode:headless`); default at `/ce-plan` Phase 5.3.8 | Apply `safe_auto` silently; return all other findings as structured text; surface a one-line summary above the caller's next menu; no prompts |
 
-Headless is the default for chained invocation from doc-producing skills — `/ce-plan` Phase 5.3.8 invokes it headless so routine plans autofix and surface a summary line without blocking the user. Interactive is for direct invocation, or when the user opts into `Run deeper doc review` from the post-generation menu.
+Non-interactive is the default for chained invocation from doc-producing skills — `/ce-plan` Phase 5.3.8 invokes it non-interactively so routine plans autofix and surface a summary line without blocking the user. Interactive is for direct invocation, or when the user opts into `Run deeper doc review` from the post-generation menu.
 
 ### 7. Bounded parallelism with backpressure
 
@@ -138,7 +138,7 @@ Alongside those focused twins, a single **whole-document sweep** has one differe
 
 The declared model/route mappings are attempted first. When a current CLI rejects an obsolete or incompatible adapter default, the skill may discover the closest compatible equivalent within the same target/family and hard read-only, host-exclusion, authority, and egress boundaries. It records the substitution and actual route. An explicit user model or newly receiving intermediary never changes silently: route selection returns to the host for the required disclosure and sanction. A second target remains opt-in (`CROSS_MODEL_MAX_PEERS=2`), and failures remain non-blocking.
 
-**Trust boundary:** the pass embeds the full document content into the peer prompt and sends it to an external model provider (OpenAI, Anthropic, xAI, or Cursor, depending on the resolved peer); `CROSS_MODEL_PEERS` restricts which providers may receive content (unset = default order; set = allowlist). The peer runs strictly read-only, from an empty scratch dir with no project context — every route denies writes, network, MCP, and subagents. On **reads**, the routes are two tiers: **truly tool-less** — claude (`--safe-mode --tools ""`, all built-ins disabled and custom behavior suppressed) and grok (denies `Read`/`Edit`/`Write`/`Bash`/`Task`/web/`mcp__*`), with no read tool at all; and **read-only residual** — codex (`-s read-only`) and cursor-agent (`--mode ask --sandbox enabled`), which still permit a read tool (codex also read-only shell exec). So impact is bounded to disclosure rather than repo mutation, and the script emits a one-line audit log of each cross-model send so the egress is auditable even in headless mode. Peer prompts use basename-only document paths (content is already embedded). Over-size documents skip cleanly rather than truncating. The read residual on the codex/cursor-agent routes is **accepted** for the own-document threat model: the reviewed doc is the maintainer's own, and the host agent already runs in-repo with more privilege than any peer, so a peer that can read a file adds no material exposure.
+**Trust boundary:** the pass embeds the full document content into the peer prompt and sends it to an external model provider (OpenAI, Anthropic, xAI, or Cursor, depending on the resolved peer); `CROSS_MODEL_PEERS` restricts which providers may receive content (unset = default order; set = allowlist). The peer runs strictly read-only, from an empty scratch dir with no project context — every route denies writes, network, MCP, and subagents. On **reads**, the routes are two tiers: **truly tool-less** — claude (`--safe-mode --tools ""`, all built-ins disabled and custom behavior suppressed) and grok (denies `Read`/`Edit`/`Write`/`Bash`/`Task`/web/`mcp__*`), with no read tool at all; and **read-only residual** — codex (`-s read-only`) and cursor-agent (`--mode ask --sandbox enabled`), which still permit a read tool (codex also read-only shell exec). So impact is bounded to disclosure rather than repo mutation, and the script emits a one-line audit log of each cross-model send so the egress is auditable even in non-interactive mode. Peer prompts use basename-only document paths (content is already embedded). Over-size documents skip cleanly rather than truncating. The read residual on the codex/cursor-agent routes is **accepted** for the own-document threat model: the reviewed doc is the maintainer's own, and the host agent already runs in-repo with more privilege than any peer, so a peer that can read a file adds no material exposure.
 
 ### 10. Settled-decision protection
 
@@ -146,19 +146,19 @@ Decisions the user examined and settled carry a `session-settled:` annotation, a
 
 ### 11. Shared rendering floor — decision-first, domain-agnostic legibility
 
-Because the skill reviews documents for arbitrary products, a finding can name identifiers only its author understands: document IDs (`R6`, `U3`), external refs (tickets, PR numbers), and code symbols the reviewed doc happens to mention (functions, files, line references). A single source — `references/rendering-floor.md` — governs every presentation surface (interactive walkthrough, batch table, headless envelope, bulk preview) so each finding leads with a recommendation and a one-sentence consequence that names no opaque token, caps mechanism at two sentences, and glosses opaque tokens by function: navigation anchors keep their ID and get a handle, provenance anchors appear only when the referenced event drives the decision, and code symbols are translated to the role they play. The user can decide Apply / Defer / Skip without opening the reviewed codebase.
+Because the skill reviews documents for arbitrary products, a finding can name identifiers only its author understands: document IDs (`R6`, `U3`), external refs (tickets, PR numbers), and code symbols the reviewed doc happens to mention (functions, files, line references). A single source — `references/rendering-floor.md` — governs every presentation surface (interactive walkthrough, batch table, non-interactive envelope, bulk preview) so each finding leads with a recommendation and a one-sentence consequence that names no opaque token, caps mechanism at two sentences, and glosses opaque tokens by function: navigation anchors keep their ID and get a handle, provenance anchors appear only when the referenced event drives the decision, and code symbols are translated to the role they play. The user can decide Apply / Defer / Skip without opening the reviewed codebase.
 
 ---
 
 ## Quick Example
 
-`/ce-plan` finishes producing a Standard plan for a notification-mute feature. Phase 5.3.8 invokes `/ce-doc-review` in `mode:headless` with the plan path.
+`/ce-plan` finishes producing a Standard plan for a notification-mute feature. Phase 5.3.8 invokes `/ce-doc-review` in `mode:non-interactive` with the plan path.
 
 The skill reads the doc, classifies it as `plan` from content-shape signals (U-IDs, plan section structure), reads the `Origin:` slot, and analyzes content for conditional personas. The plan touches a UI surface (mute toggle copy) but no high-stakes domains and proposes no new abstractions. It activates `coherence-reviewer` (always-on), `feasibility-reviewer` (always-on, scoped to plan-shape techniques), and `design-lens-reviewer` (UI surface). Adversarial, scope-guardian, security-lens, and product-lens skip — none of their triggers fire on a routine plan with origin set.
 
 Three reviewers dispatch in parallel. They return 9 raw findings. Synthesis merges them into 6 distinct findings: 2 `safe_auto` (typo, broken cross-reference), 3 `gated_auto` (wording on the durability tradeoff, missing edge case in test scenarios for U2, design-lens flag on the toggle copy), 1 FYI (suggested scope clarification).
 
-The 2 `safe_auto` apply directly. Headless mode returns the rest as structured text — no walkthrough, no per-finding routing. A single summary line surfaces above the post-generation menu: `Doc review applied 2 fixes. 3 decisions, 1 FYI remain.` The user picks `Start /ce-work` and goes. Had they wanted to address the 3 decisions interactively, they'd have picked `Run deeper doc review` instead.
+The 2 `safe_auto` apply directly. Non-interactive mode returns the rest as structured text — no walkthrough, no per-finding routing. A single summary line surfaces above the post-generation menu: `Doc review applied 2 fixes. 3 decisions, 1 FYI remain.` The user picks `Start /ce-work` and goes. Had they wanted to address the 3 decisions interactively, they'd have picked `Run deeper doc review` instead.
 
 ---
 
@@ -168,7 +168,7 @@ Reach for `ce-doc-review` when:
 
 - A requirements-only unified plan just landed from `/ce-brainstorm` and you want a structured Product Contract review before planning
 - A plan just landed from `/ce-plan` and you want a deeper review before execution
-- You're in headless mode and a programmatic caller (the chain skills) needs review with structured output
+- You're in non-interactive mode and a programmatic caller (the chain skills) needs review with structured output
 - You want round-to-round refinement on a doc — the decision primer prevents loops
 
 Skip `ce-doc-review` when:
@@ -184,10 +184,10 @@ Skip `ce-doc-review` when:
 `ce-doc-review` is invoked from doc-producing skills as their review pass:
 
 - **`/ce-brainstorm` Phase 4** — offered as one of the post-doc options ("Agent review of Product Contract"); runs interactive with full premise scrutiny, since validating premise is exactly what brainstorm exists for
-- **`/ce-plan` Phase 5.3.8** — runs in `mode:headless` by default after the confidence check. `safe_auto` fixes apply silently; remaining findings surface as a one-line summary above the post-generation menu, where `Run deeper doc review` is exposed as a first-class option for users who want the interactive walkthrough
+- **`/ce-plan` Phase 5.3.8** — runs in `mode:non-interactive` by default after the confidence check. `safe_auto` fixes apply silently; remaining findings surface as a one-line summary above the post-generation menu, where `Run deeper doc review` is exposed as a first-class option for users who want the interactive walkthrough
 - **`/ce-resolve-pr-feedback`** — when reviewer feedback lands on a brainstorm or plan doc rather than code
 
-In headless mode, callers receive structured findings and route the user-decision options themselves.
+In non-interactive mode, callers receive structured findings and route the user-decision options themselves.
 
 ---
 
@@ -197,7 +197,7 @@ The skill works directly on unified plan artifacts, legacy requirements docs, an
 
 - **Specific path** — `/ce-doc-review docs/plans/2026-05-04-001-feat-notification-mute-plan.md`
 - **Ask the user** — `/ce-doc-review` with no path asks which doc to review (or auto-finds the most recent in `docs/brainstorms/` or `docs/plans/`)
-- **Headless** — `/ce-doc-review mode:headless docs/plans/.../plan.md` returns structured findings without interactive prompts
+- **Non-interactive** — `/ce-doc-review mode:non-interactive docs/plans/.../plan.md` returns structured findings without interactive prompts
 
 ---
 
@@ -207,9 +207,9 @@ The skill works directly on unified plan artifacts, legacy requirements docs, an
 |----------|--------|
 | _(empty, interactive)_ | Asks which doc to review or auto-finds the most recent |
 | `<doc path>` | Reviews that specific doc |
-| `mode:headless <doc path>` | Headless mode; structured text output, no prompts |
+| `mode:non-interactive <doc path>` | Non-interactive mode; structured text output, no prompts. Deprecated alias: `mode:headless`. |
 
-Headless mode requires a path; without one it errors out rather than guessing.
+Non-interactive mode requires a path; without one it errors out rather than guessing.
 
 ---
 

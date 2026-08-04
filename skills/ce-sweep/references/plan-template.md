@@ -46,7 +46,7 @@ Triage and drive to resolution the open feedback items captured below: acknowled
 
 ### Outstanding Questions
 
-- <headless-deferred decision, with enough context for a human to answer it on a later run>
+- <non-interactive-deferred decision, with enough context for a human to answer it on a later run>
 
 ### Sources / Research
 

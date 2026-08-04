@@ -8,7 +8,7 @@ Use this path when the input is a short recording (under ~60 seconds), the user 
 
    ```bash
    SKILL_DIR="<absolute path of the directory containing the ce-riffrec-feedback-analysis SKILL.md>";
-   python "$SKILL_DIR/scripts/analyze_riffrec_zip.py" /path/to/input --output-dir "$(mktemp -d -t riffrec-quick-XXXXXX)"
+   python "$SKILL_DIR/scripts/analyze_riffrec_zip.py" /path/to/input --output-dir "$(mktemp -d "${TMPDIR:-/tmp}/riffrec-quick-XXXXXX")"
    ```
 
    Capture the printed output directory; later steps read from it.

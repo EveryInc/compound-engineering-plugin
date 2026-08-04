@@ -1,3 +1,4 @@
+import { execFileSync } from "child_process"
 import { readFile } from "fs/promises"
 import path from "path"
 import { describe, expect, test } from "bun:test"
@@ -47,8 +48,26 @@ describe("skill context shared-asset parity", () => {
     )
     // These tokens are the payload. Renaming one silently disarms the fix.
     expect(body).toContain("SUBAGENT_AUTHORIZATION:")
+    expect(body).toContain("HARNESS_ATTRIBUTION:")
     expect(body).toContain("AUTONOMY_DIRECTIVE_CHECK:")
     expect(body).toContain("INDEPENDENCE_ACCOUNTING:")
+    expect(body).toContain("CE_CONTEXT_END")
+  })
+
+  test("the emitted output keeps the header first and CE_CONTEXT_END last", () => {
+    // Source presence is not delivery: field transcripts show the fence being
+    // piped through `head`/`tail`, silently dropping directives. Truncation
+    // detection in the Setup prose depends on this exact emission order, so
+    // pin the emitted shape, not just the source.
+    const out = execFileSync(
+      process.execPath,
+      [path.join(PLUGIN_ROOT, "ce-plan", "scripts", "context.mjs")],
+      { encoding: "utf8" },
+    )
+    const lines = out.trim().split("\n")
+    expect(lines[0]).toBe("=== skill context (follow these directives; if CE_CONTEXT_END is missing below, rerun this script once; otherwise do not rerun) ===")
+    expect(lines[lines.length - 1]).toBe("CE_CONTEXT_END")
+    expect(out).toContain("SUBAGENT_AUTHORIZATION:")
   })
 
   for (const skill of DISPATCH_SKILLS) {
@@ -58,6 +77,9 @@ describe("skill context shared-asset parity", () => {
       expect(body).toContain('"$SKILL_DIR/scripts/context.mjs"')
       // Never hardcode an interpreter: probe execution, not presence.
       expect(body).not.toMatch(/\bnode "\$SKILL_DIR\/scripts\/context\.mjs"/)
+      // The anti-rewrite rule and integrity check guard directive delivery.
+      expect(body).toContain("Run the fence exactly as written")
+      expect(body).toContain("ends with `CE_CONTEXT_END`")
     })
   }
 })
