@@ -36,7 +36,7 @@ fi
 
 ## Interaction Method
 
-Default to the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Never silently skip a question you owe the user; if no blocking tool exists in the harness, the run is non-interactive (see Mode). Ask one question at a time — the decision round (2h) may group by category but still asks one blocking question per category.
+Default to the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension), `ask` in oh-my-pi (`omp`). Never silently skip a question you owe the user; if no blocking tool exists in the harness, the run is non-interactive (see Mode). Ask one question at a time — the decision round (2h) may group by category but still asks one blocking question per category.
 
 ## Mode
 
@@ -183,7 +183,7 @@ Interactive only. For items needing a product call, ask the user — grouped by 
 
 #### 2i. Wrap-up
 
-**User-runnable invocation rendering.** In the summary handoff below, default to `/lfg <root>/plans/feedback-sweep-plan.md`; use `$lfg <root>/plans/feedback-sweep-plan.md` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
+**User-runnable invocation rendering.** In the summary handoff below, default to `/lfg <root>/plans/feedback-sweep-plan.md`; use `$lfg <root>/plans/feedback-sweep-plan.md` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation; use `/skill:lfg <root>/plans/feedback-sweep-plan.md` when the active host is oh-my-pi (`omp`). Render only the invocation as inline code and output one form only.
 
 - **Commit.** `git add` ONLY `<root>/plans/feedback-sweep-plan.md` plus `<state>` when it is repo-internal (never `-A`; machine-local state under `/tmp` is never committed), then commit `docs(sweep): feedback sweep <date>`. A commit failure is reported, not fatal. In local-commit mode, never push. In shared-branch mode (`sweep_shared_branch: true`), fetch, rebase, and push the final commit.
 - **Record the run.** `run-record --state <state> --writer <writer> --outcome <completed|partial|failed> --counts '<per-source JSON>' --timestamp <ISO now>`.

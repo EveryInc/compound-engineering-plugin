@@ -99,7 +99,7 @@ Treat the preview and its confirmation as two ordered user-facing events:
 
 If the preview event has not occurred, do not invoke the blocking-question capability. If the harness exposes no such capability or the call errors, preserve the same interaction as visible chat: put the numbered `Proceed` / `Cancel` options immediately below the visible preview and wait for the user's reply. Never omit the preview or continue silently.
 
-**Non-exhaustive adapters:** `AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), and `ask_user` in Pi with the `pi-ask-user` extension. In Claude Code, `AskUserQuestion` should already be loaded from the Interactive-mode pre-load step; if it is not, call `ToolSearch` with query `select:AskUserQuestion` now. A pending schema load is not a fallback trigger.
+**Non-exhaustive adapters:** `AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), and `ask_user` in Pi with the `pi-ask-user` extension, `ask` in oh-my-pi (`omp`). In Claude Code, `AskUserQuestion` should already be loaded from the Interactive-mode pre-load step; if it is not, call `ToolSearch` with query `select:AskUserQuestion` now. A pending schema load is not a fallback trigger.
 
 Stem (adapted to the path):
 

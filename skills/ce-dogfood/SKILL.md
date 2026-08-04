@@ -17,7 +17,7 @@ This workflow drives the browser exclusively through the `agent-browser` CLI. Do
 
 ## Prerequisites
 
-**User-runnable invocation rendering.** In prerequisite failures, default to `/ce-setup` and `/ce-dogfood <original arguments>`; use `$ce-setup` and `$ce-dogfood <original arguments>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only each invocation as inline code and output one form only.
+**User-runnable invocation rendering.** In prerequisite failures, default to `/ce-setup` and `/ce-dogfood <original arguments>`; use `$ce-setup` and `$ce-dogfood <original arguments>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation; use `/skill:ce-setup` and `/skill:ce-dogfood <original arguments>` when the active host is oh-my-pi (`omp`). Render only each invocation as inline code and output one form only.
 
 - A local dev server you can start (`bin/dev`, `rails server`, `npm run dev`, etc.).
 - `agent-browser` installed. Check:
