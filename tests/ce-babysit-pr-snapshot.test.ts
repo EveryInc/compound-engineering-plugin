@@ -2063,17 +2063,18 @@ m.cmd_snapshot(args)
     expect(d.open_needs_human).toBe(0)
   })
 
-  test("mark --comment with --acted-edit-id captures the baseline at mark time (closes the edit race)", () => {
+  test("mark --comment still accepts the legacy --acted-edit-id flag (inert; cached SKILL.md templates)", () => {
     const sd = path.join(dir, "cmark")
     const fb = (edit: string) => ({
       ...FAILING, merge_state_status: "CLEAN", review_decision: "APPROVED", checks: [], threads: [],
       feedback: [{ id: "IC_1", kind: "comment", author: "reviewer", edit_id: edit }],
     })
     snapshot(sd, fetchFile(dir, "cm1.json", fb("h1")))
-    // mark dispatched with the snapshot-time edit_id (h1) as the explicit baseline (our reply never edits it)
+    // older cached SKILL.md copies still pass --acted-edit-id; it must parse and mark normally
     mark(sd, ["--comment", "IC_1", "--disposition", "dispatched", "--acted-edit-id", "h1"])
-    // an edit that races in (h2) before the next snapshot -> reactivated, not swallowed as baseline
-    expect(snapshot(sd, fetchFile(dir, "cm2.json", fb("h2"))).counts.comments).toBe(1)
+    expect(snapshot(sd, fetchFile(dir, "cm2.json", fb("h1"))).counts.comments).toBe(0)
+    // and a later edit does not reactivate (see the #1309 test below)
+    expect(snapshot(sd, fetchFile(dir, "cm3.json", fb("h2"))).counts.comments).toBe(0)
   })
 
   test("a dispatched thread reactivates when an EARLIER comment is edited (same last_comment_id, bumped last_comment_at)", () => {
@@ -2090,18 +2091,30 @@ m.cmd_snapshot(args)
     expect(snapshot(sd, fetchFile(dir, "ee3.json", thr("t2"))).counts.threads).toBe(1) // reactivated
   })
 
-  test("a dispatched top-level comment reactivates when its body is edited (edit_id changes), not on our reply", () => {
-    // A non-actionable wrapper marked dispatched, later edited to add an actionable request, must
-    // return to actionable — our own reply is a separate top-level comment and never edits it.
+  test("a dispatched top-level comment does NOT reactivate when its body is edited; a new comment id still does (#1309)", () => {
+    // Status bots (changeset-bot, CodeRabbit, Codecov) rewrite their own comment bodies on every
+    // push. Edit-keyed reactivation re-actionized the handled comment on every rewrite, so
+    // counts.comments never reached 0 and merge-ready could never fire. A marked comment stays
+    // silenced across edits; a genuinely new request is a new comment id and stays actionable.
     const sd = path.join(dir, "editfb")
-    const fb = (edit: string) => ({
+    const fb = (feedback: object[]) => ({
       ...FAILING, merge_state_status: "CLEAN", review_decision: "APPROVED", checks: [], threads: [],
-      feedback: [{ id: "IC_1", kind: "comment", author: "reviewer", edit_id: edit }],
+      feedback,
     })
-    snapshot(sd, fetchFile(dir, "e1.json", fb("h1"))) // actionable
+    const bot = (edit: string) => ({ id: "IC_1", kind: "comment", author: "changeset-bot", edit_id: edit })
+    snapshot(sd, fetchFile(dir, "e1.json", fb([bot("h1")]))) // actionable
     mark(sd, ["--comment", "IC_1", "--disposition", "dispatched"])
-    expect(snapshot(sd, fetchFile(dir, "e2.json", fb("h1"))).counts.comments).toBe(0) // same body -> silenced
-    expect(snapshot(sd, fetchFile(dir, "e3.json", fb("h2"))).counts.comments).toBe(1) // edited -> reactivated
+    expect(snapshot(sd, fetchFile(dir, "e2.json", fb([bot("h1")]))).counts.comments).toBe(0) // same body -> silenced
+    // bot rewrites its status comment on the next push -> STAYS silenced
+    expect(snapshot(sd, fetchFile(dir, "e3.json", fb([bot("h2")]))).counts.comments).toBe(0)
+    expect(snapshot(sd, fetchFile(dir, "e4.json", fb([bot("h3")]))).counts.comments).toBe(0)
+    // a brand-new comment is a new id -> actionable; the handled one stays out of the count
+    const next = snapshot(sd, fetchFile(dir, "e5.json", fb([bot("h3"), { id: "IC_2", kind: "comment", author: "reviewer", edit_id: "x1" }])))
+    expect(next.counts.comments).toBe(1)
+    expect(next.actionable.comments.map((c: any) => c.id)).toEqual(["IC_2"])
+    // explicit re-open still works
+    mark(sd, ["--comment", "IC_1", "--disposition", "open"])
+    expect(snapshot(sd, fetchFile(dir, "e6.json", fb([bot("h3"), { id: "IC_2", kind: "comment", author: "reviewer", edit_id: "x1" }]))).counts.comments).toBe(2)
   })
 
   test("a fork-PR workflow awaiting maintainer approval blocks 'all_checks_ok' and flags blocked_external", () => {
