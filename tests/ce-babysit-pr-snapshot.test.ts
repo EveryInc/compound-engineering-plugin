@@ -2105,8 +2105,20 @@ m.cmd_snapshot(args)
     snapshot(sd, fetchFile(dir, "e1.json", fb([bot("h1")]))) // actionable
     mark(sd, ["--comment", "IC_1", "--disposition", "dispatched"])
     expect(snapshot(sd, fetchFile(dir, "e2.json", fb([bot("h1")]))).counts.comments).toBe(0) // same body -> silenced
-    // bot rewrites its status comment on the next push -> STAYS silenced
-    expect(snapshot(sd, fetchFile(dir, "e3.json", fb([bot("h2")]))).counts.comments).toBe(0)
+    // bot rewrites its status comment on the next push -> STAYS silenced, but the edit is still
+    // review activity: it must reset the settle clock so merge-ready cannot fire off an old quiet
+    // window right after fresh edits (edit_id is part of _change_sig even though it no longer
+    // reopens the item)
+    patchState(sd, { last_change_at: isoAgo(60 * 60) })
+    const edited = snapshot(sd, fetchFile(dir, "e3.json", fb([bot("h2")])))
+    expect(edited.counts.comments).toBe(0)
+    expect(edited.changed_this_tick).toBe(true)
+    expect(edited.quiet_seconds).toBeLessThan(2)
+    // an unchanged tick after the edit settles normally
+    patchState(sd, { last_change_at: isoAgo(60 * 60) })
+    const settled = snapshot(sd, fetchFile(dir, "e3b.json", fb([bot("h2")])))
+    expect(settled.changed_this_tick).toBe(false)
+    expect(settled.quiet_seconds).toBeGreaterThan(60)
     expect(snapshot(sd, fetchFile(dir, "e4.json", fb([bot("h3")]))).counts.comments).toBe(0)
     // a brand-new comment is a new id -> actionable; the handled one stays out of the count
     const next = snapshot(sd, fetchFile(dir, "e5.json", fb([bot("h3"), { id: "IC_2", kind: "comment", author: "reviewer", edit_id: "x1" }])))

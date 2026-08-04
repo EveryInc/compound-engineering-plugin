@@ -1567,7 +1567,10 @@ def _change_sig(state):
     """Everything whose movement should reset the settle clock."""
     checks = {k: (v.get("status"), v.get("conclusion")) for k, v in state.get("checks", {}).items()}
     threads = {tid: _thread_identity(v) for tid, v in state.get("threads", {}).items()}
-    feedback = {fid: v.get("disposition") for fid, v in state.get("feedback", {}).items()}
+    # edit_id is part of the signal so a body edit of a silenced item still resets the settle
+    # clock (review activity happened) even though it no longer reopens the item (#1309).
+    feedback = {fid: (v.get("disposition"), v.get("edit_id"))
+                for fid, v in state.get("feedback", {}).items()}
     currency = _load_branch_currency_state(state)
     current_currency = currency.get("items", {}).get(currency.get("current_key")) or {}
     return (checks, threads, feedback, state.get("review_decision"), state.get("mergeable"),
