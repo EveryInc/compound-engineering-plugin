@@ -71,7 +71,7 @@ commands:
 
 ```bash
 SKILL_DIR="<absolute path of the skill directory>";
-ROUTE_DIR="$(mktemp -d -t ce-orca-route-XXXXXX)";
+ROUTE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ce-orca-route-XXXXXX")";
 chmod 700 "$ROUTE_DIR";
 node "$SKILL_DIR/scripts/orca-runtime.mjs" resolve \
   --workflow <skill-id> \

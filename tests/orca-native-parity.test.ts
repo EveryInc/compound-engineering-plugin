@@ -251,7 +251,7 @@ const PARITY_CASES: ParityCase[] = [
       },
       {
         id: "ce-compound.grounding-validation",
-        before: "2. **Semantic grounding validator (Full mode, including headless Full; lightweight skips it).**",
+        before: "2. **Semantic grounding validator (Full mode, including non-interactive Full; lightweight skips it).**",
         after: "### Phase 2.5: Selective Refresh Check",
       },
     ],

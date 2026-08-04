@@ -184,7 +184,7 @@ const WORKFLOW_DEFINITIONS = {
       "grounding-validation": stage("skills/ce-compound/SKILL.md", "### Phase 2.45: Grounding Validation", {
         "grounding-validator": workflowRole("skills/ce-compound/SKILL.md", "Semantic grounding validator", { activation: "conditional", modelTier: "mid" }),
       }),
-      "specialized-review": stage("skills/ce-compound/SKILL.md", "Skip Phase 3 entirely in headless mode", {
+      "specialized-review": stage("skills/ce-compound/SKILL.md", "Skip Phase 3 entirely in non-interactive mode", {
         "pattern-recognition-specialist": promptRole("skills/ce-compound/references/agents/pattern-recognition-specialist.md"),
         "performance-oracle": promptRole("skills/ce-compound/references/agents/performance-oracle.md"),
         "security-sentinel": promptRole("skills/ce-compound/references/agents/security-sentinel.md"),

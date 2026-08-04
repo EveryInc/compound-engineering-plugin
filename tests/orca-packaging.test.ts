@@ -41,7 +41,7 @@ describe("CE-Orca packaging", () => {
     }>("integrations/orca/protocol.json")
 
     expect(protocol.schema).toBe("ce-orca.protocol-compatibility/v1")
-    expect(protocol.integration.revision).toBe(2)
+    expect(protocol.integration.revision).toBe(3)
     expect(protocol.orca).toEqual({
       protocol: "orca.local-protocol/v1",
       envelopes: {
@@ -191,9 +191,9 @@ describe("CE-Orca packaging", () => {
     })
     expect(JSON.parse(stdout)).toEqual({
       name: "compound-engineering-orca",
-      version: "3.21.0-orca.2",
+      version: "3.21.1-orca.3",
       upstream,
-      integrationRevision: 2,
+      integrationRevision: 3,
       orca: {
         protocol: "orca.local-protocol/v1",
         requestVersions: ["orca.execution-config/v1"],

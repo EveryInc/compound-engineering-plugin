@@ -31,7 +31,7 @@ For a healthy Orca route:
 
    ```bash
    SKILL_DIR="<absolute path of the lfg skill>";
-   LFG_DIR="$(mktemp -d -t ce-orca-lfg-XXXXXX)";
+   LFG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ce-orca-lfg-XXXXXX")";
    chmod 700 "$LFG_DIR";
    node "$SKILL_DIR/scripts/orca-workflow.mjs" derive-child-patches \
      --resolved <private-lfg-resolved.json> \

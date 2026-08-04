@@ -204,7 +204,7 @@ Resolve once, then dispatch only the resulting immutable private snapshot:
 
 ```bash
 SKILL_DIR="$PWD/skills/ce-plan"
-ROUTE_DIR="$(mktemp -d -t ce-orca-route-XXXXXX)"
+ROUTE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ce-orca-route-XXXXXX")"
 chmod 700 "$ROUTE_DIR"
 node "$SKILL_DIR/scripts/orca-runtime.mjs" resolve \
   --workflow ce-plan \

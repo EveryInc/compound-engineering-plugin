@@ -1,8 +1,8 @@
 {
   "schema": "ce-orca.upstream-baseline/v1",
   "repository": "https://github.com/EveryInc/compound-engineering-plugin.git",
-  "version": "3.21.0",
-  "commit": "c553b957842fbd87f65f90ff5af4f18deb91f56c",
+  "version": "3.21.1",
+  "commit": "6a2a0f9940ab0b3577ce26226ee393390470e412",
   "skillInventory": [
     "ce-babysit-pr",
     "ce-brainstorm",
@@ -168,7 +168,7 @@
     {
       "id": "ce-compound.specialized-review",
       "file": "skills/ce-compound/SKILL.md",
-      "contains": "Skip Phase 3 entirely in headless mode"
+      "contains": "Skip Phase 3 entirely in non-interactive mode"
     },
     {
       "id": "lfg.work-controller",

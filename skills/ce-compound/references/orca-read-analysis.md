@@ -62,8 +62,8 @@ The isolated strict reader cannot read the OS temp tree, so a
 `session-history/session-historian` prompt must never embed the absolute
 `$SCRATCH` extraction paths. Instead:
 
-1. Keep extraction native and unchanged (`mktemp -d -t
-   ce-compound-sessions-XXXXXX` plus the bundled extraction scripts).
+1. Keep extraction native and unchanged (`mktemp -d
+   "${TMPDIR:-/tmp}/ce-compound-sessions-XXXXXX"` plus the bundled extraction scripts).
 2. Dispatch the packet with `--inputs-dir "$SCRATCH"` and give the
    session-historian node an `inputs` array listing the extracted **filenames**
    (for example `"inputs": ["<session-id>.skeleton.txt"]`).

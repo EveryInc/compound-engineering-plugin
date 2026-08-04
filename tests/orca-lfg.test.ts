@@ -936,7 +936,7 @@ describe('LFG Orca ownership gate', () => {
     expect(reference).toContain('`unit_receipts`')
     expect(reference).toContain('`plan_checkpoint`')
     expect(reference).toContain('SKILL_DIR="<absolute path of the lfg skill>";')
-    expect(reference).toContain('LFG_DIR="$(mktemp -d -t ce-orca-lfg-XXXXXX)";')
+    expect(reference).toContain('LFG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ce-orca-lfg-XXXXXX")";')
     expect(reference).toContain('chmod 700 "$LFG_DIR";')
   })
 })

@@ -74,8 +74,8 @@ describe("CE-Orca upstream parity", () => {
   test("matches the recorded upstream skill, role, hook, and version baseline", async () => {
     const baseline = await loadUpstreamBaseline(REPO_ROOT)
     expect(baseline).toMatchObject({
-      version: "3.21.0",
-      commit: "c553b957842fbd87f65f90ff5af4f18deb91f56c",
+      version: "3.21.1",
+      commit: "6a2a0f9940ab0b3577ce26226ee393390470e412",
     })
     expect(baseline.skillInventory).toContain("ce-retune")
     expect(baseline.promptAssets["ce-work"]).toContain("implementation-worker.md")
