@@ -587,14 +587,15 @@ describe("sweep-state engine — encoding (locale-independent UTF-8, #1306)", ()
       legacy,
       JSON.stringify({
         channels: { C111: { last_processed_ts: "1699999999.000100" } },
-        items: { "C111:1699999999.000100": { status: "acknowledged", note: TITLE } },
+        // title is one of the fields _import_legacy_items actually copies
+        items: { "C111:1699999999.000100": { status: "acknowledged", title: TITLE } },
       }),
     )
     const r = runGuarded(dir, "import-legacy", "--state", s, "--file", legacy)
     expect(status(r.stdout)).toBe("OK")
     expect(payload(r.stdout)).toEqual({ cursors_imported: 1, items_imported: 1 })
     const state = read(dir, s)
-    expect(state.items["C111:1699999999.000100"].note).toBe(TITLE)
+    expect(state.items["C111:1699999999.000100"].title).toBe(TITLE)
   })
 
   test("a state file with invalid UTF-8 bytes is CORRUPT, never a traceback", () => {
