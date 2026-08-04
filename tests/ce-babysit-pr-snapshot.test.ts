@@ -2063,18 +2063,39 @@ m.cmd_snapshot(args)
     expect(d.open_needs_human).toBe(0)
   })
 
-  test("mark --comment still accepts the legacy --acted-edit-id flag (inert; cached SKILL.md templates)", () => {
+  test("mark --comment needs-human with --acted-edit-id captures the baseline at mark time (closes the answered-by-edit race)", () => {
     const sd = path.join(dir, "cmark")
     const fb = (edit: string) => ({
       ...FAILING, merge_state_status: "CLEAN", review_decision: "APPROVED", checks: [], threads: [],
       feedback: [{ id: "IC_1", kind: "comment", author: "reviewer", edit_id: edit }],
     })
     snapshot(sd, fetchFile(dir, "cm1.json", fb("h1")))
-    // older cached SKILL.md copies still pass --acted-edit-id; it must parse and mark normally
-    mark(sd, ["--comment", "IC_1", "--disposition", "dispatched", "--acted-edit-id", "h1"])
-    expect(snapshot(sd, fetchFile(dir, "cm2.json", fb("h1"))).counts.comments).toBe(0)
-    // and a later edit does not reactivate (see the #1309 test below)
-    expect(snapshot(sd, fetchFile(dir, "cm3.json", fb("h2"))).counts.comments).toBe(0)
+    // park needs-human with the snapshot-time edit_id as the explicit baseline
+    mark(sd, ["--comment", "IC_1", "--disposition", "needs-human", "--acted-edit-id", "h1"])
+    // an edit that races in (h2) before the next snapshot -> reactivated, not swallowed as baseline
+    const raced = snapshot(sd, fetchFile(dir, "cm2.json", fb("h2")))
+    expect(raced.counts.comments).toBe(1)
+    expect(raced.open_needs_human).toBe(0)
+    // on a dispatched mark the same flag is stored but never read: an edit stays silenced
+    mark(sd, ["--comment", "IC_1", "--disposition", "dispatched", "--acted-edit-id", "h2"])
+    expect(snapshot(sd, fetchFile(dir, "cm3.json", fb("h3"))).counts.comments).toBe(0)
+  })
+
+  test("a needs-human comment reactivates when a human answers by editing it (lazy baseline), while parked it blocks merge-ready", () => {
+    const sd = path.join(dir, "nhedit")
+    const fb = (edit: string) => ({
+      ...FAILING, merge_state_status: "CLEAN", review_decision: "APPROVED", checks: [], threads: [],
+      feedback: [{ id: "IC_q", kind: "comment", author: "reviewer", edit_id: edit }],
+    })
+    snapshot(sd, fetchFile(dir, "nh1.json", fb("q1")))
+    mark(sd, ["--comment", "IC_q", "--disposition", "needs-human"]) // lazy baseline
+    const parked = snapshot(sd, fetchFile(dir, "nh2.json", fb("q1")))
+    expect(parked.counts.comments).toBe(0)
+    expect(parked.open_needs_human).toBe(1) // parked -> blocks merge-ready
+    // the human answers by editing the same comment -> reactivated and actionable again
+    const answered = snapshot(sd, fetchFile(dir, "nh3.json", fb("q2")))
+    expect(answered.counts.comments).toBe(1)
+    expect(answered.open_needs_human).toBe(0)
   })
 
   test("a dispatched thread reactivates when an EARLIER comment is edited (same last_comment_id, bumped last_comment_at)", () => {
