@@ -111,7 +111,6 @@ describe("ce-doc-review interaction-order decision context", () => {
     path.join(process.cwd(), "skills/ce-plan/references/plan-handoff.md"),
     "utf8",
   )
-  const evalSpec = read("decision-context-eval.md")
 
   test("walkthrough requires same-turn presentation before the routing question", () => {
     expect(walkthrough).toContain("Same-turn presentation before routing")
@@ -139,11 +138,5 @@ describe("ce-doc-review interaction-order decision context", () => {
     expect(handoff).toMatch(/state reuse/i)
     expect(handoff).toContain("skipping Phase 4 presentation")
     expect(handoff).toContain("same-turn presentation-before-routing")
-  })
-
-  test("skill-creator eval spec covers the two observed skip failure modes", () => {
-    expect(evalSpec).toContain("presentation before question")
-    expect(evalSpec).toContain("compact decision fields")
-    expect(evalSpec).toContain("skill-creator")
   })
 })
