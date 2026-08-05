@@ -43,6 +43,10 @@ def emit(result):
     return 0
 
 
+def check(item, ok, note):
+    return {"item": item, "ok": ok, "note": note}
+
+
 def load_json_file(path, what):
     try:
         with open(path, "r", encoding="utf-8") as fh:
@@ -66,11 +70,11 @@ def cmd_artifacts(args):
         if not isinstance(item, str):
             raise InfrastructureFailure(f"artifact entry is not a string: {item!r}")
         if not os.path.exists(item):
-            checks.append({"item": item, "ok": False, "note": "missing: path does not exist"})
+            checks.append(check(item, False, "missing: path does not exist"))
         elif os.path.isfile(item) and os.path.getsize(item) == 0:
-            checks.append({"item": item, "ok": False, "note": "exists but is empty (0 bytes)"})
+            checks.append(check(item, False, "exists but is empty (0 bytes)"))
         else:
-            checks.append({"item": item, "ok": True, "note": "exists and is non-empty"})
+            checks.append(check(item, True, "exists and is non-empty"))
     return emit({"ok": all(c["ok"] for c in checks), "checks": checks})
 
 
@@ -156,16 +160,16 @@ def cmd_diff_claims(args):
         [p for p in unclaimed if not in_scope(p, scope_prefixes)] if scope_prefixes else []
     )
     checks = [
-        {
-            "item": "claimed files all touched",
-            "ok": not missing_claims,
-            "note": f"claimed but untouched: {missing_claims}" if missing_claims else "all claimed files were touched",
-        },
-        {
-            "item": "no unclaimed changes outside scope",
-            "ok": not out_of_scope,
-            "note": f"unclaimed changes outside scope: {out_of_scope}" if out_of_scope else "no out-of-scope unclaimed changes",
-        },
+        check(
+            "claimed files all touched",
+            not missing_claims,
+            f"claimed but untouched: {missing_claims}" if missing_claims else "all claimed files were touched",
+        ),
+        check(
+            "no unclaimed changes outside scope",
+            not out_of_scope,
+            f"unclaimed changes outside scope: {out_of_scope}" if out_of_scope else "no out-of-scope unclaimed changes",
+        ),
     ]
     return emit(
         {
@@ -180,6 +184,7 @@ def cmd_diff_claims(args):
 # --- verdict -------------------------------------------------------------------
 
 VERDICTS = ("Ready to merge", "Ready with fixes", "Not ready")
+NOT_READY = VERDICTS[2]
 BLOCKING_SEVERITIES = ("P0", "P1")
 RESOLVED_STATUSES = ("resolved", "fixed", "applied", "closed")
 
@@ -248,8 +253,8 @@ def cmd_verdict_acceptance(path):
         raise InfrastructureFailure(f"acceptance inputs missing required field(s): {missing}")
 
     red = []
-    if inputs["review_verdict"] == "Not ready":
-        red.append("review_verdict is 'Not ready'")
+    if inputs["review_verdict"] == NOT_READY:
+        red.append(f"review_verdict is '{NOT_READY}'")
     if inputs["verdict_consistency_flagged"] is True:
         red.append("verdict_consistency_flagged is true")
     if inputs["verification_evidence_status"] == "red":
