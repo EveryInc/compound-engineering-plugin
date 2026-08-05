@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract error signals from a Claude Code, Codex, Cursor, Pi, or oh-my-pi (omp) JSONL session file.
+"""Extract error signals from a Claude Code, Codex, Cursor, or Pi JSONL session file.
 
 Usage:
   cat <session.jsonl> | python3 extract-errors.py
@@ -163,9 +163,6 @@ def _pi_context_objects(objects):
 
 
 def handle_pi(obj):
-    # omp's physical type:'title' slot line returns here like any non-message
-    # entry. type:'title_change' entries are a different pi entry type — they
-    # return the same way; do not conflate the two when filtering.
     if obj.get("type") != "message":
         return
     msg = obj.get("message", {})
@@ -206,9 +203,6 @@ def handle_pi(obj):
 # Auto-detect platform from first few lines, then process all
 detected = None
 buffer = []
-# omp files physically begin with a fixed-width type:'title' slot line before
-# the pi-shaped type:'session' header; bare pi files start with the header.
-seen_title_slot = False
 
 for line in sys.stdin:
     line = line.strip()
@@ -221,9 +215,7 @@ for line in sys.stdin:
         try:
             obj = json.loads(line)
             if obj.get("type") == "session" and "cwd" in obj:
-                detected = "omp" if seen_title_slot else "pi"
-            elif obj.get("type") == "title" and len(buffer) == 1:
-                seen_title_slot = True
+                detected = "pi"
             elif obj.get("type") in ("user", "assistant"):
                 detected = "claude"
             elif obj.get("type") in ("session_meta", "turn_context", "response_item", "event_msg"):
@@ -237,7 +229,7 @@ for line in sys.stdin:
 def handle_noop(obj):
     pass
 
-handlers = {"claude": handle_claude, "codex": handle_codex, "cursor": handle_noop, "pi": handle_pi, "omp": handle_pi}
+handlers = {"claude": handle_claude, "codex": handle_codex, "cursor": handle_noop, "pi": handle_pi}
 handler = handlers.get(detected, handle_noop)
 
 objects = []
@@ -247,7 +239,7 @@ for line in buffer:
     except (json.JSONDecodeError, KeyError):
         stats["parse_errors"] += 1
 
-if detected in ("pi", "omp"):
+if detected == "pi":
     objects = _pi_context_objects(objects)
 
 for obj in objects:
