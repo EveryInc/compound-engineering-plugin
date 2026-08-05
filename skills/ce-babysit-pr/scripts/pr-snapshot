@@ -750,9 +750,11 @@ def fetch(pr, repo):
 
 def _body_hash(body):
     """Edit identity for a top-level comment / review body: `gh pr view --json` exposes no
-    updatedAt, so hash the body. When a dispatched wrapper is later edited to add an actionable
-    request, this changes and the item reactivates (unlike a thread, our reply is a separate
-    top-level comment and never edits the original, so there is no self-reply retrigger)."""
+    updatedAt, so hash the body. Feeds the external_review_moved activity signal (an edit wakes
+    the watch and extends the settle clock) and `needs-human` reactivation (a human may answer a
+    parked question by editing the same comment), but deliberately NOT `dispatched` reactivation:
+    status bots rewrite their bodies on every push, so edit-keyed reactivation of handled items
+    re-actionized bot comments forever (#1309)."""
     return hashlib.sha1((body or "").encode("utf-8")).hexdigest()[:16]
 
 
@@ -1233,22 +1235,32 @@ def _update_trajectory(state, head, new_checks, new_threads, new_feedback, actio
     }
 
 
-def _apply_dispositions(items, id_key, prior, identity_fn=None):
+def _apply_dispositions(items, id_key, prior, identity_fn=None,
+                        reactivate_dispositions=(DISPOSITION_DISPATCHED, DISPOSITION_NEEDS_HUMAN)):
     """Claim->act->confirm dedup for a review stream: an item stays actionable until `mark`
     records a non-open disposition (persisted in prior[id]['disposition']). Returns
     (persisted_by_id, actionable_list, open_needs_human_count).
 
-    When identity_fn is given, a `dispatched` **or** `needs-human` item is *reactivated* — set back
-    to open and re-actionized — once its last-comment / edit identity moves past the one we acted on.
-    That acted-on identity is captured lazily on the first tick we observe the item parked, which is
-    *after* our own reply (a fix acknowledgment, or a needs-human `decision_context` reply) has
-    already landed in the fetch — so our reply becomes the baseline and does not re-trigger, while a
-    genuine later comment does. For `needs-human` this is exactly how a **human answering the parked
-    question** (a reviewer reply, or an edit of the top-level comment) re-opens it and wakes the loop,
-    instead of it sitting parked forever; an explicit `mark --disposition open` still forces it too.
-    This is also what stops a dispatched-but-unresolved thread with fresh reviewer activity from being
-    silenced out of counts.threads and letting the merge-ready gate call the PR ready. An item with no
-    identity_fn never auto-reactivates (a brand-new top-level comment is just a new id)."""
+    When identity_fn is given, an item whose disposition is in `reactivate_dispositions` is
+    *reactivated* — set back to open and re-actionized — once its last-comment / edit identity moves
+    past the one we acted on. That acted-on identity is captured lazily on the first tick we observe
+    the item parked, which is *after* our own reply (a fix acknowledgment, or a needs-human
+    `decision_context` reply) has already landed in the fetch — so our reply becomes the baseline
+    and does not re-trigger, while a genuine later comment does. For `needs-human` this is exactly
+    how a **human answering the parked question** (a reviewer reply on the thread, or an edit of the
+    parked top-level comment) re-opens it and wakes the loop, instead of it sitting parked forever;
+    an explicit `mark --disposition open` still forces it too. This is also what stops a
+    dispatched-but-unresolved thread with fresh reviewer activity from being silenced out of
+    counts.threads and letting the merge-ready gate call the PR ready.
+
+    The feedback stream excludes DISPATCHED from `reactivate_dispositions` deliberately: status
+    bots rewrite their comment bodies on every push, so edit-keyed reactivation re-actionized
+    handled bot comments forever and merge-ready could never fire (#1309). A `needs-human`
+    feedback item still reactivates on edit — a human answering by editing their own comment must
+    wake the loop, mirroring the thread semantics. (A bot comment parked `needs-human` can churn
+    open on bot self-edits; that costs a redundant resolve pass, not a stuck loop — merge-ready is
+    blocked by open_needs_human either way.) A brand-new comment is just a new id, always
+    actionable."""
     persisted, actionable, needs_human = {}, [], 0
     for it in items:
         iid = it.get(id_key)
@@ -1257,7 +1269,7 @@ def _apply_dispositions(items, id_key, prior, identity_fn=None):
         pri = prior.get(iid, {})
         disposition = pri.get("disposition", DISPOSITION_OPEN)
         acted_identity = pri.get("acted_identity")
-        if disposition in (DISPOSITION_DISPATCHED, DISPOSITION_NEEDS_HUMAN) and identity_fn is not None:
+        if disposition in reactivate_dispositions and identity_fn is not None:
             current_identity = identity_fn(it)
             if acted_identity is None:
                 acted_identity = current_identity   # first post-action observation: adopt as baseline
@@ -1371,17 +1383,25 @@ def diff(state, cur, now=None, advance_trajectory=True):
     #     firing) until a *human* answers it — a later reply/edit past that same baseline reopens and
     #     wakes it — or an explicit `mark --disposition open` forces it.
     #   - Feedback (top-level comments + review bodies): no remote "resolve" exists, so an item
-    #     never drops out on its own — `mark --comment <id>` is the only thing that silences it. A
-    #     dispatched item reactivates only when its own body is *edited* (edit_id changes) to add a
-    #     new request; a brand-new comment is just a new id. Our reply is a separate top-level
-    #     comment, never an edit of the original, so it never retriggers.
+    #     never drops out on its own — `mark --comment <id>` is the only thing that silences it.
+    #     Reactivation on a body edit is per-disposition: a `dispatched` item is NEVER
+    #     auto-reactivated — status bots (changeset-bot, CodeRabbit, Codecov) rewrite their own
+    #     comment bodies on every push, so edit-keyed reactivation re-actionized handled bot
+    #     comments forever and the merge-ready gate could never fire (#1309) — while a
+    #     `needs-human` item still reactivates on edit, because a human may answer the parked
+    #     question by editing the same comment/review body. New requests otherwise arrive as
+    #     review threads or brand-new comments (new ids), both still actionable; edit_id also
+    #     feeds external_review_moved below, so a dispatched item's edit wakes/extends the settle
+    #     clock without re-actionizing it.
     # Either stream's open needs-human items feed open_needs_human so the merge-ready gate
     # refuses to call the PR ready while a human decision is still pending.
     new_threads, actionable_threads, human_threads = _apply_dispositions(
         cur["threads"], "thread_id", prior_threads,
         identity_fn=lambda t: [t.get("last_comment_id"), t.get("last_comment_at")])
     new_feedback, actionable_feedback, human_feedback = _apply_dispositions(
-        cur.get("feedback") or [], "id", prior_feedback, identity_fn=lambda c: [c.get("edit_id")])
+        cur.get("feedback") or [], "id", prior_feedback,
+        identity_fn=lambda c: [c.get("edit_id")],
+        reactivate_dispositions=(DISPOSITION_NEEDS_HUMAN,))
     current_thread_activity = {
         item.get("thread_id"): _thread_identity(item)
         for item in cur["threads"] if item.get("thread_id")
@@ -1560,7 +1580,10 @@ def _change_sig(state):
     """Everything whose movement should reset the settle clock."""
     checks = {k: (v.get("status"), v.get("conclusion")) for k, v in state.get("checks", {}).items()}
     threads = {tid: _thread_identity(v) for tid, v in state.get("threads", {}).items()}
-    feedback = {fid: v.get("disposition") for fid, v in state.get("feedback", {}).items()}
+    # edit_id is part of the signal so a body edit of a silenced item still resets the settle
+    # clock (review activity happened) even though it no longer reopens the item (#1309).
+    feedback = {fid: (v.get("disposition"), v.get("edit_id"))
+                for fid, v in state.get("feedback", {}).items()}
     currency = _load_branch_currency_state(state)
     current_currency = currency.get("items", {}).get(currency.get("current_key")) or {}
     return (checks, threads, feedback, state.get("review_decision"), state.get("mergeable"),
@@ -2388,7 +2411,10 @@ def cmd_mark(args):
                         entry["acted_identity"] = ident
                 elif args.comment and args.acted_edit_id:
                     # our reply is a separate top-level comment and never edits THIS one, so the
-                    # snapshot-time edit_id the agent passes is already the correct baseline (no fetch).
+                    # snapshot-time edit_id the agent passes is already the correct baseline (no
+                    # fetch). Only a `needs-human` mark ever reads it (dispatched comments no
+                    # longer reactivate on edit, #1309), but storing it unconditionally is
+                    # harmless and closes the answered-by-edit race for parked comments.
                     entry["acted_identity"] = [args.acted_edit_id]
             state["last_action"] = f"{args.disposition} {label} {item_id}"
     print(json.dumps({"marked": args.currency_key or args.check or args.thread or args.comment}))
@@ -2463,7 +2489,7 @@ def main():
     m.add_argument("--check", default=None)
     m.add_argument("--comment", default=None)
     m.add_argument("--fetch-file", default=None)  # reuse the tick's fetch for the at-mark baseline
-    m.add_argument("--acted-edit-id", default=None)  # snapshot-time edit_id baseline for a --comment
+    m.add_argument("--acted-edit-id", default=None)  # snapshot-time edit_id baseline; read only by needs-human comment reactivation (#1309)
     m.add_argument("--currency-key", default=None,
                    help="exact branch-currency observation key emitted by snapshot")
     m.add_argument("--currency-disposition",
