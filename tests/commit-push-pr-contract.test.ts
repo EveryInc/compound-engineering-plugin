@@ -34,6 +34,78 @@ describe("ce-commit-push-pr contract", () => {
     expect(auditSection).toContain("every material outcome")
   })
 
+  test("elevates multi-PR program altitude with lead-in and lead-out", async () => {
+    const content = await readRepoFile(
+      "skills/ce-commit-push-pr/references/pr-description-writing.md",
+    )
+
+    const sizingSection = content.match(
+      /## Step A: Size the description([\s\S]+?)## Step B:/,
+    )?.[1]
+    expect(sizingSection).toBeDefined()
+    expect(sizingSection).toContain("Program altitude")
+    expect(sizingSection).toContain("lead-in")
+    expect(sizingSection).toContain("lead-out")
+    expect(sizingSection).toContain("Program outcome")
+    expect(sizingSection).toMatch(/this PR's contribution/i)
+    expect(sizingSection).toContain("Do **not** invent a series")
+    expect(sizingSection).toMatch(
+      /program → lead-in \(if any\) → this contribution → lead-out \(if any\)/,
+    )
+    // Bidirectional contrast: middle PR needs prior + residual, not local-only
+    expect(sizingSection).toContain("too local for a middle PR")
+    expect(sizingSection).toContain("Continues the session-revocation rewrite")
+
+    const auditSection = content.match(
+      /## Step E: Pre-apply coverage audit([\s\S]+)\s*$/,
+    )?.[1]
+    expect(auditSection).toBeDefined()
+    expect(auditSection).toMatch(
+      /program context was present.+lead place this PR on the arc/is,
+    )
+    expect(auditSection).toMatch(
+      /program context was absent.+invent a multi-PR series/is,
+    )
+
+    // Tracker refs stay separate from series narrative
+    const relatedSection = content.match(
+      /## Step B1: Resolve related work references([\s\S]+?)## Step B2:/,
+    )?.[1]
+    expect(relatedSection).toBeDefined()
+    expect(relatedSection).toMatch(
+      /Sibling PR \/ series narrative belongs in Step A's program altitude/i,
+    )
+  })
+
+  test("scopes STE-inspired prose to non-load-bearing wording", async () => {
+    const content = await readRepoFile(
+      "skills/ce-commit-push-pr/references/pr-description-writing.md",
+    )
+
+    expect(content).toContain("ASD-STE100 Simplified Technical English")
+    expect(content).toMatch(
+      /Prefer plain wording wherever domain terms are not load-bearing/i,
+    )
+    expect(content).toMatch(
+      /Keep necessary technical jargon.+where they \*are\* the claim/is,
+    )
+    expect(content).toMatch(
+      /do not dilute mechanism language into vague plain English/i,
+    )
+    // Contrast pins both failure directions: decorative jargon vs load-bearing terms
+    expect(content).toContain("jargon without need")
+    expect(content).toContain("jargon is the claim")
+    expect(content).toContain("`TokenStore.invalidate` is now atomic under concurrent refresh.")
+
+    const auditSection = content.match(
+      /## Step E: Pre-apply coverage audit([\s\S]+)\s*$/,
+    )?.[1]
+    expect(auditSection).toBeDefined()
+    expect(auditSection).toMatch(
+      /domain jargon that is not load-bearing/i,
+    )
+  })
+
   test("repository PR-body contracts set structure without replacing editorial guidance", async () => {
     const content = await readRepoFile(
       "skills/ce-commit-push-pr/references/pr-description-writing.md",
