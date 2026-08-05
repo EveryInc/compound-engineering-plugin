@@ -321,4 +321,25 @@ describe("PR concept teaching contract", () => {
     expect(doNotFire).toMatch(/after successful handoff only/i)
     expect(doNotFire).toMatch(/not a substitute for a failed handoff/i)
   })
+
+  test("opt-in stack mode submits via gh stack and hands off with posture", async () => {
+    const [skill, submit] = await Promise.all([
+      readRepoFile("skills/ce-commit-push-pr/SKILL.md"),
+      readRepoFile("skills/ce-commit-push-pr/references/stack-submit.md"),
+    ])
+
+    expect(skill).toContain("## Stack mode (opt-in)")
+    expect(skill).toContain("**Do not** proactively suggest PR stacks")
+    expect(skill).toContain("references/stack-submit.md")
+    expect(skill).toMatch(/do not add `posture:` to this skill's argument-hint/i)
+    expect(skill).toContain("gh stack submit --auto --open")
+    expect(skill).toContain("posture:stack-ready")
+    expect(skill).toContain("posture:stack-land")
+    expect(skill).toMatch(/bottom open non-draft/i)
+    expect(submit).toContain("gh stack submit --auto --open")
+    expect(submit).toMatch(/does \*\*not\*\* invent commit-splitting/i)
+    expect(submit).toMatch(/required[\s\S]{0,120}hard-stop/i)
+    expect(submit).toMatch(/soft[\s\S]{0,120}single-PR/i)
+    expect(submit).toMatch(/Forbidden on managed members/i)
+  })
 })

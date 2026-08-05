@@ -17,7 +17,7 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 | What does it do? | Commits, pushes, and opens a PR — or just rewrites the description of an existing PR — or just generates a description without touching git |
 | When to use it | Anytime you want commits + PR; rewriting an existing PR description; drafting a description for a branch |
 | What it produces | An open PR (URL returned) — or an updated PR description — or a printed description for you to apply yourself |
-| What's next | It auto-hands off to [`/ce-babysit-pr`](./ce-babysit-pr.md) to watch CI + incoming review and drive toward merge-ready (default on; `babysit:off` or `auto_babysit: false` to opt out) — you merge when it reports ready |
+| What's next | It auto-hands off to [`/ce-babysit-pr`](./ce-babysit-pr.md) to watch CI + incoming review and drive toward merge-ready (default on; `babysit:off` or `auto_babysit: false` to opt out) — you merge when it reports ready. With clear **stack intent**, it submits via `gh stack` and hands off the bottom open non-draft PR with `posture:stack-ready` (or `stack-land` when land intent is explicit) |
 
 ---
 
@@ -65,6 +65,7 @@ Going from "code written" to "PR open" is supposed to be a one-step move, but it
 - **Related-reference preflight** — identifies work-item references and uses closing magic words only when the PR truly resolves the item
 - **Concept teaching** — when a PR introduces a concept new to the codebase (a pattern, technique, library, or domain idea), the description gains a `## New concepts` section teaching it, so readers can understand and re-explain the change without opening the diff
 - **Explicit, non-disruptive branding** — new PRs receive the generic Compound Engineering badge only with `branding:on`; bare and automatically selected invocations add nothing, while existing PR rewrites preserve their current branding
+- **Opt-in PR stack submit** — only when user intent (or standing preference) wants a stack; never suggested proactively for a one-line fix. Uses `gh stack submit --auto --open` and hands off babysit with derived posture
 
 ---
 
@@ -134,6 +135,10 @@ Agent-driven development removed the learning that writing code by hand used to 
 
 When a labeled plan is in hand, the PR body gains one static line naming which decisions were session-settled and their classes, so a reviewer sees at a glance what the user already decided and chose over what. Runs with no plan omit it.
 
+### 12. Opt-in stack mode — submit a managed stack, hand off with posture
+
+Stack mode is **opt-in by intent**, never the default path and never suggested for a trivial single-concern change. When intent is clear, the skill probes for `gh stack`, builds an appropriate topology, and submits with `gh stack submit --auto --open` (ready/open PRs — drafts break babysit). After successful submit it hands off `/ce-babysit-pr` on the **bottom open non-draft** PR with derived posture: `stack-ready` by default, `stack-land` only when land/merge-when-green intent was explicit. Missing `gh stack` under stack intent is a hard residual, not an invented manager.
+
 ---
 
 ## Quick Example
@@ -159,6 +164,7 @@ Reach for `ce-commit-push-pr` when:
 - You need a PR description draft without committing or pushing yet
 - You want adaptive description sizing instead of a cookie-cutter template
 - You want smart commit splitting when your changes touch distinct concerns
+- You explicitly want a **PR stack** for multi-layer work (and `gh stack` is available)
 
 Skip `ce-commit-push-pr` when:
 
@@ -225,7 +231,10 @@ Yes. Repo conventions in `AGENTS.md`/`CLAUDE.md` win first; recent commit histor
 The skill respects your git config and pre-commit hooks. It never passes `--no-verify`, `--no-gpg-sign`, or similar flags to skip them. If a hook fails, the skill investigates and surfaces the underlying issue.
 
 **Can I get a draft PR?**
-Use the description-only mode to generate the body, then apply yourself with `gh pr create --draft --title "..." --body-file "..."`. The skill doesn't currently expose a draft flag in the full workflow.
+Use the description-only mode to generate the body, then apply yourself with `gh pr create --draft --title "..." --body-file "..."`. The skill doesn't currently expose a draft flag in the full workflow. Stack mode intentionally submits ready (non-draft) PRs via `--auto --open` so babysit can own follow-on.
+
+**When does it open a PR stack?**
+Only when you (or a standing preference) clearly want a stack — never proactively for a one-line fix. It requires the `gh stack` CLI; without it, stack intent surfaces as a residual rather than inventing a manager. After submit it hands off babysit on the bottom open non-draft PR with `posture:stack-ready` (or `stack-land` when you asked to land when green).
 
 **Why doesn't my PR have a `## New concepts` section?**
 By design, most PRs shouldn't. The section fires only when the change introduces a concept that is both new to this codebase (checked against the base ref) and transferable beyond it — routine use of established repo patterns, refactors, renames, and dependency bumps never qualify. A missing section costs little; a patronizing one trains readers to skip the feature. If you never want the section, set `pr_teaching_section: false` in `.compound-engineering/config.local.yaml`.

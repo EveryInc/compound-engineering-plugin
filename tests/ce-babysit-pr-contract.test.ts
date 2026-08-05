@@ -348,13 +348,34 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
 
     expect(babysit).toMatch(/only when[^.]{0,180}`manager_status == "confirmed"`[^.]{0,180}stack-wide continuation/i)
     expect(babysit).toMatch(/repository-level stack availability[^.]{0,180}not a managed stack/i)
-    expect(babysit).toMatch(/requested PR[^.]{0,180}(looks ready|settled)[^.]{0,220}offer once[^.]{0,220}upstack/i)
-    expect(babysit).toMatch(/accepted[^.]{0,220}(without asking again|do not ask again)[^.]{0,220}(draft|end of the stack)/i)
+    expect(babysit).toMatch(/looks ready or later settles under `target`[\s\S]{0,220}offer once[\s\S]{0,220}upstack/i)
+    expect(babysit).toMatch(/without asking again at each layer/i)
+    expect(babysit).toMatch(/Never skip past a draft/i)
     expect(babysit).toMatch(/manual dependency chain[^.]{0,240}(never|must not)[^.]{0,120}stack-wide continuation/i)
     expect(babysit).toMatch(/unsettled downstack[^.]{0,260}offer once[^.]{0,260}lowest unsettled/i)
     expect(babysit).toMatch(/draft[^.]{0,180}(only|unless)[^.]{0,180}explicit/i)
     expect(babysit).toMatch(/one active (PR )?(target|watcher)/i)
     expect(watchLoop).toMatch(/one active (PR )?(target|watcher)/i)
+  })
+
+  test("posture enum and stack-land merge carve-out are load-bearing", async () => {
+    const [babysit, commands, watchLoop] = await Promise.all([
+      readRepoFile(BABYSIT),
+      readRepoFile("skills/ce-babysit-pr/references/stack-commands.md"),
+      readRepoFile(WATCH_LOOP),
+    ])
+
+    expect(babysit).toContain("posture:target|stack-ready|stack-land")
+    expect(babysit).toContain("Settled ≠ merged")
+    expect(babysit).toMatch(/Under `target` and `stack-ready` it \*\*never\*\* merges the PR/)
+    expect(babysit).toContain("gh stack merge <bottom-most-open-settled-PR>")
+    expect(babysit).toMatch(/layer transition[\s\S]{0,200}not a run-level Terminal/i)
+    expect(babysit).toContain("references/stack-commands.md")
+    expect(commands).toContain("gh stack merge <BOTTOM_MOST_OPEN_SETTLED_PR> --yes --squash")
+    expect(commands).toContain("gh stack sync --remote origin")
+    expect(commands).toMatch(/gh pr merge/)
+    expect(commands).toMatch(/Forbidden on managed stack members/i)
+    expect(watchLoop).toMatch(/re-state the same `posture:`/)
   })
 
   test("managed-stack continuation preserves one fixed invocation budget", async () => {
