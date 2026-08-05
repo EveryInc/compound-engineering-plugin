@@ -857,6 +857,39 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(out.findings[0].title).toBe("camel")
   }, 20_000)
 
+  test("empty structuredOutput does not preempt a populated .text review", () => {
+    // Empty findings arrays are schema-valid; accepting them before .text would
+    // publish "peer found nothing" while the real review sits in the string field.
+    const stub = grokTextEnvelope(
+      String.raw`{"structuredOutput":{"reviewer":"adversarial","findings":[],"residual_risks":[],"testing_gaps":[]},"text":"{\"reviewer\": \"adversarial\", \"findings\": [{\"title\": \"from-text\"}], \"residual_risks\": [], \"testing_gaps\": []}","stopReason":"end_turn"}`,
+    )
+    const { env } = sandbox(["grok"], stub)
+    const runDir = makeRunDir()
+    const r = run(["claude", "grok", "HEAD", runDir], runDir, env)
+    expect(r.files).toContain("adversarial-grok.json")
+    const out = JSON.parse(
+      readFileSync(path.join(runDir, "adversarial-grok.json"), "utf8"),
+    )
+    expect(out.findings).toHaveLength(1)
+    expect(out.findings[0].title).toBe("from-text")
+  }, 20_000)
+
+  test("empty structuredOutput alone is still a zero-finding review", () => {
+    // After .text has nothing better, empty-but-shaped structuredOutput remains a
+    // legitimate "peer found nothing" outcome — do not treat empty as parse failure.
+    const stub = grokTextEnvelope(
+      String.raw`{"structuredOutput":{"reviewer":"adversarial","findings":[],"residual_risks":[],"testing_gaps":[]},"stopReason":"end_turn"}`,
+    )
+    const { env } = sandbox(["grok"], stub)
+    const runDir = makeRunDir()
+    const r = run(["claude", "grok", "HEAD", runDir], runDir, env)
+    expect(r.files).toContain("adversarial-grok.json")
+    const out = JSON.parse(
+      readFileSync(path.join(runDir, "adversarial-grok.json"), "utf8"),
+    )
+    expect(out.findings).toHaveLength(0)
+  }, 20_000)
+
   test("grok .text envelope: a populated review outranks an empty stub in either order", () => {
     // Last-shaped-wins alone silently publishes an empty review when the stub
     // trails the real object, which reads downstream as "peer found nothing".

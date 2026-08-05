@@ -738,7 +738,10 @@ parse_structured() {   # <logfile> <outfile>
   jq -r '.result // empty' "$1" 2>/dev/null | jq -e '.' > "$2" 2>/dev/null && return 0
   # grok-cli names its parsed structured output in camelCase, so the snake_case
   # probe above never matches it and a complete review looks like no output.
-  jq -e '.structuredOutput | select((.findings|type)=="array")' "$1" > "$2" 2>/dev/null && return 0
+  # Prefer a populated object first: an empty findings array is schema-valid, so
+  # accepting it here would skip .text when the real review only lives there
+  # (empty schema stub + populated .text).
+  jq -e '.structuredOutput | select((.findings|type)=="array" and (.findings|length)>0)' "$1" > "$2" 2>/dev/null && return 0
   # Envelopes that carry the model's answer verbatim in a string (grok-cli `.text`).
   # Slurp it: grok emits an empty stub beside the real object, and an unslurped jq
   # streams BOTH into $2 as unparseable concatenated JSON. Shape-filter the stream
@@ -746,6 +749,9 @@ parse_structured() {   # <logfile> <outfile>
   # short-circuits recovery and drops a review that was sitting right there. Order
   # is not guaranteed, so prefer a populated review over an empty one.
   jq -r '.text // empty' "$1" 2>/dev/null | jq -se '[.[] | select((.findings|type)=="array")] | ([.[] | select(.findings|length>0)] | last) // last | select(. != null)' > "$2" 2>/dev/null && return 0
+  # Empty-but-shaped structuredOutput is a legitimate "peer found nothing" only
+  # after .text had nothing better.
+  jq -e '.structuredOutput | select((.findings|type)=="array")' "$1" > "$2" 2>/dev/null && return 0
   # stream-json NDJSON: last type=result event (elevation-dispatch pattern).
   local event
   event="$(grep -a '"type":"result"' "$1" 2>/dev/null | tail -1 || true)"
