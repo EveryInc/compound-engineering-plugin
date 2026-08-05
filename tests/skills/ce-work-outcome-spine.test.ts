@@ -100,7 +100,9 @@ describe("ce-work native characterization", () => {
     expect(dispatch).toContain("never receive a different unit")
     expect(dispatch).toContain("never retask it or retain idle implementation workers for reuse")
     expect(dispatch).toMatch(/After each serial inline\/subagent unit:.*retire its worker handle.*dispatch the next unit/s)
+    expect(dispatch).toMatch(/After each serial inline\/subagent unit:.*closing\/releasing it only when the harness exposes that operation and assigns that lifecycle action to the caller/s)
     expect(dispatch).toMatch(/After a parallel inline\/subagent batch.*create its canonical commit, then immediately retire that unit's worker before considering the next/s)
+    expect(dispatch).toMatch(/After a parallel inline\/subagent batch.*Invoke an explicit close\/release operation only when the harness exposes it and assigns that lifecycle action to the caller/s)
     expect(dispatch).toContain("never infer manual cleanup commands from the provider name")
   })
 
