@@ -88,7 +88,7 @@ describe("ce-work native characterization", () => {
     expect(dispatch).toContain("Do not send \"read the whole plan\"")
     expect(dispatch).toContain("**Do not commit.**")
     expect(dispatch).toContain("**orchestrator owns staging, committing, and the authoritative test runs**")
-    expect(dispatch).toContain("Review, test, and commit each unit in dependency order — the orchestrator owns commits")
+    expect(dispatch).toContain("Review, test, commit, and retire each unit in dependency order — the orchestrator owns commits")
   })
 
   test("uses a fresh single-use worker context for each native implementation unit", async () => {
@@ -98,8 +98,10 @@ describe("ce-work native characterization", () => {
     expect(dispatch).toContain("**Fresh worker invariant:**")
     expect(dispatch).toContain("newly created worker context")
     expect(dispatch).toContain("never receive a different unit")
-    expect(dispatch).toContain("do not retain idle implementation workers for reuse")
-    expect(dispatch).toMatch(/After each serial inline\/subagent unit:.*release its worker handle.*dispatch the next unit/s)
+    expect(dispatch).toContain("never retask it or retain idle implementation workers for reuse")
+    expect(dispatch).toMatch(/After each serial inline\/subagent unit:.*retire its worker handle.*dispatch the next unit/s)
+    expect(dispatch).toMatch(/After a parallel inline\/subagent batch.*create its canonical commit, then immediately retire that unit's worker before considering the next/s)
+    expect(dispatch).toContain("never infer manual cleanup commands from the provider name")
   })
 
   test("does not re-enter native dispatch after selecting cross-model execution", async () => {
