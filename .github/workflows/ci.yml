@@ -157,3 +157,9 @@ jobs:
       # on Windows. Shell out via bun so the same file also runs in the ubuntu suite.
       - name: Scratch-root preamble executes under Git Bash
         run: bun test tests/scratch-root-preamble-executes.test.ts
+
+      # Executes the factory-gates script under real win32 (the test's interpreter
+      # probe resolves `python`/`py` here, never the `python3` Store stub — see
+      # docs/solutions/conventions/resolve-python-interpreter-not-python3.md).
+      - name: Factory gates execute on native Windows
+        run: bun test tests/factory-gates.test.ts tests/factory-gates-parity.test.ts
