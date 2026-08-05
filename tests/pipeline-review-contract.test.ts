@@ -992,6 +992,58 @@ describe("lfg acceptance contract", () => {
   })
 })
 
+describe("lfg seam schemas contract", () => {
+  // R11 (KTD7): each lfg step gate validates its seam envelope against a shipped
+  // schema file via the bundled `validate` subcommand before the human-readable
+  // field checklist; ce-plan's pipeline return (R10) is a structured four-field record.
+  function sliceSection(content: string, startAnchor: string, endAnchor: string): string {
+    const start = content.indexOf(startAnchor)
+    expect(start, `start anchor not found: ${startAnchor}`).toBeGreaterThanOrEqual(0)
+    const end = content.indexOf(endAnchor, start + startAnchor.length)
+    expect(end, `end anchor not found: ${endAnchor}`).toBeGreaterThan(start)
+    return content.slice(start, end)
+  }
+
+  test("each lfg step gate cites its seam schema file", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+
+    const step1 = sliceSection(lfg, "1. Invoke the `ce-plan` skill", "2. Invoke the `ce-work` skill")
+    const step2 = sliceSection(lfg, "2. Invoke the `ce-work` skill", "3. Invoke the `ce-simplify-code`")
+    const step4 = sliceSection(lfg, "4. Invoke the `ce-code-review` skill", "**Shipping precondition")
+
+    expect(step1).toContain("plan-return-schema.json")
+    expect(step2).toContain("ce-work-return-schema.json")
+    expect(step4).toContain("review-result-schema.json")
+  })
+
+  test("lfg gates validate envelopes through the bundled validate subcommand", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+
+    expect(lfg).toContain("validate --schema")
+  })
+
+  test("ce-plan pipeline return pins the four structured record fields", async () => {
+    const cePlan = await readRepoFile("skills/ce-plan/SKILL.md")
+
+    const start = cePlan.indexOf("**Pipeline mode exception:**")
+    expect(start).toBeGreaterThan(-1)
+    const block = cePlan.slice(start)
+
+    for (const token of ["`status`", "`plan_path`", "`artifact_readiness`", "`doc_review_state`"]) {
+      expect(block, `ce-plan pipeline return must pin ${token}`).toContain(token)
+    }
+  })
+
+  test("lfg step-1 gate consumes the structured plan return instead of re-deriving it", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+
+    const step1 = sliceSection(lfg, "1. Invoke the `ce-plan` skill", "2. Invoke the `ce-work` skill")
+    expect(step1).toContain("`plan_path`")
+    expect(step1).toContain("`artifact_readiness`")
+    expect(step1).toContain("`doc_review_state`")
+  })
+})
+
 describe("lfg phase journal contract", () => {
   // R8/R9 (KTD5): per-run JSONL journal under the scratch root, appended only via
   // the bundled `journal` subcommand, best-effort (never blocks), with the U6

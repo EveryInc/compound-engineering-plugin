@@ -1,0 +1,122 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ce-work Return-to-Caller envelope",
+  "description": "Machine-checked owner of the structured return ce-work emits in mode:return-to-caller, consumed by lfg's step-2 gate via `factory-gates.py validate`. Field meanings live in the ce-work SKILL.md Return contract; the lfg step-2 checklist remains the human-readable statement. Strictness policy: the top-level envelope and any sub-object whose fields the prose fully enumerates (implementation_engine_binding) carry additionalProperties: false; sub-objects the prose leaves open-ended (verification_evidence entries, unit_receipts entries, settled_decision_conflicts entries) are deliberately plain objects with no additionalProperties key, and verification_results is intentionally unconstrained.",
+  "type": "object",
+  "required": [
+    "status",
+    "plan_path",
+    "changed_files",
+    "u_ids_attempted",
+    "u_ids_completed",
+    "verification_results",
+    "verification_evidence",
+    "implementation_engine_binding",
+    "requested_route",
+    "actual_route",
+    "requested_model",
+    "actual_model",
+    "fallback_reason",
+    "run_id",
+    "source_kind",
+    "source_digest",
+    "unit_receipts",
+    "plan_checkpoint",
+    "blockers",
+    "recovery_path",
+    "settled_decision_conflicts",
+    "behavior_change",
+    "standalone_shipping_skipped"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["complete", "blocked", "failed"]
+    },
+    "plan_path": {
+      "type": "string",
+      "description": "The plan path ce-work executed against."
+    },
+    "changed_files": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "u_ids_attempted": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "u_ids_completed": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "verification_results": {
+      "description": "Verification command results; shape intentionally unconstrained (prose does not pin it)."
+    },
+    "verification_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "description": "Open object: the prose enumerates the facts each entry states (unit/task, behavior_changed, existing_tests_inspected, tests_added_or_changed, red/characterization evidence, verification run, exception reason) but not a closed field list."
+      }
+    },
+    "implementation_engine_binding": {
+      "type": ["object", "null"],
+      "description": "Resolved one-run engine binding, or null when native execution was selected without a binding. When an object, exactly mode/target/model/source per references/execution-engines.md.",
+      "required": ["mode", "target", "model", "source"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["prefer", "require"] },
+        "target": { "type": "string", "enum": ["codex", "claude", "grok", "cursor", "composer"] },
+        "model": { "type": ["string", "null"] },
+        "source": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "requested_route": { "type": "string" },
+    "actual_route": { "type": "string" },
+    "requested_model": { "type": "string" },
+    "actual_model": {
+      "type": "string",
+      "description": "Receipt-attributed served identity, or the literal string 'unverified'."
+    },
+    "fallback_reason": { "type": ["string", "null"] },
+    "run_id": {
+      "type": ["string", "null"],
+      "description": "Durable external run identifier, or null for native execution."
+    },
+    "source_kind": {
+      "type": "string",
+      "enum": ["plan", "prompt"]
+    },
+    "source_digest": { "type": "string" },
+    "unit_receipts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "description": "Open object: route, model, detached-process, integration, verification, canonical-commit, and cleanup state per attempted unit; the prose does not pin a closed field list."
+      }
+    },
+    "plan_checkpoint": {
+      "type": ["string", "null"],
+      "description": "Disclosed checkpoint commit when the selected plan was the only canonical dirt, otherwise null."
+    },
+    "blockers": { "type": "array" },
+    "recovery_path": {
+      "type": ["string", "null"],
+      "description": "Preserved owner-checked run/workspace location when recovery remains, otherwise null."
+    },
+    "settled_decision_conflicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "description": "Open object: names the labeled entry, the evidence, and how it was routed (proceeded-and-flagged vs blocker)."
+      }
+    },
+    "behavior_change": { "type": "boolean" },
+    "standalone_shipping_skipped": {
+      "type": "boolean",
+      "enum": [true],
+      "description": "Always true in Return-to-Caller Mode; the mode marker the caller gates on."
+    }
+  },
+  "additionalProperties": false
+}

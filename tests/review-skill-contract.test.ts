@@ -293,6 +293,9 @@ describe("ce-code-review contract", () => {
       "skills/ce-code-review/references/findings-schema.json",
       "skills/ce-doc-review/references/findings-schema.json",
       "skills/ce-pov/references/pov-schema.json",
+      "skills/lfg/references/ce-work-return-schema.json",
+      "skills/lfg/references/review-result-schema.json",
+      "skills/lfg/references/plan-return-schema.json",
     ]) {
       const schema = JSON.parse(await readRepoFile(schemaPath))
       expect(schema.$schema).toBe("http://json-schema.org/draft-07/schema#")

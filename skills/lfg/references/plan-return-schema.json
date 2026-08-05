@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ce-plan pipeline return",
+  "description": "Machine-checked owner of the structured record ce-plan returns to a pipeline caller (LFG or any disable-model-invocation context) when it returns control after writing the plan, consumed by lfg's step-1 gate via `factory-gates.py validate`. Exactly four fields; the top level is strict (additionalProperties: false). The readiness *gate* (which readiness values may proceed) stays lfg prose — this schema only pins the structural shape.",
+  "type": "object",
+  "required": ["status", "plan_path", "artifact_readiness", "doc_review_state"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["complete", "blocked", "failed"]
+    },
+    "plan_path": {
+      "type": "string",
+      "description": "Path of the written plan file. On a blocked/failed return, the referenced input artifact path when one exists, otherwise an empty string."
+    },
+    "artifact_readiness": {
+      "type": "string",
+      "enum": ["requirements-only", "implementation-ready"]
+    },
+    "doc_review_state": {
+      "type": "string",
+      "description": "One-line string summary of the non-interactive ce-doc-review outcome (e.g. applied/proposed/decision counts), or the literal token 'skill_unreachable' when the documented skip envelope was recorded per references/plan-handoff.md."
+    }
+  },
+  "additionalProperties": false
+}

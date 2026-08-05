@@ -426,3 +426,118 @@ describe("journal", () => {
     expect(out.note.length).toBeGreaterThan(0)
   })
 })
+
+describe("seam schemas", () => {
+  // U8 (R11/KTD7): the three shipped seam schema files in skills/lfg/references/
+  // must (a) use only the keywords this script's `validate` subset supports —
+  // an unsupported keyword is an infrastructure failure, not a quiet skip —
+  // and (b) accept a minimal envelope conforming to the prose contract they pin.
+  const SCHEMA_DIR = path.join(import.meta.dir, "..", "skills", "lfg", "references")
+
+  const CE_WORK_ENVELOPE = {
+    status: "complete",
+    plan_path: "docs/plans/2026-08-05-feature.md",
+    changed_files: ["src/a.ts"],
+    u_ids_attempted: ["U1"],
+    u_ids_completed: ["U1"],
+    verification_results: ["bun test: pass"],
+    verification_evidence: [
+      {
+        unit: "U1",
+        behavior_changed: true,
+        existing_tests_inspected: ["tests/a.test.ts"],
+        tests_added_or_changed: ["tests/a.test.ts"],
+        red_observed: "expected 2, got 1",
+        verification: "bun test tests/a.test.ts: pass",
+      },
+    ],
+    implementation_engine_binding: null,
+    requested_route: "native",
+    actual_route: "native",
+    requested_model: "session",
+    actual_model: "unverified",
+    fallback_reason: null,
+    run_id: null,
+    source_kind: "plan",
+    source_digest: "abc123",
+    unit_receipts: [{ unit: "U1", route: "native", verification: "green" }],
+    plan_checkpoint: null,
+    blockers: [],
+    recovery_path: null,
+    settled_decision_conflicts: [],
+    behavior_change: true,
+    standalone_shipping_skipped: true,
+  }
+
+  const REVIEW_ENVELOPE = {
+    status: "complete",
+    verdict: "Ready to merge",
+    scope: {
+      base: "abc1234",
+      branch: "feat/x",
+      head_sha: "def5678",
+      pr_url: null,
+      files_changed: 2,
+    },
+    intent: "Adds the widget endpoint",
+    intent_confidence: "explicit",
+    reviewers: ["correctness", "security"],
+    findings: [],
+    actionable_findings: [],
+    triage_groups: [],
+    residual_risks: [],
+    testing_gaps: [],
+    coverage: {},
+    verdict_consistency: [],
+    artifact_path: "/tmp/run-dir",
+    run_id: "r1",
+  }
+
+  const PLAN_ENVELOPE = {
+    status: "complete",
+    plan_path: "docs/plans/2026-08-05-feature.md",
+    artifact_readiness: "implementation-ready",
+    doc_review_state: "non-interactive ce-doc-review complete; 0 actionable findings",
+  }
+
+  const FIXTURES: Array<{ schema: string; envelope: unknown }> = [
+    { schema: "ce-work-return-schema.json", envelope: CE_WORK_ENVELOPE },
+    { schema: "review-result-schema.json", envelope: REVIEW_ENVELOPE },
+    { schema: "plan-return-schema.json", envelope: PLAN_ENVELOPE },
+  ]
+
+  for (const { schema, envelope } of FIXTURES) {
+    test(`${schema}: minimal conforming envelope validates ok:true`, () => {
+      const dir = caseDir()
+      const envFile = writeJson(dir, "envelope.json", envelope)
+      const out = runOk(["validate", "--schema", path.join(SCHEMA_DIR, schema), "--envelope", envFile])
+      expect(out.errors).toEqual([])
+      expect(out.ok).toBe(true)
+    })
+
+    test(`${schema}: uses only validator-supported keywords (no infrastructure failure)`, () => {
+      const dir = caseDir()
+      // An empty envelope may fail validation (ok:false), but the schema itself must
+      // load without an unsupported-keyword InfrastructureFailure (non-zero exit).
+      const envFile = writeJson(dir, "empty.json", {})
+      const r = run(["validate", "--schema", path.join(SCHEMA_DIR, schema), "--envelope", envFile])
+      expect(r.status, `stderr: ${r.stderr}`).toBe(0)
+      expect(r.stderr).not.toContain("unsupported schema keyword")
+    })
+  }
+
+  test("ce-work envelope missing unit_receipts fails naming that field", () => {
+    const dir = caseDir()
+    const { unit_receipts: _omitted, ...withoutReceipts } = CE_WORK_ENVELOPE
+    const envFile = writeJson(dir, "envelope.json", withoutReceipts)
+    const out = runOk([
+      "validate",
+      "--schema",
+      path.join(SCHEMA_DIR, "ce-work-return-schema.json"),
+      "--envelope",
+      envFile,
+    ])
+    expect(out.ok).toBe(false)
+    expect(out.errors.join("\n")).toContain("unit_receipts")
+  })
+})
