@@ -291,7 +291,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(babysit).toMatch(/upstack.*residual/i)
   })
 
-  test("a target push in a confirmed managed stack is followed by transactional upstack maintenance", async () => {
+  test("a target push in a confirmed managed stack is followed by recoverable upstack maintenance", async () => {
     const [babysit, watchLoop] = await Promise.all([
       readRepoFile(BABYSIT),
       readRepoFile("skills/ce-babysit-pr/references/watch-loop.md"),
@@ -300,30 +300,38 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     for (const text of [babysit, watchLoop]) {
       expect(text).toMatch(/gh stack rebase "?<first-dependent-branch>"? --upstack --no-trunk/)
       expect(text).toContain("gh stack push")
-      expect(text).toContain("--force-with-lease --atomic")
+      expect(text).not.toMatch(/capability proven before delegation supplies\s+`--force-with-lease --atomic`/)
+      expect(text).not.toContain("so every changed dependent branch updates or none do")
+      expect(text).not.toContain("so all changed remote branches update or none do")
+      expect(text).toMatch(/re-probe|compare every baseline-affected/)
+      expect(text).toMatch(/observed progress/)
       expect(text).toMatch(/gh stack rebase --abort[\s\S]{0,300}(residual|needs-human)/i)
       expect(text).toMatch(/manual dependency[\s\S]{0,500}(never|do not)[\s\S]{0,120}(rebase|rewrite|restack)/i)
       expect(text).toMatch(/target[^.]{0,160}(local|head)[^.]{0,160}(pushed SHA|unchanged)/i)
+      expect(text).toMatch(/github\/gh-stack#216/)
     }
     expect(babysit).toMatch(/after (an|any) authorized target-head push[\s\S]{0,1800}gh stack rebase "?<first-dependent-branch>"? --upstack --no-trunk/i)
     expect(babysit).toMatch(/manager-owned[\s\S]{0,200}(implicit|babysit)[\s\S]{0,200}author/i)
   })
 
-  test("managed-stack mutation pauses before delegation when atomic propagation is unproven", async () => {
+  test("managed-stack mutation records a pre-push baseline instead of stopping for unproven atomicity", async () => {
     const babysit = await readRepoFile(BABYSIT)
     const terminal = babysit.indexOf("1. **Terminal check first.**")
-    const gate = babysit.indexOf("**Managed-stack atomicity gate.**")
+    const baseline = babysit.indexOf("**Managed-stack pre-push baseline.**")
     const feedback = babysit.indexOf("3. **Feedback before CI.**")
-    const gateBlock = babysit.slice(gate, feedback)
+    const baselineBlock = babysit.slice(baseline, feedback)
 
     expect(terminal).toBeGreaterThan(-1)
-    expect(gate).toBeGreaterThan(-1)
-    expect(terminal).toBeLessThan(gate)
-    expect(gate).toBeLessThan(feedback)
-    expect(gateBlock).toMatch(/atomicity cannot be proven[^.]{0,160}true stop[^.]{0,120}every mode/i)
-    expect(gateBlock).toContain("do not invoke a delegate, run another tick, or arm/re-arm a watcher")
-    expect(gateBlock).toMatch(/interactive\/self-sustaining[^.]{0,120}hands control back[^.]{0,160}pipeline mode[^.]{0,120}terminates/i)
-    expect(gateBlock).toMatch(/normally bare[\s\S]{0,220}current branch no longer identifies that PR/i)
+    expect(baseline).toBeGreaterThan(-1)
+    expect(terminal).toBeLessThan(baseline)
+    expect(baseline).toBeLessThan(feedback)
+    expect(babysit).not.toContain("**Managed-stack atomicity gate.**")
+    expect(babysit).not.toContain("atomicity-unproven")
+    expect(baselineBlock).toMatch(/remote-tracking OID/i)
+    expect(baselineBlock).toMatch(/Do not stop for missing atomic multi-ref push proof/i)
+    expect(baselineBlock).toContain("github/gh-stack#216")
+    expect(baselineBlock).toMatch(/prefer all-or-none[\s\S]{0,120}proves atomic push/i)
+    expect(baselineBlock).toMatch(/always re-probe after push/i)
   })
 
   test("user-facing resume commands render for the active host", async () => {
