@@ -673,7 +673,9 @@ run_timeout_cmd() {
 }
 
 # Decode each {...} object in raw stdout via raw_decode (string/escape-aware,
-# unlike brace counting) and keep the last one shaped like findings.
+# unlike brace counting) and keep the last one shaped like findings. Envelope
+# routes nest that object inside a JSON *string* field, so string values that
+# could hold one are re-scanned rather than skipped.
 recover_findings_json() {   # <logfile> <outfile>
   # Probe execution, not just PATH presence — Windows Store's python3 stub
   # satisfies `command -v` then exits nonzero (see resolve-python convention).
@@ -683,28 +685,63 @@ recover_findings_json() {   # <logfile> <outfile>
   "$py" - "$1" "$2" <<'PY' 2>/dev/null
 import sys, json
 txt = open(sys.argv[1], encoding="utf-8", errors="replace").read()
-# Any selectable object carries a literal `"findings"` key; if the raw text has
-# none, there is nothing to recover. Skip the scan — raw_decode probing every
-# `{` is O(n^2) on brace-dense non-findings stdout (error/crash dumps).
-if '"findings"' not in txt: sys.exit(0)
+# Any selectable object carries a `findings` key; if the raw text has none,
+# there is nothing to recover. Skip the scan — raw_decode probing every `{` is
+# O(n^2) on brace-dense non-findings stdout (error/crash dumps). Match the bare
+# word, not `"findings"`: nested inside an envelope's JSON string the key
+# arrives escaped as \"findings\", which the quoted form does not match.
+if 'findings' not in txt: sys.exit(0)
 dec = json.JSONDecoder()
-best, i = None, 0
-while True:
-    j = txt.find('{', i)
-    if j < 0: break
-    try:
-        obj, end = dec.raw_decode(txt, j)
-    except Exception:
-        i = j + 1
-        continue
-    if isinstance(obj, dict):
-        if isinstance(obj.get("findings"), list):
-            best = obj
-        else:
-            so = obj.get("structured_output")
-            if isinstance(so, dict) and isinstance(so.get("findings"), list):
-                best = so
-    i = end
+# (obj, depth) — depth>0 means recovered from inside a JSON string (envelope .text)
+found = []
+
+def scan(text, depth):
+    i = 0
+    while True:
+        j = text.find('{', i)
+        if j < 0: break
+        try:
+            obj, end = dec.raw_decode(text, j)
+        except Exception:
+            i = j + 1
+            continue
+        if isinstance(obj, dict):
+            # structuredOutput is grok-cli's spelling of the same field.
+            for cand in (obj, obj.get("structured_output"), obj.get("structuredOutput")):
+                if isinstance(cand, dict) and isinstance(cand.get("findings"), list):
+                    found.append((cand, depth))
+            # An envelope route (grok-cli's `.text`) returns the review as a JSON
+            # *string*, whose `{` were never candidates here — raw_decode consumed
+            # the envelope whole and moved past it. Re-scan its strings so a
+            # wrapped review is recovered instead of reported as "no usable
+            # output". Unconditional: an envelope can carry its own empty
+            # `findings` beside the string holding the real one. The `findings`
+            # substring test bounds the nested scan's cost.
+            if depth < 3:
+                for v in obj.values():
+                    if isinstance(v, str) and 'findings' in v:
+                        scan(v, depth + 1)
+        i = end
+
+scan(txt, 0)
+# Nested (string-unwrapped) candidates are the grok .text stub case: order of
+# empty vs populated is not guaranteed, so prefer a populated review. Top-level
+# sequential objects (codex/noisy stdout) keep last-shaped-wins — a final
+# findings:[] after an earlier draft must not revive the draft.
+nested = [o for o, d in found if d > 0]
+top = [o for o, d in found if d == 0]
+if nested:
+    nested_pick = next((o for o in reversed(nested) if o["findings"]), nested[-1])
+    if nested_pick["findings"]:
+        best = nested_pick
+    elif top:
+        best = top[-1]
+    else:
+        best = nested_pick
+elif top:
+    best = top[-1]
+else:
+    best = None
 if best is not None: open(sys.argv[2], "w").write(json.dumps(best))
 PY
   [ -s "$2" ]
@@ -715,6 +752,22 @@ parse_structured() {   # <logfile> <outfile>
   # Buffered single-object envelopes (grok-cli json, test stubs).
   jq -e '.structured_output' "$1" > "$2" 2>/dev/null && return 0
   jq -r '.result // empty' "$1" 2>/dev/null | jq -e '.' > "$2" 2>/dev/null && return 0
+  # grok-cli names its parsed structured output in camelCase, so the snake_case
+  # probe above never matches it and a complete review looks like no output.
+  # Prefer a populated object first: an empty findings array is schema-valid, so
+  # accepting it here would skip .text when the real review only lives there
+  # (empty schema stub + populated .text).
+  jq -e '.structuredOutput | select((.findings|type)=="array" and (.findings|length)>0)' "$1" > "$2" 2>/dev/null && return 0
+  # Envelopes that carry the model's answer verbatim in a string (grok-cli `.text`).
+  # Slurp it: grok emits an empty stub beside the real object, and an unslurped jq
+  # streams BOTH into $2 as unparseable concatenated JSON. Shape-filter the stream
+  # too — taking a bare `last` can hand back a trailing non-findings object, which
+  # short-circuits recovery and drops a review that was sitting right there. Order
+  # is not guaranteed, so prefer a populated review over an empty one.
+  jq -r '.text // empty' "$1" 2>/dev/null | jq -se '[.[] | select((.findings|type)=="array")] | ([.[] | select(.findings|length>0)] | last) // last | select(. != null)' > "$2" 2>/dev/null && return 0
+  # Empty-but-shaped structuredOutput is a legitimate "peer found nothing" only
+  # after .text had nothing better.
+  jq -e '.structuredOutput | select((.findings|type)=="array")' "$1" > "$2" 2>/dev/null && return 0
   # stream-json NDJSON: last type=result event (elevation-dispatch pattern).
   local event
   event="$(grep -a '"type":"result"' "$1" 2>/dev/null | tail -1 || true)"

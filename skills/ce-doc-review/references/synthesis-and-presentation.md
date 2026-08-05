@@ -352,7 +352,7 @@ Omit any section with zero items. The section headers reflect user-facing vocabu
 
 **Interactive mode:**
 
-Present findings using the review output template (read `references/review-output-template.md`). Within each severity level, separate findings by type:
+Present findings using the review output template (read `references/review-output-template.md`). This presentation must appear as user-visible assistant text in the same turn immediately before the routing question in `references/walkthrough.md` fires — a prior-turn non-interactive envelope or a one-line count does not satisfy that invariant. Within each severity level, separate findings by type:
 
 - Errors (design tensions, contradictions, incorrect statements) first — these need resolution
 - Omissions (missing steps, absent details, forgotten entries) second — these need additions
