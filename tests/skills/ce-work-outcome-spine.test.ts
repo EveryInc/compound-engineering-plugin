@@ -91,6 +91,17 @@ describe("ce-work native characterization", () => {
     expect(dispatch).toContain("Review, test, and commit each unit in dependency order — the orchestrator owns commits")
   })
 
+  test("uses a fresh single-use worker context for each native implementation unit", async () => {
+    const skill = await readRepoFile("skills/ce-work/SKILL.md")
+    const dispatch = sliceSection(skill, "**Native dispatch (inline/subagent engines only)**", "### Phase 2: Execute")
+
+    expect(dispatch).toContain("**Fresh worker invariant:**")
+    expect(dispatch).toContain("newly created worker context")
+    expect(dispatch).toContain("never receive a different unit")
+    expect(dispatch).toContain("do not retain idle implementation workers for reuse")
+    expect(dispatch).toMatch(/After each serial inline\/subagent unit:.*release its worker handle.*dispatch the next unit/s)
+  })
+
   test("does not re-enter native dispatch after selecting cross-model execution", async () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
     const engineGate = sliceSection(skill, "4. **Choose Execution Engine, then Strategy**", "### Phase 2: Execute")
