@@ -52,6 +52,28 @@ When the implementation instruction instead names an ordered fallback list, do n
 
 **Sanitize product input.** Remove every routing directive from the feature request that enters planning, keeping the request otherwise unchanged. Never pass the `implementation_engine` object or any removed directive to `ce-plan`, `ce-doc-review`, `ce-code-review`, the settled-decisions brief, or any planning or review **product** input — the carrier is stage-scoped routing authority, not product content or a settled product decision. The `plan_model:<alias>` carrier is the one exception: it is structured routing data handed to `ce-plan` *alongside* — never woven into — the sanitized request. Do not construct a carrier from standing configuration here: when no explicit binding exists for a stage, `ce-work` and `ce-plan` own resolution of still-applicable session/project intent and standing per-checkout configuration.
 
+## Run Journal
+
+Before step 1, mint the run id and journal path under the per-UID scratch root and append the run's `started` record:
+
+```bash
+SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
+if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
+(umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
+if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
+chmod 700 "$SCRATCH_ROOT" || exit 1;
+RUN_ID=$(date +%Y%m%d-%H%M%S)-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' ');
+RUN_DIR="$SCRATCH_ROOT/lfg/$RUN_ID";
+(umask 077; mkdir -p "$RUN_DIR") || exit 1; chmod 700 "$RUN_DIR" || exit 1;
+JOURNAL="$RUN_DIR/journal.jsonl";
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+"$PY" "$SKILL_DIR/scripts/factory-gates.py" journal --file "$JOURNAL" --record "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"run_id\":\"$RUN_ID\",\"skill\":\"lfg\",\"phase\":\"pipeline\",\"status\":\"started\"}";
+echo "$JOURNAL"
+```
+
+Record `RUN_ID` and the printed journal path for the rest of the run. After each numbered pipeline step completes, fails, or is skipped, append one record for that step through the same `journal` invocation — `phase` is the step's name, `status` is `completed`, `failed`, or `skipped`, `detail` is one line, and `artifacts` lists the step's key paths when any exist. A journal append that fails is noted in one line and never blocks, retries beyond the script's own retry, or fails the pipeline.
+
 1. Invoke the `ce-plan` skill with the sanitized feature request prepared above (or the unchanged arguments you were invoked with when no routing directive was present). When a planning-stage directive resolved, prefix the invocation with its `plan_model:<alias>` carrier — structured routing data beside the request, never woven into it — so `ce-plan`'s model elevation authors the plan on the chosen model even in pipeline mode.
 
    Before invoking, compose a **settled-decisions brief** from the invoking conversation and pass it with those arguments: direction (1-2 lines); settled decisions, each with four required fields — the decision, its provenance class (`user-directed` or `user-approved`), the rejected alternative, and a one-line reason; open areas; and a standing report-conflicts line. An entry whose rejected alternative cannot be stated demotes to a directive or open area. Scope topically — only decisions about the feature being shipped; when in doubt, demote (re-litigation is the safe floor; importing stale settlements is not). If the conversation contains no settled decisions, skip composition entirely and invoke `ce-plan` exactly as above — no empty-brief ceremony. The brief is transient: once ce-plan writes the plan, the plan's labeled KTDs are canonical.
@@ -60,7 +82,7 @@ When the implementation instruction instead names an ordered fallback list, do n
 
    Read the plan metadata before continuing. If the plan has `artifact_contract: ce-unified-plan/v1`, proceed only when it has `artifact_readiness: implementation-ready` and `execution: code`. Stop the pipeline for `artifact_readiness: requirements-only`, any unrecognized readiness value, `execution: knowledge-work`, approach-plan outputs, answer-seeking/universal outputs, or invalid progress-like readiness values. LFG never launches `/goal` directly; when goal-mode or dynamic workflows are appropriate, `ce-work` owns that implementation engine choice and must return control to LFG afterward.
 
-2. Invoke the `ce-work` skill with `mode:return-to-caller <plan-path-from-step-1>` when no scalar transient carrier exists, including when a retained ordered current-task assignment is still active in context. When the scalar carrier exists, use the exact string-host form `mode:return-to-caller implementation_engine:<compact-json> <plan-path-from-step-1>`.
+2. Invoke the `ce-work` skill with `mode:return-to-caller <plan-path-from-step-1>` when no scalar transient carrier exists, including when a retained ordered current-task assignment is still active in context. When the scalar carrier exists, use the exact string-host form `mode:return-to-caller implementation_engine:<compact-json> <plan-path-from-step-1>`. In either form, also pass the Run Journal's journal path as prose context in the invocation (e.g. "pass the journal path so ce-work appends unit records: <journal-path>") — it is a separate optional datum, never an `implementation_engine` field and never part of the plan path.
 
    If the scalar transient carrier exists, serialize its exact `implementation_engine.{mode,target,model,source}` data as compact JSON immediately after the `implementation_engine:` prefix (for example `implementation_engine:{"mode":"prefer","target":"codex","model":null,"source":"lfg-current-turn"}`). This is structured caller data in a portable string envelope, not part of the plan path or implementation prompt. Pass no empty carrier when it does not exist. `ce-work` then resolves a retained ordered current-task assignment when present, otherwise applicable session/project intent and standing per-checkout configuration. LFG is an automatic, headless caller: it never prompts to weaken a requirement-strength route.
 
@@ -144,7 +166,7 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
 "$PY" "$SKILL_DIR/scripts/factory-gates.py" verdict --acceptance "$ACCEPT_FILE"
 ```
 
-A returned contradiction (`ok: false`) forces `accepted: false` with the contradiction as the `reason` — the gate can only make the decision more conservative, never less. If the script exits non-zero, retry once; if it still cannot run, keep the derived decision and record "unverified — gate unavailable" beside it. Step 10's DONE promise then renders one of exactly two forms: "DONE — accepted" or "DONE — completed, not accepted: <reason>".
+A returned contradiction (`ok: false`) forces `accepted: false` with the contradiction as the `reason` — the gate can only make the decision more conservative, never less. If the script exits non-zero, retry once; if it still cannot run, keep the derived decision and record "unverified — gate unavailable" beside it. Step 10's DONE promise then renders one of exactly two forms: "DONE — accepted" or "DONE — completed, not accepted: <reason>". Append the acceptance outcome as the journal's terminal record through the same `journal` invocation — `status: accepted` or `not-accepted`, `detail` set to the one-line reason; no record follows it.
 
 10. Output `<promise>DONE</promise>` when complete
 
@@ -156,6 +178,6 @@ A returned contradiction (`ok: false`) forces `accepted: false` with the contrad
 
     Before the DONE promise, inspect the canonical plan from step 1 for the semantic role `work-relationships`. Load `references/next-work-handoff.md` when that role exists, or when an older unmarked Product Contract appears to name the area this plan owns plus future separately planned areas and their relationships; the reference owns the cautious legacy semantic fallback, candidate selection, and opt-in offer contract. Do not match an exact visible heading, treat ordinary non-goals as future work, or invoke `ce-handoff` before the user explicitly accepts the offer. If neither semantic signal exists, do not load the reference and make no next-work offer.
 
-    Then output the DONE promise in the form the Acceptance decision selected: `<promise>DONE</promise> — accepted`, or `<promise>DONE</promise> — completed, not accepted: <reason>` with the acceptance block's one-line reason.
+    Then output the DONE promise in the form the Acceptance decision selected: `<promise>DONE</promise> — accepted`, or `<promise>DONE</promise> — completed, not accepted: <reason>` with the acceptance block's one-line reason. On the next line, surface the run's journal path (`Journal: <journal-path>`) so the user can inspect the stage-by-stage record.
 
 Start with step 1 now. Remember: plan FIRST, then work. Never skip the plan.

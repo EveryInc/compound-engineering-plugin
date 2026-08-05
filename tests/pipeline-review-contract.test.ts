@@ -991,3 +991,59 @@ describe("lfg acceptance contract", () => {
     expect(step2).toContain("diff-claims")
   })
 })
+
+describe("lfg phase journal contract", () => {
+  // R8/R9 (KTD5): per-run JSONL journal under the scratch root, appended only via
+  // the bundled `journal` subcommand, best-effort (never blocks), with the U6
+  // acceptance outcome as the terminal record and the path surfaced at DONE.
+  function countOccurrences(haystack: string, needle: string): number {
+    return haystack.split(needle).length - 1
+  }
+
+  test("lfg mints the journal under the per-run lfg scratch dir", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+
+    expect(lfg).toContain('RUN_DIR="$SCRATCH_ROOT/lfg/$RUN_ID"')
+    expect(lfg).toContain("journal.jsonl")
+  })
+
+  test("both skills append through the bundled journal subcommand", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+    const ceWork = await readRepoFile("skills/ce-work/SKILL.md")
+
+    expect(lfg).toContain('factory-gates.py" journal')
+    expect(ceWork).toContain('factory-gates.py" journal')
+  })
+
+  test("the never-block rule is stated exactly once in each skill", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+    const ceWork = await readRepoFile("skills/ce-work/SKILL.md")
+
+    expect(countOccurrences(lfg, "never blocks")).toBe(1)
+    expect(countOccurrences(ceWork, "never blocks")).toBe(1)
+  })
+
+  test("the acceptance outcome is the journal's terminal record", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+
+    const start = lfg.indexOf("**Acceptance decision**")
+    expect(start).toBeGreaterThan(-1)
+    const end = lfg.indexOf("<promise>DONE</promise>", start)
+    expect(end).toBeGreaterThan(start)
+    const block = lfg.slice(start, end)
+
+    expect(block).toContain("terminal record")
+    expect(block).toContain("`status: accepted`")
+    expect(block).toContain("`not-accepted`")
+  })
+
+  test("the final report surfaces the journal path", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+
+    const start = lfg.indexOf("10. Output `<promise>DONE</promise>`")
+    expect(start).toBeGreaterThan(-1)
+    const report = lfg.slice(start)
+
+    expect(report).toContain("journal path")
+  })
+})
