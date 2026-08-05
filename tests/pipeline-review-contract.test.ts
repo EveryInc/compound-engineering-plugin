@@ -206,6 +206,43 @@ describe("ce-work quality commands contract", () => {
   })
 })
 
+describe("ce-work claims gates contract", () => {
+  // Two drift points: the post-batch integration protocol and the return-envelope
+  // assembly must each invoke the bundled gate script mechanically, not re-derive
+  // the check in prose.
+  test("factory-gates diff-claims runs in the post-batch integration protocol", async () => {
+    const content = await readRepoFile("skills/ce-work/SKILL.md")
+
+    const start = content.indexOf("After a parallel inline/subagent batch")
+    expect(start).toBeGreaterThan(-1)
+    const end = content.indexOf("### Phase 2", start)
+    expect(end).toBeGreaterThan(start)
+    const postBatch = content.slice(start, end)
+
+    expect(postBatch).toContain("factory-gates.py")
+    expect(postBatch).toContain("diff-claims")
+  })
+
+  test("factory-gates artifacts + diff-claims run before the return envelope reports complete", async () => {
+    const content = await readRepoFile("skills/ce-work/SKILL.md")
+
+    const start = content.indexOf("## Return-to-Caller Mode")
+    expect(start).toBeGreaterThan(-1)
+    const end = content.indexOf("## Key Principles", start)
+    expect(end).toBeGreaterThan(start)
+    const envelope = content.slice(start, end)
+
+    expect(envelope).toContain("factory-gates.py")
+    expect(envelope).toContain("diff-claims")
+    expect(envelope).toContain(" artifacts ")
+  })
+
+  test("infrastructure failure degrades with the exact gate-unavailable wording", async () => {
+    const content = await readRepoFile("skills/ce-work/SKILL.md")
+    expect(content).toContain("unverified — gate unavailable")
+  })
+})
+
 describe("verification_evidence seam parity (ce-work <-> lfg)", () => {
   // The lfg step-2 gate consumes ce-work's `verification_evidence` return field.
   // The two SKILL.md files are edited independently, so the existing prose-presence

@@ -235,7 +235,15 @@ Determine how to proceed based on what was provided in `<input_document>` (after
 
    **After a parallel inline/subagent batch — the orchestrator integrates; never trust the handoff summary alone:**
    1. Wait for every worker in the batch to finish.
-   2. **Inspect the actual tree, not reported paths.** Determine what each worker really changed (`git status`/diff in its workspace or the shared dir). Reported paths are a hint; declared `Files:` are often incomplete — workers create/modify files the plan didn't anticipate.
+   2. **Inspect the actual tree, not reported paths.** Determine what each worker really changed (`git status`/diff in its workspace or the shared dir). Reported paths are a hint; declared `Files:` are often incomplete — workers create/modify files the plan didn't anticipate. Check each worker's claim mechanically: write `{"changed_files": [<worker's reported paths>], "scope": [<the unit's planned paths/dirs>]}` to a mktemp file (`mktemp "${TMPDIR:-/tmp}/ce-work-claims-XXXXXX"`), set `CLAIMS_FILE` to that path and `REPO` to the worker's workspace (or the shared dir), and run:
+
+      ```bash
+      SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+      PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+      "$PY" "$SKILL_DIR/scripts/factory-gates.py" diff-claims --claims "$CLAIMS_FILE" --repo "$REPO"
+      ```
+
+      Route each `missing_claims` entry into step 3's collision/contention handling as a claim mismatch for that worker; in-scope `unclaimed_changes` are informational. If the script exits non-zero, retry once; if it still cannot run, record that worker's change-claims as "unverified — gate unavailable" and continue — do not re-derive the check's result in prose.
    3. **Detect real collisions and semantic contention** — compare actual paths plus shared contracts, generated/config surfaces, and verification effects. A clean merge is not proof of compatibility. Preserve or re-run colliding units on the advancing canonical base; never blind-merge them.
    4. **Review, test, and commit each unit in dependency order — the orchestrator owns commits.** Integrate one result, inspect actual scope, run authoritative verification, and create its canonical commit before considering the next. Revalidate every remaining result against the advancing canonical tree. Capture each worker's returned verification evidence into the run's `verification_evidence` roll-up — if a worker omitted it, re-derive what the tree allows and mark the rest as unverified rather than fabricating a red-before-implementation observation the worker never reported.
    5. Update the task list (progress lives in the commits).
@@ -380,6 +388,17 @@ Return:
 - `settled_decision_conflicts`: conflicts with `session-settled:`-labeled KTDs or Key Decisions encountered during implementation — each entry names the labeled entry, the evidence, and how it was routed (proceeded-and-flagged vs blocker); empty when none
 - `behavior_change`: whether behavior-bearing code changed
 - `standalone_shipping_skipped: true`
+
+Before reporting `status: complete`, verify the envelope's claims mechanically: write `{"artifacts": [<the envelope's produced artifact paths>]}` and `{"changed_files": <the envelope's changed_files>, "scope": [<the plan's declared paths/dirs>]}` to mktemp files (`mktemp "${TMPDIR:-/tmp}/ce-work-claims-XXXXXX"`), set `ART_FILE`/`CLAIMS_FILE` to those paths and `REPO` to the working tree root, and run both gates:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+"$PY" "$SKILL_DIR/scripts/factory-gates.py" artifacts --claims "$ART_FILE";
+"$PY" "$SKILL_DIR/scripts/factory-gates.py" diff-claims --claims "$CLAIMS_FILE" --repo "$REPO"
+```
+
+A failed check (`ok: false`) marks the affected `verification_evidence` entries unverified — the caller's evidence-reconciliation path consumes that state. `missing_claims` degrade the affected change-claims; in-scope `unclaimed_changes` are informational. If a gate exits non-zero, retry that gate once; if it still cannot run, report the affected claims as "unverified — gate unavailable" and continue — do not re-derive the gate's result in prose.
 
 Return `status: complete` only when behavior-bearing work has verification evidence or a deliberate exception. If a previous return-to-caller run implemented code but omitted evidence, a later same-plan return-to-caller run should use the idempotency check to inspect the existing work, complete the evidence, and return without reimplementing.
 
