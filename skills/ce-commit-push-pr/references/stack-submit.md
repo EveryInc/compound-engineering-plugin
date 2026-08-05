@@ -15,7 +15,7 @@ If `gh` or `gh stack` is missing, or the stack command exits unavailable for thi
 
 Stack mode wraps an existing user-directed / confirmed local `gh stack` layer set. It does **not** invent commit-splitting or fabricate layers. If topology is absent or the change is a nonsense stack (one logical change, artificial slices), refuse and use the single-PR path.
 
-Any explicit new upstack branch the user already directed must base from `origin/<parent>` after fetch (see `references/branch-creation.md` when creating that branch).
+Any explicit new upstack branch the user already directed must base from the **authoritative parent tip** after fetch: prefer `<tracking-remote>/<parent>` when that remote tip is current for the confirmed stack layer; if the parent’s latest work is only local (not yet on the tracking remote — common before the first `gh stack submit`), base from the local parent branch instead. Do not hard-code `origin/<parent>` when the tracking remote differs or the remote tip lags the local parent (see `references/branch-creation.md` when creating that branch).
 
 ## Submit (ready / non-draft)
 
