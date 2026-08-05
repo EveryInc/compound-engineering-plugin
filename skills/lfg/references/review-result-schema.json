@@ -1,111 +1,130 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ce-code-review mode:agent result",
-  "description": "Machine-checked owner of the minimum mode:agent result shape ce-code-review emits (documented in its finish-review reference), consumed by lfg's step-4 gate via `factory-gates.py validate`. Strictness policy: the top-level result and sub-objects the prose fully enumerates (scope, triage_groups entries) carry additionalProperties: false; finding entries, coverage, and requirements_completeness stay open because the prose documents their fields as extensible (e.g. the optional settled_conflict finding field consumers must ignore). Non-required properties cover the rest of the documented minimum shape plus the failure-path reason.",
-  "type": "object",
-  "required": [
-    "status",
-    "verdict",
-    "scope",
-    "intent",
-    "intent_confidence",
-    "reviewers",
-    "findings",
-    "actionable_findings",
-    "triage_groups",
-    "residual_risks",
-    "testing_gaps",
-    "coverage",
-    "verdict_consistency",
-    "artifact_path",
-    "run_id"
-  ],
-  "properties": {
-    "status": {
-      "type": "string",
-      "enum": ["complete", "failed", "degraded", "skipped"]
-    },
-    "verdict": {
-      "type": "string",
-      "enum": ["Ready to merge", "Ready with fixes", "Not ready"]
-    },
-    "scope": {
+  "description": "Machine-checked owner of the minimum mode:agent result shape ce-code-review emits (documented in its finish-review reference), consumed by lfg's step-4 gate via `factory-gates.py validate`. Top-level oneOf: branch 1 is the full result (status complete|degraded) with the documented required fields; branch 2 is the minimal failure shape (status failed|skipped) carrying only status and reason, so a failure result validates and routes by its status instead of degrading as schema-invalid. Strictness policy: the full-result branch and sub-objects the prose fully enumerates (scope, triage_groups entries) carry additionalProperties: false; finding entries, coverage, and requirements_completeness stay open because the prose documents their fields as extensible (e.g. the optional settled_conflict finding field consumers must ignore). Non-required properties cover the rest of the documented minimum shape.",
+  "oneOf": [
+    {
       "type": "object",
-      "required": ["base", "branch", "head_sha", "pr_url", "files_changed"],
+      "required": [
+        "status",
+        "verdict",
+        "scope",
+        "intent",
+        "intent_confidence",
+        "reviewers",
+        "findings",
+        "actionable_findings",
+        "triage_groups",
+        "residual_risks",
+        "testing_gaps",
+        "coverage",
+        "verdict_consistency",
+        "artifact_path",
+        "run_id"
+      ],
       "properties": {
-        "base": { "type": "string" },
-        "branch": { "type": "string" },
-        "head_sha": { "type": "string" },
-        "pr_url": { "type": ["string", "null"] },
-        "files_changed": { "type": "integer" }
+        "status": {
+          "type": "string",
+          "enum": ["complete", "degraded"]
+        },
+        "verdict": {
+          "type": "string",
+          "enum": ["Ready to merge", "Ready with fixes", "Not ready"]
+        },
+        "scope": {
+          "type": "object",
+          "required": ["base", "branch", "head_sha", "pr_url", "files_changed"],
+          "properties": {
+            "base": { "type": "string" },
+            "branch": { "type": "string" },
+            "head_sha": { "type": "string" },
+            "pr_url": { "type": ["string", "null"] },
+            "files_changed": { "type": "integer" }
+          },
+          "additionalProperties": false
+        },
+        "intent": { "type": "string" },
+        "intent_confidence": {
+          "type": "string",
+          "enum": ["explicit", "inferred", "uncertain"]
+        },
+        "reviewers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "Open object: merged finding fields plus optional extensions such as settled_conflict; consumers ignore unrecognized fields, so no closed list is pinned."
+          }
+        },
+        "actionable_findings": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "triage_groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["title", "findings", "context", "preferred_resolution", "why"],
+            "properties": {
+              "title": { "type": "string" },
+              "findings": {
+                "type": "array",
+                "description": "Stable finding #s the group covers."
+              },
+              "context": { "type": "string" },
+              "preferred_resolution": { "type": "string" },
+              "why": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "residual_risks": { "type": "array" },
+        "testing_gaps": { "type": "array" },
+        "coverage": {
+          "type": "object",
+          "description": "Open object: coverage notes vary by run (suppression counts, demotions, validator drops, lite-roster note)."
+        },
+        "verdict_consistency": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Contradiction strings from the verdict-consistency gate; empty when none, ['unverified — gate unavailable'] when the gate could not run."
+        },
+        "artifact_path": { "type": "string" },
+        "run_id": { "type": "string" },
+        "pre_existing_findings": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "requirements_completeness": {
+          "description": "Requirements-completeness report or null; shape intentionally unconstrained."
+        },
+        "learnings": { "type": "array" },
+        "agent_native_gaps": { "type": "array" },
+        "deployment_notes": { "type": "array" },
+        "reason": {
+          "type": "string",
+          "description": "One-sentence reason; present on degraded results."
+        }
       },
       "additionalProperties": false
     },
-    "intent": { "type": "string" },
-    "intent_confidence": {
-      "type": "string",
-      "enum": ["explicit", "inferred", "uncertain"]
-    },
-    "reviewers": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
-    "findings": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "description": "Open object: merged finding fields plus optional extensions such as settled_conflict; consumers ignore unrecognized fields, so no closed list is pinned."
-      }
-    },
-    "actionable_findings": {
-      "type": "array",
-      "items": { "type": "object" }
-    },
-    "triage_groups": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["title", "findings", "context", "preferred_resolution", "why"],
-        "properties": {
-          "title": { "type": "string" },
-          "findings": {
-            "type": "array",
-            "description": "Stable finding #s the group covers."
-          },
-          "context": { "type": "string" },
-          "preferred_resolution": { "type": "string" },
-          "why": { "type": "string" }
-        },
-        "additionalProperties": false
-      }
-    },
-    "residual_risks": { "type": "array" },
-    "testing_gaps": { "type": "array" },
-    "coverage": {
+    {
       "type": "object",
-      "description": "Open object: coverage notes vary by run (suppression counts, demotions, validator drops, lite-roster note)."
-    },
-    "verdict_consistency": {
-      "type": "array",
-      "items": { "type": "string" },
-      "description": "Contradiction strings from the verdict-consistency gate; empty when none, ['unverified — gate unavailable'] when the gate could not run."
-    },
-    "artifact_path": { "type": "string" },
-    "run_id": { "type": "string" },
-    "pre_existing_findings": {
-      "type": "array",
-      "items": { "type": "object" }
-    },
-    "requirements_completeness": {
-      "description": "Requirements-completeness report or null; shape intentionally unconstrained."
-    },
-    "learnings": { "type": "array" },
-    "agent_native_gaps": { "type": "array" },
-    "deployment_notes": { "type": "array" },
-    "reason": {
-      "type": "string",
-      "description": "One-sentence reason; present on failed/degraded/skipped results."
+      "required": ["status", "reason"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["failed", "skipped"]
+        },
+        "reason": {
+          "type": "string",
+          "description": "One-sentence reason the review failed or was skipped."
+        }
+      },
+      "additionalProperties": false
     }
-  },
-  "additionalProperties": false
+  ]
 }

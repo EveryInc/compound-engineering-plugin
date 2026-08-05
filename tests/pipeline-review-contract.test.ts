@@ -978,6 +978,30 @@ describe("lfg acceptance contract", () => {
     expect(content).toContain("verdict --acceptance")
   })
 
+  test("acceptance record serializes six named input fields", async () => {
+    const content = await readRepoFile("skills/lfg/SKILL.md")
+
+    const start = content.indexOf("**Acceptance decision**")
+    expect(start).toBeGreaterThan(-1)
+    const end = content.indexOf("<promise>DONE</promise>", start)
+    expect(end).toBeGreaterThan(start)
+    const block = content.slice(start, end)
+
+    for (const field of [
+      "review_verdict",
+      "verdict_consistency_flagged",
+      "fixes_applied_status",
+      "verification_evidence_status",
+      "residuals_durable",
+      "babysit_status",
+    ]) {
+      expect(block, `acceptance inputs must serialize ${field}`).toContain(`"${field}"`)
+    }
+    // The two new red conditions are named at the decision site.
+    expect(block).toContain("not-applied")
+    expect(block).toContain("`residuals_durable` `false`")
+  })
+
   test("step-2 gate verifies the return's file claims with diff-claims", async () => {
     const content = await readRepoFile("skills/lfg/SKILL.md")
 
@@ -1042,6 +1066,35 @@ describe("lfg seam schemas contract", () => {
     expect(step1).toContain("`artifact_readiness`")
     expect(step1).toContain("`doc_review_state`")
   })
+
+  test("lfg step-1 gate stops on a validated non-complete plan return", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+
+    const step1 = sliceSection(lfg, "1. Invoke the `ce-plan` skill", "2. Invoke the `ce-work` skill")
+    expect(step1).toContain("whose `status` is not `complete`")
+    expect(step1).toContain("stops the pipeline")
+  })
+
+  test("review-result schema accepts a minimal failure shape via top-level oneOf", async () => {
+    const schema = JSON.parse(
+      await readRepoFile("skills/lfg/references/review-result-schema.json")
+    )
+
+    expect(Array.isArray(schema.oneOf)).toBe(true)
+    const failure = schema.oneOf.find(
+      (branch: any) => branch?.properties?.status?.enum?.includes("failed")
+    )
+    expect(failure).toBeDefined()
+    expect(failure.required).toEqual(["status", "reason"])
+    expect(failure.properties.status.enum).toEqual(["failed", "skipped"])
+    expect(failure.additionalProperties).toBe(false)
+
+    const full = schema.oneOf.find(
+      (branch: any) => branch?.properties?.status?.enum?.includes("complete")
+    )
+    expect(full).toBeDefined()
+    expect(full.properties.status.enum).toEqual(["complete", "degraded"])
+  })
 })
 
 describe("lfg phase journal contract", () => {
@@ -1065,6 +1118,16 @@ describe("lfg phase journal contract", () => {
 
     expect(lfg).toContain('factory-gates.py" journal')
     expect(ceWork).toContain('factory-gates.py" journal')
+  })
+
+  test("per-step journal appends are self-contained and pass records via --record-file", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+    const ceWork = await readRepoFile("skills/ce-work/SKILL.md")
+
+    for (const content of [lfg, ceWork]) {
+      expect(content).toContain("journal --file <journal-path> --record-file <record-path>")
+      expect(content).toContain("fresh self-contained command")
+    }
   })
 
   test("the never-block rule is stated exactly once in each skill", async () => {

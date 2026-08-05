@@ -117,6 +117,17 @@ describe("artifacts", () => {
     expect(out.checks[0].note).not.toContain("missing")
   })
 
+  test("empty directory is flagged like an empty file", () => {
+    const dir = caseDir()
+    const emptyDir = path.join(dir, "empty-dir")
+    mkdirSync(emptyDir)
+    const claims = writeJson(dir, "claims.json", { artifacts: [emptyDir] })
+    const out = runOk(["artifacts", "--claims", claims])
+    expect(out.ok).toBe(false)
+    expect(out.checks[0].ok).toBe(false)
+    expect(out.checks[0].note).toContain("empty directory")
+  })
+
   test("empty claims list -> explicit vacuous pass with zero checks", () => {
     const dir = caseDir()
     const claims = writeJson(dir, "claims.json", { artifacts: [] })
@@ -186,6 +197,123 @@ describe("diff-claims", () => {
     const r = run(["diff-claims", "--claims", claims, "--repo", plain])
     expect(r.status).not.toBe(0)
   })
+
+  test("committed claimed change with --base <pre-commit sha> -> ok", () => {
+    const repo = caseDir()
+    initRepoWithCommit(repo, { "a.txt": "one" })
+    const base = git(repo, "rev-parse", "HEAD").stdout.trim()
+    writeFileSync(path.join(repo, "a.txt"), "two", "utf8")
+    git(repo, "add", "-A")
+    git(
+      repo,
+      "-c", "user.email=gates@test.invalid",
+      "-c", "user.name=gates",
+      "-c", "commit.gpgsign=false",
+      "commit", "-q", "-m", "change a",
+    )
+    const claimsDir = caseDir()
+    const claims = writeJson(claimsDir, "claims.json", { changed_files: ["a.txt"] })
+    const out = runOk(["diff-claims", "--claims", claims, "--repo", repo, "--base", base])
+    expect(out.missing_claims).toEqual([])
+    expect(out.ok).toBe(true)
+  })
+
+  test("same committed change without --base -> missing_claims (documents the HEAD-only limitation)", () => {
+    const repo = caseDir()
+    initRepoWithCommit(repo, { "a.txt": "one" })
+    writeFileSync(path.join(repo, "a.txt"), "two", "utf8")
+    git(repo, "add", "-A")
+    git(
+      repo,
+      "-c", "user.email=gates@test.invalid",
+      "-c", "user.name=gates",
+      "-c", "commit.gpgsign=false",
+      "commit", "-q", "-m", "change a",
+    )
+    const claimsDir = caseDir()
+    const claims = writeJson(claimsDir, "claims.json", { changed_files: ["a.txt"] })
+    const out = runOk(["diff-claims", "--claims", claims, "--repo", repo])
+    expect(out.missing_claims).toEqual(["a.txt"])
+    expect(out.ok).toBe(false)
+  })
+
+  test("--base with an unresolvable ref -> infrastructure failure", () => {
+    const repo = caseDir()
+    initRepoWithCommit(repo, { "a.txt": "one" })
+    const claimsDir = caseDir()
+    const claims = writeJson(claimsDir, "claims.json", { changed_files: [] })
+    const r = run(["diff-claims", "--claims", claims, "--repo", repo, "--base", "no-such-ref"])
+    expect(r.status).not.toBe(0)
+  })
+
+  test("filename with spaces and non-ASCII survives -z parsing byte-exact", () => {
+    const repo = caseDir()
+    const odd = "sp ace éü.txt"
+    initRepoWithCommit(repo, { "seed.txt": "one" })
+    writeFileSync(path.join(repo, odd), "content", "utf8")
+    const claimsDir = caseDir()
+    const claims = writeJson(claimsDir, "claims.json", { changed_files: [odd] })
+    const out = runOk(["diff-claims", "--claims", claims, "--repo", repo])
+    expect(out.missing_claims).toEqual([])
+    expect(out.unclaimed_changes).not.toContain(`"${odd}"`)
+    expect(out.ok).toBe(true)
+  })
+
+  test("staged rename resolves to the NEW path (extra -z origin field skipped)", () => {
+    const repo = caseDir()
+    initRepoWithCommit(repo, { "old-name.txt": "content" })
+    git(repo, "mv", "old-name.txt", "new-name.txt")
+    const claimsDir = caseDir()
+    const claims = writeJson(claimsDir, "claims.json", { changed_files: ["new-name.txt"] })
+    const out = runOk(["diff-claims", "--claims", claims, "--repo", repo])
+    expect(out.missing_claims).toEqual([])
+    expect(out.unclaimed_changes).not.toContain("old-name.txt -> new-name.txt")
+    expect(out.ok).toBe(true)
+  })
+
+  test('filename containing a literal " -> " is not split into pieces', () => {
+    const repo = caseDir()
+    const tricky = "a -> b.txt"
+    initRepoWithCommit(repo, { "seed.txt": "one" })
+    writeFileSync(path.join(repo, tricky), "content", "utf8")
+    const claimsDir = caseDir()
+    const claims = writeJson(claimsDir, "claims.json", { changed_files: [tricky] })
+    const out = runOk(["diff-claims", "--claims", claims, "--repo", repo])
+    expect(out.missing_claims).toEqual([])
+    expect(out.unclaimed_changes).not.toContain("b.txt")
+    expect(out.ok).toBe(true)
+  })
+
+  test('scope [""] -> infrastructure failure naming the blank prefix', () => {
+    const repo = caseDir()
+    initRepoWithCommit(repo, { "a.txt": "one" })
+    const claimsDir = caseDir()
+    const claims = writeJson(claimsDir, "claims.json", { changed_files: [], scope: [""] })
+    const r = run(["diff-claims", "--claims", claims, "--repo", repo])
+    expect(r.status).not.toBe(0)
+    expect(r.stderr).toContain("scope prefix")
+  })
+
+  test("absolute scope prefix -> infrastructure failure naming it", () => {
+    const repo = caseDir()
+    initRepoWithCommit(repo, { "a.txt": "one" })
+    const claimsDir = caseDir()
+    const claims = writeJson(claimsDir, "claims.json", { changed_files: [], scope: ["/etc"] })
+    const r = run(["diff-claims", "--claims", claims, "--repo", repo])
+    expect(r.status).not.toBe(0)
+    expect(r.stderr).toContain("/etc")
+  })
+
+  test('scope ["."] means everything in scope (unclaimed stays informational)', () => {
+    const repo = caseDir()
+    initRepoWithCommit(repo, { "a.txt": "committed" })
+    writeFileSync(path.join(repo, "a.txt"), "modified", "utf8")
+    const claimsDir = caseDir()
+    const claims = writeJson(claimsDir, "claims.json", { changed_files: [], scope: ["."] })
+    const out = runOk(["diff-claims", "--claims", claims, "--repo", repo])
+    expect(out.unclaimed_changes).toContain("a.txt")
+    expect(out.ok).toBe(true)
+  })
 })
 
 describe("verdict --report", () => {
@@ -252,6 +380,8 @@ describe("verdict --acceptance", () => {
     verdict_consistency_flagged: false,
     verification_evidence_status: "green",
     babysit_status: null,
+    fixes_applied_status: "none-eligible",
+    residuals_durable: null,
   }
 
   test("accepted:true with failed verification evidence -> contradiction naming the red input", () => {
@@ -299,6 +429,72 @@ describe("verdict --acceptance", () => {
     })
     const r = run(["verdict", "--acceptance", record])
     expect(r.status).not.toBe(0)
+  })
+
+  test('mis-cased "GREEN" evidence status -> infrastructure failure, never silent green', () => {
+    const dir = caseDir()
+    const record = writeJson(dir, "acceptance.json", {
+      accepted: true,
+      inputs: { ...greenInputs, verification_evidence_status: "GREEN" },
+    })
+    const r = run(["verdict", "--acceptance", record])
+    expect(r.status).not.toBe(0)
+    expect(r.stderr).toContain("verification_evidence_status")
+  })
+
+  test("verdict_consistency_flagged: 1 (non-boolean) -> infrastructure failure", () => {
+    const dir = caseDir()
+    const record = writeJson(dir, "acceptance.json", {
+      accepted: true,
+      inputs: { ...greenInputs, verdict_consistency_flagged: 1 },
+    })
+    const r = run(["verdict", "--acceptance", record])
+    expect(r.status).not.toBe(0)
+    expect(r.stderr).toContain("verdict_consistency_flagged")
+  })
+
+  test("review_verdict null -> infrastructure failure", () => {
+    const dir = caseDir()
+    const record = writeJson(dir, "acceptance.json", {
+      accepted: true,
+      inputs: { ...greenInputs, review_verdict: null },
+    })
+    const r = run(["verdict", "--acceptance", record])
+    expect(r.status).not.toBe(0)
+    expect(r.stderr).toContain("review_verdict")
+  })
+
+  test("accepted:true with fixes_applied_status not-applied -> contradiction", () => {
+    const dir = caseDir()
+    const record = writeJson(dir, "acceptance.json", {
+      accepted: true,
+      inputs: { ...greenInputs, fixes_applied_status: "not-applied" },
+    })
+    const out = runOk(["verdict", "--acceptance", record])
+    expect(out.ok).toBe(false)
+    expect(out.contradictions.join(" ")).toContain("fixes_applied_status")
+  })
+
+  test("accepted:true with residuals_durable false -> contradiction", () => {
+    const dir = caseDir()
+    const record = writeJson(dir, "acceptance.json", {
+      accepted: true,
+      inputs: { ...greenInputs, residuals_durable: false },
+    })
+    const out = runOk(["verdict", "--acceptance", record])
+    expect(out.ok).toBe(false)
+    expect(out.contradictions.join(" ")).toContain("residuals_durable")
+  })
+
+  test("the two new fields green (applied + residuals_durable true) -> ok", () => {
+    const dir = caseDir()
+    const record = writeJson(dir, "acceptance.json", {
+      accepted: true,
+      inputs: { ...greenInputs, fixes_applied_status: "applied", residuals_durable: true },
+    })
+    const out = runOk(["verdict", "--acceptance", record])
+    expect(out.ok).toBe(true)
+    expect(out.contradictions).toEqual([])
   })
 })
 
@@ -364,6 +560,31 @@ describe("validate", () => {
     expect(r.status).not.toBe(0)
     expect(r.stderr).toContain("pattern")
   })
+
+  test('additionalProperties as the string "false" -> infrastructure failure naming the value', () => {
+    const dir = caseDir()
+    const schema = writeJson(dir, "schema.json", {
+      type: "object",
+      additionalProperties: "false",
+      properties: { id: { type: "string" } },
+    })
+    const envelope = writeJson(dir, "envelope.json", { id: "abc" })
+    const r = run(["validate", "--schema", schema, "--envelope", envelope])
+    expect(r.status).not.toBe(0)
+    expect(r.stderr).toContain("'false'")
+  })
+
+  test("unsupported name inside a type array fails even when the value matches an earlier name", () => {
+    const dir = caseDir()
+    const schema = writeJson(dir, "schema.json", {
+      type: "object",
+      properties: { id: { type: ["string", "bogus"] } },
+    })
+    const envelope = writeJson(dir, "envelope.json", { id: "abc" })
+    const r = run(["validate", "--schema", schema, "--envelope", envelope])
+    expect(r.status).not.toBe(0)
+    expect(r.stderr).toContain("bogus")
+  })
 })
 
 describe("journal", () => {
@@ -412,6 +633,41 @@ describe("journal", () => {
     const file = path.join(dir, "journal.jsonl")
     const out = runOk(["journal", "--file", file, "--record", "{broken"])
     expect(out.ok).toBe(false)
+  })
+
+  test("--record-file append works like --record", () => {
+    const dir = caseDir()
+    const file = path.join(dir, "journal.jsonl")
+    const recFile = path.join(dir, "record.json")
+    writeFileSync(recFile, record(), "utf8")
+    const out = runOk(["journal", "--file", file, "--record-file", recFile])
+    expect(out.ok).toBe(true)
+    const lines = readFileSync(file, "utf8").trim().split("\n")
+    expect(lines).toHaveLength(1)
+    expect(JSON.parse(lines[0]).phase).toBe("plan")
+  })
+
+  test("--record-file with invalid JSON -> ok:false but exit 0", () => {
+    const dir = caseDir()
+    const file = path.join(dir, "journal.jsonl")
+    const recFile = path.join(dir, "record.json")
+    writeFileSync(recFile, "{broken", "utf8")
+    const out = runOk(["journal", "--file", file, "--record-file", recFile])
+    expect(out.ok).toBe(false)
+    expect(existsSync(file)).toBe(false)
+  })
+
+  test("--record and --record-file together -> argparse rejection (non-zero)", () => {
+    const dir = caseDir()
+    const recFile = path.join(dir, "record.json")
+    writeFileSync(recFile, record(), "utf8")
+    const r = run([
+      "journal",
+      "--file", path.join(dir, "journal.jsonl"),
+      "--record", record(),
+      "--record-file", recFile,
+    ])
+    expect(r.status).not.toBe(0)
   })
 
   test("unwritable path -> exit 0 with failure note (never blocks the caller)", () => {

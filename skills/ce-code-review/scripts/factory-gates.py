@@ -4,11 +4,20 @@
 Subcommands (each prints exactly one JSON result object to stdout):
 
   artifacts   --claims <json-file>                verify claimed artifact paths exist and are non-empty
+                                                  (an empty directory is flagged like an empty file)
   diff-claims --claims <json-file> --repo <dir>   compare claimed changed files against actual git state
+              [--base <ref>]                      also union committed changes since <ref> (for runs
+                                                  that commit their work); a bad ref is an
+                                                  infrastructure failure
   verdict     --report <json-file>                flag self-contradictory review reports
   verdict     --acceptance <json-file>            flag an acceptance record contradicted by its inputs
+                                                  (inputs are enum/type-validated; required fields:
+                                                  review_verdict, verdict_consistency_flagged,
+                                                  verification_evidence_status, babysit_status,
+                                                  fixes_applied_status, residuals_durable)
   validate    --schema <file> --envelope <file>   minimal JSON-Schema-subset validation of an envelope
   journal     --file <path> --record <json>       append one validated JSONL record (best-effort)
+  journal     --file <path> --record-file <path>  same, reading the record JSON from a file
 
 Exit-code contract (load-bearing — callers branch on it):
 
@@ -73,6 +82,8 @@ def cmd_artifacts(args):
             checks.append(check(item, False, "missing: path does not exist"))
         elif os.path.isfile(item) and os.path.getsize(item) == 0:
             checks.append(check(item, False, "exists but is empty (0 bytes)"))
+        elif os.path.isdir(item) and not os.listdir(item):
+            checks.append(check(item, False, "exists but is an empty directory"))
         else:
             checks.append(check(item, True, "exists and is non-empty"))
     return emit({"ok": all(c["ok"] for c in checks), "checks": checks})
@@ -100,20 +111,43 @@ def normalize_path(p):
     return p
 
 
-def parse_porcelain_line(line):
-    # "XY path" or "XY old -> new" (renames/copies); porcelain quotes odd paths.
-    path_part = line[3:]
-    if " -> " in path_part:
-        path_part = path_part.split(" -> ", 1)[1]
-    if path_part.startswith('"') and path_part.endswith('"'):
-        path_part = path_part[1:-1]
-    return path_part
+def parse_porcelain_z(stdout):
+    """Parse `git status --porcelain -z` output into a set of current paths.
+
+    Each entry is "XY <path>"; rename/copy entries (X or Y in R/C) are followed by
+    one extra NUL-terminated field holding the ORIGINAL path (the new name comes
+    first per the porcelain -z spec, verified against real git output). NUL
+    delimiting means no quoting/escaping ever applies, so paths with spaces,
+    quotes, non-ASCII, or a literal " -> " pass through byte-exact.
+    """
+    fields = stdout.split("\0")
+    paths = set()
+    i = 0
+    while i < len(fields):
+        entry = fields[i]
+        i += 1
+        if not entry:
+            continue
+        status_xy, path = entry[:2], entry[3:]
+        paths.add(path)
+        if "R" in status_xy or "C" in status_xy:
+            i += 1  # skip the original-path field of a rename/copy
+    return paths
+
+
+def split_z(stdout):
+    return [f for f in stdout.split("\0") if f]
+
+
+def is_absolute_prefix(prefix):
+    p = prefix.replace("\\", "/")
+    return p.startswith("/") or (len(p) >= 2 and p[1] == ":" and p[0].isalpha())
 
 
 def in_scope(path_norm, scope_prefixes):
     for prefix in scope_prefixes:
         prefix = prefix.replace("\\", "/").rstrip("/")
-        if prefix in ("", "."):
+        if prefix == ".":
             return True
         if path_norm == prefix or path_norm.startswith(prefix + "/"):
             return True
@@ -127,27 +161,48 @@ def cmd_diff_claims(args):
     scope = claims.get("scope")
     if scope is not None and not isinstance(scope, list):
         raise InfrastructureFailure('"scope" must be a list of path-or-directory prefixes when present')
+    if scope:
+        for prefix in scope:
+            if not isinstance(prefix, str):
+                raise InfrastructureFailure(f"scope prefix is not a string: {prefix!r}")
+            if prefix == "":
+                raise InfrastructureFailure(
+                    'malformed scope prefix "" (use "." to mean the whole repo)'
+                )
+            if is_absolute_prefix(prefix):
+                raise InfrastructureFailure(
+                    f"malformed scope prefix {prefix!r}: absolute paths are not allowed "
+                    "(use repo-relative prefixes)"
+                )
 
     probe = run_git(args.repo, "rev-parse", "--git-dir")
     if probe.returncode != 0:
         raise InfrastructureFailure(f"{args.repo} is not a git repository: {probe.stderr.strip()}")
 
-    status = run_git(args.repo, "status", "--porcelain")
+    status = run_git(args.repo, "status", "--porcelain", "-z")
     if status.returncode != 0:
         raise InfrastructureFailure(f"git status failed: {status.stderr.strip()}")
-    actual = {
-        normalize_path(parse_porcelain_line(line))
-        for line in status.stdout.splitlines()
-        if line.strip()
-    }
+    actual = {normalize_path(p) for p in parse_porcelain_z(status.stdout)}
     # Include committed-but-uncommitted-to-claims drift relative to HEAD when HEAD exists
     # (a fresh repo with no commits legitimately has no HEAD; that is not an infra failure).
     head = run_git(args.repo, "rev-parse", "--verify", "--quiet", "HEAD")
     if head.returncode == 0:
-        diff = run_git(args.repo, "diff", "--name-only", "HEAD")
+        diff = run_git(args.repo, "diff", "--name-only", "-z", "HEAD")
         if diff.returncode != 0:
             raise InfrastructureFailure(f"git diff failed: {diff.stderr.strip()}")
-        actual.update(normalize_path(line) for line in diff.stdout.splitlines() if line.strip())
+        actual.update(normalize_path(p) for p in split_z(diff.stdout))
+    # A run that committed its work leaves a clean tree; --base <ref> unions the
+    # committed changes since <ref> so those claims still verify.
+    if getattr(args, "base", None):
+        base_probe = run_git(args.repo, "rev-parse", "--verify", "--quiet", f"{args.base}^{{commit}}")
+        if base_probe.returncode != 0:
+            raise InfrastructureFailure(
+                f"--base {args.base!r} is not a resolvable commit in {args.repo}"
+            )
+        base_diff = run_git(args.repo, "diff", "--name-only", "-z", args.base)
+        if base_diff.returncode != 0:
+            raise InfrastructureFailure(f"git diff against --base failed: {base_diff.stderr.strip()}")
+        actual.update(normalize_path(p) for p in split_z(base_diff.stdout))
 
     claimed = {normalize_path(p) for p in claims["changed_files"]}
     missing_claims = sorted(claimed - actual)
@@ -238,7 +293,46 @@ REQUIRED_ACCEPTANCE_INPUTS = (
     "verdict_consistency_flagged",
     "verification_evidence_status",
     "babysit_status",
+    "fixes_applied_status",
+    "residuals_durable",
 )
+VERIFICATION_EVIDENCE_STATUSES = ("green", "red", "unverified")
+FIXES_APPLIED_STATUSES = ("applied", "partial", "none-eligible", "not-applied")
+
+
+def validate_acceptance_inputs(inputs):
+    """Enum/type-validate every input BEFORE contradiction checks.
+
+    A mis-typed or mis-cased value (e.g. "GREEN", 1 for a bool) must be an
+    infrastructure failure, never a silent green: equality checks against the
+    red values would quietly pass an invalid record.
+    """
+    if inputs["review_verdict"] not in VERDICTS:
+        raise InfrastructureFailure(
+            f"review_verdict must be one of {list(VERDICTS)}, got {inputs['review_verdict']!r}"
+        )
+    if not isinstance(inputs["verdict_consistency_flagged"], bool):
+        raise InfrastructureFailure(
+            f"verdict_consistency_flagged must be a boolean, got {inputs['verdict_consistency_flagged']!r}"
+        )
+    if inputs["verification_evidence_status"] not in VERIFICATION_EVIDENCE_STATUSES:
+        raise InfrastructureFailure(
+            f"verification_evidence_status must be one of {list(VERIFICATION_EVIDENCE_STATUSES)}, "
+            f"got {inputs['verification_evidence_status']!r}"
+        )
+    if inputs["babysit_status"] is not None and not isinstance(inputs["babysit_status"], str):
+        raise InfrastructureFailure(
+            f"babysit_status must be a string or null, got {inputs['babysit_status']!r}"
+        )
+    if inputs["fixes_applied_status"] not in FIXES_APPLIED_STATUSES:
+        raise InfrastructureFailure(
+            f"fixes_applied_status must be one of {list(FIXES_APPLIED_STATUSES)}, "
+            f"got {inputs['fixes_applied_status']!r}"
+        )
+    if inputs["residuals_durable"] is not None and not isinstance(inputs["residuals_durable"], bool):
+        raise InfrastructureFailure(
+            f"residuals_durable must be true, false, or null, got {inputs['residuals_durable']!r}"
+        )
 
 
 def cmd_verdict_acceptance(path):
@@ -251,6 +345,7 @@ def cmd_verdict_acceptance(path):
     missing = [k for k in REQUIRED_ACCEPTANCE_INPUTS if k not in inputs]
     if missing:
         raise InfrastructureFailure(f"acceptance inputs missing required field(s): {missing}")
+    validate_acceptance_inputs(inputs)
 
     red = []
     if inputs["review_verdict"] == NOT_READY:
@@ -262,6 +357,10 @@ def cmd_verdict_acceptance(path):
     babysit = inputs["babysit_status"]
     if isinstance(babysit, str) and babysit.lower() == "failed":
         red.append("babysit_status is 'failed'")
+    if inputs["fixes_applied_status"] == "not-applied":
+        red.append("fixes_applied_status is 'not-applied'")
+    if inputs["residuals_durable"] is False:
+        red.append("residuals_durable is false")
 
     contradictions = []
     # Conservative acceptance (accepted:false with green inputs) is never a contradiction.
@@ -299,11 +398,20 @@ def check_supported_keywords(schema, at="#"):
                 check_supported_keywords(sub, f"{at}/properties/{name}")
         elif key == "items":
             check_supported_keywords(value, f"{at}/items")
-        elif key == "additionalProperties" and isinstance(value, dict):
-            check_supported_keywords(value, f"{at}/additionalProperties")
+        elif key == "additionalProperties":
+            if isinstance(value, dict):
+                check_supported_keywords(value, f"{at}/additionalProperties")
+            elif not isinstance(value, bool):
+                raise InfrastructureFailure(
+                    f"additionalProperties at {at} must be a boolean or a schema object, "
+                    f"got {value!r}"
+                )
         elif key == "oneOf":
             for i, sub in enumerate(value):
                 check_supported_keywords(sub, f"{at}/oneOf/{i}")
+
+
+SUPPORTED_TYPE_NAMES = ("null", "boolean", "object", "array", "string", "integer", "number")
 
 
 def type_matches(value, type_name):
@@ -327,6 +435,11 @@ def type_matches(value, type_name):
 def validate_value(value, schema, at, errors):
     if "type" in schema:
         allowed = schema["type"] if isinstance(schema["type"], list) else [schema["type"]]
+        # Validate every type name BEFORE matching: any() short-circuits on the first
+        # match, which would let an unsupported name later in the array pass silently.
+        for t in allowed:
+            if t not in SUPPORTED_TYPE_NAMES:
+                raise InfrastructureFailure(f"unsupported type name in schema: {t!r}")
         if not any(type_matches(value, t) for t in allowed):
             errors.append(f"{at}: expected type {allowed}, got {type(value).__name__}")
             return
@@ -395,8 +508,15 @@ def journal_validate(record):
 
 def cmd_journal(args):
     # Journaling never blocks the caller: every failure below is ok:false + exit 0.
+    raw = args.record
+    if raw is None:
+        try:
+            with open(args.record_file, "r", encoding="utf-8") as fh:
+                raw = fh.read()
+        except OSError as exc:
+            return emit({"ok": False, "note": f"cannot read record file {args.record_file}: {exc}"})
     try:
-        record = json.loads(args.record)
+        record = json.loads(raw)
     except json.JSONDecodeError as exc:
         return emit({"ok": False, "note": f"record is not valid JSON: {exc}"})
     problem = journal_validate(record)
@@ -434,6 +554,7 @@ def build_parser():
     p = sub.add_parser("diff-claims", help="compare claimed changed files against actual git state")
     p.add_argument("--claims", required=True)
     p.add_argument("--repo", required=True)
+    p.add_argument("--base", help="also count committed changes since this ref (for runs that commit)")
     p.set_defaults(func=cmd_diff_claims)
 
     p = sub.add_parser("verdict", help="flag self-contradictory review reports or acceptance records")
@@ -451,7 +572,9 @@ def build_parser():
 
     p = sub.add_parser("journal", help="append one validated JSONL record (best-effort, never fails the caller)")
     p.add_argument("--file", required=True)
-    p.add_argument("--record", required=True)
+    group = p.add_mutually_exclusive_group(required=True)
+    group.add_argument("--record")
+    group.add_argument("--record-file")
     p.set_defaults(func=cmd_journal)
 
     return parser
