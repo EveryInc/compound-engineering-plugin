@@ -157,6 +157,8 @@ Long external runs remain observable through the `ce-work` return contract: run 
 
 Output: code changes, commits, and usually a PR. If there is no configured git remote, output is local commits only. If CI remains red after the bounded repair loop, unresolved failures are recorded durably before the run ends.
 
+The run's final line separates acceptance from completion: `DONE — accepted`, or `DONE — completed, not accepted: <reason>` when stages finished but the outcome did not clear the acceptance inputs (review verdict and applied fixes, `ce-work` verification evidence, residual durability, babysit status). The decision is self-checked by a bundled deterministic gate (`verdict --acceptance`), which can only make it more conservative. Each pipeline stage is also journaled to a per-run JSONL at `/tmp/compound-engineering-<uid>/lfg/<run-id>/journal.jsonl` — the path is printed beside DONE (`Journal: <path>`) so a run can be inspected stage by stage after the fact; the acceptance outcome is the journal's terminal record. Seam envelopes from `ce-plan`, `ce-work`, and `ce-code-review` are validated against schema files in the skill's `references/` before the pipeline consumes them.
+
 ---
 
 ## See Also
