@@ -94,6 +94,16 @@ Assemble the final report. **Default:** human-readable markdown. **`mode:agent`:
 
 **Report completion gate:** do not finish until stable `#` identifiers appear on every primary finding and the report contains `### Actionable Findings`, `### Coverage`, and `### Verdict` (or their exact JSON fields in `mode:agent`). Coverage must name the cross-model outcome and validator shortcut/batch outcome. The Actionable section must include every `downstream-resolver` finding; never silently replace it with a count.
 
+**Verdict-consistency gate (both modes).** Once the verdict and actionable findings are final and before rendering the report: write `$RUN_DIR/verdict-check.json` containing the final `verdict`, `actionable_findings`, `residual_risks`, and — when the verdict is `Not ready` — a one-line `not_ready_reason`, then run the bundled gate:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+"$PY" "$SKILL_DIR/scripts/factory-gates.py" verdict --report "$RUN_DIR/verdict-check.json"
+```
+
+Read the JSON result. A contradiction (`ok: false`) never rewrites the verdict: record the returned contradiction strings as a `verdict_consistency` warning — in `mode:agent`, the `verdict_consistency` field on the result JSON (empty or absent when clean); in markdown mode, one `Verdict consistency:` warning line in the Verdict section listing them. If the script did not run (interpreter missing or non-zero exit), retry the command once; if it still did not run, record `verdict_consistency: ["unverified — gate unavailable"]` (markdown: `Verdict consistency: unverified — gate unavailable`). Do not re-derive the check in prose.
+
 **Before writing, load `references/review-output-template.md` and mirror its section skeleton** — that file is the canonical skeleton for *which sections appear and in what order*; its example shows one good rendering, not the only permitted layout. The direction below is the always-loaded fallback so it survives a long session even if the template was not reloaded.
 
 **Presentation direction — optimize for the reader's next action (goal + considerations, not a fixed layout).** The report is *acted on*: by a human deciding what to fix and whether to merge, or by a downstream agent applying fixes. Shape it so that action is fast and well-founded.
@@ -167,10 +177,13 @@ Minimum shape:
   "residual_risks": [],
   "testing_gaps": [],
   "coverage": {},
+  "verdict_consistency": [],
   "artifact_path": "<resolved-run-dir>",
   "run_id": "<run-id>"
 }
 ```
+
+`verdict_consistency` carries the contradiction strings from the verdict-consistency gate (Stage 6): empty or absent when the gate found none, `["unverified — gate unavailable"]` when the gate could not run. It never changes `verdict`; callers weigh it.
 
 Each object in `findings` uses the merged finding fields: `#`, `title`, `severity`, `file`, `line`, `confidence`, `autofix_class`, `owner`, `requires_verification`, `pre_existing`, `suggested_fix`, `first_evidence`, `why_it_matters`, `evidence`, `reviewers`, `independent_reviewers`. The helper derives `independent_reviewers`; synthesis may preserve or union that list but must not infer it from `reviewers`.
 

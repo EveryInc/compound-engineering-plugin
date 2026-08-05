@@ -176,6 +176,7 @@ describe("ce-code-review contract", () => {
     expect(content).toContain("### JSON output format")
     expect(content).toContain('"status": "complete"')
     expect(content).toContain("review.json")
+    expect(content).toContain('"verdict_consistency"')
 
     // Report-only is the default; mutation requires separate, explicit authority.
     expect(content).toMatch(/never mutates the tree/i)
@@ -453,6 +454,24 @@ describe("ce-code-review contract", () => {
 
     // Stable numbering is a helper responsibility.
     expect(mechanics).toMatch(/enumerate\(survivors, 1\)/)
+  })
+
+  test("finish-review runs the verdict-consistency gate on the report JSON", async () => {
+    const finish = await readRepoFile(
+      "skills/ce-code-review/references/finish-review.md",
+    )
+
+    // Deterministic gate: bundled script, verdict subcommand on the report JSON.
+    expect(finish).toContain("scripts/factory-gates.py")
+    expect(finish).toContain("verdict --report")
+
+    // A contradiction degrades the outcome, never the boundary: the verdict is
+    // not rewritten; the result carries a named verdict_consistency warning.
+    expect(finish).toContain("verdict_consistency")
+    expect(finish).toMatch(/never rewrites? the verdict/i)
+
+    // Infrastructure failure is reported as unverified, not re-derived in prose.
+    expect(finish).toContain("unverified — gate unavailable")
   })
 
   test("Stage 5b validation pass dispatches conditionally and bounds parallelism", async () => {

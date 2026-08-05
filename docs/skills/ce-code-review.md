@@ -145,6 +145,10 @@ Compound-engineering pipeline artifacts (`docs/brainstorms/*` legacy/evidence ar
 
 When the discovered plan carries `session-settled:` KTDs, synthesis routes a finding that merely prefers a different approach to the report-only queue with a `settled_conflict` stamp naming the KTD — including when local apply was explicitly authorized, so a decision the user already made is never gate-dropped for reviewer taste. A real defect inside a settled approach keeps its full severity, and evidence that a settled decision cannot work is surfaced prominently (so an upstream pipeline gate can halt on it). Reviewers themselves stay blind to the annotations — they're excluded from reviewer bundles and the intent summary, including the cross-model adversarial pass — and the orchestrator triages post-hoc, so no lens is anchored by knowing a choice was already blessed.
 
+### 10. Verdict-consistency gate
+
+Before the report is rendered, a bundled deterministic script (`scripts/factory-gates.py verdict --report`) checks the final verdict against the findings behind it — a `Ready to merge` verdict with open P0/P1 actionable findings, or a `Not ready` verdict with nothing behind it, is flagged as a contradiction. A flag never rewrites the verdict: it surfaces as a `verdict_consistency` warning (a warning line in the markdown Verdict section; a `verdict_consistency` field on the `mode:agent` result JSON) so callers such as `lfg` can weigh it. If the gate itself cannot run after one retry, the report says `unverified — gate unavailable` rather than silently passing.
+
 ---
 
 ## Quick Example
