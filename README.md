@@ -402,20 +402,35 @@ pi install npm:pi-ask-user
 
 ### oh-my-pi (omp)
 
-oh-my-pi (omp) installs this repository directly because the repo ships native `package.json#pi` package metadata plus the Claude marketplace catalog — omp reads both, so no conversion step is needed:
-
-```text
-omp install https://github.com/EveryInc/compound-engineering-plugin
-```
-
-Or use the marketplace flow:
+oh-my-pi (omp) installs Compound Engineering through its marketplace flow. The repo ships a native `.omp-plugin/marketplace.json` catalog whose plugin entry carries a release-managed `version`, so omp's update checker can see each new CE release:
 
 ```text
 omp plugin marketplace add EveryInc/compound-engineering-plugin
 omp plugin install compound-engineering@compound-engineering-plugin
 ```
 
-Run `/reload-plugins` or start a new omp session after installing so the skills load. omp invokes installed skills as `/skill:<name>` (for example `/skill:ce-plan`), not `/skill-name`. For local development from a checkout, use `omp plugin link "$PWD"`. See [`docs/specs/omp.md`](docs/specs/omp.md) for details.
+To stay current automatically, enable auto-update:
+
+```bash
+omp config set marketplace.autoUpdate auto
+```
+
+The default `notify` mode only writes update availability to the debug log — it does not prompt — so without `auto` you will not hear about new releases. To upgrade by hand instead, run `omp plugin upgrade compound-engineering@compound-engineering-plugin`.
+
+<details>
+<summary>Other install paths (pin-style and contributor development)</summary>
+
+`omp install https://github.com/EveryInc/compound-engineering-plugin` installs the repository as an npm-style plugin. That path has **no update mechanism** — treat it as pinning a snapshot, not as the recommended install.
+
+For local development from a checkout, use a live symlink instead:
+
+```bash
+omp plugin link "$PWD"
+```
+
+</details>
+
+Run `/reload-plugins` or start a new omp session after installing so the skills load. omp invokes installed skills as `/skill:<name>` (for example `/skill:ce-plan`), not `/skill-name`. See [`docs/specs/omp.md`](docs/specs/omp.md) for details.
 
 ### Antigravity CLI (`agy`)
 

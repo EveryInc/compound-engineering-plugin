@@ -47,7 +47,8 @@
         ".kimi-plugin/marketplace.json",
         ".claude-plugin/marketplace.json",
         ".cursor-plugin/marketplace.json",
-        ".grok-plugin/marketplace.json"
+        ".grok-plugin/marketplace.json",
+        ".omp-plugin/marketplace.json"
       ],
       "extra-files": [
         {
@@ -84,6 +85,11 @@
           "type": "json",
           "path": ".devin-plugin/plugin.json",
           "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": ".omp-plugin/marketplace.json",
+          "jsonpath": "$.plugins[0].version"
         },
         {
           "type": "json",
