@@ -189,6 +189,23 @@ describe("ce-work testing evidence contract", () => {
   })
 })
 
+describe("ce-work quality commands contract", () => {
+  test("configured quality commands are consumed at both verification drift points", async () => {
+    const implementationLoop = await readRepoFile("skills/ce-work/references/implementation-loop.md")
+    const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
+
+    expect(implementationLoop).toContain("quality_commands")
+    expect(shipping).toContain("quality_commands")
+  })
+
+  test("implementation-loop owns precedence and keeps discovery fallback — configured commands are never mandatory", async () => {
+    const implementationLoop = await readRepoFile("skills/ce-work/references/implementation-loop.md")
+
+    expect(implementationLoop).toContain("task instruction > session/project instructions > config")
+    expect(implementationLoop).toContain("project's active instructions")
+  })
+})
+
 describe("verification_evidence seam parity (ce-work <-> lfg)", () => {
   // The lfg step-2 gate consumes ce-work's `verification_evidence` return field.
   // The two SKILL.md files are edited independently, so the existing prose-presence

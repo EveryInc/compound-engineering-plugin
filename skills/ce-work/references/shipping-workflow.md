@@ -9,10 +9,14 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
    Always run before submitting:
 
    ```bash
-   # Run full test suite (use project's test command)
-   # Examples: bin/rails test, npm test, pytest, go test, etc.
+   # Run full test suite (quality_commands.test when configured; otherwise the
+   # project's test command — e.g. bin/rails test, npm test, pytest, go test)
 
-   # Run linting (per the project's configured lint command / active instructions)
+   # Run linting (quality_commands.lint when configured; otherwise the project's
+   # configured lint command / active instructions)
+   # Also run quality_commands.typecheck and quality_commands.build when those keys are set
+   # Configured commands run verbatim as single argv-style calls; precedence rule:
+   # see "Quality commands" in references/implementation-loop.md
    # Use linting-agent before pushing to origin
    ```
 
