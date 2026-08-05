@@ -341,6 +341,7 @@ describe("PR concept teaching contract", () => {
     expect(skill).toMatch(/outer orchestrator[\s\S]{0,80}second bare babysit/i)
     expect(skill).toMatch(/mode:pipeline[\s\S]{0,160}started-only is not enough/i)
     expect(submit).toMatch(/authoritative parent tip/i)
+    expect(submit).toContain('git checkout -b -- "<branch-name>" "<parent-tip>"')
     expect(submit).toMatch(/Do not hard-code `origin\/<parent>`/i)
     expect(submit).toMatch(/Do \*\*not\*\* follow `references\/branch-creation\.md` for stack-layer base selection/i)
     expect(submit).toContain("gh stack submit --auto --open")
