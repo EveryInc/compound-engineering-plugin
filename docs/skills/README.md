@@ -135,4 +135,4 @@ Invoked when a specific need arises — not part of any chain.
 
 ## See also
 
-For the top-level install and usage guide, see [`README.md`](../../README.md). Each skill's authoritative runtime spec is in `skills/<skill>/SKILL.md`.
+For the top-level install and usage guide, see [`README.md`](../../README.md). Each skill's authoritative runtime spec is in `skills/<skill>/SKILL.md`. To run CE judgment content inside the SSSF deterministic control plane, see [`docs/integrations/sssf-control-plane.md`](../integrations/sssf-control-plane.md).

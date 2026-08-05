@@ -209,6 +209,8 @@ After installing, run `/ce-setup` in any project. It checks repo-local config, r
 
 The `compound-engineering` plugin currently ships 32 skills and 0 standalone agents. Specialist review, research, and workflow behavior lives inside the owning skills as skill-local prompt assets.
 
+For running the plugin's judgment content inside an external deterministic control plane (SSSF), see [`docs/integrations/sssf-control-plane.md`](docs/integrations/sssf-control-plane.md).
+
 ### Full Skill Inventory
 
 | Skill | Purpose |
