@@ -339,6 +339,7 @@ describe("PR concept teaching contract", () => {
     expect(skill).toMatch(/Stack mode[\s\S]{0,80}still follow `references\/stack-submit\.md`/i)
     expect(skill).toMatch(/mode:pipeline` \*\*except\*\* when this run completed a stack-mode submit/i)
     expect(skill).toMatch(/outer orchestrator[\s\S]{0,80}second bare babysit/i)
+    expect(skill).toMatch(/mode:pipeline[\s\S]{0,160}started-only is not enough/i)
     expect(submit).toContain("gh stack submit --auto --open")
     expect(submit).toMatch(/existing draft/i)
     expect(submit).toMatch(/do \*\*not\*\* pass `--open`/i)
