@@ -7,11 +7,11 @@ Always non-interactive. Prefer JSON/view probes and explicit branch names; never
 ## After an owned push on the active layer (dependents exist)
 
 ```bash
-gh stack rebase <first-open-dependent-branch> --upstack --no-trunk --remote origin
+gh stack rebase "<first-open-dependent-branch>" --upstack --no-trunk --remote origin
 gh stack push --remote origin
 ```
 
-Starting at the first dependent excludes the active target from the cascading rebase. On conflict: `gh stack rebase --abort`, then surface a needs-human / stack-sync residual.
+Starting at the first dependent excludes the active target from the cascading rebase. Quote the branch name — git branch names may contain shell metacharacters. On conflict: `gh stack rebase --abort`, then surface a needs-human / stack-sync residual.
 
 ## Discover order / next open layer
 

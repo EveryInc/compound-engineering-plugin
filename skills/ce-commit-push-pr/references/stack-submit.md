@@ -19,6 +19,10 @@ Any explicit new upstack branch the user already directed must base from `origin
 
 ## Submit (ready / non-draft)
 
+Before submit, inspect the manager's open PRs (`gh stack view --json` / `gh pr view`) for any **existing draft** layers. If any draft already exists that the author did not explicitly ask to open this run, do **not** pass `--open` (GitHub documents `--open` as also marking existing PRs ready for review). In that case: submit with `gh stack submit --auto` only, then treat remaining drafts as a hard residual before babysit when babysit is on — never auto-ready WIP drafts.
+
+When no existing drafts are present (or the user explicitly authorized opening every layer):
+
 ```bash
 gh stack submit --auto --open
 ```
