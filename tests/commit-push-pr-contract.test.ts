@@ -342,6 +342,7 @@ describe("PR concept teaching contract", () => {
     expect(skill).toMatch(/mode:pipeline[\s\S]{0,160}started-only is not enough/i)
     expect(submit).toMatch(/authoritative parent tip/i)
     expect(submit).toMatch(/Do not hard-code `origin\/<parent>`/i)
+    expect(submit).toMatch(/Do \*\*not\*\* follow `references\/branch-creation\.md` for stack-layer base selection/i)
     expect(submit).toContain("gh stack submit --auto --open")
     expect(submit).toMatch(/existing draft/i)
     expect(submit).toMatch(/do \*\*not\*\* pass `--open`/i)
