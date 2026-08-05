@@ -708,6 +708,7 @@ txt = open(sys.argv[1], encoding="utf-8", errors="replace").read()
 # arrives escaped as \"findings\", which the quoted form does not match.
 if 'findings' not in txt: sys.exit(0)
 dec = json.JSONDecoder()
+# (obj, depth) — depth>0 means recovered from inside a JSON string (envelope .text)
 found = []
 
 def scan(text, depth):
@@ -724,7 +725,7 @@ def scan(text, depth):
             # structuredOutput is grok-cli's spelling of the same field.
             for cand in (obj, obj.get("structured_output"), obj.get("structuredOutput")):
                 if isinstance(cand, dict) and isinstance(cand.get("findings"), list):
-                    found.append(cand)
+                    found.append((cand, depth))
             # An envelope route (grok-cli's `.text`) returns the review as a JSON
             # *string*, whose `{` were never candidates here — raw_decode consumed
             # the envelope whole and moved past it. Re-scan its strings so a
@@ -739,9 +740,24 @@ def scan(text, depth):
         i = end
 
 scan(txt, 0)
-# Last shaped object wins, but a populated review beats an empty one: grok emits
-# an empty stub beside the real object and the order is not guaranteed.
-best = next((o for o in reversed(found) if o["findings"]), found[-1] if found else None)
+# Nested (string-unwrapped) candidates are the grok .text stub case: order of
+# empty vs populated is not guaranteed, so prefer a populated review. Top-level
+# sequential objects (codex/noisy stdout) keep last-shaped-wins — a final
+# findings:[] after an earlier draft must not revive the draft.
+nested = [o for o, d in found if d > 0]
+top = [o for o, d in found if d == 0]
+if nested:
+    nested_pick = next((o for o in reversed(nested) if o["findings"]), nested[-1])
+    if nested_pick["findings"]:
+        best = nested_pick
+    elif top:
+        best = top[-1]
+    else:
+        best = nested_pick
+elif top:
+    best = top[-1]
+else:
+    best = None
 if best is not None: open(sys.argv[2], "w").write(json.dumps(best))
 PY
   [ -s "$2" ]

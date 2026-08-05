@@ -817,6 +817,22 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(out.findings[0].title).toBe("t")
   }, 20_000)
 
+  test("top-level sequential recovery keeps last-shaped-wins (final empty beats earlier draft)", () => {
+    // Populated-over-empty is only for nested .text stubs. On sequential stdout a
+    // draft with findings then a terminal findings:[] must publish the empty final
+    // object — not revive the draft as false positives.
+    const codexStub =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"reviewer":"adversarial","findings":[{"title":"stale draft"}],"residual_risks":[],"testing_gaps":[]}\n{"reviewer":"adversarial","findings":[],"residual_risks":[],"testing_gaps":[]}'\n`
+    const { env } = sandbox(["codex"], codexStub)
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "HEAD", runDir], runDir, env)
+    expect(r.files).toContain("adversarial-codex.json")
+    const out = JSON.parse(
+      readFileSync(path.join(runDir, "adversarial-codex.json"), "utf8"),
+    )
+    expect(out.findings).toHaveLength(0)
+  }, 20_000)
+
   // An envelope route returns the review inside a JSON *string* (`.text`), so its
   // braces are not scan candidates: raw_decode consumes the envelope whole, finds
   // no `findings` key on it, and moves past — the review is there and is dropped.
