@@ -1952,6 +1952,60 @@ describe("discover-sessions", () => {
     expect(files).toEqual([sessionPath])
   })
 
+  test("--platform omp discovers raw legacy buckets via the raw basename glob", async () => {
+    // Raw-scheme buckets ("--<abs>--" here) keep the basename verbatim. A repo
+    // named "my repo" lands in "--Users-test-Code-my repo--", which the
+    // sanitized-basename glob never matches; the nonexistent --cwd means the
+    // exact raw probe cannot resolve, so only the raw glob can find it.
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const sessionPath = path.join(
+      tempHome,
+      ".omp/agent/sessions/--Users-test-Code-my repo--/2026-04-07T09-00-00-000Z_test.jsonl"
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      [
+        "my repo",
+        "7",
+        "--cwd",
+        "/Users/test/Code/my repo",
+        "--platform",
+        "omp",
+      ],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("--platform omp probes the exact raw bucket for --cwd and deduplicates", async () => {
+    // With a resolvable --cwd, the raw home-relative bucket "-Code-my repo" is
+    // hit by both the exact probe and the raw basename glob; the file must be
+    // emitted exactly once even under single-platform invocation.
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const repoDir = path.join(tempHome, "Code", "my repo")
+    await fs.promises.mkdir(repoDir, { recursive: true })
+    const sessionPath = path.join(
+      tempHome,
+      ".omp/agent/sessions/-Code-my repo/2026-04-07T09-00-00-000Z_test.jsonl"
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my repo", "7", "--cwd", repoDir, "--platform", "omp"],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
   test("--platform omp discovers sessions under hashed bucket directories", async () => {
     const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
     const bucket =

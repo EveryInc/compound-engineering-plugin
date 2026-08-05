@@ -77,7 +77,12 @@ omp writes sessions as JSONL under a session root resolved in this order:
 
 Named profiles (`OMP_PROFILE` or `PI_PROFILE`) relocate the root to `$HOME/${PI_CONFIG_DIR:-.omp}/profiles/<name>/agent/sessions/`.
 
-Inside the session root, per-project buckets use the shape `<scope>-<sanitized-basename>-<sha256hex-of-canonical-cwd>`, where `scope` is `home`, `tmp`, or `abs`. Legacy unmigrated buckets also appear as `-<home-relative>` and `--<abs>--` shapes. Each bucket holds `<timestamp>_<sessionId>.jsonl` files.
+Inside the session root, per-project buckets come in two shapes. omp 17.2.9 restored the legacy project-scoped naming scheme and removed its automatic migration ([#7646](https://github.com/can1357/oh-my-pi/issues/7646)), so both shapes occur in the wild and discovery must scan both:
+
+- Raw (current again since 17.2.9): `-<home-relative>` for cwds under the canonical home, `-tmp-<tmp-relative>` for cwds under the temp root, and `--<abs>--` otherwise, with path separators and `:` encoded as `-` and the basename kept verbatim (spaces included).
+- Hashed (intermediate releases): `<scope>-<sanitized-basename>-<sha256hex-of-canonical-cwd>`, where `scope` is `home`, `tmp`, or `abs` and the basename is sanitized (`[^a-zA-Z0-9._-]+` runs become `-`, edge dashes stripped, capped at its last 80 chars, empty falls back to `project`).
+
+Each bucket holds `<timestamp>_<sessionId>.jsonl` files.
 
 Every session JSONL physically begins with a fixed-width 256-byte `{"type":"title","v":1,...,"pad":"..."}` slot line, followed by a pi-shaped `{"type":"session","version":3,...,"cwd":...}` header. This title-slot-first shape distinguishes omp session files from pi session files, which start directly with the `type:"session"` header.
 

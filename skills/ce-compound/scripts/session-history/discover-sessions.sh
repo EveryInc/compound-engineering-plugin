@@ -112,6 +112,45 @@ discover_pi() {
 }
 
 # --- oh-my-pi (omp) ---
+# Encode omp's raw bucket name for a cwd: home-relative "-<rel>",
+# tmp-relative "-tmp-<rel>", and otherwise "--<abs>--", with path separators
+# and ":" encoded as "-" (session-paths.ts getDefaultSessionDirName /
+# encodeLegacyAbsoluteSessionDirName). This raw scheme predates the hashed
+# scheme and is current again since omp 17.2.9 (#7646 restored it and removed
+# automatic migration), so buckets in the wild use both shapes. Canonicalize
+# with physical paths so symlinked cwds resolve to the same bucket, mirroring
+# omp's resolveEquivalentPath. Prints nothing when the cwd cannot be resolved.
+encode_omp_raw_cwd() {
+    local cwd canon_home canon_tmp rel
+    cwd="$(cd "$1" 2>/dev/null && pwd -P)" || return 0
+    canon_home="$(cd "$HOME" 2>/dev/null && pwd -P)" || canon_home="$HOME"
+    case "$cwd" in
+        "$canon_home")
+            printf -- '-'
+            ;;
+        "$canon_home"/*)
+            rel="$(printf '%s' "${cwd#"$canon_home"/}" | sed 's/[/\\:]/-/g')"
+            printf -- '-%s' "$rel"
+            ;;
+        *)
+            canon_tmp="$(cd "${TMPDIR:-/tmp}" 2>/dev/null && pwd -P)" || canon_tmp=""
+            case "$cwd" in
+                "$canon_tmp")
+                    printf -- '-tmp'
+                    ;;
+                "$canon_tmp"/*)
+                    rel="$(printf '%s' "${cwd#"$canon_tmp"/}" | sed 's/[/\\:]/-/g')"
+                    printf -- '-tmp-%s' "$rel"
+                    ;;
+                *)
+                    rel="$(printf '%s' "${cwd#/}" | sed 's/[/\\:]/-/g')"
+                    printf -- '--%s--' "$rel"
+                    ;;
+            esac
+            ;;
+    esac
+}
+
 discover_omp() {
     local config_dir="${PI_CONFIG_DIR:-.omp}"
 
@@ -131,31 +170,54 @@ discover_omp() {
         return 0
     fi
 
-    # omp bucket names embed only the repo basename plus a sha256 of the
-    # canonical cwd (e.g. home-my-repo-<64hex>), never the full cwd, so no
-    # exact encoded-CWD probe like Pi's is possible. Scan basename-matching
-    # buckets in the default-profile sessions root and in every named-profile
-    # root; exact repo attribution comes from the downstream header `cwd`
-    # filter (extract-metadata.py --cwd-filter reads the type:"session"
-    # header).
-    # omp sanitizes the bucket basename before hashing: runs of characters
-    # outside [a-zA-Z0-9._-] become "-", edge dashes are stripped, the result
-    # is capped at its last 80 chars, and an empty result falls back to
-    # "project" (session-paths.ts getDefaultSessionDirName). Glob the
-    # sanitized form so repos whose basename contains characters omp
-    # normalizes (e.g. spaces) still match their buckets.
+    # omp has two bucket-naming schemes in the wild, and both keep the raw
+    # repo basename (spaces and all) inside the bucket name:
+    #   - raw: "-<home-rel>", "-tmp-<tmp-rel>", "--<abs>--" (legacy relative to
+    #     the hashed scheme; restored as current in omp 17.2.9, #7646)
+    #   - hashed: "<scope>-<sanitized-basename>-<sha256-of-canonical-cwd>"
+    #     (intermediate releases; basename runs of [^a-zA-Z0-9._-] collapse to
+    #     "-", edge dashes stripped, capped at the last 80 chars, empty falls
+    #     back to "project" — session-paths.ts getDefaultSessionDirName)
+    # Scan basename-matching buckets in the default-profile sessions root and
+    # in every named-profile root; exact repo attribution comes from the
+    # downstream header `cwd` filter (extract-metadata.py --cwd-filter reads
+    # the type:"session" header). Glob the sanitized form so repos whose
+    # basename contains characters the hashed scheme normalizes (e.g. spaces)
+    # still match, and glob the raw form so raw-scheme buckets whose basename
+    # sanitizes differently (e.g. "my repo" in "--Users-test-Code-my repo--")
+    # are found too. When --cwd is supplied, also probe the exact raw bucket
+    # name: it catches buckets the basename globs miss when the bucket's path
+    # segments no longer resemble the repo name as typed.
     local sanitized
     sanitized="$(printf '%s' "$REPO_NAME" | sed -E 's/[^a-zA-Z0-9._-]+/-/g; s/^-+//; s/-+$//' | tail -c 80)"
     [ -n "$sanitized" ] || sanitized="project"
     local agent_dir="${PI_CODING_AGENT_DIR:-$HOME/$config_dir/agent}"
-    local root
-    for root in "$agent_dir/sessions" "$HOME/$config_dir"/profiles/*/agent/sessions; do
-        [ -d "$root" ] || continue
-        for dir in "$root"/*"$sanitized"*/; do
-            [ -d "$dir" ] || continue
-            find "$dir" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
+    {
+        local root dir encoded
+        if [ -n "$REPO_CWD" ]; then
+            encoded="$(encode_omp_raw_cwd "$REPO_CWD")"
+            if [ -n "$encoded" ]; then
+                for root in "$agent_dir/sessions" "$HOME/$config_dir"/profiles/*/agent/sessions; do
+                    [ -d "$root/$encoded" ] || continue
+                    find "$root/$encoded" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
+                done
+            fi
+        fi
+        for root in "$agent_dir/sessions" "$HOME/$config_dir"/profiles/*/agent/sessions; do
+            [ -d "$root" ] || continue
+            for dir in "$root"/*"$sanitized"*/; do
+                [ -d "$dir" ] || continue
+                find "$dir" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
+            done
+            if [ "$REPO_NAME" != "$sanitized" ]; then
+                for dir in "$root"/*"$REPO_NAME"*/; do
+                    [ -d "$dir" ] || continue
+                    find "$dir" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
+                done
+            fi
         done
-    done
+    # The probe and the globs can hit the same bucket; emit each path once.
+    } | awk '!seen[$0]++'
 }
 
 # --- Dispatch ---
