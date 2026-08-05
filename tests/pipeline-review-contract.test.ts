@@ -935,3 +935,59 @@ describe("learnings-researcher local prompt domain-agnostic contract", () => {
     expect(integration).not.toContain("ce-doc-review")
   })
 })
+
+describe("lfg acceptance contract", () => {
+  // The acceptance decision is a single decision point immediately before the DONE
+  // promise (KTD6); these pins guard adjacency and the four input sources, not wording.
+  test("Acceptance decision block sits between the babysit step and the DONE promise", async () => {
+    const content = await readRepoFile("skills/lfg/SKILL.md")
+
+    const babysitIdx = content.indexOf("Watch the PR to CI-decided")
+    const acceptanceIdx = content.indexOf("**Acceptance decision**")
+    const doneIdx = content.indexOf("<promise>DONE</promise>")
+    expect(babysitIdx).toBeGreaterThan(-1)
+    expect(acceptanceIdx).toBeGreaterThan(babysitIdx)
+    expect(doneIdx).toBeGreaterThan(acceptanceIdx)
+  })
+
+  test("acceptance decision names all four input sources", async () => {
+    const content = await readRepoFile("skills/lfg/SKILL.md")
+
+    const start = content.indexOf("**Acceptance decision**")
+    expect(start).toBeGreaterThan(-1)
+    const end = content.indexOf("<promise>DONE</promise>", start)
+    expect(end).toBeGreaterThan(start)
+    const block = content.slice(start, end)
+
+    expect(block).toContain("review verdict")
+    expect(block).toContain("verification_evidence")
+    expect(block).toContain("residual")
+    expect(block).toContain("babysit")
+  })
+
+  test("both DONE variants are pinned", async () => {
+    const content = await readRepoFile("skills/lfg/SKILL.md")
+
+    expect(content).toContain("DONE — accepted")
+    expect(content).toContain("not accepted")
+  })
+
+  test("acceptance record runs through verdict --acceptance", async () => {
+    const content = await readRepoFile("skills/lfg/SKILL.md")
+
+    expect(content).toContain("verdict --acceptance")
+  })
+
+  test("step-2 gate verifies the return's file claims with diff-claims", async () => {
+    const content = await readRepoFile("skills/lfg/SKILL.md")
+
+    const start = content.indexOf("2. Invoke the `ce-work` skill")
+    expect(start).toBeGreaterThan(-1)
+    const end = content.indexOf("3. Invoke the `ce-simplify-code`")
+    expect(end).toBeGreaterThan(start)
+    const step2 = content.slice(start, end)
+
+    expect(step2).toContain("factory-gates.py")
+    expect(step2).toContain("diff-claims")
+  })
+})

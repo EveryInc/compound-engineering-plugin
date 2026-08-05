@@ -70,6 +70,16 @@ When the implementation instruction instead names an ordered fallback list, do n
 
    For `status: complete`, verify that implementation work was performed - files were created or modified beyond the plan. Require the same plan path, changed files, U-IDs attempted/completed when present, verification results, behavior-change signal, and `standalone_shipping_skipped: true`. Also require the route-aware receipt fields `implementation_engine_binding`, `requested_route`, `actual_route`, `requested_model`, `actual_model`, `fallback_reason`, `run_id`, `unit_receipts`, `plan_checkpoint`, `blockers`, and `recovery_path`. These fields are required even when native execution makes some values `null`; together they carry binding provenance, requested-versus-actual identity, fallback, the durable run, per-unit process/integration/verification/commit state, checkpoint disclosure, blockers, and recovery. A resumed return must carry the same `run_id`; never treat resume as permission to start a new unit or a second LFG tail.
 
+   Also verify the return's file claims mechanically, not by rereading them: write `{"changed_files": <the return's changed files>, "scope": [<the plan's declared paths/dirs>]}` to a mktemp file (`mktemp "${TMPDIR:-/tmp}/lfg-claims-XXXXXX"`), set `CLAIMS_FILE` to that path and `REPO` to the working tree root, and run:
+
+   ```bash
+   SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+   PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+   "$PY" "$SKILL_DIR/scripts/factory-gates.py" diff-claims --claims "$CLAIMS_FILE" --repo "$REPO"
+   ```
+
+   A failed check — any `missing_claims` entry, or `unclaimed_changes` outside plan scope — routes into the same single evidence-reconciliation re-invocation below (then blocked), exactly as missing `verification_evidence` does; do not add a second recovery. In-scope `unclaimed_changes` are informational. If the script exits non-zero, retry once; if it still cannot run, record the affected claims as "unverified — gate unavailable" and continue with that recorded.
+
    When `behavior_change: true`, also require `verification_evidence` that names the relevant units/tasks, existing tests inspected, tests added/changed or used unchanged, red failure or characterization evidence when applicable, verification run, and any deliberate test exception. Do NOT decide the test strategy inside LFG; the evidence is ce-work's contract. Also read `settled_decision_conflicts` from the return: blocker-routed entries arrive as `status: blocked` and stop the pipeline; **record any proceeded-and-flagged entries** — they must reach step 6's durable residual record and step 8's PR-description context, since later review may not rediscover them.
 
    If `behavior_change: true` but `verification_evidence` is missing or too vague to tell how behavior was protected, invoke `ce-work` one more time in recovery mode. Reuse the same `implementation_engine:<compact-json>` carrier when one existed and keep the same plan path. With a safe non-null `run_id`, add `implementation_run:<safe-id>` with that exact value from the first return. When `actual_route` is `native` and `run_id` is `null`, repeat the original ce-work invocation once without an `implementation_run:` carrier; this preserves the pre-existing native idempotency/evidence-reconciliation path. A non-native return without a safe run id remains blocked instead of attempting discovery or a second implementation. Do not prompt the user and do not alter the plan path or engine carrier; this is evidence reconciliation, not a fresh dispatch. The recovery relies on ce-work's reconciliation path to inspect the already-implemented work, fill the missing evidence, and return without reimplementing. If the second return still lacks coherent verification evidence, stop as blocked and report the missing fields instead of continuing to simplify/review/ship.
@@ -82,7 +92,7 @@ When the implementation instruction instead names an ordered fallback list, do n
 
 4. Invoke the `ce-code-review` skill with `mode:agent plan:<plan-path-from-step-1>`.
 
-   Pass the plan file path from step 1 so ce-code-review can verify requirements completeness. Read the **Actionable Findings** summary the skill emits. Also read any findings stamped `settled_conflict` (each names the conflicting KTD). A stamped finding whose evidence is invalidating — the settled decision cannot work: infeasible, wrong-thing, or destructive — stops the pipeline as blocked, with the finding reported, before the shipping precondition. Stamped preference-grade findings proceed (they are report-only) but must flow into step 6's residual record.
+   Pass the plan file path from step 1 so ce-code-review can verify requirements completeness. Read the **Actionable Findings** summary the skill emits. Also read the `verdict_consistency` field from the result JSON; a non-empty value carries into the Acceptance decision inputs before step 10 — no re-check here, the review skill already computed it. Also read any findings stamped `settled_conflict` (each names the conflicting KTD). A stamped finding whose evidence is invalidating — the settled decision cannot work: infeasible, wrong-thing, or destructive — stops the pipeline as blocked, with the finding reported, before the shipping precondition. Stamped preference-grade findings proceed (they are report-only) but must flow into step 6's residual record.
 
    `mode:agent` is report-only **by design** — it surfaces findings but never edits the tree; LFG applies the eligible ones in step 5. When narrating progress to the user, frame this as "review found X → applied X in step 5," not as "code review did not auto-fix." A report-only review followed by an LFG-applied fix is the intended contract, not a gap.
 
@@ -126,6 +136,16 @@ When the implementation instruction instead names an ordered fallback list, do n
 
    Collect its structured result (`{ status, fixes_applied, residuals }`). It surfaces unfixable CI as a **run-report comment on the PR** and returns residuals — do **NOT** write a `## CI Failures Unresolved` PR-body section. A `needs-human` residual (a fix that would need a product/design decision) is deferred, not applied — that is the autopilot contract, unchanged. Do not block DONE once babysit has surfaced residuals.
 
+**Acceptance decision** (REQUIRED immediately before step 10's DONE promise). Acceptance is decided here and nowhere else, from exactly four inputs: the review verdict from step 4 plus whether the apply-eligible findings were applied in step 5 (and step 4's `verdict_consistency` value); ce-work's `verification_evidence` from step 2; residual durability — step 6's residuals-are-durable gate; and babysit's `{ status, fixes_applied, residuals }` result from step 9. Derive `accepted` (boolean) and a one-line `reason` from those inputs, then check the decision for self-contradiction: write `{"accepted": <boolean>, "reason": "<one line>", "inputs": {"review_verdict": "<step 4 verdict>", "verdict_consistency_flagged": <true when step 4's verdict_consistency was non-empty>, "verification_evidence_status": "<green|red|unverified>", "babysit_status": "<step 9 status, or null when step 9 was skipped>"}}` to a mktemp file (`mktemp "${TMPDIR:-/tmp}/lfg-acceptance-XXXXXX"`), set `ACCEPT_FILE` to that path, and run:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+"$PY" "$SKILL_DIR/scripts/factory-gates.py" verdict --acceptance "$ACCEPT_FILE"
+```
+
+A returned contradiction (`ok: false`) forces `accepted: false` with the contradiction as the `reason` — the gate can only make the decision more conservative, never less. If the script exits non-zero, retry once; if it still cannot run, keep the derived decision and record "unverified — gate unavailable" beside it. Step 10's DONE promise then renders one of exactly two forms: "DONE — accepted" or "DONE — completed, not accepted: <reason>".
+
 10. Output `<promise>DONE</promise>` when complete
 
     For the two user-runnable handoffs below, default to `/ce-explain <name>` / `/ce-babysit-pr <pr-url>`. Use `$ce-explain <name>` / `$ce-babysit-pr <pr-url>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
@@ -136,6 +156,6 @@ When the implementation instruction instead names an ordered fallback list, do n
 
     Before the DONE promise, inspect the canonical plan from step 1 for the semantic role `work-relationships`. Load `references/next-work-handoff.md` when that role exists, or when an older unmarked Product Contract appears to name the area this plan owns plus future separately planned areas and their relationships; the reference owns the cautious legacy semantic fallback, candidate selection, and opt-in offer contract. Do not match an exact visible heading, treat ordinary non-goals as future work, or invoke `ce-handoff` before the user explicitly accepts the offer. If neither semantic signal exists, do not load the reference and make no next-work offer.
 
-    Then output the DONE promise.
+    Then output the DONE promise in the form the Acceptance decision selected: `<promise>DONE</promise> — accepted`, or `<promise>DONE</promise> — completed, not accepted: <reason>` with the acceptance block's one-line reason.
 
 Start with step 1 now. Remember: plan FIRST, then work. Never skip the plan.
