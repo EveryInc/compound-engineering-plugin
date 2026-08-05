@@ -130,6 +130,20 @@
 #     model: "gpt-5.6"
 #   - harness: claude             # configured default model
 
+# --- Quality commands (ce-work; lfg indirectly) ---
+# Deterministic verification commands for this checkout. Each value is a single
+# command string run verbatim as one argv-style shell call; the exit status is
+# the result. Commented-out means unset: skills fall back to discovering
+# commands from the project's active instructions and context. Configured
+# commands never override a more specific instruction -- precedence: task
+# instruction > session/project instructions > this config.
+
+# quality_commands:
+#   test: "bun run test"           # full test suite
+#   lint: "bun run lint"           # linter
+#   typecheck: "bun run typecheck" # type check
+#   build: "bun run build"         # production/dev build
+
 # --- ce-promote ---
 # Written automatically when you decline the Spiral setup offer in /ce-promote.
 # Suppresses that one-time setup nudge in this project. Remove the key to re-enable.
