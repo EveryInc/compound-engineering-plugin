@@ -92,7 +92,7 @@ If this self-review changes files, rerun the affected tests or lint for those fo
 
 Assemble the final report. **Default:** human-readable markdown. **`mode:agent`:** skip markdown and emit JSON (see ### JSON output format) — the structured fields are how a downstream agent consumes the review. Put `---` before the verdict in markdown mode.
 
-**Report completion gate:** do not finish until stable `#` identifiers appear on every primary finding and the report contains `### Actionable Findings`, `### Coverage`, and `### Verdict` (or their exact JSON fields in `mode:agent`). Coverage must name the cross-model outcome and validator shortcut/batch outcome. The Actionable section must include every `downstream-resolver` finding; never silently replace it with a count.
+**Report completion gate:** do not finish until stable `#` identifiers appear on every primary finding and the report contains `### Actionable Findings`, `### Coverage`, and `### Verdict` (or their exact JSON fields in `mode:agent`). Coverage must name the cross-model outcome and validator shortcut/batch outcome. The Actionable section must include every `downstream-resolver` finding; never silently replace it with a count. The verdict-consistency gate below must have run (or recorded its unavailable state) before the report is rendered — a report with no recorded gate outcome is incomplete.
 
 **Verdict-consistency gate (both modes).** Once the verdict and actionable findings are final and before rendering the report: write `$RUN_DIR/verdict-check.json` containing the final `verdict`, `actionable_findings`, `residual_risks`, and — when the verdict is `Not ready` — a one-line `not_ready_reason`, then run the bundled gate:
 
