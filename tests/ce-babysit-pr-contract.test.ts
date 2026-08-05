@@ -353,6 +353,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(babysit).toMatch(/Never skip past a draft/i)
     expect(babysit).toMatch(/manual dependency chain[^.]{0,240}(never|must not)[^.]{0,120}stack-wide continuation/i)
     expect(babysit).toMatch(/unsettled downstack[^.]{0,260}offer once[^.]{0,260}lowest unsettled/i)
+    expect(babysit).toMatch(/already `stack-ready` or `stack-land`[^.]{0,200}unsettled downstack[^.]{0,200}lowest unsettled[^.]{0,80}without asking/i)
     expect(babysit).toMatch(/draft[^.]{0,180}(only|unless)[^.]{0,180}explicit/i)
     expect(babysit).toMatch(/one active (PR )?(target|watcher)/i)
     expect(watchLoop).toMatch(/one active (PR )?(target|watcher)/i)
