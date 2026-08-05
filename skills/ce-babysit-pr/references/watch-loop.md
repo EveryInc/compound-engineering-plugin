@@ -22,7 +22,7 @@ The needed capability is generic — *run a background process and be woken when
 | Codex (CLI) | a runtime-owned background exec that re-runs the tick (a detached `nohup` is **reaped** when the tool call ends) | No (session-bound) |
 | GUI apps / headless / unknown | none reliable → **checkpoint** | — |
 
-**User-runnable resume syntax.** Whenever this reference tells the skill to print or copy a resume invocation, default to `/ce-babysit-pr <url>`. Use `$ce-babysit-pr <url>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
+**User-runnable resume syntax.** Whenever this reference tells the skill to print or copy a resume invocation, default to `/ce-babysit-pr <url>`. Use `$ce-babysit-pr <url>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Use `/skill:ce-babysit-pr <url>` when the active host is oh-my-pi (`omp`). Render only the invocation as inline code and output one form only.
 
 **Checkpoint (the floor):** when no background-and-wake capability exists, run one tick, persist, report, and print the exact host-rendered re-run invocation — monitoring is *paused*, say so plainly. Because every tick is disk-resumable, checkpoint is the same loop hand-cranked; the in-session watch only automates the crank. Never fake a loop with a foreground `sleep` (blocked on Claude Code, discouraged elsewhere) or a detached `nohup` (reaped/unsupported on several harnesses).
 

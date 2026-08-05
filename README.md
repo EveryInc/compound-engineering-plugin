@@ -95,7 +95,7 @@ Remove the obsolete Compound Engineering Codex tool-map block from my Codex home
 
 Re-running the Bun convert/install CLI for Codex also strips the block if it is still present; it no longer inserts it.
 
-**Another editor or CLI?** Kimi Code CLI, Cline, Grok Build CLI, Devin CLI, GitHub Copilot, Factory Droid, Qwen Code, OpenCode, Pi, and Antigravity CLI are all supported — see [More install options](#more-install-options).
+**Another editor or CLI?** Kimi Code CLI, Cline, Grok Build CLI, Devin CLI, GitHub Copilot, Factory Droid, Qwen Code, OpenCode, Pi, oh-my-pi (omp), and Antigravity CLI are all supported — see [More install options](#more-install-options).
 
 ---
 
@@ -103,7 +103,7 @@ Re-running the Bun convert/install CLI for Codex also strips the block if it is 
 
 **Each unit of engineering work should make subsequent units easier -- not harder.**
 
-Invocation syntax: this README uses `/skill-name` examples for slash-skill hosts. In Codex, invoke installed skills with `$skill-name` (for example, `$ce-plan` and `$lfg`); `/goal` remains a Codex built-in command.
+Invocation syntax: this README uses `/skill-name` examples for slash-skill hosts. In Codex, invoke installed skills with `$skill-name` (for example, `$ce-plan` and `$lfg`); in oh-my-pi (omp), invoke installed skills as `/skill:<name>` (for example, `/skill:ce-plan`); `/goal` remains a Codex built-in command.
 
 Traditional development accumulates technical debt. Every feature adds complexity. Every bug fix leaves behind a little more local knowledge that someone has to rediscover later. The codebase gets larger, the context gets harder to hold, and the next change becomes slower.
 
@@ -400,6 +400,38 @@ Recommended companion for richer blocking questions:
 pi install npm:pi-ask-user
 ```
 
+### oh-my-pi (omp)
+
+oh-my-pi (omp) installs Compound Engineering through its marketplace flow. The repo ships a native `.omp-plugin/marketplace.json` catalog whose plugin entry carries a release-managed `version`, so omp's update checker can see each new CE release:
+
+```text
+omp plugin marketplace add EveryInc/compound-engineering-plugin
+omp plugin install compound-engineering@compound-engineering-plugin
+```
+
+To stay current automatically, enable auto-update:
+
+```bash
+omp config set marketplace.autoUpdate auto
+```
+
+The default `notify` mode only writes update availability to the debug log — it does not prompt — so without `auto` you will not hear about new releases. To upgrade by hand instead, run `omp plugin upgrade compound-engineering@compound-engineering-plugin`.
+
+<details>
+<summary>Other install paths (pin-style and contributor development)</summary>
+
+`omp install https://github.com/EveryInc/compound-engineering-plugin` installs the repository as an npm-style plugin. That path has **no update mechanism** — treat it as pinning a snapshot, not as the recommended install.
+
+For local development from a checkout, use a live symlink instead:
+
+```bash
+omp plugin link "$PWD"
+```
+
+</details>
+
+Run `/reload-plugins` or start a new omp session after installing so the skills load. omp invokes installed skills as `/skill:<name>` (for example `/skill:ce-plan`), not `/skill-name`. See [`docs/specs/omp.md`](docs/specs/omp.md) for details.
+
 ### Antigravity CLI (`agy`)
 
 Google has replaced the consumer Gemini CLI with [Antigravity CLI](https://antigravity.google) (`agy`), which still runs on Gemini models. Install Compound Engineering directly from GitHub — no clone step required:
@@ -565,6 +597,12 @@ Restart OpenCode after changing `opencode.json`.
 pi -e "$PWD"
 ```
 
+**oh-my-pi (omp)**
+
+```bash
+omp plugin link "$PWD"
+```
+
 **Antigravity CLI (`agy`)**
 
 ```bash
@@ -582,7 +620,7 @@ See [`.agy/INSTALL.md`](.agy/INSTALL.md) for remote install and pinning examples
 
 ## Limitations
 
-OpenCode and Pi use native package/plugin loading from this repository. The Bun CLI remains for repository development and converter maintenance, not normal installation.
+OpenCode, Pi, and oh-my-pi (omp) use native package/plugin loading from this repository. The Bun CLI remains for repository development and converter maintenance, not normal installation.
 
 Release versions are owned by release automation. Routine feature PRs should not hand-bump plugin or marketplace manifest versions.
 

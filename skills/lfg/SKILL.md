@@ -128,7 +128,7 @@ When the implementation instruction instead names an ordered fallback list, do n
 
 10. Output `<promise>DONE</promise>` when complete
 
-    For the two user-runnable handoffs below, default to `/ce-explain <name>` / `/ce-babysit-pr <pr-url>`. Use `$ce-explain <name>` / `$ce-babysit-pr <pr-url>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
+    For the two user-runnable handoffs below, default to `/ce-explain <name>` / `/ce-babysit-pr <pr-url>`. Use `$ce-explain <name>` / `$ce-babysit-pr <pr-url>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Use `/skill:ce-explain <name>` / `/skill:ce-babysit-pr <pr-url>` when the active host is oh-my-pi (`omp`). Render only the invocation as inline code and output one form only.
 
     If step 8 recorded a `New concepts:` trailer, first echo one line per concept: `New concept introduced: <name> — run <rendered ce-explain invocation> to go deeper.`
 

@@ -335,7 +335,9 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     for (const text of [babysit, watchLoop]) {
       expect(text).toContain("$ce-babysit-pr <url>")
       expect(text).toContain("/ce-babysit-pr <url>")
+      expect(text).toContain("/skill:ce-babysit-pr <url>")
       expect(text).toMatch(/default to `\/ce-babysit-pr <url>`[\s\S]{0,260}Codex[\s\S]{0,180}output one form only/i)
+      expect(text).toMatch(/\/skill:ce-babysit-pr <url>` when the active host is oh-my-pi \(`omp`\)/i)
       expect(text).toContain("exec '<host-rendered resume invocation>'")
     }
   })

@@ -147,6 +147,8 @@ describe("user-facing skill invocation authoring contract", () => {
       expect(text).toMatch(/in prose, render only the invocation as inline code[^\n]*fenced block/i)
       expect(text).toMatch(/active host|active harness/i)
       expect(text).toMatch(/default to `\/skill-name`[\s\S]{0,160}Codex[\s\S]{0,160}dollar-prefixed/i)
+      expect(text).toContain("`/skill:ce-plan`")
+      expect(text).toMatch(/\/skill:<name>`[^\n]*oh-my-pi \(`omp`\)|oh-my-pi \(`omp`\)[^\n]*\/skill:<name>`/i)
       expect(text).toMatch(/\/goal[\s\S]{0,180}(built-in|exception)|built-in[\s\S]{0,180}\/goal/i)
       expect(text).toMatch(/smallest section[\s\S]{0,180}do not repeat[\s\S]{0,180}separately loaded reference/i)
     }
@@ -155,6 +157,7 @@ describe("user-facing skill invocation authoring contract", () => {
   test("README explains Codex invocation syntax without rewriting the built-in goal command", () => {
     expect(ROOT_README).toMatch(/README uses `\/skill-name`[\s\S]{0,180}Codex[\s\S]{0,120}`\$skill-name`/i)
     expect(ROOT_README).toContain("`$ce-plan` and `$lfg`")
+    expect(ROOT_README).toMatch(/oh-my-pi \(omp\)[^\n]*`\/skill:<name>`[^\n]*`\/skill:ce-plan`/i)
     expect(ROOT_README).toMatch(/\/goal[\s\S]{0,80}Codex built-in/i)
   })
 })

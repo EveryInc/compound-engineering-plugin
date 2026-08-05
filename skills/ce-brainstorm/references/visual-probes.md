@@ -18,7 +18,7 @@ Do not use a visual probe for product goals, scope boundaries, success criteria,
 
 When the Phase 0.3 tripwire flagged an inherently-visual topic, the offer must fire before the **first** decision about shape, behavior, state, layout, flow, or a diagram is raised in *any* form — plain chat or a blocking question.
 
-**Timing is state-based, not memory-based.** Anchor the check to the decision you are about to raise, not to a "pending gate" remembered since Phase 0.3: offer unless this specific decision has already been through the offer (the user already chose text or visual for it). This gate takes precedence over the default blocking-question path — do not raise the shape decision as an `AskUserQuestion`/`request_user_input` menu, or as a plain-chat shape question, until the user has declined visual (or visual feedback has returned to chat).
+**Timing is state-based, not memory-based.** Anchor the check to the decision you are about to raise, not to a "pending gate" remembered since Phase 0.3: offer unless this specific decision has already been through the offer (the user already chose text or visual for it). This gate takes precedence over the default blocking-question path — do not raise the shape decision as an `AskUserQuestion`/`request_user_input`/`ask` menu, or as a plain-chat shape question, until the user has declined visual (or visual feedback has returned to chat).
 
 **An ASCII preview or text mockup embedded inside the question's choices does NOT satisfy the offer** — that shortcut is exactly what this gate exists to stop. The offer is its own prior question with two options (sketch vs describe); only after the user chooses does the shape decision proceed.
 
@@ -26,7 +26,7 @@ When the Phase 0.3 tripwire flagged an inherently-visual topic, the offer must f
 
 Ask once at the decision point. Do not enable a session-wide mode.
 
-Use the platform's blocking question tool for the opt-in when available (`AskUserQuestion`, `request_user_input`, `ask_user`, or equivalent). Use a plain chat question only when no interactive question tool exists or the tool errors. The opt-in should have two clear options:
+Use the platform's blocking question tool for the opt-in when available (`AskUserQuestion`, `request_user_input`, `ask_user`, `ask`, or equivalent). Use a plain chat question only when no interactive question tool exists or the tool errors. The opt-in should have two clear options:
 
 - Visual sketch — create rough options in a local browser
 - Text description — keep the decision in chat
