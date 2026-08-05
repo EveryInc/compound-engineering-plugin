@@ -28,7 +28,7 @@ gh stack merge <BOTTOM_MOST_OPEN_SETTLED_PR> --yes --squash
 gh stack sync --remote origin
 ```
 
-Then treat the just-merged PR as a **layer transition** (stop watcher, re-probe, continue next open non-draft needing work with posture restated) — not a run-level Terminal stop for this babysit invocation.
+Re-probe the landed PR before advancing: on merge-queue bases the CLI may succeed after enqueue while the PR stays OPEN — keep watching or return a queued residual until `pr_state` is `MERGED`. Only then treat the just-merged PR as a **layer transition** (stop watcher, re-probe, continue next open non-draft needing work with posture restated) — not a run-level Terminal stop for this babysit invocation.
 
 ## Forbidden on managed stack members
 

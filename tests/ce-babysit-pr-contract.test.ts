@@ -332,6 +332,28 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(baselineBlock).toContain("github/gh-stack#216")
     expect(baselineBlock).toMatch(/prefer all-or-none[\s\S]{0,120}proves atomic push/i)
     expect(baselineBlock).toMatch(/always re-probe after push/i)
+    expect(baselineBlock).toMatch(/If either precondition fails[\s\S]{0,200}do not invoke a delegate/i)
+  })
+
+  test("post-push re-probe compares dependents against baseline, not the pushed target OID", async () => {
+    const [babysit, watchLoop] = await Promise.all([
+      readRepoFile(BABYSIT),
+      readRepoFile(WATCH_LOOP),
+    ])
+    for (const text of [babysit, watchLoop]) {
+      expect(text).toContain("open dependent")
+      expect(text).toContain("intentional post-push OID change as divergence")
+    }
+  })
+
+  test("stack-land waits for actual MERGED after merge-queue enqueue", async () => {
+    const [babysit, stackCommands] = await Promise.all([
+      readRepoFile(BABYSIT),
+      readRepoFile("skills/ce-babysit-pr/references/stack-commands.md"),
+    ])
+    expect(babysit).toMatch(/merge-queue[\s\S]{0,200}enqueue[\s\S]{0,200}OPEN/i)
+    expect(babysit).toMatch(/until it is actually `MERGED`/i)
+    expect(stackCommands).toMatch(/merge-queue[\s\S]{0,160}OPEN[\s\S]{0,160}MERGED/i)
   })
 
   test("user-facing resume commands render for the active host", async () => {

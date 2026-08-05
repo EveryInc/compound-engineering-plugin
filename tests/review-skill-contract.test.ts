@@ -946,6 +946,8 @@ describe("ce-code-review contract", () => {
     // Step 9 delegates CI to ce-babysit-pr pipeline mode; the hand-rolled
     // CI-watch loop is retired.
     expect(lfg).toContain("ce-babysit-pr mode:pipeline")
+    expect(lfg).toMatch(/Skip when step 8 already handed off a stack-aware babysit/i)
+    expect(lfg).toMatch(/do \*\*not\*\* invoke babysit again here/i)
     expect(lfg).not.toContain("gh pr checks --watch")
 
     // Shipping precondition: a remote-less repo (e.g. a sandbox/throwaway checkout)
