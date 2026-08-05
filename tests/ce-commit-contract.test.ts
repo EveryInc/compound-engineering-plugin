@@ -31,6 +31,9 @@ describe("ce-commit contract", () => {
     expect(content).toMatch(/default branch/i)
     expect(content).toContain("git checkout -b")
     expect(content).toMatch(/Do not ask/)
+    // Bare default name for comparison — origin/trunk must not skip auto-branch
+    expect(content).toMatch(/strip a leading `origin\/`/)
+    expect(content).toMatch(/never compare against `origin\/<name>`/)
     // No blocking-question adapter — commit-only has no interactive branch ask
     expect(content).not.toContain("AskUserQuestion")
     expect(content).not.toContain("request_user_input")
