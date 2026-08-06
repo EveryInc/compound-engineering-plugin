@@ -24,7 +24,7 @@ Before composing, resolve PR-body requirements from the project's active instruc
 
 Two modes:
 
-- **Current-branch mode** (default) — describe HEAD vs the repo's default base, or an explicit base supplied by an internal caller.
+- **Current-branch mode** (default) — describe HEAD vs the repo's default base.
 - **PR mode** — describe a specific PR when the caller passes a PR ref.
 
 For PR mode, fetch metadata first:
@@ -35,21 +35,17 @@ gh pr view <ref> --json baseRefName,headRefOid,url,body,state,isCrossRepository,
 
 If `state` is not `OPEN`, report and stop. Use `baseRefName` as `<base>` and `headRefOid` as `<head>`.
 
-**Internal explicit-base input (`base:<ref>`).** In current-branch mode only, an internal caller may supply one ref. Verify it with `git rev-parse --verify <ref>`, set `<base-anchor>` to that exact local ref, and keep `<head>` as `HEAD`. This overrides default-base discovery and skips the base fetch/prefix below, which lets stack composition use an unpublished immediate-parent branch. If the ref does not resolve, stop instead of falling back to a default. In PR mode this input does not apply; PR metadata owns `<base>` and `<head>`.
-
-Without that input, current-branch mode resolves `<base>` in priority order: `git rev-parse --abbrev-ref origin/HEAD` (strip `origin/`) → `gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'` → try `main`/`master`/`develop` via `git rev-parse --verify origin/<candidate>`. If none resolve, ask the user. `<head>` is `HEAD`.
+For current-branch mode, resolve `<base>` in priority order: `git rev-parse --abbrev-ref origin/HEAD` (strip `origin/`) → `gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'` → try `main`/`master`/`develop` via `git rev-parse --verify origin/<candidate>`. If none resolve, ask the user. `<head>` is `HEAD`.
 
 **Base remote:** `origin` for current-branch mode and same-repo PRs. For fork PRs, match the PR's base owner/repo against `git remote -v`. If no local remote matches, skip to the `gh` fallback — do not diff against `origin` (wrong base).
 
 ```bash
-git fetch --no-tags <base-remote> <base>   # skip for explicit-base current-branch input
+git fetch --no-tags <base-remote> <base>
 git fetch --no-tags <base-remote> <head>   # PR mode only: <head> is headRefOid and may not be local
-git log  --oneline "<base-anchor>..<head>"
-git log  --format=fuller "<base-anchor>..<head>"   # full commit messages for related-reference discovery
-git diff           "<base-anchor>...<head>"
+git log  --oneline "<base-remote>/<base>..<head>"
+git log  --format=fuller "<base-remote>/<base>..<head>"   # full commit messages for related-reference discovery
+git diff           "<base-remote>/<base>...<head>"
 ```
-
-For ordinary current-branch and PR modes, set `<base-anchor>` to `<base-remote>/<base>` after fetch.
 
 If the commit list is empty, report "No commits to describe" and stop.
 
@@ -140,7 +136,7 @@ Decide whether the change introduces a concept (pattern, technique, library, dom
 **Check each candidate against the base ref, never the working tree** (the working tree contains this PR's own code):
 
 ```bash
-git grep -il -e "<term>" "<base-anchor>" | head -5
+git grep -il -e "<term>" "<base-remote>/<base>" | head -5
 ```
 
 One call per candidate (cap two). Empty output → absent from the base. Teachable only when new *and* transferable. Never teach: established patterns, ordinary refactors/renames/dep bumps, project-internal plumbing. When in doubt, omit. On the `gh`-fallback path, judge from diff context alone and lean conservative.

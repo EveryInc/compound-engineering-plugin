@@ -269,7 +269,7 @@ describe("PR concept teaching contract", () => {
     expect(content).toContain("## Step B2: Judge new concepts")
     // Self-detection trap: novelty is judged against the base ref
     expect(content).toContain("never the working tree")
-    expect(content).toMatch(/git grep[^\n]*<base-anchor>/)
+    expect(content).toMatch(/git grep[^\n]*<base-remote>\/<base>/)
     // Negative constraint keeps absence the common case
     expect(content).toContain("absence is the common case")
     // Section heading and its slot in Step C's assembly order
@@ -323,10 +323,9 @@ describe("PR concept teaching contract", () => {
   })
 
   test("opt-in stack mode constructs or submits a stack and hands off with posture", async () => {
-    const [skill, submit, description] = await Promise.all([
+    const [skill, submit] = await Promise.all([
       readRepoFile("skills/ce-commit-push-pr/SKILL.md"),
       readRepoFile("skills/ce-commit-push-pr/references/stack-submit.md"),
-      readRepoFile("skills/ce-commit-push-pr/references/pr-description-writing.md"),
     ])
 
     expect(skill).toContain("## Stack mode (opt-in)")
@@ -335,8 +334,7 @@ describe("PR concept teaching contract", () => {
     expect(skill).toMatch(/do not add `posture:` to this skill's argument-hint/i)
     expect(skill).toMatch(/before Step 3[\s\S]{0,180}Probe[\s\S]{0,80}Topology[\s\S]{0,120}Retrospective construction/is)
     expect(skill).toMatch(/before Step 3[\s\S]{0,260}do not submit/is)
-    expect(skill).toMatch(/Step 4 follows[\s\S]{0,180}one title and body per managed layer[\s\S]{0,120}Step 5 exclusively owns stack submission/is)
-    expect(skill).toContain("`base:<layer-base>`")
+    expect(skill).toMatch(/Step 5 exclusively owns stack submission[\s\S]{0,160}PRs created in this run/is)
     expect(skill).toMatch(/replaces ordinary Step 3/i)
     expect(skill).toContain("posture:stack-ready")
     expect(skill).toContain("posture:stack-land")
@@ -350,6 +348,7 @@ describe("PR concept teaching contract", () => {
     expect(submit).toMatch(/Do not hard-code `origin\/<parent>`/i)
     expect(submit).toMatch(/starts on the resolved default branch.+follow `references\/branch-creation\.md`/is)
     expect(submit).toMatch(/starts on an existing feature branch.+do not follow `references\/branch-creation\.md`/is)
+    expect(submit).toMatch(/feature branch.+fetch the resolved default branch.+verify the fetched remote-tracking tip/is)
     expect(submit).toMatch(/original tip.+recovery (ref|branch)/is)
     expect(submit).toMatch(/committed.+planned commit tip/is)
     expect(submit).toMatch(/uncommitted.+save.+tracked and untracked.+restore.+planned layer/is)
@@ -357,7 +356,7 @@ describe("PR concept teaching contract", () => {
     expect(submit).toMatch(/upstack.+do \*\*not\*\* follow `references\/branch-creation\.md`/is)
     expect(submit).toContain("## Retrospective construction")
     expect(submit).toMatch(/Before ordinary Step 3[\s\S]{0,180}do not run Submit/is)
-    expect(submit).toMatch(/Step 4[\s\S]{0,100}Per-layer PR metadata[\s\S]{0,100}Step 5[\s\S]{0,100}only phase that runs Submit/is)
+    expect(submit).toMatch(/Step 5[\s\S]{0,100}only phase that runs Submit/is)
     expect(submit).toMatch(/complete change set/i)
     expect(submit).toMatch(/smallest useful set.+independently reviewable/is)
     expect(submit).not.toMatch(/2-3.+layers/is)
@@ -370,21 +369,13 @@ describe("PR concept teaching contract", () => {
     expect(submit).toMatch(/whole-file groups|existing commit boundaries/i)
     expect(submit).toMatch(/published history.+explicit confirmation/is)
     expect(submit).toMatch(/mode:pipeline.+do not split or rewrite.+residual.+explicit confirmation/is)
-    expect(submit).toMatch(/before Submit.+one title and body per managed layer/is)
-    expect(skill).toMatch(/new layer.+check out that layer branch.+`base:<layer-base>`.+`HEAD`.+layer tip/is)
-    expect(submit).toMatch(/each new layer.+clean worktree.+check out that layer branch.+`HEAD`.+tip/is)
-    expect(submit).toMatch(/resolved trunk as the bottom.+immediate parent branch as each upstack/is)
-    expect(submit).toMatch(/restore the originally active stack branch before Submit/is)
-    expect(submit).toMatch(/each description.+only that layer's diff/is)
-    expect(submit).toMatch(/branch.+title.+body/is)
-    expect(submit).toMatch(/after submit.+map.+open PRs.+branches/is)
-    expect(submit).toMatch(/already-composed metadata.+`gh pr edit`/is)
-    expect(submit).toMatch(/existing stack PR.+preserve.+existing body/is)
-    expect(submit).not.toMatch(/description guidance for titles\/bodies after submit/i)
-    expect(description).toMatch(/internal explicit-base input.+`base:<ref>`/is)
-    expect(description).toMatch(/current-branch mode.+override.+default-base discovery/is)
-    expect(description).toMatch(/PR mode.+does not apply/is)
-    expect(description).toMatch(/exact local ref.+skips the base fetch/is)
+    expect(submit).toMatch(/after submit.+every PR created in this run.+explicit PR URL/is)
+    expect(submit).toMatch(/new PR.+PR-description composition.+PR mode.+immediate parent.+exact head/is)
+    expect(submit).toContain('gh pr edit "<pr-url>"')
+    expect(submit).toMatch(/never rely on the restored current branch to select the PR/is)
+    expect(submit).toMatch(/Existing stack PRs retain their titles and bodies.+explicitly requested a rewrite/is)
+    expect(submit).toMatch(/mode:pipeline.+conservative no-rewrite default/is)
+    expect(skill).not.toContain("`base:<layer-base>`")
     expect(submit).toContain("gh stack submit --auto --open")
     expect(submit).toMatch(/existing draft/i)
     expect(submit).toMatch(/do \*\*not\*\* pass `--open`/i)
