@@ -346,6 +346,9 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(cmd).toContain("--deny Edit")
     expect(cmd).toContain("--deny Write")
     expect(cmd).toContain("--deny Bash")
+    // Without --verbatim grok offloads a large prompt to a session file and
+    // sends only a preview, so the peer reviews a diff it never received.
+    expect(cmd).toContain("--verbatim")
     expect(cmd).toContain("--disable-web-search")
     expect(cmd).toContain("--no-subagents")
     expect(cmd).toContain("--permission-mode dontAsk")
