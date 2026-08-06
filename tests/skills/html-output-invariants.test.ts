@@ -51,6 +51,17 @@ describe("html-rendering.md reference content invariants", () => {
     ).toBe(true)
   })
 
+  test("requires a robots noindex/nofollow meta tag in <head>", () => {
+    // HTML artifacts are routinely published to a public HTML host
+    // (ht-ml.app and similar) at an unauthenticated URL after composition.
+    // The tag is composed in, not added at publish time, so it survives
+    // whichever destination the user picks.
+    expect(
+      /<meta name="robots" content="noindex, nofollow">/i.test(REFERENCE),
+      "Reference must require <meta name=\"robots\" content=\"noindex, nofollow\"> in <head>.",
+    ).toBe(true)
+  })
+
   test("stable IDs preserved as anchor IDs AND visible text", () => {
     expect(
       /Stable IDs as anchor IDs AND visible text|`id="r1"`.*visible text|visible text.*`id="r1"`/i.test(REFERENCE),
@@ -471,6 +482,9 @@ describe("html-rendering.md reference content invariants", () => {
     expect(/No hidden machine-readable|`<script type="application\/json">`/i.test(auditRegion)).toBe(true)
     // No <meta> tag duplication check (2026-05-17 supply-chain plan failure)
     expect(/<meta name="created"|<meta name="origin"/i.test(auditRegion)).toBe(true)
+    // Robots noindex check — the artifact is routinely published to a public
+    // HTML host after composition, so the audit must catch a missing tag.
+    expect(/<meta name="robots" content="noindex, nofollow">/i.test(auditRegion)).toBe(true)
     // Section heading vocabulary check
     expect(/[Ss]ection heading vocabulary/i.test(auditRegion)).toBe(true)
     // Source / composition signal check (the visible-footer rule)
