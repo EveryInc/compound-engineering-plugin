@@ -74,6 +74,29 @@
 # plan_model: fable              # model alias for the plan-authoring step (no default)
 # brainstorm_model: fable        # model alias for approach generation (no default)
 
+# Pin the model (and, best-effort, the reasoning effort) for ce-code-review's
+# three high-stakes reviewers only -- correctness-reviewer, security-reviewer,
+# and adversarial-reviewer. Every other persona (mid-tier, ce-doc-review,
+# ce-simplify-code) is untouched. This is an exact pin, not a floor -- once
+# set, it replaces session-model inheritance for the trio even when the
+# session model is more capable, so a high or low choice here is a trade-off
+# the user owns deliberately. Unlike plan_model/brainstorm_model above, this
+# key is read two layers deep and local-first -- the gitignored
+# config.local.yaml wins if set there, otherwise the TRACKED config.yaml
+# supplies a repo-wide default that reaches fresh worktrees too. An explicit
+# in-run model request (e.g. naming a model in your prompt) overrides either
+# layer for that run only. review_effort only takes effect alongside a
+# resolved review_model route, and only on a harness whose dispatch primitive
+# exposes a per-dispatch effort control -- elsewhere it is silently skipped.
+# Invalid, commented, or missing values fall through independently per key --
+# for review_model, straight to today's behavior (trio inherits the session
+# model); for review_effort, it is simply omitted and never affects model
+# resolution, so a valid review_model pin is never discarded because
+# review_effort was absent or bad.
+
+# review_model: opus             # model alias for the trio (no default; exact pin, can lower capability too)
+# review_effort: high            # low | medium | high | xhigh (no default; best-effort, trio-only)
+
 # --- PR concept teaching (ce-commit-push-pr) ---
 # When a PR introduces a concept new to the codebase, the generated PR
 # description gains a "New concepts" section teaching it. The section toggle is
