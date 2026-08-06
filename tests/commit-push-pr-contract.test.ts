@@ -322,7 +322,7 @@ describe("PR concept teaching contract", () => {
     expect(doNotFire).toMatch(/not a substitute for a failed handoff/i)
   })
 
-  test("opt-in stack mode submits via gh stack and hands off with posture", async () => {
+  test("opt-in stack mode constructs or submits a stack and hands off with posture", async () => {
     const [skill, submit] = await Promise.all([
       readRepoFile("skills/ce-commit-push-pr/SKILL.md"),
       readRepoFile("skills/ce-commit-push-pr/references/stack-submit.md"),
@@ -333,6 +333,8 @@ describe("PR concept teaching contract", () => {
     expect(skill).toContain("references/stack-submit.md")
     expect(skill).toMatch(/do not add `posture:` to this skill's argument-hint/i)
     expect(skill).toMatch(/follow `references\/stack-submit\.md`/i)
+    expect(skill).toMatch(/before Step 3/i)
+    expect(skill).toMatch(/replaces ordinary Step 3/i)
     expect(skill).toContain("posture:stack-ready")
     expect(skill).toContain("posture:stack-land")
     expect(skill).toMatch(/bottom open non-draft/i)
@@ -343,11 +345,24 @@ describe("PR concept teaching contract", () => {
     expect(submit).toMatch(/authoritative parent tip/i)
     expect(submit).toContain('git checkout -b -- "<branch-name>" "<parent-tip>"')
     expect(submit).toMatch(/Do not hard-code `origin\/<parent>`/i)
-    expect(submit).toMatch(/Do \*\*not\*\* follow `references\/branch-creation\.md` for stack-layer base selection/i)
+    expect(submit).toMatch(/new bottom layer.+follow `references\/branch-creation\.md`/is)
+    expect(submit).toMatch(/upstack.+do \*\*not\*\* follow `references\/branch-creation\.md`/is)
+    expect(submit).toContain("## Retrospective construction")
+    expect(submit).toMatch(/complete change set/i)
+    expect(submit).toMatch(/smallest useful set.+independently reviewable/is)
+    expect(submit).not.toMatch(/2-3.+layers/is)
+    expect(submit).toMatch(/dependency order/i)
+    expect(submit).toMatch(/one safe topology is clear.+proceed/is)
+    expect(submit).toMatch(/multiple reasonable topologies.+ask the user/is)
+    expect(submit).toMatch(/mode:pipeline.+stop.+residual/is)
+    expect(submit).toContain('gh stack init --base "<base>" "<bottom-branch>"')
+    expect(submit).toContain('gh stack add "<next-branch>"')
+    expect(submit).toMatch(/whole-file groups|existing commit boundaries/i)
+    expect(submit).toMatch(/published history.+explicit confirmation/is)
     expect(submit).toContain("gh stack submit --auto --open")
     expect(submit).toMatch(/existing draft/i)
     expect(submit).toMatch(/do \*\*not\*\* pass `--open`/i)
-    expect(submit).toMatch(/does \*\*not\*\* invent commit-splitting/i)
+    expect(submit).not.toMatch(/does \*\*not\*\* invent commit-splitting/i)
     expect(submit).toMatch(/required[\s\S]{0,120}hard-stop/i)
     expect(submit).toMatch(/soft[\s\S]{0,120}single-PR/i)
     expect(submit).toMatch(/Forbidden on managed members/i)

@@ -65,7 +65,7 @@ Going from "code written" to "PR open" is supposed to be a one-step move, but it
 - **Related-reference preflight** — identifies work-item references and uses closing magic words only when the PR truly resolves the item
 - **Concept teaching** — when a PR introduces a concept new to the codebase (a pattern, technique, library, or domain idea), the description gains a `## New concepts` section teaching it, so readers can understand and re-explain the change without opening the diff
 - **Explicit, non-disruptive branding** — new PRs receive the generic Compound Engineering badge only with `branding:on`; bare and automatically selected invocations add nothing, while existing PR rewrites preserve their current branding
-- **Opt-in PR stack submit** — only when user intent (or standing preference) wants a stack; never suggested proactively for a one-line fix. Uses `gh stack submit --auto --open` and hands off babysit with derived posture
+- **Opt-in PR stack construction and submit** — only when user intent (or standing preference) wants a stack; never suggested proactively for a one-line fix. Reuses an existing topology or derives the smallest useful retrospective dependency layers from completed work, then submits and hands off babysit with derived posture
 
 ---
 
@@ -135,9 +135,9 @@ Agent-driven development removed the learning that writing code by hand used to 
 
 When a labeled plan is in hand, the PR body gains one static line naming which decisions were session-settled and their classes, so a reviewer sees at a glance what the user already decided and chose over what. Runs with no plan omit it.
 
-### 12. Opt-in stack mode — submit a managed stack, hand off with posture
+### 12. Opt-in stack mode — construct or submit a managed stack, then hand off with posture
 
-Stack mode is **opt-in by intent**, never the default path and never suggested for a trivial single-concern change. When intent is clear, the skill probes for `gh stack`, builds an appropriate topology, and submits with `gh stack submit --auto --open` (ready/open PRs — drafts break babysit). After successful submit it hands off `/ce-babysit-pr` on the **bottom open non-draft** PR with derived posture: `stack-ready` by default, `stack-land` only when land/merge-when-green intent was explicit. Missing `gh stack` under stack intent is a hard residual, not an invented manager.
+Stack mode is **opt-in by intent**, never the default path and never suggested for a trivial single-concern change. When intent is clear, the skill probes for `gh stack`. It preserves an existing managed topology or, for completed work on one branch, derives the smallest useful set of independently reviewable linear layers, constructs them bottom-to-top, and verifies the top still contains the complete change set. Ambiguous review boundaries require confirmation; pipeline mode returns the proposed topology as a residual instead of guessing. It then submits with `gh stack submit --auto --open` and hands off `/ce-babysit-pr` on the **bottom open non-draft** PR with derived posture: `stack-ready` by default, `stack-land` only when land/merge-when-green intent was explicit.
 
 ---
 
@@ -234,7 +234,7 @@ The skill respects your git config and pre-commit hooks. It never passes `--no-v
 Use the description-only mode to generate the body, then apply yourself with `gh pr create --draft --title "..." --body-file "..."`. The skill doesn't currently expose a draft flag in the full workflow. Stack mode intentionally submits ready (non-draft) PRs via `--auto --open` so babysit can own follow-on.
 
 **When does it open a PR stack?**
-Only when you (or a standing preference) clearly want a stack — never proactively for a one-line fix. It requires the `gh stack` CLI; without it, stack intent surfaces as a residual rather than inventing a manager. After submit it hands off babysit on the bottom open non-draft PR with `posture:stack-ready` (or `stack-land` when you asked to land when green).
+Only when you (or a standing preference) clearly want a stack — never proactively for a one-line fix. With no existing topology, it can retrospectively split completed work into the smallest useful linear dependency layers when whole-file groups or existing commit boundaries make one safe plan clear. It asks before an ambiguous split or published-history rewrite. After submit it hands off babysit on the bottom open non-draft PR with `posture:stack-ready` (or `stack-land` when you asked to land when green).
 
 **Why doesn't my PR have a `## New concepts` section?**
 By design, most PRs shouldn't. The section fires only when the change introduces a concept that is both new to this codebase (checked against the base ref) and transferable beyond it — routine use of established repo patterns, refactors, renames, and dependency bumps never qualify. A missing section costs little; a patronizing one trains readers to skip the feature. If you never want the section, set `pr_teaching_section: false` in `.compound-engineering/config.local.yaml`.

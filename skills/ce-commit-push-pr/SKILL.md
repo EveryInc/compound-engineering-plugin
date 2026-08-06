@@ -20,7 +20,7 @@ argument-hint: "[PR ref] [mode:pipeline] [archive:on|off] [branding:on|off] [bab
 
 **Opt-in only.** Enter stack mode when user intent or standing preference wants a multi-PR stack. Prefer intent over keyword matching. **Do not** proactively suggest PR stacks. **Refuse** nonsense stacks (one logical change, artificial slices) and stay on the single-PR path.
 
-When stack mode is active, load `references/stack-submit.md` and follow its probe / topology / submit recipes. Soft-depend on `gh stack` CLI only. On missing/unavailable CLI: required stack intent → hard-stop with residual; soft intent → residual + ordinary single-PR create.
+When stack mode is active, load `references/stack-submit.md` **before Step 3** and follow its probe / topology / submit recipes. When that reference constructs a retrospective stack, its layer-by-layer commit flow replaces ordinary Step 3. Soft-depend on `gh stack` CLI only. On missing/unavailable CLI: required stack intent → hard-stop with residual; soft intent → residual + ordinary single-PR create.
 
 After successful submit with ready (non-draft) PRs, continue to the babysit handoff below using the **bottom open non-draft** PR. Derive babysit posture from ship intent: default `posture:stack-ready`; use `posture:stack-land` only when land/merge-when-green intent is explicit. Pass that posture on the `ce-babysit-pr` invocation (do not put `posture:` on this skill's argument-hint). Draft-only submit → hard residual before babysit when babysit is on.
 
@@ -79,6 +79,8 @@ If the PR check returned a non-empty array, do **not** blindly take index 0 — 
 Match repo style for commit messages and PR titles (project instructions in context > recent commits > conventional commits as default). With conventional commits, default to `fix:` over `feat:` when ambiguous — adding code to remedy broken or missing behavior is `fix:`. Reserve `feat:` for capabilities the user could not previously accomplish. The user may override. The description reference's title step uses this same type default.
 
 ## Step 3: Commit and push
+
+If the stack reference constructed and committed retrospective layers before this step, skip ordinary single-branch commit/push and continue to Step 4; `gh stack submit` in Step 5 pushes the stack.
 
 If on the default branch, branch creation needs to handle stale local `<base>`, unpushed commits on local `<base>`, and uncommitted changes that collide with the fresh remote base. Read `references/branch-creation.md` and follow its decision flow before continuing.
 
