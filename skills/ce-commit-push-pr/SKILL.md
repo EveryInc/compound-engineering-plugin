@@ -20,7 +20,7 @@ argument-hint: "[PR ref] [mode:pipeline] [archive:on|off] [branding:on|off] [bab
 
 **Opt-in only.** Enter stack mode when user intent or standing preference wants a multi-PR stack. Prefer intent over keyword matching. **Do not** proactively suggest PR stacks. **Refuse** nonsense stacks (one logical change, artificial slices) and stay on the single-PR path.
 
-When stack mode is active, load `references/stack-submit.md` **before Step 3**. At this point follow only its Probe, Topology, and, when needed, Retrospective construction sections; do not submit. When that reference constructs a retrospective stack, its layer-by-layer commit flow replaces ordinary Step 3. Step 5 exclusively owns stack submission, after Step 4 composes the PR titles and bodies. Soft-depend on `gh stack` CLI only. On missing/unavailable CLI: required stack intent → hard-stop with residual; soft intent → residual + ordinary single-PR create.
+When stack mode is active, load `references/stack-submit.md` **before Step 3**. At this point follow only its Probe, Topology, and, when needed, Retrospective construction sections; do not submit. When that reference constructs a retrospective stack, its layer-by-layer commit flow replaces ordinary Step 3. Step 4 follows the reference's Per-layer PR metadata route: compose one title and body per managed layer, bottom-to-top, against that layer's immediate parent. Step 5 exclusively owns stack submission and applies that metadata after submit. Soft-depend on `gh stack` CLI only. On missing/unavailable CLI: required stack intent → hard-stop with residual; soft intent → residual + ordinary single-PR create.
 
 After successful submit with ready (non-draft) PRs, continue to the babysit handoff below using the **bottom open non-draft** PR. Derive babysit posture from ship intent: default `posture:stack-ready`; use `posture:stack-land` only when land/merge-when-green intent is explicit. Pass that posture on the `ce-babysit-pr` invocation (do not put `posture:` on this skill's argument-hint). Draft-only submit → hard residual before babysit when babysit is on.
 
@@ -105,7 +105,9 @@ If the working tree is clean and all commits are already pushed, this step is a 
 
 ## Step 4: Compose the PR title and body
 
-**You MUST read `references/pr-description-writing.md`** in full — it owns value-first framing, sizing, program altitude, related-work references (preserve existing `Related:` / `Fixes` on rewrite), branding body rules, and the pre-apply audit. The only input it needs from this skill is the PR ref, if one was identified by mode dispatch (description-only with a pasted URL, description update, or confirmed existing-PR rewrite in full workflow). If Step 1 found an existing PR, pass its URL to Step 4 when rewriting so PR mode fetches the existing body.
+In Stack mode, follow the Per-layer PR metadata section of `references/stack-submit.md`; do not compose one default-base title and body for the whole stack. For a new layer, check out that layer branch and pass `base:<layer-base>` into the description reference so its `HEAD` is the layer tip. For an existing layer PR, pass its URL so PR mode resolves that layer's base and existing body.
+
+**You MUST read `references/pr-description-writing.md`** in full — it owns value-first framing, sizing, program altitude, related-work references (preserve existing `Related:` / `Fixes` on rewrite), branding body rules, and the pre-apply audit. Outside Stack mode, the only input it needs from this skill is the PR ref, if one was identified by mode dispatch (description-only with a pasted URL, description update, or confirmed existing-PR rewrite in full workflow). If Step 1 found an existing PR, pass its URL to Step 4 when rewriting so PR mode fetches the existing body.
 
 **Evidence decision** before composition. CE does not own a capture workflow — use harness capture tools or user-supplied artifacts, never invent/upload evidence or launch another CE skill.
 
