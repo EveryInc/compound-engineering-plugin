@@ -1125,6 +1125,26 @@ describe("cross-model peer skip legibility", () => {
     },
   ]
 
+  test("code review preflights the fixed route before creating a peer job", async () => {
+    const reference = await readRepoFile(
+      "skills/ce-code-review/references/cross-model-review.md",
+    )
+    const skill = await readRepoFile("skills/ce-code-review/SKILL.md")
+
+    const preflight = reference.indexOf(
+      'peer-route-health.py" preflight --route "<fixed-route>"',
+    )
+    const start = reference.indexOf('peer-job-runner.py" start')
+    expect(preflight).toBeGreaterThanOrEqual(0)
+    expect(start).toBeGreaterThan(preflight)
+    expect(reference).toMatch(/failed preflight returns before any job ID/i)
+    expect(reference).toMatch(/keeps the in-process `adversarial-reviewer` fallback/i)
+    expect(reference).toMatch(/worker repeats the preflight immediately before egress/i)
+
+    expect(skill).toMatch(/known session-quota circuit remains open/i)
+    expect(skill).toMatch(/keep `adversarial-reviewer` in the local roster as the fallback/i)
+  })
+
   // The route-token vocabulary lives in each worker's route_target() case, but
   // the references forbid inspecting worker source — so each reference must
   // enumerate every accepted fixed-route token itself (issue #1282: an
@@ -1189,7 +1209,11 @@ describe("cross-model peer skip legibility", () => {
       // to classify a quota/usage-limit exhaustion (harness-agnostic reasoning).
       expect(referenceSrc).toContain("peer skip evidence:")
       expect(referenceSrc).toMatch(/quota|usage-limit/i)
-      expect(referenceSrc).toMatch(/more than once in this session/i)
+      if (worker.includes("ce-code-review")) {
+        expect(referenceSrc).toMatch(/opens the private reset-aware circuit on its first observation/i)
+      } else {
+        expect(referenceSrc).toMatch(/more than once in this session/i)
+      }
     })
   }
 
