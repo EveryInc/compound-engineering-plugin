@@ -1143,7 +1143,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     }).capability).toBe("unknown")
   })
 
-  test("live fetch requires the host-qualified current base ref before probing an eligible BEHIND update", () => {
+  test("live fetch probes update capability for current or stale BEHIND bases, but not probe errors", () => {
     const python = `
 import json
 from importlib.machinery import SourceFileLoader
@@ -1219,7 +1219,7 @@ print(json.dumps({"current": current, "stale": stale, "probe_error": probe_error
       pr_oid: "1111111111111111111111111111111111111111",
       freshness: "stale",
     })
-    expect(result.stale.host_branch_update_capability).toBe("unknown")
+    expect(result.stale.host_branch_update_capability).toBe(true)
     expect(result.probe_error.base).toEqual({
       host: "ghe.acme.test",
       repository: "o/r",
@@ -1229,7 +1229,38 @@ print(json.dumps({"current": current, "stale": stale, "probe_error": probe_error
       freshness: "probe-error",
     })
     expect(result.probe_error.host_branch_update_capability).toBe("unknown")
-    expect(result.capability_calls).toBe(1)
+    expect(result.capability_calls).toBe(2)
+  })
+
+  test("a stale cached base still emits the guarded live-base BEHIND route", () => {
+    const staleBehindFile = fetchFile(dir, "base-stale-behind.json", quietCurrencyFixture({
+      base: {
+        host: "github.com",
+        repository: "o/r",
+        ref: "main",
+        oid: "base-2",
+        pr_oid: "base-1",
+        freshness: "stale",
+      },
+    }))
+    const staleBehind = snapshot(state, staleBehindFile)
+
+    expect(staleBehind.base_ref_blocker).toBe("stale")
+    expect(staleBehind.mergeability_certain).toBe(false)
+    expect(staleBehind.branch_currency).toMatchObject({
+      disposition: "open",
+      route: "normal-base",
+      base_oid: "base-2",
+      head_sha: "s1",
+      status: "BEHIND",
+      host_branch_update_capability: true,
+    })
+    expect(wakeReason(staleBehind, 0)).toBe("branch-currency")
+
+    markCurrency(state, staleBehind.branch_currency.key, "claimed")
+    const claimed = snapshot(state, staleBehindFile)
+    expect(claimed.base_ref_blocker).toBe("stale")
+    expect(claimed.branch_currency).toMatchObject({ disposition: "claimed", attention: null })
   })
 
   test("base-ref freshness blocks readiness, resets quiet on current-to-stale, and fails closed on probe error", () => {
@@ -1287,6 +1318,37 @@ print(json.dumps({"current": current, "stale": stale, "probe_error": probe_error
     expect(probeError.mergeability_certain).toBe(false)
     expect(probeError.branch_currency).toBeNull()
     expect(wakeReason(probeError, 0)).toBe("base-ref-blocked")
+
+    const staleDirty = snapshot(path.join(dir, "base-stale-dirty"), fetchFile(dir, "base-stale-dirty.json", {
+      ...clean,
+      mergeable: "CONFLICTING",
+      merge_state_status: "DIRTY",
+      base: {
+        host: "github.com",
+        repository: "o/r",
+        ref: "main",
+        oid: "base-2",
+        pr_oid: "base-1",
+        freshness: "stale",
+      },
+      pr_chain: currencyFixture().pr_chain,
+    }))
+    expect(staleDirty.branch_currency).toBeNull()
+    expect(wakeReason(staleDirty, 0)).toBe("base-ref-blocked")
+
+    const behindProbeError = snapshot(path.join(dir, "base-behind-probe-error"), fetchFile(dir, "base-behind-probe-error.json", {
+      ...quietCurrencyFixture(),
+      base: {
+        host: "github.com",
+        repository: "o/r",
+        ref: "main",
+        oid: null,
+        pr_oid: "base-1",
+        freshness: "probe-error",
+      },
+    }))
+    expect(behindProbeError.branch_currency).toBeNull()
+    expect(wakeReason(behindProbeError, 0)).toBe("base-ref-blocked")
   })
 
   test("watch keeps polling an already-surfaced base-ref blocker instead of busy-waking or declaring ready", () => {

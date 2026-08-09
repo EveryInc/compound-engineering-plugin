@@ -521,6 +521,12 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(behindEnd).toBeGreaterThan(behindStart)
     expect(behindBlock).toMatch(/confirm the exact claimed observation[^.]{0,180}fresh snapshot[^.]{0,180}ancestry evidence[^.]{0,180}observed base OID/i)
     expect(behindBlock).toMatch(/claimed item's own `branch_currency_blocker`[^.]{0,120}need not be null beforehand/i)
+    for (const text of [babysit, watchLoop]) {
+      expect(text).toMatch(/stale[^.]{0,260}BEHIND/i)
+      expect(text).toMatch(/BEHIND[^.]{0,260}(live base|live-base)[^.]{0,180}(OID|route)|(live base|live-base)[^.]{0,180}BEHIND/i)
+      expect(text).toMatch(/stale[^.]{0,260}(block|blocked|blocks)[^.]{0,120}readiness/i)
+      expect(text).toMatch(/probe-error[^.]{0,180}(no item|never emit)/i)
+    }
   })
 
   test("dirty maintenance proves push authority, previews exact-base conflicts, and parks semantic choices", async () => {

@@ -922,11 +922,24 @@ def _normal_base_route(cur):
 
 def _branch_currency_observation(cur, head):
     status = cur.get("merge_state_status")
-    certain = _mergeability_certain(cur.get("mergeable"), status, cur.get("base"))
-    if not certain or status not in ("BEHIND", "DIRTY"):
+    base = cur.get("base") or {}
+    base_blocker = _base_ref_blocker(base)
+    # Readiness requires the PR object's cached base to match the live ref. Maintenance has one
+    # narrower safe route: a stale-cache BEHIND observation can bind the existing guarded host
+    # update protocol to the independently read live base OID. Probe uncertainty and DIRTY still
+    # fail closed.
+    behind_eligible = (
+        status == "BEHIND"
+        and cur.get("mergeable") == "MERGEABLE"
+        and base_blocker in (None, BASE_REF_STALE)
+    )
+    dirty_eligible = (
+        status == "DIRTY"
+        and _mergeability_certain(cur.get("mergeable"), status, base)
+    )
+    if not (behind_eligible or dirty_eligible):
         return None
     route = _normal_base_route(cur)
-    base = cur.get("base") or {}
     if (route is None or not head
             or not all(base.get(key) for key in ("host", "repository", "ref", "oid"))):
         return None
@@ -1840,10 +1853,6 @@ def _wake_reason(a, settle_seconds):
         return "feedback-candidate"
     if a.get("stack_blocker"):
         return "stack-blocked"
-    base_ref_blocker = (a.get("base_ref_blocker")
-                        if "base_ref_blocker" in a else _base_ref_blocker(a.get("base")))
-    if base_ref_blocker:
-        return "base-ref-blocked"
     branch_currency = a.get("branch_currency") or {}
     if a.get("has_failing_checks") and a.get("checks_terminal"):
         # a dispatched check left terminally red (counts.ci is 0 — nothing new to dispatch) is a
@@ -1857,6 +1866,10 @@ def _wake_reason(a, settle_seconds):
                                              CURRENCY_ATTENTION_INSPECT,
                                              CURRENCY_ATTENTION_RECONCILE):
         return "branch-currency"
+    base_ref_blocker = (a.get("base_ref_blocker")
+                        if "base_ref_blocker" in a else _base_ref_blocker(a.get("base")))
+    if base_ref_blocker:
+        return "base-ref-blocked"
     if a.get("blocked_external"):
         return "blocked-external"
     if (a.get("open_needs_human", 0)
