@@ -118,14 +118,15 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     }
   })
 
-  test("branch-currency wakes only after review and failing-CI attention, before merge-ready", async () => {
+  test("branch-currency wakes after new review/CI work and before standing blockers", async () => {
     const script = await readRepoFile(PR_SNAPSHOT)
     const wake = script.slice(script.indexOf("def _wake_reason"), script.indexOf("def _emit_wake"))
     const orderedReturns = [
       'return "actionable"',
       'return "feedback-candidate"',
-      'return "blocked-failing"',
       'return "branch-currency"',
+      'return "base-ref-blocked"',
+      'return "blocked-failing"',
       'return "merge-ready"',
     ]
     let prior = -1
@@ -526,6 +527,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
       expect(text).toMatch(/BEHIND[^.]{0,260}(live base|live-base)[^.]{0,180}(OID|route)|(live base|live-base)[^.]{0,180}BEHIND/i)
       expect(text).toMatch(/stale[^.]{0,260}(block|blocked|blocks)[^.]{0,120}readiness/i)
       expect(text).toMatch(/probe-error[^.]{0,180}(no item|never emit)/i)
+      expect(text).toMatch(/stale[^.]{0,300}never[^.]{0,100}DIRTY/i)
     }
   })
 

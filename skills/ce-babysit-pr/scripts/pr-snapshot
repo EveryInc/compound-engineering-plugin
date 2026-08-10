@@ -1854,14 +1854,10 @@ def _wake_reason(a, settle_seconds):
     if a.get("stack_blocker"):
         return "stack-blocked"
     branch_currency = a.get("branch_currency") or {}
-    if a.get("has_failing_checks") and a.get("checks_terminal"):
-        # a dispatched check left terminally red (counts.ci is 0 — nothing new to dispatch) is a
-        # blocker to hand back, not a reason to idle to max-runtime.
-        return "blocked-failing"
     # Branch maintenance is a third attention stream. It runs only after new review/CI work and
-    # standing red blockers are clear, but a passive in-progress check or review signal does not
-    # delay a BEHIND update that will invalidate that work anyway. Claimed observations wake only
-    # for reconciliation; confirmed and parked residuals remain quiet.
+    # before standing residuals: a BEHIND update will invalidate the current CI result anyway.
+    # Passive in-progress checks and review signals also do not delay it. Claimed observations wake
+    # only for reconciliation; confirmed and parked residuals remain quiet.
     if branch_currency.get("attention") in (CURRENCY_ATTENTION_CLAIM,
                                              CURRENCY_ATTENTION_INSPECT,
                                              CURRENCY_ATTENTION_RECONCILE):
@@ -1870,6 +1866,10 @@ def _wake_reason(a, settle_seconds):
                         if "base_ref_blocker" in a else _base_ref_blocker(a.get("base")))
     if base_ref_blocker:
         return "base-ref-blocked"
+    if a.get("has_failing_checks") and a.get("checks_terminal"):
+        # a dispatched check left terminally red (counts.ci is 0 — nothing new to dispatch) is a
+        # blocker to hand back, not a reason to idle to max-runtime.
+        return "blocked-failing"
     if a.get("blocked_external"):
         return "blocked-external"
     if (a.get("open_needs_human", 0)

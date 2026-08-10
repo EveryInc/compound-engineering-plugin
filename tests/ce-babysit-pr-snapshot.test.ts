@@ -454,7 +454,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       counts: { ...open.counts, ci: 0 },
       has_failing_checks: true,
       checks_terminal: true,
-    })).toBe("blocked-failing")
+    })).toBe("branch-currency")
   }, 15000)
 
   test("branch currency: claim re-entry reconciles, permits one proven-no-mutation retry, and never retries ambiguity", () => {
@@ -1318,6 +1318,12 @@ print(json.dumps({"current": current, "stale": stale, "probe_error": probe_error
     expect(probeError.mergeability_certain).toBe(false)
     expect(probeError.branch_currency).toBeNull()
     expect(wakeReason(probeError, 0)).toBe("base-ref-blocked")
+    expect(wakeReason({
+      ...probeError,
+      counts: { ...probeError.counts, ci: 0 },
+      has_failing_checks: true,
+      checks_terminal: true,
+    }, 0)).toBe("base-ref-blocked")
 
     const staleDirty = snapshot(path.join(dir, "base-stale-dirty"), fetchFile(dir, "base-stale-dirty.json", {
       ...clean,
