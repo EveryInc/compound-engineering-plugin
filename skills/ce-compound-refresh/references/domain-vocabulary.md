@@ -8,7 +8,7 @@ The protocol is progressive. A project with one coherent model keeps a flat root
 
 Run these steps in order for every vocabulary-relevant read or write.
 
-1. **Legacy check.** Look for `CONTEXT-MAP.md` and `CONTEXT.md` at the repo root and under the docs tree (including its `contexts/` subtree). This is an ordinary bounded file check — no script. If a vocabulary-bearing legacy file exists, stop and apply "Blocked states" below.
+1. **Legacy check.** Search the whole repository for files named `CONTEXT-MAP.md` or `CONTEXT.md`, skipping ignored and vendored directories. This is an ordinary file-name search — no script needed. **Do not scope it to the repo root and the docs tree:** the convention these files come from puts a `CONTEXT.md` beside the code it describes, so `src/ordering/CONTEXT.md` is the common case, not the exception. A narrower search misses them, no block fires, and the next capture creates a second canonical glossary — the exact outcome this step exists to prevent. If a vocabulary-bearing legacy file exists anywhere, stop and apply "Blocked states" below.
 2. **Read the root `CONCEPTS.md`.**
 3. **No `## Contexts` section** → the root is the glossary. Read and write there. This is the flat form and it is the default.
 4. **A `## Contexts` section that does not parse** as the index grammar below → treat the root as a flat glossary and tell the user the section collides with the index sentinel. Never reinterpret an unparseable section as an index.

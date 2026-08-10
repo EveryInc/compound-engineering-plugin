@@ -284,6 +284,23 @@ describe("domain-graph blocked states", () => {
     expect(codes(json.findings)).toContain("legacy-only")
   })
 
+  test("finds legacy glossaries stored beside code, not only under docs/", () => {
+    // The convention these files come from puts CONTEXT.md next to the module it
+    // describes (src/ordering/CONTEXT.md), so a discovery pass scoped to the repo
+    // root plus docs/ misses them entirely -- no block fires and the next capture
+    // manufactures a second canonical glossary. A behavioral eval caught exactly
+    // that gap in the prose contract; this pins the mechanical half.
+    const { json } = runJson(["validate", "--repo-root", fixture("legacy-beside-code")])
+    expect(json.blockedState).toBe("legacy-only")
+
+    const { json: inventory } = runJson(["inventory", "--repo-root", fixture("legacy-beside-code")])
+    const bearing = inventory.legacy.files
+      .filter((file: { vocabularyBearing: boolean }) => file.vocabularyBearing)
+      .map((file: { path: string }) => file.path)
+      .sort()
+    expect(bearing).toEqual(["src/fulfilment/CONTEXT.md", "src/ordering/CONTEXT.md"])
+  })
+
   test("reports no blocked state for a legacy file that bears no vocabulary", () => {
     const { run: result, json } = runJson(["validate", "--repo-root", fixture("non-vocabulary-legacy")])
     expect(json.blockedState).toBe("none")
