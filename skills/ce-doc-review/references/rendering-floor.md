@@ -2,14 +2,18 @@
 
 The single source of truth for how any finding is rendered for a human decision — across **every**
 presentation surface: the interactive walkthrough terminal block (`references/walkthrough.md`), the
-batch report table (`references/review-output-template.md`), the non-interactive envelope
+walkthrough blocking-question string (same file — compact What's wrong / Proposed fix / If left as-is
+duplicated into the question so modal dialogs are decidable), the batch report table
+(`references/review-output-template.md`), the non-interactive envelope
 (`references/synthesis-and-presentation.md` Phase 4), the bulk-action preview line
 (`references/bulk-preview.md`), and the Open Questions entry a Defer persists into the document
 (`references/open-questions-defer.md`). Each surface keeps its own layout and maps that layout onto the
 rules below; the rules themselves do not vary by surface. The token policy applies to every surface; the
 full decision-first field order applies to the surfaces that render an actionable finding (a persisted
 Open Questions entry is a concern, not an actionable finding, so it takes the token policy and
-consequence-first phrasing only).
+consequence-first phrasing only). The walkthrough question string is derived from the terminal block
+and inherits this floor's opaque-token policy and two-anchor budget; it must not invent a denser second
+narrative.
 
 The reader is someone who does not have the document open and has not internalized its identifiers
 or the reviewed product's codebase. The output exists so they can decide **Apply / Defer / Skip**
@@ -29,11 +33,12 @@ idiom rather than reproducing the exact label sequence. The invariant both share
 legible up front with no opaque token**, and the **recommendation is unmistakably marked**. Concretely:
 the **non-interactive envelope** prints them as explicit labeled lines; the **walkthrough block** leads with a
 consequence-phrased title, then What's-wrong / Proposed-fix / If-left-as-is, and marks the recommendation
-on its question options; the **batch table** leads its Issue cell with the consequence and carries the
-recommendation in its Tier/action column; the **bulk-preview line** leads with the consequence and
-takes its recommendation from the bucket it is grouped under (Applying / Appending / Skipping). A
-surface satisfies the floor when those two invariants hold, not when it emits the four field labels
-verbatim.
+on its question options; the **walkthrough question string** duplicates those three compact fields so a
+modal dialog is decidable without prior chat; the **batch table** leads its Issue cell with the
+consequence and carries the recommendation in its Tier/action column; the **bulk-preview line** leads
+with the consequence and takes its recommendation from the bucket it is grouped under (Applying /
+Appending / Skipping). A surface satisfies the floor when those two invariants hold, not when it emits
+the four field labels verbatim.
 
 1. **Recommendation** — the recommended action (`Apply` / `Defer` / `Skip`, from the finding's
    `recommended_action`), stated up front. This is what the user is being asked to accept or reject.

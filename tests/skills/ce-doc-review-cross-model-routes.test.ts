@@ -280,6 +280,9 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
   test("grok CLI: deny Read + web/subagents off + dontAsk + effort high", () => {
     const cmd = emitAdapter("grok-cli")
     expect(cmd).toContain("--deny Read")
+    // Load-bearing with --deny Read: without --verbatim grok offloads a large
+    // prompt to a session file the peer is then forbidden to read back.
+    expect(cmd).toContain("--verbatim")
     expect(cmd).toContain("--disable-web-search")
     expect(cmd).toContain("--no-subagents")
     expect(cmd).toContain("--permission-mode dontAsk")
@@ -541,6 +544,22 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     expect(out.cross_model_route).toBe("claude")
     expect(out.independence_verified).toBe(true)
   })
+
+  test("a trailing non-findings object in .text does not short-circuit recovery", () => {
+    // Taking a bare `last` off the .text stream hands back the trailing object,
+    // which normalization then drops — losing a review that was right there.
+    const grokStub =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"text":"{\\"reviewer\\": \\"adversarial\\", \\"findings\\": [{\\"section\\": \\"X\\", \\"title\\": \\"real\\"}], \\"residual_risks\\": [], \\"deferred_questions\\": []}{\\"done\\": true}"}'\n`
+    const { env } = sandbox(["grok"], grokStub)
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(["claude", "grok", "adversarial", doc, "plan", "none", runDir], runDir, env)
+    expect(r.files).toContain("adversarial-grok.json")
+    const out = JSON.parse(
+      readFileSync(path.join(runDir, "adversarial-grok.json"), "utf8"),
+    )
+    expect(out.findings[0].title).toBe("real")
+  }, 20_000)
 
   test("drops the return when findings is not an array", () => {
     const badStub =
