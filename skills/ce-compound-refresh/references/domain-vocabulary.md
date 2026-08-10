@@ -23,22 +23,22 @@ A `## Contexts` section is an index only when it matches this shape. Anything el
 ```markdown
 ## Contexts
 
-- `programming` — `docs/contexts/programming/CONCEPTS.md` — owns training-plan structure and exercise prescription.
-- `billing` — `docs/contexts/billing/CONCEPTS.md` — owns subscriptions, invoices, and payment state.
+- [Programming](docs/contexts/programming/CONCEPTS.md) — owns training-plan structure and exercise prescription.
+- [Billing](docs/contexts/billing/CONCEPTS.md) — owns subscriptions, invoices, and payment state.
 
 ### Relations
 
-- `programming` -> `billing`: completing a block emits a billing event. A programming Block is not a billing BillingPeriod; the boundary translates one to the other.
+- Programming -> Billing: completing a Block emits a billing event. A programming Block is not a billing BillingPeriod; the boundary translates one to the other.
 
 ### Shared vocabulary
 
-- Member — a person with an active relationship to the gym. Model, invariants, and governance are shared by `programming` and `billing`.
+- **Member** — a person with an active relationship to the gym. Model, invariants, and governance are shared by Programming and Billing.
 ```
 
-- Each context entry is one list item with exactly three ` — `-separated fields: the slug in backticks, the repo-relative glossary path in backticks, and a one-sentence ownership statement.
-- A slug matches `^[a-z0-9]+(-[a-z0-9]+)*$`. A context whose name cannot be written that way does not get a path.
+- Each context entry is one list item: a Markdown link whose text is the context name and whose target is the repo-relative glossary path, then a separator (`--` or an em dash, surrounded by single spaces), then a one-sentence ownership statement.
+- The slug is **derived** from the context name, not written twice, and must match `^[a-z0-9]+(-[a-z0-9]+)*$`. A name that cannot be slugified within that allowlist is reported rather than turned into a path, and two names that collapse to the same slug are a collision.
 - Glossary paths are repo-relative and compose with the project's docs root: `<docs-root>/contexts/<slug>/CONCEPTS.md`, where `<docs-root>` is `docs` unless the project configures otherwise.
-- `### Relations` and `### Shared vocabulary` are optional. Each relation names both contexts and states what crosses or translates between them.
+- `### Relations` and `### Shared vocabulary` are optional, appear at most once each, and may come in either order. Each relation names both contexts and states what crosses or translates between them.
 - A context may appear once. A duplicate entry is a collision, not a merge.
 
 ## Ownership
