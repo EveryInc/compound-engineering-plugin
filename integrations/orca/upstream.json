@@ -1,8 +1,8 @@
 {
   "schema": "ce-orca.upstream-baseline/v1",
   "repository": "https://github.com/EveryInc/compound-engineering-plugin.git",
-  "version": "3.21.1",
-  "commit": "6a2a0f9940ab0b3577ce26226ee393390470e412",
+  "version": "3.21.4",
+  "commit": "0a2957852e2034d04eb01120fd7da6ed5307dc56",
   "skillInventory": [
     "ce-babysit-pr",
     "ce-brainstorm",
@@ -111,8 +111,7 @@
       "figma-design-sync.md",
       "implementation-worker.md"
     ],
-    "lfg": [
-    ]
+    "lfg": []
   },
   "hookAnchors": [
     {
@@ -123,7 +122,7 @@
     {
       "id": "ce-plan.organizational-research",
       "file": "skills/ce-plan/SKILL.md",
-      "contains": "**Slack context** (opt-in) — never auto-dispatch. Route by condition:"
+      "contains": "**Slack context** (opt-in) \u2014 never auto-dispatch. Route by condition:"
     },
     {
       "id": "ce-work.unit-dispatch",

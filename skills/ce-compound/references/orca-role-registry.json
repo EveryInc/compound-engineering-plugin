@@ -1,13 +1,13 @@
 {
   "identities": {
-    "ceVersion": "3.21.1",
-    "integrationVersion": "3.21.1-orca.3",
+    "ceVersion": "3.21.4",
+    "integrationVersion": "3.21.4-orca.4",
     "protocolVersion": "orca.local-protocol/v1",
-    "registryVersion": "ce-orca.registry/v1@3.21.1-orca.3",
+    "registryVersion": "ce-orca.registry/v1@3.21.4-orca.4",
     "requestVersion": "orca.execution-config/v1"
   },
   "schema": "ce-orca.role-registry/v1",
-  "version": "ce-orca.registry/v1@3.21.1-orca.3",
+  "version": "ce-orca.registry/v1@3.21.4-orca.4",
   "workflows": {
     "ce-compound": {
       "controller": "ce-controller",

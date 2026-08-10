@@ -107,6 +107,9 @@ describe("ce-pov cross-model route safety", () => {
     expect(emit("grok-cli")).toContain("--deny Edit")
     expect(emit("grok-cli")).toContain("--deny Write")
     expect(emit("grok-cli")).toContain("--deny Bash")
+    // Without --verbatim grok offloads a large prompt to a session file and
+    // sends only a preview, so the peer answers on context it never received.
+    expect(emit("grok-cli")).toContain("--verbatim")
     expect(emit("grok-cli")).toContain("--output-format json")
     expect(emit("grok-cli")).not.toContain("stream-json")
     for (const route of ["grok-cursor", "cursor", "composer"]) {

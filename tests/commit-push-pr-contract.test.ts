@@ -34,6 +34,78 @@ describe("ce-commit-push-pr contract", () => {
     expect(auditSection).toContain("every material outcome")
   })
 
+  test("elevates multi-PR program altitude with lead-in and lead-out", async () => {
+    const content = await readRepoFile(
+      "skills/ce-commit-push-pr/references/pr-description-writing.md",
+    )
+
+    const sizingSection = content.match(
+      /## Step A: Size the description([\s\S]+?)## Step B:/,
+    )?.[1]
+    expect(sizingSection).toBeDefined()
+    expect(sizingSection).toContain("Program altitude")
+    expect(sizingSection).toContain("lead-in")
+    expect(sizingSection).toContain("lead-out")
+    expect(sizingSection).toContain("Program outcome")
+    expect(sizingSection).toMatch(/this PR's contribution/i)
+    expect(sizingSection).toContain("Do **not** invent a series")
+    expect(sizingSection).toMatch(
+      /program → lead-in \(if any\) → this contribution → lead-out \(if any\)/,
+    )
+    // Bidirectional contrast: middle PR needs prior + residual, not local-only
+    expect(sizingSection).toContain("too local for a middle PR")
+    expect(sizingSection).toContain("Continues the session-revocation rewrite")
+
+    const auditSection = content.match(
+      /## Step E: Pre-apply coverage audit([\s\S]+)\s*$/,
+    )?.[1]
+    expect(auditSection).toBeDefined()
+    expect(auditSection).toMatch(
+      /program context was present.+lead place this PR on the arc/is,
+    )
+    expect(auditSection).toMatch(
+      /program context was absent.+invent a multi-PR series/is,
+    )
+
+    // Tracker refs stay separate from series narrative
+    const relatedSection = content.match(
+      /## Step B1: Resolve related work references([\s\S]+?)## Step B2:/,
+    )?.[1]
+    expect(relatedSection).toBeDefined()
+    expect(relatedSection).toMatch(
+      /Sibling PR \/ series narrative belongs in Step A's program altitude/i,
+    )
+  })
+
+  test("scopes STE-inspired prose to non-load-bearing wording", async () => {
+    const content = await readRepoFile(
+      "skills/ce-commit-push-pr/references/pr-description-writing.md",
+    )
+
+    expect(content).toContain("ASD-STE100 Simplified Technical English")
+    expect(content).toMatch(
+      /Prefer plain wording wherever domain terms are not load-bearing/i,
+    )
+    expect(content).toMatch(
+      /Keep necessary technical jargon.+where they \*are\* the claim/is,
+    )
+    expect(content).toMatch(
+      /do not dilute mechanism language into vague plain English/i,
+    )
+    // Contrast pins both failure directions: decorative jargon vs load-bearing terms
+    expect(content).toContain("jargon without need")
+    expect(content).toContain("jargon is the claim")
+    expect(content).toContain("`TokenStore.invalidate` is now atomic under concurrent refresh.")
+
+    const auditSection = content.match(
+      /## Step E: Pre-apply coverage audit([\s\S]+)\s*$/,
+    )?.[1]
+    expect(auditSection).toBeDefined()
+    expect(auditSection).toMatch(
+      /domain jargon that is not load-bearing/i,
+    )
+  })
+
   test("repository PR-body contracts set structure without replacing editorial guidance", async () => {
     const content = await readRepoFile(
       "skills/ce-commit-push-pr/references/pr-description-writing.md",
@@ -121,9 +193,10 @@ describe("ce-commit-push-pr contract", () => {
   test("babysit handoff is default-on with off-switches and drivable fork PRs", async () => {
     const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
 
-    // Default-on: auto-invoke, announce, never block on a yes/no.
-    expect(content).toMatch(/auto-invoke `ce-babysit-pr`/i)
-    expect(content).toMatch(/never block on a yes\/no/i)
+    // Default-on: completion gate, announce, transfer ownership, never ask yes/no.
+    expect(content).toMatch(/completion gate/i)
+    expect(content).toMatch(/Auto-hand off by default/i)
+    expect(content).toMatch(/never ask yes\/no/i)
     // Off is the explicit choice: per-run token + standing config opt-out.
     expect(content).toContain("babysit:off")
     expect(content).toContain("auto_babysit: false")
@@ -213,25 +286,106 @@ describe("PR concept teaching contract", () => {
     expect(template).toContain("pr_teaching_archive")
   })
 
-  test("babysit handoff is a hard skill invocation, never ad-hoc babysit mechanics", async () => {
+  test("babysit handoff requires ownership transfer, forbids substitutes, hard-fails on load failure", async () => {
     const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
 
-    const handoff = content.match(/\*\*Babysit handoff — default on\.\*\*[\s\S]+?(?=\n\n)/)?.[0]
+    const handoff = content.match(/\*\*Babysit handoff — default on; completion gate\.\*\*[\s\S]+?(?=\n\n)/)?.[0]
     expect(handoff).toBeDefined()
-    // Observed drift (Nugget PR #1933): the shipping agent ran a bare
-    // `pr-snapshot watch --pr N` instead of invoking ce-babysit-pr, skipping its
-    // Step 2 bootstrap. The handoff must pin the invocation mechanism and forbid
-    // reconstructing babysit's loop at this seam.
-    expect(handoff).toContain("skill-invocation primitive")
+    // Completion gate: PR URL alone is not done; ce-babysit-pr must own follow-on.
+    expect(handoff).toMatch(/not done.+until `ce-babysit-pr` owns/is)
+    expect(handoff).toMatch(/Reporting the PR URL alone is not success/)
+    expect(handoff).toMatch(/\*\*Success\*\*.+`ce-babysit-pr` has started/is)
+    // Harness-agnostic load: use the host's normal skill mechanism without a platform matrix.
+    expect(handoff).toMatch(/host's normal skill-invocation mechanism/)
+    expect(handoff).not.toContain("Claude Code `Skill` tool")
+    // Observed drift (Nugget PR #1933): bare `pr-snapshot watch` instead of loading
+    // ce-babysit-pr. Keep anti-reinvention at this seam.
     expect(handoff).toContain("Never start babysit mechanics yourself")
     expect(handoff).toContain("`pr-snapshot`")
+    // Observed drift (Nugget PR #1983): Cursor agent substituted Task(ci-watcher)
+    // when skill load failed. Name non-substitutes and require hard-fail.
+    expect(handoff).toContain("`ci-watcher`")
+    expect(handoff).toContain("`gh pr checks --watch`")
+    expect(handoff).toMatch(/Handoff blocked/i)
+    expect(handoff).toMatch(/cannot be loaded or started/i)
+    expect(handoff).toMatch(/Do not invent a parallel or narrower watch/)
 
     // Observed drift (Nugget PR #1934): auto-babysit fired on a draft design PR, forcing the
     // session to improvise "never mark ready" caveats. Drafts are a not-ready signal; the
     // auto-handoff must not fire on them (explicit babysit tokens still force it).
+    // Soft-degrade is checkpoint-only after successful ownership — not a failed-handoff fallback.
     const doNotFire = content.match(/\*\*Do not fire \(auto-detected[\s\S]+?(?=\n\n)/)?.[0]
     expect(doNotFire).toBeDefined()
     expect(doNotFire).toContain("draft")
     expect(doNotFire).toContain("`babysit:continuous`")
+    expect(doNotFire).toMatch(/after successful handoff only/i)
+    expect(doNotFire).toMatch(/not a substitute for a failed handoff/i)
+  })
+
+  test("opt-in stack mode constructs or submits a stack and hands off with posture", async () => {
+    const [skill, submit] = await Promise.all([
+      readRepoFile("skills/ce-commit-push-pr/SKILL.md"),
+      readRepoFile("skills/ce-commit-push-pr/references/stack-submit.md"),
+    ])
+
+    expect(skill).toContain("## Stack mode (opt-in)")
+    expect(skill).toContain("**Do not** proactively suggest PR stacks")
+    expect(skill).toContain("references/stack-submit.md")
+    expect(skill).toMatch(/do not add `posture:` to this skill's argument-hint/i)
+    expect(skill).toMatch(/before Step 3[\s\S]{0,180}Probe[\s\S]{0,80}Topology[\s\S]{0,120}Retrospective construction/is)
+    expect(skill).toMatch(/before Step 3[\s\S]{0,260}do not submit/is)
+    expect(skill).toMatch(/Step 5 exclusively owns stack submission[\s\S]{0,160}PRs created in this run/is)
+    expect(skill).toMatch(/replaces ordinary Step 3/i)
+    expect(skill).toContain("posture:stack-ready")
+    expect(skill).toContain("posture:stack-land")
+    expect(skill).toMatch(/bottom open non-draft/i)
+    expect(skill).toMatch(/Stack mode[\s\S]{0,80}still follow the Submit section of `references\/stack-submit\.md`/i)
+    expect(skill).toMatch(/mode:pipeline` \*\*except\*\* when this run completed a stack-mode submit/i)
+    expect(skill).toMatch(/outer orchestrator[\s\S]{0,80}second bare babysit/i)
+    expect(skill).toMatch(/mode:pipeline[\s\S]{0,160}started-only is not enough/i)
+    expect(submit).toMatch(/authoritative parent tip/i)
+    expect(submit).toContain('git checkout -b -- "<branch-name>" "<parent-tip>"')
+    expect(submit).toMatch(/Do not hard-code `origin\/<parent>`/i)
+    expect(submit).toMatch(/starts on the resolved default branch.+follow `references\/branch-creation\.md`/is)
+    expect(submit).toMatch(/starts on an existing feature branch.+do not follow `references\/branch-creation\.md`/is)
+    expect(submit).toMatch(/feature branch.+fetch the resolved default branch.+verify the fetched remote-tracking tip/is)
+    expect(submit).toMatch(/original tip.+recovery (ref|branch)/is)
+    expect(submit).toMatch(/committed.+planned commit tip/is)
+    expect(submit).toMatch(/uncommitted.+save.+tracked and untracked.+restore.+planned layer/is)
+    expect(submit).toMatch(/do not treat.+feature commits.+unpushed commits.+local default/is)
+    expect(submit).toMatch(/upstack.+do \*\*not\*\* follow `references\/branch-creation\.md`/is)
+    expect(submit).toContain("## Retrospective construction")
+    expect(submit).toMatch(/Before ordinary Step 3[\s\S]{0,180}do not run Submit/is)
+    expect(submit).toMatch(/Step 5[\s\S]{0,100}only phase that runs Submit/is)
+    expect(submit).toMatch(/complete change set/i)
+    expect(submit).toMatch(/smallest useful set.+independently reviewable/is)
+    expect(submit).not.toMatch(/2-3.+layers/is)
+    expect(submit).toMatch(/dependency order/i)
+    expect(submit).toMatch(/one safe topology is clear.+proceed/is)
+    expect(submit).toMatch(/multiple reasonable topologies.+ask the user/is)
+    expect(submit).toMatch(/mode:pipeline.+stop.+residual/is)
+    expect(submit).toContain('gh stack init --base "<base>" "<bottom-branch>"')
+    expect(submit).toContain('gh stack add "<next-branch>"')
+    expect(submit).toMatch(/whole-file groups|existing commit boundaries/i)
+    expect(submit).toMatch(/published history.+explicit confirmation/is)
+    expect(submit).toMatch(/mode:pipeline.+do not split or rewrite.+residual.+explicit confirmation/is)
+    expect(submit).toMatch(/after submit.+every PR created in this run.+explicit PR URL/is)
+    expect(submit).toMatch(/new PR.+PR-description composition.+PR mode.+immediate parent.+exact head/is)
+    expect(submit).toContain('gh pr edit "<pr-url>"')
+    expect(submit).toMatch(/never rely on the restored current branch to select the PR/is)
+    expect(submit).toMatch(/Existing stack PRs retain their titles and bodies.+explicitly requested a rewrite/is)
+    expect(submit).toMatch(/mode:pipeline.+conservative no-rewrite default/is)
+    expect(skill).not.toContain("`base:<layer-base>`")
+    expect(submit).toMatch(/resolve.+`pr_teaching_archive`.+`archive:on\|off`.+before submit/is)
+    expect(submit).toMatch(/archival is on.+stop.+before `gh stack submit`/is)
+    expect(submit).toMatch(/do not create an explainer commit after submission/is)
+    expect(submit).toMatch(/rerun with `archive:off`.+safe post-submit description path/is)
+    expect(submit).toContain("gh stack submit --auto --open")
+    expect(submit).toMatch(/existing draft/i)
+    expect(submit).toMatch(/do \*\*not\*\* pass `--open`/i)
+    expect(submit).not.toMatch(/does \*\*not\*\* invent commit-splitting/i)
+    expect(submit).toMatch(/required[\s\S]{0,120}hard-stop/i)
+    expect(submit).toMatch(/soft[\s\S]{0,120}single-PR/i)
+    expect(submit).toMatch(/Forbidden on managed members/i)
   })
 })

@@ -88,7 +88,24 @@ describe("ce-work native characterization", () => {
     expect(dispatch).toContain("Do not send \"read the whole plan\"")
     expect(dispatch).toContain("**Do not commit.**")
     expect(dispatch).toContain("**orchestrator owns staging, committing, and the authoritative test runs**")
-    expect(dispatch).toContain("Review, test, and commit each unit in dependency order — the orchestrator owns commits")
+    expect(dispatch).toContain("Review, test, commit, and retire each unit in dependency order — the orchestrator owns commits")
+  })
+
+  test("uses a fresh single-use context for each dispatched native worker while preserving inline execution", async () => {
+    const skill = await readRepoFile("skills/ce-work/SKILL.md")
+    const dispatch = sliceSection(skill, "**Native dispatch (inline/subagent engines only)**", "### Phase 2: Execute")
+
+    expect(dispatch).toContain("**Fresh worker invariant (native subagent dispatch only):**")
+    expect(dispatch).toContain("When dispatching an implementation unit to a native subagent worker, create a new worker context")
+    expect(dispatch).toContain("never receive a different unit")
+    expect(dispatch).toContain("never retask it or retain idle implementation workers for reuse")
+    expect(dispatch).toContain("Inline execution creates no worker context or handle, so it has nothing to retire")
+    expect(dispatch).toMatch(/After each serial inline\/subagent unit:.*If the unit used a native subagent worker, retire its handle.*dispatch the next subagent unit in a new worker context/s)
+    expect(dispatch).toMatch(/After each serial inline\/subagent unit:.*closing\/releasing it only when the harness exposes that operation and assigns that lifecycle action to the caller/s)
+    expect(dispatch).toContain("An inline unit has no worker handle to retire; start the next unit directly")
+    expect(dispatch).toMatch(/After a parallel inline\/subagent batch.*create its canonical commit, then immediately retire that unit's worker before considering the next/s)
+    expect(dispatch).toMatch(/After a parallel inline\/subagent batch.*Invoke an explicit close\/release operation only when the harness exposes it and assigns that lifecycle action to the caller/s)
+    expect(dispatch).toContain("never infer manual cleanup commands from the provider name")
   })
 
   test("does not re-enter native dispatch after selecting cross-model execution", async () => {

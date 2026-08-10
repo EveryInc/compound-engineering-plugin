@@ -254,7 +254,7 @@ def load_state(path):
     """Return (status, data): ('absent', None), ('corrupt', None), or
     ('ok', dict). A file that parses but lacks schema_version is corrupt."""
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             # A machine-local state file can live under world-shared /tmp, and
             # it is a correctness dependency (lease, cursors, closed status) as
             # well as an injection sink (item bodies re-read into agent
@@ -268,7 +268,7 @@ def load_state(path):
             text = f.read()
     except FileNotFoundError:
         return ("absent", None)
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return ("corrupt", None)
     if not text.strip():
         return ("absent", None)
@@ -295,7 +295,7 @@ def write_state(path, state):
     os.makedirs(d, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=d, prefix=".tmp-sweep-", suffix=".yml")
     try:
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
             f.write(text)
         os.replace(tmp, path)
     except BaseException:
@@ -606,9 +606,9 @@ def cmd_import_legacy(args):
 
 def _read_legacy(path):
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             raw = f.read()
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return None
     # Try JSON first (Cora persists JSON); fall back to our YAML subset.
     try:
@@ -764,7 +764,7 @@ _MUTATING = {
 def _run_locked(handler, args):
     lock_path = str(args.state) + ".lock"
     try:
-        lock_fd = open(lock_path, "w")
+        lock_fd = open(lock_path, "w", encoding="utf-8")
     except OSError:
         return handler(args)  # cannot create a lock file; degrade to unlocked
     try:

@@ -27,8 +27,8 @@ Manual commits go wrong in predictable ways:
 - **Wrong commit convention** — defaulting to conventional commits when the repo uses ticket-prefix style, or vice versa
 - **Mixing distinct concerns** — backend models + frontend components + docs all in one commit because nobody bothered to split
 - **Subject lines that describe what changed, not why** — `update foo.rb` tells future readers nothing
-- **Detached-HEAD commits** that the user doesn't realize will be hard to recover later
-- **Default-branch commits** that surprise the user (no warning before committing to `main`)
+- **Detached-HEAD commits** that are hard to recover later
+- **Default-branch commits** that fight PR workflow and branch protection
 
 ## The Solution
 
@@ -37,8 +37,7 @@ Manual commits go wrong in predictable ways:
 - **Convention detection** — repo conventions in context first, then recent 10 commits, then conventional-commits fallback
 - **Explicit staging** — never `git add -A`/`git add .`; stage files by name
 - **Logical splitting** at the file level (no `git add -p`) when 2-3 distinct concerns are present; single commit when ambiguous
-- **Detached-HEAD handling** — asks whether to create a feature branch before committing
-- **Default-branch warning** — asks before committing to `main`/`master`
+- **Detached HEAD / default branch** — automatically creates a feature branch (commit-only still must not leave work only on detached HEAD or the default branch)
 - **Heredoc commit messages** — preserves multi-line formatting without shell-escape pain
 
 ---
@@ -70,18 +69,11 @@ The deliberate avoidance is documented in the skill — `git add -A` and `git ad
 
 Before staging, the skill scans changed files for naturally distinct concerns. If files clearly group into 2-3 separate logical changes (a refactor in one directory, a new feature in another; or test files for a different change than source files), the skill creates separate commits. Splits happen at the **file level only** — no `git add -p`, no hunk-level interactive splitting. When the split is ambiguous, one commit is fine. The sweet spot is 2-3 commits, not many tiny ones.
 
-### 4. Detached-HEAD handling
+### 4. Detached HEAD and default branch — auto feature branch
 
-If the current branch is empty (detached HEAD), the skill explains the situation and asks whether to create a feature branch first. The user can:
+If HEAD is detached, or the current branch is `main`/`master`/the resolved default, the skill creates a feature branch from the change content and continues there. It does not ask and does not commit on the default branch or leave work only on a detached HEAD.
 
-- Create a branch (skill derives the name from change content)
-- Continue with the detached-HEAD commit (rarely the right answer)
-
-### 5. Default-branch warning
-
-If the current branch is `main`, `master`, or the resolved default branch, the skill warns before committing and offers to create a feature branch first. This prevents the case where someone accidentally commits to the default branch in a repo with branch-protection that they'll have to back out.
-
-### 6. Heredoc commit messages — clean multi-line formatting
+### 5. Heredoc commit messages — clean multi-line formatting
 
 The skill uses a `cat <<'EOF'` heredoc for the commit message so multi-line bodies preserve their formatting. Example:
 
@@ -97,9 +89,9 @@ EOF
 
 The quoted sentinel (`'EOF'`) prevents `$VAR`, backticks, and embedded `EOF` from being expanded inside the body.
 
-### 7. Subject focused on *why*, not *what*
+### 6. Subject focused on outcome, not file inventory
 
-The skill writes subject lines in imperative mood, focused on motivation rather than mechanical description. "Fix double-submit on checkout" beats "Update checkout.rb." The body explains motivation, trade-offs, or context a future reader would need; it's omitted for obvious single-purpose changes.
+The skill writes subject lines in imperative mood that name what is now possible or fixed. "Fix double-submit on checkout" beats "Update checkout.rb." A body is added only when the motivation is not obvious from the subject.
 
 ---
 
@@ -177,8 +169,8 @@ There are no arguments. Convention detection, file grouping, and message composi
 | 1 | Gather context (git status, diff, branch, recent commits, default branch) |
 | 2 | Determine commit message convention (instructions > recent history > conventional-commits) |
 | 3 | Consider logical commits (file-level split when concerns are clearly distinct) |
-| 4 | Stage and commit (per-group; warn on default branch; handle detached HEAD) |
-| 5 | Confirm via `git status`; report commit hashes |
+| 4–6 | Convention, logical split, message, stage/commit (auto-branch if needed) |
+| 7 | Confirm via `git status`; report commit hashes |
 
 ---
 
@@ -193,8 +185,8 @@ Because hunk-level splitting (`git add -p`) is interactive and fragile in agent 
 **What if my repo uses a non-standard convention?**
 The skill detects from project instructions first (which is the right place to document conventions), then recent commit history (which is the de facto convention even when not documented). Conventional commits is just the fallback when neither source applies.
 
-**Why ask before committing on the default branch?**
-Because most repos with branch protection will reject a default-branch commit, and the user usually didn't intend to commit there. The warning catches the case before anything irreversible happens.
+**Why auto-create a feature branch on the default branch or detached HEAD?**
+Committing on the default branch fights normal PR workflows and branch protection; a detached HEAD commit is easy to lose. Creating a feature branch is the safe default and matches `ce-commit-push-pr`.
 
 **What if I want to push and PR after?**
 Use `/ce-commit-push-pr` for the full flow, or run `git push` and `gh pr create` manually after this skill commits.
