@@ -42,12 +42,20 @@ Wherever this skill asks the user something, use the platform's blocking questio
 
 ## CONCEPTS.md bootstrap requests
 
+**Before creating anything, check for legacy vocabulary.** Read `references/domain-vocabulary.md` and run its bounded legacy check. If a vocabulary-bearing `CONTEXT-MAP.md` or `CONTEXT.md` exists, do not bootstrap: creating a glossary beside it manufactures the dual-canonical state the protocol forbids. Surface the legacy files and route to `migrate-domain-docs` (below) instead.
+
 If invoked specifically to create or bootstrap `CONCEPTS.md` ("create a CONCEPTS.md", "build the concept map"), the intent is ambiguous between two jobs — disambiguate with a blocking question:
 
 1. **Create CONCEPTS.md (build the concept map)** — skip the `<root>/solutions/` classification work. Read `references/concepts-vocabulary.md` and follow its **Seed goal** and **Scope of a seed** (repo-wide) rules: seed the project's core domain nouns from the declared domain model, write the preamble (see Vocabulary Capture), cluster per the organization rules, run the Discoverability Check, then commit via the Commit flow — do not leave the bootstrap uncommitted.
 2. **Run a refresh cycle** — proceed normally; `CONCEPTS.md` is seeded (if absent) and reconciled during Vocabulary Capture.
 
 In non-interactive mode, default to the refresh cycle and note in the report that a standalone repo-wide bootstrap was not run.
+
+**Recommend a split only on evidence of boundaries, never on file size.** A long glossary is a glossary to organize, not a domain to divide. Propose that a project move from a flat root glossary to a context index when the corpus shows at least one of: the same word carrying valid but different meanings, modules or teams holding different invariants over the same nouns, a boundary that already requires translation between two models, or genuinely separate change cycles and ownership. Absent those, keep it flat and say so.
+
+## Legacy domain-docs migration
+
+If the run is asked to migrate, import, or clean up legacy `CONTEXT-MAP.md` / `CONTEXT.md` vocabulary — or if the legacy check above found a vocabulary blocked state — read `references/domain-migration.md` now and follow the `migrate-domain-docs` route it defines. It is the only route that clears a blocked state, and it never runs implicitly as part of an ordinary refresh cycle.
 
 ## Artifact Root
 
@@ -134,16 +142,18 @@ Read `references/per-action-flows.md` and follow the section matching each doc's
 
 After the per-doc actions execute, reconcile the domain terms flagged during investigation with `CONCEPTS.md`.
 
-**First, read `references/concepts-vocabulary.md` — unconditionally.** Its qualifying criteria are non-obvious; a "nothing qualifies" judgment without reading it is a shortcut, not a result.
+**First, read `references/concepts-vocabulary.md` and `references/domain-vocabulary.md` — unconditionally.** The first reference's qualifying criteria are non-obvious; a "nothing qualifies" judgment without reading it is a shortcut, not a result. The second decides which glossary each term belongs in and whether writing is blocked at all.
 
+0. **Resolve the target and check for blocks.** A blocked state stops vocabulary capture entirely: report the conflict and route to `migrate-domain-docs` rather than writing. Where the root is a context index, each term goes to its owning context's glossary and the root keeps only the index and its governed shared vocabulary.
 1. **Aggregate** qualifying terms across the learnings in scope; when one term surfaced with different shades of precision, union the shades into one entry.
-2. **If `CONCEPTS.md` exists:** add missing terms, refine entries where the corpus surfaced new precision, then reconcile the in-scope core nouns — re-derive the area's core domain nouns per the reference's **Seed goal** and backfill any central-but-missing ones. Bounded to the area in scope; never a repo-wide sweep.
+2. **If the resolved glossary exists:** add missing terms, refine entries where the corpus surfaced new precision, then reconcile the in-scope core nouns — re-derive the area's core domain nouns per the reference's **Seed goal** and backfill any central-but-missing ones. Bounded to the area in scope; never a repo-wide sweep.
 3. **If it doesn't exist** and at least one term qualified: bootstrap it — seed the in-scope area's core domain nouns per the Seed goal alongside the surfaced terms, holding the bar conservatively for borderline terms at creation. Start the file with this preamble under a `# Concepts` heading:
 
    > Shared domain vocabulary for this project — entities, named processes, and status concepts with project-specific meaning. Seeded with core domain vocabulary, then accretes as ce-compound and ce-compound-refresh process learnings; direct edits are fine. Glossary only, not a spec or catch-all.
 
    1-4 terms → flat headings; more → cluster by domain relationship per the reference.
 4. **Scrub violations** in existing entries per the reference's criteria (implementation specifics, config values that drift, status/owner/date metadata, duplicates, undefined project-specific siblings). The full sweep is appropriate here because refresh is an audit.
+4b. **Audit the domain graph** when the root is a context index: reconcile the findings the graph script reports — a `## Contexts` section that collides with the index grammar, duplicate context entries, links that do not resolve, the same term defined twice inside one context, and shared-vocabulary entries whose contexts do not actually share governance. A word carrying different valid meanings in two contexts is correct and is never reconciled away. Refresh owns this audit; no other skill runs it.
 5. Do not expand beyond the area in scope (the explicit repo-wide bootstrap path is the exception), and do not retroactively inject `(see CONCEPTS.md)` pointers into learnings.
 
 If nothing qualified, record that explicitly in the report's `CONCEPTS.md` line (e.g., "scanned, no qualifying terms") — the visible scan record is the audit signal that the reference was consulted. Apply vocabulary edits silently in every mode — no user prompt.
@@ -165,7 +175,9 @@ Deleted: W
 Skipped: V
 Marked stale: S
 
-CONCEPTS.md: <scanned, no qualifying terms | created with N entries (M seeded) | updated — N added, N refined, N reconciled, N scrubbed | repo-wide map created with N entries>
+CONCEPTS.md: <scanned, no qualifying terms | created with N entries (M seeded) | updated — N added, N refined, N reconciled, N scrubbed | repo-wide map created with N entries | blocked — legacy vocabulary present, migration required>
+Domain graph: <not applicable — flat glossary | audited, no findings | audited — N findings reconciled | split recommended — <reason>>
+Domain migration: <not run | dry-run only — N terms mapped, M unresolved | applied — N terms migrated, legacy removed | blocked — <reason>>
 ```
 
 Then, for EVERY file processed: path, classification, evidence found (tag memory-sourced findings "(auto memory [claude])"), and the action taken or recommended; for Consolidate, which doc was canonical, what was merged, what was deleted. Group Keeps under a reviewed-without-edits section.

@@ -1,6 +1,8 @@
 # CONCEPTS.md vocabulary rules
 
-`CONCEPTS.md` defines the words that mean something specific in this codebase — substrate that `<root>/solutions/` and AGENTS.md can cite without redefinition. Lives at the repo root. Terms enter two ways — accretion and seeding (below) — and the file is created the first time either path produces a qualifying entry.
+`CONCEPTS.md` defines the words that mean something specific in this codebase — substrate that `<root>/solutions/` and AGENTS.md can cite without redefinition. The entry point lives at the repo root. Terms enter two ways — accretion and seeding (below) — and the file is created the first time either path produces a qualifying entry.
+
+These rules govern how an entry is written. **Which** file an entry goes in — the root glossary, or a bounded context's glossary when the root is an index — is decided by `domain-vocabulary.md`. A context glossary uses exactly the entry rules below; nothing here changes when a project grows contexts.
 
 ## How terms enter: accretion and seeding
 
@@ -43,6 +45,8 @@ A term qualifies when its meaning here is precise enough that a new engineer wou
 Definition is one sentence — what the term means in this domain, what makes it distinct from neighbors. A term with non-obvious behavioral rules (lifecycle, cancellation semantics, ownership invariants) earns a second paragraph for those rules — never for elaborating the definition itself.
 
 When retired synonyms exist, list them as an aliases line directly under the definition: *Avoid: Booking, appointment*. Entities typically need more depth than value types; status concepts may need transition notes.
+
+When a project has bounded contexts and the same word means different things in two of them, each context glossary defines it independently and the definition names the boundary it holds inside: *"Within billing, a Block is …"*. Two such entries are not duplicates and neither retires the other as an alias — aliases retire synonyms within one context.
 
 ## Relationships (optional)
 

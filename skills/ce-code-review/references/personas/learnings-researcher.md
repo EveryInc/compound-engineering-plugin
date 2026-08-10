@@ -19,6 +19,8 @@ For code-review invocations, search the full learning corpus described below, th
 
 Before searching `<root>/solutions/`, check whether `CONCEPTS.md` exists at the repo root. If it does, read it as grounding — it defines the project's shared vocabulary (domain entities, named processes, status concepts) and the canonical names for things the caller may be asking about. Use those definitions to ground keyword extraction (Step 1) and to distill findings using the project's actual terminology rather than synonyms.
 
+If it declares a parseable `## Contexts` index instead of terms, the root is an index over per-context glossaries: also read the glossaries of the contexts the request touches, and keep a term qualified by its context when the same word means different things across them.
+
 If `CONCEPTS.md` does not exist, skip this step entirely and proceed to Step 1.
 
 ## Search Strategy (Grep-First Filtering)

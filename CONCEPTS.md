@@ -142,3 +142,28 @@ A configured origin of customer or user feedback — a Slack channel, a GitHub I
 
 ### Beta skill
 A parallel copy of a stable Skill, suffixed `-beta`, used to trial a new version alongside the stable one without disrupting users. Invoked manually (model auto-invocation is disabled); promoting it to stable is more than a rename — every caller must move in the same change so none silently inherits stale defaults, and the retired beta name must be registered for stale-artifact cleanup so upgrading users don't keep a dead duplicate of the skill alongside the promoted one.
+
+## Domain vocabulary
+
+### Context index
+The form the root `CONCEPTS.md` takes once a project holds more than one bounded context: a `## Contexts` section naming each context, linking its glossary, stating its ownership in one line, and recording the relations and translations between contexts. The root stops being a glossary when it becomes an index — its only remaining definitions are the Shared vocabulary.
+
+The index is a structural sentinel, not a setting: its presence is what switches every reader and writer from flat to routed resolution, so no configuration key selects the mode. A `## Contexts` section that does not parse as the index grammar is a collision rather than an index, and is reported instead of reinterpreted.
+
+### Bounded context glossary
+A `CONCEPTS.md` living under a named context rather than at the repo root, holding the terms that context owns. It uses the same entry rules as a flat glossary; only its scope differs.
+
+The unit of canonicality is the pair of context and term, not the term alone. The same word may be defined differently in two context glossaries — that is polysemy, and both entries are correct — so neither retires the other as an alias.
+
+### Shared vocabulary
+The small governed section of a Context index holding terms whose model, invariants, and governance are genuinely shared across contexts. It is the one exception to the rule that a term is written to its owning context rather than the root.
+
+Promotion into it requires explicit user approval. A large Shared vocabulary is evidence the context boundaries are drawn wrong, not evidence of a well-factored domain.
+
+### Domain graph
+The resolved structure of a project's vocabulary — the root, the contexts it declares, their glossaries, and the relations between them — as computed from the files rather than declared separately. Mechanical questions about it (which files exist, whether links resolve, whether a term is defined twice inside one context) are answered by a script; which context owns a term is a judgment left to the model and the user.
+
+### Vocabulary blocked state
+A repository condition in which vocabulary writes are refused because two canonical sources would otherwise coexist. It has two shapes: a legacy import format defining terms alongside an existing glossary, and a legacy format defining terms where no glossary exists yet.
+
+Both are resolved by an explicit migration, never by editing around them. Treating either as a supported configuration is what makes authority undecidable for later agents, so the block is the mechanism that keeps a hybrid state temporary.

@@ -217,7 +217,7 @@ Scan the repo before substantive brainstorming. Match depth to scope:
 
 **Standard and Deep** — Two passes:
 
-*Constraint Check (inline)* — Use the project's active instructions and conventions already in your context. Read `STRATEGY.md` if it exists for product direction and `CONCEPTS.md` if it exists for canonical vocabulary. Use canonical names in dialogue, approaches, and the Product Contract; if a source adds nothing, move on.
+*Constraint Check (inline)* — Use the project's active instructions and conventions already in your context. Read `STRATEGY.md` if it exists for product direction and `CONCEPTS.md` if it exists for canonical vocabulary. If `CONCEPTS.md` declares a parseable `## Contexts` index instead of terms, also read the glossaries of the contexts this topic touches. Use canonical names in dialogue, approaches, and the Product Contract; if a source adds nothing, move on.
 
 *Topic Scan (grounding scout)* — Create and retain the absolute scratch directory with this shell block, substituting the absolute path of this skill's directory and a short unique run slug:
 
@@ -265,6 +265,20 @@ Follow the Interaction Rules above. Use the platform's blocking question tool wh
 **Blindspot gate — check it before probing flagged territory.** If the Phase 0.3 unfamiliarity tripwire fired, fire the blindspot offer from `references/blindspot-pass.md` before the first substantive question into the flagged territory (questions about the user's own problem, users, and evidence proceed normally — the gate is territory-scoped). The gate also arms mid-dialogue without a tripwire: when two consecutive answers show the user *cannot evaluate* the question's substance — not merely hasn't decided — read the reference and offer the pass then. Never silently switch into teaching; the offer is a blocking question.
 
 **Visual-probe gate — precondition, check it before raising the first shape decision.** If the Phase 0.3 tripwire fired, then before raising the first decision about shape, behavior, state, layout, flow, or a diagram — in any form, plain chat or a blocking tool — fire the text-vs-visual offer from `references/visual-probes.md`. The gate is state-based: offer unless this specific decision has already been through it; anchor the check to the decision you are about to raise, not a "pending gate" remembered since Phase 0.3. It **takes precedence over the default blocking-question path** (Interaction Rule 4): do not raise the shape decision as an `AskUserQuestion`/`request_user_input` menu until the user has declined visual. **An ASCII preview or text mockup inside the question's choices does not satisfy the offer** — that is the shortcut this gate exists to stop. Use the platform's blocking question tool for the text-vs-visual offer itself when available; the reference owns the offer wording, the cheapest-probe build, helper invocation, and the display-only feedback contract.
+
+**Domain tripwire — fires mid-dialogue, on the turn the language breaks.** A vocabulary problem caught after the Product Contract is written has already propagated into it. Fire on any of these, and only these:
+
+- a term is used in a way that contradicts a definition in the vocabulary you loaded
+- a vague or overloaded word is carrying a decision (the answer changes depending on which reading is meant)
+- a new entity, named process, or status concept appears
+- a relation or invariant between existing terms changes
+- a term crosses a declared context boundary
+
+When it fires, in this order: name the conflict or ambiguity in the same turn you notice it, rather than answering around it; propose one precise term and say which context owns it; if a relation or invariant is in play, test the proposed definition against one concrete scenario or edge case before treating it as settled; if the user asserts how the system already behaves, verify that against the code with the scouting and claim-verification mechanics this skill already has, and say what you found.
+
+**Do not fire** when no vocabulary exists in the repo and nothing contradicts anything, or when a synonym is used casually with no decision riding on it. The tripwire exists to stop a wrong word from being built on, not to audit the user's diction. Resolved terms are recorded in the dialogue and written only at Vocabulary Capture — never mid-dialogue.
+
+**ADR gate — at the settlement tail, not during dialogue.** Propose an ADR only when all three hold: the decision is hard to reverse, it is surprising without context, and it involved a real trade-off. If any one is missing, skip it. Use the project's own ADR format and location; do not impose one.
 
 **Guidelines:**
 - Ask what the user is already thinking before offering your own ideas. This surfaces hidden context and prevents fixation on AI-generated framings.
@@ -362,6 +376,8 @@ For each resolved term: if missing, add it; if present but new precision surface
 **Domain entities, named processes, and status concepts with project-specific meaning only.** Not file paths, class names, function signatures, or implementation decisions — `CONCEPTS.md` is a glossary, not a spec or catch-all.
 
 Follow the format set by existing entries. Apply edits silently. (If Phase 3 skipped the doc, still run this against the resolved dialogue.)
+
+Resolve the write target with `references/domain-vocabulary.md` before writing. When the root declares a parseable `## Contexts` index, each term goes to its owning context's glossary, never to the root. When ownership is ambiguous, or the owning context's glossary does not exist yet, ask rather than guessing or creating it. A capture spanning two glossaries and a root relation is written as one all-or-nothing change. A blocked state from that reference stops capture and surfaces the migration route.
 
 ### Phase 4: Handoff
 

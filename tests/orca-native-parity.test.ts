@@ -258,7 +258,7 @@ const PARITY_CASES: ParityCase[] = [
     reference: "skills/ce-compound/references/orca-read-analysis.md",
     controllerAnchors: [
       "Keep mode selection, session discovery and relevance gate",
-      "every `docs/` or `CONCEPTS.md` write, and final output in the CE controller.",
+      "every `docs/`, `CONCEPTS.md`, or context-glossary write, and final output in the CE controller.",
     ],
     nodes: [
       { id: "context", stage: "research", role: "context-analyzer", required: true, wave: 0 },

@@ -14,7 +14,7 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 |----------|--------|
 | What does it do? | Documents a solved problem to `docs/solutions/[category]/[filename].md` with structured frontmatter, bug-track or knowledge-track sections, and cross-references |
 | When to use it | After solving a non-trivial problem; when the user says "that worked", "it's fixed", "problem solved" |
-| What it produces | One doc in `docs/solutions/`, plus optional `CONCEPTS.md` vocabulary capture; interactive Full may also edit `AGENTS.md`/`CLAUDE.md` for discoverability after consent |
+| What it produces | One doc in `docs/solutions/`, plus optional vocabulary capture into the glossary that owns the term; interactive Full may also edit `AGENTS.md`/`CLAUDE.md` for discoverability after consent |
 | What's next | Optional `/ce-compound-refresh` if the new learning suggests an older doc may be stale |
 
 ---
@@ -92,6 +92,12 @@ The Related Docs Finder scores overlap with existing `docs/solutions/` content a
 Every run checks whether the project's instruction file (`AGENTS.md` or `CLAUDE.md`) would lead a future agent to discover `docs/solutions/`. If not, interactive Full proposes the smallest addition that surfaces the knowledge store, asks for consent, and applies it. Non-interactive reports `Instruction-file edit: gap noted, not applied` without editing — skill-to-skill handoffs must not amend the repo's operating contract past an upstream approval gate. Lightweight tips only. The check runs every time because the knowledge store only compounds value when it's findable.
 
 The proposed addition matches the existing file's tone and density — a single-line entry in an existing directory listing when one fits, a small headed section only when nothing else does.
+
+### 4b. Routed vocabulary capture — the glossary that owns the term
+
+Vocabulary capture writes to the glossary that owns the term, not to a fixed file. In most projects that is the same thing: the root `CONCEPTS.md` is a flat glossary and nothing changes. Once a project's root becomes an index over per-context glossaries, each captured term lands in its owning context instead, and a learning that crosses a boundary can update both sides plus the relation between them as a single all-or-nothing write.
+
+Ambiguous ownership is never guessed. Where a project still has legacy `CONTEXT-MAP.md` / `CONTEXT.md` files defining terms, capture stops rather than writing into a second canonical source, and points at `ce-compound-refresh`'s migration.
 
 ### 5. Grounding validation — claims are verified against the tree before they compound
 

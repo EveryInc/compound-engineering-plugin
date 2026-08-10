@@ -8,8 +8,8 @@ activates session history, grounding validation, or a specialized reviewer.
 
 - Keep mode selection, session discovery and relevance gate,
   role selection, result assembly, grounding adjudication, vocabulary work,
-  refresh decisions, every `docs/` or `CONCEPTS.md` write, and final output in
-  the CE controller.
+  refresh decisions, every `docs/`, `CONCEPTS.md`, or context-glossary write, and
+  final output in the CE controller.
 - Orca owns only selected Phase 1 research, session-historian synthesis, or
   semantic grounding nodes.
 - Keep all `specialized-review` roles native. That stage intentionally mixes

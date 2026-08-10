@@ -72,6 +72,12 @@ The skill investigates first (Phase 1 reads each doc against the current codebas
 
 Most "review the docs" prompts collapse into "is this still right?" → vague answers. The five-outcome model forces a specific decision per doc and a specific action: Keep does nothing, Update applies in-place fixes, Consolidate merges and deletes, Replace writes a successor, Delete removes the file. Each has its own evidence bar.
 
+### 1b. Domain-graph audit and legacy migration
+
+Refresh is the only skill that owns the shape of a project's vocabulary, not just its entries. When a project's root `CONCEPTS.md` has become an index over per-context glossaries, refresh audits the graph — links that do not resolve, a term defined twice inside one context, shared-vocabulary entries whose contexts do not actually share governance — while leaving a word that legitimately means different things in two contexts alone. It also recommends moving from a flat glossary to contexts, but only on evidence of real boundaries (divergent invariants, translation at a seam, separate ownership), never because a file got long.
+
+It also owns `migrate-domain-docs`, the one route that imports legacy `CONTEXT-MAP.md` / `CONTEXT.md` vocabulary. The route is inventory, deterministic proposal, human arbitration, dry-run preview, confirmed apply, then validation twice — before and after the legacy files are removed. Nothing is written until the user has seen the complete operation list, headless runs stop at the dry-run report, and legacy files are deleted only once every reference to them has moved and the user has reviewed the diff. Re-running the whole route on a migrated project proposes nothing.
+
 ### 2. Two modes — Interactive default, Non-interactive on `mode:non-interactive`
 
 **Interactive** (default) asks one question at a time on ambiguous cases, leads with a recommendation. **Non-interactive** processes all docs without user interaction, applies all unambiguous actions, and marks ambiguous cases as stale (with `status: stale`, `stale_reason`, `stale_date` in frontmatter) for later human review. The non-interactive report has two sections: **Applied** (writes that succeeded) and **Recommended** (writes that couldn't be applied — e.g., permission denied — with full rationale so a human can apply them).
