@@ -70,7 +70,8 @@ skills/           Compound Engineering plugin skills
 .pi/              Pi extension entrypoint
 tests/            Converter, writer, and CLI tests + fixtures
 docs/             Requirements, plans, solutions, and target specs
-CONCEPTS.md       Shared domain vocabulary (glossary of project-specific terms)
+CONCEPTS.md       Shared domain vocabulary — a flat glossary, or an index over
+                  per-context glossaries once the domain needs boundaries
 ```
 
 ## Repo Surfaces

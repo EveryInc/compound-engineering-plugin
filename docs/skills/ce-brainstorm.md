@@ -140,6 +140,14 @@ Requirements describe **what** behavior is expected from the user's perspective.
 
 The interview machinery assumes you can evaluate what it asks — and that assumption fails exactly when you're scoping work in territory you don't know. When you flag unfamiliarity ("I know nothing about the auth modules", "I don't know what color grading is"), or consecutive answers show you *can't weigh the options* rather than merely haven't decided, `ce-brainstorm` offers a **blindspot pass** before questioning you further on that territory: a grounded map of 3-7 decisions and hazards you didn't know to ask about, each with why it matters for your topic, the realistic options, and a recommended default. You pick which to walk through; the rest take defaults recorded as explicit assumptions. It converts unknown unknowns into known unknowns, so the interview extracts choices instead of guesses. Works on both the software and non-software routes.
 
+### 10b. Domain tripwire — the wrong word is caught mid-dialogue
+
+Vocabulary problems are cheapest to fix on the turn they appear and most expensive once the Product Contract is written on top of them. Five falsifiable conditions fire the tripwire: a term contradicting a definition already loaded, a vague or overloaded word carrying a decision, a new entity or named process or status concept, a changed relation or invariant, and a term crossing a declared context boundary.
+
+When it fires, the conflict is named in the same turn rather than answered around, a precise term is proposed with its owning context, a relation or invariant is pressure-tested against one concrete scenario, and an asserted behavior is checked against the code. It deliberately does not fire on casual synonyms with no decision riding on them — auditing the user's diction is the failure mode this guards against as much as missing a real conflict.
+
+Resolved terms are captured only after settlement, into the glossary that owns them, so nothing provisional reaches the source of truth.
+
 ### 11. Session-settled decisions carried into requirements
 
 The same settlement test runs at requirements time: a decision the user examined and chose during the dialogue (a tradeoff was surfaced, they chose with it in view) lands as a labeled Key Decision — `session-settled: user-directed` or `user-approved`, naming what it was chosen over — and the dialogue never re-asks it. `ce-plan` enrichment inherits the label and its rejected-alternative provenance, so a choice made once here isn't re-litigated when the requirements become an implementation-ready plan.
