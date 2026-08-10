@@ -109,6 +109,62 @@ describe("domain-vocabulary contract pins", () => {
   })
 })
 
+// The four learnings-researcher prompt assets are not byte-identical overall --
+// each carries its caller's own invocation contract -- but their "Step 0"
+// grounding block is shared wording that must not drift, so parity is scoped to
+// that section rather than the whole file.
+const LEARNINGS_RESEARCHERS = [
+  "ce-code-review/references/personas/learnings-researcher.md",
+  "ce-plan/references/agents/learnings-researcher.md",
+  "ce-ideate/references/agents/learnings-researcher.md",
+  "ce-optimize/references/agents/learnings-researcher.md",
+]
+
+const STEP_ZERO_HEADING = "## Step 0: Ground in CONCEPTS.md"
+
+function extractStepZero(source: string): string {
+  const start = source.indexOf(STEP_ZERO_HEADING)
+  if (start === -1) return ""
+  const rest = source.slice(start + STEP_ZERO_HEADING.length)
+  const nextHeading = rest.indexOf("\n## ")
+  return nextHeading === -1 ? rest : rest.slice(0, nextHeading)
+}
+
+describe("learnings-researcher Step 0 grounding parity", () => {
+  test("the Step 0 block is identical across all four prompt assets", async () => {
+    const blocks = await Promise.all(
+      LEARNINGS_RESEARCHERS.map(async (rel) => {
+        const source = await readFile(path.join(PLUGIN_ROOT, rel), "utf8")
+        const block = extractStepZero(source)
+        expect(block).not.toBe("") // a missing Step 0 heading fails here
+        return block
+      }),
+    )
+    for (let i = 1; i < blocks.length; i++) {
+      expect(blocks[i]).toBe(blocks[0])
+    }
+  })
+
+  test("the Step 0 block routes to context glossaries", async () => {
+    const source = await readFile(path.join(PLUGIN_ROOT, LEARNINGS_RESEARCHERS[0]), "utf8")
+    const block = extractStepZero(source)
+    expect(block).toContain("parseable `## Contexts` index")
+    expect(block).toContain("qualified by its context")
+  })
+})
+
+describe("reader skills resolve context glossaries", () => {
+  const READERS = ["ce-explain/SKILL.md", "ce-ideate/SKILL.md"]
+
+  for (const rel of READERS) {
+    test(`${rel} carries the contexts-aware clause exactly once`, async () => {
+      const source = await readFile(path.join(PLUGIN_ROOT, rel), "utf8")
+      const matches = source.match(/parseable `## Contexts` index/g) ?? []
+      expect(matches).toHaveLength(1)
+    })
+  }
+})
+
 describe("concepts-vocabulary context awareness", () => {
   const asset = "references/concepts-vocabulary.md"
 
