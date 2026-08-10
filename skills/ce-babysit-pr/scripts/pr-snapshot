@@ -753,9 +753,11 @@ def fetch(pr, repo):
     if merge_identity is not None:
         identity_head = merge_identity.get("headRefOid")
         identity_base_ref = merge_identity.get("baseRefName")
-        if not isinstance(identity_base_ref, str):
+        if (not isinstance(identity_base_ref, str)
+                or not (_valid_oid(identity_head) and _valid_oid(head))):
             base["identity"] = BASE_REF_PROBE_ERROR
-        elif identity_head != head or identity_base_ref != v.get("baseRefName"):
+        elif (identity_head.lower() != head.lower()
+                or identity_base_ref != v.get("baseRefName")):
             # The checks and review payload came from `v`; do not combine them with mergeability
             # observed for a different head or base branch.
             base["identity"] = BASE_REF_RACE

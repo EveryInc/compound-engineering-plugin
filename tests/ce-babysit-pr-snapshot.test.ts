@@ -1157,7 +1157,7 @@ calls = []
 historical_oid = "1111111111111111111111111111111111111111"
 reported_base_oid = "2222222222222222222222222222222222222222"
 current_base_oid = reported_base_oid
-head_oid = "3333333333333333333333333333333333333333"
+head_oid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 identity_head_oid = head_oid
 identity_base_ref = "main"
 ref_probe_status = 0
@@ -1203,6 +1203,8 @@ m.fetch_awaiting_approval = lambda *args: 0
 m.fetch_pr_chain = lambda *args: {"manager_status": "absent", "relationship_status": "independent",
                                   "default_branch": "main", "parent_prs": [], "dependent_prs": []}
 current = m.fetch(7, "ghe.acme.test/o/r")
+identity_head_oid = head_oid.upper()
+same_head_mixed_case = m.fetch(7, "ghe.acme.test/o/r")
 identity_head_oid = "6666666666666666666666666666666666666666"
 head_race = m.fetch(7, "ghe.acme.test/o/r")
 identity_head_oid = head_oid
@@ -1210,7 +1212,8 @@ current_base_oid = "5555555555555555555555555555555555555555"
 race = m.fetch(7, "ghe.acme.test/o/r")
 ref_probe_status = 1
 probe_error = m.fetch(7, "ghe.acme.test/o/r")
-print(json.dumps({"current": current, "head_race": head_race, "race": race,
+print(json.dumps({"current": current, "same_head_mixed_case": same_head_mixed_case,
+                  "head_race": head_race, "race": race,
                   "probe_error": probe_error, "calls": calls}))
 `
     const r = spawnSync("python3", ["-c", python], { encoding: "utf8" })
@@ -1218,13 +1221,13 @@ print(json.dumps({"current": current, "head_race": head_race, "race": race,
     const result = JSON.parse(r.stdout)
     expect(result.calls[0].join(" ")).toContain("baseRefOid")
     const refCalls = result.calls.filter((call: string[]) => call.includes("repos/o/r/git/ref/heads/main"))
-    expect(refCalls).toHaveLength(4)
+    expect(refCalls).toHaveLength(5)
     for (const call of refCalls) {
       expect(call).toContain("--hostname")
       expect(call).toContain("ghe.acme.test")
     }
     const identityCalls = result.calls.filter((call: string[]) => call.includes("graphql") && call.join(" ").includes("potentialMergeCommit"))
-    expect(identityCalls).toHaveLength(4)
+    expect(identityCalls).toHaveLength(5)
     for (const call of identityCalls) {
       expect(call).toContain("--hostname")
       expect(call).toContain("ghe.acme.test")
@@ -1237,11 +1240,12 @@ print(json.dumps({"current": current, "head_race": head_race, "race": race,
       graphql_oid: "2222222222222222222222222222222222222222",
       historical_oid: "1111111111111111111111111111111111111111",
       merge_commit_oid: "4444444444444444444444444444444444444444",
-      merge_parent_oids: ["2222222222222222222222222222222222222222", "3333333333333333333333333333333333333333"],
+      merge_parent_oids: ["2222222222222222222222222222222222222222", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
       identity: "current",
     })
     expect(result.current.host_branch_update_capability).toBe(true)
-    expect(result.head_race.head_sha).toBe("3333333333333333333333333333333333333333")
+    expect(result.same_head_mixed_case.base.identity).toBe("current")
+    expect(result.head_race.head_sha).toBe("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
     expect(result.head_race.base.identity).toBe("race")
     expect(result.head_race.host_branch_update_capability).toBe("unknown")
     expect(result.race.base.identity).toBe("race")
