@@ -107,6 +107,8 @@ When findings land in `gated_auto` / `manual` tiers, the user picks how to handl
 
 The walk-through itself supports an "auto-resolve the rest" escape mid-flow if the user has reviewed enough to trust the rest.
 
+**Decision context before every choice.** Interactive Phase 4 findings render in the same turn before the routing question — a prior non-interactive envelope or a one-line count is not enough. Each per-finding step prints a terminal block *and* duplicates compact What's wrong / Proposed fix / If left as-is into the blocking-question string so modal harnesses stay decidable without scrolling.
+
 ### 5. Bulk-action preview before mass changes
 
 When the user picks "Auto-resolve with best judgment" or "Append to Open Questions" — or escapes mid walk-through to "Auto-resolve the rest" — the skill shows a preview of every change before applying. The preview includes the section, finding title, action (apply / skip / defer / acknowledge), and brief rationale. The user confirms or cancels. This is the safety valve for bulk operations: the user sees what's about to land before it does.

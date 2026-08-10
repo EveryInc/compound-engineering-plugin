@@ -526,3 +526,93 @@ describe("sweep-state engine — robustness", () => {
     expect(run(dir).code).not.toBe(0)
   })
 })
+
+describe("sweep-state engine — encoding (locale-independent UTF-8, #1306)", () => {
+  // PEP 597: with these vars set, any open()/os.fdopen() that falls back to
+  // the locale-default encoding raises EncodingWarning as an error, so the
+  // command tracebacks and loses its STATUS WORD. This makes the guard
+  // deterministic on UTF-8 CI machines, where the cp1252 corruption itself
+  // cannot reproduce.
+  function runGuarded(
+    cwd: string,
+    ...args: string[]
+  ): { code: number; stdout: string; stderr: string } {
+    const r = spawnSync("python3", [SCRIPT, ...args], {
+      cwd,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PYTHONWARNDEFAULTENCODING: "1",
+        PYTHONWARNINGS: "error::EncodingWarning",
+      },
+    })
+    return {
+      code: r.status ?? -1,
+      stdout: r.stdout ?? "",
+      stderr: r.stderr ?? "",
+    }
+  }
+
+  const TITLE = "em—dash and “curly” quotes"
+
+  test("non-ASCII round-trips as valid UTF-8 with LF endings, no locale-default open", () => {
+    const dir = tmp()
+    const s = statePath(dir)
+    expect(
+      status(
+        runGuarded(dir, "lease-acquire", "--state", s, "--writer", "w1", "--now", NOW).stdout,
+      ),
+    ).toBe("OK")
+    const up = runGuarded(
+      dir, "upsert-item", "--state", s, "--id", "i1", "--source", "src1",
+      "--writer", "w1", "--now", NOW,
+      "--json", JSON.stringify({ status: "ingested", title: TITLE }),
+    )
+    expect(status(up.stdout)).toBe("OK")
+    const bytes = readFileSync(s)
+    // fatal: true throws on the invalid single-byte cp1252 encoding this bug produced
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes)
+    expect(text).toContain("em—dash")
+    expect(text).not.toContain("\r")
+    const rd = runGuarded(dir, "read", "--state", s)
+    expect(status(rd.stdout)).toBe("OK")
+    expect(payload(rd.stdout).items["src1:i1"].title).toBe(TITLE)
+  })
+
+  test("import-legacy reads a non-ASCII legacy file without locale-default open", () => {
+    const dir = tmp()
+    const s = statePath(dir)
+    const legacy = path.join(dir, "legacy.json")
+    writeFileSync(
+      legacy,
+      JSON.stringify({
+        channels: { C111: { last_processed_ts: "1699999999.000100" } },
+        // title is one of the fields _import_legacy_items actually copies
+        items: { "C111:1699999999.000100": { status: "acknowledged", title: TITLE } },
+      }),
+    )
+    const r = runGuarded(dir, "import-legacy", "--state", s, "--file", legacy)
+    expect(status(r.stdout)).toBe("OK")
+    expect(payload(r.stdout)).toEqual({ cursors_imported: 1, items_imported: 1 })
+    const state = read(dir, s)
+    expect(state.items["C111:1699999999.000100"].title).toBe(TITLE)
+  })
+
+  test("a state file with invalid UTF-8 bytes is CORRUPT, never a traceback", () => {
+    const dir = tmp()
+    const s = statePath(dir)
+    // schema-shaped prefix + a lone 0x97 (cp1252 em-dash), invalid as UTF-8 —
+    // exactly what a pre-fix Windows run left behind
+    writeFileSync(
+      s,
+      Buffer.concat([
+        Buffer.from("schema_version: 1\nsources: {}\nitems: {}\n# ", "utf8"),
+        Buffer.from([0x97]),
+        Buffer.from("\n", "utf8"),
+      ]),
+    )
+    const r = run(dir, "read", "--state", s)
+    expect(r.code).toBe(0)
+    expect(status(r.stdout)).toBe("CORRUPT")
+  })
+})
