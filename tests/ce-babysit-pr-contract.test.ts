@@ -483,6 +483,29 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(pipelineDelta).toMatch(/open\/claimed\/parked current currency item[^.]{0,240}residual/i)
   })
 
+  test("merge identity distinguishes historical base metadata from current-base readiness and branch currency", async () => {
+    const [babysit, watchLoop, script] = await Promise.all([
+      readRepoFile(BABYSIT),
+      readRepoFile(WATCH_LOOP),
+      readRepoFile("skills/ce-babysit-pr/scripts/pr-snapshot"),
+    ])
+    for (const text of [babysit, watchLoop]) {
+      expect(text).toContain("historical_oid")
+      expect(text).toContain("baseRefOid")
+      expect(text).toContain("baseRef.target.oid")
+      expect(text).toContain("potentialMergeCommit")
+      expect(text).toContain("mergeability-pending")
+      expect(text).toMatch(/historical[^.]{0,180}(diagnostic|never blocks|does not block)/i)
+      expect(text).toMatch(/mergeable against[^.]{0,180}(head contains|latest base)/i)
+      expect(text).toMatch(/reporting `CLEAN` does not/i)
+      expect(text).not.toMatch(/live base ref matches the PR object's cached base/i)
+    }
+    expect(script).toMatch(/baseRef\s*\{\s*target\s*\{\s*oid\s*\}\s*\}/)
+    expect(script).toMatch(/potentialMergeCommit\s*\{\s*oid\s+parents/)
+    expect(script).toContain('"historical_oid": historical_oid')
+    expect(script).not.toContain('"pr_oid": pr_oid')
+  })
+
   test("branch-currency mutation is claimed, invocation-fenced, and reconciled before retry", async () => {
     const [babysit, watchLoop] = await Promise.all([readRepoFile(BABYSIT), readRepoFile(WATCH_LOOP)])
     for (const text of [babysit, watchLoop]) {
