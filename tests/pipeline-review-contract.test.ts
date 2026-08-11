@@ -64,10 +64,13 @@ describe("ce-work review contract", () => {
     expect(content).toContain("not done")
     expect(content).toContain("must not call `ce-commit-push-pr`")
     expect(content).toContain("artifact_path")
+    expect(content).toContain("status: complete")
     expect(content).toContain("Code review: skipped (mechanical diff)")
     expect(content).toContain("Code review: skipped (ce-code-review unavailable)")
-    // Mechanical exclusion of the observed self-justification
+    expect(content).toContain("Code review: harness-native fallback")
+    // Mechanical exclusion of the observed self-justification; multi-file alone is not enough
     expect(content).toContain("applying external/prior review findings")
+    expect(content).toContain("multi-file mechanical-only")
     // Named non-substitutes
     expect(content).toContain("Never substitute")
     expect(content).toContain("mental self-review")
@@ -79,8 +82,10 @@ describe("ce-work review contract", () => {
     expect(shipping).toContain("Ship-handoff gate")
     expect(shipping).toContain('do not push "and review later."')
     expect(shipping).toContain("applying external or prior review findings")
+    expect(shipping).toContain("status: complete")
     expect(shipping).toContain("Code review: skipped (mechanical diff)")
     expect(shipping).toContain("Code review: skipped (ce-code-review unavailable)")
+    expect(shipping).toContain("Code review: harness-native fallback")
     expect(shipping).toContain("Never substitute")
   })
 
