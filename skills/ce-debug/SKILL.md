@@ -76,7 +76,7 @@ Parse the input and reach a clear problem statement.
 **If the input references an issue tracker**, fetch it:
 
 - GitHub (`#123`, `org/repo#123`, a github.com or GitHub Enterprise issue URL): `gh issue view <number> --json title,body,comments,labels`. For URLs, pass the URL directly to `gh` (it targets whatever host it is configured for, GHE included).
-- Other trackers (Linear, Jira, any tracker URL): fetch via available MCP tools or by fetching the URL content. If the fetch fails — auth, missing tool, non-public page — ask the user to paste the relevant issue content.
+- Other trackers (Linear, Jira, any tracker URL): fetch via available MCP tools or by fetching the URL content, ensuring the fetch returns the **full comment thread** and not just the opening description — the read below cannot recover comments the fetch never retrieved. If the fetch fails — auth, missing tool, non-public page — ask the user to paste the relevant issue content.
 
 Read the **full thread**, not just the opening post — every comment, with particular attention to the latest. Comments frequently carry updated reproduction steps, narrowed scope, prior failed attempts, extra stack traces, or a pivot to a different suspected cause; treating the opening description as the whole picture routinely sends the investigation the wrong way. Extract symptoms, expected behavior, reproduction steps, and environment details from the combined thread.
 
