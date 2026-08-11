@@ -47,8 +47,41 @@ describe("ce-work review contract", () => {
     expect(shipping).toMatch(/review is not fix|3a\. Review|3b\. Apply/i)
     expect(shipping).toContain("mode:agent")
 
-    // Quality checklist references ce-code-review (self-sized), not tiers
-    expect(shipping).toContain("Code review: `ce-code-review` ran")
+    // Quality checklist requires receipt or exact skip phrase (completion gate)
+    expect(shipping).toContain("Code review completion gate")
+    expect(shipping).toContain("Ship-handoff gate")
+  })
+
+  // Issue #1351: prose-only review mandate was silently skipped. The always-loaded
+  // SKILL.md surface must carry a done-condition (receipt or fixed skip phrase),
+  // not only a "remember to invoke" stub that defers all enforcement to a lazy ref.
+  test("standalone shipping has an always-loaded code-review completion gate", async () => {
+    const content = await readRepoFile("skills/ce-work/SKILL.md")
+    const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
+
+    // Always-loaded body owns the gate (not only the lazy reference)
+    expect(content).toContain("Code-review completion gate")
+    expect(content).toContain("not done")
+    expect(content).toContain("must not call `ce-commit-push-pr`")
+    expect(content).toContain("artifact_path")
+    expect(content).toContain("Code review: skipped (mechanical diff)")
+    expect(content).toContain("Code review: skipped (ce-code-review unavailable)")
+    // Mechanical exclusion of the observed self-justification
+    expect(content).toContain("applying external/prior review findings")
+    // Named non-substitutes
+    expect(content).toContain("Never substitute")
+    expect(content).toContain("mental self-review")
+    // Standalone-only; return-to-caller keeps caller-owned review
+    expect(content).toContain("does **not** apply in Return-to-Caller Mode")
+
+    // Reference mirrors gate + ship-handoff bind + mechanical exclusions
+    expect(shipping).toContain("Completion gate (standalone shipping)")
+    expect(shipping).toContain("Ship-handoff gate")
+    expect(shipping).toContain('do not push "and review later."')
+    expect(shipping).toContain("applying external or prior review findings")
+    expect(shipping).toContain("Code review: skipped (mechanical diff)")
+    expect(shipping).toContain("Code review: skipped (ce-code-review unavailable)")
+    expect(shipping).toContain("Never substitute")
   })
 
   test("delegates commit and PR to dedicated skills", async () => {

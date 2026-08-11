@@ -24,7 +24,7 @@ fi
 
 - **Result:** A fully implemented, locally verified change set from a plan, specification, or concrete work prompt.
 - **Next consumer:** In standalone use, the shipping workflow takes the verified change through review and delivery. In Return-to-Caller Mode, the invoking workflow receives the structured implementation and verification envelope and owns its remaining gates.
-- **Done:** Every in-scope task is complete, required verification evidence is recorded, relevant checks pass, and the run reaches either its owned shipping handoff, a complete return envelope, or an explicit blocker.
+- **Done:** Every in-scope task is complete, required verification evidence is recorded, relevant checks pass, and the run reaches either its owned shipping handoff (with a code-review receipt or explicit skip phrase — see Phase 3-4), a complete return envelope, or an explicit blocker.
 - **Intent:** Finish the requested feature without renegotiating the plan or transferring canonical integration authority. Workers receive bounded units; the host orchestrator inspects actual changes and owns authoritative verification and canonical commits.
 
 ## Input Document
@@ -343,7 +343,12 @@ Before implementing the first task, you must read `references/implementation-loo
 
 When all Phase 2 tasks are complete and execution transitions to quality check, you must read `references/shipping-workflow.md` for the full shipping workflow. Do not skip this.
 
-**Code review: one portable path.** Review with `ce-code-review`, which self-sizes (lite roster for small low-risk code-only diffs, full roster otherwise). No harness-native review detection and no escalation tiers — the size/sensitive-surface judgment lives inside `ce-code-review`. Skip dedicated review only for a purely mechanical diff (formatting, dep-bumps, lint-only, generated). Full rules (autonomous Residual Gate, infra fallback) in `shipping-workflow.md`.
+**Code-review completion gate (standalone shipping only — default on).** This standalone run is **not done** — and must not call `ce-commit-push-pr` / `ce-commit` or report ship-complete — until exactly one of:
+
+1. **Review receipt:** you invoked `ce-code-review` through the host's normal skill-invocation mechanism and hold a receipt (`mode:agent` JSON with `status` plus `artifact_path` or `run_id`, or markdown with Actionable Findings, Coverage, and Verdict), then ran apply/residuals per `shipping-workflow.md`; or
+2. **Explicit skip phrase** in the shipping summary, exactly one of: `Code review: skipped (mechanical diff)` or `Code review: skipped (ce-code-review unavailable)`, each with a one-line reason.
+
+**Mechanical** means only formatting, dependency-version bumps, lint-only fixes, or generated artifacts. **Not mechanical:** multi-file or behavior-bearing work, control-flow/error-class/tests-for-behavior changes, or applying external/prior review findings. **Never substitute** mental self-review, "findings already applied," ad-hoc skimming, or harness-native `/review` alone when `ce-code-review` can load. If the skill cannot load or start, follow `shipping-workflow.md` (interactive native fallback vs non-interactive skip phrase); do not invent a parallel review. Full path (self-sizing, two-step review→fix, Residual Work Gate, ship handoff) lives in `shipping-workflow.md`. This gate does **not** apply in Return-to-Caller Mode — the caller owns review.
 
 **Review is two steps — review, then fix.** `ce-code-review` is review-only. It returns findings (markdown or `mode:agent` JSON); it never edits the checkout, commits, or applies fixes.
 
@@ -398,7 +403,7 @@ gates.
 
 - Get clarification once at the start, then execute
 - Don't wait for perfect understanding - ask questions and move
-- The goal is to **finish the feature**, not create perfect process
+- The goal is to **finish the feature**, not create perfect process — without dropping the code-review completion gate or other shipping receipts
 
 ### The Plan is Your Guide
 
@@ -415,13 +420,13 @@ gates.
 
 ### Quality is Built In
 
-- Review every non-mechanical diff with `ce-code-review` (it self-sizes; see `shipping-workflow.md`)
+- Standalone shipping holds a `ce-code-review` receipt or an explicit fixed-phrase skip before commit/PR (completion gate in Phase 3-4; details in `shipping-workflow.md`)
 
 ### Ship Complete Features
 
 - Mark all tasks completed before moving on
 - Don't leave features 80% done
-- A finished feature that ships beats a perfect feature that doesn't
+- A finished feature that ships beats a perfect feature that doesn't — ship still requires the review receipt or skip phrase; silent unreviewed ship is not finished
 
 ## Common Pitfalls to Avoid
 
@@ -431,5 +436,5 @@ gates.
 - **Testing at the end** - Test continuously or suffer later
 - **Forgetting to track progress** - Update task status as you go or lose track of what's done
 - **80% done syndrome** - Finish the feature, don't move on early
-- **Skipping review without reason** — review every non-mechanical diff with `ce-code-review`; skip only for a purely mechanical diff or when it is genuinely unavailable, and document the skip reason
+- **Skipping review without a receipt or fixed skip phrase** — standalone shipping is not done until a `ce-code-review` receipt exists or the shipping summary carries an exact skip phrase; mental self-review and "already applied external findings" do not count
 - **Re-scoping the plan into human-time phases** - The plan's Implementation Units define the scope of execution. Do not estimate human-hours per unit, propose multi-day breakdowns, or ask the user to pick a subset of units for "this session". Agents execute at agent speed, and context-window pressure is addressed by subagent dispatch (Phase 1 Step 4), not by phased sessions. If a plan-file input is genuinely too large for a single execution, say so plainly and suggest the user return to `ce-plan` to reduce scope — don't invent session phases as a workaround. For bare-prompt input, Phase 0's Large routing already handles oversized work
