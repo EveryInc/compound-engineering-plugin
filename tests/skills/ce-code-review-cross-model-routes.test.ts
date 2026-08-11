@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import {
   mkdtempSync,
@@ -15,10 +15,6 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 
 const tempRoots: string[] = []
-const REPO_ROOT = path.join(__dirname, "../..")
-const DIRTY_MARKER = path.join(REPO_ROOT, ".xmodel-cr-test-dirty")
-const DIRTY_MARKER_REL = ".xmodel-cr-test-dirty"
-let dirtyTreeStaged = false
 function mkTempRoot(prefix: string): string {
   const dir = mkdtempSync(path.join(tmpdir(), prefix))
   tempRoots.push(dir)
@@ -26,11 +22,52 @@ function mkTempRoot(prefix: string): string {
 }
 afterAll(() => {
   for (const dir of tempRoots) rmSync(dir, { recursive: true, force: true })
-  if (dirtyTreeStaged || existsSync(DIRTY_MARKER)) {
-    spawnSync("git", ["reset", "HEAD", "--", DIRTY_MARKER_REL], { cwd: REPO_ROOT })
-    if (existsSync(DIRTY_MARKER)) rmSync(DIRTY_MARKER, { force: true })
-    dirtyTreeStaged = false
+})
+
+// The script reviews `git diff <base-ref>` in its cwd, so the diff it sees must be
+// small, non-empty, and independent of whatever the contributor happens to have
+// staged. Pointing it at the real repo coupled these tests to working-tree size:
+// once a branch's diff passed the script's 80k-token inline budget the script took
+// its large-diff skip path and 31 tests failed for reasons unrelated to the change.
+let fixtureRepoDir: string | null = null
+function fixtureRepo(): string {
+  if (fixtureRepoDir) return fixtureRepoDir
+  const repo = mkTempRoot("xmodel-cr-repo-")
+  // Neutralize the contributor's global/system git config. A global
+  // `commit.gpgsign=true` without a usable key, or a `core.hooksPath` with a
+  // failing pre-commit hook, would abort both commits; HEAD would not exist and
+  // every test in this file would silently take the script's "cannot stage
+  // reviewed diff" skip. Assert instead of discarding the status.
+  const git = (...args: string[]) => {
+    const r = spawnSync("git", args, {
+      cwd: repo,
+      encoding: "utf8",
+      env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" },
+    })
+    if (r.status !== 0) throw new Error(`fixture git ${args.join(" ")} failed: ${r.stderr ?? ""}`)
+    return r
   }
+  const doc = path.join(repo, "reviewed.md")
+  git("init", "-b", "main")
+  git("config", "user.email", "test@test")
+  git("config", "user.name", "test")
+  writeFileSync(doc, "# Fixture\n\nbaseline line\n")
+  git("add", "reviewed.md")
+  git("commit", "-m", "base")
+  // Second commit so `HEAD~1` resolves for the large-diff tests.
+  writeFileSync(doc, "# Fixture\n\nbaseline line\ncommitted change\n")
+  git("commit", "-am", "second")
+  // Uncommitted edit to a tracked file so `git diff HEAD` is non-empty. The script
+  // diffs the working tree against the base (no `--cached`), so staging is not
+  // required; an untracked file alone would not register.
+  writeFileSync(doc, "# Fixture\n\nbaseline line\ncommitted change\nworking-tree edit\n")
+  fixtureRepoDir = repo
+  return repo
+}
+// Build it up front so its cost is not billed to whichever test happens to run
+// first, which would put that test near bun's 5000ms default under CI load.
+beforeAll(() => {
+  fixtureRepo()
 })
 
 const REAL_TOOLS = [
@@ -125,26 +162,13 @@ function makeRunDir(): string {
   return mkTempRoot("xmodel-cr-run-")
 }
 
-/** Stage a fixture file so `git diff --quiet HEAD --` sees changes (untracked alone is ignored). */
-function ensureDirtyTree(cwd: string): void {
-  if (cwd !== REPO_ROOT) return
-  writeFileSync(DIRTY_MARKER, `fixture ${Date.now()}\n`)
-  const r = spawnSync("git", ["add", "--", DIRTY_MARKER_REL], { cwd: REPO_ROOT })
-  if (r.status === 0) dirtyTreeStaged = true
-}
-
 /** Run the script and return exit code, stdout, stderr, and run-dir file list. */
 function run(
   args: string[],
   runDir: string,
   env: NodeJS.ProcessEnv = process.env,
-  cwd = REPO_ROOT, // repo root — script needs git
-  opts: { skipDirtyTree?: boolean } = {},
+  cwd = fixtureRepo(), // script needs a git repo; default is the hermetic fixture
 ) {
-  const baseRef = args[2]
-  if (!opts.skipDirtyTree && baseRef === "HEAD" && cwd === REPO_ROOT) {
-    ensureDirtyTree(cwd)
-  }
   const effectiveEnv = { ...env }
   if (!("CROSS_MODEL_DRY_RUN" in effectiveEnv) && !("CROSS_MODEL_FIXED_ROUTE" in effectiveEnv)) {
     const target = args[1]
@@ -530,21 +554,26 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
 
   test("empty working-tree diff skips before peer invoke", () => {
     const repo = mkTempRoot("xmodel-cr-empty-")
-    spawnSync("git", ["init", "-b", "main"], { cwd: repo })
-    spawnSync("git", ["config", "user.email", "test@test"], { cwd: repo })
-    spawnSync("git", ["config", "user.name", "test"], { cwd: repo })
+    // Same global-config neutralization as fixtureRepo: a contributor's
+    // commit.gpgsign or core.hooksPath must not be able to abort this commit.
+    const gitEnv = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" }
+    const initGit = (...args: string[]) => {
+      const r = spawnSync("git", args, { cwd: repo, encoding: "utf8", env: gitEnv })
+      if (r.status !== 0) throw new Error(`fixture git ${args.join(" ")} failed: ${r.stderr ?? ""}`)
+    }
+    initGit("init", "-b", "main")
+    initGit("config", "user.email", "test@test")
+    initGit("config", "user.name", "test")
     writeFileSync(path.join(repo, "f"), "x")
-    spawnSync("git", ["add", "f"], { cwd: repo })
-    spawnSync("git", ["commit", "-m", "init"], { cwd: repo })
+    initGit("add", "f")
+    initGit("commit", "-m", "init")
     const invoked = path.join(mkTempRoot("xmodel-cr-empty-invoked-"), "marker")
     const { env } = sandbox(
       ["claude"],
       `#!/bin/sh\n: > '${invoked}'\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"confabulated"}]}}'\n`,
     )
     const runDir = makeRunDir()
-    const r = run(["codex", "claude", "HEAD", runDir], runDir, env, repo, {
-      skipDirtyTree: true,
-    })
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env, repo)
     expect(existsSync(invoked)).toBe(false)
     expect(r.code).toBe(0)
     expect(r.files).toHaveLength(0)
