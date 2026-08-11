@@ -18,6 +18,7 @@ const DISPATCH_SKILLS = [
   "ce-compound-refresh",
   "ce-debug",
   "ce-doc-review",
+  "ce-doc-review-loop",
   "ce-explain",
   "ce-ideate",
   "ce-optimize",

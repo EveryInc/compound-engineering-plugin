@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="light" style="--rec-label: '★ 推荐'">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>文档审查循环</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================================
+       TOKENS
+       ============================================================ */
+    :root {
+      --bg: #FAFAF7;
+      --surface: #FFFFFF;
+      --surface-2: #F5F5F0;
+      --surface-3: #EFEEE8;
+      --text: #1A1A1A;
+      --text-muted: #4A4A45;
+      --text-subtle: #6B6B66;
+      --accent: #D97757;
+      --accent-hover: #C56843;
+      --accent-soft: #FBEEE6;
+      --accent-border: #F0D5C4;
+      --accent-strong: #A85533;
+      --border: #E5E4DC;
+      --border-strong: #CDCDC4;
+      --code-bg: #F5F2EC;
+      --code-text: #2A2A2A;
+      --info: #2563EB;
+      --info-soft: #EFF6FF;
+      --info-border: #BFDBFE;
+      --warn: #B45309;
+      --warn-soft: #FFFBEB;
+      --warn-border: #FDE68A;
+      --danger: #B91C1C;
+      --danger-soft: #FEF2F2;
+      --danger-border: #FECACA;
+      --success: #047857;
+      --success-soft: #ECFDF5;
+      --success-border: #A7F3D0;
+      --decision: #6D28D9;
+      --decision-soft: #F5F3FF;
+      --decision-border: #DDD6FE;
+      --shadow-sm: 0 1px 2px rgba(20, 14, 8, 0.04);
+      --shadow: 0 1px 2px rgba(20, 14, 8, 0.04), 0 4px 12px rgba(20, 14, 8, 0.06);
+      --shadow-lg: 0 8px 24px rgba(20, 14, 8, 0.10);
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-lg: 16px;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans CJK JP', 'Noto Sans CJK KR', sans-serif;
+      --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --z-progress: 200;
+      --z-topbar: 100;
+      --z-drawer: 300;
+      --z-backdrop: 250;
+    }
+
+    [data-theme="dark"] {
+      --bg: #1A1714;
+      --surface: #221E1A;
+      --surface-2: #2A2520;
+      --surface-3: #322C26;
+      --text: #F5F0E8;
+      --text-muted: #C8C0B6;
+      --text-subtle: #9A938A;
+      --accent: #E89572;
+      --accent-hover: #F2A87F;
+      --accent-soft: #3A2A22;
+      --accent-border: #5A3D2E;
+      --accent-strong: #F5B493;
+      --border: #2E2924;
+      --border-strong: #463F38;
+      --code-bg: #1E1B17;
+      --code-text: #E8E2D8;
+      --info: #93C5FD;
+      --info-soft: #1E2A3D;
+      --info-border: #2A4365;
+      --warn: #FBBF24;
+      --warn-soft: #332817;
+      --warn-border: #5C4520;
+      --danger: #FCA5A5;
+      --danger-soft: #3A1F1F;
+      --danger-border: #5C2A2A;
+      --success: #6EE7B7;
+      --success-soft: #1A3329;
+      --success-border: #1F5C45;
+      --decision: #C4B5FD;
+      --decision-soft: #2A1F40;
+      --decision-border: #4A3870;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.35);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45);
+    }
+
+    /* ============================================================
+       BASE
+       ============================================================ */
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    ::selection { background: var(--accent-soft); color: var(--accent-strong); }
+
+    /* Skip link */
+    .skip-link {
+      position: absolute;
+      top: -100px; left: 8px;
+      padding: 10px 16px;
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      font-weight: 500;
+      z-index: 1000;
+      transition: top 0.15s;
+    }
+    .skip-link:focus { top: 8px; }
+
+    /* SVG sprite container (hidden) */
+    .icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+    .icon { display: inline-block; flex-shrink: 0; vertical-align: middle; stroke: currentColor; fill: none; }
+
+    /* Scroll progress bar */
+    .scroll-progress {
+      position: fixed;
+      top: 0; left: 0;
+      height: 2px;
+      width: 0;
+      background: var(--accent);
+      z-index: var(--z-progress);
+      transition: width 0.05s linear;
+    }
+
+    /* ============================================================
+       TOPBAR
+       ============================================================ */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: var(--z-topbar);
+      background: rgba(250, 250, 247, 0.85);
+      backdrop-filter: saturate(180%) blur(12px);
+      -webkit-backdrop-filter: saturate(180%) blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    [data-theme="dark"] .topbar { background: rgba(26, 23, 20, 0.85); }
+    .topbar-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      color: var(--text);
+      font-size: 14px;
+    }
+    .brand-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+      animation: brand-pulse 2.8s ease-in-out infinite;
+    }
+    @keyframes brand-pulse {
+      0%, 100% { box-shadow: 0 0 0 4px var(--accent-soft); }
+      50%      { box-shadow: 0 0 0 7px transparent; }
+    }
+    .topbar-actions { display: flex; gap: 6px; align-items: center; }
+    .icon-btn {
+      width: 40px; height: 40px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+      padding: 0;
+    }
+    .icon-btn .icon { width: 18px; height: 18px; stroke-width: 2; }
+    .icon-btn[hidden] { display: none; }
+
+    /* ============================================================
+       LAYOUT
+       ============================================================ */
+    .layout {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 48px;
+      padding: 32px 24px 96px;
+    }
+    .content { min-width: 0; }
+
+    /* ============================================================
+       TOC (desktop + mobile drawer)
+       ============================================================ */
+    .toc {
+      position: sticky;
+      top: 80px;
+      align-self: start;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+    .toc::-webkit-scrollbar { width: 6px; }
+    .toc::-webkit-scrollbar-track { background: transparent; }
+    .toc::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+    .toc-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 12px 12px;
+    }
+    .toc-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-subtle);
+      margin: 0;
+    }
+    .toc-close { display: none; }
+    .toc-nav { display: flex; flex-direction: column; gap: 2px; }
+    .toc-nav a {
+      display: flex; align-items: center;
+      min-height: 36px;
+      padding: 8px 14px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13.5px;
+      border-left: 2px solid transparent;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+      line-height: 1.4;
+    }
+    .toc-nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+      font-weight: 500;
+    }
+    .toc-nav a.lvl-3 { padding-left: 26px; font-size: 12.5px; }
+    .toc-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: var(--z-backdrop);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    /* ============================================================
+       DOC HEADER
+       ============================================================ */
+    .doc-header {
+      margin-bottom: 40px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .doc-eyebrow {
+      display: inline-flex; align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      border: 1px solid var(--accent-border);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      margin-bottom: 16px;
+    }
+    .doc-title {
+      font-size: clamp(28px, 3vw + 16px, 40px);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin: 0 0 12px;
+      color: var(--text);
+      text-wrap: balance;
+    }
+    .doc-subtitle {
+      font-size: clamp(15px, 0.6vw + 13px, 18px);
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin: 0 0 20px;
+      max-width: 75ch;
+      text-wrap: pretty;
+    }
+    .doc-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--text-subtle);
+    }
+    .doc-meta-item { display: inline-flex; align-items: center; gap: 6px; }
+    .doc-meta .icon { width: 14px; height: 14px; stroke-width: 2; }
+
+    /* ============================================================
+       CONTENT (typography)
+       ============================================================ */
+    .content h1, .content h2, .content h3, .content h4 {
+      color: var(--text);
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+      scroll-margin-top: 80px;
+      text-wrap: balance;
+    }
+    .content h2 {
+      font-size: 26px;
+      font-weight: 600;
+      margin: 56px 0 16px;
+      padding-top: 8px;
+      position: relative;
+    }
+    .content h3 {
+      font-size: 19px;
+      font-weight: 600;
+      margin: 36px 0 12px;
+      position: relative;
+    }
+    .content h4 {
+      font-size: 13px;
+      font-weight: 600;
+      margin: 24px 0 8px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .content > p,
+    .content > ul,
+    .content > ol,
+    .content > blockquote { max-width: 75ch; }
+    .content p { margin: 0 0 16px; text-wrap: pretty; overflow-wrap: anywhere; }
+    .content a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-border); }
+    .content ul, .content ol { padding-left: 24px; margin: 0 0 16px; }
+    .content li { margin: 4px 0; }
+    .content strong { color: var(--text); font-weight: 600; }
+    .content em { color: var(--text-muted); }
+    .content hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+    /* Anchor links injected by JS on h2/h3 with id */
+    .anchor {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px;
+      margin-left: 6px;
+      color: var(--text-subtle);
+      opacity: 0;
+      transform: translateY(-1px);
+      transition: opacity 0.15s, color 0.15s;
+      border-bottom: none !important;
+      border-radius: var(--radius-sm);
+    }
+    .anchor .icon { width: 14px; height: 14px; stroke-width: 2; }
+
+    /* Images */
+    .content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin: 20px 0;
+      display: block;
+    }
+    .content figure { margin: 20px 0; }
+    .content figure img { margin: 0; }
+    .content figcaption {
+      font-size: 13px;
+      color: var(--text-subtle);
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    /* Task lists (- [ ] / - [x]) */
+    .content .task-list-item { list-style: none; margin-left: -22px; }
+    .content .task-list-item-checkbox {
+      margin-right: 8px;
+      vertical-align: -2px;
+      accent-color: var(--accent);
+    }
+
+    /* Footnotes */
+    .content .footnote-ref a,
+    .content sup a {
+      font-size: 0.75em;
+      vertical-align: super;
+      border-bottom: none;
+      padding: 0 2px;
+    }
+    .content .footnotes {
+      margin-top: 56px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    /* ============================================================
+       CODE
+       ============================================================ */
+    .content code {
+      font-family: var(--font-mono);
+      background: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.88em;
+      color: var(--code-text);
+      border: 1px solid var(--border);
+      overflow-wrap: anywhere;
+    }
+    .content pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      overflow-x: auto;
+      font-size: 13.5px;
+      line-height: 1.6;
+      margin: 16px 0;
+      position: relative;
+    }
+    .content pre code {
+      background: none; padding: 0; border: none;
+      color: var(--code-text);
+      font-size: inherit;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 32px; height: 32px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      color: var(--text-subtle);
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+      padding: 0;
+    }
+    .copy-btn .icon { width: 14px; height: 14px; stroke-width: 2; }
+    .copy-btn.copied { color: var(--success); border-color: var(--success-border); opacity: 1; }
+
+    /* ============================================================
+       TIMELINE / STEPS
+       ============================================================ */
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 24px 0;
+      position: relative;
+    }
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 19px;
+      top: 20px;
+      bottom: 20px;
+      width: 2px;
+      background: linear-gradient(180deg, var(--accent-border), var(--border));
+    }
+    .step {
+      display: grid;
+      grid-template-columns: 40px 1fr;
+      gap: 16px;
+      align-items: start;
+      padding: 16px 4px;
+      position: relative;
+      border-radius: var(--radius);
+      transition: background-color 0.15s;
+    }
+    .step-num {
+      width: 40px; height: 40px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--surface);
+      border: 2px solid var(--accent);
+      color: var(--accent);
+      border-radius: 50%;
+      font-weight: 600;
+      font-size: 14px;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      z-index: 1;
+      transition: background-color 0.15s, color 0.15s, transform 0.15s;
+    }
+    .step.done .step-num { background: var(--accent); color: #fff; }
+    .step-body { padding-top: 6px; min-width: 0; }
+    .step-body h3 {
+      margin: 0 0 6px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .step-body p { margin: 0 0 8px; color: var(--text-muted); font-size: 14.5px; max-width: 75ch; }
+    .step-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* ============================================================
+       CALLOUTS
+       ============================================================ */
+    .callout {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 14px;
+      padding: 14px 18px;
+      border-radius: var(--radius);
+      border: 1px solid;
+      margin: 20px 0;
+      font-size: 14.5px;
+      line-height: 1.6;
+      max-width: 75ch;
+    }
+    .callout-icon { width: 20px; height: 20px; margin-top: 2px; stroke-width: 2; }
+    .callout-body { min-width: 0; }
+    .callout-title { font-weight: 600; margin: 0 0 4px; font-size: 14px; }
+    .callout-body p:last-child { margin-bottom: 0; }
+    .callout-body code { background: rgba(0,0,0,0.04); }
+    [data-theme="dark"] .callout-body code { background: rgba(255,255,255,0.06); }
+
+    .callout-info     { background: var(--info-soft);     border-color: var(--info-border);     color: var(--text); }
+    .callout-info     .callout-title, .callout-info     .callout-icon { color: var(--info); }
+    .callout-warn     { background: var(--warn-soft);     border-color: var(--warn-border);     color: var(--text); }
+    .callout-warn     .callout-title, .callout-warn     .callout-icon { color: var(--warn); }
+    .callout-danger   { background: var(--danger-soft);   border-color: var(--danger-border);   color: var(--text); }
+    .callout-danger   .callout-title, .callout-danger   .callout-icon { color: var(--danger); }
+    .callout-success  { background: var(--success-soft);  border-color: var(--success-border);  color: var(--text); }
+    .callout-success  .callout-title, .callout-success  .callout-icon { color: var(--success); }
+    .callout-decision { background: var(--decision-soft); border-color: var(--decision-border); color: var(--text); }
+    .callout-decision .callout-title, .callout-decision .callout-icon { color: var(--decision); }
+    .callout-tip      { background: var(--accent-soft);   border-color: var(--accent-border);   color: var(--text); }
+    .callout-tip      .callout-title, .callout-tip      .callout-icon { color: var(--accent-strong); }
+
+    /* ============================================================
+       KEY-POINT HIGHLIGHT
+       ============================================================ */
+    .highlight {
+      background: linear-gradient(135deg, var(--accent-soft), var(--surface-2));
+      border-left: 4px solid var(--accent);
+      padding: 18px 22px;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin: 24px 0;
+      font-size: 16px;
+      line-height: 1.65;
+      max-width: 75ch;
+    }
+    .highlight-label {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent-strong);
+      margin-bottom: 6px;
+    }
+
+    /* ============================================================
+       MERMAID
+       ============================================================ */
+    .diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin: 24px 0;
+      box-shadow: var(--shadow-sm);
+      overflow-x: auto;
+    }
+    .diagram-caption {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--border);
+      font-size: 13px;
+      color: var(--text-subtle);
+      text-align: center;
+    }
+    .mermaid { text-align: center; min-height: 80px; }
+    .mermaid svg { max-width: 100%; height: auto; }
+    .mermaid:not([data-processed]) {
+      opacity: 0.4;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-subtle);
+      white-space: pre-wrap;
+      text-align: left;
+    }
+
+    /* ============================================================
+       PROS / CONS
+       ============================================================ */
+    .proscons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 24px 0;
+    }
+    .proscons-col {
+      padding: 16px 20px;
+      border-radius: var(--radius);
+      border: 1px solid;
+    }
+    .proscons-col h4 {
+      margin: 0 0 12px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .proscons-col ul { margin: 0; padding-left: 18px; }
+    .proscons-col li { margin: 6px 0; }
+    .pros { background: var(--success-soft); border-color: var(--success-border); }
+    .pros h4 { color: var(--success); }
+    .cons { background: var(--danger-soft); border-color: var(--danger-border); }
+    .cons h4 { color: var(--danger); }
+
+    /* ============================================================
+       COMPARISON CARDS
+       ============================================================ */
+    .compare {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin: 24px 0;
+    }
+    .compare-card {
+      padding: 18px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: border-color 0.18s, box-shadow 0.18s;
+      position: relative;
+    }
+    .compare-card.recommended { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .compare-card.recommended::before {
+      content: var(--rec-label, "★ Recommended");
+      position: absolute; top: -10px; right: 14px;
+      background: var(--accent); color: #fff;
+      padding: 2px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 600;
+    }
+    .compare-card h4 { margin: 0 0 8px; font-size: 15px; color: var(--text); text-transform: none; letter-spacing: normal; }
+    .compare-card p { margin: 0; color: var(--text-muted); font-size: 14px; }
+
+    /* ============================================================
+       COLLAPSIBLE
+       ============================================================ */
+    details.collapsible {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin: 16px 0;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    details.collapsible[open] { box-shadow: var(--shadow-sm); }
+    details.collapsible > summary {
+      cursor: pointer;
+      padding: 14px 18px;
+      font-weight: 500;
+      color: var(--text);
+      list-style: none;
+      display: flex; align-items: center; gap: 10px;
+      user-select: none;
+      transition: background 0.15s;
+      min-height: 44px;
+    }
+    details.collapsible > summary::-webkit-details-marker { display: none; }
+    details.collapsible > summary::before {
+      content: "›";
+      display: inline-block;
+      transition: transform 0.18s;
+      color: var(--accent);
+      font-size: 18px;
+      font-weight: 700;
+    }
+    details.collapsible[open] > summary::before { transform: rotate(90deg); }
+    .collapsible-body { padding: 4px 18px 18px; border-top: 1px solid var(--border); }
+    .collapsible-body > *:first-child { margin-top: 12px; }
+
+    /* ============================================================
+       TABLES (wrapped via .table-wrap or naturally responsive)
+       ============================================================ */
+    .table-wrap {
+      overflow-x: auto;
+      margin: 20px 0;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      max-width: 100%;
+    }
+    .content table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: var(--surface);
+      margin: 0;
+    }
+    /* Standalone tables (not inside .table-wrap) keep visual border */
+    .content > table {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin: 20px 0;
+      display: block;
+      overflow-x: auto;
+    }
+    .content th {
+      background: var(--surface-2);
+      color: var(--text);
+      font-weight: 600;
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .content td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      vertical-align: top;
+    }
+    .content tr:last-child td { border-bottom: none; }
+
+    /* ============================================================
+       BLOCKQUOTE
+       ============================================================ */
+    .content blockquote {
+      margin: 20px 0;
+      padding: 4px 20px;
+      border-left: 3px solid var(--accent-border);
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    /* ============================================================
+       FOOTER
+       ============================================================ */
+    .doc-footer {
+      margin-top: 80px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-subtle);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .doc-footer a { color: var(--accent); text-decoration: none; }
+
+    /* ============================================================
+       FOCUS-VISIBLE (a11y)
+       ============================================================ */
+    *:focus { outline: none; }
+    *:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+      border-radius: var(--radius-sm);
+    }
+    .toc-nav a:focus-visible { outline-offset: -2px; }
+    .icon-btn:focus-visible { outline-offset: 2px; }
+    .anchor:focus-visible { opacity: 1; outline-offset: 2px; }
+    details.collapsible > summary:focus-visible { outline-offset: -2px; }
+
+    /* ============================================================
+       HOVER (only on hover-capable devices to avoid sticky-tap on mobile)
+       ============================================================ */
+    @media (hover: hover) {
+      .icon-btn:hover { color: var(--accent); border-color: var(--accent-border); background: var(--accent-soft); }
+      .toc-nav a:hover { color: var(--accent); background: var(--accent-soft); }
+      .content a:hover { color: var(--accent-hover); border-bottom-color: var(--accent); }
+      .compare-card:hover { border-color: var(--accent-border); box-shadow: var(--shadow); }
+      .compare-card.recommended:hover { border-color: var(--accent); }
+      .content tr:hover td { background: var(--surface-2); }
+      details.collapsible > summary:hover { background: var(--surface-2); }
+      .step:hover { background: var(--surface-2); }
+      .step:hover .step-num { transform: scale(1.05); }
+      .anchor:hover { color: var(--accent); }
+      .content h2:hover .anchor,
+      .content h3:hover .anchor { opacity: 1; }
+      .copy-btn:hover { color: var(--accent); border-color: var(--accent-border); }
+      .content pre:hover .copy-btn { opacity: 1; }
+    }
+    /* On touch devices, copy-btn is always visible at low opacity */
+    @media (hover: none) {
+      .copy-btn { opacity: 0.6; }
+      .anchor { opacity: 0.4; }
+    }
+
+    /* ============================================================
+       MOBILE (≤900px) — TOC becomes off-canvas drawer
+       ============================================================ */
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+        gap: 16px;
+        padding: 20px 16px 80px;
+      }
+      .topbar-inner { padding: 8px 12px; }
+      .doc-header { margin-bottom: 28px; padding-bottom: 20px; }
+
+      .toc-mobile-trigger { display: inline-flex !important; }
+
+      .toc {
+        position: fixed;
+        top: 0; left: 0;
+        width: min(300px, 82vw);
+        height: 100dvh;
+        max-height: 100dvh;
+        background: var(--surface);
+        z-index: var(--z-drawer);
+        padding: 16px 8px 24px 16px;
+        box-shadow: var(--shadow-lg);
+        transform: translateX(-105%);
+        transition: transform 0.25s ease;
+      }
+      .toc-head { padding: 4px 4px 12px 8px; }
+      .toc-close {
+        display: inline-flex !important;
+        width: 36px; height: 36px;
+        align-items: center; justify-content: center;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0;
+      }
+      .toc-close .icon { width: 18px; height: 18px; stroke-width: 2; }
+      body.toc-open .toc { transform: translateX(0); }
+      body.toc-open .toc-backdrop {
+        display: block;
+        opacity: 1;
+      }
+      .toc-backdrop {
+        display: block;
+        opacity: 0;
+        pointer-events: none;
+      }
+      body.toc-open .toc-backdrop { pointer-events: auto; }
+      body.toc-open { overflow: hidden; }
+    }
+    @media (min-width: 901px) {
+      .toc-mobile-trigger { display: none !important; }
+    }
+
+    /* ============================================================
+       REDUCED MOTION (a11y)
+       ============================================================ */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+      html { scroll-behavior: auto; }
+      .brand-dot { animation: none; box-shadow: 0 0 0 4px var(--accent-soft); }
+    }
+
+    /* ============================================================
+       PRINT
+       ============================================================ */
+    @media print {
+      .topbar, .toc, .toc-backdrop, .icon-btn, .copy-btn, .anchor, .scroll-progress { display: none !important; }
+      .layout { grid-template-columns: 1fr; padding: 0; max-width: 100%; }
+      body { background: #fff; color: #000; }
+      a { color: #000; }
+      .content pre, .callout, .compare-card, .step, .diagram { break-inside: avoid; }
+      .doc-footer { break-before: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Skip link for keyboard users -->
+  <a href="#main" class="skip-link">跳到正文</a>
+
+  <!-- Scroll progress -->
+  <div class="scroll-progress" id="scroll-progress" aria-hidden="true"></div>
+
+  <!-- SVG icon sprite (Lucide-style) -->
+  <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+    <symbol id="i-danger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></symbol>
+    <symbol id="i-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+    <symbol id="i-decision" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+    <symbol id="i-tip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14a5 5 0 1 0-6.18 0 4 4 0 0 1 1.59 2h2.99a4 4 0 0 1 1.6-2Z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-printer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+  </svg>
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <button class="icon-btn toc-mobile-trigger" id="toc-toggle" onclick="openToc()" aria-label="目录" title="目录">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"/></svg>
+        </button>
+        <span class="brand-dot" aria-hidden="true"></span>
+        <span>规格</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn" onclick="window.print()" title="打印 / 保存 PDF" aria-label="打印 / 保存 PDF">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-printer"/></svg>
+        </button>
+        <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()" title="切换主题" aria-label="切换主题">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use id="theme-icon-use" href="#i-moon"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- TOC drawer backdrop (mobile) -->
+  <div class="toc-backdrop" onclick="closeToc()" aria-hidden="true"></div>
+
+  <div class="layout">
+    <aside class="toc" id="toc" aria-label="目录">
+      <div class="toc-head">
+        <p class="toc-title">目录</p>
+        <button class="toc-close" onclick="closeToc()" aria-label="关闭">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-x"/></svg>
+        </button>
+      </div>
+      <nav class="toc-nav" id="toc-nav">
+        <a href="#outcome" class="lvl-2">这个技能产出什么</a>
+        <a href="#setup" class="lvl-2">开始前设置</a>
+        <a href="#input-mode" class="lvl-2">输入与运行模式</a>
+        <a href="#workflow" class="lvl-2">完整工作流</a>
+        <a href="#interaction" class="lvl-2">交互规则</a>
+        <a href="#circuit-breaker" class="lvl-2">工作量熔断器</a>
+        <a href="#completion-output" class="lvl-2">完成与失败输出</a>
+        <a href="#common-mistakes" class="lvl-2">常见错误</a>
+        <a href="#red-flags" class="lvl-2">危险信号</a>
+      </nav>
+    </aside>
+
+    <main class="content" id="main">
+      <header class="doc-header">
+        <span class="doc-eyebrow">SPEC</span>
+        <h1 class="doc-title">文档审查循环</h1>
+        <p class="doc-subtitle">用固定快照、合同覆盖和按缺陷家族修复，让跨合同文档的重复审查更快、更可靠地收敛。</p>
+        <div class="doc-meta">
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-file"/></svg>
+            SKILL.md
+          </span>
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-calendar"/></svg>
+            更新于 2026-08-11
+          </span>
+          <span class="doc-meta-item">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-clock"/></svg>
+            ~7 分钟阅读
+          </span>
+        </div>
+      </header>
+
+      <!-- CONTENT_START -->
+
+      <aside class="callout callout-danger"><svg class="callout-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-danger"/></svg><div class="callout-body"><p class="callout-title">必须使用正式审查引擎</p><p>每一轮都必须通过宿主平台的正常技能调用方式运行 <code>ce-doc-review</code>。不能复制、改写或自行实现它的角色选择、派发、汇总、问题分类、自动修复、交互模式或跨模型逻辑。</p></div></aside>
+
+      <h2 id="outcome">这个技能产出什么</h2>
+      <div class="table-wrap"><table><thead><tr><th>项目</th><th>内容</th></tr></thead><tbody>
+      <tr><td><strong>结果</strong></td><td>处于某个指纹状态的产品文档：对它做一次全新的全量 <code>ce-doc-review</code> 门禁，返回零重大问题、零文档改动修复。外加一份收敛信封。</td></tr>
+      <tr><td><strong>下游消费者</strong></td><td>发起这次审查的用户或调用方。</td></tr>
+      <tr><td><strong>完成条件</strong></td><td>成功信封；或者 <code>Non-converged</code>，且信封每个字段都已填写，包括阻塞原因。</td></tr>
+      </tbody></table></div>
+      <div class="highlight"><span class="highlight-label">要点</span><p>核心不是“多审几轮”，而是先固定证据，再按缺陷家族修复，最后用一份完全没再变化的最终快照证明收敛。</p></div>
+
+      <h2 id="setup">开始前设置</h2>
+      <p>每次调用只运行一次下面的命令，而且必须在派发任何子代理或子技能之前运行。命令要原样单独执行：不能管道过滤、不能截断，也不能和其他命令拼在一起。</p>
+      <pre><code>SKILL_DIR="&lt;absolute path of the directory containing the SKILL.md you just read&gt;";
+NODE="$(for c in node nodejs; do command -v "$c" &gt;/dev/null 2&gt;&amp;1 &amp;&amp; "$c" -e '' &gt;/dev/null 2&gt;&amp;1 &amp;&amp; { echo "$c"; break; }; done)";
+if [ -n "$NODE" ]; then
+"$NODE" "$SKILL_DIR/scripts/context.mjs" || echo "context script failed; continue with the skill's normal behavior";
+else
+echo "no Node runtime; continue with the skill's normal behavior";
+fi</code></pre>
+      <ul><li>输出应以 <code>=== skill context</code> 开头，以 <code>CE_CONTEXT_END</code> 结尾。</li><li>如果两个标记中恰好只出现一个，原样重跑一次。</li><li>其他情况都不能在同一次调用中再次运行。</li><li>脚本输出与本技能的提问规则冲突时，以本技能为准；例如 <code>mode:non-interactive</code> 下不能提出阻塞式问题。</li></ul>
+
+      <h2 id="input-mode">输入与运行模式</h2>
+      <div class="table-wrap"><table><thead><tr><th>检查项</th><th>规则</th><th>失败结果</th><th>关键字段</th></tr></thead><tbody>
+      <tr><td>文档路径</td><td>必须提供一个可读路径</td><td>交互模式询问；非交互模式直接返回 <code>Non-converged</code></td><td><code>input: missing_document_path</code></td></tr>
+      <tr><td>运行模式</td><td><code>mode:non-interactive</code> 禁止循环自己提问，但不降低证据标准</td><td>需要用户判断的决定继续作为阻塞项</td><td><code>Non-converged</code></td></tr>
+      <tr><td>工作量上限</td><td><code>max-work-units:N</code> 默认 16；N 必须是大于等于 2 的整数，且不设上限</td><td>Wave 0 之前清楚失败</td><td><code>input: invalid_max_work_units</code></td></tr>
+      <tr><td>文件格式</td><td>只审查 Markdown</td><td>HTML 或其他格式不运行协议和子技能</td><td><code>input: unsupported_document_format</code></td></tr>
+      </tbody></table></div>
+      <aside class="callout callout-warn"><svg class="callout-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-warn"/></svg><div class="callout-body"><p class="callout-title">参数转发：只剥循环自己的参数</p><p>调用 <code>ce-doc-review</code> 前，剥掉 <code>max-work-units:N</code> 和调用者给的文档路径；但<strong>必须始终传</strong> <code>mode:non-interactive</code> 和临时快照路径。把 <code>mode:non-interactive</code> 一起剥掉会让每一轮变成交互式，破坏整个循环的前提。</p></div></aside>
+
+      <h2 id="workflow">完整工作流</h2>
+      <p>先从当前 <code>SKILL.md</code> 所在目录解析并读取 <code>references/loop-protocol.md</code>，然后按顺序执行。文件缺失或不可读时，返回 <code>Non-converged</code>，写明 <code>loop_protocol: unavailable</code> 和实际原因。若正式 <code>ce-doc-review</code> 无法启动，则写明 <code>ce-doc-review: skill_unreachable</code>。通用任务、内联角色审查或自制审查都不能替代它。</p>
+      <aside class="callout callout-info"><svg class="callout-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-info"/></svg><div class="callout-body"><p class="callout-title">子技能起不来时不是"停就完事"</p><p>正式 <code>ce-doc-review</code> 无法启动时，除了返回 <code>Non-converged</code> + <code>ce-doc-review: skill_unreachable</code>，还要打印一段用户可直接运行的可复制调用块 <code>/ce-doc-review mode:non-interactive &lt;product-path&gt;</code>（仅当宿主是 Codex 时用 <code>$</code> 前缀），并把信封里的 <code>Next bounded wave</code> 换成这个交接块。<strong>不能只告诉用户"你自己敲一下"</strong>，也绝不能降级成"跳过审查继续走"。</p></div></aside>
+      <figure class="diagram"><pre class="mermaid">
+flowchart TD
+  W0["Wave 0：冻结与建模"] --> P1["Pass 1：正式全量审查"]
+  P1 --> V{"快照、收据、差异都有效？"}
+  V -->|否，且计一个单元| R{"连续第二次不一致？"}
+  R -->|是| N["Non-converged"]
+  R -->|否| P1
+  V -->|是| P2["Pass 2：按缺陷家族修复"]
+  P2 --> F["聚焦检查修复邻域"]
+  F --> G["新全量审查门"]
+  G --> Z{"最终快照零重大问题且无改动？"}
+  Z -->|否| P2
+  Z -->|是| C["Review loop converged"]
+      </pre><figcaption class="diagram-caption">校验失败的轮次也要消耗一个工作单元，因此熔断器一定会生效。</figcaption></figure>
+      <div class="timeline">
+      <article class="step"><div class="step-num">0</div><div class="step-body"><h3>Wave 0：冻结输入并建立覆盖模型</h3><p>冻结原始 Markdown 字节并记录指纹。盘点所有规范性陈述、明确要求、合同、交叉引用和证明义务。只有当它们共享同一权威来源、生命周期和证明边界时，文档才算单合同；否则算多合同。</p><p>始终建立 Contract Matrix，把每个盘点项映射到单元格；任何未映射项都是阻塞项。多合同文档还要建立 Change-Impact Graph、稳定纵向切片和证明义务；单合同文档在出现跨合同边或相邻修复影响时再补这些结构。</p></div></article>
+      <article class="step"><div class="step-num">1</div><div class="step-body"><h3>Pass 1：在一次性快照上做正式审查</h3><p>把冻结字节写入一次性快照，调用 <code>ce-doc-review mode:non-interactive &lt;snapshot-path&gt;</code>。收据必须包含两个指纹、已选择和已完成的审查者、失败/超时/格式错误审查者、文档改动修复数量和终止状态。</p><p>调用者计算冻结快照到结果快照的精确差异，并把每个变化的 hunk 按 section 归属到某条 <code>Applied N fixes</code> 记录。只有全部核对一致时，才提交产品路径。缺陷按两类分流：<strong>完整性失败</strong>丢弃快照且绝不碰产品路径；<strong>覆盖缺口</strong>可以提交已验证字节，但这一轮不算干净轮次、不能用于收敛。可选跨模型同伴失败两类都不属于，只作报告。两种情况都照样消耗一个工作单元。</p></div></article>
+      <article class="step"><div class="step-num">2</div><div class="step-body"><h3>Pass 2：按缺陷家族集中修复</h3><p>只处理引用证据和章节标题仍与已验证结果快照相符的问题。每个缺陷家族开始前，确认产品路径仍匹配最新指纹；在一次性快照中暂存机械性改动，并记录完整前后差异。</p><p>只有保持产品行为、范围、优先级和既定决定不变的证据支持型机械改动可以自动提交。涉及行为、范围、优先级、产品形态或既定决定的差异必须由用户明确决定。提交后重新计算指纹，并刷新或重验全部适用覆盖工件。</p></div></article>
+      <article class="step"><div class="step-num">3</div><div class="step-body"><h3>后续轮次：先关邻域，再做全量门禁</h3><p>先用聚焦证据检查关闭受影响切片及图上相连的邻居，然后在新的临时快照上运行正式的全量 <code>ce-doc-review</code> 门禁。正式子技能没有“只审一个切片”的调用契约，局部检查不能冒充正式审查轮次。</p></div></article>
+      <article class="step"><div class="step-num">4</div><div class="step-body"><h3>最终门禁</h3><p>按 <code>references/loop-protocol.md</code> 的「最终收敛门禁」执行。通常需要一份全新的全量临时快照审查；如果 Pass 1 一处修复都没应用，它已经审过最终字节，可直接充当门禁。只要结果指纹不是那个未变化的最终指纹，就开启一轮修复周期，并要求再做一次最终审查。</p></div></article>
+      </div>
+
+      <h2 id="interaction">交互规则</h2>
+      <ul><li>记录 <code>ce-doc-review</code> 已经执行的 <code>safe_auto</code> 改动，绝不能再应用一次。</li><li>交互模式遇到未解决的 <code>gated_auto</code>、<code>manual</code> 或产品决定时，使用平台的阻塞式提问能力；不可用时提供有限编号选项并等待。</li><li>运行时不能暂停，或处于非交互模式时，不猜答案：保留阻塞项并返回 <code>Non-converged</code>。</li><li>必需进程内审查者失败、超时、格式错误，或调用者收据缺字段，都是不可豁免的覆盖阻塞项。</li></ul>
+      <aside class="callout callout-warn"><svg class="callout-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-warn"/></svg><div class="callout-body"><p class="callout-title">接受剩余风险的边界</p><p><code>accepted_residual</code> 只能关闭它明确点名的矩阵单元格、图边、邻域、切片或证明义务。它必须绑定当前指纹，并写清受影响合同或证明、影响边界、负责人、到期时间或复审触发条件，以及失败时如何保持关闭。</p></div></aside>
+
+      <h2 id="circuit-breaker">工作量熔断器</h2>
+      <p><code>max-work-units</code> 防止无限循环，不是质量合格线。一个工作单元等于一次全局 <code>ce-doc-review</code> 轮次，或一次缺陷家族修复周期。<strong>因校验不一致而被丢弃的轮次或周期，同样消耗它那一个单元。</strong>每次开始前检查剩余额度。</p>
+      <div class="highlight"><span class="highlight-label">要点</span><p>最后一个允许的工作单元可以正好完成最终门禁并成功收敛；只有额度耗尽且最终门禁仍未成功时，才返回 <code>Non-converged</code>。</p></div>
+      <pre><code>Non-converged
+Document: &lt;path or none-supplied&gt;
+Input: &lt;valid, missing_document_path, invalid_max_work_units, or unsupported_document_format&gt;
+Final reviewed fingerprint: &lt;fingerprint, unavailable when no hashing command could run, or not_reached when the run ended before any fingerprint was taken&gt;
+Completed work units: &lt;N global waves + remediation cycles&gt;
+Open contract cells: &lt;list&gt;
+Unreviewed remediation neighborhoods: &lt;list&gt;
+Reviewer coverage gaps: &lt;list&gt;
+loop_protocol: &lt;available, unavailable + reason, or not_run&gt;
+ce-doc-review: &lt;complete, integrity_failure, skill_unreachable, or not_run&gt;
+Unresolved decisions: &lt;list&gt;
+Next bounded wave: &lt;slice + graph-connected neighbors + required ce-doc-review gate; the copyable ce-doc-review handoff when the skill is unreachable; or the corrected invocation when Input is not valid or loop_protocol is not available&gt;</code></pre>
+
+      <h2 id="completion-output">完成与失败输出</h2><p>成功时输出：</p>
+      <pre><code>Review loop converged
+Document: &lt;path&gt;
+Review waves: &lt;N&gt;
+Defect families remediated: &lt;N&gt;
+Final snapshot: unchanged after review
+Final ce-doc-review: zero material findings, zero document-changing fixes
+Coverage: complete for applicable reviewers and proof obligations
+Accepted residuals: &lt;none or list&gt;</code></pre>
+      <p>失败时必须使用 <code>Non-converged</code> 信封。审查者超时、审查后又修改文档、矩阵单元格仍开放，或手动决定未解决，都不能描述为“已收敛”。</p>
+
+      <h2 id="common-mistakes">常见错误</h2>
+      <table><thead><tr><th>错误做法</th><th>正确做法</th></tr></thead><tbody><tr><td>每次小改动后立刻再跑整份文档审查</td><td>先关闭发生变化的 Remediation Neighborhood</td></tr><tr><td>一次零发现就算完成</td><td>确认审查的是最终未变化快照，而且审查者覆盖完整</td></tr><tr><td>把 <code>ce-doc-review</code> 内部逻辑复制进来</td><td>调用正式子技能</td></tr><tr><td>为了快，自动替用户做手动、安全或产品决定</td><td>交互式询问，或保持 <code>Non-converged</code></td></tr><tr><td>把 <code>max-work-units</code> 当质量阈值</td><td>只把它当熔断器</td></tr><tr><td>用修复数量或严重程度下降证明完成</td><td>关闭矩阵单元格、图边、证明义务和最终快照覆盖</td></tr></tbody></table>
+
+      <h2 id="red-flags">危险信号</h2>
+      <aside class="callout callout-danger"><svg class="callout-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-danger"/></svg><div class="callout-body"><p class="callout-title">听到这些话就停下来检查证据</p><ul><li>“再跑一轮全量审查应该就够了。”</li><li>“零发现以后只改了一点点。”</li><li>“失败的审查者大概也会同意。”</li><li>“计划已经很详细，准备工作可以省。”</li><li>“工作量上限到了，所以就算完成吧。”</li></ul><p>除非最终门禁真的通过，否则返回 <code>Non-converged</code>。</p></div></aside>
+
+      <!-- CONTENT_END -->
+
+      <footer class="doc-footer">
+        <span>Generated by <a href="#">md2html</a></span>
+        <span>来源: SKILL.md</span>
+      </footer>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>
+    // ---------- Theme ----------
+    const STORAGE_KEY = "md2html-theme";
+    function currentTheme() { return document.documentElement.dataset.theme || "light"; }
+    function applyThemeIcon() {
+      const use = document.getElementById("theme-icon-use");
+      if (use) use.setAttribute("href", currentTheme() === "dark" ? "#i-sun" : "#i-moon");
+    }
+    (function restoreTheme() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) document.documentElement.dataset.theme = saved;
+    })();
+
+    // ---------- Mermaid ----------
+    const diagramSources = new Map();
+    function initMermaid() {
+      const isDark = currentTheme() === "dark";
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: isDark ? "dark" : "default",
+        themeVariables: {
+          primaryColor: isDark ? "#3A2A22" : "#FBEEE6",
+          primaryTextColor: isDark ? "#F5F0E8" : "#1A1A1A",
+          primaryBorderColor: isDark ? "#E89572" : "#D97757",
+          lineColor: isDark ? "#9A938A" : "#6B6B66",
+          secondaryColor: isDark ? "#2A2520" : "#F5F5F0",
+          tertiaryColor: isDark ? "#221E1A" : "#FFFFFF",
+          fontFamily: "Inter, system-ui, sans-serif",
+        },
+      });
+    }
+    async function renderMermaid() {
+      initMermaid();
+      const els = document.querySelectorAll(".mermaid");
+      els.forEach(el => {
+        if (!diagramSources.has(el)) diagramSources.set(el, el.textContent.trim());
+        el.textContent = diagramSources.get(el);
+        el.removeAttribute("data-processed");
+      });
+      try { await mermaid.run({ nodes: els }); } catch (e) { console.error(e); }
+    }
+    function toggleTheme() {
+      const next = currentTheme() === "light" ? "dark" : "light";
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem(STORAGE_KEY, next);
+      applyThemeIcon();
+      renderMermaid();
+    }
+
+    // ---------- TOC drawer (mobile) ----------
+    function openToc()  { document.body.classList.add("toc-open"); }
+    function closeToc() { document.body.classList.remove("toc-open"); }
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape" && document.body.classList.contains("toc-open")) closeToc();
+    });
+
+    // ---------- TOC scrollspy ----------
+    function setupTocSpy() {
+      const links = document.querySelectorAll("#toc-nav a[href^='#']");
+      if (!links.length) {
+        const toc = document.getElementById("toc");
+        if (toc) toc.style.display = "none";
+        return;
+      }
+      const map = new Map();
+      links.forEach(a => {
+        const id = a.getAttribute("href").slice(1);
+        const el = document.getElementById(id);
+        if (el) map.set(el, a);
+        a.addEventListener("click", () => {
+          if (window.matchMedia("(max-width: 900px)").matches) closeToc();
+        });
+      });
+      const obs = new IntersectionObserver((entries) => {
+        entries.forEach(en => {
+          const link = map.get(en.target);
+          if (!link) return;
+          if (en.isIntersecting) {
+            links.forEach(l => l.classList.remove("active"));
+            link.classList.add("active");
+          }
+        });
+      }, { rootMargin: "-80px 0px -70% 0px", threshold: 0 });
+      map.forEach((_, el) => obs.observe(el));
+    }
+
+    // ---------- Anchor links on h2/h3 ----------
+    function injectAnchors() {
+      document.querySelectorAll(".content h2[id], .content h3[id]").forEach(h => {
+        if (h.querySelector(".anchor")) return;
+        const a = document.createElement("a");
+        a.className = "anchor";
+        a.href = "#" + h.id;
+        a.setAttribute("aria-label", "Permalink");
+        a.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-link"/></svg>';
+        h.appendChild(a);
+      });
+    }
+
+    // ---------- Copy-to-clipboard on <pre> ----------
+    function injectCopyButtons() {
+      document.querySelectorAll(".content pre").forEach(pre => {
+        if (pre.classList.contains("mermaid")) return;
+        if (pre.querySelector(".copy-btn")) return;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "copy-btn";
+        btn.setAttribute("aria-label", "Copy code");
+        btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-copy"/></svg>';
+        btn.addEventListener("click", async () => {
+          const code = pre.querySelector("code")?.textContent ?? pre.textContent;
+          try {
+            await navigator.clipboard.writeText(code);
+            btn.classList.add("copied");
+            btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>';
+            setTimeout(() => {
+              btn.classList.remove("copied");
+              btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-copy"/></svg>';
+            }, 1500);
+          } catch (e) { console.error(e); }
+        });
+        pre.appendChild(btn);
+      });
+    }
+
+    // ---------- Scroll progress ----------
+    function setupScrollProgress() {
+      const bar = document.getElementById("scroll-progress");
+      if (!bar) return;
+      const onScroll = () => {
+        const h = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+        const p = h > 0 ? (document.documentElement.scrollTop / h * 100) : 0;
+        bar.style.width = p + "%";
+      };
+      window.addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+    }
+
+    // ---------- Boot ----------
+    document.addEventListener("DOMContentLoaded", () => {
+      applyThemeIcon();
+      injectAnchors();
+      injectCopyButtons();
+      renderMermaid();
+      setupTocSpy();
+      setupScrollProgress();
+    });
+  </script>
+</body>
+</html>

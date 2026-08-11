@@ -117,10 +117,10 @@ When the user picks "Auto-resolve with best judgment" or "Append to Open Questio
 
 | Mode | When | Behavior |
 |------|------|----------|
-| **Interactive** | Direct user invocation, or opt-in via `Run deeper doc review` from a caller's post-generation menu | Routing question, per-finding walk-through, bulk-preview confirmations |
-| **Non-interactive** _(default for chained invocation)_ | `mode:non-interactive` (deprecated alias `mode:headless`); default at `/ce-plan` Phase 5.3.8 | Apply `safe_auto` silently; return all other findings as structured text; surface a one-line summary above the caller's next menu; no prompts |
+| **Interactive** | Direct user invocation, or opt-in via `Decide on the review's open items` from a caller's post-generation menu | Routing question, per-finding walk-through, bulk-preview confirmations |
+| **Non-interactive** _(default for chained invocation)_ | `mode:non-interactive` (deprecated alias `mode:headless`); default at `/ce-plan` Phase 5.3.8 | Apply `safe_auto` silently; return all other findings as structured text plus a mandatory caller receipt with document fingerprints, selected/completed/failed reviewers, fix count, and terminal status; surface a one-line summary above the caller's next menu; no prompts |
 
-Non-interactive is the default for chained invocation from doc-producing skills — `/ce-plan` Phase 5.3.8 invokes it non-interactively so routine plans autofix and surface a summary line without blocking the user. Interactive is for direct invocation, or when the user opts into `Run deeper doc review` from the post-generation menu.
+Non-interactive is the default for chained invocation from doc-producing skills — `/ce-plan` Phase 5.3.8 invokes it non-interactively so routine plans autofix and surface a summary line without blocking the user. Interactive is for direct invocation, or when the user opts into `Decide on the review's open items` from the post-generation menu.
 
 ### 7. Bounded parallelism with backpressure
 
@@ -128,7 +128,7 @@ Persona dispatch respects the harness's active-subagent limit. Selected reviewer
 
 ### 8. Coverage transparency
 
-The output names which personas ran, which were activated by what signals, and whether any failed or timed out. The user can audit "did the right reviewers actually look at this" without parsing internal state.
+The output names which personas ran, which were activated by what signals, and whether any failed or timed out. Non-interactive callers also receive this state in a mandatory caller receipt, together with pre-review and post-fix SHA-256 fingerprints and the document-changing fix count. A caller can distinguish a complete zero-finding review from an incomplete wave without parsing narrative prose.
 
 ### 9. Cross-model judgment pass
 
@@ -160,7 +160,7 @@ The skill reads the doc, classifies it as `plan` from content-shape signals (U-I
 
 Three reviewers dispatch in parallel. They return 9 raw findings. Synthesis merges them into 6 distinct findings: 2 `safe_auto` (typo, broken cross-reference), 3 `gated_auto` (wording on the durability tradeoff, missing edge case in test scenarios for U2, design-lens flag on the toggle copy), 1 FYI (suggested scope clarification).
 
-The 2 `safe_auto` apply directly. Non-interactive mode returns the rest as structured text — no walkthrough, no per-finding routing. A single summary line surfaces above the post-generation menu: `Doc review applied 2 fixes. 3 decisions, 1 FYI remain.` The user picks `Start /ce-work` and goes. Had they wanted to address the 3 decisions interactively, they'd have picked `Run deeper doc review` instead.
+The 2 `safe_auto` apply directly. Non-interactive mode returns the rest as structured text — no walkthrough, no per-finding routing. A single summary line surfaces above the post-generation menu: `Doc review applied 2 fixes. 3 decisions, 1 FYI remain.` The user picks `Start /ce-work` and goes. Had they wanted to address the 3 decisions interactively, they'd have picked `Decide on the review's open items` instead.
 
 ---
 
@@ -186,7 +186,7 @@ Skip `ce-doc-review` when:
 `ce-doc-review` is invoked from doc-producing skills as their review pass:
 
 - **`/ce-brainstorm` Phase 4** — offered as one of the post-doc options ("Agent review of Product Contract"); runs interactive with full premise scrutiny, since validating premise is exactly what brainstorm exists for
-- **`/ce-plan` Phase 5.3.8** — runs in `mode:non-interactive` by default after the confidence check. `safe_auto` fixes apply silently; remaining findings surface as a one-line summary above the post-generation menu, where `Run deeper doc review` is exposed as a first-class option for users who want the interactive walkthrough
+- **`/ce-plan` Phase 5.3.8** — runs in `mode:non-interactive` by default after the confidence check. `safe_auto` fixes apply silently; remaining findings surface as a one-line summary above the post-generation menu, where `Decide on the review's open items` is exposed as a first-class option for users who want the interactive walkthrough
 - **`/ce-resolve-pr-feedback`** — when reviewer feedback lands on a brainstorm or plan doc rather than code
 
 In non-interactive mode, callers receive structured findings and route the user-decision options themselves.

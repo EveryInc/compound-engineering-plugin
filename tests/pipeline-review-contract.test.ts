@@ -550,6 +550,16 @@ describe("ce-doc-review contract", () => {
     expect(synthesis).toContain("Proposed fixes")
     expect(synthesis).toContain("Decisions")
     expect(synthesis).toContain("FYI observations")
+    expect(synthesis).toContain("Caller receipt:")
+    expect(synthesis).toContain("reviewed_fingerprint: sha256:")
+    expect(synthesis).toContain("result_fingerprint: sha256:")
+    expect(synthesis).toContain("selected_reviewers:")
+    expect(synthesis).toContain("completed_reviewers:")
+    expect(synthesis).toContain("failed_reviewers:")
+    expect(synthesis).toContain("document_changing_fixes:")
+    expect(synthesis).toContain("terminal_status: complete")
+    expect(synthesis).toContain("final materialized roster")
+    expect(synthesis).toContain("absent from that list in `failed_reviewers`")
 
     // Terminal signal preserved for programmatic callers
     expect(synthesis).toContain("Review complete")

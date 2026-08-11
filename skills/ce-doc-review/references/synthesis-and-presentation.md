@@ -297,10 +297,19 @@ so they render as a single consequence / concern / question line under the token
 field order. A line whose only description of a referenced item is a bare identifier — of any class — is
 not acceptable rendered output.
 
-**Non-interactive mode:** Do not use interactive question tools. Output all findings as a structured text envelope the caller can parse. Internal enum values (`safe_auto`, `gated_auto`, `manual`, `FYI`) stay in the schema and synthesis prose; the envelope below uses user-facing vocabulary — "fixes", "Proposed fixes", "Decisions", "FYI observations" — so non-interactive output reads the same way interactive output does.
+**Non-interactive mode:** Do not use interactive question tools. Output all findings as a structured text envelope the caller can parse. Internal enum values (`safe_auto`, `gated_auto`, `manual`, `FYI`) stay in the schema and synthesis prose; the envelope below uses user-facing vocabulary — "fixes", "Proposed fixes", "Decisions", "FYI observations" — so non-interactive output reads the same way interactive output does. Compute the document's SHA-256 immediately before persona dispatch and again after all applied fixes. The caller receipt is mandatory even when every list is empty; do not omit fields. `selected_reviewers` is the final materialized roster, including started cross-model reviewers. `completed_reviewers` contains only usable returns. Put every selected reviewer absent from that list in `failed_reviewers` with `failed`, `timed_out`, or `malformed`. `document_changing_fixes` is the number of `Applied N fixes` entries listed below — one per applied `safe_auto` finding — so a caller can reconcile the count against the entries. Set `terminal_status: complete` only after collection and synthesis finish; use `failed` if the canonical workflow cannot reach that point.
 
 ```
 Document review complete (non-interactive mode).
+Caller receipt:
+- reviewed_fingerprint: sha256:<pre-dispatch document digest>
+- result_fingerprint: sha256:<post-fix document digest>
+- selected_reviewers: [<all selected local and cross-model reviewer names>]
+- completed_reviewers: [<reviewers with usable returns>]
+- failed_reviewers: [<reviewer + failed, timed_out, or malformed status; empty when none>]
+- document_changing_fixes: <N>
+- terminal_status: complete
+
 
 Applied N fixes:
 - <section>: <what was changed> (<reviewer>)
@@ -348,7 +357,7 @@ Review complete
 
 Omit any section with zero items. The section headers reflect user-facing vocabulary: the "Proposed fixes" bucket carries `gated_auto` findings at anchor `75` or `100` (the persona has a concrete fix; the user confirms), "Decisions" carries `manual` findings at anchor `75` or `100` (judgment calls), and "FYI observations" carries any finding at anchor `50` regardless of `autofix_class`. When a root has dependents, render the root at its normal position in the severity-sorted list and nest its dependents as an indented `Dependents (...)` sub-block immediately below. Do not re-list dependents at their own severity position — they appear only under their root. End with "Review complete" as the terminal signal so callers can detect completion.
 
-**Compact rendering for FYI observations, residual concerns, and deferred questions (high-count mode).** When the combined count of these three buckets is 5 or more, collapse each to a one-line count followed by a tight bullet list — FYI observations use their consequence line, residual concerns and deferred questions their concern or question text — with no per-item elaboration. Actionable buckets (Proposed fixes / Decisions) remain fully rendered regardless. This mirrors the interactive-mode rule in `references/review-output-template.md` so both modes produce the same shape.
+**Compact rendering for FYI observations, residual concerns, and deferred questions (high-count mode).** When the combined count of these three buckets is 5 or more, collapse each to a one-line count followed by a tight bullet list — FYI observations use their consequence line, residual concerns and deferred questions their concern or question text — with no per-item elaboration. Keep the `Section: <section>` prefix on each compact FYI bullet: a programmatic caller maps observations back to its own coverage model by section and cannot re-derive that identity from the consequence line alone (the anchor needs no prefix — this bucket is anchor `50` by definition). Actionable buckets (Proposed fixes / Decisions) remain fully rendered regardless. This collapses the same buckets as the interactive rule in `references/review-output-template.md`; the section prefix is the one deliberate difference, because this envelope has a machine consumer while the interactive surface has a human reader.
 
 **Interactive mode:**
 

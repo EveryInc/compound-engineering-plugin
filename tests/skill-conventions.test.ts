@@ -196,6 +196,7 @@ const REQUIRED_MODEL_INVOKED_CALLEES = new Set([
   "ce-compound-refresh",
   "ce-debug",
   "ce-doc-review",
+  "ce-doc-review-loop",
   "ce-ideate",
   "ce-optimize",
   "ce-plan",
