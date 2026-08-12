@@ -312,7 +312,10 @@ versa.
 
 The agent also picks per artifact:
 
-- Whether Problem Frame merges into Summary
+- Whether Problem Frame merges into Summary — lightweight and legacy plans
+  only. An implementation-ready `ce-unified-plan/v1` artifact keeps both
+  headings: the hard floor names them separately and downstream consumers
+  anchor on them.
 - Sub-groupings (Requirements by capability, KTDs by component, Units phased
   into milestones)
 - How much detail each section carries

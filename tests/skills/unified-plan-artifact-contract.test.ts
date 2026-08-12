@@ -924,6 +924,21 @@ describe("Product Contract section catalog and routing destinations", () => {
     ).toBe(true)
   })
 
+  test("no route lets an implementation-ready plan drop Problem Frame", () => {
+    // Three separate review findings on PR #1359 came from the same shape: a
+    // rule elsewhere in the file quietly permitting the omission of a
+    // hard-floor section. Pin the remaining escape.
+    const agency = sliceSection(planSections, "## Agent agency", "## Prose economy")
+    expect(
+      /Problem Frame merges into Summary/.test(agency),
+      "The agency list is expected to still mention the Problem Frame merge; if it was deleted outright, drop this guard rather than letting it pass vacuously.",
+    ).toBe(true)
+    expect(
+      /implementation-ready.*keeps both\s+headings|lightweight and legacy plans/s.test(agency),
+      "The Problem Frame merge escape must be scoped away from implementation-ready unified plans, or it removes a hard-floor heading downstream consumers anchor on.",
+    ).toBe(true)
+  })
+
   test("the headless Success Criteria destination takes Stated signals only", () => {
     // The unconfirmed paths (headless, SKIP_SCOPING_CONFIRM) never validate an
     // Inferred bet, so routing an inferred success signal into an unlabeled
