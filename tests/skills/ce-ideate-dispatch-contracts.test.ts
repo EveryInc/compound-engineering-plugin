@@ -333,6 +333,17 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
       /depends on the depth that mode selects|ideation count is not settled yet/i.test(COST_0_6),
       "Phase 0.6 must not assert an ideation count for the mode that picks depth later.",
     ).toBe(true)
+    // The depth cue must reach "How to start", which picks depth, rather than
+    // living only in "How to generate" further down.
+    const start = UNIVERSAL_BODY.indexOf("## How to start")
+    const generate = UNIVERSAL_BODY.indexOf("## How to generate")
+    const cue = UNIVERSAL_BODY.indexOf("Depth is the fleet decision in this mode")
+    expect(cue, "universal-ideation.md must cue tactical depth where depth is chosen.").toBeGreaterThan(start)
+    expect(cue, "The depth cue must precede 'How to generate'.").toBeLessThan(generate)
+    expect(
+      /Elsewhere-non-software resolves its own count with depth/i.test(VOLUME_0_5),
+      "Phase 0.5 must not read as a universal 2-agent mandate across all modes.",
+    ).toBe(true)
   })
 
   test("go deep still scales up, so the two overrides stay symmetric", () => {
