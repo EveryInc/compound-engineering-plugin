@@ -454,7 +454,7 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
       "The universal tactical block must tie the announced fleet to the resolved depth.",
     ).toBe(true)
     expect(
-      /name the grounding agents and say the fleet follows that depth/i.test(COST_0_6),
+      /picks a depth later, and only Full dispatches ideation agents at all/i.test(COST_0_6),
       "Phase 0.6 must not assert an ideation count for the mode that picks depth later.",
     ).toBe(true)
     // The depth cue must reach "How to start", which picks depth, rather than
@@ -607,11 +607,25 @@ describe("ce-ideate cost transparency states no hand-maintained totals", () => {
     // The 6-agent go-deep/surprise-me variant lives in divergent-ideation.md,
     // loaded at Phase 2 -- so at notice time the count is genuinely unknown and
     // the five-agent default is the one value guaranteed wrong.
-    // Both unresolved cases named in one place, with no exclusivity claim that
-    // would license reusing the five-agent example for the other one.
+    // An enumeration of unresolved cases keeps being incomplete -- first "the
+    // one mode", then "two situations", each missing a real third. The rule is
+    // stated open-ended instead, with examples explicitly non-exhaustive.
     expect(
-      /Two situations leave the ideation count genuinely unresolved/i.test(COST_0_6),
-      "Phase 0.6 must name both unresolved-count situations together.",
+      /if the number comes from a decision this phase has not made, describe the leg instead of counting it/i.test(COST_0_6),
+      "Phase 0.6 must state the unresolved-count rule, not enumerate a closed set.",
+    ).toBe(true)
+    expect(
+      /Known cases, not an exhaustive list/i.test(COST_0_6),
+      "The examples must be marked non-exhaustive so a missing case is not licensed.",
+    ).toBe(true)
+    expect(
+      /the one mode whose ideation count|Two situations leave the ideation count/i.test(SKILL_BODY),
+      "No closed-set exclusivity claim may return.",
+    ).toBe(false)
+    // Issue-tracker mode is the case that exposed the last closed set.
+    expect(
+      /Issue-tracker intent\*{0,2} — 4 theme agents if the Phase 1 scan returns usable themes/i.test(COST_0_6),
+      "Issue-tracker mode must appear among the unresolved-count examples.",
     ).toBe(true)
     expect(
       /the one mode whose ideation count is not settled/i.test(SKILL_BODY),
@@ -624,7 +638,7 @@ describe("ce-ideate cost transparency states no hand-maintained totals", () => {
     // Tactical must stay explicitly outside the unresolved set -- it does not
     // change the agent count, so the ordinary figure is still correct there.
     expect(
-      /Tactical scope is \*\*not\*\* one of these/i.test(COST_0_6),
+      /Tactical scope is the case that \*is\* resolvable/i.test(COST_0_6),
       "Phase 0.6 must exclude tactical from the unresolved-count cases.",
     ).toBe(true)
     // The skip phrase IS readable now, so it stays a real subtraction.

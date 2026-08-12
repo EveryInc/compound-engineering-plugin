@@ -260,12 +260,13 @@ Include the conditional legs when they apply: issue intelligence adds its scan c
 
 **Say "conditional" for anything this phase cannot yet resolve; do not pre-subtract it.** The V15 cache check happens in Phase 1, after `<scratch-dir>` exists, so a reuse that skips the web dispatch is unknowable here. The same holds for the issue cluster call and the depth-dependent count in elsewhere-non-software.
 
-**Two situations leave the ideation count genuinely unresolved here; name the fleet without a number in both.**
+**Name the ideation fleet without a number whenever a later phase decides it.** This notice fires before Phase 1 runs and before Phase 2's dispatch spec is loaded, so several counts are simply not knowable yet. Rather than track which, apply the rule: *if the number comes from a decision this phase has not made, describe the leg instead of counting it.* Known cases, not an exhaustive list —
 
-- **`go deep` or surprise-me.** Their variant counts live in `references/divergent-ideation.md`, not loaded until Phase 2, and Phase 0.5 names the overrides without supplying numbers. Never reuse the ordinary five-agent figure — under these it is the one number certain to be wrong.
-- **Elsewhere-non-software.** `references/universal-ideation.md` picks a depth later, and only its Full depth dispatches ideation sub-agents at all; name the grounding agents and say the fleet follows that depth.
+- **`go deep` / surprise-me** — variant counts live in `references/divergent-ideation.md`, loaded at Phase 2.
+- **Issue-tracker intent** — 4 theme agents if the Phase 1 scan returns usable themes, otherwise the default fleet.
+- **Elsewhere-non-software** — `references/universal-ideation.md` picks a depth later, and only Full dispatches ideation agents at all.
 
-Tactical scope is **not** one of these: it changes volume and reads, never the agent count, so the ordinary figure still holds on a tactical run. Naming a leg as conditional is accurate; asserting a number that a later phase decides is not.
+**Never reuse the ordinary five-agent figure to fill one of these gaps** — under an override it is the one number certain to be wrong. Tactical scope is the case that *is* resolvable: it changes volume and reads, never the agent count.
 
 The line is informational; users do not need to acknowledge it.
 
