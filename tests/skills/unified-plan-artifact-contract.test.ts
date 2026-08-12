@@ -840,6 +840,12 @@ describe("Product Contract section catalog and routing destinations", () => {
     "Key Flows",
   ]
 
+  // Problem Frame is unconditional in the hard floor ("Contains Summary,
+  // Problem Frame, Requirements"), so it must NOT carry a skip test — an
+  // earlier revision shipped one and let an implementation-ready plan omit a
+  // mandatory section.
+  const SKIPPABLE_SECTIONS = PRODUCT_SECTIONS.filter((s) => s !== "Problem Frame")
+
   test("plan-sections.md catalogs every Product Contract section with a skip test", () => {
     const catalog = sliceSection(
       planSections,
@@ -847,12 +853,19 @@ describe("Product Contract section catalog and routing destinations", () => {
       "## Agent agency",
     )
     for (const name of PRODUCT_SECTIONS) {
+      entryBlock(catalog, name)
+    }
+    for (const name of SKIPPABLE_SECTIONS) {
       const block = entryBlock(catalog, name)
       expect(
         /\bskip\b/i.test(block),
         `The '${name}' catalog entry needs a skip test. A firing rule with no skip rule fires on everything, which the include-when-material doctrine treats as broken.`,
       ).toBe(true)
     }
+    expect(
+      /\bskip\b/i.test(entryBlock(catalog, "Problem Frame")),
+      "The Problem Frame entry must NOT carry a skip test — the hard floor contains it unconditionally, so a skip rule would let an implementation-ready plan omit a mandatory section.",
+    ).toBe(false)
   })
 
   test("the hard-floor enumeration still names its Product Contract subsections", () => {

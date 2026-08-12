@@ -219,11 +219,12 @@ section sits under which contract. A plan that skips all five framing entries
 has usually inherited its framing from an upstream Product Contract — check
 before concluding none of them fire.
 
-- **Problem Frame** — include when motivation isn't obvious from Summary
-  alone (the *why* needs paragraphs, not a sentence). Backward-looking /
-  situational. Does NOT restate the proposal; the remedy lives in Summary.
-  Skip when the plan implements a motivation already settled upstream and
-  restating it would only echo the origin document.
+- **Problem Frame** — the hard floor above contains it unconditionally, so
+  this entry governs its depth, never whether to include it. Give it
+  paragraphs when motivation isn't obvious from Summary alone; keep it to a
+  line or two when the motivation was settled upstream and more would only
+  echo the origin document. Backward-looking / situational. Does NOT restate
+  the proposal; the remedy lives in Summary.
 
 - **Key Decisions** — include when planning made product-level choices that
   constrain the Requirements below: scope narrowings, defaults chosen against

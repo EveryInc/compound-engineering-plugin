@@ -396,7 +396,16 @@ the fact). 24 runs, graded from the written artifacts rather than self-reports.
 | Key Decisions | 0/13 | 6/13 | **Confirmed** |
 | Success Criteria, scenarios where it should fire | 9/9 | 9/9 | Tie — not confirmed |
 | Success Criteria, mechanical rename (should skip) | fired 1/3 | fired 0/3 | Restraint improved |
-| Problem Frame, mechanical rename (should skip) | fired 3/3 | fired 0/3 | Restraint improved |
+| Problem Frame, mechanical rename | fired 3/3 | fired 0/3 | **Mis-graded — see below** |
+
+**Correction (PR review, Codex P2).** The Problem Frame row was scored backwards.
+The hard floor at `:171-175` contains Problem Frame unconditionally, so the new
+arm omitting it 3/3 was a contract violation, not improved restraint — caused by
+a skip test this change should never have given a hard-floor section. The skip
+test is removed, the guard now asserts Problem Frame carries none, and the row
+above stands as a record of the mis-grade rather than a result. Restraint
+evidence now rests on Success Criteria alone (old over-fired 1/3 on the rename;
+new 0/3).
 
 The new arm's 6/13 on Key Decisions is perfect discrimination, not partial
 success: it fired 6/6 on the two scenarios carrying a product-level choice and

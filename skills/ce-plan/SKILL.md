@@ -238,7 +238,7 @@ If no relevant Product Contract source exists, planning may proceed from the use
 #### 0.4 Planning Bootstrap (No Requirements Doc or Unclear Input)
 
 If no relevant requirements document exists, or the input needs more structure:
-- Assess whether the request is already clear enough for direct technical planning — if so, continue to Phase 0.5
+- Assess whether the request is already clear enough for direct technical planning — "clear enough" means the bootstrap exit condition below already holds, so confirm the problem frame, scope boundaries, and success signals are known or recorded as assumptions, then continue to Phase 0.5
 - If the ambiguity is mainly product framing, user behavior, or scope definition, recommend `ce-brainstorm` as a suggestion — but always offer to continue planning here as well
 - If the user signals they lack working knowledge of the problem domain itself, recommend `ce-brainstorm` — its blindspot pass maps the territory's decision surface before requirements are extracted — but honor their choice to continue here; Phase 2's unfamiliar-territory scaffolding then applies
 - If the user wants to continue here (or was already explicit about wanting a plan), run the planning bootstrap below
