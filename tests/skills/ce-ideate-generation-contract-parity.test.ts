@@ -122,13 +122,13 @@ const SHARED_CONTRACT: SharedRule[] = [
     universal: /total\*{0,2}, not a per-frame multiplier/i,
   },
   {
-    rule: "the read budget scales with what an agent submits, not a fixed number",
+    rule: "a raised volume override returns the ordinary read budget",
     why:
       "The tactical read cut is justified only by the matching volume cut. Raised volume against a " +
       "lowered cap leaves most `direct:` bases unchecked — the invariant used to reject frame-packing.",
     softwareFile: "references/divergent-ideation.md",
-    software: /Reads scale with what an agent will actually submit/,
-    universal: /Reads scale with submissions here too/,
+    software: /never raised volume against the lowered cap/i,
+    universal: /never raised volume against the lowered cap/i,
   },
   {
     rule: "axis spread is scored across the SURVIVOR SET at convergence",
@@ -204,7 +204,7 @@ describe("ce-ideate ideation contract holds on BOTH the software and universal p
     const mustCover = [
       "tactical scope applies, cutting volume rather than lenses",
       "an explicit volume request is a total, not a per-frame multiplier",
-      "the read budget scales with what an agent submits, not a fixed number",
+      "a raised volume override returns the ordinary read budget",
       "the meeting-test floor is waived only under ACTIVE tactical scope",
     ]
     const covered = SHARED_CONTRACT.map((r) => r.rule)

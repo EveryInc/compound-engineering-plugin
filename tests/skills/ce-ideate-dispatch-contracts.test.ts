@@ -472,28 +472,29 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
     ).toBe(false)
   })
 
-  test("the read budget is a rate sized to submissions, not a constant", () => {
-    // Two failures this guards. A tactical 2-3 cap against a raised volume
-    // override leaves most bases unchecked; and "lift it back to the ordinary
-    // 5" is itself wrong, because 5 is calibrated for 6-8 ideas from ONE
-    // frame -- a two-frame agent or a raised override submits far more.
+  test("one read budget, with the tactical pairing and the ceiling honestly stated", () => {
+    // History: a tactical 2-3 cap could run against a raised volume override;
+    // the fix said "lift it back to 5"; the next fix made 5 a per-submission
+    // *rate*, which then contradicted the flat budget line two lines above it.
+    // Settled by keeping ONE budget and stating its two consequences, rather
+    // than adding a fourth statement to reconcile three.
     expect(
-      /Reads scale with what an agent will actually submit/.test(DIVERGENT_BODY),
-      "divergent-ideation.md must size the read budget to what an agent submits.",
+      /may spend up to \*\*5 targeted reads\*\* — 10 under `go deep`, 2-3 under tactical scope/.test(DIVERGENT_BODY),
+      "There must be exactly one stated read budget.",
     ).toBe(true)
     expect(
-      /a \*rate\*, not a constant/.test(DIVERGENT_BODY),
-      "The budget must be stated as a rate, so no fixed number can be read as the answer.",
+      /never raised volume against the lowered cap/i.test(DIVERGENT_BODY),
+      "A raised volume override must return the ordinary budget, not keep the tactical cap.",
     ).toBe(true)
     expect(
-      /rather than snapping back to a number calibrated for a smaller target/i.test(DIVERGENT_BODY),
-      "A raised volume must not return the budget to a smaller-target number.",
+      /Budgets are ceilings, not guarantees of uniform scrutiny/i.test(DIVERGENT_BODY),
+      "The skill must state that a two-frame or raised-volume agent gets less per-idea depth.",
     ).toBe(true)
-    // Honesty valve: at large overrides depth per idea still falls.
+    // No competing formulation may return alongside the budget line.
     expect(
-      /Say so when depth per idea still falls/i.test(DIVERGENT_BODY),
-      "The skill must disclose reduced per-idea scrutiny rather than imply uniform verification.",
-    ).toBe(true)
+      /it is a \*rate\*, not a constant|needs proportionally more/i.test(DIVERGENT_BODY),
+      "A per-submission rate contradicts the flat budget line; do not reintroduce it.",
+    ).toBe(false)
   })
 
   test("the universal survivor target follows the selected depth", () => {
