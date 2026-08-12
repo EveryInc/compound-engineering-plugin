@@ -208,6 +208,25 @@ describe("ce-ideate user-research extraction keeps its routing test inline", () 
     ).toBe(true)
   })
 
+  test("parallel distillers cannot collide on a shared basename", () => {
+    // Two artifacts named report.md in different directories derived the same
+    // slug, so concurrent distillers overwrote each other's dossier while the
+    // returned gists still pointed at the corrupted file.
+    const body = readFileSync(path.join(SKILL_DIR, "references/user-research-artifacts.md"), "utf8")
+    expect(
+      /collision-resistant slug/i.test(body),
+      "The distiller dispatch must call for a collision-resistant slug.",
+    ).toBe(true)
+    expect(
+      /not its filename|digest of the absolute path/i.test(body),
+      "The slug must derive from the full path, not the basename alone.",
+    ).toBe(true)
+    expect(
+      /Verify the composed slugs are distinct/i.test(body),
+      "The reference must require a distinctness check before dispatching in parallel.",
+    ).toBe(true)
+  })
+
   test("the await is conditional on the reference routing to a distiller", () => {
     // Small artifacts fold in inline with no sub-agent, so an unconditional
     // "distill it and await" would dispatch an agent that should not exist and
