@@ -1,32 +1,39 @@
 # Compound Engineering configuration
 
-Compound Engineering keeps optional, checkout-local defaults in `.compound-engineering/config.local.yaml`. The file is shared by every supported harness that opens the same checkout, so a preference set while using Claude Code is also visible when the same checkout is opened in Codex or Cursor.
+Compound Engineering keeps optional repo defaults in `.compound-engineering/config.yaml`. Ordinary keys may also live in `.compound-engineering/config.local.yaml`, which overrides the repo file per key. Both files are visible to every supported harness that opens the same checkout.
 
-Run `/ce-setup` to create or repair the file and its `.gitignore` coverage. The committed `.compound-engineering/config.local.example.yaml` lists the available settings; uncomment only the keys you want to change. Do not put credentials, CLI commands, or harness flags in this file.
+Run `/ce-setup` to create `config.yaml` and refresh the committed `.compound-engineering/config.example.yaml`. Setup does not create `config.local.yaml`. Uncomment only the keys you want to change. Do not put credentials, CLI commands, or harness flags in either file.
+
+## How keys resolve
+
+- **Ordinary keys:** read `config.local.yaml`, then `config.yaml`. The first active (non-commented) value wins. A missing file is skipped. Invalid or empty scalars continue to the next layer, then the skill default. A present list or map, including empty, replaces the whole key.
+- **`docs_root`:** read only from `config.yaml`. A `docs_root` in `config.local.yaml` is ignored.
+- **Gitignore does not change resolution.** Either file works whether ignored or committed.
+- A current-task instruction still wins over config. Session and project instructions already in context can override or narrow it.
 
 ## Artifact root
 
 By default every CE-written artifact folder lives under `docs/` — `docs/plans/`, `docs/solutions/`, and the rest. `docs_root` relocates that root to any repo-relative folder, for projects where `docs/` is already tracked content owned by something else (an Obsidian vault, a docs site). Unset, behavior is byte-identical to today.
 
-`docs_root` reads from two layers, first non-empty wins: the checkout-local `config.local.yaml` above, then a **tracked** `.compound-engineering/config.yaml`. Prefer the tracked file — it is committed, so the setting reaches every clone and worktree of the project; the local file is per-checkout and would have to be re-set in each new worktree. (The tracked `config.yaml` is a general layer; today `docs_root` is its only consumer.)
+Set `docs_root` only in tracked `config.yaml` so every clone and worktree share one artifact tree.
 
-Two things make `docs_root` unlike the other settings:
+Two other things make `docs_root` unlike the other settings:
 
 - **It is repo-relative and validated.** The value must resolve to a directory inside the repository — not absolute, not escaping via `../` or a symlink, not the repo root itself, not under `.git/`. A missing directory is created on first write.
-- **It fails closed.** Every other setting falls through to its default on an invalid value. An unusable `docs_root` instead stops the skill with an error, because silently falling back to `docs/` would write CE artifacts into the very location you configured away from. `/ce-setup` reports the resolved root and which layer supplied it.
+- **It fails closed.** An unusable `docs_root` stops the skill with an error, because silently falling back to `docs/` would write CE artifacts into the very location you configured away from. `/ce-setup` reports the resolved root.
 
-`docs_root` does not make artifacts survive an ephemeral workspace — the root is inside the repo, so it lives and dies with the checkout. Sharing artifacts across worktrees of a project is a separate, out-of-repo storage concern.
+`docs_root` does not make artifacts survive an ephemeral workspace — the root is inside the repo, so it lives and dies with the checkout.
 
 ## How config relates to instructions
 
-Config is a local default, not another agent-instructions file:
+Config is a default, not another agent-instructions file:
 
 - A direct instruction for the current task wins over a conflicting config preference.
 - Active session and project/user instructions already loaded by the harness can override or narrow config. Depending on the harness, project instructions may come from `AGENTS.md`, `CLAUDE.md`, or another native mechanism.
 - Each skill's runtime contract still decides whether a setting applies. For example, pipeline execution forces planning artifacts to markdown, and model elevation takes effect on whichever harness can reach the requested model.
 - Some skills define a more specific preference order for their own routing. Their skill page documents that order.
 
-Because the file is gitignored and belongs to one checkout, linked worktrees do not automatically inherit it. CE Work resolves delegation before it creates detached worker worktrees, so an already-selected route is carried into that run; a separate interactive session opened directly in another worktree uses that worktree's own config.
+Committed `config.yaml` is shared across worktrees of the same project. `config.local.yaml` is per-checkout. CE Work resolves delegation before it creates detached worker worktrees, so an already-selected route is carried into that run.
 
 ## Options
 
@@ -34,7 +41,7 @@ All settings are optional. Commented examples are documentation, not active valu
 
 | Consumer | Options | Purpose and values |
 |---|---|---|
-| all artifact-writing skills | `docs_root` | Repo-relative folder every CE artifact subdirectory lives under. Unset -> `docs` (byte-identical to today). A configured root is the sole location CE reads and writes. See [Artifact root](#artifact-root) — it is the one setting that fails closed rather than falling through to the default. |
+| all artifact-writing skills | `docs_root` | Repo-relative folder every CE artifact subdirectory lives under. Set only in `config.yaml`. Unset -> `docs`. See [Artifact root](#artifact-root). |
 | [`ce-ideate`](./ce-ideate.md), [`ce-brainstorm`](./ce-brainstorm.md), [`ce-plan`](./ce-plan.md) | `ideate_output`, `brainstorm_output`, `plan_output` | Artifact format: `md` or `html`. Defaults are HTML for ideation and markdown for brainstorms/plans. Pipeline contexts force markdown. |
 | [`ce-plan`](./ce-plan.md) | `plan_skip_scoping_confirm` | `true` skips the normal pre-plan scope confirmation; default `false`. It does not suppress genuine blockers or the post-plan menu. |
 | [`ce-plan`](./ce-plan.md), [`ce-brainstorm`](./ce-brainstorm.md) | `plan_model`, `brainstorm_model` | Model elevation: send the reasoning-heavy step to a named model (e.g. `fable`, `opus`) instead of the session model. Value is a model alias; a prompt request or an orchestrator's `plan_model:<alias>` carrier (e.g. from `lfg`, honored even in pipeline mode) overrides it. Takes effect on every harness — natively where the host serves the model, else via the Claude CLI, else inline. No default (elevation off). |
@@ -69,8 +76,8 @@ Current-task wording can select a different route for one run without editing co
 
 ## Safe maintenance
 
-- Keep the file gitignored. It can contain local integration choices and should not be committed as team policy.
-- Put durable team-wide instructions in the project's normal agent-instructions mechanism, not in this file.
-- Prefer per-run instructions for one-off choices; use config for defaults you want across sessions in the same checkout.
+- Commit `config.yaml` when you want team defaults. Keep `config.local.yaml` out of git if it holds personal or checkout-only choices (`/ce-setup` can add `.compound-engineering/*.local.yaml`).
+- Put durable team-wide *instructions* in the project's normal agent-instructions mechanism. Team *defaults* for CE keys may live in `config.yaml`.
+- Prefer per-run instructions for one-off choices.
 - Re-run `/ce-setup` after plugin upgrades to refresh the committed example and diagnose retired or malformed settings.
 

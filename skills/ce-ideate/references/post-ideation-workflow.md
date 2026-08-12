@@ -117,7 +117,7 @@ If the user already named what they want to work on inline (e.g. "brainstorm the
    > `<title> — <description>. Basis: <basis/evidence>. Why it matters: <rationale>. Known tradeoffs: <downsides>.`
 
    The basis/evidence directly feeds `ce-brainstorm`'s product-pressure-test, so it won't re-derive what we already know. Append a one-line provenance pointer: `(Seeded from ce-ideate: <path>, idea "<title>")` — it records origin and lets brainstorm pull adjacent detail if it wants, without being forced to read anything.
-3. **Load the `ce-brainstorm` skill** with that seed. The saved file is already the record — no extra write step. `OUTPUT_FORMAT` does **not** propagate: ce-brainstorm re-resolves its own `brainstorm_output` config independently. Asymmetric output (`ideation.html` plus a markdown unified plan) is expected; a user who wants HTML for both sets both keys in `.compound-engineering/config.local.yaml`.
+3. **Load the `ce-brainstorm` skill** with that seed. The saved file is already the record — no extra write step. `OUTPUT_FORMAT` does **not** propagate: ce-brainstorm re-resolves its own `brainstorm_output` config independently. Asymmetric output (`ideation.html` plus a markdown unified plan) is expected; a user who wants HTML for both sets both keys in CE config (`config.local.yaml` then `config.yaml`).
 
 **Repo mode only:** do **not** skip brainstorming and go straight to `ce-plan` — `ce-plan` wants a brainstorm-grounded Product Contract. In elsewhere modes, ideation is a legitimate terminal state; brainstorming is optional deeper development of one idea, not a required next rung on an implementation ladder that does not exist in these modes.
 

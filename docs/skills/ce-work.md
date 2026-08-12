@@ -209,7 +209,7 @@ Routing uses normal instruction authority plus scope, not keyword matching. An e
 
 The last example is deliberately planless. `ce-work` first scopes the request against the repository and tests, then gives Codex only the bounded private brief/unit packet. The host remains responsible for inspecting the actual change, authoritative verification, canonical commits, and the shipping tail.
 
-Put an ordered, host-relative preference list in the gitignored `.compound-engineering/config.local.yaml`:
+Put an ordered, host-relative preference list in CE config (`config.local.yaml` then `config.yaml`):
 
 ```yaml
 work_engine_mode: prefer       # off | prefer | require

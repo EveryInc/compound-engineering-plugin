@@ -46,7 +46,7 @@ When the target resolves to the current host's default execution route and no di
 
 ### Per-checkout configuration
 
-Standing configuration uses one mode plus an ordered route list:
+Standing configuration uses one mode plus an ordered route list. Resolve `work_engine_mode` and `work_engine_preferences` independently from the two repo files (`config.local.yaml` then `config.yaml`); a present local list, including `[]`, replaces the team list. Do not pick one file for the whole group.
 
 ```yaml
 work_engine_mode: prefer

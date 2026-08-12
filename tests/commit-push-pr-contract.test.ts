@@ -213,7 +213,7 @@ describe("ce-commit-push-pr contract", () => {
   test("config template and example keep branding out of ambient configuration", async () => {
     for (const p of [
       "skills/ce-setup/references/config-template.yaml",
-      ".compound-engineering/config.local.example.yaml",
+      ".compound-engineering/config.example.yaml",
     ]) {
       const template = await readRepoFile(p)
       expect(template).toContain("auto_babysit")

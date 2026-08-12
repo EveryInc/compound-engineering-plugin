@@ -228,7 +228,7 @@ The Phase 4 handoff offers planning, agent doc review, publish to Proof, direct-
 | `<feature idea>` | Open-ended brainstorm |
 | `<problem>` | Routes via the product pressure test |
 | Existing requirements-only plan path, legacy `*-requirements.md` path, or topic | Resume offer |
-| `output:html` | Write the requirements-only unified plan as a single self-contained HTML file instead of markdown. Exclusive — the artifact is `.md` OR `.html`, never both. Default is markdown. Set `brainstorm_output: html` in `.compound-engineering/config.local.yaml` to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown so downstream automation gets a stable text shape. See the [configuration reference](./configuration.md). |
+| `output:html` | Write the requirements-only unified plan as a single self-contained HTML file instead of markdown. Exclusive — the artifact is `.md` OR `.html`, never both. Default is markdown. Set `brainstorm_output: html` in CE config (`config.local.yaml` then `config.yaml`) to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown so downstream automation gets a stable text shape. See the [configuration reference](./configuration.md). |
 
 ---
 
@@ -256,7 +256,7 @@ Yes — a domain-agnostic facilitator preserves the one-question-at-a-time disci
 
 ## Model elevation
 
-When you want a specific model for the heavy reasoning step, `ce-brainstorm` can generate approaches on a model you choose instead of your session model. It dispatches only approach generation to that model, with read access so it can verify its brief; the rest of the skill stays on your session model. Choose per run by naming a model in your prompt ("use fable", "have opus generate these"), or set a default with `brainstorm_model: <model>` in `.compound-engineering/config.local.yaml`. A prompt request overrides the config key.
+When you want a specific model for the heavy reasoning step, `ce-brainstorm` can generate approaches on a model you choose instead of your session model. It dispatches only approach generation to that model, with read access so it can verify its brief; the rest of the skill stays on your session model. Choose per run by naming a model in your prompt ("use fable", "have opus generate these"), or set a default with `brainstorm_model: <model>` in CE config (`config.local.yaml` then `config.yaml`). A prompt request overrides the config key.
 
 This works on any harness: the host serves the chosen model natively where it can, otherwise it invokes the Claude CLI (which must be installed and authenticated), otherwise it runs the step on your session model and tells you which precondition was unmet. **Setting `brainstorm_model` therefore takes effect in every harness you run `ce-brainstorm` in**, not just Claude Code. See `references/reasoning-elevation.md`.
 
