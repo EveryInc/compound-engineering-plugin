@@ -254,13 +254,18 @@ See the fleet variants in `references/divergent-ideation.md`.
 
 Before dispatching Phase 1, surface the cost shape in one short line so multi-agent cost is not invisible. Name the grounding agents this run will actually dispatch, the size of the ideation fleet, and the skip phrases — e.g. *"Will dispatch codebase scan + learnings + web research + up to 5 evidence scouts + 5 ideation + 1 basis verifier, most on cheap tiers. Skip phrases: 'no external research', 'no slack'."*
 
-Derive it from the dispatch decisions already made in this phase — do not carry a memorized total. **Elsewhere-non-software is the one mode whose ideation count is not settled yet:** `references/universal-ideation.md` picks a depth later, and only its Full depth dispatches ideation sub-agents at all. Name the grounding agents and say the ideation fleet depends on the depth that mode selects, rather than asserting a number that may never be dispatched. Every number is owned elsewhere and changes there: grounding by Phase 1's mode dispatch, scouts by Phase 1.5, the ideation fleet by `references/divergent-ideation.md`, and the tactical and `go deep` variants by 0.5. State a count only if you are stating one you just derived; naming the agents without a total is fine.
+Derive it from the dispatch decisions already made in this phase — do not carry a memorized total. Every number is owned elsewhere and changes there: grounding by Phase 1's mode dispatch, scouts by Phase 1.5, the ideation fleet by `references/divergent-ideation.md`, and the tactical and `go deep` variants by 0.5. State a count only if you are stating one you just derived; naming the agents without a total is fine.
 
 Include the conditional legs when they apply: issue intelligence adds its scan call **plus a cluster call only if that scan returns usable signal**, opt-in Slack research adds one, one distiller per user-supplied research artifact **large enough to need distilling** (a small one folds into the grounding summary inline and costs no agent), and up to 2 axis-coverage recovery agents in Phase 2. Subtract the web researcher when the user issued a skip phrase — that much is readable from the prompt right now.
 
 **Say "conditional" for anything this phase cannot yet resolve; do not pre-subtract it.** The V15 cache check happens in Phase 1, after `<scratch-dir>` exists, so a reuse that skips the web dispatch is unknowable here. The same holds for the issue cluster call and the depth-dependent count in elsewhere-non-software.
 
-**The ideation fleet size is one of those unresolved values whenever a scaling override is active.** The variant counts live in `references/divergent-ideation.md`, which is not loaded until Phase 2, and Phase 0.5 names the `go deep` and surprise-me overrides without supplying their numbers. So on a run carrying either override, name the ideation fleet as *scaled by that override* rather than stating a count — and never reuse the ordinary five-agent figure, which is the one number you can be sure is wrong there. Naming a leg as conditional is accurate; asserting a number that a later phase decides is not.
+**Two situations leave the ideation count genuinely unresolved here; name the fleet without a number in both.**
+
+- **`go deep` or surprise-me.** Their variant counts live in `references/divergent-ideation.md`, not loaded until Phase 2, and Phase 0.5 names the overrides without supplying numbers. Never reuse the ordinary five-agent figure — under these it is the one number certain to be wrong.
+- **Elsewhere-non-software.** `references/universal-ideation.md` picks a depth later, and only its Full depth dispatches ideation sub-agents at all; name the grounding agents and say the fleet follows that depth.
+
+Tactical scope is **not** one of these: it changes volume and reads, never the agent count, so the ordinary figure still holds on a tactical run. Naming a leg as conditional is accurate; asserting a number that a later phase decides is not.
 
 The line is informational; users do not need to acknowledge it.
 

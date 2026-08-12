@@ -454,7 +454,7 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
       "The universal tactical block must tie the announced fleet to the resolved depth.",
     ).toBe(true)
     expect(
-      /depends on the depth that mode selects|ideation count is not settled yet/i.test(COST_0_6),
+      /name the grounding agents and say the fleet follows that depth/i.test(COST_0_6),
       "Phase 0.6 must not assert an ideation count for the mode that picks depth later.",
     ).toBe(true)
     // The depth cue must reach "How to start", which picks depth, rather than
@@ -472,17 +472,27 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
     ).toBe(false)
   })
 
-  test("a raised volume override lifts the tactical read cap with it", () => {
-    // The tactical read cut is justified only by the matching volume cut --
-    // the per-idea verification ratio is the invariant. "100 quick wins" at
-    // 16-17 ideas per frame against a 2-3 read cap breaks exactly that.
+  test("the read budget is a rate sized to submissions, not a constant", () => {
+    // Two failures this guards. A tactical 2-3 cap against a raised volume
+    // override leaves most bases unchecked; and "lift it back to the ordinary
+    // 5" is itself wrong, because 5 is calibrated for 6-8 ideas from ONE
+    // frame -- a two-frame agent or a raised override submits far more.
     expect(
-      /\*\*Reads track ideas\.\*\*/.test(DIVERGENT_BODY),
-      "divergent-ideation.md must tie the read budget to the generation volume.",
+      /Reads scale with what an agent will actually submit/.test(DIVERGENT_BODY),
+      "divergent-ideation.md must size the read budget to what an agent submits.",
     ).toBe(true)
     expect(
-      /Never run raised volume against a lowered read cap/i.test(DIVERGENT_BODY),
-      "The reads-track-ideas rule must state the forbidden combination explicitly.",
+      /a \*rate\*, not a constant/.test(DIVERGENT_BODY),
+      "The budget must be stated as a rate, so no fixed number can be read as the answer.",
+    ).toBe(true)
+    expect(
+      /rather than snapping back to a number calibrated for a smaller target/i.test(DIVERGENT_BODY),
+      "A raised volume must not return the budget to a smaller-target number.",
+    ).toBe(true)
+    // Honesty valve: at large overrides depth per idea still falls.
+    expect(
+      /Say so when depth per idea still falls/i.test(DIVERGENT_BODY),
+      "The skill must disclose reduced per-idea scrutiny rather than imply uniform verification.",
     ).toBe(true)
   })
 
@@ -596,13 +606,25 @@ describe("ce-ideate cost transparency states no hand-maintained totals", () => {
     // The 6-agent go-deep/surprise-me variant lives in divergent-ideation.md,
     // loaded at Phase 2 -- so at notice time the count is genuinely unknown and
     // the five-agent default is the one value guaranteed wrong.
+    // Both unresolved cases named in one place, with no exclusivity claim that
+    // would license reusing the five-agent example for the other one.
     expect(
-      /ideation fleet size is one of those unresolved values/i.test(COST_0_6),
-      "Phase 0.6 must mark the fleet size unresolved when a scaling override is active.",
+      /Two situations leave the ideation count genuinely unresolved/i.test(COST_0_6),
+      "Phase 0.6 must name both unresolved-count situations together.",
     ).toBe(true)
+    expect(
+      /the one mode whose ideation count is not settled/i.test(SKILL_BODY),
+      "Phase 0.6 must not claim exclusivity for one unresolved-count mode.",
+    ).toBe(false)
     expect(
       /never reuse the ordinary five-agent figure/i.test(COST_0_6),
       "Phase 0.6 must forbid falling back to the default count under an override.",
+    ).toBe(true)
+    // Tactical must stay explicitly outside the unresolved set -- it does not
+    // change the agent count, so the ordinary figure is still correct there.
+    expect(
+      /Tactical scope is \*\*not\*\* one of these/i.test(COST_0_6),
+      "Phase 0.6 must exclude tactical from the unresolved-count cases.",
     ).toBe(true)
     // The skip phrase IS readable now, so it stays a real subtraction.
     expect(

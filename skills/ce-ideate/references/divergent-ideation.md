@@ -49,7 +49,9 @@ The `<constraints>`/`<background>` split is the primary defense against groundin
 
 **Verification reads (repo mode).** After an agent makes its internal cut, it may spend up to 5 targeted reads — 10 under `go deep`, 2-3 under tactical scope — following dossier `file:line` pointers to verify or deepen the bases of ideas it will submit. A `direct:` basis must quote a line the agent actually read — in a dossier or in the repo — never a guessed citation. Elsewhere modes verify against the user-supplied context — including reading user-research dossiers when present — instead of reading repo files.
 
-**Reads track ideas.** The tactical read cut exists only because tactical also cuts generation; the ratio between them is the point, since it is what keeps each `direct:` basis actually checked. So when an explicit volume override raises the per-frame target back above the tactical default, the tactical read cap lifts with it — `100 quick wins` generates at the override's level and verifies at the ordinary 5-read budget, not 2-3. Never run raised volume against a lowered read cap.
+**Reads scale with what an agent will actually submit.** The 5-read default is calibrated for roughly 6-8 ideas from one frame — so it is a *rate*, not a constant, and any agent carrying more than that needs proportionally more. Two consequences. The tactical cut to 2-3 reads is legitimate only because tactical also cuts generation to 3-4 ideas per frame; and when an explicit volume override raises the per-frame target, the budget rises with it rather than snapping back to a number calibrated for a smaller target — `100 quick wins` at ~16-17 ideas per frame earns roughly double the default, not the default. The same applies to a two-frame agent, which submits two frames' worth against one budget.
+
+**Say so when depth per idea still falls.** At a large raw-volume override you cannot verify every `direct:` basis as thoroughly as at default volume, however the budget scales. Note that in the artifact rather than implying uniform scrutiny — an unverified basis presented as verified is the failure this whole mechanism exists to prevent.
 
 ## Frames
 
