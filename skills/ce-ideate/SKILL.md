@@ -242,7 +242,7 @@ Use reasonable interpretation rather than formal parsing.
 
 **Tactical's dials — the complete list.** 3-4 ideas per frame; 2-3 verification reads per agent; 3 axes; 3 scouts; meeting-test floor waived at both layers. **Tactical changes nothing else** — not the agent count, not the frame set, not the model tier. Everywhere below and in the references, "tactical's dials" means exactly this list; state it by that name rather than re-enumerating it, so the set cannot drift between sites.
 
-**Detecting a tactical signal is not the same as tactical scope being active.** Resolve overrides against each other first; everything downstream — the fleet, the dials, and every waiver — keys on what ends up **active**, never on what was merely spotted. `go deep` beats a tactical signal outright and suppresses it entirely. When a signal collides with a mode that owns the *surface* (issue-tracker themes, or the universal path's depth), that mode keeps the frames and the agent count while tactical still contributes its dials; `references/divergent-ideation.md` carries the per-variant table.
+**Detecting a tactical signal is not the same as tactical scope being active.** Resolve overrides against each other first; everything downstream — the fleet, the dials, and every waiver — keys on what ends up **active**, never on what was merely spotted. `go deep` beats a tactical signal outright and suppresses it entirely. When a signal collides with a mode that owns the *surface* (issue-tracker themes, or the universal path's depth), that mode keeps the frames and the agent count while tactical still contributes its dials.
 
 #### 0.6 Cost Transparency Notice
 

@@ -51,7 +51,7 @@ The `<constraints>`/`<background>` split is the primary defense against groundin
 
 **Verification reads (repo mode).** After an agent makes its internal cut, it may spend up to **5 targeted reads** — 10 under `go deep`, 2-3 under tactical scope — following dossier `file:line` pointers to verify or deepen the bases of ideas it will submit. A `direct:` basis must quote a line the agent actually read — in a dossier or in the repo — never a guessed citation. Elsewhere modes verify against the user-supplied context — including reading user-research dossiers when present — instead of reading repo files.
 
-**The tactical budget is paired with the tactical volume cut, so an override that raises volume returns the ordinary budget.** A run carrying `quick wins` *and* an explicit volume request generates at the override's level and verifies at 5 reads, not 2-3 — never raised volume against the lowered cap.
+**The tactical budget is paired with the tactical volume cut, so an override that raises volume returns the ordinary budget.** Where tactical scope is still **active** after Phase 0.5 resolves collisions, a run with an explicit volume request generates at the override's level and verifies at 5 reads, not 2-3 — never raised volume against the lowered cap.
 
 **Budgets are ceilings, not guarantees of uniform scrutiny.** A two-frame agent, and any run at a raised volume target, submits more ideas against the same ceiling, so per-idea depth is lower there. That is an accepted trade, not a defect — but the artifact says so rather than implying every basis got equal verification. An unverified basis presented as verified is the failure this whole mechanism exists to prevent.
 ## Frames

@@ -37,9 +37,9 @@ Score survivors using a consistent rubric weighing: groundedness in stated conte
 **Axis coverage as a list-level concern.** When axes were defined, axis spread is evaluated across the survivor set, not per-idea. After per-idea filtering, check the survivor set: if axis coverage is uneven and stronger candidates exist on under-represented axes, prefer the spread when promoting borderline candidates. Phase 2's recovery dispatch should already have surfaced candidates for empty axes; this is a polish step on the survivor selection. If an axis ends up with zero survivors despite recovery (or because recovery hit the 2-axis cap), note it in the rejection summary as a deliberate gap rather than an oversight.
 
 Target output:
-- keep 5-7 survivors by default
+- **an explicit survivor count in the prompt wins outright** — `top 3`, or a total too small to spread across the frames; absent one, keep 5-7 survivors
 - if too many survive, run a second stricter pass
-- if fewer than 5 survive, report that honestly rather than lowering the bar
+- if fewer than the target survive, report that honestly rather than lowering the bar
 
 ## Phase 4: Write and Present the Deliverable
 
