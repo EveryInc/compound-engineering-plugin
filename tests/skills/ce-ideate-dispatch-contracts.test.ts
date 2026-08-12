@@ -313,10 +313,19 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
         `The collision table must resolve ${pair}.`,
       ).toBe(true)
     }
-    // The fallback must inherit the run's scaling rather than resetting to 5.
+    // The fallback must inherit the run's scaling rather than resetting to 5 --
+    // in the inline skeleton too, not only in the two references.
     expect(
       /default 5-agent fleet/i.test(DIVERGENT_BODY) || /default 5-agent fleet/i.test(ISSUE_INTELLIGENCE_BODY),
       "The insufficient-issue-signal fallback must not hardcode a 5-agent fleet over a scaled run.",
+    ).toBe(false)
+    expect(
+      /six default frames at this run's own agent count and budgets/i.test(ISSUE_PROTOCOL),
+      "The inline fallback step must inherit the run's resolved count, not say 'the default fleet'.",
+    ).toBe(true)
+    expect(
+      /use the default Phase 2 fleet/i.test(SKILL_BODY),
+      "The inline fallback must not reset a go-deep or surprise-me run to the default fleet.",
     ).toBe(false)
   })
 

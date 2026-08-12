@@ -322,7 +322,7 @@ Run grounding agents in parallel in the **foreground** (do not background — re
    Then run these four steps in order:
 
    **a. Scan** — dispatch the analyst in SCAN mode. It probes tracker access and persists what it fetched; it does **not** cluster.
-   **b. Fall back or scope** — no reachable tracker, or fewer than 5 eligible issues, ends the lens here: log the reason, continue with the remaining grounding, and use the default Phase 2 fleet. Otherwise resolve the scope yourself, asking **at most one** blocking question and only on irreducible ambiguity.
+   **b. Fall back or scope** — no reachable tracker, or fewer than 5 eligible issues, ends the lens here: log the reason, continue with the remaining grounding, and fall back to the **six default frames at this run's own agent count and budgets** (6 under `go deep` or surprise-me, 5 otherwise, carrying tactical's lowered volume and reads when active) — never a flat reset that discards the depth the user asked for. Otherwise resolve the scope yourself, asking **at most one** blocking question and only on irreducible ambiguity.
    **c. Cluster** — dispatch the analyst again in CLUSTER mode with the resolved scope, reusing the scan's persisted set rather than re-fetching.
    **d. Await** — consolidation and Phase 1.5 depend on the returned themes. Do not close the consolidated grounding summary before the cluster result lands.
 
