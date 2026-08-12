@@ -150,10 +150,12 @@ Emit **one raw JSON object** as the primary response — a single bare JSON valu
 
 Top-level `status` and `review_receipt.terminal_status` must agree on `complete`, `degraded`, and post-dispatch `failed` paths. `required_reviewers`: downstream callers must not infer requiredness from reviewer names, providers, route suffixes, selected membership, or failure state, and must not reconstruct it. `ce-code-review` owns the classification. Once any reviewer dispatch begins, retain the receipt on complete, degraded, and failed `mode:agent` completions. Only failures or skips before dispatch may use the existing minimal `{ "status", "reason" }` shape.
 
-Validate and serialize through the bundled deterministic helper. Resolve `SKILL_DIR` from the directory containing the `SKILL.md` you read; never derive it from the current working directory. The helper owns receipt field/type checks, concrete SHA checks, coverage/status invariants, the single canonical serialization, and the atomic artifact write — not review judgment. Run this exact fence after the final object is assembled and before writing or emitting it:
+Validate and serialize through the bundled deterministic helper. Resolve `SKILL_DIR` from the directory containing the `SKILL.md` you read; never derive it from the current working directory. The helper owns receipt field/type checks, concrete SHA checks, coverage/status invariants, the single canonical serialization, and the atomic artifact write — not review judgment. Run this exact self-contained fence after the final object is assembled and before writing or emitting it:
 
 ```bash
-node "$SKILL_DIR/scripts/review-receipt.mjs" --input "$RUN_DIR/final-review-input.json" --output "$RUN_DIR/review.json"
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$NODE" ] || { echo "no working Node runtime on PATH" >&2; exit 1; };
+"$NODE" "$SKILL_DIR/scripts/review-receipt.mjs" --input "$RUN_DIR/final-review-input.json" --output "$RUN_DIR/review.json"
 ```
 
 Write the assembled, unserialized final object to `$RUN_DIR/final-review-input.json` as the helper's input. Do not reserialize, pretty-print, edit, reconstruct, or separately read its output. The helper canonicalizes once, atomically writes one JSON object plus its terminating newline to `review.json`, and emits those identical bytes to stdout in the same process. The payload on disk must byte-match the emitted JSON object. A nonzero helper tool result is a failure; interpret that result outside the command rather than adding shell redirects, chaining, pipelines, or follow-up commands. The helper invocation above is the last tool call.

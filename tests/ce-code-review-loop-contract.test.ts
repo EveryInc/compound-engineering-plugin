@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "fs/promises"
+import { mkdtempSync } from "fs"
 import os from "os"
 import path from "path"
 
@@ -11,8 +12,9 @@ setDefaultTimeout(30_000)
 const skillPath = path.join(process.cwd(), "skills/ce-code-review-loop/SKILL.md")
 const protocolPath = path.join(process.cwd(), "skills/ce-code-review-loop/references/loop-protocol.md")
 const helperPath = path.join(process.cwd(), "skills/ce-code-review-loop/scripts/loop-state.mjs")
-const neutralGitConfig = path.join(os.tmpdir(), `ce-loop-neutral-git-${crypto.randomUUID()}`)
-const tempRoots: string[] = []
+const fileTempRoot = mkdtempSync(path.join(os.tmpdir(), "ce-review-loop-contract-"))
+const neutralGitConfig = path.join(fileTempRoot, "neutral-gitconfig")
+const tempRoots: string[] = [fileTempRoot]
 
 type RepoFixture = {
   repo: string
@@ -194,9 +196,8 @@ async function writeValidationFiles(
   fixture: RepoFixture,
   review: Record<string, any>,
 ): Promise<{ expectedPath: string; reviewPath: string }> {
-  const expectedPath = path.join(os.tmpdir(), `ce-loop-expected-${crypto.randomUUID()}.json`)
-  const reviewPath = path.join(os.tmpdir(), `ce-loop-review-${crypto.randomUUID()}.json`)
-  tempRoots.push(expectedPath, reviewPath)
+  const expectedPath = path.join(fileTempRoot, `expected-${crypto.randomUUID()}.json`)
+  const reviewPath = path.join(fileTempRoot, `review-${crypto.randomUUID()}.json`)
   await writeFile(expectedPath, JSON.stringify({
     branch: "main",
     base_sha: fixture.baseSha,
@@ -207,10 +208,10 @@ async function writeValidationFiles(
 }
 
 async function writeCycleFiles(paths: string[], verification: Record<string, any>) {
-  const statePath = path.join(os.tmpdir(), `ce-loop-state-${crypto.randomUUID()}.json`)
-  const pathsPath = path.join(os.tmpdir(), `ce-loop-paths-${crypto.randomUUID()}.json`)
-  const verificationPath = path.join(os.tmpdir(), `ce-loop-verification-${crypto.randomUUID()}.json`)
-  tempRoots.push(statePath, pathsPath, verificationPath)
+  const cycleRoot = await mkdtemp(path.join(fileTempRoot, "cycle-"))
+  const statePath = path.join(cycleRoot, "state.json")
+  const pathsPath = path.join(cycleRoot, "paths.json")
+  const verificationPath = path.join(cycleRoot, "verification.json")
   await writeFile(pathsPath, JSON.stringify(paths))
   await writeFile(verificationPath, JSON.stringify(verification))
   return { statePath, pathsPath, verificationPath }
@@ -221,8 +222,7 @@ async function writeAuthorizationFiles(
   paths = ["active.txt"],
   existingRunRoot?: string,
 ): Promise<AuthorizationFixture> {
-  const runRoot = existingRunRoot ?? await mkdtemp(path.join(os.tmpdir(), "ce-loop-authorization-"))
-  if (!existingRunRoot) tempRoots.push(runRoot)
+  const runRoot = existingRunRoot ?? await mkdtemp(path.join(fileTempRoot, "authorization-"))
   const suffix = crypto.randomUUID()
   const statePath = path.join(runRoot, `cycle-${suffix}.json`)
   const packetPath = path.join(runRoot, `fixer-packet-${suffix}.json`)
@@ -308,8 +308,9 @@ describe("ce-code-review-loop contract", () => {
     const skill = await readFile(skillPath, "utf8")
     const protocol = await readFile(protocolPath, "utf8")
 
+    expect(skill).toContain('$SKILL_DIR/scripts/loop-state.mjs')
+    expect(skill).toContain('for c in node nodejs')
     for (const document of [skill, protocol]) {
-      expect(document).toContain('$SKILL_DIR/scripts/loop-state.mjs')
       expect(document).toContain("preflight --repo <path> --base <ref>")
       expect(document).toContain("validate-review --repo <path> --expected <json-file> --review <json-file>")
       expect(document).toContain("validate-final --repo <path> --expected <json-file> --review <json-file>")

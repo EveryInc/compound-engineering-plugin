@@ -1,3 +1,12 @@
+---
+title: "ce-code-review-loop implementation"
+date: 2026-08-12
+artifact_contract: ce-unified-plan/v1
+artifact_readiness: implementation-ready
+execution: code
+product_contract_source: ce-plan-bootstrap
+---
+
 # ce-code-review-loop Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `subagent-driven-development` (recommended) or `executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

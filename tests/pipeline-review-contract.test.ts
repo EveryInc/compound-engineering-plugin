@@ -1588,13 +1588,16 @@ describe("ce-code-review agent receipt contract", () => {
     expect(skill).toMatch(/pr-remote[\s\S]{0,1800}fail[^\n]*before reviewer dispatch/i)
     expect(finish).toMatch(/pr-remote[^\n]*computed merge base[^\n]*Stage 1/i)
     expect(finish).not.toMatch(/use immutable PR metadata `baseRefOid`/i)
-    const receiptFence = finish.match(/```bash\n([^\n]*review-receipt\.mjs[^\n]*)\n```/)?.[1]
+    const receiptFence = [...finish.matchAll(/```bash\n([\s\S]*?)\n```/g)]
+      .map((match) => match[1])
+      .find((block) => block.includes("review-receipt.mjs"))
     expect(receiptFence).toBeDefined()
-    expect(receiptFence?.trim().split("\n")).toHaveLength(1)
-    expect(receiptFence).toContain('node "$SKILL_DIR/scripts/review-receipt.mjs"')
+    expect(receiptFence).toContain('SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";')
+    expect(receiptFence).toContain('for c in node nodejs')
+    expect(receiptFence).toContain('"$NODE" "$SKILL_DIR/scripts/review-receipt.mjs"')
     expect(receiptFence).toContain('--input "$RUN_DIR/final-review-input.json"')
     expect(receiptFence).toContain('--output "$RUN_DIR/review.json"')
-    expect(receiptFence).not.toMatch(/(?:^|\s)cat(?:\s|$)|\|\||[<>|;]/)
+    expect(receiptFence).not.toMatch(/(?:^|\s)cat(?:\s|$)/)
 
     for (const field of [
       "review_receipt",

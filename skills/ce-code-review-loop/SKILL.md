@@ -36,21 +36,27 @@ fi
 - `plan:<path>` must be readable when supplied and is forwarded unchanged to every canonical wave.
 - `max-work-units:N` is optional. Default: `8`. It must be an integer from 2 through 10. Invalid or conflicting input fails before the first wave with a populated `Non-converged` envelope.
 
-Use the bundled deterministic helper for the Git mechanics it owns; do not improvise them:
+Use the bundled deterministic helper for the Git mechanics it owns; do not improvise them. Every helper call is a fresh shell-tool invocation, so make it self-contained with this exact prefix and append exactly one operation from the table:
 
 ```bash
-"$NODE" "$SKILL_DIR/scripts/loop-state.mjs" preflight --repo <path> --base <ref>
-"$NODE" "$SKILL_DIR/scripts/loop-state.mjs" validate-review --repo <path> --expected <json-file> --review <json-file>
-"$NODE" "$SKILL_DIR/scripts/loop-state.mjs" validate-final --repo <path> --expected <json-file> --review <json-file>
-"$NODE" "$SKILL_DIR/scripts/loop-state.mjs" cycle-authorize --repo <path> --state <json-file> --paths-json <json-file> --verification-json <json-file> --family-json <json-file> --review <canonical-review-json> --base <resolved-base-sha> --packet <json-file>
-"$NODE" "$SKILL_DIR/scripts/loop-state.mjs" cycle-begin --repo <path> --state <json-file> --lease <lease-id>
-"$NODE" "$SKILL_DIR/scripts/loop-state.mjs" cycle-status --repo <path> --state <json-file> --lease <lease-id>
-"$NODE" "$SKILL_DIR/scripts/loop-state.mjs" cycle-seal --repo <path> --state <json-file> --lease <lease-id>
-"$NODE" "$SKILL_DIR/scripts/loop-state.mjs" cycle-scope-expansion --repo <path> --state <json-file> --lease <lease-id> --result <json-file>
-"$NODE" "$SKILL_DIR/scripts/loop-state.mjs" cycle-cancel --repo <path> --state <json-file> --lease <lease-id>
-"$NODE" "$SKILL_DIR/scripts/loop-state.mjs" cycle-restore --repo <path> --state <json-file> --lease <lease-id>
-"$NODE" "$SKILL_DIR/scripts/loop-state.mjs" cycle-commit --repo <path> --state <json-file> --lease <lease-id> --message <message>
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$NODE" ] || { echo "no working Node runtime on PATH" >&2; exit 1; };
+"$NODE" "$SKILL_DIR/scripts/loop-state.mjs" <operation and arguments>
 ```
+
+| Operation | Arguments |
+|---|---|
+| `preflight` | `--repo <path> --base <ref>` |
+| `validate-review` | `--repo <path> --expected <json-file> --review <json-file>` |
+| `validate-final` | `--repo <path> --expected <json-file> --review <json-file>` |
+| `cycle-authorize` | `--repo <path> --state <json-file> --paths-json <json-file> --verification-json <json-file> --family-json <json-file> --review <canonical-review-json> --base <resolved-base-sha> --packet <json-file>` |
+| `cycle-begin` | `--repo <path> --state <json-file> --lease <lease-id>` |
+| `cycle-status` | `--repo <path> --state <json-file> --lease <lease-id>` |
+| `cycle-seal` | `--repo <path> --state <json-file> --lease <lease-id>` |
+| `cycle-scope-expansion` | `--repo <path> --state <json-file> --lease <lease-id> --result <json-file>` |
+| `cycle-cancel` | `--repo <path> --state <json-file> --lease <lease-id>` |
+| `cycle-restore` | `--repo <path> --state <json-file> --lease <lease-id>` |
+| `cycle-commit` | `--repo <path> --state <json-file> --lease <lease-id> --message <message>` |
 
 Resolve the helper only through the loaded `SKILL_DIR` anchor. `preflight` must resolve `<ref>^{commit}`, compute `git merge-base HEAD <resolved-ref>`, and return one JSON object with `{status,input,branch,base_sha,head_sha,clean}` before any review or mutation. A missing commit or missing merge base is fail-closed `invalid_base`. Freeze the valid branch and returned merge-base SHA, and preserve the returned starting HEAD as immutable run history. Before **every** canonical wave, generate a per-wave expected JSON from the current clean checkpoint HEAD; never reuse the starting-HEAD expected JSON after a remediation commit.
 
@@ -58,9 +64,9 @@ Resolve the helper only through the loaded `SKILL_DIR` anchor. `preflight` must 
 
 Resolve `references/loop-protocol.md` relative to this `SKILL.md`, read it only when entering the workflow, and execute it in order. If it is unavailable, return `Non-converged` with the observed reason. This skill may reference only assets inside its own directory; invoke the named canonical skill through the host's **callable skill mechanism**, not by reading or reaching into another skill's files.
 
-1. Perform the protocol's secure run-state setup. Invoke `"$NODE" "$SKILL_DIR/scripts/loop-state.mjs" preflight --repo <path> --base <ref>` and freeze the returned concrete merge-base SHA, branch, and immutable starting HEAD only when `status: "ok"`, `input: "valid"`, and `clean: true`.
+1. Perform the protocol's secure run-state setup. Invoke the self-contained helper fence with `preflight --repo <path> --base <ref>` and freeze the returned concrete merge-base SHA, branch, and immutable starting HEAD only when `status: "ok"`, `input: "valid"`, and `clean: true`.
 2. Before every canonical wave, checkpoint the clean branch and current HEAD, then write a new per-wave expected JSON containing the frozen branch/base SHA and that **current checkpoint HEAD**. Spend one work unit and invoke exactly `ce-code-review mode:agent depth:full grouping:auto base:<resolved-base-sha>` through the callable skill mechanism, appending `plan:<path>` only when supplied. A generic task, reviewer agent, built-in review, inline pass, or reconstructed pipeline is **not a substitute**.
-3. Persist the exact canonical payload, then invoke `"$NODE" "$SKILL_DIR/scripts/loop-state.mjs" validate-review --repo <path> --expected <json-file> --review <json-file>`. Discard `malformed`, `coverage_gap`, `failed_review`, or `concurrent_change` results as convergence evidence. Ordinary valid waves require matching canonical `complete` status and full required-reviewer coverage, but may return any canonical verdict so `Ready with fixes` and `Not ready` remain usable for remediation.
+3. Persist the exact canonical payload, then invoke the self-contained helper fence with `validate-review --repo <path> --expected <json-file> --review <json-file>`. Discard `malformed`, `coverage_gap`, `failed_review`, or `concurrent_change` results as convergence evidence. Ordinary valid waves require matching canonical `complete` status and full required-reviewer coverage, but may return any canonical verdict so `Ready with fixes` and `Not ready` remain usable for remediation.
 4. Revalidate the exact `actionable_findings` against current HEAD, requiring every actionable object to remain canonically deep-equal to its source full finding, then partition them into independent mechanical defect families and decision-bearing blockers. Never treat triage organization as mutation authority.
 5. Within the remaining scope and work-unit budget, remediate all independent mechanical families allowed by the bounded invocation, one family per cycle. `cycle-authorize` is the **sole writable remediation entrypoint**: it validates the exact canonical review and family, acquires the checkout-scoped lease, checkpoints the clean bytes, and generates the **exact fixer packet**. Never dispatch a writable implementation task from findings, triage groups, or an ad-hoc prompt. **Never batch or parallelize writable defect-family fixers.** Read-only family analysis may run concurrently, but only one nonterminal lease may exist. Dispatch exactly one writable fixer with the packet's exact content; its first action must be `cycle-begin`. If subagent dispatch is unavailable, the parent may execute that same packet inline only after `cycle-begin`. Run `cycle-status` after return. An unlisted path requires a no-edit `scope_expansion`; failed dispatch before begin permits clean `cycle-cancel`. Then run verification, write its exact JSON outcome, and invoke leased `cycle-seal` before leased restore or commit. Any edit before begin, overlapping lease, out-of-scope path, or post-edit scope expansion is `protocol_violation`: preserve bytes and stop without retrospective checkpoint or adoption.
 6. After those bounded mechanical families, if any decision blocker remains, stop and return `Non-converged`; never guess or converge through it. A blocker does not erase already verified independent mechanical commits.
