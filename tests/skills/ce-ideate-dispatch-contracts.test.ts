@@ -231,8 +231,13 @@ describe("ce-ideate user-research extraction keeps its routing test inline", () 
       ["universal-ideation.md", UNIVERSAL_BODY],
     ] as const) {
       expect(
-        /volume override/i.test(body) && /100 ideas/i.test(body),
+        /volume override|volume request/i.test(body) && /100 ideas/i.test(body),
         `${label} must let an explicit volume override outrank the per-frame default.`,
+      ).toBe(true)
+      // A raw number is a total. Read per-frame, "100 ideas" becomes ~600.
+      expect(
+        /total\*{0,2}, not a per-frame multiplier/i.test(body),
+        `${label} must treat a raw-number volume request as a total, not a per-frame multiplier.`,
       ).toBe(true)
     }
   })

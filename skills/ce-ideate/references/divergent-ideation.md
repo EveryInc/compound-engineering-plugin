@@ -28,7 +28,7 @@ Fleet variants. **Every variant that uses the default frame set covers all six**
 
 The insufficient-issue-signal fallback from Phase 1 drops back to the **six-frame default at this run's own agent count** — 5 ordinarily (tactical included), 6 under `go deep` or surprise-me — carrying that run's own volume and read budgets rather than resetting them.
 
-Each frame targets ~6-8 ideas — **3-4 under tactical scope** — and a two-frame agent targets that per frame, yielding ~36-48 raw ideas in the default path (~18-24 tactical) or ~24-32 across 4 frames in issue-tracker mode; roughly 25-30 survive dedupe in the default path and fewer in the 4-frame path. Adjust per-frame targets when volume overrides apply (e.g., "100 ideas" raises it, "top 3" may lower the survivor count instead).
+Each frame targets ~6-8 ideas — **3-4 under tactical scope** — and a two-frame agent targets that per frame, yielding ~36-48 raw ideas in the default path (~18-24 tactical) or ~24-32 across 4 frames in issue-tracker mode; roughly 25-30 survive dedupe in the default path and fewer in the 4-frame path. **A raw-number volume request is a total, not a per-frame multiplier.** Divide it across the frames in play — `100 ideas` over six frames is ~16-17 each, not 100 each — and adjust the per-frame target to hit that total. Requests shaped like `top 3` constrain the *survivor* count instead and leave generation alone.
 
 ## Dispatch Payload (cache-friendly, long-context ordered)
 
