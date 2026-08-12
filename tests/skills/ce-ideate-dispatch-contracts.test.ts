@@ -429,10 +429,21 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
       /default 5-agent fleet/i.test(DIVERGENT_BODY) || /default 5-agent fleet/i.test(ISSUE_INTELLIGENCE_BODY),
       "The insufficient-issue-signal fallback must not hardcode a 5-agent fleet over a scaled run.",
     ).toBe(false)
+    // The fallback restores the default FRAME SET only. Naming any specific
+    // value here -- a count, a volume, a read budget -- re-derives what the run
+    // already resolved and silently discards a user's explicit override.
     expect(
-      /six default frames at this run's own agent count and budgets/i.test(ISSUE_PROTOCOL),
-      "The inline fallback step must inherit the run's resolved count, not say 'the default fleet'.",
+      /six default frames carrying every value this run has already resolved/i.test(ISSUE_PROTOCOL),
+      "The inline fallback must inherit every resolved value, not re-state any of them.",
     ).toBe(true)
+    expect(
+      /never re-derives budgets, and never resets them to a mode's defaults after an override has already won/i.test(ISSUE_PROTOCOL),
+      "The fallback must say explicitly that it does not reset budgets.",
+    ).toBe(true)
+    expect(
+      /carrying tactical's lowered volume and reads/i.test(SKILL_BODY),
+      "The fallback must not name tactical's defaults, which an override can outrank.",
+    ).toBe(false)
     expect(
       /use the default Phase 2 fleet/i.test(SKILL_BODY),
       "The inline fallback must not reset a go-deep or surprise-me run to the default fleet.",

@@ -27,7 +27,7 @@ Fleet variants. **Every variant that uses the default frame set covers all six**
 
 **tactical + surprise-me** is reachable whenever a vague tactical prompt (`quick wins`) sends the user to the 0.2 subject gate and they pick "Surprise me." Surprise-me owns the fleet and tier — its subject discovery is the mode's entire value. Tactical still contributes **its dials** (SKILL.md Phase 0.5), since the user did ask for small wins. Its axis and scout caps are moot here, because surprise-me skips decomposition entirely.
 
-The insufficient-issue-signal fallback from Phase 1 drops back to the **six-frame default at this run's own agent count** — 5 ordinarily (tactical included), 6 under `go deep` or surprise-me — carrying that run's own volume and read budgets rather than resetting them.
+The insufficient-issue-signal fallback from Phase 1 drops back to the **six-frame default carrying every value this run has already resolved** — agent count, per-frame volume, read budget, and any explicit user override. It restores the default frame set and re-derives nothing.
 
 Each frame targets ~6-8 ideas — **3-4 under tactical scope** — and a two-frame agent targets that per frame, yielding ~36-48 raw ideas in the default path (~18-24 tactical) or ~24-32 across 4 frames in issue-tracker mode; roughly 25-30 survive dedupe in the default path and fewer in the 4-frame path. **A raw-number volume request is a total, not a per-frame multiplier.** Divide it across the frames in play — `100 ideas` over six frames is ~16-17 each, not 100 each — and adjust the per-frame target to hit that total. Requests shaped like `top 3` constrain the *survivor* count instead and leave generation alone.
 
