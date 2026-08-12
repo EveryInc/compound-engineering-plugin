@@ -242,14 +242,14 @@ U1 and U8 are the two behavior changes and can land in parallel. U2 and U4 are i
 - **Approach:**
   1. Add entries to the `## Include when material` catalog (`:207-258`) for `Problem Frame`, `Key Decisions`, `Success Criteria`, `Actors`, and `Key Flows` — the five product-shape sections the catalog currently omits. Insert them immediately before the High-Level Technical Design entry. Do not reorder the existing eight; four of them are already Product Contract subsections, so a wholesale product-then-planning regrouping is a larger edit than this unit authorizes.
   2. Mirror the corresponding `ce-brainstorm` entries for structure and phrasing: Problem Frame (`brainstorm-sections.md:205`), Key Decisions (`:209`), Actors (`:254`), Key Flows (`:259`), Success Criteria (`:304-309`).
-  3. Carry over the skip tests that exist — Actors, Key Flows, and Success Criteria state one — adapting each to the plan context rather than copying verbatim, since an implementation plan legitimately skips Actors and Key Flows more often than a brainstorm does. Problem Frame and Key Decisions state no skip test on the brainstorm side; author one for each in the same idiom as the Actors entry.
+  3. Carry over the skip tests that exist — Actors, Key Flows, and Success Criteria state one — adapting each to the plan context rather than copying verbatim, since an implementation plan legitimately skips Actors and Key Flows more often than a brainstorm does. Key Decisions states none on the brainstorm side; author one in the same idiom as the Actors entry. Problem Frame gets **no** skip test: the hard floor contains it unconditionally, so its entry governs depth only.
   4. Leave the hard-floor enumeration at `:171-175` byte-unchanged. It names Problem Frame unconditionally, names Actors, Flows, and Success Criteria under "any material", and does not name Key Decisions at all. That asymmetry is out of scope here: the catalog is the operative mechanism, so a catalog entry is sufficient for Key Decisions without a floor mention.
 - **Patterns to follow:** the five cited `brainstorm-sections.md` entries for phrasing; the surrounding `plan-sections.md` catalog entries for entry shape.
 - **Test scenarios:**
   - The catalog contains entries for Problem Frame, Key Decisions, Success Criteria, Actors, and Key Flows.
   - Each new entry states a firing condition and a skip condition.
   - No new entry introduces a second idiom for a rule `ce-brainstorm` already phrases.
-  - The Problem Frame and Key Decisions entries each carry an authored skip test.
+  - The Key Decisions entry carries an authored skip test, and the Problem Frame entry carries none.
   - `:171-175` is byte-unchanged.
 - **Verification:** `plan-sections.md`'s catalog covers the Product Contract sections as well as the Planning Contract ones, and the hard-floor enumeration is unchanged.
 
@@ -320,7 +320,7 @@ U1 and U8 are the two behavior changes and can land in parallel. U2 and U4 are i
 - **Approach:**
   1. Extend the existing metadata test at `ce-plan-output-mode.test.ts:239-274` with the frontmatter rules that currently have no guard: `date` is the field name and `created` is named as the breaking rename, the ` - Plan` title suffix, and the prohibition on a conventional-commit prefix in `title`. Assert against the contract text in `plan-sections.md`, not against artifacts in `docs/plans/`.
   2. In `unified-plan-artifact-contract.test.ts`, add one assertion per routing statement — five in total — that each names a Success Criteria destination, plus an assertion that `ce-plan`'s interactive table names a Key Decisions destination for session-settled content. Pin the location rather than a single token that could migrate between files.
-  3. Add a content-pin that `plan-sections.md`'s catalog contains an entry for each of Problem Frame, Key Decisions, Success Criteria, Actors, and Key Flows, each with a skip condition, mirroring the second test in `tests/settled-decisions-parity.test.ts`.
+  3. Add a content-pin that `plan-sections.md`'s catalog contains an entry for each of Problem Frame, Key Decisions, Success Criteria, Actors, and Key Flows; the four conditional ones must carry a skip condition and Problem Frame must not, mirroring the second test in `tests/settled-decisions-parity.test.ts`.
   4. Add a pin that the dissolve clause at `:377` names its exemption list, so U3 cannot silently revert.
 - **Patterns to follow:** `ce-plan-output-mode.test.ts` uses the boolean-regex-with-message style throughout; `unified-plan-artifact-contract.test.ts` mixes that with `toContain` and `toMatch(/…/s)` and has the `sliceSection` helper at `:9-15`. Match whichever suite the assertion lands in.
 - **Test scenarios:**

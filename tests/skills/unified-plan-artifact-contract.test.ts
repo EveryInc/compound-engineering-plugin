@@ -960,6 +960,18 @@ describe("Product Contract section catalog and routing destinations", () => {
       /Success signals.*\(Stated or Inferred\)/.test(headless),
       "The headless Success Criteria destination must not offer Inferred content — that reopens the firewall contradiction.",
     ).toBe(false)
+
+    // The interactive table also governs SKIP_SCOPING_CONFIRM runs (its own
+    // Inferred row says so), so an unqualified "(Stated or Inferred)" there
+    // reopens the same contradiction one section down.
+    expect(
+      /Success signals \(Stated or Inferred\)/.test(planInteractiveTable),
+      "The interactive routing table must qualify its Success Criteria row: it also governs SKIP_SCOPING_CONFIRM runs, where an inferred signal belongs in `### Assumptions`.",
+    ).toBe(false)
+    expect(
+      /confirmed interactive run/.test(planInteractiveTable),
+      "The interactive table's Success Criteria row must name the confirmed-interactive condition for Inferred signals.",
+    ).toBe(true)
   })
 
   test("the silent-dissolve rule names which Inferred items are exempt", () => {

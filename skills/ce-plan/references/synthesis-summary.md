@@ -406,7 +406,7 @@ After user confirmation (or after the soft-cut decision proceeds), Phase 5.2 wri
 | Stated bullets | Product Contract `### Requirements` (R-IDs) and where relevant `### Problem Frame` for narrative context |
 | Inferred bullets | Planning Contract `### Key Technical Decisions` (with rationale) and Implementation Units when the bet drives a structural choice. In non-interactive mode **or an interactive `SKIP_SCOPING_CONFIRM` skip run**, route to Planning Contract `### Assumptions` instead — both proceed without confirming the bets, so they must stay labeled; see Headless mode above. |
 | Out-of-scope bullets | Product Contract `### Scope Boundaries` — including the `#### Deferred to Follow-Up Work` subsection when relevant |
-| Success signals (Stated or Inferred) | Product Contract `### Success Criteria` when its catalog entry fires — quality, metric, or handoff signals the Requirements don't already carry |
+| Success signals | Product Contract `### Success Criteria` when its catalog entry fires — quality, metric, or handoff signals the Requirements don't already carry. Stated signals always. An **Inferred** signal only on a confirmed interactive run; on a `SKIP_SCOPING_CONFIRM` skip run it goes to `### Assumptions` with the other unconfirmed bets, exactly as the Inferred row above routes them. |
 | Session-settled product decisions | Product Contract `### Key Decisions`, carrying the `session-settled:` annotation and exact `Governs R…` links. Settled planning/how decisions route to `### Key Technical Decisions` instead |
 
 No italic capture-context note (e.g., "Captured at Phase 0.7..."). It would leak engineering process into an artifact whose readers do not need that signal.
