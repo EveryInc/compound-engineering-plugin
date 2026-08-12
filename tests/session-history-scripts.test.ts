@@ -2106,7 +2106,7 @@ describe("discover-sessions", () => {
     )
     const files = stdout.trim().split("\n").filter((l) => l.trim())
     for (const file of files) {
-      expect(file).toMatch(/\.omp\//)
+      expect(file).toMatch(/\.omp\/|\/omp\/sessions\/|\/omp\/profiles\//)
     }
   })
 
@@ -2157,5 +2157,104 @@ describe("discover-sessions", () => {
     expect(stderr).toBe("")
     const files = stdout.trim().split("\n").filter((l) => l.trim())
     expect(files).toEqual([sessionPath])
+  })
+
+  test("--platform omp discovers flattened XDG data-home sessions", async () => {
+    // omp getSessionsDir() redirects to $XDG_DATA_HOME/omp/sessions (no
+    // agent/ prefix) when XDG_DATA_HOME is set and that omp app root exists.
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const xdgHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-xdg-"))
+    const bucket =
+      "home-my-repo-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    const sessionPath = path.join(
+      xdgHome,
+      `omp/sessions/${bucket}/2026-04-07T09-00-00-000Z_test.jsonl`
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "omp"],
+      { HOME: tempHome, XDG_DATA_HOME: xdgHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("--platform omp discovers flattened XDG named-profile sessions", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const xdgHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-xdg-"))
+    const bucket =
+      "home-my-repo-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    const sessionPath = path.join(
+      xdgHome,
+      `omp/profiles/work/sessions/${bucket}/2026-04-07T09-00-00-000Z_test.jsonl`
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "omp"],
+      { HOME: tempHome, XDG_DATA_HOME: xdgHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("--platform omp does not treat ~/.local/share/omp as XDG without XDG_DATA_HOME", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const bucket =
+      "home-my-repo-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    const sessionPath = path.join(
+      tempHome,
+      `.local/share/omp/sessions/${bucket}/2026-04-07T09-00-00-000Z_test.jsonl`
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "omp"],
+      { HOME: tempHome, XDG_DATA_HOME: "" }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([])
+  })
+
+  test("--platform omp ignores XDG roots when PI_CODING_AGENT_DIR is set", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const xdgHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-xdg-"))
+    const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-agent-"))
+    const bucket =
+      "home-my-repo-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    const xdgSession = path.join(
+      xdgHome,
+      `omp/sessions/${bucket}/2026-04-07T09-00-00-000Z_xdg.jsonl`
+    )
+    const agentSession = path.join(
+      agentDir,
+      `sessions/${bucket}/2026-04-07T09-00-00-000Z_agent.jsonl`
+    )
+    await writeFixture(xdgSession, "omp-session.jsonl")
+    await writeFixture(agentSession, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "omp"],
+      {
+        HOME: tempHome,
+        XDG_DATA_HOME: xdgHome,
+        PI_CODING_AGENT_DIR: agentDir,
+      }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([agentSession])
   })
 })

@@ -192,18 +192,38 @@ discover_omp() {
     sanitized="$(printf '%s' "$REPO_NAME" | sed -E 's/[^a-zA-Z0-9._-]+/-/g; s/^-+//; s/-+$//' | tail -c 80)"
     [ -n "$sanitized" ] || sanitized="project"
     local agent_dir="${PI_CODING_AGENT_DIR:-$HOME/$config_dir/agent}"
+    # omp getSessionsDir() flattens the agent/ prefix under XDG: ~/.omp/agent/sessions
+    # becomes $XDG_DATA_HOME/omp/sessions (and $XDG_DATA_HOME/omp/profiles/<name>/sessions).
+    # Only linux/darwin, only when XDG_DATA_HOME is set and the omp app root exists,
+    # and only when PI_CODING_AGENT_DIR did not already take over the agent root.
+    local xdg_omp=""
+    if [ -z "${PI_CODING_AGENT_DIR:-}" ] && [ -n "${XDG_DATA_HOME:-}" ]; then
+        case "$(uname -s)" in
+            Linux|Darwin)
+                if [ -d "${XDG_DATA_HOME%/}/omp" ]; then
+                    xdg_omp="${XDG_DATA_HOME%/}/omp"
+                fi
+                ;;
+        esac
+    fi
     {
         local root dir encoded
         if [ -n "$REPO_CWD" ]; then
             encoded="$(encode_omp_raw_cwd "$REPO_CWD")"
             if [ -n "$encoded" ]; then
-                for root in "$agent_dir/sessions" "$HOME/$config_dir"/profiles/*/agent/sessions; do
+                for root in "$agent_dir/sessions" \
+                            "$HOME/$config_dir"/profiles/*/agent/sessions \
+                            ${xdg_omp:+"$xdg_omp/sessions"} \
+                            ${xdg_omp:+"$xdg_omp"/profiles/*/sessions}; do
                     [ -d "$root/$encoded" ] || continue
                     find "$root/$encoded" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
                 done
             fi
         fi
-        for root in "$agent_dir/sessions" "$HOME/$config_dir"/profiles/*/agent/sessions; do
+        for root in "$agent_dir/sessions" \
+                    "$HOME/$config_dir"/profiles/*/agent/sessions \
+                    ${xdg_omp:+"$xdg_omp/sessions"} \
+                    ${xdg_omp:+"$xdg_omp"/profiles/*/sessions}; do
             [ -d "$root" ] || continue
             for dir in "$root"/*"$sanitized"*/; do
                 [ -d "$dir" ] || continue
