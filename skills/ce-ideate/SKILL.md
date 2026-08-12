@@ -263,7 +263,7 @@ Include the conditional legs when they apply: issue intelligence adds its scan c
 **Name the ideation fleet without a number whenever a later phase decides it.** This notice fires before Phase 1 runs and before Phase 2's dispatch spec is loaded, so several counts are simply not knowable yet. Rather than track which, apply the rule: *if the number comes from a decision this phase has not made, describe the leg instead of counting it.* Known cases, not an exhaustive list —
 
 - **`go deep` / surprise-me** — variant counts live in `references/divergent-ideation.md`, loaded at Phase 2.
-- **Issue-tracker intent** — 4 theme agents if the Phase 1 scan returns usable themes, otherwise the default fleet.
+- **Issue-tracker intent** — 4 theme agents if the Phase 1 scan returns usable themes; otherwise it falls back to the six-frame default *at this run's own count*, which is 6 under `go deep` or surprise-me.
 - **Elsewhere-non-software** — `references/universal-ideation.md` picks a depth later, and only Full dispatches ideation agents at all.
 
 **Never reuse the ordinary five-agent figure to fill one of these gaps** — under an override it is the one number certain to be wrong. Tactical scope is the case that *is* resolvable: it changes volume and reads, never the agent count.

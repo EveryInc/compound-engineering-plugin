@@ -31,6 +31,8 @@ The insufficient-issue-signal fallback from Phase 1 drops back to the **six-fram
 
 Each frame targets ~6-8 ideas — **3-4 under tactical scope** — and a two-frame agent targets that per frame, yielding ~36-48 raw ideas in the default path (~18-24 tactical) or ~24-32 across 4 frames in issue-tracker mode; roughly 25-30 survive dedupe in the default path and fewer in the 4-frame path. **A raw-number volume request is a total, not a per-frame multiplier.** Divide it across the frames in play — `100 ideas` over six frames is ~16-17 each, not 100 each — and adjust the per-frame target to hit that total. Requests shaped like `top 3` constrain the *survivor* count instead and leave generation alone.
 
+**A total too small to spread across the frames is a survivor limit, not a generation target.** `3 ideas about auth` cannot mean three raw candidates divided six ways — that would either overshoot the ask or leave frames unrun, and the six-frame floor is not negotiable. Read any total at or below roughly one per frame the way `top 3` reads: generate normally, then cut to that many survivors.
+
 ## Dispatch Payload (cache-friendly, long-context ordered)
 
 Build one shared grounding block and keep it byte-identical across every ideation dispatch this run — identical prefixes let platforms with prompt caching reuse the expensive part. Longform shared material goes first; the agent-specific task goes last:

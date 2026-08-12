@@ -242,6 +242,29 @@ describe("ce-ideate user-research extraction keeps its routing test inline", () 
     ).toBe(true)
   })
 
+  test("a total too small to spread across the frames is a survivor limit", () => {
+    // "3 ideas about auth" cannot mean three raw candidates split six ways --
+    // that either overshoots the ask or leaves frames unrun, and the six-frame
+    // floor is not negotiable.
+    for (const [label, body] of [
+      ["divergent-ideation.md", DIVERGENT_BODY],
+      ["universal-ideation.md", UNIVERSAL_BODY],
+    ] as const) {
+      expect(
+        /survivor limit/i.test(body) && /too small to spread across the (six )?frames/i.test(body),
+        `${label} must read an under-floor total as a survivor limit, not a generation target.`,
+      ).toBe(true)
+    }
+  })
+
+  test("an explicit survivor count outranks the universal depth default", () => {
+    // `top 3 names for a coffee shop` returns three, whatever depth was chosen.
+    expect(
+      /An explicit survivor count in the prompt wins outright/i.test(UNIVERSAL_BODY),
+      "universal-ideation.md must let an explicit survivor count beat the depth-keyed default.",
+    ).toBe(true)
+  })
+
   test("an explicit volume override outranks the tactical default on both paths", () => {
     // divergent-ideation.md has always had the override escape; the universal
     // path hardcoded the tactical number, capping "100 quick wins" at 18-24.
@@ -501,7 +524,7 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
     // Quick promises 3-5; an unconditional 5-7 at convergence silently
     // re-expands a run the user asked to keep small.
     expect(
-      /Target the survivor count the selected depth promised/i.test(UNIVERSAL_BODY),
+      /target the count the selected depth promised/i.test(UNIVERSAL_BODY),
       "universal-ideation.md must key its survivor target to the chosen depth.",
     ).toBe(true)
     expect(
@@ -603,6 +626,12 @@ describe("ce-ideate cost transparency states no hand-maintained totals", () => {
     expect(
       /cluster call only if that scan returns usable signal/i.test(COST_0_6),
       "The issue cluster call must be stated as conditional on the scan's result.",
+    ).toBe(true)
+    // The fallback must inherit the run's own count, not the ordinary five --
+    // the bullet sat directly above a sentence forbidding that very figure.
+    expect(
+      /otherwise it falls back to the six-frame default \*at this run's own count\*/i.test(COST_0_6),
+      "The issue-tracker fallback must inherit this run's count, not read as the default five.",
     ).toBe(true)
     // The 6-agent go-deep/surprise-me variant lives in divergent-ideation.md,
     // loaded at Phase 2 -- so at notice time the count is genuinely unknown and
