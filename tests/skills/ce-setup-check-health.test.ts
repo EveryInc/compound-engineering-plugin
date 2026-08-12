@@ -118,6 +118,13 @@ describe("ce-setup check-health", () => {
     expect(template).not.toContain("fable_nudge")
   })
 
+  test("advertises the review-model config keys", async () => {
+    const template = await readFile(configTemplate, "utf8")
+
+    expect(template).toContain("review_model")
+    expect(template).toContain("review_effort")
+  })
+
   test("routes retired and malformed dormant engine settings into preference repair", async () => {
     const skill = await readFile(path.join(repoRoot, "skills", "ce-setup", "SKILL.md"), "utf8")
     const step3 = skill.match(/### Step 3:[\s\S]*?(?=### Step 4:)/)?.[0] ?? ""

@@ -406,6 +406,25 @@ describe("ce-code-review contract", () => {
     expect(content).toContain("adversarial-reviewer")
   })
 
+  test("Model tiering resolves review_model/review_effort config override for the trio", async () => {
+    const content = await readRepoFile(
+      "skills/ce-code-review/references/dispatch-reviewers.md",
+    )
+
+    expect(content).toContain("review_model")
+    expect(content).toContain("review_effort")
+
+    // Two-layer local-first read, same shape as the ce-docs-root block.
+    expect(content).toContain("config.local.yaml")
+    expect(content).toContain("config.yaml")
+
+    // The override is scoped to the three named reviewers only.
+    expect(content).toMatch(/correctness-reviewer.*security-reviewer.*adversarial-reviewer/s)
+
+    // Invalid or missing values fall through silently -- never a passed-through typo'd pin.
+    expect(content).toMatch(/fall(s)? through silently/i)
+  })
+
   test("Stage 4 concurrent-batch dispatch preserves cap-safety and determinism", async () => {
     const content = await readRepoFile(
       "skills/ce-code-review/references/dispatch-reviewers.md",
