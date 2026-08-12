@@ -141,6 +141,15 @@ describe("user-facing skill invocation rendering", () => {
     expect(optimize).toContain("**Run `ce-compound`**")
   })
 
+  test("static ce-optimize examples use host-neutral capability wording", () => {
+    const usageGuide = readRepoFile("skills/ce-optimize/references/usage-guide.md")
+
+    expect(usageGuide).toContain("Run the `ce-optimize` skill to find")
+    expect(usageGuide).toContain("Run the `ce-optimize` skill to improve")
+    expect(usageGuide).toContain("Run the `ce-optimize` skill to create")
+    expect(usageGuide).not.toContain("Use /ce-optimize")
+  })
+
   test("Codex goal remains a built-in exception, not a converted skill invocation", () => {
     const plan = readRepoFile("skills/ce-plan/SKILL.md")
     const planHandoff = readRepoFile("skills/ce-plan/references/plan-handoff.md")
