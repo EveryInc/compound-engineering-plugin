@@ -73,15 +73,6 @@ type SharedRule = {
 
 const SHARED_CONTRACT: SharedRule[] = [
   {
-    rule: "a fallback restores the frame set and re-derives no budget",
-    why:
-      "Three sites state this fallback. Each named specific values (5 agents, tactical's volume), " +
-      "so a run whose explicit override had already won got reset to a mode default.",
-    softwareFile: "references/divergent-ideation.md",
-    software: /carrying every value this run has already resolved/i,
-    universal: /explicit survivor count in the prompt wins outright/i,
-  },
-  {
     rule: "frames are a starting bias, not a constraint",
     why: "Without it an agent treats its frame as a fence and drops cross-cutting ideas.",
     softwareFile: "references/divergent-ideation.md",

@@ -19,7 +19,7 @@ Two outcomes end the lens before the cluster call. Both are warn-and-proceed —
 - **First line is the `Issue analysis unavailable:` marker** (no reachable tracker) — log `"{that message}. Proceeding with standard ideation."` and continue with the remaining grounding.
 - **Fewer than 5 eligible issues** — note `"Insufficient issue signal for theme analysis"` and continue.
 
-In both cases Phase 2 falls back to the six-frame default fleet rather than the 4-agent issue-tracker fleet, **carrying every value this run has already resolved** — agent count, per-frame volume, read budget, and any explicit user override. The fallback restores the default *frame set* and nothing else; see the fleet variants in `references/divergent-ideation.md`. No scoping question is asked.
+In both cases Phase 2 falls back to the six-frame default fleet rather than the 4-agent issue-tracker fleet — and **a fallback preserves what the user asked for and re-derives what the mode computed.** Keep the user's expressed intent — the raw total, an explicit survivor count, `go deep`, a tactical signal. Re-derive everything the mode had computed *for the surface being abandoned*: the agent count, the per-frame split, and the read budget that followed from them. The frame set changes from at most 4 themes to the 6 defaults, so carrying the old agent count would leave 4 agents holding 6 frames — the packing this skill rejects — and carrying the old per-frame volume would multiply a requested total by the new frame count. See the fleet variants in `references/divergent-ideation.md`. No scoping question is asked.
 
 ## b. Scoping gate (the orchestrator decides; at most one question)
 
