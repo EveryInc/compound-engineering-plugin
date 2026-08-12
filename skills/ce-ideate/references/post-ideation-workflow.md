@@ -39,7 +39,7 @@ Score survivors using a consistent rubric weighing: groundedness in stated conte
 Target output:
 - **an explicit survivor count in the prompt wins outright** — `top 3`, or a total too small to spread across the frames; absent one, keep 5-7 survivors
 - if too many survive, run a second stricter pass
-- if fewer than the target survive, report that honestly rather than lowering the bar
+- if fewer than that count survive — five, on a default run — report that honestly rather than lowering the bar
 
 ## Phase 4: Write and Present the Deliverable
 
