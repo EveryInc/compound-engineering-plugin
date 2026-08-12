@@ -239,8 +239,11 @@ them fire.
   rules" below. Distinct from Planning Contract's Key Technical Decisions,
   which record how-level choices; a product decision belongs here, and a KTD
   cites it rather than mirroring it. Skip only when no such
-  choice exists on either side: every requirement follows directly from the
-  request, and any upstream Product Contract weighed no alternatives either.
+  choice exists on any side: every requirement follows directly from the
+  request, any upstream Product Contract weighed no alternatives, and the
+  session settled none. A `session-settled:` decision always keeps the
+  section — plan-write and the routing table both require its labeled entry
+  to live here.
 
 - **Success Criteria** — include when there are quality / metric / handoff
   signals that Requirements don't already carry: quantitative metrics ("p95

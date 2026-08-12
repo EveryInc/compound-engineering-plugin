@@ -252,7 +252,7 @@ The planning bootstrap should establish:
 
 Keep this bootstrap brief. It exists to preserve direct-entry convenience, not to replace a full brainstorm.
 
-**Exit condition:** Exit the bootstrap when each of these holds, OR the user explicitly wants to proceed: the problem frame is stated; the in-scope and out-of-scope boundaries that matter are known; success criteria or acceptance signals are known or recorded as assumptions. Recording an item as an assumption satisfies its clause — that is what makes the gate passable in headless mode and on a `SKIP_SCOPING_CONFIRM` run, where no synchronous user exists to answer; those assumptions route to `### Assumptions` at Phase 5.2 under the existing routing. A session-settled decision counts as already-established for every clause it covers — never re-ask it. This gate covers the bootstrap only; it adds no gate to Phase 2's planning questions or the brainstorm-sourced Phase 5.1.5 path.
+**Exit condition:** Exit the bootstrap when each of these holds, OR the user explicitly wants to proceed: the problem frame is stated; the in-scope and out-of-scope boundaries that matter are known; success criteria or acceptance signals are known or recorded as assumptions. Recording an item as an assumption satisfies the boundaries and success-signal clauses — that is what makes the gate passable in headless mode and on a `SKIP_SCOPING_CONFIRM` run, where no synchronous user exists to answer. The problem-frame clause is the exception: it must be **stated**, because the hard floor contains `Problem Frame` unconditionally and an assumed frame would either leave a mandatory section empty or promote an unvalidated guess into product scope. When the prompt does not supply one, derive it from the request's own motivation rather than assuming it, or stop and ask; those assumptions route to `### Assumptions` at Phase 5.2 under the existing routing. A session-settled decision counts as already-established for every clause it covers — never re-ask it. This gate covers the bootstrap only; it adds no gate to Phase 2's planning questions or the brainstorm-sourced Phase 5.1.5 path.
 
 If the bootstrap uncovers major unresolved product questions:
 - Recommend `ce-brainstorm` again
@@ -626,7 +626,7 @@ Use one planning philosophy across all depths. Change the amount of detail, not 
 
 For sufficiently large, risky, or cross-cutting work, add the sections that genuinely help:
 - **Alternative Approaches Considered**
-- **Success Metrics** — engineering-facing measurements for the deep-plan tier (throughput, error budgets, rollout dashboards). Distinct from the Product Contract's `### Success Criteria`, which states the product outcome and fires on its own catalog entry in `references/plan-sections.md`. A plan may carry both; when only one applies, it is almost always Success Criteria.
+- **Success Metrics** — operational instrumentation for the deep-plan tier: dashboards, error budgets, alert thresholds, and rollout telemetry. A threshold that *is* the product outcome (p95 latency, delivery rate, adoption) belongs to the Product Contract's `### Success Criteria` and never appears here as well; Success Metrics covers only what Success Criteria does not already state. When only one applies, it is almost always Success Criteria.
 - **Dependencies / Prerequisites**
 - **Risk Analysis & Mitigation**
 - **Phased Delivery**

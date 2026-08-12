@@ -247,7 +247,7 @@ U1 and U8 are the two behavior changes and can land in parallel. U2 and U4 are i
 - **Patterns to follow:** the five cited `brainstorm-sections.md` entries for phrasing; the surrounding `plan-sections.md` catalog entries for entry shape.
 - **Test scenarios:**
   - The catalog contains entries for Problem Frame, Key Decisions, Success Criteria, Actors, and Key Flows.
-  - Each new entry states a firing condition and a skip condition.
+  - Each new entry states a firing condition; the four conditional entries also state a skip condition.
   - No new entry introduces a second idiom for a rule `ce-brainstorm` already phrases.
   - The Key Decisions entry carries an authored skip test, and the Problem Frame entry carries none.
   - `:171-175` is byte-unchanged.
@@ -327,7 +327,7 @@ U1 and U8 are the two behavior changes and can land in parallel. U2 and U4 are i
   - Removing the Success Criteria destination from any one of the five routing statements fails the suite.
   - Removing the session-settled Key Decisions row from the interactive table fails the suite.
   - Removing any of the five product-section catalog entries fails the suite.
-  - Removing the skip test from any of them fails the suite.
+  - Removing the skip test from any of the four conditional entries fails the suite.
   - Removing the exemption list from the dissolve clause fails the suite.
   - Renaming `date` to `created` in the contract text fails the suite.
   - Dropping the ` - Plan` suffix rule fails the suite.

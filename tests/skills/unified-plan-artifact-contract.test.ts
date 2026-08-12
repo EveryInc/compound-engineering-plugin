@@ -1009,9 +1009,16 @@ describe("Product Contract section catalog and routing destinations", () => {
   })
 
   test("Success Metrics and Success Criteria are distinguished, not collided", () => {
+    // Both names exist in ce-plan, so the boundary between them must be stated
+    // once and be exclusive — an overlapping definition let the same p95 target
+    // belong to either section.
     expect(
-      /Success Metrics.*Distinct from the Product Contract's `### Success Criteria`/s.test(planSkill),
+      /Success Metrics.*`### Success Criteria`/s.test(planSkill),
       "ce-plan names both `Success Metrics` (deep-plan extension) and `Success Criteria` (Product Contract subsection); the relationship must be stated once so a future author does not merge them.",
+    ).toBe(true)
+    expect(
+      /never appears here as well|only what Success Criteria does not already state/.test(planSkill),
+      "The Success Metrics definition must claim an exclusive boundary, or a product-outcome threshold lands in both sections.",
     ).toBe(true)
   })
 })
