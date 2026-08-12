@@ -862,6 +862,14 @@ describe("Product Contract section catalog and routing destinations", () => {
         `The '${name}' catalog entry needs a skip test. A firing rule with no skip rule fires on everything, which the include-when-material doctrine treats as broken.`,
       ).toBe(true)
     }
+    // Enriching a legacy requirements doc inherits decisions made during
+    // brainstorming, and Phase 0.3 requires carrying them forward — a
+    // planning-only firing rule would silently drop them.
+    expect(
+      /inherited from an upstream Product Contract/.test(entryBlock(catalog, "Key Decisions")),
+      "The Key Decisions firing rule must cover decisions inherited from an upstream Product Contract, not only choices made during planning.",
+    ).toBe(true)
+
     expect(
       /\bskip\b/i.test(entryBlock(catalog, "Problem Frame")),
       "The Problem Frame entry must NOT carry a skip test — the hard floor contains it unconditionally, so a skip rule would let an implementation-ready plan omit a mandatory section.",

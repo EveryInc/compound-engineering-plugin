@@ -227,17 +227,20 @@ them fire.
   echo the origin document. Backward-looking / situational. Does NOT restate
   the proposal; the remedy lives in Summary.
 
-- **Key Decisions** — include when planning made product-level choices that
-  constrain the Requirements below: scope narrowings, defaults chosen against
-  a real alternative, framing the user picked. Each entry is a provenance
+- **Key Decisions** — include when the plan carries product-level choices
+  that constrain the Requirements below, whether made during planning (scope
+  narrowings, defaults chosen against a real alternative, framing the user
+  picked) or inherited from an upstream Product Contract, which Phase 0.3
+  requires carrying forward with its rationale. Each entry is a provenance
   index entry, not a second statement of the rule: the decision in bold, at
   most one line of rationale, and exact `Governs R5, R7` links when it
   constrains specific requirements. The normative text lives on the governed
   Rs. Session-settled annotations follow the rules under "ID and content
   rules" below. Distinct from Planning Contract's Key Technical Decisions,
   which record how-level choices; a product decision belongs here, and a KTD
-  cites it rather than mirroring it. Skip when every requirement follows
-  directly from the request with no alternative weighed.
+  cites it rather than mirroring it. Skip only when no such
+  choice exists on either side: every requirement follows directly from the
+  request, and any upstream Product Contract weighed no alternatives either.
 
 - **Success Criteria** — include when there are quality / metric / handoff
   signals that Requirements don't already carry: quantitative metrics ("p95
