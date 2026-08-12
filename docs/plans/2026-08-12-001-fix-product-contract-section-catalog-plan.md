@@ -83,8 +83,8 @@ R-IDs are stable. R4 was withdrawn during review when the evidence for a missing
 **Section catalog (primary fix)**
 
 - R7. `ce-plan` carries a `Success Criteria` include-when-material entry with both a firing test and a skip test.
-- R17. `ce-plan` carries include-when-material entries for `Problem Frame`, `Key Decisions`, `Actors`, and `Key Flows`, each with a firing test and a skip test.
-- R18. The `Problem Frame` and `Key Decisions` skip tests are authored for the plan context, since `ce-brainstorm` states none for those two sections.
+- R17. `ce-plan` carries include-when-material entries for `Problem Frame`, `Key Decisions`, `Actors`, and `Key Flows`. `Key Decisions`, `Actors`, and `Key Flows` each carry a firing test and a skip test; `Problem Frame` carries a firing test only, because the hard floor contains it unconditionally.
+- R18. The `Key Decisions` skip test is authored for the plan context, since `ce-brainstorm` states none for it.
 
 **Elicitation gate**
 
@@ -433,7 +433,7 @@ surfaced a defect in U1's own catalog preamble, since fixed.
 
 ### Global
 
-- `ce-plan`'s catalog carries entries for Problem Frame, Key Decisions, Success Criteria, Actors, and Key Flows, each with a firing test and a skip test, and the hard-floor enumeration is unchanged.
+- `ce-plan`'s catalog carries entries for Problem Frame, Key Decisions, Success Criteria, Actors, and Key Flows. All five state a firing test; the four conditional ones also state a skip test, and Problem Frame states none because the hard floor contains it unconditionally. The hard-floor enumeration is unchanged.
 - `ce-plan`'s Phase 0.4 bootstrap carries an exit condition covering problem frame, scope boundaries, and success criteria, passable by recording assumptions.
 - All five routing statements name the same Product Contract destinations, including Success Criteria.
 - `### Problem Frame` has a destination on the headless path.

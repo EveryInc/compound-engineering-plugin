@@ -933,9 +933,12 @@ describe("Product Contract section catalog and routing destinations", () => {
       /Problem Frame merges into Summary/.test(agency),
       "The agency list is expected to still mention the Problem Frame merge; if it was deleted outright, drop this guard rather than letting it pass vacuously.",
     ).toBe(true)
+    // Require the blocking sentence itself, not an alternative: an OR here let
+    // the clause that actually prevents the omission be deleted while the pin
+    // still passed.
     expect(
-      /implementation-ready.*keeps both\s+headings|lightweight and legacy plans/s.test(agency),
-      "The Problem Frame merge escape must be scoped away from implementation-ready unified plans, or it removes a hard-floor heading downstream consumers anchor on.",
+      /`ce-unified-plan\/v1` artifact keeps both\s+headings/s.test(agency),
+      "The Problem Frame merge escape must be scoped away from every ce-unified-plan/v1 artifact, or it removes a hard-floor heading downstream consumers anchor on.",
     ).toBe(true)
   })
 
