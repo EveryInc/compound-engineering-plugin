@@ -578,6 +578,7 @@ describe("ce-setup check-health", () => {
     expect(skill).toContain("Set up a repo config file for this project?")
     expect(skill).toContain("copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.yaml`")
     expect(skill).toContain("Do not create `config.local.yaml`")
+    expect(skill).toContain("offer to move it into `config.yaml`")
     expect(skill).not.toContain("Set up a local config file for this project?")
     expect(skill).not.toContain("copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.local.yaml`")
   })

@@ -62,6 +62,17 @@ describe("config-layers rule shared-asset parity", () => {
     expect(block).toContain("Do not** use this rule for `docs_root`")
   })
 
+  test("cross-model peer resolution continues past an invalid local scalar", async () => {
+    for (const rel of [
+      "skills/ce-code-review/references/cross-model-review.md",
+      "skills/ce-doc-review/references/cross-model-review.md",
+    ]) {
+      const content = await readFile(path.join(REPO_ROOT, rel), "utf8")
+      expect(content, rel).toContain("invalid value continues to the next layer")
+      expect(content, rel).not.toContain("first active value wins")
+    }
+  })
+
   test("pulse and sweep first-run on key-unset, not file-missing", async () => {
     const pulse = await readFile(path.join(REPO_ROOT, "skills/ce-product-pulse/SKILL.md"), "utf8")
     const sweep = await readFile(path.join(REPO_ROOT, "skills/ce-sweep/SKILL.md"), "utf8")
