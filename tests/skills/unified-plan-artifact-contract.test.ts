@@ -924,6 +924,26 @@ describe("Product Contract section catalog and routing destinations", () => {
     ).toBe(true)
   })
 
+  test("the headless Success Criteria destination takes Stated signals only", () => {
+    // The unconfirmed paths (headless, SKIP_SCOPING_CONFIRM) never validate an
+    // Inferred bet, so routing an inferred success signal into an unlabeled
+    // Product Contract section contradicts the `### Assumptions` firewall.
+    // Two independent reviewers caught this collision on PR #1359.
+    const headless = sliceSection(
+      planSynthesisSummary,
+      "Route internal-draft content with mode-aware shape",
+      "The `### Assumptions` section appears",
+    )
+    expect(
+      /Success signals — Stated only/.test(headless),
+      "The headless routing list must restrict the Success Criteria destination to Stated signals; an inferred one belongs in `### Assumptions`.",
+    ).toBe(true)
+    expect(
+      /Success signals.*\(Stated or Inferred\)/.test(headless),
+      "The headless Success Criteria destination must not offer Inferred content — that reopens the firewall contradiction.",
+    ).toBe(false)
+  })
+
   test("the silent-dissolve rule names which Inferred items are exempt", () => {
     expect(planSynthesisSummary).toMatch(
       /exempt from that silent dissolve.*success criteria extrapolated from intent.*scope boundaries the user never explicitly named/s,

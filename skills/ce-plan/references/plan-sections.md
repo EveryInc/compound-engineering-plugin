@@ -215,9 +215,10 @@ The first five entries below carry the Product Contract's product framing —
 what is being built and why. Later entries mix Product Contract subsections
 (Scope Boundaries, Open Questions, Acceptance Examples, Sources) with
 Planning Contract ones; the hard floor above remains authoritative for which
-section sits under which contract. A plan that skips all five framing entries
-has usually inherited its framing from an upstream Product Contract — check
-before concluding none of them fire.
+section sits under which contract. Problem Frame is unconditional; the other four fire on their own tests. A plan
+that skips all four conditional framing entries has usually inherited its
+framing from an upstream Product Contract — check before concluding none of
+them fire.
 
 - **Problem Frame** — the hard floor above contains it unconditionally, so
   this entry governs its depth, never whether to include it. Give it
