@@ -108,4 +108,4 @@ Each bucket holds `<timestamp>_<sessionId>.jsonl` files.
 
 Every session JSONL physically begins with a fixed-width 256-byte `{"type":"title","v":1,...,"pad":"..."}` slot line, followed by a pi-shaped `{"type":"session","version":3,...,"cwd":...}` header. This title-slot-first shape distinguishes omp session files from pi session files, which start directly with the `type:"session"` header.
 
-Known gap: XDG-relocated roots (`$XDG_DATA_HOME/omp`) are not scanned by CE's session-discovery script.
+Known gap: CE's session-history discovery does not yet support omp. The entire integration — including default, override, named-profile, and XDG-relocated roots — is deferred to [#1333](https://github.com/EveryInc/compound-engineering-plugin/pull/1333).
