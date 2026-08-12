@@ -136,6 +136,7 @@ Applying review, peer, or eval feedback to a skill is a material revision govern
 2. **Owning layer** — for each Change, identify its owning layer: activation contract, outcome spine or skill boundary, runtime protocol, loading or placement, deterministic enforcement, or shared authoring rule.
 3. **Mechanism** — fix the gap at its owning layer. Add prose only when it is the smallest mechanism that closes the gap, and then only the smallest falsifiable unit per the Skill Prose Admission Rules.
 4. **Reconcile** — reread the affected block; remove or rewrite text the change makes conflicting, duplicated, or obsolete. Resolve conflicting feedback items rather than stacking both.
+5. **Stop the accretion loop** — when a finding targets text an earlier round added, prefer deleting that addition over qualifying it; a section that has absorbed three rounds of additions is itself the defect. After collapsing one, re-verify the shortened rule against every path it served: a condensed rule that no longer names a path is a new defect, not a simplification.
 
 When evidence shows the same cause across skills, fix the shared guide, rule, or mechanism unless the skills' contracts materially differ.
 
