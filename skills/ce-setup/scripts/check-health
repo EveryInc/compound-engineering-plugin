@@ -97,7 +97,7 @@ resolve_docs_root() {
   local repo_root="$1"
   local local_cfg="$repo_root/.compound-engineering/config.local.yaml"
   local tracked_cfg="$repo_root/.compound-engineering/config.yaml"
-  local value="" source="" repo_real real local_docs
+  local value="" source="" repo_real real local_docs probe
 
   docs_root_error=""
   docs_root_local_ignored=""
@@ -192,22 +192,18 @@ resolve_ordinary_scalar() {
 }
 
 # Present list/map key (including `[]`) wins that layer. Sets
-# structured_file and structured_source, or both empty when neither layer
-# sets the key.
+# structured_file, or empty when neither layer sets the key.
 resolve_structured_layer() {
   local local_file="$1"
   local tracked_file="$2"
   local config_key="$3"
   structured_file=""
-  structured_source=""
   if [ -f "$local_file" ] && has_flat_config_key "$local_file" "$config_key"; then
     structured_file="$local_file"
-    structured_source="config.local.yaml"
     return
   fi
   if [ -f "$tracked_file" ] && has_flat_config_key "$tracked_file" "$config_key"; then
     structured_file="$tracked_file"
-    structured_source="config.yaml"
   fi
 }
 
@@ -363,13 +359,12 @@ if [ "$in_repo" = "yes" ]; then
   case "$work_engine_mode" in
     ""|off|prefer|require) ;;
     *)
-      if [ -f "$tracked_config_path" ] && [ "$ordinary_source" = "config.local.yaml" ]; then
-        tracked_mode=$(read_flat_config_value "$tracked_config_path" "work_engine_mode")
-        case "$tracked_mode" in
-          off|prefer|require)
-            work_engine_mode="$tracked_mode"
-            ;;
-        esac
+      if [ "$ordinary_source" = "config.local.yaml" ]; then
+        if [ -f "$tracked_config_path" ]; then
+          work_engine_mode=$(read_flat_config_value "$tracked_config_path" "work_engine_mode")
+        else
+          work_engine_mode=""
+        fi
       fi
       ;;
   esac
@@ -580,8 +575,6 @@ if [ "$in_repo" = "yes" ]; then
     warn "CE Work implementation engine unavailable: ${work_engine_detail}"
   elif [ "$work_engine_cfg" = "invalid" ]; then
     warn "CE Work implementation engine: ${work_engine_detail}"
-  elif [ "$work_engine_cfg" = "skip" ]; then
-    skip "CE Work implementation engine: native (setting is commented or missing)"
   fi
   [ -n "$work_engine_migration_note" ] && warn "$work_engine_migration_note"
 

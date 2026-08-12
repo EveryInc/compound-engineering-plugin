@@ -322,7 +322,7 @@ describe("ce-setup check-health", () => {
     }
   })
 
-  test("invalid mode falls through to native and is reported", async () => {
+  test("invalid local mode continues to tracked, then native when tracked is unset", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
 
     try {
@@ -331,8 +331,32 @@ describe("ce-setup check-health", () => {
       const result = await runCheckHealth(root, "/usr/bin:/bin")
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain("invalid mode 'sometimes' ignored; native is the default")
-      expect(result.stdout).toContain("1 project issue(s) found")
+      expect(result.stdout).toContain("CE Work implementation engine: native (setting is commented or missing")
+      expect(result.stdout).not.toContain("invalid mode 'sometimes'")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("invalid local mode yields to a valid tracked mode", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
+      await writeFile(
+        path.join(root, ".compound-engineering", "config.yaml"),
+        "work_engine_mode: prefer\nwork_engine_preferences:\n  - harness: claude\n",
+      )
+      await writeFile(path.join(root, ".compound-engineering", "config.local.yaml"), "work_engine_mode: sometimes\n")
+      await writeFile(path.join(root, ".gitignore"), ".compound-engineering/*.local.yaml\n")
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("CE Work implementation engine: prefer -> claude@default")
+      expect(result.stdout).not.toContain("invalid mode")
     } finally {
       await rm(root, { recursive: true, force: true })
     }
