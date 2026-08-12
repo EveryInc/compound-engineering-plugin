@@ -453,6 +453,33 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
     ).toBe(false)
   })
 
+  test("a raised volume override lifts the tactical read cap with it", () => {
+    // The tactical read cut is justified only by the matching volume cut --
+    // the per-idea verification ratio is the invariant. "100 quick wins" at
+    // 16-17 ideas per frame against a 2-3 read cap breaks exactly that.
+    expect(
+      /\*\*Reads track ideas\.\*\*/.test(DIVERGENT_BODY),
+      "divergent-ideation.md must tie the read budget to the generation volume.",
+    ).toBe(true)
+    expect(
+      /Never run raised volume against a lowered read cap/i.test(DIVERGENT_BODY),
+      "The reads-track-ideas rule must state the forbidden combination explicitly.",
+    ).toBe(true)
+  })
+
+  test("the universal survivor target follows the selected depth", () => {
+    // Quick promises 3-5; an unconditional 5-7 at convergence silently
+    // re-expands a run the user asked to keep small.
+    expect(
+      /Target the survivor count the selected depth promised/i.test(UNIVERSAL_BODY),
+      "universal-ideation.md must key its survivor target to the chosen depth.",
+    ).toBe(true)
+    expect(
+      /3-5 at Quick, 5-7 at Standard or Full/i.test(UNIVERSAL_BODY),
+      "The depth-keyed survivor targets must be stated concretely.",
+    ).toBe(true)
+  })
+
   test("go deep still scales up, so the two overrides stay symmetric", () => {
     expect(/scale up/i.test(VOLUME_0_5) && /scale down/i.test(VOLUME_0_5)).toBe(true)
     expect(

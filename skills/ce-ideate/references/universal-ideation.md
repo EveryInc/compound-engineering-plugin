@@ -99,7 +99,7 @@ Before the final cut, dispatch one fresh-context basis verifier (generation tier
 
 Apply adversarial critique. For each candidate, write a one-line reason if rejected. **Basis-integrity check:** reject any idea lacking an articulated basis, any idea whose stated basis does not actually support the claimed move (speculation dressed as ambition), and any idea that replaces the subject rather than operating on it. Score survivors using a consistent rubric weighing: groundedness in stated context, **basis strength** (`direct:` > `external:` > `reasoned:`; none excluded, but direct-evidence ideas score higher all else equal), expected value, novelty, pragmatism, leverage, implementation burden, overlap with stronger candidates, and **axis spread** (when axes were defined) — survivor sets that cover the topic's surface outscore sets that cluster on one axis, all else equal. Axis spread is a list-level concern, not a per-idea reject reason; apply it after per-idea filtering when choosing among comparable candidates.
 
-Target 5-7 survivors by default. If too many survive, run a second stricter pass. If fewer than five survive, report that honestly rather than lowering the bar.
+**Target the survivor count the selected depth promised** — 3-5 at Quick, 5-7 at Standard or Full — rather than a flat default, so a `quick wins` run that chose Quick is not quietly expanded back to the standard set. If too many survive, run a second stricter pass. If fewer survive than the depth's floor, report that honestly rather than lowering the bar.
 
 ## When to wrap up
 

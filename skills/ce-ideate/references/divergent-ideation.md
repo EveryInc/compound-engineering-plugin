@@ -49,6 +49,8 @@ The `<constraints>`/`<background>` split is the primary defense against groundin
 
 **Verification reads (repo mode).** After an agent makes its internal cut, it may spend up to 5 targeted reads — 10 under `go deep`, 2-3 under tactical scope — following dossier `file:line` pointers to verify or deepen the bases of ideas it will submit. A `direct:` basis must quote a line the agent actually read — in a dossier or in the repo — never a guessed citation. Elsewhere modes verify against the user-supplied context — including reading user-research dossiers when present — instead of reading repo files.
 
+**Reads track ideas.** The tactical read cut exists only because tactical also cuts generation; the ratio between them is the point, since it is what keeps each `direct:` basis actually checked. So when an explicit volume override raises the per-frame target back above the tactical default, the tactical read cap lifts with it — `100 quick wins` generates at the override's level and verifies at the ordinary 5-read budget, not 2-3. Never run raised volume against a lowered read cap.
+
 ## Frames
 
 Assign each sub-agent its frame (or frame pair) as a **starting bias, not a constraint**. Prompt each to begin from its assigned perspective but follow any promising thread -- cross-cutting ideas that span multiple frames are valuable.
