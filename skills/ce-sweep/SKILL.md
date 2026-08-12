@@ -36,7 +36,7 @@ fi
 
 ## Interaction Method
 
-Default to the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension), `ask` in oh-my-pi (`omp`). Never silently skip a question you owe the user; if no blocking tool exists in the harness, the run is non-interactive (see Mode). Ask one question at a time — the decision round (2h) may group by category but still asks one blocking question per category.
+Default to the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Never silently skip a question you owe the user; if no blocking tool exists in the harness, the run is non-interactive (see Mode). Ask one question at a time — the decision round (2h) may group by category but still asks one blocking question per category.
 
 ## Mode
 

@@ -280,6 +280,9 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
   test("grok CLI: deny Read + web/subagents off + dontAsk + effort high", () => {
     const cmd = emitAdapter("grok-cli")
     expect(cmd).toContain("--deny Read")
+    // Load-bearing with --deny Read: without --verbatim grok offloads a large
+    // prompt to a session file the peer is then forbidden to read back.
+    expect(cmd).toContain("--verbatim")
     expect(cmd).toContain("--disable-web-search")
     expect(cmd).toContain("--no-subagents")
     expect(cmd).toContain("--permission-mode dontAsk")

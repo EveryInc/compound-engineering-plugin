@@ -216,7 +216,9 @@ adapter_argv() {
       ;;
     grok-cli)
       # Schema forces buffered json — hard-only, no PEERLOG idle (#1270).
-      printf '%s\0' grok --prompt-file "$PROMPT_FILE" --model "$(route_model grok-cli)" --effort high \
+      # --verbatim: without it grok offloads a large prompt to a session file and
+      # sends only a preview, spending scarce turns to re-read what it was given.
+      printf '%s\0' grok --prompt-file "$PROMPT_FILE" --verbatim --model "$(route_model grok-cli)" --effort high \
         --cwd "$READ_ROOT" --permission-mode dontAsk \
         --deny Edit --deny Write --deny Bash --deny Task --deny 'mcp__*' \
         --no-subagents --max-turns 15 \

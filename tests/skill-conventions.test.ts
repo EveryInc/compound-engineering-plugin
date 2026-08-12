@@ -645,6 +645,28 @@ function findPlatformVarViolations(markdown: string): PlatformVarOccurrence[] {
 
 const skillDirs = listSkillDirs()
 
+describe("portable skill capability wording", () => {
+  test("does not hardcode oh-my-pi tool names", () => {
+    const offenders: string[] = []
+    for (const skill of skillDirs) {
+      for (const filePath of listMarkdownFiles(skill.absPath)) {
+        const fileRel = path.relative(REPO_ROOT, filePath)
+        const lines = readFileSync(filePath, "utf8").split("\n")
+        for (const [index, line] of lines.entries()) {
+          if (/oh-my-pi[^\n]*`(?:ask|task)`|`(?:ask|task)`[^\n]*oh-my-pi/i.test(line)) {
+            offenders.push(`${fileRel}:${index + 1}`)
+          }
+        }
+      }
+    }
+
+    expect(
+      offenders,
+      "Skills should describe blocking-question and subagent capabilities without adding oh-my-pi-specific tool names.",
+    ).toEqual([])
+  })
+})
+
 describe("skill self-containment (AGENTS.md 'File References in Skills')", () => {
   for (const skill of skillDirs) {
     test(`${skill.relPath} has no file references escaping the skill directory`, () => {

@@ -224,7 +224,9 @@ adapter_argv() {
     grok-cli)
       # Read allowed (in-tree context); deny writes / shell / subagents / web / MCP.
       # Schema forces non-streaming json on grok — keep hard-only (no PEERLOG idle).
-      printf '%s\0' grok --prompt-file "$PROMPT_FILE" --model "$(route_model grok-cli)" --effort high \
+      # --verbatim: without it grok offloads a large prompt to a session file and
+      # sends only a preview, spending scarce turns to re-read what it was given.
+      printf '%s\0' grok --prompt-file "$PROMPT_FILE" --verbatim --model "$(route_model grok-cli)" --effort high \
         --cwd "$PEER_WORKDIR" --permission-mode dontAsk
       [ -z "${LARGE_DIFF_CONTEXT_DIR:-}" ] || printf '%s\0' --allow "Read($LARGE_DIFF_CONTEXT_DIR/**)"
       printf '%s\0' --deny Edit --deny Write --deny Bash --deny Task --deny 'mcp__*' \
