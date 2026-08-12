@@ -36,7 +36,7 @@ This step is the facilitator's own analysis — no sub-agent, no additional rese
 
 Axes should be:
 
-- **3-5 in number.** Fewer means atomic — skip decomposition. More fragments coverage.
+- **3-5 in number** (3 max when tactical scope is active). Fewer means atomic — skip decomposition. More fragments coverage.
 - **Orthogonal.** A single idea should fall on one axis, not span multiple.
 - **Derived from grounding**, not from a generic template.
 - **At the same level** of granularity.
@@ -58,6 +58,8 @@ Record the axes (or skip-reason) at the head of generation. Generation will dist
 ## How to generate
 
 Generate the full candidate list before critiquing any idea. Use the same six frames as software ideation, described in domain-agnostic language. Each frame is a **starting bias, not a constraint** — follow promising threads across frames. When dispatching frames as parallel sub-agents (Full depth), follow SKILL.md Model Tiers: evidence-driven frames (pain, inversion, leverage) on the generation tier; ceiling frames (assumption-breaking, analogy, constraint-flipping) on the ceiling tier.
+
+**Tactical scope applies here too.** This mode replaces the software frame dispatch, so it never loads `references/divergent-ideation.md` and would otherwise miss the Phase 0.5 scaling entirely — a request like "quick wins for this launch strategy" must not get the full treatment. When tactical scope is active: pack the six frames into **2 sub-agents (3 frames each)** at Full depth rather than one per frame, cap decomposition at 3 axes, and waive the meeting-test floor for the generators *and* in the basis verifier's payload (see "How to converge"). Frame coverage is a floor here as in software mode — fewer agents, never fewer lenses. Tactical scope also biases the depth choice in "How to start" toward Quick or Standard. `go deep` suppresses tactical scope entirely, per Phase 0.5.
 
 - **Pain and friction** — what is consistently annoying, slow, or broken in the current state of the topic? Generate ideas that remove or reduce that friction.
 - **Inversion, removal, automation** — what would happen if a step were inverted, removed entirely, or automated away? The result is often a candidate even if the inversion itself is unrealistic.
@@ -84,7 +86,7 @@ Aim for 5-8 ideas per frame. **When axes are present, distribute ideas across ax
 
 ## How to converge
 
-Before the final cut, dispatch one fresh-context basis verifier (generation tier — see SKILL.md Model Tiers) whose payload is only the grounding summary and the candidate list, prompted to refute: bases that don't support the claimed move, prior art that isn't real or relevantly analogous, reasoned arguments that don't hold. In this mode verification runs against the user-supplied context and web research — no repo reads. Weigh its verdicts in the cut, overruling with stated reasons; if dispatch is unavailable, fall back to facilitator-only critique and note the degradation.
+Before the final cut, dispatch one fresh-context basis verifier (generation tier — see SKILL.md Model Tiers) whose payload is only the grounding summary and the candidate list, prompted to refute: bases that don't support the claimed move, prior art that isn't real or relevantly analogous, reasoned arguments that don't hold. **When tactical scope is active, tell the verifier the meeting-test floor is waived** and have it judge basis only — it runs fresh with none of the generation history, so a waiver it is not told about does not reach it. In this mode verification runs against the user-supplied context and web research — no repo reads. Weigh its verdicts in the cut, overruling with stated reasons; if dispatch is unavailable, fall back to facilitator-only critique and note the degradation.
 
 Apply adversarial critique. For each candidate, write a one-line reason if rejected. **Basis-integrity check:** reject any idea lacking an articulated basis, any idea whose stated basis does not actually support the claimed move (speculation dressed as ambition), and any idea that replaces the subject rather than operating on it. Score survivors using a consistent rubric weighing: groundedness in stated context, **basis strength** (`direct:` > `external:` > `reasoned:`; none excluded, but direct-evidence ideas score higher all else equal), expected value, novelty, pragmatism, leverage, implementation burden, overlap with stronger candidates, and **axis spread** (when axes were defined) — survivor sets that cover the topic's surface outscore sets that cluster on one axis, all else equal. Axis spread is a list-level concern, not a per-idea reject reason; apply it after per-idea filtering when choosing among comparable candidates.
 

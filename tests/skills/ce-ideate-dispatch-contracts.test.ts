@@ -152,6 +152,24 @@ describe("ce-ideate user-research extraction keeps its routing test inline", () 
     ).toBe(true)
   })
 
+  test("the routing test gates BOTH mode dispatch blocks, not just the repo scan", () => {
+    // Elsewhere-mode synthesis reads "any rich-prompt material", so a research
+    // export reached synthesis AND a distiller -- duplicating the file into
+    // Topic context -- when the test was stated only for the repo scan.
+    const gate = SKILL_BODY.indexOf("Before either dispatch block, run the research-artifact routing test")
+    expect(gate, "Phase 1 must run the routing test before either dispatch block.").toBeGreaterThan(-1)
+    for (const block of ["**Repo mode dispatch:**", "**Elsewhere mode dispatch"]) {
+      expect(
+        SKILL_BODY.indexOf(block),
+        `The routing test must precede ${block}.`,
+      ).toBeGreaterThan(gate)
+    }
+    expect(
+      /excluding any file the routing test above classified as evidence/i.test(PHASE_1),
+      "User-context synthesis must exclude routed evidence files at its own dispatch site.",
+    ).toBe(true)
+  })
+
   test("the before-the-scan timing stays inline", () => {
     // The scan must know which files to leave alone, so this cannot wait for a
     // reference the agent may load after dispatching the scan.
@@ -245,6 +263,28 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
       /default 5-agent fleet/i.test(DIVERGENT_BODY) || /default 5-agent fleet/i.test(ISSUE_INTELLIGENCE_BODY),
       "The insufficient-issue-signal fallback must not hardcode a 5-agent fleet over a scaled run.",
     ).toBe(false)
+  })
+
+  test("tactical scaling reaches the universal path, which never loads divergent-ideation.md", () => {
+    // Phase 0.3 routes elsewhere-non-software to universal-ideation.md in place
+    // of the Phase 2 frame dispatch, so the fleet spec is never loaded there and
+    // "quick wins for this launch strategy" would silently get the full run.
+    expect(
+      /Tactical scope applies here too/i.test(UNIVERSAL_BODY),
+      "universal-ideation.md must carry the tactical scaling for its own dispatch.",
+    ).toBe(true)
+    expect(
+      /2 sub-agents \(3 frames each\)/i.test(UNIVERSAL_BODY),
+      "The universal tactical packing must keep all six frames in fewer agents.",
+    ).toBe(true)
+    expect(
+      /3 max when tactical scope is active/i.test(UNIVERSAL_BODY),
+      "The universal axis cap must carry the tactical bound.",
+    ).toBe(true)
+    expect(
+      /tell the verifier the meeting-test floor is waived/i.test(UNIVERSAL_BODY),
+      "The universal verifier must receive the tactical waiver, same as the software path.",
+    ).toBe(true)
   })
 
   test("go deep still scales up, so the two overrides stay symmetric", () => {
