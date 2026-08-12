@@ -364,12 +364,23 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
     ).toBe(true)
     // Every pair of variants that can fire together needs a row; a vague
     // `quick wins` routed to "Surprise me" fires both.
-    for (const pair of [/issue-tracker \+ `go deep` \/ surprise-me/i, /tactical \+ `go deep`/i, /tactical \+ surprise-me/i]) {
+    // Each pair gets its own row: `go deep` and surprise-me share a fleet but
+    // not a read budget, so collapsing them drops go deep's doubled reads.
+    for (const pair of [
+      /issue-tracker \+ `go deep`/i,
+      /issue-tracker \+ surprise-me/i,
+      /tactical \+ `go deep`/i,
+      /tactical \+ surprise-me/i,
+    ]) {
       expect(
         pair.test(DIVERGENT_BODY),
         `The collision table must resolve ${pair}.`,
       ).toBe(true)
     }
+    expect(
+      /`go deep`'s doubled reads \(10\)/.test(DIVERGENT_BODY),
+      "The go-deep collision row must preserve its doubled verification budget.",
+    ).toBe(true)
     // The fallback must inherit the run's scaling rather than resetting to 5 --
     // in the inline skeleton too, not only in the two references.
     expect(

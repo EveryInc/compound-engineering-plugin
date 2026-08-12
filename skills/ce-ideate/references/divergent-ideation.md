@@ -20,7 +20,8 @@ Fleet variants. **Every variant that uses the default frame set covers all six**
 | Both fired | Frames | Agents | Volume / reads |
 |---|---|---|---|
 | issue-tracker + tactical | theme frames (issue-tracker owns the surface) | 4 (issue-tracker owns its fleet) | tactical's dials |
-| issue-tracker + `go deep` / surprise-me | theme frames | 4, all ceiling-tier | default |
+| issue-tracker + `go deep` | theme frames | 4, all ceiling-tier | `go deep`'s doubled reads (10) |
+| issue-tracker + surprise-me | theme frames | 4, all ceiling-tier | default |
 | tactical + `go deep` | six frames | 6, all ceiling-tier (`go deep` wins outright per Phase 0.5) | default; tactical is suppressed |
 | tactical + surprise-me | six frames | 6, all ceiling-tier — surprise-me owns the fleet | tactical's dials |
 
