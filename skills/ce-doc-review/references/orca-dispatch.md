@@ -49,15 +49,20 @@ SKILL_DIR="<absolute path of the ce-doc-review skill>";
 node "$SKILL_DIR/scripts/orca-runtime.mjs" run \
   --resolved <private-resolved.json> \
   --packet <packet.json> \
-  --registry "$SKILL_DIR/scripts/orca-workflow-registry.json"
+  --registry "$SKILL_DIR/scripts/orca-workflow-registry.json" \
+  --out <private-dispatch.json>
 ```
 
 Do not guess paths outside this skill or execute an unregistered workflow file.
 
 ## Join
 
-`orca-runtime.mjs run` returns a hydrated `ce-orca.dispatch/v1` envelope. Use
-`result.value` as `ce-result.json`. For every reviewer with
+`orca-runtime.mjs run` or `resume` returns a `ce-orca.dispatch/v1` envelope.
+Inspect `action` before reading `result`. If it is `orca-running`, preserve the
+envelope and use the `resume --dispatch` path in `references/orca-routing.md`;
+never call `run` again or rebuild the config or packet. Continue only when
+`action` is `orca`, at which point the envelope is hydrated. Use `result.value`
+as `ce-result.json`. For every reviewer with
 `status: "completed"`, use its exact `artifactRef` as the key in
 `result.artifacts[artifactRef]` and feed the hydrated artifact's `output` into
 Phase 3 exactly as a native reviewer result. References such as

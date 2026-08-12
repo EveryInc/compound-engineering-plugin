@@ -213,7 +213,8 @@ node "$SKILL_DIR/scripts/orca-runtime.mjs" resolve \
 node "$SKILL_DIR/scripts/orca-runtime.mjs" run \
   --resolved "$ROUTE_DIR/resolved.json" \
   --packet /tmp/ce-plan-packet.json \
-  --registry "$SKILL_DIR/scripts/orca-workflow-registry.json"
+  --registry "$SKILL_DIR/scripts/orca-workflow-registry.json" \
+  --out "$ROUTE_DIR/dispatch.json"
 ```
 
 Dispatch preflights confidential packet JSON before invoking Orca. Workflow
@@ -234,6 +235,24 @@ such as `runs/<run-id>/...` are opaque protocol references, not filesystem
 paths in the target project; callers must never resolve them from their current
 working directory. The helper retrieves them through the endpoint's bounded,
 allowlisted artifact reader.
+
+The default run wait is the largest effective Orca-owned stage or role budget
+plus 30 seconds; the local process deadline adds 60 seconds to that budget.
+If that wait expires while the run remains active, dispatch returns the same
+envelope with `action: "orca-running"`, `terminal: false`, and the existing
+run ID. Inspect `action` before reading `result`. Resume the saved envelope with
+the helper below; it calls `orca-orch wait` for that same run and never rebuilds
+or resubmits the consumed request:
+
+```bash
+node "$SKILL_DIR/scripts/orca-runtime.mjs" resume \
+  --dispatch "$ROUTE_DIR/dispatch.json" \
+  --registry "$SKILL_DIR/scripts/orca-workflow-registry.json" \
+  --out "$ROUTE_DIR/dispatch.json"
+```
+
+Repeat `resume` if it returns `orca-running` again. Read `result.value` only
+after `action` becomes `orca`; never call `run` a second time for that run.
 
 Prompt overrides are run-scoped. A reusable profile requires an explicit
 write and is stored privately at

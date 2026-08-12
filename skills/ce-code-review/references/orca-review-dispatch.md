@@ -52,8 +52,12 @@ read-only inspection guidance. Submit through `references/orca-routing.md`.
 
 ## Join
 
-`orca-runtime.mjs run` returns a hydrated `ce-orca.dispatch/v1` envelope. Use
-`result.value` as `ce-result.json`; for each completed node, use its exact
+`orca-runtime.mjs run` or `resume` returns a `ce-orca.dispatch/v1` envelope.
+Inspect `action` before reading `result`. If it is `orca-running`, preserve the
+envelope and use the `resume --dispatch` path in `references/orca-routing.md`;
+never call `run` again or rebuild the config or packet. Continue only when
+`action` is `orca`, at which point the envelope is hydrated. Use `result.value`
+as `ce-result.json`; for each completed node, use its exact
 `artifactRef` as the key in `result.artifacts[artifactRef]`. Feed that hydrated
 artifact's `output` into the same Stage 5 merge or Stage 5b validation slot as
 the corresponding native subagent return. References such as

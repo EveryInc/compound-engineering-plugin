@@ -24,10 +24,11 @@ Native routing returns to the unchanged engine selection in `SKILL.md`.
    node "$SKILL_DIR/scripts/orca-runtime.mjs" run \
      --resolved <private-resolved.json> \
      --packet <private-packet.json> \
-     --registry "$SKILL_DIR/scripts/orca-workflow-registry.json"
+     --registry "$SKILL_DIR/scripts/orca-workflow-registry.json" \
+     --out <private-dispatch.json>
    ```
 
-4. `orca-runtime.mjs run` returns a hydrated `ce-orca.dispatch/v1` envelope. Use `result.value` as `ce-result.json`; this workflow has no child artifacts to open. Treat a missing, malformed, failed, or stopped result as a failed batch. References such as `runs/<run-id>/...` are opaque transport identifiers; never resolve or open them relative to the target checkout or current working directory. The helper retrieves only published artifacts through the protocol's allowlisted reader. The first Orca worker launch locks the batch to this adapter: do not also launch inline/subagent, goal-mode, dynamic-workflow, cross-model, or fallback-native implementation for it.
+4. `orca-runtime.mjs run` or `resume` returns a `ce-orca.dispatch/v1` envelope. Inspect `action` before reading `result`. If it is `orca-running`, preserve the envelope and use the `resume --dispatch` path in `references/orca-routing.md`; never call `run` again or rebuild the config or packet. Continue only when `action` is `orca`, at which point the envelope is hydrated. Use `result.value` as `ce-result.json`; this workflow has no child artifacts to open. Treat a missing, malformed, failed, or stopped result as a failed batch. References such as `runs/<run-id>/...` are opaque transport identifiers; never resolve or open them relative to the target checkout or current working directory. The helper retrieves only published artifacts through the protocol's allowlisted reader. The first Orca worker launch locks the batch to this adapter: do not also launch inline/subagent, goal-mode, dynamic-workflow, cross-model, or fallback-native implementation for it.
 5. Treat each unit's returned `changed_files` as controller-attested only when its integration contains `files`; a missing attestation fails the batch. Inspect the actual integrated diff, compare it with each unit scope, run the unit tests and authoritative verification, then commit/update progress exactly as the native path requires. Do not dispatch the next dependency batch on a broken tree.
 6. Roll worker evidence into `verification_evidence`. A missing red-before observation remains unverified; do not reconstruct it from the diff.
 

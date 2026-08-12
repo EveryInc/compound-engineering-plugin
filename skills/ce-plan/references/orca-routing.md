@@ -87,7 +87,8 @@ ROUTE_DIR="<absolute private route directory created during resolution>";
 node "$SKILL_DIR/scripts/orca-runtime.mjs" run \
   --resolved "$ROUTE_DIR/resolved.json" \
   --packet <private-packet.json> \
-  --registry "$SKILL_DIR/scripts/orca-workflow-registry.json"
+  --registry "$SKILL_DIR/scripts/orca-workflow-registry.json" \
+  --out "$ROUTE_DIR/dispatch.json"
 ```
 
 The helper marks the private packet source as one-shot. A compatible
@@ -113,11 +114,35 @@ refuses dispatch with `controller_inputs_unsupported` when the endpoint does
 not attest `transport.controllerInputs` with `private-node-copy-v1` delivery;
 route that stage through the documented native fallback instead.
 
+Without an explicit `--wait`, `orca-runtime.mjs run` derives its wait window
+from the largest effective budget of an Orca-owned stage or role in the resolved
+snapshot: budget + 30 seconds. Its local process deadline is budget + 60
+seconds. A non-terminal Orca timeout returns `ce-orca.dispatch/v1` with
+`action: "orca-running"` and the same `response.runId`; it is resumable and
+does not create or dispatch a second run.
+
+Inspect `action` before reading `result`. For `action: "orca-running"`, resume
+only the saved dispatch envelope; do not call `run` again and do not reconstruct
+the resolved configuration or consumed packet:
+
+```bash
+SKILL_DIR="<absolute path of the skill directory>";
+ROUTE_DIR="<absolute private route directory created during resolution>";
+node "$SKILL_DIR/scripts/orca-runtime.mjs" resume \
+  --dispatch "$ROUTE_DIR/dispatch.json" \
+  --registry "$SKILL_DIR/scripts/orca-workflow-registry.json" \
+  --out "$ROUTE_DIR/dispatch.json"
+```
+
+`resume` invokes `orca-orch wait` for the envelope's existing
+`response.runId`. If it returns `orca-running` again, repeat `resume` with that
+updated envelope. Read `result.value` only after `action` becomes `orca`.
+
 The first command probes, validates, and displays the effective configuration.
 The second command re-displays that immutable result before dispatch. If the
 result requires confirmation, it returns `awaiting-confirmation` without an
 Orca call; after explicit approval, repeat it with `--approved true`.
-Delete the private route directory after dispatch and result ingestion.
+Delete the private route directory only after terminal result ingestion.
 
 A completed dispatch returns a hydrated `ce-orca.dispatch/v1` envelope.
 `result.value` is the parsed `ce-result.json`; when that result contains child

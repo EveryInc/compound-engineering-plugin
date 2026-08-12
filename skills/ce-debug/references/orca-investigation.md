@@ -34,8 +34,12 @@ read-only. Do not add executable command fields, credentials, environment
 dumps, or fix instructions; the prompt may keep the native read-only inspection
 guidance. Submit through `references/orca-routing.md`.
 
-`orca-runtime.mjs run` returns a hydrated `ce-orca.dispatch/v1` envelope. Use
-`result.value` as `ce-result.json`; for each completed probe, use its exact
+`orca-runtime.mjs run` or `resume` returns a `ce-orca.dispatch/v1` envelope.
+Inspect `action` before reading `result`. If it is `orca-running`, preserve the
+envelope and use the `resume --dispatch` path in `references/orca-routing.md`;
+never call `run` again or rebuild the config or packet. Continue only when
+`action` is `orca`, at which point the envelope is hydrated. Use `result.value`
+as `ce-result.json`; for each completed probe, use its exact
 `artifactRef` as the key in `result.artifacts[artifactRef]` and treat `output`
 as the native probe result. References such as `runs/<run-id>/...` are opaque
 transport identifiers; never resolve or open them relative to the target
