@@ -291,6 +291,10 @@ function commitIntegrityFailure(reason, commitSha, changedPaths, clean) {
   }
 }
 
+function terminalCommitFailure(state, stateFile, result) {
+  return terminalFailure(state, stateFile, result)
+}
+
 function insideRepo(repo, file) {
   const value = relative(repo, file)
   return value === "" || (!value.startsWith(`..${sep}`) && value !== ".." && !isAbsolute(value))
@@ -845,112 +849,77 @@ function cycleRestore(repoValue, stateFile, lease) {
 }
 
 function cycleCommit(repoValue, stateFile, lease, message) {
-  if (!repoValue || !stateFile || typeof message !== "string" || message.length === 0 || message.includes("\0")) {
-    return malformed("arguments")
-  }
+  if (!repoValue || !stateFile || typeof message !== "string" || message.length === 0 || message.includes("\0")) return malformed("arguments")
   const repo = resolve(repoValue)
   const state = readCycleState(repo, stateFile)
   if (!state) return malformed("state")
   const leased = leasedState(repoValue, stateFile, lease, ["sealed"])
   if (!leased.ok) return leased.result
   const guarded = cycleGuard(repo, state)
-  if (!guarded.ok) return guarded.result
+  if (!guarded.ok) return terminalCommitFailure(state, stateFile, guarded.result)
   const verification = verificationResult(state)
-  if (!verification) return malformed("verification_json")
-  if (state.seal?.verification_status !== verification.status) return malformed("verification_seal")
+  if (!verification) return terminalCommitFailure(state, stateFile, malformed("verification_json"))
+  if (state.seal?.verification_status !== verification.status) return terminalCommitFailure(state, stateFile, malformed("verification_seal"))
   const sealed = sealedGuard(repo, state, guarded)
-  if (!sealed.ok) return sealed.result
-  if (verification.status !== "passed") {
-    return { status: "verification_failed", verification_status: verification.status }
-  }
+  if (!sealed.ok) return terminalCommitFailure(state, stateFile, sealed.result)
+  if (verification.status !== "passed") return { status: "verification_failed", verification_status: verification.status }
 
   const expectedPaths = [...state.paths].sort()
-  if (pathSetDifference(expectedPaths, guarded.changedPaths).length > 0) {
-    return malformed("diff_paths", { changed_paths: guarded.changedPaths })
-  }
+  if (pathSetDifference(expectedPaths, guarded.changedPaths).length > 0) return terminalCommitFailure(state, stateFile, malformed("diff_paths", { changed_paths: guarded.changedPaths }))
   for (const file of state.paths) {
     const absolute = resolve(repo, file)
-    if (!regularPath(repo, absolute, { allowMissingLeaf: true })) return malformed("unsafe_path", { path: file })
+    if (!regularPath(repo, absolute, { allowMissingLeaf: true })) return terminalCommitFailure(state, stateFile, malformed("unsafe_path", { path: file }))
   }
 
   let verifiedSnapshots
   try {
     git(repo, ["add", "--", ...state.paths])
     verifiedSnapshots = captureSnapshots(repo, state.paths, "index")
-    if (!verifiedSnapshots) return { status: "commit_failed", reason: "staged_snapshot", paths: state.paths }
+    if (!verifiedSnapshots) return terminalCommitFailure(state, stateFile, { status: "commit_failed", reason: "staged_snapshot", paths: state.paths })
   } catch {
-    return { status: "commit_failed", reason: "staging", paths: state.paths }
+    return terminalCommitFailure(state, stateFile, { status: "commit_failed", reason: "staging", paths: state.paths })
   }
 
   let commitCommandFailed = false
+  let commitFailureReason = "git commit failed"
   try {
     git(repo, ["commit", "-m", message])
-  } catch {
+  } catch (error) {
     commitCommandFailed = true
+    const detail = String(error?.stderr ?? error?.message ?? "git commit failed").replace(/\s+/g, " ").trim()
+    if (detail) commitFailureReason = detail.slice(0, 500)
   }
   const commitSha = git(repo, ["rev-parse", "--verify", "HEAD^{commit}"], { allowFailure: true })
-  if (!commitSha) return commitIntegrityFailure("missing_commit_sha", null, safeGitPaths(repo), false)
+  if (!commitSha) return terminalCommitFailure(state, stateFile, commitIntegrityFailure("missing_commit_sha", null, safeGitPaths(repo), false))
   if (commitCommandFailed && commitSha === state.head_sha) {
     const failedPaths = safeGitPaths(repo)
     const failedPathMismatch = pathSetDifference(expectedPaths, failedPaths)
-    if (failedPathMismatch.length > 0) {
-      return commitIntegrityFailure("failed_commit_paths_mismatch", null, failedPathMismatch, false)
-    }
+    if (failedPathMismatch.length > 0) return terminalCommitFailure(state, stateFile, commitIntegrityFailure("failed_commit_paths_mismatch", null, failedPathMismatch, false))
     let failedSnapshots
-    try {
-      failedSnapshots = captureSnapshots(repo, state.paths, "index")
-    } catch {
-      failedSnapshots = null
-    }
-    if (!failedSnapshots) {
-      return commitIntegrityFailure("failed_commit_snapshot_unreadable", null, state.paths, false)
-    }
+    try { failedSnapshots = captureSnapshots(repo, state.paths, "index") } catch { failedSnapshots = null }
+    if (!failedSnapshots) return terminalCommitFailure(state, stateFile, commitIntegrityFailure("failed_commit_snapshot_unreadable", null, state.paths, false))
     const failedSnapshotMismatch = snapshotMismatch(verifiedSnapshots, failedSnapshots)
-    if (failedSnapshotMismatch.length > 0) {
-      return commitIntegrityFailure("failed_commit_snapshot_mismatch", null, failedSnapshotMismatch, false)
-    }
+    if (failedSnapshotMismatch.length > 0) return terminalCommitFailure(state, stateFile, commitIntegrityFailure("failed_commit_snapshot_mismatch", null, failedSnapshotMismatch, false))
     const failedWorktree = captureWorktreeSnapshots(repo, state.paths)
-    const failedWorktreeMismatch = failedWorktree
-      ? worktreeSnapshotMismatch(state.seal.files, failedWorktree)
-      : state.paths
-    if (failedWorktreeMismatch.length > 0) {
-      return commitIntegrityFailure("failed_commit_snapshot_mismatch", null, failedWorktreeMismatch, false)
-    }
-    return { status: "commit_failed", paths: state.paths }
+    const failedWorktreeMismatch = failedWorktree ? worktreeSnapshotMismatch(state.seal.files, failedWorktree) : state.paths
+    if (failedWorktreeMismatch.length > 0) return terminalCommitFailure(state, stateFile, commitIntegrityFailure("failed_commit_snapshot_mismatch", null, failedWorktreeMismatch, false))
+    return terminalCommitFailure(state, stateFile, { status: "commit_failed", reason: commitFailureReason, paths: state.paths })
   }
 
   const changedAfterCommit = safeGitPaths(repo)
   const clean = changedAfterCommit.length === 0
   const ancestry = git(repo, ["rev-list", "--parents", "-n", "1", commitSha], { allowFailure: true })?.split(" ")
-  if (!ancestry || ancestry.length !== 2 || ancestry[0] !== commitSha || ancestry[1] !== state.head_sha) {
-    return commitIntegrityFailure("unexpected_parent", commitSha, [], clean)
-  }
-
+  if (!ancestry || ancestry.length !== 2 || ancestry[0] !== commitSha || ancestry[1] !== state.head_sha) return terminalCommitFailure(state, stateFile, commitIntegrityFailure("unexpected_parent", commitSha, [], clean))
   let committedPaths
-  try {
-    committedPaths = commitPaths(repo, state.head_sha, commitSha)
-  } catch {
-    return commitIntegrityFailure("commit_diff_unreadable", commitSha, [], clean)
-  }
+  try { committedPaths = commitPaths(repo, state.head_sha, commitSha) } catch { return terminalCommitFailure(state, stateFile, commitIntegrityFailure("commit_diff_unreadable", commitSha, [], clean)) }
   const diffMismatch = pathSetDifference(expectedPaths, committedPaths)
-  if (diffMismatch.length > 0) {
-    return commitIntegrityFailure("commit_diff_paths_mismatch", commitSha, diffMismatch, clean)
-  }
-
+  if (diffMismatch.length > 0) return terminalCommitFailure(state, stateFile, commitIntegrityFailure("commit_diff_paths_mismatch", commitSha, diffMismatch, clean))
   let committedSnapshots
-  try {
-    committedSnapshots = captureSnapshots(repo, state.paths, commitSha)
-  } catch {
-    return commitIntegrityFailure("committed_snapshot_unreadable", commitSha, state.paths, clean)
-  }
-  if (!committedSnapshots) {
-    return commitIntegrityFailure("committed_snapshot_unreadable", commitSha, state.paths, clean)
-  }
+  try { committedSnapshots = captureSnapshots(repo, state.paths, commitSha) } catch { committedSnapshots = null }
+  if (!committedSnapshots) return terminalCommitFailure(state, stateFile, commitIntegrityFailure("committed_snapshot_unreadable", commitSha, state.paths, clean))
   const snapshotChangedPaths = snapshotMismatch(verifiedSnapshots, committedSnapshots)
-  if (snapshotChangedPaths.length > 0) {
-    return commitIntegrityFailure("committed_snapshot_mismatch", commitSha, snapshotChangedPaths, clean)
-  }
-  if (!clean) return commitIntegrityFailure("working_tree_not_clean", commitSha, changedAfterCommit, false)
+  if (snapshotChangedPaths.length > 0) return terminalCommitFailure(state, stateFile, commitIntegrityFailure("committed_snapshot_mismatch", commitSha, snapshotChangedPaths, clean))
+  if (!clean) return terminalCommitFailure(state, stateFile, commitIntegrityFailure("working_tree_not_clean", commitSha, changedAfterCommit, false))
 
   const failed = finishLease(state, stateFile, "committed", { commit_sha: commitSha })
   if (failed) return failed

@@ -1211,6 +1211,42 @@ describe("mutation lease dispatch gate", () => {
     expect((await authorizeCycle(fixture, next)).status).toBe("authorized")
   })
 
+  test("terminalizes a rejecting commit hook and permits fresh authorization", async () => {
+    const fixture = await createRepo()
+    const cycle = await writeAuthorizationFiles(fixture)
+    const active = await beginCycle(fixture, cycle)
+    await writeFile(fixture.activePath, "value=verified\n")
+    await writeFile(cycle.verificationPath, JSON.stringify({ status: "passed", checks: ["active value"] }))
+    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath, "--lease", active.lease_id)).toMatchObject({ status: "sealed" })
+    await installPreCommitHook(fixture, "exit 1")
+    const failed = await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--lease", active.lease_id, "--message", "fix(review): rejected")
+    expect(failed).toMatchObject({ status: "commit_failed", phase: "blocked", lease_id: active.lease_id })
+    expect(failed.reason).toBeString()
+    expect(JSON.parse(await readFile(cycle.statePath, "utf8"))).toMatchObject({ phase: "blocked", terminal_reason: "commit_failed" })
+    const dirtyNext = await writeAuthorizationFiles(fixture)
+    expect((await authorizeCycle(fixture, dirtyNext)).status).toBe("concurrent_change")
+    await git(fixture.repo, "reset", "--mixed", "HEAD")
+    await writeFile(fixture.activePath, "value=bad\n")
+    const cleanNext = await writeAuthorizationFiles(fixture)
+    expect((await authorizeCycle(fixture, cleanNext)).status).toBe("authorized")
+  })
+
+  test("terminalizes commit integrity failure without rewriting created history", async () => {
+    const fixture = await createRepo()
+    const cycle = await writeAuthorizationFiles(fixture)
+    const active = await beginCycle(fixture, cycle)
+    await writeFile(fixture.activePath, "value=verified\n")
+    await writeFile(cycle.verificationPath, JSON.stringify({ status: "passed", checks: ["active value"] }))
+    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath, "--lease", active.lease_id)).toMatchObject({ status: "sealed" })
+    await installPreCommitHook(fixture, "printf 'value=hook-mutated\\n' > active.txt\ngit add -- active.txt")
+    const failed = await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--lease", active.lease_id, "--message", "fix(review): hook mutation")
+    expect(failed).toMatchObject({ status: "commit_integrity_failure", reason: "committed_snapshot_mismatch", phase: "blocked", clean: true })
+    expect(await git(fixture.repo, "show", "HEAD:active.txt")).toBe("value=hook-mutated")
+    const nextFixture = { ...fixture, headSha: await git(fixture.repo, "rev-parse", "HEAD") }
+    const next = await writeAuthorizationFiles(nextFixture)
+    expect((await authorizeCycle(nextFixture, next)).status).toBe("authorized")
+  })
+
 
   test("requires scope expansion before any edit and releases the checkout lease", async () => {
     const fixture = await createRepo()
