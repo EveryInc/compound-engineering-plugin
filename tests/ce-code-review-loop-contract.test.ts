@@ -110,6 +110,17 @@ async function helper(repo: string, ...args: string[]): Promise<Record<string, a
   return JSON.parse(result.stdout)
 }
 
+async function authorizeCycle(fixture: RepoFixture, cycle: AuthorizationFixture) {
+  return helper(fixture.repo, "cycle-authorize", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath, "--family-json", cycle.familyPath, "--review", cycle.reviewPath, "--base", fixture.baseSha, "--packet", cycle.packetPath)
+}
+
+async function beginCycle(fixture: RepoFixture, cycle: AuthorizationFixture) {
+  const active = await authorizeCycle(fixture, cycle)
+  expect(active.status).toBe("authorized")
+  expect(await helper(fixture.repo, "cycle-begin", "--repo", fixture.repo, "--state", cycle.statePath, "--lease", active.lease_id)).toMatchObject({ status: "dispatched" })
+  return active
+}
+
 function finding(id: number, overrides: Record<string, any> = {}) {
   return {
     "#": id,
@@ -1138,13 +1149,12 @@ describe("mutation lease dispatch gate", () => {
     }
   })
 
-  test("requires begin before mutation and enforces one writable lease per checkout", async () => {
+  test("requires begin before mutation and enforces one writable lease per checkout across distinct runs", async () => {
     const fixture = await createRepo()
     const first = await writeAuthorizationFiles(fixture)
-    const authorize = (cycle: AuthorizationFixture) => helper(fixture.repo, "cycle-authorize", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath, "--family-json", cycle.familyPath, "--review", cycle.reviewPath, "--base", fixture.baseSha, "--packet", cycle.packetPath)
-    const active = await authorize(first)
-    const second = await writeAuthorizationFiles(fixture, ["active.txt"], first.runRoot)
-    expect(await authorize(second)).toMatchObject({ status: "lease_conflict" })
+    const second = await writeAuthorizationFiles(fixture)
+    const active = await authorizeCycle(fixture, first)
+    expect(await authorizeCycle(fixture, second)).toMatchObject({ status: "lease_conflict" })
     expect(await helper(fixture.repo, "cycle-begin", "--repo", fixture.repo, "--state", first.statePath, "--lease", "0".repeat(32))).toMatchObject({ status: "lease_mismatch" })
 
     await writeFile(fixture.activePath, "value=edited-before-begin\n")
@@ -1154,6 +1164,18 @@ describe("mutation lease dispatch gate", () => {
       dirty_paths: ["active.txt"],
       mutation_permitted: false,
     })
+  })
+
+  test("serializes simultaneous authorization across distinct invocation roots", async () => {
+    const fixture = await createRepo()
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const first = await writeAuthorizationFiles(fixture)
+      const second = await writeAuthorizationFiles(fixture)
+      const results = await Promise.all([authorizeCycle(fixture, first), authorizeCycle(fixture, second)])
+      expect(results.map((result) => result.status).sort()).toEqual(["authorized", "lease_conflict"])
+      const winner = results[0].status === "authorized" ? { cycle: first, result: results[0] } : { cycle: second, result: results[1] }
+      expect(await helper(fixture.repo, "cycle-cancel", "--repo", fixture.repo, "--state", winner.cycle.statePath, "--lease", winner.result.lease_id)).toMatchObject({ status: "canceled" })
+    }
   })
 
   test("binds seal, cancel, scope expansion, restore, and commit to the same lease", async () => {
@@ -1174,6 +1196,21 @@ describe("mutation lease dispatch gate", () => {
     expect(nextActive.status).toBe("authorized")
     expect(await helper(fixture.repo, "cycle-cancel", "--repo", fixture.repo, "--state", next.statePath, "--lease", nextActive.lease_id)).toMatchObject({ status: "canceled" })
   })
+
+  test("restores a failed leased cycle, releases the registry, and rejects terminal lease reuse", async () => {
+    const fixture = await createRepo()
+    const cycle = await writeAuthorizationFiles(fixture)
+    const active = await beginCycle(fixture, cycle)
+    await writeFile(fixture.activePath, "value=broken-fix\n")
+    await writeFile(cycle.verificationPath, JSON.stringify({ status: "failed", checks: ["active value"] }))
+    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath, "--lease", active.lease_id)).toMatchObject({ status: "sealed", verification_status: "failed" })
+    expect(await helper(fixture.repo, "cycle-restore", "--repo", fixture.repo, "--state", cycle.statePath, "--lease", "f".repeat(32))).toMatchObject({ status: "lease_mismatch" })
+    expect(await helper(fixture.repo, "cycle-restore", "--repo", fixture.repo, "--state", cycle.statePath, "--lease", active.lease_id)).toMatchObject({ status: "restored", clean: true })
+    expect(await helper(fixture.repo, "cycle-restore", "--repo", fixture.repo, "--state", cycle.statePath, "--lease", active.lease_id)).toMatchObject({ status: "invalid_phase", phase: "restored" })
+    const next = await writeAuthorizationFiles(fixture)
+    expect((await authorizeCycle(fixture, next)).status).toBe("authorized")
+  })
+
 
   test("requires scope expansion before any edit and releases the checkout lease", async () => {
     const fixture = await createRepo()
@@ -1226,351 +1263,3 @@ describe("mutation lease dispatch gate", () => {
   })
 })
 
-describe("guarded remediation cycle helper", () => {
-  test("checkpoints and commits a verified exact-path fix", async () => {
-    const fixture = await createRepo()
-    const cycle = await writeCycleFiles(["active.txt"], { status: "pending" })
-    expect(await helper(fixture.repo, "cycle-checkpoint", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath)).toMatchObject({
-      status: "checkpointed",
-      branch: "main",
-      head_sha: fixture.headSha,
-      paths: ["active.txt"],
-    })
-
-
-    await writeFile(fixture.activePath, "value=good\n")
-    await writeFile(cycle.verificationPath, JSON.stringify({ status: "passed", checks: ["active value"] }))
-    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({
-      status: "sealed",
-      verification_status: "passed",
-      paths: ["active.txt"],
-    })
-    const committed = await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--message", "fix(review): correct active value")
-
-    expect(committed).toMatchObject({ status: "committed", clean: true })
-    expect(committed.commit_sha).toBe(await git(fixture.repo, "rev-parse", "HEAD"))
-    expect(await git(fixture.repo, "status", "--porcelain=v1", "--untracked-files=all")).toBe("")
-    expect(await git(fixture.repo, "log", "-1", "--pretty=%s")).toBe("fix(review): correct active value")
-    expect(await readFile(fixture.activePath, "utf8")).toBe("value=good\n")
-  })
-
-  test("checkpoints and commits a new intended fixture file", async () => {
-    const fixture = await createRepo()
-    const fixtureDir = path.join(fixture.repo, "test")
-    const fixturePath = path.join(fixtureDir, "new-fixture.txt")
-    await mkdir(fixtureDir)
-    const cycle = await writeCycleFiles(["test/new-fixture.txt"], { status: "pending" })
-
-    expect(await helper(fixture.repo, "cycle-checkpoint", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath)).toMatchObject({
-      status: "checkpointed",
-      paths: ["test/new-fixture.txt"],
-    })
-    expect(JSON.parse(await readFile(cycle.statePath, "utf8")).files).toEqual([
-      { path: "test/new-fixture.txt", exists: false },
-    ])
-
-    await writeFile(fixturePath, "new fixture bytes\n")
-    await writeFile(cycle.verificationPath, JSON.stringify({ status: "passed", checks: ["new fixture"] }))
-    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({ status: "sealed" })
-    expect(await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--message", "test(review): add regression fixture")).toMatchObject({
-      status: "committed",
-      clean: true,
-      paths: ["test/new-fixture.txt"],
-    })
-    expect(await git(fixture.repo, "show", "HEAD:test/new-fixture.txt")).toBe("new fixture bytes")
-  })
-
-  test("detects a pre-commit hook that mutates and stages verified intended bytes", async () => {
-    const fixture = await createRepo()
-    const cycle = await writeCycleFiles(["active.txt"], { status: "pending" })
-    expect((await helper(fixture.repo, "cycle-checkpoint", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath)).status).toBe("checkpointed")
-
-    await writeFile(fixture.activePath, "value=verified\n")
-    await writeFile(cycle.verificationPath, JSON.stringify({ status: "passed", checks: ["active value"] }))
-    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({ status: "sealed" })
-    await installPreCommitHook(fixture, "printf 'value=hook-mutated\\n' > active.txt\ngit add -- active.txt")
-
-    const result = await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--message", "fix(review): correct active value")
-    expect(result).toMatchObject({
-      status: "commit_integrity_failure",
-      reason: "committed_snapshot_mismatch",
-      changed_paths: ["active.txt"],
-      clean: true,
-    })
-    expect(result.commit_sha).toBe(await git(fixture.repo, "rev-parse", "HEAD"))
-    expect(await git(fixture.repo, "rev-parse", "HEAD^" )).toBe(fixture.headSha)
-    expect(await readFile(fixture.activePath, "utf8")).toBe("value=hook-mutated\n")
-    expect(await git(fixture.repo, "show", "HEAD:active.txt")).toBe("value=hook-mutated")
-  })
-
-  test("detects a pre-commit hook that mutates and stages the verified intended mode", async () => {
-    const fixture = await createRepo()
-    const cycle = await writeCycleFiles(["active.txt"], { status: "pending" })
-    expect((await helper(fixture.repo, "cycle-checkpoint", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath)).status).toBe("checkpointed")
-
-    await writeFile(fixture.activePath, "value=verified\n")
-    await chmod(fixture.activePath, 0o644)
-    await writeFile(cycle.verificationPath, JSON.stringify({ status: "passed", checks: ["active value"] }))
-    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({ status: "sealed" })
-    await installPreCommitHook(fixture, "chmod 755 active.txt\ngit add -- active.txt")
-
-    const result = await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--message", "fix(review): correct active value")
-    expect(result).toMatchObject({
-      status: "commit_integrity_failure",
-      reason: "committed_snapshot_mismatch",
-      changed_paths: ["active.txt"],
-      clean: true,
-    })
-    expect(result.commit_sha).toBe(await git(fixture.repo, "rev-parse", "HEAD"))
-    expect((await git(fixture.repo, "ls-tree", "HEAD", "active.txt")).split(" ")[0]).toBe("100755")
-  })
-
-  test("detects a pre-commit hook that adds and stages an extra path", async () => {
-    const fixture = await createRepo()
-    const cycle = await writeCycleFiles(["active.txt"], { status: "pending" })
-    expect((await helper(fixture.repo, "cycle-checkpoint", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath)).status).toBe("checkpointed")
-
-    await writeFile(fixture.activePath, "value=verified\n")
-    await writeFile(cycle.verificationPath, JSON.stringify({ status: "passed", checks: ["active value"] }))
-    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({ status: "sealed" })
-    await installPreCommitHook(fixture, "printf 'hook extra\\n' > hook-extra.txt\ngit add -- hook-extra.txt")
-
-    const result = await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--message", "fix(review): correct active value")
-    expect(result).toMatchObject({
-      status: "commit_integrity_failure",
-      reason: "commit_diff_paths_mismatch",
-      changed_paths: ["hook-extra.txt"],
-      clean: true,
-    })
-    expect(result.commit_sha).toBe(await git(fixture.repo, "rev-parse", "HEAD"))
-    expect(await git(fixture.repo, "show", "HEAD:hook-extra.txt")).toBe("hook extra")
-    expect(await git(fixture.repo, "status", "--porcelain=v1", "--untracked-files=all")).toBe("")
-  })
-
-  test("detects a pre-commit hook that leaves the post-commit working tree dirty", async () => {
-    const fixture = await createRepo()
-    const cycle = await writeCycleFiles(["active.txt"], { status: "pending" })
-    expect((await helper(fixture.repo, "cycle-checkpoint", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath)).status).toBe("checkpointed")
-
-    await writeFile(fixture.activePath, "value=verified\n")
-    await writeFile(cycle.verificationPath, JSON.stringify({ status: "passed", checks: ["active value"] }))
-    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({ status: "sealed" })
-    await installPreCommitHook(fixture, "printf 'value=post-commit-dirty\\n' > active.txt")
-
-    const result = await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--message", "fix(review): correct active value")
-    expect(result).toMatchObject({
-      status: "commit_integrity_failure",
-      reason: "working_tree_not_clean",
-      changed_paths: ["active.txt"],
-      clean: false,
-    })
-    expect(result.commit_sha).toBe(await git(fixture.repo, "rev-parse", "HEAD"))
-    expect(await git(fixture.repo, "show", "HEAD:active.txt")).toBe("value=verified")
-    expect(await readFile(fixture.activePath, "utf8")).toBe("value=post-commit-dirty\n")
-  })
-
-  test("refuses a failed verification and restores only checkpointed bytes", async () => {
-    const fixture = await createRepo()
-    const before = await readFile(fixture.activePath)
-    const beforeMode = (await stat(fixture.activePath)).mode & 0o777
-    const cycle = await writeCycleFiles(["active.txt"], { status: "pending" })
-    expect((await helper(fixture.repo, "cycle-checkpoint", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath)).status).toBe("checkpointed")
-
-    await chmod(fixture.activePath, 0o600)
-    await writeFile(fixture.activePath, "value=broken-fix\n")
-    await writeFile(cycle.verificationPath, JSON.stringify({ status: "failed", checks: ["active value"] }))
-    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({
-      status: "sealed",
-      verification_status: "failed",
-    })
-    expect(await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--message", "fix(review): broken")).toMatchObject({ status: "verification_failed" })
-    expect(await readFile(fixture.activePath, "utf8")).toBe("value=broken-fix\n")
-
-    expect(await helper(fixture.repo, "cycle-restore", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({ status: "restored", clean: true })
-
-    expect((await stat(fixture.activePath)).mode & 0o777).toBe(beforeMode)
-    expect(await readFile(fixture.activePath)).toEqual(before)
-    expect(await readFile(fixture.unrelatedPath, "utf8")).toBe("owner=user\n")
-    expect(await git(fixture.repo, "status", "--porcelain=v1", "--untracked-files=all")).toBe("")
-  })
-
-  test("verification failure removes a file that was missing at checkpoint", async () => {
-    const fixture = await createRepo()
-    const fixtureDir = path.join(fixture.repo, "test")
-    const fixturePath = path.join(fixtureDir, "new-fixture.txt")
-    await mkdir(fixtureDir)
-    const cycle = await writeCycleFiles(["test/new-fixture.txt"], { status: "pending" })
-    expect((await helper(fixture.repo, "cycle-checkpoint", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath)).status).toBe("checkpointed")
-
-    await writeFile(fixturePath, "failed fixture bytes\n")
-    await writeFile(cycle.verificationPath, JSON.stringify({ status: "failed", checks: ["new fixture"] }))
-    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({ status: "sealed" })
-    expect(await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--message", "test(review): broken fixture")).toMatchObject({ status: "verification_failed" })
-    expect(await helper(fixture.repo, "cycle-restore", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({ status: "restored", clean: true })
-    expect(await Bun.file(fixturePath).exists()).toBe(false)
-    expect(await git(fixture.repo, "status", "--porcelain=v1", "--untracked-files=all")).toBe("")
-  })
-
-  test("preserves all bytes when tracked or untracked unrelated work appears", async () => {
-    const fixture = await createRepo()
-    const cycle = await writeCycleFiles(["active.txt"], { status: "failed" })
-    expect((await helper(fixture.repo, "cycle-checkpoint", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath)).status).toBe("checkpointed")
-
-    await writeFile(fixture.activePath, "value=broken-fix\n")
-    expect((await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).status).toBe("sealed")
-    await writeFile(fixture.unrelatedPath, "owner=concurrent\n")
-    const untrackedPath = path.join(fixture.repo, "concurrent.txt")
-    await writeFile(untrackedPath, "new concurrent bytes\n")
-    const observedActive = await readFile(fixture.activePath)
-    const observedUnrelated = await readFile(fixture.unrelatedPath)
-    const observedUntracked = await readFile(untrackedPath)
-
-    expect(await helper(fixture.repo, "cycle-restore", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({
-      status: "concurrent_change",
-      changed_paths: ["concurrent.txt", "unrelated.txt"],
-    })
-
-    expect(await readFile(fixture.activePath)).toEqual(observedActive)
-    expect(await readFile(fixture.unrelatedPath)).toEqual(observedUnrelated)
-    expect(await readFile(untrackedPath)).toEqual(observedUntracked)
-    expect(await git(fixture.repo, "rev-parse", "HEAD")).toBe(fixture.headSha)
-  })
-
-  test("preserves a created intended file when unrelated concurrent work appears", async () => {
-    const fixture = await createRepo()
-    const fixtureDir = path.join(fixture.repo, "test")
-    const fixturePath = path.join(fixtureDir, "new-fixture.txt")
-    await mkdir(fixtureDir)
-    const cycle = await writeCycleFiles(["test/new-fixture.txt"], { status: "failed" })
-    expect((await helper(fixture.repo, "cycle-checkpoint", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath)).status).toBe("checkpointed")
-
-    await writeFile(fixturePath, "loop-created bytes\n")
-    expect((await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).status).toBe("sealed")
-    await writeFile(fixture.unrelatedPath, "owner=concurrent\n")
-    const concurrentPath = path.join(fixture.repo, "concurrent.txt")
-    await writeFile(concurrentPath, "concurrent untracked bytes\n")
-    const intendedBytes = await readFile(fixturePath)
-    const unrelatedBytes = await readFile(fixture.unrelatedPath)
-    const concurrentBytes = await readFile(concurrentPath)
-
-    expect(await helper(fixture.repo, "cycle-restore", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({
-      status: "concurrent_change",
-      changed_paths: ["concurrent.txt", "unrelated.txt"],
-    })
-    expect(await readFile(fixturePath)).toEqual(intendedBytes)
-    expect(await readFile(fixture.unrelatedPath)).toEqual(unrelatedBytes)
-    expect(await readFile(concurrentPath)).toEqual(concurrentBytes)
-    expect(await git(fixture.repo, "rev-parse", "HEAD")).toBe(fixture.headSha)
-  })
-
-  test("refuses intended-path races after verification before commit or restore", async () => {
-    for (const operation of ["cycle-commit", "cycle-restore"]) {
-      const fixture = await createRepo()
-      const cycle = await writeCycleFiles(["active.txt"], { status: operation === "cycle-commit" ? "passed" : "failed" })
-      expect((await helper(fixture.repo, "cycle-checkpoint", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath)).status).toBe("checkpointed")
-
-      await writeFile(fixture.activePath, "value=verified\n")
-      expect((await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).status).toBe("sealed")
-      await writeFile(fixture.activePath, "value=concurrent-after-verification\n")
-
-      const args = operation === "cycle-commit"
-        ? [operation, "--repo", fixture.repo, "--state", cycle.statePath, "--message", "fix(review): raced"]
-        : [operation, "--repo", fixture.repo, "--state", cycle.statePath]
-      expect(await helper(fixture.repo, ...args)).toMatchObject({
-        status: "concurrent_change",
-        changed_paths: ["active.txt"],
-      })
-      expect(await readFile(fixture.activePath, "utf8")).toBe("value=concurrent-after-verification\n")
-      expect(await git(fixture.repo, "diff", "--cached", "--name-only")).toBe("")
-    }
-  })
-
-  test("distinguishes an unchanged failed hook from failed-hook mutations", async () => {
-    const unchanged = await createRepo()
-    const unchangedCycle = await writeCycleFiles(["active.txt"], { status: "passed" })
-    expect((await helper(unchanged.repo, "cycle-checkpoint", "--repo", unchanged.repo, "--state", unchangedCycle.statePath, "--paths-json", unchangedCycle.pathsPath, "--verification-json", unchangedCycle.verificationPath)).status).toBe("checkpointed")
-    await writeFile(unchanged.activePath, "value=verified\n")
-    expect((await helper(unchanged.repo, "cycle-seal", "--repo", unchanged.repo, "--state", unchangedCycle.statePath)).status).toBe("sealed")
-    await installPreCommitHook(unchanged, "exit 1")
-    expect(await helper(unchanged.repo, "cycle-commit", "--repo", unchanged.repo, "--state", unchangedCycle.statePath, "--message", "fix(review): rejected unchanged")).toMatchObject({
-      status: "commit_failed",
-      paths: ["active.txt"],
-    })
-    expect(await readFile(unchanged.activePath, "utf8")).toBe("value=verified\n")
-
-    const mutated = await createRepo()
-    const mutatedCycle = await writeCycleFiles(["active.txt"], { status: "passed" })
-    expect((await helper(mutated.repo, "cycle-checkpoint", "--repo", mutated.repo, "--state", mutatedCycle.statePath, "--paths-json", mutatedCycle.pathsPath, "--verification-json", mutatedCycle.verificationPath)).status).toBe("checkpointed")
-    await writeFile(mutated.activePath, "value=verified\n")
-    expect((await helper(mutated.repo, "cycle-seal", "--repo", mutated.repo, "--state", mutatedCycle.statePath)).status).toBe("sealed")
-    await installPreCommitHook(mutated, "printf 'value=failed-hook-mutation\\n' > active.txt\nexit 1")
-    expect(await helper(mutated.repo, "cycle-commit", "--repo", mutated.repo, "--state", mutatedCycle.statePath, "--message", "fix(review): rejected mutated")).toMatchObject({
-      status: "commit_integrity_failure",
-      reason: "failed_commit_snapshot_mismatch",
-      commit_sha: null,
-      changed_paths: ["active.txt"],
-      clean: false,
-    })
-    expect(await readFile(mutated.activePath, "utf8")).toBe("value=failed-hook-mutation\n")
-
-    const extra = await createRepo()
-    const extraCycle = await writeCycleFiles(["active.txt"], { status: "passed" })
-    expect((await helper(extra.repo, "cycle-checkpoint", "--repo", extra.repo, "--state", extraCycle.statePath, "--paths-json", extraCycle.pathsPath, "--verification-json", extraCycle.verificationPath)).status).toBe("checkpointed")
-    await writeFile(extra.activePath, "value=verified\n")
-    expect((await helper(extra.repo, "cycle-seal", "--repo", extra.repo, "--state", extraCycle.statePath)).status).toBe("sealed")
-    await installPreCommitHook(extra, "printf 'hook extra\\n' > failed-hook-extra.txt\ngit add -- failed-hook-extra.txt\nexit 1")
-    expect(await helper(extra.repo, "cycle-commit", "--repo", extra.repo, "--state", extraCycle.statePath, "--message", "fix(review): rejected extra")).toMatchObject({
-      status: "commit_integrity_failure",
-      reason: "failed_commit_paths_mismatch",
-      commit_sha: null,
-      changed_paths: ["failed-hook-extra.txt"],
-      clean: false,
-    })
-    expect(await readFile(path.join(extra.repo, "failed-hook-extra.txt"), "utf8")).toBe("hook extra\n")
-  })
-
-  test("returns structured partial restore evidence after an I/O failure", async () => {
-    const fixture = await createRepo()
-    const blockedDir = path.join(fixture.repo, "blocked")
-    await mkdir(blockedDir)
-    const createdPath = path.join(blockedDir, "created.txt")
-    const cycle = await writeCycleFiles(["active.txt", "blocked/created.txt"], { status: "failed" })
-    expect((await helper(fixture.repo, "cycle-checkpoint", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath)).status).toBe("checkpointed")
-
-    await writeFile(fixture.activePath, "value=failed-fix\n")
-    await writeFile(createdPath, "failed new bytes\n")
-    expect((await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).status).toBe("sealed")
-    await chmod(blockedDir, 0o555)
-    try {
-      expect(await helper(fixture.repo, "cycle-restore", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({
-        status: "restore_failed",
-        restored_paths: ["active.txt"],
-        pending_paths: ["blocked/created.txt"],
-        changed_paths: ["blocked/created.txt"],
-      })
-      expect(await readFile(fixture.activePath, "utf8")).toBe("value=bad\n")
-      expect(await readFile(createdPath, "utf8")).toBe("failed new bytes\n")
-    } finally {
-      await chmod(blockedDir, 0o755)
-    }
-  })
-
-  test("rejects missing parents, symlinks, and escaping checkpoint paths without writing state", async () => {
-    const cases: Array<{ paths: string[]; prepare?: (fixture: RepoFixture) => Promise<void> }> = [
-      { paths: ["missing-parent/missing.txt"] },
-      { paths: ["../outside.txt"] },
-      {
-        paths: ["linked.txt"],
-        prepare: async (fixture) => { await symlink(fixture.activePath, path.join(fixture.repo, "linked.txt")) },
-      },
-    ]
-
-    for (const { paths, prepare } of cases) {
-      const fixture = await createRepo()
-      await prepare?.(fixture)
-      const cycle = await writeCycleFiles(paths, { status: "pending" })
-      expect((await helper(fixture.repo, "cycle-checkpoint", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath)).status).toBe("malformed")
-      expect(Bun.file(cycle.statePath).size).toBe(0)
-    }
-  })
-})

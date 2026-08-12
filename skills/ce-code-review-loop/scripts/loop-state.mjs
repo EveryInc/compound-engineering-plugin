@@ -2,8 +2,8 @@
 
 import { execFileSync } from "node:child_process"
 import { createHash, randomBytes, randomUUID } from "node:crypto"
-import { chmodSync, lstatSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path"
+import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
 
 function regularPath(repo, absolute, { allowMissingLeaf = false } = {}) {
   const rel = relative(repo, absolute)
@@ -345,7 +345,7 @@ function readCycleState(repo, stateFile) {
   const state = readJson(stateFile)
   if (
     !state
-    || ![1, 2].includes(state.version)
+    || state.version !== 2
     || state.repo !== repo
     || typeof state.branch !== "string"
     || typeof state.head_sha !== "string"
@@ -353,18 +353,16 @@ function readCycleState(repo, stateFile) {
     || !Array.isArray(state.files)
     || state.files.length !== state.paths.length
     || !privateArtifact(repo, state.verification_json)
-    || (state.version === 2 && (
-      typeof state.phase !== "string"
-      || typeof state.lease_id !== "string"
-      || !/^[0-9a-f]{32}$/.test(state.lease_id)
-      || typeof state.registry_path !== "string"
-      || !privateArtifact(repo, state.registry_path)
-      || typeof state.packet_path !== "string"
-      || !privateArtifact(repo, state.packet_path)
-      || typeof state.base_sha !== "string"
-      || typeof state.review_run_id !== "string"
-      || !record(state.family)
-    ))
+    || typeof state.phase !== "string"
+    || typeof state.lease_id !== "string"
+    || !/^[0-9a-f]{32}$/.test(state.lease_id)
+    || typeof state.registry_path !== "string"
+    || !privateArtifact(repo, state.registry_path)
+    || typeof state.packet_path !== "string"
+    || !privateArtifact(repo, state.packet_path)
+    || typeof state.base_sha !== "string"
+    || typeof state.review_run_id !== "string"
+    || !record(state.family)
     || (state.seal !== undefined && (
       !state.seal || typeof state.seal !== "object" || Array.isArray(state.seal)
       || !["passed", "failed"].includes(state.seal.verification_status)
@@ -397,10 +395,22 @@ function readCycleState(repo, stateFile) {
   return state
 }
 
+function ensurePrivateDirectory(directory) {
+  if (!existsSync(directory)) mkdirSync(directory, { recursive: true, mode: 0o700 })
+  const stat = lstatSync(directory)
+  if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error("unsafe lease directory")
+  if (typeof process.getuid === "function" && stat.uid !== process.getuid()) throw new Error("foreign lease directory")
+  chmodSync(directory, 0o700)
+  if ((lstatSync(directory).mode & 0o777) !== 0o700) throw new Error("insecure lease directory")
+}
 
-function leaseRegistryPath(repo, stateFile) {
+function leaseRegistryPath(repo) {
+  const uid = typeof process.getuid === "function" ? process.getuid() : "user"
+  const root = process.env.CE_CODE_REVIEW_LOOP_LEASE_BASE
+    || join("/tmp", `compound-engineering-${uid}`, "ce-code-review-loop", "leases")
+  ensurePrivateDirectory(root)
   const key = digest(Buffer.from(realpathSync(repo)))
-  return resolve(dirname(stateFile), `lease-${key}.json`)
+  return resolve(root, `${key}.json`)
 }
 
 function registryRecord(file) {
@@ -449,6 +459,14 @@ function finishLease(state, stateFile, phase, extra = {}) {
   }
   if (!releaseRegistry(state, stateFile)) return { status: "registry_invalid", phase }
   return null
+}
+
+function terminalFailure(state, stateFile, result) {
+  const failed = finishLease(state, stateFile, "blocked", {
+    terminal_reason: result.status,
+    terminal_result: result,
+  })
+  return failed ?? { ...result, phase: "blocked", lease_id: state.lease_id }
 }
 
 function leasedState(repoValue, stateFile, lease, allowedPhases) {
@@ -540,7 +558,12 @@ function cycleAuthorize(repoValue, stateFile, pathsFile, verificationFile, famil
       if (error?.code !== "ENOENT") return malformed("artifact")
     }
   }
-  const registryPath = leaseRegistryPath(repo, resolve(stateFile))
+  let registryPath
+  try {
+    registryPath = leaseRegistryPath(repo)
+  } catch {
+    return { status: "registry_invalid" }
+  }
   const existing = registryRecord(registryPath)
   if (existing) return { status: "lease_conflict", lease_id: existing.lease_id, state: existing.state }
   try {
@@ -589,14 +612,18 @@ function cycleAuthorize(repoValue, stateFile, pathsFile, verificationFile, famil
     forbidden_actions: ["commit", "stage", "push", "switch_branch", "create_worktree", "review"],
     scope_expansion: { status: "scope_expansion", required_before_edit: true, fields: ["lease_id", "requested_paths", "reason", "evidence"] },
   }
+  let stateCreated = false
+  let packetCreated = false
   try {
     writeFileSync(stateFile, `${JSON.stringify(state)}\n`, { mode: 0o600, flag: "wx" })
+    stateCreated = true
     chmodSync(stateFile, 0o600)
     writeFileSync(packetFile, `${JSON.stringify(packet)}\n`, { mode: 0o600, flag: "wx" })
+    packetCreated = true
     chmodSync(packetFile, 0o600)
   } catch {
-    try { unlinkSync(stateFile) } catch {}
-    try { unlinkSync(packetFile) } catch {}
+    if (stateCreated) try { unlinkSync(stateFile) } catch {}
+    if (packetCreated) try { unlinkSync(packetFile) } catch {}
     releaseRegistry(state, stateFile)
     return malformed("state")
   }
@@ -639,13 +666,15 @@ function cycleScopeExpansion(repoValue, stateFile, lease, resultFile) {
   const leased = leasedState(repoValue, stateFile, lease, ["authorized", "dispatched"])
   if (!leased.ok) return leased.result
   const result = readJson(resultFile)
-  if (!result || result.status !== "scope_expansion" || result.lease_id !== lease || !uniqueStrings(result.requested_paths) || !nonemptyString(result.reason) || !uniqueStrings(result.evidence)) return malformed("scope_expansion")
+  if (!result || result.status !== "scope_expansion" || result.lease_id !== lease || !uniqueStrings(result.requested_paths) || !nonemptyString(result.reason) || !uniqueStrings(result.evidence)) {
+    return terminalFailure(leased.state, stateFile, malformed("scope_expansion"))
+  }
   const status = cycleStatus(repoValue, stateFile, lease)
   if (status.status !== "ok" || status.dirty_paths.length > 0) return { ...status, status: "protocol_violation", mutation_permitted: false }
   const temporaryPaths = resolve(dirname(resultFile), `.scope-paths-${randomUUID()}.json`)
   try {
     writeFileSync(temporaryPaths, JSON.stringify(result.requested_paths), { mode: 0o600, flag: "wx" })
-    if (!intendedPaths(leased.repo, temporaryPaths)) return malformed("scope_paths")
+    if (!intendedPaths(leased.repo, temporaryPaths)) return terminalFailure(leased.state, stateFile, malformed("scope_paths"))
   } finally {
     try { unlinkSync(temporaryPaths) } catch {}
   }
@@ -689,10 +718,8 @@ function cycleSeal(repoValue, stateFile, lease) {
   const repo = resolve(repoValue)
   const state = readCycleState(repo, stateFile)
   if (!state || state.seal) return malformed("state")
-  if (state.version === 2) {
-    const leased = leasedState(repoValue, stateFile, lease, ["dispatched"])
-    if (!leased.ok) return leased.result
-  }
+  const leased = leasedState(repoValue, stateFile, lease, ["dispatched"])
+  if (!leased.ok) return leased.result
   const guarded = cycleGuard(repo, state)
   if (!guarded.ok) return guarded.result
   const verification = verificationResult(state)
@@ -709,7 +736,7 @@ function cycleSeal(repoValue, stateFile, lease) {
   }
   if (!files) return malformed("unsafe_path")
   state.seal = { verification_status: verification.status, files }
-  if (state.version === 2) state.phase = "sealed"
+  state.phase = "sealed"
   try {
     atomicWriteJson(resolve(stateFile), state)
   } catch {
@@ -741,54 +768,19 @@ function sealedGuard(repo, state, guarded) {
   return { ok: true }
 }
 
-function cycleCheckpoint(repoValue, stateFile, pathsFile, verificationFile) {
-  if (!repoValue || !stateFile || !pathsFile || !verificationFile) return malformed("arguments")
-  const repo = resolve(repoValue)
-  if (![stateFile, pathsFile, verificationFile].every((file) => privateArtifact(repo, file))) {
-    return malformed("private_artifact")
-  }
-  const files = intendedPaths(repo, pathsFile)
-  if (!files) return malformed("paths")
-  const entry = preflight(repo, "HEAD")
-  if (entry.input !== "valid" || !entry.clean) return { ...entry, status: "concurrent_change" }
-
-  const state = {
-    version: 1,
-    repo,
-    branch: entry.branch,
-    head_sha: entry.head_sha,
-    paths: files.map((file) => file.path),
-    files,
-    verification_json: resolve(verificationFile),
-  }
-  try {
-    writeFileSync(stateFile, `${JSON.stringify(state)}\n`, { mode: 0o600, flag: "wx" })
-    chmodSync(stateFile, 0o600)
-  } catch {
-    return malformed("state")
-  }
-  return {
-    status: "checkpointed",
-    branch: state.branch,
-    head_sha: state.head_sha,
-    paths: state.paths,
-  }
-}
 
 function cycleRestore(repoValue, stateFile, lease) {
   if (!repoValue || !stateFile) return malformed("arguments")
   const repo = resolve(repoValue)
   const state = readCycleState(repo, stateFile)
   if (!state) return malformed("state")
-  if (state.version === 2) {
-    const leased = leasedState(repoValue, stateFile, lease, ["sealed"])
-    if (!leased.ok) return leased.result
-  }
+  const leased = leasedState(repoValue, stateFile, lease, ["sealed"])
+  if (!leased.ok) return leased.result
   let guarded
   try {
     guarded = cycleGuard(repo, state)
   } catch {
-    return { status: "restore_failed", restored_paths: [], pending_paths: state.paths, changed_paths: safeGitPaths(repo, state.paths) }
+    return terminalFailure(state, stateFile, { status: "restore_failed", restored_paths: [], pending_paths: state.paths, changed_paths: safeGitPaths(repo, state.paths) })
   }
   if (!guarded.ok) return guarded.result
   const sealed = sealedGuard(repo, state, guarded)
@@ -799,62 +791,56 @@ function cycleRestore(repoValue, stateFile, lease) {
     for (const file of state.files) {
       const absolute = resolve(repo, file.path)
       const current = regularPath(repo, absolute, { allowMissingLeaf: true })
-      if (!current) {
-        return { status: "concurrent_change", branch: guarded.branch, head_sha: guarded.headSha, changed_paths: [file.path] }
+      if (!current) return { status: "concurrent_change", branch: guarded.branch, head_sha: guarded.headSha, changed_paths: [file.path] }
+      const desired = file.exists ? resolve(dirname(absolute), `.ce-review-loop-restore-${randomUUID()}.tmp`) : null
+      if (desired) {
+        writeFileSync(desired, Buffer.from(file.bytes, "base64"), { mode: file.mode, flag: "wx" })
+        chmodSync(desired, file.mode)
       }
-      if (!file.exists) {
-        operations.push({ file, absolute, current, temporary: null })
-        continue
-      }
-      const temporary = resolve(dirname(absolute), `.ce-review-loop-restore-${randomUUID()}.tmp`)
-      writeFileSync(temporary, Buffer.from(file.bytes, "base64"), { mode: file.mode, flag: "wx" })
-      chmodSync(temporary, file.mode)
-      operations.push({ file, absolute, current, temporary })
+      operations.push({ file, absolute, current, desired, displaced: resolve(dirname(absolute), `.ce-review-loop-displaced-${randomUUID()}.tmp`) })
     }
   } catch {
-    for (const operation of operations) {
-      if (operation.temporary) try { unlinkSync(operation.temporary) } catch {}
-    }
-    return {
-      status: "restore_failed",
-      restored_paths: [],
-      pending_paths: state.paths,
-      changed_paths: safeGitPaths(repo, state.paths),
-    }
+    for (const operation of operations) if (operation.desired) try { unlinkSync(operation.desired) } catch {}
+    return terminalFailure(state, stateFile, { status: "restore_failed", restored_paths: [], pending_paths: state.paths, changed_paths: safeGitPaths(repo, state.paths) })
   }
 
   const restoredPaths = []
   for (let index = 0; index < operations.length; index += 1) {
     const operation = operations[index]
     try {
-      if (!operation.file.exists) {
-        if (operation.current !== "missing") unlinkSync(operation.absolute)
-      } else {
-        renameSync(operation.temporary, operation.absolute)
-        operation.temporary = null
+      const current = captureWorktreeSnapshots(repo, [operation.file.path])
+      const sealedFile = state.seal.files[index]
+      if (!current || worktreeSnapshotMismatch([sealedFile], current).length > 0) {
+        throw Object.assign(new Error("concurrent change"), { code: "CONCURRENT" })
       }
+      if (operation.current !== "missing") {
+        renameSync(operation.absolute, operation.displaced)
+        const displaced = readFileSync(operation.displaced)
+        if (!sealedFile.exists || digest(displaced) !== sealedFile.digest || (lstatSync(operation.displaced).mode & 0o777) !== sealedFile.mode) {
+          if (!existsSync(operation.absolute)) linkSync(operation.displaced, operation.absolute)
+          throw Object.assign(new Error("concurrent displacement"), { code: "CONCURRENT" })
+        }
+      }
+      if (operation.file.exists) {
+        linkSync(operation.desired, operation.absolute)
+        unlinkSync(operation.desired)
+        operation.desired = null
+      }
+      if (existsSync(operation.displaced)) unlinkSync(operation.displaced)
       restoredPaths.push(operation.file.path)
-    } catch {
-      for (const remaining of operations.slice(index)) {
-        if (remaining.temporary) try { unlinkSync(remaining.temporary) } catch {}
-      }
-      return {
-        status: "restore_failed",
-        restored_paths: restoredPaths,
-        pending_paths: state.paths.filter((path) => !restoredPaths.includes(path)),
-        changed_paths: safeGitPaths(repo, state.paths.filter((path) => !restoredPaths.includes(path))),
-      }
+    } catch (error) {
+      for (const remaining of operations.slice(index)) if (remaining.desired) try { unlinkSync(remaining.desired) } catch {}
+      const result = error?.code === "CONCURRENT"
+        ? { status: "concurrent_change", branch: guarded.branch, head_sha: guarded.headSha, changed_paths: [operation.file.path], preserved_path: existsSync(operation.displaced) ? operation.displaced : null }
+        : { status: "restore_failed", restored_paths: restoredPaths, pending_paths: state.paths.filter((path) => !restoredPaths.includes(path)), changed_paths: safeGitPaths(repo, state.paths.filter((path) => !restoredPaths.includes(path))), preserved_path: existsSync(operation.displaced) ? operation.displaced : null }
+      return terminalFailure(state, stateFile, result)
     }
   }
 
   const remaining = safeGitPaths(repo, state.paths)
-  if (remaining.length > 0) {
-    return { status: "restore_failed", restored_paths: restoredPaths, pending_paths: [], changed_paths: remaining }
-  }
-  if (state.version === 2) {
-    const failed = finishLease(state, stateFile, "restored")
-    if (failed) return failed
-  }
+  if (remaining.length > 0) return terminalFailure(state, stateFile, { status: "restore_failed", restored_paths: restoredPaths, pending_paths: [], changed_paths: remaining })
+  const failed = finishLease(state, stateFile, "restored")
+  if (failed) return failed
   return { status: "restored", clean: true, paths: state.paths }
 }
 
@@ -865,10 +851,8 @@ function cycleCommit(repoValue, stateFile, lease, message) {
   const repo = resolve(repoValue)
   const state = readCycleState(repo, stateFile)
   if (!state) return malformed("state")
-  if (state.version === 2) {
-    const leased = leasedState(repoValue, stateFile, lease, ["sealed"])
-    if (!leased.ok) return leased.result
-  }
+  const leased = leasedState(repoValue, stateFile, lease, ["sealed"])
+  if (!leased.ok) return leased.result
   const guarded = cycleGuard(repo, state)
   if (!guarded.ok) return guarded.result
   const verification = verificationResult(state)
@@ -968,10 +952,8 @@ function cycleCommit(repoValue, stateFile, lease, message) {
   }
   if (!clean) return commitIntegrityFailure("working_tree_not_clean", commitSha, changedAfterCommit, false)
 
-  if (state.version === 2) {
-    const failed = finishLease(state, stateFile, "committed", { commit_sha: commitSha })
-    if (failed) return failed
-  }
+  const failed = finishLease(state, stateFile, "committed", { commit_sha: commitSha })
+  if (failed) return failed
   return { status: "committed", commit_sha: commitSha, clean: true, paths: state.paths }
 }
 function stringArray(value) {
@@ -1283,8 +1265,6 @@ if (!options) {
   emit(cycleBegin(options.repo, options.state, options.lease))
 } else if (command === "cycle-status") {
   emit(cycleStatus(options.repo, options.state, options.lease))
-} else if (command === "cycle-checkpoint") {
-  emit(cycleCheckpoint(options.repo, options.state, options["paths-json"], options["verification-json"]))
 } else if (command === "cycle-seal") {
   emit(cycleSeal(options.repo, options.state, options.lease))
 } else if (command === "cycle-scope-expansion") {
