@@ -61,10 +61,24 @@ const RESEARCH = sliceSection(
 const ISSUE_PROTOCOL = sliceSection(
   PHASE_1,
   "only when issue-tracker intent was detected",
-  "Do not compose either dispatch from this summary",
+  "**Elsewhere mode dispatch",
 )
 
 describe("ce-ideate issue-intelligence extraction keeps its skeleton inline", () => {
+  test("the reference load fires BEFORE the first dispatch step, not after it", () => {
+    // The step list is executable ("dispatch the analyst in SCAN mode"), so a
+    // load instruction placed after it lets a sequential agent launch the scan
+    // from the deliberately incomplete summary before reading the prohibition.
+    const load = ISSUE_PROTOCOL.indexOf("Read `references/issue-intelligence.md` before dispatching anything here")
+    const firstStep = ISSUE_PROTOCOL.indexOf("**a. Scan**")
+    expect(load, "Phase 1 must carry a load-before-dispatch instruction.").toBeGreaterThan(-1)
+    expect(firstStep, "Phase 1 must carry the ordered steps.").toBeGreaterThan(-1)
+    expect(
+      load,
+      "The reference load must precede the first executable dispatch step.",
+    ).toBeLessThan(firstStep)
+  })
+
   test("the reference exists and SKILL.md points at it", () => {
     expect(
       existsSync(path.join(SKILL_DIR, "references/issue-intelligence.md")),
@@ -111,7 +125,7 @@ describe("ce-ideate issue-intelligence extraction keeps its skeleton inline", ()
     // the payload detail in one move -- the second failure mode in the
     // post-menu-routing solution doc.
     expect(
-      /Do not compose either dispatch from this summary/i.test(PHASE_1),
+      /do not compose either dispatch from them/i.test(PHASE_1),
       "The issue-intelligence stub must tell the agent not to build the dispatch from the inline summary.",
     ).toBe(true)
   })
@@ -292,6 +306,21 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
     expect(
       /tell the verifier the meeting-test floor is waived/i.test(UNIVERSAL_BODY),
       "The universal verifier must receive the tactical waiver, same as the software path.",
+    ).toBe(true)
+    // Only Full depth dispatches sub-agents in this mode, and tactical steers
+    // toward Quick/Standard -- so a fleet count stated without the depth would
+    // announce agents that never get dispatched.
+    expect(
+      /zero ideation sub-agents/i.test(UNIVERSAL_BODY),
+      "The universal tactical block must state the no-dispatch case for Quick/Standard depth.",
+    ).toBe(true)
+    expect(
+      /never announce a fleet the selected depth will not dispatch/i.test(UNIVERSAL_BODY),
+      "The universal tactical block must tie the announced fleet to the resolved depth.",
+    ).toBe(true)
+    expect(
+      /depends on the depth that mode selects|ideation count is not settled yet/i.test(COST_0_6),
+      "Phase 0.6 must not assert an ideation count for the mode that picks depth later.",
     ).toBe(true)
   })
 

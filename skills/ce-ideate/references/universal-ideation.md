@@ -59,7 +59,15 @@ Record the axes (or skip-reason) at the head of generation. Generation will dist
 
 Generate the full candidate list before critiquing any idea. Use the same six frames as software ideation, described in domain-agnostic language. Each frame is a **starting bias, not a constraint** — follow promising threads across frames. When dispatching frames as parallel sub-agents (Full depth), follow SKILL.md Model Tiers: evidence-driven frames (pain, inversion, leverage) on the generation tier; ceiling frames (assumption-breaking, analogy, constraint-flipping) on the ceiling tier.
 
-**Tactical scope applies here too.** This mode replaces the software frame dispatch, so it never loads `references/divergent-ideation.md` and would otherwise miss the Phase 0.5 scaling entirely — a request like "quick wins for this launch strategy" must not get the full treatment. When tactical scope is active: pack the six frames into **2 sub-agents (3 frames each)** at Full depth rather than one per frame, cap decomposition at 3 axes, and waive the meeting-test floor for the generators *and* in the basis verifier's payload (see "How to converge"). Frame coverage is a floor here as in software mode — fewer agents, never fewer lenses. Tactical scope also biases the depth choice in "How to start" toward Quick or Standard. `go deep` suppresses tactical scope entirely, per Phase 0.5.
+**Tactical scope applies here too.** This mode replaces the software frame dispatch, so it never loads `references/divergent-ideation.md` and would otherwise miss the Phase 0.5 scaling entirely — a request like "quick wins for this launch strategy" must not get the full treatment. When tactical scope is active:
+
+- **Depth is the fleet decision in this mode.** Unlike software mode, only Full depth dispatches frames as parallel sub-agents; Quick and Standard run them inline in the facilitator. So resolve depth *first*, then let the count follow it — never announce a fleet the selected depth will not dispatch.
+  - **Full depth** → pack the six frames into **2 sub-agents (3 frames each)** rather than one per frame.
+  - **Quick or Standard** → **zero ideation sub-agents**; the facilitator covers all six frames inline. Tactical scope is a reason to prefer these, and when you do, the Phase 0.6 cost notice must name the grounding and verifier agents only.
+- Cap decomposition at 3 axes.
+- Waive the meeting-test floor for the generators *and* in the basis verifier's payload (see "How to converge").
+
+Frame coverage is a floor here as in software mode — fewer agents, or none, never fewer lenses. `go deep` suppresses tactical scope entirely, per Phase 0.5.
 
 - **Pain and friction** — what is consistently annoying, slow, or broken in the current state of the topic? Generate ideas that remove or reduce that friction.
 - **Inversion, removal, automation** — what would happen if a step were inverted, removed entirely, or automated away? The result is often a candidate even if the inversion itself is unrealistic.

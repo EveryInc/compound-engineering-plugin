@@ -251,7 +251,7 @@ See the fleet variants in `references/divergent-ideation.md`.
 
 Before dispatching Phase 1, surface the cost shape in one short line so multi-agent cost is not invisible. Name the grounding agents this run will actually dispatch, the size of the ideation fleet, and the skip phrases — e.g. *"Will dispatch codebase scan + learnings + web research + up to 5 evidence scouts + 5 ideation + 1 basis verifier, most on cheap tiers. Skip phrases: 'no external research', 'no slack'."*
 
-Derive it from the dispatch decisions already made in this phase — do not carry a memorized total. Every number is owned elsewhere and changes there: grounding by Phase 1's mode dispatch, scouts by Phase 1.5, the ideation fleet by `references/divergent-ideation.md`, and the tactical and `go deep` variants by 0.5. State a count only if you are stating one you just derived; naming the agents without a total is fine.
+Derive it from the dispatch decisions already made in this phase — do not carry a memorized total. **Elsewhere-non-software is the one mode whose ideation count is not settled yet:** `references/universal-ideation.md` picks a depth later, and only its Full depth dispatches ideation sub-agents at all. Name the grounding agents and say the ideation fleet depends on the depth that mode selects, rather than asserting a number that may never be dispatched. Every number is owned elsewhere and changes there: grounding by Phase 1's mode dispatch, scouts by Phase 1.5, the ideation fleet by `references/divergent-ideation.md`, and the tactical and `go deep` variants by 0.5. State a count only if you are stating one you just derived; naming the agents without a total is fine.
 
 Include the conditional legs when they apply: issue intelligence adds its scan and cluster calls, opt-in Slack research adds one, one distiller per user-supplied research artifact **large enough to need distilling** (a small one folds into the grounding summary inline and costs no agent), and up to 2 axis-coverage recovery agents in Phase 2. Subtract the web researcher on a skip phrase or a V15 cache reuse. In surprise-me mode add "(deeper exploration per agent)".
 
@@ -310,14 +310,16 @@ Run grounding agents in parallel in the **foreground** (do not background — re
 
 3. **Web research** (always-on; see "Web research" subsection below for skip-phrase and V15 cache handling).
 
-4. **Issue intelligence** (conditional) — only when issue-tracker intent was detected in **Phase 0.2**. Unlike the other grounding agents this one is **not** fire-and-forget: it is an ordered two-call protocol with a question in the middle that only you can ask, because a subagent cannot block for user input. Run these four steps in order:
+4. **Issue intelligence** (conditional) — only when issue-tracker intent was detected in **Phase 0.2**. Unlike the other grounding agents this one is **not** fire-and-forget: it is an ordered two-call protocol with a question in the middle that only you can ask, because a subagent cannot block for user input.
+
+   **Read `references/issue-intelligence.md` before dispatching anything here.** It owns the payload of each call, the persistence contract, the scoping question's option construction and platform option-cap handling, and the exact fallback markers. The four steps below name the *sequence*, not the calls — do not compose either dispatch from them.
+
+   Then run these four steps in order:
 
    **a. Scan** — dispatch the analyst in SCAN mode. It probes tracker access and persists what it fetched; it does **not** cluster.
    **b. Fall back or scope** — no reachable tracker, or fewer than 5 eligible issues, ends the lens here: log the reason, continue with the remaining grounding, and use the default Phase 2 fleet. Otherwise resolve the scope yourself, asking **at most one** blocking question and only on irreducible ambiguity.
    **c. Cluster** — dispatch the analyst again in CLUSTER mode with the resolved scope, reusing the scan's persisted set rather than re-fetching.
    **d. Await** — consolidation and Phase 1.5 depend on the returned themes. Do not close the consolidated grounding summary before the cluster result lands.
-
-   Read `references/issue-intelligence.md` and follow it for the payload of each call, the persistence contract, the scoping question's option construction and platform option-cap handling, and the exact fallback markers. Do not compose either dispatch from this summary — it names the sequence, not the calls.
 
 **Elsewhere mode dispatch (skip the codebase scan; user-supplied context is the primary grounding):**
 
