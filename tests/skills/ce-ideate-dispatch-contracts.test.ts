@@ -427,6 +427,25 @@ describe("ce-ideate cost transparency states no hand-maintained totals", () => {
   test("the skip phrases survive the compression", () => {
     expect(/no external research/i.test(COST_0_6)).toBe(true)
   })
+
+  test("the notice does not pre-subtract or assert legs a later phase decides", () => {
+    // The V15 cache check, the issue cluster call, and the universal depth
+    // count are all resolved after this notice fires, so claiming them here
+    // misstates the cost in the direction of confident precision.
+    expect(
+      /Say "conditional" for anything this phase cannot yet resolve; do not pre-subtract it/i.test(COST_0_6),
+      "Phase 0.6 must tell the agent to mark unresolved legs conditional.",
+    ).toBe(true)
+    expect(
+      /cluster call only if that scan returns usable signal/i.test(COST_0_6),
+      "The issue cluster call must be stated as conditional on the scan's result.",
+    ).toBe(true)
+    // The skip phrase IS readable now, so it stays a real subtraction.
+    expect(
+      /skip phrase — that much is readable from the prompt right now/i.test(COST_0_6),
+      "A skip phrase is knowable at notice time and should stay a subtraction.",
+    ).toBe(true)
+  })
 })
 
 describe("ce-ideate surprise-me deltas are consolidated but locally hooked", () => {
