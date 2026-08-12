@@ -220,27 +220,49 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
     }
   })
 
-  test("the tactical fleet keeps all six frames", () => {
-    // The six frames are a coverage floor. Cutting agents is the cost lever;
-    // cutting lenses would delete required coverage.
+  test("tactical takes its savings from volume and reads, not from packing frames", () => {
+    // Packing was tried and reverted. Two reasons, both in the file: per-frame
+    // idea targets do not change under packing, so it barely reduces generated
+    // output; and the verification budget is per AGENT, so an agent holding
+    // three frames verifies ~1/3 as much per idea -- cutting the basis check,
+    // which is the mechanism the skill exists to enforce.
     expect(
-      /2 ideation agents covering all six frames/i.test(VOLUME_0_5),
-      "Tactical scope must dispatch fewer agents while still covering all six frames.",
+      /Cut volume, not agents/i.test(VOLUME_0_5),
+      "Phase 0.5 must name volume and reads as the tactical cost levers.",
     ).toBe(true)
     expect(
-      /Cut agents, never frame coverage/i.test(VOLUME_0_5),
-      "Phase 0.5 must state the cut-agents-not-frames rule explicitly.",
+      /Do not pack extra frames into one agent to save money/i.test(VOLUME_0_5),
+      "Phase 0.5 must forbid packing as a cost lever.",
     ).toBe(true)
     expect(
-      /tactical scope.*2 agents, 3 frames each/is.test(DIVERGENT_BODY),
-      "divergent-ideation.md must carry the tactical fleet variant as the dispatch source of truth.",
+      /verification budget is \*\*per agent, not per frame\*\*/i.test(VOLUME_0_5),
+      "Phase 0.5 must state why packing is rejected: the per-agent verification budget.",
     ).toBe(true)
+    // The reverted shape must not come back.
+    expect(
+      /2 ideation agents covering all six frames|2 agents, 3 frames each/i.test(SKILL_BODY + DIVERGENT_BODY),
+      "The 2x3 tactical packing must not be reintroduced.",
+    ).toBe(false)
+    expect(
+      /the same 5 agents over 6 frames as the default/i.test(DIVERGENT_BODY),
+      "divergent-ideation.md must keep the default fleet under tactical scope.",
+    ).toBe(true)
+    // The concrete dials, at the sites that own them.
+    expect(
+      /3-4 under tactical scope/i.test(DIVERGENT_BODY),
+      "The per-frame volume line must carry the tactical target.",
+    ).toBe(true)
+    expect(
+      /2-3 under tactical scope/i.test(DIVERGENT_BODY),
+      "The verification-read line must carry the tactical budget.",
+    ).toBe(true)
+  })
+
+  test("all six frames survive every default-frame-set variant", () => {
     expect(
       /Every variant that uses the default frame set covers all six/i.test(DIVERGENT_BODY),
       "divergent-ideation.md must state the six-frame floor for default-frame-set variants.",
     ).toBe(true)
-    // Scoped, not universal: issue-tracker mode replaces the frame set with
-    // themes, so an unqualified "every variant" would contradict it.
     expect(
       /Issue-tracker mode is the one variant that \*replaces\* the frame set/i.test(DIVERGENT_BODY),
       "The six-frame floor must exempt issue-tracker mode explicitly.",
@@ -307,8 +329,8 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
       "universal-ideation.md must carry the tactical scaling for its own dispatch.",
     ).toBe(true)
     expect(
-      /2 sub-agents \(3 frames each\)/i.test(UNIVERSAL_BODY),
-      "The universal tactical packing must keep all six frames in fewer agents.",
+      /keep one frame per sub-agent as usual; take the saving from volume instead/i.test(UNIVERSAL_BODY),
+      "The universal tactical path must save on volume, not by packing frames.",
     ).toBe(true)
     expect(
       /3 max when tactical scope is active/i.test(UNIVERSAL_BODY),
@@ -340,10 +362,12 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
     const cue = UNIVERSAL_BODY.indexOf("Depth is the fleet decision in this mode")
     expect(cue, "universal-ideation.md must cue tactical depth where depth is chosen.").toBeGreaterThan(start)
     expect(cue, "The depth cue must precede 'How to generate'.").toBeLessThan(generate)
+    // Phase 0.5 no longer prescribes any tactical agent count, so it cannot
+    // conflict with a mode that resolves its fleet later.
     expect(
-      /Elsewhere-non-software resolves its own count with depth/i.test(VOLUME_0_5),
-      "Phase 0.5 must not read as a universal 2-agent mandate across all modes.",
-    ).toBe(true)
+      /\b\d+ ideation agents\b/i.test(VOLUME_0_5),
+      "Phase 0.5 must not prescribe a tactical agent count for any mode to satisfy.",
+    ).toBe(false)
   })
 
   test("go deep still scales up, so the two overrides stay symmetric", () => {

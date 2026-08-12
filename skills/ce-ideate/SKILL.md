@@ -232,10 +232,11 @@ Two symmetric depth overrides scale the run. Both are opt-in from the user's own
 
 **Tactical signals — scale down.** Parse the focus hint (and any 0.2 intake answers) for `polish`, `typo`, `typos`, `quick wins`, `small improvements`, `cleanup`, or `small fixes`. When present, the user has opted into tactical scope, so shrink the run:
 
-- **2 ideation agents covering all six frames** (3 frames each) instead of 5. Cut agents, never frame coverage — the six frames are a coverage floor, and dropping the ceiling frames would remove exactly the non-obvious ideas a small surface still benefits from. *(Elsewhere-non-software resolves its own count with depth in `references/universal-ideation.md`, where Quick and Standard dispatch none; the six-frame floor holds there either way.)*
+- **Cut volume, not agents.** Lower each frame's target from ~6-8 ideas to **3-4**, and the per-agent verification-read budget from 5 to **2-3**. Keep the default agent-to-frame mapping. Output is where a run's cost actually lives, so halving what each frame generates is the real saving; packing frames into fewer agents mostly moves the same work around.
+- **Do not pack extra frames into one agent to save money.** The verification budget is **per agent, not per frame** (`references/divergent-ideation.md`), so an agent holding three frames verifies roughly a third as much per idea — and unverifiable `direct:` bases are the exact failure this skill exists to prevent. Cheapness must never come out of the basis check.
 - **Cap Phase 1.5 at 3 axes and evidence scouts at 3.** Keep the two caps *equal*: scouts dispatch one per axis, so any axis past the scout cap reaches generation with no evidence dossier and only the Phase 1 orientation gist to cite. Three is the floor for decomposition at all (fewer means atomic), so this is the smallest coupled pair — not a further cut on either side alone.
 - **Waive the meeting-test floor at both layers** — for the generators *and* in the Phase 3 basis verifier's dispatch prompt. The verifier runs on a fresh context with none of the generation history, so a waiver it is not told about does not reach it.
-- **Keep the basis verifier.** A cheap run still may not surface ideas whose basis was never checked.
+- **Keep the basis verifier, and keep all six frames.** A cheap run still may not surface ideas whose basis was never checked, and dropping lenses would remove exactly the non-obvious ideas a small surface still benefits from.
 
 Use reasonable interpretation rather than formal parsing.
 

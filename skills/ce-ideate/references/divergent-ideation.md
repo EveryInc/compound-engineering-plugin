@@ -9,26 +9,26 @@ Dispatch parallel ideation sub-agents per the Model Tiers fleet. Omit the `mode`
 - **3 generation-tier agents**, one per evidence-driven frame (Pain and friction; Inversion, removal, or automation; Leverage and compounding). These frames live on evidence — the dossiers do the heavy lifting, so the mid-tier model performs well here.
 - **2 ceiling-tier agents** for the ceiling frames, where the strong model's reasoning is the product and must not be tiered down: one takes Cross-domain analogy; the other takes Assumption-breaking and reframing **plus** Constraint-flipping (cousins — both invert givens; one agent holds both as starting biases).
 
-Fleet variants. **Every variant that uses the default frame set covers all six** — scaling changes only how many agents the frames are packed into and the tier they run on, never how many lenses run. Issue-tracker mode is the one variant that *replaces* the frame set (themes become the frames), so the six-frame floor does not apply to it:
+Fleet variants. **Every variant that uses the default frame set covers all six** — scaling changes the agent count, the tier, or the per-frame volume, never how many lenses run. Issue-tracker mode is the one variant that *replaces* the frame set (themes become the frames), so the six-frame floor does not apply to it:
 
 - **surprise-me** and **`go deep`** — 6 agents, one frame each, all ceiling-tier.
-- **tactical scope** (Phase 0.5 signals) — 2 agents, 3 frames each, native tiers: one takes the three evidence-driven frames (pain; inversion; leverage), the other the three ceiling frames (assumption-breaking; analogy; constraint-flipping). Frame coverage is a floor, not a budget line — a tactical run gets fewer agents and a lower ambition floor, never fewer lenses.
+- **tactical scope** (Phase 0.5 signals) — **the same 5 agents over 6 frames as the default.** Tactical does not repack the fleet; it lowers each frame's target to 3-4 ideas and each agent's verification budget to 2-3 reads. Packing frames into fewer agents was tried and reverted: per-frame targets stay the same under packing (see the volume line below), so it barely reduces generated output, while the verification budget below is **per agent** — an agent holding three frames verifies about a third as much per idea. Cost comes out of volume and reads; it never comes out of the basis check or the lens count.
 - **issue-tracker mode** — 4 agents, only when issue-tracker intent was detected in Phase 0.2 AND the issue intelligence agent returned usable themes (see the override below — cluster-derived frames capped at 4, dispatched on the generation tier; padded frames keep their native tier). This is the one variant that legitimately narrows the frame set, because the themes *are* the surface.
 
-**When two variants fire at once, frames and agent count are decided separately.** Whichever variant owns the *surface* picks the frames; whichever owns the *budget* picks how many agents they pack into.
+**When two variants fire at once, the surface and the budget are decided separately.** Whichever variant owns the *surface* picks the frames and the agent count; tactical contributes only its volume, read, and floor reductions — it never repacks another variant's fleet.
 
-| Both fired | Frames | Agents |
-|---|---|---|
-| issue-tracker + tactical | theme frames (issue-tracker owns the surface) | 2 (tactical owns the budget) |
-| issue-tracker + `go deep` / surprise-me | theme frames | 4, all ceiling-tier |
-| tactical + `go deep` | six frames | 6, all ceiling-tier (`go deep` wins outright per Phase 0.5) |
-| tactical + surprise-me | six frames | 6, all ceiling-tier — surprise-me owns the fleet |
+| Both fired | Frames | Agents | Volume / reads |
+|---|---|---|---|
+| issue-tracker + tactical | theme frames (issue-tracker owns the surface) | 4 | tactical's 3-4 ideas per frame, 2-3 reads |
+| issue-tracker + `go deep` / surprise-me | theme frames | 4, all ceiling-tier | default |
+| tactical + `go deep` | six frames | 6, all ceiling-tier (`go deep` wins outright per Phase 0.5) | default; tactical is suppressed |
+| tactical + surprise-me | six frames | 6, all ceiling-tier — surprise-me owns the fleet | tactical's lowered volume and reads |
 
-**tactical + surprise-me** is reachable whenever a vague tactical prompt (`quick wins`) sends the user to the 0.2 subject gate and they pick "Surprise me." Surprise-me wins the fleet: its subject discovery is the mode's entire value and cannot be done on two native-tier agents. Tactical keeps only its **waived ambition floor** — the user still asked for small wins, so a modest idea is allowed to survive. Tactical's axis and scout caps are moot here, because surprise-me skips decomposition entirely.
+**tactical + surprise-me** is reachable whenever a vague tactical prompt (`quick wins`) sends the user to the 0.2 subject gate and they pick "Surprise me." Surprise-me owns the fleet and tier — its subject discovery is the mode's entire value. Tactical still contributes its **lowered per-frame volume, reduced reads, and waived ambition floor**, since the user did ask for small wins. Its axis and scout caps are moot here, because surprise-me skips decomposition entirely.
 
-The insufficient-issue-signal fallback from Phase 1 drops back to the **six-frame default at this run's own agent count** — 5 ordinarily, 2 under tactical, 6 under `go deep` or surprise-me. It does not reset a scaled run to 5.
+The insufficient-issue-signal fallback from Phase 1 drops back to the **six-frame default at this run's own agent count** — 5 ordinarily (tactical included), 6 under `go deep` or surprise-me — carrying that run's own volume and read budgets rather than resetting them.
 
-Each frame targets ~6-8 ideas (a two-frame agent targets that per frame), yielding ~36-48 raw ideas in the default path or ~24-32 across 4 frames in issue-tracker mode; roughly 25-30 survive dedupe in the default path and fewer in the 4-frame path. Adjust per-frame targets when volume overrides apply (e.g., "100 ideas" raises it, "top 3" may lower the survivor count instead).
+Each frame targets ~6-8 ideas — **3-4 under tactical scope** — and a two-frame agent targets that per frame, yielding ~36-48 raw ideas in the default path (~18-24 tactical) or ~24-32 across 4 frames in issue-tracker mode; roughly 25-30 survive dedupe in the default path and fewer in the 4-frame path. Adjust per-frame targets when volume overrides apply (e.g., "100 ideas" raises it, "top 3" may lower the survivor count instead).
 
 ## Dispatch Payload (cache-friendly, long-context ordered)
 
@@ -46,7 +46,7 @@ The `<constraints>`/`<background>` split is the primary defense against groundin
 
 > This ideation exists so the user can choose a direction worth building — the output's value is decided by whether one idea changes what they do next. Generate the smartest, most inventive ideas your frame can reach: ideas a strong team would say "we have to do this" about. Your first few ideas will be the obvious ones — treat them as warm-up, and keep only the ones that still earn their place after the non-obvious ideas exist. If an idea would appear in a generic listicle about this topic, sharpen it with grounding evidence or drop it. Anchor every idea in specific entries from the grounding.
 
-**Verification reads (repo mode).** After an agent makes its internal cut, it may spend up to 5 targeted reads (10 under `go deep`) following dossier `file:line` pointers to verify or deepen the bases of ideas it will submit. A `direct:` basis must quote a line the agent actually read — in a dossier or in the repo — never a guessed citation. Elsewhere modes verify against the user-supplied context — including reading user-research dossiers when present — instead of reading repo files.
+**Verification reads (repo mode).** After an agent makes its internal cut, it may spend up to 5 targeted reads — 10 under `go deep`, 2-3 under tactical scope — following dossier `file:line` pointers to verify or deepen the bases of ideas it will submit. A `direct:` basis must quote a line the agent actually read — in a dossier or in the repo — never a guessed citation. Elsewhere modes verify against the user-supplied context — including reading user-research dossiers when present — instead of reading repo files.
 
 ## Frames
 
