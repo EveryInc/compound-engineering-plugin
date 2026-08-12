@@ -246,7 +246,7 @@ describe("PR concept teaching contract", () => {
     expect(trailer).toContain("using the rendering rule above")
     expect(trailer).toContain("$ce-explain <name>")
     expect(trailer).toContain("/ce-explain <name>")
-    expect(trailer).toContain("/skill:ce-explain <name>")
+    expect(trailer).not.toContain("/skill:ce-explain")
     expect(trailer).toMatch(/default to `\/ce-explain <name>`[\s\S]{0,220}Codex[\s\S]{0,260}output one form only/i)
   })
 

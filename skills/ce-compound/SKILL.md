@@ -441,7 +441,7 @@ Use these rules:
 - If context is already tight or you are in lightweight mode, do not expand into a broad refresh automatically; instead recommend `ce-compound-refresh` as the next step with a scope hint
 - **In non-interactive mode**, never invoke `ce-compound-refresh` and never ask the user. Surface the recommended scope hint in the terminal report's "Refresh recommendation" line and let the caller decide
 
-**User-runnable refresh rendering.** When recommending rather than directly invoking `ce-compound-refresh`, default to `/ce-compound-refresh <scope>`; use `$ce-compound-refresh <scope>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation; use `/skill:ce-compound-refresh <scope>` when the active host is oh-my-pi (`omp`). Render only the invocation as inline code and output one form only. Agent-to-agent invocation remains semantic.
+**User-runnable refresh rendering.** When recommending rather than directly invoking `ce-compound-refresh`, default to `/ce-compound-refresh <scope>`; use `$ce-compound-refresh <scope>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only. Agent-to-agent invocation remains semantic.
 
 When invoking or recommending `ce-compound-refresh`, be explicit about the argument to pass. Prefer the narrowest useful scope:
 
@@ -554,7 +554,7 @@ The orchestrator (main conversation) performs ALL of the following in one sequen
 7. **Frontmatter parser-safety check**: validate the written doc exactly as in Phase 2 step 8, using the same bundled-script existence guard and manual fallback checklist. Fix any violation and repeat the check; do not report success until the written frontmatter is parser-safe.
 8. **Skip specialized agent reviews** (Phase 3) and the semantic grounding validator (Phase 2.45 step 2) to conserve context
 
-**User-runnable retry rendering.** In the lightweight completion output below, default to `/ce-compound`; use `$ce-compound` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation; use `/skill:ce-compound` when the active host is oh-my-pi (`omp`). Render only the invocation as inline code and output one form only.
+**User-runnable retry rendering.** In the lightweight completion output below, default to `/ce-compound`; use `$ce-compound` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
 
 **Lightweight completion output:** In non-interactive Lightweight, do not emit this interactive block; use the depth-specific report under `Success Output` > `Non-interactive mode` instead. In interactive Lightweight, emit:
 ```

@@ -61,7 +61,7 @@ Display the diagnostic output to the user. Missing optional tools are not setup 
 
 ### Step 3: Decide Whether Fixes Are Needed
 
-**User-runnable invocation rendering.** In setup summaries, default to `/ce-setup`; use `$ce-setup` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation; use `/skill:ce-setup` when the active host is oh-my-pi (`omp`). Render only the invocation as inline code and output one form only.
+**User-runnable invocation rendering.** In setup summaries, default to `/ce-setup`; use `$ce-setup` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. On oh-my-pi (`omp`), use `/skill:ce-setup`. Render only the invocation as inline code and output one form only.
 
 Proceed to Phase 2 only if one or more repo-local project issues exist:
 

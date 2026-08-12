@@ -367,8 +367,8 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
       expect(renderingRule).toBeDefined()
       expect(renderingRule).toContain("/ce-babysit-pr <url>")
       expect(renderingRule).toContain("$ce-babysit-pr <url> [posture:…]")
-      expect(renderingRule).toContain("/skill:ce-babysit-pr <url> [posture:…]")
-      expect(renderingRule).toMatch(/Codex[\s\S]+oh-my-pi \(`omp`\)[\s\S]+output one form only/i)
+      expect(renderingRule).not.toContain("/skill:ce-babysit-pr")
+      expect(renderingRule).toMatch(/Codex[\s\S]+output one form only/i)
       expect(text).toContain("exec '<host-rendered resume invocation>'")
     }
   })

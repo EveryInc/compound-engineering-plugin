@@ -77,7 +77,8 @@ omp install <path-or-git> --dry-run --json
 
 | Contract | omp behavior |
 | --- | --- |
-| User skill invocation | `/skill:<name>` — one command per discovered skill; NOT `/skill-name` and NOT `$skill-name` |
+| Model-routed skill prompt | An otherwise unknown `/skill-name ...` prompt reaches the model, which can select a visible discovered skill; this is convenient, not deterministic |
+| Native deterministic skill invocation | `/skill:<name>` — one registered command per discovered skill; use this for manual-only or hidden skills that are not model-visible |
 | Blocking questions | Built-in `ask` tool |
 | Subagent dispatch | Built-in `task` tool, with worktree isolation and schema-checked results |
 | Task tracking | Built-in `todo` tool |

@@ -4,7 +4,7 @@ Loaded by `SKILL.md` when `ce-sweep` runs with no `feedback_sources` configured.
 
 This interview is **interactive only**. The caller refuses first-run setup in non-interactive mode — a scheduled or piped run with no config aborts and tells the user to run `ce-sweep` interactively once. Do not attempt to infer sources, actions, or approvals without asking.
 
-**User-runnable invocation rendering.** Whenever this interview prints or registers a `ce-sweep` invocation, default to `/ce-sweep` (plus any arguments); use `$ce-sweep` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation; use `/skill:ce-sweep` (plus any arguments) when the active host is oh-my-pi (`omp`). Render only the invocation as inline code and output one form only.
+**User-runnable invocation rendering.** Whenever this interview prints or registers a `ce-sweep` invocation, default to `/ce-sweep` (plus any arguments); use `$ce-sweep` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. On oh-my-pi (`omp`), use `/skill:ce-sweep` (plus any arguments). Render only the invocation as inline code and output one form only.
 
 ## Interaction Method
 

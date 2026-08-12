@@ -6,100 +6,128 @@ function readRepoFile(relativePath: string): string {
   return readFileSync(path.join(process.cwd(), relativePath), "utf8")
 }
 
-const rendererCases = [
+const modelVisibleRendererCases = [
   {
     file: "skills/lfg/SKILL.md",
     defaults: ["/ce-explain <name>", "/ce-babysit-pr <pr-url>"],
     codex: ["$ce-explain <name>", "$ce-babysit-pr <pr-url>"],
-    omp: ["/skill:ce-explain <name>", "/skill:ce-babysit-pr <pr-url>"],
+    unnecessaryOmp: ["/skill:ce-explain <name>", "/skill:ce-babysit-pr <pr-url>"],
   },
   {
     file: "skills/ce-babysit-pr/SKILL.md",
     defaults: ["/ce-babysit-pr <url>"],
     codex: ["$ce-babysit-pr <url>"],
-    omp: ["/skill:ce-babysit-pr <url>"],
+    unnecessaryOmp: ["/skill:ce-babysit-pr <url>"],
   },
   {
     file: "skills/ce-babysit-pr/references/watch-loop.md",
     defaults: ["/ce-babysit-pr <url>"],
     codex: ["$ce-babysit-pr <url>"],
-    omp: ["/skill:ce-babysit-pr <url>"],
+    unnecessaryOmp: ["/skill:ce-babysit-pr <url>"],
   },
   {
     file: "skills/ce-commit-push-pr/SKILL.md",
     defaults: ["/ce-explain <name>"],
     codex: ["$ce-explain <name>"],
-    omp: ["/skill:ce-explain <name>"],
+    unnecessaryOmp: ["/skill:ce-explain <name>"],
   },
+  {
+    file: "skills/ce-sweep/SKILL.md",
+    defaults: ["/lfg <root>/plans/feedback-sweep-plan.md"],
+    codex: ["$lfg <root>/plans/feedback-sweep-plan.md"],
+    unnecessaryOmp: ["/skill:lfg <root>/plans/feedback-sweep-plan.md"],
+  },
+  {
+    file: "skills/ce-handoff/SKILL.md",
+    defaults: ["/ce-handoff resume <source>"],
+    codex: ["$ce-handoff resume <source>"],
+    unnecessaryOmp: ["/skill:ce-handoff resume <source>"],
+  },
+  {
+    file: "skills/ce-compound/SKILL.md",
+    defaults: ["/ce-compound-refresh <scope>", "/ce-compound"],
+    codex: ["$ce-compound-refresh <scope>", "$ce-compound"],
+    unnecessaryOmp: ["/skill:ce-compound-refresh <scope>", "/skill:ce-compound"],
+  },
+  {
+    file: "skills/ce-plan/references/plan-handoff.md",
+    defaults: ["/ce-plan output:md"],
+    codex: ["$ce-plan output:md"],
+    unnecessaryOmp: ["/skill:ce-plan output:md"],
+  },
+  {
+    file: "skills/ce-plan/references/universal-planning.md",
+    defaults: ["/ce-plan"],
+    codex: ["$ce-plan"],
+    unnecessaryOmp: ["/skill:ce-plan"],
+  },
+] as const
+
+const explicitOnlyRendererCases = [
   {
     file: "skills/ce-explain/SKILL.md",
     defaults: ["/ce-polish"],
     codex: ["$ce-polish"],
     omp: ["/skill:ce-polish"],
+    targets: ["ce-polish"],
   },
   {
     file: "skills/ce-setup/SKILL.md",
     defaults: ["/ce-setup"],
     codex: ["$ce-setup"],
     omp: ["/skill:ce-setup"],
+    targets: ["ce-setup"],
   },
   {
     file: "skills/ce-dogfood/SKILL.md",
     defaults: ["/ce-setup", "/ce-dogfood <original arguments>"],
     codex: ["$ce-setup", "$ce-dogfood <original arguments>"],
     omp: ["/skill:ce-setup", "/skill:ce-dogfood <original arguments>"],
-  },
-  {
-    file: "skills/ce-sweep/SKILL.md",
-    defaults: ["/lfg <root>/plans/feedback-sweep-plan.md"],
-    codex: ["$lfg <root>/plans/feedback-sweep-plan.md"],
-    omp: ["/skill:lfg <root>/plans/feedback-sweep-plan.md"],
+    targets: ["ce-setup", "ce-dogfood"],
   },
   {
     file: "skills/ce-sweep/references/interview.md",
     defaults: ["/ce-sweep"],
     codex: ["$ce-sweep"],
     omp: ["/skill:ce-sweep"],
-  },
-  {
-    file: "skills/ce-handoff/SKILL.md",
-    defaults: ["/ce-handoff resume <source>"],
-    codex: ["$ce-handoff resume <source>"],
-    omp: ["/skill:ce-handoff resume <source>"],
-  },
-  {
-    file: "skills/ce-compound/SKILL.md",
-    defaults: ["/ce-compound-refresh <scope>", "/ce-compound"],
-    codex: ["$ce-compound-refresh <scope>", "$ce-compound"],
-    omp: ["/skill:ce-compound-refresh <scope>", "/skill:ce-compound"],
-  },
-  {
-    file: "skills/ce-plan/references/plan-handoff.md",
-    defaults: ["/ce-plan output:md"],
-    codex: ["$ce-plan output:md"],
-    omp: ["/skill:ce-plan output:md"],
-  },
-  {
-    file: "skills/ce-plan/references/universal-planning.md",
-    defaults: ["/ce-plan"],
-    codex: ["$ce-plan"],
-    omp: ["/skill:ce-plan"],
+    targets: ["ce-sweep"],
   },
 ] as const
 
 describe("user-facing skill invocation rendering", () => {
-  test.each(rendererCases)("$file defaults to slash and reserves dollar syntax for Codex", ({ file, defaults, codex, omp }) => {
-    const body = readRepoFile(file)
+  test.each(modelVisibleRendererCases)(
+    "$file keeps model-visible handoffs host-neutral",
+    ({ file, defaults, codex, unnecessaryOmp }) => {
+      const body = readRepoFile(file)
 
-    expect(body).toMatch(/default(?:s| to)[^\n]*\/[a-z]/i)
-    expect(body).toMatch(/\$[a-z][^\n]*(?:Codex|dollar-prefixed)|(?:Codex|dollar-prefixed)[^\n]*\$[a-z]/i)
-    expect(body).toMatch(/Render (?:only (?:each|the) invocation as inline code|it as the fenced command below)/i)
-    expect(body).toMatch(/Output one form only/i)
-    for (const invocation of defaults) expect(body).toContain(invocation)
-    for (const invocation of codex) expect(body).toContain(invocation)
-    expect(body).toMatch(/\/skill:[a-z][^\n]*oh-my-pi|oh-my-pi[^\n]*\/skill:[a-z]/i)
-    for (const invocation of omp) expect(body).toContain(invocation)
-  })
+      expect(body).toMatch(/default(?:s| to)[^\n]*\/[a-z]/i)
+      expect(body).toMatch(/\$[a-z][^\n]*(?:Codex|dollar-prefixed)|(?:Codex|dollar-prefixed)[^\n]*\$[a-z]/i)
+      expect(body).toMatch(/Render (?:only (?:each|the) invocation as inline code|it as the fenced command below)/i)
+      expect(body).toMatch(/Output one form only/i)
+      for (const invocation of defaults) expect(body).toContain(invocation)
+      for (const invocation of codex) expect(body).toContain(invocation)
+      for (const invocation of unnecessaryOmp) expect(body).not.toContain(invocation)
+    },
+  )
+
+  test.each(explicitOnlyRendererCases)(
+    "$file uses deterministic OMP syntax for explicit-only skill targets",
+    ({ file, defaults, codex, omp, targets }) => {
+      const body = readRepoFile(file)
+
+      expect(body).toMatch(/default(?:s| to)[^\n]*\/[a-z]/i)
+      expect(body).toMatch(/\$[a-z][^\n]*(?:Codex|dollar-prefixed)|(?:Codex|dollar-prefixed)[^\n]*\$[a-z]/i)
+      expect(body).toMatch(/Render (?:only (?:each|the) invocation as inline code|it as the fenced command below)/i)
+      expect(body).toMatch(/Output one form only/i)
+      expect(body).toMatch(/\/skill:[a-z][^\n]*oh-my-pi|oh-my-pi[^\n]*\/skill:[a-z]/i)
+      for (const target of targets) {
+        expect(readRepoFile(`skills/${target}/SKILL.md`)).toMatch(/^disable-model-invocation:\s*true$/m)
+      }
+      for (const invocation of defaults) expect(body).toContain(invocation)
+      for (const invocation of codex) expect(body).toContain(invocation)
+      for (const invocation of omp) expect(body).toContain(invocation)
+    },
+  )
 
   test("rendering rules sit at the output sections that consume them", () => {
     const setup = readRepoFile("skills/ce-setup/SKILL.md")

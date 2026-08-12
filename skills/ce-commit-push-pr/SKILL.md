@@ -145,7 +145,7 @@ Then continue with the reference (Steps A–E, including Step B2 when the teachi
 
 If the doc write, commit, or push fails, warn and continue to PR creation without the link — never strand the flow between commit and PR.
 
-**User-runnable invocation rendering.** For the output handoffs below, default to `/ce-explain <name>`. Use `$ce-explain <name>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Use `/skill:ce-explain <name>` when the active host is oh-my-pi (`omp`). Render only the invocation as inline code and output one form only.
+**User-runnable invocation rendering.** For the output handoffs below, default to `/ce-explain <name>`. Use `$ce-explain <name>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
 
 **Concept trailer** — when a body applied by this run contains a `## New concepts` section, print one line after the PR URL in every mode: `New concepts: <name>[, <name>]`. In interactive full-workflow runs follow it with one line per taught concept telling the user to invoke `ce-explain <name>` using the rendering rule above. No trailer when this run applied no body — including a rewrite that was declined or pipeline-defaulted to no — or no PR exists.
 

@@ -183,7 +183,7 @@ Interactive only. For items needing a product call, ask the user — grouped by 
 
 #### 2i. Wrap-up
 
-**User-runnable invocation rendering.** In the summary handoff below, default to `/lfg <root>/plans/feedback-sweep-plan.md`; use `$lfg <root>/plans/feedback-sweep-plan.md` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation; use `/skill:lfg <root>/plans/feedback-sweep-plan.md` when the active host is oh-my-pi (`omp`). Render only the invocation as inline code and output one form only.
+**User-runnable invocation rendering.** In the summary handoff below, default to `/lfg <root>/plans/feedback-sweep-plan.md`; use `$lfg <root>/plans/feedback-sweep-plan.md` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
 
 - **Commit.** `git add` ONLY `<root>/plans/feedback-sweep-plan.md` plus `<state>` when it is repo-internal (never `-A`; machine-local state under `/tmp` is never committed), then commit `docs(sweep): feedback sweep <date>`. A commit failure is reported, not fatal. In local-commit mode, never push. In shared-branch mode (`sweep_shared_branch: true`), fetch, rebase, and push the final commit.
 - **Record the run.** `run-record --state <state> --writer <writer> --outcome <completed|partial|failed> --counts '<per-source JSON>' --timestamp <ISO now>`.

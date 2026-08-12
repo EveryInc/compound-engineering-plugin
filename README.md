@@ -103,7 +103,7 @@ Re-running the Bun convert/install CLI for Codex also strips the block if it is 
 
 **Each unit of engineering work should make subsequent units easier -- not harder.**
 
-Invocation syntax: this README uses `/skill-name` examples for slash-skill hosts. In Codex, invoke installed skills with `$skill-name` (for example, `$ce-plan` and `$lfg`); in oh-my-pi (omp), invoke installed skills as `/skill:<name>` (for example, `/skill:ce-plan`); `/goal` remains a Codex built-in command.
+Invocation syntax: this README uses `/skill-name` examples for slash-skill hosts. In Codex, invoke installed skills with `$skill-name` (for example, `$ce-plan` and `$lfg`). In oh-my-pi (omp), these prompts can model-route to visible skills; use the native deterministic `/skill:<name>` form for manual-only or hidden skills (for example, `/skill:ce-polish`). `/goal` remains a Codex built-in command.
 
 Traditional development accumulates technical debt. Every feature adds complexity. Every bug fix leaves behind a little more local knowledge that someone has to rediscover later. The codebase gets larger, the context gets harder to hold, and the next change becomes slower.
 
@@ -430,7 +430,7 @@ omp plugin link "$PWD"
 
 </details>
 
-Run `/reload-plugins` or start a new omp session after installing so the skills load. omp invokes installed skills as `/skill:<name>` (for example `/skill:ce-plan`), not `/skill-name`. See [`docs/specs/omp.md`](docs/specs/omp.md) for details.
+Run `/reload-plugins` or start a new omp session after installing so the skills load. omp's native deterministic command is `/skill:<name>` (for example, `/skill:ce-plan`); ordinary `/skill-name` prompts can also model-route to visible skills, but manual-only or hidden skills require the native form. See [`docs/specs/omp.md`](docs/specs/omp.md) for details.
 
 ### Antigravity CLI (`agy`)
 
