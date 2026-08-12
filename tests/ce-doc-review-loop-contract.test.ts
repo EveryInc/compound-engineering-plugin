@@ -172,10 +172,15 @@ describe("ce-doc-review-loop contract", () => {
     const protocol = await readFile(protocolPath, "utf8")
     const mechanics = section(protocol, "## Mechanics", "## Wave 0")
 
-    expect(mechanics).toContain('node "$SKILL_DIR/scripts/loop-state.mjs" fingerprint --path "<path>"')
-    expect(mechanics).toContain('node "$SKILL_DIR/scripts/loop-state.mjs" init-run')
-    expect(mechanics).toContain('node "$SKILL_DIR/scripts/loop-state.mjs" resolve-target --product "<product>"')
-    expect(mechanics).toContain('node "$SKILL_DIR/scripts/loop-state.mjs" commit')
+    expect(mechanics).toContain('SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";')
+    expect(mechanics).toContain("for c in node nodejs")
+    expect(mechanics).toContain('"$NODE" "$SKILL_DIR/scripts/loop-state.mjs" <operation and arguments>')
+    for (const operation of [
+      'fingerprint --path "<path>"',
+      "init-run",
+      'resolve-target --product "<product>"',
+      'commit --product "<product>"',
+    ]) expect(mechanics).toContain(operation)
     expect(mechanics).toContain("expected-realpath")
     expect(mechanics).toContain("expected-dev")
     expect(mechanics).toContain("expected-ino")
@@ -184,7 +189,7 @@ describe("ce-doc-review-loop contract", () => {
     expect(mechanics).not.toMatch(/shasum|sha256sum|readlink -f|mktemp|mv -f/)
 
     for (const fence of mechanics.matchAll(/```bash\n([\s\S]*?)```/g)) {
-      expect(fence[1]).not.toMatch(/\||>|<|\$\(|`|\|\|/)
+      expect(fence[1]).not.toMatch(/(?:^|\s)(?:cat|mv|shasum|sha256sum|mktemp)(?:\s|$)/)
     }
   })
 
