@@ -581,6 +581,13 @@ describe("ce-setup check-health", () => {
     expect(skill).not.toContain("Set up a local config file for this project?")
     expect(skill).not.toContain("copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.local.yaml`")
   })
+
+  test("setup skips Phase 2 outside a git repository", async () => {
+    const skill = await readFile(path.join(repoRoot, "skills", "ce-setup", "SKILL.md"), "utf8")
+    expect(skill).toContain("Always continue to Phase 2 after the health report when this checkout is a git repository")
+    expect(skill).toContain("Not inside a git repository")
+    expect(skill).toContain("skip Phase 2 and go to Phase 3")
+  })
 })
 
 describe("ce-setup check-health docs_root resolution", () => {

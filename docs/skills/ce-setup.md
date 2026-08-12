@@ -2,7 +2,7 @@
 
 > Check Compound Engineering health, optional tool capabilities, and repo-local config safety.
 
-`ce-setup` is the lightweight onboarding and troubleshooting skill. It reports which optional tools are available, creates repo `config.yaml` when missing, refreshes the committed config example, and offers to gitignore an existing `config.local.yaml`.
+`ce-setup` is the lightweight onboarding and troubleshooting skill. It reports which optional tools are available, creates repo `config.yaml` when missing, refreshes the committed config example, and offers to gitignore an existing `config.local.yaml`. Outside a git repository it reports capabilities and stops — it does not create repo files.
 
 See [Compound Engineering configuration](./configuration.md) for the complete option reference and how local defaults interact with session and project instructions.
 
