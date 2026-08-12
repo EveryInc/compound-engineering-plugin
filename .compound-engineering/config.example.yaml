@@ -80,8 +80,7 @@
 # the single gate: off disables judgment, the section, the /ce-explain offer,
 # and archival. Archival additionally writes the explainer to docs/explainers/
 # and links it from the PR (full-workflow runs only; override per run with
-# archive:on|off). Note: this file is gitignored and per-checkout -- fresh
-# worktrees don't inherit it.
+# archive:on|off). Ordinary cascade: local, then this file, then the skill default.
 
 # pr_teaching_section: false     # true | false (default: true)
 # pr_teaching_archive: true      # true | false (default: false; full-workflow runs only)
@@ -111,7 +110,7 @@
 # cross_model_peer: codex          # codex | claude | grok | cursor | composer
 
 # --- ce-work implementation engine ---
-# Standing, per-checkout preferences for who authors implementation units. Live
+# Standing preferences for who authors implementation units. Live
 # task/session/project instructions and LFG's provenance-bearing binding may
 # override or narrow these defaults. `off` disables only this standing preference.
 # `prefer` tries candidates in order, then falls back natively with disclosure.

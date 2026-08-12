@@ -58,6 +58,8 @@ describe("ce-setup check-health", () => {
     ])
 
     expect(example).toBe(template)
+    expect(template).not.toContain("this file is gitignored and per-checkout")
+    expect(template).not.toContain("Standing, per-checkout preferences")
   })
 
   test("documents every setup-template option in the centralized config reference", async () => {
