@@ -7,6 +7,9 @@ const SHA_PATTERN = /^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/
 const TERMINAL_STATUSES = new Set(['complete', 'degraded', 'failed'])
 const VERDICTS = new Set(['Ready to merge', 'Ready with fixes', 'Not ready'])
 const FINDING_CONFIDENCES = new Set([0, 25, 50, 75, 100])
+const FINDING_SEVERITIES = new Set(['P0', 'P1', 'P2', 'P3'])
+const FINDING_AUTOFIX_CLASSES = new Set(['gated_auto', 'manual', 'advisory'])
+const FINDING_OWNERS = new Set(['downstream-resolver', 'human', 'release'])
 const ACTIONABLE_AUTOFIX_CLASSES = new Set(['gated_auto', 'manual'])
 const LOCAL_REVIEWER_IDENTITIES = new Map([
   ['correctness', 'correctness-reviewer'],
@@ -125,28 +128,63 @@ function validateResultShape(root) {
   string(requireField(root, 'run_id'), 'run_id', { nonempty: true })
 }
 
-function validateFindingConfidence(finding, field, { actionable = false } = {}) {
-  const value = object(finding, field)
-  const confidence = requireField(value, 'confidence', `${field}.`)
-  if (!FINDING_CONFIDENCES.has(confidence)) {
-    fail(`${field}.confidence must be one of 0, 25, 50, 75, or 100`)
-  }
-  if (confidence === 0 || confidence === 25) {
-    fail(`${field} uses suppressed confidence ${confidence}`)
-  }
-  if (actionable) {
-    const severity = string(requireField(value, 'severity', `${field}.`), `${field}.severity`, { nonempty: true })
-    const autofixClass = string(requireField(value, 'autofix_class', `${field}.`), `${field}.autofix_class`, { nonempty: true })
-    const owner = string(requireField(value, 'owner', `${field}.`), `${field}.owner`, { nonempty: true })
-    if (!ACTIONABLE_AUTOFIX_CLASSES.has(autofixClass) || owner !== 'downstream-resolver') {
-      fail(`${field} is not canonically actionable`)
-    }
-    if (confidence !== 75 && confidence !== 100 && !(severity === 'P0' && confidence === 50)) {
-      fail(`${field} must use confidence 75 or 100, except the documented P0 plus 50 exception`)
-    }
-  }
+function findingId(value, field) {
+  if (Number.isInteger(value) && value > 0) return String(value)
+  if (typeof value === 'string' && value.trim() !== '') return value
+  fail(`${field} must be a positive integer or non-empty string`)
 }
 
+function validateFinding(finding, field, { actionable = false } = {}) {
+  const value = object(finding, field)
+  findingId(requireField(value, '#', `${field}.`), `${field}.#`)
+  string(requireField(value, 'title', `${field}.`), `${field}.title`, { nonempty: true })
+  const severity = string(requireField(value, 'severity', `${field}.`), `${field}.severity`, { nonempty: true })
+  if (!FINDING_SEVERITIES.has(severity)) fail(`${field}.severity must be P0, P1, P2, or P3`)
+  string(requireField(value, 'file', `${field}.`), `${field}.file`, { nonempty: true })
+  const line = requireField(value, 'line', `${field}.`)
+  if (!(Number.isInteger(line) && line > 0) && !(typeof line === 'string' && line.trim() !== '')) fail(`${field}.line must identify a source location`)
+  const confidence = requireField(value, 'confidence', `${field}.`)
+  if (!FINDING_CONFIDENCES.has(confidence) || confidence === 0 || confidence === 25) fail(`${field}.confidence is not reportable`)
+  const autofixClass = string(requireField(value, 'autofix_class', `${field}.`), `${field}.autofix_class`, { nonempty: true })
+  if (!FINDING_AUTOFIX_CLASSES.has(autofixClass)) fail(`${field}.autofix_class is invalid`)
+  const owner = string(requireField(value, 'owner', `${field}.`), `${field}.owner`, { nonempty: true })
+  if (!FINDING_OWNERS.has(owner)) fail(`${field}.owner is invalid`)
+  boolean(requireField(value, 'requires_verification', `${field}.`), `${field}.requires_verification`)
+  boolean(requireField(value, 'pre_existing', `${field}.`), `${field}.pre_existing`)
+  const suggestedFix = requireField(value, 'suggested_fix', `${field}.`)
+  if (suggestedFix !== null) string(suggestedFix, `${field}.suggested_fix`, { nonempty: true })
+  const firstEvidence = requireField(value, 'first_evidence', `${field}.`)
+  if (firstEvidence !== undefined) string(firstEvidence, `${field}.first_evidence`, { nonempty: true })
+  string(requireField(value, 'why_it_matters', `${field}.`), `${field}.why_it_matters`, { nonempty: true })
+  const evidence = stringArray(requireField(value, 'evidence', `${field}.`), `${field}.evidence`)
+  if (evidence.length === 0) fail(`${field}.evidence must not be empty`)
+  const reviewers = stringArray(requireField(value, 'reviewers', `${field}.`), `${field}.reviewers`)
+  const independent = stringArray(requireField(value, 'independent_reviewers', `${field}.`), `${field}.independent_reviewers`)
+  unique(reviewers, `${field}.reviewers`)
+  unique(independent, `${field}.independent_reviewers`)
+  if (independent.some((reviewer) => !reviewers.includes(reviewer))) fail(`${field}.independent_reviewers must be a subset of reviewers`)
+  if (actionable) {
+    if (!ACTIONABLE_AUTOFIX_CLASSES.has(autofixClass) || owner !== 'downstream-resolver') fail(`${field} is not canonically actionable`)
+    if (confidence !== 75 && confidence !== 100 && !(severity === 'P0' && confidence === 50)) fail(`${field} is not confidence-eligible for action`)
+  }
+  return value
+}
+
+function validateFindingProjection(findings, actionableFindings) {
+  const findingIds = findings.map((finding, index) => findingId(finding['#'], `findings[${index}].#`))
+  const actionableIds = actionableFindings.map((finding, index) => findingId(finding['#'], `actionable_findings[${index}].#`))
+  unique(findingIds, 'findings stable ids')
+  unique(actionableIds, 'actionable_findings stable ids')
+  const findingsById = new Map(findings.map((finding, index) => [findingIds[index], finding]))
+  const expectedIds = findings
+    .filter((finding) => ACTIONABLE_AUTOFIX_CLASSES.has(finding.autofix_class) && finding.owner === 'downstream-resolver')
+    .map((finding) => findingId(finding['#'], 'finding.#'))
+  if (expectedIds.length !== actionableIds.length || expectedIds.some((id) => !actionableIds.includes(id))) fail('actionable_findings must be the exact canonical actionable subset')
+  for (let index = 0; index < actionableFindings.length; index += 1) {
+    const id = actionableIds[index]
+    if (JSON.stringify(canonicalize(actionableFindings[index])) !== JSON.stringify(canonicalize(findingsById.get(id)))) fail(`actionable_findings[${index}] must exactly match findings #${id}`)
+  }
+}
 function materializedReviewerIdentity(reviewer) {
   if (LOCAL_REVIEWER_IDENTITIES.has(reviewer)) return LOCAL_REVIEWER_IDENTITIES.get(reviewer)
   if (LOCAL_REVIEWER_IDENTITIES.has(reviewer.replace(/-reviewer$/, ''))) {
@@ -241,10 +279,11 @@ function validateReceipt(payload) {
   }
   validateReviewerMaterialization(root.reviewers, selected)
 
-  root.findings.forEach((finding, index) => validateFindingConfidence(finding, `findings[${index}]`))
-  root.actionable_findings.forEach((finding, index) =>
-    validateFindingConfidence(finding, `actionable_findings[${index}]`, { actionable: true }),
+  const findings = root.findings.map((finding, index) => validateFinding(finding, `findings[${index}]`))
+  const actionableFindings = root.actionable_findings.map((finding, index) =>
+    validateFinding(finding, `actionable_findings[${index}]`, { actionable: true }),
   )
+  validateFindingProjection(findings, actionableFindings)
 
   if (!TERMINAL_STATUSES.has(terminalStatus)) {
     fail('review_receipt.terminal_status must be complete, degraded, or failed')

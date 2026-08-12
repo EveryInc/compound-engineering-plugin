@@ -1271,6 +1271,17 @@ describe("mutation lease dispatch gate", () => {
     }
   })
 
+  test("rejects authorization envelopes missing canonical triage groups", async () => {
+    const fixture = await createRepo()
+    const cycle = await writeAuthorizationFiles(fixture)
+    const review = JSON.parse(await readFile(cycle.reviewPath, "utf8"))
+    delete review.triage_groups
+    await writeFile(cycle.reviewPath, JSON.stringify(review))
+    expect(await authorizeCycle(fixture, cycle)).toMatchObject({ status: "malformed", reason: "review_shape" })
+    expect(await Bun.file(cycle.statePath).exists()).toBe(false)
+    expect(await Bun.file(cycle.packetPath).exists()).toBe(false)
+  })
+
   test("terminalizes a pre-begin violation and releases the checkout registry", async () => {
     const fixture = await createRepo()
     const cycle = await writeAuthorizationFiles(fixture)

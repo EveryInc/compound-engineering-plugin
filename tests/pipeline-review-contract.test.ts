@@ -1486,6 +1486,28 @@ describe("ce-code-review receipt helper", () => {
       verdict: "Ready with fixes", findings: [urgentModerate], actionable_findings: [urgentModerate],
     })).status).toBe(0)
   })
+
+  test("rejects malformed full findings, duplicate ids, and non-exact actionable projections", () => {
+    const requiredFields = [
+      "#", "title", "severity", "file", "line", "confidence", "autofix_class", "owner",
+      "requires_verification", "pre_existing", "suggested_fix", "first_evidence",
+      "why_it_matters", "evidence", "reviewers", "independent_reviewers",
+    ]
+    for (const field of requiredFields) {
+      const malformed = receiptFinding()
+      delete malformed[field]
+      expect(runReceiptHelper(receiptFixture({ findings: [malformed] })).status, field).not.toBe(0)
+    }
+
+    const first = receiptFinding()
+    const duplicate = receiptFinding({ title: "Duplicate id" })
+    expect(runReceiptHelper(receiptFixture({ findings: [first, duplicate], actionable_findings: [first, duplicate] })).status).not.toBe(0)
+
+    const altered = receiptFinding({ suggested_fix: "Different fix." })
+    expect(runReceiptHelper(receiptFixture({ verdict: "Ready with fixes", findings: [first], actionable_findings: [altered] })).status).not.toBe(0)
+
+    expect(runReceiptHelper(receiptFixture({ verdict: "Ready with fixes", findings: [first], actionable_findings: [] })).status).not.toBe(0)
+  })
 })
 
 describe("ce-code-review pr-remote merge-base evidence", () => {

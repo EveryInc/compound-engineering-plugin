@@ -492,11 +492,8 @@ function validAuthorizationReview(repo, review, base) {
   if (entry.input !== "valid" || !entry.clean) return { ok: false, result: { ...entry, status: "concurrent_change" } }
   const receipt = review?.review_receipt
   if (
-    !record(review)
+    !validReviewShape(review)
     || review.status !== "complete"
-    || !VERDICTS.has(review.verdict)
-    || !validCanonicalEnvelope(review)
-    || !record(receipt)
     || receipt.terminal_status !== "complete"
     || receipt.branch !== entry.branch
     || receipt.base_sha !== entry.base_sha
@@ -504,18 +501,6 @@ function validAuthorizationReview(repo, review, base) {
     || review.scope.base !== entry.base_sha
     || review.scope.branch !== entry.branch
     || review.scope.head_sha !== entry.head_sha
-    || !uniqueStrings(receipt.selected_reviewers)
-    || !uniqueStrings(receipt.required_reviewers)
-    || !uniqueStrings(receipt.completed_reviewers)
-    || !Array.isArray(receipt.failed_reviewers)
-    || !receipt.failed_reviewers.every(validFailure)
-    || !validReviewerMaterialization(review.reviewers, receipt.selected_reviewers)
-    || !receipt.selected_reviewers.includes("correctness-reviewer")
-    || !Array.isArray(review.findings)
-    || !review.findings.every((finding) => validFinding(finding))
-    || !Array.isArray(review.actionable_findings)
-    || !review.actionable_findings.every((finding) => validFinding(finding, { actionable: true }))
-    || !validateFindingProjection(review.findings, review.actionable_findings)
   ) return { ok: false, result: malformed("review_shape") }
   const selected = new Set(receipt.selected_reviewers)
   const required = new Set(receipt.required_reviewers)
@@ -1020,6 +1005,34 @@ function validCanonicalEnvelope(review) {
   return true
 }
 
+function validReviewShape(review) {
+  const receipt = review?.review_receipt
+  return record(review)
+    && TERMINAL_STATUSES.has(review.status)
+    && VERDICTS.has(review.verdict)
+    && record(receipt)
+    && validCanonicalEnvelope(review)
+    && TERMINAL_STATUSES.has(receipt.terminal_status)
+    && review.status === receipt.terminal_status
+    && nonemptyString(receipt.branch)
+    && nonemptyString(receipt.base_sha)
+    && nonemptyString(receipt.head_sha)
+    && uniqueStrings(receipt.selected_reviewers)
+    && uniqueStrings(receipt.required_reviewers)
+    && uniqueStrings(receipt.completed_reviewers)
+    && Array.isArray(receipt.failed_reviewers)
+    && receipt.failed_reviewers.every(validFailure)
+    && Array.isArray(review.findings)
+    && review.findings.every((finding) => validFinding(finding))
+    && Array.isArray(review.actionable_findings)
+    && review.actionable_findings.every((finding) => validFinding(finding, { actionable: true }))
+    && validateFindingProjection(review.findings, review.actionable_findings)
+    && Array.isArray(review.triage_groups)
+    && receipt.selected_reviewers.length > 0
+    && receipt.selected_reviewers.includes("correctness-reviewer")
+    && validReviewerMaterialization(review.reviewers, receipt.selected_reviewers)
+}
+
 function confidenceAllowed(finding, { actionable = false } = {}) {
   if (finding.confidence === 0 || finding.confidence === 25) return false
   if (!actionable) return true
@@ -1125,31 +1138,7 @@ function validateReview(repo, expectedFile, reviewFile, { final = false } = {}) 
   ) return { status: "concurrent_change", ...observed }
 
   const receipt = review.review_receipt
-  if (
-    !TERMINAL_STATUSES.has(review.status)
-    || !VERDICTS.has(review.verdict)
-    || !receipt || typeof receipt !== "object" || Array.isArray(receipt)
-    || !validCanonicalEnvelope(review)
-    || !TERMINAL_STATUSES.has(receipt.terminal_status)
-    || review.status !== receipt.terminal_status
-    || typeof receipt.branch !== "string"
-    || typeof receipt.base_sha !== "string"
-    || typeof receipt.head_sha !== "string"
-    || !uniqueStrings(receipt.selected_reviewers)
-    || !uniqueStrings(receipt.required_reviewers)
-    || !uniqueStrings(receipt.completed_reviewers)
-    || !Array.isArray(receipt.failed_reviewers)
-    || !receipt.failed_reviewers.every(validFailure)
-    || !Array.isArray(review.findings)
-    || !review.findings.every((finding) => validFinding(finding))
-    || !Array.isArray(review.actionable_findings)
-    || !review.actionable_findings.every((finding) => validFinding(finding, { actionable: true }))
-    || !validateFindingProjection(review.findings, review.actionable_findings)
-    || !Array.isArray(review.triage_groups)
-    || receipt.selected_reviewers.length === 0
-    || !receipt.selected_reviewers.includes("correctness-reviewer")
-    || !validReviewerMaterialization(review.reviewers, receipt.selected_reviewers)
-  ) return malformed("review_shape", observed)
+  if (!validReviewShape(review)) return malformed("review_shape", observed)
 
   const selected = new Set(receipt.selected_reviewers)
   const required = new Set(receipt.required_reviewers)
