@@ -166,6 +166,17 @@ describe("ce-ideate user-research extraction keeps its routing test inline", () 
     ).toBe(true)
   })
 
+  test("the distiller spec loads before the grounding batch, so it can join it", () => {
+    // The reference requires distillers to run in parallel with the other
+    // Phase 1 agents. Loading it only at the section below the batch would
+    // serialize the most expensive read behind everything else.
+    const load = SKILL_BODY.indexOf("read `references/user-research-artifacts.md` now, before the batch below")
+    const batch = SKILL_BODY.indexOf("Run grounding agents in parallel in the **foreground**")
+    expect(load, "Phase 1 must load the distiller spec before the batch.").toBeGreaterThan(-1)
+    expect(batch, "Phase 1 must carry the parallel-batch instruction.").toBeGreaterThan(-1)
+    expect(load, "The distiller spec load must precede the grounding batch.").toBeLessThan(batch)
+  })
+
   test("the routing test gates BOTH mode dispatch blocks, not just the repo scan", () => {
     // Elsewhere-mode synthesis reads "any rich-prompt material", so a research
     // export reached synthesis AND a distiller -- duplicating the file into
