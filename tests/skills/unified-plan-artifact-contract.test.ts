@@ -806,3 +806,141 @@ describe("cross-layer ownership contract", () => {
     )
   })
 })
+
+describe("Product Contract section catalog and routing destinations", () => {
+  // ce-plan's include-when-material catalog specified only implementation-facing
+  // sections; its product-shape sections had no firing/skip rule at all. Measured
+  // 2026-08-12 across 34 pre-existing unified plans: Success Criteria appeared in
+  // 8, Key Decisions in 19. These pins keep the rule present in each of the five
+  // routing statements plus the catalog, since a fix in one leaves the others as
+  // stale sources of truth.
+
+  function entryBlock(doc: string, name: string): string {
+    const marker = `- **${name}** —`
+    const start = doc.indexOf(marker)
+    expect(start, `plan-sections.md must carry a '${name}' catalog entry.`).toBeGreaterThan(-1)
+    const end = doc.indexOf("\n\n- **", start)
+    return doc.slice(start, end > start ? end : doc.length)
+  }
+
+  // Typed once: both the routing-statement sweep and the session-settled test
+  // slice this same region, and drifting markers would fail one for the wrong
+  // reason.
+  const planInteractiveTable = sliceSection(
+    planSynthesisSummary,
+    "| Internal-draft element | Where it goes in the unified plan |",
+    "No italic capture-context note",
+  )
+
+  const PRODUCT_SECTIONS = [
+    "Problem Frame",
+    "Key Decisions",
+    "Success Criteria",
+    "Actors",
+    "Key Flows",
+  ]
+
+  test("plan-sections.md catalogs every Product Contract section with a skip test", () => {
+    const catalog = sliceSection(
+      planSections,
+      "## Include when material",
+      "## Agent agency",
+    )
+    for (const name of PRODUCT_SECTIONS) {
+      const block = entryBlock(catalog, name)
+      expect(
+        /\bskip\b/i.test(block),
+        `The '${name}' catalog entry needs a skip test. A firing rule with no skip rule fires on everything, which the include-when-material doctrine treats as broken.`,
+      ).toBe(true)
+    }
+  })
+
+  test("the hard-floor enumeration still names its Product Contract subsections", () => {
+    // U1 deliberately left :171-175 untouched. Guard against a later edit that
+    // "deduplicates" the floor against the new catalog entries.
+    // The floor is one wrapped sentence, so collapse whitespace before matching
+    // ("Summary, Problem\n  Frame, Requirements ...").
+    const floor = sliceSection(
+      planSections,
+      "- **Product Contract** — product scope and behavior.",
+      "- **Planning Contract**",
+    ).replace(/\s+/g, " ")
+    for (const name of ["Summary", "Problem Frame", "Success Criteria", "Scope Boundaries"]) {
+      expect(
+        floor.includes(name),
+        `The Product Contract hard floor must still name ${name}; the catalog entry supplements the floor rather than replacing it.`,
+      ).toBe(true)
+    }
+  })
+
+  test("all five routing statements name a Success Criteria destination", () => {
+    const statements: Array<[string, string]> = [
+      [
+        "ce-plan prose restatement",
+        sliceSection(planSynthesisSummary, "**Three-bucket structure is the internal draft", "## Stage 1"),
+      ],
+      [
+        "ce-plan headless list",
+        sliceSection(planSynthesisSummary, "Route internal-draft content with mode-aware shape", "The `### Assumptions` section appears"),
+      ],
+      ["ce-plan interactive table", planInteractiveTable],
+      [
+        "ce-brainstorm prose restatement",
+        sliceSection(brainstormSynthesisSummary, "**Three-bucket structure is the internal draft", "This content is loaded"),
+      ],
+      [
+        "ce-brainstorm routing table",
+        sliceSection(brainstormSynthesisSummary, "| Internal-draft element | Where it goes in the doc |", "The chat-time Trade-offs section"),
+      ],
+    ]
+
+    for (const [label, statement] of statements) {
+      expect(
+        statement.includes("Success Criteria"),
+        `The ${label} must name a Success Criteria destination. A section the synthesis drafts with no destination in one statement drifts back out when a later edit reconciles the statements against each other.`,
+      ).toBe(true)
+    }
+  })
+
+  test("ce-plan's interactive table routes session-settled product decisions to Key Decisions", () => {
+    // The headless list already carried this clause; the interactive table --
+    // the most-used path -- had four rows and no session-settled row.
+    expect(
+      /Session-settled product decisions.*### Key Decisions/s.test(planInteractiveTable),
+      "The interactive routing table must route session-settled product decisions to Product Contract `### Key Decisions`.",
+    ).toBe(true)
+  })
+
+  test("the silent-dissolve rule names which Inferred items are exempt", () => {
+    expect(planSynthesisSummary).toMatch(
+      /exempt from that silent dissolve.*success criteria extrapolated from intent.*scope boundaries the user never explicitly named/s,
+    )
+  })
+
+  test("ce-plan's bootstrap carries an exit condition with both escapes", () => {
+    const bootstrap = sliceSection(
+      planSkill,
+      "The planning bootstrap should establish:",
+      "#### 0.5",
+    )
+    expect(
+      bootstrap.includes("**Exit condition:**"),
+      "The Phase 0.4 bootstrap must carry an exit condition; without one it lists what to establish and can proceed having established none of it.",
+    ).toBe(true)
+    expect(
+      bootstrap.includes("recorded as assumptions"),
+      "The exit condition must be satisfiable by recording an assumption, or it becomes a blocking question in headless mode.",
+    ).toBe(true)
+    expect(
+      bootstrap.includes("explicitly wants to proceed"),
+      "The exit condition must carry the explicit-user-proceed escape, matching ce-brainstorm's Phase 1.3 gate.",
+    ).toBe(true)
+  })
+
+  test("Success Metrics and Success Criteria are distinguished, not collided", () => {
+    expect(
+      /Success Metrics.*Distinct from the Product Contract's `### Success Criteria`/s.test(planSkill),
+      "ce-plan names both `Success Metrics` (deep-plan extension) and `Success Criteria` (Product Contract subsection); the relationship must be stated once so a future author does not merge them.",
+    ).toBe(true)
+  })
+})

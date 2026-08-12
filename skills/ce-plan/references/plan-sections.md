@@ -211,6 +211,47 @@ elsewhere. The test is not "is this a substantial plan?" — it is
 *"does this specific plan have content this section would surface?"* Filling
 a section with placeholder prose is worse than omitting it.
 
+The first five entries below are Product Contract sections; the rest are
+Planning Contract and supporting sections. A plan that skips every product
+entry has usually inherited its product framing from an upstream Product
+Contract — check before concluding none of them fire.
+
+- **Problem Frame** — include when motivation isn't obvious from Summary
+  alone (the *why* needs paragraphs, not a sentence). Backward-looking /
+  situational. Does NOT restate the proposal; the remedy lives in Summary.
+  Skip when the plan implements a motivation already settled upstream and
+  restating it would only echo the origin document.
+
+- **Key Decisions** — include when planning made product-level choices that
+  constrain the Requirements below: scope narrowings, defaults chosen against
+  a real alternative, framing the user picked. Each entry is a provenance
+  index entry, not a second statement of the rule: the decision in bold, at
+  most one line of rationale, and exact `Governs R5, R7` links when it
+  constrains specific requirements. The normative text lives on the governed
+  Rs. Session-settled annotations follow the rules under "ID and content
+  rules" below. Distinct from Planning Contract's Key Technical Decisions,
+  which record how-level choices; a product decision belongs here, and a KTD
+  cites it rather than mirroring it. Skip when every requirement follows
+  directly from the request with no alternative weighed.
+
+- **Success Criteria** — include when there are quality / metric / handoff
+  signals that Requirements don't already carry: quantitative metrics ("p95
+  latency under 200ms"), qualitative criteria ("the agent's output reads as
+  one voice"), process / handoff quality ("ce-doc-review can act on this
+  without follow-ups"). Skip when Requirements ARE the success criteria
+  (every R is "done when the R is true").
+
+- **Actors** — include when the work has multi-party behavior (multiple
+  humans, agents, or systems meaningfully involved) that the units must
+  honor. Skip for single-actor work and for plans whose change is internal
+  to one component — most implementation plans skip this.
+
+- **Key Flows** — include when the work has multi-step behavior whose
+  sequencing the units must preserve. Skip when the change is not
+  flow-shaped, or when Requirements and Acceptance Examples together already
+  prevent downstream invention of paths — again, most implementation plans
+  skip this.
+
 - **High-Level Technical Design** — include when the technical approach has
   shape that prose alone doesn't carry well: architecture across components,
   sequencing across processes, state machines, branching gates.

@@ -271,6 +271,23 @@ describe("ce-plan output:html mode", () => {
       /no .{0,3}status.{0,3} field|carry .{0,6}no .{0,12}status/i.test(body),
       "plan-sections.md must state plans carry NO status field.",
     ).toBe(true)
+
+    // The field-name rules below had no mechanical guard, and a real artifact
+    // shipped with `created:` instead of `date:` and a `feat:` prefix in the
+    // title. These are greppable contract text, so pin them here rather than
+    // scanning docs/plans/ (which legacy artifacts would fail).
+    expect(
+      body.includes("`date` to `created`"),
+      "plan-sections.md must name `date` -> `created` as a breaking rename — an artifact shipped with `created:` and downstream consumers key on `date`.",
+    ).toBe(true)
+    expect(
+      body.includes("` - Plan` suffix"),
+      "plan-sections.md must require the ` - Plan` title suffix — artifacts have shipped without it.",
+    ).toBe(true)
+    expect(
+      /conventional-commit prefix/i.test(body),
+      "plan-sections.md must prohibit a conventional-commit prefix in `title` — the `type` field carries that classification.",
+    ).toBe(true)
   })
 
   test("html-rendering.md reference exists and is loadable", () => {
