@@ -237,7 +237,14 @@ Two symmetric depth overrides scale the run. Both are opt-in from the user's own
 - **Waive the meeting-test floor at both layers** — for the generators *and* in the Phase 3 basis verifier's dispatch prompt. The verifier runs on a fresh context with none of the generation history, so a waiver it is not told about does not reach it.
 - **Keep the basis verifier.** A cheap run still may not surface ideas whose basis was never checked.
 
-Use reasonable interpretation rather than formal parsing. Two collisions have fixed answers: when a prompt carries both `go deep` and a tactical signal, `go deep` wins (the more explicit request); when it carries both a tactical signal and issue-tracker intent (`quick wins from open issues`) splits — issue-tracker mode still selects the *frames*, because the themes are the surface, while tactical still sets the *agent count* and the caps above. See the fleet variants in `references/divergent-ideation.md`.
+Use reasonable interpretation rather than formal parsing.
+
+**Detecting a tactical signal is not the same as tactical scope being active.** Resolve the collisions below first; everything downstream — the fleet, the caps, and every meeting-test waiver — keys on whether tactical scope ends up **active**, never on whether a signal was merely spotted.
+
+- **`go deep` + a tactical signal** → `go deep` wins outright and **suppresses tactical scope entirely**: no fleet reduction, no caps, and *no waived ambition floor*. A run that opted into maximum depth must not also admit below-floor candidates.
+- **Tactical signal + issue-tracker intent** (`quick wins from open issues`) → both stay active and split: issue-tracker mode selects the *frames*, because the themes are the surface, while tactical sets the *agent count* and the caps above.
+
+See the fleet variants in `references/divergent-ideation.md`.
 
 #### 0.6 Cost Transparency Notice
 

@@ -16,6 +16,10 @@ const ISSUE_INTELLIGENCE_BODY = readFileSync(
   path.join(SKILL_DIR, "references/issue-intelligence.md"),
   "utf8",
 )
+const UNIVERSAL_BODY = readFileSync(
+  path.join(SKILL_DIR, "references/universal-ideation.md"),
+  "utf8",
+)
 
 // Two Phase 1 blocks were extracted to references during the ce-ideate
 // slimming pass. Both are conditional (rare, explicit triggers), so extraction
@@ -189,8 +193,14 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
       "divergent-ideation.md must carry the tactical fleet variant as the dispatch source of truth.",
     ).toBe(true)
     expect(
-      /all six frames are covered in every variant/i.test(DIVERGENT_BODY),
-      "divergent-ideation.md must state that every fleet variant covers all six frames.",
+      /Every variant that uses the default frame set covers all six/i.test(DIVERGENT_BODY),
+      "divergent-ideation.md must state the six-frame floor for default-frame-set variants.",
+    ).toBe(true)
+    // Scoped, not universal: issue-tracker mode replaces the frame set with
+    // themes, so an unqualified "every variant" would contradict it.
+    expect(
+      /Issue-tracker mode is the one variant that \*replaces\* the frame set/i.test(DIVERGENT_BODY),
+      "The six-frame floor must exempt issue-tracker mode explicitly.",
     ).toBe(true)
   })
 
@@ -255,6 +265,30 @@ describe("ce-ideate meeting-test waiver reaches the verifier", () => {
       /both layers|generators \*and\* in the Phase 3 basis verifier/i.test(VOLUME_0_5),
       "Phase 0.5 must state that the tactical waiver applies to the verifier as well as the generators.",
     ).toBe(true)
+  })
+
+  test("every waiver keys on tactical scope being ACTIVE, not merely detected", () => {
+    // `go deep` beats a tactical signal, so a prompt can carry the signal while
+    // tactical scope is suppressed. A waiver keyed on detection would still
+    // waive the ambition floor on that all-ceiling run.
+    expect(
+      /Detecting a tactical signal is not the same as tactical scope being active/i.test(VOLUME_0_5),
+      "Phase 0.5 must separate signal detection from the resolved active mode.",
+    ).toBe(true)
+    expect(
+      /suppresses tactical scope entirely/i.test(VOLUME_0_5),
+      "Phase 0.5 must state that `go deep` suppresses tactical scope, not merely outranks its fleet.",
+    ).toBe(true)
+    for (const [label, body] of [
+      ["divergent-ideation.md", DIVERGENT_BODY],
+      ["post-ideation-workflow.md", POST_IDEATION_BODY],
+      ["universal-ideation.md", UNIVERSAL_BODY],
+    ] as const) {
+      expect(
+        /detected tactical focus signals|tactical focus signals were detected/i.test(body),
+        `${label} must not key the meeting-test waiver on signal detection.`,
+      ).toBe(false)
+    }
   })
 
   test("the verifier dispatch carries the waiver, because it has no generation history", () => {

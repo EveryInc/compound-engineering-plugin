@@ -9,7 +9,7 @@ Dispatch parallel ideation sub-agents per the Model Tiers fleet. Omit the `mode`
 - **3 generation-tier agents**, one per evidence-driven frame (Pain and friction; Inversion, removal, or automation; Leverage and compounding). These frames live on evidence — the dossiers do the heavy lifting, so the mid-tier model performs well here.
 - **2 ceiling-tier agents** for the ceiling frames, where the strong model's reasoning is the product and must not be tiered down: one takes Cross-domain analogy; the other takes Assumption-breaking and reframing **plus** Constraint-flipping (cousins — both invert givens; one agent holds both as starting biases).
 
-Fleet variants — **all six frames are covered in every variant**. Only the number of agents the frames are packed into changes, and the tier they run on:
+Fleet variants. **Every variant that uses the default frame set covers all six** — scaling changes only how many agents the frames are packed into and the tier they run on, never how many lenses run. Issue-tracker mode is the one variant that *replaces* the frame set (themes become the frames), so the six-frame floor does not apply to it:
 
 - **surprise-me** and **`go deep`** — 6 agents, one frame each, all ceiling-tier.
 - **tactical scope** (Phase 0.5 signals) — 2 agents, 3 frames each, native tiers: one takes the three evidence-driven frames (pain; inversion; leverage), the other the three ceiling frames (assumption-breaking; analogy; constraint-flipping). Frame coverage is a floor, not a budget line — a tactical run gets fewer agents and a lower ambition floor, never fewer lenses.
@@ -78,7 +78,7 @@ Each sub-agent returns this structure per idea:
   - `external:` named prior art, domain research, adjacent pattern, with source
   - `reasoned:` explicit first-principles argument for why this move likely applies — not a gesture; the argument is written out
 - **why_it_matters** — connects the basis to the move's significance
-- **meeting_test** — one line confirming this would warrant team discussion (waived when Phase 0.5 detected tactical focus signals)
+- **meeting_test** — one line confirming this would warrant team discussion (waived when tactical scope is active — Phase 0.5)
 
 Basis is required, not optional. If a sub-agent cannot articulate a basis of at least one type, the idea does not surface. The failure mode to prevent is generic "AI-slop" ideas that sound plausible but lack a basis the user can verify.
 
@@ -86,7 +86,7 @@ Basis is required, not optional. If a sub-agent cannot articulate a basis of at 
 
 - Every idea carries an articulated basis. Unjustified speculation does not surface, regardless of how plausible it sounds.
 - Bias toward the basis type your frame naturally produces — pain/inversion/leverage tend toward `direct:`; analogy and constraint-flipping tend toward `reasoned:`; assumption-breaking is mixed — but don't exclude other basis types.
-- Apply the meeting-test as a default floor: would this idea warrant team discussion? If not, it's below the floor and does not surface. The floor is relaxed only when Phase 0.5 detected tactical focus signals.
+- Apply the meeting-test as a default floor: would this idea warrant team discussion? If not, it's below the floor and does not surface. The floor is relaxed only when tactical scope is active (Phase 0.5) — a `go deep` run that also carried a tactical word is not tactical.
 - Stay within the subject's identity. Product expansions, new surfaces, new markets, retirements, and architectural pivots are fair game when the basis supports them. Subject-replacement moves (abandoning the project, pivoting to unrelated domains, becoming a different organization) are out regardless of basis.
 - **Honor the asked scope.** When the focus hint names a part of the subject (a flow, a stage, a section, a feature within a larger product — e.g., "account settings", "onboarding flow", "pricing page copy", "gameplay rules"), ideate at full ambition *within that scope*. Expanding the surface to the whole subject — proposing fundamental changes to the broader product when the user named one slice — is a scope mismatch even when no subject-replacement occurred. Big-picture thinking still applies; it just operates inside the bounded surface the user named, not by widening the surface.
 
