@@ -22,6 +22,9 @@ Fleet variants. **Every variant that uses the default frame set covers all six**
 | issue-tracker + tactical | theme frames (issue-tracker owns the surface) | 2 (tactical owns the budget) |
 | issue-tracker + `go deep` / surprise-me | theme frames | 4, all ceiling-tier |
 | tactical + `go deep` | six frames | 6, all ceiling-tier (`go deep` wins outright per Phase 0.5) |
+| tactical + surprise-me | six frames | 6, all ceiling-tier — surprise-me owns the fleet |
+
+**tactical + surprise-me** is reachable whenever a vague tactical prompt (`quick wins`) sends the user to the 0.2 subject gate and they pick "Surprise me." Surprise-me wins the fleet: its subject discovery is the mode's entire value and cannot be done on two native-tier agents. Tactical keeps only its **waived ambition floor** — the user still asked for small wins, so a modest idea is allowed to survive. Tactical's axis and scout caps are moot here, because surprise-me skips decomposition entirely.
 
 The insufficient-issue-signal fallback from Phase 1 drops back to the **six-frame default at this run's own agent count** — 5 ordinarily, 2 under tactical, 6 under `go deep` or surprise-me. It does not reset a scaled run to 5.
 

@@ -258,6 +258,14 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
       /issue-tracker \+ tactical/i.test(DIVERGENT_BODY),
       "divergent-ideation.md must carry the frames-vs-agent-count split for colliding variants.",
     ).toBe(true)
+    // Every pair of variants that can fire together needs a row; a vague
+    // `quick wins` routed to "Surprise me" fires both.
+    for (const pair of [/issue-tracker \+ `go deep` \/ surprise-me/i, /tactical \+ `go deep`/i, /tactical \+ surprise-me/i]) {
+      expect(
+        pair.test(DIVERGENT_BODY),
+        `The collision table must resolve ${pair}.`,
+      ).toBe(true)
+    }
     // The fallback must inherit the run's scaling rather than resetting to 5.
     expect(
       /default 5-agent fleet/i.test(DIVERGENT_BODY) || /default 5-agent fleet/i.test(ISSUE_INTELLIGENCE_BODY),

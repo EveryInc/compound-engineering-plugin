@@ -243,6 +243,7 @@ Use reasonable interpretation rather than formal parsing.
 
 - **`go deep` + a tactical signal** → `go deep` wins outright and **suppresses tactical scope entirely**: no fleet reduction, no caps, and *no waived ambition floor*. A run that opted into maximum depth must not also admit below-floor candidates.
 - **Tactical signal + issue-tracker intent** (`quick wins from open issues`) → both stay active and split: issue-tracker mode selects the *frames*, because the themes are the surface, while tactical sets the *agent count* and the caps above.
+- **Tactical signal + surprise-me** (a vague `quick wins` that reached the 0.2 gate) → surprise-me owns the fleet and tier; tactical keeps only its waived ambition floor. Its caps are moot, since surprise-me skips decomposition.
 
 See the fleet variants in `references/divergent-ideation.md`.
 
@@ -252,7 +253,7 @@ Before dispatching Phase 1, surface the cost shape in one short line so multi-ag
 
 Derive it from the dispatch decisions already made in this phase — do not carry a memorized total. Every number is owned elsewhere and changes there: grounding by Phase 1's mode dispatch, scouts by Phase 1.5, the ideation fleet by `references/divergent-ideation.md`, and the tactical and `go deep` variants by 0.5. State a count only if you are stating one you just derived; naming the agents without a total is fine.
 
-Include the conditional legs when they apply: issue intelligence adds its scan and cluster calls, opt-in Slack research adds one, one distiller per user-supplied research artifact, and up to 2 axis-coverage recovery agents in Phase 2. Subtract the web researcher on a skip phrase or a V15 cache reuse. In surprise-me mode add "(deeper exploration per agent)".
+Include the conditional legs when they apply: issue intelligence adds its scan and cluster calls, opt-in Slack research adds one, one distiller per user-supplied research artifact **large enough to need distilling** (a small one folds into the grounding summary inline and costs no agent), and up to 2 axis-coverage recovery agents in Phase 2. Subtract the web researcher on a skip phrase or a V15 cache reuse. In surprise-me mode add "(deeper exploration per agent)".
 
 The line is informational; users do not need to acknowledge it.
 
