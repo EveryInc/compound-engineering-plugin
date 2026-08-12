@@ -22,6 +22,17 @@ type RepoFixture = {
   unrelatedPath: string
 }
 
+type AuthorizationFixture = {
+  runRoot: string
+  statePath: string
+  packetPath: string
+  reviewPath: string
+  pathsPath: string
+  verificationPath: string
+  familyPath: string
+  actionable: Record<string, any>
+}
+
 async function run(
   command: string[],
   cwd: string,
@@ -122,14 +133,14 @@ function finding(id: number, overrides: Record<string, any> = {}) {
 }
 
 function validReview(fixture: RepoFixture, overrides: Record<string, any> = {}) {
-  const { review_receipt: receiptOverrides, ...topLevelOverrides } = overrides
+  const { review_receipt: receiptOverrides, scope: scopeOverrides, reviewers, ...topLevelOverrides } = overrides
   const receipt = {
     base_sha: fixture.baseSha,
     head_sha: fixture.headSha,
     branch: "main",
-    selected_reviewers: ["correctness"],
-    required_reviewers: ["correctness"],
-    completed_reviewers: ["correctness"],
+    selected_reviewers: ["correctness-reviewer"],
+    required_reviewers: ["correctness-reviewer"],
+    completed_reviewers: ["correctness-reviewer"],
     failed_reviewers: [],
     terminal_status: "complete",
     ...receiptOverrides,
@@ -137,9 +148,32 @@ function validReview(fixture: RepoFixture, overrides: Record<string, any> = {}) 
   return {
     status: "complete",
     verdict: "Ready to merge",
+    scope: {
+      base: fixture.baseSha,
+      branch: "main",
+      head_sha: fixture.headSha,
+      pr_url: null,
+      files_changed: 1,
+      ...scopeOverrides,
+    },
+    intent: "Review the current branch against the frozen base.",
+    intent_confidence: "explicit",
+    reviewers: reviewers ?? receipt.selected_reviewers.map((identity: string) =>
+      identity === "correctness-reviewer" ? "correctness" : identity,
+    ),
     findings: [],
     actionable_findings: [],
     triage_groups: [],
+    pre_existing_findings: [],
+    requirements_completeness: null,
+    learnings: [],
+    agent_native_gaps: [],
+    deployment_notes: [],
+    residual_risks: [],
+    testing_gaps: [],
+    coverage: {},
+    artifact_path: "/tmp/ce-code-review-loop-fixture",
+    run_id: "loop-fixture",
     ...topLevelOverrides,
     review_receipt: receipt,
   }
@@ -169,6 +203,38 @@ async function writeCycleFiles(paths: string[], verification: Record<string, any
   await writeFile(pathsPath, JSON.stringify(paths))
   await writeFile(verificationPath, JSON.stringify(verification))
   return { statePath, pathsPath, verificationPath }
+}
+
+async function writeAuthorizationFiles(
+  fixture: RepoFixture,
+  paths = ["active.txt"],
+  existingRunRoot?: string,
+): Promise<AuthorizationFixture> {
+  const runRoot = existingRunRoot ?? await mkdtemp(path.join(os.tmpdir(), "ce-loop-authorization-"))
+  if (!existingRunRoot) tempRoots.push(runRoot)
+  const suffix = crypto.randomUUID()
+  const statePath = path.join(runRoot, `cycle-${suffix}.json`)
+  const packetPath = path.join(runRoot, `fixer-packet-${suffix}.json`)
+  const reviewPath = path.join(runRoot, `review-${suffix}.json`)
+  const pathsPath = path.join(runRoot, `paths-${suffix}.json`)
+  const verificationPath = path.join(runRoot, `verification-${suffix}.json`)
+  const familyPath = path.join(runRoot, `family-${suffix}.json`)
+  const actionable = finding(1)
+  await writeFile(reviewPath, JSON.stringify(validReview(fixture, {
+    verdict: "Ready with fixes",
+    findings: [actionable],
+    actionable_findings: [actionable],
+    run_id: "canonical-run",
+  })))
+  await writeFile(pathsPath, JSON.stringify(paths))
+  await writeFile(verificationPath, JSON.stringify({ status: "planned", checks: ["active value"] }))
+  await writeFile(familyPath, JSON.stringify({
+    family_id: "family-1",
+    root_invariant: "active value must be good",
+    finding_ids: [1],
+    authority: "mechanical",
+  }))
+  return { runRoot, statePath, packetPath, reviewPath, pathsPath, verificationPath, familyPath, actionable }
 }
 
 async function installPreCommitHook(fixture: RepoFixture, body: string) {
@@ -384,14 +450,28 @@ describe("ce-code-review-loop contract", () => {
     expect(remediation).toMatch(/revert only|restore only/)
   })
 
-  test("routes remediation checkpoints, restores, and commits through the helper", async () => {
+  test("routes every writable remediation through a mutation lease", async () => {
     const skill = await readFile(skillPath, "utf8")
     const protocol = await readFile(protocolPath, "utf8")
 
-    for (const command of ["cycle-checkpoint", "cycle-restore", "cycle-commit"]) {
+    for (const command of [
+      "cycle-authorize",
+      "cycle-begin",
+      "cycle-status",
+      "cycle-seal",
+      "cycle-scope-expansion",
+      "cycle-cancel",
+      "cycle-restore",
+      "cycle-commit",
+    ]) {
       expect(skill).toContain(command)
       expect(protocol).toContain(command)
     }
+    const workflow = section(skill, "## Workflow", "## Authority and Interaction")
+    expect(workflow).toContain("sole writable remediation entrypoint")
+    expect(workflow).toContain("Never batch or parallelize writable defect-family fixers")
+    expect(workflow).toContain("exact fixer packet")
+    expect(workflow).toMatch(/cycle-authorize[\s\S]*dispatch[\s\S]*cycle-begin/)
     expect(protocol).toMatch(/Do not improvise|only through these helper commands/i)
     expect(protocol).not.toContain("git reset --hard")
     expect(protocol).not.toContain("git checkout --")
@@ -753,16 +833,16 @@ describe("loop-state helper", () => {
     const coverage = await createRepo()
     const coverageReview = validReview(coverage, {
       review_receipt: {
-        selected_reviewers: ["correctness", "security"],
-        required_reviewers: ["correctness", "security"],
-        failed_reviewers: [{ reviewer: "security", reason: "timeout", required: true }],
+        selected_reviewers: ["correctness-reviewer", "security-reviewer"],
+        required_reviewers: ["correctness-reviewer", "security-reviewer"],
+        failed_reviewers: [{ reviewer: "security-reviewer", reason: "timeout", required: true }],
       },
     })
     const coverageFiles = await writeValidationFiles(coverage, coverageReview)
     expect(await helper(coverage.repo, "validate-review", "--repo", coverage.repo, "--expected", coverageFiles.expectedPath, "--review", coverageFiles.reviewPath)).toMatchObject({
       status: "coverage_gap",
-      missing_required_reviewers: ["security"],
-      failed_required_reviewers: ["security"],
+      missing_required_reviewers: ["security-reviewer"],
+      failed_required_reviewers: ["security-reviewer"],
     })
 
     const concurrent = await createRepo()
@@ -784,10 +864,10 @@ describe("loop-state helper", () => {
     const files = await writeValidationFiles(fixture, validReview(fixture, {
       status: "degraded",
       review_receipt: {
-        selected_reviewers: ["correctness", "security"],
-        required_reviewers: ["correctness", "security"],
-        completed_reviewers: ["correctness"],
-        failed_reviewers: [{ reviewer: "security", reason: "timeout", required: true }],
+        selected_reviewers: ["correctness-reviewer", "security-reviewer"],
+        required_reviewers: ["correctness-reviewer", "security-reviewer"],
+        completed_reviewers: ["correctness-reviewer"],
+        failed_reviewers: [{ reviewer: "security-reviewer", reason: "timeout", required: true }],
         terminal_status: "degraded",
       },
     }))
@@ -796,16 +876,16 @@ describe("loop-state helper", () => {
     expect(ordinary).toMatchObject({
       status: "coverage_gap",
       terminal_status: "degraded",
-      missing_required_reviewers: ["security"],
-      failed_required_reviewers: ["security"],
+      missing_required_reviewers: ["security-reviewer"],
+      failed_required_reviewers: ["security-reviewer"],
     })
 
     const final = await helper(fixture.repo, "validate-final", "--repo", fixture.repo, "--expected", files.expectedPath, "--review", files.reviewPath)
     expect(final).toMatchObject({
       status: "coverage_gap",
       terminal_status: "degraded",
-      missing_required_reviewers: ["security"],
-      failed_required_reviewers: ["security"],
+      missing_required_reviewers: ["security-reviewer"],
+      failed_required_reviewers: ["security-reviewer"],
     })
     expect(final.status).not.toBe("valid")
   })
@@ -815,10 +895,10 @@ describe("loop-state helper", () => {
     const files = await writeValidationFiles(fixture, validReview(fixture, {
       status: "degraded",
       review_receipt: {
-        selected_reviewers: ["correctness", "advisory"],
-        required_reviewers: ["correctness"],
-        completed_reviewers: ["correctness"],
-        failed_reviewers: [{ reviewer: "advisory", reason: "unavailable", required: false }],
+        selected_reviewers: ["correctness-reviewer", "adversarial-openai"],
+        required_reviewers: ["correctness-reviewer"],
+        completed_reviewers: ["correctness-reviewer"],
+        failed_reviewers: [{ reviewer: "adversarial-openai", reason: "unavailable", required: false }],
         terminal_status: "degraded",
       },
     }))
@@ -836,12 +916,12 @@ describe("loop-state helper", () => {
     const files = await writeValidationFiles(fixture, validReview(fixture, {
       status: "failed",
       review_receipt: {
-        selected_reviewers: ["correctness", "security"],
-        required_reviewers: ["correctness", "security"],
+        selected_reviewers: ["correctness-reviewer", "security-reviewer"],
+        required_reviewers: ["correctness-reviewer", "security-reviewer"],
         completed_reviewers: [],
         failed_reviewers: [
-          { reviewer: "correctness", reason: "malformed output", required: true },
-          { reviewer: "security", reason: "timeout", required: true },
+          { reviewer: "correctness-reviewer", reason: "malformed output", required: true },
+          { reviewer: "security-reviewer", reason: "timeout", required: true },
         ],
         terminal_status: "failed",
       },
@@ -851,16 +931,16 @@ describe("loop-state helper", () => {
     expect(ordinary).toMatchObject({
       status: "coverage_gap",
       terminal_status: "failed",
-      missing_required_reviewers: ["correctness", "security"],
-      failed_required_reviewers: ["correctness", "security"],
+      missing_required_reviewers: ["correctness-reviewer", "security-reviewer"],
+      failed_required_reviewers: ["correctness-reviewer", "security-reviewer"],
     })
 
     const final = await helper(fixture.repo, "validate-final", "--repo", fixture.repo, "--expected", files.expectedPath, "--review", files.reviewPath)
     expect(final).toMatchObject({
       status: "coverage_gap",
       terminal_status: "failed",
-      missing_required_reviewers: ["correctness", "security"],
-      failed_required_reviewers: ["correctness", "security"],
+      missing_required_reviewers: ["correctness-reviewer", "security-reviewer"],
+      failed_required_reviewers: ["correctness-reviewer", "security-reviewer"],
     })
     expect(final.status).not.toBe("valid")
   })
@@ -877,26 +957,26 @@ describe("loop-state helper", () => {
 
   test("enforces every canonical roster relationship", async () => {
     const cases = [
-      { selected_reviewers: ["correctness", "correctness"] },
-      { required_reviewers: ["correctness", "correctness"] },
-      { completed_reviewers: ["correctness", "correctness"] },
+      { selected_reviewers: ["correctness-reviewer", "correctness-reviewer"] },
+      { required_reviewers: ["correctness-reviewer", "correctness-reviewer"] },
+      { completed_reviewers: ["correctness-reviewer", "correctness-reviewer"] },
       { failed_reviewers: [
-        { reviewer: "security", reason: "timeout", required: false },
-        { reviewer: "security", reason: "crash", required: false },
-      ], selected_reviewers: ["correctness", "security"] },
-      { required_reviewers: ["security"] },
-      { completed_reviewers: ["security"] },
-      { failed_reviewers: [{ reviewer: "security", reason: "timeout", required: false }] },
+        { reviewer: "security-reviewer", reason: "timeout", required: false },
+        { reviewer: "security-reviewer", reason: "crash", required: false },
+      ], selected_reviewers: ["correctness-reviewer", "security-reviewer"] },
+      { required_reviewers: ["security-reviewer"] },
+      { completed_reviewers: ["security-reviewer"] },
+      { failed_reviewers: [{ reviewer: "security-reviewer", reason: "timeout", required: false }] },
       {
-        selected_reviewers: ["correctness", "security"],
-        completed_reviewers: ["correctness", "security"],
-        failed_reviewers: [{ reviewer: "security", reason: "timeout", required: false }],
+        selected_reviewers: ["correctness-reviewer", "security-reviewer"],
+        completed_reviewers: ["correctness-reviewer", "security-reviewer"],
+        failed_reviewers: [{ reviewer: "security-reviewer", reason: "timeout", required: false }],
       },
-      { selected_reviewers: ["correctness", "security"] },
+      { selected_reviewers: ["correctness-reviewer", "security-reviewer"] },
       {
-        selected_reviewers: ["correctness", "security"],
+        selected_reviewers: ["correctness-reviewer", "security-reviewer"],
         required_reviewers: [],
-        failed_reviewers: [{ reviewer: "security", reason: "timeout", required: true }],
+        failed_reviewers: [{ reviewer: "security-reviewer", reason: "timeout", required: true }],
       },
     ]
 
@@ -909,11 +989,240 @@ describe("loop-state helper", () => {
     const optionalFailure = await createRepo()
     const optionalFailureFiles = await writeValidationFiles(optionalFailure, validReview(optionalFailure, {
       review_receipt: {
-        selected_reviewers: ["correctness", "advisory"],
-        failed_reviewers: [{ reviewer: "advisory", reason: "unavailable", required: false }],
+        selected_reviewers: ["correctness-reviewer", "adversarial-openai"],
+        failed_reviewers: [{ reviewer: "adversarial-openai", reason: "unavailable", required: false }],
       },
     }))
     expect((await helper(optionalFailure.repo, "validate-review", "--repo", optionalFailure.repo, "--expected", optionalFailureFiles.expectedPath, "--review", optionalFailureFiles.reviewPath)).status).toBe("valid")
+  })
+  test("rejects every truncated canonical review envelope field", async () => {
+    const topLevelFields = [
+      "scope", "intent", "intent_confidence", "reviewers", "findings", "actionable_findings",
+      "triage_groups", "pre_existing_findings", "requirements_completeness", "learnings",
+      "agent_native_gaps", "deployment_notes", "residual_risks", "testing_gaps", "coverage",
+      "artifact_path", "run_id", "review_receipt",
+    ]
+    for (const field of topLevelFields) {
+      const fixture = await createRepo()
+      const review = validReview(fixture)
+      delete review[field]
+      const files = await writeValidationFiles(fixture, review)
+      expect((await helper(fixture.repo, "validate-review", "--repo", fixture.repo, "--expected", files.expectedPath, "--review", files.reviewPath)).status, field).toBe("malformed")
+    }
+    for (const field of ["base", "branch", "head_sha", "pr_url", "files_changed"]) {
+      const fixture = await createRepo()
+      const review = validReview(fixture)
+      delete review.scope[field]
+      const files = await writeValidationFiles(fixture, review)
+      expect((await helper(fixture.repo, "validate-review", "--repo", fixture.repo, "--expected", files.expectedPath, "--review", files.reviewPath)).status, `scope.${field}`).toBe("malformed")
+    }
+  })
+
+  test("rejects top-level scope identity that disagrees with the frozen review scope", async () => {
+    const fixture = await createRepo()
+    for (const scope of [
+      { base: "f".repeat(40) },
+      { branch: "other-branch" },
+      { head_sha: "e".repeat(40) },
+    ]) {
+      const files = await writeValidationFiles(fixture, validReview(fixture, { scope }))
+      expect((await helper(fixture.repo, "validate-review", "--repo", fixture.repo, "--expected", files.expectedPath, "--review", files.reviewPath)).status).toBe("malformed")
+    }
+  })
+
+  test("rejects zero, coreless, and top-level mismatched reviewer coverage", async () => {
+    const cases = [
+      {
+        reviewers: [],
+        review_receipt: { selected_reviewers: [], required_reviewers: [], completed_reviewers: [], failed_reviewers: [], terminal_status: "failed" },
+        status: "failed",
+        verdict: "Not ready",
+      },
+      {
+        reviewers: ["testing"],
+        review_receipt: { selected_reviewers: ["testing-reviewer"], required_reviewers: ["testing-reviewer"], completed_reviewers: ["testing-reviewer"] },
+      },
+      { reviewers: ["security"] },
+      { reviewers: ["correctness-v2"] },
+    ]
+    for (const overrides of cases) {
+      const fixture = await createRepo()
+      const files = await writeValidationFiles(fixture, validReview(fixture, overrides))
+      expect((await helper(fixture.repo, "validate-review", "--repo", fixture.repo, "--expected", files.expectedPath, "--review", files.reviewPath)).status).toBe("malformed")
+    }
+  })
+
+  test("rejects suppressed and confidence-ineligible actionable findings", async () => {
+    for (const confidence of [0, 25]) {
+      const fixture = await createRepo()
+      const files = await writeValidationFiles(fixture, validReview(fixture, {
+        findings: [finding(1, { confidence, autofix_class: "advisory", owner: "human" })],
+      }))
+      expect((await helper(fixture.repo, "validate-review", "--repo", fixture.repo, "--expected", files.expectedPath, "--review", files.reviewPath)).status).toBe("malformed")
+    }
+
+    const moderate = await createRepo()
+    const moderateFinding = finding(1, { confidence: 50 })
+    const moderateFiles = await writeValidationFiles(moderate, validReview(moderate, {
+      verdict: "Ready with fixes", findings: [moderateFinding], actionable_findings: [moderateFinding],
+    }))
+    expect((await helper(moderate.repo, "validate-review", "--repo", moderate.repo, "--expected", moderateFiles.expectedPath, "--review", moderateFiles.reviewPath)).status).toBe("malformed")
+
+    const urgent = await createRepo()
+    const urgentFinding = finding(1, { severity: "P0", confidence: 50 })
+    const urgentFiles = await writeValidationFiles(urgent, validReview(urgent, {
+      verdict: "Ready with fixes", findings: [urgentFinding], actionable_findings: [urgentFinding],
+    }))
+    expect((await helper(urgent.repo, "validate-review", "--repo", urgent.repo, "--expected", urgentFiles.expectedPath, "--review", urgentFiles.reviewPath)).status).toBe("valid")
+  })
+})
+
+describe("mutation lease dispatch gate", () => {
+  test("authorizes one exact canonical mechanical family and emits its fixer packet", async () => {
+    const fixture = await createRepo()
+    const cycle = await writeAuthorizationFiles(fixture)
+    const authorized = await helper(
+      fixture.repo,
+      "cycle-authorize",
+      "--repo", fixture.repo,
+      "--state", cycle.statePath,
+      "--paths-json", cycle.pathsPath,
+      "--verification-json", cycle.verificationPath,
+      "--family-json", cycle.familyPath,
+      "--review", cycle.reviewPath,
+      "--base", fixture.baseSha,
+      "--packet", cycle.packetPath,
+    )
+
+    expect(authorized).toMatchObject({
+      status: "authorized",
+      branch: "main",
+      head_sha: fixture.headSha,
+      paths: ["active.txt"],
+      state: cycle.statePath,
+      packet: cycle.packetPath,
+    })
+    expect(authorized.lease_id).toMatch(/^[0-9a-f]{32}$/)
+    const state = JSON.parse(await readFile(cycle.statePath, "utf8"))
+    const packet = JSON.parse(await readFile(cycle.packetPath, "utf8"))
+    expect(state).toMatchObject({ version: 2, phase: "authorized", lease_id: authorized.lease_id, base_sha: fixture.baseSha })
+    expect(packet).toMatchObject({
+      schema_version: 1,
+      lease_id: authorized.lease_id,
+      state_path: cycle.statePath,
+      checkpoint_head: fixture.headSha,
+      frozen_base: fixture.baseSha,
+      review_run_id: "canonical-run",
+      authorized_paths: ["active.txt"],
+      first_action: "cycle-begin",
+    })
+    expect(packet.family.findings).toEqual([cycle.actionable])
+  })
+
+  test("rejects non-mechanical, noncanonical, and dirty authorization before state creation", async () => {
+    const fixture = await createRepo()
+    for (const mutation of ["decision", "finding", "dirty"] as const) {
+      const cycle = await writeAuthorizationFiles(fixture)
+      if (mutation === "decision") {
+        await writeFile(cycle.familyPath, JSON.stringify({ family_id: "family-1", root_invariant: "choose behavior", finding_ids: [1], authority: "decision" }))
+      } else if (mutation === "finding") {
+        await writeFile(cycle.familyPath, JSON.stringify({ family_id: "family-1", root_invariant: "active value", finding_ids: [999], authority: "mechanical" }))
+      } else {
+        await writeFile(fixture.unrelatedPath, "owner=dirty\n")
+      }
+      const result = await helper(fixture.repo, "cycle-authorize", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath, "--family-json", cycle.familyPath, "--review", cycle.reviewPath, "--base", fixture.baseSha, "--packet", cycle.packetPath)
+      expect(result.status).not.toBe("authorized")
+      expect(await Bun.file(cycle.statePath).exists()).toBe(false)
+      expect(await Bun.file(cycle.packetPath).exists()).toBe(false)
+      if (mutation === "dirty") await writeFile(fixture.unrelatedPath, "owner=user\n")
+    }
+  })
+
+  test("requires begin before mutation and enforces one writable lease per checkout", async () => {
+    const fixture = await createRepo()
+    const first = await writeAuthorizationFiles(fixture)
+    const authorize = (cycle: AuthorizationFixture) => helper(fixture.repo, "cycle-authorize", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath, "--family-json", cycle.familyPath, "--review", cycle.reviewPath, "--base", fixture.baseSha, "--packet", cycle.packetPath)
+    const active = await authorize(first)
+    const second = await writeAuthorizationFiles(fixture, ["active.txt"], first.runRoot)
+    expect(await authorize(second)).toMatchObject({ status: "lease_conflict" })
+    expect(await helper(fixture.repo, "cycle-begin", "--repo", fixture.repo, "--state", first.statePath, "--lease", "0".repeat(32))).toMatchObject({ status: "lease_mismatch" })
+
+    await writeFile(fixture.activePath, "value=edited-before-begin\n")
+    expect(await helper(fixture.repo, "cycle-status", "--repo", fixture.repo, "--state", first.statePath, "--lease", active.lease_id)).toMatchObject({
+      status: "protocol_violation",
+      phase: "blocked",
+      dirty_paths: ["active.txt"],
+      mutation_permitted: false,
+    })
+  })
+
+  test("binds seal, cancel, scope expansion, restore, and commit to the same lease", async () => {
+    const fixture = await createRepo()
+    const cycle = await writeAuthorizationFiles(fixture)
+    const active = await helper(fixture.repo, "cycle-authorize", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath, "--family-json", cycle.familyPath, "--review", cycle.reviewPath, "--base", fixture.baseSha, "--packet", cycle.packetPath)
+    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath, "--lease", active.lease_id)).toMatchObject({ status: "invalid_phase" })
+    expect(await helper(fixture.repo, "cycle-begin", "--repo", fixture.repo, "--state", cycle.statePath, "--lease", active.lease_id)).toMatchObject({ status: "dispatched" })
+    expect(await helper(fixture.repo, "cycle-begin", "--repo", fixture.repo, "--state", cycle.statePath, "--lease", active.lease_id)).toMatchObject({ status: "invalid_phase" })
+    await writeFile(fixture.activePath, "value=good\n")
+    await writeFile(cycle.verificationPath, JSON.stringify({ status: "passed", checks: ["active value"] }))
+    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath, "--lease", active.lease_id)).toMatchObject({ status: "sealed" })
+    expect(await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--lease", "f".repeat(32), "--message", "fix(review): wrong lease")).toMatchObject({ status: "lease_mismatch" })
+    expect(await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--lease", active.lease_id, "--message", "fix(review): correct active value")).toMatchObject({ status: "committed", clean: true })
+
+    const next = await writeAuthorizationFiles({ ...fixture, headSha: await git(fixture.repo, "rev-parse", "HEAD") })
+    const nextActive = await helper(fixture.repo, "cycle-authorize", "--repo", fixture.repo, "--state", next.statePath, "--paths-json", next.pathsPath, "--verification-json", next.verificationPath, "--family-json", next.familyPath, "--review", next.reviewPath, "--base", fixture.baseSha, "--packet", next.packetPath)
+    expect(nextActive.status).toBe("authorized")
+    expect(await helper(fixture.repo, "cycle-cancel", "--repo", fixture.repo, "--state", next.statePath, "--lease", nextActive.lease_id)).toMatchObject({ status: "canceled" })
+  })
+
+  test("requires scope expansion before any edit and releases the checkout lease", async () => {
+    const fixture = await createRepo()
+    const cycle = await writeAuthorizationFiles(fixture)
+    const active = await helper(fixture.repo, "cycle-authorize", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath, "--family-json", cycle.familyPath, "--review", cycle.reviewPath, "--base", fixture.baseSha, "--packet", cycle.packetPath)
+    const resultPath = path.join(cycle.runRoot, "scope-expansion.json")
+    await writeFile(resultPath, JSON.stringify({ status: "scope_expansion", lease_id: active.lease_id, requested_paths: ["unrelated.txt"], reason: "caller contract", evidence: ["unrelated.txt:1"] }))
+    expect(await helper(fixture.repo, "cycle-scope-expansion", "--repo", fixture.repo, "--state", cycle.statePath, "--lease", active.lease_id, "--result", resultPath)).toMatchObject({ status: "scope_expansion", requested_paths: ["unrelated.txt"] })
+    const next = await writeAuthorizationFiles(fixture)
+    expect((await helper(fixture.repo, "cycle-authorize", "--repo", fixture.repo, "--state", next.statePath, "--paths-json", next.pathsPath, "--verification-json", next.verificationPath, "--family-json", next.familyPath, "--review", next.reviewPath, "--base", fixture.baseSha, "--packet", next.packetPath)).status).toBe("authorized")
+  })
+
+  test("does not delete pre-existing state or packet artifacts when authorization fails", async () => {
+    const fixture = await createRepo()
+    for (const occupied of ["state", "packet"] as const) {
+      const cycle = await writeAuthorizationFiles(fixture)
+      const occupiedPath = occupied === "state" ? cycle.statePath : cycle.packetPath
+      await writeFile(occupiedPath, `user-owned-${occupied}\n`)
+      const result = await helper(fixture.repo, "cycle-authorize", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath, "--family-json", cycle.familyPath, "--review", cycle.reviewPath, "--base", fixture.baseSha, "--packet", cycle.packetPath)
+      expect(result).toMatchObject({ status: "malformed", reason: "artifact_exists" })
+      expect(await readFile(occupiedPath, "utf8")).toBe(`user-owned-${occupied}\n`)
+    }
+  })
+
+  test("terminalizes a pre-begin violation and releases the checkout registry", async () => {
+    const fixture = await createRepo()
+    const cycle = await writeAuthorizationFiles(fixture)
+    const active = await helper(fixture.repo, "cycle-authorize", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath, "--family-json", cycle.familyPath, "--review", cycle.reviewPath, "--base", fixture.baseSha, "--packet", cycle.packetPath)
+    await writeFile(fixture.activePath, "value=premature\n")
+    expect(await helper(fixture.repo, "cycle-status", "--repo", fixture.repo, "--state", cycle.statePath, "--lease", active.lease_id)).toMatchObject({ status: "protocol_violation", phase: "blocked" })
+    const state = JSON.parse(await readFile(cycle.statePath, "utf8"))
+    expect(state).toMatchObject({ phase: "blocked", terminal_reason: "protocol_violation" })
+    await writeFile(fixture.activePath, "value=bad\n")
+    const next = await writeAuthorizationFiles(fixture, ["active.txt"], cycle.runRoot)
+    expect((await helper(fixture.repo, "cycle-authorize", "--repo", fixture.repo, "--state", next.statePath, "--paths-json", next.pathsPath, "--verification-json", next.verificationPath, "--family-json", next.familyPath, "--review", next.reviewPath, "--base", fixture.baseSha, "--packet", next.packetPath)).status).toBe("authorized")
+  })
+
+  test("rejects an impossible canonical reviewer roster during authorization", async () => {
+    const fixture = await createRepo()
+    const cycle = await writeAuthorizationFiles(fixture)
+    const review = JSON.parse(await readFile(cycle.reviewPath, "utf8"))
+    review.review_receipt.selected_reviewers = ["correctness-reviewer", "security-reviewer"]
+    review.review_receipt.required_reviewers = ["correctness-reviewer"]
+    review.review_receipt.completed_reviewers = ["correctness-reviewer"]
+    review.review_receipt.failed_reviewers = []
+    review.reviewers = ["correctness", "security"]
+    await writeFile(cycle.reviewPath, JSON.stringify(review))
+    expect(await helper(fixture.repo, "cycle-authorize", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath, "--family-json", cycle.familyPath, "--review", cycle.reviewPath, "--base", fixture.baseSha, "--packet", cycle.packetPath)).toMatchObject({ status: "malformed" })
+    expect(await Bun.file(cycle.statePath).exists()).toBe(false)
   })
 })
 
@@ -928,8 +1237,14 @@ describe("guarded remediation cycle helper", () => {
       paths: ["active.txt"],
     })
 
+
     await writeFile(fixture.activePath, "value=good\n")
     await writeFile(cycle.verificationPath, JSON.stringify({ status: "passed", checks: ["active value"] }))
+    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({
+      status: "sealed",
+      verification_status: "passed",
+      paths: ["active.txt"],
+    })
     const committed = await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--message", "fix(review): correct active value")
 
     expect(committed).toMatchObject({ status: "committed", clean: true })
@@ -956,6 +1271,7 @@ describe("guarded remediation cycle helper", () => {
 
     await writeFile(fixturePath, "new fixture bytes\n")
     await writeFile(cycle.verificationPath, JSON.stringify({ status: "passed", checks: ["new fixture"] }))
+    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({ status: "sealed" })
     expect(await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--message", "test(review): add regression fixture")).toMatchObject({
       status: "committed",
       clean: true,
@@ -971,6 +1287,7 @@ describe("guarded remediation cycle helper", () => {
 
     await writeFile(fixture.activePath, "value=verified\n")
     await writeFile(cycle.verificationPath, JSON.stringify({ status: "passed", checks: ["active value"] }))
+    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({ status: "sealed" })
     await installPreCommitHook(fixture, "printf 'value=hook-mutated\\n' > active.txt\ngit add -- active.txt")
 
     const result = await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--message", "fix(review): correct active value")
@@ -994,6 +1311,7 @@ describe("guarded remediation cycle helper", () => {
     await writeFile(fixture.activePath, "value=verified\n")
     await chmod(fixture.activePath, 0o644)
     await writeFile(cycle.verificationPath, JSON.stringify({ status: "passed", checks: ["active value"] }))
+    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({ status: "sealed" })
     await installPreCommitHook(fixture, "chmod 755 active.txt\ngit add -- active.txt")
 
     const result = await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--message", "fix(review): correct active value")
@@ -1014,6 +1332,7 @@ describe("guarded remediation cycle helper", () => {
 
     await writeFile(fixture.activePath, "value=verified\n")
     await writeFile(cycle.verificationPath, JSON.stringify({ status: "passed", checks: ["active value"] }))
+    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({ status: "sealed" })
     await installPreCommitHook(fixture, "printf 'hook extra\\n' > hook-extra.txt\ngit add -- hook-extra.txt")
 
     const result = await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--message", "fix(review): correct active value")
@@ -1035,6 +1354,7 @@ describe("guarded remediation cycle helper", () => {
 
     await writeFile(fixture.activePath, "value=verified\n")
     await writeFile(cycle.verificationPath, JSON.stringify({ status: "passed", checks: ["active value"] }))
+    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({ status: "sealed" })
     await installPreCommitHook(fixture, "printf 'value=post-commit-dirty\\n' > active.txt")
 
     const result = await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--message", "fix(review): correct active value")
@@ -1059,6 +1379,10 @@ describe("guarded remediation cycle helper", () => {
     await chmod(fixture.activePath, 0o600)
     await writeFile(fixture.activePath, "value=broken-fix\n")
     await writeFile(cycle.verificationPath, JSON.stringify({ status: "failed", checks: ["active value"] }))
+    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({
+      status: "sealed",
+      verification_status: "failed",
+    })
     expect(await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--message", "fix(review): broken")).toMatchObject({ status: "verification_failed" })
     expect(await readFile(fixture.activePath, "utf8")).toBe("value=broken-fix\n")
 
@@ -1080,6 +1404,7 @@ describe("guarded remediation cycle helper", () => {
 
     await writeFile(fixturePath, "failed fixture bytes\n")
     await writeFile(cycle.verificationPath, JSON.stringify({ status: "failed", checks: ["new fixture"] }))
+    expect(await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({ status: "sealed" })
     expect(await helper(fixture.repo, "cycle-commit", "--repo", fixture.repo, "--state", cycle.statePath, "--message", "test(review): broken fixture")).toMatchObject({ status: "verification_failed" })
     expect(await helper(fixture.repo, "cycle-restore", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({ status: "restored", clean: true })
     expect(await Bun.file(fixturePath).exists()).toBe(false)
@@ -1092,6 +1417,7 @@ describe("guarded remediation cycle helper", () => {
     expect((await helper(fixture.repo, "cycle-checkpoint", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath)).status).toBe("checkpointed")
 
     await writeFile(fixture.activePath, "value=broken-fix\n")
+    expect((await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).status).toBe("sealed")
     await writeFile(fixture.unrelatedPath, "owner=concurrent\n")
     const untrackedPath = path.join(fixture.repo, "concurrent.txt")
     await writeFile(untrackedPath, "new concurrent bytes\n")
@@ -1119,6 +1445,7 @@ describe("guarded remediation cycle helper", () => {
     expect((await helper(fixture.repo, "cycle-checkpoint", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath)).status).toBe("checkpointed")
 
     await writeFile(fixturePath, "loop-created bytes\n")
+    expect((await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).status).toBe("sealed")
     await writeFile(fixture.unrelatedPath, "owner=concurrent\n")
     const concurrentPath = path.join(fixture.repo, "concurrent.txt")
     await writeFile(concurrentPath, "concurrent untracked bytes\n")
@@ -1134,6 +1461,98 @@ describe("guarded remediation cycle helper", () => {
     expect(await readFile(fixture.unrelatedPath)).toEqual(unrelatedBytes)
     expect(await readFile(concurrentPath)).toEqual(concurrentBytes)
     expect(await git(fixture.repo, "rev-parse", "HEAD")).toBe(fixture.headSha)
+  })
+
+  test("refuses intended-path races after verification before commit or restore", async () => {
+    for (const operation of ["cycle-commit", "cycle-restore"]) {
+      const fixture = await createRepo()
+      const cycle = await writeCycleFiles(["active.txt"], { status: operation === "cycle-commit" ? "passed" : "failed" })
+      expect((await helper(fixture.repo, "cycle-checkpoint", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath)).status).toBe("checkpointed")
+
+      await writeFile(fixture.activePath, "value=verified\n")
+      expect((await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).status).toBe("sealed")
+      await writeFile(fixture.activePath, "value=concurrent-after-verification\n")
+
+      const args = operation === "cycle-commit"
+        ? [operation, "--repo", fixture.repo, "--state", cycle.statePath, "--message", "fix(review): raced"]
+        : [operation, "--repo", fixture.repo, "--state", cycle.statePath]
+      expect(await helper(fixture.repo, ...args)).toMatchObject({
+        status: "concurrent_change",
+        changed_paths: ["active.txt"],
+      })
+      expect(await readFile(fixture.activePath, "utf8")).toBe("value=concurrent-after-verification\n")
+      expect(await git(fixture.repo, "diff", "--cached", "--name-only")).toBe("")
+    }
+  })
+
+  test("distinguishes an unchanged failed hook from failed-hook mutations", async () => {
+    const unchanged = await createRepo()
+    const unchangedCycle = await writeCycleFiles(["active.txt"], { status: "passed" })
+    expect((await helper(unchanged.repo, "cycle-checkpoint", "--repo", unchanged.repo, "--state", unchangedCycle.statePath, "--paths-json", unchangedCycle.pathsPath, "--verification-json", unchangedCycle.verificationPath)).status).toBe("checkpointed")
+    await writeFile(unchanged.activePath, "value=verified\n")
+    expect((await helper(unchanged.repo, "cycle-seal", "--repo", unchanged.repo, "--state", unchangedCycle.statePath)).status).toBe("sealed")
+    await installPreCommitHook(unchanged, "exit 1")
+    expect(await helper(unchanged.repo, "cycle-commit", "--repo", unchanged.repo, "--state", unchangedCycle.statePath, "--message", "fix(review): rejected unchanged")).toMatchObject({
+      status: "commit_failed",
+      paths: ["active.txt"],
+    })
+    expect(await readFile(unchanged.activePath, "utf8")).toBe("value=verified\n")
+
+    const mutated = await createRepo()
+    const mutatedCycle = await writeCycleFiles(["active.txt"], { status: "passed" })
+    expect((await helper(mutated.repo, "cycle-checkpoint", "--repo", mutated.repo, "--state", mutatedCycle.statePath, "--paths-json", mutatedCycle.pathsPath, "--verification-json", mutatedCycle.verificationPath)).status).toBe("checkpointed")
+    await writeFile(mutated.activePath, "value=verified\n")
+    expect((await helper(mutated.repo, "cycle-seal", "--repo", mutated.repo, "--state", mutatedCycle.statePath)).status).toBe("sealed")
+    await installPreCommitHook(mutated, "printf 'value=failed-hook-mutation\\n' > active.txt\nexit 1")
+    expect(await helper(mutated.repo, "cycle-commit", "--repo", mutated.repo, "--state", mutatedCycle.statePath, "--message", "fix(review): rejected mutated")).toMatchObject({
+      status: "commit_integrity_failure",
+      reason: "failed_commit_snapshot_mismatch",
+      commit_sha: null,
+      changed_paths: ["active.txt"],
+      clean: false,
+    })
+    expect(await readFile(mutated.activePath, "utf8")).toBe("value=failed-hook-mutation\n")
+
+    const extra = await createRepo()
+    const extraCycle = await writeCycleFiles(["active.txt"], { status: "passed" })
+    expect((await helper(extra.repo, "cycle-checkpoint", "--repo", extra.repo, "--state", extraCycle.statePath, "--paths-json", extraCycle.pathsPath, "--verification-json", extraCycle.verificationPath)).status).toBe("checkpointed")
+    await writeFile(extra.activePath, "value=verified\n")
+    expect((await helper(extra.repo, "cycle-seal", "--repo", extra.repo, "--state", extraCycle.statePath)).status).toBe("sealed")
+    await installPreCommitHook(extra, "printf 'hook extra\\n' > failed-hook-extra.txt\ngit add -- failed-hook-extra.txt\nexit 1")
+    expect(await helper(extra.repo, "cycle-commit", "--repo", extra.repo, "--state", extraCycle.statePath, "--message", "fix(review): rejected extra")).toMatchObject({
+      status: "commit_integrity_failure",
+      reason: "failed_commit_paths_mismatch",
+      commit_sha: null,
+      changed_paths: ["failed-hook-extra.txt"],
+      clean: false,
+    })
+    expect(await readFile(path.join(extra.repo, "failed-hook-extra.txt"), "utf8")).toBe("hook extra\n")
+  })
+
+  test("returns structured partial restore evidence after an I/O failure", async () => {
+    const fixture = await createRepo()
+    const blockedDir = path.join(fixture.repo, "blocked")
+    await mkdir(blockedDir)
+    const createdPath = path.join(blockedDir, "created.txt")
+    const cycle = await writeCycleFiles(["active.txt", "blocked/created.txt"], { status: "failed" })
+    expect((await helper(fixture.repo, "cycle-checkpoint", "--repo", fixture.repo, "--state", cycle.statePath, "--paths-json", cycle.pathsPath, "--verification-json", cycle.verificationPath)).status).toBe("checkpointed")
+
+    await writeFile(fixture.activePath, "value=failed-fix\n")
+    await writeFile(createdPath, "failed new bytes\n")
+    expect((await helper(fixture.repo, "cycle-seal", "--repo", fixture.repo, "--state", cycle.statePath)).status).toBe("sealed")
+    await chmod(blockedDir, 0o555)
+    try {
+      expect(await helper(fixture.repo, "cycle-restore", "--repo", fixture.repo, "--state", cycle.statePath)).toMatchObject({
+        status: "restore_failed",
+        restored_paths: ["active.txt"],
+        pending_paths: ["blocked/created.txt"],
+        changed_paths: ["blocked/created.txt"],
+      })
+      expect(await readFile(fixture.activePath, "utf8")).toBe("value=bad\n")
+      expect(await readFile(createdPath, "utf8")).toBe("failed new bytes\n")
+    } finally {
+      await chmod(blockedDir, 0o755)
+    }
   })
 
   test("rejects missing parents, symlinks, and escaping checkpoint paths without writing state", async () => {

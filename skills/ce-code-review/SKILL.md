@@ -165,6 +165,9 @@ The orchestrator owns `review_receipt` and constructs it from frozen review stat
 - `required_reviewers` is classified by `ce-code-review`, not its callers. It contains every selected in-process reviewer. An optional cross-model peer remains optional and is excluded unless this canonical producer explicitly changes that classification in the future.
 - `completed_reviewers` contains only selected reviewers whose valid returns were used in synthesis.
 - `failed_reviewers` contains every selected reviewer that failed, timed out, or returned malformed output. Each entry records the canonical reviewer identity, a non-empty reason, and the producer-owned `required` boolean. Every selected reviewer must appear in exactly one of `completed_reviewers` or `failed_reviewers`; no terminal outcome may name an unselected reviewer.
+- Top-level `reviewers` uses the human persona identity from the persona catalog. Before emission, materialize those identities with the producer-owned explicit mapping (`correctness` -> `correctness-reviewer`, `project-standards` -> `project-standards-reviewer`, and the other catalog rows); canonical cross-model `adversarial-<provider>` identities map to themselves. The resulting set must exactly equal `selected_reviewers`. Do not guess identities by appending or stripping arbitrary suffixes.
+- `selected_reviewers` is never empty and always contains the core `correctness-reviewer`; zero-reviewer and coreless post-dispatch payloads are impossible and must fail validation.
+- Confidence anchors 0 and 25 are suppressed mechanics output and must never appear in `findings` or `actionable_findings`. `actionable_findings` ordinarily uses confidence 75 or 100; the only anchor-50 exception is the documented P0 security exception.
 - `terminal_status` is `complete`, `degraded`, or `failed`. `complete` means every required reviewer completed and no required reviewer failed. A recorded optional failure (`required: false`) does not degrade `complete`. Use `degraded` only when at least one reviewer produced a usable completed return but a required reviewer failed. Use `failed` when dispatch began but no reviewer produced a usable completed return.
 
 Top-level `status` and `review_receipt.terminal_status` must agree on `complete`, `degraded`, and post-dispatch `failed` paths. Before dispatch begins, existing failure and skip responses may retain their minimal `{ "status", "reason" }` shape. Once any reviewer dispatch begins, every `mode:agent` completion, including degraded or failed completion, must retain `review_receipt`.
@@ -347,22 +350,17 @@ Set `BASE:` to `pr:<number-or-url>` (logical marker — not a git SHA). Set `UNT
 - **`local-aligned`:** Resolve `<resolved-base-ref>` from `baseRefName` (fetch if needed). Compute `BASE=$(git merge-base HEAD <resolved-base-ref>)`, then set `FILES:` from `git diff --name-only $BASE` and `DIFF:` from `git diff -U10 $BASE` (includes committed, staged, and unstaged changes on the PR branch). Do **not** call `gh pr diff` or append remote hunks — when unpushed fixes exist, the local tree is canonical. Note in Coverage: `scope: local-aligned (PR; local tree diff)`.
 - **`pr-remote`:** Set `FILES:` from the PR `files` array. Set `DIFF:` from `gh pr diff <number-or-url> --color=never`. If `gh pr diff` fails, stop with an actionable error — do not fall back to checkout.
 
-When **`pr-remote`**, establish immutable review endpoints and their merge base before Stage 1b or any reviewer dispatch. Substitute the PR number from metadata in the private ref names:
+When **`pr-remote`**, establish immutable review endpoints and their merge base before Stage 1b or any reviewer dispatch. Resolve `SKILL_DIR` and `NODE` using the standard bundled-script preflight for this skill, then invoke the helper once with argv. Pass the current repository root, the Git remote, the PR number from metadata as the safe run namespace, and the immutable `baseRefOid` / `headRefOid` values:
 
 ```bash
-PR_BASE_OID_REF=refs/review/pr-<number>-base-oid;
-PR_HEAD_REF=refs/review/pr-<number>-head-oid;
-PR_SCOPE_ERROR="Cannot establish immutable PR base/head objects and their reviewed merge base; review aborted before reviewer dispatch.";
-git fetch --no-tags origin "+<baseRefOid>:$PR_BASE_OID_REF" "+<headRefOid>:$PR_HEAD_REF" || { echo "$PR_SCOPE_ERROR" >&2; exit 1; };
-git rev-parse --verify "$PR_BASE_OID_REF^{commit}" >/dev/null || { echo "$PR_SCOPE_ERROR" >&2; exit 1; };
-git rev-parse --verify "$PR_HEAD_REF^{commit}" >/dev/null || { echo "$PR_SCOPE_ERROR" >&2; exit 1; };
-PR_BASE_REF=$(git merge-base "$PR_BASE_OID_REF" "$PR_HEAD_REF") || { echo "$PR_SCOPE_ERROR" >&2; exit 1; };
-git rev-parse --verify "$PR_BASE_REF^{commit}" >/dev/null || { echo "$PR_SCOPE_ERROR" >&2; exit 1; };
+"$NODE" "$SKILL_DIR/scripts/pr-scope.mjs" "<repo>" "origin" "<number>" "<baseRefOid>" "<headRefOid>"
 ```
 
-1. Fetch the immutable `baseRefOid` and `headRefOid` directly into the private review refs above. Never fetch branch names for this evidence: a moving base branch or fork head can resolve to a different graph than the PR metadata.
-2. Resolve both private refs as commits, compute `PR_BASE_REF` from their merge base, and resolve that merge base as a commit. Set the receipt's `base_sha` to this computed merge-base SHA and `head_sha` to `headRefOid`. `PR_BASE_REF` is also the real git base reviewers and validators use for file inspection and file-level diffs; `PR_HEAD_REF` is the reviewed head ref. Keep the `pr:<number-or-url>` logical marker in `BASE:` only as the report scope marker.
-3. If either immutable object cannot be fetched/resolved, or the merge base cannot be computed/resolved, fail before reviewer dispatch. In `mode:agent`, emit the existing pre-dispatch minimal failure shape with an actionable reason; never emit an unverifiable receipt or fall back to branch names, the checkout, or diff hunks alone. `gh pr diff` remains the canonical PR diff and is not replaced by a local `git diff`.
+Load the helper's single JSON object with fields `status`, `base_oid_ref`, `head_oid_ref`, `base_sha`, and `head_sha`. Require `status: ok`; set `PR_BASE_OID_REF` from `base_oid_ref`, `PR_HEAD_REF` from `head_oid_ref`, and `PR_BASE_REF` from `base_sha`. Use `head_sha` as the concrete reviewed head SHA in scope identity and the receipt.
+
+1. The helper validates the namespace and concrete OIDs, fetches the immutable `baseRefOid` and `headRefOid` directly into private review refs with argv-based Git execution, verifies both as commits, computes their merge base, and verifies that merge base as a commit. It never checks out or mutates the working tree.
+2. Set the receipt's `base_sha` to the helper's computed `base_sha` and `head_sha` to its verified `head_sha`. `PR_BASE_REF` is also the real git base reviewers and validators use for file inspection and file-level diffs; `PR_HEAD_REF` is the reviewed private head ref. Keep the `pr:<number-or-url>` logical marker in `BASE:` only as the report scope marker.
+3. If the helper exits nonzero, emits malformed JSON, returns a non-`ok` status, or omits any required field, fail before reviewer dispatch with its actionable reason. In `mode:agent`, emit the existing pre-dispatch minimal failure shape; never emit an unverifiable receipt or fall back to branch names, the checkout, or diff hunks alone. `gh pr diff` remains the canonical PR diff and is not replaced by a local `git diff`.
 4. Include `<pr-scope-mode>pr-remote</pr-scope-mode>`, `<pr-head-ref>$PR_HEAD_REF</pr-head-ref>`, and `<pr-base-ref>$PR_BASE_REF</pr-base-ref>` in the Stage 4 review context bundle.
 
 Reviewers and Stage 5b validators in **`pr-remote`** mode must **not** Read/Grep workspace paths for files in `FILES:`. Inspect via `git show <PR_HEAD_REF>:<path>` and use `PR_BASE_REF` for base-to-head file diffs; the immutable refs and computed merge base are required before dispatch. **`local-aligned`** uses normal workspace inspection.

@@ -7,6 +7,21 @@ import { describe, expect, test } from "bun:test"
 
 const skillPath = path.join(process.cwd(), "skills/ce-doc-review-loop/SKILL.md")
 const protocolPath = path.join(process.cwd(), "skills/ce-doc-review-loop/references/loop-protocol.md")
+const helperPath = path.join(process.cwd(), "skills/ce-doc-review-loop/scripts/loop-state.mjs")
+
+function runHelper(args: string[], env: Record<string, string> = {}) {
+  return spawnSync("node", [helperPath, ...args], {
+    encoding: "utf8",
+    env: { ...process.env, ...env },
+  })
+}
+
+function helperResult(args: string[], env: Record<string, string> = {}) {
+  const result = runHelper(args, env)
+  expect(result.stderr).toBe("")
+  expect(result.stdout.trim()).not.toBe("")
+  return { process: result, body: JSON.parse(result.stdout) as Record<string, unknown> }
+}
 
 // Optional generated Chinese views. They restate normative content, so when they
 // exist they must not drift from the source they were rendered from.
@@ -153,25 +168,24 @@ describe("ce-doc-review-loop contract", () => {
     }
   })
 
-  test("resolves the primitives every gate depends on", async () => {
+  test("uses the bundled portable mechanics helper", async () => {
     const protocol = await readFile(protocolPath, "utf8")
     const mechanics = section(protocol, "## Mechanics", "## Wave 0")
 
-    // A gate keyed on an asserted digest passes vacuously.
-    expect(mechanics).toMatch(/shasum -a 256|sha256sum/)
-    expect(mechanics).toContain('mktemp -d "${TMPDIR:-/tmp}/')
-    expect(mechanics).toContain("/tmp/compound-engineering-$(id -u)/")
-    // Commit must survive a symlinked product path (this repo's own CLAUDE.md is
-    // one) and must not widen the target's permissions.
-    expect(mechanics).toContain("mv -f")
-    expect(mechanics).toContain('readlink -f "<product>"')
-    expect(mechanics).toMatch(/stat -f %Lp[\s\S]{0,60}stat -c %a/)
-    expect(mechanics).toMatch(/replaces the link with a regular file/)
-    // A reused run directory silently reopens a prior run's fingerprint and ledger.
+    expect(mechanics).toContain('node "$SKILL_DIR/scripts/loop-state.mjs" fingerprint --path "<path>"')
+    expect(mechanics).toContain('node "$SKILL_DIR/scripts/loop-state.mjs" init-run')
+    expect(mechanics).toContain('node "$SKILL_DIR/scripts/loop-state.mjs" resolve-target --product "<product>"')
+    expect(mechanics).toContain('node "$SKILL_DIR/scripts/loop-state.mjs" commit')
+    expect(mechanics).toContain("expected-realpath")
+    expect(mechanics).toContain("expected-dev")
+    expect(mechanics).toContain("expected-ino")
+    expect(mechanics).toContain("concurrent_change")
     expect(mechanics).toContain("never adopt an existing run directory")
-    expect(mechanics).toContain("chmod 700")
-    // $$ differs per shell invocation, so the commit cannot span two calls.
-    expect(mechanics).toContain("single shell invocation")
+    expect(mechanics).not.toMatch(/shasum|sha256sum|readlink -f|mktemp|mv -f/)
+
+    for (const fence of mechanics.matchAll(/```bash\n([\s\S]*?)```/g)) {
+      expect(fence[1]).not.toMatch(/\||>|<|\$\(|`|\|\|/)
+    }
   })
 
   test("gives an unreachable sub-skill a user-runnable exit", async () => {
@@ -234,76 +248,150 @@ describe("ce-doc-review-loop contract", () => {
 
     if (existsSync(zhProtocolPath)) {
       const zhProtocol = await readFile(zhProtocolPath, "utf8")
-      // The four Mechanics primitives are the source's load-bearing commands.
-      const mechanics = section(protocol, "## Mechanics", "## Wave 0")
       for (const literal of [
-        capture(mechanics, /(shasum -a 256)/),
-        capture(mechanics, /(mktemp -d "\$\{TMPDIR:-\/tmp\}\/ce-doc-review-loop-XXXXXX")/),
-        capture(mechanics, /(\/tmp\/compound-engineering-\$\(id -u\))/),
-        capture(mechanics, /(mv -f)/),
+        "scripts/loop-state.mjs",
+        "fingerprint --path",
+        "init-run",
+        "resolve-target --product",
+        "expected-fingerprint",
+        "expected-realpath",
+        "expected-dev",
+        "expected-ino",
+        "concurrent_change",
       ]) {
         expect(zhProtocol, `${literal} missing from the zh-CN protocol view`).toContain(literal)
       }
     }
   })
 
-  // The tests above pin that the Mechanics block SAYS the right commands. This one
-  // runs them. Both `readlink -f` and the `chmod`-from-`stat` step were added after
-  // the original recipe was measured destroying a symlinked product path (this repo's
-  // own CLAUDE.md is one) and widening 640 to 644 — failures no prose assertion can see.
-  test("the Mechanics commit recipe survives symlinks and preserves mode", () => {
-    const work = mkdtempSync(path.join(tmpdir(), "loop-mechanics-"))
+  test("the helper fingerprints raw bytes and creates a private fresh run", () => {
+    const work = mkdtempSync(path.join(tmpdir(), "loop-helper-"))
+    try {
+      const doc = path.join(work, "doc.md")
+      const stateBase = path.join(work, "state")
+      const snapshotBase = path.join(work, "snapshots")
+      writeFileSync(doc, "hello\n")
+
+      const fingerprint = helperResult(["fingerprint", "--path", doc])
+      expect(fingerprint.process.status).toBe(0)
+      expect(fingerprint.body.sha256).toMatch(/^[0-9a-f]{64}$/)
+
+      const init = helperResult(["init-run"], {
+        CE_DOC_REVIEW_LOOP_STATE_BASE: stateBase,
+        CE_DOC_REVIEW_LOOP_SNAPSHOT_BASE: snapshotBase,
+      })
+      expect(init.process.status).toBe(0)
+      expect(init.body.status).toBe("ok")
+      const runDir = String(init.body.run_dir)
+      const snapshotDir = String(init.body.snapshot_dir)
+      expect(statSync(runDir).mode & 0o777).toBe(0o700)
+      expect(statSync(snapshotDir).mode & 0o777).toBe(0o700)
+      expect(path.dirname(String(init.body.state_path))).toBe(runDir)
+
+      const second = helperResult(["init-run"], {
+        CE_DOC_REVIEW_LOOP_STATE_BASE: stateBase,
+        CE_DOC_REVIEW_LOOP_SNAPSHOT_BASE: snapshotBase,
+      })
+      expect(second.body.run_id).not.toBe(init.body.run_id)
+      expect(second.body.run_dir).not.toBe(init.body.run_dir)
+    } finally {
+      rmSync(work, { recursive: true, force: true })
+    }
+  })
+
+  test("the helper rejects a symlinked state root", () => {
+    const work = mkdtempSync(path.join(tmpdir(), "loop-state-root-"))
+    try {
+      const realRoot = path.join(work, "real-root")
+      const linkedRoot = path.join(work, "linked-root")
+      const mkdir = spawnSync("node", ["-e", "require('fs').mkdirSync(process.argv[1])", realRoot], { encoding: "utf8" })
+      expect(mkdir.status).toBe(0)
+      symlinkSync("real-root", linkedRoot)
+
+      const init = helperResult(["init-run"], {
+        CE_DOC_REVIEW_LOOP_STATE_BASE: linkedRoot,
+        CE_DOC_REVIEW_LOOP_SNAPSHOT_BASE: path.join(work, "snapshots"),
+      })
+      expect(init.process.status).toBe(1)
+      expect(init.body.status).toBe("error")
+      expect(String(init.body.message)).toContain("symlink")
+      expect(readdirSync(realRoot)).toEqual([])
+    } finally {
+      rmSync(work, { recursive: true, force: true })
+    }
+  })
+
+  test("the helper commits through a symlink and preserves target mode", () => {
+    const work = mkdtempSync(path.join(tmpdir(), "loop-commit-"))
     try {
       const target = path.join(work, "AGENTS.md")
-      const product = path.join(work, "CLAUDE.md") // symlinked product path
+      const product = path.join(work, "CLAUDE.md")
       const validated = path.join(work, "validated.md")
       writeFileSync(target, "# Real\n\nbefore\n")
       chmodSync(target, 0o640)
       symlinkSync("AGENTS.md", product)
       writeFileSync(validated, "# Real\n\nafter\n")
 
-      // Exactly the Commit primitive, in one shell invocation as the protocol requires.
-      const commit = spawnSync(
-        "bash",
-        [
-          "-c",
-          [
-            "set -e",
-            'target="$(readlink -f "$PRODUCT")"',
-            'tmp="$(dirname "$target")/.commit.tmp.$$"',
-            'cp "$VALIDATED" "$tmp"',
-            'chmod "$(stat -f %Lp "$target" 2>/dev/null || stat -c %a "$target")" "$tmp"',
-            'mv -f "$tmp" "$target"',
-          ].join("\n"),
-        ],
-        { encoding: "utf8", env: { ...process.env, PRODUCT: product, VALIDATED: validated } },
-      )
-      expect(commit.stderr).toBe("")
-      expect(commit.status).toBe(0)
-
+      const resolved = helperResult(["resolve-target", "--product", product]).body
+      const committed = helperResult([
+        "commit",
+        "--product", product,
+        "--validated", validated,
+        "--expected-fingerprint", String(resolved.sha256),
+        "--expected-realpath", String(resolved.realpath),
+        "--expected-dev", String(resolved.dev),
+        "--expected-ino", String(resolved.ino),
+      ])
+      expect(committed.process.status).toBe(0)
+      expect(committed.body.status).toBe("committed")
       expect(lstatSync(product).isSymbolicLink()).toBe(true)
       expect(readFileSync(target, "utf8")).toContain("after")
       expect(statSync(target).mode & 0o777).toBe(0o640)
-      expect(readdirSync(work).filter((f) => f.startsWith(".commit.tmp."))).toEqual([])
+      expect(readdirSync(work).filter((file) => file.startsWith(".ce-doc-review-loop-commit-"))).toEqual([])
     } finally {
       rmSync(work, { recursive: true, force: true })
     }
   })
 
-  test("the Mechanics fingerprint command yields a bare digest", () => {
-    const work = mkdtempSync(path.join(tmpdir(), "loop-fingerprint-"))
+  test("the helper rejects concurrent byte and target identity changes", () => {
+    const work = mkdtempSync(path.join(tmpdir(), "loop-race-"))
     try {
-      const doc = path.join(work, "doc.md")
-      writeFileSync(doc, "hello\n")
-      const r = spawnSync(
-        "bash",
-        ["-c", 'shasum -a 256 "$DOC" | cut -d" " -f1 || sha256sum "$DOC" | cut -d" " -f1'],
-        { encoding: "utf8", env: { ...process.env, DOC: doc } },
-      )
-      expect(r.status).toBe(0)
-      // A trailing filename or checksum-mode marker here would break every gate
-      // that compares this value to the receipt's stripped `sha256:` digest.
-      expect(r.stdout.trim()).toMatch(/^[0-9a-f]{64}$/)
+      const targetA = path.join(work, "target-a.md")
+      const targetB = path.join(work, "target-b.md")
+      const product = path.join(work, "product.md")
+      const validated = path.join(work, "validated.md")
+      writeFileSync(targetA, "before-a\n")
+      writeFileSync(targetB, "before-b\n")
+      symlinkSync("target-a.md", product)
+      writeFileSync(validated, "validated\n")
+
+      const first = helperResult(["resolve-target", "--product", product]).body
+      writeFileSync(targetA, "concurrent\n")
+      const byteRace = helperResult([
+        "commit", "--product", product, "--validated", validated,
+        "--expected-fingerprint", String(first.sha256),
+        "--expected-realpath", String(first.realpath),
+        "--expected-dev", String(first.dev),
+        "--expected-ino", String(first.ino),
+      ])
+      expect(byteRace.process.status).toBe(3)
+      expect(byteRace.body.status).toBe("concurrent_change")
+      expect(readFileSync(targetA, "utf8")).toBe("concurrent\n")
+
+      const second = helperResult(["resolve-target", "--product", product]).body
+      rmSync(product)
+      symlinkSync("target-b.md", product)
+      const identityRace = helperResult([
+        "commit", "--product", product, "--validated", validated,
+        "--expected-fingerprint", String(second.sha256),
+        "--expected-realpath", String(second.realpath),
+        "--expected-dev", String(second.dev),
+        "--expected-ino", String(second.ino),
+      ])
+      expect(identityRace.process.status).toBe(3)
+      expect(identityRace.body.status).toBe("concurrent_change")
+      expect(readFileSync(targetB, "utf8")).toBe("before-b\n")
+      expect(readdirSync(work).filter((file) => file.startsWith(".ce-doc-review-loop-commit-"))).toEqual([])
     } finally {
       rmSync(work, { recursive: true, force: true })
     }

@@ -46,10 +46,11 @@ A global review wave consumes one work unit. A defect-family remediation cycle a
 3. **Validate the review envelope.** Require the reviewed base, HEAD, branch, reviewer selection and coverage, terminal status, actionable findings, triage groups, residual risks, and testing gaps. Missing, malformed, stale, or mismatched evidence stops the cycle.
 4. **Revalidate findings.** Match each finding's stable number, file, line, evidence, and impact against the current HEAD. Drop stale findings rather than fixing an issue that no longer exists.
 5. **Separate authority from judgment.** Mechanical, evidence-backed findings may enter remediation. Product, design, compatibility, migration, rollout, or other decision-bearing findings become explicit blockers; the loop never guesses through them.
-6. **Remediate by defect family.** Treat related findings and their callers, sibling surfaces, tests, fixtures, and delivery gates as one bounded family. Record the checkpoint HEAD, touched paths, and verification plan; apply the family; inspect the complete cycle diff; run targeted verification sized to its blast radius.
-7. **Commit verified families locally.** Each successful family becomes one local `fix(review): ...` commit. If verification fails or concurrent changes appear, restore only the loop's changes for that cycle, preserve prior verified commits, and stop as `Non-converged`.
-8. **Review every new HEAD.** Any remediation commit invalidates all earlier convergence evidence. Run a fresh canonical full review against the same frozen base.
-9. **Pass the final gate.** On the unchanged final HEAD, require canonical status `complete`, full required-reviewer coverage, `Ready to merge`, an empty `actionable_findings` set, no decision-bearing blocker, clean final project verification, and a clean working tree. Residual advisories, residual risks, and testing gaps remain visible even when non-blocking.
+6. **Authorize one defect family.** `cycle-authorize` validates the exact canonical actionable findings, freezes safe paths and verification, creates the before-state checkpoint, and emits a lease-bound fixer packet before any writable agent can start.
+7. **Run one writer at a time.** Read-only grouping may be parallel, but writable fixers are intentionally serial. The fixer must claim the lease with `cycle-begin` before editing, may touch only authorized paths, and must request scope expansion before changing an unlisted path.
+8. **Verify and commit the leased family.** Inspect the complete diff, run targeted verification sized to blast radius, seal exact bytes and modes, then restore or create one local `fix(review): ...` commit through the same lease. Any unauthorized or pre-begin mutation is preserved and reported as `protocol_violation`, never retroactively adopted.
+9. **Review every new HEAD.** Any remediation commit invalidates all earlier convergence evidence. Run a fresh canonical full review against the same frozen base.
+10. **Pass the final gate.** On the unchanged final HEAD, require canonical status `complete`, full required-reviewer coverage, `Ready to merge`, an empty `actionable_findings` set, no decision-bearing blocker, clean final project verification, and a clean working tree. Residual advisories, residual risks, and testing gaps remain visible even when non-blocking.
 
 ## Authority and safety
 
@@ -61,6 +62,8 @@ The loop may edit the current clean local branch and create verified local remed
 - rebase, amend, or squash commits;
 - review or mutate a PR/branch target supplied as an argument;
 - hide a decision-bearing finding by choosing a product or rollout direction;
+- dispatch multiple writable defect-family fixers concurrently or allow them to edit before a lease exists;
+- retroactively checkpoint, adopt, stage, commit, or restore bytes created outside an authorized lease;
 - claim convergence from passing tests, a declining finding count, or budget exhaustion alone.
 
 This boundary keeps remote publication and history-shaping decisions with the user or the shipping workflow.

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "fs/promises"
+import { lstat, mkdtemp, readFile, rm, stat, symlink, writeFile } from "fs/promises"
 import os from "os"
 import path from "path"
 import { describe, expect, test } from "bun:test"
@@ -907,6 +907,23 @@ const SHA40_A = "a".repeat(40)
 const SHA40_B = "b".repeat(40)
 
 function receiptFixture(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  const receiptDefaults = {
+    base_sha: SHA40_A,
+    head_sha: SHA40_B,
+    branch: "feature/receipt",
+    selected_reviewers: ["correctness-reviewer"],
+    required_reviewers: ["correctness-reviewer"],
+    completed_reviewers: ["correctness-reviewer"],
+    failed_reviewers: [],
+    terminal_status: "complete",
+  }
+  const receipt = {
+    ...receiptDefaults,
+    ...((overrides.review_receipt as Record<string, unknown> | undefined) ?? {}),
+  }
+  const { review_receipt: _receiptOverride, reviewers, ...topLevelOverrides } = overrides
+  const selected = receipt.selected_reviewers as string[]
+
   return {
     status: "complete",
     verdict: "Ready to merge",
@@ -919,7 +936,7 @@ function receiptFixture(overrides: Record<string, unknown> = {}): Record<string,
     },
     intent: "Harden review receipt evidence.",
     intent_confidence: "explicit",
-    reviewers: ["correctness-reviewer"],
+    reviewers: reviewers ?? selected.map((identity) => identity === "correctness-reviewer" ? "correctness" : identity),
     findings: [],
     actionable_findings: [],
     triage_groups: [],
@@ -933,17 +950,8 @@ function receiptFixture(overrides: Record<string, unknown> = {}): Record<string,
     coverage: {},
     artifact_path: "/tmp/review-run",
     run_id: "receipt-fixture",
-    review_receipt: {
-      base_sha: SHA40_A,
-      head_sha: SHA40_B,
-      branch: "feature/receipt",
-      selected_reviewers: ["correctness-reviewer"],
-      required_reviewers: ["correctness-reviewer"],
-      completed_reviewers: ["correctness-reviewer"],
-      failed_reviewers: [],
-      terminal_status: "complete",
-    },
-    ...overrides,
+    ...topLevelOverrides,
+    review_receipt: receipt,
   }
 }
 
@@ -960,6 +968,40 @@ function canonicalReceipt(value: unknown): unknown {
 function runReceiptHelper(payload: unknown): ReceiptHelperResult {
   const proc = Bun.spawnSync([process.execPath, RECEIPT_HELPER], {
     stdin: new TextEncoder().encode(JSON.stringify(payload)),
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  return {
+    status: proc.exitCode,
+    stdout: proc.stdout.toString(),
+    stderr: proc.stderr.toString(),
+  }
+}
+
+function receiptFinding(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    "#": 1,
+    title: "Actionable defect",
+    severity: "P1",
+    file: "src/review.ts",
+    line: 12,
+    confidence: 100,
+    autofix_class: "gated_auto",
+    owner: "downstream-resolver",
+    requires_verification: true,
+    pre_existing: false,
+    suggested_fix: "Correct the defect.",
+    first_evidence: "src/review.ts:12 -- broken()",
+    why_it_matters: "The defect affects runtime behavior.",
+    evidence: ["src/review.ts:12 -- broken()"],
+    reviewers: ["correctness"],
+    independent_reviewers: ["correctness"],
+    ...overrides,
+  }
+}
+
+function runReceiptHelperArgs(args: string[]): ReceiptHelperResult {
+  const proc = Bun.spawnSync([process.execPath, RECEIPT_HELPER, ...args], {
     stdout: "pipe",
     stderr: "pipe",
   })
@@ -998,6 +1040,65 @@ describe("ce-code-review receipt helper", () => {
     expect(result.stdout.trim().split("\n")).toHaveLength(1)
     expect(JSON.parse(result.stdout)).toEqual(payload)
     expect(result.stdout).toBe(`${JSON.stringify(canonicalReceipt(payload))}\n`)
+  })
+
+  test("atomically writes the exact emitted canonical bytes with argv input and output", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "review-receipt-io-"))
+    const input = path.join(root, "input.json")
+    const output = path.join(root, "review.json")
+    const payload = receiptFixture()
+
+    try {
+      await writeFile(input, JSON.stringify(payload))
+      const result = runReceiptHelperArgs(["--input", input, "--output", output])
+
+      expect(result.status, result.stderr).toBe(0)
+      const outputBytes = await readFile(output)
+      expect(outputBytes.equals(Buffer.from(result.stdout))).toBe(true)
+      expect(result.stdout).toBe(`${JSON.stringify(canonicalReceipt(payload))}\n`)
+      expect((await stat(output)).mode & 0o777).toBe(0o600)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("rejects symlink input paths", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "review-receipt-input-link-"))
+    const source = path.join(root, "source.json")
+    const input = path.join(root, "input.json")
+    const output = path.join(root, "review.json")
+
+    try {
+      await writeFile(source, JSON.stringify(receiptFixture()))
+      await symlink(source, input)
+      const result = runReceiptHelperArgs(["--input", input, "--output", output])
+
+      expect(result.status).not.toBe(0)
+      expect(result.stderr).toMatch(/input[\s\S]*symlink/i)
+      expect(await lstat(output).catch(() => null)).toBeNull()
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("rejects symlink output paths without changing their targets", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "review-receipt-output-link-"))
+    const input = path.join(root, "input.json")
+    const target = path.join(root, "target.json")
+    const output = path.join(root, "review.json")
+
+    try {
+      await writeFile(input, JSON.stringify(receiptFixture()))
+      await writeFile(target, "unchanged\n")
+      await symlink(target, output)
+      const result = runReceiptHelperArgs(["--input", input, "--output", output])
+
+      expect(result.status).not.toBe(0)
+      expect(result.stderr).toMatch(/output[\s\S]*symlink/i)
+      expect(await readFile(target, "utf8")).toBe("unchanged\n")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 
   test("keeps complete status when only an optional peer failed", () => {
@@ -1152,7 +1253,7 @@ describe("ce-code-review receipt helper", () => {
     }))
 
     expect(result.status).not.toBe(0)
-    expect(result.stderr).toContain("no usable completed reviewer return")
+    expect(result.stderr).toContain("correctness-reviewer")
   })
 
   test("rejects degraded status without a required coverage gap", () => {
@@ -1320,6 +1421,71 @@ describe("ce-code-review receipt helper", () => {
     expect(result.status, result.stderr).toBe(0)
     expect(JSON.parse(result.stdout)).toEqual(payload)
   })
+  test("rejects truncated canonical envelopes and noncanonical verdicts", () => {
+    const missingFields = [
+      "verdict", "scope", "intent", "intent_confidence", "reviewers", "findings",
+      "actionable_findings", "triage_groups", "pre_existing_findings",
+      "requirements_completeness", "learnings", "agent_native_gaps", "deployment_notes",
+      "residual_risks", "testing_gaps", "coverage", "artifact_path", "run_id", "review_receipt",
+    ]
+
+    for (const field of missingFields) {
+      const payload = receiptFixture()
+      delete payload[field]
+      expect(runReceiptHelper(payload).status, field).not.toBe(0)
+    }
+    for (const field of ["base", "branch", "head_sha", "pr_url", "files_changed"]) {
+      const payload = receiptFixture()
+      delete (payload.scope as Record<string, unknown>)[field]
+      expect(runReceiptHelper(payload).status, `scope.${field}`).not.toBe(0)
+    }
+    expect(runReceiptHelper(receiptFixture({ verdict: "Looks good" })).status).not.toBe(0)
+  })
+
+  test("requires nonempty canonical core coverage and explicit top-level identity materialization", () => {
+    const emptyRoster = receiptFixture({
+      status: "failed",
+      verdict: "Not ready",
+      reviewers: [],
+      review_receipt: {
+        base_sha: SHA40_A, head_sha: SHA40_B, branch: "feature/receipt",
+        selected_reviewers: [], required_reviewers: [], completed_reviewers: [],
+        failed_reviewers: [], terminal_status: "failed",
+      },
+    })
+    expect(runReceiptHelper(emptyRoster).status).not.toBe(0)
+
+    const coreless = receiptFixture({
+      reviewers: ["testing"],
+      review_receipt: {
+        base_sha: SHA40_A, head_sha: SHA40_B, branch: "feature/receipt",
+        selected_reviewers: ["testing-reviewer"], required_reviewers: ["testing-reviewer"],
+        completed_reviewers: ["testing-reviewer"], failed_reviewers: [], terminal_status: "complete",
+      },
+    })
+    expect(runReceiptHelper(coreless).status).not.toBe(0)
+    expect(runReceiptHelper(receiptFixture({ reviewers: ["correctness"] })).status).toBe(0)
+    expect(runReceiptHelper(receiptFixture({ reviewers: ["security"] })).status).not.toBe(0)
+    expect(runReceiptHelper(receiptFixture({ reviewers: ["correctness-v2"] })).status).not.toBe(0)
+  })
+
+  test("rejects suppressed findings and confidence-ineligible actionable findings", () => {
+    for (const confidence of [0, 25]) {
+      expect(runReceiptHelper(receiptFixture({
+        findings: [receiptFinding({ confidence })],
+      })).status, `full finding confidence ${confidence}`).not.toBe(0)
+    }
+
+    const moderate = receiptFinding({ confidence: 50 })
+    expect(runReceiptHelper(receiptFixture({
+      verdict: "Ready with fixes", findings: [moderate], actionable_findings: [moderate],
+    })).status).not.toBe(0)
+
+    const urgentModerate = receiptFinding({ severity: "P0", confidence: 50 })
+    expect(runReceiptHelper(receiptFixture({
+      verdict: "Ready with fixes", findings: [urgentModerate], actionable_findings: [urgentModerate],
+    })).status).toBe(0)
+  })
 })
 
 describe("ce-code-review pr-remote merge-base evidence", () => {
@@ -1395,14 +1561,18 @@ describe("ce-code-review agent receipt contract", () => {
     const template = await readRepoFile("skills/ce-code-review/references/review-output-template.md")
     expect(skill).toContain("baseRefOid")
     expect(skill).toMatch(/--json[^\n]*baseRefOid[^\n]*headRefOid/)
-    expect(skill).toContain('git merge-base "$PR_BASE_OID_REF" "$PR_HEAD_REF"')
+    expect(skill).toContain('"$NODE" "$SKILL_DIR/scripts/pr-scope.mjs"')
     expect(skill).toMatch(/pr-remote[^\n]*merge base[^\n]*immutable PR base\/head OIDs[^\n]*before reviewer dispatch/i)
     expect(skill).toMatch(/pr-remote[\s\S]{0,1800}fail[^\n]*before reviewer dispatch/i)
     expect(finish).toMatch(/pr-remote[^\n]*computed merge base[^\n]*Stage 1/i)
     expect(finish).not.toMatch(/use immutable PR metadata `baseRefOid`/i)
-    expect(finish).toContain("$SKILL_DIR/scripts/review-receipt.mjs")
-    expect(finish).toContain('< "$RUN_DIR/final-review-input.json" > "$RUN_DIR/review.json"')
-    expect(finish).toContain('cat "$RUN_DIR/review.json"')
+    const receiptFence = finish.match(/```bash\n([^\n]*review-receipt\.mjs[^\n]*)\n```/)?.[1]
+    expect(receiptFence).toBeDefined()
+    expect(receiptFence?.trim().split("\n")).toHaveLength(1)
+    expect(receiptFence).toContain('node "$SKILL_DIR/scripts/review-receipt.mjs"')
+    expect(receiptFence).toContain('--input "$RUN_DIR/final-review-input.json"')
+    expect(receiptFence).toContain('--output "$RUN_DIR/review.json"')
+    expect(receiptFence).not.toMatch(/(?:^|\s)cat(?:\s|$)|\|\||[<>|;]/)
 
     for (const field of [
       "review_receipt",
@@ -1463,5 +1633,118 @@ describe("ce-code-review agent receipt contract", () => {
     expect(finish).toMatch(/Once any reviewer dispatch begins[\s\S]*complete, degraded, and failed/i)
     expect(template).toContain("review_receipt")
     expect(template).toContain("absent only when the invocation fails or skips before reviewer dispatch begins")
+  })
+})
+
+
+describe("ce-code-review PR scope helper", () => {
+  test("fetches immutable endpoints and emits the reviewed merge base without changing checkout state", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-pr-scope-helper-"))
+    const origin = path.join(root, "origin.git")
+    const seed = path.join(root, "seed")
+    const review = path.join(root, "review")
+    const helper = path.join(process.cwd(), "skills/ce-code-review/scripts/pr-scope.mjs")
+
+    try {
+      gitCommand(root, "init", "--bare", origin)
+      gitCommand(root, "init", "-b", "main", seed)
+      gitCommand(seed, "config", "user.email", "pr-scope@example.com")
+      gitCommand(seed, "config", "user.name", "PR Scope Contract")
+
+      const forkMergeBase = await commitFile(seed, "shared.txt", "shared\n", "shared base")
+      gitCommand(seed, "switch", "-c", "feature")
+      const headRefOid = await commitFile(seed, "feature.txt", "feature\n", "feature change")
+      gitCommand(seed, "switch", "main")
+      const baseRefOid = await commitFile(seed, "base.txt", "advanced\n", "advance base")
+      gitCommand(seed, "remote", "add", "origin", origin)
+      gitCommand(seed, "push", "origin", "main", "feature")
+
+      gitCommand(root, "init", review)
+      gitCommand(review, "remote", "add", "origin", origin)
+      const checkoutBefore = gitCommand(review, "symbolic-ref", "HEAD")
+      const result = Bun.spawnSync(
+        [process.execPath, helper, review, "origin", "17", baseRefOid, headRefOid],
+        { stdout: "pipe", stderr: "pipe" },
+      )
+
+      expect(result.exitCode, result.stderr.toString()).toBe(0)
+      expect(result.stdout.toString().trim().split("\n")).toHaveLength(1)
+      expect(JSON.parse(result.stdout.toString())).toEqual({
+        status: "ok",
+        base_oid_ref: "refs/review/pr-17-base-oid",
+        head_oid_ref: "refs/review/pr-17-head-oid",
+        base_sha: forkMergeBase,
+        head_sha: headRefOid,
+      })
+      expect(forkMergeBase).not.toBe(baseRefOid)
+      expect(gitCommand(review, "symbolic-ref", "HEAD")).toBe(checkoutBefore)
+      expect(gitCommand(review, "status", "--porcelain")).toBe("")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("rejects unsafe endpoint identity before invoking git", async () => {
+    const helper = path.join(process.cwd(), "skills/ce-code-review/scripts/pr-scope.mjs")
+    const result = Bun.spawnSync(
+      [process.execPath, helper, "/missing/repo", "origin", "../escape", "a".repeat(40), "b".repeat(40)],
+      { stdout: "pipe", stderr: "pipe" },
+    )
+
+    expect(result.exitCode).not.toBe(0)
+    expect(result.stdout.toString()).toBe("")
+    expect(result.stderr.toString().trim().split("\n")).toHaveLength(1)
+    expect(result.stderr.toString()).toMatch(/namespace/i)
+    expect(result.stderr.toString()).not.toContain("missing/repo")
+  })
+
+  test("rejects non-concrete endpoint OIDs before invoking git", () => {
+    const helper = path.join(process.cwd(), "skills/ce-code-review/scripts/pr-scope.mjs")
+
+    for (const [baseOid, headOid, field] of [
+      ["main", "b".repeat(40), "base OID"],
+      ["a".repeat(40), "HEAD", "head OID"],
+    ] as const) {
+      const result = Bun.spawnSync(
+        [process.execPath, helper, "/missing/repo", "origin", "17", baseOid, headOid],
+        { stdout: "pipe", stderr: "pipe" },
+      )
+
+      expect(result.exitCode).not.toBe(0)
+      expect(result.stdout.toString()).toBe("")
+      expect(result.stderr.toString().trim().split("\n")).toHaveLength(1)
+      expect(result.stderr.toString()).toContain(field)
+      expect(result.stderr.toString()).not.toContain("missing/repo")
+    }
+  })
+
+  test("documents one flatten-safe argv invocation and consumes its JSON contract", async () => {
+    const skill = await readRepoFile("skills/ce-code-review/SKILL.md")
+    const stage = skill.slice(
+      skill.indexOf("### Stage 1: Determine scope"),
+      skill.indexOf("### Stage 1b: Compute scope signals"),
+    )
+    const helperBlocks = [...stage.matchAll(/```bash\n([\s\S]*?pr-scope\.mjs[\s\S]*?)\n```/g)]
+
+    expect(helperBlocks).toHaveLength(1)
+    const command = helperBlocks[0][1]
+    expect(command.trim().split("\n")).toHaveLength(1)
+    expect(command).toContain('"$NODE" "$SKILL_DIR/scripts/pr-scope.mjs"')
+    expect(command).not.toMatch(/(^|[^|])\|\|([^|]|$)/)
+    expect(command).not.toContain("$(")
+    expect(command).not.toMatch(/(^|\s)>/)
+    expect(command).not.toMatch(/(^|\s)[A-Za-z_][A-Za-z0-9_]*=/)
+
+    const syntax = Bun.spawnSync(["bash", "-n"], {
+      stdin: new TextEncoder().encode(command.replace(/\n/g, " ")),
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    expect(syntax.exitCode, syntax.stderr.toString()).toBe(0)
+    expect(stage).toMatch(/load[^\n]*JSON[^\n]*base_oid_ref[^\n]*head_oid_ref[^\n]*base_sha[^\n]*head_sha/i)
+    expect(stage).toMatch(/PR_BASE_REF[^\n]*base_sha/)
+    expect(stage).toMatch(/PR_HEAD_REF[^\n]*head_oid_ref/)
+    expect(stage).toMatch(/gh pr diff[^\n]*canonical/i)
+    expect(stage).toMatch(/fail[^\n]*before reviewer dispatch/i)
   })
 })

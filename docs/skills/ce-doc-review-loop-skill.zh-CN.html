@@ -1007,8 +1007,8 @@
       <div class="highlight"><span class="highlight-label">要点</span><p>核心不是“多审几轮”，而是先固定证据，再按缺陷家族修复，最后用一份完全没再变化的最终快照证明收敛。</p></div>
 
       <h2 id="setup">开始前设置</h2>
-      <p>每次调用只运行一次下面的命令，而且必须在派发任何子代理或子技能之前运行。命令要原样单独执行：不能管道过滤、不能截断，也不能和其他命令拼在一起。</p>
-      <pre><code>SKILL_DIR="&lt;absolute path of the directory containing the SKILL.md you just read&gt;";
+      <p>每次调用只运行一次下面的 setup，而且必须在派发任何子代理或子技能之前运行。把 <code>SKILL_DIR</code> 设为刚读取的 <code>SKILL.md</code> 所在目录的绝对路径；按顺序探测可执行的 <code>node</code> 或 <code>nodejs</code>，并把结果存入 <code>NODE</code>。整段命令必须原样单独执行：不能管道过滤、截断、重定向或拆分。没有可用 Node 运行时时继续技能的正常行为，并记录 setup 失败。</p>
+      <pre><code>SKILL_DIR="&lt;刚读取的 SKILL.md 所在目录的绝对路径&gt;";
 NODE="$(for c in node nodejs; do command -v "$c" &gt;/dev/null 2&gt;&amp;1 &amp;&amp; "$c" -e '' &gt;/dev/null 2&gt;&amp;1 &amp;&amp; { echo "$c"; break; }; done)";
 if [ -n "$NODE" ]; then
 "$NODE" "$SKILL_DIR/scripts/context.mjs" || echo "context script failed; continue with the skill's normal behavior";

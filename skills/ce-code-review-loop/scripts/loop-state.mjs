@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 import { execFileSync } from "node:child_process"
-import { createHash } from "node:crypto"
-import { chmodSync, lstatSync, readFileSync, unlinkSync, writeFileSync } from "node:fs"
-import { isAbsolute, relative, resolve, sep } from "node:path"
+import { createHash, randomBytes, randomUUID } from "node:crypto"
+import { chmodSync, lstatSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path"
 
 function regularPath(repo, absolute, { allowMissingLeaf = false } = {}) {
   const rel = relative(repo, absolute)
@@ -188,6 +188,70 @@ function captureSnapshots(repo, paths, source) {
   return snapshots
 }
 
+function worktreeSnapshot(repo, path) {
+  const absolute = resolve(repo, path)
+  const stat = regularPath(repo, absolute, { allowMissingLeaf: true })
+  if (!stat) return null
+  if (stat === "missing") return { path, exists: false }
+  const bytes = readFileSync(absolute)
+  return {
+    path,
+    exists: true,
+    bytes: bytes.toString("base64"),
+    digest: digest(bytes),
+    mode: stat.mode & 0o777,
+  }
+}
+
+function captureWorktreeSnapshots(repo, paths) {
+  const snapshots = []
+  for (const path of paths) {
+    const snapshot = worktreeSnapshot(repo, path)
+    if (!snapshot) return null
+    snapshots.push(snapshot)
+  }
+  return snapshots
+}
+
+function worktreeSnapshotMismatch(expected, observed) {
+  const mismatches = []
+  for (let index = 0; index < expected.length; index += 1) {
+    const left = expected[index]
+    const right = observed[index]
+    if (
+      !right
+      || left.path !== right.path
+      || left.exists !== right.exists
+      || (left.exists && (
+        left.bytes !== right.bytes
+        || left.digest !== right.digest
+        || left.mode !== right.mode
+      ))
+    ) mismatches.push(left.path)
+  }
+  return mismatches
+}
+
+function safeGitPaths(repo, fallback = []) {
+  try {
+    return gitPaths(repo)
+  } catch {
+    return [...fallback].sort()
+  }
+}
+
+function atomicWriteJson(file, value) {
+  const temporary = resolve(dirname(file), `.ce-review-loop-${randomUUID()}.tmp`)
+  try {
+    writeFileSync(temporary, `${JSON.stringify(value)}\n`, { mode: 0o600, flag: "wx" })
+    chmodSync(temporary, 0o600)
+    renameSync(temporary, file)
+  } catch (error) {
+    try { unlinkSync(temporary) } catch {}
+    throw error
+  }
+}
+
 function snapshotMismatch(expected, observed) {
   const mismatches = []
   for (let index = 0; index < expected.length; index += 1) {
@@ -281,7 +345,7 @@ function readCycleState(repo, stateFile) {
   const state = readJson(stateFile)
   if (
     !state
-    || state.version !== 1
+    || ![1, 2].includes(state.version)
     || state.repo !== repo
     || typeof state.branch !== "string"
     || typeof state.head_sha !== "string"
@@ -289,27 +353,304 @@ function readCycleState(repo, stateFile) {
     || !Array.isArray(state.files)
     || state.files.length !== state.paths.length
     || !privateArtifact(repo, state.verification_json)
+    || (state.version === 2 && (
+      typeof state.phase !== "string"
+      || typeof state.lease_id !== "string"
+      || !/^[0-9a-f]{32}$/.test(state.lease_id)
+      || typeof state.registry_path !== "string"
+      || !privateArtifact(repo, state.registry_path)
+      || typeof state.packet_path !== "string"
+      || !privateArtifact(repo, state.packet_path)
+      || typeof state.base_sha !== "string"
+      || typeof state.review_run_id !== "string"
+      || !record(state.family)
+    ))
+    || (state.seal !== undefined && (
+      !state.seal || typeof state.seal !== "object" || Array.isArray(state.seal)
+      || !["passed", "failed"].includes(state.seal.verification_status)
+      || !Array.isArray(state.seal.files)
+      || state.seal.files.length !== state.paths.length
+    ))
   ) return null
-  for (let index = 0; index < state.files.length; index += 1) {
-    const file = state.files[index]
-    if (
-      !file || typeof file !== "object" || Array.isArray(file)
-      || file.path !== state.paths[index]
-      || typeof file.exists !== "boolean"
-    ) return null
-    if (!file.exists) {
-      if (Object.keys(file).some((key) => !["path", "exists"].includes(key))) return null
-      continue
+
+  for (const files of [state.files, ...(state.seal ? [state.seal.files] : [])]) {
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index]
+      if (
+        !file || typeof file !== "object" || Array.isArray(file)
+        || file.path !== state.paths[index]
+        || typeof file.exists !== "boolean"
+      ) return null
+      if (!file.exists) {
+        if (Object.keys(file).some((key) => !["path", "exists"].includes(key))) return null
+        continue
+      }
+      if (
+        typeof file.bytes !== "string"
+        || typeof file.digest !== "string"
+        || !Number.isInteger(file.mode)
+      ) return null
+      const bytes = Buffer.from(file.bytes, "base64")
+      if (digest(bytes) !== file.digest) return null
     }
-    if (
-      typeof file.bytes !== "string"
-      || typeof file.digest !== "string"
-      || !Number.isInteger(file.mode)
-    ) return null
-    const bytes = Buffer.from(file.bytes, "base64")
-    if (digest(bytes) !== file.digest) return null
   }
   return state
+}
+
+
+function leaseRegistryPath(repo, stateFile) {
+  const key = digest(Buffer.from(realpathSync(repo)))
+  return resolve(dirname(stateFile), `lease-${key}.json`)
+}
+
+function registryRecord(file) {
+  try {
+    const stat = lstatSync(file)
+    if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0) return null
+  } catch {
+    return null
+  }
+  return readJson(file)
+}
+
+function releaseRegistry(state, stateFile) {
+  const registry = registryRecord(state.registry_path)
+  if (!registry || registry.repo !== state.repo || registry.lease_id !== state.lease_id || registry.state !== resolve(stateFile)) return false
+  try {
+    unlinkSync(state.registry_path)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function terminalProtocolViolation(state, stateFile, dirtyPaths) {
+  const failed = finishLease(state, stateFile, "blocked", {
+    terminal_reason: "protocol_violation",
+    dirty_paths: dirtyPaths,
+  })
+  return failed ?? {
+    status: "protocol_violation",
+    phase: "blocked",
+    lease_id: state.lease_id,
+    dirty_paths: dirtyPaths,
+    authorized_paths: state.paths,
+    mutation_permitted: false,
+  }
+}
+
+function finishLease(state, stateFile, phase, extra = {}) {
+  state.phase = phase
+  Object.assign(state, extra)
+  try {
+    atomicWriteJson(resolve(stateFile), state)
+  } catch {
+    return malformed("state")
+  }
+  if (!releaseRegistry(state, stateFile)) return { status: "registry_invalid", phase }
+  return null
+}
+
+function leasedState(repoValue, stateFile, lease, allowedPhases) {
+  if (!repoValue || !stateFile || !lease) return { ok: false, result: malformed("arguments") }
+  const repo = resolve(repoValue)
+  const state = readCycleState(repo, stateFile)
+  if (!state || state.version !== 2) return { ok: false, result: malformed("state") }
+  if (state.lease_id !== lease) return { ok: false, result: { status: "lease_mismatch" } }
+  if (!allowedPhases.includes(state.phase)) return { ok: false, result: { status: "invalid_phase", phase: state.phase } }
+  const registry = registryRecord(state.registry_path)
+  if (!registry || registry.repo !== repo || registry.lease_id !== lease || registry.state !== resolve(stateFile)) {
+    return { ok: false, result: { status: "registry_invalid", phase: state.phase } }
+  }
+  return { ok: true, repo, state }
+}
+
+function validAuthorizationReview(repo, review, base) {
+  const entry = preflight(repo, base)
+  if (entry.input !== "valid" || !entry.clean) return { ok: false, result: { ...entry, status: "concurrent_change" } }
+  const receipt = review?.review_receipt
+  if (
+    !record(review)
+    || review.status !== "complete"
+    || !VERDICTS.has(review.verdict)
+    || !validCanonicalEnvelope(review)
+    || !record(receipt)
+    || receipt.terminal_status !== "complete"
+    || receipt.branch !== entry.branch
+    || receipt.base_sha !== entry.base_sha
+    || receipt.head_sha !== entry.head_sha
+    || review.scope.base !== entry.base_sha
+    || review.scope.branch !== entry.branch
+    || review.scope.head_sha !== entry.head_sha
+    || !uniqueStrings(receipt.selected_reviewers)
+    || !uniqueStrings(receipt.required_reviewers)
+    || !uniqueStrings(receipt.completed_reviewers)
+    || !Array.isArray(receipt.failed_reviewers)
+    || !receipt.failed_reviewers.every(validFailure)
+    || !validReviewerMaterialization(review.reviewers, receipt.selected_reviewers)
+    || !receipt.selected_reviewers.includes("correctness-reviewer")
+    || !Array.isArray(review.findings)
+    || !review.findings.every((finding) => validFinding(finding))
+    || !Array.isArray(review.actionable_findings)
+    || !review.actionable_findings.every((finding) => validFinding(finding, { actionable: true }))
+    || !validateFindingProjection(review.findings, review.actionable_findings)
+  ) return { ok: false, result: malformed("review_shape") }
+  const selected = new Set(receipt.selected_reviewers)
+  const required = new Set(receipt.required_reviewers)
+  const completed = new Set(receipt.completed_reviewers)
+  const failedNames = receipt.failed_reviewers.map((failure) => failure.reviewer)
+  const failed = new Set(failedNames)
+  if (
+    failed.size !== failedNames.length
+    || receipt.required_reviewers.some((reviewer) => !selected.has(reviewer))
+    || receipt.completed_reviewers.some((reviewer) => !selected.has(reviewer))
+    || failedNames.some((reviewer) => !selected.has(reviewer))
+    || receipt.failed_reviewers.some((failure) => failure.required !== required.has(failure.reviewer))
+    || receipt.selected_reviewers.some((reviewer) => completed.has(reviewer) === failed.has(reviewer))
+  ) return { ok: false, result: malformed("reviewer_roster") }
+  if (receipt.required_reviewers.some((reviewer) => !completed.has(reviewer))) return { ok: false, result: { status: "coverage_gap" } }
+  return { ok: true, entry }
+}
+
+function cycleAuthorize(repoValue, stateFile, pathsFile, verificationFile, familyFile, reviewFile, base, packetFile) {
+  if (![repoValue, stateFile, pathsFile, verificationFile, familyFile, reviewFile, base, packetFile].every(nonemptyString)) return malformed("arguments")
+  const repo = resolve(repoValue)
+  const privateFiles = [stateFile, pathsFile, verificationFile, familyFile, reviewFile, packetFile]
+  if (!privateFiles.every((file) => privateArtifact(repo, file)) || dirname(resolve(stateFile)) !== dirname(resolve(packetFile))) return malformed("private_artifact")
+  const files = intendedPaths(repo, pathsFile)
+  if (!files) return malformed("paths")
+  const verification = readJson(verificationFile)
+  if (!verification || verification.status !== "planned" || !uniqueStrings(verification.checks) || verification.checks.length === 0) return malformed("verification_json")
+  const family = readJson(familyFile)
+  if (!family || !nonemptyString(family.family_id) || !nonemptyString(family.root_invariant) || family.authority !== "mechanical" || !Array.isArray(family.finding_ids) || family.finding_ids.length === 0) return malformed("family")
+  const familyIds = family.finding_ids.map(findingId)
+  if (familyIds.some((id) => id === null) || new Set(familyIds).size !== familyIds.length) return malformed("family")
+  const review = readJson(reviewFile)
+  const validated = validAuthorizationReview(repo, review, base)
+  if (!validated.ok) return validated.result
+  if (validated.entry.base_sha !== base) return malformed("base")
+  const actionableById = new Map(review.actionable_findings.map((finding) => [findingId(finding["#"]), finding]))
+  if (familyIds.some((id) => !actionableById.has(id))) return malformed("family_findings")
+  const findings = familyIds.map((id) => actionableById.get(id))
+  for (const artifact of [stateFile, packetFile]) {
+    try {
+      lstatSync(artifact)
+      return malformed("artifact_exists", { artifact: resolve(artifact) })
+    } catch (error) {
+      if (error?.code !== "ENOENT") return malformed("artifact")
+    }
+  }
+  const registryPath = leaseRegistryPath(repo, resolve(stateFile))
+  const existing = registryRecord(registryPath)
+  if (existing) return { status: "lease_conflict", lease_id: existing.lease_id, state: existing.state }
+  try {
+    lstatSync(registryPath)
+    return { status: "registry_invalid" }
+  } catch (error) {
+    if (error?.code !== "ENOENT") return { status: "registry_invalid" }
+  }
+  const leaseId = randomBytes(16).toString("hex")
+  const registry = { version: 1, repo, lease_id: leaseId, state: resolve(stateFile) }
+  try {
+    writeFileSync(registryPath, `${JSON.stringify(registry)}\n`, { mode: 0o600, flag: "wx" })
+    chmodSync(registryPath, 0o600)
+  } catch {
+    return registryRecord(registryPath) ? { status: "lease_conflict" } : { status: "registry_invalid" }
+  }
+  const state = {
+    version: 2,
+    phase: "authorized",
+    lease_id: leaseId,
+    registry_path: registryPath,
+    repo,
+    branch: validated.entry.branch,
+    head_sha: validated.entry.head_sha,
+    base_sha: validated.entry.base_sha,
+    review_run_id: review.run_id,
+    family: { ...family, findings },
+    paths: files.map((file) => file.path),
+    files,
+    verification_json: resolve(verificationFile),
+    packet_path: resolve(packetFile),
+  }
+  const packet = {
+    schema_version: 1,
+    lease_id: leaseId,
+    state_path: resolve(stateFile),
+    repo,
+    branch: state.branch,
+    checkpoint_head: state.head_sha,
+    frozen_base: state.base_sha,
+    review_run_id: state.review_run_id,
+    family: { family_id: family.family_id, root_invariant: family.root_invariant, findings },
+    authorized_paths: state.paths,
+    verification_plan: verification,
+    first_action: "cycle-begin",
+    forbidden_actions: ["commit", "stage", "push", "switch_branch", "create_worktree", "review"],
+    scope_expansion: { status: "scope_expansion", required_before_edit: true, fields: ["lease_id", "requested_paths", "reason", "evidence"] },
+  }
+  try {
+    writeFileSync(stateFile, `${JSON.stringify(state)}\n`, { mode: 0o600, flag: "wx" })
+    chmodSync(stateFile, 0o600)
+    writeFileSync(packetFile, `${JSON.stringify(packet)}\n`, { mode: 0o600, flag: "wx" })
+    chmodSync(packetFile, 0o600)
+  } catch {
+    try { unlinkSync(stateFile) } catch {}
+    try { unlinkSync(packetFile) } catch {}
+    releaseRegistry(state, stateFile)
+    return malformed("state")
+  }
+  return { status: "authorized", lease_id: leaseId, state: resolve(stateFile), packet: resolve(packetFile), branch: state.branch, head_sha: state.head_sha, paths: state.paths }
+}
+
+function cycleBegin(repoValue, stateFile, lease) {
+  const leased = leasedState(repoValue, stateFile, lease, ["authorized"])
+  if (!leased.ok) return leased.result
+  const guarded = cycleGuard(leased.repo, leased.state)
+  if (!guarded.ok) return terminalProtocolViolation(leased.state, stateFile, guarded.result.changed_paths ?? [])
+  if (guarded.changedPaths.length > 0) return terminalProtocolViolation(leased.state, stateFile, guarded.changedPaths)
+  leased.state.phase = "dispatched"
+  try { atomicWriteJson(resolve(stateFile), leased.state) } catch { return malformed("state") }
+  return { status: "dispatched", lease_id: lease, paths: leased.state.paths, family_id: leased.state.family.family_id }
+}
+
+function cycleStatus(repoValue, stateFile, lease) {
+  const leased = leasedState(repoValue, stateFile, lease, ["authorized", "dispatched", "sealed"])
+  if (!leased.ok) return leased.result
+  let guarded
+  try { guarded = cycleGuard(leased.repo, leased.state) } catch { return terminalProtocolViolation(leased.state, stateFile, []) }
+  const dirtyPaths = guarded.ok ? guarded.changedPaths : safeGitPaths(leased.repo)
+  if (!guarded.ok || (leased.state.phase === "authorized" && dirtyPaths.length > 0)) {
+    return terminalProtocolViolation(leased.state, stateFile, dirtyPaths)
+  }
+  return { status: "ok", phase: leased.state.phase, lease_id: lease, branch_match: true, head_match: true, dirty_paths: dirtyPaths, authorized_paths: leased.state.paths, mutation_permitted: leased.state.phase === "dispatched" }
+}
+
+function cycleCancel(repoValue, stateFile, lease) {
+  const leased = leasedState(repoValue, stateFile, lease, ["authorized"])
+  if (!leased.ok) return leased.result
+  const status = cycleStatus(repoValue, stateFile, lease)
+  if (status.status !== "ok" || status.dirty_paths.length > 0) return { ...status, status: "protocol_violation", mutation_permitted: false }
+  const failed = finishLease(leased.state, stateFile, "canceled")
+  return failed ?? { status: "canceled", lease_id: lease }
+}
+
+function cycleScopeExpansion(repoValue, stateFile, lease, resultFile) {
+  const leased = leasedState(repoValue, stateFile, lease, ["authorized", "dispatched"])
+  if (!leased.ok) return leased.result
+  const result = readJson(resultFile)
+  if (!result || result.status !== "scope_expansion" || result.lease_id !== lease || !uniqueStrings(result.requested_paths) || !nonemptyString(result.reason) || !uniqueStrings(result.evidence)) return malformed("scope_expansion")
+  const status = cycleStatus(repoValue, stateFile, lease)
+  if (status.status !== "ok" || status.dirty_paths.length > 0) return { ...status, status: "protocol_violation", mutation_permitted: false }
+  const temporaryPaths = resolve(dirname(resultFile), `.scope-paths-${randomUUID()}.json`)
+  try {
+    writeFileSync(temporaryPaths, JSON.stringify(result.requested_paths), { mode: 0o600, flag: "wx" })
+    if (!intendedPaths(leased.repo, temporaryPaths)) return malformed("scope_paths")
+  } finally {
+    try { unlinkSync(temporaryPaths) } catch {}
+  }
+  const failed = finishLease(leased.state, stateFile, "scope_expansion", { scope_expansion: result })
+  return failed ?? { status: "scope_expansion", lease_id: lease, requested_paths: result.requested_paths }
 }
 
 function cycleGuard(repo, state) {
@@ -330,6 +671,74 @@ function cycleGuard(repo, state) {
     }
   }
   return { ok: true, branch, headSha, changedPaths }
+}
+
+function verificationResult(state) {
+  try {
+    const verificationStat = lstatSync(state.verification_json)
+    if (!verificationStat.isFile() || verificationStat.isSymbolicLink()) return null
+  } catch {
+    return null
+  }
+  const verification = readJson(state.verification_json)
+  return verification && ["passed", "failed"].includes(verification.status) ? verification : null
+}
+
+function cycleSeal(repoValue, stateFile, lease) {
+  if (!repoValue || !stateFile) return malformed("arguments")
+  const repo = resolve(repoValue)
+  const state = readCycleState(repo, stateFile)
+  if (!state || state.seal) return malformed("state")
+  if (state.version === 2) {
+    const leased = leasedState(repoValue, stateFile, lease, ["dispatched"])
+    if (!leased.ok) return leased.result
+  }
+  const guarded = cycleGuard(repo, state)
+  if (!guarded.ok) return guarded.result
+  const verification = verificationResult(state)
+  if (!verification) return malformed("verification_json")
+  if (pathSetDifference(state.paths, guarded.changedPaths).length > 0) {
+    return malformed("diff_paths", { changed_paths: guarded.changedPaths })
+  }
+
+  let files
+  try {
+    files = captureWorktreeSnapshots(repo, state.paths)
+  } catch {
+    return malformed("unsafe_path")
+  }
+  if (!files) return malformed("unsafe_path")
+  state.seal = { verification_status: verification.status, files }
+  if (state.version === 2) state.phase = "sealed"
+  try {
+    atomicWriteJson(resolve(stateFile), state)
+  } catch {
+    return malformed("state")
+  }
+  return { status: "sealed", verification_status: verification.status, paths: state.paths }
+}
+
+function sealedGuard(repo, state, guarded) {
+  if (!state.seal) return { ok: false, result: malformed("seal") }
+  let current
+  try {
+    current = captureWorktreeSnapshots(repo, state.paths)
+  } catch {
+    current = null
+  }
+  const changedPaths = current ? worktreeSnapshotMismatch(state.seal.files, current) : state.paths
+  if (changedPaths.length > 0) {
+    return {
+      ok: false,
+      result: {
+        status: "concurrent_change",
+        branch: guarded.branch,
+        head_sha: guarded.headSha,
+        changed_paths: changedPaths,
+      },
+    }
+  }
+  return { ok: true }
 }
 
 function cycleCheckpoint(repoValue, stateFile, pathsFile, verificationFile) {
@@ -366,63 +775,115 @@ function cycleCheckpoint(repoValue, stateFile, pathsFile, verificationFile) {
   }
 }
 
-function cycleRestore(repoValue, stateFile) {
+function cycleRestore(repoValue, stateFile, lease) {
   if (!repoValue || !stateFile) return malformed("arguments")
   const repo = resolve(repoValue)
   const state = readCycleState(repo, stateFile)
   if (!state) return malformed("state")
-  const guarded = cycleGuard(repo, state)
+  if (state.version === 2) {
+    const leased = leasedState(repoValue, stateFile, lease, ["sealed"])
+    if (!leased.ok) return leased.result
+  }
+  let guarded
+  try {
+    guarded = cycleGuard(repo, state)
+  } catch {
+    return { status: "restore_failed", restored_paths: [], pending_paths: state.paths, changed_paths: safeGitPaths(repo, state.paths) }
+  }
   if (!guarded.ok) return guarded.result
+  const sealed = sealedGuard(repo, state, guarded)
+  if (!sealed.ok) return sealed.result
 
-  const currentFiles = []
-  for (const file of state.files) {
-    const absolute = resolve(repo, file.path)
-    const current = regularPath(repo, absolute, { allowMissingLeaf: true })
-    if (!current) {
-      return { status: "concurrent_change", branch: guarded.branch, head_sha: guarded.headSha, changed_paths: [file.path] }
+  const operations = []
+  try {
+    for (const file of state.files) {
+      const absolute = resolve(repo, file.path)
+      const current = regularPath(repo, absolute, { allowMissingLeaf: true })
+      if (!current) {
+        return { status: "concurrent_change", branch: guarded.branch, head_sha: guarded.headSha, changed_paths: [file.path] }
+      }
+      if (!file.exists) {
+        operations.push({ file, absolute, current, temporary: null })
+        continue
+      }
+      const temporary = resolve(dirname(absolute), `.ce-review-loop-restore-${randomUUID()}.tmp`)
+      writeFileSync(temporary, Buffer.from(file.bytes, "base64"), { mode: file.mode, flag: "wx" })
+      chmodSync(temporary, file.mode)
+      operations.push({ file, absolute, current, temporary })
     }
-    currentFiles.push({ file, absolute, current })
-  }
-  for (const { file, absolute, current } of currentFiles) {
-    if (!file.exists) {
-      if (current !== "missing") unlinkSync(absolute)
-      continue
+  } catch {
+    for (const operation of operations) {
+      if (operation.temporary) try { unlinkSync(operation.temporary) } catch {}
     }
-    writeFileSync(absolute, Buffer.from(file.bytes, "base64"))
-    chmodSync(absolute, file.mode)
+    return {
+      status: "restore_failed",
+      restored_paths: [],
+      pending_paths: state.paths,
+      changed_paths: safeGitPaths(repo, state.paths),
+    }
   }
-  const remaining = gitPaths(repo)
-  if (remaining.length > 0) return { status: "restore_failed", changed_paths: remaining }
+
+  const restoredPaths = []
+  for (let index = 0; index < operations.length; index += 1) {
+    const operation = operations[index]
+    try {
+      if (!operation.file.exists) {
+        if (operation.current !== "missing") unlinkSync(operation.absolute)
+      } else {
+        renameSync(operation.temporary, operation.absolute)
+        operation.temporary = null
+      }
+      restoredPaths.push(operation.file.path)
+    } catch {
+      for (const remaining of operations.slice(index)) {
+        if (remaining.temporary) try { unlinkSync(remaining.temporary) } catch {}
+      }
+      return {
+        status: "restore_failed",
+        restored_paths: restoredPaths,
+        pending_paths: state.paths.filter((path) => !restoredPaths.includes(path)),
+        changed_paths: safeGitPaths(repo, state.paths.filter((path) => !restoredPaths.includes(path))),
+      }
+    }
+  }
+
+  const remaining = safeGitPaths(repo, state.paths)
+  if (remaining.length > 0) {
+    return { status: "restore_failed", restored_paths: restoredPaths, pending_paths: [], changed_paths: remaining }
+  }
+  if (state.version === 2) {
+    const failed = finishLease(state, stateFile, "restored")
+    if (failed) return failed
+  }
   return { status: "restored", clean: true, paths: state.paths }
 }
 
-function cycleCommit(repoValue, stateFile, message) {
+function cycleCommit(repoValue, stateFile, lease, message) {
   if (!repoValue || !stateFile || typeof message !== "string" || message.length === 0 || message.includes("\0")) {
     return malformed("arguments")
   }
   const repo = resolve(repoValue)
   const state = readCycleState(repo, stateFile)
   if (!state) return malformed("state")
+  if (state.version === 2) {
+    const leased = leasedState(repoValue, stateFile, lease, ["sealed"])
+    if (!leased.ok) return leased.result
+  }
   const guarded = cycleGuard(repo, state)
   if (!guarded.ok) return guarded.result
-
-  try {
-    const verificationStat = lstatSync(state.verification_json)
-    if (!verificationStat.isFile() || verificationStat.isSymbolicLink()) return malformed("verification_json")
-  } catch {
-    return malformed("verification_json")
-  }
-  const verification = readJson(state.verification_json)
-  if (!verification || verification.status !== "passed") {
-    return { status: "verification_failed", verification_status: verification?.status ?? "malformed" }
+  const verification = verificationResult(state)
+  if (!verification) return malformed("verification_json")
+  if (state.seal?.verification_status !== verification.status) return malformed("verification_seal")
+  const sealed = sealedGuard(repo, state, guarded)
+  if (!sealed.ok) return sealed.result
+  if (verification.status !== "passed") {
+    return { status: "verification_failed", verification_status: verification.status }
   }
 
   const expectedPaths = [...state.paths].sort()
-  if (
-    guarded.changedPaths.length !== expectedPaths.length
-    || guarded.changedPaths.some((file, index) => file !== expectedPaths[index])
-  ) return malformed("diff_paths", { changed_paths: guarded.changedPaths })
-
+  if (pathSetDifference(expectedPaths, guarded.changedPaths).length > 0) {
+    return malformed("diff_paths", { changed_paths: guarded.changedPaths })
+  }
   for (const file of state.paths) {
     const absolute = resolve(repo, file)
     if (!regularPath(repo, absolute, { allowMissingLeaf: true })) return malformed("unsafe_path", { path: file })
@@ -444,10 +905,37 @@ function cycleCommit(repoValue, stateFile, message) {
     commitCommandFailed = true
   }
   const commitSha = git(repo, ["rev-parse", "--verify", "HEAD^{commit}"], { allowFailure: true })
-  if (!commitSha) return commitIntegrityFailure("missing_commit_sha", null, gitPaths(repo), false)
-  if (commitCommandFailed && commitSha === state.head_sha) return { status: "commit_failed", paths: state.paths }
+  if (!commitSha) return commitIntegrityFailure("missing_commit_sha", null, safeGitPaths(repo), false)
+  if (commitCommandFailed && commitSha === state.head_sha) {
+    const failedPaths = safeGitPaths(repo)
+    const failedPathMismatch = pathSetDifference(expectedPaths, failedPaths)
+    if (failedPathMismatch.length > 0) {
+      return commitIntegrityFailure("failed_commit_paths_mismatch", null, failedPathMismatch, false)
+    }
+    let failedSnapshots
+    try {
+      failedSnapshots = captureSnapshots(repo, state.paths, "index")
+    } catch {
+      failedSnapshots = null
+    }
+    if (!failedSnapshots) {
+      return commitIntegrityFailure("failed_commit_snapshot_unreadable", null, state.paths, false)
+    }
+    const failedSnapshotMismatch = snapshotMismatch(verifiedSnapshots, failedSnapshots)
+    if (failedSnapshotMismatch.length > 0) {
+      return commitIntegrityFailure("failed_commit_snapshot_mismatch", null, failedSnapshotMismatch, false)
+    }
+    const failedWorktree = captureWorktreeSnapshots(repo, state.paths)
+    const failedWorktreeMismatch = failedWorktree
+      ? worktreeSnapshotMismatch(state.seal.files, failedWorktree)
+      : state.paths
+    if (failedWorktreeMismatch.length > 0) {
+      return commitIntegrityFailure("failed_commit_snapshot_mismatch", null, failedWorktreeMismatch, false)
+    }
+    return { status: "commit_failed", paths: state.paths }
+  }
 
-  const changedAfterCommit = gitPaths(repo)
+  const changedAfterCommit = safeGitPaths(repo)
   const clean = changedAfterCommit.length === 0
   const ancestry = git(repo, ["rev-list", "--parents", "-n", "1", commitSha], { allowFailure: true })?.split(" ")
   if (!ancestry || ancestry.length !== 2 || ancestry[0] !== commitSha || ancestry[1] !== state.head_sha) {
@@ -480,6 +968,10 @@ function cycleCommit(repoValue, stateFile, message) {
   }
   if (!clean) return commitIntegrityFailure("working_tree_not_clean", commitSha, changedAfterCommit, false)
 
+  if (state.version === 2) {
+    const failed = finishLease(state, stateFile, "committed", { commit_sha: commitSha })
+    if (failed) return failed
+  }
   return { status: "committed", commit_sha: commitSha, clean: true, paths: state.paths }
 }
 function stringArray(value) {
@@ -499,6 +991,91 @@ const SEVERITIES = new Set(["P0", "P1", "P2", "P3"])
 const CONFIDENCES = new Set([0, 25, 50, 75, 100])
 const AUTOFIX_CLASSES = new Set(["gated_auto", "manual", "advisory"])
 const OWNERS = new Set(["downstream-resolver", "human", "release"])
+const REVIEW_SHA_PATTERN = /^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/
+const INTENT_CONFIDENCES = new Set(["explicit", "inferred", "uncertain"])
+const LOCAL_REVIEWER_IDENTITIES = new Map([
+  ["correctness", "correctness-reviewer"],
+  ["project-standards", "project-standards-reviewer"],
+  ["testing", "testing-reviewer"],
+  ["maintainability", "maintainability-reviewer"],
+  ["agent-native", "agent-native-reviewer"],
+  ["learnings", "learnings-researcher"],
+  ["security", "security-reviewer"],
+  ["performance", "performance-reviewer"],
+  ["api-contract", "api-contract-reviewer"],
+  ["data-migration", "data-migration-reviewer"],
+  ["reliability", "reliability-reviewer"],
+  ["adversarial", "adversarial-reviewer"],
+  ["previous-comments", "previous-comments-reviewer"],
+  ["julik-frontend-races", "julik-frontend-races-reviewer"],
+  ["swift-ios", "swift-ios-reviewer"],
+])
+
+function record(value) {
+  return value && typeof value === "object" && !Array.isArray(value)
+}
+
+function nonemptyString(value) {
+  return typeof value === "string" && value.trim().length > 0
+}
+
+function materializedReviewerIdentity(reviewer) {
+  if (LOCAL_REVIEWER_IDENTITIES.has(reviewer)) return LOCAL_REVIEWER_IDENTITIES.get(reviewer)
+  if (reviewer.endsWith("-reviewer")) {
+    const persona = reviewer.slice(0, -"-reviewer".length)
+    if (LOCAL_REVIEWER_IDENTITIES.has(persona)) return LOCAL_REVIEWER_IDENTITIES.get(persona)
+  }
+  if (/^adversarial-[a-z0-9][a-z0-9-]*$/.test(reviewer)) return reviewer
+  return null
+}
+
+function validReviewerMaterialization(reviewers, selectedReviewers) {
+  if (!uniqueStrings(reviewers) || reviewers.length === 0) return false
+  const materialized = reviewers.map(materializedReviewerIdentity)
+  return materialized.every(Boolean)
+    && new Set(materialized).size === materialized.length
+    && materialized.length === selectedReviewers.length
+    && materialized.every((reviewer) => selectedReviewers.includes(reviewer))
+}
+
+function validRequirementsCompleteness(value) {
+  return value === null || (typeof value === "object" && value !== null)
+}
+
+function validCanonicalEnvelope(review) {
+  if (!record(review.scope)) return false
+  if (
+    !nonemptyString(review.scope.base)
+    || !nonemptyString(review.scope.branch)
+    || !REVIEW_SHA_PATTERN.test(review.scope.head_sha)
+    || !(review.scope.pr_url === null || nonemptyString(review.scope.pr_url))
+    || !Number.isInteger(review.scope.files_changed)
+    || review.scope.files_changed < 0
+    || !nonemptyString(review.intent)
+    || !INTENT_CONFIDENCES.has(review.intent_confidence)
+    || !uniqueStrings(review.reviewers)
+    || review.reviewers.length === 0
+    || !Array.isArray(review.pre_existing_findings)
+    || !validRequirementsCompleteness(review.requirements_completeness)
+    || !Array.isArray(review.learnings)
+    || !Array.isArray(review.agent_native_gaps)
+    || !Array.isArray(review.deployment_notes)
+    || !Array.isArray(review.residual_risks)
+    || !Array.isArray(review.testing_gaps)
+    || !record(review.coverage)
+    || !nonemptyString(review.artifact_path)
+    || !nonemptyString(review.run_id)
+  ) return false
+  return true
+}
+
+function confidenceAllowed(finding, { actionable = false } = {}) {
+  if (finding.confidence === 0 || finding.confidence === 25) return false
+  if (!actionable) return true
+  return finding.confidence === 75
+    || finding.confidence === 100
+    || (finding.severity === "P0" && finding.confidence === 50)
+}
 
 function findingId(value) {
   if (typeof value === "number") return Number.isInteger(value) && value > 0 ? String(value) : null
@@ -510,7 +1087,7 @@ function validLine(value) {
     || (typeof value === "string" && value.trim().length > 0)
 }
 
-function validFinding(value) {
+function validFinding(value, { actionable = false } = {}) {
   const suggestedFix = value?.suggested_fix
   const firstEvidence = value?.first_evidence
   return value && typeof value === "object" && !Array.isArray(value)
@@ -520,8 +1097,10 @@ function validFinding(value) {
     && typeof value.file === "string" && value.file.length > 0
     && validLine(value.line)
     && CONFIDENCES.has(value.confidence)
+    && confidenceAllowed(value, { actionable })
     && AUTOFIX_CLASSES.has(value.autofix_class)
     && OWNERS.has(value.owner)
+    && (!actionable || (["gated_auto", "manual"].includes(value.autofix_class) && value.owner === "downstream-resolver"))
     && typeof value.requires_verification === "boolean"
     && typeof value.pre_existing === "boolean"
     && (suggestedFix === null || (typeof suggestedFix === "string" && suggestedFix.length > 0))
@@ -599,6 +1178,7 @@ function validateReview(repo, expectedFile, reviewFile, { final = false } = {}) 
     !TERMINAL_STATUSES.has(review.status)
     || !VERDICTS.has(review.verdict)
     || !receipt || typeof receipt !== "object" || Array.isArray(receipt)
+    || !validCanonicalEnvelope(review)
     || !TERMINAL_STATUSES.has(receipt.terminal_status)
     || review.status !== receipt.terminal_status
     || typeof receipt.branch !== "string"
@@ -610,11 +1190,14 @@ function validateReview(repo, expectedFile, reviewFile, { final = false } = {}) 
     || !Array.isArray(receipt.failed_reviewers)
     || !receipt.failed_reviewers.every(validFailure)
     || !Array.isArray(review.findings)
-    || !review.findings.every(validFinding)
+    || !review.findings.every((finding) => validFinding(finding))
     || !Array.isArray(review.actionable_findings)
-    || !review.actionable_findings.every(validFinding)
+    || !review.actionable_findings.every((finding) => validFinding(finding, { actionable: true }))
     || !validateFindingProjection(review.findings, review.actionable_findings)
     || !Array.isArray(review.triage_groups)
+    || receipt.selected_reviewers.length === 0
+    || !receipt.selected_reviewers.includes("correctness-reviewer")
+    || !validReviewerMaterialization(review.reviewers, receipt.selected_reviewers)
   ) return malformed("review_shape", observed)
 
   const selected = new Set(receipt.selected_reviewers)
@@ -634,6 +1217,9 @@ function validateReview(repo, expectedFile, reviewFile, { final = false } = {}) 
     receipt.branch !== expected.branch
     || receipt.base_sha !== expected.base_sha
     || receipt.head_sha !== expected.head_sha
+    || review.scope.base !== expected.base_sha
+    || review.scope.branch !== expected.branch
+    || review.scope.head_sha !== expected.head_sha
   ) return malformed("receipt_mismatch", observed)
 
   if (receipt.completed_reviewers.length === 0 && receipt.terminal_status !== "failed") {
@@ -691,12 +1277,24 @@ if (!options) {
   emit(result)
 } else if (command === "validate-review" || command === "validate-final") {
   emit(validateReview(options.repo, options.expected, options.review, { final: command === "validate-final" }))
+} else if (command === "cycle-authorize") {
+  emit(cycleAuthorize(options.repo, options.state, options["paths-json"], options["verification-json"], options["family-json"], options.review, options.base, options.packet))
+} else if (command === "cycle-begin") {
+  emit(cycleBegin(options.repo, options.state, options.lease))
+} else if (command === "cycle-status") {
+  emit(cycleStatus(options.repo, options.state, options.lease))
 } else if (command === "cycle-checkpoint") {
   emit(cycleCheckpoint(options.repo, options.state, options["paths-json"], options["verification-json"]))
+} else if (command === "cycle-seal") {
+  emit(cycleSeal(options.repo, options.state, options.lease))
+} else if (command === "cycle-scope-expansion") {
+  emit(cycleScopeExpansion(options.repo, options.state, options.lease, options.result))
+} else if (command === "cycle-cancel") {
+  emit(cycleCancel(options.repo, options.state, options.lease))
 } else if (command === "cycle-restore") {
-  emit(cycleRestore(options.repo, options.state))
+  emit(cycleRestore(options.repo, options.state, options.lease))
 } else if (command === "cycle-commit") {
-  emit(cycleCommit(options.repo, options.state, options.message))
+  emit(cycleCommit(options.repo, options.state, options.lease, options.message))
 } else {
   emit({ status: "malformed", reason: "command" })
 }
