@@ -405,9 +405,15 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
       /Tactical scope applies here too/i.test(UNIVERSAL_BODY),
       "universal-ideation.md must carry the tactical scaling for its own dispatch.",
     ).toBe(true)
+    // Reference the named set, never re-list a subset -- four rounds of review
+    // each found a different dial missing from a hand-copied list here.
     expect(
-      /keep one frame per sub-agent as usual; take the saving from volume instead/i.test(UNIVERSAL_BODY),
-      "The universal tactical path must save on volume, not by packing frames.",
+      /apply all of tactical's dials/i.test(UNIVERSAL_BODY),
+      "The universal tactical block must apply the whole named dial set, not a re-listed subset.",
+    ).toBe(true)
+    expect(
+      /never pack frames to economize, since the read budget is per agent/i.test(UNIVERSAL_BODY),
+      "The universal path must keep the no-packing rule with its per-agent-read reason.",
     ).toBe(true)
     expect(
       /3 max when tactical scope is active/i.test(UNIVERSAL_BODY),

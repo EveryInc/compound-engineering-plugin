@@ -61,13 +61,12 @@ Record the axes (or skip-reason) at the head of generation. Generation will dist
 
 Generate the full candidate list before critiquing any idea. Use the same six frames as software ideation, described in domain-agnostic language. Each frame is a **starting bias, not a constraint** — follow promising threads across frames. When dispatching frames as parallel sub-agents (Full depth), follow SKILL.md Model Tiers: evidence-driven frames (pain, inversion, leverage) on the generation tier; ceiling frames (assumption-breaking, analogy, constraint-flipping) on the ceiling tier.
 
-**Tactical scope applies here too.** This mode replaces the software frame dispatch, so it never loads `references/divergent-ideation.md` and would otherwise miss the Phase 0.5 scaling entirely — a request like "quick wins for this launch strategy" must not get the full treatment. When tactical scope is active:
+**Tactical scope applies here too.** This mode replaces the software frame dispatch, so it never loads `references/divergent-ideation.md` and would otherwise miss the Phase 0.5 scaling entirely — a request like "quick wins for this launch strategy" must not get the full treatment.
 
-- **Depth is the fleet decision in this mode.** Unlike software mode, only Full depth dispatches frames as parallel sub-agents; Quick and Standard run them inline in the facilitator. So resolve depth *first*, then let the count follow it — never announce a fleet the selected depth will not dispatch.
-  - **Full depth** → keep one frame per sub-agent as usual; take the saving from volume instead — 3-4 ideas per frame rather than 5-8. Do not pack extra frames into an agent to economize: the verification budget is per agent, so packing thins each idea's basis check.
-  - **Quick or Standard** → **zero ideation sub-agents**; the facilitator covers all six frames inline. Tactical scope is a reason to prefer these, and when you do, the Phase 0.6 cost notice must name the grounding and verifier agents only.
-- Cap decomposition at 3 axes.
-- Waive the meeting-test floor for the generators *and* in the basis verifier's payload (see "How to converge").
+When tactical scope is active, **apply all of tactical's dials** as SKILL.md Phase 0.5 defines them — the whole named set, not the subset that happens to be repeated here. Two of them need a mode-specific reading, because this mode decides *whether any sub-agent runs at all*:
+
+- **Depth is the fleet decision here.** Unlike software mode, only Full depth dispatches frames as parallel sub-agents; Quick and Standard run all six inline in the facilitator. Resolve depth *first*, then let the count follow — never announce a fleet the selected depth will not dispatch. Tactical scope is a reason to prefer Quick or Standard, and when you do, the Phase 0.6 cost notice names the grounding and verifier agents only.
+- **The per-agent dials bind to whatever this mode actually dispatches.** At Full depth each ideation sub-agent gets the reduced idea target *and* the reduced verification-read budget from the dial set, and you keep one frame per agent — never pack frames to economize, since the read budget is per agent and packing thins each idea's basis check. At Quick or Standard there are **zero ideation sub-agents**, so the per-agent dials have nothing to bind to; the reduced idea target still governs what the facilitator generates inline.
 
 Frame coverage is a floor here as in software mode — fewer agents, or none, never fewer lenses. `go deep` suppresses tactical scope entirely, per Phase 0.5.
 
