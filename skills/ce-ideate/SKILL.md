@@ -242,13 +242,7 @@ Use reasonable interpretation rather than formal parsing.
 
 **Tactical's dials — the complete list.** 3-4 ideas per frame; 2-3 verification reads per agent; 3 axes; 3 scouts; meeting-test floor waived at both layers. **Tactical changes nothing else** — not the agent count, not the frame set, not the model tier. Everywhere below and in the references, "tactical's dials" means exactly this list; state it by that name rather than re-enumerating it, so the set cannot drift between sites.
 
-**Detecting a tactical signal is not the same as tactical scope being active.** Resolve the collisions below first; everything downstream — the fleet, the caps, and every meeting-test waiver — keys on whether tactical scope ends up **active**, never on whether a signal was merely spotted.
-
-- **`go deep` + a tactical signal** → `go deep` wins outright and **suppresses tactical scope entirely**: none of tactical's dials apply, including the waived ambition floor. A run that opted into maximum depth must not also admit below-floor candidates.
-- **Tactical signal + issue-tracker intent** (`quick wins from open issues`) → both stay active and split: issue-tracker mode owns the *surface and its fleet* (theme frames, 4 agents), and tactical contributes **its dials** and nothing more.
-- **Tactical signal + surprise-me** (a vague `quick wins` that reached the 0.2 gate) → surprise-me owns the fleet and tier; tactical contributes **its dials**. The axis and scout dials are moot there, since surprise-me skips decomposition.
-
-See the fleet variants in `references/divergent-ideation.md`.
+**Detecting a tactical signal is not the same as tactical scope being active.** Resolve overrides against each other first; everything downstream — the fleet, the dials, and every waiver — keys on what ends up **active**, never on what was merely spotted. `go deep` beats a tactical signal outright and suppresses it entirely. When a signal collides with a mode that owns the *surface* (issue-tracker themes, or the universal path's depth), that mode keeps the frames and the agent count while tactical still contributes its dials; `references/divergent-ideation.md` carries the per-variant table.
 
 #### 0.6 Cost Transparency Notice
 
@@ -260,13 +254,7 @@ Include the conditional legs when they apply: issue intelligence adds its scan c
 
 **Say "conditional" for anything this phase cannot yet resolve; do not pre-subtract it.** The V15 cache check happens in Phase 1, after `<scratch-dir>` exists, so a reuse that skips the web dispatch is unknowable here. The same holds for the issue cluster call and the depth-dependent count in elsewhere-non-software.
 
-**Name the ideation fleet without a number whenever a later phase decides it.** This notice fires before Phase 1 runs and before Phase 2's dispatch spec is loaded, so several counts are simply not knowable yet. Rather than track which, apply the rule: *if the number comes from a decision this phase has not made, describe the leg instead of counting it.* Known cases, not an exhaustive list —
-
-- **`go deep` / surprise-me** — variant counts live in `references/divergent-ideation.md`, loaded at Phase 2.
-- **Issue-tracker intent** — 4 theme agents if the Phase 1 scan returns usable themes; otherwise it falls back to the six-frame default *at this run's own count*, which is 6 under `go deep` or surprise-me.
-- **Elsewhere-non-software** — `references/universal-ideation.md` picks a depth later, and only Full dispatches ideation agents at all.
-
-**Never reuse the ordinary five-agent figure to fill one of these gaps** — under an override it is the one number certain to be wrong. Tactical scope is the case that *is* resolvable: it changes volume and reads, never the agent count.
+**Where a number depends on a decision a later phase makes — a scan result, a depth choice, a dispatch spec not yet loaded — name the leg and say it is conditional rather than guessing.** Reaching for the ordinary five-agent figure to fill such a gap is the one answer certain to be wrong.
 
 The line is informational; users do not need to acknowledge it.
 
@@ -332,7 +320,8 @@ Run grounding agents in parallel in the **foreground** (do not background — re
    Then run these four steps in order:
 
    **a. Scan** — dispatch the analyst in SCAN mode. It probes tracker access and persists what it fetched; it does **not** cluster.
-   **b. Fall back or scope** — no reachable tracker, or fewer than 5 eligible issues, ends the lens here: log the reason, continue with the remaining grounding, and fall back to the six default frames. When you do, **a fallback re-derives only what the abandoned surface determined, and never re-resolves anything else.** Carry forward Phase 0.5's **already-resolved** scaling state — which overrides ended up active *after* its collisions, plus the raw total or explicit survivor count. Do not re-read the prompt's raw signals: a `go deep` run that also said `quick wins` has already had tactical suppressed, and re-deriving from the raw signal would resurrect the waived floor and lowered volume on a maximum-depth run. Re-derive **only** the two values the frame count determined — the agent count and the per-frame split — because the surface changes from at most 4 themes to the 6 defaults. Carrying the old agent count would leave 4 agents holding 6 frames, the packing this skill rejects; carrying the old per-frame volume would multiply a requested total by the new frame count. Otherwise resolve the scope yourself, asking **at most one** blocking question and only on irreducible ambiguity.
+   **b. Fall back or scope** — no reachable tracker, or fewer than 5 eligible issues, ends the lens here: log the reason, continue with the remaining grounding, and fall back to the six default frames — keeping the scaling this run already resolved and recomputing only what the frame count itself determines. Otherwise resolve the scope yourself, asking **at most one** blocking question and only on irreducible ambiguity.
+
    **c. Cluster** — dispatch the analyst again in CLUSTER mode with the resolved scope, reusing the scan's persisted set rather than re-fetching.
    **d. Await** — consolidation and Phase 1.5 depend on the returned themes. Do not close the consolidated grounding summary before the cluster result lands.
 

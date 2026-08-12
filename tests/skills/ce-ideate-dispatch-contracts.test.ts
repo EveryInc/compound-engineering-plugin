@@ -393,7 +393,7 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
     // Tactical selects a six-frame 2-agent fleet while issue-tracker mode
     // selects theme frames, so "quick wins from open issues" needs a rule.
     expect(
-      /`go deep` wins/i.test(VOLUME_0_5),
+      /`go deep` beats a tactical signal outright/i.test(VOLUME_0_5),
       "Phase 0.5 must resolve tactical vs `go deep`.",
     ).toBe(true)
     expect(
@@ -429,55 +429,15 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
       /default 5-agent fleet/i.test(DIVERGENT_BODY) || /default 5-agent fleet/i.test(ISSUE_INTELLIGENCE_BODY),
       "The insufficient-issue-signal fallback must not hardcode a 5-agent fleet over a scaled run.",
     ).toBe(false)
-    // The fallback splits what it keeps from what it recomputes. Keeping the
-    // mode's computed values was wrong in two ways: the 4-agent issue fleet
-    // against 6 frames is the packing this skill rejects, and a per-frame
-    // volume carried across a 4->6 frame change multiplies a requested total.
-    for (const [label, body] of [
-      ["the inline Phase 1 step", ISSUE_PROTOCOL],
-      ["issue-intelligence.md", ISSUE_INTELLIGENCE_BODY],
-      ["divergent-ideation.md", DIVERGENT_BODY],
-    ] as const) {
-      expect(
-        /re-derives only what the abandoned surface determined, and never re-resolves anything else/i.test(body),
-        `${label} must bound re-derivation to the surface-determined values.`,
-      ).toBe(true)
-      expect(
-        /4 agents holding 6 frames/i.test(body),
-        `${label} must name the packing hazard of carrying the old agent count.`,
-      ).toBe(true)
-      expect(
-        /multiply a requested total by the new frame count/i.test(body),
-        `${label} must name the multiplication hazard of carrying the old per-frame volume.`,
-      ).toBe(true)
-    }
-    // Post-collision state, not raw prompt signals: `go deep` + `quick wins`
-    // has already suppressed tactical, and re-deriving from the raw signal
-    // resurrects the waived floor on a maximum-depth run.
-    for (const [label, body] of [
-      ["the inline Phase 1 step", ISSUE_PROTOCOL],
-      ["issue-intelligence.md", ISSUE_INTELLIGENCE_BODY],
-      ["divergent-ideation.md", DIVERGENT_BODY],
-    ] as const) {
-      expect(
-        /already-resolved\*{0,2} scaling state/i.test(body),
-        `${label} must carry Phase 0.5's post-collision state, not the raw signals.`,
-      ).toBe(true)
-      expect(
-        /would resurrect the waived floor and lowered volume on a maximum-depth run/i.test(body),
-        `${label} must name why re-reading raw signals is unsafe.`,
-      ).toBe(true)
-    }
-    // Neither earlier formulation may return.
+    // A principle, not a value table. An agent recomputing "what the frame
+    // count determines" will not put a 4-agent fleet on 6 frames nor multiply
+    // a requested total -- both are visibly incoherent. Enumerating every
+    // hazard grew this to 194 words across three files and produced three
+    // consecutive rounds of contradictions between those copies.
     expect(
-      /re-derives nothing|carrying every value this run has already resolved|preserves what the user asked for and re-derives what the mode computed/i
-        .test(SKILL_BODY + DIVERGENT_BODY + ISSUE_INTELLIGENCE_BODY),
-      "Neither the inherit-everything nor the re-derive-from-raw-signals rule may be reintroduced.",
-    ).toBe(false)
-    expect(
-      /use the default Phase 2 fleet/i.test(SKILL_BODY),
-      "The inline fallback must not reset a go-deep or surprise-me run to the default fleet.",
-    ).toBe(false)
+      /keeping the scaling this run already resolved and recomputing only what the frame count itself determines/i.test(ISSUE_PROTOCOL),
+      "The fallback must state the keep-vs-recompute principle.",
+    ).toBe(true)
   })
 
   test("tactical scaling reaches the universal path, which never loads divergent-ideation.md", () => {
@@ -516,10 +476,6 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
     expect(
       /never announce a fleet the selected depth will not dispatch/i.test(UNIVERSAL_BODY),
       "The universal tactical block must tie the announced fleet to the resolved depth.",
-    ).toBe(true)
-    expect(
-      /picks a depth later, and only Full dispatches ideation agents at all/i.test(COST_0_6),
-      "Phase 0.6 must not assert an ideation count for the mode that picks depth later.",
     ).toBe(true)
     // The depth cue must reach "How to start", which picks depth, rather than
     // living only in "How to generate" further down.
@@ -577,7 +533,7 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
   test("go deep still scales up, so the two overrides stay symmetric", () => {
     expect(/scale up/i.test(VOLUME_0_5) && /scale down/i.test(VOLUME_0_5)).toBe(true)
     expect(
-      /`go deep` wins/i.test(VOLUME_0_5),
+      /`go deep` beats a tactical signal outright/i.test(VOLUME_0_5),
       "Phase 0.5 must resolve a prompt carrying both go deep and a tactical signal.",
     ).toBe(true)
   })
@@ -603,7 +559,7 @@ describe("ce-ideate meeting-test waiver reaches the verifier", () => {
       "Phase 0.5 must separate signal detection from the resolved active mode.",
     ).toBe(true)
     expect(
-      /suppresses tactical scope entirely/i.test(VOLUME_0_5),
+      /suppresses it entirely/i.test(VOLUME_0_5),
       "Phase 0.5 must state that `go deep` suppresses tactical scope, not merely outranks its fleet.",
     ).toBe(true)
     for (const [label, body] of [
@@ -668,49 +624,27 @@ describe("ce-ideate cost transparency states no hand-maintained totals", () => {
       /cluster call only if that scan returns usable signal/i.test(COST_0_6),
       "The issue cluster call must be stated as conditional on the scan's result.",
     ).toBe(true)
-    // The fallback must inherit the run's own count, not the ordinary five --
-    // the bullet sat directly above a sentence forbidding that very figure.
+    // One rule, no enumeration. Three successive closed sets ("the one mode",
+    // "two situations", then three bullets) were each incomplete -- a fourth
+    // case always existed. State the rule; let the agent apply it.
     expect(
-      /otherwise it falls back to the six-frame default \*at this run's own count\*/i.test(COST_0_6),
-      "The issue-tracker fallback must inherit this run's count, not read as the default five.",
-    ).toBe(true)
-    // The 6-agent go-deep/surprise-me variant lives in divergent-ideation.md,
-    // loaded at Phase 2 -- so at notice time the count is genuinely unknown and
-    // the five-agent default is the one value guaranteed wrong.
-    // An enumeration of unresolved cases keeps being incomplete -- first "the
-    // one mode", then "two situations", each missing a real third. The rule is
-    // stated open-ended instead, with examples explicitly non-exhaustive.
-    expect(
-      /if the number comes from a decision this phase has not made, describe the leg instead of counting it/i.test(COST_0_6),
-      "Phase 0.6 must state the unresolved-count rule, not enumerate a closed set.",
+      /Where a number depends on a decision a later phase makes/i.test(COST_0_6),
+      "Phase 0.6 must state the conditional rule generally, not enumerate cases.",
     ).toBe(true)
     expect(
-      /Known cases, not an exhaustive list/i.test(COST_0_6),
-      "The examples must be marked non-exhaustive so a missing case is not licensed.",
-    ).toBe(true)
-    expect(
-      /the one mode whose ideation count|Two situations leave the ideation count/i.test(SKILL_BODY),
-      "No closed-set exclusivity claim may return.",
-    ).toBe(false)
-    // Issue-tracker mode is the case that exposed the last closed set.
-    expect(
-      /Issue-tracker intent\*{0,2} — 4 theme agents if the Phase 1 scan returns usable themes/i.test(COST_0_6),
-      "Issue-tracker mode must appear among the unresolved-count examples.",
+      /the one answer certain to be wrong/i.test(COST_0_6),
+      "Phase 0.6 must keep the concrete warning against the default figure.",
     ).toBe(true)
     expect(
       /the one mode whose ideation count is not settled/i.test(SKILL_BODY),
       "Phase 0.6 must not claim exclusivity for one unresolved-count mode.",
     ).toBe(false)
     expect(
-      /never reuse the ordinary five-agent figure/i.test(COST_0_6),
+      /ordinary five-agent figure/i.test(COST_0_6),
       "Phase 0.6 must forbid falling back to the default count under an override.",
     ).toBe(true)
     // Tactical must stay explicitly outside the unresolved set -- it does not
     // change the agent count, so the ordinary figure is still correct there.
-    expect(
-      /Tactical scope is the case that \*is\* resolvable/i.test(COST_0_6),
-      "Phase 0.6 must exclude tactical from the unresolved-count cases.",
-    ).toBe(true)
     // The skip phrase IS readable now, so it stays a real subtraction.
     expect(
       /skip phrase — that much is readable from the prompt right now/i.test(COST_0_6),
