@@ -208,8 +208,33 @@ describe("ce-ideate user-research extraction keeps its routing test inline", () 
     ).toBe(true)
   })
 
-  test("the await before consolidation stays inline", () => {
+  test("the await is conditional on the reference routing to a distiller", () => {
+    // Small artifacts fold in inline with no sub-agent, so an unconditional
+    // "distill it and await" would dispatch an agent that should not exist and
+    // stall the grounding batch on it.
     expect(/await/i.test(RESEARCH)).toBe(true)
+    expect(
+      /a small artifact folds into the grounding summary inline and dispatches nothing/i.test(RESEARCH),
+      "The stub must state the no-distiller case for small artifacts.",
+    ).toBe(true)
+    expect(
+      /When it does route to a distiller, await that result/i.test(RESEARCH),
+      "The await must be conditional on a distiller actually being dispatched.",
+    ).toBe(true)
+  })
+
+  test("an explicit volume override outranks the tactical default on both paths", () => {
+    // divergent-ideation.md has always had the override escape; the universal
+    // path hardcoded the tactical number, capping "100 quick wins" at 18-24.
+    for (const [label, body] of [
+      ["divergent-ideation.md", DIVERGENT_BODY],
+      ["universal-ideation.md", UNIVERSAL_BODY],
+    ] as const) {
+      expect(
+        /volume override/i.test(body) && /100 ideas/i.test(body),
+        `${label} must let an explicit volume override outrank the per-frame default.`,
+      ).toBe(true)
+    }
   })
 })
 

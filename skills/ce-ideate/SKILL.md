@@ -352,7 +352,7 @@ Applies in all modes whenever the prompt or intake names a file of *gathered evi
 
 **Routing test (directive vs evidence) — apply it before dispatching the Phase 1 quick context scan.** A named file is *directive* when ideas that ignore or contradict it would be wrong (a spec, a TODO list, feedback the user wants addressed); in repo mode that is the User-named references path, and it rides in `<constraints>` at dispatch. A file is *evidence* when it is signal about the world that ideas may draw on and cite. Research artifacts are evidence: they enter the evidence layer, never `<constraints>` — engagement-ranked chatter must inform ideas, not veto them. Each file takes exactly one path, never both, and the test has to run *before* the scan so the scan knows which files to leave alone.
 
-When the test routes a file here, distill it and **await** the result before closing the consolidated grounding summary — its gist belongs under `User-supplied research`, kept distinct from web research so provenance stays visible.
+When the test routes a file here, the reference decides by size whether it needs a distiller at all: a small artifact folds into the grounding summary inline and dispatches nothing. **When it does route to a distiller, await that result** before closing the consolidated grounding summary. Either way its content lands under `User-supplied research`, kept distinct from web research so provenance stays visible.
 
 Read `references/user-research-artifacts.md` and follow it for the distiller dispatch prompt, the small-vs-large handling, the scan-coordination line, and why this enriches rather than replaces web research. Do not compose the dispatch from this summary.
 
