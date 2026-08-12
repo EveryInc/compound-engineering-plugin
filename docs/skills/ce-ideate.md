@@ -98,7 +98,7 @@ Each surviving candidate carries a tagged basis: `direct:` (quoted evidence), `e
 
 ### 3. Six-frame divergent generation
 
-Parallel sub-agents cover six generative frames: pain & friction, inversion/removal/automation, assumption-breaking, leverage & compounding, cross-domain analogy, and constraint-flipping. Single-prompt ideation collapses into the agent's most-trained directions — different frames force genuine breadth, especially cross-domain analogy and constraint-flipping which surface ideas no single prompt would. The fleet is **cost-tiered**: evidence-driven frames run on a mid-tier model (the dossiers do the heavy lifting), while the ceiling frames — where the strong model's reasoning is the product — inherit the conversation's model. Say `go deep` to raise the whole fleet to the top tier.
+Parallel sub-agents cover six generative frames: pain & friction, inversion/removal/automation, assumption-breaking, leverage & compounding, cross-domain analogy, and constraint-flipping. Single-prompt ideation collapses into the agent's most-trained directions — different frames force genuine breadth, especially cross-domain analogy and constraint-flipping which surface ideas no single prompt would. The fleet is **cost-tiered**: evidence-driven frames run on a mid-tier model (the dossiers do the heavy lifting), while the ceiling frames — where the strong model's reasoning is the product — inherit the conversation's model. Say `go deep` to raise the whole fleet to the top tier; conversely, a tactical ask (`quick wins`, `polish`, `cleanup`) scales the run *down* — fewer agents, fewer axes and scouts, and a waived ambition floor. What a tactical run never loses is frame coverage: all six lenses still run, packed into fewer agents. Cutting lenses would remove exactly the non-obvious ideas a small surface still benefits from.
 
 ### 4. Topic-surface decomposition — axis coverage as a dispatch invariant
 
@@ -124,7 +124,7 @@ Phrases like "what users are reporting" or "biggest issue patterns" trigger an i
 
 ## Quick Example
 
-You invoke `ce-ideate "DX improvements"` from inside a code repo. The agent announces it'll dispatch ~13 agents — most on cheap tiers — and offers skip phrases for cost control.
+You invoke `ce-ideate "DX improvements"` from inside a code repo. The agent announces the grounding and ideation agents it's about to dispatch — most on cheap tiers — and offers skip phrases for cost control.
 
 Grounding agents return in parallel — a codebase summary, relevant past learnings, external prior art on developer-experience patterns. The orchestrator decomposes the topic into 4-5 axes derived from that grounding (e.g., for "DX improvements" — feedback loops, environment friction, tooling ergonomics, knowledge accessibility, automation surface), then cheap evidence scouts gather a quote-and-pointer dossier per axis. Five ideation sub-agents covering six frames generate candidates from that evidence, each idea tagged with the axis it targets and verified against the actual files before submission. The orchestrator merges 40+ candidates into one list, synthesizes cross-cutting combinations, runs an axis-coverage check (any empty axis triggers one bounded recovery dispatch), and runs the two-layer critique pass — a fresh-context verifier tries to refute each candidate, then the orchestrator makes the final cut. About 13 ideas are cut for being too vague, unjustified, refuted, or duplicative.
 
