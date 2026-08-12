@@ -15,16 +15,16 @@ Fleet variants. **Every variant that uses the default frame set covers all six**
 - **tactical scope** (Phase 0.5 signals) — **the same 5 agents over 6 frames as the default.** Tactical does not repack the fleet; it lowers each frame's target to 3-4 ideas and each agent's verification budget to 2-3 reads. Packing frames into fewer agents was tried and reverted: per-frame targets stay the same under packing (see the volume line below), so it barely reduces generated output, while the verification budget below is **per agent** — an agent holding three frames verifies about a third as much per idea. Cost comes out of volume and reads; it never comes out of the basis check or the lens count.
 - **issue-tracker mode** — 4 agents, only when issue-tracker intent was detected in Phase 0.2 AND the issue intelligence agent returned usable themes (see the override below — cluster-derived frames capped at 4, dispatched on the generation tier; padded frames keep their native tier). This is the one variant that legitimately narrows the frame set, because the themes *are* the surface.
 
-**When two variants fire at once, the surface and the budget are decided separately.** Whichever variant owns the *surface* picks the frames and the agent count; tactical contributes only its volume, read, and floor reductions — it never repacks another variant's fleet.
+**When two variants fire at once, the surface and the budget are decided separately.** Whichever variant owns the *surface* picks the frames and the agent count; tactical contributes only **its dials** (SKILL.md Phase 0.5) — it never repacks another variant's fleet.
 
 | Both fired | Frames | Agents | Volume / reads |
 |---|---|---|---|
-| issue-tracker + tactical | theme frames (issue-tracker owns the surface) | 4 | tactical's 3-4 ideas per frame, 2-3 reads |
+| issue-tracker + tactical | theme frames (issue-tracker owns the surface) | 4 (issue-tracker owns its fleet) | tactical's dials |
 | issue-tracker + `go deep` / surprise-me | theme frames | 4, all ceiling-tier | default |
 | tactical + `go deep` | six frames | 6, all ceiling-tier (`go deep` wins outright per Phase 0.5) | default; tactical is suppressed |
-| tactical + surprise-me | six frames | 6, all ceiling-tier — surprise-me owns the fleet | tactical's lowered volume and reads |
+| tactical + surprise-me | six frames | 6, all ceiling-tier — surprise-me owns the fleet | tactical's dials |
 
-**tactical + surprise-me** is reachable whenever a vague tactical prompt (`quick wins`) sends the user to the 0.2 subject gate and they pick "Surprise me." Surprise-me owns the fleet and tier — its subject discovery is the mode's entire value. Tactical still contributes its **lowered per-frame volume, reduced reads, and waived ambition floor**, since the user did ask for small wins. Its axis and scout caps are moot here, because surprise-me skips decomposition entirely.
+**tactical + surprise-me** is reachable whenever a vague tactical prompt (`quick wins`) sends the user to the 0.2 subject gate and they pick "Surprise me." Surprise-me owns the fleet and tier — its subject discovery is the mode's entire value. Tactical still contributes **its dials** (SKILL.md Phase 0.5), since the user did ask for small wins. Its axis and scout caps are moot here, because surprise-me skips decomposition entirely.
 
 The insufficient-issue-signal fallback from Phase 1 drops back to the **six-frame default at this run's own agent count** — 5 ordinarily (tactical included), 6 under `go deep` or surprise-me — carrying that run's own volume and read budgets rather than resetting them.
 

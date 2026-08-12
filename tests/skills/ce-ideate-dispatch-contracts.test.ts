@@ -290,6 +290,33 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
     expect(scoutCap![1], "The scout dispatch cap must match the axis cap.").toBe(axisCap![1])
   })
 
+  test("tactical's effect is defined once and referenced by name, never re-enumerated", () => {
+    // Every time tactical's effect was restated at a collision site, changing
+    // the effect left those sites stale. One named set, referenced everywhere.
+    expect(
+      /\*\*Tactical's dials — the complete list\.\*\*/.test(VOLUME_0_5),
+      "Phase 0.5 must define tactical's dials as one named, complete set.",
+    ).toBe(true)
+    expect(
+      /\*\*Tactical changes nothing else\*\* — not the agent count, not the frame set, not the model tier/.test(VOLUME_0_5),
+      "The dial set must state what tactical does NOT touch, so collisions cannot re-add a fleet change.",
+    ).toBe(true)
+    for (const [label, body] of [
+      ["SKILL.md collisions", VOLUME_0_5],
+      ["divergent-ideation.md", DIVERGENT_BODY],
+    ] as const) {
+      expect(
+        /tactical's dials/i.test(body),
+        `${label} must reference the named dial set rather than re-listing it.`,
+      ).toBe(true)
+    }
+    // No site may still claim tactical changes the fleet.
+    expect(
+      /2 under tactical scope/i.test(ISSUE_INTELLIGENCE_BODY + DIVERGENT_BODY + SKILL_BODY),
+      "No site may still say tactical resolves a 2-agent fleet.",
+    ).toBe(false)
+  })
+
   test("a tactical run colliding with go deep or issue-tracker mode has a defined winner", () => {
     // Tactical selects a six-frame 2-agent fleet while issue-tracker mode
     // selects theme frames, so "quick wins from open issues" needs a rule.

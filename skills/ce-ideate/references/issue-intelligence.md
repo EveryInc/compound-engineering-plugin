@@ -19,7 +19,7 @@ Two outcomes end the lens before the cluster call. Both are warn-and-proceed —
 - **First line is the `Issue analysis unavailable:` marker** (no reachable tracker) — log `"{that message}. Proceeding with standard ideation."` and continue with the remaining grounding.
 - **Fewer than 5 eligible issues** — note `"Insufficient issue signal for theme analysis"` and continue.
 
-In both cases Phase 2 falls back to the six-frame default fleet rather than the 4-agent issue-tracker fleet, at this run's own agent count (5 ordinarily, 2 under tactical scope, 6 under `go deep` or surprise-me — see the fleet variants in `references/divergent-ideation.md`). No scoping question is asked.
+In both cases Phase 2 falls back to the six-frame default fleet rather than the 4-agent issue-tracker fleet, at this run's own agent count and budgets — 5 ordinarily (tactical included, carrying its dials), 6 under `go deep` or surprise-me. See the fleet variants in `references/divergent-ideation.md`. No scoping question is asked.
 
 ## b. Scoping gate (the orchestrator decides; at most one question)
 

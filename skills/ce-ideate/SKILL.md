@@ -240,11 +240,13 @@ Two symmetric depth overrides scale the run. Both are opt-in from the user's own
 
 Use reasonable interpretation rather than formal parsing.
 
+**Tactical's dials — the complete list.** 3-4 ideas per frame; 2-3 verification reads per agent; 3 axes; 3 scouts; meeting-test floor waived at both layers. **Tactical changes nothing else** — not the agent count, not the frame set, not the model tier. Everywhere below and in the references, "tactical's dials" means exactly this list; state it by that name rather than re-enumerating it, so the set cannot drift between sites.
+
 **Detecting a tactical signal is not the same as tactical scope being active.** Resolve the collisions below first; everything downstream — the fleet, the caps, and every meeting-test waiver — keys on whether tactical scope ends up **active**, never on whether a signal was merely spotted.
 
-- **`go deep` + a tactical signal** → `go deep` wins outright and **suppresses tactical scope entirely**: no fleet reduction, no caps, and *no waived ambition floor*. A run that opted into maximum depth must not also admit below-floor candidates.
-- **Tactical signal + issue-tracker intent** (`quick wins from open issues`) → both stay active and split: issue-tracker mode selects the *frames*, because the themes are the surface, while tactical sets the *agent count* and the caps above.
-- **Tactical signal + surprise-me** (a vague `quick wins` that reached the 0.2 gate) → surprise-me owns the fleet and tier; tactical keeps only its waived ambition floor. Its caps are moot, since surprise-me skips decomposition.
+- **`go deep` + a tactical signal** → `go deep` wins outright and **suppresses tactical scope entirely**: none of tactical's dials apply, including the waived ambition floor. A run that opted into maximum depth must not also admit below-floor candidates.
+- **Tactical signal + issue-tracker intent** (`quick wins from open issues`) → both stay active and split: issue-tracker mode owns the *surface and its fleet* (theme frames, 4 agents), and tactical contributes **its dials** and nothing more.
+- **Tactical signal + surprise-me** (a vague `quick wins` that reached the 0.2 gate) → surprise-me owns the fleet and tier; tactical contributes **its dials**. The axis and scout dials are moot there, since surprise-me skips decomposition.
 
 See the fleet variants in `references/divergent-ideation.md`.
 
