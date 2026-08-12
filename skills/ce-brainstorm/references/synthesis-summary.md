@@ -272,7 +272,7 @@ After user confirmation (or after the soft-cut decision proceeds), Phase 3 write
 | Stated bullets | `## Requirements` (numbered R-IDs, full detail) and where relevant `## Problem Frame` for narrative context |
 | Inferred bullets | `## Key Decisions` (with rationale) — bets the user accepted in dialogue become decisions in the doc. |
 | Out-of-scope bullets | `## Scope Boundaries` |
-| Success signals (Stated or Inferred) | `## Success Criteria` when its catalog entry fires — quality, metric, or handoff signals the Requirements don't already carry |
+| Success signals (Stated or Inferred) | `## Success Criteria` when its catalog entry fires — quality, metric, or handoff signals the Requirements don't already carry. This row **overrides** the generic Stated and Inferred rows for those items: a success signal routes here *instead of* to Requirements or Key Decisions, never to both. |
 
 The chat-time Trade-offs section dissolves into `## Key Decisions` (the explicit choices acknowledged in chat become documented decisions). The chat-time What's-not-in-scope section dissolves into `## Scope Boundaries`.
 
