@@ -384,6 +384,36 @@ U1 and U8 are the two behavior changes and can land in parallel. U2 and U4 are i
 | Release metadata consistency | `bun run release:validate` | Any skill-file change |
 | Behavioral eval | `skill-creator` paired injection, cross-host, pre-registered threshold | U7 |
 
+### Behavioral eval result (recorded 2026-08-12)
+
+Pre-registered before running: 3 trials per scenario per arm; Scenario C confirms
+only on a delta of >=2 of 3. Old arm built from `071b08ea` bytes, new arm from the
+working tree; both blind and sealed (no arm could read `skills/`, verified after
+the fact). 24 runs, graded from the written artifacts rather than self-reports.
+
+| Section | Old arm | New arm | Verdict |
+|---|---|---|---|
+| Key Decisions | 0/13 | 6/13 | **Confirmed** |
+| Success Criteria, scenarios where it should fire | 9/9 | 9/9 | Tie — not confirmed |
+| Success Criteria, mechanical rename (should skip) | fired 1/3 | fired 0/3 | Restraint improved |
+| Problem Frame, mechanical rename (should skip) | fired 3/3 | fired 0/3 | Restraint improved |
+
+The new arm's 6/13 on Key Decisions is perfect discrimination, not partial
+success: it fired 6/6 on the two scenarios carrying a product-level choice and
+0/7 on the two that carry none. The old arm never fired it, in any scenario.
+
+This is the reinforcement model reproduced under control. Success Criteria was
+already named in the old hard floor, so a capable model emits it either way and
+the catalog entry adds nothing at this tier. Key Decisions appeared nowhere in the
+old `plan-sections.md`, and adding its entry moved it from never to always-when-
+material. The measured effect sits exactly where the base rates predicted the gap.
+
+Limits, stated rather than implied: single harness (Claude), no Codex arm, so
+U7's cross-host clause is unsatisfied. An earlier Scenario C using a caching
+prompt produced a false null — its choices were how-level (KTD territory), not
+product-level — and was replaced; that null stays on the record. The eval also
+surfaced a defect in U1's own catalog preamble, since fixed.
+
 - Run `bun run test`, not bare `bun test` — the package script carries `--parallel`.
 - Each new assertion in U6 must be shown to fail when its target line is reverted. An assertion that passes against both the fixed and unfixed text is not a guard.
 - The behavioral eval is evidence, not a CI job. Do not add it to the workflow.

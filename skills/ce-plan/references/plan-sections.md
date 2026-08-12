@@ -211,10 +211,13 @@ elsewhere. The test is not "is this a substantial plan?" — it is
 *"does this specific plan have content this section would surface?"* Filling
 a section with placeholder prose is worse than omitting it.
 
-The first five entries below are Product Contract sections; the rest are
-Planning Contract and supporting sections. A plan that skips every product
-entry has usually inherited its product framing from an upstream Product
-Contract — check before concluding none of them fire.
+The first five entries below carry the Product Contract's product framing —
+what is being built and why. Later entries mix Product Contract subsections
+(Scope Boundaries, Open Questions, Acceptance Examples, Sources) with
+Planning Contract ones; the hard floor above remains authoritative for which
+section sits under which contract. A plan that skips all five framing entries
+has usually inherited its framing from an upstream Product Contract — check
+before concluding none of them fire.
 
 - **Problem Frame** — include when motivation isn't obvious from Summary
   alone (the *why* needs paragraphs, not a sentence). Backward-looking /
