@@ -190,6 +190,7 @@ const EXPECTED_USER_INVOKED_SKILLS = new Set([
 const REQUIRED_MODEL_INVOKED_CALLEES = new Set([
   "ce-brainstorm",
   "ce-code-review",
+  "ce-code-review-loop",
   "ce-commit",
   "ce-commit-push-pr",
   "ce-compound",

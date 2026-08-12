@@ -138,6 +138,29 @@ After the final artifact write returns, emit the final response immediately. The
 
 Emit **one raw JSON object** as the primary response — a single bare JSON value, **no markdown code fence**. A leading ```` ```json ```` fence makes the response start with backticks and breaks naive `JSON.parse` consumers, so never wrap it. Also write `review.json` under the resolved `<run-dir>` with the same payload.
 
+**Receipt construction gate (after dispatch began, before the artifact write).** Build `review_receipt` from orchestrator-owned state, never from rendered Coverage prose. Freeze and carry these inputs through synthesis:
+
+- `base_sha`: the concrete resolved diffable base SHA, never the logical `pr:N` scope marker or an unresolved raw `base:` value. For `pr-remote`, use the computed merge base established in Stage 1 from the immutable fetched `baseRefOid` and `headRefOid` endpoints, not `baseRefOid` (the base branch tip). For standalone, `base:`, `local-aligned`, and `branch-remote`, use the actual merge base resolved in Stage 1.
+- `branch` and `head_sha`: the reviewed scope identity captured before dispatch. For standalone, `base:`, and `local-aligned`, use the checkout branch and `HEAD`. For `pr-remote` and `branch-remote`, use the reviewed head branch/ref identity and concrete reviewed head SHA resolved in Stage 1, not the unrelated checkout.
+- `selected_reviewers`: the canonical final roster after Stage 3d exclusive adversarial routing. Include an optional cross-model peer only when its route started; exclude peer routes that never started.
+- `required_reviewers`: every selected in-process reviewer. The optional cross-model peer remains optional and is excluded unless `ce-code-review` explicitly changes the canonical classification in the future.
+- `completed_reviewers`: only canonical selected reviewers with valid returns actually folded into synthesis.
+- `failed_reviewers`: every selected reviewer that failed, timed out, or returned malformed output, as `{ "reviewer": "<canonical identity>", "reason": "<non-empty reason>", "required": <canonical boolean> }`. Every selected reviewer must appear in exactly one of `completed_reviewers` or `failed_reviewers`; no terminal outcome may name an unselected reviewer.
+- `terminal_status`: `complete` means every required reviewer completed and no required reviewer failed. A recorded optional failure (`required: false`) does not degrade `complete`. Use `degraded` only when at least one reviewer produced a usable completed return but a required reviewer failed. Use `failed` when dispatch began but no reviewer produced a usable completed return.
+
+Top-level `status` and `review_receipt.terminal_status` must agree on `complete`, `degraded`, and post-dispatch `failed` paths. `required_reviewers`: downstream callers must not infer requiredness from reviewer names, providers, route suffixes, selected membership, or failure state, and must not reconstruct it. `ce-code-review` owns the classification. Once any reviewer dispatch begins, retain the receipt on complete, degraded, and failed `mode:agent` completions. Only failures or skips before dispatch may use the existing minimal `{ "status", "reason" }` shape.
+
+Validate and serialize through the bundled deterministic helper. Resolve `SKILL_DIR` from the directory containing the `SKILL.md` you read; never derive it from the current working directory. The helper owns receipt field/type checks, concrete SHA checks, coverage/status invariants, and the single canonical serialization — not review judgment. Run this exact fence after the final object is assembled and before writing or emitting it:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$NODE" ] || { echo "no working Node interpreter on PATH" >&2; exit 1; };
+"$NODE" "$SKILL_DIR/scripts/review-receipt.mjs" < "$RUN_DIR/final-review-input.json" > "$RUN_DIR/review.json" || exit 1;
+cat "$RUN_DIR/review.json"
+```
+
+Write the assembled, unserialized final object to `$RUN_DIR/final-review-input.json` as the helper's input. Do not reserialize, pretty-print, edit, or reconstruct its output. The helper writes one canonical JSON object plus its terminating newline; `cat` emits those exact bytes. The payload on disk must byte-match the emitted JSON object. The artifact write/emit fence above is the last tool call.
+
 `mode:agent` does not apply fixes — the caller does — so there is no `applied_fixes` field; the handoff is `actionable_findings`. Applied work surfaces only in explicitly authorized local-apply markdown runs (Stage 5c/6).
 
 Minimum shape:
@@ -148,8 +171,8 @@ Minimum shape:
   "verdict": "Ready to merge | Ready with fixes | Not ready",
   "scope": {
     "base": "<merge-base sha, pr:NNN marker, or base: ref>",
-    "branch": "<current branch name>",
-    "head_sha": "<git rev-parse HEAD>",
+    "branch": "<reviewed branch or ref identity>",
+    "head_sha": "<concrete reviewed head SHA>",
     "pr_url": "<url or null>",
     "files_changed": 0
   },
@@ -168,7 +191,19 @@ Minimum shape:
   "testing_gaps": [],
   "coverage": {},
   "artifact_path": "<resolved-run-dir>",
-  "run_id": "<run-id>"
+  "run_id": "<run-id>",
+  "review_receipt": {
+    "base_sha": "<resolved concrete base SHA>",
+    "head_sha": "<concrete reviewed head SHA captured before dispatch>",
+    "branch": "<reviewed branch or ref identity captured before dispatch>",
+    "selected_reviewers": ["<canonical reviewer identity>"],
+    "required_reviewers": ["<required in-process reviewer identity>"],
+    "completed_reviewers": ["<canonical reviewer identity>"],
+    "failed_reviewers": [
+      {"reviewer": "<identity>", "reason": "<failure>", "required": true}
+    ],
+    "terminal_status": "complete"
+  }
 }
 ```
 
@@ -180,7 +215,7 @@ Findings stamped by the Stage 5 step 2 settlement-conflict rule additionally car
 
 Each object in `triage_groups` carries `{ "title", "findings": [<stable #s>], "context", "preferred_resolution", "why" }` — the finalized groups from Stage 5 step 6 after Stage 5b step 5 pruning. Every referenced `#` must exist in `findings` (the full set) — **not** necessarily in `actionable_findings`. Groups are a triage **lens over all findings, not an apply queue**: a group (and its `preferred_resolution` ordering) can reference advisory or `human`/`release`-owned findings that the caller must not apply. So a caller batching related fixes by theme must first intersect each group's `findings` with `actionable_findings` and act only on that subset — the apply handoff stays `actionable_findings`, never `triage_groups`. Empty array when `grouping:off` is active or no groups were built.
 
-On failure before review completes, set `"status": "failed"` and `"reason": "<one sentence>"`. When all reviewers fail, use `"status": "degraded"` with a reason. When a PR skip rule fires (closed/merged/trivial), use `"status": "skipped"` with the skip reason. Do not emit markdown tables when `mode:agent` is active.
+Before dispatch begins, a failed invocation may retain `{"status":"failed","reason":"..."}` and a PR skip rule may retain `{"status":"skipped","reason":"..."}`. Once dispatch begins, complete, degraded, and failed responses retain the full receipt defined above; set top-level `status` and `review_receipt.terminal_status` consistently. Do not emit markdown tables when `mode:agent` is active.
 
 ## Quality Gates
 

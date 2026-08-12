@@ -1,4 +1,5 @@
-import { readFile } from "fs/promises"
+import { mkdtemp, readFile, rm, writeFile } from "fs/promises"
+import os from "os"
 import path from "path"
 import { describe, expect, test } from "bun:test"
 
@@ -889,5 +890,578 @@ describe("learnings-researcher local prompt domain-agnostic contract", () => {
     // Integration Points list no longer includes ce-doc-review (agent is ce-plan-owned)
     const integration = agent.substring(agent.indexOf("Integration Points"))
     expect(integration).not.toContain("ce-doc-review")
+  })
+})
+
+type ReceiptHelperResult = {
+  status: number
+  stdout: string
+  stderr: string
+}
+
+const RECEIPT_HELPER = path.join(
+  process.cwd(),
+  "skills/ce-code-review/scripts/review-receipt.mjs",
+)
+const SHA40_A = "a".repeat(40)
+const SHA40_B = "b".repeat(40)
+
+function receiptFixture(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    status: "complete",
+    verdict: "Ready to merge",
+    scope: {
+      base: "pr:123",
+      branch: "feature/receipt",
+      head_sha: SHA40_B,
+      pr_url: "https://github.com/example/repo/pull/123",
+      files_changed: 2,
+    },
+    intent: "Harden review receipt evidence.",
+    intent_confidence: "explicit",
+    reviewers: ["correctness-reviewer"],
+    findings: [],
+    actionable_findings: [],
+    triage_groups: [],
+    pre_existing_findings: [],
+    requirements_completeness: null,
+    learnings: [],
+    agent_native_gaps: [],
+    deployment_notes: [],
+    residual_risks: [],
+    testing_gaps: [],
+    coverage: {},
+    artifact_path: "/tmp/review-run",
+    run_id: "receipt-fixture",
+    review_receipt: {
+      base_sha: SHA40_A,
+      head_sha: SHA40_B,
+      branch: "feature/receipt",
+      selected_reviewers: ["correctness-reviewer"],
+      required_reviewers: ["correctness-reviewer"],
+      completed_reviewers: ["correctness-reviewer"],
+      failed_reviewers: [],
+      terminal_status: "complete",
+    },
+    ...overrides,
+  }
+}
+
+function canonicalReceipt(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalReceipt)
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.keys(value).sort().map((key) => [key, canonicalReceipt((value as Record<string, unknown>)[key])]),
+    )
+  }
+  return value
+}
+
+function runReceiptHelper(payload: unknown): ReceiptHelperResult {
+  const proc = Bun.spawnSync([process.execPath, RECEIPT_HELPER], {
+    stdin: new TextEncoder().encode(JSON.stringify(payload)),
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  return {
+    status: proc.exitCode,
+    stdout: proc.stdout.toString(),
+    stderr: proc.stderr.toString(),
+  }
+}
+
+function gitCommand(cwd: string, ...args: string[]): string {
+  const proc = Bun.spawnSync(["git", ...args], {
+    cwd,
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  const stderr = proc.stderr.toString()
+  expect(proc.exitCode, stderr).toBe(0)
+  return proc.stdout.toString().trim()
+}
+
+async function commitFile(repo: string, file: string, contents: string, message: string): Promise<string> {
+  await writeFile(path.join(repo, file), contents)
+  gitCommand(repo, "add", file)
+  gitCommand(repo, "commit", "-m", message)
+  return gitCommand(repo, "rev-parse", "HEAD")
+}
+
+describe("ce-code-review receipt helper", () => {
+  test("emits one canonical JSON line for complete coverage", () => {
+    const payload = receiptFixture()
+    const result = runReceiptHelper(payload)
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stdout.endsWith("\n")).toBe(true)
+    expect(result.stdout.trim().split("\n")).toHaveLength(1)
+    expect(JSON.parse(result.stdout)).toEqual(payload)
+    expect(result.stdout).toBe(`${JSON.stringify(canonicalReceipt(payload))}\n`)
+  })
+
+  test("keeps complete status when only an optional peer failed", () => {
+    const payload = receiptFixture({
+      review_receipt: {
+        base_sha: SHA40_A,
+        head_sha: SHA40_B,
+        branch: "feature/receipt",
+        selected_reviewers: ["correctness-reviewer", "adversarial-openai"],
+        required_reviewers: ["correctness-reviewer"],
+        completed_reviewers: ["correctness-reviewer"],
+        failed_reviewers: [
+          { reviewer: "adversarial-openai", reason: "peer timed out", required: false },
+        ],
+        terminal_status: "complete",
+      },
+    })
+    const result = runReceiptHelper(payload)
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout)).toEqual(payload)
+  })
+
+  test("rejects a selected optional reviewer without a terminal outcome", () => {
+    const result = runReceiptHelper(receiptFixture({
+      review_receipt: {
+        base_sha: SHA40_A,
+        head_sha: SHA40_B,
+        branch: "feature/receipt",
+        selected_reviewers: ["correctness-reviewer", "adversarial-openai"],
+        required_reviewers: ["correctness-reviewer"],
+        completed_reviewers: ["correctness-reviewer"],
+        failed_reviewers: [],
+        terminal_status: "complete",
+      },
+    }))
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("selected reviewer adversarial-openai has no terminal outcome")
+  })
+
+  test("rejects a reviewer recorded as both completed and failed", () => {
+    const result = runReceiptHelper(receiptFixture({
+      review_receipt: {
+        base_sha: SHA40_A,
+        head_sha: SHA40_B,
+        branch: "feature/receipt",
+        selected_reviewers: ["correctness-reviewer"],
+        required_reviewers: ["correctness-reviewer"],
+        completed_reviewers: ["correctness-reviewer"],
+        failed_reviewers: [
+          { reviewer: "correctness-reviewer", reason: "late malformed result", required: true },
+        ],
+        terminal_status: "complete",
+      },
+    }))
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("cannot be both completed and failed")
+  })
+
+  test("rejects an unselected completed reviewer", () => {
+    const result = runReceiptHelper(receiptFixture({
+      review_receipt: {
+        base_sha: SHA40_A,
+        head_sha: SHA40_B,
+        branch: "feature/receipt",
+        selected_reviewers: ["correctness-reviewer"],
+        required_reviewers: ["correctness-reviewer"],
+        completed_reviewers: ["correctness-reviewer", "testing-reviewer"],
+        failed_reviewers: [],
+        terminal_status: "complete",
+      },
+    }))
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("completed reviewer testing-reviewer is not selected")
+  })
+
+  test("rejects an unselected failed reviewer", () => {
+    const result = runReceiptHelper(receiptFixture({
+      review_receipt: {
+        base_sha: SHA40_A,
+        head_sha: SHA40_B,
+        branch: "feature/receipt",
+        selected_reviewers: ["correctness-reviewer"],
+        required_reviewers: ["correctness-reviewer"],
+        completed_reviewers: ["correctness-reviewer"],
+        failed_reviewers: [
+          { reviewer: "testing-reviewer", reason: "unexpected result", required: false },
+        ],
+        terminal_status: "complete",
+      },
+    }))
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("failed reviewer testing-reviewer is not selected")
+  })
+
+  test("rejects a missing required reviewer completion", () => {
+    const result = runReceiptHelper(receiptFixture({
+      review_receipt: {
+        base_sha: SHA40_A,
+        head_sha: SHA40_B,
+        branch: "feature/receipt",
+        selected_reviewers: ["correctness-reviewer", "testing-reviewer"],
+        required_reviewers: ["correctness-reviewer", "testing-reviewer"],
+        completed_reviewers: ["correctness-reviewer"],
+        failed_reviewers: [],
+        terminal_status: "complete",
+      },
+    }))
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("required reviewer")
+  })
+
+  test("rejects complete status when a required reviewer failed", () => {
+    const result = runReceiptHelper(receiptFixture({
+      review_receipt: {
+        base_sha: SHA40_A,
+        head_sha: SHA40_B,
+        branch: "feature/receipt",
+        selected_reviewers: ["correctness-reviewer"],
+        required_reviewers: ["correctness-reviewer"],
+        completed_reviewers: [],
+        failed_reviewers: [
+          { reviewer: "correctness-reviewer", reason: "malformed output", required: true },
+        ],
+        terminal_status: "complete",
+      },
+    }))
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("failed required reviewer")
+  })
+
+  test("rejects complete status when no reviewer produced a usable return", () => {
+    const result = runReceiptHelper(receiptFixture({
+      review_receipt: {
+        base_sha: SHA40_A,
+        head_sha: SHA40_B,
+        branch: "feature/receipt",
+        selected_reviewers: ["adversarial-openai"],
+        required_reviewers: [],
+        completed_reviewers: [],
+        failed_reviewers: [
+          { reviewer: "adversarial-openai", reason: "peer unavailable", required: false },
+        ],
+        terminal_status: "complete",
+      },
+    }))
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("no usable completed reviewer return")
+  })
+
+  test("rejects degraded status without a required coverage gap", () => {
+    const result = runReceiptHelper(receiptFixture({
+      status: "degraded",
+      review_receipt: {
+        base_sha: SHA40_A,
+        head_sha: SHA40_B,
+        branch: "feature/receipt",
+        selected_reviewers: ["correctness-reviewer", "adversarial-openai"],
+        required_reviewers: ["correctness-reviewer"],
+        completed_reviewers: ["correctness-reviewer"],
+        failed_reviewers: [
+          { reviewer: "adversarial-openai", reason: "peer unavailable", required: false },
+        ],
+        terminal_status: "degraded",
+      },
+    }))
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("degraded receipt")
+  })
+
+  test("accepts degraded status with a usable return and required coverage gap", () => {
+    const payload = receiptFixture({
+      status: "degraded",
+      review_receipt: {
+        base_sha: SHA40_A,
+        head_sha: SHA40_B,
+        branch: "feature/receipt",
+        selected_reviewers: ["correctness-reviewer", "testing-reviewer"],
+        required_reviewers: ["correctness-reviewer", "testing-reviewer"],
+        completed_reviewers: ["correctness-reviewer"],
+        failed_reviewers: [
+          { reviewer: "testing-reviewer", reason: "malformed output", required: true },
+        ],
+        terminal_status: "degraded",
+      },
+    })
+    const result = runReceiptHelper(payload)
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout)).toEqual(payload)
+  })
+
+  test("rejects degraded status when no reviewer produced a usable return", () => {
+    const result = runReceiptHelper(receiptFixture({
+      status: "degraded",
+      review_receipt: {
+        base_sha: SHA40_A,
+        head_sha: SHA40_B,
+        branch: "feature/receipt",
+        selected_reviewers: ["correctness-reviewer", "testing-reviewer"],
+        required_reviewers: ["correctness-reviewer", "testing-reviewer"],
+        completed_reviewers: [],
+        failed_reviewers: [
+          { reviewer: "correctness-reviewer", reason: "timed out", required: true },
+          { reviewer: "testing-reviewer", reason: "malformed output", required: true },
+        ],
+        terminal_status: "degraded",
+      },
+    }))
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("no usable completed reviewer return")
+  })
+
+  test("accepts a full failed payload when every dispatched reviewer failed", () => {
+    const payload = receiptFixture({
+      status: "failed",
+      verdict: "Not ready",
+      review_receipt: {
+        base_sha: SHA40_A,
+        head_sha: SHA40_B,
+        branch: "feature/receipt",
+        selected_reviewers: ["correctness-reviewer", "adversarial-openai"],
+        required_reviewers: ["correctness-reviewer"],
+        completed_reviewers: [],
+        failed_reviewers: [
+          { reviewer: "correctness-reviewer", reason: "timed out", required: true },
+          { reviewer: "adversarial-openai", reason: "peer unavailable", required: false },
+        ],
+        terminal_status: "failed",
+      },
+    })
+    const result = runReceiptHelper(payload)
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout)).toEqual(payload)
+  })
+
+  test("rejects failed status when a usable reviewer return exists", () => {
+    const result = runReceiptHelper(receiptFixture({
+      status: "failed",
+      verdict: "Not ready",
+      review_receipt: {
+        base_sha: SHA40_A,
+        head_sha: SHA40_B,
+        branch: "feature/receipt",
+        selected_reviewers: ["correctness-reviewer", "testing-reviewer"],
+        required_reviewers: ["correctness-reviewer", "testing-reviewer"],
+        completed_reviewers: ["correctness-reviewer"],
+        failed_reviewers: [
+          { reviewer: "testing-reviewer", reason: "malformed output", required: true },
+        ],
+        terminal_status: "failed",
+      },
+    }))
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("failed status requires no usable completed reviewer returns")
+  })
+
+
+  test("rejects top-level and receipt status mismatch", () => {
+    const result = runReceiptHelper(receiptFixture({
+      status: "degraded",
+    }))
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("status")
+  })
+
+  test("rejects non-concrete receipt SHAs", () => {
+    const result = runReceiptHelper(receiptFixture({
+      review_receipt: {
+        base_sha: "pr:123",
+        head_sha: SHA40_B,
+        branch: "feature/receipt",
+        selected_reviewers: ["correctness-reviewer"],
+        required_reviewers: ["correctness-reviewer"],
+        completed_reviewers: ["correctness-reviewer"],
+        failed_reviewers: [],
+        terminal_status: "complete",
+      },
+    }))
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("base_sha")
+  })
+
+  test("accepts remote scope identity with a 64-character concrete SHA", () => {
+    const sha64 = "c".repeat(64)
+    const payload = receiptFixture({
+      scope: {
+        base: "pr:321",
+        branch: "fork-owner:feature/remote",
+        head_sha: sha64,
+        pr_url: "https://github.com/example/repo/pull/321",
+        files_changed: 4,
+      },
+      review_receipt: {
+        base_sha: "d".repeat(64),
+        head_sha: sha64,
+        branch: "fork-owner:feature/remote",
+        selected_reviewers: ["correctness-reviewer"],
+        required_reviewers: ["correctness-reviewer"],
+        completed_reviewers: ["correctness-reviewer"],
+        failed_reviewers: [],
+        terminal_status: "complete",
+      },
+    })
+    const result = runReceiptHelper(payload)
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout)).toEqual(payload)
+  })
+})
+
+describe("ce-code-review pr-remote merge-base evidence", () => {
+  test("immutable PR endpoint fetches produce the fork merge base, not the advanced base tip", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-pr-remote-base-"))
+    const origin = path.join(root, "origin.git")
+    const seed = path.join(root, "seed")
+    const review = path.join(root, "review")
+
+    try {
+      gitCommand(root, "init", "--bare", origin)
+      gitCommand(root, "init", "-b", "main", seed)
+      gitCommand(seed, "config", "user.email", "review-contract@example.com")
+      gitCommand(seed, "config", "user.name", "Review Contract")
+
+      const forkMergeBase = await commitFile(seed, "shared.txt", "shared\n", "shared base")
+      gitCommand(seed, "switch", "-c", "feature")
+      const headRefOid = await commitFile(seed, "feature.txt", "feature\n", "feature change")
+      gitCommand(seed, "switch", "main")
+      const baseRefOid = await commitFile(seed, "base.txt", "advanced\n", "advance base branch")
+      gitCommand(seed, "remote", "add", "origin", origin)
+      gitCommand(seed, "push", "origin", "main", "feature")
+
+      gitCommand(root, "init", review)
+      gitCommand(review, "remote", "add", "origin", origin)
+      const privateBaseRef = "refs/review/pr-17-base-oid"
+      const privateHeadRef = "refs/review/pr-17-head-oid"
+      gitCommand(
+        review,
+        "fetch",
+        "--no-tags",
+        "origin",
+        `+${baseRefOid}:${privateBaseRef}`,
+        `+${headRefOid}:${privateHeadRef}`,
+      )
+
+      expect(gitCommand(review, "rev-parse", `${privateBaseRef}^{commit}`)).toBe(baseRefOid)
+      expect(gitCommand(review, "rev-parse", `${privateHeadRef}^{commit}`)).toBe(headRefOid)
+      const reviewedMergeBase = gitCommand(review, "merge-base", privateBaseRef, privateHeadRef)
+      expect(reviewedMergeBase).toBe(forkMergeBase)
+      expect(reviewedMergeBase).not.toBe(baseRefOid)
+      const receiptResult = runReceiptHelper(receiptFixture({
+        scope: {
+          base: "pr:17",
+          branch: "feature",
+          head_sha: headRefOid,
+          pr_url: "https://github.com/example/repo/pull/17",
+          files_changed: 1,
+        },
+        review_receipt: {
+          base_sha: reviewedMergeBase,
+          head_sha: headRefOid,
+          branch: "feature",
+          selected_reviewers: ["correctness-reviewer"],
+          required_reviewers: ["correctness-reviewer"],
+          completed_reviewers: ["correctness-reviewer"],
+          failed_reviewers: [],
+          terminal_status: "complete",
+        },
+      }))
+      expect(receiptResult.status, receiptResult.stderr).toBe(0)
+      expect(JSON.parse(receiptResult.stdout).review_receipt.base_sha).toBe(forkMergeBase)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})
+
+describe("ce-code-review agent receipt contract", () => {
+  test("exposes reviewed state and canonical required reviewer coverage", async () => {
+    const skill = await readRepoFile("skills/ce-code-review/SKILL.md")
+    const finish = await readRepoFile("skills/ce-code-review/references/finish-review.md")
+    const template = await readRepoFile("skills/ce-code-review/references/review-output-template.md")
+    expect(skill).toContain("baseRefOid")
+    expect(skill).toMatch(/--json[^\n]*baseRefOid[^\n]*headRefOid/)
+    expect(skill).toContain('git merge-base "$PR_BASE_OID_REF" "$PR_HEAD_REF"')
+    expect(skill).toMatch(/pr-remote[^\n]*merge base[^\n]*immutable PR base\/head OIDs[^\n]*before reviewer dispatch/i)
+    expect(skill).toMatch(/pr-remote[\s\S]{0,1800}fail[^\n]*before reviewer dispatch/i)
+    expect(finish).toMatch(/pr-remote[^\n]*computed merge base[^\n]*Stage 1/i)
+    expect(finish).not.toMatch(/use immutable PR metadata `baseRefOid`/i)
+    expect(finish).toContain("$SKILL_DIR/scripts/review-receipt.mjs")
+    expect(finish).toContain('< "$RUN_DIR/final-review-input.json" > "$RUN_DIR/review.json"')
+    expect(finish).toContain('cat "$RUN_DIR/review.json"')
+
+    for (const field of [
+      "review_receipt",
+      "base_sha",
+      "head_sha",
+      "branch",
+      "selected_reviewers",
+      "required_reviewers",
+      "completed_reviewers",
+      "failed_reviewers",
+      "terminal_status",
+    ]) {
+      expect(skill).toContain(field)
+      expect(finish).toContain(field)
+    }
+
+    for (const contract of [skill, finish]) {
+      expect(contract).toMatch(/selected_reviewers[\s\S]{0,500}canonical final roster/i)
+      expect(contract).toMatch(/optional cross-model peer[\s\S]{0,240}(?:remains optional|is excluded)/i)
+    }
+    for (const contract of [skill, finish]) {
+      expect(contract).toContain(
+        "Top-level `status` and `review_receipt.terminal_status` must agree",
+      )
+      expect(contract).toMatch(
+        /base_sha[^\n]*concrete[^\n]*(?:never|not)[^\n]*(?:pr:N|logical)[^\n]*unresolved/i,
+      )
+      expect(contract).toMatch(/branch[^\n]*head_sha[^\n]*(?:reviewed scope|scope identity)[^\n]*before dispatch/i)
+      expect(contract).toMatch(
+        /standalone[^\n]*base:[^\n]*local-aligned[^\n]*(?:checkout branch|checkout)[^\n]*HEAD/i,
+      )
+      expect(contract).toMatch(
+        /pr-remote[^\n]*branch-remote[^\n]*(?:reviewed head branch\/ref identity|reviewed head)[^\n]*concrete reviewed head SHA[^\n]*(?:not|unrelated checkout)/i,
+      )
+      expect(contract).toContain(
+        "`complete` means every required reviewer completed and no required reviewer failed",
+      )
+      expect(contract).toContain(
+        "A recorded optional failure (`required: false`) does not degrade `complete`",
+      )
+      expect(contract).toContain(
+        "Every selected reviewer must appear in exactly one of `completed_reviewers` or `failed_reviewers`",
+      )
+      expect(contract).toContain("no terminal outcome may name an unselected reviewer")
+      expect(contract).toContain(
+        "Use `degraded` only when at least one reviewer produced a usable completed return but a required reviewer failed",
+      )
+      expect(contract).toContain(
+        "Use `failed` when dispatch began but no reviewer produced a usable completed return",
+      )
+    }
+    expect(`${skill}\n${finish}`).toMatch(
+      /required_reviewers[\s\S]*(?:downstream )?callers? must not (?:reconstruct|infer) requiredness/i,
+    )
+    expect(finish).toContain("payload on disk must byte-match the emitted JSON object")
+    expect(finish).toContain("valid returns actually folded into synthesis")
+    expect(finish).toMatch(/failed, timed out, or returned malformed output/i)
+    expect(finish).toMatch(/Once any reviewer dispatch begins[\s\S]*complete, degraded, and failed/i)
+    expect(template).toContain("review_receipt")
+    expect(template).toContain("absent only when the invocation fails or skips before reviewer dispatch begins")
   })
 })

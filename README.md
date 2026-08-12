@@ -207,7 +207,7 @@ The first pass tightens recent branch changes before review. The targeted pass i
 
 After installing, run `/ce-setup` in any project. It checks repo-local config, reports optional tool capabilities, and helps keep machine-local CE settings safely gitignored.
 
-The `compound-engineering` plugin currently ships 33 skills. Its core workflows spawn specialist subagents on demand for research, review, planning, and implementation. Each skill seeds generic subagents with its own prompts instead of relying on standalone plugin agents, keeping the workflows portable across harnesses that handle formal agent definitions differently.
+The `compound-engineering` plugin currently ships 34 skills. Its core workflows spawn specialist subagents on demand for research, review, planning, and implementation. Each skill seeds generic subagents with its own prompts instead of relying on standalone plugin agents, keeping the workflows portable across harnesses that handle formal agent definitions differently.
 
 ### Full Skill Inventory
 
@@ -221,6 +221,7 @@ The `compound-engineering` plugin currently ships 33 skills. Its core workflows 
 | [`/ce-plan`](docs/skills/ce-plan.md) | Create structured implementation plans |
 | [`/ce-work`](docs/skills/ce-work.md) | Execute plans with native or cross-model implementation, durable progress, and transactional host-owned integration |
 | [`/ce-code-review`](docs/skills/ce-code-review.md) | Review code with skill-local reviewer personas |
+| [`/ce-code-review-loop`](docs/skills/ce-code-review-loop.md) | Converge a clean local branch through canonical full reviews and verified defect-family commits |
 | [`/ce-doc-review`](docs/skills/ce-doc-review.md) | Review requirements and plan documents |
 | [`/ce-doc-review-loop`](docs/skills/ce-doc-review-loop.md) | Converge cross-cutting document reviews with frozen snapshots and bounded remediation neighborhoods |
 | [`/ce-debug`](docs/skills/ce-debug.md) | Reproduce failures, trace root cause, fix bugs, and prepare non-trivial fixes for PR |

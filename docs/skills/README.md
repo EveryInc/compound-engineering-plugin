@@ -69,6 +69,7 @@ Invoked when a specific need arises — not part of any chain.
 | [`/ce-explain`](./ce-explain.md) | Turn a concept, a diff, an idea, or a window of your own recent work into a dense, self-contained visual document built to keep — evidence-grounded recaps, capability-detected destination ask, optional opt-in check-in (predict-then-reveal for diffs, corrected exercises) |
 | [`/ce-debug`](./ce-debug.md) | Find root causes systematically — causal chain gate, predictions, post-fix polish/review, PR handoff |
 | [`/ce-code-review`](./ce-code-review.md) | Structured code review with skill-local reviewer personas, confidence-gated findings, four modes |
+| [`/ce-code-review-loop`](./ce-code-review-loop.md) | Converge a clean local branch through bounded canonical review waves — defect-family remediation, verified local commits, final Ready-to-merge gate |
 | [`/ce-doc-review`](./ce-doc-review.md) | Review requirements or plan documents using skill-local reviewer personas — coherence, feasibility, product-lens, design-lens, security-lens, scope-guardian, adversarial |
 | [`/ce-doc-review-loop`](./ce-doc-review-loop.md) | Converge multi-contract documents through bounded review waves — contract preparation, defect-family remediation, final-snapshot convergence |
 | [`/ce-simplify-code`](./ce-simplify-code.md) | Refine recently changed code — reuse, quality, and efficiency review; behavior preservation verified |

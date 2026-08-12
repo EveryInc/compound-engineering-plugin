@@ -160,7 +160,7 @@ This fails because of the **box-drawing `────` separators between items*
 
 When `mode:agent` is active, **do not** emit the markdown table report above. Emit **one parseable JSON object** as the primary response and write the same payload to `review.json` under the resolved `<run-dir>`.
 
-The contract is defined in SKILL.md under **`### JSON output format (`mode:agent` only)`**. Minimum fields: `status`, `verdict`, `scope`, `intent`, `reviewers`, `findings`, `actionable_findings`, `artifact_path`, `run_id`.
+The contract is defined in SKILL.md under **`### JSON output format (`mode:agent` only)`**. Minimum fields: `status`, `verdict`, `scope`, `intent`, `reviewers`, `findings`, `actionable_findings`, `artifact_path`, `run_id`, `review_receipt`.
 
 Key differences from the human-facing markdown format:
 
@@ -168,5 +168,6 @@ Key differences from the human-facing markdown format:
 - **`actionable_findings`** — subset for caller apply workflows (`gated_auto` / `manual` with `downstream-resolver`).
 - **`triage_groups`** — the markdown Triage Groups section serialized as `{title, findings: [<stable #s>], context, preferred_resolution, why}` objects, so callers can batch related fixes by theme. Groups span the full finding set — a triage lens, not an apply queue — so a caller must intersect each group's `findings` with `actionable_findings` before applying; the apply handoff stays `actionable_findings`. Empty when `grouping:off` or no groups.
 - **No `applied_fixes` and no Applied section** — `mode:agent` does not apply fixes; the caller does. Applied work surfaces only in explicitly authorized local-apply markdown (Stage 5c/6). The handoff is `actionable_findings`.
-- **Failure/degraded paths** — `{"status":"failed","reason":"..."}` or `"status":"degraded"` with reason; never mix markdown tables into the JSON response.
+- **`review_receipt`** — orchestrator-owned machine evidence for downstream coordination: concrete reviewed base/head and branch/ref identity, the canonical final roster, producer-owned requiredness, valid completed returns, structured failures, and terminal status. Downstream callers consume `required_reviewers` verbatim and never infer it from identities or providers. The receipt is absent only when the invocation fails or skips before reviewer dispatch begins; once dispatch starts, complete, degraded, and failed JSON retains it. `review.json` must byte-match the emitted JSON object.
+- **Failure/degraded paths** — before dispatch, `{"status":"failed","reason":"..."}` or a skipped shape may remain minimal. Once dispatch begins, failed or degraded output retains the full `review_receipt`; never mix markdown tables into the JSON response.
 - **Stable `#`** — same numbering as Stage 5 synthesis, carried in JSON finding objects for downstream apply/residual tracking.

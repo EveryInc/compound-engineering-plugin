@@ -14,6 +14,7 @@ const PLUGIN_ROOT = path.join(process.cwd(), "skills")
 const DISPATCH_SKILLS = [
   "ce-brainstorm",
   "ce-code-review",
+  "ce-code-review-loop",
   "ce-compound",
   "ce-compound-refresh",
   "ce-debug",
