@@ -33,6 +33,29 @@ const FILES: Record<string, string> = {
   "references/universal-ideation.md": read("references/universal-ideation.md"),
 }
 
+// Probe an enumeration inside the section that DEFINES it. Frame names also
+// appear in the fleet summary, so a file-wide probe stays green even if the
+// whole frame-definition section is deleted.
+function section(body: string, startAnchor: string, endAnchor: RegExp): string {
+  const start = body.indexOf(startAnchor)
+  if (start < 0) return ""
+  const rest = body.slice(start + startAnchor.length)
+  const m = rest.match(endAnchor)
+  return rest.slice(0, m ? m.index : undefined)
+}
+
+const FRAMES_SOFTWARE = section(FILES["references/divergent-ideation.md"], "## Frames", /\n## /)
+const FRAMES_UNIVERSAL = section(FILES["references/universal-ideation.md"], "## How to generate", /\n## /)
+
+const ALL_SIX_FRAMES = [
+  /Pain and friction/i,
+  /Inversion, removal,? (or )?automation/i,
+  /Assumption-breaking/i,
+  /Leverage and compounding/i,
+  /Cross-domain analogy/i,
+  /Constraint-flipping/i,
+]
+
 type SharedRule = {
   rule: string
   why: string
@@ -42,13 +65,6 @@ type SharedRule = {
 }
 
 const SHARED_CONTRACT: SharedRule[] = [
-  {
-    rule: "all six frames",
-    why: "Lens coverage is the skill's quality claim; a path missing a frame silently narrows ideation.",
-    softwareFile: "references/divergent-ideation.md",
-    software: /Pain and friction[\s\S]*Cross-domain analogy[\s\S]*Constraint-flipping/i,
-    universal: /Pain and friction[\s\S]*Cross-domain analogy[\s\S]*Constraint-flipping/i,
-  },
   {
     rule: "frames are a starting bias, not a constraint",
     why: "Without it an agent treats its frame as a fence and drops cross-cutting ideas.",
@@ -113,8 +129,8 @@ const SHARED_CONTRACT: SharedRule[] = [
       "Distinct from the generation-time 'distribute ideas across axes' instruction. Without the " +
       "convergence rule, survivors cluster on one axis and the decomposition bought nothing.",
     softwareFile: "references/post-ideation-workflow.md",
-    software: /Score survivors[\s\S]{0,600}axis spread/i,
-    universal: /[Ss]core survivors[\s\S]{0,600}axis spread/i,
+    software: /Score survivors using a consistent rubric[\s\S]{0,700}axis spread/i,
+    universal: /Score survivors using a consistent rubric[\s\S]{0,700}axis spread/i,
   },
   {
     rule: "a FRESH-CONTEXT basis verifier runs before the final cut",
@@ -122,8 +138,8 @@ const SHARED_CONTRACT: SharedRule[] = [
       "Self-critique by the generator is the failure this replaces. Do not match generation-time " +
       "'verification reads' — that is a different mechanism in a different phase.",
     softwareFile: "references/post-ideation-workflow.md",
-    software: /fresh-context verifier|Dispatch a verifier whose payload is only/i,
-    universal: /fresh-context basis verifier/i,
+    software: /Dispatch a verifier whose payload is only/,
+    universal: /dispatch one fresh-context basis verifier[\s\S]{0,240}whose payload is only/i,
   },
 ]
 
@@ -142,6 +158,25 @@ describe("ce-ideate ideation contract holds on BOTH the software and universal p
       ).toBe(true)
     })
   }
+
+  test("both paths define ALL SIX frames in their own frame section", () => {
+    // Not a file-wide probe: three of the names also appear in the fleet
+    // summary, so a file-wide match survives deleting the frame definitions
+    // entirely. And all six must be checked -- requiring only three let
+    // Inversion, Assumption-breaking, or Leverage vanish silently.
+    expect(FRAMES_SOFTWARE.length, "divergent-ideation.md must keep a '## Frames' section.").toBeGreaterThan(0)
+    expect(FRAMES_UNIVERSAL.length, "universal-ideation.md must keep a '## How to generate' section.").toBeGreaterThan(0)
+    for (const frame of ALL_SIX_FRAMES) {
+      expect(
+        frame.test(FRAMES_SOFTWARE),
+        `divergent-ideation.md's Frames section lost ${frame}. Lens coverage is the skill's quality claim.`,
+      ).toBe(true)
+      expect(
+        frame.test(FRAMES_UNIVERSAL),
+        `universal-ideation.md's generation section lost ${frame}. Non-software runs load it INSTEAD, so the lens would simply not run.`,
+      ).toBe(true)
+    }
+  })
 
   test("each rule is probed in the file that owns it, not the whole path", () => {
     // The vacuous-probe bug: a rule owned by post-ideation-workflow.md probed
@@ -165,7 +200,6 @@ describe("ce-ideate ideation contract holds on BOTH the software and universal p
       "an explicit volume request is a total, not a per-frame multiplier",
       "a raised volume override lifts the tactical read cap with it",
       "the meeting-test floor is waived only under ACTIVE tactical scope",
-      "all six frames",
     ]
     const covered = SHARED_CONTRACT.map((r) => r.rule)
     for (const rule of mustCover) {
