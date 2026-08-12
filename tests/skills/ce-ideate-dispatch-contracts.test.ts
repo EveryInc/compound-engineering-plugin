@@ -439,8 +439,8 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
       ["divergent-ideation.md", DIVERGENT_BODY],
     ] as const) {
       expect(
-        /preserves what the user asked for and re-derives what the mode computed/i.test(body),
-        `${label} must split preserved intent from re-derived mode values.`,
+        /re-derives only what the abandoned surface determined, and never re-resolves anything else/i.test(body),
+        `${label} must bound re-derivation to the surface-determined values.`,
       ).toBe(true)
       expect(
         /4 agents holding 6 frames/i.test(body),
@@ -451,10 +451,28 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
         `${label} must name the multiplication hazard of carrying the old per-frame volume.`,
       ).toBe(true)
     }
-    // The inverted rule must not return.
+    // Post-collision state, not raw prompt signals: `go deep` + `quick wins`
+    // has already suppressed tactical, and re-deriving from the raw signal
+    // resurrects the waived floor on a maximum-depth run.
+    for (const [label, body] of [
+      ["the inline Phase 1 step", ISSUE_PROTOCOL],
+      ["issue-intelligence.md", ISSUE_INTELLIGENCE_BODY],
+      ["divergent-ideation.md", DIVERGENT_BODY],
+    ] as const) {
+      expect(
+        /already-resolved\*{0,2} scaling state/i.test(body),
+        `${label} must carry Phase 0.5's post-collision state, not the raw signals.`,
+      ).toBe(true)
+      expect(
+        /would resurrect the waived floor and lowered volume on a maximum-depth run/i.test(body),
+        `${label} must name why re-reading raw signals is unsafe.`,
+      ).toBe(true)
+    }
+    // Neither earlier formulation may return.
     expect(
-      /re-derives nothing|carrying every value this run has already resolved/i.test(SKILL_BODY + DIVERGENT_BODY + ISSUE_INTELLIGENCE_BODY),
-      "The blanket inherit-everything rule is wrong; it must not be reintroduced.",
+      /re-derives nothing|carrying every value this run has already resolved|preserves what the user asked for and re-derives what the mode computed/i
+        .test(SKILL_BODY + DIVERGENT_BODY + ISSUE_INTELLIGENCE_BODY),
+      "Neither the inherit-everything nor the re-derive-from-raw-signals rule may be reintroduced.",
     ).toBe(false)
     expect(
       /use the default Phase 2 fleet/i.test(SKILL_BODY),
