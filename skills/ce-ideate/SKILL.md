@@ -233,11 +233,11 @@ Two symmetric depth overrides scale the run. Both are opt-in from the user's own
 **Tactical signals — scale down.** Parse the focus hint (and any 0.2 intake answers) for `polish`, `typo`, `typos`, `quick wins`, `small improvements`, `cleanup`, or `small fixes`. When present, the user has opted into tactical scope, so shrink the run:
 
 - **2 ideation agents covering all six frames** (3 frames each) instead of 5. Cut agents, never frame coverage — the six frames are a coverage floor, and dropping the ceiling frames would remove exactly the non-obvious ideas a small surface still benefits from.
-- **Cap Phase 1.5 at 3 axes and evidence scouts at 2.** Cap them together: scouts are dispatched one per axis, so capping scouts alone would leave axes with no evidence layer.
+- **Cap Phase 1.5 at 3 axes and evidence scouts at 3.** Keep the two caps *equal*: scouts dispatch one per axis, so any axis past the scout cap reaches generation with no evidence dossier and only the Phase 1 orientation gist to cite. Three is the floor for decomposition at all (fewer means atomic), so this is the smallest coupled pair — not a further cut on either side alone.
 - **Waive the meeting-test floor at both layers** — for the generators *and* in the Phase 3 basis verifier's dispatch prompt. The verifier runs on a fresh context with none of the generation history, so a waiver it is not told about does not reach it.
 - **Keep the basis verifier.** A cheap run still may not surface ideas whose basis was never checked.
 
-Use reasonable interpretation rather than formal parsing. If a prompt carries both `go deep` and a tactical signal, `go deep` wins — it is the more explicit request.
+Use reasonable interpretation rather than formal parsing. Two collisions have fixed answers: when a prompt carries both `go deep` and a tactical signal, `go deep` wins (the more explicit request); when it carries both a tactical signal and issue-tracker intent (`quick wins from open issues`) splits — issue-tracker mode still selects the *frames*, because the themes are the surface, while tactical still sets the *agent count* and the caps above. See the fleet variants in `references/divergent-ideation.md`.
 
 #### 0.6 Cost Transparency Notice
 
@@ -382,7 +382,7 @@ The third row is there to widen the range, not to be copied: axes do not have to
 
 **Surprise-me skip.** Skip this phase entirely in surprise-me mode and note `Decomposition skipped — surprise-me mode` — apply the 0.2 table's `1.5 axes` row.
 
-**Evidence scouts (repo mode, when axes exist).** Decomposition names what to look at; scouts gather what is actually there. The Phase 1 scan is an orientation gist — too thin for ideation agents to quote from — so dispatch one extraction-tier sub-agent per axis (max 5; max 2 under tactical scope) in parallel. Pass each scout the absolute `<scratch-dir>` path from Phase 1 and a kebab-case slug for its axis, with this prompt:
+**Evidence scouts (repo mode, when axes exist).** Decomposition names what to look at; scouts gather what is actually there. The Phase 1 scan is an orientation gist — too thin for ideation agents to quote from — so dispatch one extraction-tier sub-agent per axis (max 5; max 3 under tactical scope, matching that mode's axis cap — never fewer scouts than retained axes) in parallel. Pass each scout the absolute `<scratch-dir>` path from Phase 1 and a kebab-case slug for its axis, with this prompt:
 
 > Gather evidence about **{axis}** in this repo, scoped to {focus/subject}. Search first with the native file-search and content-search tools, then read targeted sections — budget ~20 reads, preferring ranges over whole files. Write an **evidence dossier** to `{scratch-dir}/evidence-{axis-slug}.md`: at most 150 lines of verbatim quotes and short code snippets, each with a `file:line` pointer, covering pain points, workarounds, TODO/FIXME markers, surprising patterns, and leverage points on this axis. Extraction only — quote what the repo says; do not interpret, theme, or propose ideas. If the axis has little footprint, write less rather than padding. Return only a gist: 3-5 lines summarizing what the dossier holds, plus its absolute path and entry count.
 

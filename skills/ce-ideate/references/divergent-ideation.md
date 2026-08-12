@@ -13,7 +13,17 @@ Fleet variants — **all six frames are covered in every variant**. Only the num
 
 - **surprise-me** and **`go deep`** — 6 agents, one frame each, all ceiling-tier.
 - **tactical scope** (Phase 0.5 signals) — 2 agents, 3 frames each, native tiers: one takes the three evidence-driven frames (pain; inversion; leverage), the other the three ceiling frames (assumption-breaking; analogy; constraint-flipping). Frame coverage is a floor, not a budget line — a tactical run gets fewer agents and a lower ambition floor, never fewer lenses.
-- **issue-tracker mode** — 4 agents, only when issue-tracker intent was detected in Phase 0.2 AND the issue intelligence agent returned usable themes (see the override below — cluster-derived frames capped at 4, dispatched on the generation tier; padded frames keep their native tier). This is the one variant that legitimately narrows the frame set, because the themes *are* the surface. The insufficient-issue-signal fallback from Phase 1 uses the default 5-agent fleet.
+- **issue-tracker mode** — 4 agents, only when issue-tracker intent was detected in Phase 0.2 AND the issue intelligence agent returned usable themes (see the override below — cluster-derived frames capped at 4, dispatched on the generation tier; padded frames keep their native tier). This is the one variant that legitimately narrows the frame set, because the themes *are* the surface.
+
+**When two variants fire at once, frames and agent count are decided separately.** Whichever variant owns the *surface* picks the frames; whichever owns the *budget* picks how many agents they pack into.
+
+| Both fired | Frames | Agents |
+|---|---|---|
+| issue-tracker + tactical | theme frames (issue-tracker owns the surface) | 2 (tactical owns the budget) |
+| issue-tracker + `go deep` / surprise-me | theme frames | 4, all ceiling-tier |
+| tactical + `go deep` | six frames | 6, all ceiling-tier (`go deep` wins outright per Phase 0.5) |
+
+The insufficient-issue-signal fallback from Phase 1 drops back to the **six-frame default at this run's own agent count** — 5 ordinarily, 2 under tactical, 6 under `go deep` or surprise-me. It does not reset a scaled run to 5.
 
 Each frame targets ~6-8 ideas (a two-frame agent targets that per frame), yielding ~36-48 raw ideas in the default path or ~24-32 across 4 frames in issue-tracker mode; roughly 25-30 survive dedupe in the default path and fewer in the 4-frame path. Adjust per-frame targets when volume overrides apply (e.g., "100 ideas" raises it, "top 3" may lower the survivor count instead).
 

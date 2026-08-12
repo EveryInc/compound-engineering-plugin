@@ -12,6 +12,10 @@ const POST_IDEATION_BODY = readFileSync(
   path.join(SKILL_DIR, "references/post-ideation-workflow.md"),
   "utf8",
 )
+const ISSUE_INTELLIGENCE_BODY = readFileSync(
+  path.join(SKILL_DIR, "references/issue-intelligence.md"),
+  "utf8",
+)
 
 // Two Phase 1 blocks were extracted to references during the ce-ideate
 // slimming pass. Both are conditional (rare, explicit triggers), so extraction
@@ -190,22 +194,47 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
     ).toBe(true)
   })
 
-  test("axes and scouts are capped together, not independently", () => {
-    // Scouts dispatch one per axis; capping scouts alone would leave axes with
-    // no evidence layer.
+  test("the axis and scout caps are equal, so no retained axis is left unscouted", () => {
+    // Scouts dispatch one per axis, so an axis past the scout cap reaches
+    // generation with no evidence dossier. An earlier revision capped axes at 3
+    // and scouts at 2, which stranded exactly one axis on every tactical run.
+    const axisCap = VOLUME_0_5.match(/Cap Phase 1\.5 at (\d+) axes and evidence scouts at (\d+)/i)
+    expect(axisCap, "Phase 0.5 must state the tactical axis and scout caps together.").not.toBeNull()
     expect(
-      /Cap Phase 1\.5 at 3 axes and evidence scouts at 2/i.test(VOLUME_0_5),
-      "Tactical scope must cap axes and scouts together.",
-    ).toBe(true)
+      axisCap![1],
+      "The tactical axis and scout caps must be equal — a lower scout cap strands an axis.",
+    ).toBe(axisCap![2])
+
     const decomposition = PHASE_1_5
     expect(
       /3 max under tactical scope/i.test(decomposition),
       "Phase 1.5 must carry the tactical axis cap at the point axes are chosen.",
     ).toBe(true)
+    const scoutCap = decomposition.match(/max (\d+) under tactical scope/i)
+    expect(scoutCap, "The scout dispatch must carry the tactical scout cap at its own site.").not.toBeNull()
+    expect(scoutCap![1], "The scout dispatch cap must match the axis cap.").toBe(axisCap![1])
+  })
+
+  test("a tactical run colliding with go deep or issue-tracker mode has a defined winner", () => {
+    // Tactical selects a six-frame 2-agent fleet while issue-tracker mode
+    // selects theme frames, so "quick wins from open issues" needs a rule.
     expect(
-      /max 2 under tactical scope/i.test(decomposition),
-      "The scout dispatch must carry the tactical scout cap at its own dispatch site.",
+      /`go deep` wins/i.test(VOLUME_0_5),
+      "Phase 0.5 must resolve tactical vs `go deep`.",
     ).toBe(true)
+    expect(
+      /issue-tracker/i.test(VOLUME_0_5),
+      "Phase 0.5 must resolve tactical vs issue-tracker intent.",
+    ).toBe(true)
+    expect(
+      /issue-tracker \+ tactical/i.test(DIVERGENT_BODY),
+      "divergent-ideation.md must carry the frames-vs-agent-count split for colliding variants.",
+    ).toBe(true)
+    // The fallback must inherit the run's scaling rather than resetting to 5.
+    expect(
+      /default 5-agent fleet/i.test(DIVERGENT_BODY) || /default 5-agent fleet/i.test(ISSUE_INTELLIGENCE_BODY),
+      "The insufficient-issue-signal fallback must not hardcode a 5-agent fleet over a scaled run.",
+    ).toBe(false)
   })
 
   test("go deep still scales up, so the two overrides stay symmetric", () => {
