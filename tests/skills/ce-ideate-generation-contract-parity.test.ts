@@ -33,23 +33,30 @@ const FILES: Record<string, string> = {
   "references/universal-ideation.md": read("references/universal-ideation.md"),
 }
 
-// Probe an enumeration inside the section that DEFINES it. Frame names also
-// appear in the fleet summary, so a file-wide probe stays green even if the
-// whole frame-definition section is deleted.
-function section(body: string, startAnchor: string, endAnchor: RegExp): string {
+// Probe an enumeration by its DEFINITION LINES, not by section text.
+//
+// Three attempts failed before this one, each looser than the rule it named:
+// a file-wide probe matched the fleet summary; a section-scoped probe matched
+// the section's own intro sentence ("ceiling frames (assumption-breaking,
+// analogy, constraint-flipping)") and the axis-coverage example. A frame is
+// only really defined by its own bullet, so that is what gets asserted.
+function definitionLines(body: string, startAnchor: string): string[] {
   const start = body.indexOf(startAnchor)
-  if (start < 0) return ""
+  if (start < 0) return []
   const rest = body.slice(start + startAnchor.length)
-  const m = rest.match(endAnchor)
-  return rest.slice(0, m ? m.index : undefined)
+  const end = rest.search(/\n## /)
+  return (end < 0 ? rest : rest.slice(0, end))
+    .split("\n")
+    // a definition line: a top-level list item whose label is bolded
+    .filter((l) => /^\s*(?:[-*]|\d+\.)\s+\*\*/.test(l))
 }
 
-const FRAMES_SOFTWARE = section(FILES["references/divergent-ideation.md"], "## Frames", /\n## /)
-const FRAMES_UNIVERSAL = section(FILES["references/universal-ideation.md"], "## How to generate", /\n## /)
+const FRAME_DEFS_SOFTWARE = definitionLines(FILES["references/divergent-ideation.md"], "## Frames")
+const FRAME_DEFS_UNIVERSAL = definitionLines(FILES["references/universal-ideation.md"], "## How to generate")
 
 const ALL_SIX_FRAMES = [
   /Pain and friction/i,
-  /Inversion, removal,? (or )?automation/i,
+  /Inversion, removal/i,
   /Assumption-breaking/i,
   /Leverage and compounding/i,
   /Cross-domain analogy/i,
@@ -159,21 +166,20 @@ describe("ce-ideate ideation contract holds on BOTH the software and universal p
     })
   }
 
-  test("both paths define ALL SIX frames in their own frame section", () => {
-    // Not a file-wide probe: three of the names also appear in the fleet
-    // summary, so a file-wide match survives deleting the frame definitions
-    // entirely. And all six must be checked -- requiring only three let
-    // Inversion, Assumption-breaking, or Leverage vanish silently.
-    expect(FRAMES_SOFTWARE.length, "divergent-ideation.md must keep a '## Frames' section.").toBeGreaterThan(0)
-    expect(FRAMES_UNIVERSAL.length, "universal-ideation.md must keep a '## How to generate' section.").toBeGreaterThan(0)
+  test("both paths give ALL SIX frames their own definition line", () => {
+    // Section scoping was still too loose: the universal section's intro
+    // sentence names three of the frames, so deleting their definitions left
+    // the guard green. Only a definition bullet counts.
+    expect(FRAME_DEFS_SOFTWARE.length, "divergent-ideation.md must keep frame definition bullets.").toBeGreaterThanOrEqual(6)
+    expect(FRAME_DEFS_UNIVERSAL.length, "universal-ideation.md must keep frame definition bullets.").toBeGreaterThanOrEqual(6)
     for (const frame of ALL_SIX_FRAMES) {
       expect(
-        frame.test(FRAMES_SOFTWARE),
-        `divergent-ideation.md's Frames section lost ${frame}. Lens coverage is the skill's quality claim.`,
+        FRAME_DEFS_SOFTWARE.some((l) => frame.test(l)),
+        `divergent-ideation.md has no DEFINITION line for ${frame}. A passing mention in the section intro is not a definition.`,
       ).toBe(true)
       expect(
-        frame.test(FRAMES_UNIVERSAL),
-        `universal-ideation.md's generation section lost ${frame}. Non-software runs load it INSTEAD, so the lens would simply not run.`,
+        FRAME_DEFS_UNIVERSAL.some((l) => frame.test(l)),
+        `universal-ideation.md has no DEFINITION line for ${frame}. Non-software runs load it INSTEAD, so the lens would simply not run.`,
       ).toBe(true)
     }
   })

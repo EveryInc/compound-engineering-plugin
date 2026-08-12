@@ -593,6 +593,17 @@ describe("ce-ideate cost transparency states no hand-maintained totals", () => {
       /cluster call only if that scan returns usable signal/i.test(COST_0_6),
       "The issue cluster call must be stated as conditional on the scan's result.",
     ).toBe(true)
+    // The 6-agent go-deep/surprise-me variant lives in divergent-ideation.md,
+    // loaded at Phase 2 -- so at notice time the count is genuinely unknown and
+    // the five-agent default is the one value guaranteed wrong.
+    expect(
+      /ideation fleet size is one of those unresolved values/i.test(COST_0_6),
+      "Phase 0.6 must mark the fleet size unresolved when a scaling override is active.",
+    ).toBe(true)
+    expect(
+      /never reuse the ordinary five-agent figure/i.test(COST_0_6),
+      "Phase 0.6 must forbid falling back to the default count under an override.",
+    ).toBe(true)
     // The skip phrase IS readable now, so it stays a real subtraction.
     expect(
       /skip phrase — that much is readable from the prompt right now/i.test(COST_0_6),

@@ -258,7 +258,9 @@ Derive it from the dispatch decisions already made in this phase — do not carr
 
 Include the conditional legs when they apply: issue intelligence adds its scan call **plus a cluster call only if that scan returns usable signal**, opt-in Slack research adds one, one distiller per user-supplied research artifact **large enough to need distilling** (a small one folds into the grounding summary inline and costs no agent), and up to 2 axis-coverage recovery agents in Phase 2. Subtract the web researcher when the user issued a skip phrase — that much is readable from the prompt right now.
 
-**Say "conditional" for anything this phase cannot yet resolve; do not pre-subtract it.** The V15 cache check happens in Phase 1, after `<scratch-dir>` exists, so a reuse that skips the web dispatch is unknowable here. The same holds for the issue cluster call and the depth-dependent count in elsewhere-non-software. Naming a leg as conditional is accurate; asserting a number that a later phase decides is not.
+**Say "conditional" for anything this phase cannot yet resolve; do not pre-subtract it.** The V15 cache check happens in Phase 1, after `<scratch-dir>` exists, so a reuse that skips the web dispatch is unknowable here. The same holds for the issue cluster call and the depth-dependent count in elsewhere-non-software.
+
+**The ideation fleet size is one of those unresolved values whenever a scaling override is active.** The variant counts live in `references/divergent-ideation.md`, which is not loaded until Phase 2, and Phase 0.5 names the `go deep` and surprise-me overrides without supplying their numbers. So on a run carrying either override, name the ideation fleet as *scaled by that override* rather than stating a count — and never reuse the ordinary five-agent figure, which is the one number you can be sure is wrong there. Naming a leg as conditional is accurate; asserting a number that a later phase decides is not.
 
 The line is informational; users do not need to acknowledge it.
 
