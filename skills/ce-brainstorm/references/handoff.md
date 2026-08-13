@@ -65,7 +65,7 @@ Present only the options that apply. Renumber so visible options stay contiguous
 
 There is no "done" / "pause" option — the blocking question already waits, and the user ends by dismissing it (Esc) or saying they're finished. The unified plan artifact is already saved.
 
-**Post-review nudge (subsequent rounds only):** If the user has already run `ce-doc-review` this session and residual P0/P1 findings remain unaddressed, add a one-line prose nudge adjacent to the menu (e.g., "Document review flagged 2 P1 findings you may want to address — pick \"Pressure-test the requirements\" to run another pass."). Reference the option by label, not number: the menu renumbers when `Resolve Before Planning` hides `Create the implementation plan` and the lfg option, so a hardcoded option number can point users at the wrong action. Do not add a separate menu option; reuse the existing `Pressure-test the requirements` option. Suppress this nudge when `OUTPUT_FORMAT=html` — that option is hidden in that mode, so the nudge would point users at a missing action.
+**Post-review nudge (subsequent rounds only):** If the user has already run `ce-doc-review` this session and residual P0/P1 findings remain unaddressed, add a one-line prose nudge adjacent to the menu (e.g., "Document review flagged 2 P1 findings you may want to address — pick \"Pressure-test the requirements\" to run another pass."). Reference the option by label, not number: the menu renumbers when `Resolve Before Planning` hides `Create the implementation plan` and the lfg option, so a hardcoded option number can point users at the wrong action. Do not add a separate menu option; reuse the existing `Pressure-test the requirements` option. Suppress this nudge whenever that option is not on the rendered menu — under `OUTPUT_FORMAT=html`, and when **Prototype a remaining feel-question** displaced it — so the nudge never points users at an action they cannot pick.
 
 #### 4.2 Handle the Selected Option
 
@@ -112,7 +112,7 @@ Do not print the closing summary first.
 
 **If user selects "Prototype a remaining feel-question":**
 
-Invoke the `ce-prototype` skill via the host's normal skill-invocation mechanism, passing the unified plan artifact path when one exists. Do not build a prototype in this skill. Do not substitute a generic Task, Agent, or subagent.
+Invoke the `ce-prototype` skill via the host's normal skill-invocation mechanism, passing the unified plan artifact path when one exists — the exact plan artifact path returned by the write step (including any collision suffix), never one rebuilt from the naming convention. Do not build a prototype in this skill. Do not substitute a generic Task, Agent, or subagent.
 
 **If user selects "Open in browser":** Display the absolute path to the `.html` unified plan so the user can open it locally. Where the platform exposes a browser-opening primitive (e.g., `open` on macOS, `xdg-open` on Linux, `start` on Windows), the agent may invoke it directly; otherwise print the absolute path and let the user open it. After the path is displayed (or the browser is opened), return to the Phase 4 options so the user can pick a follow-up action.
 

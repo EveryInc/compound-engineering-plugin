@@ -16,7 +16,7 @@ Do not use a visual probe for product goals, scope boundaries, success criteria,
 
 ## The gate (when the offer must fire)
 
-When the Phase 0.3 tripwire flagged an inherently-visual topic, the offer must fire before the **first** decision about shape, behavior, state, layout, flow, or a diagram is raised in *any* form — plain chat or a blocking question.
+When the Phase 0.3 tripwire flagged an inherently-visual topic, the offer must fire before the **first** display-only decision about shape, behavior, state, layout, flow, or a diagram is raised in *any* form — plain chat or a blocking question. A decision the user has to drive rather than look at routes to Interaction Rule 7 (`ce-prototype`) instead, per the Trigger above; this gate does not fire for it.
 
 **Timing is state-based, not memory-based.** Anchor the check to the decision you are about to raise, not to a "pending gate" remembered since Phase 0.3: offer unless this specific decision has already been through the offer (the user already chose text or visual for it). This gate takes precedence over the default blocking-question path — do not raise the shape decision as an `AskUserQuestion`/`request_user_input` menu, or as a plain-chat shape question, until the user has declined visual (or visual feedback has returned to chat).
 
