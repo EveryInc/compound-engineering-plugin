@@ -106,7 +106,8 @@ describe("unified plan artifact contract", () => {
   })
 
   test("brainstorm writes requirements-only unified plan skeletons under docs/plans", () => {
-    expect(brainstormSections).toContain("<root>/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan")
+    expect(brainstormSections).toContain("<root>/plans/YYYYMMDDTHHMMSSZ-<type>-<topic>-plan")
+    expect(brainstormSections).toContain("no daily sequence number")
     expect(brainstormSections).toContain("artifact_readiness: requirements-only")
     expect(brainstormSections).toContain("product_contract_source: ce-brainstorm")
     // Requirements-only is slimmed for standalone readability: no Goal Launch
@@ -115,7 +116,8 @@ describe("unified plan artifact contract", () => {
     expect(brainstormSections).toContain("Do **not** emit a `## Goal Launch Block` or `## Reader Index`")
     expect(brainstormSections).toMatch(/omits empty\s+`Planning Contract`/)
 
-    expect(brainstormSkill).toContain("<root>/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan")
+    expect(brainstormSkill).toContain("<root>/plans/YYYYMMDDTHHMMSSZ-<type>-<topic>-plan")
+    expect(brainstormSkill).toContain("ISO 8601 basic date/time representation")
     expect(brainstormSkill).toContain("artifact_readiness: requirements-only")
     expect(brainstormSkill).toContain("product_contract_source: ce-brainstorm")
     expect(brainstormSkill).toContain("Do **not** emit a Goal Launch Block or Reader Index")
@@ -127,8 +129,19 @@ describe("unified plan artifact contract", () => {
     expect(universalBrainstorming).toContain("let `ce-plan` choose the universal/knowledge-work artifact shape")
   })
 
+  test("plan filenames use UTC ISO 8601 timestamps instead of daily sequences", () => {
+    expect(planSkill).toContain("<root>/plans/YYYYMMDDTHHMMSSZ-<type>-<descriptive-name>-plan.md")
+    expect(planSkill).toContain("do not scan for or allocate a daily sequence number")
+    expect(planSkill).toContain("current UTC time")
+    expect(planSkill).toContain("Reserve the candidate path atomically")
+    expect(planSkill).toContain("preserve the existing artifact basename")
+    expect(planSkill).not.toContain("YYYY-MM-DD-NNN")
+  })
+
   test("brainstorm handoff passes the unified plan path to ce-plan", () => {
     expect(brainstormHandoff).toContain("Pass the unified")
+    expect(brainstormHandoff).toContain("exact plan artifact path returned by the write step")
+    expect(brainstormHandoff).toContain("including any collision suffix")
     expect(brainstormHandoff).toContain("Recommended next step: `ce-plan <plan artifact path>`")
     // Recommended path is interactive planning; the autonomous slot is lfg
     // (plan-first full ship), not a skip-planning /goal.

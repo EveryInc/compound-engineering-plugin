@@ -25,7 +25,7 @@ Sections earn their place by serving one of these audiences. Omit padding.
 New `ce-brainstorm` outputs live under `<root>/plans/` and use the unified plan
 artifact contract:
 
-- **Path:** `<root>/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.<md|html>`.
+- **Path:** `<root>/plans/YYYYMMDDTHHMMSSZ-<type>-<topic>-plan.<md|html>` (UTC ISO 8601 basic timestamp; no daily sequence number). Reserve the path atomically; on collision, retry with the smallest available numeric suffix before the extension rather than overwriting.
 - **`artifact_contract: ce-unified-plan/v1`**.
 - **`artifact_readiness: requirements-only`**.
 - **`product_contract_source: ce-brainstorm`**.
@@ -366,7 +366,8 @@ artifact.
 - **`type`** — conventional-commit-prefix-aligned classification (`feat`,
   `fix`, `refactor`, `docs`, etc.).
 - **`date`** — creation date in ISO 8601 (`YYYY-MM-DD`), ASCII digits only.
-  Used in the filename (`<root>/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.<md|html>`).
+  This frontmatter date remains the human-readable calendar date; the filename
+  uses the UTC write timestamp (`<root>/plans/YYYYMMDDTHHMMSSZ-<type>-<topic>-plan.<md|html>`).
 - **`topic`** — kebab-case slug identifying the brainstorm subject (e.g.,
   `surface-scope-earlier`, `demo-reel-local-save`). Used in the filename and
   as the resume-detection key when `ce-brainstorm` scans for an existing

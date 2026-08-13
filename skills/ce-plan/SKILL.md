@@ -166,6 +166,8 @@ If the plan already has a `deepened: YYYY-MM-DD` frontmatter field and there is 
 
 **Resume preserves the existing artifact's format, except pipeline mode.** When resuming an existing plan, the resume run writes back in whatever format the existing artifact uses — markdown if the existing file is `.md`, HTML if it is `.html` — so a resume doesn't silently change the artifact shape. Explicit `output:` arguments on this run override (e.g., resuming an `.html` plan with `output:md` switches the artifact to markdown). Pipeline mode (LFG, any `disable-model-invocation` context) always wins per Phase 0.0: even when resuming an existing `.html` plan, pipeline runs force `OUTPUT_FORMAT=md` so downstream automation receives the markdown shape it expects. The resume rewrites the markdown file at the parallel path (`<plan-basename>.md`) and the original `.html` is left in place untouched.
 
+For an explicit format conversion, preserve the existing artifact basename and change only the extension; do not generate a new timestamp, so same-basename sibling discovery can mark the old artifact stale.
+
 #### 0.1a Recognize Approach-Altitude Requests
 
 Some requests are better answered one level up: produce a grounded **approach-plan** — a plan for *how the deliverable will be made* — and hold there, rather than zero-shotting the deliverable. This runs **after** Phase 0.1's resume and deepen fast paths (so "deepen the plan" and resume short-circuit first) and **before** Phase 0.1b's domain split (so the capability is domain-general — it applies to software and knowledge-work alike).
@@ -506,12 +508,13 @@ Ask the user only when the answer materially affects architecture, scope, sequen
 
 - Draft a clear, searchable title using conventional format such as `feat: Add user authentication` or `fix: Prevent checkout double-submit`
 - Determine the plan type: `feat`, `fix`, or `refactor`
-- Build the filename following the repository convention: `<root>/plans/YYYY-MM-DD-NNN-<type>-<descriptive-name>-plan.md`
+- Build the filename following the repository convention: `<root>/plans/YYYYMMDDTHHMMSSZ-<type>-<descriptive-name>-plan.md`
   - Create `<root>/plans/` if it does not exist
-  - Check existing files for today's date to determine the next sequence number (zero-padded to 3 digits, starting at 001)
+  - Generate the prefix from the current UTC time using the ISO 8601 basic date/time representation (`YYYYMMDDTHHMMSSZ`); do not scan for or allocate a daily sequence number
+  - Reserve the candidate path atomically with exclusive creation; if it already exists, append the smallest available numeric collision suffix (`-2`, `-3`, …) before the extension rather than overwriting it
   - Keep the descriptive name concise (3-5 words) and kebab-cased
-  - Examples: `2026-01-15-001-feat-user-authentication-flow-plan.md`, `2026-02-03-002-fix-checkout-race-condition-plan.md`
-  - Avoid: missing sequence numbers, vague names like "new-feature", invalid characters (colons, spaces)
+  - Examples: `20260115T091530Z-feat-user-authentication-flow-plan.md`, `20260203T164205Z-fix-checkout-race-condition-plan.md`
+  - Avoid: local-time prefixes, daily sequence numbers, vague names like "new-feature", and invalid characters (colons, spaces)
 
 #### 3.2 Stakeholder and Impact Awareness
 
@@ -728,10 +731,10 @@ for HTML by the format gate in `references/plan-handoff.md`.
 Use the Write tool to save the complete plan to the resolved format's extension:
 
 ```text
-<root>/plans/YYYY-MM-DD-NNN-<type>-<descriptive-name>-plan.<md|html>
+<root>/plans/YYYYMMDDTHHMMSSZ-<type>-<descriptive-name>-plan.<md|html>
 ```
 
-Extension follows `OUTPUT_FORMAT` from Phase 0.0 — `.md` when markdown, `.html` when HTML. Sequence number `NNN` is derived from existing plan files in `<root>/plans/` regardless of extension (count both `.md` and `.html`) to ensure unique daily ordering.
+Extension follows `OUTPUT_FORMAT` from Phase 0.0 — `.md` when markdown, `.html` when HTML. The filename prefix is generated from the UTC write timestamp in ISO 8601 basic form (`YYYYMMDDTHHMMSSZ`), so ordering is global and does not depend on a daily counter. Reserve the final path atomically; on an exact-path collision, retry with the smallest available numeric suffix rather than overwriting. Explicit format conversion keeps the existing basename and changes only the extension.
 
 Compose the plan using the content from `references/plan-sections.md` and the format-specific principles from the rendering reference loaded at Phase 0.0 (`markdown-rendering.md` OR `html-rendering.md`).
 
