@@ -344,7 +344,8 @@ describe("PR concept teaching contract", () => {
     expect(submit).toMatch(/resolve `<parent-branch>` first/i)
     // Both conditions below regressed twice while this block was compressed.
     expect(submit).toMatch(/From a branch with no PR, fetch and verify that ref directly/i)
-    expect(submit).toMatch(/create a local branch \*\*at `headRefOid`\*\* — always/i)
+    expect(submit).toMatch(/make sure a local branch sits \*\*at `headRefOid`\*\*/i)
+    expect(submit).toMatch(/verify it is at that commit and stop with a residual otherwise/i)
     expect(cli).toMatch(/reachability leaves the commit with no branch to name/i)
     expect(cli).toMatch(/no documented branch ordering, so do not derive position/i)
     expect(submit).toMatch(/only when `author` is the current user/i)
