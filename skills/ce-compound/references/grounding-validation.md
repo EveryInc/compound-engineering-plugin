@@ -33,7 +33,7 @@ After any body edit from this step or Step 2, re-run the script until it reports
 
 ## Step 2: Semantic validator subagent (Full and non-interactive; skipped in lightweight)
 
-Dispatch **one generic read-only subagent** covering the written solution doc plus any vocabulary entries added or edited this run — in the root glossary, in a context glossary, or in the root index's relation entries (Phase 2.4's entries are claims too — a glossary entry written from a session-level summary is exactly how wrong semantics enter the vocabulary). A relation entry asserts how two contexts interact, so it is checked like any other code-behavior claim. Use the same mid-tier model class as other reviewer subagents when the platform exposes one. Build its prompt from this template:
+Dispatch **one generic read-only subagent** covering the written solution doc plus any vocabulary entries added or edited this run — in the root glossary, in a context glossary, or in the root index's relation entries (Phase 2.4's entries are claims too — a glossary entry written from a session-level summary is exactly how wrong semantics enter the vocabulary). A relation entry asserts how two contexts interact, so it is checked like any other code-behavior claim. The same applies to any sibling `DOMAIN.md` rules created or edited this run: a domain-truth rule is a code-behavior claim and is verified the same way. Use the same mid-tier model class as other reviewer subagents when the platform exposes one. Build its prompt from this template:
 
 ```
 You are a grounding validator for documentation about to enter a permanent

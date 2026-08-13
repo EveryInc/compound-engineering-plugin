@@ -107,6 +107,18 @@ describe("domain-vocabulary contract pins", () => {
     expect(canonical).not.toContain("domain_vocabulary_mode")
     expect(canonical).toContain("Nothing configures this")
   })
+
+  test("recognizes a sibling DOMAIN.md as non-blocking and non-lexical", async () => {
+    const canonical = await readCanonical(asset)
+    // Without this section, a legal sibling domain-truth file is
+    // indistinguishable from a second vocabulary authority; with a weaker
+    // one, DOMAIN.md quietly becomes a second glossary.
+    expect(canonical).toContain("## Sibling domain-truth files")
+    expect(canonical).toContain("not a vocabulary authority and never raises a blocked state")
+    expect(canonical).toContain("It must not define terms.")
+    expect(canonical).toContain("domain-defines-terms")
+    expect(canonical).toContain("this protocol neither requires nor creates it")
+  })
 })
 
 // The four learnings-researcher prompt assets are not byte-identical overall --

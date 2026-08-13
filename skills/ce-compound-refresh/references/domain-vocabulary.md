@@ -80,3 +80,10 @@ Two states block, and both point at the same route:
 - **Legacy-only** — a vocabulary-bearing legacy file exists and no root `CONCEPTS.md` does. Glossary creation and seeding are blocked too, so no second canonical file is manufactured. Say: `Legacy vocabulary only: <legacy paths> define terms and no CONCEPTS.md exists. Import them before capturing vocabulary — run ce-compound-refresh migrate-domain-docs.`
 
 `CONTEXT-MAP.md` and `CONTEXT.md` are import formats, never a parallel authority. Do not read a legacy file as a glossary, do not write to one, and do not resolve the block by editing it. A hybrid state is a migration that has not happened yet, not a supported configuration.
+
+## Sibling domain-truth files
+
+A project may keep its current business truth — invariants, policies, state machines — in a `DOMAIN.md` beside a glossary: at the repo root beside a flat `CONCEPTS.md`, or at `<docs-root>/contexts/<slug>/DOMAIN.md` beside that context's glossary. Whether to read or maintain one is the project's own convention, carried by its instructions; this protocol neither requires nor creates it.
+
+- A sibling `DOMAIN.md` is not a vocabulary authority and never raises a blocked state. It states rules using glossary terms, and its headings are rule anchors, not term definitions.
+- It must not define terms. A `DOMAIN.md` that carries a definition in the glossary entry grammar is a second lexical authority — the graph script reports it as `domain-defines-terms` — and the fix is moving the definition to the owning glossary.
