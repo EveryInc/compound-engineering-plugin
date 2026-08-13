@@ -211,6 +211,58 @@ elsewhere. The test is not "is this a substantial plan?" — it is
 *"does this specific plan have content this section would surface?"* Filling
 a section with placeholder prose is worse than omitting it.
 
+The first five entries below carry the Product Contract's product framing —
+what is being built and why. Later entries mix Product Contract subsections
+(Scope Boundaries, Open Questions, Acceptance Examples, Sources) with
+Planning Contract ones; the hard floor above remains authoritative for which
+section sits under which contract. Problem Frame is unconditional; the other four fire on their own tests. A plan
+that skips all four conditional framing entries has usually inherited its
+framing from an upstream Product Contract — check before concluding none of
+them fire.
+
+- **Problem Frame** — the hard floor above contains it unconditionally, so
+  this entry governs its depth, never whether to include it. Give it
+  paragraphs when motivation isn't obvious from Summary alone; keep it to a
+  line or two when the motivation was settled upstream and more would only
+  echo the origin document. Backward-looking / situational. Does NOT restate
+  the proposal; the remedy lives in Summary.
+
+- **Key Decisions** — include when the plan carries product-level choices
+  that constrain the Requirements below, whether made during planning (scope
+  narrowings, defaults chosen against a real alternative, framing the user
+  picked) or inherited from an upstream Product Contract, which Phase 0.3
+  requires carrying forward with its rationale. Each entry is a provenance
+  index entry, not a second statement of the rule: the decision in bold, at
+  most one line of rationale, and exact `Governs R5, R7` links when it
+  constrains specific requirements. The normative text lives on the governed
+  Rs. Session-settled annotations follow the rules under "ID and content
+  rules" below. Distinct from Planning Contract's Key Technical Decisions,
+  which record how-level choices; a product decision belongs here, and a KTD
+  cites it rather than mirroring it. Skip only when no such
+  choice exists on any side: every requirement follows directly from the
+  request, any upstream Product Contract weighed no alternatives, and the
+  session settled none. A `session-settled:` decision always keeps the
+  section — plan-write and the routing table both require its labeled entry
+  to live here.
+
+- **Success Criteria** — include when there are quality / metric / handoff
+  signals that Requirements don't already carry: quantitative metrics ("p95
+  latency under 200ms"), qualitative criteria ("the agent's output reads as
+  one voice"), process / handoff quality ("ce-doc-review can act on this
+  without follow-ups"). Skip when Requirements ARE the success criteria
+  (every R is "done when the R is true").
+
+- **Actors** — include when the work has multi-party behavior (multiple
+  humans, agents, or systems meaningfully involved) that the units must
+  honor. Skip for single-actor work and for plans whose change is internal
+  to one component — most implementation plans skip this.
+
+- **Key Flows** — include when the work has multi-step behavior whose
+  sequencing the units must preserve. Skip when the change is not
+  flow-shaped, or when Requirements and Acceptance Examples together already
+  prevent downstream invention of paths — again, most implementation plans
+  skip this.
+
 - **High-Level Technical Design** — include when the technical approach has
   shape that prose alone doesn't carry well: architecture across components,
   sequencing across processes, state machines, branching gates.
@@ -266,7 +318,11 @@ versa.
 
 The agent also picks per artifact:
 
-- Whether Problem Frame merges into Summary
+- Whether Problem Frame merges into Summary — legacy and non-unified plans
+  only. Any `ce-unified-plan/v1` artifact keeps both headings regardless of
+  plan depth: the hard floor names them separately and downstream consumers
+  anchor on them. (Scoped by artifact contract, not by depth — a `Lightweight`
+  plan can still be implementation-ready.)
 - Sub-groupings (Requirements by capability, KTDs by component, Units phased
   into milestones)
 - How much detail each section carries

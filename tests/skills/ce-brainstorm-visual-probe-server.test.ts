@@ -10,7 +10,7 @@ const serverScript = path.join(
   "skills",
   "ce-brainstorm",
   "scripts",
-  "visual-probe-server.js",
+  "light-webserver.js",
 )
 
 type RunResult = {
@@ -80,7 +80,7 @@ afterEach(async () => {
   }
 })
 
-describe("ce-brainstorm visual-probe-server.js", () => {
+describe("ce-brainstorm light-webserver.js", () => {
   test("start serves the newest screen from a display-only local server", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-visual-probe-server-"))
     const info = await startServer(root)
@@ -131,23 +131,42 @@ describe("ce-brainstorm visual-probe-server.js", () => {
     expect(html).toContain("<h1>Full sketch</h1>")
     expect(html).toContain('fetch("/version"')
     expect(html.indexOf('fetch("/version"')).toBeLessThan(html.indexOf("</body>"))
-    expect(html).not.toContain("CE Brainstorm Visual Probe - directional sketch")
+    expect(html).not.toContain("CE local web - newest screen")
   })
 
-  test("/files stays inside the screens directory", async () => {
+  test("assets serve at their own path and cannot escape the screens directory", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-visual-probe-files-"))
     const info = await startServer(root)
 
     await fs.writeFile(path.join(root, "secret.txt"), "outside")
     await fs.writeFile(path.join(String(info.screen_dir), "asset.html"), "<p>asset</p>")
+    // A screen keeps the asset layout it was copied from, nesting included.
+    await fs.mkdir(path.join(String(info.screen_dir), "img"), { recursive: true })
+    await fs.writeFile(path.join(String(info.screen_dir), "img", "nested.txt"), "nested")
 
-    let response = await fetch(`${String(info.url)}/files/asset.html`)
+    let response = await fetch(`${String(info.url)}/asset.html`)
     expect(response.status).toBe(200)
     expect(response.headers.get("content-type")).toContain("text/html")
     expect(await response.text()).toBe("<p>asset</p>")
 
-    response = await fetch(`${String(info.url)}/files/../secret.txt`)
+    response = await fetch(`${String(info.url)}/img/nested.txt`)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe("nested")
+
+    // Encoded so it reaches the server unnormalized.
+    response = await fetch(`${String(info.url)}/%2e%2e/secret.txt`)
     expect(response.status).toBe(404)
+
+    // A symlink inside screens/ must not be followed out of it.
+    await fs.symlink(path.join(root, "secret.txt"), path.join(String(info.screen_dir), "leak.txt"))
+    response = await fetch(`${String(info.url)}/leak.txt`)
+    expect(response.status).toBe(404)
+
+    // The active-screen route reads a file too, so it needs the same guard.
+    await fs.writeFile(path.join(root, "outside.html"), "OUTSIDE-SCREEN")
+    await fs.symlink(path.join(root, "outside.html"), path.join(String(info.screen_dir), "999-evil.html"))
+    response = await fetch(`${String(info.url)}/`)
+    expect(await response.text()).not.toContain("OUTSIDE-SCREEN")
   })
 
   test("status and stop use the root state directory", async () => {
@@ -207,8 +226,8 @@ describe("ce-brainstorm visual-probe-server.js", () => {
   test("/version polling does not keep an otherwise idle server alive", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-visual-probe-idle-"))
     const info = await startServer(root, [], {
-      CE_VISUAL_PROBE_IDLE_TIMEOUT_MS: "250",
-      CE_VISUAL_PROBE_LIFECYCLE_CHECK_MS: "50",
+      CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "250",
+      CE_LIGHT_WEB_LIFECYCLE_CHECK_MS: "50",
     })
 
     await fs.writeFile(path.join(String(info.screen_dir), "001-first.html"), "<h1>First sketch</h1>")
@@ -239,8 +258,8 @@ describe("ce-brainstorm visual-probe-server.js", () => {
 
     try {
       const info = await startServer(root, ["--owner-pid", String(owner.pid)], {
-        CE_VISUAL_PROBE_IDLE_TIMEOUT_MS: "5000",
-        CE_VISUAL_PROBE_LIFECYCLE_CHECK_MS: "50",
+        CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "5000",
+        CE_LIGHT_WEB_LIFECYCLE_CHECK_MS: "50",
       })
       expect(info.owner_pid).toBe(owner.pid)
 

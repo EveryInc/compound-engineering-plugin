@@ -93,7 +93,7 @@ A task isn't done when the code compiles. Before changing behavior, `ce-work` di
 
 ### 6. Portable code review with explicit residual handling
 
-Every non-mechanical change runs through `ce-code-review`, which selects its own lite or full roster from the diff. Review is read-only; `ce-work` applies eligible fixes afterward, then sends any actionable remainder through a four-option residual gate (apply / file tickets / accept with durable sink / stop). "Accept" requires a real durable record; findings can't live only in the transient session. Harness-native review is only a fallback when the portable reviewer cannot run.
+Standalone shipping is **not done** until a `ce-code-review` receipt exists (`status` + `artifact_path`/`run_id`, or the markdown Actionable/Coverage/Verdict sections) or the shipping summary carries an exact skip phrase (`Code review: skipped (mechanical diff)` or `… (ce-code-review unavailable)`). That gate lives on the always-loaded skill body and is re-checked at the commit/PR handoff so review cannot be silently omitted. Mechanical means formatting, dep bumps, lint-only, or generated artifacts only — not applying external findings or behavior-bearing multi-file work. Every non-mechanical change runs through `ce-code-review`, which selects its own lite or full roster from the diff. Review is read-only; `ce-work` applies eligible fixes afterward, then sends any actionable remainder through a four-option residual gate (apply / file tickets / accept with durable sink / stop). "Accept" requires a real durable record; findings can't live only in the transient session. Harness-native review is only a fallback when the portable reviewer cannot run. Return-to-caller mode leaves review to the caller (e.g. `lfg`).
 
 ### 7. Operational validation as a default
 
@@ -209,7 +209,7 @@ Routing uses normal instruction authority plus scope, not keyword matching. An e
 
 The last example is deliberately planless. `ce-work` first scopes the request against the repository and tests, then gives Codex only the bounded private brief/unit packet. The host remains responsible for inspecting the actual change, authoritative verification, canonical commits, and the shipping tail.
 
-Put an ordered, host-relative preference list in the gitignored `.compound-engineering/config.local.yaml`:
+Put an ordered, host-relative preference list in CE config (`config.local.yaml` then `config.yaml`):
 
 ```yaml
 work_engine_mode: prefer       # off | prefer | require

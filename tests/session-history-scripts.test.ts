@@ -313,23 +313,42 @@ describe("extract-metadata", () => {
     expect(session.last_ts).toContain("2026-04-07T09:01:20")
   })
 
+  test("detects omp title-slot shape as omp, not pi", async () => {
+    // omp files physically begin with a type:'title' slot line before the
+    // pi-shaped session header; try_omp runs before try_pi so the file must
+    // not fall through to the pi detector.
+    const { stdout, exitCode } = await runScript("extract-metadata.py", [
+      path.join(FIXTURES_DIR, "omp-session.jsonl"),
+    ])
+    expect(exitCode).toBe(0)
+    const lines = parseJsonLines(stdout)
+    const session = lines.find((l) => !l._meta)
+    expect(session.platform).toBe("omp")
+    expect(session.cwd).toBe("/Users/test/Code/my-repo")
+    expect(session.session).toBe("test-omp-session-1")
+    expect(session.ts).toContain("2026-04-07")
+    expect(session.last_ts).toContain("2026-04-07T09:01:20")
+  })
+
   test("batch mode processes multiple files", async () => {
     const { stdout, exitCode } = await runScript("extract-metadata.py", [
       path.join(FIXTURES_DIR, "claude-session.jsonl"),
       path.join(FIXTURES_DIR, "codex-session.jsonl"),
       path.join(FIXTURES_DIR, "cursor-session.jsonl"),
       path.join(FIXTURES_DIR, "pi-session.jsonl"),
+      path.join(FIXTURES_DIR, "omp-session.jsonl"),
     ])
     expect(exitCode).toBe(0)
     const lines = parseJsonLines(stdout)
     const meta = lines.find((l) => l._meta)
-    expect(meta.files_processed).toBe(4)
+    expect(meta.files_processed).toBe(5)
     expect(meta.parse_errors).toBe(0)
     const platforms = lines.filter((l) => !l._meta).map((l) => l.platform)
     expect(platforms).toContain("claude")
     expect(platforms).toContain("codex")
     expect(platforms).toContain("cursor")
     expect(platforms).toContain("pi")
+    expect(platforms).toContain("omp")
   })
 
   test("--cwd-filter excludes non-matching Codex sessions", async () => {
@@ -987,6 +1006,28 @@ describe("extract-skeleton", () => {
     expect(stdout).not.toContain("file contents here")
   })
 
+  test("extracts omp user, assistant, and tool messages past the title slot", async () => {
+    const fixture = await Bun.file(
+      path.join(FIXTURES_DIR, "omp-session.jsonl")
+    ).text()
+    const { stdout, exitCode } = await runScript(
+      "extract-skeleton.py",
+      [],
+      fixture
+    )
+    expect(exitCode).toBe(0)
+    expect(stdout).toContain("[user] fix the auth bug in middleware")
+    expect(stdout).toContain("[assistant] Let me look at the auth middleware.")
+    expect(stdout).toContain("[assistant] Found the issue.")
+    expect(stdout).toContain("[user] also add a regression test for the expiry check")
+    expect(stdout).toContain("[tool] read /Users/test/Code/my-repo/src/auth.ts -> ok")
+    expect(stdout).toContain("[tool] edit /Users/test/Code/my-repo/src/auth.ts -> error")
+    expect(stdout).not.toContain("internal reasoning should not be extracted")
+    expect(stdout).not.toContain("file contents here")
+    const meta = JSON.parse(stdout.trim().split("\n").at(-1)!)
+    expect(meta.parse_errors).toBe(0)
+  })
+
   test("extracts Pi bashExecution commands", async () => {
     const lines = [
       JSON.stringify({
@@ -1364,6 +1405,23 @@ describe("extract-errors", () => {
     expect(meta.parse_errors).toBe(0)
   })
 
+  test("extracts omp tool result errors past the title slot", async () => {
+    const fixture = await Bun.file(
+      path.join(FIXTURES_DIR, "omp-session.jsonl")
+    ).text()
+    const { stdout, exitCode } = await runScript(
+      "extract-errors.py",
+      [],
+      fixture
+    )
+    expect(exitCode).toBe(0)
+    expect(stdout).toContain("[error] tool=edit: String to replace not found")
+    const lines = stdout.trim().split("\n")
+    const meta = JSON.parse(lines[lines.length - 1])
+    expect(meta.errors_found).toBe(1)
+    expect(meta.parse_errors).toBe(0)
+  })
+
   test("extracts Pi bashExecution errors", async () => {
     const lines = [
       JSON.stringify({
@@ -1649,8 +1707,8 @@ describe("--output PATH mode", () => {
 // ---------------------------------------------------------------------------
 describe("auto-detection", () => {
   test("all supported platforms are auto-detected", async () => {
-    const fixtures = ["claude-session", "codex-session", "cursor-session", "pi-session"]
-    const expected = ["claude", "codex", "cursor", "pi"]
+    const fixtures = ["claude-session", "codex-session", "cursor-session", "pi-session", "omp-session"]
+    const expected = ["claude", "codex", "cursor", "pi", "omp"]
 
     for (let i = 0; i < fixtures.length; i++) {
       const fixturePath = path.join(FIXTURES_DIR, `${fixtures[i]}.jsonl`)
@@ -2100,5 +2158,311 @@ describe("discover-sessions", () => {
     expect(stderr).toBe("")
     const files = stdout.trim().split("\n").filter((l) => l.trim())
     expect(files).toEqual([sessionPath])
+  })
+
+  test("--platform omp discovers raw legacy buckets via the raw basename glob", async () => {
+    // Raw-scheme buckets ("--<abs>--" here) keep the basename verbatim. A repo
+    // named "my repo" lands in "--Users-test-Code-my repo--", which the
+    // sanitized-basename glob never matches; the nonexistent --cwd means the
+    // exact raw probe cannot resolve, so only the raw glob can find it.
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const sessionPath = path.join(
+      tempHome,
+      ".omp/agent/sessions/--Users-test-Code-my repo--/2026-04-07T09-00-00-000Z_test.jsonl"
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      [
+        "my repo",
+        "7",
+        "--cwd",
+        "/Users/test/Code/my repo",
+        "--platform",
+        "omp",
+      ],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("--platform omp probes the exact raw bucket for --cwd and deduplicates", async () => {
+    // With a resolvable --cwd, the raw home-relative bucket "-Code-my repo" is
+    // hit by both the exact probe and the raw basename glob; the file must be
+    // emitted exactly once even under single-platform invocation.
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const repoDir = path.join(tempHome, "Code", "my repo")
+    await fs.promises.mkdir(repoDir, { recursive: true })
+    const sessionPath = path.join(
+      tempHome,
+      ".omp/agent/sessions/-Code-my repo/2026-04-07T09-00-00-000Z_test.jsonl"
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my repo", "7", "--cwd", repoDir, "--platform", "omp"],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("--platform omp discovers sessions under hashed bucket directories", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const bucket =
+      "home-my-repo-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    const sessionPath = path.join(
+      tempHome,
+      `.omp/agent/sessions/${bucket}/2026-04-07T09-00-00-000Z_test.jsonl`
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "omp"],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("--platform omp discovers sessions under named-profile roots", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const bucket =
+      "home-my-repo-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    const sessionPath = path.join(
+      tempHome,
+      `.omp/profiles/work/agent/sessions/${bucket}/2026-04-07T09-00-00-000Z_test.jsonl`
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "omp"],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("--platform omp honors PI_CODING_AGENT_SESSION_DIR flat override", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const sessionBase = fs.mkdtempSync(path.join(os.tmpdir(), "omp-sessions-"))
+    const sessionPath = path.join(
+      sessionBase,
+      "2026-04-07T09-00-00-000Z_test.jsonl"
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      [
+        "my-repo",
+        "7",
+        "--cwd",
+        "/Users/test/Code/my-repo",
+        "--platform",
+        "omp",
+      ],
+      {
+        HOME: tempHome,
+        PI_CODING_AGENT_SESSION_DIR: sessionBase,
+      }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("--platform omp honors PI_CODING_AGENT_DIR sessions subdirectory", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-agent-"))
+    const bucket =
+      "home-my-repo-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    const sessionPath = path.join(
+      agentDir,
+      `sessions/${bucket}/2026-04-07T09-00-00-000Z_test.jsonl`
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "omp"],
+      { HOME: tempHome, PI_CODING_AGENT_DIR: agentDir }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("--platform omp restricts to omp dirs only", async () => {
+    const { stdout } = await runDiscover(
+      ["compound-engineering-plugin", "7", "--platform", "omp"]
+    )
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    for (const file of files) {
+      expect(file).toMatch(/\.omp\/|\/omp\/sessions\/|\/omp\/profiles\//)
+    }
+  })
+
+  test("--platform omp matches buckets whose basename omp sanitized", async () => {
+    // omp normalizes bucket basenames ([^a-zA-Z0-9._-]+ -> "-"), so a repo
+    // named "my repo" lands in a "home-my-repo-<hash>" bucket. The raw
+    // REPO_NAME glob would never match it.
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const bucket =
+      "home-my-repo-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    const sessionPath = path.join(
+      tempHome,
+      `.omp/agent/sessions/${bucket}/2026-04-07T09-00-00-000Z_test.jsonl`
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my repo", "7", "--platform", "omp"],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("all-platform discovery deduplicates the shared PI_CODING_AGENT_SESSION_DIR override", async () => {
+    // Pi and omp both honor the flat session-dir override, so without
+    // deduplication each file is emitted twice (once per discoverer).
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const sessionBase = fs.mkdtempSync(path.join(os.tmpdir(), "omp-sessions-"))
+    const sessionPath = path.join(
+      sessionBase,
+      "2026-04-07T09-00-00-000Z_test.jsonl"
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--cwd", "/Users/test/Code/my-repo"],
+      {
+        HOME: tempHome,
+        PI_CODING_AGENT_SESSION_DIR: sessionBase,
+      }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("--platform omp discovers flattened XDG data-home sessions", async () => {
+    // omp getSessionsDir() redirects to $XDG_DATA_HOME/omp/sessions (no
+    // agent/ prefix) when XDG_DATA_HOME is set and that omp app root exists.
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const xdgHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-xdg-"))
+    const bucket =
+      "home-my-repo-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    const sessionPath = path.join(
+      xdgHome,
+      `omp/sessions/${bucket}/2026-04-07T09-00-00-000Z_test.jsonl`
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "omp"],
+      { HOME: tempHome, XDG_DATA_HOME: xdgHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("--platform omp discovers flattened XDG named-profile sessions", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const xdgHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-xdg-"))
+    const bucket =
+      "home-my-repo-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    const sessionPath = path.join(
+      xdgHome,
+      `omp/profiles/work/sessions/${bucket}/2026-04-07T09-00-00-000Z_test.jsonl`
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "omp"],
+      { HOME: tempHome, XDG_DATA_HOME: xdgHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("--platform omp does not treat ~/.local/share/omp as XDG without XDG_DATA_HOME", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const bucket =
+      "home-my-repo-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    const sessionPath = path.join(
+      tempHome,
+      `.local/share/omp/sessions/${bucket}/2026-04-07T09-00-00-000Z_test.jsonl`
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "omp"],
+      { HOME: tempHome, XDG_DATA_HOME: "" }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([])
+  })
+
+  test("--platform omp ignores XDG roots when PI_CODING_AGENT_DIR is set", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const xdgHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-xdg-"))
+    const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "omp-agent-"))
+    const bucket =
+      "home-my-repo-9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    const xdgSession = path.join(
+      xdgHome,
+      `omp/sessions/${bucket}/2026-04-07T09-00-00-000Z_xdg.jsonl`
+    )
+    const agentSession = path.join(
+      agentDir,
+      `sessions/${bucket}/2026-04-07T09-00-00-000Z_agent.jsonl`
+    )
+    await writeFixture(xdgSession, "omp-session.jsonl")
+    await writeFixture(agentSession, "omp-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "omp"],
+      {
+        HOME: tempHome,
+        XDG_DATA_HOME: xdgHome,
+        PI_CODING_AGENT_DIR: agentDir,
+      }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([agentSession])
   })
 })

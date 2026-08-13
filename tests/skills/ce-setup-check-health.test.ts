@@ -6,7 +6,7 @@ import { describe, expect, test } from "bun:test"
 const repoRoot = path.join(import.meta.dir, "..", "..")
 const checkHealthScript = path.join(repoRoot, "skills", "ce-setup", "scripts", "check-health")
 const configTemplate = path.join(repoRoot, "skills", "ce-setup", "references", "config-template.yaml")
-const configExample = path.join(repoRoot, ".compound-engineering", "config.local.example.yaml")
+const configExample = path.join(repoRoot, ".compound-engineering", "config.example.yaml")
 const configDocs = path.join(repoRoot, "docs", "skills", "configuration.md")
 const ceWorkDocs = path.join(repoRoot, "docs", "skills", "ce-work.md")
 const lfgDocs = path.join(repoRoot, "docs", "skills", "lfg.md")
@@ -45,7 +45,7 @@ async function initGitRepo(root: string): Promise<void> {
 async function initConfiguredRepo(root: string, localConfig: string): Promise<void> {
   await initGitRepo(root)
   await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
-  await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.example.yaml"))
+  await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
   await writeFile(path.join(root, ".compound-engineering", "config.local.yaml"), localConfig)
   await writeFile(path.join(root, ".gitignore"), ".compound-engineering/*.local.yaml\n")
 }
@@ -58,6 +58,8 @@ describe("ce-setup check-health", () => {
     ])
 
     expect(example).toBe(template)
+    expect(template).not.toContain("this file is gitignored and per-checkout")
+    expect(template).not.toContain("Standing, per-checkout preferences")
   })
 
   test("documents every setup-template option in the centralized config reference", async () => {
@@ -175,7 +177,7 @@ describe("ce-setup check-health", () => {
     try {
       await initGitRepo(root)
       await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
-      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.example.yaml"))
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
       await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.yaml"))
       await writeFile(path.join(root, ".gitignore"), ".compound-engineering/*.local.yaml\n")
 
@@ -196,7 +198,7 @@ describe("ce-setup check-health", () => {
     try {
       await initGitRepo(root)
       await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
-      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.example.yaml"))
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
       await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.yaml"))
 
       const result = await runCheckHealth(root, "/usr/bin:/bin")
@@ -213,7 +215,7 @@ describe("ce-setup check-health", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
     await initGitRepo(root)
     await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
-    await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.example.yaml"))
+    await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
     await writeFile(path.join(root, ".compound-engineering", "config.local.yaml"), body)
     await writeFile(path.join(root, ".gitignore"), ".compound-engineering/*.local.yaml\n")
     return root
@@ -271,7 +273,7 @@ describe("ce-setup check-health", () => {
     try {
       await initGitRepo(root)
       await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
-      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.example.yaml"))
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
       const result = await runCheckHealth(root, "/usr/bin:/bin")
       expect(result.exitCode).toBe(0)
       expect(result.stdout).not.toContain("Retired config key")
@@ -286,12 +288,12 @@ describe("ce-setup check-health", () => {
     try {
       await initGitRepo(root)
       await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
-      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.example.yaml"))
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
 
       const result = await runCheckHealth(root, "/usr/bin:/bin")
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain("CE Work implementation engine: native (no local config)")
+      expect(result.stdout).toContain("CE Work implementation engine: native (setting is commented or missing)")
     } finally {
       await rm(root, { recursive: true, force: true })
     }
@@ -322,7 +324,7 @@ describe("ce-setup check-health", () => {
     }
   })
 
-  test("invalid mode falls through to native and is reported", async () => {
+  test("invalid local mode continues to tracked, then native when tracked is unset", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
 
     try {
@@ -331,8 +333,32 @@ describe("ce-setup check-health", () => {
       const result = await runCheckHealth(root, "/usr/bin:/bin")
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain("invalid mode 'sometimes' ignored; native is the default")
-      expect(result.stdout).toContain("1 project issue(s) found")
+      expect(result.stdout).toContain("CE Work implementation engine: native (setting is commented or missing")
+      expect(result.stdout).not.toContain("invalid mode 'sometimes'")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("invalid local mode yields to a valid tracked mode", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
+      await writeFile(
+        path.join(root, ".compound-engineering", "config.yaml"),
+        "work_engine_mode: prefer\nwork_engine_preferences:\n  - harness: claude\n",
+      )
+      await writeFile(path.join(root, ".compound-engineering", "config.local.yaml"), "work_engine_mode: sometimes\n")
+      await writeFile(path.join(root, ".gitignore"), ".compound-engineering/*.local.yaml\n")
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("CE Work implementation engine: prefer -> claude@default")
+      expect(result.stdout).not.toContain("invalid mode")
     } finally {
       await rm(root, { recursive: true, force: true })
     }
@@ -480,6 +506,91 @@ describe("ce-setup check-health", () => {
       await rm(root, { recursive: true, force: true })
     }
   })
+
+  test("tracked-only work_engine_mode prefer is honored", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
+      await writeFile(
+        path.join(root, ".compound-engineering", "config.yaml"),
+        "work_engine_mode: prefer\nwork_engine_preferences:\n  - harness: cursor\n    model: composer\n",
+      )
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("CE Work implementation engine: prefer -> cursor@composer")
+      expect(result.stdout).toContain(".compound-engineering/config.yaml exists")
+      expect(result.stdout).not.toContain("project issue(s) found")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("resolves local mode and tracked preferences independently", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
+      await writeFile(path.join(root, ".compound-engineering", "config.yaml"), "work_engine_preferences:\n  - harness: claude\n")
+      await writeFile(path.join(root, ".compound-engineering", "config.local.yaml"), "work_engine_mode: prefer\n")
+      await writeFile(path.join(root, ".gitignore"), ".compound-engineering/*.local.yaml\n")
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("CE Work implementation engine: prefer -> claude@default")
+      expect(result.stdout).not.toContain("implementation engine unavailable")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("empty local work_engine_preferences replaces the team list", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
+      await writeFile(
+        path.join(root, ".compound-engineering", "config.yaml"),
+        "work_engine_mode: prefer\nwork_engine_preferences:\n  - harness: claude\n",
+      )
+      await writeFile(path.join(root, ".compound-engineering", "config.local.yaml"), "work_engine_preferences: []\n")
+      await writeFile(path.join(root, ".gitignore"), ".compound-engineering/*.local.yaml\n")
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("prefer requires work_engine_preferences")
+      expect(result.stdout).not.toContain("prefer -> claude@default")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("setup skill offers create config.yaml and never creates the override", async () => {
+    const skill = await readFile(path.join(repoRoot, "skills", "ce-setup", "SKILL.md"), "utf8")
+    expect(skill).toContain("Set up a repo config file for this project?")
+    expect(skill).toContain("copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.yaml`")
+    expect(skill).toContain("Do not create `config.local.yaml`")
+    expect(skill).toContain("offer to move it into `config.yaml`")
+    expect(skill).not.toContain("Set up a local config file for this project?")
+    expect(skill).not.toContain("copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.local.yaml`")
+  })
+
+  test("setup skips Phase 2 outside a git repository", async () => {
+    const skill = await readFile(path.join(repoRoot, "skills", "ce-setup", "SKILL.md"), "utf8")
+    expect(skill).toContain("Always continue to Phase 2 after the health report when this checkout is a git repository")
+    expect(skill).toContain("Not inside a git repository")
+    expect(skill).toContain("skip Phase 2 and go to Phase 3")
+  })
 })
 
 describe("ce-setup check-health docs_root resolution", () => {
@@ -519,14 +630,15 @@ describe("ce-setup check-health docs_root resolution", () => {
     expect(result.stdout).toContain("Artifact root: .ce-artifacts/ (from config.yaml)")
   })
 
-  test("config.local.yaml overrides the tracked layer", async () => {
+  test("local docs_root is ignored; tracked wins", async () => {
     const result = await run({ local: "docs_root: from-local\n", tracked: "docs_root: from-tracked\n" })
-    expect(result.stdout).toContain("Artifact root: from-local/ (from config.local.yaml)")
-    expect(result.stdout).not.toContain("from-tracked")
+    expect(result.stdout).toContain("Artifact root: from-tracked/ (from config.yaml)")
+    expect(result.stdout).not.toContain("from-local/")
+    expect(result.stdout).toContain("Local docs_root 'from-local' is ignored")
   })
 
   test("rejects an absolute value without defaulting (fail-closed)", async () => {
-    const result = await run({ local: "docs_root: /etc\n" })
+    const result = await run({ tracked: "docs_root: /etc\n" })
     expect(result.stdout).toContain("Invalid docs_root '/etc'")
     expect(result.stdout).toContain("absolute paths are not allowed")
     expect(result.stdout).toContain("project issue(s) found")
@@ -535,7 +647,7 @@ describe("ce-setup check-health docs_root resolution", () => {
   test("rejects a value that escapes the repository (AE3)", async () => {
     // `../outside` is caught by the up-front `..` traversal reject (a stricter,
     // earlier gate than the containment check); either way it fails closed.
-    const result = await run({ local: "docs_root: ../outside\n" })
+    const result = await run({ tracked: "docs_root: ../outside\n" })
     expect(result.stdout).toContain("Invalid docs_root '../outside'")
     expect(result.stdout).toContain("path traversal ('..') is not allowed")
     expect(result.stdout).not.toContain("Artifact root:")
@@ -547,31 +659,31 @@ describe("ce-setup check-health docs_root resolution", () => {
     // would escape the repo, hit the repo root, or reach .git/ while still
     // string-prefix matching the containment check. All must fail closed.
     for (const value of ["notexist/../../etc", "notexist/..", "notexist/../.git", "a/b/../c"]) {
-      const result = await run({ local: `docs_root: ${value}\n` })
+      const result = await run({ tracked: `docs_root: ${value}\n` })
       expect(result.stdout, `${value} must be rejected`).toContain("path traversal ('..') is not allowed")
       expect(result.stdout, `${value} must not resolve`).not.toContain("Artifact root:")
     }
   })
 
   test("accepts a legitimate multi-segment repo-relative root", async () => {
-    const result = await run({ local: "docs_root: .compound-engineering/artifacts\n" })
+    const result = await run({ tracked: "docs_root: .compound-engineering/artifacts\n" })
     expect(result.stdout).toContain("Artifact root: .compound-engineering/artifacts/")
     expect(result.stdout).not.toContain("Invalid docs_root")
   })
 
   test("rejects the repository root itself", async () => {
-    const result = await run({ local: "docs_root: .\n" })
+    const result = await run({ tracked: "docs_root: .\n" })
     expect(result.stdout).toContain("resolves to the repository root itself")
   })
 
   test("rejects a path inside .git/", async () => {
-    const result = await run({ local: "docs_root: .git/foo\n" })
+    const result = await run({ tracked: "docs_root: .git/foo\n" })
     expect(result.stdout).toContain("resolves inside .git/")
   })
 
   test("rejects an existing non-directory", async () => {
     const result = await run({
-      local: "docs_root: afile\n",
+      tracked: "docs_root: afile\n",
       extra: async (root) => writeFile(path.join(root, "afile"), "x"),
     })
     expect(result.stdout).toContain("names an existing non-directory")
@@ -579,7 +691,7 @@ describe("ce-setup check-health docs_root resolution", () => {
 
   test("rejects a symlink whose real path escapes the repository", async () => {
     const result = await run({
-      local: "docs_root: esclink/x\n",
+      tracked: "docs_root: esclink/x\n",
       extra: async (root) => {
         await Bun.$`ln -s /tmp esclink`.cwd(root).quiet()
       },
@@ -593,7 +705,7 @@ describe("ce-setup check-health docs_root resolution", () => {
     // passes (nested doesn't exist), but mkdir -p would fail, so /ce-setup must
     // not report it healthy.
     const result = await run({
-      local: "docs_root: afile/nested\n",
+      tracked: "docs_root: afile/nested\n",
       extra: async (root) => writeFile(path.join(root, "afile"), "x"),
     })
     expect(result.stdout).toContain("an intermediate path component is not a directory")
@@ -601,8 +713,8 @@ describe("ce-setup check-health docs_root resolution", () => {
   })
 
   test("accepts a valid repo-relative root that does not yet exist (AE4)", async () => {
-    const result = await run({ local: "docs_root: .ce-artifacts/nested\n" })
-    expect(result.stdout).toContain("Artifact root: .ce-artifacts/nested/ (from config.local.yaml)")
+    const result = await run({ tracked: "docs_root: .ce-artifacts/nested\n" })
+    expect(result.stdout).toContain("Artifact root: .ce-artifacts/nested/ (from config.yaml)")
     expect(result.stdout).not.toContain("Invalid docs_root")
   })
 })

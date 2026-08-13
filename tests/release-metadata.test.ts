@@ -27,6 +27,7 @@ async function makeFixtureRoot(): Promise<string> {
   await mkdir(path.join(root, ".codex-plugin"), { recursive: true })
   await mkdir(path.join(root, ".kimi-plugin"), { recursive: true })
   await mkdir(path.join(root, ".grok-plugin"), { recursive: true })
+  await mkdir(path.join(root, ".omp-plugin"), { recursive: true })
   await mkdir(path.join(root, ".devin-plugin"), { recursive: true })
   await mkdir(path.join(root, ".agents", "plugins"), { recursive: true })
 
@@ -159,6 +160,25 @@ async function makeFixtureRoot(): Promise<string> {
     ),
   )
   await writeFile(
+    path.join(root, ".omp-plugin", "marketplace.json"),
+    JSON.stringify(
+      {
+        name: "compound-engineering-plugin",
+        owner: { name: "Kieran Klaassen and Trevin Chow" },
+        plugins: [
+          {
+            name: "compound-engineering",
+            version: "2.42.0",
+            description: "old",
+            source: "./",
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+  )
+  await writeFile(
     path.join(root, ".claude-plugin", "marketplace.json"),
     JSON.stringify(
       {
@@ -194,7 +214,7 @@ describe("release metadata", () => {
 
     expect(counts).toEqual({
       agents: 0,
-      skills: 32,
+      skills: 33,
       mcpServers: 0,
     })
   })
@@ -517,6 +537,90 @@ describe("release metadata", () => {
       { path: devinPath, changed: false },
     ])
   })
+
+  test("reports missing omp marketplace catalog as a structural error", async () => {
+    const root = await makeFixtureRoot()
+    await Bun.$`rm ${path.join(root, ".omp-plugin", "marketplace.json")}`.quiet()
+
+    const result = await syncReleaseMetadata({ root, write: false })
+
+    expect(result.errors.some((err) => err.includes(".omp-plugin/marketplace.json is missing"))).toBe(true)
+  })
+
+  test("flags omp catalog plugin-version drift without rewriting the version", async () => {
+    const root = await makeFixtureRoot()
+    const ompPath = path.join(root, ".omp-plugin", "marketplace.json")
+    await writeFile(
+      ompPath,
+      JSON.stringify(
+        {
+          name: "compound-engineering-plugin",
+          plugins: [{ name: "compound-engineering", version: "2.41.0", source: "./" }],
+        },
+        null,
+        2,
+      ),
+    )
+
+    const result = await syncReleaseMetadata({ root, write: true })
+
+    // Drift is detect-only: release-please owns the version write via the
+    // root component's extra-files, so sync must flag but never bump it.
+    const ompUpdate = result.updates.find((u) => u.path === ompPath)
+    expect(ompUpdate).toBeDefined()
+    expect(ompUpdate?.changed).toBe(true)
+    const written = JSON.parse(await Bun.file(ompPath).text())
+    expect(written.plugins[0].version).toBe("2.41.0")
+  })
+
+  test("reports omp catalog plugin entry without a version as a structural error", async () => {
+    const root = await makeFixtureRoot()
+    await writeFile(
+      path.join(root, ".omp-plugin", "marketplace.json"),
+      JSON.stringify(
+        {
+          name: "compound-engineering-plugin",
+          plugins: [{ name: "compound-engineering", source: "./" }],
+        },
+        null,
+        2,
+      ),
+    )
+
+    const result = await syncReleaseMetadata({ root, write: false })
+
+    expect(
+      result.errors.some(
+        (err) =>
+          err.includes(".omp-plugin/marketplace.json") &&
+          err.includes('missing required field "version"'),
+      ),
+    ).toBe(true)
+  })
+
+  test("reports omp marketplace plugin-list drift as a structural error", async () => {
+    const root = await makeFixtureRoot()
+    await writeFile(
+      path.join(root, ".omp-plugin", "marketplace.json"),
+      JSON.stringify(
+        {
+          name: "compound-engineering-plugin",
+          plugins: [{ name: "some-other-plugin", version: "1.0.0", source: "./" }],
+        },
+        null,
+        2,
+      ),
+    )
+
+    const result = await syncReleaseMetadata({ root, write: false })
+
+    expect(
+      result.errors.some(
+        (err) => err.includes(".omp-plugin/marketplace.json") && err.includes("does not match"),
+      ),
+    ).toBe(true)
+  })
+
 
   test("reports Devin plugin.json name mismatch as structural error", async () => {
     const root = await makeFixtureRoot()

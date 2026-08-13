@@ -2,7 +2,7 @@
   "schema": "ce-orca.upstream-baseline/v1",
   "repository": "https://github.com/EveryInc/compound-engineering-plugin.git",
   "version": "3.21.4",
-  "commit": "0a2957852e2034d04eb01120fd7da6ed5307dc56",
+  "commit": "a27aa2afa21d9a44d393dc3d73b068eab2bfeddf",
   "skillInventory": [
     "ce-babysit-pr",
     "ce-brainstorm",
@@ -24,6 +24,7 @@
     "ce-product-pulse",
     "ce-promote",
     "ce-proof",
+    "ce-prototype",
     "ce-resolve-pr-feedback",
     "ce-retune",
     "ce-riffrec-feedback-analysis",

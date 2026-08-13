@@ -62,7 +62,7 @@ Most teams solve the same problem twice — sometimes with the same person — b
 
 ### 1. Two modes — Full vs Lightweight, agent-selected
 
-**Full mode** runs three research subagents in parallel (Context Analyzer / Solution Extractor / Related Docs Finder), plus an automatic session-history probe that searches your prior sessions across Claude Code, Codex, and Cursor for related context. Cross-references existing docs, detects duplicates, runs specialized reviews.
+**Full mode** runs three research subagents in parallel (Context Analyzer / Solution Extractor / Related Docs Finder), plus an automatic session-history probe that searches your prior sessions across Claude Code, Codex, Cursor, Pi, and oh-my-pi (omp) for related context. Cross-references existing docs, detects duplicates, runs specialized reviews.
 
 **Lightweight mode** writes the same solution-doc artifact type in a single pass, with no subagents or cross-referencing. It is lower overhead, but it also skips overlap detection, session-history research, and semantic grounding validation.
 

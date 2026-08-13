@@ -79,7 +79,7 @@ The goal of the first run is to validate the harness, not to win the optimizatio
 ### 1. Memory Tuning
 
 ```text
-Use /ce-optimize to find the smallest memory setting that keeps this service stable under our load test.
+Run the `ce-optimize` skill to find the smallest memory setting that keeps this service stable under our load test.
 
 The current container limit is 512 MB and the app sometimes OOM-crashes. Do not just jump to 8 GB. Try a small set of realistic memory limits, run the same load test for each one, and score the results using:
 - did the process OOM
@@ -92,7 +92,7 @@ Prefer the smallest memory limit that passes the guard rails.
 ### 2. Clustering Quality
 
 ```text
-Use /ce-optimize to improve issue and PR clustering quality.
+Run the `ce-optimize` skill to improve issue and PR clustering quality.
 
 We have about 18k open issues and PRs. We want to test changes that improve clustering quality, reduce singleton clusters, and improve match quality within each cluster.
 
@@ -104,7 +104,7 @@ Do not optimize only for coverage. Use LLM-as-judge to sample clusters and confi
 ### 3. Prompt Optimization
 
 ```text
-Use /ce-optimize to create a summarization prompt for issues and PRs that minimizes token spend while still producing summaries that are good enough for downstream clustering.
+Run the `ce-optimize` skill to create a summarization prompt for issues and PRs that minimizes token spend while still producing summaries that are good enough for downstream clustering.
 
 I want the loop to compare prompt variants, measure token cost, and judge whether the summaries preserve the distinctions needed to cluster related issues together without merging unrelated ones.
 ```

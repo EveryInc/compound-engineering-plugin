@@ -6,7 +6,9 @@ argument-hint: "[mode:non-interactive] [path/to/document.md]"
 
 # Document Review
 
-Review requirements or plan documents through multi-persona analysis. Dispatches generic subagents seeded with skill-local reviewer prompt assets, auto-applies `safe_auto` fixes, and routes remaining findings through a four-option interaction (per-finding walk-through, auto-resolve with best judgment, Append-to-Open-Questions, Report-only) for user decision.
+Review a requirements or plan document through multi-persona analysis: dispatch generic subagents seeded with skill-local reviewer prompt assets, auto-apply `safe_auto` fixes, and route what remains to the user.
+
+**Done when:** every dispatched reviewer has returned or been named as failed in Coverage, `safe_auto` fixes are applied, and remaining findings have either been routed through the four-option interaction (interactive) or returned as structured text with classifications intact (non-interactive).
 
 ## Setup
 
@@ -24,137 +26,97 @@ fi
 
 ## Interactive mode rules
 
-- **Pre-load the platform question tool before any question fires.** In Claude Code, `AskUserQuestion` is a deferred tool — its schema is not available at session start. At the start of Interactive-mode work (before the routing question, per-finding walk-through questions, bulk-preview Proceed/Cancel, and Phase 5 terminal question), call `ToolSearch` with query `select:AskUserQuestion` to load the schema. Load it once, eagerly, at the top of the Interactive flow — do not wait for the first question site. On Codex, Gemini, and Pi this preload is not required.
-- **The numbered-list fallback applies only when the harness genuinely lacks a blocking question tool** — `ToolSearch` returns no match, the tool call explicitly fails, or the runtime mode does not expose it (e.g., Codex edit modes where `request_user_input` is unavailable). A pending schema load is not a fallback trigger; call `ToolSearch` first per the pre-load rule. In genuine-fallback cases, present options as a numbered list and wait for the user's reply — never silently skip the question. Rendering a question as narrative text because the tool feels inconvenient, because the model is in report-formatting mode, or because the instruction was buried in a long skill is a bug. A question that calls for a user decision must either fire the tool or fall back loudly.
+- **Pre-load the platform question tool before any question fires.** In Claude Code, `AskUserQuestion` is a deferred tool whose schema is not available at session start — call `ToolSearch` with query `select:AskUserQuestion` once, eagerly, at the top of the Interactive flow, not at the first question site (the routing question, per-finding walk-through, bulk-preview Proceed/Cancel, and the Phase 5 terminal question all depend on it). Not required on Codex, Gemini, or Pi.
+- **The numbered-list fallback applies only when the harness genuinely lacks a blocking question tool** — `ToolSearch` returns no match, the call explicitly fails, or the runtime mode does not expose it (e.g., Codex edit modes without `request_user_input`). A pending schema load is not a fallback trigger. In genuine-fallback cases, present options as a numbered list and wait for the reply. A question that calls for a user decision must either fire the tool or fall back loudly — rendering it as narrative text because the tool feels inconvenient, because the model is in report-formatting mode, or because the instruction was buried in a long skill is a bug.
 
 ## Phase 0: Detect Mode
 
-Check the invocation arguments for `mode:non-interactive` or its deprecated alias `mode:headless`. Arguments may contain a document path, either mode token, or both. Tokens starting with `mode:` are flags, not file paths — strip them from the arguments and use the remaining token (if any) as the document path for Phase 1. Both tokens together is not a conflict.
+Arguments may contain a document path, a mode token, or both; both tokens together is not a conflict. Tokens starting with `mode:` are flags, not paths — strip them, and use any remaining token as the document path for Phase 1.
 
-If `mode:non-interactive` or `mode:headless` is present, set **non-interactive mode** for the rest of the workflow.
-
-**Non-interactive mode** changes the interaction model, not the classification boundaries. Apply the same judgment about which tier each finding belongs in. Only the delivery of non-`safe_auto` findings changes:
+`mode:non-interactive` (or its deprecated alias `mode:headless`) sets **non-interactive mode**, which changes the delivery of non-`safe_auto` findings, not the classification boundaries — apply the same judgment about which tier each finding belongs in:
 
 - `safe_auto` fixes are applied silently (same as interactive)
-- `gated_auto`, `manual`, and FYI findings are returned as structured text for the caller to handle — no blocking-question prompts, no interactive routing
+- `gated_auto`, `manual`, and FYI findings are returned as structured text with their original classifications intact, for the caller to handle — no blocking-question prompts, no interactive routing
 - Phase 5 returns immediately with "Review complete" (no routing question, no terminal question)
 
-The caller receives findings with their original classifications intact and decides what to do with them.
+**Non-interactive argument contract:** `mode:non-interactive <document-path>`, for example `mode:non-interactive <path-to-doc>.md`. `mode:headless` is a deprecated alias for the same contract.
 
-**Non-interactive argument contract:** Require `mode:non-interactive <document-path>`, for example `mode:non-interactive <path-to-doc>.md`. `mode:headless` is a deprecated alias for the same contract.
-
-If neither `mode:non-interactive` nor `mode:headless` is present, run in default interactive mode with the routing question, walk-through, and bulk-preview behaviors documented in `references/walkthrough.md` and `references/bulk-preview.md`.
+Absent either token, run interactive, with the routing question, walk-through, and bulk-preview behaviors documented in `references/walkthrough.md` and `references/bulk-preview.md`.
 
 ## Artifact Root
 
-This skill reviews a document at a path it is handed and, in interactive mode with no path given, discovers the most recent plan under `<root>/plans/`. Resolve `<root>` (per the block below) **only in that no-path discovery branch** — the sole place it composes a `<root>/` path. A review of an explicitly-named document reads that path directly and never resolves `<root>`; do not run root resolution at the start of every run, since a valid non-interactive or absolute-path review (e.g. `/tmp/plan.md`, possibly outside any git repo) must not depend on a repo root or CE config it does not need.
+This skill reviews a document at a path it is handed, and in interactive mode with no path given, discovers the most recent plan under `<root>/plans/`. Resolve `<root>` (per the block below) **only in that no-path discovery branch** — a review of an explicitly named document reads that path directly and never resolves `<root>`, so a valid non-interactive or absolute-path review (e.g. `/tmp/plan.md`, possibly outside any git repo) does not depend on a repo root or CE config it does not need.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**
 
-- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml`; first non-empty value wins (`<repo-root>` = `git rev-parse --show-toplevel`). Unset -> `<root>` is `docs`, exactly as before.
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.yaml` only (`<repo-root>` = `git rev-parse --show-toplevel`). Do not read it from `config.local.yaml`. Unset -> `<root>` is `docs`, exactly as before.
 - **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
 - **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
 <!-- ce-docs-root:end -->
 
 ## Phase 1: Get and Analyze Document
 
-**If a document path is provided:** Read it, then proceed. If the Read fails or the file is not on disk, apply the missing-document gate below instead of continuing.
+- **Path provided:** read it, then proceed. If the read fails or the file is not on disk, apply the missing-document gate below instead of continuing.
+- **No path, interactive:** ask which document to review, or find the most recent under `<root>/plans/` with a file-search/glob tool.
+- **No path, non-interactive:** output "Review failed: non-interactive mode requires a document path. Expected arguments: mode:non-interactive <path>" and stop without dispatching reviewers.
 
-**If no document is specified (interactive mode):** Ask which document to review, or find the most recent under `<root>/plans/` using a file-search/glob tool (e.g., Glob in Claude Code).
+**Missing-document gate — verify before any dispatch.** Persona reviewers read from the filesystem and several run without Bash, so they cannot read git refs: a path that exists only on an unchecked-out branch wastes the entire persona team discovering they cannot proceed (issue #925). Confirm every resolved path is readable on disk before Phase 2. Location does not matter — an absolute path outside the checkout or a doc in another checkout reviews fine. If any path is unreadable, dispatch **no** personas:
 
-**If no document is specified (non-interactive mode):** Output "Review failed: non-interactive mode requires a document path. Expected arguments: mode:non-interactive <path>" and stop without dispatching reviewers.
-
-**Missing-document gate — verify before any dispatch.** Persona reviewers read documents from the filesystem, and several run without Bash, so they cannot read git refs — a path that exists only on a branch that is not checked out wastes the entire persona team discovering they cannot proceed (issue #925). Before Phase 2, confirm every resolved document path is readable on disk (the Read above succeeded). Location does not matter: an absolute path outside the checkout (e.g. `/tmp/plan.md`) or a doc in another checkout reviews fine. If any path is not readable, do not dispatch any personas:
-
-- **Interactive mode:** stop and name the missing path(s): "Document(s) not found on disk: <paths>. Check out the branch containing them, use a worktree, or provide corrected readable paths before retrying the review."
-- **Non-interactive mode:** output "Review failed: document(s) not found on disk: <paths>. Expected input: paths to readable files on disk; check out the branch containing them or provide corrected paths." and return without dispatching reviewers.
+- **Interactive:** stop and name the missing path(s): "Document(s) not found on disk: <paths>. Check out the branch containing them, use a worktree, or provide corrected readable paths before retrying the review."
+- **Non-interactive:** output "Review failed: document(s) not found on disk: <paths>. Expected input: paths to readable files on disk; check out the branch containing them or provide corrected paths." and return without dispatching reviewers.
 
 ### Classify Document Type
 
-Classify the document by reading its **content shape and metadata**, not its file path. Under the unified plan contract a requirements-only and an implementation-ready plan both live in `<root>/plans/`, so location no longer signals type — a requirements-style doc classifies as `requirements` and a plan-shaped doc as `plan` wherever either sits. The reviewers below operate differently depending on this classification, so misclassifying a plan-shaped doc as a requirements doc (or vice versa) produces noisy or under-scrutinized findings.
+Classify by **content shape and metadata, not file path** — under the unified plan contract a requirements-only and an implementation-ready plan both live in `<root>/plans/`, so location no longer signals type. Reviewers operate differently per classification, so a misclassification produces noisy or under-scrutinized findings.
 
-First check for the unified artifact contract:
+First check the unified artifact contract (`artifact_contract: ce-unified-plan/v1`):
 
-- `artifact_contract: ce-unified-plan/v1` plus `artifact_readiness: requirements-only` -> classify as `unified-requirements`. Review the Product Contract only; the absence of Planning Contract, Implementation Units, Verification Contract, or Definition of Done is expected and must not be flagged.
-- `artifact_contract: ce-unified-plan/v1` plus `artifact_readiness: implementation-ready` -> classify as `unified-plan`. Review Product Contract and Planning Contract with different lenses, then review Implementation Units/Verification/DoD for execution completeness.
-- HTML unified artifacts (`.html`) are read/reviewed in report-only mode. Do not apply markdown mutation paths to HTML. If a caller requested mutation/autofix behavior, skip with the existing markdown-only message or return report-only findings.
-- Invalid progress-like readiness values (`active`, `in_progress`, `completed`, `done`) are a document-contract finding, not an execution state to honor.
+- `artifact_readiness: requirements-only` -> **`unified-requirements`**. Review the Product Contract only; the absence of Planning Contract, Implementation Units, Verification Contract, or Definition of Done is expected and must not be flagged.
+- `artifact_readiness: implementation-ready` -> **`unified-plan`**. Review Product Contract and Planning Contract with different lenses, then Implementation Units/Verification/DoD for execution completeness.
+- Progress-like readiness values (`active`, `in_progress`, `completed`, `done`) are invalid — a document-contract finding, not an execution state to honor.
+- HTML unified artifacts (`.html`) are read/reviewed report-only. Never apply markdown mutation paths to HTML; if a caller requested mutation/autofix, skip with the existing markdown-only message or return report-only findings.
 
-Use these signals to decide:
+Otherwise decide between the two legacy types on these signals:
 
-**`requirements` signals (what-to-build documents):**
-- Frontmatter fields like `actors:`, `flows:`, `acceptance_examples:`, or `status:` carrying brainstorm-shaped values
-- Section headings such as `Acceptance Examples`, `Actors`, `Key Flows`, `User Flows`, `Outstanding Questions`, `Resolve Before Planning`
-- Numbered identifiers in the form `R1`, `R2`, `A1`, `F1`, `AE1` — requirement, actor, flow, and acceptance-example IDs
-- Prose framing focused on user/business problem, behavior, scope boundaries, success criteria
-- No implementation units, no per-unit file lists, no test scenarios attached to units
+- **`requirements`** (what-to-build): frontmatter like `actors:`, `flows:`, `acceptance_examples:`, or brainstorm-shaped `status:`; headings such as `Acceptance Examples`, `Actors`, `Key Flows`, `User Flows`, `Outstanding Questions`, `Resolve Before Planning`; `R1`/`A1`/`F1`/`AE1` identifiers; framing on user/business problem, behavior, scope boundaries, success criteria; no implementation units, per-unit file lists, or unit-attached test scenarios.
+- **`plan`** (how-to-build): frontmatter like `type: feat|fix|refactor`, `origin: docs/brainstorms/...`, or `product_contract_source: ce-brainstorm|ce-plan-bootstrap|legacy-requirements`; headings such as `Implementation Units`, `Output Structure`, `Key Technical Decisions`, `Risks & Dependencies`, `System-Wide Impact`; `U1`/`U2` unit identifiers; per-unit `Goal`/`Files`/`Approach`/`Test scenarios`/`Verification` fields; repo-relative paths to create/modify/test; framing on technical decisions, sequencing, implementer-facing detail.
 
-**`plan` signals (how-to-build documents):**
-- Frontmatter fields like `type: feat|fix|refactor`, `origin: docs/brainstorms/...`, or `product_contract_source: ce-brainstorm|ce-plan-bootstrap|legacy-requirements`
-- Section headings such as `Implementation Units`, `Output Structure`, `Key Technical Decisions`, `Risks & Dependencies`, `System-Wide Impact`
-- Numbered identifiers in the form `U1`, `U2` — implementation unit IDs
-- Per-unit fields named `Goal`, `Files`, `Approach`, `Test scenarios`, `Verification`
-- Repo-relative file paths to create/modify/test
-- Prose framing focused on technical decisions, sequencing, and implementer-facing detail
+**Tie-breaker:** treat the dominant content shape as authoritative; if shape is genuinely ambiguous, default to `requirements` (the conservative choice — it activates fewer plan-specific feasibility checks). Path location never disambiguates; a legacy `origin: docs/brainstorms/...` field still reads as a `plan` signal.
 
-**Tie-breaker rule.** When the content signals are mixed or sparse, treat the dominant content shape as authoritative; if shape is genuinely ambiguous, default to `requirements` (the more conservative classification — it activates fewer plan-specific feasibility checks). Path location does not disambiguate type under the unified plan contract, where requirements-only and implementation-ready plans share `<root>/plans/`; a legacy `origin: docs/brainstorms/...` field, when present, still reads as a `plan` signal per the frontmatter list above.
-
-Pass the classification result to each persona via the `{document_type}` slot in the subagent template. Personas read this and adapt their analysis accordingly.
+Pass the result to each persona via the `{document_type}` slot — personas adapt their analysis to it.
 
 ### Select Conditional Personas
 
-Analyze the document content to determine which conditional personas to activate. Check for these signals:
+Activate a conditional persona when the document shows its signals:
 
-**product-lens** -- activate when the document makes challengeable claims about what to build and why, or when the proposed work carries strategic weight beyond the immediate problem. The system's users may be end users, developers, operators, maintainers, or any other audience -- the criteria are domain-agnostic. Check for either leg:
+**product-lens** — the document makes challengeable claims about what to build and why, or the work carries strategic weight beyond the immediate problem. Users may be end users, developers, operators, maintainers, or any other audience; the criteria are domain-agnostic. Either leg qualifies:
 
-*Leg 1 — Premise claims:* The document stakes a position on what to build or why that a knowledgeable stakeholder could reasonably challenge -- not merely describing a task or restating known requirements:
-- Problem framing where the stated need is non-obvious or debatable, not self-evident from existing context
-- Solution selection where alternatives plausibly exist (implicit or explicit)
-- Prioritization decisions that explicitly rank what gets built vs deferred
-- Goal statements that predict specific user outcomes, not just restate constraints or describe deliverables
+- *Premise claims* — the document stakes a position a knowledgeable stakeholder could reasonably challenge, not merely describing a task or restating known requirements: non-obvious or debatable problem framing; solution selection where alternatives plausibly exist (implicit or explicit); prioritization that explicitly ranks what gets built vs deferred; goal statements predicting specific user outcomes rather than restating constraints or listing deliverables.
+- *Strategic weight* — the work could affect trajectory, perception, or positioning even with a sound premise: it shapes what the system becomes known for; it is a complexity or simplicity bet affecting adoption, onboarding, or cognitive load; it opens or closes future directions (path dependencies, architectural commitments); it carries opportunity cost — building this means not building something else.
 
-*Leg 2 — Strategic weight:* The proposed work could affect system trajectory, user perception, or competitive positioning, even if the premise is sound:
-- Changes that shape how the system is perceived or what it becomes known for
-- Complexity or simplicity bets that affect adoption, onboarding, or cognitive load
-- Work that opens or closes future directions (path dependencies, architectural commitments)
-- Opportunity cost implications -- building this means not building something else
+**design-lens** — UI/UX references, frontend components, or visual design language; user flows, wireframes, screen/page/view mentions; interaction descriptions (forms, buttons, navigation, modals); responsive behavior or accessibility.
 
-**design-lens** -- activate when the document contains:
-- UI/UX references, frontend components, or visual design language
-- User flows, wireframes, screen/page/view mentions
-- Interaction descriptions (forms, buttons, navigation, modals)
-- References to responsive behavior or accessibility
+**security-lens** — auth/authorization, login flows, session management; API endpoints exposed to external clients; handling of **sensitive** data — PII, payments, tokens, credentials, secrets, encryption; third-party integrations with trust-boundary implications. Ordinary data handling is not a trigger, and neither is storage-layer churn on its own: an internal schema migration, field rename, or data-store move activates this lens only when the data is sensitive or the change alters who can read or write it. Deployment-ordering risk is a feasibility concern, not a security signal.
 
-**security-lens** -- activate when the document contains:
-- Auth/authorization mentions, login flows, session management
-- API endpoints exposed to external clients
-- Data handling, PII, payments, tokens, credentials, encryption
-- Third-party integrations with trust boundary implications
+**scope-guardian** — multiple priority tiers (P0/P1/P2, must/should/nice-to-have); >8 distinct requirements or implementation units; stretch goals, nice-to-haves, or "future work" sections; scope boundary language misaligned with stated goals; goals that don't clearly connect to requirements.
 
-**scope-guardian** -- activate when the document contains:
-- Multiple priority tiers (P0/P1/P2, must-have/should-have/nice-to-have)
-- Large requirement count (>8 distinct requirements or implementation units)
-- Stretch goals, nice-to-haves, or "future work" sections
-- Scope boundary language that seems misaligned with stated goals
-- Goals that don't clearly connect to requirements
+**adversarial** — a high-value challenge surface, not merely structural complexity. Activate when ANY holds:
 
-**adversarial** -- activate when the document contains a high-value challenge surface, not merely structural complexity. Routine plans with stated rationale are not by themselves an adversarial signal — premise/assumption work re-litigates settled questions when the only signal is "this plan is well-structured." Activate when ANY of the following holds:
+- A **requirements document** with 2+ challengeable claims (problem framing, solution selection, prioritization, predicted outcomes) — premise scrutiny is core to the brainstorm phase
+- A **high-stakes domain** — auth, payments, billing, data migrations, privacy/compliance, external integrations, cryptography — regardless of doc type or size
+- A **new abstraction, framework, or significant architectural pattern**, regardless of doc type
+- A **plan with no validated upstream Product Contract signal** (no legacy `origin:` requirements doc and no `product_contract_source: ce-brainstorm` or `legacy-requirements`) — the premise wasn't validated upstream
+- A **plan that explicitly extends scope** beyond its origin requirements doc (new actors, new flows, deferred-then-restored features)
+- An **explicit alternatives section** or unresolved tradeoffs — adversarial helps stress-test the chosen direction
 
-- The document is a **requirements document** with 2+ challengeable claims (problem framing, solution selection, prioritization, predicted outcomes) -- premise scrutiny is core to the brainstorm phase
-- The document touches a **high-stakes domain** -- auth, payments, billing, data migrations, privacy/compliance, external integrations, cryptography -- regardless of doc type or size
-- The document **proposes a new abstraction, framework, or significant architectural pattern** -- regardless of doc type
-- The document is a **plan with no validated upstream Product Contract signal** (no legacy `origin:` requirements doc and no `product_contract_source: ce-brainstorm` or `legacy-requirements`) -- premise wasn't validated upstream
-- The document is a **plan that explicitly extends scope** beyond its origin requirements doc (new actors, new flows, deferred-then-restored features)
-- The document contains an **explicit alternatives section** or unresolved tradeoffs -- adversarial helps stress-test the chosen direction
-
-Do NOT activate adversarial on a routine plan document that derives from a validated upstream Product Contract, stays within scope, and does not introduce high-stakes domains or new abstractions. Validated upstream provenance includes legacy `origin: docs/brainstorms/...`, `product_contract_source: ce-brainstorm`, and `product_contract_source: legacy-requirements`. A direct `product_contract_source: ce-plan-bootstrap` plan is greenfield and does not suppress premise-level techniques by itself. The plan's structural decisions (more units, more rationale) are not by themselves adversarial signal -- those are the plan doing its job.
+Do NOT activate adversarial on a routine plan that derives from a validated upstream Product Contract, stays in scope, and introduces no high-stakes domain or new abstraction. Validated provenance includes legacy `origin: docs/brainstorms/...`, `product_contract_source: ce-brainstorm`, and `product_contract_source: legacy-requirements`; a direct `product_contract_source: ce-plan-bootstrap` plan is greenfield and does not suppress premise-level techniques by itself. A well-structured plan with stated rationale is the plan doing its job, not adversarial signal — activating on that alone re-litigates settled questions.
 
 ## Phase 2: Announce and Dispatch Personas
 
 ### Announce the Review Team
 
-Tell the user which personas will review and why. For conditional personas, include the justification:
+Tell the user which personas will review and why, with a justification for each conditional one:
 
 ```
 Reviewing with:
@@ -164,18 +126,7 @@ Reviewing with:
 - security-lens-reviewer -- plan adds API endpoints with auth flow
 ```
 
-### Build Agent List
-
-Always include:
-- `coherence-reviewer`
-- `feasibility-reviewer`
-
-Add activated conditional personas:
-- `product-lens-reviewer`
-- `design-lens-reviewer`
-- `security-lens-reviewer`
-- `scope-guardian-reviewer`
-- `adversarial-document-reviewer`
+The team is `coherence-reviewer` and `feasibility-reviewer` always, plus each activated conditional persona (`product-lens-reviewer`, `design-lens-reviewer`, `security-lens-reviewer`, `scope-guardian-reviewer`, `adversarial-document-reviewer`).
 
 ### Dispatch
 
@@ -185,17 +136,17 @@ Read `references/orca-routing.md` and resolve the current run before dispatch. I
 reviewers. Otherwise, execute the native dispatch paragraph below unchanged.
 <!-- ce-orca-hook:end ce-doc-review.persona-dispatch -->
 
-Dispatch generic subagents using **bounded parallelism** with the platform's subagent primitive (e.g., `Agent` in Claude Code, `spawn_agent` in Codex) where available; otherwise run the work inline or serially. Omit the `mode` parameter so the user's configured permission settings apply. Respect the current harness's active-subagent limit: queue selected reviewers, dispatch only as many as the harness accepts, and fill freed slots as reviewers complete. Treat active-agent/thread/concurrency-limit spawn errors as backpressure, not reviewer failure: leave the reviewer queued and retry after a slot frees. Record a reviewer as failed only after a successful dispatch times out/fails, or when dispatch fails for a non-capacity reason.
+Dispatch generic subagents with **bounded parallelism** using the platform's subagent primitive (e.g., `Agent` in Claude Code, `spawn_agent` in Codex) where available; otherwise run the work inline or serially. Omit the `mode` parameter so the user's configured permission settings apply. Respect the harness's active-subagent limit even at the 7-agent maximum: queue the selected reviewers, dispatch only as many as the harness accepts, and fill freed slots as reviewers complete. Treat active-agent/thread/concurrency-limit spawn errors as backpressure, not reviewer failure — leave the reviewer queued and retry after a slot frees, and if the harness cap is lower than the team size, queue the remainder rather than dropping it. Record a reviewer as failed only after a successful dispatch times out or fails, or when dispatch fails for a non-capacity reason.
 
-For each selected reviewer, read the matching skill-local prompt asset at `references/personas/<reviewer-name>.md` and pass its full content as `{persona_file}`. Do not dispatch standalone agents by type/name and do not rely on platform-level custom-agent registration.
+For each selected reviewer, read `references/personas/<reviewer-name>.md` and pass its full content as `{persona_file}`. Do not dispatch standalone agents by type/name and do not rely on platform-level custom-agent registration.
 
 **Model tiering lives here, not in prompt assets.** Local prompt files have no frontmatter and carry no model metadata. Apply these dispatch-time preferences when the platform exposes a known model override; otherwise omit the override and inherit the parent model rather than guessing a platform-specific model name:
 
 - `coherence-reviewer`: cheapest capable extraction/reasoning tier.
-- `design-lens-reviewer`, `scope-guardian-reviewer`: platform mid-tier model.
 - `security-lens-reviewer`, `feasibility-reviewer`, `product-lens-reviewer`, `adversarial-document-reviewer`: inherit the parent model unless the harness has an established high-capability review tier.
+- `design-lens-reviewer`, `scope-guardian-reviewer`: platform mid-tier model.
 
-Each subagent receives the prompt built from the subagent template included below with these variables filled:
+Each subagent receives the prompt built from the subagent template included below, with these variables filled:
 
 | Variable | Value |
 |----------|-------|
@@ -203,21 +154,12 @@ Each subagent receives the prompt built from the subagent template included belo
 | `{schema}` | Content of the findings schema included below |
 | `{document_type}` | "requirements", "plan", "unified-requirements", or "unified-plan" from Phase 1 classification |
 | `{document_path}` | Path to the document |
-| `{origin_path}` | Upstream Product Contract provenance extracted once during Phase 1: prefer the document's `origin:` frontmatter field when present; otherwise use `product_contract_source:<value>` when present; otherwise use `none`. Personas that adapt on origin/provenance (product-lens, adversarial, scope-guardian) read this slot to gate technique suppression — they do NOT re-parse frontmatter themselves. |
-| `{settled_ktds}` | Session-settled decisions extracted once during Phase 1: any Key Technical Decision **or Product Contract Key Decision** entries carrying a `session-settled:` annotation, listed as decision name, class (`user-directed` / `user-approved`), and rejected alternative; or the literal `none` when the document has no such entries. Personas read this slot — they do NOT re-parse the document for it. |
-| `{document_content}` | Reviewer-specific section slice. For unified artifacts, pass metadata, Goal Capsule, and only the relevant slice: product-lens/adversarial/scope reviewers get Product Contract; feasibility/coherence reviewers also get Planning Contract and active Implementation Units/Verification/DoD when `artifact_readiness: implementation-ready`. For legacy documents, pass the full document. |
-| `{decision_primer}` | Cumulative prior-round decisions in the current session, or an empty `<prior-decisions>` block on round 1. See "Decision primer" below. |
+| `{origin_path}` | Upstream Product Contract provenance extracted once during Phase 1: prefer the document's `origin:` frontmatter field when present; otherwise `product_contract_source:<value>` when present; otherwise `none`. Personas that adapt on provenance (product-lens, adversarial, scope-guardian) read this slot to gate technique suppression — they do NOT re-parse frontmatter themselves. |
+| `{settled_ktds}` | Session-settled decisions extracted once during Phase 1: any Key Technical Decision **or Product Contract Key Decision** entries carrying a `session-settled:` annotation, listed as decision name, class (`user-directed` / `user-approved`), and rejected alternative; or the literal `none`. Personas read this slot — they do NOT re-parse the document for it. |
+| `{document_content}` | Reviewer-specific slice. **Legacy** requirements/plan documents: pass the full document, never split. **Unified** artifacts can be large, so a section slice is the default rather than the full artifact — metadata, Goal Capsule, plus Product Contract for product-lens/adversarial/scope reviewers, and additionally Planning Contract and active Implementation Units/Verification/DoD for feasibility/coherence reviewers when `artifact_readiness: implementation-ready`. Escalate to a broader slice only when a reviewer needs cross-section traceability the initial slice cannot assess. |
+| `{decision_primer}` | Round 1: the block below. Round 2+: read `references/decision-primer.md` and render per that file. |
 
-For legacy requirements/plan documents, pass each subagent the **full
-document** — do not split into sections. For unified artifacts, do not pass the
-full artifact to every reviewer by default: unified plans can be large, so
-section slices (per the `{document_content}` slot above) are the default.
-Escalate to a broader slice only when the reviewer needs cross-section
-traceability that the initial slice cannot assess.
-
-### Decision primer
-
-On round 1 (no prior decisions), set `{decision_primer}` to:
+On round 1 — no prior decisions in this interactive session — set `{decision_primer}` to:
 
 ```
 <prior-decisions>
@@ -225,44 +167,13 @@ Round 1 — no prior decisions.
 </prior-decisions>
 ```
 
-On round 2+ (after one or more prior rounds in the current interactive session), accumulate prior-round decisions and render them as:
-
-```
-<prior-decisions>
-Round 1 — applied (N entries):
-- {section}: "{title}" ({reviewer}, {confidence})
-  Evidence: "{evidence_snippet}"
-
-Round 1 — rejected (M entries):
-- {section}: "{title}" — Skipped because {reason}
-  Evidence: "{evidence_snippet}"
-- {section}: "{title}" — Deferred to Open Questions because {reason or "no reason provided"}
-  Evidence: "{evidence_snippet}"
-- {section}: "{title}" — Acknowledged without applying because {reason or "no suggested_fix — user acknowledged"}
-  Evidence: "{evidence_snippet}"
-- {section}: "{title}" — Withdrawn because {triggering decision}
-  Evidence: "{evidence_snippet}"
-
-Round 2 — applied (N entries):
-...
-</prior-decisions>
-```
-
-Each entry carries an `Evidence:` line because synthesis R29 (rejected-finding suppression) and R30 (fix-landed verification) both use an evidence-substring overlap check as part of their matching predicate — without the evidence snippet in the primer, the orchestrator cannot compute the `>50%` overlap test and has to fall back to fingerprint-only matching, which either re-surfaces rejected findings or suppresses too aggressively. The `{evidence_snippet}` is the first evidence quote from the finding, truncated to the first ~120 characters (preserving whole words at the boundary) and with internal quotes escaped. If a finding has multiple evidence entries, use the first one; the rest live in the run artifact and are not needed for the overlap check.
-
-Accumulate across all rounds in the current session. Skip, Defer, and Acknowledge actions all count as "rejected" for suppression purposes — each signals the user decided the finding wasn't worth actioning this round (Acknowledge is the no-fix-guard variant: the user saw a finding with no `suggested_fix`, chose not to defer or skip explicitly, and recorded acknowledgement instead; for round-to-round suppression that is semantically equivalent to Skip). **Withdraw is conditional** (it is the revalidation variant: an earlier decision resolved or contradicted the finding; see "Withdrawing findings the user's earlier answers resolved" in `references/walkthrough.md`): it counts as rejected-class **only when a user decision retired it — a settled premise (Skip/Defer) or a user-asserted fact. An Apply-triggered Withdraw never does** (its resolution depends on the staged edit both landing and semantically resolving the finding, which round N+1 re-synthesis checks — not R29; suppressing it would hide a fix that failed or landed ineffectively). Applied findings stay on the applied list so round-N+1 personas can verify fixes landed (see R30 in `references/synthesis-and-presentation.md`).
-
-Cross-session persistence is out of scope. A later review of the same document starts with a fresh round 1 and no carried primer, even if prior sessions deferred findings into the document's Open Questions section.
-
-**Error handling:** If a subagent fails or times out, proceed with findings from subagents that completed. Note the failed reviewer in the Coverage section. Do not block the entire review on a single reviewer failure.
-
-**Dispatch limit:** Even at maximum (7 agents), use bounded parallel dispatch. If the harness cap is lower than the selected team size, queue the remainder and launch them as active reviewers complete.
+**Error handling:** if a subagent fails or times out, proceed with the findings from those that completed and name the failed reviewer in the Coverage section. Never block the whole review on one reviewer failure.
 
 ### Cross-Model Judgment Pass
 
-If any of the **conditional judgment trio** — `adversarial-document-reviewer`, `product-lens-reviewer`, `security-lens-reviewer` — was activated, load `references/cross-model-review.md` and follow it for the additive, non-blocking peer pass. Attest the host as a harness plus serving family, resolve one target and one concrete route for the whole document, verify every actual recipient against the egress allowlist, and disclose and sanction that fixed route before content leaves the host. `cursor` means Cursor default/Auto; `composer` means an explicit Composer-family model through Cursor. Try the declared mapping first; after an observed incompatibility only, a target-bound same-family model override may adapt a stale default. Never silently change an explicit model or recipient, and never let a dispatched worker choose a recipient-changing fallback.
+If any of the **conditional judgment trio** — `adversarial-document-reviewer`, `product-lens-reviewer`, `security-lens-reviewer` — was activated, load `references/cross-model-review.md` and follow it for the additive, non-blocking peer pass. Attest the host as a harness plus serving family, resolve one target and one concrete route for the whole document, verify every actual recipient against the egress allowlist, and disclose and sanction that fixed route before content leaves the host. `cursor` means Cursor default/Auto; `composer` means an explicit Composer-family model through Cursor. Try the declared mapping first; only after an observed incompatibility may a target-bound same-family model override adapt a stale default. Never silently change an explicit model or recipient, and never let a dispatched worker choose a recipient-changing fallback.
 
-Launch one detached runner job per activated trio lens plus one `whole-doc` sweep in the same wave as the in-process reviewers, using the exact invocation contract in the reference. Every trio peer receives its twin's same reviewer-specific slice; `whole-doc` receives the full document. All calls use the same sanctioned target/route. Poll, reap, attribute, and clean up through the runner; a failure or timeout remains non-blocking and is named in Coverage. Fold findings into ordinary synthesis, but agreement promotion requires the artifact's top-level `independence_verified: true`; false or absent independence is useful evidence, not different-model corroboration. Feasibility and the convergent lenses (coherence, scope-guardian) do **not** run cross-model.
+Launch one detached runner job per activated trio lens plus one `whole-doc` sweep in the same wave as the in-process reviewers, using the exact invocation contract in the reference. Every trio peer receives its twin's same reviewer-specific slice; `whole-doc` receives the full document. All calls use the same sanctioned target/route. Poll, reap, attribute, and clean up through the runner; a failure or timeout stays non-blocking and is named in Coverage. Fold findings into ordinary synthesis, but agreement promotion requires the artifact's top-level `independence_verified: true` — false or absent independence is useful evidence, not different-model corroboration. Feasibility and the convergent lenses (coherence, scope-guardian) do **not** run cross-model.
 
 ## Phases 3-5: Synthesis, Presentation, and Next Action
 
