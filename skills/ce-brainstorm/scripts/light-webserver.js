@@ -228,7 +228,16 @@ function renderPage(options) {
 }
 
 function safeFileResponse(options, req, res) {
-  const name = decodeURIComponent(req.url.slice("/files/".length))
+  let name
+  try {
+    name = decodeURIComponent(req.url.slice("/files/".length))
+  } catch {
+    // A malformed percent-escape throws URIError; without this the throw is
+    // uncaught in the request handler and takes the whole server down.
+    res.writeHead(400)
+    res.end("Bad request")
+    return
+  }
   const filePath = path.join(options.screensDir, path.basename(name))
   if (!fs.existsSync(filePath)) {
     res.writeHead(404)
