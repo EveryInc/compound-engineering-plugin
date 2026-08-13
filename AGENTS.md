@@ -190,9 +190,13 @@ That makes cross-file isolation load-bearing rather than incidental: a test file
 
 **Do not pin a worker count.** `--parallel` with no value tracks the runner's core count, which is what you want. Raising it looks free — the suite is idle-bound, so more workers should pack better — but it was measured on CI and it is not: at `--parallel=8` on a 4-core runner, wall time improved ~9% (102s -> 93s) while total test-CPU inflated from 223s to 343s, and five tests crossed the 5000ms default per-test timeout. That converts runner busyness into red builds. A file that legitimately runs for seconds should call `setDefaultTimeout` instead, as the subprocess-heavy suites do.
 
-Wall time is bounded by the **slowest single file**, since a file never splits across workers. The former `tests/skills/ce-work-unit-workspace.test.ts` was 61s of a ~100s run; it is now split into four `ce-work-unit-workspace-*.test.ts` files sharing `tests/skills/helpers/ce-work-workspace-harness.ts`. `tests/ce-babysit-pr-snapshot.test.ts` (~40s) is the current ceiling, and splitting it is the next lever if CI still sits meaningfully above the packing floor — not more workers.
+A file never splits across workers, so an oversized file sets a floor. `tests/skills/ce-work-unit-workspace.test.ts` was 4,564 lines and 86 tests under one `describe`; it is now four `ce-work-unit-workspace-*.test.ts` files sharing `tests/skills/helpers/ce-work-workspace-harness.ts`. Measured with three `workflow_dispatch` runs per ref in the same window, the `Run tests` step went from a median of 88s (87/112/88) to 81s (83/80/81).
 
-**A test file that grows past roughly a thousand lines under one `describe` is a wall-time problem, not just a readability one.** Prefer several domain-scoped files over one exhaustive suite, and put shared fixtures in `tests/skills/helpers/`.
+**Splitting bought ~8% of CI wall time and most of the run-to-run variance** — baseline spread 25s, split spread 3s. That second effect is the durable one: a 60s serial file makes wall time depend on which worker takes it, so a busy runner produced the 112s outlier. Locally the same split is much larger (160s -> 75s), because a developer machine has enough cores for the long file to be the whole critical path.
+
+**Do not use `bun test --parallel=4` on a many-core laptop as a CI proxy.** It predicted a 26% CI win where the real number was 8%: capping bun to four workers still leaves the other cores absorbing the `git` / `python3` / `bash` subprocess load, so it does not behave like a 4-core runner. Dispatch the real workflow on both refs instead.
+
+At 81s the suite is nearer CPU-bound on a 4-core runner than bounded by its slowest file, so further file splitting has small returns; `tests/ce-babysit-pr-snapshot.test.ts` (~40s) is the largest remaining file and was deliberately left intact. **A new test file that grows past roughly a thousand lines under one `describe` is still a wall-time problem, not just a readability one** — prefer several domain-scoped files, with shared fixtures in `tests/skills/helpers/`.
 
 ### What belongs where
 
