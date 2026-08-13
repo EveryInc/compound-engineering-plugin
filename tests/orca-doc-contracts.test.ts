@@ -106,6 +106,27 @@ describe("CE-Orca documentation contracts", () => {
     expect(compoundingProse).toContain("Never send Phase 3 specialized reviewers through Orca")
   })
 
+  test("makes every hydrated-result consumer branch on resumable dispatches", async () => {
+    const consumers = [
+      "skills/ce-code-review/references/orca-review-dispatch.md",
+      "skills/ce-compound/references/orca-read-analysis.md",
+      "skills/ce-debug/references/orca-investigation.md",
+      "skills/ce-doc-review/references/orca-dispatch.md",
+      "skills/ce-plan/references/orca-read-analysis.md",
+      "skills/ce-simplify-code/references/orca-review-dispatch.md",
+      "skills/ce-work/references/orca-execution.md",
+    ]
+
+    for (const consumer of consumers) {
+      const prose = (await read(consumer)).replace(/\s+/g, " ")
+      expect(prose, consumer).toContain("Inspect `action` before reading `result`")
+      expect(prose, consumer).toContain("If it is `orca-running`, preserve the envelope")
+      expect(prose, consumer).toContain("use the `resume --dispatch` path")
+      expect(prose, consumer).toContain("never call `run` again")
+      expect(prose, consumer).toContain("Continue only when `action` is `orca`")
+    }
+  })
+
   test("does not promise strict Orca reads for Cursor", async () => {
     const [readme, integrationGuide] = await Promise.all([
       read("README.md"),

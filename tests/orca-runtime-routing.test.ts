@@ -7,6 +7,7 @@ import {
   MAX_CONFIDENTIAL_PACKET_BYTES,
   isOrcaTerminal,
   probeRuntime,
+  resumeOrcaRun,
   resolveRuntimeCommand,
   routeRuntime,
   runResolvedRequest,
@@ -229,11 +230,11 @@ describe("CE-Orca runtime routing", () => {
       packet,
       waitSeconds: 42,
       worktree: "path:/repo",
-      execFile: async (command: string, args: string[]) => {
+      execFile: async (command: string, args: string[], options: { timeout: number }) => {
         if (args[0] === "artifact-read") {
           return { stdout: JSON.stringify(validDocReviewResult()), stderr: "", exitCode: 0 }
         }
-        observed = { command, args: [...args], request: JSON.parse(await fs.readFile(args[1], "utf8")), packet: JSON.parse(await fs.readFile(args[args.indexOf("--packet") + 1], "utf8")), requestMode: (await fs.stat(args[1])).mode & 0o777, packetMode: (await fs.stat(args[args.indexOf("--packet") + 1])).mode & 0o777 }
+        observed = { command, args: [...args], timeout: options.timeout, request: JSON.parse(await fs.readFile(args[1], "utf8")), packet: JSON.parse(await fs.readFile(args[args.indexOf("--packet") + 1], "utf8")), requestMode: (await fs.stat(args[1])).mode & 0o777, packetMode: (await fs.stat(args[args.indexOf("--packet") + 1])).mode & 0o777 }
         return { stdout: JSON.stringify(resultEnvelope()), stderr: "", exitCode: 0 }
       },
     })
@@ -251,11 +252,49 @@ describe("CE-Orca runtime routing", () => {
     expect(observed.args[observed.args.indexOf("--consume-packet-source") + 1]).toBe("true")
     expect(observed.args[observed.args.indexOf("--worktree") + 1]).toBe("path:/repo")
     expect(observed.args).toContain("42")
+    expect(observed.timeout).toBe(72_000)
     expect(observed.request).not.toHaveProperty("display")
     expect(observed.packet).toEqual(packet)
     expect(observed.requestMode).toBe(0o600)
     expect(observed.packetMode).toBe(0o600)
     await expect(fs.stat(observed.args[1])).rejects.toMatchObject({ code: "ENOENT" })
+  })
+
+  test("derives the run wait and process windows from the largest Orca-dispatched budget", async () => {
+    for (const [budget, expectedWaitSeconds] of [[900, 930], [1200, 1230], [1800, 1830], [2700, 2730]] as const) {
+      const snapshot = resolved()
+      snapshot.executionConfig.stages = {
+        dispatch: {
+          budget: 900,
+          roles: {
+            worker: { budget },
+          },
+        },
+        nativeOnly: {
+          budget: 9999,
+        },
+      }
+      snapshot.executionConfig.ownership = { dispatch: "orca", nativeOnly: "native" }
+      let observed: { args: string[]; timeout: number } | null = null
+
+      const result = await runResolvedRequest({
+        resolved: snapshot,
+        workflowRegistryPath: DOC_REVIEW_REGISTRY,
+        execFile: async (_command: string, args: string[], options: { timeout: number }) => {
+          if (args[0] === "run-request") {
+            observed = { args, timeout: options.timeout }
+            return { stdout: JSON.stringify(resultEnvelope()), stderr: "", exitCode: 0 }
+          }
+          return { stdout: JSON.stringify(validDocReviewResult()), stderr: "", exitCode: 0 }
+        },
+      })
+
+      expect(result.action).toBe("orca")
+      expect(observed).toEqual({
+        args: expect.arrayContaining(["--wait", String(expectedWaitSeconds)]),
+        timeout: (budget + 60) * 1_000,
+      })
+    }
   })
 
   test("rejects malformed confidential packet JSON before invoking Orca", async () => {
@@ -832,23 +871,220 @@ describe("CE-Orca runtime routing", () => {
     expect(active).toBe(0)
   })
 
-  test("preserves nonterminal timeout semantics without attempting hydration", async () => {
+  test("returns a resumable running result for a nonterminal client timeout without attempting hydration or redispatch", async () => {
+    let runRequests = 0
     let artifactReads = 0
-    await expect(runResolvedRequest({
+    const result = await runResolvedRequest({
       resolved: resolved(),
       workflowRegistryPath: DOC_REVIEW_REGISTRY,
       execFile: async (_command: string, args: string[]) => {
         if (args[0] === "run-request") {
-          return { stdout: JSON.stringify(resultEnvelope("timeout")), stderr: "", exitCode: 0 }
+          runRequests += 1
+          const timeout: any = new Error("process timed out")
+          timeout.killed = true
+          timeout.stdout = JSON.stringify(resultEnvelope("timeout"))
+          throw timeout
         }
         artifactReads += 1
         return { stdout: "{}", stderr: "", exitCode: 0 }
       },
-    })).rejects.toMatchObject({
-      code: "orca_run_failed",
-      details: { response: { state: "timeout", terminal: false } },
     })
+    expect(result).toMatchObject({
+      schema: "ce-orca.dispatch/v1",
+      action: "orca-running",
+      response: { runId: "20260711-120000-abcd", state: "timeout", terminal: false },
+    })
+    expect(runRequests).toBe(1)
     expect(artifactReads).toBe(0)
+  })
+
+  test("resumes the same run without redispatch and hydrates its terminal result", async () => {
+    let runRequests = 0
+    let waits = 0
+    let artifactReads = 0
+    const execFile = async (_command: string, args: string[], options: { timeout: number }) => {
+      if (args[0] === "run-request") {
+        runRequests += 1
+        const timeout: any = new Error("process timed out")
+        timeout.stdout = JSON.stringify(resultEnvelope("timeout"))
+        throw timeout
+      }
+      if (args[0] === "wait") {
+        waits += 1
+        expect(args).toEqual(["wait", "20260711-120000-abcd", "--timeout", "75"])
+        expect(options.timeout).toBe(105_000)
+        return { stdout: JSON.stringify(resultEnvelope()), stderr: "", exitCode: 0 }
+      }
+      artifactReads += 1
+      expect(args).toEqual(["artifact-read", "20260711-120000-abcd", "runs/20260711-120000-abcd/ce-result.json"])
+      return { stdout: JSON.stringify(validDocReviewResult()), stderr: "", exitCode: 0 }
+    }
+    const running = await runResolvedRequest({
+      resolved: resolved(),
+      workflowRegistryPath: DOC_REVIEW_REGISTRY,
+      execFile,
+    })
+
+    const resumed = await resumeOrcaRun({
+      dispatch: running,
+      workflowRegistryPath: DOC_REVIEW_REGISTRY,
+      waitSeconds: 75,
+      execFile,
+    })
+
+    expect(resumed).toMatchObject({
+      schema: "ce-orca.dispatch/v1",
+      action: "orca",
+      response: { runId: "20260711-120000-abcd", state: "succeeded", terminal: true },
+      result: { value: validDocReviewResult(), artifacts: {} },
+    })
+    expect(runRequests).toBe(1)
+    expect(waits).toBe(1)
+    expect(artifactReads).toBe(1)
+  })
+
+  test("keeps a resumed run resumable when the same run is still nonterminal", async () => {
+    let runRequests = 0
+    let waits = 0
+    let artifactReads = 0
+    const execFile = async (_command: string, args: string[]) => {
+      if (args[0] === "run-request") {
+        runRequests += 1
+        const timeout: any = new Error("process timed out")
+        timeout.stdout = JSON.stringify(resultEnvelope("timeout"))
+        throw timeout
+      }
+      if (args[0] === "wait") {
+        waits += 1
+        expect(args[1]).toBe("20260711-120000-abcd")
+        const timeout: any = new Error("wait timed out")
+        timeout.stdout = JSON.stringify(resultEnvelope("timeout"))
+        throw timeout
+      }
+      artifactReads += 1
+      return { stdout: "{}", stderr: "", exitCode: 0 }
+    }
+    const running = await runResolvedRequest({
+      resolved: resolved(),
+      workflowRegistryPath: DOC_REVIEW_REGISTRY,
+      execFile,
+    })
+
+    const resumed = await resumeOrcaRun({
+      dispatch: running,
+      workflowRegistryPath: DOC_REVIEW_REGISTRY,
+      waitSeconds: 1,
+      execFile,
+    })
+
+    expect(resumed).toMatchObject({
+      schema: "ce-orca.dispatch/v1",
+      action: "orca-running",
+      response: { runId: "20260711-120000-abcd", state: "timeout", terminal: false },
+    })
+    expect(runRequests).toBe(1)
+    expect(waits).toBe(1)
+    expect(artifactReads).toBe(0)
+  })
+
+  test("rejects a wait result for a different run before hydration", async () => {
+    const running = {
+      schema: "ce-orca.dispatch/v1",
+      action: "orca-running",
+      response: resultEnvelope("timeout"),
+      display: { workflowId: "ce-doc-review", stages: {}, ownership: {} },
+    }
+    const wrongRun = resultEnvelope()
+    wrongRun.runId = "20260711-120000-dead"
+    wrongRun.refs = {
+      run: "runs/20260711-120000-dead",
+      log: "runs/20260711-120000-dead/run.log",
+      events: "runs/20260711-120000-dead/events.jsonl",
+      artifacts: ["runs/20260711-120000-dead/ce-result.json"],
+    }
+    let artifactReads = 0
+
+    await expect(resumeOrcaRun({
+      dispatch: running,
+      workflowRegistryPath: DOC_REVIEW_REGISTRY,
+      execFile: async (_command: string, args: string[]) => {
+        if (args[0] === "wait") return { stdout: JSON.stringify(wrongRun), stderr: "", exitCode: 0 }
+        artifactReads += 1
+        return { stdout: "{}", stderr: "", exitCode: 0 }
+      },
+    })).rejects.toMatchObject({ code: "invalid_orca_response" })
+    expect(artifactReads).toBe(0)
+  })
+
+  test("persists CLI resume output while invoking only wait and artifact-read", async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "ce-orca-resume-cli-"))
+    try {
+      const dispatchPath = path.join(directory, "dispatch.json")
+      const logPath = path.join(directory, "calls.jsonl")
+      const fakeOrca = path.join(directory, "orca-orch")
+      await fs.writeFile(dispatchPath, JSON.stringify({
+        schema: "ce-orca.dispatch/v1",
+        action: "orca-running",
+        response: resultEnvelope("timeout"),
+        display: { workflowId: "ce-doc-review", stages: {}, ownership: {} },
+      }), { mode: 0o600 })
+      await fs.writeFile(fakeOrca, `#!/usr/bin/env node
+const fs = require("node:fs")
+const args = process.argv.slice(2)
+fs.appendFileSync(process.env.CE_ORCA_FAKE_LOG, JSON.stringify(args) + "\\n")
+if (args[0] === "wait") {
+  process.stdout.write(JSON.stringify(${JSON.stringify(resultEnvelope())}))
+} else if (args[0] === "artifact-read") {
+  process.stdout.write(JSON.stringify(${JSON.stringify(validDocReviewResult())}))
+} else {
+  process.stderr.write("unexpected operation: " + args[0])
+  process.exitCode = 9
+}
+`, { mode: 0o700 })
+
+      const runtime = path.join(ROOT, "skills", "ce-doc-review", "scripts", "orca-runtime.mjs")
+      const child = Bun.spawn([
+        "node",
+        runtime,
+        "resume",
+        "--dispatch",
+        dispatchPath,
+        "--registry",
+        DOC_REVIEW_REGISTRY,
+        "--wait",
+        "2",
+        "--out",
+        dispatchPath,
+      ], {
+        cwd: ROOT,
+        env: { ...Bun.env, CE_ORCA_COMMAND: fakeOrca, CE_ORCA_FAKE_LOG: logPath },
+        stdout: "pipe",
+        stderr: "pipe",
+      })
+      const [exitCode, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ])
+
+      expect(exitCode, stderr).toBe(0)
+      const returned = JSON.parse(stdout)
+      const persisted = JSON.parse(await fs.readFile(dispatchPath, "utf8"))
+      expect(persisted).toEqual(returned)
+      expect(returned).toMatchObject({
+        action: "orca",
+        response: { runId: "20260711-120000-abcd", state: "succeeded" },
+        result: { value: validDocReviewResult() },
+      })
+      expect((await fs.stat(dispatchPath)).mode & 0o777).toBe(0o600)
+      const calls = (await fs.readFile(logPath, "utf8")).trim().split("\n").map((line) => JSON.parse(line))
+      expect(calls).toEqual([
+        ["wait", "20260711-120000-abcd", "--timeout", "2"],
+        ["artifact-read", "20260711-120000-abcd", "runs/20260711-120000-abcd/ce-result.json"],
+      ])
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
   })
 
   test("rejects non-terminal and cross-run success envelopes before artifact reads", async () => {

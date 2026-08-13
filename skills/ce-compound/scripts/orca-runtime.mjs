@@ -42,6 +42,9 @@ const PROFILE_LOCK_SCHEMA = "ce-orca.profile-lock/v1"
 const MKFIFO_COMMAND = "/usr/bin/mkfifo"
 const RUN_RESULT_STATES = new Set(["succeeded", "failed", "stopped", "aborted", "timeout", "invalid", "not-found"])
 const TERMINAL_RUN_RESULT_STATES = new Set(["succeeded", "failed", "stopped", "aborted"])
+const DEFAULT_DISPATCH_BUDGET_SECONDS = 900
+const RUN_WAIT_GRACE_SECONDS = 30
+const PROCESS_TIMEOUT_GRACE_SECONDS = 60
 
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key)
 const isObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value)
@@ -1416,6 +1419,118 @@ function runFailureMessage(response) {
   return reason ? `Orca run ended ${response.state}: ${reason}` : `Orca run ended ${response.state}.`
 }
 
+function maximumDispatchedBudgetSeconds(executionConfig) {
+  const budgets = []
+  const stages = isObject(executionConfig?.stages) ? executionConfig.stages : {}
+  const ownership = isObject(executionConfig?.ownership) ? executionConfig.ownership : {}
+  for (const [stageId, stage] of Object.entries(stages)) {
+    if (ownership[stageId] !== "orca" || !isObject(stage)) continue
+    if (Number.isInteger(stage.budget) && stage.budget > 0) budgets.push(stage.budget)
+    if (!isObject(stage.roles)) continue
+    for (const role of Object.values(stage.roles)) {
+      if (isObject(role) && Number.isInteger(role.budget) && role.budget > 0) budgets.push(role.budget)
+    }
+  }
+  return budgets.length > 0 ? Math.max(...budgets) : DEFAULT_DISPATCH_BUDGET_SECONDS
+}
+
+function dispatchTimeoutWindow(executionConfig, waitSeconds) {
+  const budgetSeconds = maximumDispatchedBudgetSeconds(executionConfig)
+  const runWaitSeconds = waitSeconds === undefined ? budgetSeconds + RUN_WAIT_GRACE_SECONDS : waitSeconds
+  return {
+    runWaitSeconds,
+    processTimeoutMs: (waitSeconds === undefined
+      ? budgetSeconds + PROCESS_TIMEOUT_GRACE_SECONDS
+      : runWaitSeconds + RUN_WAIT_GRACE_SECONDS) * 1_000,
+  }
+}
+
+function resumableRunningDispatch(response, display) {
+  return {
+    schema: DISPATCH_SCHEMA,
+    action: "orca-running",
+    response,
+    display,
+  }
+}
+
+function validateResumableDispatch(dispatch) {
+  if (!isObject(dispatch) || dispatch.schema !== DISPATCH_SCHEMA || dispatch.action !== "orca-running") {
+    fail("invalid_running_dispatch", `Resumption requires an ${DISPATCH_SCHEMA} envelope with action orca-running.`)
+  }
+  validateRunResultEnvelope(dispatch.response)
+  if (dispatch.response.state !== "timeout" || dispatch.response.terminal !== false) {
+    fail("invalid_running_dispatch", "Resumption requires a non-terminal timeout response.")
+  }
+  if (!isObject(dispatch.display) || !ID_RE.test(String(dispatch.display.workflowId || ""))) {
+    fail("invalid_running_dispatch", "Resumption requires the original execution display and workflow ID.")
+  }
+  return {
+    display: dispatch.display,
+    runId: dispatch.response.runId,
+    workflowId: dispatch.display.workflowId,
+  }
+}
+
+async function waitForExistingRun({ command, runId, timeoutWindow, execFile }) {
+  const args = ["wait", runId, "--timeout", String(timeoutWindow.runWaitSeconds)]
+  let result
+  try {
+    result = await execFile(command, args, { timeout: timeoutWindow.processTimeoutMs })
+  } catch (error) {
+    let response = null
+    try {
+      response = JSON.parse(String(error?.stdout || "").trim())
+    } catch {
+      // A structured run envelope is the only recoverable non-zero wait result.
+    }
+    if (response?.schema === "orca.run-result/v1") {
+      validateRunResultEnvelope(response)
+      return response
+    }
+    fail("orca_resume_failed", error?.stderr || error?.stdout || error?.message || String(error), { command, args })
+  }
+  try {
+    const response = JSON.parse(String(result.stdout || "").trim())
+    validateRunResultEnvelope(response)
+    return response
+  } catch (error) {
+    if (error instanceof ExecutionResolutionError) throw error
+    fail("invalid_orca_response", `${command} returned invalid JSON while resuming run ${runId}.`)
+  }
+}
+
+export async function resumeOrcaRun({
+  dispatch,
+  workflowRegistryPath,
+  waitSeconds,
+  command = resolveRuntimeCommand(),
+  execFile = executeFile,
+} = {}) {
+  const { display, runId, workflowId } = validateResumableDispatch(dispatch)
+  if (!workflowRegistryPath) fail("workflow_registry_required", "An installed skill-local Orca workflow registry is required.")
+  if (waitSeconds !== undefined && (!Number.isInteger(waitSeconds) || waitSeconds < 1)) fail("invalid_wait", "waitSeconds must be a positive integer.")
+  const timeoutWindow = dispatchTimeoutWindow(display, waitSeconds)
+  const resultContract = await loadRuntimeResultContract({ workflowRegistryPath, workflowId })
+  const response = await waitForExistingRun({ command, runId, timeoutWindow, execFile })
+  if (response.runId !== runId) {
+    fail("invalid_orca_response", `Orca wait returned run ${JSON.stringify(response.runId)} while resuming ${JSON.stringify(runId)}.`)
+  }
+  if (response.state === "timeout" && response.terminal === false) return resumableRunningDispatch(response, display)
+  if (response.state !== "succeeded" || response.ok !== true) {
+    const failureArtifacts = await hydrateFailedRunResult({ command, execFile, response, resultContract })
+    fail("orca_run_failed", runFailureMessage(response), { response, ...failureArtifacts })
+  }
+  const hydratedResult = await hydrateRunResult({ command, execFile, response, resultContract })
+  return {
+    schema: DISPATCH_SCHEMA,
+    action: "orca",
+    response,
+    result: hydratedResult,
+    display,
+  }
+}
+
 export async function runResolvedRequest({
   resolved,
   workflowRegistryPath,
@@ -1423,7 +1538,7 @@ export async function runResolvedRequest({
   packetPath = "",
   inputsDir = "",
   approved = false,
-  waitSeconds = 900,
+  waitSeconds,
   worktree = "",
   command = resolveRuntimeCommand(),
   execFile = executeFile,
@@ -1455,7 +1570,8 @@ export async function runResolvedRequest({
     return { schema: DISPATCH_SCHEMA, action: "awaiting-confirmation", display }
   }
   if (!workflowRegistryPath) fail("workflow_registry_required", "An installed skill-local Orca workflow registry is required.")
-  if (!Number.isInteger(waitSeconds) || waitSeconds < 1) fail("invalid_wait", "waitSeconds must be a positive integer.")
+  if (waitSeconds !== undefined && (!Number.isInteger(waitSeconds) || waitSeconds < 1)) fail("invalid_wait", "waitSeconds must be a positive integer.")
+  const timeoutWindow = dispatchTimeoutWindow(resolved.executionConfig, waitSeconds)
   const resultContract = await loadRuntimeResultContract({ workflowRegistryPath, workflowId: resolved.workflowId })
   const scratch = await fs.mkdtemp(path.join(os.tmpdir(), "ce-orca-dispatch-"))
   await fs.chmod(scratch, 0o700)
@@ -1485,10 +1601,10 @@ export async function runResolvedRequest({
       args.push("--inputs-dir", path.resolve(inputsDir))
     }
     if (resolvedWorktree) args.push("--worktree", resolvedWorktree)
-    args.push("--wait", String(waitSeconds))
+    args.push("--wait", String(timeoutWindow.runWaitSeconds))
     let result
     try {
-      result = await execFile(command, args, { timeout: (waitSeconds + 30) * 1_000 })
+      result = await execFile(command, args, { timeout: timeoutWindow.processTimeoutMs })
     } catch (error) {
       let response = null
       try {
@@ -1499,6 +1615,7 @@ export async function runResolvedRequest({
       }
       if (response?.schema === "orca.run-result/v1") {
         validateRunResultEnvelope(response)
+        if (response.state === "timeout" && response.terminal === false) return resumableRunningDispatch(response, display)
         const failureArtifacts = await hydrateFailedRunResult({ command, execFile, response, resultContract })
         fail("orca_run_failed", runFailureMessage(response), { response, ...failureArtifacts })
       }
@@ -1511,6 +1628,7 @@ export async function runResolvedRequest({
       fail("invalid_orca_response", `${command} returned invalid JSON.`)
     }
     validateRunResultEnvelope(response)
+    if (response.state === "timeout" && response.terminal === false) return resumableRunningDispatch(response, display)
     if (response.state !== "succeeded" || response.ok !== true) {
       const failureArtifacts = await hydrateFailedRunResult({ command, execFile, response, resultContract })
       fail("orca_run_failed", runFailureMessage(response), { response, ...failureArtifacts })
@@ -1627,7 +1745,7 @@ async function cli() {
   }
   if (commandName === "run") {
     const resolvedPath = String(flags.resolved || positional[0] || "")
-    if (!resolvedPath) fail("usage", "Usage: orca-runtime.mjs run --resolved <file> --registry <file> [--packet <file>] [--inputs-dir <dir>] [--approved true].")
+    if (!resolvedPath) fail("usage", "Usage: orca-runtime.mjs run --resolved <file> --registry <file> [--packet <file>] [--inputs-dir <dir>] [--approved true] [--out <dispatch.json>].")
     const resolved = await readJson(resolvedPath)
     const result = await runResolvedRequest({
       resolved,
@@ -1635,14 +1753,28 @@ async function cli() {
       packetPath: flags.packet ? String(flags.packet) : "",
       inputsDir: flags["inputs-dir"] ? String(flags["inputs-dir"]) : "",
       approved: flags.approved === "true",
-      waitSeconds: flags.wait ? Number(flags.wait) : 900,
+      ...(flags.wait ? { waitSeconds: Number(flags.wait) } : {}),
       worktree: String(flags.worktree || ""),
       onDisplay: async (display) => process.stderr.write(`Effective CE-Orca configuration:\n${canonicalJson(display)}`),
     })
+    if (flags.out) await writePrivateJsonAtomic(String(flags.out), result)
     process.stdout.write(canonicalJson(result))
     return
   }
-  fail("usage", "Usage: orca-runtime.mjs <resolve|save-profile|run> ...")
+  if (commandName === "resume") {
+    const dispatchPath = String(flags.dispatch || positional[0] || "")
+    if (!dispatchPath) fail("usage", "Usage: orca-runtime.mjs resume --dispatch <dispatch.json> --registry <file> [--wait <seconds>] [--out <dispatch.json>].")
+    const dispatch = await readJson(dispatchPath)
+    const result = await resumeOrcaRun({
+      dispatch,
+      workflowRegistryPath: String(flags.registry || path.join(scriptDir, "orca-workflow-registry.json")),
+      ...(flags.wait ? { waitSeconds: Number(flags.wait) } : {}),
+    })
+    if (flags.out) await writePrivateJsonAtomic(String(flags.out), result)
+    process.stdout.write(canonicalJson(result))
+    return
+  }
+  fail("usage", "Usage: orca-runtime.mjs <resolve|save-profile|run|resume> ...")
 }
 
 async function isMainModule() {

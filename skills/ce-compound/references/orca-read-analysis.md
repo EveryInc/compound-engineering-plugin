@@ -81,8 +81,12 @@ fallback for that stage and continue.
 
 ## Join
 
-`orca-runtime.mjs run` returns a hydrated `ce-orca.dispatch/v1` envelope. Use
-`result.value` as `ce-result.json`; for each completed node, retrieve its
+`orca-runtime.mjs run` or `resume` returns a `ce-orca.dispatch/v1` envelope.
+Inspect `action` before reading `result`. If it is `orca-running`, preserve the
+envelope and use the `resume --dispatch` path in `references/orca-routing.md`;
+never call `run` again or rebuild the config or packet. Continue only when
+`action` is `orca`, at which point the envelope is hydrated. Use `result.value`
+as `ce-result.json`; for each completed node, retrieve its
 hydrated artifact with `result.artifacts[artifactRef]`. Feed the artifact's
 `output` into the same Phase 1/2.45 slot as the native subagent return,
 persisting the content to the controller-owned scratch path where the native
