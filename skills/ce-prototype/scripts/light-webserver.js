@@ -239,9 +239,6 @@ function safeFileResponse(options, req, res) {
     return
   }
   name = name.replace(/^\/+/, "")
-  // `/files/<name>` was the original asset route; a screen copied from a real
-  // product references its assets at their own paths, and both now work.
-  if (name.startsWith("files/")) name = name.slice("files/".length)
   // Serve nested paths so a screen can keep the asset layout it was copied
   // from, but never resolve outside the run's screens directory.
   // Containment must survive symlinks: path.resolve is lexical, so a link

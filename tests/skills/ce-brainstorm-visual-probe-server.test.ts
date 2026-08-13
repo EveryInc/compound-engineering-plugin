@@ -134,19 +134,32 @@ describe("ce-brainstorm light-webserver.js", () => {
     expect(html).not.toContain("CE local web - newest screen")
   })
 
-  test("/files stays inside the screens directory", async () => {
+  test("assets serve at their own path and cannot escape the screens directory", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-visual-probe-files-"))
     const info = await startServer(root)
 
     await fs.writeFile(path.join(root, "secret.txt"), "outside")
     await fs.writeFile(path.join(String(info.screen_dir), "asset.html"), "<p>asset</p>")
+    // A screen keeps the asset layout it was copied from, nesting included.
+    await fs.mkdir(path.join(String(info.screen_dir), "img"), { recursive: true })
+    await fs.writeFile(path.join(String(info.screen_dir), "img", "nested.txt"), "nested")
 
-    let response = await fetch(`${String(info.url)}/files/asset.html`)
+    let response = await fetch(`${String(info.url)}/asset.html`)
     expect(response.status).toBe(200)
     expect(response.headers.get("content-type")).toContain("text/html")
     expect(await response.text()).toBe("<p>asset</p>")
 
-    response = await fetch(`${String(info.url)}/files/../secret.txt`)
+    response = await fetch(`${String(info.url)}/img/nested.txt`)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe("nested")
+
+    // Encoded so it reaches the server unnormalized.
+    response = await fetch(`${String(info.url)}/%2e%2e/secret.txt`)
+    expect(response.status).toBe(404)
+
+    // A symlink inside screens/ must not be followed out of it.
+    await fs.symlink(path.join(root, "secret.txt"), path.join(String(info.screen_dir), "leak.txt"))
+    response = await fetch(`${String(info.url)}/leak.txt`)
     expect(response.status).toBe(404)
   })
 
