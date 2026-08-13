@@ -2,9 +2,10 @@ import { existsSync, readdirSync, readFileSync, statSync } from "fs"
 import path from "path"
 import { Glob } from "bun"
 import { describe, expect, test } from "bun:test"
+import { parseFrontmatter } from "../../src/utils/frontmatter"
 
 const SKILLS_ROOT = path.join(process.cwd(), "skills")
-const SKILL_DIR = path.join(process.cwd(), "skills/ce-prototype")
+const SKILL_DIR = path.join(SKILLS_ROOT, "ce-prototype")
 const SKILL_BODY = readFileSync(path.join(SKILL_DIR, "SKILL.md"), "utf8")
 const PREVIEW_BODY = readFileSync(path.join(SKILL_DIR, "references/preview.md"), "utf8")
 
@@ -64,26 +65,29 @@ describe("ce-prototype protocol", () => {
   })
 
   test("one organizing rule governs modality, fidelity, and medium", () => {
-    const spine = SKILL_BODY.slice(
-      SKILL_BODY.indexOf("\n---", 4) + 4,
-      SKILL_BODY.indexOf("\n## "),
-    )
+    const body = parseFrontmatter(SKILL_BODY).body
+    const firstSection = body.indexOf("\n## ")
+    expect(
+      firstSection,
+      "SKILL.md must have at least one `## ` section heading. Without one the spine slice below silently widens to the whole document and this test degrades from a placement guard into a presence check.",
+    ).toBeGreaterThan(-1)
+    const spine = body.slice(0, firstSection)
     expect(
       /do not fake the dimension being tested/i.test(spine),
       "The organizing rule must sit in the spine, above the first section heading — not buried in a later section. Everything downstream (modality, fidelity, medium) derives from it, so it has to be read before any of them.",
     ).toBe(true)
     expect(
       /(modality|fidelity|medium)[^.]{0,120}\b(follow|follows|derive|derives)\b[^.]{0,60}\b(from|that one rule|that rule)\b/i.test(
-        SKILL_BODY,
+        spine,
       ),
-      "The organizing rule must be stated as governing modality, fidelity, and medium. If those read as independent axes again, the skill re-collapses into a drive-only prototype tool and a question settled by seeing goes uncovered.",
+      "The derivation must sit in the spine beside the rule it derives from. If modality, fidelity, and medium read as independent axes again, the skill re-collapses into a drive-only prototype tool and a question settled by seeing goes uncovered.",
     ).toBe(true)
   })
 
   test("web is the default substrate regardless of the product's stack", () => {
     expect(
       /\bdefault\b[^.\n]{0,40}\b(substrate|medium)\b[\s\S]{0,120}?\bweb\b/i.test(SKILL_BODY),
-      "The spine must name the web as the default prototype substrate. Without that floor, a run in a native or non-web repo builds in the product's own stack — the expensive path a throwaway prototype exists to avoid.",
+      "SKILL.md must name the web as the default prototype substrate. Without that floor, a run in a native or non-web repo builds in the product's own stack — the expensive path a throwaway prototype exists to avoid.",
     ).toBe(true)
     expect(
       /whatever the product is written in|regardless of[^.]{0,60}\b(product|implementation|stack|language|platform)\b/i.test(
