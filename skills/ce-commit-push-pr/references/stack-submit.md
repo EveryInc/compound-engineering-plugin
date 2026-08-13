@@ -15,17 +15,17 @@ If `gh` or `gh stack` is missing, or the stack command exits unavailable for thi
 
 ## Topology
 
-**When the user named a parent PR or branch to stack on, resolve the base before anything else.**
+**When the user named a parent PR or branch to stack on, resolve the base before anything else.** Topology decides only two things: the tip the layers sit on, and how they attach. Building them — branch creation, preserving pending work, recovery refs, choice of layer boundaries — stays Retrospective construction's job below and is not changed by a named parent.
 
-**Resolve the name.** A PR ref: `gh pr view "<n>" --json headRefName,author`. A branch with no PR: verify the ref directly, and treat ownership as unknown. Require the resolved name to match `[A-Za-z0-9._/-]+` before it reaches any command — git permits `$(...)` in a branch name and double quotes do not stop shell expansion.
+**Resolve the tip.** A PR ref: `gh pr view "<n>" --json headRefName,headRefOid,isCrossRepository,author`. For a cross-repository (fork) parent, `headRefName` names no branch in the base repo and may collide with an unrelated one — take `headRefOid`, fetch `refs/pull/<n>/head` if that commit is not local, and materialize a local branch at it to serve as `<parent-branch>`. A branch with no PR: verify the ref directly, and treat ownership as unknown. Require any resolved name to match `[A-Za-z0-9._/-]+` before it reaches a command — git permits `$(...)` in a branch name and double quotes do not stop shell expansion.
 
 **Classify from the parent, and stop if you cannot.** `gh stack view --json` takes no target and reports the *current* branch's stack, and it sees a GitHub-side stack only after `gh stack sync`. So sync, check out the parent (stash/pop only if uncommitted changes block it), probe, then restore your branch. A wrong "standalone" is what creates the second stack, so an unproven classification is a residual, not a guess.
 
-- **Managed member** — append your existing branch: `gh stack link "<stack-number>" "<your-branch>"`. Not `gh stack init` (roots a second stack; a branch shared across stacks exits 6), and not `gh stack add` (creates a *new* top branch rather than adopting one that already holds commits). Appending lands on top, so a parent below the top layer is a residual, not a mid-stack insert.
-- **Standalone PR you own** — adopt its head as the **bottom layer**: `gh stack init "<parent-branch>" "<next-branch>" …`, so it inherits managed merge, base retarget, and sync.
-- **Not adoptable** (someone else's PR) — unmanaged trunk: `gh stack init --base "<parent-branch>" "<bottom-branch>"`.
+That tip is `<base>` for every construction path below, including one starting on the default branch — `references/branch-creation.md` roots on the repo default and must not be followed when a parent was named. Once construction has produced the layers, attach them by classification:
 
-The parent's head tip is `<base>` for every construction path below — including one starting on the default branch, where `references/branch-creation.md` must not be followed because it roots on the repo default. The `gh stack init` form above replaces the generic one shown there.
+- **Managed member** — append the built branch: `gh stack link "<stack-number>" "<branch>"`. Not `gh stack init` (roots a second stack; a branch shared across stacks exits 6), and not `gh stack add` (creates a *new* top branch rather than adopting one that already holds commits). Appending lands on top, so a parent below the top layer is a residual, not a mid-stack insert.
+- **Standalone PR you own** — adopt the parent's head as the **bottom layer**: `gh stack init "<parent-branch>" "<next-branch>" …`, so it inherits managed merge, base retarget, and sync.
+- **Not adoptable** (someone else's PR) — unmanaged trunk: `gh stack init --base "<parent-branch>" "<bottom-branch>"`.
 
 When `gh stack view --json` confirms the current branch belongs to a managed stack, preserve that topology. If no topology exists, use retrospective construction below. When the user did not ask for a stack in this request — a standing preference alone is not asking — and the complete work is one logical change or only artificial slices are possible, refuse the stack and use the single-PR path. An explicit request is not refusable on those grounds. (Probe's soft/required split governs what to do when the CLI is missing, not whether a stack may be refused.)
 
