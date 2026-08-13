@@ -299,7 +299,7 @@ Use at least one non-obvious angle — inversion (what if we did the opposite?),
 
 Present approaches first, then evaluate. Let the user see all options before hearing which one is recommended — leading with a recommendation before the user has seen alternatives anchors the conversation prematurely.
 
-If choosing among approaches meets Interaction Rule 7, offer `ce-prototype` there; do not run a design campaign in this skill. If the differences are visual (shape, layout, relationship) and do not meet Rule 7, use `references/visual-probes.md` before presenting the choice. If the Phase 0.3 tripwire fired and no shape decision has yet been through the gate, the visual-probe offer fires here, per that reference. The visual path remains opt-in and display-only; text remains a first-class path.
+If choosing among approaches meets Interaction Rule 7, offer `ce-prototype` there; do not run a design campaign in this skill. If the differences are visual (shape, layout, relationship) and do not meet Rule 7, use `references/visual-probes.md` before presenting the choice. If the Phase 0.3 tripwire fired, those differences do not meet Rule 7, and no shape decision has yet been through the gate, the visual-probe offer fires here, per that reference. The visual path remains opt-in and display-only; text remains a first-class path.
 
 When useful, include one deliberately higher-upside alternative:
 - Identify what adjacent addition or reframing would most increase usefulness, compounding value, or durability without disproportionate carrying cost. Present it as a challenger option alongside the baseline, not as the default. Omit it when the work is already obviously over-scoped or the baseline request is clearly the right move.

@@ -85,13 +85,25 @@ describe("ce-prototype protocol", () => {
   })
 
   test("web is the default substrate regardless of the product's stack", () => {
+    // Bound the assertions to the sentence that states the rule. Matching the
+    // keywords anywhere in the body lets a reversed default ("the product
+    // stack, not the web") satisfy every check while inverting the invariant.
+    const substrateRule = (SKILL_BODY.match(/[^.\n]*\bdefault substrate\b[^.\n]*/i) ?? [""])[0]
     expect(
-      /\bdefault\b[^.\n]{0,40}\b(substrate|medium)\b[\s\S]{0,120}?\bweb\b/i.test(SKILL_BODY),
-      "SKILL.md must name the web as the default prototype substrate. Without that floor, a run in a native or non-web repo builds in the product's own stack — the expensive path a throwaway prototype exists to avoid.",
+      substrateRule,
+      "SKILL.md must state a default-substrate rule. Without that floor, a run in a native or non-web repo builds in the product's own stack — the expensive path a throwaway prototype exists to avoid.",
+    ).not.toBe("")
+    expect(
+      /\bdefault substrate\b[^.]{0,40}\bweb\b/i.test(substrateRule),
+      "The default substrate must be stated positively as the web, in the sentence that names the rule.",
     ).toBe(true)
     expect(
+      /\bnot the web\b|\bproduct(?:'s)? stack\b/i.test(substrateRule),
+      "The default-substrate rule must not be negated or made product-stack-first — that reverses the floor while still mentioning every keyword this test looks for.",
+    ).toBe(false)
+    expect(
       /whatever the product is written in|regardless of[^.]{0,60}\b(product|implementation|stack|language|platform)\b/i.test(
-        SKILL_BODY,
+        substrateRule,
       ),
       "The web default must be stated as decoupled from the product's implementation language or platform, not as a web-repo-only convenience.",
     ).toBe(true)
