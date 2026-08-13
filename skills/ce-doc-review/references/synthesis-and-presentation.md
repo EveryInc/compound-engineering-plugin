@@ -137,6 +137,16 @@ Do not promote if the finding involves scope or priority changes where the autho
 
 Findings reaching 3.7 have already been gated to anchors `50`, `75`, or `100` by 3.2 (anchors `0` and `25` were dropped).
 
+**Check obligations before autofix routing.** A finding is an **obligation** when the question that resolves it is already answered elsewhere in the document under review. The document made the decision; the finding reports only that some part of the document has not caught up. Entailed contradictions, a missing owner for behavior the document already requires, and a callsite implied by the document's own decision are obligations.
+
+A finding is **not** an obligation when its fix would introduce a new user-visible state, limit, failure policy, retention rule, or operational commitment — however concrete that fix is. Concreteness is not authority. A fix the document does not already entail is a decision and stays in the decision surface. An obligation is also never `manual`: if the document already resolves the question, the finding does not require judgment, so reclassify it to `gated_auto` when routing it as an obligation.
+
+This is a per-finding test against one document. It needs no comparison to other findings and is independent of the merging in 3.3.
+
+Route obligations to the implementation unit they affect instead of the per-finding walk-through. They render as one grouped list under that unit and are confirmed together, so the user makes a single decision about work the document already settled rather than one decision per finding. **Render the group in full before the confirmation fires** — a batch confirmation with nothing visible above it is a rubber stamp, not a decision.
+
+Obligation grouping governs what the user is asked about, never what applies silently. An obligation at anchor `100` with `autofix_class: safe_auto` still applies silently under the table below.
+
 | Anchor | Autofix Class | Route |
 |--------|---------------|-------|
 | `100`  | `safe_auto`   | Apply silently in Phase 4. Requires `suggested_fix`. Demote to `gated_auto` if missing. |
@@ -214,9 +224,9 @@ decision). At most two anchors per finding — counted across all its rendered l
 per-block budget — each resolved at render time against the document in context so it stays accurate
 after an Apply renumbers the item. The floor's full decision-first field order
 (Recommendation → Consequence → Change → Basis) applies to **actionable findings** — proposed fixes and
-decisions. FYI observations, residual concerns, and deferred questions carry no recommendation or fix,
-so they render as a single consequence / concern / question line under the token policy, not the full
-field order. A line whose only description of a referenced item is a bare identifier — of any class — is
+decisions. FYI observations, residual concerns, deferred questions, and obligations carry no
+recommendation, so they render as a single line under the token policy, not the full field order — a
+consequence / concern / question, and for an obligation the consequence plus its change as intent. A line whose only description of a referenced item is a bare identifier — of any class — is
 not acceptable rendered output.
 
 **Non-interactive mode:** Do not use interactive question tools. Output all findings as a structured text envelope the caller can parse. Internal enum values (`safe_auto`, `gated_auto`, `manual`, `FYI`) stay in the schema and synthesis prose; the envelope below uses user-facing vocabulary — "fixes", "Proposed fixes", "Decisions", "FYI observations" — so non-interactive output reads the same way interactive output does.
@@ -227,6 +237,15 @@ Document review complete (non-interactive mode).
 Applied N fixes:
 - <section>: <what was changed> (<reviewer>)
 - <section>: <what was changed> (<reviewer>)
+
+Implementation obligations (already entailed by the document; confirmed as a group):
+
+<unit name>
+  - <consequence, no opaque identifier> — <change as intent language>
+  - <consequence, no opaque identifier> — <change as intent language>
+
+<unit name>
+  - <consequence, no opaque identifier> — <change as intent language>
 
 Proposed fixes (concrete fix, requires user confirmation):
 
@@ -262,6 +281,8 @@ Review complete
 ```
 
 Omit any section with zero items. The section headers reflect user-facing vocabulary: the "Proposed fixes" bucket carries `gated_auto` findings at anchor `75` or `100` (the persona has a concrete fix; the user confirms), "Decisions" carries `manual` findings at anchor `75` or `100` (judgment calls), and "FYI observations" carries any finding at anchor `50` regardless of `autofix_class`. End with "Review complete" as the terminal signal so callers can detect completion.
+
+**Obligations count as proposed fixes.** They are `gated_auto` findings that render grouped instead of individually — grouping changes presentation, not classification. So an obligation is included in the proposed-fixes count a caller parses, and the caller's actionable-items gate keeps its meaning. Do **not** export a separate obligation count: a review whose findings are all obligations must still report actionable items, or a caller gating on that sum would hide the confirmation step and the user would never see work the review found.
 
 **Compact rendering for FYI observations, residual concerns, and deferred questions (high-count mode).** When the combined count of these three buckets is 5 or more, collapse each to a one-line count followed by a tight bullet list — FYI observations use their consequence line, residual concerns and deferred questions their concern or question text — with no per-item elaboration. Actionable buckets (Proposed fixes / Decisions) remain fully rendered regardless. This mirrors the interactive-mode rule in `references/review-output-template.md` so both modes produce the same shape.
 

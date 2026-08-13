@@ -9,9 +9,9 @@ duplicated into the question so modal dialogs are decidable), the batch report t
 (`references/bulk-preview.md`), and the Open Questions entry a Defer persists into the document
 (`references/open-questions-defer.md`). Each surface keeps its own layout and maps that layout onto the
 rules below; the rules themselves do not vary by surface. The token policy applies to every surface; the
-full decision-first field order applies to the surfaces that render an actionable finding (a persisted
-Open Questions entry is a concern, not an actionable finding, so it takes the token policy and
-consequence-first phrasing only). The walkthrough question string is derived from the terminal block
+full decision-first field order applies to the surfaces that render an actionable finding. A persisted
+Open Questions entry is a concern and an obligation block is an already-entailed correction; neither is
+an actionable finding, so both take the token policy and consequence-first phrasing only. The walkthrough question string is derived from the terminal block
 and inherits this floor's opaque-token policy and two-anchor budget; it must not invent a denser second
 narrative.
 
@@ -55,6 +55,19 @@ the four field labels verbatim.
    call sites) is not printed. Offer it in one closing line (e.g. `Ask for the call-path detail.`).
    Moving this cost onto the reader, who has less context than the review did, is the failure this
    floor exists to prevent.
+
+## Obligation blocks
+
+An **obligation** (synthesis step 3.7) is a correction the reviewed document already entails. It carries
+no recommendation, because there is no decision to make — so it takes the token policy and
+consequence-first phrasing, and **not** the full field order above. This is the same treatment a
+persisted Open Questions entry gets, and for the same reason.
+
+An obligation renders as a single line: the consequence, then the change as intent. It is grouped under
+the implementation unit it affects, and that unit's name is the only navigation anchor the group needs —
+do not repeat it per line. The group's opaque-anchor budget is **two per line**, unchanged; grouping does
+not license a denser block. Anything beyond the change belongs in the on-request trace, exactly as for an
+actionable finding.
 
 ## Opaque-token policy (domain-agnostic, by function)
 
