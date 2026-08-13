@@ -31,7 +31,7 @@ Once they have tried something and decided, work out which questions are still w
 
 If the supplied brainstorm or plan already records a settled visual-probe decision for this question (a display-only sketch the user already judged), do not rebuild that question.
 
-Before starting a preview, get a go-ahead. The point of that message is so they can redirect an expensive build, not so they can read a briefing. Stay high-level: what you will try, why, and how it is split. Add detail only when the split or an inference would otherwise be surprising. If you inferred from messy history, say so. Leave a way to name a different question. Wait for proceed or correction. Do not build until they proceed.
+Before starting a preview, get a go-ahead. The point of that message is so they can redirect an expensive build, not so they can read a briefing. Stay high-level: what you will try, why, how it is split, and roughly how big the build is — they cannot redirect an expensive one they think is cheap. Add detail only when the split or an inference would otherwise be surprising. If you inferred from messy history, say so. Leave a way to name a different question. Wait for proceed or correction. Do not build until they proceed.
 
 ## Narrow vs wide
 
