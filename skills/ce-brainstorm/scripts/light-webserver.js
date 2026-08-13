@@ -239,7 +239,17 @@ function safeFileResponse(options, req, res) {
     return
   }
   const filePath = path.join(options.screensDir, path.basename(name))
-  if (!fs.existsSync(filePath)) {
+  let stat
+  try {
+    stat = fs.statSync(filePath)
+  } catch {
+    res.writeHead(404)
+    res.end("Not found")
+    return
+  }
+  // `/files/%2e` resolves to the screens directory itself, which passes an
+  // existence check and then throws EISDIR on read — uncaught, killing the server.
+  if (!stat.isFile()) {
     res.writeHead(404)
     res.end("Not found")
     return

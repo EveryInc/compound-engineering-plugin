@@ -50,7 +50,7 @@ Finishness is a different axis. The artifact stays throwaway: do not polish, tes
 
 Default environment: a throwaway scratch prototype under `/tmp/compound-engineering-<uid>/ce-prototype/<run-id>/`. Load `references/preview.md` when serving that local web prototype. Recreate what this question needs from the current product. Do not stand up the full app unless the question is the whole-product feel.
 
-Scale into the existing app only as a throwaway overlay when the user asks or the question is density or chrome on an existing page — an isolated page will hide that. That overlay is not the shipped feature. Do not commit prototype code on the product branch.
+Scale into the existing app only as a throwaway overlay when the user asks or the question is density or chrome on an existing page — an isolated page will hide that. That overlay is not the shipped feature. Do not commit prototype code on the product branch. Undo those edits when the try ends — restore only the files you changed, never work you did not make. If you cannot undo them cleanly, name the files you left modified rather than handing off a dirty tree.
 
 Do not fake the dimension being tested. If the question is whether a flow or state model is right, they must be able to drive it — a screen that only looks like the product does not answer that. Persist only when persistence is the question. Do not polish, test, or abstract past runnable.
 

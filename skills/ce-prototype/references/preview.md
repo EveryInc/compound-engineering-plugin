@@ -33,7 +33,7 @@ node "$SKILL_DIR/scripts/light-webserver.js" status --root "$PROTO_DIR"
 # stop: the same command with `stop` in place of `status` (re-set SKILL_DIR again)
 ```
 
-If `SKILL_DIR` cannot be resolved to a concrete skill directory, do not guess from the project CWD — keep the decision in chat.
+If `SKILL_DIR` cannot be resolved to a concrete skill directory, do not guess from the project CWD. Stop and report that the preview cannot start; do not settle the question in chat instead.
 
 The helper creates `screens/` and `state/`, serves the newest `.html` file in `screens/`, writes `state/display-info.json`, and exposes `/version` so the browser can poll for screen changes. The browser reloads only when the newest screen changes; it must not continually reload on a timer. `/version` polling does not count as activity. Detached servers monitor the owning harness process when it can be resolved, and all servers exit after an idle timeout. The helper has no browser-to-agent event path. Interactive HTML is allowed.
 
@@ -57,4 +57,4 @@ The server is the same everywhere; only the launch mode changes.
 - **Plain terminal UI:** print the returned URL for the user to open manually.
 - **Remote or containerized sessions:** if `localhost` is not reachable from the user's browser, start with `--host 0.0.0.0` and tell the user which host/port to open. That serves the run directory to anything that can reach the port, with no auth — do it only on a network the user trusts, and say so when you hand over the URL.
 
-If the helper path is unavailable or the platform cannot display a local URL cleanly, say so and keep the decision in chat.
+If the helper path is unavailable or the platform cannot display a local URL cleanly, stop and report that. Do not settle the question in chat instead — a question that has to be used to be decided is not answered by talking about it.
