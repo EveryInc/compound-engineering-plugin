@@ -161,6 +161,12 @@ describe("ce-brainstorm light-webserver.js", () => {
     await fs.symlink(path.join(root, "secret.txt"), path.join(String(info.screen_dir), "leak.txt"))
     response = await fetch(`${String(info.url)}/leak.txt`)
     expect(response.status).toBe(404)
+
+    // The active-screen route reads a file too, so it needs the same guard.
+    await fs.writeFile(path.join(root, "outside.html"), "OUTSIDE-SCREEN")
+    await fs.symlink(path.join(root, "outside.html"), path.join(String(info.screen_dir), "999-evil.html"))
+    response = await fetch(`${String(info.url)}/`)
+    expect(await response.text()).not.toContain("OUTSIDE-SCREEN")
   })
 
   test("status and stop use the root state directory", async () => {

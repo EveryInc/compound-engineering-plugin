@@ -139,14 +139,30 @@ function getRunningInfo(options) {
   return readJson(options.infoFile)
 }
 
+// Containment has to survive symlinks: path.resolve is lexical, so a link
+// inside the run directory would otherwise be followed straight out of it.
+// Every route that reads a file goes through this — the screen route and the
+// asset route drifting apart is what left one of them unguarded before.
+function containedRealPath(rootDir, candidate) {
+  let root
+  let real
+  try {
+    root = fs.realpathSync(rootDir)
+    real = fs.realpathSync(candidate)
+  } catch {
+    return null
+  }
+  if (real !== root && !real.startsWith(root + path.sep)) return null
+  return real
+}
+
 function newestScreen(options) {
   if (!fs.existsSync(options.screensDir)) return null
   const files = fs.readdirSync(options.screensDir)
     .filter((file) => file.endsWith(".html"))
-    .map((file) => {
-      const filePath = path.join(options.screensDir, file)
-      return { filePath, mtimeMs: fs.statSync(filePath).mtimeMs }
-    })
+    .map((file) => containedRealPath(options.screensDir, path.join(options.screensDir, file)))
+    .filter(Boolean)
+    .map((filePath) => ({ filePath, mtimeMs: fs.statSync(filePath).mtimeMs }))
     .sort((a, b) => b.mtimeMs - a.mtimeMs)
   return files[0]?.filePath ?? null
 }
@@ -241,20 +257,8 @@ function safeFileResponse(options, req, res) {
   name = name.replace(/^\/+/, "")
   // Serve nested paths so a screen can keep the asset layout it was copied
   // from, but never resolve outside the run's screens directory.
-  // Containment must survive symlinks: path.resolve is lexical, so a link
-  // inside screens/ pointing outside would otherwise be followed and served.
-  // realpath both sides — on macOS the run dir itself sits under /tmp -> /private/tmp.
-  let root
-  let filePath
-  try {
-    root = fs.realpathSync(options.screensDir)
-    filePath = fs.realpathSync(path.resolve(root, name))
-  } catch {
-    res.writeHead(404)
-    res.end("Not found")
-    return
-  }
-  if (filePath !== root && !filePath.startsWith(root + path.sep)) {
+  const filePath = containedRealPath(options.screensDir, path.resolve(options.screensDir, name))
+  if (!filePath) {
     res.writeHead(404)
     res.end("Not found")
     return
