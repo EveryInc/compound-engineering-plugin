@@ -147,9 +147,11 @@ Out of scope:
 
 U3 has landed. U1 has returned its verdict. The remaining order is:
 
-**Stage A (U13, U4, U6)** — prevent duplicates at emission, replace the matcher, delete the superseded grouping rules. **Stage B (U5)** — obligation routing. **Stage C (U8, U9)** — build the generation harness and measure Stages A and B. **Stage D (U14)** — stop prompting where the rubric says there is no choice. **Stage E (U12, U7)** — decision clustering, *only if* the load is still too high after U14. **Stage F (U10, U11)** — guards and captured learnings.
+**Stage A (U13, U4, U6)** — prevent duplicates at emission, replace the matcher, delete the superseded grouping rules. **Stage B (U5)** — obligation routing. **Stage C (U8, U9)** — build the generation harness and measure Stages A and B. **Stage D (U14)** — stop prompting where the rubric says there is no choice. **Stage E (U15)** — weaker-model reliability. **Stage F (U10, U11)** — guards and captured learnings.
 
-U14 lands after U9 rather than beside U5 for two reasons: it changes what `autofix_class` does, so running it before the measurement would move the baseline mid-eval; and it may reduce the decision load enough on its own that U12 is unnecessary. Re-measure after U14 before deciding Stage E.
+Stages A through C have landed. U9 cancelled U12 and U7, so the clustering stage is gone from the sequence.
+
+**On the order that cancellation was reached.** U9 ran from a handoff written before U14 existed, so its record decides U12 on U9's own load number, whereas this plan routes that verdict through the re-measurement after U14. The conclusion is unaffected and holds *a fortiori*: U9 already bounded load at 5-8 choices on the reliable cells, and U14 only reduces it further, so nothing U14 does could revive the case for clustering. The trail is corrected here rather than the verdict.
 
 U2 is independent and can run any time; U11 consumes its verdict.
 
@@ -495,6 +497,8 @@ Landed in `ddf0a46b`. The security persona's per-element rule, the adversarial p
 
 **Cancellation (2026-08-13):** U9 did not establish excess residual decision load beyond variance. Reliable new-arm cells were fully precise and recall-complete with a bounded 5-8 choices; weaker cells exposed routing instability rather than a missing clustering layer. Do not build this unit.
 
+The verdict was reached before U14 existed and did not read the post-U14 re-measurement this plan specifies. It stands anyway: U14 only reduces load further, so no result it could produce would revive the case for a clustering layer. The weaker-cell instability that remains is U15's, not this unit's — an instruction-following failure gains nothing from another presentation layer on top of it.
+
 **Files:** `skills/ce-doc-review/references/synthesis-and-presentation.md`, `references/rendering-floor.md`, `references/walkthrough.md`, `references/bulk-preview.md`, `references/open-questions-defer.md`, `references/decision-primer.md`, `SKILL.md`
 
 **Approach:** Group surviving findings by shared resolving question; present the group with its member findings; iterate the walk-through over groups while retaining per-finding addressability. Fan a group-level outcome out to one primer entry per member finding, or round two re-raises everything the user settled. Set a group's apply authority to the minimum of its members', so a peer-origin member without in-process corroboration keeps the whole group out of bulk apply.
@@ -568,6 +572,39 @@ Landed in `ddf0a46b`. The security persona's per-element rule, the adversarial p
 
 **Verification:** Re-running the observed sibling-worktree plan surfaces roughly the four genuine forks rather than eleven confirmations, with no applied change that commits to product behavior the document had not already settled.
 
+### U15. Make the matcher survive a weaker model
+
+**Goal:** Weaker models apply the one-fix test and the routing rules reliably, or the shortfall is documented per host.
+
+**Requirements:** R11.
+
+**Dependencies:** U9 (complete). Independent of U14.
+
+**Files:**
+- `skills/ce-doc-review/references/subagent-template.md`
+- `skills/ce-doc-review/references/synthesis-and-presentation.md`
+
+**The evidence, and what it does *not* say.** U9 measured four host/model cells. Two were stable — Claude Opus and Codex Luna reached 100% merge recall with a bounded 5-8 remaining choices. Two were not: Claude Haiku averaged 69.8% recall across a `[0-100%]` range, Codex Sol 57.1% across the same range, and both produced runs with a decision load of `0` — output implausible enough to be an instruction-following failure rather than a genuinely empty review.
+
+**Merge precision was 100% on every cell, including the unstable ones, with zero wrong merges.** That is the fail-closed design in KTD2 working as intended: a model that cannot judge whether one fix resolves both findings declines to merge rather than guessing. So this is a *reliability* defect, not a *safety* one — weaker models under-perform, they do not corrupt. Shipping is not blocked on it, and any fix here must not trade precision for recall.
+
+**Approach:**
+
+1. Establish which instruction fails, not merely that a cell is unstable. Recall variance and zero-load output are different failures — the first is the matcher, the second is routing or output-contract compliance. A single number covering both hides which to fix.
+2. Where the one-fix test is the failure, test whether a more mechanical formulation recovers recall without loosening the criterion. The test must stay falsifiable and stay fail-closed; a version a weak model applies confidently but wrongly is worse than one it declines to apply.
+3. Where output-contract compliance is the failure, treat it as schema conformance rather than judgment, and lean on the existing validate step rather than adding prose.
+4. Accept a documented shortfall as a legitimate outcome. If a host cannot run the matcher reliably, saying so per host beats degrading the criterion for every host to accommodate the weakest.
+
+**Execution note:** Re-measure with the same frozen finding set and the same blind corpus U9 used, so the comparison is like-for-like. The corpus location is recorded in the U9 learning; it is machine-local temporary storage and may need regenerating.
+
+**Test scenarios:**
+- Each unstable cell's failures are attributed to a named instruction, not reported as an aggregate rate.
+- Merge precision remains 100% on every cell after any change.
+- A run producing zero decisions is distinguishable in the record from a review that genuinely found nothing.
+- A host that cannot meet the bar is documented with the instruction that failed, rather than the criterion being loosened globally.
+
+**Verification:** A written record states, per host, the failing instruction and either the recovered numbers or an explicit accepted shortfall, with precision unchanged.
+
 ### U13. Scope persona territory in the suppress conditions
 
 **Goal:** Prevent duplicates at emission where one persona's lens plainly owns the issue.
@@ -638,9 +675,12 @@ Gates marked **(conditional)** apply only if U9 authorizes U12.
 - No change applied without a prompt commits to product behavior the document had not already settled.
 - The decision load is re-measured after U14, and Stage E is decided on that number rather than U9's.
 
-**Stage E — only if the re-measurement authorizes it**
+**Stage E**
 
-- Grouping ships with per-member primer fan-out and minimum-of-members apply authority; `ce-plan` parses the changed envelope correctly.
+- Weaker models reach recall and routing stability comparable to the reliable cells, or the shortfall is documented with the specific instruction that failed and the hosts it affects.
+- No change made for weaker-model reliability lowers merge precision on any cell.
+
+**Clustering (U12) and its consumer change (U7) are cancelled.** They are recorded as cancelled with the measurement that justified it, not left pending.
 
 **Stage F — regardless of whether Stage E ran**
 
