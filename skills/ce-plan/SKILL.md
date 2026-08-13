@@ -508,13 +508,13 @@ Ask the user only when the answer materially affects architecture, scope, sequen
 
 - Draft a clear, searchable title using conventional format such as `feat: Add user authentication` or `fix: Prevent checkout double-submit`
 - Determine the plan type: `feat`, `fix`, or `refactor`
-- Build the filename following the repository convention: `<root>/plans/YYYYMMDDTHHMMSSZ-<type>-<descriptive-name>-plan.md`
+- Build the filename following the repository convention: `<root>/plans/YYYY-MM-DD-HHMM-<type>-<descriptive-name>-plan.md`
   - Create `<root>/plans/` if it does not exist
-  - Generate the prefix from the current UTC time using the ISO 8601 basic date/time representation (`YYYYMMDDTHHMMSSZ`); do not scan for or allocate a daily sequence number
+  - Take `YYYY-MM-DD-HHMM` from the local wall-clock time at write, so the prefix matches the `date:` frontmatter and the day the user experienced; do not scan for or allocate a daily sequence number
   - Reserve the candidate path atomically with exclusive creation; if it already exists, append the smallest available numeric collision suffix (`-2`, `-3`, …) before the extension rather than overwriting it
   - Keep the descriptive name concise (3-5 words) and kebab-cased
-  - Examples: `20260115T091530Z-feat-user-authentication-flow-plan.md`, `20260203T164205Z-fix-checkout-race-condition-plan.md`
-  - Avoid: local-time prefixes, daily sequence numbers, vague names like "new-feature", and invalid characters (colons, spaces)
+  - Examples: `2026-01-15-0915-feat-user-authentication-flow-plan.md`, `2026-02-03-1642-fix-checkout-race-condition-plan.md`
+  - Avoid: daily sequence numbers, vague names like "new-feature", and invalid characters (colons, spaces)
 
 #### 3.2 Stakeholder and Impact Awareness
 
@@ -731,10 +731,10 @@ for HTML by the format gate in `references/plan-handoff.md`.
 Use the Write tool to save the complete plan to the resolved format's extension:
 
 ```text
-<root>/plans/YYYYMMDDTHHMMSSZ-<type>-<descriptive-name>-plan.<md|html>
+<root>/plans/YYYY-MM-DD-HHMM-<type>-<descriptive-name>-plan.<md|html>
 ```
 
-Extension follows `OUTPUT_FORMAT` from Phase 0.0 — `.md` when markdown, `.html` when HTML. The filename prefix is generated from the UTC write timestamp in ISO 8601 basic form (`YYYYMMDDTHHMMSSZ`), so ordering is global and does not depend on a daily counter. Reserve the final path atomically; on an exact-path collision, retry with the smallest available numeric suffix rather than overwriting. Explicit format conversion keeps the existing basename and changes only the extension.
+Extension follows `OUTPUT_FORMAT` from Phase 0.0 — `.md` when markdown, `.html` when HTML. The filename prefix is the local wall-clock time at write, so ordering comes from the clock rather than a daily counter. Reserve the final path atomically; on an exact-path collision, retry with the smallest available numeric suffix rather than overwriting. Explicit format conversion keeps the existing basename and changes only the extension.
 
 Compose the plan using the content from `references/plan-sections.md` and the format-specific principles from the rendering reference loaded at Phase 0.0 (`markdown-rendering.md` OR `html-rendering.md`).
 

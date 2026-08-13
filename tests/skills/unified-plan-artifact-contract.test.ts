@@ -106,7 +106,7 @@ describe("unified plan artifact contract", () => {
   })
 
   test("brainstorm writes requirements-only unified plan skeletons under docs/plans", () => {
-    expect(brainstormSections).toContain("<root>/plans/YYYYMMDDTHHMMSSZ-<type>-<topic>-plan")
+    expect(brainstormSections).toContain("<root>/plans/YYYY-MM-DD-HHMM-<type>-<topic>-plan")
     expect(brainstormSections).toContain("no daily sequence number")
     expect(brainstormSections).toContain("artifact_readiness: requirements-only")
     expect(brainstormSections).toContain("product_contract_source: ce-brainstorm")
@@ -116,8 +116,8 @@ describe("unified plan artifact contract", () => {
     expect(brainstormSections).toContain("Do **not** emit a `## Goal Launch Block` or `## Reader Index`")
     expect(brainstormSections).toMatch(/omits empty\s+`Planning Contract`/)
 
-    expect(brainstormSkill).toContain("<root>/plans/YYYYMMDDTHHMMSSZ-<type>-<topic>-plan")
-    expect(brainstormSkill).toContain("ISO 8601 basic date/time representation")
+    expect(brainstormSkill).toContain("<root>/plans/YYYY-MM-DD-HHMM-<type>-<topic>-plan")
+    expect(brainstormSkill).toContain("local wall-clock time at write")
     expect(brainstormSkill).toContain("artifact_readiness: requirements-only")
     expect(brainstormSkill).toContain("product_contract_source: ce-brainstorm")
     expect(brainstormSkill).toContain("Do **not** emit a Goal Launch Block or Reader Index")
@@ -129,13 +129,16 @@ describe("unified plan artifact contract", () => {
     expect(universalBrainstorming).toContain("let `ce-plan` choose the universal/knowledge-work artifact shape")
   })
 
-  test("plan filenames use UTC ISO 8601 timestamps instead of daily sequences", () => {
-    expect(planSkill).toContain("<root>/plans/YYYYMMDDTHHMMSSZ-<type>-<descriptive-name>-plan.md")
+  test("plan filenames use a local wall-clock time instead of daily sequences", () => {
+    expect(planSkill).toContain("<root>/plans/YYYY-MM-DD-HHMM-<type>-<descriptive-name>-plan.md")
     expect(planSkill).toContain("do not scan for or allocate a daily sequence number")
-    expect(planSkill).toContain("current UTC time")
+    expect(planSkill).toContain("local wall-clock time at write")
     expect(planSkill).toContain("Reserve the candidate path atomically")
     expect(planSkill).toContain("preserve the existing artifact basename")
     expect(planSkill).not.toContain("YYYY-MM-DD-NNN")
+    // The hyphenated prefix keeps new artifacts sorting interleaved with legacy
+    // `YYYY-MM-DD-NNN` files; a hyphen-free prefix sorts them into a separate block.
+    expect(planSkill).not.toContain("YYYYMMDDTHHMMSSZ")
   })
 
   test("brainstorm handoff passes the unified plan path to ce-plan", () => {

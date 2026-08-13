@@ -27,7 +27,7 @@ But it stands alone just as well — many teams reach for `ce-plan` directly wit
 |----------|--------|
 | What does it do? | Researches context, captures decisions and scope, breaks work into atomic units with stable IDs, enumerates test scenarios per unit, and auto-strengthens weak sections via a confidence check |
 | When to use it | Requirements ready and execution guardrails needed; solo planning when the task is clear; non-software multi-step tasks (study plans, research, maintenance, events, trips) |
-| What it produces | Unified plan in `docs/plans/YYYYMMDDTHHMMSSZ-<type>-<name>-plan.md` (UTC ISO 8601 basic timestamp, atomically reserved with a numeric collision suffix when needed); brainstorm-sourced plans move from `artifact_readiness: requirements-only` to `implementation-ready` in place |
+| What it produces | Unified plan in `docs/plans/YYYY-MM-DD-HHMM-<type>-<name>-plan.md` (local wall-clock write time, atomically reserved with a numeric collision suffix when needed); brainstorm-sourced plans move from `artifact_readiness: requirements-only` to `implementation-ready` in place |
 | What's next | `/ce-work`, goal-mode prompt when supported, create a tracked issue, publish to Proof for sharing, or pause |
 | Distinguishing | Guardrails over choreography (WHAT, not HOW); U-IDs (stable); origin tracing (R/A/F/AE → U); test scenarios per unit; automatic deepening; multi-agent research |
 
