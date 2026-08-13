@@ -375,6 +375,72 @@ describe("domain-graph legacy references and invariants", () => {
   })
 })
 
+describe("domain-graph sibling domain-truth files", () => {
+  test("a healthy sibling DOMAIN.md is inventoried and raises no finding", () => {
+    const { json: inventory } = runJson(["inventory", "--repo-root", fixture("domain-sibling")])
+    expect(inventory.domainTruth).toEqual([
+      {
+        path: "docs/contexts/scheduling/DOMAIN.md",
+        context: "scheduling",
+        siblingGlossary: "docs/contexts/scheduling/CONCEPTS.md",
+        siblingGlossaryPresent: true,
+        definesTerms: false,
+        definedTerms: [],
+      },
+    ])
+
+    const { run: result, json } = runJson(["validate", "--repo-root", fixture("domain-sibling")])
+    expect(result.code).toBe(0)
+    expect(json.findings).toEqual([])
+  })
+
+  test("headings in a DOMAIN.md are rule anchors, never term definitions", () => {
+    // The canonical template writes one `### <concept>` anchor per rule
+    // cluster; extraction treating those as definitions would flag every
+    // healthy domain-truth file.
+    const { json } = runJson(["inventory", "--repo-root", fixture("domain-sibling")])
+    expect(json.domainTruth[0].definesTerms).toBe(false)
+  })
+
+  test("a DOMAIN.md that defines terms is reported per definition", () => {
+    const { run: result, json } = runJson(["validate", "--repo-root", fixture("domain-faults")])
+    expect(result.code).toBe(1)
+    const defines = json.findings.filter((entry: any) => entry.code === "domain-defines-terms")
+    expect(defines.map((entry: any) => entry.term).sort()).toEqual(["Dunning", "Grace period"])
+    for (const entry of defines) {
+      expect(entry.path).toBe("docs/contexts/billing/DOMAIN.md")
+    }
+  })
+
+  test("a canonical DOMAIN.md without its sibling glossary is an orphan", () => {
+    const { json } = runJson(["validate", "--repo-root", fixture("domain-faults")])
+    const orphans = json.findings.filter((entry: any) => entry.code === "domain-orphan")
+    expect(orphans).toHaveLength(1)
+    expect(orphans[0].path).toBe("docs/contexts/orphan/DOMAIN.md")
+  })
+})
+
+describe("domain-graph bold-term legacy extraction", () => {
+  test("a Pocock bold-term CONTEXT.md is vocabulary-bearing and blocks", () => {
+    // The `**Term** (qualifier):` shape is the dominant legacy glossary
+    // format in the wild; missing it reports a vocabulary-bearing file as
+    // empty, so no dual-canonical block ever fires.
+    const { json: inventory } = runJson(["inventory", "--repo-root", fixture("legacy-bold-terms")])
+    const legacy = inventory.legacy.files[0]
+    expect(legacy.vocabularyBearing).toBe(true)
+    expect(terms(legacy.terms)).toEqual(["Address", "EntityAddress", "Blank recipient"])
+
+    const address = legacy.terms.find((entry: any) => entry.term === "Address")
+    expect(address.definition).toBe(
+      "A reusable postal address block. The single reusable postal model.",
+    )
+    expect(address.aliases).toEqual(["Entry", "ItemAddress", "location"])
+
+    const { json } = runJson(["validate", "--repo-root", fixture("legacy-bold-terms")])
+    expect(codes(json.findings)).toContain("legacy-dual-canonical")
+  })
+})
+
 describe("domain-graph read-only and determinism contract", () => {
   test("every subcommand leaves each fixture tree byte-identical", () => {
     expect(ALL_FIXTURES.length).toBeGreaterThan(5)

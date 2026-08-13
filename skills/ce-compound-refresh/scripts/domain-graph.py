@@ -88,7 +88,12 @@ A TERM DEFINITION is either
     and which is followed, before the next heading, by at least one non-blank
     line; or
   * a definition bullet ``- **<Term>** <sep> <definition>`` or
-    ``- **<Term>**: <definition>``.
+    ``- **<Term>**: <definition>``; or
+  * a bold-term line ``**<Term>** (<qualifier>):`` at the start of a line —
+    either ending the line (the definition is the following body, the shape
+    legacy Pocock-convention glossaries use) or followed inline by the
+    definition. The qualifier parenthetical is optional and is not part of
+    the term.
 
 Reserved section names (case-insensitive) are: contexts, relations,
 relationships, shared vocabulary, flagged ambiguities, invariants, aliases,
@@ -97,7 +102,7 @@ glossary, terms, notes, overview, table of contents, context map.
 Inside a term body:
 
   * an ALIAS line reads ``Avoid: a, b`` or ``Aliases: a, b`` (surrounding
-    ``*`` emphasis is ignored);
+    ``*`` or ``_`` emphasis is ignored);
   * an INVARIANT line reads ``Invariant: <statement>`` (optionally as a
     bullet, emphasis ignored).
 
@@ -131,6 +136,24 @@ definition from it. An empty scaffold, a headings-only file, and an unrelated
 project-notes file with the same name are not vocabulary-bearing, and neither
 raises a blocked state.
 
+Sibling domain-truth files
+--------------------------
+A ``DOMAIN.md`` sitting beside a glossary — at the repo root beside
+``CONCEPTS.md``, or at ``<docs-root>/contexts/<slug>/DOMAIN.md`` beside that
+context's glossary — is a project-convention business-truth file, not a
+vocabulary authority, and never raises a blocked state. It is inventoried,
+and two findings police its boundary:
+
+  * headings inside it are rule anchors, never term definitions;
+  * a definition bullet or a bold-term line inside it IS a term definition
+    and is reported as ``domain-defines-terms`` — definitions belong to the
+    owning glossary;
+  * a canonical-location ``DOMAIN.md`` whose sibling glossary is missing is
+    reported as ``domain-orphan``.
+
+A ``DOMAIN.md`` anywhere else in the repository is an ordinary project file
+and is ignored.
+
 Blocked states
 --------------
 With at least one vocabulary-bearing legacy file present:
@@ -158,6 +181,8 @@ Finding codes emitted by ``validate``
     legacy-only                  blocked state (above)
     legacy-reference-pending     a repository file still references a legacy file
     invariant-dropped            a supplied mapping loses an extracted invariant
+    domain-defines-terms         a sibling DOMAIN.md carries a term definition
+    domain-orphan                a canonical DOMAIN.md has no sibling glossary
 
 Polysemy across contexts is legal and is never a finding: the same term may
 carry different definitions in two context glossaries.
@@ -178,6 +203,7 @@ ROOT_GLOSSARY = "CONCEPTS.md"
 LEGACY_MAP_NAME = "CONTEXT-MAP.md"
 LEGACY_GLOSSARY_NAME = "CONTEXT.md"
 LEGACY_NAMES = (LEGACY_MAP_NAME, LEGACY_GLOSSARY_NAME)
+DOMAIN_TRUTH_NAME = "DOMAIN.md"
 
 SKIP_DIRS = frozenset({
     ".git", ".hg", ".svn", "node_modules", ".venv", "venv", "__pycache__",
@@ -203,8 +229,12 @@ ENTRY_PATTERN = re.compile(r"^- \[([^\[\]()]+)\]\((\S+)\)\s+" + SEPARATOR + r"\s
 RELATION_PATTERN = re.compile(r"^- (.+?)\s+->\s+(.+?):\s*(.+?)\s*$")
 SHARED_PATTERN = re.compile(r"^- \*\*(.+?)\*\*\s*(?:" + SEPARATOR + r"|:)\s+(.+?)\s*$")
 DEFINITION_BULLET_PATTERN = re.compile(r"^\s*[-*]\s+\*\*(.+?)\*\*\s*(?:" + SEPARATOR + r"|:)\s+(.+?)\s*$")
-ALIAS_PATTERN = re.compile(r"^(?:avoid|aliases)\s*:\s*(.+)$", re.IGNORECASE)
-INVARIANT_PATTERN = re.compile(r"^invariant\s*:\s*(.+)$", re.IGNORECASE)
+BOLD_TERM_OPENER_PATTERN = re.compile(r"^\*\*([^*]+?)\*\*\s*(?:\([^)]*\))?\s*:\s*$")
+BOLD_TERM_INLINE_PATTERN = re.compile(
+    r"^\*\*([^*]+?)\*\*\s*(?:\([^)]*\))?\s*(?:" + SEPARATOR + r"|:)\s+(\S.*?)\s*$"
+)
+ALIAS_PATTERN = re.compile(r"^[_*]*(?:avoid|aliases)[_*]*\s*:\s*(.+)$", re.IGNORECASE)
+INVARIANT_PATTERN = re.compile(r"^[_*]*invariant[_*]*\s*:\s*(.+)$", re.IGNORECASE)
 FIELD_PATTERN = re.compile(r"^(glossary|terms)\s*:\s*(.+?)\s*$", re.IGNORECASE)
 
 
@@ -425,6 +455,31 @@ def extract_terms(text, source, skip_span=None):
                 "line": number,
             })
             continue
+        opener = BOLD_TERM_OPENER_PATTERN.match(line)
+        if opener and opener.group(1).strip().lower() not in RESERVED_SECTIONS:
+            close(current)
+            current = {
+                "term": opener.group(1).strip(),
+                "definition": "",
+                "aliases": [],
+                "invariants": [],
+                "source": source,
+                "line": number,
+            }
+            continue
+        inline = BOLD_TERM_INLINE_PATTERN.match(line)
+        if inline and inline.group(1).strip().lower() not in RESERVED_SECTIONS:
+            close(current)
+            current = None
+            terms.append({
+                "term": inline.group(1).strip(),
+                "definition": inline.group(2).strip(),
+                "aliases": [],
+                "invariants": [],
+                "source": source,
+                "line": number,
+            })
+            continue
         if current is None:
             continue
         plain = strip_emphasis(line.lstrip("-* \t"))
@@ -631,6 +686,61 @@ def discover_legacy_references(repo_root, files, legacy_paths):
     return references
 
 
+def domain_defined_terms(text):
+    """Term definitions inside a domain-truth file.
+
+    Headings are rule anchors there, never term definitions, so only the
+    explicit definition grammar counts: definition bullets and bold-term
+    lines (opener or inline).
+    """
+    defined = []
+    for number, line, in_fence in scan_lines(text):
+        if in_fence or not line.strip():
+            continue
+        bullet = DEFINITION_BULLET_PATTERN.match(line)
+        if bullet and bullet.group(1).strip().lower() not in RESERVED_SECTIONS:
+            defined.append({"term": bullet.group(1).strip(), "line": number})
+            continue
+        opener = BOLD_TERM_OPENER_PATTERN.match(line)
+        if opener and opener.group(1).strip().lower() not in RESERVED_SECTIONS:
+            defined.append({"term": opener.group(1).strip(), "line": number})
+            continue
+        inline = BOLD_TERM_INLINE_PATTERN.match(line)
+        if inline and inline.group(1).strip().lower() not in RESERVED_SECTIONS:
+            defined.append({"term": inline.group(1).strip(), "line": number})
+    defined.sort(key=lambda entry: (entry["line"], entry["term"]))
+    return defined
+
+
+def discover_domain_truth(repo_root, docs_root, files):
+    """Sibling DOMAIN.md files at canonical locations, in path order."""
+    contexts_prefix = docs_root.rstrip("/") + "/contexts/"
+    file_set = set(files)
+    records = []
+    for relative in files:
+        context = None
+        if relative == DOMAIN_TRUTH_NAME:
+            sibling = ROOT_GLOSSARY
+        elif relative.startswith(contexts_prefix) and relative.endswith("/" + DOMAIN_TRUTH_NAME):
+            middle = relative[len(contexts_prefix):-len("/" + DOMAIN_TRUTH_NAME)]
+            if not middle or "/" in middle:
+                continue
+            context = middle
+            sibling = relative[: -len(DOMAIN_TRUTH_NAME)] + ROOT_GLOSSARY
+        else:
+            continue
+        text = read_text(os.path.join(repo_root, *relative.split("/")))
+        records.append({
+            "path": relative,
+            "context": context,
+            "siblingGlossary": sibling,
+            "siblingGlossaryPresent": sibling in file_set,
+            "definedTerms": domain_defined_terms(text),
+        })
+    records.sort(key=lambda record: record["path"])
+    return records
+
+
 # ---------------------------------------------------------------------------
 # Graph assembly
 # ---------------------------------------------------------------------------
@@ -687,6 +797,7 @@ def build_graph(repo_root, docs_root):
     legacy = discover_legacy(repo_root, files)
     legacy_paths = [record["path"] for record in legacy]
     references = discover_legacy_references(repo_root, files, legacy_paths)
+    domain_truth = discover_domain_truth(repo_root, docs_root, files)
     legacy_bearing = [record for record in legacy if record["vocabularyBearing"]]
 
     if not legacy_bearing:
@@ -709,6 +820,7 @@ def build_graph(repo_root, docs_root):
         "shared": shared,
         "legacy": legacy,
         "legacyReferences": references,
+        "domainTruth": domain_truth,
         "blockedState": blocked,
     }
 
@@ -771,6 +883,20 @@ def command_inventory(graph):
         "sharedVocabulary": [
             {"term": entry["term"], "definition": entry["definition"], "line": entry["line"]}
             for entry in graph["shared"]
+        ],
+        "domainTruth": [
+            {
+                "path": record["path"],
+                "context": record["context"],
+                "siblingGlossary": record["siblingGlossary"],
+                "siblingGlossaryPresent": record["siblingGlossaryPresent"],
+                "definesTerms": bool(record["definedTerms"]),
+                "definedTerms": [
+                    {"term": entry["term"], "line": entry["line"]}
+                    for entry in record["definedTerms"]
+                ],
+            }
+            for record in graph["domainTruth"]
         ],
         "legacy": {
             "files": [
@@ -895,6 +1021,22 @@ def command_validate(graph, mapping_document):
             "Migrated glossaries are in place while vocabulary-bearing legacy files remain; "
             "the confirmed deletion step has not run yet.",
         ))
+
+    for record in graph["domainTruth"]:
+        for defined in record["definedTerms"]:
+            findings.append(finding(
+                "domain-defines-terms",
+                "Domain-truth file defines the term '%s'; definitions belong to the owning "
+                "glossary, not DOMAIN.md." % defined["term"],
+                path=record["path"], line=defined["line"], term=defined["term"],
+            ))
+        if not record["siblingGlossaryPresent"]:
+            findings.append(finding(
+                "domain-orphan",
+                "'%s' has no sibling glossary at '%s'; a domain-truth file belongs beside "
+                "its context's CONCEPTS.md." % (record["path"], record["siblingGlossary"]),
+                path=record["path"],
+            ))
 
     if any(record["vocabularyBearing"] for record in graph["legacy"]):
         for reference in graph["legacyReferences"]:
