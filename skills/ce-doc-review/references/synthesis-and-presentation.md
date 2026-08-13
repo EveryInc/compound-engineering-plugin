@@ -156,12 +156,14 @@ Route on the pair. **Do not prompt on a finding whose own classification says th
 | `100`  | `safe_auto`   | Apply. Report in the change list. Requires `suggested_fix`; demote to `gated_auto` if missing. |
 | `100`  | `gated_auto`  | Apply. Report in the change list. The problem is confirmed and no genuine alternative exists, so there is nothing to ask. Requires `suggested_fix`; demote to `manual` if missing. |
 | `100`  | `manual`      | A decision — real alternatives exist. Ask **which remedy**, not whether to proceed. |
-| `75`   | `safe_auto`   | Join the grouped confirmation with obligations. The problem is well-evidenced rather than confirmed, so one batch confirmation is proportionate; a per-finding prompt is not. |
-| `75`   | `gated_auto`  | Same grouped confirmation. Requires `suggested_fix`; demote to `manual` if missing. |
+| `75`   | `safe_auto`   | Apply. Report in the change list. Requires `suggested_fix`; demote to `gated_auto` if missing. |
+| `75`   | `gated_auto`  | Apply. Report in the change list. Requires `suggested_fix`; demote to `manual` if missing. |
 | `75`   | `manual`      | A decision. Ask **which remedy**. |
 | `50`   | any           | Surface in the FYI subsection regardless of `autofix_class`. Do not enter the decision surface or any batch action. These are observations. |
 
-That yields three surfaces, and each is a different speech act: **applied** (reported, revertable), **grouped confirmation** (one question covering a batch shown in full first), and **decisions** (genuine forks). Render them per the shared floor's grammar so a reader can tell which is which without tracking headers.
+**Anchor does not gate Apply.** Anchors `75` and `100` route identically, because the anchor scores the *problem-claim* and Apply turns on the *remedy-claim*. Anchor `75` means the reviewer double-checked and the issue will be hit in practice — that is a settled problem, not a doubtful one. Requiring `100` would mix the two axes back together, which is the confusion this step exists to undo, and it empties the Apply path in practice: a real review returns almost everything at `75`. What separates Apply from a decision is whether an alternative exists, and nothing else.
+
+That yields three surfaces, and each is a different speech act: **applied** (reported, revertable), **grouped confirmation** (obligations and peer-only findings — one question covering a batch shown in full first), and **decisions** (genuine forks). Render them per the shared floor's grammar so a reader can tell which is which without tracking headers.
 
 **Cross-model peer safeguard.** A finding whose only reviewers are cross-model peers (a `<lens>-<provider>` name with no in-process co-reviewer) **never routes to Apply**, at any anchor or class. Send it to the grouped confirmation instead. A peer cannot authorize an unattended edit on its own (R18). Note that demoting its `autofix_class` no longer accomplishes this — `gated_auto` now applies too — so this rule targets the route directly rather than the class.
 
@@ -202,12 +204,12 @@ a weaker per-surface rule; the floor is authoritative.
 
 ### Apply the findings 3.7 routed to Apply
 
-Apply, in a single pass, every finding 3.7 routed to Apply — **anchor `100` with `safe_auto` or `gated_auto`**. Both apply for the same reason: evidence directly confirms the problem, and the classification asserts no genuine alternative to the remedy, so there is nothing to ask.
+Apply, in a single pass, every finding 3.7 routed to Apply — **anchor `75` or `100` with `safe_auto` or `gated_auto`**. All four apply for the same reason: the problem is settled and the classification asserts no genuine alternative to the remedy, so there is nothing to ask. The anchor does not gate this; only the presence of an alternative does.
 
 - Edit the document inline using the platform's edit tool
 - Track what was changed for the "Applied changes" section in the rendered output
 - Do not ask for approval — 3.7 already established there is no choice to offer
-- Do **not** apply anything 3.7 routed elsewhere. Anchor `75` findings join the grouped confirmation; anchor `50` routes to FYI; `manual` at any anchor is a decision. If a finding reaches this step from any of those routes, 3.7 was not applied correctly — re-run it for that finding before continuing.
+- Do **not** apply anything 3.7 routed elsewhere. Obligations and peer-only findings join the grouped confirmation; anchor `50` routes to FYI; `manual` at any anchor is a decision. If a finding reaches this step from any of those routes, 3.7 was not applied correctly — re-run it for that finding before continuing.
 - Do **not** apply a finding whose only reviewers are cross-model peers, at any anchor or class. 3.7 sends those to the grouped confirmation regardless of classification.
 - An applied fix must never remove or reword a `session-settled:` annotation. If a `suggested_fix`'s text would touch one, demote the finding to `gated_auto` so the user confirms.
 
@@ -217,7 +219,7 @@ List every applied fix in the output summary so the user can see what changed. U
 
 After the applied changes land, the rest split by the route 3.7 assigned — not by `autofix_class`:
 
-- **Grouped confirmation** — obligations, plus anchor `75` `safe_auto` and `gated_auto` findings, plus any peer-only finding. One confirmation covering the batch, rendered in full first.
+- **Grouped confirmation** — obligations and peer-only findings. One confirmation covering the batch, rendered in full first. Anchor `75` does **not** land here: it applies alongside anchor `100`, because Apply turns on the absence of an alternative rather than on evidence strength.
 - **Decisions** — `manual` findings at anchor `75` or `100`. These enter the routing question and the walk-through (see `references/walkthrough.md`), and carry a which-remedy sub-question when more than one viable remedy exists.
 - **FYI** — anchor `50`, presentation only, no routing.
 - **Nothing in either actionable bucket** → skip the routing question; flow directly to the Phase 5 terminal question. Applied changes alone do not warrant a routing question; report them and move on.
