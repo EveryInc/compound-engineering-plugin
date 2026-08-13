@@ -75,6 +75,7 @@ A fourth mechanism — grouping genuinely distinct findings by the question that
 - **R11** — Behavioral evidence covers a strong and a weaker model, on both Claude and Codex, and no claim rests on a single run.
 - **R12** — Deleting a rule also deletes the downstream prose, footnotes, and machinery that existed only to serve it.
 - **R13** — Callers that parse the output envelope continue to work, or are updated in the same change.
+- **R14** — The user is asked only where a realistic answer other than "yes" exists. A finding whose remedy the rubric itself says has no genuine alternative is applied and reported, not prompted.
 
 ### Success Criteria
 
@@ -134,6 +135,8 @@ Out of scope:
 
 - **KTD6 — Prose must not state a typical count.** A phrase of the form "typically 0-2 roots surface" empirically anchored the synthesizer into under-elevating, and is documented as the same harm class as the numeric cap already rejected. Matching guidance describes the criterion, never the expected yield. Governs R7.
 
+- **KTD7 — Route on decision entropy, not on the edit's blast radius.** The current axis is *does this fix touch document meaning* — a property of the edit. The question that matters is whether a competent author has a realistic choice. Those come apart: a factual test-file correction and a rewrite of the Definition of Done arrive as the same prompt today, while the rubric already distinguishes them. Governs R14.
+
 ### Assumptions and Constraints
 
 - Skill prose is executed by models of differing capability across five harnesses. The matcher's test must be applicable by a mid-tier model, not only a frontier one.
@@ -144,7 +147,9 @@ Out of scope:
 
 U3 has landed. U1 has returned its verdict. The remaining order is:
 
-**Stage A (U13, U4, U6)** — prevent duplicates at emission, replace the matcher, delete the superseded grouping rules. **Stage B (U5)** — obligation routing. **Stage C (U8, U9)** — build the generation harness and measure Stages A and B. **Stage D (U12, U7)** — decision clustering, *only if* U9 shows the load is still too high. **Stage E (U10, U11)** — guards and captured learnings.
+**Stage A (U13, U4, U6)** — prevent duplicates at emission, replace the matcher, delete the superseded grouping rules. **Stage B (U5)** — obligation routing. **Stage C (U8, U9)** — build the generation harness and measure Stages A and B. **Stage D (U14)** — stop prompting where the rubric says there is no choice. **Stage E (U12, U7)** — decision clustering, *only if* the load is still too high after U14. **Stage F (U10, U11)** — guards and captured learnings.
+
+U14 lands after U9 rather than beside U5 for two reasons: it changes what `autofix_class` does, so running it before the measurement would move the baseline mid-eval; and it may reduce the decision load enough on its own that U12 is unnecessary. Re-measure after U14 before deciding Stage E.
 
 U2 is independent and can run any time; U11 consumes its verdict.
 
@@ -494,6 +499,53 @@ Landed in `ddf0a46b`. The security persona's per-element rule, the adversarial p
 
 **Verification:** Traceability holds — every finding maps to exactly one group, obligation, or advisory observation — and decision load drops by more than the measured variance.
 
+### U14. Stop prompting where the rubric says there is no choice
+
+**Goal:** Ask the user only where a realistic answer other than "yes" exists.
+
+**Requirements:** R14.
+
+**Dependencies:** U5. Sequenced after U9 measures Stages A and B, because it changes what `autofix_class` *does* and would otherwise move the baseline mid-measurement.
+
+**Files:**
+- `skills/ce-doc-review/references/synthesis-and-presentation.md`
+- `skills/ce-doc-review/references/subagent-template.md`
+- `skills/ce-doc-review/references/walkthrough.md`
+
+**The evidence.** A real run on a plan in a sibling worktree returned 31 findings and reported, in its own summary line, **"No decisions requiring judgment"** — then surfaced 11 items for confirmation. Judged against "would the author realistically decline," roughly four had a genuine fork (a cost gate that could defensibly go either way, a requirement assuming a capability no host provides, an unresolved sequencing collision, an open gap). The rest were corrections the document had already decided and not caught up with — including one the plan itself cited as a known measured failure.
+
+**The contradiction this unit removes.** The reviewer contract already carries a strawman rule: *"If the only alternatives to the primary fix are strawmen, the finding is `safe_auto` or `gated_auto`, **not** `manual`."* And `manual` is defined as *"genuinely multiple valid approaches."* So `gated_auto` **already means "no genuine alternative exists."** The pipeline then routes it into a per-item Apply / Defer / Skip prompt — asking the author to choose between options the rubric has just asserted do not exist. The confirmation carries no information, and eleven of them per review teach the author to accept without reading, which is what destroys the confirmations that do matter.
+
+**Approach:**
+
+1. Separate the two claims every finding carries: a **problem-claim** (this is wrong) and a **remedy-claim** (fix it this way). They have independent entropy, and today's routing scores neither — it scores the edit's blast radius.
+
+2. Route on the pair:
+
+   | Problem | Remedy | Action |
+   |---|---|---|
+   | Settled by the document | No genuine alternative | Apply and report in the change list. No prompt. |
+   | Settled | Materially different options exist | Ask **which**, not **whether**. |
+   | Genuinely arguable | — | A decision. Prompt, and expect it to be rare. |
+
+3. Fix the misclassification the same rubric already forbids. A finding whose remedy has real alternatives belongs in `manual`, not `gated_auto`, however concrete its `suggested_fix`. In the observed run the P0 — a structural impossibility with at least two defensible resolutions — arrived as `gated_auto` because a concrete fix was attached. Tighten the emission rubric so the presence of a fix never outranks the presence of alternatives.
+
+4. Add the **which-remedy** question shape to the walk-through. It does not exist today: Apply means "accept my problem framing *and* my remedy," Skip means "reject both," and there is no way to say "the problem is real, choose differently." That missing option is why an individually-legitimate list still reads as malformed.
+
+5. The review surface for applied changes is the change list, not a prompt — the pattern `safe_auto` already uses. Keep every applied change individually revertable and named in the output.
+
+**Execution note:** This widens what applies without a prompt, which is the direction issue #506 asked for and the opposite of what the original 34-finding diagnosis feared. Both are right about different classes: #506 about findings with no alternative, the diagnosis about findings that quietly commit to product behavior. Step 3 is what keeps them apart — get it wrong and this becomes the unauthorized-apply defect wearing better clothes.
+
+**Test scenarios:**
+- A finding whose remedy has no genuine alternative applies without a prompt and appears in the change list.
+- A finding whose remedy has two defensible options produces a which-remedy question, not Apply / Defer / Skip.
+- A finding whose problem-claim is arguable still produces a decision.
+- A finding with a concrete `suggested_fix` **and** real alternatives classifies `manual`, not `gated_auto`.
+- Every change applied without a prompt is individually revertable and named.
+- A review reporting "no decisions requiring judgment" surfaces no confirmation prompts.
+
+**Verification:** Re-running the observed sibling-worktree plan surfaces roughly the four genuine forks rather than eleven confirmations, with no applied change that commits to product behavior the document had not already settled.
+
 ### U13. Scope persona territory in the suppress conditions
 
 **Goal:** Prevent duplicates at emission where one persona's lens plainly owns the issue.
@@ -556,13 +608,19 @@ Gates marked **(conditional)** apply only if U9 authorizes U12.
 **Stage C**
 
 - The generation harness exists, its manifests are held outside the author's reach, and the corpus includes a zero-duplicate control and the two organic pairs from U1.
-- U9 has run at N>=3 on both hosts, reporting merge recall, merge precision, load before and after, and an explicit cancel-or-build verdict for U12.
+- U9 has run at N>=3 on both hosts, reporting merge recall, merge precision, and decision load before and after. Its load number sizes U14; the cancel-or-build verdict for U12 comes from the re-measurement after U14, not from U9.
 
-**Stage D — only if U9 authorizes it**
+**Stage D**
+
+- A finding whose remedy has no genuine alternative applies without a prompt and is named in the change list; one with real alternatives asks which remedy; one with an arguable problem-claim is a decision.
+- No change applied without a prompt commits to product behavior the document had not already settled.
+- The decision load is re-measured after U14, and Stage E is decided on that number rather than U9's.
+
+**Stage E — only if the re-measurement authorizes it**
 
 - Grouping ships with per-member primer fan-out and minimum-of-members apply authority; `ce-plan` parses the changed envelope correctly.
 
-**Either outcome**
+**Stage F — regardless of whether Stage E ran**
 
 - Mechanical guards are tightened in place and pass.
 - Affected learnings are corrected, U2's verdict acted on, and the U1 sampling confound captured.
