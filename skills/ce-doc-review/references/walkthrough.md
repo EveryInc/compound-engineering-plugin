@@ -54,32 +54,14 @@ The walk-through receives, from the orchestrator:
 
 - The merged findings list in severity order (P0 → P1 → P2 → P3), filtered to actionable findings (confidence anchor `75` or `100` with `autofix_class` `gated_auto` or `manual`). FYI-subsection findings (anchor `50`) are not included — they surface in the final report only and have no walk-through entry.
 - The run id for artifact lookups (when applicable).
-- Premise-dependency chain annotations from synthesis step 3.5c: each finding may carry `depends_on: <root_id>` or `dependents: [<ids>]`.
 
 Each finding's recommended action has already been normalized by synthesis step 3.5b (Deterministic Recommended-Action Tie-Break, `Skip > Defer > Apply`) — the walk-through surfaces that recommendation via the merged finding's `recommended_action` field and does not recompute it.
-
-**Root-first iteration order.** When a finding has `dependents`, iterate it before any of its dependents regardless of severity order within the chain. The root always comes first so the user's root decision can cascade.
-
-**Cascading root decisions.** When the user picks Skip or Defer on a finding with `dependents`:
-
-1. Announce the cascade in the terminal before firing the next question: "Skipping/Deferring this root will auto-resolve N dependent finding(s): {titles}. Continue?"
-2. Use the platform's blocking question tool with two options: `Cascade — apply same action to all dependents` (recommended) and `Decide each dependent individually`. Labels must be self-contained per the blocking-question tool design rules.
-3. On Cascade: apply the root's action to every dependent and skip those findings' walk-through entries. Persistence follows the per-action routing rules from "Per-finding routing" below — the canonical home for every cascaded decision is the in-memory decision list (annotated with `cascaded from {root_title}` and the cascaded action), plus any action-specific side effect:
-   - Cascaded `Apply` — add the dependent id to the Apply set and record in the decision list.
-   - Cascaded `Defer` — invoke the open-questions append flow for the dependent and record the append outcome in the decision list. If the append fails, fall back to the per-finding failure path (Retry / Record only / Convert to Skip) for that dependent before advancing the cascade.
-   - Cascaded `Skip` — record in the decision list only; no Apply-set entry, no open-questions append.
-
-   On Individual: proceed normally — the root's dependents each get their own walk-through entry.
-
-When the user picks Apply on a root, do NOT cascade — the premise held, so dependents each need their own decision. Proceed through the walk-through normally.
-
-**Orphaned dependents.** If a dependent's root was rejected in a prior round and the root is suppressed this round (per R29), treat the dependent as a standalone finding with no chain context. Do not reference the missing root.
 
 ---
 
 ## Per-finding presentation
 
-Each finding is presented in two parts: a terminal output block carrying the explanation, and a question via the platform's blocking question tool carrying the decision. Never merge the two into a single surface — the terminal block uses markdown and remains mandatory; the question uses plain text. On modal harnesses, text immediately before a blocking dialog is easy to miss, so the question string **also duplicates** a compact decision-first copy of What's wrong / Proposed fix / If left as-is (see "Question string" below). That duplication is additive: emitting only the question, or stuffing the fix into an option label instead of the question string, is a bug. Cascade announcements, the no-fix sub-question, and Defer-failure sub-questions share modal exposure but keep their existing shorter stems for this change — the regular per-finding question is the high-volume path whose option labels alone are not enough to decide.
+Each finding is presented in two parts: a terminal output block carrying the explanation, and a question via the platform's blocking question tool carrying the decision. Never merge the two into a single surface — the terminal block uses markdown and remains mandatory; the question uses plain text. On modal harnesses, text immediately before a blocking dialog is easy to miss, so the question string **also duplicates** a compact decision-first copy of What's wrong / Proposed fix / If left as-is (see "Question string" below). That duplication is additive: emitting only the question, or stuffing the fix into an option label instead of the question string, is a bug. The no-fix sub-question and Defer-failure sub-questions share modal exposure but keep their existing shorter stems for this change — the regular per-finding question is the high-volume path whose option labels alone are not enough to decide.
 
 ### Terminal output block (print before firing the question)
 
@@ -222,21 +204,17 @@ C. Acknowledge without applying — record the decision, no document edit
 
 **Availability adaptation.** When `references/open-questions-defer.md` has cached `append_available: false` for the session, omit option A and surface one line in the stem explaining why (e.g., `Defer unavailable — document is read-only in this environment.`). The menu becomes Skip / Acknowledge without applying, with Skip labeled `(recommended)`.
 
-**Cascading roots.** When the finding is a root with dependents and the user picks A (Defer) or B (Skip) from this sub-question, run the cascade announcement in "Cascading root decisions" above — treat the sub-question's choice as the root's effective action. Option C (Acknowledge) does not cascade; the root is recorded as acknowledged and dependents each get their own walk-through entry.
-
 ---
 
 ## Withdrawing findings the user's earlier answers resolved
 
 Earlier decisions carry information forward. Apply stages a fix that does not execute until end-of-walk-through, so later findings are still being presented against the pre-edit document. Skip and Defer settle a premise. Freeform text, an `Other` answer, or per-option notes may assert a fact the document does not state — the no-freeform-authoring rule below forbids the user hand-writing a *fix*, not supplying information.
 
-Synthesis's premise chains (step 3.5c) do not cover this: they are built on the rejection test, which is why Apply does not cascade under "Cascading root decisions" above.
-
 **When a finding's turn arrives, judge it against everything the user has said so far.** If earlier answers already resolve or contradict it, do not render its terminal block or fire its question. Say succinctly, in plain user-facing language, what the finding was and which earlier answer settled it — enough that the user can tell it was handled rather than lost, and can object if the agent read them wrong. Follow the one-line shape of "Confirmation between findings" above. Then advance to the next finding, or to the completion report if none remain.
 
 Evaluate lazily, at the point the finding would have been presented — do not scan ahead after every answer.
 
-**The cascade opt-out wins.** When the user answered a root's cascade prompt (see "Cascading root decisions" above) with `Decide each dependent individually`, do not auto-withdraw that root's dependents on the strength of the root decision — they explicitly asked to see each one, and a dependent's premise dissolving under the root's rejection is exactly the cascade the opt-out declined. Give those dependents their own walk-through entries. A *different* earlier answer may still withdraw one of them; only the root whose cascade they opted out of is excluded as a trigger.
+**An explicit user decision outranks an automatic withdrawal.** Withdrawal is the agent's inference about a finding the user has not yet answered. When the user has already decided a finding, or has explicitly asked to see a particular finding, honor that — do not retroactively convert it to `withdrawn` on the strength of a later answer.
 
 Record each as `withdrawn` in the decision list, noting which decision retired it. Withdrawn is its own completion-report bucket. It carries forward in the decision primer as a rejected-class decision — alongside Skip, Defer, and Acknowledge — **only when a user decision durably settled it**: a settled premise (Skip/Defer) or a user-asserted fact. Those are user judgments that the finding needn't be actioned, so R29 should suppress a round N+1 re-raise since the document itself never changed.
 
