@@ -54,7 +54,7 @@ Scale into the existing app only as a throwaway overlay when the user asks or th
 
 Do not fake the dimension being tested. If the question is whether a flow or state model is right, they must be able to drive it — a screen that only looks like the product does not answer that. Persist only when persistence is the question.
 
-When the question is which option wins, put the options on one surface so they can be judged together.
+When the question is which option wins, put the options on one surface so they can be judged together — unless that surface would distort what is being judged. A scroll or transition behavior judged inside a small framed panel is not that behavior: give it a full-size run of its own rather than nesting it, and keep the comparison surface static.
 
 After each user-facing action or variant change, show the relevant state so they can see what changed.
 
