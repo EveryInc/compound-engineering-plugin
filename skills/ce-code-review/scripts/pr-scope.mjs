@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process'
-
+import { createHash } from 'node:crypto'
 const SHA_PATTERN = /^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/
 const NAMESPACE_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9_-])?$/
 
@@ -49,8 +49,9 @@ function main() {
   if (repo.length === 0) fail('repo must be non-empty')
   if (remote.length === 0 || remote.startsWith('-')) fail('remote must be non-empty and must not start with a hyphen')
 
-  const baseOidRef = `refs/review/pr-${namespace}-base-oid`
-  const headOidRef = `refs/review/pr-${namespace}-head-oid`
+  const refKey = createHash('sha256').update(`${namespace}\0${baseOid}\0${headOid}`).digest('hex').slice(0, 24)
+  const baseOidRef = `refs/review/pr-${namespace}-${refKey}-base-oid`
+  const headOidRef = `refs/review/pr-${namespace}-${refKey}-head-oid`
   git(
     repo,
     [

@@ -2,7 +2,7 @@
 
 import { execFileSync } from "node:child_process"
 import { createHash, randomBytes, randomUUID } from "node:crypto"
-import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
 
 function regularPath(repo, absolute, { allowMissingLeaf = false } = {}) {
@@ -251,6 +251,60 @@ function atomicWriteJson(file, value) {
     throw error
   }
 }
+function processAlive(pid) {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return false
+  try { process.kill(pid, 0); return true } catch (error) { return error?.code === "EPERM" }
+}
+
+function withStateTransitionClaim(stateFile, action) {
+  const original = resolve(stateFile)
+  const directory = dirname(original)
+  const prefix = `${original.split(sep).pop()}.transition.`
+  const claim = `${original}.transition.${process.pid}.${randomUUID()}`
+  let owned = false
+  let reclaimed = false
+  try {
+    try {
+      renameSync(original, claim)
+      owned = true
+    } catch (error) {
+      if (error?.code !== "ENOENT") return { status: "transition_conflict" }
+      const candidates = readdirSync(directory).filter((entry) => entry.startsWith(prefix)).sort()
+      if (candidates.length !== 1) return { status: "transition_conflict" }
+      const existing = resolve(directory, candidates[0])
+      const ownerPid = Number(candidates[0].slice(prefix.length).split(".", 1)[0])
+      const stat = lstatSync(existing)
+      const ownerStartMs = stat.birthtimeMs || stat.ctimeMs
+      if (processAlive(ownerPid) && Date.now() - ownerStartMs < 86_400_000) return { status: "transition_conflict" }
+      try { renameSync(existing, claim) } catch { return { status: "transition_conflict" } }
+      owned = true
+      reclaimed = true
+    }
+    if (owned && reclaimed) {
+      const claimedState = readJson(claim)
+      if (claimedState && ["blocked", "canceled", "abandoned", "scope_expansion", "restored", "committed"].includes(claimedState.phase)) {
+        try { renameSync(claim, original); owned = false } catch { return { status: "transition_conflict" } }
+        return releaseRegistry(claimedState, original)
+          ? { status: "invalid_phase", phase: claimedState.phase }
+          : { status: "registry_invalid", phase: claimedState.phase }
+      }
+    }
+    const result = action(claim, original)
+    try {
+      renameSync(claim, original)
+      owned = false
+    } catch {
+      return { status: "transition_conflict" }
+    }
+    if (result?.release_registry_state) {
+      if (!releaseRegistry(result.release_registry_state, original)) return { status: "registry_invalid", phase: result.release_registry_state.phase }
+      return result.response
+    }
+    return result
+  } finally {
+    if (owned) try { renameSync(claim, original) } catch {}
+  }
+}
 
 function snapshotMismatch(expected, observed) {
   const mismatches = []
@@ -291,8 +345,8 @@ function commitIntegrityFailure(reason, commitSha, changedPaths, clean) {
   }
 }
 
-function terminalCommitFailure(state, stateFile, result) {
-  return terminalFailure(state, stateFile, result)
+function terminalCommitFailure(state, stateFile, result, registryStateFile = state._registryStateFile ?? stateFile) {
+  return terminalFailure(state, stateFile, result, registryStateFile)
 }
 
 function insideRepo(repo, file) {
@@ -427,9 +481,9 @@ function registryRecord(file) {
   return readJson(file)
 }
 
-function releaseRegistry(state, stateFile) {
+function releaseRegistry(state, stateFile, registryStateFile = stateFile) {
   const registry = registryRecord(state.registry_path)
-  if (!registry || registry.repo !== state.repo || registry.lease_id !== state.lease_id || registry.state !== resolve(stateFile)) return false
+  if (!registry || registry.repo !== state.repo || registry.lease_id !== state.lease_id || registry.state !== resolve(registryStateFile)) return false
   try {
     unlinkSync(state.registry_path)
     return true
@@ -437,23 +491,7 @@ function releaseRegistry(state, stateFile) {
     return false
   }
 }
-
-function terminalProtocolViolation(state, stateFile, dirtyPaths) {
-  const failed = finishLease(state, stateFile, "blocked", {
-    terminal_reason: "protocol_violation",
-    dirty_paths: dirtyPaths,
-  })
-  return failed ?? {
-    status: "protocol_violation",
-    phase: "blocked",
-    lease_id: state.lease_id,
-    dirty_paths: dirtyPaths,
-    authorized_paths: state.paths,
-    mutation_permitted: false,
-  }
-}
-
-function finishLease(state, stateFile, phase, extra = {}) {
+function finishLease(state, stateFile, phase, extra = {}, registryStateFile = state._registryStateFile ?? stateFile) {
   state.phase = phase
   Object.assign(state, extra)
   try {
@@ -461,27 +499,51 @@ function finishLease(state, stateFile, phase, extra = {}) {
   } catch {
     return malformed("state")
   }
-  if (!releaseRegistry(state, stateFile)) return { status: "registry_invalid", phase }
+  if (resolve(registryStateFile) !== resolve(stateFile)) return { release_registry_state: state, response: null }
+  if (!releaseRegistry(state, stateFile, registryStateFile)) return { status: "registry_invalid", phase }
   return null
 }
 
-function terminalFailure(state, stateFile, result) {
-  const failed = finishLease(state, stateFile, "blocked", {
-    terminal_reason: result.status,
-    terminal_result: result,
-  })
-  return failed ?? { ...result, phase: "blocked", lease_id: state.lease_id }
+
+function terminalProtocolViolation(state, stateFile, dirtyPaths, registryStateFile = state._registryStateFile ?? stateFile) {
+  state.phase = "blocked"
+  state.terminal_reason = "protocol_violation"
+  state.dirty_paths = dirtyPaths
+  try { atomicWriteJson(resolve(stateFile), state) } catch { return malformed("state") }
+  const response = {
+    status: "protocol_violation",
+    phase: "blocked",
+    lease_id: state.lease_id,
+    dirty_paths: dirtyPaths,
+    authorized_paths: state.paths,
+    mutation_permitted: false,
+  }
+  if (resolve(registryStateFile) !== resolve(stateFile)) return { release_registry_state: state, response }
+  if (!releaseRegistry(state, stateFile)) return { status: "registry_invalid", phase: "blocked" }
+  return response
 }
 
-function leasedState(repoValue, stateFile, lease, allowedPhases) {
+function terminalFailure(state, stateFile, result, registryStateFile = state._registryStateFile ?? stateFile) {
+  state.phase = "blocked"
+  state.terminal_reason = result.status
+  state.terminal_result = result
+  try { atomicWriteJson(resolve(stateFile), state) } catch { return malformed("state") }
+  const response = { ...result, phase: "blocked", lease_id: state.lease_id }
+  if (resolve(registryStateFile) !== resolve(stateFile)) return { release_registry_state: state, response }
+  if (!releaseRegistry(state, stateFile)) return { status: "registry_invalid", phase: "blocked" }
+  return response
+}
+
+function leasedState(repoValue, stateFile, lease, allowedPhases, registryStateFile = stateFile) {
   if (!repoValue || !stateFile || !lease) return { ok: false, result: malformed("arguments") }
   const repo = resolve(repoValue)
   const state = readCycleState(repo, stateFile)
   if (!state || state.version !== 2) return { ok: false, result: malformed("state") }
+  Object.defineProperty(state, "_registryStateFile", { value: resolve(registryStateFile), enumerable: false })
   if (state.lease_id !== lease) return { ok: false, result: { status: "lease_mismatch" } }
   if (!allowedPhases.includes(state.phase)) return { ok: false, result: { status: "invalid_phase", phase: state.phase } }
   const registry = registryRecord(state.registry_path)
-  if (!registry || registry.repo !== repo || registry.lease_id !== lease || registry.state !== resolve(stateFile)) {
+  if (!registry || registry.repo !== repo || registry.lease_id !== lease || registry.state !== resolve(registryStateFile)) {
     return { ok: false, result: { status: "registry_invalid", phase: state.phase } }
   }
   return { ok: true, repo, state }
@@ -547,6 +609,12 @@ function cycleAuthorize(repoValue, stateFile, pathsFile, verificationFile, famil
       if (error?.code !== "ENOENT") return malformed("artifact")
     }
   }
+  const statePrefix = `${resolve(stateFile).split(sep).pop()}.transition.`
+  try {
+    if (readdirSync(dirname(resolve(stateFile))).some((entry) => entry.startsWith(statePrefix))) return { status: "lease_conflict" }
+  } catch {
+    return { status: "registry_invalid" }
+  }
   let registryPath
   try {
     registryPath = leaseRegistryPath(repo)
@@ -567,7 +635,10 @@ function cycleAuthorize(repoValue, stateFile, pathsFile, verificationFile, famil
     writeFileSync(registryPath, `${JSON.stringify(registry)}\n`, { mode: 0o600, flag: "wx" })
     chmodSync(registryPath, 0o600)
   } catch {
-    return registryRecord(registryPath) ? { status: "lease_conflict" } : { status: "registry_invalid" }
+    const winner = registryRecord(registryPath)
+    return winner || existsSync(registryPath)
+      ? { status: "lease_conflict", ...(winner ? { lease_id: winner.lease_id, state: winner.state } : {}) }
+      : { status: "registry_invalid" }
   }
   const state = {
     version: 2,
@@ -583,6 +654,7 @@ function cycleAuthorize(repoValue, stateFile, pathsFile, verificationFile, famil
     paths: files.map((file) => file.path),
     files,
     verification_json: resolve(verificationFile),
+    verification_plan: verification,
     packet_path: resolve(packetFile),
   }
   const packet = {
@@ -620,55 +692,92 @@ function cycleAuthorize(repoValue, stateFile, pathsFile, verificationFile, famil
 }
 
 function cycleBegin(repoValue, stateFile, lease) {
-  const leased = leasedState(repoValue, stateFile, lease, ["authorized"])
-  if (!leased.ok) return leased.result
-  const guarded = cycleGuard(leased.repo, leased.state)
-  if (!guarded.ok) return terminalProtocolViolation(leased.state, stateFile, guarded.result.changed_paths ?? [])
-  if (guarded.changedPaths.length > 0) return terminalProtocolViolation(leased.state, stateFile, guarded.changedPaths)
-  leased.state.phase = "dispatched"
-  try { atomicWriteJson(resolve(stateFile), leased.state) } catch { return malformed("state") }
-  return { status: "dispatched", lease_id: lease, paths: leased.state.paths, family_id: leased.state.family.family_id }
+  return withStateTransitionClaim(stateFile, (claimedState, originalState) => {
+    const leased = leasedState(repoValue, claimedState, lease, ["authorized"], originalState)
+    if (!leased.ok) return leased.result
+    const guarded = cycleGuard(leased.repo, leased.state)
+    if (!guarded.ok) return terminalProtocolViolation(leased.state, claimedState, guarded.result.changed_paths ?? [], originalState)
+    if (guarded.changedPaths.length > 0) return terminalProtocolViolation(leased.state, claimedState, guarded.changedPaths, originalState)
+    leased.state.phase = "dispatched"
+    try { atomicWriteJson(claimedState, leased.state) } catch { return malformed("state") }
+    return { status: "dispatched", lease_id: lease, paths: leased.state.paths, family_id: leased.state.family.family_id }
+  })
 }
 
 function cycleStatus(repoValue, stateFile, lease) {
-  const leased = leasedState(repoValue, stateFile, lease, ["authorized", "dispatched", "sealed"])
+  return withStateTransitionClaim(stateFile, (claimedState, originalState) => cycleStatusClaimed(repoValue, claimedState, lease, originalState))
+}
+
+function cycleStatusClaimed(repoValue, stateFile, lease, registryStateFile = stateFile) {
+  const leased = leasedState(repoValue, stateFile, lease, ["authorized", "dispatched", "sealed"], registryStateFile)
   if (!leased.ok) return leased.result
   let guarded
-  try { guarded = cycleGuard(leased.repo, leased.state) } catch { return terminalProtocolViolation(leased.state, stateFile, []) }
+  try { guarded = cycleGuard(leased.repo, leased.state) } catch { return terminalProtocolViolation(leased.state, stateFile, [], registryStateFile) }
   const dirtyPaths = guarded.ok ? guarded.changedPaths : safeGitPaths(leased.repo)
-  if (!guarded.ok || (leased.state.phase === "authorized" && dirtyPaths.length > 0)) {
-    return terminalProtocolViolation(leased.state, stateFile, dirtyPaths)
-  }
+  if (!guarded.ok || (leased.state.phase === "authorized" && dirtyPaths.length > 0)) return terminalProtocolViolation(leased.state, stateFile, dirtyPaths, registryStateFile)
   return { status: "ok", phase: leased.state.phase, lease_id: lease, branch_match: true, head_match: true, dirty_paths: dirtyPaths, authorized_paths: leased.state.paths, mutation_permitted: leased.state.phase === "dispatched" }
 }
 
 function cycleCancel(repoValue, stateFile, lease) {
-  const leased = leasedState(repoValue, stateFile, lease, ["authorized"])
-  if (!leased.ok) return leased.result
-  const status = cycleStatus(repoValue, stateFile, lease)
-  if (status.status !== "ok" || status.dirty_paths.length > 0) return { ...status, status: "protocol_violation", mutation_permitted: false }
-  const failed = finishLease(leased.state, stateFile, "canceled")
-  return failed ?? { status: "canceled", lease_id: lease }
+  return withStateTransitionClaim(stateFile, (claimedState, originalState) => {
+    const leased = leasedState(repoValue, claimedState, lease, ["authorized"], originalState)
+    if (!leased.ok) return leased.result
+    const status = cycleStatusClaimed(repoValue, claimedState, lease, originalState)
+    if (status.status !== "ok" || status.dirty_paths.length > 0) return { ...status, status: "protocol_violation", mutation_permitted: false }
+    leased.state.phase = "canceled"
+    try { atomicWriteJson(claimedState, leased.state) } catch { return malformed("state") }
+    return { release_registry_state: leased.state, response: { status: "canceled", lease_id: lease } }
+  })
+}
+
+function cycleRecover(repoValue, stateFile, lease) {
+  return withStateTransitionClaim(stateFile, (claimedState, originalState) => {
+    const leased = leasedState(repoValue, claimedState, lease, ["authorized"], originalState)
+    if (!leased.ok) return leased.result
+    const status = cycleStatusClaimed(repoValue, claimedState, lease, originalState)
+    if (status.status !== "ok" || status.dirty_paths.length > 0) return { ...status, status: "protocol_violation", mutation_permitted: false }
+    const current = captureWorktreeSnapshots(leased.repo, leased.state.paths)
+    const changed = current ? worktreeSnapshotMismatch(leased.state.files, current) : leased.state.paths
+    if (changed.length > 0) return { status: "concurrent_change", changed_paths: changed, mutation_permitted: false }
+    leased.state.phase = "abandoned"
+    leased.state.terminal_reason = "recovered_before_begin"
+    try { atomicWriteJson(claimedState, leased.state) } catch { return malformed("state") }
+    return { release_registry_state: leased.state, response: { status: "recovered", lease_id: lease, state: originalState } }
+  })
 }
 
 function cycleScopeExpansion(repoValue, stateFile, lease, resultFile) {
-  const leased = leasedState(repoValue, stateFile, lease, ["authorized", "dispatched"])
-  if (!leased.ok) return leased.result
-  const result = readJson(resultFile)
-  if (!result || result.status !== "scope_expansion" || result.lease_id !== lease || !uniqueStrings(result.requested_paths) || !nonemptyString(result.reason) || !uniqueStrings(result.evidence)) {
-    return terminalFailure(leased.state, stateFile, malformed("scope_expansion"))
-  }
-  const status = cycleStatus(repoValue, stateFile, lease)
-  if (status.status !== "ok" || status.dirty_paths.length > 0) return { ...status, status: "protocol_violation", mutation_permitted: false }
-  const temporaryPaths = resolve(dirname(resultFile), `.scope-paths-${randomUUID()}.json`)
-  try {
-    writeFileSync(temporaryPaths, JSON.stringify(result.requested_paths), { mode: 0o600, flag: "wx" })
-    if (!intendedPaths(leased.repo, temporaryPaths)) return terminalFailure(leased.state, stateFile, malformed("scope_paths"))
-  } finally {
-    try { unlinkSync(temporaryPaths) } catch {}
-  }
-  const failed = finishLease(leased.state, stateFile, "scope_expansion", { scope_expansion: result })
-  return failed ?? { status: "scope_expansion", lease_id: lease, requested_paths: result.requested_paths }
+  return withStateTransitionClaim(stateFile, (claimedState, originalState) => {
+    const leased = leasedState(repoValue, claimedState, lease, ["authorized", "dispatched"], originalState)
+    if (!leased.ok) return leased.result
+    const result = readJson(resultFile)
+    if (!result || result.status !== "scope_expansion" || result.lease_id !== lease || !uniqueStrings(result.requested_paths) || !nonemptyString(result.reason) || !uniqueStrings(result.evidence)) {
+      leased.state.phase = "blocked"
+      leased.state.terminal_reason = "malformed"
+      leased.state.terminal_result = malformed("scope_expansion")
+      try { atomicWriteJson(claimedState, leased.state) } catch { return malformed("state") }
+      return { release_registry_state: leased.state, response: { ...leased.state.terminal_result, phase: "blocked", lease_id: lease } }
+    }
+    const status = cycleStatusClaimed(repoValue, claimedState, lease, originalState)
+    if (status.status !== "ok" || status.dirty_paths.length > 0) return { ...status, status: "protocol_violation", mutation_permitted: false }
+    const temporaryPaths = resolve(dirname(resultFile), `.scope-paths-${randomUUID()}.json`)
+    try {
+      writeFileSync(temporaryPaths, JSON.stringify(result.requested_paths), { mode: 0o600, flag: "wx" })
+      if (!intendedPaths(leased.repo, temporaryPaths)) {
+        leased.state.phase = "blocked"
+        leased.state.terminal_reason = "malformed"
+        leased.state.terminal_result = malformed("scope_paths")
+        try { atomicWriteJson(claimedState, leased.state) } catch { return malformed("state") }
+        return { release_registry_state: leased.state, response: { ...leased.state.terminal_result, phase: "blocked", lease_id: lease } }
+      }
+    } finally {
+      try { unlinkSync(temporaryPaths) } catch {}
+    }
+    leased.state.phase = "scope_expansion"
+    leased.state.scope_expansion = result
+    try { atomicWriteJson(claimedState, leased.state) } catch { return malformed("state") }
+    return { release_registry_state: leased.state, response: { status: "scope_expansion", lease_id: lease, requested_paths: result.requested_paths } }
+  })
 }
 
 function cycleGuard(repo, state) {
@@ -677,16 +786,8 @@ function cycleGuard(repo, state) {
   const changedPaths = gitPaths(repo)
   const intended = new Set(state.paths)
   const unrelated = changedPaths.filter((file) => !intended.has(file))
-  if (branch !== state.branch || headSha !== state.head_sha || unrelated.length > 0) {
-    return {
-      ok: false,
-      result: {
-        status: "concurrent_change",
-        branch,
-        head_sha: headSha,
-        changed_paths: unrelated,
-      },
-    }
+  if (!branch || !headSha || branch !== state.branch || headSha !== state.head_sha || unrelated.length > 0) {
+    return { ok: false, result: { status: "protocol_violation", branch, head_sha: headSha, unrelated_paths: unrelated, changed_paths: changedPaths } }
   }
   return { ok: true, branch, headSha, changedPaths }
 }
@@ -699,41 +800,42 @@ function verificationResult(state) {
     return null
   }
   const verification = readJson(state.verification_json)
-  return verification && ["passed", "failed"].includes(verification.status) ? verification : null
+  if (!verification || !["passed", "failed"].includes(verification.status)) return null
+  if (!uniqueStrings(verification.checks) || !jsonEqual(verification.checks, state.verification_plan?.checks)) return null
+  if (!Array.isArray(verification.results) || verification.results.length !== verification.checks.length) return null
+  if (!verification.results.every((result, index) => record(result) && result.check === verification.checks[index] && ["passed", "failed"].includes(result.status))) return null
+  const aggregateStatus = verification.results.every((result) => result.status === "passed") ? "passed" : "failed"
+  if (verification.status !== aggregateStatus) return null
+  return verification
 }
 
 function cycleSeal(repoValue, stateFile, lease) {
   if (!repoValue || !stateFile) return malformed("arguments")
-  const repo = resolve(repoValue)
-  const state = readCycleState(repo, stateFile)
-  if (!state || state.seal) return malformed("state")
-  const leased = leasedState(repoValue, stateFile, lease, ["dispatched"])
-  if (!leased.ok) return leased.result
-  const guarded = cycleGuard(repo, state)
-  if (!guarded.ok) return guarded.result
-  const verification = verificationResult(state)
-  if (!verification) return malformed("verification_json")
-  if (pathSetDifference(state.paths, guarded.changedPaths).length > 0) {
-    return malformed("diff_paths", { changed_paths: guarded.changedPaths })
-  }
-
-  let files
-  try {
-    files = captureWorktreeSnapshots(repo, state.paths)
-  } catch {
-    return malformed("unsafe_path")
-  }
-  if (!files) return malformed("unsafe_path")
-  state.seal = { verification_status: verification.status, files }
-  state.phase = "sealed"
-  try {
-    atomicWriteJson(resolve(stateFile), state)
-  } catch {
-    return malformed("state")
-  }
-  return { status: "sealed", verification_status: verification.status, paths: state.paths }
+  return withStateTransitionClaim(stateFile, (claimedState, originalState) => {
+    const repo = resolve(repoValue)
+    const state = readCycleState(repo, claimedState)
+    if (!state || state.seal) return malformed("state")
+    const leased = leasedState(repoValue, claimedState, lease, ["dispatched"], originalState)
+    Object.defineProperty(state, "_registryStateFile", { value: resolve(originalState), enumerable: false })
+    if (!leased.ok) return leased.result
+    const guarded = cycleGuard(repo, state)
+    if (!guarded.ok) return terminalFailure(state, claimedState, guarded.result, originalState)
+    const verification = verificationResult(state)
+    if (!verification) return malformed("verification_json")
+    if (pathSetDifference(state.paths, guarded.changedPaths).length > 0) return malformed("diff_paths", { changed_paths: guarded.changedPaths })
+    let files
+    try { files = captureWorktreeSnapshots(repo, state.paths) } catch { return malformed("unsafe_path") }
+    if (!files) return malformed("unsafe_path")
+    state.seal = {
+      verification_status: verification.status,
+      verification_digest: digest(Buffer.from(JSON.stringify(canonicalJson(verification)))),
+      files,
+    }
+    state.phase = "sealed"
+    try { atomicWriteJson(claimedState, state) } catch { return malformed("state") }
+    return { status: "sealed", verification_status: verification.status, paths: state.paths }
+  })
 }
-
 function sealedGuard(repo, state, guarded) {
   if (!state.seal) return { ok: false, result: malformed("seal") }
   let current
@@ -760,10 +862,15 @@ function sealedGuard(repo, state, guarded) {
 
 function cycleRestore(repoValue, stateFile, lease) {
   if (!repoValue || !stateFile) return malformed("arguments")
+  return withStateTransitionClaim(stateFile, (claimedState, originalState) => cycleRestoreClaimed(repoValue, claimedState, lease, originalState))
+}
+
+function cycleRestoreClaimed(repoValue, stateFile, lease, registryStateFile) {
   const repo = resolve(repoValue)
   const state = readCycleState(repo, stateFile)
   if (!state) return malformed("state")
-  const leased = leasedState(repoValue, stateFile, lease, ["sealed"])
+  const leased = leasedState(repoValue, stateFile, lease, ["sealed"], registryStateFile)
+  Object.defineProperty(state, "_registryStateFile", { value: resolve(registryStateFile), enumerable: false })
   if (!leased.ok) return leased.result
   let guarded
   try {
@@ -806,13 +913,12 @@ function cycleRestore(repoValue, stateFile, lease) {
         renameSync(operation.absolute, operation.displaced)
         const displaced = readFileSync(operation.displaced)
         if (!sealedFile.exists || digest(displaced) !== sealedFile.digest || (lstatSync(operation.displaced).mode & 0o777) !== sealedFile.mode) {
-          if (!existsSync(operation.absolute)) linkSync(operation.displaced, operation.absolute)
+          if (!existsSync(operation.absolute)) renameSync(operation.displaced, operation.absolute)
           throw Object.assign(new Error("concurrent displacement"), { code: "CONCURRENT" })
         }
       }
       if (operation.file.exists) {
-        linkSync(operation.desired, operation.absolute)
-        unlinkSync(operation.desired)
+        renameSync(operation.desired, operation.absolute)
         operation.desired = null
       }
       if (existsSync(operation.displaced)) unlinkSync(operation.displaced)
@@ -828,23 +934,31 @@ function cycleRestore(repoValue, stateFile, lease) {
 
   const remaining = safeGitPaths(repo, state.paths)
   if (remaining.length > 0) return terminalFailure(state, stateFile, { status: "restore_failed", restored_paths: restoredPaths, pending_paths: [], changed_paths: remaining })
+  const response = { status: "restored", clean: true, paths: state.paths }
   const failed = finishLease(state, stateFile, "restored")
+  if (failed?.release_registry_state) return { ...failed, response }
   if (failed) return failed
-  return { status: "restored", clean: true, paths: state.paths }
+  return response
 }
 
 function cycleCommit(repoValue, stateFile, lease, message) {
   if (!repoValue || !stateFile || typeof message !== "string" || message.length === 0 || message.includes("\0")) return malformed("arguments")
+  return withStateTransitionClaim(stateFile, (claimedState, originalState) => cycleCommitClaimed(repoValue, claimedState, lease, message, originalState))
+}
+
+function cycleCommitClaimed(repoValue, stateFile, lease, message, registryStateFile) {
   const repo = resolve(repoValue)
   const state = readCycleState(repo, stateFile)
   if (!state) return malformed("state")
-  const leased = leasedState(repoValue, stateFile, lease, ["sealed"])
+  const leased = leasedState(repoValue, stateFile, lease, ["sealed"], registryStateFile)
+  Object.defineProperty(state, "_registryStateFile", { value: resolve(registryStateFile), enumerable: false })
   if (!leased.ok) return leased.result
   const guarded = cycleGuard(repo, state)
   if (!guarded.ok) return terminalCommitFailure(state, stateFile, guarded.result)
   const verification = verificationResult(state)
   if (!verification) return terminalCommitFailure(state, stateFile, malformed("verification_json"))
-  if (state.seal?.verification_status !== verification.status) return terminalCommitFailure(state, stateFile, malformed("verification_seal"))
+  const verificationDigest = digest(Buffer.from(JSON.stringify(canonicalJson(verification))))
+  if (state.seal?.verification_status !== verification.status || state.seal?.verification_digest !== verificationDigest) return terminalCommitFailure(state, stateFile, malformed("verification_seal"))
   const sealed = sealedGuard(repo, state, guarded)
   if (!sealed.ok) return terminalCommitFailure(state, stateFile, sealed.result)
   if (verification.status !== "passed") return { status: "verification_failed", verification_status: verification.status }
@@ -906,9 +1020,11 @@ function cycleCommit(repoValue, stateFile, lease, message) {
   if (snapshotChangedPaths.length > 0) return terminalCommitFailure(state, stateFile, commitIntegrityFailure("committed_snapshot_mismatch", commitSha, snapshotChangedPaths, clean))
   if (!clean) return terminalCommitFailure(state, stateFile, commitIntegrityFailure("working_tree_not_clean", commitSha, changedAfterCommit, false))
 
+  const response = { status: "committed", commit_sha: commitSha, clean: true, paths: state.paths }
   const failed = finishLease(state, stateFile, "committed", { commit_sha: commitSha })
+  if (failed?.release_registry_state) return { ...failed, response }
   if (failed) return failed
-  return { status: "committed", commit_sha: commitSha, clean: true, paths: state.paths }
+  return response
 }
 function stringArray(value) {
   return Array.isArray(value) && value.every((entry) => typeof entry === "string" && entry.length > 0)
@@ -1068,10 +1184,11 @@ function validFinding(value, { actionable = false } = {}) {
     && typeof value.requires_verification === "boolean"
     && typeof value.pre_existing === "boolean"
     && (suggestedFix === null || (typeof suggestedFix === "string" && suggestedFix.length > 0))
-    && (firstEvidence === undefined || (typeof firstEvidence === "string" && firstEvidence.length > 0))
+    && (value.confidence < 75 || (typeof firstEvidence === "string" && firstEvidence.trim().length > 0))
     && typeof value.why_it_matters === "string" && value.why_it_matters.length > 0
     && Array.isArray(value.evidence) && value.evidence.length > 0
     && value.evidence.every((entry) => typeof entry === "string" && entry.length > 0)
+    && (value.confidence < 75 || firstEvidence === value.evidence[0])
     && uniqueStrings(value.reviewers)
     && uniqueStrings(value.independent_reviewers)
     && value.independent_reviewers.every((reviewer) => value.reviewers.includes(reviewer))
@@ -1229,6 +1346,8 @@ if (!options) {
   emit(cycleScopeExpansion(options.repo, options.state, options.lease, options.result))
 } else if (command === "cycle-cancel") {
   emit(cycleCancel(options.repo, options.state, options.lease))
+} else if (command === "cycle-recover") {
+  emit(cycleRecover(options.repo, options.state, options.lease))
 } else if (command === "cycle-restore") {
   emit(cycleRestore(options.repo, options.state, options.lease))
 } else if (command === "cycle-commit") {

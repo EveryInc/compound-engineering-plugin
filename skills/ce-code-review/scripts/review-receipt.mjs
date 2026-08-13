@@ -153,11 +153,12 @@ function validateFinding(finding, field, { actionable = false } = {}) {
   boolean(requireField(value, 'pre_existing', `${field}.`), `${field}.pre_existing`)
   const suggestedFix = requireField(value, 'suggested_fix', `${field}.`)
   if (suggestedFix !== null) string(suggestedFix, `${field}.suggested_fix`, { nonempty: true })
-  const firstEvidence = requireField(value, 'first_evidence', `${field}.`)
+  const firstEvidence = Object.hasOwn(value, 'first_evidence') ? value.first_evidence : undefined
   if (firstEvidence !== undefined) string(firstEvidence, `${field}.first_evidence`, { nonempty: true })
   string(requireField(value, 'why_it_matters', `${field}.`), `${field}.why_it_matters`, { nonempty: true })
   const evidence = stringArray(requireField(value, 'evidence', `${field}.`), `${field}.evidence`)
   if (evidence.length === 0) fail(`${field}.evidence must not be empty`)
+  if (confidence >= 75 && firstEvidence !== evidence[0]) fail(`${field}.first_evidence must equal evidence[0]`)
   const reviewers = stringArray(requireField(value, 'reviewers', `${field}.`), `${field}.reviewers`)
   const independent = stringArray(requireField(value, 'independent_reviewers', `${field}.`), `${field}.independent_reviewers`)
   unique(reviewers, `${field}.reviewers`)

@@ -88,7 +88,11 @@ Declared mappings run first. If a CLI rejects an obsolete or incompatible adapte
 
 This shares the provider/route kernel with `ce-doc-review` (parity-tested in CI) but keeps code-review's product scope: adversarial-only, diff/work-tree delivery, not doc-review's judgment trio or whole-doc sweep.
 
-Large diffs stay on the same single-peer route without being serialized into one enormous prompt. The orchestrator sends a compact semantic review map — intent, material risk divisions, generated-tree treatment, and cross-division interactions — while the worker keeps the exact diff outside the prompt as a private, selectively readable artifact. Deterministic code never invents risk groups or cuts semantic shards; the adversarial agent works within the orchestrator's divisions and narrows its reads again when needed.
+Large diffs stay on the same single-peer route without being serialized into one enormous prompt. Cross-model coverage becomes **risk-sampled corroboration**, not whole-change-set review: the orchestrator selects at most two bounded material risk divisions, each with a failure question, one to three path prefixes, and explicit exclusions or bounded dependency expansion. Canonical in-process reviewers retain full-change coverage. The worker keeps the exact diff outside the prompt as a private selectively readable artifact and never invents or widens risk groups.
+
+If a peer reaches the wall-clock hard cap while its own event log is still advancing, that is a productive scope timeout, not evidence that the budget should grow. The workflow may retry once on the same route, requested model, effort, base, and hard cap with one mechanically narrower division. Multiple-path divisions retain a strict path subset; a single-path division retains the path and narrows the ask through a required distinct focus. It never retries unchanged scope, raises the cap, or converts progress into findings. Only a terminal normalized schema-shaped result folds into the review; timeout progress is retained as bounded non-finding evidence for Coverage and retry lineage. Coverage names the scope digest and selected divisions, and an empty oversized result is explicitly only “no additional issues in the sampled divisions.”
+
+This differs from context exhaustion. Context exhaustion means the peer must narrow **what it reads** within the authorized division. A productive wall-clock timeout means the orchestrator must narrow **what it asks** while keeping the route and budget fixed.
 
 ### 2. Severity (P0-P3) and autofix class are orthogonal
 

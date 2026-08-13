@@ -1159,6 +1159,40 @@ describe("ce-code-review receipt helper", () => {
     expect(result.status).not.toBe(0)
     expect(result.stderr).toContain("cannot be both completed and failed")
   })
+  test("rejects scope head and branch identities that disagree with the receipt", () => {
+    const headMismatch = runReceiptHelper(receiptFixture({ scope: {
+      base: "pr:123", branch: "feature/receipt", head_sha: SHA40_A,
+      pr_url: "https://github.com/example/repo/pull/123", files_changed: 2,
+    } }))
+    expect(headMismatch.status).not.toBe(0)
+    expect(headMismatch.stderr).toContain("scope.head_sha must agree")
+
+    const branchMismatch = runReceiptHelper(receiptFixture({ scope: {
+      base: "pr:123", branch: "feature/other", head_sha: SHA40_B,
+      pr_url: "https://github.com/example/repo/pull/123", files_changed: 2,
+    } }))
+    expect(branchMismatch.status).not.toBe(0)
+    expect(branchMismatch.stderr).toContain("scope.branch must agree")
+  })
+
+  test("rejects failed reviewer requiredness that disagrees with required_reviewers", () => {
+    const result = runReceiptHelper(receiptFixture({
+      review_receipt: {
+        base_sha: SHA40_A,
+        head_sha: SHA40_B,
+        branch: "feature/receipt",
+        selected_reviewers: ["correctness-reviewer", "testing-reviewer"],
+        required_reviewers: ["correctness-reviewer", "testing-reviewer"],
+        completed_reviewers: ["correctness-reviewer"],
+        failed_reviewers: [{ reviewer: "testing-reviewer", reason: "malformed return", required: false }],
+        terminal_status: "complete",
+      },
+      reviewers: ["correctness", "testing"],
+    }))
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("required flag disagrees with required_reviewers")
+  })
+
 
   test("rejects an unselected completed reviewer", () => {
     const result = runReceiptHelper(receiptFixture({
@@ -1486,6 +1520,13 @@ describe("ce-code-review receipt helper", () => {
       verdict: "Ready with fixes", findings: [urgentModerate], actionable_findings: [urgentModerate],
     })).status).toBe(0)
   })
+  test("requires high-confidence first evidence to quote evidence[0]", () => {
+    const mismatched = receiptFinding({ first_evidence: "src/review.ts:99 -- unrelated()" })
+    expect(runReceiptHelper(receiptFixture({ findings: [mismatched] })).status).not.toBe(0)
+    const urgentModerate = receiptFinding({ severity: "P0", confidence: 50, first_evidence: undefined })
+    expect(runReceiptHelper(receiptFixture({ verdict: "Ready with fixes", findings: [urgentModerate], actionable_findings: [urgentModerate] })).status).toBe(0)
+  })
+
 
   test("rejects malformed full findings, duplicate ids, and non-exact actionable projections", () => {
     const requiredFields = [
@@ -1574,6 +1615,52 @@ describe("ce-code-review pr-remote merge-base evidence", () => {
       await rm(root, { recursive: true, force: true })
     }
   })
+  test("cross-model initial and retry dispatch preserve compatible overrides", async () => {
+    const contract = await readRepoFile("skills/ce-code-review/references/cross-model-review.md")
+    expect((contract.match(/CROSS_MODEL_MODEL_OVERRIDE_TARGET=/g) ?? []).length).toBeGreaterThanOrEqual(5)
+    expect((contract.match(/CROSS_MODEL_MODEL_OVERRIDE=/g) ?? []).length).toBeGreaterThanOrEqual(5)
+    const initialFence = contract.split('start --skill ce-code-review --run-id "<run-id>" --label adversarial')[0].split("```bash").at(-1) ?? ""
+    const retryFence = contract.split('start --skill ce-code-review --run-id "<run-id>" --label adversarial-retry')[0].split("```bash").at(-1) ?? ""
+    for (const fence of [initialFence, retryFence]) {
+      expect(fence).toContain("CROSS_MODEL_MODEL_OVERRIDE_TARGET")
+      expect(fence).toContain("CROSS_MODEL_MODEL_OVERRIDE")
+    }
+  })
+  test("cross-model no-job recovery is one bounded identical start", async () => {
+    const contract = await readRepoFile("skills/ce-code-review/references/cross-model-review.md")
+    expect(contract).toContain("No-job same-route recovery")
+    expect(contract).toMatch(/rerun that exact `start` fence at most once/i)
+    expect(contract).toMatch(/same run ID, target, fixed route, model override pair, scope file, base ref, and hard-cap environment/i)
+    expect(contract).toMatch(/second start.*no job ID.*local adversarial fallback/i)
+  })
+
+  test("cross-model coverage reports sampled scope truthfully", async () => {
+    const contract = await readRepoFile("skills/ce-code-review/references/cross-model-review.md")
+    expect(contract).toMatch(/coverage_mode.*scope_digest.*sampled division IDs/is)
+    expect(contract).toMatch(/coverage_mode=oversized.*sampled corroboration/is)
+    expect(contract).toMatch(/empty findings array.*sampled divisions.*not a whole-change clean bill/is)
+  })
+})
+
+describe("ce-code-review productive timeout contract", () => {
+  test("bounds oversized corroboration and narrows productive timeout retries", async () => {
+    const skill = await readRepoFile("skills/ce-code-review/SKILL.md")
+    const reference = await readRepoFile("skills/ce-code-review/references/cross-model-review.md")
+    const dispatch = await readRepoFile("skills/ce-code-review/references/dispatch-reviewers.md")
+    const persona = await readRepoFile("skills/ce-code-review/references/personas/adversarial-reviewer.md")
+    const docs = await readRepoFile("docs/skills/ce-code-review.md")
+    const combined = `${skill}\n${reference}\n${dispatch}\n${persona}\n${docs}`
+
+    expect(reference).toMatch(/oversized[\s\S]{0,900}at most two[\s\S]{0,500}risk divisions/i)
+    expect(reference).toMatch(/one failure question[\s\S]{0,250}one to three[\s\S]{0,250}path prefixes/i)
+    expect(reference).toMatch(/productive_scope_timeout[\s\S]{0,1200}same[\s\S]{0,120}route[\s\S]{0,250}hard cap/i)
+    expect(reference).toMatch(/retry[\s\S]{0,800}materially narrower/i)
+    expect(combined).toMatch(/(?:unchanged scope|unchanged-scope)[\s\S]{0,400}(?:must not|forbidden|fail closed|never retry)/i)
+    expect(combined).toMatch(/(?:larger hard cap|increase the hard cap|raises the cap)[\s\S]{0,400}(?:must not|forbidden|fail closed|never)/i)
+    expect(combined).toMatch(/progress[\s\S]{0,400}non.finding evidence/i)
+    expect(combined).toMatch(/terminal[\s\S]{0,400}schema.shaped[\s\S]{0,400}(?:only|sole)/i)
+    expect(docs).toMatch(/risk.sampled corroboration/i)
+  })
 })
 
 describe("ce-code-review agent receipt contract", () => {
@@ -1585,7 +1672,7 @@ describe("ce-code-review agent receipt contract", () => {
     expect(skill).toMatch(/--json[^\n]*baseRefOid[^\n]*headRefOid/)
     expect(skill).toContain('"$NODE" "$SKILL_DIR/scripts/pr-scope.mjs"')
     expect(skill).toMatch(/pr-remote[^\n]*merge base[^\n]*immutable PR base\/head OIDs[^\n]*before reviewer dispatch/i)
-    expect(skill).toMatch(/pr-remote[\s\S]{0,1800}fail[^\n]*before reviewer dispatch/i)
+    expect(skill).toMatch(/pr-remote[\s\S]{0,2600}fail[^\n]*before reviewer dispatch/i)
     expect(finish).toMatch(/pr-remote[^\n]*computed merge base[^\n]*Stage 1/i)
     expect(finish).not.toMatch(/use immutable PR metadata `baseRefOid`/i)
     const receiptFence = [...finish.matchAll(/```bash\n([\s\S]*?)\n```/g)]
@@ -1694,13 +1781,15 @@ describe("ce-code-review PR scope helper", () => {
 
       expect(result.exitCode, result.stderr.toString()).toBe(0)
       expect(result.stdout.toString().trim().split("\n")).toHaveLength(1)
-      expect(JSON.parse(result.stdout.toString())).toEqual({
+      const payload = JSON.parse(result.stdout.toString())
+      expect(payload).toMatchObject({
         status: "ok",
-        base_oid_ref: "refs/review/pr-17-base-oid",
-        head_oid_ref: "refs/review/pr-17-head-oid",
         base_sha: forkMergeBase,
         head_sha: headRefOid,
       })
+      expect(payload.base_oid_ref).toMatch(/^refs\/review\/pr-17-[0-9a-f]{24}-base-oid$/)
+      expect(payload.head_oid_ref).toMatch(/^refs\/review\/pr-17-[0-9a-f]{24}-head-oid$/)
+      expect(payload.base_oid_ref.replace(/-base-oid$/, "")).toBe(payload.head_oid_ref.replace(/-head-oid$/, ""))
       expect(forkMergeBase).not.toBe(baseRefOid)
       expect(gitCommand(review, "symbolic-ref", "HEAD")).toBe(checkoutBefore)
       expect(gitCommand(review, "status", "--porcelain")).toBe("")
@@ -1708,6 +1797,39 @@ describe("ce-code-review PR scope helper", () => {
       await rm(root, { recursive: true, force: true })
     }
   })
+  test("pins concurrent reviews of one PR number to distinct endpoint refs", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-pr-scope-concurrent-"))
+    const origin = path.join(root, "origin.git")
+    const seed = path.join(root, "seed")
+    const review = path.join(root, "review")
+    const helper = path.join(process.cwd(), "skills/ce-code-review/scripts/pr-scope.mjs")
+    try {
+      gitCommand(root, "init", "--bare", origin)
+      gitCommand(root, "init", "-b", "main", seed)
+      gitCommand(seed, "config", "user.email", "pr-scope@example.com")
+      gitCommand(seed, "config", "user.name", "PR Scope Contract")
+      const base = await commitFile(seed, "base.txt", "base\n", "base")
+      gitCommand(seed, "switch", "-c", "feature")
+      const headOne = await commitFile(seed, "feature.txt", "one\n", "head one")
+      const headTwo = await commitFile(seed, "feature.txt", "two\n", "head two")
+      gitCommand(seed, "remote", "add", "origin", origin)
+      gitCommand(seed, "push", "origin", "main", "feature")
+      gitCommand(root, "init", review)
+      gitCommand(review, "remote", "add", "origin", origin)
+      const first = Bun.spawnSync([process.execPath, helper, review, "origin", "17", base, headOne], { stdout: "pipe", stderr: "pipe" })
+      const second = Bun.spawnSync([process.execPath, helper, review, "origin", "17", base, headTwo], { stdout: "pipe", stderr: "pipe" })
+      expect(first.exitCode, first.stderr.toString()).toBe(0)
+      expect(second.exitCode, second.stderr.toString()).toBe(0)
+      const firstPayload = JSON.parse(first.stdout.toString())
+      const secondPayload = JSON.parse(second.stdout.toString())
+      expect(firstPayload.head_oid_ref).not.toBe(secondPayload.head_oid_ref)
+      expect(gitCommand(review, "rev-parse", `${firstPayload.head_oid_ref}^{commit}`)).toBe(headOne)
+      expect(gitCommand(review, "rev-parse", `${secondPayload.head_oid_ref}^{commit}`)).toBe(headTwo)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
 
   test("rejects unsafe endpoint identity before invoking git", async () => {
     const helper = path.join(process.cwd(), "skills/ce-code-review/scripts/pr-scope.mjs")
@@ -1753,12 +1875,11 @@ describe("ce-code-review PR scope helper", () => {
 
     expect(helperBlocks).toHaveLength(1)
     const command = helperBlocks[0][1]
-    expect(command.trim().split("\n")).toHaveLength(1)
+    expect(command.trim().split("\n")).toHaveLength(3)
+    expect(command).toContain('SKILL_DIR="<absolute path of the directory containing the ce-code-review SKILL.md you read>";')
+    expect(command).toContain('NODE="$(for c in node nodejs;')
     expect(command).toContain('"$NODE" "$SKILL_DIR/scripts/pr-scope.mjs"')
-    expect(command).not.toMatch(/(^|[^|])\|\|([^|]|$)/)
-    expect(command).not.toContain("$(")
-    expect(command).not.toMatch(/(^|\s)>/)
-    expect(command).not.toMatch(/(^|\s)[A-Za-z_][A-Za-z0-9_]*=/)
+    expect(command).toContain("[ -n \"$NODE\" ]")
 
     const syntax = Bun.spawnSync(["bash", "-n"], {
       stdin: new TextEncoder().encode(command.replace(/\n/g, " ")),

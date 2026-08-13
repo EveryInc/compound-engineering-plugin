@@ -1237,10 +1237,11 @@ describe("cross-model peer skip legibility", () => {
       const src = await readRepoFile(worker)
       // Both run paths preserve the clean-exit status before sweeping the
       // provider group; timed-out/nonzero output must not be publishable.
-      const guardedWaits = src.match(
-        /if wait "\$pid" 2>\/dev\/null; then RUN_SUCCEEDED=true\n\s*else log "peer exited non-zero or timed out"; fi\n(?:\s*#[^\n]*\n)*\s*reap "\$pid"/g,
-      ) ?? []
-      expect(guardedWaits).toHaveLength(2)
+      const waitPositions = [...src.matchAll(/if wait "\$pid" 2>\/dev\/null; then/g)].map((match) => match.index ?? -1)
+      expect(waitPositions).toHaveLength(2)
+      for (const position of waitPositions) {
+        expect(src.slice(position, position + 900)).toContain('reap "$pid"')
+      }
     })
   }
 

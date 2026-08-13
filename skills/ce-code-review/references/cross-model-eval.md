@@ -59,17 +59,39 @@ and Codex with fake peer CLIs first on PATH.
    <model>; serving model unverified on this route." `mode:agent` emits no
    user-facing prose but retains the worker's stderr audit record.
 
-9. **Oversized diffs recover without one giant prompt.** A fixture above the
-   inline token or file-count limit sends the peer the orchestrator's compact
-   semantic review map plus a private exact-diff path, never the whole diff.
-   The worker does not cut semantic shards or invent risk divisions; the
-   orchestrator does, and the adversarial agent reads bounded ranges and narrows
-   them further rather than returning a progress note or silently omitting the
-   pass. A normal-sized fixture keeps the direct diff path.
+9. **Oversized diffs use bounded risk-sampled corroboration.** A fixture above
+   the inline token or file-count limit never promises whole-change cross-model
+   coverage. The orchestrator prepares at most two material risk divisions. Each
+   division has one failure question, one to three path prefixes, and exclusions
+   or bounded dependency expansion; the map has at most one interaction. The
+   exact diff remains private and selectively readable. Unselected files stay
+   covered by the canonical in-process roster.
+
+10. **Productive hard-cap expiry narrows the question, not the budget.** A fake
+    peer that keeps emitting events until the hard cap yields non-finding
+    `productive_scope_timeout` evidence. The orchestrator may prepare one retry
+    only on the same route, requested model, effort, base, and hard cap, using
+    exactly one original division with a mechanically narrower scope. An
+    unchanged scope, wider path set, or larger cap fails before egress. A second
+    timeout is reported without another retry or a late local adversarial twin.
+
+11. **Terminal schema output is the sole fold-in source.** Progress sidecars,
+    event logs, heartbeat messages, usage files, and partial schema-looking text
+    never enter findings or confidence promotion. A completed narrowed retry
+    with `findings: []` publishes and folds normally.
+
+12. **Context pressure and productive timeout use different levers.** An
+    oversized fixture keeps context bounded without reconstructing the full
+    diff: Codex uses selective path-scoped `git diff <base> -- <path>` calls;
+    external routes use selected-path Grep and bounded Read ranges from the
+    private diff artifact. A productive wall-clock timeout leaves that read
+    boundary intact and narrows the failure question/division asked. It never
+    increases the context or time budget.
 
 ## Pass criteria
 
-All nine cases pass on the current on-disk source on Claude Code and Codex. The
-negative activation cases launch no peer, the fixed-route cases perform no
-worker-internal recipient fallback, and only `independence_verified: true`
+All twelve cases pass on the current on-disk source on Claude Code and Codex.
+The negative activation cases launch no peer, the fixed-route cases perform no
+worker-internal recipient fallback, productive timeout retries are strictly
+narrower at the same budget, and only terminal `independence_verified: true`
 artifacts can promote agreement.

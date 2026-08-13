@@ -60,6 +60,10 @@ trap '' HUP
 # Filled while a peer process group is live; TERM/INT handler (installed after
 # reap() is defined) reaps it so an orchestrator kill cannot leave orphans.
 ACTIVE_PEER_PID=""
+ACTIVE_PROVIDER=""
+ACTIVE_ROUTE=""
+ATTEMPT_START_EPOCH=0
+ATTEMPT_LAST_ACTIVITY_EPOCH=0
 RUN_SUCCEEDED=false
 PEER_MAX_TURNS="${PEER_MAX_TURNS:-15}"
 
@@ -284,6 +288,14 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   exit 0
 fi
 
+if [ "${1:-}" = "--emit-route-receipt" ]; then
+  route="${2:-}"
+  case "$route" in codex|claude|grok-cli|grok-cursor|cursor|composer) ;; *) echo "unknown route '$route'" >&2; exit 2 ;; esac
+  printf '{"route":"%s","target":"%s","harness":"%s","model_requested":"%s","effort_requested":"%s","receipt_supported":%s}\n' \
+    "$route" "$(route_target "$route")" "$(route_harness "$route")" "$(route_model "$route")" "$(route_effort "$route")" "$(route_receipt_supported "$route")"
+  exit 0
+fi
+
 HOST_PROVIDER="${1:-}"
 HOST_HARNESS="${CROSS_MODEL_HOST_HARNESS:-unknown}"
 CANDIDATES="${2:-}"
@@ -314,6 +326,9 @@ SCHEMA="$SKILL_ROOT/references/findings-schema.json"
 [ -f "$PERSONA" ] || skip "persona brief not found at $PERSONA; skipping"
 [ -f "$SCHEMA" ]  || skip "findings schema not found at $SCHEMA; skipping"
 SCHEMA_CONTENT="$(cat "$SCHEMA")" || skip "cannot read findings schema; skipping"
+SCOPE_HELPER="$SKILL_ROOT/scripts/cross-model-scope.mjs"
+NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
+[ -f "$SCOPE_HELPER" ] && [ -n "$NODE" ] || skip "scope helper or Node runtime unavailable; skipping"
 SCHEMA_REF="$SCHEMA_CONTENT"
 
 # --- derive repo root (read-only in-tree review) ---------------------------
@@ -355,7 +370,7 @@ for p in $CANDIDATES; do
   p="$(printf '%s' "$p" | tr -d '[:space:]')"
   [ -n "$p" ] || continue
   case "$p" in codex|claude|grok|cursor|composer) ;; *) log "ignoring unknown target '$p' in candidates"; continue ;; esac
-  [ "$HOST_PROVIDER" != "unknown" ] && [ "$(target_serving_family "$p")" = "$HOST_PROVIDER" ] && continue
+  [ "$(target_serving_family "$p")" = "$HOST_PROVIDER" ] && continue
   case " $SELECTED " in *" $p "*) continue ;; esac
   if [ -n "$ALLOW" ] && ! in_csv "$p" "$ALLOW"; then log "provider '$p' not in CROSS_MODEL_PEERS allowlist; skipping"; continue; fi
   if ! provider_available "$p"; then log "provider '$p' has no installed route; skipping"; continue; fi
@@ -415,9 +430,14 @@ ESTIMATED_DIFF_TOKENS=$(( (DIFF_BYTES + 1) / 2 ))
   printf 'Return ONE JSON object and nothing else (no prose, no code fence) matching this schema:\n\n'
   printf '%s' "$SCHEMA_CONTENT"
   printf '\n\nSet the top-level "reviewer" field to "adversarial" (it will be namespaced to the peer provider on fold-in).\n'
-  REVIEW_BRIEF="$RUN_DIR/adversarial-review-brief.md"
+  case "${CROSS_MODEL_ATTEMPT_LABEL:-initial}" in
+    initial) REVIEW_BRIEF="$RUN_DIR/adversarial-review-brief.md" ;;
+    retry) REVIEW_BRIEF="$RUN_DIR/adversarial-review-retry-brief.md" ;;
+    *) skip "invalid attempt label '${CROSS_MODEL_ATTEMPT_LABEL:-}'; skipping" ;;
+  esac
+  SCOPE_FILE="${CROSS_MODEL_SCOPE_FILE:-}"
   REVIEW_BRIEF_READY=0
-  if [ -s "$REVIEW_BRIEF" ]; then
+  if [ -s "$REVIEW_BRIEF" ] && [ -s "$SCOPE_FILE" ]; then
     REVIEW_BRIEF_BYTES="$(wc -c < "$REVIEW_BRIEF" 2>/dev/null || echo 0)"
     if [ "$REVIEW_BRIEF_BYTES" -le 32768 ]; then
       REVIEW_BRIEF_READY=1
@@ -444,12 +464,34 @@ LARGE_DIFF_MODE=false
 if [ "$ESTIMATED_DIFF_TOKENS" -gt "$INLINE_MAX_TOKENS" ] || [ "$DIFF_FILES" -gt "$INLINE_MAX_FILES" ]; then
   LARGE_DIFF_MODE=true
   [ "$REVIEW_BRIEF_READY" = 1 ] || skip "large diff requires a compact orchestrator review map; skipping peer dispatch"
-  LARGE_DIFF_CONTEXT_DIR="$RAW_DIR"
+  LARGE_DIFF_CONTEXT_DIR="$RAW_DIR/scoped"
+  mkdir -m 700 "$LARGE_DIFF_CONTEXT_DIR" || skip "cannot create scoped peer context; skipping"
   PEER_MAX_TURNS="${CROSS_MODEL_LARGE_DIFF_MAX_TURNS:-40}"
   case "$PEER_MAX_TURNS" in ''|*[!0-9]*) skip "large-diff max turns must be a positive integer; skipping" ;; esac
   [ "$PEER_MAX_TURNS" -gt 0 ] || skip "large-diff max turns must be a positive integer; skipping"
   log "large diff routed through orchestrator review map: files=$DIFF_FILES estimated_tokens=$ESTIMATED_DIFF_TOKENS"
 fi
+EXPECTED_COVERAGE_MODE=normal
+[ "$LARGE_DIFF_MODE" = true ] && EXPECTED_COVERAGE_MODE=oversized
+[ "$REVIEW_BRIEF_READY" = 1 ] || skip "cross-model review requires a compact orchestrator review map; skipping peer dispatch"
+"$NODE" "$SCOPE_HELPER" validate-artifacts --scope "$SCOPE_FILE" --brief "$REVIEW_BRIEF" --coverage-mode "$EXPECTED_COVERAGE_MODE" >/dev/null || skip "scope and review brief do not match; skipping peer dispatch"
+AUTHORIZED_PATHS_FILE="$RAW_DIR/authorized-paths.txt"
+"$NODE" "$SCOPE_HELPER" write-paths --scope "$SCOPE_FILE" --out "$AUTHORIZED_PATHS_FILE" >/dev/null || skip "cannot derive authorized scope paths; skipping peer dispatch"
+SCOPED_DIFF_SOURCE="${LARGE_DIFF_CONTEXT_DIR:-$RAW_DIR}/scoped-review.diff"
+set --
+while IFS="$(printf '\t')" read -r scope_kind scoped_path; do
+  case "$scope_kind" in
+    include) set -- "$@" ":(top,literal)$scoped_path" ;;
+    exclude) set -- "$@" ":(top,exclude,literal)$scoped_path" ;;
+    *) skip "invalid authorized scope path record; skipping peer dispatch" ;;
+  esac
+done < "$AUTHORIZED_PATHS_FILE"
+[ "$#" -gt 0 ] || skip "authorized scope has no paths; skipping peer dispatch"
+git -C "$REPO_ROOT" diff --no-ext-diff --no-color "$BASE" -- "$@" > "$SCOPED_DIFF_SOURCE" 2>/dev/null || skip "cannot stage authorized scoped diff; skipping peer dispatch"
+chmod 600 "$SCOPED_DIFF_SOURCE" || skip "cannot secure scoped diff; skipping peer dispatch"
+[ -s "$SCOPED_DIFF_SOURCE" ] || skip "authorized scope contains no changed paths; skipping peer dispatch"
+if [ "$LARGE_DIFF_MODE" = true ]; then rm -f "$RAW_DIR/review.diff" || skip "cannot remove full diff before peer dispatch; skipping"; fi
+DIFF_SOURCE="$SCOPED_DIFF_SOURCE"
 
 # --- run machinery ---------------------------------------------------------
 # Idle cap must exceed the peer's worst-case silent turn: Codex --json is
@@ -478,6 +520,12 @@ fi
 # the inner window may be tighter, never wider.
 IDLE_SECS="${CROSS_MODEL_IDLE_SECS:-480}"
 HARD_SECS="${CROSS_MODEL_HARD_SECS:-1200}"
+ATTEMPT_EFFECTIVE_HARD_SECS="$HARD_SECS"
+PROGRESS_WINDOW_SECS="${CROSS_MODEL_PROGRESS_WINDOW_SECS:-120}"
+case "$PROGRESS_WINDOW_SECS" in ''|*[!0-9]*) PROGRESS_WINDOW_SECS=120 ;; esac
+ATTEMPT_TERMINAL_REASON="execution_failure"
+ATTEMPT_ELAPSED_SECS=0
+ATTEMPT_LAST_ACTIVITY_AGE_SECS=-1
 UNGUARDED_HARD_SECS="${CROSS_MODEL_HARD_SECS:-600}"
 TO_BIN="$(command -v gtimeout || command -v timeout || true)"
 
@@ -516,7 +564,7 @@ reap() {
   if [ "$grp" = 1 ]; then kill -KILL -- -"$pid" 2>/dev/null; else kill -KILL "$pid" 2>/dev/null; fi
 }
 
-# TERM/INT: reap the live peer group, then exit cleanly (HUP remains ignored).
+# TERM/INT: reap the live peer group and preserve terminal non-finding evidence.
 on_term() {
   if [ -n "${_HEARTBEAT_PID:-}" ]; then
     kill "$_HEARTBEAT_PID" 2>/dev/null || true
@@ -526,10 +574,21 @@ on_term() {
   if [ -n "${ACTIVE_PEER_PID:-}" ]; then
     log "received TERM/INT; reaping peer process group $ACTIVE_PEER_PID"
     _term_peer="$ACTIVE_PEER_PID"
-    reap "$_term_peer" 2>/dev/null || true
-    # reap only signals the group; wait reaps the leader so it cannot orphan.
+    _term_now="$(date +%s)"
+    ATTEMPT_TERMINAL_REASON="terminated"
+    [ "$ATTEMPT_START_EPOCH" -gt 0 ] && ATTEMPT_ELAPSED_SECS=$(( _term_now - ATTEMPT_START_EPOCH ))
+    [ "$ATTEMPT_LAST_ACTIVITY_EPOCH" -gt 0 ] && ATTEMPT_LAST_ACTIVITY_AGE_SECS=$(( _term_now - ATTEMPT_LAST_ACTIVITY_EPOCH ))
+    publish_progress_sidecar "$ACTIVE_PROVIDER" "$ACTIVE_ROUTE" || log "progress publication failed: terminal_reason=terminated"
+    # The supervisor's default TERM-to-KILL grace is 5s; finish inner cleanup with margin.
+    kill -TERM -- -"$_term_peer" 2>/dev/null || kill -TERM "$_term_peer" 2>/dev/null || true
+    sleep 1
+    kill -KILL -- -"$_term_peer" 2>/dev/null || kill -KILL "$_term_peer" 2>/dev/null || true
     wait "$_term_peer" 2>/dev/null || true
     ACTIVE_PEER_PID=""
+    _term_now="$(date +%s)"
+    ATTEMPT_ELAPSED_SECS=$(( _term_now - ATTEMPT_START_EPOCH ))
+    [ "$ATTEMPT_LAST_ACTIVITY_EPOCH" -gt 0 ] && ATTEMPT_LAST_ACTIVITY_AGE_SECS=$(( _term_now - ATTEMPT_LAST_ACTIVITY_EPOCH ))
+    publish_progress_sidecar "$ACTIVE_PROVIDER" "$ACTIVE_ROUTE" || log "progress publication refresh failed: terminal_reason=terminated"
   fi
   exit 0
 }
@@ -545,7 +604,7 @@ compose_prompt_codex() {
   if [ "$LARGE_DIFF_MODE" = true ]; then
     compose_large_diff_instruction codex
   else
-    printf '\nRun: git diff %q — review ONLY the changes in that diff, in this repository (read-only).\n' "$BASE" >> "$PROMPT_FILE"
+    printf '\nReview ONLY the scoped change in the private diff artifact at %q. Use bounded Read ranges for exact hunks; do not run an unscoped repository diff. The artifact already applies literal authorized paths and exclusions.\n' "$DIFF_SOURCE" >> "$PROMPT_FILE"
   fi
 }
 
@@ -611,83 +670,113 @@ stop_heartbeat() {
 
 run_codex_cmd() {
   RUN_SUCCEEDED=false
+  ATTEMPT_TERMINAL_REASON="execution_failure"
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
   set -m
   # `command` bypasses shell functions/aliases that could strip -s read-only.
   command "${CMD[@]}" < "$PROMPT_FILE" > "$PEERLOG" 2>&1 &
-  local pid=$!
+  local pid=$! start last=-1 lastchg now size
   ACTIVE_PEER_PID="$pid"
   [ "$prev" = 0 ] && set +m
   start_heartbeat
-  local start last=-1 lastchg now size
   start="$(date +%s)"; lastchg="$start"
+  ATTEMPT_START_EPOCH="$start"; ATTEMPT_LAST_ACTIVITY_EPOCH="$lastchg"
   while peer_alive "$pid"; do
     now="$(date +%s)"; size="$(wc -c <"$PEERLOG" 2>/dev/null || echo 0)"
-    [ "$size" != "$last" ] && { last="$size"; lastchg="$now"; }
+    [ "$size" != "$last" ] && { last="$size"; lastchg="$now"; ATTEMPT_LAST_ACTIVITY_EPOCH="$lastchg"; }
     if [ $(( now - lastchg )) -ge "$IDLE_SECS" ]; then
+      ATTEMPT_LAST_ACTIVITY_AGE_SECS=$(( now - lastchg ))
+      ATTEMPT_TERMINAL_REASON="idle_timeout"
       log "codex output idle ${IDLE_SECS}s; reaping peer process group"; reap "$pid"; break
     fi
     if [ $(( now - start )) -ge "$HARD_SECS" ]; then
+      ATTEMPT_LAST_ACTIVITY_AGE_SECS=$(( now - lastchg ))
+      if [ "$last" -gt 0 ] && [ "$ATTEMPT_LAST_ACTIVITY_AGE_SECS" -le "$PROGRESS_WINDOW_SECS" ]; then
+        ATTEMPT_TERMINAL_REASON="productive_scope_timeout"
+      else
+        ATTEMPT_TERMINAL_REASON="hard_timeout"
+      fi
       log "codex exceeded hard cap ${HARD_SECS}s; reaping peer process group"; reap "$pid"; break
     fi
-    # 1s slices so a finished peer is noticed promptly (was sleep-5-first, which
-    # added up to 5s after every short stub / healthy exit).
     sleep 1
   done
-  if wait "$pid" 2>/dev/null; then RUN_SUCCEEDED=true
-  else log "peer exited non-zero or timed out"; fi
-  # Sweep any survivor the provider left in its OWN process group. `set -m` puts
-  # the provider in a separate pgid, and on a clean worker exit the runner's
-  # final sweep only kills the worker's pgid while a group-orphan reparents off
-  # the worker's process tree -- so it must be reaped here, where the pgid is
-  # known. reap() returns immediately when the group is already empty.
+  now="$(date +%s)"
+  ATTEMPT_ELAPSED_SECS=$(( now - start ))
+  [ "$ATTEMPT_LAST_ACTIVITY_AGE_SECS" -ge 0 ] || ATTEMPT_LAST_ACTIVITY_AGE_SECS=$(( now - lastchg ))
+  if wait "$pid" 2>/dev/null; then
+    if [ "$ATTEMPT_TERMINAL_REASON" = execution_failure ]; then RUN_SUCCEEDED=true; ATTEMPT_TERMINAL_REASON="completed"; fi
+  elif [ "$ATTEMPT_TERMINAL_REASON" = execution_failure ]; then log "peer exited non-zero or timed out"; fi
   reap "$pid" 2>/dev/null || true
   stop_heartbeat
   ACTIVE_PEER_PID=""
+  ATTEMPT_START_EPOCH=0; ATTEMPT_LAST_ACTIVITY_EPOCH=0
 }
 
 run_timeout_cmd() {
   # $1 = stdin file ("" -> /dev/null). $2 = hard cap secs. $3 = "idle" | "no-idle".
-  # Idle-guarded streaming routes (claude / cursor-family) pass HARD_SECS + idle.
-  # grok-cli (buffered schema json) passes UNGUARDED_HARD_SECS + no-idle (#1270).
   RUN_SUCCEEDED=false
+  ATTEMPT_TERMINAL_REASON="execution_failure"
   local stdin_file="${1:-}"; [ -n "$stdin_file" ] || stdin_file=/dev/null
-  local hard_cap="${2:-$HARD_SECS}"
-  local idle_mode="${3:-idle}"
+  local hard_cap="${2:-$HARD_SECS}" idle_mode="${3:-idle}"
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
   set -m
+  ATTEMPT_EFFECTIVE_HARD_SECS="$hard_cap"
   if [ "$idle_mode" = "idle" ]; then
-    # Poll PEERLOG ourselves (same shape as run_codex_cmd); no outer timeout(1).
     ( cd "$PEER_WORKDIR" && exec "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
   elif [ -n "$TO_BIN" ]; then
     ( cd "$PEER_WORKDIR" && exec "$TO_BIN" -k 10 "$hard_cap" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
   else
     ( cd "$PEER_WORKDIR" && exec perl -e 'alarm shift; exec @ARGV' "$hard_cap" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
   fi
-  local pid=$!
+  local pid=$! start last=-1 lastchg now size wait_status
   ACTIVE_PEER_PID="$pid"
   [ "$prev" = 0 ] && set +m
   start_heartbeat
+  start="$(date +%s)"; lastchg="$start"
+  ATTEMPT_START_EPOCH="$start"; ATTEMPT_LAST_ACTIVITY_EPOCH="$lastchg"
   if [ "$idle_mode" = "idle" ]; then
-    local start last=-1 lastchg now size
-    start="$(date +%s)"; lastchg="$start"
     while peer_alive "$pid"; do
       now="$(date +%s)"; size="$(wc -c <"$PEERLOG" 2>/dev/null || echo 0)"
-      [ "$size" != "$last" ] && { last="$size"; lastchg="$now"; }
+      [ "$size" != "$last" ] && { last="$size"; lastchg="$now"; ATTEMPT_LAST_ACTIVITY_EPOCH="$lastchg"; }
       if [ $(( now - lastchg )) -ge "$IDLE_SECS" ]; then
+        ATTEMPT_LAST_ACTIVITY_AGE_SECS=$(( now - lastchg ))
+        ATTEMPT_TERMINAL_REASON="idle_timeout"
         log "peer output idle ${IDLE_SECS}s; reaping peer process group"; reap "$pid"; break
       fi
       if [ $(( now - start )) -ge "$hard_cap" ]; then
+        ATTEMPT_LAST_ACTIVITY_AGE_SECS=$(( now - lastchg ))
+        if [ "$last" -gt 0 ] && [ "$ATTEMPT_LAST_ACTIVITY_AGE_SECS" -le "$PROGRESS_WINDOW_SECS" ]; then ATTEMPT_TERMINAL_REASON="productive_scope_timeout"; else ATTEMPT_TERMINAL_REASON="hard_timeout"; fi
         log "peer exceeded hard cap ${hard_cap}s; reaping peer process group"; reap "$pid"; break
       fi
       sleep 1
     done
   fi
-  if wait "$pid" 2>/dev/null; then RUN_SUCCEEDED=true
-  else log "peer exited non-zero or timed out"; fi
-  reap "$pid" 2>/dev/null || true   # sweep survivors in the provider's own group (see run_codex_cmd)
+  now="$(date +%s)"; ATTEMPT_ELAPSED_SECS=$(( now - start ))
+  if [ "$idle_mode" = idle ]; then
+    [ "$ATTEMPT_LAST_ACTIVITY_AGE_SECS" -ge 0 ] || ATTEMPT_LAST_ACTIVITY_AGE_SECS=$(( now - lastchg ))
+  else
+    ATTEMPT_LAST_ACTIVITY_AGE_SECS=-1
+  fi
+  if wait "$pid" 2>/dev/null; then
+    if [ "$ATTEMPT_TERMINAL_REASON" = execution_failure ]; then RUN_SUCCEEDED=true; ATTEMPT_TERMINAL_REASON="completed"; fi
+  else
+    wait_status=$?
+    if [ "$idle_mode" = no-idle ]; then
+      case "$wait_status" in
+        124|137|142) ATTEMPT_TERMINAL_REASON="hard_timeout" ;;
+        *) ATTEMPT_TERMINAL_REASON="execution_failure"; log "peer exited non-zero with status $wait_status" ;;
+      esac
+    elif [ "$ATTEMPT_TERMINAL_REASON" = execution_failure ]; then log "peer exited non-zero or timed out"; fi
+  fi
+  if [ "$idle_mode" = no-idle ]; then
+    now="$(date +%s)"
+    ATTEMPT_ELAPSED_SECS=$(( now - start ))
+    ATTEMPT_LAST_ACTIVITY_AGE_SECS=-1
+  fi
+  reap "$pid" 2>/dev/null || true
   stop_heartbeat
   ACTIVE_PEER_PID=""
+  ATTEMPT_START_EPOCH=0; ATTEMPT_LAST_ACTIVITY_EPOCH=0
 }
 
 # Decode each {...} object in raw stdout via raw_decode (string/escape-aware,
@@ -795,6 +884,34 @@ parse_structured() {   # <logfile> <outfile>
   recover_findings_json "$1" "$2"
 }
 
+publish_progress_sidecar() {   # <provider> <route>
+  local provider="$1" route="$2" scope_file="${CROSS_MODEL_SCOPE_FILE:-}" out label="${CROSS_MODEL_ATTEMPT_LABEL:-initial}"
+  [ "$ATTEMPT_TERMINAL_REASON" != "completed" ] || return 0
+  [ -n "$scope_file" ] && [ -f "$scope_file" ] || return 0
+  case "$label" in initial) out="$RUN_DIR/adversarial-${provider}-progress.json" ;; retry) out="$RUN_DIR/adversarial-${provider}-retry-progress.json" ;; *) return 1 ;; esac
+  "$NODE" "$SCOPE_HELPER" write-progress \
+    --scope "$scope_file" --out "$out" --terminal-reason "$ATTEMPT_TERMINAL_REASON" \
+    --elapsed-secs "$ATTEMPT_ELAPSED_SECS" --last-activity-age-secs "$ATTEMPT_LAST_ACTIVITY_AGE_SECS" \
+    --provider "$provider" --route "$route" --requested-model "$(route_model "$route")" \
+    --effort "$(route_effort "$route")" --base-ref "$BASE" --hard-cap-secs "$ATTEMPT_EFFECTIVE_HARD_SECS" \
+    --attempt-label "$label"
+}
+
+validate_retry_contract() {   # <provider> <route>
+  local label="${CROSS_MODEL_ATTEMPT_LABEL:-initial}" progress="${CROSS_MODEL_RETRY_PROGRESS_FILE:-}" scope="${CROSS_MODEL_SCOPE_FILE:-}"
+  [ "$label" = initial ] && return 0
+  [ "$label" = retry ] && [ -n "$progress" ] && [ -f "$progress" ] && [ -f "$scope" ] && [ -f "$REVIEW_BRIEF" ] || return 1
+  "$NODE" "$SCOPE_HELPER" validate-retry \
+    --progress "$progress" --scope "$scope" --brief "$REVIEW_BRIEF" \
+    --provider "$1" --route "$2" --requested-model "$(route_model "$2")" \
+    --effort "$(route_effort "$2")" --base-ref "$BASE" --hard-cap-secs "$ATTEMPT_EFFECTIVE_HARD_SECS" >/dev/null
+}
+
+claim_retry_attempt() {   # <provider>
+  [ "${CROSS_MODEL_ATTEMPT_LABEL:-initial}" = retry ] || return 0
+  mkdir "$RUN_DIR/.adversarial-$1-retry-claim" 2>/dev/null
+}
+
 attempt_route() {
   local provider="$1" route="$2" note
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT"
@@ -805,6 +922,18 @@ attempt_route() {
     grok-cursor|composer)  note="$(route_model "$route")" ;;
     cursor)                note="auto (serving model unverified)" ;;
   esac
+  if ! validate_retry_contract "$provider" "$route"; then
+    log "retry contract invalid: scope, route, model, base, or hard cap changed; skipping egress"
+    RUN_SUCCEEDED=false
+    ATTEMPT_TERMINAL_REASON="invalid_retry_contract"
+    return 0
+  fi
+  if ! claim_retry_attempt "$provider"; then
+    log "retry contract invalid: retry already attempted for provider '$provider'; skipping egress"
+    RUN_SUCCEEDED=false
+    ATTEMPT_TERMINAL_REASON="invalid_retry_contract"
+    return 0
+  fi
   log "peer run: provider=$provider route=$route model=$note lens=adversarial read-only in-tree (idle ${IDLE_SECS}s / hard ${HARD_SECS}s; grok-cli hard-only ${UNGUARDED_HARD_SECS}s); reviewed code/diff may egress to this provider"
   case "$route" in
     codex)
@@ -834,6 +963,10 @@ attempt_route() {
       ;;
   esac
   if [ "$RUN_SUCCEEDED" != true ]; then
+    if ! publish_progress_sidecar "$provider" "$route"; then
+      ATTEMPT_TERMINAL_REASON="progress_publication_failure"
+      log "progress publication failed: provider=$provider route=$route"
+    fi
     rm -f "$RAW_OUT"
     return 0
   fi
@@ -843,37 +976,39 @@ attempt_route() {
 }
 
 run_provider() {
-  local provider="$1" primary="" fixed="${CROSS_MODEL_FIXED_ROUTE:-}"
+  local provider="$1" route="${CROSS_MODEL_FIXED_ROUTE:-}"
   OUT="$RUN_DIR/adversarial-$provider.json"
   RAW_OUT="$RAW_DIR/adversarial-$provider.raw.json"
-  [ -n "$fixed" ] || { log "host must resolve one fixed route before egress; skipping"; rm -f "$OUT"; return 0; }
-  [ "$(route_target "$fixed")" = "$provider" ] || { log "fixed route '$fixed' does not match target '$provider'; skipping"; rm -f "$OUT"; return 0; }
-  if [ "$fixed" = "grok-cursor" ] && ! cursor_egress_ok; then
+  [ -n "$route" ] || { log "host must resolve one fixed route before egress; skipping"; rm -f "$OUT"; return 0; }
+  [ "$(route_target "$route")" = "$provider" ] || { log "fixed route '$route' does not match target '$provider'; skipping"; rm -f "$OUT"; return 0; }
+  if [ "$route" = "grok-cursor" ] && ! cursor_egress_ok; then
     log "fixed route 'grok-cursor' requires Cursor intermediary sanction; skipping"
     rm -f "$OUT"
     return 0
   fi
-  primary="$fixed"
-  validate_model_override "$primary" || { log "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$primary'; skipping"; rm -f "$OUT"; return 0; }
-  ACTUAL_ROUTE="$primary"
-  attempt_route "$provider" "$primary"
+  validate_model_override "$route" || { log "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$route'; skipping"; rm -f "$OUT"; return 0; }
+  ACTIVE_PROVIDER="$provider"
+  ACTIVE_ROUTE="$route"
+  attempt_route "$provider" "$route"
+  ACTIVE_PROVIDER=""
+  ACTIVE_ROUTE=""
 
   rm -f "$OUT"
   if [ -s "$RAW_OUT" ]; then
     _norm="$(mktemp "${TMPDIR:-/tmp}/xmodel-norm-XXXXXX")"
-    case "$ACTUAL_ROUTE:$MODEL_ACTUAL" in
+    case "$route:$MODEL_ACTUAL" in
       cursor:*) _target_family="unknown" ;;
       composer:unverified|grok-cursor:unverified) _target_family="unknown" ;;
       *) _target_family="$(target_serving_family "$provider")" ;;
     esac
     _independent=false
-    [ "$HOST_PROVIDER" != "unknown" ] && [ "$_target_family" != "unknown" ] && [ "$HOST_PROVIDER" != "$_target_family" ] && _independent=true
-    if jq --arg r "adversarial-$provider" --arg route "$ACTUAL_ROUTE" \
-         --arg target "$provider" --arg harness "$(route_harness "$ACTUAL_ROUTE")" \
+    [ "$_target_family" != "unknown" ] && [ "$HOST_PROVIDER" != "$_target_family" ] && _independent=true
+    if jq --arg r "adversarial-$provider" --arg route "$route" \
+         --arg target "$provider" --arg harness "$(route_harness "$route")" \
          --arg family "$_target_family" --argjson independent "$_independent" \
-         --arg mreq "$(route_model "$ACTUAL_ROUTE")" --arg mact "$MODEL_ACTUAL" \
-         --arg ereq "$(route_effort "$ACTUAL_ROUTE")" \
-         --argjson receipt "$(route_receipt_supported "$ACTUAL_ROUTE")" \
+         --arg mreq "$(route_model "$route")" --arg mact "$MODEL_ACTUAL" \
+         --arg ereq "$(route_effort "$route")" \
+         --argjson receipt "$(route_receipt_supported "$route")" \
          'if (.findings|type)=="array"
           then { reviewer: $r,
                  cross_model_route: $route,
@@ -907,15 +1042,11 @@ run_provider() {
     n="$(jq '.findings | length' "$OUT" 2>/dev/null || echo '?')"
     log "wrote $n finding(s) to $OUT (reviewer adversarial-$provider)"
   else
+    if [ "$RUN_SUCCEEDED" = true ] && [ -n "${CROSS_MODEL_SCOPE_FILE:-}" ]; then
+      ATTEMPT_TERMINAL_REASON="unusable_output"
+      publish_progress_sidecar "$provider" "$route" || log "progress publication failed: provider=$provider route=$route terminal_reason=unusable_output"
+    fi
     log "provider $provider produced no usable schema-shaped output; skipping fold-in"
-    # Surface bounded peer output so the orchestrator can
-    # reason about WHY it was skipped (quota/usage-limit exhaustion vs an ordinary
-    # empty review) and, in a repeated-pass session, deprioritize an exhausted
-    # route. Harness-agnostic: the agent classifies from the text; this only makes
-    # the evidence visible in out.log. Surface BOTH streams -- the error can be on
-    # stdout (grok's 402) or stderr (claude/cursor auth/quota). Bash builtins only
-    # (the route sandbox has no tail/tr). Prefer structured error fields because
-    # a raw tail can discard the actionable message in a large CLI envelope.
     if [ -s "$PEERLOG" ]; then
       _pt="$(bounded_failure_evidence "$PEERLOG")"
       log "  peer skip evidence: $_pt"
@@ -945,9 +1076,6 @@ bounded_failure_evidence() {   # <logfile>
       (.terminal_reason? | select(type == "string" and length > 0) | "terminal_reason=" + .)
     ] | unique | join(" | ")
   ' "$path" 2>/dev/null)"
-  # Ancillary fields describe the exit but are not the diagnostic itself. If
-  # no recognized human-readable field exists, retain bounded raw output so a
-  # CLI's newer or provider-specific error field is still visible.
   [ -n "$human" ] && evidence="$human" || evidence="$(cat "$path")"
   [ -n "$ancillary" ] && evidence="${evidence:+$evidence | }$ancillary"
   evidence="${evidence//$'\n'/ }"
