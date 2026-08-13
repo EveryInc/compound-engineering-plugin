@@ -52,8 +52,10 @@ gh stack add "<branch>"
 ```
 
 Must run from the **top** branch of the stack (or the trunk while it is still empty); anywhere else
-exits **5** — run `gh stack top` first. Without `-Am` it does not touch the working tree, so staged
-and unstaged changes follow onto the new branch.
+exits **5**. Exit 5 here means "you are not on the top", and moving there with `gh stack top` is a
+decision, not a fix: it changes which layer the new branch is parented to. Whether that is correct
+belongs to the caller — when a specific parent was named, it is not. Without `-Am`, `add` does not
+touch the working tree, so staged and unstaged changes follow onto the new branch.
 
 ```bash
 gh stack submit --auto [--open]

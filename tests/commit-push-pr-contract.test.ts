@@ -334,11 +334,15 @@ describe("PR concept teaching contract", () => {
     expect(submit).toContain("references/gh-stack-cli.md")
     expect(submit).toMatch(/Classify by PR number.{0,140}pulls a stack down from GitHub/is)
     expect(submit).toMatch(/Exit 0 means the parent is in a stack \*\*and checks it out\*\*; exit 2 means standalone and checks out nothing/i)
-    expect(submit).toMatch(/if the parent sits below it, stop with a residual/i)
+    expect(submit).toMatch(/If it exits \*\*5\*\*, the parent is not the stack top: stop with a residual/i)
+    expect(submit).toMatch(/Do \*\*not\*\* run `gh stack top` to clear the error/i)
+    // The facts file must not prescribe the recovery Topology forbids.
+    expect(cli).toMatch(/moving there with `gh stack top` is a\s+decision, not a fix/i)
     expect(submit).toMatch(/exit 2 left nothing checked out, so resolve `<parent-branch>` before init/i)
     // Both conditions below regressed twice while this block was compressed.
     expect(submit).toMatch(/From a branch with no PR: fetch and verify that ref directly/i)
-    expect(submit).toMatch(/create a local branch \*\*at that OID\*\*.{0,120}reachable is not enough/is)
+    expect(submit).toMatch(/create a local branch \*\*at `headRefOid`\*\* — always, not only for a fork/i)
+    expect(submit).toMatch(/reachability alone still leaves no branch to name/i)
     expect(submit).toMatch(/only when `author` is the current user/i)
     expect(submit).toMatch(/in place of the generic one shown in construction/i)
     expect(submit).toMatch(/unproven.{0,120}residual, not a guess/is)
