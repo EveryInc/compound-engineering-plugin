@@ -244,8 +244,19 @@ function safeFileResponse(options, req, res) {
   if (name.startsWith("files/")) name = name.slice("files/".length)
   // Serve nested paths so a screen can keep the asset layout it was copied
   // from, but never resolve outside the run's screens directory.
-  const root = path.resolve(options.screensDir)
-  const filePath = path.resolve(root, name)
+  // Containment must survive symlinks: path.resolve is lexical, so a link
+  // inside screens/ pointing outside would otherwise be followed and served.
+  // realpath both sides — on macOS the run dir itself sits under /tmp -> /private/tmp.
+  let root
+  let filePath
+  try {
+    root = fs.realpathSync(options.screensDir)
+    filePath = fs.realpathSync(path.resolve(root, name))
+  } catch {
+    res.writeHead(404)
+    res.end("Not found")
+    return
+  }
   if (filePath !== root && !filePath.startsWith(root + path.sep)) {
     res.writeHead(404)
     res.end("Not found")
@@ -362,13 +373,16 @@ async function serve(options) {
   }
 
   const server = http.createServer((req, res) => {
-    if (req.method === "GET" && req.url === "/") {
+    // Route on the pathname: an interactive prototype navigating to
+    // `/?variant=a` must still get the active screen, not a file lookup.
+    const urlPath = req.url.split("?")[0].split("#")[0]
+    if (req.method === "GET" && urlPath === "/") {
       touch()
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
       res.end(renderPage(options))
       return
     }
-    if (req.method === "GET" && req.url === "/version") {
+    if (req.method === "GET" && urlPath === "/version") {
       res.writeHead(200, {
         "Content-Type": "application/json; charset=utf-8",
         "Cache-Control": "no-store",
