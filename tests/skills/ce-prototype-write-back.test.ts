@@ -32,6 +32,10 @@ describe("ce-prototype write-back", () => {
 
   test("missing file or missing Product Contract fail closed", () => {
     expect(WRITE_BACK).toMatch(/Markdown and HTML artifacts both get written back/)
+    // Isolation blocks loading ce-plan's rendering reference, so the HTML
+    // identity invariants these edits depend on must be restated here.
+    expect(WRITE_BACK).toMatch(/product-requirements/)
+    expect(WRITE_BACK).toMatch(/session-settled:` annotation is visible text/)
     expect(WRITE_BACK).toMatch(/do not write/)
     expect(WRITE_BACK).toMatch(/Do not write under `<root>\/plans\/`/)
     expect(WRITE_BACK).toMatch(/no Product Contract section/)

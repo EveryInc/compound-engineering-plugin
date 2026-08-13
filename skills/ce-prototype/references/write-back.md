@@ -11,7 +11,9 @@ Markdown and HTML artifacts both get written back. `ce-plan` already rewrites an
 
 ## What to edit
 
-Scan the document. Edit the Product Contract only — the `## Product Contract` heading in markdown, the `product-contract` section in HTML.
+Scan the document. Edit the Product Contract only — the `## Product Contract` heading in markdown; in HTML it spans the `product-contract` and `product-requirements` sections, and nothing outside them.
+
+**HTML invariants.** Skill isolation means `ce-plan`'s rendering reference cannot be loaded here, so the rules these edits depend on are restated. Every ID-bearing item you add or change carries both the anchor and the ID as visible text — `id="r7"` on the element and `R7.` readable inside it — because downstream agents grep the HTML the way they grep markdown. A `session-settled:` annotation is visible text in the Key Decision card with its stem verbatim, never an attribute or hidden markup. Use the document's own HTML structure; never insert markdown heading syntax into it.
 
 Do not edit Planning Contract, Implementation Units, Verification Contract, Definition of Done, Key Technical Decisions, or any other HOW section as content. Those sections are removed wholesale when readiness is downgraded (below), not rewritten.
 
