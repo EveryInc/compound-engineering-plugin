@@ -334,6 +334,8 @@ describe("PR concept teaching contract", () => {
     expect(submit).toContain("references/gh-stack-cli.md")
     expect(submit).toMatch(/Classify by PR number.{0,140}pulls a stack down from GitHub/is)
     expect(submit).toMatch(/Exit 0 means the parent is in a stack \*\*and checks it out\*\*; exit 2 means standalone and checks out nothing/i)
+    // Classification moves HEAD; construction reads the checked-out branch as the original.
+    expect(submit).toMatch(/record your work branch and its tip \*\*before\*\* classifying and return to it before construction/i)
     expect(submit).toMatch(/If it exits \*\*5\*\*, the parent is not the stack top: stop with a residual/i)
     expect(submit).toMatch(/Do \*\*not\*\* run `gh stack top` to clear the error/i)
     // The facts file must not prescribe the recovery Topology forbids.
