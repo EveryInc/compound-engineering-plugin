@@ -27,8 +27,7 @@ describe("ce-prototype write-back", () => {
     expect(WRITE_BACK).toContain("Verification Contract")
     expect(WRITE_BACK).toContain("Definition of Done")
     expect(WRITE_BACK).toMatch(/Do not leave empty headings/)
-    expect(WRITE_BACK).toMatch(/same-basename `\.md` sibling/)
-    expect(WRITE_BACK).toMatch(/Do not do this to an `\.html` sibling/)
+    expect(WRITE_BACK).toMatch(/Edit only the file you were given/)
   })
 
   test("missing file, HTML, or missing Product Contract fail closed", () => {
