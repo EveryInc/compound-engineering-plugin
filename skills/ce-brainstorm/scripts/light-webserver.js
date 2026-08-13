@@ -230,15 +230,27 @@ function renderPage(options) {
 function safeFileResponse(options, req, res) {
   let name
   try {
-    name = decodeURIComponent(req.url.slice("/files/".length))
-  } catch {
     // A malformed percent-escape throws URIError; without this the throw is
     // uncaught in the request handler and takes the whole server down.
+    name = decodeURIComponent(req.url.split("?")[0].split("#")[0])
+  } catch {
     res.writeHead(400)
     res.end("Bad request")
     return
   }
-  const filePath = path.join(options.screensDir, path.basename(name))
+  name = name.replace(/^\/+/, "")
+  // `/files/<name>` was the original asset route; a screen copied from a real
+  // product references its assets at their own paths, and both now work.
+  if (name.startsWith("files/")) name = name.slice("files/".length)
+  // Serve nested paths so a screen can keep the asset layout it was copied
+  // from, but never resolve outside the run's screens directory.
+  const root = path.resolve(options.screensDir)
+  const filePath = path.resolve(root, name)
+  if (filePath !== root && !filePath.startsWith(root + path.sep)) {
+    res.writeHead(404)
+    res.end("Not found")
+    return
+  }
   let stat
   try {
     stat = fs.statSync(filePath)
@@ -258,16 +270,36 @@ function safeFileResponse(options, req, res) {
   res.end(fs.readFileSync(filePath))
 }
 
+// A prototype recreated from a real product brings whatever that product uses,
+// so this covers the ordinary web asset set rather than an allowlist that has
+// to grow every time a screen references a new kind of file.
+const CONTENT_TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".txt": "text/plain; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".avif": "image/avif",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".otf": "font/otf",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".mp3": "audio/mpeg",
+  ".wasm": "application/wasm",
+}
+
 function contentType(filePath) {
-  const ext = path.extname(filePath).toLowerCase()
-  if (ext === ".svg") return "image/svg+xml"
-  if (ext === ".png") return "image/png"
-  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg"
-  if (ext === ".gif") return "image/gif"
-  if (ext === ".html") return "text/html; charset=utf-8"
-  if (ext === ".css") return "text/css; charset=utf-8"
-  if (ext === ".js") return "text/javascript; charset=utf-8"
-  return "application/octet-stream"
+  return CONTENT_TYPES[path.extname(filePath).toLowerCase()] ?? "application/octet-stream"
 }
 
 async function start(options) {
@@ -344,7 +376,7 @@ async function serve(options) {
       res.end(`${JSON.stringify(screenVersion(options))}\n`)
       return
     }
-    if (req.method === "GET" && req.url.startsWith("/files/")) {
+    if (req.method === "GET") {
       touch()
       safeFileResponse(options, req, res)
       return

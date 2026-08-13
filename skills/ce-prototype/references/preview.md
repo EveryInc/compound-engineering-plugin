@@ -35,14 +35,18 @@ node "$SKILL_DIR/scripts/light-webserver.js" status --root "$PROTO_DIR"
 
 If `SKILL_DIR` cannot be resolved to a concrete skill directory, do not guess from the project CWD. Stop and report that the preview cannot start; do not settle the question in chat instead.
 
-The helper creates `screens/` and `state/`, serves the newest `.html` file in `screens/`, writes `state/display-info.json`, and exposes `/version` so the browser can poll for screen changes. The browser reloads only when the newest screen changes; it must not continually reload on a timer. `/version` polling does not count as activity. Detached servers monitor the owning harness process when it can be resolved, and all servers exit after an idle timeout. The helper has no browser-to-agent event path. Interactive HTML is allowed.
+The helper creates `screens/` and `state/`, serves the newest `.html` file in `screens/` at `/`, writes `state/display-info.json`, and exposes `/version` so the browser can poll for screen changes. Every other path is read from `screens/` at that same path — `/img/blot.webp` serves `screens/img/blot.webp` — so a screen keeps whatever asset layout it was copied from, nesting included. Put the assets the screen references under `screens/` at the paths it asks for, or inline them as data URIs. Anything resolving outside `screens/` is refused.
+
+Before handing over the URL, fetch the page and the assets it references and confirm they return 200. A screen whose images 404 reads as a bad design rather than a broken build, and that is the one misread this skill cannot afford. The browser reloads only when the newest screen changes; it must not continually reload on a timer. `/version` polling does not count as activity. Detached servers monitor the owning harness process when it can be resolved, and all servers exit after an idle timeout. The helper has no browser-to-agent event path. Interactive HTML is allowed.
 
 Write screens under:
 
 ```text
 /tmp/compound-engineering-<uid>/ce-prototype/<run-id>/
   screens/
-    001-<slice>.html
+    001-<question>.html
+    img/blot.webp          # any assets the screen references, at the paths it uses
+    world/cast/pip.webp
   state/
     display-info.json
   decisions.md    # run capsule for the next skill; not a plan
