@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { constants as fsConstants, promises as fs } from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -11,6 +11,11 @@ import {
   selectProjectConfig,
 } from "../integrations/orca/resolve-config.mjs"
 import { deriveLfgChildExecutionPatches } from "../integrations/orca/workflows/lfg.mjs"
+
+// The high-contention lock-handoff test legitimately runs ~5s of real lock
+// retries and crosses the 5000ms default on busy CI runners (observed twice
+// on 2026-08-13). Raise the file's budget instead of pinning CI worker counts.
+setDefaultTimeout(30_000)
 
 const ROOT = path.resolve(import.meta.dir, "..")
 const scratch: string[] = []
