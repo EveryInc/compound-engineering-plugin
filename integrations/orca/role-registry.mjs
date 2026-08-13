@@ -167,7 +167,7 @@ const WORKFLOW_DEFINITIONS = {
   "ce-debug": {
     stages: {
       "hypothesis-investigation": stage("skills/ce-debug/SKILL.md", "Parallel investigation option", {
-        "hypothesis-probe": workflowRole("skills/ce-debug/SKILL.md", "each with an explicit hypothesis and structured evidence-return format", { activation: "repeatable", modelTier: "mid" }),
+        "hypothesis-probe": workflowRole("skills/ce-debug/SKILL.md", "each with an explicit hypothesis and a structured evidence-return format", { activation: "repeatable", modelTier: "mid" }),
       }),
     },
   },
