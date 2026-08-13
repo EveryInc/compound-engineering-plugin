@@ -3508,3 +3508,39 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     expect(watch(sd, withNew).reason).toBe("actionable")
   }, 15000)
 })
+
+// UTF-8 gh/git output under a non-UTF-8 locale (issue #1346)
+//
+// _run() used subprocess.run(..., text=True) with no encoding=, so Python decoded
+// stdout with the locale encoding (cp1252 on Windows, ascii under C). gh emits UTF-8;
+// a curly quote (U+201D, last byte 0x9d) crashed the reader thread and left stdout None.
+// Forcing C + PYTHONUTF8=0 reproduces that decode failure on UTF-8 CI.
+describe("pr-snapshot _run pins UTF-8 under a non-UTF-8 locale (#1346)", () => {
+  const NON_UTF8_LOCALE = {
+    ...process.env,
+    LC_ALL: "C",
+    LANG: "C",
+    LC_CTYPE: "C",
+    PYTHONUTF8: "0",
+    PYTHONCOERCECLOCALE: "0",
+  }
+
+  test("_run decodes UTF-8 curly-quote stdout instead of raising UnicodeDecodeError", () => {
+    const python = `
+import json, sys
+from importlib.machinery import SourceFileLoader
+m = SourceFileLoader("prs", ${JSON.stringify(SCRIPT)}).load_module()
+child = [sys.executable, "-c",
+         "import sys; sys.stdout.buffer.write(b'{\\"title\\": \\"hello \\\\xe2\\\\x80\\\\x9d world\\"}')"]
+r = m._run(child)
+print(json.dumps({"returncode": r.returncode, "stdout": r.stdout, "title": json.loads(r.stdout)["title"]}))
+`
+    const r = spawnSync("python3", ["-c", python], { encoding: "utf8", env: NON_UTF8_LOCALE })
+    expect(r.status, r.stderr).toBe(0)
+    expect(JSON.parse(r.stdout)).toEqual({
+      returncode: 0,
+      stdout: '{"title": "hello \u201d world"}',
+      title: "hello \u201d world",
+    })
+  })
+})

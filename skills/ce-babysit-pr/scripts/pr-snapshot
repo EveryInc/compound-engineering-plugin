@@ -272,7 +272,7 @@ def _iso(dt):
 
 
 def _run(cmd):
-    return subprocess.run(cmd, capture_output=True, text=True)
+    return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
 
 
 def _run_checked(cmd, label):
@@ -2001,7 +2001,7 @@ def _process_identity(pid):
         return _win_process_identity(pid)
     try:
         r = subprocess.run(["ps", "-p", str(pid), "-o", "lstart=", "-o", "command="],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding="utf-8")
     except OSError:
         return None   # no ps on PATH: unproven identity, same as a failed lookup
     if r.returncode != 0:
