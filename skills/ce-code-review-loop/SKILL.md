@@ -63,7 +63,7 @@ Resolve the helper only through the loaded `SKILL_DIR` anchor. `preflight` must 
 
 ## Workflow
 
-Resolve `references/loop-protocol.md` relative to this `SKILL.md`, read it only when entering the workflow, and execute it in order. If it is unavailable, return `Non-converged` with the observed reason. This skill may reference only assets inside its own directory; invoke the named canonical skill through the host's **callable skill mechanism**, not by reading or reaching into another skill's files.
+Resolve `references/loop-protocol.md` relative to this `SKILL.md`, read it only when entering the workflow, and execute it in order. If it is unavailable, return `Non-converged` with the observed reason. This skill may reference only assets inside its own directory; invoke the named canonical skill through the host's **callable skill mechanism**, not by reading or reaching into another skill's files. The callable mechanism is the **internal invocation channel**. Slash- or dollar-prefixed forms are **user-facing handoff text** only: never execute `/ce-code-review` or `$ce-code-review` through a shell, terminal, command parser, or ordinary text dispatch. An `Unknown command` or equivalent parser failure is `invocation_adapter_error` and is not evidence that the skill is unregistered.
 
 1. Perform the protocol's secure run-state setup. Invoke the self-contained helper fence with `preflight --repo <path> --base <ref>` and freeze the returned concrete merge-base SHA, branch, and immutable starting HEAD only when `status: "ok"`, `input: "valid"`, and `clean: true`.
 2. Before every canonical wave, checkpoint the clean branch and current HEAD, then write a new per-wave expected JSON containing the frozen branch/base SHA and that **current checkpoint HEAD**. Spend one work unit and invoke exactly `ce-code-review mode:agent depth:full grouping:auto base:<resolved-base-sha>` through the callable skill mechanism, appending `plan:<path>` only when supplied. A generic task, reviewer agent, built-in review, inline pass, or reconstructed pipeline is **not a substitute**.
@@ -74,7 +74,7 @@ Resolve `references/loop-protocol.md` relative to this `SKILL.md`, read it only 
 7. **Any remediation commit invalidates every prior convergence claim. The next review unit must be a fresh canonical full review of the new HEAD with a newly generated per-wave expected JSON.** Reduced counts, lower severity, and passing checks are progress only.
 8. Stop on `protocol_violation`, `commit_integrity_failure`, `restore_failed`, other integrity failure, `concurrent_change`, `verification_failed`, `commit_failed`, oscillation, or circuit-breaker exhaustion. Never amend or reset a created commit after an integrity mismatch. Otherwise repeat until the unchanged final HEAD's canonical payload passes `validate-final --repo <path> --expected <json-file> --review <json-file>`, then run final project verification.
 
-If the canonical skill is unreachable, do not imitate it. Return `ce-code-review: skill_unreachable` and include one copyable user-facing invocation in the active harness form using `mode:agent depth:full grouping:auto base:<resolved-base-sha>` and the optional plan.
+If the callable mechanism is absent or explicitly reports that the canonical skill is unavailable, do not imitate it: return `ce-code-review: skill_unreachable`. If a slash/dollar command was attempted and a command parser rejected it, return `ce-code-review: invocation_adapter_error` instead. For either status, include one copyable user-facing invocation in the active harness form using `mode:agent depth:full grouping:auto base:<resolved-base-sha>` and the optional plan. The rendered invocation is handoff output only; never execute it inside the loop.
 
 ## Authority and Interaction
 
@@ -120,7 +120,7 @@ Decision blockers: <list or none>
 Reviewer coverage gaps: <list or none>
 Verification failures: <list or none>
 Concurrent change: <none or observed branch/HEAD/path change>
-ce-code-review: <complete, degraded, failed, skill_unreachable, malformed, or not_run>
+ce-code-review: <complete, degraded, failed, skill_unreachable, invocation_adapter_error, malformed, or not_run>
 Next bounded cycle: <exact canonical invocation, defect family, or user decision>
 ```
 

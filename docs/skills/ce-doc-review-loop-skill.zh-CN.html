@@ -1027,8 +1027,8 @@ fi</code></pre>
       <aside class="callout callout-warn"><svg class="callout-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-warn"/></svg><div class="callout-body"><p class="callout-title">参数转发：只剥循环自己的参数</p><p>调用 <code>ce-doc-review</code> 前，剥掉 <code>max-work-units:N</code> 和调用者给的文档路径；但<strong>必须始终传</strong> <code>mode:non-interactive</code> 和临时快照路径。把 <code>mode:non-interactive</code> 一起剥掉会让每一轮变成交互式，破坏整个循环的前提。</p></div></aside>
 
       <h2 id="workflow">完整工作流</h2>
-      <p>先从当前 <code>SKILL.md</code> 所在目录解析并读取 <code>references/loop-protocol.md</code>，然后按顺序执行。文件缺失或不可读时，返回 <code>Non-converged</code>，写明 <code>loop_protocol: unavailable</code> 和实际原因。若正式 <code>ce-doc-review</code> 无法启动，则写明 <code>ce-doc-review: skill_unreachable</code>。通用任务、内联角色审查或自制审查都不能替代它。</p>
-      <aside class="callout callout-info"><svg class="callout-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-info"/></svg><div class="callout-body"><p class="callout-title">子技能起不来时不是"停就完事"</p><p>正式 <code>ce-doc-review</code> 无法启动时，除了返回 <code>Non-converged</code> + <code>ce-doc-review: skill_unreachable</code>，还要打印一段用户可直接运行的可复制调用块 <code>/ce-doc-review mode:non-interactive &lt;product-path&gt;</code>（仅当宿主是 Codex 时用 <code>$</code> 前缀），并把信封里的 <code>Next bounded wave</code> 换成这个交接块。<strong>不能只告诉用户"你自己敲一下"</strong>，也绝不能降级成"跳过审查继续走"。</p></div></aside>
+      <p>先从当前 <code>SKILL.md</code> 所在目录解析并读取 <code>references/loop-protocol.md</code>，然后按顺序执行。文件缺失或不可读时，返回 <code>Non-converged</code>，写明 <code>loop_protocol: unavailable</code> 和实际原因。正式 <code>ce-doc-review</code> 只能通过宿主的可调用技能机制启动；这是<strong>内部调用通道</strong>。<code>/ce-doc-review</code> 和 <code>$ce-doc-review</code> 只属于<strong>面向用户的交接文本</strong>，绝不能通过 shell、终端、命令解析器或普通文本派发来执行。若误执行后收到 <code>Unknown command</code>，应记录 <code>ce-doc-review: invocation_adapter_error</code>；这不能证明技能未注册。只有可调用机制不存在或明确报告技能不可用时，才记录 <code>skill_unreachable</code>。通用任务、内联角色审查或自制审查都不能替代正式技能。</p>
+      <aside class="callout callout-info"><svg class="callout-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-info"/></svg><div class="callout-body"><p class="callout-title">内部调用和用户交接必须分开</p><p>可调用机制明确不可用时记录 <code>ce-doc-review: skill_unreachable</code>；命令解析器拒绝 slash/dollar 形式时记录 <code>ce-doc-review: invocation_adapter_error</code>。两种情况都要返回 <code>Non-converged</code>，并打印用户可直接复制的调用块 <code>/ce-doc-review mode:non-interactive &lt;product-path&gt;</code>（仅 Codex 用 <code>$</code> 前缀）。这个块只用于输出交接，循环本身不能执行它，也不能降级成跳过审查继续运行。</p></div></aside>
       <figure class="diagram"><pre class="mermaid">
 flowchart TD
   W0["Wave 0：冻结与建模"] --> P1["Pass 1：正式全量审查"]
@@ -1067,9 +1067,9 @@ Open contract cells: &lt;list&gt;
 Unreviewed remediation neighborhoods: &lt;list&gt;
 Reviewer coverage gaps: &lt;list&gt;
 loop_protocol: &lt;available, unavailable + reason, or not_run&gt;
-ce-doc-review: &lt;complete, integrity_failure, skill_unreachable, or not_run&gt;
+ce-doc-review: &lt;complete, integrity_failure, skill_unreachable, invocation_adapter_error, or not_run&gt;
 Unresolved decisions: &lt;list&gt;
-Next bounded wave: &lt;slice + graph-connected neighbors + required ce-doc-review gate; the copyable ce-doc-review handoff when the skill is unreachable; or the corrected invocation when Input is not valid or loop_protocol is not available&gt;</code></pre>
+Next bounded wave: &lt;slice + graph-connected neighbors + required ce-doc-review gate; the copyable ce-doc-review handoff when the skill is unreachable or the invocation adapter fails; or the corrected invocation when Input is not valid or loop_protocol is not available&gt;</code></pre>
 
       <h2 id="completion-output">完成与失败输出</h2><p>成功时输出：</p>
       <pre><code>Review loop converged

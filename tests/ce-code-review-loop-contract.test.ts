@@ -285,6 +285,21 @@ describe("ce-code-review-loop contract", () => {
     expect(workflow).not.toContain("apply:local")
   })
 
+  test("separates callable sub-skill invocation from user-facing handoff syntax", async () => {
+    const skill = await readFile(skillPath, "utf8")
+    const protocol = await readFile(protocolPath, "utf8")
+    const workflow = section(skill, "## Workflow", "## Authority and Interaction")
+    const wave = section(protocol, "## Canonical Review Wave", "## Finding Revalidation")
+
+    for (const body of [workflow, wave]) {
+      expect(body).toContain("internal invocation channel")
+      expect(body).toContain("user-facing handoff text")
+      expect(body).toMatch(/never execute `\/ce-code-review`/i)
+      expect(body).toContain("invocation_adapter_error")
+      expect(body).toContain("is not evidence that the skill is unregistered")
+    }
+  })
+
   test("restricts mutation to a clean current local branch", async () => {
     const skill = await readFile(skillPath, "utf8")
     const input = section(skill, "## Input and Preflight", "## Workflow")

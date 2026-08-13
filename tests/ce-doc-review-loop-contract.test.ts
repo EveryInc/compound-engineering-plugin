@@ -54,6 +54,17 @@ describe("ce-doc-review-loop contract", () => {
     expect(workflow).toContain("skill_unreachable")
   })
 
+  test("separates callable sub-skill invocation from user-facing handoff syntax", async () => {
+    const protocol = await readFile(protocolPath, "utf8")
+    const pass1 = section(protocol, "## Pass 1", "## Pass 2")
+
+    expect(pass1).toContain("internal invocation channel")
+    expect(pass1).toContain("user-facing handoff text")
+    expect(pass1).toMatch(/never execute `\/ce-doc-review`/i)
+    expect(pass1).toContain("invocation_adapter_error")
+    expect(pass1).toContain("is not evidence that the skill is unregistered")
+  })
+
   test("prepares contract coverage before the first review wave", async () => {
     const protocol = await readFile(protocolPath, "utf8")
     const wave0 = section(protocol, "## Wave 0", "## Pass 1")
@@ -201,11 +212,11 @@ describe("ce-doc-review-loop contract", () => {
     // Fail-closed is right, but stopping dead with no handoff is not.
     expect(pass1).toContain("/ce-doc-review mode:non-interactive <product-path>")
     expect(pass1).toContain("only when the active harness is Codex")
-    expect(pass1).toContain("Do not merely tell the user to type an invocation")
-    expect(skill).toContain("copyable ce-doc-review handoff when the skill is unreachable")
+    expect(pass1).toContain("do not execute it")
+    expect(skill).toContain("copyable ce-doc-review handoff when the skill is unreachable or the invocation adapter fails")
     // Pre-Wave-0 exits have no slice and no unreachable skill; they need their own route.
     expect(skill).toContain("the corrected invocation when Input is not valid")
-    expect(skill).toContain("ce-doc-review: <complete, integrity_failure, skill_unreachable, or not_run>")
+    expect(skill).toContain("ce-doc-review: <complete, integrity_failure, skill_unreachable, invocation_adapter_error, or not_run>")
   })
 
   test("separates integrity failures from coverage gaps", async () => {
@@ -234,7 +245,6 @@ describe("ce-doc-review-loop contract", () => {
     // test until the view is regenerated.
     const defaultUnits = capture(skill, /Optional `max-work-units:N` sets a circuit breaker\. Default: `(\d+)`/)
     const lowUnits = capture(skill, /integer of (\d+) or greater/)
-
     if (existsSync(zhSkillPath)) {
       const zhSkill = await readFile(zhSkillPath, "utf8")
       expect(zhSkill).toContain(`默认 ${defaultUnits}`)
@@ -246,6 +256,7 @@ describe("ce-doc-review-loop contract", () => {
         "input: invalid_max_work_units",
         "input: unsupported_document_format",
         "ce-doc-review: skill_unreachable",
+        "invocation_adapter_error",
       ]) {
         expect(zhSkill, `${literal} missing from the zh-CN skill view`).toContain(literal)
       }
