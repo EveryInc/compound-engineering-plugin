@@ -1,0 +1,29 @@
+{
+  "name": "compound-engineering-plugin",
+  "owner": {
+    "name": "Kieran Klaassen and Trevin Chow"
+  },
+  "metadata": {
+    "description": "Plugin marketplace for Claude Code and Codex extensions"
+  },
+  "plugins": [
+    {
+      "name": "compound-engineering",
+      "description": "Brainstorm, plan, debug, review, and compound learnings with AI agents",
+      "version": "3.21.4",
+      "author": {
+        "name": "Kieran Klaassen and Trevin Chow"
+      },
+      "homepage": "https://github.com/EveryInc/compound-engineering-plugin",
+      "tags": [
+        "ai-powered",
+        "compound-engineering",
+        "workflow-automation",
+        "code-review",
+        "quality",
+        "knowledge-management"
+      ],
+      "source": "./"
+    }
+  ]
+}

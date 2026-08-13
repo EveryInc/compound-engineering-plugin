@@ -2,7 +2,7 @@
 
 > Check Compound Engineering health, optional tool capabilities, and repo-local config safety.
 
-`ce-setup` is the lightweight onboarding and troubleshooting skill. It reports which optional tools are available, cleans obsolete local config, refreshes the committed config example, and helps keep machine-local settings out of git.
+`ce-setup` is the lightweight onboarding and troubleshooting skill. It reports which optional tools are available, creates repo `config.yaml` when missing, refreshes the committed config example, and offers to gitignore an existing `config.local.yaml`. Outside a git repository it reports capabilities and stops — it does not create repo files.
 
 See [Compound Engineering configuration](./configuration.md) for the complete option reference and how local defaults interact with session and project instructions.
 
@@ -14,7 +14,7 @@ It is explicit-invocation only (`disable-model-invocation: true`) so it never ru
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Runs a health check, reports optional tool capabilities, refreshes `.compound-engineering/config.local.example.yaml`, optionally creates `.compound-engineering/config.local.yaml`, and helps gitignore local config |
+| What does it do? | Runs a health check, reports optional tool capabilities, refreshes `.compound-engineering/config.example.yaml`, creates `.compound-engineering/config.yaml` if missing, and offers to gitignore an existing local override |
 | When to use it | First install, after upgrades, when a skill says an optional tool is missing, or when onboarding a repo |
 | What it produces | A setup report plus repo-local config fixes the user approved |
 | What it does not do | Bulk-install every possible CE dependency |
@@ -25,7 +25,7 @@ It is explicit-invocation only (`disable-model-invocation: true`) so it never ru
 
 Compound Engineering has two kinds of setup:
 
-- **Repo-local state** that should be consistent and safe: the committed config example, the optional machine-local config file, and `.gitignore` coverage for local settings.
+- **Repo-local state** that should be consistent and safe: the committed config example, the repo `config.yaml`, and optional gitignore coverage if a `config.local.yaml` override exists.
 - **Optional external tools** used by specific workflows: `agent-browser` for browser testing/polish, `gh` for GitHub workflows, `jq` for shell JSON inspection, `ast-grep` for structural code search, and `ffmpeg` for Riffrec media analysis.
 
 Those are different concerns. Missing optional tools should not make the whole plugin feel broken.
@@ -35,9 +35,9 @@ Those are different concerns. Missing optional tools should not make the whole p
 `ce-setup` runs a diagnostic, then only remediates repo-local project issues:
 
 - Deletes obsolete `compound-engineering.local.md` after confirmation.
-- Refreshes `.compound-engineering/config.local.example.yaml` from the bundled template.
-- Offers to create `.compound-engineering/config.local.yaml` if missing.
-- Offers to add `.compound-engineering/*.local.yaml` to `.gitignore` if needed.
+- Refreshes `.compound-engineering/config.example.yaml` from the bundled template.
+- Offers to create `.compound-engineering/config.yaml` if missing.
+- Offers to add `.compound-engineering/*.local.yaml` to `.gitignore` only if `config.local.yaml` already exists.
 - Reports the resolved artifact root and which config layer supplied it, and flags an unusable `docs_root` (see [Artifact root](./configuration.md#artifact-root)).
 - Prints install commands or URLs for missing optional tools, but does not bulk-install them.
 
@@ -76,11 +76,11 @@ Optional capabilities  3/5
 
 Project config
   🟢 No obsolete compound-engineering.local.md
-  ➖ No local config yet (.compound-engineering/config.local.yaml)
-  🟡 Example config missing (.compound-engineering/config.local.example.yaml)
+  ➖ No repo config yet (.compound-engineering/config.yaml)
+  🟡 Example config missing (.compound-engineering/config.example.yaml)
 ```
 
-It refreshes the example config. If you want local preferences, it asks before creating `.compound-engineering/config.local.yaml` and before adding the `.gitignore` entry.
+It refreshes the example config and offers to create `.compound-engineering/config.yaml`. It does not create `config.local.yaml`.
 
 ---
 
@@ -91,7 +91,7 @@ Use `ce-setup` when:
 - You just installed or upgraded the plugin.
 - You want to verify a repo's CE config and gitignore state.
 - A workflow reports an optional tool is missing and you want the install command.
-- You are onboarding a new repo to `.compound-engineering/config.local.yaml`.
+- You are onboarding a new repo to `.compound-engineering/config.yaml`.
 
 Skip it when:
 
@@ -105,7 +105,7 @@ Skip it when:
 | Phase | Step |
 |-------|------|
 | Diagnose | Determine plugin version, run health check, report optional capabilities and project config |
-| Fix | Remove obsolete local config, refresh example config, create local config if wanted, ensure gitignore safety |
+| Fix | Remove obsolete local config, refresh example config, create repo config if wanted, ensure gitignore safety when a local override exists |
 | Summary | Report fixes applied, skipped actions, and missing optional tools |
 
 ---
@@ -116,10 +116,10 @@ Skip it when:
 Most CE workflows do not need every optional tool, and modern coding harnesses now provide their own capture and browser affordances. Setup reports capabilities instead of forcing a broad dependency footprint.
 
 **What's `compound-engineering.local.md` and why is it obsolete?**
-It was the old machine-local config format. Surviving machine-local settings now live in `.compound-engineering/config.local.yaml`, and review-agent selection is automatic.
+It was the old machine-local config format. Team defaults now live in `.compound-engineering/config.yaml`. `config.local.yaml` is an optional per-checkout override. Review-agent selection is automatic.
 
-**Why is `.compound-engineering/config.local.yaml` gitignored?**
-It carries machine-local preferences and integration settings. The committed `.compound-engineering/config.local.example.yaml` shows available settings; each user opts in locally.
+**Why might `.compound-engineering/config.local.yaml` be gitignored?**
+It is the optional override file. The committed `.compound-engineering/config.example.yaml` shows available settings. Setup creates the repo file, not the override.
 
 **Does it run on non-Claude-Code platforms?**
 Yes. When the bundled health script is not directly runnable, the skill falls back to equivalent inline checks and still performs repo-local config remediation.
@@ -130,5 +130,5 @@ Yes. When the bundled health script is not directly runnable, the skill falls ba
 
 - [`/ce-test-browser`](./ce-test-browser.md) — uses `agent-browser` when no capable host-native browser is available
 - [`/ce-dogfood`](./ce-dogfood.md) — uses `agent-browser` for diff-scoped QA
-- [`/ce-product-pulse`](./ce-product-pulse.md) — uses `.compound-engineering/config.local.yaml` for pulse settings
+- [`/ce-product-pulse`](./ce-product-pulse.md) — reads pulse settings from CE config (local then repo)
 - [Compound Engineering configuration](./configuration.md) — every supported local option, its consumer, and precedence guidance

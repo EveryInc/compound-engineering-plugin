@@ -142,3 +142,18 @@ describe("ce-compound YAML safety rule presence", () => {
     expect(replaceFlow).toMatch(/yaml-schema\.md/)
   })
 })
+
+// Isolation forbids sharing a bundled script, so both skills ship
+// scripts/light-webserver.js. The helper has no product behavior — display-only
+// vs interactive is skill protocol and the HTML the agent writes — so the
+// copies must stay byte-identical.
+describe("light-webserver.js drift across ce-brainstorm and ce-prototype", () => {
+  test("scripts/light-webserver.js is identical across ce-brainstorm, ce-prototype", async () => {
+    const contents = await Promise.all(
+      ["ce-brainstorm", "ce-prototype"].map((skill) =>
+        readFile(path.join(PLUGIN_ROOT, skill, "scripts", "light-webserver.js"), "utf8"),
+      ),
+    )
+    expect(contents[1]).toBe(contents[0])
+  })
+})

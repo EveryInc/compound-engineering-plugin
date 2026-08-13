@@ -4,7 +4,7 @@
 
 **Two-stage shape: internal draft, then chat-time scoping synthesis.** The synthesis is composed in two stages. Stage 1 is an internal three-bucket draft (Stated / Inferred / Out of scope) the agent uses to think comprehensively about scope. Stage 2 is the scoping synthesis presented to the user — shaped like what two product collaborators would confirm before writing a PRD, not like a comprehensive audit and not like a one-line preview. The user only sees stage 2. The internal draft still informs the doc body via the doc-shape routing below; it just doesn't reach the user verbatim. This split exists because the comprehensive audit shape produced too much detail for the user to actually weigh in on, even when the granularity rules were followed.
 
-**Three-bucket structure is the internal draft, not the user-facing artifact.** It does its scope-thinking job during stage 1 and dissolves when Phase 3 writes the doc: Stated content informs Requirements, Inferred content informs Key Decisions, Out-of-scope content informs Scope Boundaries. The doc has no parallel `## Synthesis` section — only the scoping synthesis prose embeds, as `## Summary`. See "Doc shape after confirmation" below for the routing.
+**Three-bucket structure is the internal draft, not the user-facing artifact.** It does its scope-thinking job during stage 1 and dissolves when Phase 3 writes the doc: Stated content informs Requirements, success signals from either bucket inform Success Criteria, Inferred content informs Key Decisions, Out-of-scope content informs Scope Boundaries. The doc has no parallel `## Synthesis` section — only the scoping synthesis prose embeds, as `## Summary`. See "Doc shape after confirmation" below for the routing.
 
 This content is loaded when Phase 2.5 fires — after Phase 2 (approaches chosen) and before Phase 3 (write the requirements-only unified plan). The synthesis is the user's last opportunity to correct the agent's interpretation before the artifact lands. It serves two purposes: synthesis confirmation (the user agreed to many individual things in dialogue but never saw the whole) and a transition checkpoint ("about to write the Product Contract").
 
@@ -272,6 +272,7 @@ After user confirmation (or after the soft-cut decision proceeds), Phase 3 write
 | Stated bullets | `## Requirements` (numbered R-IDs, full detail) and where relevant `## Problem Frame` for narrative context |
 | Inferred bullets | `## Key Decisions` (with rationale) — bets the user accepted in dialogue become decisions in the doc. |
 | Out-of-scope bullets | `## Scope Boundaries` |
+| Success signals (Stated or Inferred) | `## Success Criteria` when its catalog entry fires — quality, metric, or handoff signals the Requirements don't already carry. This row **overrides** the generic Stated and Inferred rows for those items: a success signal routes here *instead of* to Requirements or Key Decisions, never to both. |
 
 The chat-time Trade-offs section dissolves into `## Key Decisions` (the explicit choices acknowledged in chat become documented decisions). The chat-time What's-not-in-scope section dissolves into `## Scope Boundaries`.
 

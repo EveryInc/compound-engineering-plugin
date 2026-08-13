@@ -50,6 +50,10 @@ const detectableTools: DetectableTool[] = [
     detectPaths: (home) => [path.join(home, ".pi")],
   },
   {
+    name: "omp",
+    detectPaths: (home, cwd) => [path.join(home, ".omp"), path.join(cwd, ".omp")],
+  },
+  {
     name: "droid",
     detectPaths: (home) => [path.join(home, ".factory")],
   },

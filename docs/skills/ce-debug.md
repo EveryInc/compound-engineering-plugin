@@ -57,6 +57,7 @@ Common debugging anti-patterns:
 `ce-debug` runs investigation as a structured process with explicit gates:
 
 - **Causal chain gate** — no fix proposed until the chain is explained end-to-end with no gaps
+- **Diagnosis before the choice** — the findings block is written out in full before the Fix / Diagnosis-only question opens, so you are never choosing from a bare prompt
 - **Predictions for uncertain links** — something in a different code path that must also be true if the link is right
 - **Assumption audit** — list "this must be true" beliefs your understanding depends on, mark each verified or assumed
 - **One change at a time** — anti-shotgun discipline
@@ -71,6 +72,8 @@ Common debugging anti-patterns:
 ### 1. Causal chain gate — no fix until the chain is explained
 
 `ce-debug` does not propose a fix until it can explain the full causal chain from trigger to symptom with no gaps. "Somehow X leads to Y" is a gap. The fix gate is structural: there's an explicit phase transition that requires the chain explanation to pass.
+
+The gate also constrains *presentation order*: the findings block — root cause with file:line references, the proposed fix, the recommended tests, and any related ticket or PR — must be written out in full before the Fix it now / Diagnosis only question opens. Blocking-question tools render only their own stem on modal harnesses, so a question fired on "root cause confirmed" alone would leave you choosing with none of the chain on screen.
 
 ### 2. Predictions for uncertain links — anti-symptom-fix
 

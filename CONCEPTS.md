@@ -51,6 +51,12 @@ The methodology this project embodies: structure engineering work so each unit m
 ### Pipeline
 The chained progression of Skills that carries a piece of work from strategy and ideation through brainstorm, plan, execution, and review, and closes by capturing what was learned. Each stage hands a durable artifact to the next, and research is gathered at the stage that needs it rather than re-gathered downstream.
 
+### Visual probe
+A disposable, display-only decision sketch used during brainstorming for one shape, layout, or relationship question. The user looks at it and answers in chat. It is not a prototype, a spec, or something you click through to feel an interaction.
+
+### Experience prototype
+A throwaway prototype of the product, built so a human can try it and decide how something should work or feel before that choice is encoded in a plan and code. How finished it gets follows the question being answered. What the user decided carries into whatever is built next. Distinct from a visual probe (inspection) and from polish (a feature that already works).
+
 ### Learning
 A documented solution to a past problem — a bug fix, a convention, or a workflow pattern — stored as the unit of compounded knowledge so future work can find and reuse it. Also called a solution doc. Carries structured metadata (category, tags, problem type) for retrieval; its creation date lives in the entry, not the filename.
 
@@ -138,7 +144,7 @@ A decision examined and chosen by the user in the invoking conversation — a su
 The classification judgment a writer skill (ce-plan, ce-brainstorm) applies to conversation-carried decisions: settled if the decision survived examination in the conversation record, a directive if merely asserted, unlabeled if only ever agent-inferred. The test's outcome rules are protocol; the classification itself is agent judgment.
 
 ### Feedback source
-A configured origin of customer or user feedback — a Slack channel, a GitHub Issues repo, an email inbox — declared once in the shared local config under a generic key so any Skill can read the list. Each source entry has its own identity and ingestion cursor; the Skill that ingests from it owns the per-item state, not the source declaration.
+A configured origin of customer or user feedback — a Slack channel, a GitHub Issues repo, an email inbox — declared in repo CE config (`config.yaml`, optionally overridden in `config.local.yaml`) under a generic key so any Skill can read the list. Each source entry has its own identity and ingestion cursor; the Skill that ingests from it owns the per-item state, not the source declaration.
 
 ### Beta skill
 A parallel copy of a stable Skill, suffixed `-beta`, used to trial a new version alongside the stable one without disrupting users. Invoked manually (model auto-invocation is disabled); promoting it to stable is more than a rename — every caller must move in the same change so none silently inherits stale defaults, and the retired beta name must be registered for stale-artifact cleanup so upgrading users don't keep a dead duplicate of the skill alongside the promoted one.

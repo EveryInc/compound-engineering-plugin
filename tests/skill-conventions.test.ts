@@ -147,14 +147,17 @@ describe("user-facing skill invocation authoring contract", () => {
       expect(text).toMatch(/in prose, render only the invocation as inline code[^\n]*fenced block/i)
       expect(text).toMatch(/active host|active harness/i)
       expect(text).toMatch(/default to `\/skill-name`[\s\S]{0,160}Codex[\s\S]{0,160}dollar-prefixed/i)
+      expect(text).toContain("`/skill:ce-polish`")
+      expect(text).toMatch(/oh-my-pi \(`omp`\)[^\n]*\/skill:<name>`[^\n]*disable-model-invocation/i)
       expect(text).toMatch(/\/goal[\s\S]{0,180}(built-in|exception)|built-in[\s\S]{0,180}\/goal/i)
       expect(text).toMatch(/smallest section[\s\S]{0,180}do not repeat[\s\S]{0,180}separately loaded reference/i)
     }
   })
 
-  test("README explains Codex invocation syntax without rewriting the built-in goal command", () => {
+  test("README distinguishes model-routed copy from deterministic OMP invocation", () => {
     expect(ROOT_README).toMatch(/README uses `\/skill-name`[\s\S]{0,180}Codex[\s\S]{0,120}`\$skill-name`/i)
     expect(ROOT_README).toContain("`$ce-plan` and `$lfg`")
+    expect(ROOT_README).toMatch(/oh-my-pi \(omp\)[^\n]*`\/skill:<name>`[^\n]*(?:manual-only|deterministic)/i)
     expect(ROOT_README).toMatch(/\/goal[\s\S]{0,80}Codex built-in/i)
   })
 })
@@ -200,6 +203,7 @@ const REQUIRED_MODEL_INVOKED_CALLEES = new Set([
   "ce-optimize",
   "ce-plan",
   "ce-proof",
+  "ce-prototype",
   "ce-resolve-pr-feedback",
   "ce-riffrec-feedback-analysis",
   "ce-simplify-code",
@@ -641,6 +645,28 @@ function findPlatformVarViolations(markdown: string): PlatformVarOccurrence[] {
 // ---------------------------------------------------------------------------
 
 const skillDirs = listSkillDirs()
+
+describe("portable skill capability wording", () => {
+  test("does not hardcode oh-my-pi tool names", () => {
+    const offenders: string[] = []
+    for (const skill of skillDirs) {
+      for (const filePath of listMarkdownFiles(skill.absPath)) {
+        const fileRel = path.relative(REPO_ROOT, filePath)
+        const lines = readFileSync(filePath, "utf8").split("\n")
+        for (const [index, line] of lines.entries()) {
+          if (/oh-my-pi[^\n]*`(?:ask|task)`|`(?:ask|task)`[^\n]*oh-my-pi/i.test(line)) {
+            offenders.push(`${fileRel}:${index + 1}`)
+          }
+        }
+      }
+    }
+
+    expect(
+      offenders,
+      "Skills should describe blocking-question and subagent capabilities without adding oh-my-pi-specific tool names.",
+    ).toEqual([])
+  })
+})
 
 describe("skill self-containment (AGENTS.md 'File References in Skills')", () => {
   for (const skill of skillDirs) {

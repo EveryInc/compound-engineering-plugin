@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract session metadata from Claude Code, Codex, Cursor, and Pi JSONL files.
+"""Extract session metadata from Claude Code, Codex, Cursor, Pi, and oh-my-pi (omp) JSONL files.
 
 Batch mode (preferred — one invocation for all files):
   python3 extract-metadata.py /path/to/dir/*.jsonl
@@ -57,6 +57,36 @@ def try_codex(lines):
     return meta if meta else None
 
 
+def try_omp(lines):
+    """oh-my-pi (omp) sessions: a fixed-width type='title' slot line physically
+    first, then a pi-shaped type='session' header with cwd. Checked before Pi:
+    a bare pi file has no title slot and must still detect as pi."""
+    seen_first = False
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            obj = json.loads(stripped)
+        except (json.JSONDecodeError, KeyError):
+            if not seen_first:
+                return None
+            continue
+        if not seen_first:
+            seen_first = True
+            if obj.get("type") != "title":
+                return None
+            continue
+        if obj.get("type") == "session" and "cwd" in obj:
+            return {
+                "platform": "omp",
+                "cwd": obj.get("cwd", ""),
+                "session": obj.get("id", ""),
+                "ts": obj.get("timestamp", ""),
+            }
+    return None
+
+
 def try_pi(lines):
     """Pi sessions: type='session' header with cwd, followed by message entries."""
     for line in lines:
@@ -88,7 +118,7 @@ def try_cursor(lines):
 
 
 def extract_from_lines(lines):
-    return try_claude(lines) or try_codex(lines) or try_pi(lines) or try_cursor(lines)
+    return try_claude(lines) or try_codex(lines) or try_omp(lines) or try_pi(lines) or try_cursor(lines)
 
 
 TAIL_BYTES = 16384  # Read last 16KB to find final timestamp past trailing metadata
@@ -221,6 +251,7 @@ def _extract_user_assistant_text(filepath):
                 except (json.JSONDecodeError, ValueError):
                     continue
 
+        # omp files share the pi-shaped session header, so this covers both.
         is_pi = any(
             obj.get("type") == "session" and "cwd" in obj for obj in objects
         )

@@ -65,11 +65,7 @@ describe("ce-plan post-generation menu routing", () => {
       { name: "Start `ce-work`", fragment: "Start `ce-work`" },
       { name: "Run it as a /goal", fragment: "Run it as a `/goal`" },
       { name: "Create Issue", fragment: "Create Issue" },
-      { name: "Publish to Proof", fragment: "Publish to Proof" },
-      // "Open in browser" is the HTML-mode replacement for Publish to Proof.
-      // Both routings must be present inline: the menu shows one or the other
-      // depending on OUTPUT_FORMAT, so the agent needs both bullets to route
-      // correctly without loading the reference.
+      { name: "Prototype a remaining feel-question", fragment: "Prototype a remaining feel-question" },
       { name: "Open in browser", fragment: "Open in browser" },
     ]
 
@@ -185,7 +181,7 @@ describe("ce-plan post-generation menu routing", () => {
       ).toBe(false)
     }
 
-    for (const route of ["Start `ce-work`", "Decide on the review's open items", "Publish to Proof"]) {
+    for (const route of ["Start `ce-work`", "Decide on the review's open items", "Prototype a remaining feel-question"]) {
       const escaped = route.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
       const bullet = SKILL_BODY.match(new RegExp(`^- \\*\\*${escaped}[^\\n]+`, "m"))?.[0]
       expect(bullet, `ce-plan SKILL.md is missing the inline ${route} routing bullet.`).toBeDefined()

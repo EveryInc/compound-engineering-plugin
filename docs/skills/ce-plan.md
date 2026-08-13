@@ -27,7 +27,7 @@ But it stands alone just as well — many teams reach for `ce-plan` directly wit
 |----------|--------|
 | What does it do? | Researches context, captures decisions and scope, breaks work into atomic units with stable IDs, enumerates test scenarios per unit, and auto-strengthens weak sections via a confidence check |
 | When to use it | Requirements ready and execution guardrails needed; solo planning when the task is clear; non-software multi-step tasks (study plans, research, maintenance, events, trips) |
-| What it produces | Unified plan in `docs/plans/YYYY-MM-DD-NNN-<type>-<name>-plan.md`; brainstorm-sourced plans move from `artifact_readiness: requirements-only` to `implementation-ready` in place |
+| What it produces | Unified plan in `docs/plans/YYYY-MM-DD-HHMM-<type>-<name>-plan.md` (local wall-clock write time, atomically reserved with a numeric collision suffix when needed); brainstorm-sourced plans move from `artifact_readiness: requirements-only` to `implementation-ready` in place |
 | What's next | `/ce-work`, goal-mode prompt when supported, create a tracked issue, publish to Proof for sharing, or pause |
 | Distinguishing | Guardrails over choreography (WHAT, not HOW); U-IDs (stable); origin tracing (R/A/F/AE → U); test scenarios per unit; automatic deepening; multi-agent research |
 
@@ -247,8 +247,8 @@ In universal-planning mode, the U-IDs, dependency ordering, scope boundaries, an
 | `deepen the plan` / `deepening pass` | Re-deepen fast path (interactive mode) |
 | `<bug description>` | Routes to `ce-debug` suggestion menu |
 | `<task in another repo>` | Cross-repo announcement, plan lands in target |
-| `output:html` | Write the plan as a single self-contained HTML file instead of markdown. Exclusive — the plan is `.md` OR `.html`, never both. Default is markdown. Set `plan_output: html` in `.compound-engineering/config.local.yaml` to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown so downstream automation gets a stable text shape. See the [configuration reference](./configuration.md). |
-| `confirm:auto` | Skip the pre-plan scoping-confirmation pause for this run — ce-plan writes the scope summary for itself, records inferred scope under an `Assumptions` section, announces it's proceeding, and keeps going without waiting. Skips only that confirmation; genuine blockers and the post-plan menu still appear. Use `confirm:ask` to force the gate on for one run. Set `plan_skip_scoping_confirm: true` in `.compound-engineering/config.local.yaml` to make skipping the default. |
+| `output:html` | Write the plan as a single self-contained HTML file instead of markdown. Exclusive — the plan is `.md` OR `.html`, never both. Default is markdown. Set `plan_output: html` in CE config (`config.local.yaml` then `config.yaml`) to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown so downstream automation gets a stable text shape. See the [configuration reference](./configuration.md). |
+| `confirm:auto` | Skip the pre-plan scoping-confirmation pause for this run — ce-plan writes the scope summary for itself, records inferred scope under an `Assumptions` section, announces it's proceeding, and keeps going without waiting. Skips only that confirmation; genuine blockers and the post-plan menu still appear. Use `confirm:ask` to force the gate on for one run. Set `plan_skip_scoping_confirm: true` in CE config (`config.local.yaml` then `config.yaml`) to make skipping the default. |
 
 ---
 
@@ -276,7 +276,7 @@ Yes — and it's increasingly common. Universal-planning preserves the U-ID conc
 
 ## Model elevation
 
-When you want a specific model for the heavy reasoning step, `ce-plan` can author the plan on a model you choose instead of your session model. It dispatches only the interpret-findings-then-author step to that model, with read access so it can verify its brief; the rest of the skill (dialogue, research) stays on your session model. Choose per run by naming a model in your prompt ("use fable", "have opus plan this"), or set a default with `plan_model: <model>` in `.compound-engineering/config.local.yaml`. A prompt request overrides the config key.
+When you want a specific model for the heavy reasoning step, `ce-plan` can author the plan on a model you choose instead of your session model. It dispatches only the interpret-findings-then-author step to that model, with read access so it can verify its brief; the rest of the skill (dialogue, research) stays on your session model. Choose per run by naming a model in your prompt ("use fable", "have opus plan this"), or set a default with `plan_model: <model>` in CE config (`config.local.yaml` then `config.yaml`). A prompt request overrides the config key.
 
 This works on any harness: the host serves the chosen model natively where it can, otherwise it invokes the Claude CLI (which must be installed and authenticated), otherwise it runs the step on your session model and tells you which precondition was unmet. **Setting `plan_model` therefore takes effect in every harness you run `ce-plan` in**, not just Claude Code. See `references/reasoning-elevation.md`.
 

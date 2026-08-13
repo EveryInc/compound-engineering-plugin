@@ -47,7 +47,7 @@ describe("detectInstalledTools", () => {
 
     const results = await detectInstalledTools(tempHome, tempCwd)
 
-    expect(results.length).toBe(7)
+    expect(results.length).toBe(8)
     for (const tool of results) {
       expect(tool.detected).toBe(false)
       expect(tool.reason).toBe("not found")
@@ -61,12 +61,14 @@ describe("detectInstalledTools", () => {
     await fs.mkdir(path.join(tempHome, ".config", "opencode"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".factory"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".pi"), { recursive: true })
+    await fs.mkdir(path.join(tempHome, ".omp"), { recursive: true })
 
     const results = await detectInstalledTools(tempHome, tempCwd)
 
     expect(results.find((t) => t.name === "opencode")?.detected).toBe(true)
     expect(results.find((t) => t.name === "droid")?.detected).toBe(true)
     expect(results.find((t) => t.name === "pi")?.detected).toBe(true)
+    expect(results.find((t) => t.name === "omp")?.detected).toBe(true)
   })
 
   test("detects antigravity at ~/.gemini/antigravity-cli", async () => {

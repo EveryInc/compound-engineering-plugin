@@ -158,7 +158,7 @@ After structuring the plan, ask the user how they want to receive it using the p
    - Current working directory
    - `/tmp`
    - A custom path
-   - Use filename convention: `YYYY-MM-DD-<descriptive-name>-plan.md`
+   - Use filename convention: `YYYY-MM-DD-HHMM-<descriptive-name>-plan.md`, taking `HHMM` from the local wall-clock time at write; reserve the path atomically and, on collision, retry with the smallest available numeric suffix before the extension rather than overwriting
    - Start the document with a `# Title` heading, followed by `Created: YYYY-MM-DD` on the next line. No YAML frontmatter.
 
 2. **Publish to Proof — shareable link** — Publish the doc to Every's Proof editor and get a shareable link to read, comment on, or share with others. Load the `ce-proof` skill to create the shared document and return the URL. One-way: nothing syncs back to disk.
