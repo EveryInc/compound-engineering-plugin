@@ -119,6 +119,18 @@ describe("domain-vocabulary contract pins", () => {
     expect(canonical).toContain("domain-defines-terms")
     expect(canonical).toContain("this protocol neither requires nor creates it")
   })
+
+  test("pins the verification-stamp contract", async () => {
+    const canonical = await readCanonical(asset)
+    // The stamp is grounding-written metadata, not hand-maintained state,
+    // and being unstamped stays legal — weakening either sentence turns the
+    // stamp into a chore or a gate.
+    expect(canonical).toContain("verified_against")
+    expect(canonical).toContain("never by hand")
+    expect(canonical).toContain("An unstamped file is legal")
+    expect(canonical).toContain("domain-stamp-malformed")
+    expect(canonical).toContain("the auditing skill's judgment, not a mechanical rule")
+  })
 })
 
 // The four learnings-researcher prompt assets are not byte-identical overall --

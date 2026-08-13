@@ -386,6 +386,13 @@ describe("domain-graph sibling domain-truth files", () => {
         siblingGlossaryPresent: true,
         definesTerms: false,
         definedTerms: [],
+        verification: {
+          stamped: false,
+          verifiedAgainst: null,
+          lastVerified: null,
+          resolvable: null,
+          commitsBehindHead: null,
+        },
       },
     ])
 
@@ -417,6 +424,62 @@ describe("domain-graph sibling domain-truth files", () => {
     const orphans = json.findings.filter((entry: any) => entry.code === "domain-orphan")
     expect(orphans).toHaveLength(1)
     expect(orphans[0].path).toBe("docs/contexts/orphan/DOMAIN.md")
+  })
+})
+
+describe("domain-graph verification stamps", () => {
+  test("a well-formed stamp outside a git toplevel degrades to null resolution, no finding", () => {
+    // The fixture tree sits inside this repository's checkout; the resolver
+    // must not borrow the enclosing repo's history to judge the stamp.
+    const { json: inventory } = runJson(["inventory", "--repo-root", fixture("domain-stamped")])
+    expect(inventory.domainTruth[0].verification).toEqual({
+      stamped: true,
+      verifiedAgainst: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+      lastVerified: "2026-08-13",
+      resolvable: null,
+      commitsBehindHead: null,
+    })
+
+    const { run: result, json } = runJson(["validate", "--repo-root", fixture("domain-stamped")])
+    expect(result.code).toBe(0)
+    expect(json.findings).toEqual([])
+  })
+
+  test("frontmatter is excluded from term-definition scanning", () => {
+    const { json } = runJson(["inventory", "--repo-root", fixture("domain-stamped")])
+    expect(json.domainTruth[0].definesTerms).toBe(false)
+  })
+
+  test("malformed stamp values are reported per key", () => {
+    const { run: result, json } = runJson(["validate", "--repo-root", fixture("domain-stamp-faults")])
+    expect(result.code).toBe(1)
+    const malformed = json.findings.filter((entry: any) => entry.code === "domain-stamp-malformed")
+    expect(malformed).toHaveLength(2)
+    expect(malformed[0].path).toBe("DOMAIN.md")
+  })
+
+  test("inside a real git toplevel the stamp resolves and unknown commits are findings", () => {
+    const repo = scratchDir("stamp-git")
+    const git = (args: string[]) =>
+      spawnSync("git", ["-C", repo, ...args], { encoding: "utf8" })
+    git(["init", "-q"])
+    git(["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "seed"])
+    const head = git(["rev-parse", "HEAD"]).stdout.trim()
+
+    writeFileSync(path.join(repo, "CONCEPTS.md"), "# Concepts\n\n### Slot\n\nA bookable interval.\n")
+    const stamped = (sha: string) =>
+      `---\nverified_against: ${sha}\nlast_verified: 2026-08-13\n---\n\n# Domaine\n\n## Invariants\n\n### Slot\n\n- A **Slot** rule.\n`
+    writeFileSync(path.join(repo, "DOMAIN.md"), stamped(head))
+
+    const { json: ok } = runJson(["validate", "--repo-root", repo])
+    expect(codes(ok.findings)).not.toContain("domain-stamp-unresolvable")
+    const { json: inventory } = runJson(["inventory", "--repo-root", repo])
+    expect(inventory.domainTruth[0].verification.resolvable).toBe(true)
+    expect(inventory.domainTruth[0].verification.commitsBehindHead).toBe(0)
+
+    writeFileSync(path.join(repo, "DOMAIN.md"), stamped("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"))
+    const { json: bad } = runJson(["validate", "--repo-root", repo])
+    expect(codes(bad.findings)).toContain("domain-stamp-unresolvable")
   })
 })
 
