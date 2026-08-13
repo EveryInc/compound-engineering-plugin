@@ -147,7 +147,7 @@ Out of scope:
 
 U3 has landed. U1 has returned its verdict. The remaining order is:
 
-**Stage A (U13, U4, U6)** — prevent duplicates at emission, replace the matcher, delete the superseded grouping rules. **Stage B (U5)** — obligation routing. **Stage C (U8, U9)** — build the generation harness and measure Stages A and B. **Stage D (U14)** — stop prompting where the rubric says there is no choice. **Stage E (U15)** — weaker-model reliability. **Stage F (U10, U11)** — guards and captured learnings.
+**Stage A (U13, U4, U6)** — prevent duplicates at emission, replace the matcher, delete the superseded grouping rules. **Stage B (U5)** — obligation routing. **Stage C (U8, U9)** — build the generation harness and measure Stages A and B. **Stage D (U14)** — stop prompting where the rubric says there is no choice. **Stage E (U15)** — one bounded check on Codex Sol, and record the weak-model floor. **Stage F (U10, U11)** — guards and captured learnings.
 
 Stages A through C have landed. U9 cancelled U12 and U7, so the clustering stage is gone from the sequence.
 
@@ -572,38 +572,41 @@ The verdict was reached before U14 existed and did not read the post-U14 re-meas
 
 **Verification:** Re-running the observed sibling-worktree plan surfaces roughly the four genuine forks rather than eleven confirmations, with no applied change that commits to product behavior the document had not already settled.
 
-### U15. Make the matcher survive a weaker model
+### U15. Check whether one weak cell is a route defect, and record the floor
 
-**Goal:** Weaker models apply the one-fix test and the routing rules reliably, or the shortfall is documented per host.
+**Goal:** Determine whether Codex Sol's flat failure is a capability floor or a defect in how that route is driven. Record the weak-model floor as an accepted limitation rather than engineering around it.
 
 **Requirements:** R11.
 
 **Dependencies:** U9 (complete). Independent of U14.
 
 **Files:**
-- `skills/ce-doc-review/references/subagent-template.md`
-- `skills/ce-doc-review/references/synthesis-and-presentation.md`
+- `docs/solutions/skill-design/dedup-and-obligation-eval-results.md` — amend with the finding
+- `skills/ce-doc-review/SKILL.md` — only if the answer is a dispatch-tier note
 
-**The evidence, and what it does *not* say.** U9 measured four host/model cells. Two were stable — Claude Opus and Codex Luna reached 100% merge recall with a bounded 5-8 remaining choices. Two were not: Claude Haiku averaged 69.8% recall across a `[0-100%]` range, Codex Sol 57.1% across the same range, and both produced runs with a decision load of `0` — output implausible enough to be an instruction-following failure rather than a genuinely empty review.
+**Scope decision: recall parity on weak models is explicitly not a goal.** (session-settled: user-directed — chosen over engineering the criterion down to the weakest reader: most users do not run this on a Haiku-class model, and the one-fix test works *because* it is a genuine judgment that fails closed. A formulation a weak model applies confidently would likely be more confidently wrong on every model, trading the property the eval actually proved — 100% precision on every cell — for one that barely matters.) Haiku's 69.8% recall against Opus's 100% is a real gap and the correct response is to run a capable model for a judgment task.
 
-**Merge precision was 100% on every cell, including the unstable ones, with zero wrong merges.** That is the fail-closed design in KTD2 working as intended: a model that cannot judge whether one fix resolves both findings declines to merge rather than guessing. So this is a *reliability* defect, not a *safety* one — weaker models under-perform, they do not corrupt. Shipping is not blocked on it, and any fix here must not trade precision for recall.
+**The one thing worth checking.** Haiku degrades like a capability curve. **Codex Sol does not:** its old arm returned `0%` recall flat across all seven runs, and its new arm produced runs with zero decision load. A flat zero is not a weaker reader doing worse — it is the shape of something structurally wrong with that route: a truncated payload, a schema mismatch, an output contract silently unmet. If that is a defect in how the route is driven rather than a tier limit, it affects everyone on Codex at any tier, which is a different problem wearing the same numbers.
+
+**Merge precision was 100% on every cell including the unstable ones, with zero wrong merges.** That is the fail-closed rule in KTD2 working: a model that cannot judge whether one fix resolves both findings declines to merge rather than guessing. Weak models under-perform; they do not corrupt. Nothing here blocks shipping.
 
 **Approach:**
 
-1. Establish which instruction fails, not merely that a cell is unstable. Recall variance and zero-load output are different failures — the first is the matcher, the second is routing or output-contract compliance. A single number covering both hides which to fix.
-2. Where the one-fix test is the failure, test whether a more mechanical formulation recovers recall without loosening the criterion. The test must stay falsifiable and stay fail-closed; a version a weak model applies confidently but wrongly is worse than one it declines to apply.
-3. Where output-contract compliance is the failure, treat it as schema conformance rather than judgment, and lean on the existing validate step rather than adding prose.
-4. Accept a documented shortfall as a legitimate outcome. If a host cannot run the matcher reliably, saying so per host beats degrading the criterion for every host to accommodate the weakest.
+1. Run Sol against the same frozen finding set on a handful of trials and inspect its raw returns, not its scores. Distinguish "followed the instruction and judged badly" from "never produced a conforming return." The aggregate rate cannot tell those apart, which is why the flat zero went unexplained.
+2. If it is a route defect, fix it as a route defect and re-measure that cell only. If it is a tier limit, stop — record it and move on.
+3. Consider whether the answer is simply a dispatch note: this skill already selects models per persona at dispatch, so *"synthesis runs on a capable tier"* may be one line rather than a reliability workstream. Prefer that to changing the criterion.
+4. Amend the eval learning with the weak-model floor and the numbers behind it, so the decision not to chase it is recorded rather than rediscovered.
 
-**Execution note:** Re-measure with the same frozen finding set and the same blind corpus U9 used, so the comparison is like-for-like. The corpus location is recorded in the U9 learning; it is machine-local temporary storage and may need regenerating.
+**Standing constraint, wherever the matcher is touched:** no change may lower merge precision on any cell. Precision is the property the blind eval proved and the only defence against the silent failure.
+
+**Execution note:** Bounded. If step 1 shows a tier limit, this unit is two runs and a paragraph. Do not let it become a weak-model reliability project.
 
 **Test scenarios:**
-- Each unstable cell's failures are attributed to a named instruction, not reported as an aggregate rate.
-- Merge precision remains 100% on every cell after any change.
-- A run producing zero decisions is distinguishable in the record from a review that genuinely found nothing.
-- A host that cannot meet the bar is documented with the instruction that failed, rather than the criterion being loosened globally.
+- Sol's failure is attributed to either a non-conforming return or a poor judgment, with raw output cited — not reported as an aggregate rate.
+- If a route defect is found and fixed, merge precision on every other cell is unchanged.
+- The weak-model floor is recorded with its numbers and the decision not to close it.
 
-**Verification:** A written record states, per host, the failing instruction and either the recovered numbers or an explicit accepted shortfall, with precision unchanged.
+**Verification:** The eval learning names Sol's cause, states the accepted weak-model floor, and confirms precision unchanged.
 
 ### U13. Scope persona territory in the suppress conditions
 
@@ -677,8 +680,9 @@ Gates marked **(conditional)** apply only if U9 authorizes U12.
 
 **Stage E**
 
-- Weaker models reach recall and routing stability comparable to the reliable cells, or the shortfall is documented with the specific instruction that failed and the hosts it affects.
-- No change made for weaker-model reliability lowers merge precision on any cell.
+- Codex Sol's flat failure is attributed to either a route defect or a tier limit, from its raw returns rather than its scores.
+- The weak-model floor is recorded with its numbers and the explicit decision not to chase it. Recall parity on weak models is not a completion condition.
+- Merge precision is unchanged on every cell.
 
 **Clustering (U12) and its consumer change (U7) are cancelled.** They are recorded as cancelled with the measurement that justified it, not left pending.
 
