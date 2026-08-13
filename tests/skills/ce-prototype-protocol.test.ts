@@ -61,6 +61,10 @@ describe("ce-prototype protocol", () => {
     expect(SKILL_BODY).not.toContain("${CLAUDE_SKILL_DIR}")
   })
 
+  test("repo grounding is scoped, not a tree scan", () => {
+    expect(SKILL_BODY).toMatch(/do not scan the tree/i)
+  })
+
   test("apply-time write-back is a late load", () => {
     expect(SKILL_BODY).toContain("`references/write-back.md`")
     expect(SKILL_BODY).toContain("`references/preview.md`")
