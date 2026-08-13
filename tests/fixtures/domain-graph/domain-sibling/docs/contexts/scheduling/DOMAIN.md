@@ -8,6 +8,7 @@ Current business truth for scheduling. Vocabulary lives in [CONCEPTS.md](./CONCE
 
 - A **Slot** never carries two confirmed **Rendez-vous** at the same time.
 - Cancelling a **Rendez-vous** frees its **Slot** immediately.
+- **Slot** allocation applies when **overbooking** is off: the calendar refuses the second confirmation.
 
 ## Machines à états
 

@@ -227,8 +227,12 @@ FENCE_PATTERN = re.compile(r"^\s*(```|~~~)")
 SEPARATOR = r"(?:--|—)"
 ENTRY_PATTERN = re.compile(r"^- \[([^\[\]()]+)\]\((\S+)\)\s+" + SEPARATOR + r"\s+(.+?)\s*$")
 RELATION_PATTERN = re.compile(r"^- (.+?)\s+->\s+(.+?):\s*(.+?)\s*$")
-SHARED_PATTERN = re.compile(r"^- \*\*(.+?)\*\*\s*(?:" + SEPARATOR + r"|:)\s+(.+?)\s*$")
-DEFINITION_BULLET_PATTERN = re.compile(r"^\s*[-*]\s+\*\*(.+?)\*\*\s*(?:" + SEPARATOR + r"|:)\s+(.+?)\s*$")
+# Term captures use [^*] so a bullet carrying several bold spans (a rule like
+# "- **X** applies when **Y**: ...") is never lazily re-bracketed into a fake
+# term spanning the whole line; only a separator directly after the closing
+# ** makes a definition.
+SHARED_PATTERN = re.compile(r"^- \*\*([^*]+?)\*\*\s*(?:" + SEPARATOR + r"|:)\s+(.+?)\s*$")
+DEFINITION_BULLET_PATTERN = re.compile(r"^\s*[-*]\s+\*\*([^*]+?)\*\*\s*(?:" + SEPARATOR + r"|:)\s+(.+?)\s*$")
 BOLD_TERM_OPENER_PATTERN = re.compile(r"^\*\*([^*]+?)\*\*\s*(?:\([^)]*\))?\s*:\s*$")
 BOLD_TERM_INLINE_PATTERN = re.compile(
     r"^\*\*([^*]+?)\*\*\s*(?:\([^)]*\))?\s*(?:" + SEPARATOR + r"|:)\s+(\S.*?)\s*$"
