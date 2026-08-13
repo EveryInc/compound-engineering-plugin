@@ -25,6 +25,6 @@ If the file was `artifact_readiness: implementation-ready`:
 
 1. Set `artifact_readiness: requirements-only`.
 2. Delete these HOW sections entirely: Planning Contract, Implementation Units, Verification Contract, and Definition of Done. Do not leave empty headings.
-3. If a same-basename other-format sibling (`.md` / `.html`) is also `implementation-ready`, apply the same downgrade and strip.
+3. Give a same-basename `.md` sibling that is also `implementation-ready` the same downgrade and strip. Do not do this to an `.html` sibling — the fail-closed rule above forbids writing HTML, and a frontmatter or heading edit would either corrupt it or do nothing. Say in the recap that the HTML sibling still holds the pre-prototype HOW, that `ce-work` prefers an implementation-ready sibling over the downgraded markdown, and that it has to be regenerated through `ce-plan` before anything executes.
 
 `ce-plan` re-adds HOW on re-enrichment. `ce-work` refuses `requirements-only`.
