@@ -8,17 +8,17 @@ Interactive mode only.
 
 ## Routing question (the entry point)
 
-After `safe_auto` fixes apply and synthesis produces the remaining finding set, the orchestrator asks a four-option routing question before any walk-through or bulk action runs.
+After the applied changes land and synthesis produces the remaining finding set, the orchestrator asks a four-option routing question before any walk-through or bulk action runs.
 
 **Same-turn presentation before routing (required).** Before firing the routing question, emit the Interactive Phase 4 presentation (`references/review-output-template.md`) as user-visible assistant text **in the same turn**. Content composed only in hidden thinking or reasoning does not count — same bar as the Preview event in `references/bulk-preview.md`. If that presentation event has not occurred in this turn, do not invoke the blocking-question tool.
 
 These do **not** satisfy the invariant:
 
 - a prior-turn non-interactive envelope (including one shown beside a `ce-plan` handoff menu)
-- a one-line count such as "4 proposed fixes, 1 decision"
+- a one-line count such as "1 confirmation, 1 decision"
 - relying on handoff-menu context or earlier scrollback
 
-On interactive entry after a same-session non-interactive pass (e.g. `ce-plan` "Decide on the review's open items"), still render the interactive presentation before routing. Reusing prior `safe_auto` / R29 decision state is fine; skipping presentation is not. The routing question itself does not need duplicated per-finding decision fields — its A/B/C/D labels are already self-describing sentences; this invariant is about findings being in front of the user when they choose a route.
+On interactive entry after a same-session non-interactive pass (e.g. `ce-plan` "Decide on the review's open items"), still render the interactive presentation before routing. Reusing the prior pass's applied-fix and R29 decision state is fine; skipping presentation is not. The routing question itself does not need duplicated per-finding decision fields — its A/B/C/D labels are already self-describing sentences; this invariant is about findings being in front of the user when they choose a route.
 
 Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension)). In Claude Code, the tool should already be loaded from the Interactive-mode pre-load step in `SKILL.md` — if it isn't, call `ToolSearch` with query `select:AskUserQuestion` now. Fall back to presenting the options as a numbered list only when the harness genuinely lacks a blocking tool — `ToolSearch` returns no match, the tool call explicitly fails, or the runtime mode does not expose it (e.g., Codex edit modes without `request_user_input`). A pending schema load is not a fallback trigger. Never silently skip the question. Rendering the routing question as narrative text without the numbered-list fallback is a bug.
 
@@ -35,14 +35,14 @@ D. Report only — take no further action
 
 The per-finding `(recommended)` labeling lives inside the walk-through (option A) and the bulk preview (options B/C), where it's applied per-finding from synthesis step 3.5b's `recommended_action`. The routing question itself does not recommend one of A/B/C/D because the right route depends on user intent (engage / trust / triage / skim), not on the finding-set shape — a rule that mapped finding-set shape to routing recommendation (e.g., "most findings are Apply-shaped → recommend best-judgment") would pressure users toward automated paths in ways that conflict with the user-intent framing.
 
-If all remaining findings are FYI-subsection-only (no `gated_auto` or `manual` findings at confidence anchor `75` or `100`), skip the routing question entirely and flow to the Phase 5 terminal question.
+If nothing remains in the grouped confirmation or the decision surface — everything else applied or landed in the FYI subsection — skip the routing question entirely and flow to the Phase 5 terminal question.
 
 **Append-availability adaptation.** When `references/open-questions-defer.md` has cached `append_available: false` at Phase 4 start (e.g., read-only document, unwritable filesystem), option C is suppressed from the routing question because every per-finding Defer would fail into the open-questions failure path. The menu shows three options (A / B / D) and the stem appends one line explaining why (e.g., `Append to Open Questions unavailable — document is read-only in this environment.`). This mirrors the per-finding option B suppression described under "Adaptations" below — both routing-level and per-finding Defer paths share the same availability signal so the user never sees Defer surfaced at one level and omitted at the other.
 
 **Dispatch by selection:**
 
 - **A** — load this walk-through (per-finding loop). Apply decisions accumulate in memory; Open-Questions defers execute inline via `references/open-questions-defer.md`; Skip decisions are recorded as no-action; `Auto-resolve with best judgment on the rest` routes through `references/bulk-preview.md`.
-- **B** — load `references/bulk-preview.md` scoped to every pending `gated_auto` / `manual` finding. On Proceed, execute the plan: Apply → end-of-batch document edit; Open-Questions defers → `references/open-questions-defer.md`; Skip → no-op. On Cancel, return to the routing question.
+- **B** — load `references/bulk-preview.md` scoped to every pending finding at confidence anchor `75` or `100`. On Proceed, execute the plan: Apply → end-of-batch document edit; Open-Questions defers → `references/open-questions-defer.md`; Skip → no-op. On Cancel, return to the routing question.
 - **C** — load `references/bulk-preview.md` with every pending finding in the Open-Questions bucket (regardless of the agent's natural recommendation). On Proceed, route every finding through `references/open-questions-defer.md`; no document edits apply. On Cancel, return to the routing question.
 - **D** — do not enter any dispatch phase. Emit the completion report and flow to Phase 5 terminal question.
 
@@ -52,7 +52,7 @@ If all remaining findings are FYI-subsection-only (no `gated_auto` or `manual` f
 
 The walk-through receives, from the orchestrator:
 
-- The merged findings list in severity order (P0 → P1 → P2 → P3), filtered to actionable findings (confidence anchor `75` or `100` with `autofix_class` `gated_auto` or `manual`). FYI-subsection findings (anchor `50`) are not included — they surface in the final report only and have no walk-through entry.
+- The merged findings list in severity order (P0 → P1 → P2 → P3), filtered to the decision surface synthesis step 3.7 produced. Applied findings are already reported as changes, findings sent to the grouped confirmation are answered together rather than one at a time, and FYI-subsection findings (anchor `50`) surface in the final report only; none of the three has a walk-through entry.
 - The run id for artifact lookups (when applicable).
 
 Each finding's recommended action has already been normalized by synthesis step 3.5b (Deterministic Recommended-Action Tie-Break, `Skip > Defer > Apply`) — the walk-through surfaces that recommendation via the merged finding's `recommended_action` field and does not recompute it.
@@ -263,7 +263,7 @@ Cross-session persistence is out of scope. Mirrors `ce-code-review`'s walk-throu
 
 After the loop terminates — either every finding has been answered, or the user took `Auto-resolve with best judgment on the rest → Proceed` — the walk-through hands off to the execution phase:
 
-1. **Apply set:** in a single pass, the orchestrator applies every accumulated Apply-set finding's `suggested_fix` to the document. Document edits happen inline via the platform's edit tool — ce-doc-review has no batch-fixer subagent (per scope boundary); the orchestrator performs the edits directly, since `gated_auto` and `manual` fixes for documents are single-file markdown changes with no cross-file dependencies. **Defensive no-fix check:** before dispatching the edit for each Apply-set entry, verify the merged finding carries a `suggested_fix`. If it does not (the decision-time no-fix guard in "Per-finding routing" should prevent this, but treat it as a defensive fallback), skip the edit, record the finding in the completion report's failure section with reason `Apply skipped — no suggested_fix available`, and continue the batch. Do not fail the entire pass because one Apply-set entry lacks a fix.
+1. **Apply set:** in a single pass, the orchestrator applies every accumulated Apply-set finding's `suggested_fix` to the document. Document edits happen inline via the platform's edit tool — ce-doc-review has no batch-fixer subagent (per scope boundary); the orchestrator performs the edits directly, since document fixes are single-file markdown changes with no cross-file dependencies. **Defensive no-fix check:** before dispatching the edit for each Apply-set entry, verify the merged finding carries a `suggested_fix`. If it does not (the decision-time no-fix guard in "Per-finding routing" should prevent this, but treat it as a defensive fallback), skip the edit, record the finding in the completion report's failure section with reason `Apply skipped — no suggested_fix available`, and continue the batch. Do not fail the entire pass because one Apply-set entry lacks a fix.
 2. **Defer set:** already executed inline during the walk-through via `references/open-questions-defer.md`. Nothing to dispatch here.
 3. **Skip:** no-op.
 
@@ -279,7 +279,7 @@ Every terminal path of Interactive mode emits the same completion report structu
 - Walk-through bailed via `Auto-resolve with best judgment on the rest → Proceed`
 - Top-level best-judgment (routing option B) completed
 - Top-level Append-to-Open-Questions (routing option C) completed
-- Zero findings after `safe_auto` (routing question was skipped — the completion summary is a one-line degenerate case of this structure)
+- Zero findings left after the applied changes (routing question was skipped — the completion summary is a one-line degenerate case of this structure)
 
 ### Minimum required fields
 
@@ -294,7 +294,7 @@ Failures first (above the per-finding list), then per-finding entries grouped by
 
 ### Zero-findings degenerate case
 
-When the routing question was skipped because no `gated_auto` / `manual` findings at confidence anchor `75` or `100` remained after `safe_auto`, the completion report collapses to its summary-counts + verdict form with one added line — the count of `safe_auto` fixes applied. The summary wording:
+When the routing question was skipped because the applied changes left nothing in the grouped confirmation or the decision surface, the completion report collapses to its summary-counts + verdict form with one added line — the count of fixes applied. The summary wording:
 
 No FYI or residual concerns:
 
