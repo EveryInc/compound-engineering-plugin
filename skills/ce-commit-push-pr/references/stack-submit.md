@@ -15,7 +15,13 @@ If `gh` or `gh stack` is missing, or the stack command exits unavailable for thi
 
 ## Topology
 
-**When the user named a parent PR or branch to stack on, resolve the base before anything else.** Probe it with `gh pr view "<n>" --json headRefName,author` and `gh stack view --json` from that head branch:
+**When the user named a parent PR or branch to stack on, resolve the base before anything else.**
+
+**Resolve the name.** For a PR ref, `gh pr view "<n>" --json headRefName,author`. A branch with no PR fails that call — fetch and verify the ref itself instead, and treat ownership as unknown so adoption is off the table. Before a resolved name reaches any command, require it to match `[A-Za-z0-9._/-]+`; git permits `$(...)` in a branch name and double quotes do not stop a shell from expanding it, so an untrusted fork PR's head name is an injection vector. Stop with a residual on a name that fails.
+
+**Probe from the parent, not from here.** `gh stack view --json` takes no target and reports the **current** branch's stack, so probing from your work branch can call a managed parent standalone — the misread that produces the second stack this section exists to prevent. Record the current branch, check out the parent (stash/pop only if uncommitted changes would block checkout), probe, then restore both before construction. If the checkout cannot be made cleanly, stop with a residual rather than probing from the wrong branch.
+
+Then pick the case:
 
 - **Parent is already a managed stack member** — do **not** `gh stack init`: that roots a second stack mid-topology, `gh stack merge` cannot span the two, and a branch shared across stacks exits code 6. Run `gh stack checkout "<parent-pr>"`, then add each new layer with `gh stack add`.
 - **Parent is a standalone PR you can adopt** — adopt its head branch as the **bottom layer** (`gh stack init "<parent-branch>" "<next-branch>" …`) so it becomes a member and inherits managed merge, base retarget, and sync handling.
