@@ -15,10 +15,6 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 
 const tempRoots: string[] = []
-const REPO_ROOT = path.join(__dirname, "../..")
-const DIRTY_MARKER = path.join(REPO_ROOT, ".xmodel-cr-test-dirty")
-const DIRTY_MARKER_REL = ".xmodel-cr-test-dirty"
-let dirtyTreeStaged = false
 function mkTempRoot(prefix: string): string {
   const dir = mkdtempSync(path.join(tmpdir(), prefix))
   tempRoots.push(dir)
@@ -26,12 +22,35 @@ function mkTempRoot(prefix: string): string {
 }
 afterAll(() => {
   for (const dir of tempRoots) rmSync(dir, { recursive: true, force: true })
-  if (dirtyTreeStaged || existsSync(DIRTY_MARKER)) {
-    spawnSync("git", ["reset", "HEAD", "--", DIRTY_MARKER_REL], { cwd: REPO_ROOT })
-    if (existsSync(DIRTY_MARKER)) rmSync(DIRTY_MARKER, { force: true })
-    dirtyTreeStaged = false
-  }
 })
+
+// The script diffs the toplevel it resolves from its own cwd, so these tests run it
+// in a throwaway repo rather than this checkout. Against the real checkout the diff
+// was whatever the developer had uncommitted: over roughly 160KB it crossed the
+// script's large-diff threshold, which skips peer dispatch and failed 31 tests here
+// for reasons unrelated to the change under test.
+let fixtureRepo: string | null = null
+function dirtyFixtureRepo(): string {
+  if (fixtureRepo) return fixtureRepo
+  const repo = mkTempRoot("xmodel-cr-fixture-")
+  const git = (...args: string[]) => spawnSync("git", args, { cwd: repo })
+  git("init", "-b", "main")
+  git("config", "user.email", "test@test")
+  git("config", "user.name", "test")
+  const file = path.join(repo, "reviewed.ts")
+  // Two commits, so the tests that review `HEAD~1` have a base to resolve.
+  writeFileSync(file, "export const reviewed = 1\n")
+  git("add", "reviewed.ts")
+  git("commit", "-m", "baseline")
+  writeFileSync(file, "export const reviewed = 2\n")
+  git("add", "reviewed.ts")
+  git("commit", "-m", "second")
+  // Staged, not just untracked: `git diff HEAD` ignores untracked files.
+  writeFileSync(file, "export const reviewed = 3\n")
+  git("add", "reviewed.ts")
+  fixtureRepo = repo
+  return repo
+}
 
 const REAL_TOOLS = [
   "bash", "sh", "jq", "python3", "date", "sed", "tr", "cat", "wc", "awk",
@@ -125,26 +144,13 @@ function makeRunDir(): string {
   return mkTempRoot("xmodel-cr-run-")
 }
 
-/** Stage a fixture file so `git diff --quiet HEAD --` sees changes (untracked alone is ignored). */
-function ensureDirtyTree(cwd: string): void {
-  if (cwd !== REPO_ROOT) return
-  writeFileSync(DIRTY_MARKER, `fixture ${Date.now()}\n`)
-  const r = spawnSync("git", ["add", "--", DIRTY_MARKER_REL], { cwd: REPO_ROOT })
-  if (r.status === 0) dirtyTreeStaged = true
-}
-
 /** Run the script and return exit code, stdout, stderr, and run-dir file list. */
 function run(
   args: string[],
   runDir: string,
   env: NodeJS.ProcessEnv = process.env,
-  cwd = REPO_ROOT, // repo root — script needs git
-  opts: { skipDirtyTree?: boolean } = {},
+  cwd = dirtyFixtureRepo(), // a throwaway repo — the script needs git, not this checkout
 ) {
-  const baseRef = args[2]
-  if (!opts.skipDirtyTree && baseRef === "HEAD" && cwd === REPO_ROOT) {
-    ensureDirtyTree(cwd)
-  }
   const effectiveEnv = { ...env }
   if (!("CROSS_MODEL_DRY_RUN" in effectiveEnv) && !("CROSS_MODEL_FIXED_ROUTE" in effectiveEnv)) {
     const target = args[1]
@@ -542,9 +548,7 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
       `#!/bin/sh\n: > '${invoked}'\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"confabulated"}]}}'\n`,
     )
     const runDir = makeRunDir()
-    const r = run(["codex", "claude", "HEAD", runDir], runDir, env, repo, {
-      skipDirtyTree: true,
-    })
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env, repo)
     expect(existsSync(invoked)).toBe(false)
     expect(r.code).toBe(0)
     expect(r.files).toHaveLength(0)
