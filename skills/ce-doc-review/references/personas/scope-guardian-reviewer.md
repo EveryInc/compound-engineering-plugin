@@ -70,3 +70,4 @@ Use the shared anchored rubric (see `subagent-template.md` — Confidence rubric
 - Product strategy, priority preferences (product-lens)
 - Missing requirements (coherence-reviewer), security (security-lens)
 - Design/UX (design-lens), technical feasibility (feasibility-reviewer)
+- **Internal contradictions between two sections of the document** (coherence-reviewer) -- and this holds even when the contradiction is *about* scope. A unit whose test scenarios contradict its own stated scope boundary is a coherence finding: two passages disagree. You judge whether the scope is *right* -- too broad, too narrow, misaligned with the goals -- not whether the document is self-consistent about what it already claims

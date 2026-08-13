@@ -101,6 +101,7 @@ Use the shared anchored rubric (see `subagent-template.md` — Confidence rubric
 
 - **Internal contradictions** or terminology drift -- coherence-reviewer owns these
 - **Technical feasibility** or architecture conflicts -- feasibility-reviewer owns these
+- **Whether the document still matches the current codebase** -- feasibility-reviewer owns this too. Stale "current" baselines, line references that no longer point at what they describe, and work the plan proposes that has already shipped are currency findings, not premise findings. Your question is whether a decision was *warranted*, not whether the document has since gone out of date
 - **Scope-goal alignment** or priority dependency issues -- scope-guardian-reviewer owns these
 - **UI/UX quality** or user flow completeness -- design-lens-reviewer owns these
 - **Security implications** at plan level -- security-lens-reviewer owns these
