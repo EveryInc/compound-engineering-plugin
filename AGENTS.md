@@ -190,7 +190,9 @@ That makes cross-file isolation load-bearing rather than incidental: a test file
 
 **Do not pin a worker count.** `--parallel` with no value tracks the runner's core count, which is what you want. Raising it looks free — the suite is idle-bound, so more workers should pack better — but it was measured on CI and it is not: at `--parallel=8` on a 4-core runner, wall time improved ~9% (102s -> 93s) while total test-CPU inflated from 223s to 343s, and five tests crossed the 5000ms default per-test timeout. That converts runner busyness into red builds. A file that legitimately runs for seconds should call `setDefaultTimeout` instead, as the subprocess-heavy suites do.
 
-Wall time is now bounded by the **slowest single file**, since a file never splits across workers. As measured: `tests/skills/ce-work-unit-workspace.test.ts` is 61s of a ~100s run and `tests/ce-babysit-pr-snapshot.test.ts` is 40s. The next real speedup is splitting those two, not more workers.
+Wall time is bounded by the **slowest single file**, since a file never splits across workers. The former `tests/skills/ce-work-unit-workspace.test.ts` was 61s of a ~100s run; it is now split into four `ce-work-unit-workspace-*.test.ts` files sharing `tests/skills/helpers/ce-work-workspace-harness.ts`. `tests/ce-babysit-pr-snapshot.test.ts` (~40s) is the current ceiling, and splitting it is the next lever if CI still sits meaningfully above the packing floor — not more workers.
+
+**A test file that grows past roughly a thousand lines under one `describe` is a wall-time problem, not just a readability one.** Prefer several domain-scoped files over one exhaustive suite, and put shared fixtures in `tests/skills/helpers/`.
 
 ### What belongs where
 
