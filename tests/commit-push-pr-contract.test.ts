@@ -337,6 +337,7 @@ describe("PR concept teaching contract", () => {
     expect(submit).toMatch(/exit 2 — nothing checked out/i)
     // Classification moves HEAD; construction reads the checked-out branch as the original.
     expect(submit).toMatch(/record your work branch and its tip \*\*before\*\* classifying and return to them before construction/i)
+    expect(submit).toMatch(/plan the layers from your restored work branch, then check the parent out again/i)
     expect(submit).toMatch(/Exit \*\*5\*\* means that parent is not the top: residual/i)
     expect(submit).toMatch(/Never clear it with `gh stack top`/i)
     // The facts file must not prescribe the recovery Topology forbids.
@@ -382,6 +383,7 @@ describe("PR concept teaching contract", () => {
     expect(submit).toMatch(/starts on the resolved default branch.+follow `references\/branch-creation\.md`/is)
     expect(submit).toMatch(/starts on an existing feature branch.+do not follow `references\/branch-creation\.md`/is)
     expect(submit).toMatch(/feature branch.+fetch the resolved base `<base>` from Topology.+verify the fetched remote-tracking tip/is)
+    expect(submit).toMatch(/no remote-tracking branch to fetch or verify/i)
     expect(submit).toMatch(/stop with a residual on a name that fails/i)
     expect(submit).toMatch(/did not ask for a stack in this request.{0,80}standing preference alone is not asking/is)
     expect(submit).toMatch(/refuse the stack.{0,80}explicit request is not refusable/is)
