@@ -154,6 +154,17 @@ and two findings police its boundary:
 A ``DOMAIN.md`` anywhere else in the repository is an ordinary project file
 and is ignored.
 
+A sibling ``DOMAIN.md`` may open with a VERIFICATION STAMP: YAML frontmatter
+whose recognized keys are ``verified_against`` (a full 40-hex commit) and
+``last_verified`` (``YYYY-MM-DD``). The stamp records the commit a grounding
+pass verified the rules against. Being unstamped is legal and is not a
+finding. The frontmatter block is excluded from term-definition scanning.
+When the repo root is itself a git toplevel, the stamp commit is resolved
+and the inventory reports how many commits ``HEAD`` is ahead of it; without
+git — or when the tree merely sits inside some other repository — the
+verification fields degrade to null. Staleness thresholds are the auditing
+skill's judgment — the script only reports the distance.
+
 Blocked states
 --------------
 With at least one vocabulary-bearing legacy file present:
@@ -183,6 +194,8 @@ Finding codes emitted by ``validate``
     invariant-dropped            a supplied mapping loses an extracted invariant
     domain-defines-terms         a sibling DOMAIN.md carries a term definition
     domain-orphan                a canonical DOMAIN.md has no sibling glossary
+    domain-stamp-malformed       a verification stamp key has an invalid value
+    domain-stamp-unresolvable    verified_against names no commit in this repo
 
 Polysemy across contexts is legal and is never a finding: the same term may
 carry different definitions in two context glossaries.
@@ -192,6 +205,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 
 SCHEMA_INVENTORY = "ce.domain-graph.inventory/v1"
@@ -690,15 +704,106 @@ def discover_legacy_references(repo_root, files, legacy_paths):
     return references
 
 
-def domain_defined_terms(text):
+STAMP_SHA_PATTERN = re.compile(r"^[a-f0-9]{40}$")
+STAMP_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+FRONTMATTER_KEY_PATTERN = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*)\s*:\s*(.*?)\s*$")
+FRONTMATTER_MAX_LINES = 32
+
+
+def parse_frontmatter(text):
+    """Return (fields, last_line) for a leading YAML frontmatter block.
+
+    Only flat ``key: value`` lines are read; unknown keys are kept so the
+    caller can ignore them. Returns (None, 0) when the file does not open
+    with ``---`` or the block never closes within the scan bound.
+    """
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return None, 0
+    fields = {}
+    for number, line in enumerate(lines[1:FRONTMATTER_MAX_LINES], start=2):
+        if line.strip() == "---":
+            return fields, number
+        match = FRONTMATTER_KEY_PATTERN.match(line.strip())
+        if match:
+            fields[match.group(1)] = match.group(2).strip("\"'")
+    return None, 0
+
+
+def git_query(repo_root, args):
+    """Run a read-only git command; return stdout or None when unavailable."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", repo_root, *args],
+            capture_output=True, text=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip()
+
+
+def domain_verification(repo_root, text):
+    """Stamp fields, structural problems, and git distance for a DOMAIN.md."""
+    fields, end_line = parse_frontmatter(text)
+    record = {
+        "stamped": fields is not None,
+        "verifiedAgainst": None,
+        "lastVerified": None,
+        "resolvable": None,
+        "commitsBehindHead": None,
+    }
+    problems = []
+    if fields is None:
+        return record, problems, end_line
+
+    sha = fields.get("verified_against")
+    date = fields.get("last_verified")
+    if sha is not None:
+        if STAMP_SHA_PATTERN.match(sha):
+            record["verifiedAgainst"] = sha
+        else:
+            problems.append(("domain-stamp-malformed",
+                             "verified_against %r is not a full 40-hex commit." % sha))
+    if date is not None:
+        if STAMP_DATE_PATTERN.match(date):
+            record["lastVerified"] = date
+        else:
+            problems.append(("domain-stamp-malformed",
+                             "last_verified %r is not a YYYY-MM-DD date." % date))
+
+    # Resolve against git only when repo_root IS the git toplevel: a tree
+    # nested inside some other repository (test fixtures, exports) must not
+    # borrow that repository's history.
+    toplevel = git_query(repo_root, ["rev-parse", "--show-toplevel"])
+    git_matches = toplevel is not None and os.path.realpath(toplevel) == os.path.realpath(repo_root)
+    if record["verifiedAgainst"] and git_matches:
+        resolved = git_query(repo_root, ["rev-parse", "--verify", record["verifiedAgainst"] + "^{commit}"])
+        record["resolvable"] = resolved is not None
+        if resolved is None:
+            problems.append(("domain-stamp-unresolvable",
+                             "verified_against %s names no commit in this repository."
+                             % record["verifiedAgainst"]))
+        else:
+            behind = git_query(repo_root, ["rev-list", "--count", record["verifiedAgainst"] + "..HEAD"])
+            if behind is not None and behind.isdigit():
+                record["commitsBehindHead"] = int(behind)
+    return record, problems, end_line
+
+
+def domain_defined_terms(text, skip_until_line=0):
     """Term definitions inside a domain-truth file.
 
     Headings are rule anchors there, never term definitions, so only the
     explicit definition grammar counts: definition bullets and bold-term
-    lines (opener or inline).
+    lines (opener or inline). Lines up to ``skip_until_line`` (the
+    verification-stamp frontmatter) are never scanned.
     """
     defined = []
     for number, line, in_fence in scan_lines(text):
+        if number <= skip_until_line:
+            continue
         if in_fence or not line.strip():
             continue
         bullet = DEFINITION_BULLET_PATTERN.match(line)
@@ -734,12 +839,15 @@ def discover_domain_truth(repo_root, docs_root, files):
         else:
             continue
         text = read_text(os.path.join(repo_root, *relative.split("/")))
+        verification, stamp_problems, stamp_end = domain_verification(repo_root, text)
         records.append({
             "path": relative,
             "context": context,
             "siblingGlossary": sibling,
             "siblingGlossaryPresent": sibling in file_set,
-            "definedTerms": domain_defined_terms(text),
+            "definedTerms": domain_defined_terms(text, skip_until_line=stamp_end),
+            "verification": verification,
+            "stampProblems": stamp_problems,
         })
     records.sort(key=lambda record: record["path"])
     return records
@@ -899,6 +1007,7 @@ def command_inventory(graph):
                     {"term": entry["term"], "line": entry["line"]}
                     for entry in record["definedTerms"]
                 ],
+                "verification": record["verification"],
             }
             for record in graph["domainTruth"]
         ],
@@ -1041,6 +1150,8 @@ def command_validate(graph, mapping_document):
                 "its context's CONCEPTS.md." % (record["path"], record["siblingGlossary"]),
                 path=record["path"],
             ))
+        for code, message in record["stampProblems"]:
+            findings.append(finding(code, message, path=record["path"]))
 
     if any(record["vocabularyBearing"] for record in graph["legacy"]):
         for reference in graph["legacyReferences"]:
