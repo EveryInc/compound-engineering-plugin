@@ -66,7 +66,7 @@ Keep a run capsule at `decisions.md` in this run's scratch so the next skill doe
 
 When the user applies:
 
-- If this run has a directly related markdown brainstorm or plan — the path passed on invoke, passed by the calling skill, or named in this session as the file this prototype is for — load `references/write-back.md` and follow it. Use `decisions.md` when present. Do not pick a plan because one exists in the repo.
-- If there is no such file, relatedness is unclear, or the artifact is HTML: do not mint a plan or a third note. Recap from `decisions.md` when present.
+- If this run has a directly related brainstorm or plan — the path passed on invoke, passed by the calling skill, or named in this session as the file this prototype is for — load `references/write-back.md` and follow it. Markdown and HTML both. Use `decisions.md` when present. Do not pick a plan because one exists in the repo.
+- If there is no such file or relatedness is unclear: do not mint a plan or a third note. Recap from `decisions.md` when present.
 
-Then continue, whichever branch above ran. If a calling skill invoked this, return the choices in `decisions.md` and let that caller continue. Otherwise recommend a next skill and pass this session as the seed: after a write-back, `ce-plan`, because the plan is now `requirements-only` with its HOW stripped and `ce-work` refuses it until `ce-plan` re-enriches; after a file-free or HTML run, `ce-brainstorm` when product-level questions remain, or `ce-plan` when the session is enough to plan. Print that recommendation per the rendering rule above.
+Then continue, whichever branch above ran. If a calling skill invoked this, return the choices in `decisions.md` and let that caller continue. Otherwise recommend a next skill and pass this session as the seed: after a write-back, `ce-plan`, because the plan is now `requirements-only` with its HOW stripped and `ce-work` refuses it until `ce-plan` re-enriches; after a file-free run, `ce-brainstorm` when product-level questions remain, or `ce-plan` when the session is enough to plan. Print that recommendation per the rendering rule above.

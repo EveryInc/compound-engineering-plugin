@@ -14,7 +14,7 @@ It sits between a display-only visual probe and late-stage polish: more real tha
 |----------|--------|
 | What does it do? | Works out which questions can only be answered by using something, builds a throwaway prototype, waits for the user to try it, then writes the decisions into an existing Product Contract or hands off to `ce-brainstorm` / `ce-plan` |
 | When to use it | A decision is expensive to unravel and has to be used, not inspected — how finished the prototype gets scales to that question |
-| What it produces | Decisions in the existing markdown plan, or a session handoff into brainstorm or plan. No new document type. |
+| What it produces | Decisions in the existing plan, markdown or HTML, or a session handoff into brainstorm or plan. No new document type. |
 | What's next | `ce-plan` after write-back (the plan is `requirements-only` again), or `ce-brainstorm` / `ce-plan` after a file-free run |
 
 ---
@@ -50,7 +50,7 @@ Requirements and plans can name an outcome. They cannot say how something should
 - After you decide, it works out what is still worth building for, and says what changed before building the next one. A decision often answers a later question too, makes one pointless, or turns up one nobody had listed.
 - If what you decide changes what you want to build rather than answering the question, it stops and hands back what it learned instead of building on.
 - With nobody there to try the prototype — an unattended or pipeline run — it stops rather than inventing how something should feel.
-- When a related markdown plan exists, decisions land in that file's Product Contract. An implementation-ready plan is downgraded to `requirements-only` and its HOW sections are stripped, so `ce-work` cannot ship the old HOW.
+- When a related plan exists, decisions land in that file's Product Contract, in whichever format it uses. An implementation-ready plan is downgraded to `requirements-only` and its HOW sections are stripped, so `ce-work` cannot ship the old HOW.
 - When no related file exists, it does not mint a plan. It recaps the decisions and recommends `ce-brainstorm` or `ce-plan` from the session.
 
 ---

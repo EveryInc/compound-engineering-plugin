@@ -30,13 +30,13 @@ describe("ce-prototype write-back", () => {
     expect(WRITE_BACK).toMatch(/Edit only the file you were given/)
   })
 
-  test("missing file, HTML, or missing Product Contract fail closed", () => {
-    expect(WRITE_BACK).toMatch(/If the file is HTML/)
+  test("missing file or missing Product Contract fail closed", () => {
+    expect(WRITE_BACK).toMatch(/Markdown and HTML artifacts both get written back/)
     expect(WRITE_BACK).toMatch(/do not write/)
     expect(WRITE_BACK).toMatch(/Do not write under `<root>\/plans\/`/)
-    expect(WRITE_BACK).toMatch(/no `## Product Contract` heading/)
+    expect(WRITE_BACK).toMatch(/no Product Contract section/)
     expect(WRITE_BACK).toMatch(/do not invent a file/)
-    expect(WRITE_BACK).toMatch(/directly related markdown brainstorm or plan/)
+    expect(WRITE_BACK).toMatch(/directly related brainstorm or plan/)
     expect(WRITE_BACK).toMatch(/Do not search the repo for a matching plan/)
     expect(SKILL).toMatch(/do not mint a plan or a third note/)
     expect(SKILL).toMatch(/Do not pick a plan because one exists in the repo/)
