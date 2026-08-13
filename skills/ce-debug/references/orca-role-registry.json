@@ -23,7 +23,7 @@
           "roles": {
             "hypothesis-probe": {
               "activation": "repeatable",
-              "anchor": "each with an explicit hypothesis and structured evidence-return format",
+              "anchor": "each with an explicit hypothesis and a structured evidence-return format",
               "modelTier": "mid",
               "mutation": "read-only",
               "required": false,
