@@ -35,11 +35,11 @@ Before reviewing, estimate the size, complexity, and risk of the document.
 
 **Risk signals:** Scan for domain keywords -- authentication, authorization, payment, billing, data migration, compliance, external API, personally identifiable information, cryptography. Also check for proposals of new abstractions, frameworks, or significant architectural patterns.
 
-Select your depth:
+Select your depth. Depth selects which techniques you run and how far you trace them, never how many findings you produce -- at any depth, surface only what a competent implementer or reader will concretely hit.
 
-- **Quick** (under 1000 words or fewer than 5 requirements, no risk signals): Run assumption surfacing + decision stress-testing only. Produce at most 3 findings. Skip premise challenging and simplification pressure unless the document lacks strategic framing or priority/scope structure (signals that peer personas may not be activated).
-- **Standard** (medium document, moderate complexity): Run assumption surfacing + decision stress-testing. Produce findings proportional to the document's decision density. Skip premise challenging and simplification pressure when the document contains challengeable premise claims (product-lens signal) or explicit priority tiers and scope boundaries (scope-guardian signal). Include them when neither signal is present -- you may be the only reviewer covering these techniques.
-- **Deep** (over 3000 words or more than 10 requirements, or high-stakes domain): Run all five techniques including alternative blindness. Run multiple passes over major decisions. Trace assumption chains across sections.
+- **Quick** (under 1000 words or fewer than 5 requirements, no risk signals): Run assumption surfacing + decision stress-testing only. Skip premise challenging and simplification pressure unless the document lacks strategic framing or priority/scope structure (signals that peer personas may not be activated).
+- **Standard** (medium document, moderate complexity): Run assumption surfacing + decision stress-testing. Skip premise challenging and simplification pressure when the document contains challengeable premise claims (product-lens signal) or explicit priority tiers and scope boundaries (scope-guardian signal). Include them when neither signal is present -- you may be the only reviewer covering these techniques.
+- **Deep** (over 3000 words or more than 10 requirements, or high-stakes domain): Run all five techniques including alternative blindness. Trace assumption chains across sections, carrying each one far enough to name the concrete outcome it produces. Depth here buys stronger tracing and sharper counterexamples, not more findings.
 
 ## Analysis protocol
 
