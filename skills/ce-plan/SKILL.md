@@ -734,7 +734,7 @@ Use the Write tool to save the complete plan to the resolved format's extension:
 <root>/plans/YYYY-MM-DD-HHMM-<type>-<descriptive-name>-plan.<md|html>
 ```
 
-Extension follows `OUTPUT_FORMAT` from Phase 0.0 — `.md` when markdown, `.html` when HTML. The filename prefix is the local wall-clock time at write, so ordering comes from the clock rather than a daily counter. Reserve the final path atomically; on an exact-path collision, retry with the smallest available numeric suffix rather than overwriting. Explicit format conversion keeps the existing basename and changes only the extension.
+Extension follows `OUTPUT_FORMAT` from Phase 0.0 — `.md` when markdown, `.html` when HTML. The filename prefix is the local wall-clock time at write, so ordering comes from the clock rather than a daily counter. Reserve the final path atomically; when creating a new artifact, an exact-path collision retries with the smallest available numeric suffix rather than overwriting. Explicit format conversion is not a new artifact and is exempt from that suffix: it keeps the existing basename, changes only the extension, and writes that exact sibling path, updating it in place when it already exists. A suffixed conversion output would break the same-basename staleness signal Phase 0.2 and `ce-work` discovery depend on.
 
 Compose the plan using the content from `references/plan-sections.md` and the format-specific principles from the rendering reference loaded at Phase 0.0 (`markdown-rendering.md` OR `html-rendering.md`).
 
