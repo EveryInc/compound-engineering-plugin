@@ -31,14 +31,14 @@ Once they have tried something and decided, work out which questions are still w
 
 If the supplied brainstorm or plan already records a settled visual-probe decision for this question (a display-only sketch the user already judged), do not rebuild that question.
 
-Before starting a preview, get a go-ahead. The point of that message is so they can redirect an expensive build, not so they can read a briefing. Stay high-level: what you will try, why, how it is split, and roughly how big the build is — they cannot redirect an expensive one they think is cheap. Add detail only when the split or an inference would otherwise be surprising. If you inferred from messy history, say so. Leave a way to name a different question. Wait for proceed or correction. Do not build until they proceed.
+Before starting a preview, get a go-ahead. The point of that message is so they can redirect an expensive build, not so they can read a briefing. Stay high-level: what you will try, why, and how it is split. Add detail only when the split or an inference would otherwise be surprising. If you inferred from messy history, say so. Leave a way to name a different question. Wait for proceed or correction. Do not build until they proceed.
 
 ## Narrow vs wide
 
 Classify the question before you build.
 
 - **Narrow** — a specific detail with a small similar set (this control vs that control, this placement, this transition). Put two or three close variants on one surface. Do not invent a wildly different mechanism.
-- **Wide** — the space is open (make this more fun to use, explore how this could work). Diverge first: name three to five distinct avenues — different mechanisms, not tweaks of one idea. The user picks, or you put a comparable subset on one surface. Then converge by using them. Do not start by building one idea as if it were the answer.
+- **Wide** — the space is open (make this more fun to use, explore how this could work). Diverge first: name three to five distinct avenues — different mechanisms, not tweaks of one idea. Give each one a plain line about what the user would see or do, not a coined name and a verdict on it; keep the detail for the ones they lean toward. The user picks, or you put a comparable subset on one surface. Then converge by using them. Do not start by building one idea as if it were the answer.
 
 If width is unclear, ask once whether this is a close comparison or an open exploration. Do not default to either.
 
