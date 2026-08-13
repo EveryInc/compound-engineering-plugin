@@ -351,13 +351,15 @@ Landed in `ddf0a46b`. The security persona's per-element rule, the adversarial p
 
 **Verification:** Net line count across `skills/ce-doc-review/` decreases. A search for the deleted tokens returns nothing.
 
-### U7. Update the consuming skill's envelope coupling — CONDITIONAL on U12
+### U7. Update the consuming skill's envelope coupling — CANCELLED
 
 **Goal:** Keep `ce-plan`'s handoff working if U12 changes the envelope.
 
 **Requirements:** R13.
 
 **Dependencies:** U12. Not required if U12 is cancelled — Stage A and B preserve the envelope by KTD5.
+
+**Cancellation (2026-08-13):** U9 cancelled U12, so this consumer change is unnecessary. The existing envelope remains authoritative.
 
 **Files:** `skills/ce-plan/references/plan-handoff.md`, `skills/ce-plan/SKILL.md`
 
@@ -370,7 +372,7 @@ Landed in `ddf0a46b`. The security persona's per-element rule, the adversarial p
 
 **Verification:** `bun run test` passes, including the pipeline review contract tests.
 
-### U8. Build the evaluation corpus — PARTIALLY COMPLETE
+### U8. Build the evaluation corpus — COMPLETE
 
 **Goal:** Documents rich enough to produce the phenomenon, with a ground truth the plan's author does not hold.
 
@@ -396,7 +398,9 @@ Landed in `ddf0a46b`. The security persona's per-element rule, the adversarial p
 
 **Verification:** Running the current skill against the corpus reproduces documented behavior, establishing the pre-change baseline.
 
-### U9. Measure each stage
+**Completion (2026-08-13):** An independent harness authored three grounded plans (two Nugget, one compound-engineering), including one zero-duplicate control. Together with the two reconstructed U1 organic pairs, the frozen corpus contains 25 findings across five scenarios. Structural ranges, provenance, body-leak checks, manifest integrity, real-path grounding, and frozen-finding parity passed. Hidden manifests remain outside this repository.
+
+### U9. Measure each stage — COMPLETE
 
 **Goal:** Establish whether Stage A and B cut the load enough, and whether the matcher wrongly merges.
 
@@ -430,6 +434,8 @@ Landed in `ddf0a46b`. The security persona's per-element rule, the adversarial p
 - Both hosts are covered and reported separately.
 
 **Verification:** A written record states per-cell trial counts, variance, merge recall and precision, decision load before and after, and an explicit cancel-or-build verdict for U12.
+
+**Verdict (2026-08-13):** **Cancel U12 and U7.** The expanded blind run contains 52 immutable attempts (47 accepted, 5 baseline invariant failures). The new arm made zero wrong merges across 24 accepted attempts. Claude Opus/new and Codex Luna/new achieved 100% merge recall and precision with 5-8 remaining choices. No host/model's mean load reduction exceeded its maximum within-arm spread, so the load-reduction gate is not claimed as passed. Haiku/Sol instability is weaker-model routing and instruction-following work; decision clustering would not address it. See `docs/solutions/skill-design/dedup-and-obligation-eval-results.md`.
 
 ### U10. Update the mechanical guards
 
@@ -479,13 +485,15 @@ Landed in `ddf0a46b`. The security persona's per-element rule, the adversarial p
 
 **Verification:** No captured learning contradicts shipped behavior.
 
-### U12. Decision clustering and the presentation unit — CONDITIONAL on U9
+### U12. Decision clustering and the presentation unit — CANCELLED
 
 **Goal:** If load remains too high after Stage A and B, group distinct findings by the question that resolves them and make that group the unit the user acts on.
 
 **Requirements:** R4.
 
 **Dependencies:** U9's verdict. **Not built unless U9 shows the remaining load is still too high.**
+
+**Cancellation (2026-08-13):** U9 did not establish excess residual decision load beyond variance. Reliable new-arm cells were fully precise and recall-complete with a bounded 5-8 choices; weaker cells exposed routing instability rather than a missing clustering layer. Do not build this unit.
 
 **Files:** `skills/ce-doc-review/references/synthesis-and-presentation.md`, `references/rendering-floor.md`, `references/walkthrough.md`, `references/bulk-preview.md`, `references/open-questions-defer.md`, `references/decision-primer.md`, `SKILL.md`
 
