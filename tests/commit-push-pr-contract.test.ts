@@ -324,11 +324,25 @@ describe("PR concept teaching contract", () => {
   })
 
   test("opt-in stack mode constructs or submits a stack and hands off with posture", async () => {
-    const [skill, submit] = await Promise.all([
+    const [skill, submit, cli] = await Promise.all([
       readRepoFile("skills/ce-commit-push-pr/SKILL.md"),
       readRepoFile("skills/ce-commit-push-pr/references/stack-submit.md"),
+      readRepoFile("skills/ce-commit-push-pr/references/gh-stack-cli.md"),
     ])
 
+    expect(submit).toMatch(/named a parent PR or branch to stack on, classify it/i)
+    expect(submit).toContain("references/gh-stack-cli.md")
+    expect(submit).toMatch(/Classify by PR number.{0,140}pulls a stack down from GitHub/is)
+    expect(submit).toMatch(/Exit 0 means the parent is in a stack; exit 2 means standalone/i)
+    expect(submit).toMatch(/unproven.{0,120}residual, not a guess/is)
+    expect(submit).toMatch(/adopts branches that exist and creates the ones that do not/i)
+    expect(submit).toMatch(/stop with a residual on a name that fails/i)
+    expect(cli).toMatch(/gh stack version 0\.1\.0/i)
+    expect(cli).toMatch(/--help` is authoritative/i)
+    expect(cli).toMatch(/must run from the \*\*top\*\* branch.{0,120}exits \*\*5\*\*/is)
+    expect(cli).toMatch(/Existing branches are adopted;\s+missing ones are created/i)
+    expect(cli).toMatch(/gh stack link`\*\* — GitHub-only by design.{0,140}no local tracking/is)
+    expect(cli).toMatch(/gh pr merge`\*\* on a stack member/i)
     expect(skill).toContain("## Stack mode (opt-in)")
     expect(skill).toContain("**Do not** proactively suggest PR stacks")
     expect(skill).toMatch(/explicit stack request is \*\*required intent\*\*.{0,120}not re-read it as a single PR/is)
@@ -352,16 +366,7 @@ describe("PR concept teaching contract", () => {
     expect(submit).toMatch(/starts on the resolved default branch.+follow `references\/branch-creation\.md`/is)
     expect(submit).toMatch(/starts on an existing feature branch.+do not follow `references\/branch-creation\.md`/is)
     expect(submit).toMatch(/feature branch.+fetch the resolved base `<base>` from Topology.+verify the fetched remote-tracking tip/is)
-    expect(submit).toMatch(/named a parent PR or branch.+resolve the base before anything else/is)
-    expect(submit).toMatch(/\*\*Managed member\*\*.{0,200}Not `gh stack init`/is)
     expect(submit).toMatch(/stop with a residual on a name that fails/i)
-    expect(submit).toMatch(/ownership is unknown, which makes it \*\*not adoptable\*\*/i)
-    expect(submit).toContain('gh stack checkout "<parent-pr>"')
-    expect(submit).toMatch(/Topology decides only two things.{0,200}Retrospective construction's job/is)
-    expect(submit).toMatch(/cross-repository \(fork\) parent.{0,120}headRefOid/is)
-    expect(submit).toMatch(/not `gh stack link` \(GitHub-only by design.{0,120}no local tracking/is)
-    expect(submit).toContain('gh stack init --base "<parent-branch>" "<bottom-branch>"')
-    expect(submit).toMatch(/That tip is `<base>` for every construction path.{0,160}branch-creation\.md` roots on the repo default/is)
     expect(submit).toMatch(/did not ask for a stack in this request.{0,80}standing preference alone is not asking/is)
     expect(submit).toMatch(/refuse the stack.{0,80}explicit request is not refusable/is)
     expect(submit).toMatch(/original tip.+recovery (ref|branch)/is)
