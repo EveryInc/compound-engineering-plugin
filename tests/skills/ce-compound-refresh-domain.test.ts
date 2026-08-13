@@ -86,9 +86,24 @@ describe("migration reference stage order", () => {
     expect(MIGRATION).toContain("It must report zero findings.")
   })
 
-  test("deletion names both preconditions", () => {
+  test("deletion names all three preconditions", () => {
     expect(MIGRATION).toContain("every reference to them has been updated")
+    expect(MIGRATION).toContain(
+      "every non-lexical block has been written to its approved destination or explicitly dropped",
+    )
     expect(MIGRATION).toContain("the user has reviewed the diff")
+  })
+
+  test("non-lexical content has an arbitrated destination manifest", () => {
+    // Without these, the deletion step destroys everything in a legacy file
+    // that is not a term/alias/relation/invariant -- the content a real
+    // CONTEXT.md mostly consists of.
+    expect(MIGRATION).toContain("non-lexical blocks")
+    expect(MIGRATION).toContain("sibling `DOMAIN.md`")
+    expect(MIGRATION).toContain("it never defines a term")
+    expect(MIGRATION).toContain("Future truth never enters `DOMAIN.md` as current truth.")
+    expect(MIGRATION).toContain("a justified drop")
+    expect(MIGRATION).toContain("never discards non-lexical legacy content silently")
   })
 
   test("headless stops at the dry-run report", () => {
