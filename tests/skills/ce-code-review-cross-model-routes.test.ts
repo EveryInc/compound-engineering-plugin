@@ -103,7 +103,8 @@ function sandbox(
   providers: string[],
   stubBody = "#!/bin/sh\nexit 0\n",
 ): { bin: string; env: NodeJS.ProcessEnv } {
-  const bin = path.join(mkTempRoot("xmodel-cr-sandbox-"), "bin")
+  const root = mkTempRoot("xmodel-cr-sandbox-")
+  const bin = path.join(root, "bin")
   mkdirSync(bin, { recursive: true })
   for (const [tool, real] of realToolPaths()) {
     if (existsSync(path.join(bin, tool))) continue
@@ -115,10 +116,25 @@ function sandbox(
   }
   for (const p of providers) {
     const f = path.join(bin, p)
-    writeFileSync(f, stubBody)
+    const body = p === "claude"
+      ? `#!/bin/sh
+if [ "\${1:-}" = auth ] && [ "\${2:-}" = status ]; then
+  printf '%s' '{"loggedIn":true}'
+  exit 0
+fi
+${stubBody.replace(/^#![^\n]*\n/, "")}`
+      : stubBody
+    writeFileSync(f, body)
     chmodSync(f, 0o755)
   }
-  return { bin, env: { ...process.env, PATH: bin } }
+  return {
+    bin,
+    env: {
+      ...process.env,
+      PATH: bin,
+      CROSS_MODEL_ROUTE_HEALTH_ROOT: path.join(root, "route-health"),
+    },
+  }
 }
 
 function makeRunDir(): string {
@@ -425,6 +441,36 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
 })
 
 describe("cross-model-adversarial-review provider selection", () => {
+  test("dry-run route resolution reads health without creating persistent state", () => {
+    const { env } = sandbox(["claude"])
+    const healthRoot = env.CROSS_MODEL_ROUTE_HEALTH_ROOT!
+    const runDir = makeRunDir()
+    const result = run(["codex", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_DRY_RUN: "1",
+    })
+    expect(result.stdout).toContain("RESOLVED_PEERS: claude")
+    expect(existsSync(healthRoot)).toBe(false)
+  })
+
+  test("Claude authentication is checked before any review payload is sent", () => {
+    const invoked = path.join(mkTempRoot("xmodel-cr-auth-invoked-"), "marker")
+    const { bin, env } = sandbox(["claude"])
+    writeFileSync(path.join(bin, "claude"), `#!/bin/sh
+if [ "\${1:-}" = auth ] && [ "\${2:-}" = status ]; then
+  printf '%s' '{"loggedIn":false}'
+  exit 0
+fi
+: > '${invoked}'
+`)
+    chmodSync(path.join(bin, "claude"), 0o755)
+    const runDir = makeRunDir()
+    const result = run(["codex", "claude", "HEAD", runDir], runDir, env)
+    expect(result.stderr).toContain("execution-context authentication preflight failed")
+    expect(existsSync(invoked)).toBe(false)
+    expect(result.files).not.toContain("adversarial-claude.json")
+  })
+
   test("default order excludes the host and picks the first available peer", () => {
     const all = ["codex", "claude", "grok", "cursor-agent"]
     expect(resolvePeers("claude", "codex,claude,grok,composer", all)).toBe("codex")
@@ -577,6 +623,78 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
     const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
     expect(r.stderr).toContain("Not logged in")
     expect(r.stderr).toContain("terminal_reason=api_error")
+    expect(r.stderr).toContain("route 'claude' failure class: execution_context_auth")
+  })
+
+  test("a learned Claude session quota blocks the next review before payload packaging", () => {
+    const invoked = path.join(mkTempRoot("xmodel-cr-quota-invoked-"), "marker")
+    const observedAt = Math.floor(new Date("2026-08-07T15:00:00-04:00").getTime() / 1000)
+    const beforeReset = Math.floor(new Date("2026-08-07T15:30:00-04:00").getTime() / 1000)
+    const afterReset = Math.floor(new Date("2026-08-07T15:51:01-04:00").getTime() / 1000)
+    const payload = JSON.stringify({
+      result: "You've hit your session limit · resets 3:50pm (America/New_York)",
+      api_error_status: 429,
+      terminal_reason: "api_error",
+    })
+    const { env } = sandbox(
+      ["claude"],
+      `#!/bin/sh\nprintf 'x\n' >> '${invoked}'\ncat >/dev/null\nprintf '%s' '${payload.replace(/'/g, `'\\''`)}'\nexit 1\n`,
+    )
+    const firstDir = makeRunDir()
+    const first = run(["codex", "claude", "HEAD", firstDir], firstDir, {
+      ...env,
+      CROSS_MODEL_ROUTE_HEALTH_NOW_EPOCH: String(observedAt),
+    })
+    expect(first.stderr).toContain("failure class: session_quota")
+    expect(first.stderr).toContain("session-quota circuit opened")
+    const stateText = readFileSync(
+      path.join(env.CROSS_MODEL_ROUTE_HEALTH_ROOT!, "state.json"),
+      "utf8",
+    )
+    const state = JSON.parse(stateText)
+    expect(state.routes.claude.failure_class).toBe("session_quota")
+    expect(state.routes.claude.retry_after_epoch).toBe(
+      Math.floor(new Date("2026-08-07T15:51:00-04:00").getTime() / 1000),
+    )
+    expect(stateText).not.toContain("session limit")
+
+    const secondDir = makeRunDir()
+    const second = run(["codex", "claude", "HEAD", secondDir], secondDir, {
+      ...env,
+      CROSS_MODEL_ROUTE_HEALTH_NOW_EPOCH: String(beforeReset),
+    })
+    expect(second.stderr).toContain("skipping before review payload packaging")
+    expect(readFileSync(invoked, "utf8").trim().split("\n")).toHaveLength(1)
+    expect(second.files).not.toContain("adversarial-claude.json")
+
+    const afterResetDir = makeRunDir()
+    run(["codex", "claude", "HEAD", afterResetDir], afterResetDir, {
+      ...env,
+      CROSS_MODEL_ROUTE_HEALTH_NOW_EPOCH: String(afterReset),
+    })
+    expect(readFileSync(invoked, "utf8").trim().split("\n")).toHaveLength(2)
+  })
+
+  test("a transient 429 is classified but does not open the session-quota circuit", () => {
+    const invoked = path.join(mkTempRoot("xmodel-cr-rate-invoked-"), "marker")
+    const payload = JSON.stringify({
+      result: "Rate limit exceeded; retry shortly",
+      api_error_status: 429,
+      terminal_reason: "api_error",
+    })
+    const { env } = sandbox(
+      ["claude"],
+      `#!/bin/sh\nprintf 'x\n' >> '${invoked}'\ncat >/dev/null\nprintf '%s' '${payload}'\nexit 1\n`,
+    )
+    for (const now of ["2000", "2001"]) {
+      const runDir = makeRunDir()
+      const result = run(["codex", "claude", "HEAD", runDir], runDir, {
+        ...env,
+        CROSS_MODEL_ROUTE_HEALTH_NOW_EPOCH: now,
+      })
+      expect(result.stderr).toContain("failure class: transient_rate_limit")
+    }
+    expect(readFileSync(invoked, "utf8").trim().split("\n")).toHaveLength(2)
   })
 
   test("ancillary structured fields do not hide an unrecognized human-readable diagnostic", () => {

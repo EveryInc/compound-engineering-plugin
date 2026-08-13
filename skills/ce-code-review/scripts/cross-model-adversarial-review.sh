@@ -311,10 +311,45 @@ esac
 SKILL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || skip "cannot resolve skill root; skipping"
 PERSONA="$SKILL_ROOT/references/personas/adversarial-reviewer.md"
 SCHEMA="$SKILL_ROOT/references/findings-schema.json"
+ROUTE_HEALTH="$SKILL_ROOT/scripts/peer-route-health.py"
 [ -f "$PERSONA" ] || skip "persona brief not found at $PERSONA; skipping"
 [ -f "$SCHEMA" ]  || skip "findings schema not found at $SCHEMA; skipping"
+[ -f "$ROUTE_HEALTH" ] || skip "route-health helper not found at $ROUTE_HEALTH; skipping"
 SCHEMA_CONTENT="$(cat "$SCHEMA")" || skip "cannot read findings schema; skipping"
 SCHEMA_REF="$SCHEMA_CONTENT"
+
+PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
+[ -n "$PY" ] || skip "no working Python 3 interpreter on PATH; skipping"
+
+route_preflight_available() {
+  local route="$1" status
+  $PY "$ROUTE_HEALTH" preflight --route "$route" >/dev/null
+  status=$?
+  if [ "$status" -eq 0 ]; then
+    return 0
+  fi
+  if [ "$status" -eq 3 ]; then
+    log "route '$route' is unavailable until its recorded session-quota reset; skipping before review payload packaging"
+  else
+    log "route '$route' health or authentication state could not be verified; skipping before review payload packaging"
+  fi
+  return 1
+}
+
+record_route_failure() {
+  local route="$1" receipt class opened
+  shift
+  [ "$route" = "claude" ] || return 0
+  receipt="$($PY "$ROUTE_HEALTH" record --route "$route" \
+    --evidence-file "$1" --evidence-file "$2" 2>/dev/null)" || {
+    log "route '$route' failure class could not be persisted"
+    return 0
+  }
+  class="$(printf '%s' "$receipt" | jq -r '.failure_class // "other"' 2>/dev/null)"
+  opened="$(printf '%s' "$receipt" | jq -r '.circuit_opened // false' 2>/dev/null)"
+  log "route '$route' failure class: $class"
+  [ "$opened" = true ] && log "route '$route' session-quota circuit opened until its recorded reset"
+}
 
 # --- derive repo root (read-only in-tree review) ---------------------------
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || skip "not inside a git repository; skipping"
@@ -341,7 +376,7 @@ cursor_egress_ok() { [ -z "$ALLOW" ] || in_csv cursor "$ALLOW" || in_csv compose
 provider_available() {
   case "$1" in
     codex)    command -v codex >/dev/null 2>&1 ;;
-    claude)   command -v claude >/dev/null 2>&1 ;;
+    claude)   command -v claude >/dev/null 2>&1 && route_preflight_available claude ;;
     grok)     command -v grok >/dev/null 2>&1 || { cursor_egress_ok && command -v cursor-agent >/dev/null 2>&1; } ;;
     cursor)   command -v cursor-agent >/dev/null 2>&1 ;;
     composer) command -v cursor-agent >/dev/null 2>&1 ;;
@@ -855,6 +890,9 @@ run_provider() {
   fi
   primary="$fixed"
   validate_model_override "$primary" || { log "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$primary'; skipping"; rm -f "$OUT"; return 0; }
+  # A concurrent review may have learned that this route is exhausted after
+  # discovery. Re-check immediately before prompt composition / provider egress.
+  route_preflight_available "$primary" || { rm -f "$OUT"; return 0; }
   ACTUAL_ROUTE="$primary"
   attempt_route "$provider" "$primary"
 
@@ -908,6 +946,7 @@ run_provider() {
     log "wrote $n finding(s) to $OUT (reviewer adversarial-$provider)"
   else
     log "provider $provider produced no usable schema-shaped output; skipping fold-in"
+    record_route_failure "$ACTUAL_ROUTE" "$PEERLOG" "$PEERERR"
     # Surface bounded peer output so the orchestrator can
     # reason about WHY it was skipped (quota/usage-limit exhaustion vs an ordinary
     # empty review) and, in a repeated-pass session, deprioritize an exhausted
