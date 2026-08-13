@@ -92,7 +92,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
 
    **Ship-handoff gate.** Before loading `ce-commit-push-pr` or `ce-commit`, confirm the Phase 3 code-review completion gate is satisfied (completed review receipt **or** exact skip / harness-native-fallback phrase). If neither is present, stop and run step 3 (or write the legitimate skip) — do not push "and review later." Pass the receipt summary (`status: complete` + `artifact_path`/`run_id`) or the skip phrase into the shipping summary and PR-description context the same way Known Residuals already travel.
 
-   Load the `ce-commit-push-pr` skill with `branding:on` to handle committing, pushing, and PR creation. This explicit signal records that the Compound Engineering workflow produced the work; the skill handles convention detection, branch safety, logical commit splitting, adaptive PR descriptions, and PR attribution.
+   Load the `ce-commit-push-pr` skill with `branding:on` to handle committing, pushing, and PR creation. This explicit signal records that the Compound Engineering workflow produced the work; the skill handles convention detection, branch safety, logical commit splitting, adaptive PR descriptions, and PR attribution. If the session already stated shipping topology — a PR stack, and any parent PR or branch to stack on — pass it on that invocation.
 
    When providing context for the PR description, include:
    - The plan's summary and key decisions
