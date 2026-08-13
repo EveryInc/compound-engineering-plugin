@@ -200,25 +200,27 @@ a weaker per-surface rule; the floor is authoritative.
 
 **User-facing vocabulary rule (applies to ALL user-visible output in Phase 4, not just the rendered template).** Internal enum values — `safe_auto`, `gated_auto`, `manual`, `FYI` — stay inside the schema and synthesis prose. Every word the user sees in Phase 4 output, including free-text narration between sections, transition preambles, status lines, and confirmation messages, MUST use user-facing vocabulary: "fixes" (for `safe_auto`), "proposed fixes" (for `gated_auto`), "decisions" (for `manual` findings at anchor `75` or `100`), "FYI observations" (for any finding at anchor `50`). The only exception is the `Tier` column in rendered tables, which is explicitly documented as surfacing the internal enum for transparency. Do NOT emit narration like "safe_auto fixes applied" or "N safe_auto findings" — write "fixes applied" or "N fixes" instead.
 
-### Apply safe_auto fixes
+### Apply the findings 3.7 routed to Apply
 
-Apply only `safe_auto` findings **at confidence anchor `100`** to the document in a single pass. This matches the 3.7 routing table: anchor `100` + `safe_auto` silent-applies; anchor `75` + `safe_auto` was demoted to `gated_auto` in 3.7 and enters the walk-through instead; anchor `50` + any `autofix_class` routes to FYI and must never auto-apply.
+Apply, in a single pass, every finding 3.7 routed to Apply — **anchor `100` with `safe_auto` or `gated_auto`**. Both apply for the same reason: evidence directly confirms the problem, and the classification asserts no genuine alternative to the remedy, so there is nothing to ask.
 
 - Edit the document inline using the platform's edit tool
-- Track what was changed for the "Applied fixes" section in the rendered output (`safe_auto` is the internal enum; the rendered section header reads "Applied fixes")
-- Do not ask for approval — these have one clear correct fix AND evidence directly confirms (anchor `100`)
-- Do NOT silent-apply any `safe_auto` finding at anchor `75` or `50`. If a finding reaches this step with `autofix_class: safe_auto` and anchor below `100`, the 3.7 routing rule was not applied correctly; re-run 3.7 for that finding before continuing.
+- Track what was changed for the "Applied changes" section in the rendered output
+- Do not ask for approval — 3.7 already established there is no choice to offer
+- Do **not** apply anything 3.7 routed elsewhere. Anchor `75` findings join the grouped confirmation; anchor `50` routes to FYI; `manual` at any anchor is a decision. If a finding reaches this step from any of those routes, 3.7 was not applied correctly — re-run it for that finding before continuing.
+- Do **not** apply a finding whose only reviewers are cross-model peers, at any anchor or class. 3.7 sends those to the grouped confirmation regardless of classification.
 - An applied fix must never remove or reword a `session-settled:` annotation. If a `suggested_fix`'s text would touch one, demote the finding to `gated_auto` so the user confirms.
 
 List every applied fix in the output summary so the user can see what changed. Use enough detail to convey the substance of each fix (section, what was changed, reviewer attribution). This is especially important for fixes that add content or touch document meaning — the user should not have to diff the document to understand what the review did.
 
 ### Route Remaining Findings
 
-After safe_auto fixes apply, remaining findings split into buckets:
+After the applied changes land, the rest split by the route 3.7 assigned — not by `autofix_class`:
 
-- `gated_auto` and `manual` findings at confidence anchor `75` or `100` → enter the routing question (see Unit 5 / `references/walkthrough.md`)
-- FYI-subsection findings → surface in the presentation only, no routing
-- Zero actionable findings remaining → skip the routing question; flow directly to Phase 5 terminal question
+- **Grouped confirmation** — obligations, plus anchor `75` `safe_auto` and `gated_auto` findings, plus any peer-only finding. One confirmation covering the batch, rendered in full first.
+- **Decisions** — `manual` findings at anchor `75` or `100`. These enter the routing question and the walk-through (see `references/walkthrough.md`), and carry a which-remedy sub-question when more than one viable remedy exists.
+- **FYI** — anchor `50`, presentation only, no routing.
+- **Nothing in either actionable bucket** → skip the routing question; flow directly to the Phase 5 terminal question. Applied changes alone do not warrant a routing question; report them and move on.
 
 **Self-contained rendered lines (both modes, including the Applied-fixes list).** Every rendered line —
 an applied fix, proposed fix, decision, FYI observation, residual concern, or deferred question —

@@ -28,9 +28,15 @@ depth, and every distinct consequence, qualification, or required action.
 
 ## Decision-first field order
 
-Every actionable finding carries these fields, and each surface makes them decision-first in its own
-idiom rather than reproducing the exact label sequence. The invariant both share: the **consequence is
-legible up front with no opaque token**, and the **recommendation is unmistakably marked**. Concretely:
+**Scope: this applies to a finding the reader is being asked about — a decision, or a member of a
+grouped confirmation. It does not apply to a reported change**, which carries no recommendation because
+there is nothing to recommend; see "Reporting versus asking" below, which governs that case and wins
+where the two appear to conflict.
+
+Every finding the reader is asked about carries these fields, and each surface makes them decision-first
+in its own idiom rather than reproducing the exact label sequence. The invariant both share: the
+**consequence is legible up front with no opaque token**, and the **recommendation is unmistakably
+marked**. Concretely:
 the **non-interactive envelope** prints them as explicit labeled lines; the **walkthrough block** leads with a
 consequence-phrased title, then What's-wrong / Proposed-fix / If-left-as-is, and marks the recommendation
 on its question options; the **walkthrough question string** duplicates those three compact fields so a
