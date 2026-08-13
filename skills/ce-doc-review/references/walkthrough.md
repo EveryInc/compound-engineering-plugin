@@ -157,6 +157,23 @@ D. Auto-resolve with best judgment on the rest
 
 When reviewers disagreed or evidence cuts against the default, still mark one option — whichever synthesis produced — and surface the disagreement in the conflict-context line.
 
+### Remedy sub-question (fires before the regular menu)
+
+Findings reaching the decision surface are `manual`, which the reviewer contract classifies precisely when genuinely different approaches exist. When synthesis carries more than one viable remedy for such a finding, ask which one **before** the regular menu, rather than presenting one remedy as though it were the only one.
+
+This is a sub-question in the same sense as the no-fix `Acknowledge` sub-question below: the four options above remain the complete, exclusive set for the regular per-finding question, and this fires ahead of it.
+
+```
+This problem is settled; the remedy is not. Which do you want?
+
+A. <first remedy, one line of what it commits to>
+B. <second remedy, one line of what it commits to>
+```
+
+Name what *differs* between the options, not what they share — the reader already accepted the problem. Carry the answer into the regular menu as "the proposed fix," then run A-D as normal, so Defer and Skip stay reachable after a remedy is chosen.
+
+Do not fire this sub-question with a single option. One option means there is nothing to choose, which makes it a report rather than a question — route the finding by the ordinary table instead.
+
 ### Adaptations
 
 - **N=1 (exactly one pending finding):** the terminal block's heading omits `Finding N of M` and renders as `## {severity} {plain-English title}`. The question string's first line drops the position counter, becoming `{severity} {short handle}.` The three compact decision-field lines and the action-framing line remain. Option D (`Auto-resolve with best judgment on the rest`) is suppressed because no subsequent findings exist — the menu shows three options: Apply / Defer / Skip.

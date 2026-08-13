@@ -147,17 +147,25 @@ Route obligations to the implementation unit they affect instead of the per-find
 
 Obligation grouping governs what the user is asked about, never what applies silently. An obligation at anchor `100` with `autofix_class: safe_auto` still applies silently under the table below.
 
+**Every finding carries two claims, and they have independent entropy.** The *problem-claim* — this is wrong — is scored by the confidence anchor. The *remedy-claim* — fix it this way — is scored by `autofix_class`, because the rubric in `references/subagent-template.md` classifies `manual` precisely when genuinely different approaches exist and `gated_auto` when the only alternatives are strawmen. So `gated_auto` already asserts that no real alternative exists.
+
+Route on the pair. **Do not prompt on a finding whose own classification says there is nothing to choose between** — a confirmation whose answer is foreseeable carries no information, and a review full of them teaches the reader to accept without reading, which is what destroys the confirmations that matter.
+
 | Anchor | Autofix Class | Route |
 |--------|---------------|-------|
-| `100`  | `safe_auto`   | Apply silently in Phase 4. Requires `suggested_fix`. Demote to `gated_auto` if missing. |
-| `100`  | `gated_auto`  | Enter the per-finding walk-through with Apply marked (recommended). Requires `suggested_fix`. Demote to `manual` if missing. |
-| `100`  | `manual`      | Enter the per-finding walk-through with user-judgment framing. `suggested_fix` is optional. |
-| `75`   | `safe_auto`   | Demote to `gated_auto` before routing — silent apply is reserved for anchor `100` findings where evidence directly confirms the fix. Enter the walk-through with Apply marked (recommended). |
-| `75`   | `gated_auto`  | Enter the per-finding walk-through with Apply marked (recommended). Requires `suggested_fix`. Demote to `manual` if missing. |
-| `75`   | `manual`      | Enter the per-finding walk-through with user-judgment framing. `suggested_fix` is optional. |
-| `50`   | any           | Surface in the FYI subsection regardless of `autofix_class`. Do not enter the walk-through or any bulk action. These are observations, not decisions. |
+| `100`  | `safe_auto`   | Apply. Report in the change list. Requires `suggested_fix`; demote to `gated_auto` if missing. |
+| `100`  | `gated_auto`  | Apply. Report in the change list. The problem is confirmed and no genuine alternative exists, so there is nothing to ask. Requires `suggested_fix`; demote to `manual` if missing. |
+| `100`  | `manual`      | A decision — real alternatives exist. Ask **which remedy**, not whether to proceed. |
+| `75`   | `safe_auto`   | Join the grouped confirmation with obligations. The problem is well-evidenced rather than confirmed, so one batch confirmation is proportionate; a per-finding prompt is not. |
+| `75`   | `gated_auto`  | Same grouped confirmation. Requires `suggested_fix`; demote to `manual` if missing. |
+| `75`   | `manual`      | A decision. Ask **which remedy**. |
+| `50`   | any           | Surface in the FYI subsection regardless of `autofix_class`. Do not enter the decision surface or any batch action. These are observations. |
 
-**Cross-model peer safeguard.** If a finding reaching this step is `safe_auto` but its only reviewers are cross-model peers (a `<lens>-<provider>` name with no in-process co-reviewer), demote it to `gated_auto` before routing — a peer cannot authorize a silent apply on its own (R18). This backstops 3.6's peer cap for any peer finding that arrived already classified `safe_auto`.
+That yields three surfaces, and each is a different speech act: **applied** (reported, revertable), **grouped confirmation** (one question covering a batch shown in full first), and **decisions** (genuine forks). Render them per the shared floor's grammar so a reader can tell which is which without tracking headers.
+
+**Cross-model peer safeguard.** A finding whose only reviewers are cross-model peers (a `<lens>-<provider>` name with no in-process co-reviewer) **never routes to Apply**, at any anchor or class. Send it to the grouped confirmation instead. A peer cannot authorize an unattended edit on its own (R18). Note that demoting its `autofix_class` no longer accomplishes this — `gated_auto` now applies too — so this rule targets the route directly rather than the class.
+
+**Misclassification guard.** A concrete `suggested_fix` never outranks a real alternative. If a finding classed `gated_auto` would let a competent author reasonably prefer a different remedy, it is `manual` and belongs in the decision surface — reclassify it here rather than applying it. This is the failure that puts scope and behaviour changes into an unattended path, so when the two readings are close, prefer `manual`.
 
 **Auto-eligible patterns for safe_auto:** summary/detail mismatch (body authoritative over overview), wrong counts, missing list entries derivable from elsewhere in the document, stale internal cross-references, terminology drift, prose-vs-diagram inconsistency where the diagram can be mechanically updated to match the prose (deletion is never the fix — diagrams are intentional communication choices that aid spatial comprehension, not redundancy with prose), missing steps mechanically implied by other content, unstated thresholds implied by surrounding context.
 

@@ -81,6 +81,8 @@ Rules:
 
 - **Strawman-aware classification rule.** When listing alternatives to the primary fix, count only alternatives a competent implementer would genuinely weigh. A "do nothing / accept the defect" option is NOT a real alternative — it is the failure state the finding describes. The same applies to framings like "document in release notes," "accept drift," or "defer to later" when they sidestep the actual problem rather than solving it. If the only alternatives to the primary fix are strawmen (the problem persists under them), the finding is `safe_auto` or `gated_auto`, not `manual`.
 
+  **The converse now carries real weight, so apply it honestly.** If a competent author could reasonably prefer a different remedy, the finding is `manual` — and **the presence of a concrete `suggested_fix` never outranks the presence of a real alternative.** Synthesis applies `gated_auto` findings without asking, precisely because your classification asserts there is nothing to choose between. Classifying a genuine fork as `gated_auto` because you happen to have a fix for it puts a scope or behaviour change onto an unattended path. When the two readings are close, choose `manual`.
+
   Positive example: "Cache key collision causes stale reads. Fix: include user-id in the cache key. Alternative: never cache this data." → The alternative (disable caching) is a legitimate design choice with real tradeoffs — `manual`.
 
   Negative example: "Silent read-side failure on renamed config files. Fix: read new name, fall back to old with deprecation warning. Alternative: accept drift and document in release notes." → The alternative does not solve the problem; users on mid-flight runs still hit the failure. Treat as `gated_auto` with the concrete fix.

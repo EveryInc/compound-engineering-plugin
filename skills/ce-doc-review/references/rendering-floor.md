@@ -56,6 +56,22 @@ the four field labels verbatim.
    Moving this cost onto the reader, who has less context than the review did, is the failure this
    floor exists to prevent.
 
+## Reporting versus asking
+
+Three surfaces exist and they are different speech acts. A reader must be able to tell them apart at a
+glance, without tracking which header they scrolled past. Give each its own grammar:
+
+- **A report** — a change already applied. Settled tense, no recommendation field, no offered actions.
+  The reader's job is to notice, and to revert if they disagree. Never phrase a report as a question.
+- **A grouped confirmation** — a batch that applies on one answer. Render every member in full *before*
+  the question; a confirmation with nothing visible above it is a rubber stamp, not a decision.
+- **A question** — a genuine fork. Carries its options and names what differs between them. **A question
+  offering one option is a report wearing a question mark**; if there is only one thing to do, report it.
+
+The summary line follows the same split: count changes made and choices requested separately, and never
+describe an item as awaiting the reader when none is. "N proposed fixes remain" beside "no decisions
+requiring judgment" is the contradiction this rule exists to prevent.
+
 ## Obligation blocks
 
 An **obligation** (synthesis step 3.7) is a correction the reviewed document already entails. It carries
