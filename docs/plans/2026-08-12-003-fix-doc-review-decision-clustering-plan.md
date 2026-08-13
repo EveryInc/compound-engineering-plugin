@@ -526,7 +526,17 @@ The verdict was reached before U14 existed and did not read the post-U14 re-meas
 - `skills/ce-doc-review/references/rendering-floor.md`
 - `skills/ce-doc-review/references/review-output-template.md`
 
-**The evidence.** A real run on a plan in a sibling worktree returned 31 findings and reported, in its own summary line, **"No decisions requiring judgment"** — then surfaced 11 items for confirmation. Judged against "would the author realistically decline," roughly four had a genuine fork (a cost gate that could defensibly go either way, a requirement assuming a capability no host provides, an unresolved sequencing collision, an open gap). The rest were corrections the document had already decided and not caught up with — including one the plan itself cited as a known measured failure.
+**The evidence.** A real run on a plan in a sibling worktree returned 31 findings and reported, in its own summary line, **"No decisions requiring judgment"** — then surfaced 11 items for confirmation.
+
+The user challenged the list. **The same agent, re-reading its own findings, answered: "9 of the 11 have no defensible 'no' — they're corrections, not choices. Two carry real product judgment."** It then applied all 11.
+
+Two things follow, and they are the whole unit.
+
+**The information was available at review time.** Nothing new was gathered between surfacing the 11 and concluding that 9 were not choices. The agent could already tell; the routing simply never asked it to. That is what makes this a routing defect rather than a judgment one.
+
+**The same run failed in both directions.** It *asked* about 9 items that had no defensible refusal, and then, when pushed, *decided* the 2 that carried real product judgment — R15 (how a mixed decision travels, which changed an acceptance example) and R10 (collapsing two gates into one predicate, by its own account "more than either reviewer asked for alone"). It disclosed both rather than burying them, which is honest, but it made the calls. So the current routing interrupts where there is nothing to choose and commits where there is.
+
+**Acceptance target:** that same document should surface **2 questions, not 11** — the two product forks, asked as which-remedy — with the other 9 applied and reported.
 
 **The contradiction this unit removes.** The reviewer contract already carries a strawman rule: *"If the only alternatives to the primary fix are strawmen, the finding is `safe_auto` or `gated_auto`, **not** `manual`."* And `manual` is defined as *"genuinely multiple valid approaches."* So `gated_auto` **already means "no genuine alternative exists."** The pipeline then routes it into a per-item Apply / Defer / Skip prompt — asking the author to choose between options the rubric has just asserted do not exist. The confirmation carries no information, and eleven of them per review teach the author to accept without reading, which is what destroys the confirmations that do matter.
 
@@ -570,7 +580,7 @@ The verdict was reached before U14 existed and did not read the post-U14 re-meas
 - The summary line counts changes made and choices requested separately, and never describes an item as awaiting the user when none is.
 - No rendered question offers a single option.
 
-**Verification:** Re-running the observed sibling-worktree plan surfaces roughly the four genuine forks rather than eleven confirmations, with no applied change that commits to product behavior the document had not already settled.
+**Verification:** Re-running the observed sibling-worktree plan surfaces the two product forks as which-remedy questions and applies the other nine as reported changes — matching the split the agent itself reached under challenge. No applied change commits to product behaviour the document had not already settled; in particular the two forks are asked, not decided and disclosed.
 
 ### U15. Check whether one weak cell is a route defect, and record the floor
 
