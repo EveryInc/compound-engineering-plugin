@@ -511,6 +511,8 @@ Landed in `ddf0a46b`. The security persona's per-element rule, the adversarial p
 - `skills/ce-doc-review/references/synthesis-and-presentation.md`
 - `skills/ce-doc-review/references/subagent-template.md`
 - `skills/ce-doc-review/references/walkthrough.md`
+- `skills/ce-doc-review/references/rendering-floor.md`
+- `skills/ce-doc-review/references/review-output-template.md`
 
 **The evidence.** A real run on a plan in a sibling worktree returned 31 findings and reported, in its own summary line, **"No decisions requiring judgment"** — then surfaced 11 items for confirmation. Judged against "would the author realistically decline," roughly four had a genuine fork (a cost gate that could defensibly go either way, a requirement assuming a capability no host provides, an unresolved sequencing collision, an open gap). The rest were corrections the document had already decided and not caught up with — including one the plan itself cited as a known measured failure.
 
@@ -534,6 +536,15 @@ Landed in `ddf0a46b`. The security persona's per-element rule, the adversarial p
 
 5. The review surface for applied changes is the change list, not a prompt — the pattern `safe_auto` already uses. Keep every applied change individually revertable and named in the output.
 
+6. **Separate the two speech acts in the rendering, not only in the routing.** Today "Proposed fixes" and "Decisions" render identically — both open with `Recommendation: <Apply | Defer | Skip>`, same fields, same order, distinguished only by a bucket header. A reader scanning the output cannot tell *"this is what I am doing"* from *"this is what I need from you"* without parsing which header they are under. The observed run's summary line states both at once — "11 proposed fixes remain" alongside "No decisions requiring judgment" — which is that ambiguity surfacing as a self-contradiction.
+
+   Give each speech act its own grammar in `references/rendering-floor.md`, which is the single source all surfaces map onto:
+
+   - **Reporting a change** — past or settled tense, no recommendation field, no action verbs offered. The reader's only job is to notice, and to revert if they disagree.
+   - **Asking for a choice** — carries the options, and names what differs between them. A question with one option is a report wearing a question mark.
+
+   The summary line follows the same split: count what changed and what is being asked separately, and never describe something as awaiting the user when nothing is.
+
 **Execution note:** This widens what applies without a prompt, which is the direction issue #506 asked for and the opposite of what the original 34-finding diagnosis feared. Both are right about different classes: #506 about findings with no alternative, the diagnosis about findings that quietly commit to product behavior. Step 3 is what keeps them apart — get it wrong and this becomes the unauthorized-apply defect wearing better clothes.
 
 **Test scenarios:**
@@ -543,6 +554,9 @@ Landed in `ddf0a46b`. The security persona's per-element rule, the adversarial p
 - A finding with a concrete `suggested_fix` **and** real alternatives classifies `manual`, not `gated_auto`.
 - Every change applied without a prompt is individually revertable and named.
 - A review reporting "no decisions requiring judgment" surfaces no confirmation prompts.
+- Reported changes and open questions are distinguishable at a glance, without reading which header they sit under: reports carry no recommendation field and no offered actions; questions carry options and say what differs between them.
+- The summary line counts changes made and choices requested separately, and never describes an item as awaiting the user when none is.
+- No rendered question offers a single option.
 
 **Verification:** Re-running the observed sibling-worktree plan surfaces roughly the four genuine forks rather than eleven confirmations, with no applied change that commits to product behavior the document had not already settled.
 
