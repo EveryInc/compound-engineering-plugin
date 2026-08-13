@@ -52,10 +52,10 @@ The methodology this project embodies: structure engineering work so each unit m
 The chained progression of Skills that carries a piece of work from strategy and ideation through brainstorm, plan, execution, and review, and closes by capturing what was learned. Each stage hands a durable artifact to the next, and research is gathered at the stage that needs it rather than re-gathered downstream.
 
 ### Visual probe
-A disposable, display-only decision sketch used during brainstorming for one shape, layout, or relationship question. The user looks at it and answers in chat. It is not a prototype, a spec, or something you click through to feel an interaction.
+A disposable, display-only decision sketch used during brainstorming for one shape, layout, or relationship question. The user looks at it and answers in chat. It is not a prototype or a spec: a decision a rough sketch cannot settle — anything turning on real finish or motion — goes to an experience prototype instead.
 
 ### Experience prototype
-A throwaway prototype of the product, built so a human can try it and decide how something should work or feel before that choice is encoded in a plan and code. How finished it gets follows the question being answered. What the user decided carries into whatever is built next. Distinct from a visual probe (inspection) and from polish (a feature that already works).
+A throwaway prototype of the product, built so a human can experience it — by driving it, or by seeing it at real finish — and decide how something should work, feel, or read before that choice is encoded in a plan and code. Modality, fidelity, and medium all follow one rule: do not fake the dimension being tested. Throwaway means unmaintained and unshipped rather than discarded — the artifact survives the run as a reference for what gets built next, alongside the decisions. Distinct from a visual probe (rough, one decision) and from polish (a feature that already works).
 
 ### Learning
 A documented solution to a past problem — a bug fix, a convention, or a workflow pattern — stored as the unit of compounded knowledge so future work can find and reuse it. Also called a solution doc. Carries structured metadata (category, tags, problem type) for retrieval; its creation date lives in the entry, not the filename.

@@ -82,7 +82,7 @@ A typical "let's brainstorm" with an AI also has shape problems: it asks five qu
 - **A background grounding scout** gathers verbatim repo evidence on a cheap model while you answer the opening questions
 - **2-3 concrete approaches** with tradeoffs, then a stated recommendation
 - **Opt-in visual probes** for decisions that are faster to judge as rough sketches than prose
-- **An optional `ce-prototype` offer** when committing an approach would encode behavior later work treats as given — not for routine existing-pattern UI, and not pinned to a phase
+- **An optional `ce-prototype` offer** when committing an approach would be expensive to unravel and neither talk nor a cheap sketch can settle it — a purely visual decision qualifies on the same terms as a behavioral one; not for routine UI or a visual choice that follows an existing token or pattern, and not pinned to a phase
 - **Synthesis Summary** as the last opportunity to correct scope before the doc lands
 - **Fresh-context claim verification** checks the doc's repo claims before it lands
 - **One coherent work unit per artifact** with a plain-language view of how separately planned work currently fits together
@@ -119,7 +119,7 @@ Phase 2 surfaces 2-3 concrete approaches with at least one **non-obvious angle**
 
 ### 5. Display-only visual probes when seeing beats reading
 
-When a decision is spatial, behavioral, or visual, `ce-brainstorm` can offer a choice: keep exploring in text, or create a rough local visual probe. Visual probes are disposable sketches for product feedback, not polished UI, implementation prototypes, or final specs. The artifact is display-only; the user responds in chat.
+When a decision is spatial, behavioral, or visual, `ce-brainstorm` can offer a choice: keep exploring in text, or create a rough local visual probe. Visual probes are disposable sketches for product feedback, not polished UI, implementation prototypes, or final specs. The artifact is display-only; the user responds in chat. A decision a rough sketch cannot settle — anything turning on real finish or motion — skips this tier and routes to `ce-prototype` instead, as does one a sketch was built for and failed to settle.
 
 ### 6. Synthesis Summary — the last cheap moment to correct
 

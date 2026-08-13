@@ -67,7 +67,7 @@ Invoked when a specific need arises — not part of any chain.
 |-------|-------------|
 | [`/ce-pov`](./ce-pov.md) | Form a decisive, project-grounded POV as an adoption verdict, holistic document take, or position on supplied approaches — optional named/`oracle` panel with a blind initial round, bounded evidence-based reconciliation, and a user-extensible checkpoint |
 | [`/ce-explain`](./ce-explain.md) | Turn a concept, a diff, an idea, or a window of your own recent work into a dense, self-contained visual document built to keep — evidence-grounded recaps, capability-detected destination ask, optional opt-in check-in (predict-then-reveal for diffs, corrected exercises) |
-| [`/ce-prototype`](./ce-prototype.md) | Build a throwaway prototype so someone can try how the product should work or feel, then write those decisions into an existing plan or continue into brainstorm or plan |
+| [`/ce-prototype`](./ce-prototype.md) | Build a throwaway prototype so someone can experience how the product should work, feel, or read, then write those decisions into an existing plan or continue into brainstorm or plan |
 | [`/ce-debug`](./ce-debug.md) | Find root causes systematically — causal chain gate, predictions, post-fix polish/review, PR handoff |
 | [`/ce-code-review`](./ce-code-review.md) | Structured code review with skill-local reviewer personas, confidence-gated findings, four modes |
 | [`/ce-doc-review`](./ce-doc-review.md) | Review requirements or plan documents using skill-local reviewer personas — coherence, feasibility, product-lens, design-lens, security-lens, scope-guardian, adversarial |

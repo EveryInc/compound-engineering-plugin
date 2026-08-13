@@ -1,10 +1,10 @@
 # `ce-prototype`
 
-> Build a throwaway prototype of the product so someone can try it and decide how it should work or feel, then write those decisions into an existing plan or continue into brainstorm or plan.
+> Build a throwaway prototype of the product so someone can experience it and decide how it should work, feel, or read, then write those decisions into an existing plan or continue into brainstorm or plan.
 
-`ce-prototype` is the **experience** skill. It grounds in the current repo and whatever conversation or artifact already exists, works out which questions can only be answered by using something, builds for the one that would be most expensive to get wrong, and keeps going until the user applies what they decided. `ce-brainstorm` offers it when committing an approach would be expensive to unravel. `ce-plan` offers it at handoff when a remaining question still has to be used, not inspected.
+`ce-prototype` is the **experience** skill. It grounds in the current repo and whatever conversation or artifact already exists, works out which questions only a real artifact can settle, builds for the one that would be most expensive to get wrong, and keeps going until the user applies what they decided. One rule governs the whole skill: **do not fake the dimension being tested** — a question about how a flow behaves is settled by driving it, a question about how a layout or a mark reads is settled by seeing it at real finish, and the user's own perception settles either. `ce-brainstorm` and `ce-plan` both offer it on the same test: committing the wrong answer would be expensive to unravel, and neither talk nor a cheap sketch can settle it.
 
-It sits between a display-only visual probe and late-stage polish: more real than a sketch, earlier than a working feature.
+It sits between a rough one-decision visual probe and late-stage polish: more real than a sketch, earlier than a working feature.
 
 ---
 
@@ -12,8 +12,8 @@ It sits between a display-only visual probe and late-stage polish: more real tha
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Works out which questions can only be answered by using something, builds a throwaway prototype, waits for the user to try it, then writes the decisions into an existing Product Contract or hands off to `ce-brainstorm` / `ce-plan` |
-| When to use it | A decision is expensive to unravel and has to be used, not inspected — how finished the prototype gets scales to that question |
+| What does it do? | Works out which questions only a real artifact can settle, builds a throwaway prototype at the fidelity that question needs, waits for the user to experience it, then writes the decisions into an existing Product Contract or hands off to `ce-brainstorm` / `ce-plan` |
+| When to use it | A decision is expensive to unravel and neither talk nor a cheap sketch can settle it — whether the user settles it by driving the artifact or by seeing it at real finish |
 | What it produces | Decisions in the existing plan, markdown or HTML, or a session handoff into brainstorm or plan. No new document type. |
 | What's next | `ce-plan` after write-back (the plan is `requirements-only` again), or `ce-brainstorm` / `ce-plan` after a file-free run |
 
@@ -36,17 +36,17 @@ It sits between a display-only visual probe and late-stage polish: more real tha
 
 ## The Problem
 
-Requirements and plans can name an outcome. They cannot say how something should work or feel until someone uses it — and settling that in conversation quietly commits a lot of behavior that later planning and code will treat as given. People already reach for a quick prototype by asking an agent to make one, then rewrite the requirements and the plan once they have decided. That rewrite is not the problem. What is missing is picking which question to build for, matching how finished the prototype gets to that question, a natural place to offer the step, and a write-back the other skills can pick up.
+Requirements and plans can name an outcome. They cannot say how something should work, feel, or read until someone experiences it — and settling that in conversation quietly commits a lot of behavior that later planning and code will treat as given. People already reach for a quick prototype by asking an agent to make one, then rewrite the requirements and the plan once they have decided. That rewrite is not the problem. What is missing is picking which question to build for, matching how finished the prototype gets to that question, a natural place to offer the step, and a write-back the other skills can pick up.
 
 ---
 
 ## The Solution
 
-`ce-prototype` grounds first, asks only when the question or the constraints are too thin, works out which questions have to be answered by using something, and builds for the one that would be most expensive to get wrong.
+`ce-prototype` grounds first, asks only when the question or the constraints are too thin, works out which questions only a real artifact can settle, and builds for the one that would be most expensive to get wrong.
 
 - Competing options sit on one surface, so they can be judged against each other.
 - After each action or change of option, the relevant state is visible, so you can see what changed.
-- It never marks a question answered on its own judgment — it waits for you to use the thing and choose.
+- It never marks a question answered on its own judgment — it waits for you to experience the thing and choose.
 - After you decide, it works out what is still worth building for, and says what changed before building the next one. A decision often answers a later question too, makes one pointless, or turns up one nobody had listed.
 - If what you decide changes what you want to build rather than answering the question, it stops and hands back what it learned instead of building on.
 - With nobody there to try the prototype — an unattended or pipeline run — it stops rather than inventing how something should feel.
@@ -59,11 +59,13 @@ Requirements and plans can name an outcome. They cannot say how something should
 
 ### Picking the question before building
 
-The skill names what still has to be decided by using it — or takes the question you named — and builds only for that. A visual-probe question you already judged is not rebuilt. It re-works that list after every decision rather than marching the one it started with, so the order follows what you have learned.
+The skill names what still has to be decided against a real artifact — or takes the question you named — and builds only for that. A visual-probe question you already judged is not rebuilt. It re-works that list after every decision rather than marching the one it started with, so the order follows what you have learned.
 
 ### How finished it gets matches the question
 
-How finished the prototype gets follows this question, not a setting for the session. Button placement stays cheap. A control you have to operate, motion, a transition, or a flow you move through gets rich enough to actually drive. Density or chrome on an existing page may need a throwaway overlay in the real app. The default is a scratch prototype — not the full product, and not a seed for production code.
+How finished the prototype gets follows this question, not a setting for the session. Throwaway constrains durability, not finish: it means unmaintained and unshipped, so nothing is tested, abstracted, or hardened past runnable, but finish goes as far as the dimension under test needs. Button placement stays cheap. A control you operate, motion, a transition, or a flow you move through gets rich enough to drive. A visual direction — a mark, a type system, a layout at real density — gets finished enough to judge, because rough would strip the thing being judged. Within one wide question, avenues can differ. Density or chrome on an existing page may need a throwaway overlay in the real app. The default is a scratch prototype — not the full product, and not a seed for production code — and it is left in place when the run ends, so the implementation that follows can read it alongside the decisions.
+
+The substrate defaults to the web whatever the product is written in: a native app's navigation feel gets a web approximation, not SwiftUI. That yields in two cases only — you name a technology, or the dimension under test cannot be rendered in a browser without faking it — and the skill says which it picked before building.
 
 A **narrow** question (this control vs that one) stays a close comparison of two or three variants. A **wide** question (make this more fun to use) names three to five genuinely different mechanisms first, then narrows by using them. The skill does not invent a wild alternative for a one-detail question, and it does not answer a wide question by building a single idea.
 
@@ -77,14 +79,14 @@ Decisions update the Product Contract in the plan you already have. They do not 
 
 Use `ce-prototype` when:
 
-- Committing an approach now would encode substantial behavior that later planning and code will treat as given.
-- You cannot decide how something should work or feel from a requirements doc, a plan, or a cheap sketch.
+- Committing an approach now would be expensive to unravel — later planning and code will treat it as given.
+- Neither talk nor a cheap sketch can settle it. A question turning on finish or motion is already past the sketch tier, because rough strips exactly those dimensions.
 - You want to compare competing options on one surface, or explore an open space — look, flow, or state — before picking.
-- One prototype answered its question and the next related question still has to be used to be decided.
+- One prototype answered its question and the next related question still needs an artifact to be decided.
 
 Skip it when:
 
-- The question is a display-only shape decision during brainstorm → visual probes
+- A rough one-decision sketch can settle the question during brainstorm, or the decision is cheap to reverse however visual it is → visual probes
 - The feature already works and you are refining it → `/ce-polish`
 - You are ready to implement → `/ce-plan` then `/ce-work`
 

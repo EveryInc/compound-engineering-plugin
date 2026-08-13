@@ -241,7 +241,7 @@ The `compound-engineering` plugin currently ships 33 skills. Its core workflows 
 | [`/ce-setup`](docs/skills/ce-setup.md) | Diagnose optional tool capabilities and create repo `config.yaml` |
 | [`/ce-handoff`](docs/skills/ce-handoff.md) | Create a session handoff at the default temp store or a requested destination, then resume from a selected source |
 | [`/ce-simplify-code`](docs/skills/ce-simplify-code.md) | Simplify recent code changes |
-| [`/ce-prototype`](docs/skills/ce-prototype.md) | Build a throwaway prototype so someone can try how the product should work or feel |
+| [`/ce-prototype`](docs/skills/ce-prototype.md) | Build a throwaway prototype so someone can experience how the product should work, feel, or read |
 | [`/ce-polish`](docs/skills/ce-polish.md) | Start a dev server and iterate on UX polish |
 | [`/ce-proof`](docs/skills/ce-proof.md) | Create, edit, and share Proof documents |
 | [`/ce-dogfood`](docs/skills/ce-dogfood.md) | Hands-off diff-scoped browser QA of the active branch, with autonomous fixes |
