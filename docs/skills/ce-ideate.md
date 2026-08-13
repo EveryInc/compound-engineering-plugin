@@ -98,7 +98,7 @@ Each surviving candidate carries a tagged basis: `direct:` (quoted evidence), `e
 
 ### 3. Six-frame divergent generation
 
-Parallel sub-agents cover six generative frames: pain & friction, inversion/removal/automation, assumption-breaking, leverage & compounding, cross-domain analogy, and constraint-flipping. Single-prompt ideation collapses into the agent's most-trained directions — different frames force genuine breadth, especially cross-domain analogy and constraint-flipping which surface ideas no single prompt would. The fleet is **cost-tiered**: evidence-driven frames run on a mid-tier model (the dossiers do the heavy lifting), while the ceiling frames — where the strong model's reasoning is the product — inherit the conversation's model. Say `go deep` to raise the whole fleet to the top tier.
+Parallel sub-agents cover six generative frames: pain & friction, inversion/removal/automation, assumption-breaking, leverage & compounding, cross-domain analogy, and constraint-flipping. Single-prompt ideation collapses into the agent's most-trained directions — different frames force genuine breadth, especially cross-domain analogy and constraint-flipping which surface ideas no single prompt would. The fleet is **cost-tiered**: evidence-driven frames run on a mid-tier model (the dossiers do the heavy lifting), while the ceiling frames — where the strong model's reasoning is the product — inherit the conversation's model. Say `go deep` to raise the whole fleet to the top tier; conversely, a tactical ask (`quick wins`, `polish`, `cleanup`) scales the run *down* — but through **volume, not lenses**. Each frame targets 3-4 ideas instead of 6-8, verification reads drop, axes and scouts cap at 3, and the ambition floor is waived. On most software and product topics the fleet itself is untouched: the same five agents cover all six lenses, with one ceiling-tier agent holding assumption-breaking and constraint-flipping together as it does by default. (An issue-tracker run is the exception — when the scan returns usable themes those themes become the frames, so it dispatches four.) (Non-software topics run a facilitator instead, where the depth you pick decides the fleet — Quick and Standard dispatch no ideation agents at all, Full dispatches one per lens.) Packing frames together to save money was tried and rejected, because the verification budget is per agent — an agent holding three lenses checks each idea's basis a third as thoroughly, and the basis check is the thing that separates this from a plausible-sounding list.
 
 ### 4. Topic-surface decomposition — axis coverage as a dispatch invariant
 
@@ -124,7 +124,7 @@ Phrases like "what users are reporting" or "biggest issue patterns" trigger an i
 
 ## Quick Example
 
-You invoke `ce-ideate "DX improvements"` from inside a code repo. The agent announces it'll dispatch ~13 agents — most on cheap tiers — and offers skip phrases for cost control.
+You invoke `ce-ideate "DX improvements"` from inside a code repo. The agent announces the grounding and ideation agents it's about to dispatch — most on cheap tiers — and offers skip phrases for cost control.
 
 Grounding agents return in parallel — a codebase summary, relevant past learnings, external prior art on developer-experience patterns. The orchestrator decomposes the topic into 4-5 axes derived from that grounding (e.g., for "DX improvements" — feedback loops, environment friction, tooling ergonomics, knowledge accessibility, automation surface), then cheap evidence scouts gather a quote-and-pointer dossier per axis. Five ideation sub-agents covering six frames generate candidates from that evidence, each idea tagged with the axis it targets and verified against the actual files before submission. The orchestrator merges 40+ candidates into one list, synthesizes cross-cutting combinations, runs an axis-coverage check (any empty axis triggers one bounded recovery dispatch), and runs the two-layer critique pass — a fresh-context verifier tries to refute each candidate, then the orchestrator makes the final cut. About 13 ideas are cut for being too vague, unjustified, refuted, or duplicative.
 
@@ -209,7 +209,7 @@ The deliverable is written automatically — you don't have to ask. If a run was
 | `surprise me` | Surprise-me mode |
 | `go deep` | Maximum depth: every ideation agent runs on the top-tier model, verification budgets double, and a second critic joins the filtering pass |
 | `top issue themes in <area>` | Triggers issue-tracker intent |
-| `output:md` | Write the artifact as markdown instead of the default self-contained HTML (`output:html` forces HTML explicitly). Also settable per-project via `ideate_output` in `.compound-engineering/config.local.yaml`; see the [configuration reference](./configuration.md) |
+| `output:md` | Write the artifact as markdown instead of the default self-contained HTML (`output:html` forces HTML explicitly). Also settable per-project via `ideate_output` in CE config (`config.local.yaml` then `config.yaml`); see the [configuration reference](./configuration.md) |
 
 Skip phrases supported anywhere in the prompt: `no external research`, `no slack`.
 

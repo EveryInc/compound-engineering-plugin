@@ -25,10 +25,18 @@ else XHOST_HARNESS=unknown; XHOST_FAMILY=unknown; fi
 
 Pass `XHOST_HARNESS` as `CROSS_MODEL_HOST_HARNESS`; pass `XHOST_FAMILY` as the first worker argument. Claude Code maps to harness/family `claude`; Codex maps to `codex`. Cursor maps to harness `cursor` and family `unknown` unless an observable serving-family attestation lets you set `XHOST_FAMILY` to `codex`, `claude`, `grok`, or `composer`. An unknown host family cannot satisfy automatic same-family exclusion, so skip the automatic cross-model pass. Never infer serving family from the Cursor brand.
 
+<!-- ce-config-layers:start -->
+**Resolve ordinary CE yaml keys from the two repo files.**
+
+- **Read** `<repo-root>/.compound-engineering/config.local.yaml`, then `config.yaml` (`<repo-root>` = `git rev-parse --show-toplevel`). Missing files are skipped. Gitignore does not change resolution.
+- **Win** with the first active (non-commented) value. For scalars, empty is unset; an invalid value continues to the next layer, then the skill default. For lists and maps, a present key — including an empty list or map — replaces the whole key.
+- **Do not** use this rule for `docs_root` — that key is `config.yaml` only.
+<!-- ce-config-layers:end -->
+
 Resolve the preference in this order:
 
 1. A preference the user **states in conversation** (e.g. "use grok for the cross-model pass").
-2. `cross_model_peer:` in `.compound-engineering/config.local.yaml` (the only file the script/skill reads for this).
+2. `cross_model_peer:` from the two repo CE config files (`config.local.yaml` then `config.yaml`). Apply the ordinary-key rule: first active supported target wins; an invalid value continues to the next layer, then step 3.
 3. A preference already in your **project instructions** (the active instructions in your context) — consumed from context, **never** read from a named file.
 4. **Default:** first available attested-different target in `codex → claude → grok → composer`; Cursor-default participates only when explicitly preferred.
 
@@ -58,7 +66,7 @@ The **persona file** basename and the **reviewer name** are distinct: the script
   - Call the pass **independent** only when host and target serving families are attestably different. For Cursor default/Auto or an unknown host family, call it a cross-harness review and state that independence is unverified; do not promise agreement promotion before the receipt exists.
   - Announce the one fixed route and every recipient before dispatch. A route failure produces no artifact and may be retried only after the host resolves, sanctions, and discloses the new route. Reconcile `cross_model_target`, `cross_model_harness`, `cross_model_route`, `model_requested`, and `model_actual` from the artifact; never infer a serving model from the requested ID.
 - **Interactive host, no peer resolved** (host un-attestable, or no different provider installed/authed): one quiet line that the cross-model pass was skipped and why. Never an error.
-- **Non-interactive mode:** emit no user-facing prose. The script still emits a one-line stderr audit log per send that document content was sent cross-model to the named provider, so the third-party data egress is auditable even though the pass is silent to the user. Non-interactive still requires a reachable peer under the normal gates; an explicit `cross_model_peer:` in `.compound-engineering/config.local.yaml` or a non-empty `CROSS_MODEL_PEERS` allowlist is the preferred enablement surface when teams want fail-closed-by-default CI egress (unset allowlist still means the default availability order).
+- **Non-interactive mode:** emit no user-facing prose. The script still emits a one-line stderr audit log per send that document content was sent cross-model to the named provider, so the third-party data egress is auditable even though the pass is silent to the user. Non-interactive still requires a reachable peer under the normal gates; an explicit `cross_model_peer:` in CE config (`config.local.yaml` then `config.yaml`) or a non-empty `CROSS_MODEL_PEERS` allowlist is the preferred enablement surface when teams want fail-closed-by-default CI egress (unset allowlist still means the default availability order).
 
 ## Step 4 — Run the bundled script (one call per activated trio lens, in parallel with the persona reviewers)
 

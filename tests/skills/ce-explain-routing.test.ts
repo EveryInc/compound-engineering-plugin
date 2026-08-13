@@ -99,8 +99,10 @@ describe("ce-explain destination and handoff routing", () => {
         /rendering rule above/i.test(line) &&
         renderingRule![0].includes("$ce-polish") &&
         renderingRule![0].includes("/ce-polish") &&
+        renderingRule![0].includes("/skill:ce-polish") &&
         /active host|Codex/i.test(renderingRule![0]) &&
-        /default to `\/ce-polish`[^.]{0,180}dollar-prefixed/i.test(renderingRule![0]),
+        /default to `\/ce-polish`[^.]{0,180}dollar-prefixed/i.test(renderingRule![0]) &&
+        /oh-my-pi \(`omp`\)[^\n]*\/skill:ce-polish/i.test(renderingRule![0]),
       "`ce-explain` SKILL.md polish handoff must present observations in chat and render one host-correct user invocation for `ce-polish`.",
     ).toBe(true)
     expect(

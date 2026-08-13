@@ -213,7 +213,7 @@ describe("ce-commit-push-pr contract", () => {
   test("config template and example keep branding out of ambient configuration", async () => {
     for (const p of [
       "skills/ce-setup/references/config-template.yaml",
-      ".compound-engineering/config.local.example.yaml",
+      ".compound-engineering/config.example.yaml",
     ]) {
       const template = await readRepoFile(p)
       expect(template).toContain("auto_babysit")
@@ -246,7 +246,8 @@ describe("PR concept teaching contract", () => {
     expect(trailer).toContain("using the rendering rule above")
     expect(trailer).toContain("$ce-explain <name>")
     expect(trailer).toContain("/ce-explain <name>")
-    expect(trailer).toMatch(/default to `\/ce-explain <name>`[\s\S]{0,220}Codex[\s\S]{0,160}output one form only/i)
+    expect(trailer).not.toContain("/skill:ce-explain")
+    expect(trailer).toMatch(/default to `\/ce-explain <name>`[\s\S]{0,220}Codex[\s\S]{0,260}output one form only/i)
   })
 
   test("SKILL.md archival transition guards ordering, gitignore, and modes", async () => {

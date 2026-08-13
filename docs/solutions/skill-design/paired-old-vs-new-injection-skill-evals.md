@@ -72,6 +72,24 @@ Prose-presence tests (`SKILL.md` `.toContain("field_name")`) guard each skill **
 
 Then do the step that is almost always skipped: **inject one-sided drift and watch the test fail.** Rename the field on the producer side only, run the parity test, confirm it goes red, and restore. A parity test you have never seen fail on injected drift is not known to work — it may be asserting something trivially true.
 
+### 5. Seal the injection — the excerpt must be the *only* source
+
+Injection evals assume the agent answers from the excerpt you gave it. Two leaks break that assumption silently, and both produce a **falsely green** result: the arm looks correct because the agent found the right answer somewhere other than the prose under test.
+
+**Leak A — the agent reads the real skill.** `codex exec` defaults to full filesystem access. In one run, agents given an excerpt went and read the *installed* plugin's `SKILL.md` instead — so the arm measured the shipped skill, not the edit. Two controls: run with a read-only sandbox *and* state the constraint in the prompt ("answer only from the INSTRUCTIONS above; do not open, read, search, or grep any file"), then **verify compliance** by grepping each transcript for paths outside the eval directory before grading. Do not trust the instruction alone.
+
+This is sharper than it looks for a plugin repo, because the installed skill is usually a *different checkout* than the worktree under test. Measured during one run: installed `ce-doc-review` was 3,746 words against the worktree's 2,886. An eval that invokes `/ce-doc-review` rather than injecting the file tests the pre-change bytes and reports success. **Inject the file; never invoke the installed skill.**
+
+**Leak B — the fixture carries the answer key.** Seeded fixtures often annotate their own planted issues. Stripping HTML comments is not enough: `tests/fixtures/ce-doc-review/seeded-*.md` also carry inline `(Seeded gated_auto: …)` markers in the body prose. Grep the *stripped* fixture for the vocabulary you intend to grade on, not just for comment delimiters.
+
+A leak that is **identical across arms** still permits an old-vs-new comparison — it is a constant, not a confound — but it invalidates any *absolute* measurement built on that fixture. Say which of the two you are claiming.
+
+### 6. Ground the answer key in the criteria, not in the fixture's intent
+
+A seeded fixture encodes what its author expected *at the time*. When the skill's criteria have since changed, the fixture and the spec can disagree, and grading against the fixture then scores the skill as wrong for correctly following its own rules.
+
+Observed: three `ce-doc-review` fixtures carry no `origin:` or `product_contract_source:` frontmatter, so the criterion "a plan with no validated upstream Product Contract signal" activates the adversarial reviewer on all of them — while one fixture's seed map expects adversarial to stay off. Every run in both arms activated it and cited exactly that clause. The correct move is to drop that dimension from the graded set, report the fixture/spec disagreement as its own finding, and grade only the dimensions where criteria and fixture agree. Silently scoring it either way manufactures a delta.
+
 ## Why This Matters
 
 - **Prose diffs are persuasive and unfalsifiable by inspection.** Reading a "better" rule tells you nothing about whether the model's output changes. Blind paired injection is the cheapest way to convert a hunch into evidence.

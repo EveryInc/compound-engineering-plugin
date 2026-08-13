@@ -88,6 +88,10 @@ describe("ce-brainstorm output:html mode", () => {
       /# brainstorm_output: html|commented examples|shipped config template/i.test(phaseRegion),
       "Phase 0.0 must cite the specific failure mode (the shipped template's commented `# brainstorm_output: html` example) so the rationale survives future edits.",
     ).toBe(true)
+    expect(
+      /ordinary-key|next layer|config\.local\.yaml then `config\.yaml`/i.test(phaseRegion),
+      "Phase 0.0 config step must cascade local then tracked before the skill default.",
+    ).toBe(true)
   })
 
   test("unknown-value fallback note reflects final resolved mode, not a hardcoded md", () => {
@@ -128,18 +132,22 @@ describe("ce-brainstorm output:html mode", () => {
     ).toBe(true)
   })
 
-  test("handoff.md option 4 is format-keyed (Proof for md, browser for html)", () => {
+  test("handoff.md offers prototype on software menus and browser for HTML", () => {
     expect(
       /Open in browser/.test(HANDOFF_BODY),
       "handoff.md must include 'Open in browser' for HTML mode.",
     ).toBe(true)
     expect(
-      /Publish to Proof/.test(HANDOFF_BODY),
-      "handoff.md must include 'Publish to Proof' for markdown mode.",
+      /Prototype a remaining feel-question/.test(HANDOFF_BODY),
+      "handoff.md must include the prototype offer.",
     ).toBe(true)
     expect(
-      /OUTPUT_FORMAT=md|OUTPUT_FORMAT=html|format-keyed|exclusive output/i.test(HANDOFF_BODY),
-      "handoff.md must state the format-keyed selection for option 4 under exclusive output mode.",
+      /Publish to Proof/.test(HANDOFF_BODY),
+      "software brainstorm Phase 4 must omit Share to Proof.",
+    ).toBe(false)
+    expect(
+      /OUTPUT_FORMAT=md|OUTPUT_FORMAT=html|exclusive output/i.test(HANDOFF_BODY),
+      "handoff.md must state HTML-only browser rendering.",
     ).toBe(true)
   })
 

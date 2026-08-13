@@ -99,6 +99,21 @@ type GrokMarketplaceManifest = {
   }>
 }
 
+// omp (oh-my-pi) marketplace catalog. Same shape as the Claude catalog, but
+// the plugin entry carries a `version` because omp's update checker skips
+// version-less catalog entries. There is no omp plugin.json — the plugin
+// manifest is the existing `package.json` `pi` field.
+type OmpMarketplaceManifest = {
+  name?: string
+  owner?: { name?: string }
+  plugins: Array<{
+    name: string
+    version?: string
+    description?: string
+    source?: string
+  }>
+}
+
 type SyncOptions = {
   root?: string
   componentVersions?: Partial<Record<ReleaseComponent, string>>
@@ -583,6 +598,57 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
       errors.push(`${marketplaceGrokPath} is missing but ${marketplaceClaudePath} exists. Grok marketplace parity required.`)
       updates.push({ path: marketplaceGrokPath, changed: false })
+    } else {
+      throw err
+    }
+  }
+
+  // omp marketplace catalog. oh-my-pi reads `.omp-plugin/marketplace.json`
+  // first and falls back to `.claude-plugin/marketplace.json` only when it is
+  // absent, and its `checkForUpdates()` skips catalog entries without a
+  // plugin-entry `version` — so unlike the other native catalogs this one
+  // carries a release-owned plugin version. release-please owns the version
+  // write via the root component's extra-files (`$.plugins[0].version`), so
+  // drift is detect-only here; description sync stays write-enabled, same as
+  // the Claude/Cursor catalogs.
+  const marketplaceOmpPath = path.join(root, ".omp-plugin", "marketplace.json")
+  try {
+    const marketplaceOmp = await readJson<OmpMarketplaceManifest>(marketplaceOmpPath)
+    const claudeNames = [...marketplaceClaude.plugins.map((p) => p.name)].sort()
+    const ompNames = [...marketplaceOmp.plugins.map((p) => p.name)].sort()
+    if (claudeNames.join("|") !== ompNames.join("|")) {
+      errors.push(
+        `${marketplaceOmpPath}: plugin list [${ompNames.join(", ")}] does not match ${marketplaceClaudePath} [${claudeNames.join(", ")}]`,
+      )
+    }
+    let ompChanged = false
+    for (const plugin of marketplaceOmp.plugins) {
+      if (plugin.name !== "compound-engineering") continue
+      if (plugin.version === undefined) {
+        errors.push(
+          `${marketplaceOmpPath}: plugin "${plugin.name}" is missing required field "version". omp's update checker skips version-less catalog entries, so the plugin would never upgrade.`,
+        )
+      } else if (plugin.version !== compoundClaude.version) {
+        ompChanged = true
+      }
+      if (plugin.description !== compoundMarketplaceDescription) {
+        plugin.description = compoundMarketplaceDescription
+        ompChanged = true
+      }
+      // omp resolves string sources inside the marketplace root; the plugin
+      // is co-located with the catalog, so the source must be "./".
+      if (plugin.source !== "./") {
+        errors.push(
+          `${marketplaceOmpPath}: plugin "${plugin.name}" uses source ${JSON.stringify(plugin.source)}. The plugin is co-located with the catalog, so the source must be "./".`,
+        )
+      }
+    }
+    updates.push({ path: marketplaceOmpPath, changed: ompChanged })
+    if (write && ompChanged) await writeJson(marketplaceOmpPath, marketplaceOmp)
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      errors.push(`${marketplaceOmpPath} is missing but ${marketplaceClaudePath} exists. omp marketplace parity required.`)
+      updates.push({ path: marketplaceOmpPath, changed: false })
     } else {
       throw err
     }

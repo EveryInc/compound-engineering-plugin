@@ -106,7 +106,8 @@ describe("unified plan artifact contract", () => {
   })
 
   test("brainstorm writes requirements-only unified plan skeletons under docs/plans", () => {
-    expect(brainstormSections).toContain("<root>/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan")
+    expect(brainstormSections).toContain("<root>/plans/YYYY-MM-DD-HHMM-<type>-<topic>-plan")
+    expect(brainstormSections).toContain("no daily sequence number")
     expect(brainstormSections).toContain("artifact_readiness: requirements-only")
     expect(brainstormSections).toContain("product_contract_source: ce-brainstorm")
     // Requirements-only is slimmed for standalone readability: no Goal Launch
@@ -115,7 +116,8 @@ describe("unified plan artifact contract", () => {
     expect(brainstormSections).toContain("Do **not** emit a `## Goal Launch Block` or `## Reader Index`")
     expect(brainstormSections).toMatch(/omits empty\s+`Planning Contract`/)
 
-    expect(brainstormSkill).toContain("<root>/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan")
+    expect(brainstormSkill).toContain("<root>/plans/YYYY-MM-DD-HHMM-<type>-<topic>-plan")
+    expect(brainstormSkill).toContain("local wall-clock time at write")
     expect(brainstormSkill).toContain("artifact_readiness: requirements-only")
     expect(brainstormSkill).toContain("product_contract_source: ce-brainstorm")
     expect(brainstormSkill).toContain("Do **not** emit a Goal Launch Block or Reader Index")
@@ -127,8 +129,22 @@ describe("unified plan artifact contract", () => {
     expect(universalBrainstorming).toContain("let `ce-plan` choose the universal/knowledge-work artifact shape")
   })
 
+  test("plan filenames use a local wall-clock time instead of daily sequences", () => {
+    expect(planSkill).toContain("<root>/plans/YYYY-MM-DD-HHMM-<type>-<descriptive-name>-plan.md")
+    expect(planSkill).toContain("do not scan for or allocate a daily sequence number")
+    expect(planSkill).toContain("local wall-clock time at write")
+    expect(planSkill).toContain("Reserve the candidate path atomically")
+    expect(planSkill).toContain("preserve the existing artifact basename")
+    expect(planSkill).not.toContain("YYYY-MM-DD-NNN")
+    // The hyphenated prefix keeps new artifacts sorting interleaved with legacy
+    // `YYYY-MM-DD-NNN` files; a hyphen-free prefix sorts them into a separate block.
+    expect(planSkill).not.toContain("YYYYMMDDTHHMMSSZ")
+  })
+
   test("brainstorm handoff passes the unified plan path to ce-plan", () => {
     expect(brainstormHandoff).toContain("Pass the unified")
+    expect(brainstormHandoff).toContain("exact plan artifact path returned by the write step")
+    expect(brainstormHandoff).toContain("including any collision suffix")
     expect(brainstormHandoff).toContain("Recommended next step: `ce-plan <plan artifact path>`")
     // Recommended path is interactive planning; the autonomous slot is lfg
     // (plan-first full ship), not a skip-planning /goal.
@@ -804,5 +820,221 @@ describe("cross-layer ownership contract", () => {
     expect(planDeepeningWorkflow).toContain(
       "Restate a rule a cited R or KTD already owns into a sibling section",
     )
+  })
+})
+
+describe("Product Contract section catalog and routing destinations", () => {
+  // ce-plan's include-when-material catalog specified only implementation-facing
+  // sections; its product-shape sections had no firing/skip rule at all. Measured
+  // 2026-08-12 across 34 pre-existing unified plans: Success Criteria appeared in
+  // 8, Key Decisions in 19. These pins keep the rule present in each of the five
+  // routing statements plus the catalog, since a fix in one leaves the others as
+  // stale sources of truth.
+
+  function entryBlock(doc: string, name: string): string {
+    const marker = `- **${name}** —`
+    const start = doc.indexOf(marker)
+    expect(start, `plan-sections.md must carry a '${name}' catalog entry.`).toBeGreaterThan(-1)
+    const end = doc.indexOf("\n\n- **", start)
+    return doc.slice(start, end > start ? end : doc.length)
+  }
+
+  // Typed once: both the routing-statement sweep and the session-settled test
+  // slice this same region, and drifting markers would fail one for the wrong
+  // reason.
+  const planInteractiveTable = sliceSection(
+    planSynthesisSummary,
+    "| Internal-draft element | Where it goes in the unified plan |",
+    "No italic capture-context note",
+  )
+
+  const PRODUCT_SECTIONS = [
+    "Problem Frame",
+    "Key Decisions",
+    "Success Criteria",
+    "Actors",
+    "Key Flows",
+  ]
+
+  // Problem Frame is unconditional in the hard floor ("Contains Summary,
+  // Problem Frame, Requirements"), so it must NOT carry a skip test — an
+  // earlier revision shipped one and let an implementation-ready plan omit a
+  // mandatory section.
+  const SKIPPABLE_SECTIONS = PRODUCT_SECTIONS.filter((s) => s !== "Problem Frame")
+
+  test("plan-sections.md catalogs every Product Contract section with a skip test", () => {
+    const catalog = sliceSection(
+      planSections,
+      "## Include when material",
+      "## Agent agency",
+    )
+    for (const name of PRODUCT_SECTIONS) {
+      entryBlock(catalog, name)
+    }
+    for (const name of SKIPPABLE_SECTIONS) {
+      const block = entryBlock(catalog, name)
+      expect(
+        /\bskip\b/i.test(block),
+        `The '${name}' catalog entry needs a skip test. A firing rule with no skip rule fires on everything, which the include-when-material doctrine treats as broken.`,
+      ).toBe(true)
+    }
+    // Enriching a legacy requirements doc inherits decisions made during
+    // brainstorming, and Phase 0.3 requires carrying them forward — a
+    // planning-only firing rule would silently drop them.
+    expect(
+      /inherited from an upstream Product Contract/.test(entryBlock(catalog, "Key Decisions")),
+      "The Key Decisions firing rule must cover decisions inherited from an upstream Product Contract, not only choices made during planning.",
+    ).toBe(true)
+
+    expect(
+      /\bskip\b/i.test(entryBlock(catalog, "Problem Frame")),
+      "The Problem Frame entry must NOT carry a skip test — the hard floor contains it unconditionally, so a skip rule would let an implementation-ready plan omit a mandatory section.",
+    ).toBe(false)
+  })
+
+  test("the hard-floor enumeration still names its Product Contract subsections", () => {
+    // U1 deliberately left :171-175 untouched. Guard against a later edit that
+    // "deduplicates" the floor against the new catalog entries.
+    // The floor is one wrapped sentence, so collapse whitespace before matching
+    // ("Summary, Problem\n  Frame, Requirements ...").
+    const floor = sliceSection(
+      planSections,
+      "- **Product Contract** — product scope and behavior.",
+      "- **Planning Contract**",
+    ).replace(/\s+/g, " ")
+    for (const name of ["Summary", "Problem Frame", "Success Criteria", "Scope Boundaries"]) {
+      expect(
+        floor.includes(name),
+        `The Product Contract hard floor must still name ${name}; the catalog entry supplements the floor rather than replacing it.`,
+      ).toBe(true)
+    }
+  })
+
+  test("all five routing statements name a Success Criteria destination", () => {
+    const statements: Array<[string, string]> = [
+      [
+        "ce-plan prose restatement",
+        sliceSection(planSynthesisSummary, "**Three-bucket structure is the internal draft", "## Stage 1"),
+      ],
+      [
+        "ce-plan headless list",
+        sliceSection(planSynthesisSummary, "Route internal-draft content with mode-aware shape", "The `### Assumptions` section appears"),
+      ],
+      ["ce-plan interactive table", planInteractiveTable],
+      [
+        "ce-brainstorm prose restatement",
+        sliceSection(brainstormSynthesisSummary, "**Three-bucket structure is the internal draft", "This content is loaded"),
+      ],
+      [
+        "ce-brainstorm routing table",
+        sliceSection(brainstormSynthesisSummary, "| Internal-draft element | Where it goes in the doc |", "The chat-time Trade-offs section"),
+      ],
+    ]
+
+    for (const [label, statement] of statements) {
+      expect(
+        statement.includes("Success Criteria"),
+        `The ${label} must name a Success Criteria destination. A section the synthesis drafts with no destination in one statement drifts back out when a later edit reconciles the statements against each other.`,
+      ).toBe(true)
+    }
+  })
+
+  test("ce-plan's interactive table routes session-settled product decisions to Key Decisions", () => {
+    // The headless list already carried this clause; the interactive table --
+    // the most-used path -- had four rows and no session-settled row.
+    expect(
+      /Session-settled product decisions.*### Key Decisions/s.test(planInteractiveTable),
+      "The interactive routing table must route session-settled product decisions to Product Contract `### Key Decisions`.",
+    ).toBe(true)
+  })
+
+  test("no route lets an implementation-ready plan drop Problem Frame", () => {
+    // Three separate review findings on PR #1359 came from the same shape: a
+    // rule elsewhere in the file quietly permitting the omission of a
+    // hard-floor section. Pin the remaining escape.
+    const agency = sliceSection(planSections, "## Agent agency", "## Prose economy")
+    expect(
+      /Problem Frame merges into Summary/.test(agency),
+      "The agency list is expected to still mention the Problem Frame merge; if it was deleted outright, drop this guard rather than letting it pass vacuously.",
+    ).toBe(true)
+    // Require the blocking sentence itself, not an alternative: an OR here let
+    // the clause that actually prevents the omission be deleted while the pin
+    // still passed.
+    expect(
+      /`ce-unified-plan\/v1` artifact keeps both\s+headings/s.test(agency),
+      "The Problem Frame merge escape must be scoped away from every ce-unified-plan/v1 artifact, or it removes a hard-floor heading downstream consumers anchor on.",
+    ).toBe(true)
+  })
+
+  test("the headless Success Criteria destination takes Stated signals only", () => {
+    // The unconfirmed paths (headless, SKIP_SCOPING_CONFIRM) never validate an
+    // Inferred bet, so routing an inferred success signal into an unlabeled
+    // Product Contract section contradicts the `### Assumptions` firewall.
+    // Two independent reviewers caught this collision on PR #1359.
+    const headless = sliceSection(
+      planSynthesisSummary,
+      "Route internal-draft content with mode-aware shape",
+      "The `### Assumptions` section appears",
+    )
+    expect(
+      /Success signals — Stated only/.test(headless),
+      "The headless routing list must restrict the Success Criteria destination to Stated signals; an inferred one belongs in `### Assumptions`.",
+    ).toBe(true)
+    expect(
+      /Success signals.*\(Stated or Inferred\)/.test(headless),
+      "The headless Success Criteria destination must not offer Inferred content — that reopens the firewall contradiction.",
+    ).toBe(false)
+
+    // The interactive table also governs SKIP_SCOPING_CONFIRM runs (its own
+    // Inferred row says so), so an unqualified "(Stated or Inferred)" there
+    // reopens the same contradiction one section down.
+    expect(
+      /Success signals \(Stated or Inferred\)/.test(planInteractiveTable),
+      "The interactive routing table must qualify its Success Criteria row: it also governs SKIP_SCOPING_CONFIRM runs, where an inferred signal belongs in `### Assumptions`.",
+    ).toBe(false)
+    expect(
+      /confirmed interactive run/.test(planInteractiveTable),
+      "The interactive table's Success Criteria row must name the confirmed-interactive condition for Inferred signals.",
+    ).toBe(true)
+  })
+
+  test("the silent-dissolve rule names which Inferred items are exempt", () => {
+    expect(planSynthesisSummary).toMatch(
+      /exempt from that silent dissolve.*success criteria extrapolated from intent.*scope boundaries the user never explicitly named/s,
+    )
+  })
+
+  test("ce-plan's bootstrap carries an exit condition with both escapes", () => {
+    const bootstrap = sliceSection(
+      planSkill,
+      "The planning bootstrap should establish:",
+      "#### 0.5",
+    )
+    expect(
+      bootstrap.includes("**Exit condition:**"),
+      "The Phase 0.4 bootstrap must carry an exit condition; without one it lists what to establish and can proceed having established none of it.",
+    ).toBe(true)
+    expect(
+      bootstrap.includes("recorded as assumptions"),
+      "The exit condition must be satisfiable by recording an assumption, or it becomes a blocking question in headless mode.",
+    ).toBe(true)
+    expect(
+      bootstrap.includes("explicitly wants to proceed"),
+      "The exit condition must carry the explicit-user-proceed escape, matching ce-brainstorm's Phase 1.3 gate.",
+    ).toBe(true)
+  })
+
+  test("Success Metrics and Success Criteria are distinguished, not collided", () => {
+    // Both names exist in ce-plan, so the boundary between them must be stated
+    // once and be exclusive — an overlapping definition let the same p95 target
+    // belong to either section.
+    expect(
+      /Success Metrics.*`### Success Criteria`/s.test(planSkill),
+      "ce-plan names both `Success Metrics` (deep-plan extension) and `Success Criteria` (Product Contract subsection); the relationship must be stated once so a future author does not merge them.",
+    ).toBe(true)
+    expect(
+      /never appears here as well|only what Success Criteria does not already state/.test(planSkill),
+      "The Success Metrics definition must claim an exclusive boundary, or a product-outcome threshold lands in both sections.",
+    ).toBe(true)
   })
 })
