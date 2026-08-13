@@ -12,7 +12,7 @@ Use this reference only when the next question has a specific visual decision:
 - state shape: "Which empty/loading/error state communicates the right thing?"
 - diagram shape: "Which relationship or system boundary is clearer?"
 
-Do not use a visual probe for product goals, scope boundaries, success criteria, evidence probes, tradeoff prose, or technical decisions that are easier to discuss in chat.
+Do not use a visual probe for product goals, scope boundaries, success criteria, evidence probes, tradeoff prose, or technical decisions that are easier to discuss in chat. If settling the question would commit an approach later work will treat as given, and a cheap one-decision sketch cannot settle it, that is Interaction Rule 7 (`ce-prototype`), not a visual probe.
 
 ## The gate (when the offer must fire)
 
@@ -50,7 +50,7 @@ Allowed:
 - state comparisons
 - flow diagrams
 - simple A/B/C visual contrasts
-- disposable interaction demos only when behavior itself is the decision
+- a disposable one-decision interaction demo only when a single behavior shape is the decision — not a wide diverge, layered slices, or an in-app overlay
 
 Avoid:
 
@@ -78,7 +78,7 @@ if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT
 if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
 chmod 700 "$SCRATCH_ROOT" || exit 1;
 PROBE_DIR="$SCRATCH_ROOT/ce-brainstorm-visual/<run-id>"; (umask 077; mkdir -p "$PROBE_DIR") || exit 1; chmod 700 "$PROBE_DIR" || exit 1;
-node "$SKILL_DIR/scripts/visual-probe-server.js" start --root "$PROBE_DIR"
+node "$SKILL_DIR/scripts/light-webserver.js" start --root "$PROBE_DIR"
 ```
 
 Append `--foreground` to that `start` command for foreground mode. Status and stop take the same anchor — and because `SKILL_DIR` does not persist between Bash invocations, each must re-set it in its own call rather than reuse the `start` block's value:
@@ -91,7 +91,7 @@ if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT
 if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
 chmod 700 "$SCRATCH_ROOT" || exit 1;
 PROBE_DIR="$SCRATCH_ROOT/ce-brainstorm-visual/<run-id>"; (umask 077; mkdir -p "$PROBE_DIR") || exit 1; chmod 700 "$PROBE_DIR" || exit 1;
-node "$SKILL_DIR/scripts/visual-probe-server.js" status --root "$PROBE_DIR"
+node "$SKILL_DIR/scripts/light-webserver.js" status --root "$PROBE_DIR"
 # stop: the same command with `stop` in place of `status` (re-set SKILL_DIR again)
 ```
 

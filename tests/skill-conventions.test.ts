@@ -203,6 +203,7 @@ const REQUIRED_MODEL_INVOKED_CALLEES = new Set([
   "ce-optimize",
   "ce-plan",
   "ce-proof",
+  "ce-prototype",
   "ce-resolve-pr-feedback",
   "ce-riffrec-feedback-analysis",
   "ce-simplify-code",

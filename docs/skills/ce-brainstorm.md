@@ -28,7 +28,7 @@ One thing it deliberately does *not* do is render a verdict. When a request is r
 | What does it do? | Collaborative dialogue to clarify scope, pressure-test premises, explore approaches, and write a requirements-only unified plan |
 | When to use it | Vague feature ideas, "let's brainstorm", multiple plausible directions, unclear scope; non-software decisions and projects |
 | What it produces | Software: requirements-only unified plan in `docs/plans/` with `artifact_readiness: requirements-only` and R/A/F/AE IDs. Non-software: chat synthesis plus optional handoff to `ce-plan`, not a software unified artifact. |
-| What's next | `/ce-plan`, `/ce-work` for trivial scope, doc review, or publish to Proof |
+| What's next | `/ce-plan`, `/ce-work` for trivial scope, doc review, or a prototype when committing an approach would be expensive to unravel |
 
 ---
 
@@ -82,6 +82,7 @@ A typical "let's brainstorm" with an AI also has shape problems: it asks five qu
 - **A background grounding scout** gathers verbatim repo evidence on a cheap model while you answer the opening questions
 - **2-3 concrete approaches** with tradeoffs, then a stated recommendation
 - **Opt-in visual probes** for decisions that are faster to judge as rough sketches than prose
+- **An optional `ce-prototype` offer** when committing an approach would encode behavior later work treats as given — not for routine existing-pattern UI, and not pinned to a phase
 - **Synthesis Summary** as the last opportunity to correct scope before the doc lands
 - **Fresh-context claim verification** checks the doc's repo claims before it lands
 - **One coherent work unit per artifact** with a plain-language view of how separately planned work currently fits together
@@ -158,7 +159,7 @@ The pressure test detects a specificity gap (who are these "users"?) and an atta
 
 Three approaches surface — per-notification-type mute with TTL, a global do-not-disturb schedule, mute on the rule rather than the channel — with tradeoffs and a recommendation. The Synthesis Summary reads back the shape that emerged ("per-channel mute on notification rules, 24h preset for the 3 AM support pings"), names the trade-offs made in dialogue (per-channel over per-user, mute lives on the rule), what's deferred (presence-based mute, quiet-hours schedules), and a single call-out about the rule-delete loss path. You confirm and add a 24h preset.
 
-A requirements-only unified plan is written under `docs/plans/` and the Phase 4 menu offers next steps — `/ce-plan` (recommended), Product Contract review, publish to Proof, or skip-to-build only for trivial scope with a sufficient Definition of Done.
+A requirements-only unified plan is written under `docs/plans/` and the Phase 4 menu offers next steps — `/ce-plan` (recommended), Product Contract review or a prototype when committing an approach would be expensive to unravel, or skip-to-build only for trivial scope with a sufficient Definition of Done.
 
 ---
 
@@ -216,7 +217,7 @@ When `ce-plan` loads with a requirements-only unified plan as input, it does not
 - **Strategic decisions** — Deep-product tier surfaces durability and adjacent-product risks
 - **Non-software brainstorms** — name a product, plan an event, decide a roadmap
 
-The Phase 4 handoff offers planning, agent doc review, publish to Proof, direct-to-work for lightweight scope, more clarifying questions, or pause.
+The Phase 4 handoff offers planning, agent doc review or a prototype when committing an approach would be expensive to unravel, direct-to-work for lightweight scope, more clarifying questions, or pause.
 
 ---
 
@@ -268,4 +269,5 @@ This works on any harness: the host serves the chosen model natively where it ca
 - [`ce-plan`](./ce-plan.md) — enrich the requirements-only unified plan into an implementation-ready plan
 - [`ce-doc-review`](./ce-doc-review.md) — persona-based review of the Product Contract or full plan
 - [`ce-work`](./ce-work.md) — execute lightweight changes directly from a brainstorm
+- [`ce-prototype`](./ce-prototype.md) — decide how something should work or feel before committing an approach
 - [`ce-strategy`](./ce-strategy.md) — anchor brainstorms to a documented product strategy

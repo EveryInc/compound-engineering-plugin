@@ -8,15 +8,15 @@ import { fileURLToPath } from "node:url"
 const scriptPath = fileURLToPath(import.meta.url)
 const DEFAULT_HOST = "127.0.0.1"
 const DEFAULT_URL_HOST = "localhost"
-const IDLE_TIMEOUT_MS = Number(process.env.CE_VISUAL_PROBE_IDLE_TIMEOUT_MS) || 30 * 60 * 1000
-const LIFECYCLE_CHECK_MS = Number(process.env.CE_VISUAL_PROBE_LIFECYCLE_CHECK_MS) || 60 * 1000
+const IDLE_TIMEOUT_MS = Number(process.env.CE_LIGHT_WEB_IDLE_TIMEOUT_MS) || 30 * 60 * 1000
+const LIFECYCLE_CHECK_MS = Number(process.env.CE_LIGHT_WEB_LIFECYCLE_CHECK_MS) || 60 * 1000
 
 function usage() {
   return [
     "Usage:",
-    "  node visual-probe-server.js start --root <dir> [--host 127.0.0.1] [--port 0] [--foreground] [--owner-pid <pid>]",
-    "  node visual-probe-server.js stop --root <dir>",
-    "  node visual-probe-server.js status --root <dir>",
+    "  node light-webserver.js start --root <dir> [--host 127.0.0.1] [--port 0] [--foreground] [--owner-pid <pid>]",
+    "  node light-webserver.js stop --root <dir>",
+    "  node light-webserver.js status --root <dir>",
   ].join("\n")
 }
 
@@ -196,7 +196,7 @@ function wrapFragment(options, content) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CE Brainstorm Visual Probe</title>
+  <title>CE local web</title>
   <style>
     body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; background: #f7f7f8; color: #1f2328; }
     header { padding: 10px 18px; border-bottom: 1px solid #d8dee4; background: #fff; color: #57606a; font-size: 13px; }
@@ -204,7 +204,7 @@ function wrapFragment(options, content) {
   </style>
 </head>
 <body>
-  <header>CE Brainstorm Visual Probe - directional sketch, reply in chat</header>
+  <header>CE local web - newest screen, reloads on change</header>
   <main>${content}</main>
   ${refreshScript(options)}
 </body>
@@ -221,7 +221,7 @@ function injectRefresh(options, html) {
 function renderPage(options) {
   const screen = newestScreen(options)
   if (!screen) {
-    return wrapFragment(options, "<h1>Waiting for a visual probe...</h1><p>The agent will update this page when a sketch is ready.</p>")
+    return wrapFragment(options, "<h1>Waiting for a page...</h1><p>The agent will update this page when a screen is ready.</p>")
   }
   const html = fs.readFileSync(screen, "utf8")
   return isFullDocument(html) ? injectRefresh(options, html) : wrapFragment(options, html)

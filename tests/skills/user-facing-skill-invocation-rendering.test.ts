@@ -61,6 +61,12 @@ const modelVisibleRendererCases = [
     codex: ["$ce-plan"],
     unnecessaryOmp: ["/skill:ce-plan"],
   },
+  {
+    file: "skills/ce-prototype/SKILL.md",
+    defaults: ["/ce-prototype", "/ce-brainstorm", "/ce-plan"],
+    codex: ["$ce-prototype", "$ce-brainstorm", "$ce-plan"],
+    unnecessaryOmp: ["/skill:ce-prototype", "/skill:ce-brainstorm", "/skill:ce-plan"],
+  },
 ] as const
 
 const explicitOnlyRendererCases = [

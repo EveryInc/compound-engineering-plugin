@@ -1,0 +1,60 @@
+# Preview helper
+
+Load this when serving a local web prototype. Feedback stays in chat.
+
+This skill ships its own `scripts/light-webserver.js`. Do not import a sibling skill's copy — isolation forbids that. The file is a byte-identical copy of brainstorm's helper.
+
+Use the bundled helper when the current platform can run a bundled skill script. Invoke it via the `SKILL_DIR` anchor: set `SKILL_DIR` to the absolute path of the directory containing the `ce-prototype` `SKILL.md` you loaded (the Bash tool's cwd is the user's project, not the skill dir), and re-set it in the same command on each call since shell vars do not persist between Bash invocations. Do not resolve the helper from the user's project CWD.
+
+Start (detached):
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
+if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
+(umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
+if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
+chmod 700 "$SCRATCH_ROOT" || exit 1;
+PROTO_DIR="$SCRATCH_ROOT/ce-prototype/<run-id>"; (umask 077; mkdir -p "$PROTO_DIR") || exit 1; chmod 700 "$PROTO_DIR" || exit 1;
+node "$SKILL_DIR/scripts/light-webserver.js" start --root "$PROTO_DIR"
+```
+
+Append `--foreground` to that `start` command for foreground mode. Status and stop take the same anchor — and because `SKILL_DIR` does not persist between Bash invocations, each must re-set it in its own call rather than reuse the `start` block's value:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
+if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
+(umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
+if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
+chmod 700 "$SCRATCH_ROOT" || exit 1;
+PROTO_DIR="$SCRATCH_ROOT/ce-prototype/<run-id>"; (umask 077; mkdir -p "$PROTO_DIR") || exit 1; chmod 700 "$PROTO_DIR" || exit 1;
+node "$SKILL_DIR/scripts/light-webserver.js" status --root "$PROTO_DIR"
+# stop: the same command with `stop` in place of `status` (re-set SKILL_DIR again)
+```
+
+If `SKILL_DIR` cannot be resolved to a concrete skill directory, do not guess from the project CWD — keep the decision in chat.
+
+The helper creates `screens/` and `state/`, serves the newest `.html` file in `screens/`, writes `state/display-info.json`, and exposes `/version` so the browser can poll for screen changes. The browser reloads only when the newest screen changes; it must not continually reload on a timer. `/version` polling does not count as activity. Detached servers monitor the owning harness process when it can be resolved, and all servers exit after an idle timeout. The helper has no browser-to-agent event path. Interactive HTML is allowed.
+
+Write screens under:
+
+```text
+/tmp/compound-engineering-<uid>/ce-prototype/<run-id>/
+  screens/
+    001-<slice>.html
+  state/
+    display-info.json
+  decisions.md    # run capsule for the next skill; not a plan
+```
+
+## Launch mode by platform
+
+The server is the same everywhere; only the launch mode changes.
+
+- **Claude Code / Claude desktop app:** detached `start` is the default path. If the app opens localhost URLs, show the returned URL and continue.
+- **Codex CLI / Codex app:** if detached processes are reaped or the URL dies after the tool call, use `start --foreground` through the platform's long-running/background terminal mechanism.
+- **Plain terminal UI:** print the returned URL for the user to open manually.
+- **Remote or containerized sessions:** if `localhost` is not reachable from the user's browser, start with `--host 0.0.0.0` and tell the user which host/port to open.
+
+If the helper path is unavailable or the platform cannot display a local URL cleanly, say so and keep the decision in chat.

@@ -51,6 +51,12 @@ The methodology this project embodies: structure engineering work so each unit m
 ### Pipeline
 The chained progression of Skills that carries a piece of work from strategy and ideation through brainstorm, plan, execution, and review, and closes by capturing what was learned. Each stage hands a durable artifact to the next, and research is gathered at the stage that needs it rather than re-gathered downstream.
 
+### Visual probe
+A disposable, display-only decision sketch used during brainstorming for one shape, layout, or relationship question. The user looks at it and answers in chat. It is not a prototype, a spec, or something you click through to feel an interaction.
+
+### Experience prototype
+A throwaway prototype of the product, built so a human can try it and decide how something should work or feel before that choice is encoded in a plan and code. How finished it gets follows the question being answered. What the user decided carries into whatever is built next. Distinct from a visual probe (inspection) and from polish (a feature that already works).
+
 ### Learning
 A documented solution to a past problem — a bug fix, a convention, or a workflow pattern — stored as the unit of compounded knowledge so future work can find and reuse it. Also called a solution doc. Carries structured metadata (category, tags, problem type) for retrieval; its creation date lives in the entry, not the filename.
 

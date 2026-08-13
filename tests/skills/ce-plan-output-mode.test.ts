@@ -201,11 +201,7 @@ describe("ce-plan output:html mode", () => {
     ).toBe(true)
   })
 
-  test("post-generation menu offers format-keyed option 4 (Proof for md, browser for html)", () => {
-    // Under exclusive output mode, the plan is exactly one artifact — either
-    // .md or .html. The menu's option 4 is format-keyed: Proof for md (Proof
-    // operates on markdown), browser for html. The legacy mutual-exclusion
-    // gate with sibling-rerender logic is gone.
+  test("post-generation menu offers prototype and browser for HTML, not Proof", () => {
     const phaseStart = SKILL_BODY.indexOf("##### 5.3.8")
     expect(phaseStart).toBeGreaterThan(-1)
     const phaseRegion = SKILL_BODY.slice(phaseStart)
@@ -215,12 +211,16 @@ describe("ce-plan output:html mode", () => {
       "SKILL.md Phase 5.4 menu must include 'Open in browser' option for HTML mode.",
     ).toBe(true)
     expect(
-      /Publish to Proof/.test(phaseRegion),
-      "SKILL.md Phase 5.4 menu must include 'Publish to Proof' option for markdown mode.",
+      /Prototype a remaining feel-question/.test(phaseRegion),
+      "SKILL.md Phase 5.4 menu must include the prototype offer.",
     ).toBe(true)
     expect(
-      /OUTPUT_FORMAT=md|OUTPUT_FORMAT=html|format-keyed/i.test(phaseRegion),
-      "SKILL.md must state the format-keyed rendering rule for option 4.",
+      /Publish to Proof/.test(phaseRegion),
+      "software plan Phase 5.4 must omit Share to Proof.",
+    ).toBe(false)
+    expect(
+      /OUTPUT_FORMAT=html/i.test(phaseRegion),
+      "SKILL.md must state HTML-only browser rendering.",
     ).toBe(true)
   })
 
