@@ -21,8 +21,8 @@ Branch on the exit code; status text goes to stderr and must not be parsed.
 
 | Exit | Meaning | What it means here |
 |---|---|---|
-| 0 | Success | Parent is in a stack, now checked out |
-| 2 | Not in a stack | Parent is standalone |
+| 0 | Success | Parent is in a stack, and `HEAD` has moved to it |
+| 2 | Not in a stack | Parent is standalone; nothing was checked out or fetched |
 | 5 | Invalid arguments | Fix the invocation; see `--help` |
 | 6 | Disambiguation required | Branch is in several stacks — check out a non-shared branch |
 | 9 | Stacked PRs unavailable | Not enabled on this repository; tell the user and stop |
@@ -34,7 +34,16 @@ gh stack view --json    # JSON on stdout: trunk, currentBranch,
 ```
 
 `base` is the parent SHA the branch was last known to contain, not the parent's current tip;
-`needsRebase` is true when that tip is no longer an ancestor.
+`needsRebase` is true when that tip is no longer an ancestor. There is no field naming the top of
+the stack and no documented branch ordering, so do not derive position from this payload — use
+`add`'s exit 5 instead.
+
+## Resolving a PR head
+
+`gh pr view "<n>" --json headRefName,headRefOid,author` identifies the head; `headRefName` alone
+does not, because a same-repo name can be absent or stale locally and can collide with an unrelated
+branch. Create a local branch at `headRefOid`, fetching `refs/pull/<n>/head` when that commit is not
+reachable — reachability leaves the commit with no branch to name.
 
 ## Building
 
