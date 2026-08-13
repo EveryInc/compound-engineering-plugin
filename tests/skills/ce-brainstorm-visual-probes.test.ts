@@ -34,6 +34,29 @@ describe("ce-brainstorm visual probes", () => {
     ).toBe(true)
   })
 
+  test("Interaction Rules offer ce-prototype on unravel cost, not a phase gate", () => {
+    const rulesStart = SKILL_BODY.indexOf("## Interaction Rules")
+    const rulesEnd = SKILL_BODY.indexOf("## Artifact Root")
+    expect(rulesStart).toBeGreaterThan(-1)
+    expect(rulesEnd).toBeGreaterThan(rulesStart)
+    const rules = SKILL_BODY.slice(rulesStart, rulesEnd)
+
+    expect(rules).toContain("ce-prototype")
+    expect(
+      /expensive to unravel|later planning and implementation will treat as given/i.test(rules),
+      "The prototype offer must key off decision impact / unravel cost, not UI-ness.",
+    ).toBe(true)
+    expect(
+      /not at a fixed phase|when you recognize that bar/i.test(rules),
+      "The prototype offer must be judgment-timed, not pinned to a phase.",
+    ).toBe(true)
+    expect(
+      /routine UI|known button|standard control/i.test(rules),
+      "The prototype offer must skip routine existing-pattern UI.",
+    ).toBe(true)
+    expect(rules).not.toMatch(/Phase 1\.3 `ce-prototype`/)
+  })
+
   test("SKILL.md exposes visual tripwires before the visual-probes reference is loaded", () => {
     const scopeStart = SKILL_BODY.indexOf("#### 0.3 Assess Scope")
     const dialogueStart = SKILL_BODY.indexOf("#### 1.3 Collaborative Dialogue")
@@ -138,7 +161,7 @@ describe("ce-brainstorm visual probes", () => {
       "visual probes must tell agents to resolve the helper from the loaded skill directory, not from the project CWD.",
     ).toBe(true)
     expect(
-      body.includes('node "$SKILL_DIR/scripts/visual-probe-server.js"'),
+      body.includes('node "$SKILL_DIR/scripts/light-webserver.js"'),
       "visual probes should invoke the helper via the SKILL_DIR anchor (the repo's Tier-3 executed-command convention), not a vague resolved-path placeholder.",
     ).toBe(true)
     expect(

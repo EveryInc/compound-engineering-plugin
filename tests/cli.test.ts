@@ -173,7 +173,7 @@ describe("CLI", () => {
   test("install rejects native marketplace-only plugin targets", async () => {
     const repoRoot = path.join(import.meta.dir, "..")
 
-    for (const target of ["copilot", "droid", "qwen"]) {
+    for (const target of ["copilot", "droid", "qwen", "omp"]) {
       const proc = Bun.spawn([
         "bun",
         "run",
@@ -1964,6 +1964,7 @@ describe("CLI", () => {
     await fs.mkdir(path.join(tempHome, ".config", "opencode"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".codex"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".pi"), { recursive: true })
+    await fs.mkdir(path.join(tempHome, ".omp"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".factory"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".copilot"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".gemini", "antigravity-cli"), { recursive: true })
@@ -2003,6 +2004,7 @@ describe("CLI", () => {
     expect(stdout).toContain("droid — native plugin install; skipped")
     expect(stdout).toContain("copilot — native plugin install; skipped")
     expect(stdout).toContain("qwen — native plugin install; skipped")
+    expect(stdout).toContain("omp — native plugin install; skipped")
     expect(stdout).not.toContain("cursor")
 
     expect(await exists(path.join(tempHome, ".config", "opencode", "opencode.json"))).toBe(true)

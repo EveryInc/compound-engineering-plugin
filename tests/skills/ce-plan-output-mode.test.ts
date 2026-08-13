@@ -147,6 +147,10 @@ describe("ce-plan output:html mode", () => {
       /# plan_output: html|commented examples|shipped config template/i.test(phaseRegion),
       "Phase 0.0 must cite the specific failure mode (the shipped template's commented `# plan_output: html` example) so the rationale survives future edits.",
     ).toBe(true)
+    expect(
+      /ordinary-key|next layer|config\.local\.yaml then `config\.yaml`/i.test(phaseRegion),
+      "Phase 0.0 config step must cascade local then tracked before the skill default.",
+    ).toBe(true)
   })
 
   test("unknown-value fallback note reflects final resolved mode, not a hardcoded md", () => {
@@ -197,11 +201,7 @@ describe("ce-plan output:html mode", () => {
     ).toBe(true)
   })
 
-  test("post-generation menu offers format-keyed option 4 (Proof for md, browser for html)", () => {
-    // Under exclusive output mode, the plan is exactly one artifact — either
-    // .md or .html. The menu's option 4 is format-keyed: Proof for md (Proof
-    // operates on markdown), browser for html. The legacy mutual-exclusion
-    // gate with sibling-rerender logic is gone.
+  test("post-generation menu offers prototype and browser for HTML, not Proof", () => {
     const phaseStart = SKILL_BODY.indexOf("##### 5.3.8")
     expect(phaseStart).toBeGreaterThan(-1)
     const phaseRegion = SKILL_BODY.slice(phaseStart)
@@ -211,12 +211,16 @@ describe("ce-plan output:html mode", () => {
       "SKILL.md Phase 5.4 menu must include 'Open in browser' option for HTML mode.",
     ).toBe(true)
     expect(
-      /Publish to Proof/.test(phaseRegion),
-      "SKILL.md Phase 5.4 menu must include 'Publish to Proof' option for markdown mode.",
+      /Prototype a remaining feel-question/.test(phaseRegion),
+      "SKILL.md Phase 5.4 menu must include the prototype offer.",
     ).toBe(true)
     expect(
-      /OUTPUT_FORMAT=md|OUTPUT_FORMAT=html|format-keyed/i.test(phaseRegion),
-      "SKILL.md must state the format-keyed rendering rule for option 4.",
+      /Publish to Proof/.test(phaseRegion),
+      "software plan Phase 5.4 must omit Share to Proof.",
+    ).toBe(false)
+    expect(
+      /OUTPUT_FORMAT=html/i.test(phaseRegion),
+      "SKILL.md must state HTML-only browser rendering.",
     ).toBe(true)
   })
 
@@ -270,6 +274,23 @@ describe("ce-plan output:html mode", () => {
     expect(
       /no .{0,3}status.{0,3} field|carry .{0,6}no .{0,12}status/i.test(body),
       "plan-sections.md must state plans carry NO status field.",
+    ).toBe(true)
+
+    // The field-name rules below had no mechanical guard, and a real artifact
+    // shipped with `created:` instead of `date:` and a `feat:` prefix in the
+    // title. These are greppable contract text, so pin them here rather than
+    // scanning docs/plans/ (which legacy artifacts would fail).
+    expect(
+      body.includes("`date` to `created`"),
+      "plan-sections.md must name `date` -> `created` as a breaking rename — an artifact shipped with `created:` and downstream consumers key on `date`.",
+    ).toBe(true)
+    expect(
+      body.includes("` - Plan` suffix"),
+      "plan-sections.md must require the ` - Plan` title suffix — artifacts have shipped without it.",
+    ).toBe(true)
+    expect(
+      /conventional-commit prefix/i.test(body),
+      "plan-sections.md must prohibit a conventional-commit prefix in `title` — the `type` field carries that classification.",
     ).toBe(true)
   })
 

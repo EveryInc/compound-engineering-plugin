@@ -47,8 +47,46 @@ describe("ce-work review contract", () => {
     expect(shipping).toMatch(/review is not fix|3a\. Review|3b\. Apply/i)
     expect(shipping).toContain("mode:agent")
 
-    // Quality checklist references ce-code-review (self-sized), not tiers
-    expect(shipping).toContain("Code review: `ce-code-review` ran")
+    // Quality checklist requires receipt or exact skip phrase (completion gate)
+    expect(shipping).toContain("Code review completion gate")
+    expect(shipping).toContain("Ship-handoff gate")
+  })
+
+  // Issue #1351: prose-only review mandate was silently skipped. The always-loaded
+  // SKILL.md surface must carry a done-condition (receipt or fixed skip phrase),
+  // not only a "remember to invoke" stub that defers all enforcement to a lazy ref.
+  test("standalone shipping has an always-loaded code-review completion gate", async () => {
+    const content = await readRepoFile("skills/ce-work/SKILL.md")
+    const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
+
+    // Always-loaded body owns the gate (not only the lazy reference)
+    expect(content).toContain("Code-review completion gate")
+    expect(content).toContain("not done")
+    expect(content).toContain("must not call `ce-commit-push-pr`")
+    expect(content).toContain("artifact_path")
+    expect(content).toContain("status: complete")
+    expect(content).toContain("Code review: skipped (mechanical diff)")
+    expect(content).toContain("Code review: skipped (ce-code-review unavailable)")
+    expect(content).toContain("Code review: harness-native fallback")
+    // Mechanical exclusion of the observed self-justification; multi-file alone is not enough
+    expect(content).toContain("applying external/prior review findings")
+    expect(content).toContain("multi-file mechanical-only")
+    // Named non-substitutes
+    expect(content).toContain("Never substitute")
+    expect(content).toContain("mental self-review")
+    // Standalone-only; return-to-caller keeps caller-owned review
+    expect(content).toContain("does **not** apply in Return-to-Caller Mode")
+
+    // Reference mirrors gate + ship-handoff bind + mechanical exclusions
+    expect(shipping).toContain("Completion gate (standalone shipping)")
+    expect(shipping).toContain("Ship-handoff gate")
+    expect(shipping).toContain('do not push "and review later."')
+    expect(shipping).toContain("applying external or prior review findings")
+    expect(shipping).toContain("status: complete")
+    expect(shipping).toContain("Code review: skipped (mechanical diff)")
+    expect(shipping).toContain("Code review: skipped (ce-code-review unavailable)")
+    expect(shipping).toContain("Code review: harness-native fallback")
+    expect(shipping).toContain("Never substitute")
   })
 
   test("delegates commit and PR to dedicated skills", async () => {
@@ -337,6 +375,55 @@ describe("ce-debug regression test selection", () => {
     expect(content).toContain("strengthen an over-mocked test")
     expect(content).toContain("add a new minimal isolated test only when no existing test is the right home")
   })
+
+  // Observed drift: agents fired the Phase 2 fix-choice question on "root cause
+  // confirmed" alone, so the user chose Fix / Diagnosis-only from a modal stem with
+  // none of the causal chain on screen. Prose order alone did not hold it; the gate
+  // must stay stated as a blocking precondition next to the question.
+  test("gates the fix-choice question on the findings block being presented first", async () => {
+    const content = await readRepoFile("skills/ce-debug/SKILL.md")
+
+    expect(content).toContain("Same-turn presentation before the gate")
+    expect(content).toMatch(
+      /do not open the fix-choice question until that findings block has been written in full/i,
+    )
+    // The gate must be anchored at the question site, not stated only in an early section.
+    const gateIdx = content.indexOf("Same-turn presentation before the gate")
+    const askIdx = content.indexOf("Then ask (per **Blocking questions**)")
+    expect(gateIdx).toBeGreaterThan(-1)
+    expect(askIdx).toBeGreaterThan(gateIdx)
+  })
+
+  // Regression guard for the failure class in
+  // docs/solutions/skill-design/post-menu-routing-belongs-inline.md (issue #714):
+  // Phase 4's per-option actions are always reached once a fix lands, so they must live
+  // in the always-loaded SKILL.md body. A reference-only copy lets an agent that skipped
+  // the load render the menu and stop, or ship without `branding:on`.
+  test("keeps Phase 4 per-option handoff routing inline, not reference-only", async () => {
+    const content = await readRepoFile("skills/ce-debug/SKILL.md")
+    const routing = content.slice(content.indexOf("#### Routing"))
+
+    expect(content).toContain("#### Routing")
+    // Both branches name their action, and the action is a skill invocation, not advice
+    // to the user to type a command.
+    expect(routing).toContain("Skill-owned branch")
+    expect(routing).toContain("Pre-existing branch")
+    expect(routing).toContain("via the platform's skill-invocation primitive")
+    expect(routing).toContain("`ce-commit-push-pr` skill with `branding:on`")
+    expect(routing).toContain("invoke the `ce-commit` skill")
+    expect(routing).toContain("Stop here")
+    expect(routing).toContain("`ce-compound`")
+
+    // The reference load must still be demanded, and must not be improvisable from the
+    // inline routing: it has to name what only it carries and what skipping it costs.
+    const stub = content.slice(
+      content.indexOf("If Phase 3 ran, read"),
+      content.indexOf("#### Routing"),
+    )
+    expect(stub).toContain("`references/post-fix-handoff.md`")
+    expect(stub).toMatch(/none of that appears in this body/i)
+    expect(stub).toMatch(/skipping the read/i)
+  })
 })
 
 describe("ce-plan review contract", () => {
@@ -604,6 +691,27 @@ describe("ce-doc-review contract", () => {
     expect(content).toContain("`references/bulk-preview.md`")
   })
 
+  // Reproduced on Codex (gpt-5.6-sol), 4/4 runs: a plan whose only storage-related
+  // content was an internal schema migration activated security-lens, justified as
+  // "changes data-store entries ... with deployment-ordering risks". The bare
+  // "data handling" trigger matches every plan. security-lens is one of the
+  // conditional judgment trio, so a false positive also fires the cross-model peer
+  // pass — the over-activation costs real peer spend, not just an extra reviewer.
+  test("security-lens is bounded to sensitive data, not any data handling", async () => {
+    const content = await readRepoFile("skills/ce-doc-review/SKILL.md")
+    const line = content
+      .split("\n")
+      .find((l) => l.startsWith("**security-lens**"))
+    expect(line, "ce-doc-review must define a security-lens activation line").toBeDefined()
+
+    expect(line).toMatch(/sensitive/i)
+    // The negative case is what keeps storage churn from tripping the lens.
+    expect(line).toMatch(/schema migration/i)
+    expect(line).toMatch(/deployment-ordering risk is a feasibility concern/i)
+    // A bare "data handling," enumeration is the unbounded form this replaced.
+    expect(line).not.toMatch(/(^|[;,] )data handling,/i)
+  })
+
   test("keeps security document review on the parent capability tier", async () => {
     const content = await readRepoFile("skills/ce-doc-review/SKILL.md")
     const modelTierSection = content.slice(content.indexOf("Model tiering lives here"))
@@ -838,12 +946,16 @@ describe("explicit Compound Engineering branding provenance", () => {
     const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
     const lfg = await readRepoFile("skills/lfg/SKILL.md")
     const debug = await readRepoFile("skills/ce-debug/SKILL.md")
+    const debugHandoff = await readRepoFile("skills/ce-debug/references/post-fix-handoff.md")
 
     expect(shipping).toContain("Load the `ce-commit-push-pr` skill with `branding:on`")
     expect(lfg).toContain("ce-commit-push-pr` skill with `mode:pipeline branding:on`")
-    expect(debug).toContain("Invoke the `ce-commit-push-pr` skill with `branding:on`.")
+    // Both branch invocations must stay in the always-loaded body, not the reference —
+    // see the Phase 4 routing test below.
+    expect(debug).toContain("invoke the `ce-commit-push-pr` skill with `branding:on`.")
     expect(debug).toContain("reviewed fix (invoke the `ce-commit-push-pr` skill with `branding:on`)")
     expect(debug).not.toContain("`/ce-commit-push-pr branding:on`")
+    expect(debugHandoff).not.toContain("`/ce-commit-push-pr branding:on`")
   })
 })
 

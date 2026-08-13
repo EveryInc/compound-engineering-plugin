@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Extract the conversation skeleton from a Claude Code, Codex, Cursor, or Pi JSONL session file.
+"""Extract the conversation skeleton from a Claude Code, Codex, Cursor, Pi, or oh-my-pi (omp) JSONL session file.
 
 Usage:
   cat <session.jsonl> | python3 extract-skeleton.py
   cat <session.jsonl> | python3 extract-skeleton.py --output PATH
 
-Auto-detects platform (Claude Code, Codex, Cursor, or Pi) from the JSONL structure.
+Auto-detects platform (Claude Code, Codex, Cursor, Pi, or oh-my-pi (omp)) from the JSONL structure.
 Extracts:
   - User messages (text only, no tool results)
   - Assistant text (no thinking/reasoning blocks)
@@ -342,7 +342,12 @@ def _pi_context_objects(objects):
 
 
 def handle_pi(obj):
-    """Pi sessions: type='message' with message.role and content blocks."""
+    """Pi/omp sessions: type='message' with message.role and content blocks.
+
+    omp's physical type:'title' slot line lands here too and returns below
+    like any non-message entry. type:'title_change' entries are a different
+    pi entry type — they also carry no message payload and return the same
+    way; do not conflate the two when filtering."""
     entry_type = obj.get("type")
     ts = obj.get("timestamp", "")[:19]
 
@@ -520,6 +525,9 @@ def handle_cursor(obj):
 # Auto-detect platform from first few lines, then process all
 detected = None
 buffer = []
+# omp files physically begin with a fixed-width type:'title' slot line before
+# the pi-shaped type:'session' header; bare pi files start with the header.
+seen_title_slot = False
 
 for line in sys.stdin:
     line = line.strip()
@@ -537,7 +545,9 @@ for line in sys.stdin:
         try:
             obj = json.loads(line)
             if obj.get("type") == "session" and "cwd" in obj:
-                detected = "pi"
+                detected = "omp" if seen_title_slot else "pi"
+            elif obj.get("type") == "title" and len(buffer) == 1:
+                seen_title_slot = True
             elif obj.get("type") in ("user", "assistant"):
                 detected = "claude"
             elif obj.get("type") in ("session_meta", "turn_context", "response_item", "event_msg"):
@@ -547,7 +557,7 @@ for line in sys.stdin:
         except (json.JSONDecodeError, KeyError):
             pass
 
-handlers = {"claude": handle_claude, "codex": handle_codex, "cursor": handle_cursor, "pi": handle_pi}
+handlers = {"claude": handle_claude, "codex": handle_codex, "cursor": handle_cursor, "pi": handle_pi, "omp": handle_pi}
 handler = handlers.get(detected, handle_codex)
 
 objects = []
@@ -557,7 +567,7 @@ for line in buffer:
     except (json.JSONDecodeError, KeyError):
         stats["parse_errors"] += 1
 
-if detected == "pi":
+if detected in ("pi", "omp"):
     objects = _pi_context_objects(objects)
 
 for obj in objects:

@@ -98,7 +98,7 @@ export default defineCommand({
       const activeTargets = detected.filter((t) => t.detected && targets[t.name]?.implemented)
 
       if (activeTargets.length === 0) {
-        console.log("No installable AI coding tools detected. Use native plugin install for Claude Code, Copilot, Droid, OpenCode, Pi, and Qwen.")
+        console.log("No installable AI coding tools detected. Use native plugin install for Claude Code, Copilot, Droid, oh-my-pi (omp), OpenCode, Pi, and Qwen.")
         return
       }
 

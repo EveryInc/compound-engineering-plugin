@@ -81,7 +81,7 @@ When `STRATEGY.md` exists, the first-run setup reads it before asking questions.
 
 ### 4. Read-only invariant
 
-The skill never mutates the product, the database, or any external system. The only writes are pulse settings appended to `.compound-engineering/config.local.yaml` (gitignored, machine-local) and the report file (`docs/pulse-reports/...`). MCP and other data-source tools are invoked read-only; if a tool offers write modes, they're not used.
+The skill never mutates the product, the database, or any external system. The only writes are pulse settings appended to CE config (`config.local.yaml` then `config.yaml`; interviews still write local) and the report file (`docs/pulse-reports/...`). MCP and other data-source tools are invoked read-only; if a tool offers write modes, they're not used.
 
 For database access specifically, the interview **refuses** read-write credentials and points the user at alternatives (read replicas, BI views, snapshot exports). DB access is optional; many products complete the pulse with analytics + tracing alone.
 
@@ -115,7 +115,7 @@ Every pulse writes to `docs/pulse-reports/YYYY-MM-DD_HH-MM.md` (local time). Pas
 
 It's Monday morning. You want to see how things went over the weekend. You run `/ce-product-pulse 72h`.
 
-The skill detects this is a configured project (`pulse_product_name` is set in `.compound-engineering/config.local.yaml`), so it skips the interview and goes straight to Phase 2. It applies the 15-minute trailing buffer: `[Friday 5:45pm — Monday 8:45am]`.
+The skill detects this is a configured project (`pulse_product_name` is set in CE config), so it skips the interview and goes straight to Phase 2. It applies the 15-minute trailing buffer: `[Friday 5:45pm — Monday 8:45am]`.
 
 Phase 2.1 dispatches in parallel: PostHog query (primary engagement event count, value-realization, completion ratio), Sentry query (error counts by category, latency p50/p95/p99, top error signatures), Stripe query (new customers, churn, revenue delta). Then the read-only DB query runs serially (a small scoped query for active-user count by tier).
 
@@ -205,7 +205,7 @@ Past reports remain in the folder as a browseable timeline. The folder is meant 
 | `24h`, `48h`, `72h`, `7d`, `30d`, `1h` | Trailing time window |
 | `setup` / `reconfigure` / `edit config` | Re-run the interview regardless of config state |
 
-Configuration lives in `.compound-engineering/config.local.yaml` (gitignored, machine-local) under `pulse_*` keys: product name, primary event, value event, completion events, quality scoring, quality dimension, analytics source, tracing source, payments source, DB enabled, per-metric source overrides, pending metrics, excluded metrics, default lookback. See the [configuration reference](./configuration.md) for the complete key list.
+Configuration lives in CE config (`config.local.yaml` then `config.yaml`; interviews still write local) under `pulse_*` keys: product name, primary event, value event, completion events, quality scoring, quality dimension, analytics source, tracing source, payments source, DB enabled, per-metric source overrides, pending metrics, excluded metrics, default lookback. See the [configuration reference](./configuration.md) for the complete key list.
 
 ---
 

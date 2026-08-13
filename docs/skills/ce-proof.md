@@ -11,7 +11,7 @@
 | Question | Answer |
 |----------|--------|
 | What does it do? | Publishes local markdown to a shareable Proof doc, reads shared docs, and edits via Proof's v3 HTTP API |
-| When to use it | "Share to Proof", "publish to Proof", "view this in Proof"; auto-invoked on `ce-brainstorm` / `ce-plan` / `ce-ideate` publish handoffs |
+| When to use it | "Share to Proof", "publish to Proof", "view this in Proof"; offered on non-software wrap-up menus and `ce-ideate`; invoke directly for software brainstorms and plans |
 | What it produces | A shareable Proof URL (publish), or edits/comments on a shared doc you point it at |
 | API surface | Hosted web API at `proofeditor.ai` — `v3/document` (read) and `v3/edit` (write) |
 | Sync direction | One-way publish by default — the local file stays canonical. Pulling a Proof doc back to local is a separate, explicit action |
@@ -81,7 +81,7 @@ Publishing is the chain's primary use case:
 The local file remains the canonical record; nothing syncs back to disk as a side effect of publishing. Two entry points, identical mechanics:
 
 - **Direct user request** — bare phrase like "share this to proof" or "publish this to proof"
-- **Upstream skill handoff** — `ce-brainstorm` / `ce-ideate` / `ce-plan` finishes a draft and hands it to publish
+- **Upstream skill handoff** — `ce-ideate` and non-software `ce-brainstorm` / `ce-plan` wrap-ups can hand a draft to publish; software brainstorm and plan menus invoke `ce-proof` only when the user asks
 
 ### 3. Owner credential lifecycle
 
@@ -103,7 +103,7 @@ The skill enforces `by: "ai:compound-engineering"` on every op and `X-Agent-Id: 
 
 ## Quick Example
 
-`/ce-plan` finishes a notification-mute plan and the user picks "Publish to Proof" at the Phase 5.4 menu. Plan invokes `ce-proof` with the plan path and title.
+The user asks to publish a notification-mute plan to Proof. The session invokes `ce-proof` with the plan path and title.
 
 The skill creates a Proof doc via `POST /share/markdown` with the plan content, retains `accessToken` + `ownerSecret`, returns the `tokenUrl`, and binds the display name via `POST /presence`. It surfaces the URL to the user and returns control to `ce-plan` Phase 5.4 — the local plan file remains canonical and untouched.
 
@@ -132,8 +132,7 @@ Skip `ce-proof` when:
 
 `ce-proof` integrates with the chain at multiple publish touchpoints:
 
-- **`/ce-brainstorm` Phase 4** — "Publish to Proof" handoff for sharing the markdown requirements-only unified plan
-- **`/ce-plan` Phase 5.4** — "Publish to Proof" handoff for sharing the plan
+- **Non-software `/ce-brainstorm` and `/ce-plan` wrap-ups** — "Publish to Proof" remains on those menus
 - **`/ce-ideate` Phase 5** — "Publish to Proof" option (markdown output only)
 - **`/ce-compound`** — for sharing a learning before committing to `docs/solutions/`
 
@@ -206,8 +205,8 @@ The skill retries once. If it still fails, callers get a clear error and can dec
 
 ## See Also
 
-- [`/ce-brainstorm`](./ce-brainstorm.md) — Phase 4 "Publish to Proof" handoff
-- [`/ce-plan`](./ce-plan.md) — Phase 5.4 "Publish to Proof" handoff
+- [`/ce-brainstorm`](./ce-brainstorm.md) — non-software wrap-up still offers Proof
+- [`/ce-plan`](./ce-plan.md) — non-software wrap-up still offers Proof
 - [`/ce-ideate`](./ce-ideate.md) — Phase 5 "Publish to Proof" option
 - [Proof](https://www.proofeditor.ai) — the editor itself; this skill is the agent client
 - [Proof agent docs](https://www.proofeditor.ai/agent-docs) — hosted agent contract

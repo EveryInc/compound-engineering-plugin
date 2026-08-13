@@ -95,6 +95,10 @@ describe("ce-ideate output mode (html default)", () => {
       /# ideate_output: md|commented example|shipped config template/i.test(region),
       "Phase 0.0 must cite the shipped template's commented `# ideate_output:` example so the rationale survives future edits.",
     ).toBe(true)
+    expect(
+      /ordinary-key|next layer|config\.local\.yaml then `config\.yaml`/i.test(region),
+      "Phase 0.0 config step must cascade local then tracked before the skill default.",
+    ).toBe(true)
   })
 
   test("unknown-value fallback note reflects final resolved mode, not a hardcoded format", () => {

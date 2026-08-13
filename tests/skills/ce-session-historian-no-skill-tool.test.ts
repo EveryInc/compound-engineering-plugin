@@ -74,3 +74,12 @@ describe("session-historian prompt no-Skill-tool regression guard", () => {
     expect(COMPOUND_SKILL_BODY).not.toContain("<resolved repo root")
   })
 })
+
+describe("session-historian omp platform contract", () => {
+  test("input, synthesis, and output contracts include omp", () => {
+    expect(AGENT_BODY).toContain("`platform` — `claude`, `codex`, `cursor`, `pi`, or `omp`")
+    expect(AGENT_BODY).toContain("`cwd` — working directory when present (Codex, Pi, and omp)")
+    expect(AGENT_BODY).toContain("Claude Code + Codex + Cursor + Pi + omp")
+    expect(AGENT_BODY).toContain("[N] Pi, [N] omp")
+  })
+})

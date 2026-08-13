@@ -75,8 +75,10 @@ RELATIONSHIP_DEPENDENT = "dependent"
 RELATIONSHIP_INDEPENDENT = "independent"
 RELATIONSHIP_PROBE_ERROR = "probe-error"
 BASE_REF_CURRENT = "current"
-BASE_REF_STALE = "stale"
+BASE_REF_RACE = "race"
+BASE_REF_MERGEABILITY_PENDING = "mergeability-pending"
 BASE_REF_PROBE_ERROR = "probe-error"
+BASE_REF_LEGACY_STALE = "stale"
 
 # First judgment point for an incomplete review lifecycle. The agent may extend once to 1800s when
 # concrete prior-round timing supports it; the skill contract owns that semantic decision.
@@ -322,22 +324,65 @@ def _host_args(host):
     return ["--hostname", host] if host else []
 
 
-def fetch_base_ref(owner, name, ref, pr_oid, host=None):
-    """Bind the PR object's cached base OID to the repository's current exact branch ref.
+def _valid_oid(value):
+    return isinstance(value, str) and bool(
+        re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", value))
 
-    `mergeStateStatus` and `baseRefOid` are fields on one PR-object read. They can lag the live
-    branch ref together, so neither is independent freshness evidence. Probe uncertainty is a
-    first-class fail-closed result rather than a fallback to the cached OID.
+
+def fetch_pr_merge_identity(pr, owner, name, host=None):
+    """Read mergeability and the identities it was computed from in one GraphQL observation."""
+    query = """
+query($owner:String!,$repo:String!,$pr:Int!){
+  repository(owner:$owner,name:$repo){ pullRequest(number:$pr){
+    mergeable mergeStateStatus headRefOid baseRefOid baseRefName viewerCanUpdateBranch
+    baseRef { target { oid } }
+    potentialMergeCommit { oid parents(first:2) { nodes { oid } } }
+  } }
+}"""
+    r = _run(["gh", "api", "graphql", *_host_args(host), "-f", f"owner={owner}",
+              "-f", f"repo={name}", "-F", f"pr={pr}", "-f", f"query={query}"])
+    if r.returncode != 0:
+        return None
+    try:
+        value = json.loads(r.stdout)["data"]["repository"]["pullRequest"]
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def fetch_base_ref(owner, name, ref, merge_identity, host=None):
+    """Bind GitHub's mergeability observation to an independently probed current base ref.
+
+    `baseRefOid` is retained only as historical PR metadata. Current identity comes from both the
+    PR's `baseRef.target.oid` and an exact Git-ref read; a usable generated test merge must then
+    name that base and the observed PR head as its two parents.
     """
+    historical_oid = (merge_identity or {}).get("baseRefOid")
+    head_oid = (merge_identity or {}).get("headRefOid")
+    mergeable = (merge_identity or {}).get("mergeable")
+    merge_state_status = (merge_identity or {}).get("mergeStateStatus")
+    graphql_oid = (((merge_identity or {}).get("baseRef") or {}).get("target") or {}).get("oid")
+    potential_merge = (merge_identity or {}).get("potentialMergeCommit")
+    merge_commit_oid = potential_merge.get("oid") if isinstance(potential_merge, dict) else None
+    merge_parent_oids = (((potential_merge or {}).get("parents") or {}).get("nodes")
+                         if isinstance(potential_merge, dict) else None)
+    if isinstance(merge_parent_oids, list):
+        merge_parent_oids = [node.get("oid") if isinstance(node, dict) else None
+                             for node in merge_parent_oids]
+    else:
+        merge_parent_oids = []
     base = {
         "host": host or "github.com",
         "repository": f"{owner}/{name}",
         "ref": ref,
         "oid": None,
-        "pr_oid": pr_oid,
-        "freshness": BASE_REF_PROBE_ERROR,
+        "graphql_oid": graphql_oid,
+        "historical_oid": historical_oid,
+        "merge_commit_oid": merge_commit_oid,
+        "merge_parent_oids": merge_parent_oids,
+        "identity": BASE_REF_PROBE_ERROR,
     }
-    if not ref or not pr_oid:
+    if not ref:
         return base
     encoded_ref = quote(ref, safe="/")
     r = _run([
@@ -346,45 +391,46 @@ def fetch_base_ref(owner, name, ref, pr_oid, host=None):
         "--jq", ".object.sha",
     ])
     current_oid = (r.stdout or "").strip()
-    if (r.returncode != 0 or not re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", current_oid)):
+    if r.returncode != 0 or not _valid_oid(current_oid):
         return base
     base["oid"] = current_oid
-    base["freshness"] = (
-        BASE_REF_CURRENT if current_oid.lower() == pr_oid.lower() else BASE_REF_STALE)
+    if not (_valid_oid(graphql_oid) and _valid_oid(head_oid)):
+        return base
+    if current_oid.lower() != graphql_oid.lower():
+        base["identity"] = BASE_REF_RACE
+        return base
+
+    if mergeable == "MERGEABLE" and merge_state_status not in (None, "UNKNOWN", "DIRTY"):
+        if potential_merge is None:
+            base["identity"] = BASE_REF_MERGEABILITY_PENDING
+            return base
+        if (not _valid_oid(merge_commit_oid) or len(merge_parent_oids) != 2
+                or not all(_valid_oid(oid) for oid in merge_parent_oids)):
+            return base
+        if (merge_parent_oids[0].lower() != current_oid.lower()
+                or merge_parent_oids[1].lower() != head_oid.lower()):
+            base["identity"] = BASE_REF_RACE
+            return base
+    elif not (mergeable == "CONFLICTING" and merge_state_status == "DIRTY"):
+        base["identity"] = BASE_REF_MERGEABILITY_PENDING
+        return base
+
+    base["identity"] = BASE_REF_CURRENT
     return base
 
 
 def _base_ref_blocker(base):
-    freshness = (base or {}).get("freshness")
-    if freshness == BASE_REF_CURRENT:
+    identity = (base or {}).get("identity")
+    if identity is None:
+        # Compatibility for pre-change --fetch-file fixtures and persisted snapshots.
+        identity = (base or {}).get("freshness")
+    if identity == BASE_REF_CURRENT:
         return None
-    if freshness == BASE_REF_STALE:
-        return BASE_REF_STALE
+    if identity in (BASE_REF_RACE, BASE_REF_MERGEABILITY_PENDING):
+        return identity
+    if identity == BASE_REF_LEGACY_STALE:
+        return BASE_REF_LEGACY_STALE
     return BASE_REF_PROBE_ERROR
-
-
-def fetch_host_branch_update_capability(pr, owner, name, host=None):
-    """Read GitHub's operation-specific update-branch capability without mutating.
-
-    This fact intentionally says nothing about direct Git push authority, which DIRTY repair must
-    prove separately. Probe and response-shape uncertainty fail closed as `unknown`.
-    """
-    query = """
-query($owner:String!,$repo:String!,$pr:Int!){
-  repository(owner:$owner,name:$repo){
-    pullRequest(number:$pr){ viewerCanUpdateBranch }
-  }
-}"""
-    r = _run(["gh", "api", "graphql", *_host_args(host), "-f", f"owner={owner}",
-              "-f", f"repo={name}", "-F", f"pr={pr}", "-f", f"query={query}"])
-    if r.returncode != 0:
-        return "unknown"
-    try:
-        capability = json.loads(r.stdout)["data"]["repository"]["pullRequest"][
-            "viewerCanUpdateBranch"]
-    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
-        return "unknown"
-    return capability if isinstance(capability, bool) else "unknown"
 
 
 def _eyes_reaction_identities(reaction_pages):
@@ -698,21 +744,37 @@ def fetch(pr, repo):
             })
 
     owner, name, host = _resolve_repo_ref(repo, v.get("url"))
-    base = fetch_base_ref(
-        owner, name, v.get("baseRefName"), v.get("baseRefOid"), host)
+    merge_identity = fetch_pr_merge_identity(v.get("number") or pr, owner, name, host)
+    merge_observation = merge_identity or v
+    mergeable = merge_observation.get("mergeable")
+    merge_state_status = merge_observation.get("mergeStateStatus")
+    head = v.get("headRefOid")
+    base = fetch_base_ref(owner, name, v.get("baseRefName"), merge_observation, host)
+    if merge_identity is not None:
+        identity_head = merge_identity.get("headRefOid")
+        identity_base_ref = merge_identity.get("baseRefName")
+        if (not isinstance(identity_base_ref, str)
+                or not (_valid_oid(identity_head) and _valid_oid(head))):
+            base["identity"] = BASE_REF_PROBE_ERROR
+        elif (identity_head.lower() != head.lower()
+                or identity_base_ref != v.get("baseRefName")):
+            # The checks and review payload came from `v`; do not combine them with mergeability
+            # observed for a different head or base branch.
+            base["identity"] = BASE_REF_RACE
     pr_chain = fetch_pr_chain(v.get("number") or pr, repo, v.get("url"),
                               v.get("baseRefName"), v.get("headRefName"), owner, name, host)
     currency_probe = {
-        "mergeable": v.get("mergeable"),
-        "merge_state_status": v.get("mergeStateStatus"),
+        "mergeable": mergeable,
+        "merge_state_status": merge_state_status,
         "base": base,
         "pr_chain": pr_chain,
     }
     host_branch_update_capability = "unknown"
-    if (v.get("mergeStateStatus") == "BEHIND"
-            and _branch_currency_observation(currency_probe, v.get("headRefOid")) is not None):
-        host_branch_update_capability = fetch_host_branch_update_capability(
-            v.get("number") or pr, owner, name, host)
+    if (merge_state_status == "BEHIND"
+            and _branch_currency_observation(currency_probe, head) is not None):
+        capability = merge_observation.get("viewerCanUpdateBranch")
+        if isinstance(capability, bool):
+            host_branch_update_capability = capability
 
     # In-progress review signal: an 👀 (EYES) reaction on the PR body is how several review bots
     # (Codex among them) announce a review is *underway* — a present in-progress signal means the PR
@@ -722,12 +784,11 @@ def fetch(pr, repo):
     review_signal_count = len(review_signal_identities)
     review_in_progress = review_signal_count > 0
 
-    head = v.get("headRefOid")
     return {
         "pr_state": v.get("state"),
         "pr_is_draft": v.get("isDraft"),
-        "mergeable": v.get("mergeable"),
-        "merge_state_status": v.get("mergeStateStatus"),
+        "mergeable": mergeable,
+        "merge_state_status": merge_state_status,
         "review_decision": v.get("reviewDecision") or None,
         "head_sha": head,
         "base": base,

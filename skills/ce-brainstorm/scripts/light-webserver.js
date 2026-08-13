@@ -8,15 +8,15 @@ import { fileURLToPath } from "node:url"
 const scriptPath = fileURLToPath(import.meta.url)
 const DEFAULT_HOST = "127.0.0.1"
 const DEFAULT_URL_HOST = "localhost"
-const IDLE_TIMEOUT_MS = Number(process.env.CE_VISUAL_PROBE_IDLE_TIMEOUT_MS) || 30 * 60 * 1000
-const LIFECYCLE_CHECK_MS = Number(process.env.CE_VISUAL_PROBE_LIFECYCLE_CHECK_MS) || 60 * 1000
+const IDLE_TIMEOUT_MS = Number(process.env.CE_LIGHT_WEB_IDLE_TIMEOUT_MS) || 30 * 60 * 1000
+const LIFECYCLE_CHECK_MS = Number(process.env.CE_LIGHT_WEB_LIFECYCLE_CHECK_MS) || 60 * 1000
 
 function usage() {
   return [
     "Usage:",
-    "  node visual-probe-server.js start --root <dir> [--host 127.0.0.1] [--port 0] [--foreground] [--owner-pid <pid>]",
-    "  node visual-probe-server.js stop --root <dir>",
-    "  node visual-probe-server.js status --root <dir>",
+    "  node light-webserver.js start --root <dir> [--host 127.0.0.1] [--port 0] [--foreground] [--owner-pid <pid>]",
+    "  node light-webserver.js stop --root <dir>",
+    "  node light-webserver.js status --root <dir>",
   ].join("\n")
 }
 
@@ -139,14 +139,30 @@ function getRunningInfo(options) {
   return readJson(options.infoFile)
 }
 
+// Containment has to survive symlinks: path.resolve is lexical, so a link
+// inside the run directory would otherwise be followed straight out of it.
+// Every route that reads a file goes through this — the screen route and the
+// asset route drifting apart is what left one of them unguarded before.
+function containedRealPath(rootDir, candidate) {
+  let root
+  let real
+  try {
+    root = fs.realpathSync(rootDir)
+    real = fs.realpathSync(candidate)
+  } catch {
+    return null
+  }
+  if (real !== root && !real.startsWith(root + path.sep)) return null
+  return real
+}
+
 function newestScreen(options) {
   if (!fs.existsSync(options.screensDir)) return null
   const files = fs.readdirSync(options.screensDir)
     .filter((file) => file.endsWith(".html"))
-    .map((file) => {
-      const filePath = path.join(options.screensDir, file)
-      return { filePath, mtimeMs: fs.statSync(filePath).mtimeMs }
-    })
+    .map((file) => containedRealPath(options.screensDir, path.join(options.screensDir, file)))
+    .filter(Boolean)
+    .map((filePath) => ({ filePath, mtimeMs: fs.statSync(filePath).mtimeMs }))
     .sort((a, b) => b.mtimeMs - a.mtimeMs)
   return files[0]?.filePath ?? null
 }
@@ -196,7 +212,7 @@ function wrapFragment(options, content) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CE Brainstorm Visual Probe</title>
+  <title>CE local web</title>
   <style>
     body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; background: #f7f7f8; color: #1f2328; }
     header { padding: 10px 18px; border-bottom: 1px solid #d8dee4; background: #fff; color: #57606a; font-size: 13px; }
@@ -204,7 +220,7 @@ function wrapFragment(options, content) {
   </style>
 </head>
 <body>
-  <header>CE Brainstorm Visual Probe - directional sketch, reply in chat</header>
+  <header>CE local web - newest screen, reloads on change</header>
   <main>${content}</main>
   ${refreshScript(options)}
 </body>
@@ -221,16 +237,43 @@ function injectRefresh(options, html) {
 function renderPage(options) {
   const screen = newestScreen(options)
   if (!screen) {
-    return wrapFragment(options, "<h1>Waiting for a visual probe...</h1><p>The agent will update this page when a sketch is ready.</p>")
+    return wrapFragment(options, "<h1>Waiting for a page...</h1><p>The agent will update this page when a screen is ready.</p>")
   }
   const html = fs.readFileSync(screen, "utf8")
   return isFullDocument(html) ? injectRefresh(options, html) : wrapFragment(options, html)
 }
 
 function safeFileResponse(options, req, res) {
-  const name = decodeURIComponent(req.url.slice("/files/".length))
-  const filePath = path.join(options.screensDir, path.basename(name))
-  if (!fs.existsSync(filePath)) {
+  let name
+  try {
+    // A malformed percent-escape throws URIError; without this the throw is
+    // uncaught in the request handler and takes the whole server down.
+    name = decodeURIComponent(req.url.split("?")[0].split("#")[0])
+  } catch {
+    res.writeHead(400)
+    res.end("Bad request")
+    return
+  }
+  name = name.replace(/^\/+/, "")
+  // Serve nested paths so a screen can keep the asset layout it was copied
+  // from, but never resolve outside the run's screens directory.
+  const filePath = containedRealPath(options.screensDir, path.resolve(options.screensDir, name))
+  if (!filePath) {
+    res.writeHead(404)
+    res.end("Not found")
+    return
+  }
+  let stat
+  try {
+    stat = fs.statSync(filePath)
+  } catch {
+    res.writeHead(404)
+    res.end("Not found")
+    return
+  }
+  // `/files/%2e` resolves to the screens directory itself, which passes an
+  // existence check and then throws EISDIR on read — uncaught, killing the server.
+  if (!stat.isFile()) {
     res.writeHead(404)
     res.end("Not found")
     return
@@ -239,16 +282,36 @@ function safeFileResponse(options, req, res) {
   res.end(fs.readFileSync(filePath))
 }
 
+// A prototype recreated from a real product brings whatever that product uses,
+// so this covers the ordinary web asset set rather than an allowlist that has
+// to grow every time a screen references a new kind of file.
+const CONTENT_TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".txt": "text/plain; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".avif": "image/avif",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".otf": "font/otf",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".mp3": "audio/mpeg",
+  ".wasm": "application/wasm",
+}
+
 function contentType(filePath) {
-  const ext = path.extname(filePath).toLowerCase()
-  if (ext === ".svg") return "image/svg+xml"
-  if (ext === ".png") return "image/png"
-  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg"
-  if (ext === ".gif") return "image/gif"
-  if (ext === ".html") return "text/html; charset=utf-8"
-  if (ext === ".css") return "text/css; charset=utf-8"
-  if (ext === ".js") return "text/javascript; charset=utf-8"
-  return "application/octet-stream"
+  return CONTENT_TYPES[path.extname(filePath).toLowerCase()] ?? "application/octet-stream"
 }
 
 async function start(options) {
@@ -311,13 +374,16 @@ async function serve(options) {
   }
 
   const server = http.createServer((req, res) => {
-    if (req.method === "GET" && req.url === "/") {
+    // Route on the pathname: an interactive prototype navigating to
+    // `/?variant=a` must still get the active screen, not a file lookup.
+    const urlPath = req.url.split("?")[0].split("#")[0]
+    if (req.method === "GET" && urlPath === "/") {
       touch()
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
       res.end(renderPage(options))
       return
     }
-    if (req.method === "GET" && req.url === "/version") {
+    if (req.method === "GET" && urlPath === "/version") {
       res.writeHead(200, {
         "Content-Type": "application/json; charset=utf-8",
         "Cache-Control": "no-store",
@@ -325,7 +391,7 @@ async function serve(options) {
       res.end(`${JSON.stringify(screenVersion(options))}\n`)
       return
     }
-    if (req.method === "GET" && req.url.startsWith("/files/")) {
+    if (req.method === "GET") {
       touch()
       safeFileResponse(options, req, res)
       return
