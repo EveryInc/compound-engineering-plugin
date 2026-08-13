@@ -33,7 +33,7 @@ The loop is intentionally narrower: it operates only on the current clean local 
 
 | Argument | Effect |
 |----------|--------|
-| `max-work-units:N` | Circuit breaker for total review waves and remediation cycles. Default: `8`; accepted range: `2` through `10`. |
+| `max-work-units:N` | Circuit breaker for total review waves and remediation cycles. Default: `16`; accepts any integer of `2` or greater, with no upper bound. |
 | `base:<ref>` | Resolves one concrete base SHA before the first review and uses that same base for every wave. |
 | `plan:<path>` | Supplies the implementation plan used by canonical review for requirements verification. |
 

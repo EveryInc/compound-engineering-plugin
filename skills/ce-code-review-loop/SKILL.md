@@ -34,7 +34,7 @@ fi
 - Resolve `base:<ref>` once to a commit, then compute the diff merge base between the starting `HEAD` and that resolved commit. If omitted, first choose the repository's normal comparison ref. Freeze the helper's returned concrete merge-base SHA for the entire invocation; a supplied branch tip or direct SHA is an input to merge-base resolution, not itself the frozen diff base.
 - Record the branch, frozen merge-base SHA, and **immutable starting HEAD**; never overwrite the starting HEAD in run state. Any later branch drift, unexpected HEAD drift, or tree change outside the active loop-owned remediation cycle is concurrent user work: preserve it and stop.
 - `plan:<path>` must be readable when supplied and is forwarded unchanged to every canonical wave.
-- `max-work-units:N` is optional. Default: `8`. It must be an integer from 2 through 10. Invalid or conflicting input fails before the first wave with a populated `Non-converged` envelope.
+- `max-work-units:N` is optional. Default: `16`. It must be an integer of 2 or greater, with no upper bound. Invalid or conflicting input fails before the first wave with a populated `Non-converged` envelope.
 
 Use the bundled deterministic helper for the Git mechanics it owns; do not improvise them. Every helper call is a fresh shell-tool invocation, so make it self-contained with this exact prefix and append exactly one operation from the table:
 

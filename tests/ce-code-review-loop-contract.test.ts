@@ -568,8 +568,9 @@ describe("ce-code-review-loop contract", () => {
     const protocol = await readFile(protocolPath, "utf8")
 
     expect(skill).toContain("`max-work-units:N`")
-    expect(skill).toContain("Default: `8`")
-    expect(skill).toContain("integer from 2 through 10")
+    expect(skill).toContain("Default: `16`")
+    expect(skill).toContain("integer of 2 or greater")
+    expect(skill).toContain("no upper bound")
     expect(skill).toContain("global review wave")
     expect(skill).toContain("defect-family remediation cycle")
     expect(skill).toContain("discarded")
