@@ -52,7 +52,7 @@ Default environment: a throwaway scratch prototype under `/tmp/compound-engineer
 
 Scale into the existing app only as a throwaway overlay when the user asks or the question is density or chrome on an existing page — an isolated page will hide that. That overlay is not the shipped feature. Do not commit prototype code on the product branch. Undo those edits when the try ends — restore only the files you changed, never work you did not make. If you cannot undo them cleanly, name the files you left modified rather than handing off a dirty tree.
 
-Do not fake the dimension being tested. If the question is whether a flow or state model is right, they must be able to drive it — a screen that only looks like the product does not answer that. Persist only when persistence is the question. Do not polish, test, or abstract past runnable.
+Do not fake the dimension being tested. If the question is whether a flow or state model is right, they must be able to drive it — a screen that only looks like the product does not answer that. Persist only when persistence is the question.
 
 When the question is which option wins, put the options on one surface so they can be judged together.
 
