@@ -28,7 +28,7 @@ const ROUTE_CONTRACTS = {
   "grok-cli": { target: "grok", harness: "grok", intermediaries: [], model: "auto", restriction: "cooperative" },
   cursor: { target: "cursor", harness: "cursor-agent", intermediaries: [], model: "auto", restriction: "adapter-enforced" },
   composer: { target: "composer", harness: "cursor-agent", intermediaries: ["cursor"], model: "composer-2.5-fast", restriction: "adapter-enforced" },
-  "grok-cursor": { target: "grok", harness: "cursor-agent", intermediaries: ["cursor"], model: "cursor-grok-4.5-high", restriction: "adapter-enforced" },
+  "grok-cursor": { target: "grok", harness: "cursor-agent", intermediaries: ["cursor"], model: "cursor-grok-4.6-high", restriction: "adapter-enforced" },
 } as const
 const roots: string[] = []
 
@@ -81,7 +81,7 @@ if [ "\${1:-}" = "--list-models" ]; then
   cat <<'MODELS'
 composer-2.5-fast - Composer 2.5 Fast
 composer-next-fast - Composer Next Fast
-cursor-grok-4.5-high - Cursor Grok 4.5 High
+cursor-grok-4.6-high - Cursor Grok 4.6
 claude-sonnet-5-low - Sonnet 5 1M Low
 MODELS
   exit 0
@@ -107,7 +107,7 @@ case '${route}' in
     printf '%s\\n' '${final.replaceAll("'", "'\\''")}'
     ;;
   cursor|composer|grok-cursor)
-    model='Cursor Grok 4.5 High'
+    model='Cursor Grok 4.6'
     [ '${route}' = composer ] && model='Composer 2.5 Fast'
     printf '%s\\n' "{\\"type\\":\\"system\\",\\"subtype\\":\\"init\\",\\"model\\":\\"$model\\"}"
     printf '%s\\n' '${final.replaceAll("'", "'\\''")}'
@@ -231,7 +231,7 @@ describe("ce-work fixed write routes", () => {
     }
     expect(emit("cursor").stdout).not.toContain("--model")
     expect(emit("composer").stdout).toContain("--model composer-2.5-fast")
-    expect(emit("grok-cursor").stdout).toContain("--model cursor-grok-4.5-high")
+    expect(emit("grok-cursor").stdout).toContain("--model cursor-grok-4.6-high")
   })
 
   test.each(ROUTES)("%s receives one workspace and bounded packet", (route) => {
@@ -278,7 +278,7 @@ describe("ce-work fixed write routes", () => {
     expect(cursor.status).toBe(0)
     expect(cursor.stdout).toContain("--model claude-sonnet-5-low")
 
-    for (const reserved of ["composer", "composer-2.5-fast", "grok-4.5", "cursor-grok-4.5-high"]) {
+    for (const reserved of ["composer", "composer-2.5-fast", "grok-4.6", "cursor-grok-4.6-high"]) {
       const rejected = emit("cursor", {
         ...process.env,
         CE_WORK_MODEL_OVERRIDE_TARGET: "cursor",
@@ -311,7 +311,7 @@ describe("ce-work fixed write routes", () => {
     const cursorAgent = path.join(bin, "cursor-agent")
     writeFileSync(
       cursorAgent,
-      readFileSync(cursorAgent, "utf8").replace("model='Cursor Grok 4.5 High'", "model='Sonnet 5 1M Low'"),
+      readFileSync(cursorAgent, "utf8").replace("model='Cursor Grok 4.6'", "model='Sonnet 5 1M Low'"),
     )
     chmodSync(cursorAgent, 0o755)
     const cursorConfig = path.join(f.root, "cursor-config")
@@ -393,7 +393,7 @@ describe("ce-work fixed write routes", () => {
   test.each([
     ["cursor", "claude-sonnet-5-low"],
     ["claude", "sonnet"],
-    ["grok-cli", "grok-4.5"],
+    ["grok-cli", "grok-4.6"],
   ] as const)("production %s dispatch honors explicit model %s while defaults stay harness-configured", (route, model) => {
     const f = fixture()
     const bin = fakeBin(route, f.capture)
@@ -436,8 +436,8 @@ describe("ce-work fixed write routes", () => {
     ["route mismatch", "codex", { route: "claude" }],
     ["Composer family mismatch", "composer", { model_requested: "gpt-5.6-sol" }],
     ["Cursor Composer model", "cursor", { model_requested: "composer-2.5-fast" }],
-    ["Cursor unqualified Grok model", "cursor", { model_requested: "grok-4.5" }],
-    ["Cursor Grok route model", "cursor", { model_requested: "cursor-grok-4.5-high" }],
+    ["Cursor unqualified Grok model", "cursor", { model_requested: "grok-4.6" }],
+    ["Cursor Grok route model", "cursor", { model_requested: "cursor-grok-4.6-high" }],
     ["adapter-unsafe model token", "cursor", { model_requested: "model@beta" }],
   ] as const)("forged %s authorization is rejected before CLI invocation", (_name, route, overrides) => {
     const f = fixture()
@@ -763,7 +763,7 @@ printf '%s\\n' '{"terminal_status":"completed","summary":"done","changed_files":
     const response = '{"terminal_status":"completed","summary":"done","changed_files":["result.txt"],"evidence":[],"scope_expansion":null}'
     const bin = fakeBin("cursor", f.capture, response)
     const script = path.join(bin, "cursor-agent")
-    const body = readFileSync(script, "utf8").replace("model='Cursor Grok 4.5 High'", `model='${served}'`)
+    const body = readFileSync(script, "utf8").replace("model='Cursor Grok 4.6'", `model='${served}'`)
     writeFileSync(script, body)
     chmodSync(script, 0o755)
     const result = run(

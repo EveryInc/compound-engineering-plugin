@@ -287,7 +287,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(cmd).toContain("--no-subagents")
     expect(cmd).toContain("--permission-mode dontAsk")
     expect(cmd).toContain("--effort high")
-    expect(cmd).toContain("--model grok-4.5")
+    expect(cmd).toContain("--model grok-4.6")
     expect(cmd).toContain("--json-schema")
     expect(cmd).toContain("--output-format json")
     expect(cmd).not.toContain("stream-json")
@@ -302,7 +302,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
       expect(cmd).toContain("--workspace")
       expect(cmd).toContain("--output-format stream-json")
     }
-    expect(emitAdapter("grok-cursor")).toContain("cursor-grok-4.5-high")
+    expect(emitAdapter("grok-cursor")).toContain("cursor-grok-4.6-high")
     expect(emitAdapter("cursor")).not.toContain("--model")
     expect(emitAdapter("composer")).toContain("composer-2.5-fast")
   })
@@ -712,7 +712,7 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
       CROSS_MODEL_MODEL_OVERRIDE: "composer-next",
     }
     expect(emitAdapter("composer", override)).toContain("--model composer-next")
-    expect(emitAdapter("grok-cursor", override)).toContain("--model cursor-grok-4.5-high")
+    expect(emitAdapter("grok-cursor", override)).toContain("--model cursor-grok-4.6-high")
     expect(emitAdapter("cursor", override)).not.toContain("--model")
 
     const crossFamily = spawnSync("bash", [SCRIPT, "--emit-adapter", "composer"], {

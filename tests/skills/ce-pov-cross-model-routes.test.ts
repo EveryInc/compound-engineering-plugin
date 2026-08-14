@@ -120,7 +120,7 @@ describe("ce-pov cross-model route safety", () => {
     }
     expect(emit("cursor")).not.toContain("--model")
     expect(emit("composer")).toContain("--model")
-    expect(emit("grok-cursor")).toContain("--model cursor-grok-4.5-high")
+    expect(emit("grok-cursor")).toContain("--model cursor-grok-4.6-high")
     const source = readFileSync(SCRIPT, "utf8")
     // Zombies report as Z+ on macOS; exact "Z" alone leaves them "alive".
     expect(source).toContain('[ "${st#Z}" = "$st" ]')

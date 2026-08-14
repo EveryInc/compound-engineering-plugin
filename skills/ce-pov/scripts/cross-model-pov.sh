@@ -84,8 +84,8 @@ skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no o
 # and the single maintenance point when model families change.
 M_CODEX="gpt-5.6-sol"          # codex CLI            (-c model_reasoning_effort="high")
 M_CLAUDE="opus"                # claude CLI, Opus 4.8 (--effort high)
-M_GROK="grok-4.5"              # grok CLI             (--effort high)
-M_GROK_CURSOR="cursor-grok-4.5-high" # cursor-agent grok route (reasoning baked into id)
+M_GROK="grok-4.6"              # grok CLI             (--effort high)
+M_GROK_CURSOR="cursor-grok-4.6-high" # cursor-agent grok route (reasoning baked into id)
 M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is the ceiling)
 
 # --- model-identity receipt (R7/R8) -----------------------------------------
