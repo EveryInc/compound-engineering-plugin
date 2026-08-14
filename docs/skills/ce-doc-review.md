@@ -49,7 +49,7 @@ Document review is harder than code review in specific ways:
 - **Always-on personas** for coherence and feasibility
 - **Conditional personas** selected based on doc content — product-lens, design-lens, security-lens, scope-guardian, adversarial
 - **Parallel persona dispatch** with bounded concurrency
-- **Synthesis pipeline** with cross-persona agreement promotion, contradiction resolution, and three-tier routing (`safe_auto`, `gated_auto`, `manual` + FYI)
+- **Synthesis pipeline** with cross-persona agreement promotion, contradiction resolution, and routing on confidence *and* fix class together — a mechanical correction at full confidence applies unattended, everything else that touches meaning is batched into one confirmation, and only a real fork becomes a question
 - **Decision primer** — round-to-round suppression so rejected findings don't re-surface and applied findings get verification
 - **Four-option interaction** — per-finding walk-through, auto-resolve with best judgment, append to Open Questions, report-only
 
@@ -81,7 +81,7 @@ After all personas return, synthesis:
 - **Promotes findings on cross-persona agreement** — two reviewers spotting the same issue raises priority
 - Resolves contradictions (different personas disagree on what to do)
 - Auto-promotes safe-auto candidates that meet the bar
-- Routes findings into three tiers — `safe_auto` (applied directly), `gated_auto` / `manual` (user decision), and FYI (advisory only)
+- Routes findings by confidence and fix class, not by tier alone. Only a mechanical correction the reviewer is certain about applies unattended; anything that touches meaning is batched into one grouped confirmation the reader sees in full before answering; a genuine fork — where real alternatives exist — is asked as a question about *which* remedy, never whether to proceed. Advisory items land in FYI and ask nothing.
 
 The output is one consolidated set, not a flat list of every persona's raw output.
 
@@ -96,7 +96,7 @@ The primer uses an evidence-snippet (first ~120 chars of each finding's evidence
 
 ### 4. Four-option interaction model
 
-When findings land in `gated_auto` / `manual` tiers, the user picks how to handle them:
+When findings remain after the unattended fixes land, the user picks how to handle them. The choice is over the whole remaining set, not per finding — the per-finding walk-through is one option among four, not the default path:
 
 | Option | Effect |
 |--------|--------|
@@ -118,7 +118,7 @@ When the user picks "Auto-resolve with best judgment" or "Append to Open Questio
 | Mode | When | Behavior |
 |------|------|----------|
 | **Interactive** | Direct user invocation, or opt-in via `Run deeper doc review` from a caller's post-generation menu | Routing question, per-finding walk-through, bulk-preview confirmations |
-| **Non-interactive** _(default for chained invocation)_ | `mode:non-interactive` (deprecated alias `mode:headless`); default at `/ce-plan` Phase 5.3.8 | Apply `safe_auto` silently; return all other findings as structured text; surface a one-line summary above the caller's next menu; no prompts |
+| **Non-interactive** _(default for chained invocation)_ | `mode:non-interactive` (deprecated alias `mode:headless`); default at `/ce-plan` Phase 5.3.8 | Apply full-confidence mechanical corrections silently; return everything else as structured text; surface a one-line summary above the caller's next menu; no prompts |
 
 Non-interactive is the default for chained invocation from doc-producing skills — `/ce-plan` Phase 5.3.8 invokes it non-interactively so routine plans autofix and surface a summary line without blocking the user. Interactive is for direct invocation, or when the user opts into `Run deeper doc review` from the post-generation menu.
 
@@ -160,7 +160,7 @@ The skill reads the doc, classifies it as `plan` from content-shape signals (U-I
 
 Three reviewers dispatch in parallel. They return 9 raw findings. Synthesis merges them into 6 distinct findings: 2 `safe_auto` (typo, broken cross-reference), 3 `gated_auto` (wording on the durability tradeoff, missing edge case in test scenarios for U2, design-lens flag on the toggle copy), 1 FYI (suggested scope clarification).
 
-The 2 `safe_auto` apply directly. Non-interactive mode returns the rest as structured text — no walkthrough, no per-finding routing. A single summary line surfaces above the post-generation menu: `Doc review applied 2 fixes. 3 decisions, 1 FYI remain.` The user picks `Start /ce-work` and goes. Had they wanted to address the 3 decisions interactively, they'd have picked `Run deeper doc review` instead.
+The 2 `safe_auto` apply directly. Non-interactive mode returns the rest as structured text — no walkthrough, no per-finding routing. A single summary line surfaces above the post-generation menu: `Doc review applied 2 fixes. 3 proposed fixes and 1 FYI remain; no decisions requiring judgment.` The count distinguishes what was changed from what is being asked, and none of the three is a fork — each has one sensible remedy, so they would arrive together as one confirmation rather than three questions. The user picks `Start /ce-work` and goes; `Run deeper doc review` is there if they want to see the three first.
 
 ---
 

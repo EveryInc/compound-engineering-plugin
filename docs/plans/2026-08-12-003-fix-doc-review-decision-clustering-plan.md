@@ -475,7 +475,19 @@ Landed in `ddf0a46b`. The security persona's per-element rule, the adversarial p
 
 **Verification:** `bun run test`, `bun run release:validate`, and `bun run plugin:validate` pass.
 
-### U11. Correct and capture the affected learnings
+### U11. Correct and capture the affected learnings — COMPLETE
+
+**Outcome (2026-08-13).** Two new learnings, three corrections, one extension, and the user-facing page.
+
+*New:* `authored-eval-corpora-contain-the-happy-path.md` — the corpus lesson, plus the retrospective-sampling confound from U1 folded in as its second failure mode, since both are "the inputs were easier than reality." `frozen-finding-sets-cannot-see-emission-changes.md` — why identifier glossing and the report/question grammar were unmeasurable, generalised to any harness that controls a variable and then tries to measure a change to it.
+
+*Corrected:* `confidence-anchored-scoring.md` (the routing-menu-absorbs-volume claim, which is the assumption that produced the 34-finding review; the `>= 50` gate survives, its port criteria now require batching), `ce-doc-review-calibration-patterns.md` (3.5c documented as implementable when it no longer exists; kept the peer-versus-nested reasoning for anyone who revisits it), `paired-old-vs-new-injection-skill-evals.md` (the fixture answer-key leak is closed; gained the frozen-layer and easy-corpus leak classes).
+
+*Extended:* `multi-surface-output-needs-a-shared-rendering-floor.md` gained the behaviour-rule case — its own thesis applied harder to routing than to presentation.
+
+*Also, and not in the original file list:* `docs/skills/ce-doc-review.md` described three-tier routing, a per-finding decision model, and a worked example whose summary line called three proposed fixes "3 decisions." That is the same drift class the extension above documents, found by checking rather than by anything failing. Fixed in the same pass.
+
+**Step 3 dropped.** It was conditional on U2's verdict, and U2 was not run.
 
 **Goal:** Leave the knowledge base consistent with what shipped.
 
