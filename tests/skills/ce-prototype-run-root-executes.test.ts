@@ -118,6 +118,44 @@ describe("ce-prototype run-root resolution executes", () => {
     }
   })
 
+  test("a symlinked ce-prototype base is refused and the run falls back to OS temp", () => {
+    // This one survives between runs, so mkdir -p would follow it and chmod would
+    // retarget the link rather than anything under the validated root.
+    const { dir, tempRoot } = fixture()
+    try {
+      const repo = path.join(dir, "repo")
+      initRepo(repo, IGNORED)
+      const elsewhere = path.join(dir, "elsewhere")
+      mkdirSync(elsewhere, { recursive: true })
+      mkdirSync(path.join(repo, ".context/compound-engineering"), { recursive: true })
+      symlinkSync(elsewhere, path.join(repo, ".context/compound-engineering/ce-prototype"))
+
+      const result = run(resolutionScript(tempRoot), repo)
+      expect(result.status, result.stderr).toBe(0)
+      expect(result.stdout).toBe(path.join(tempRoot, "ce-prototype/2026-08-14-run"))
+      expect(existsSync(path.join(elsewhere, "2026-08-14-run"))).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test("a run the user asked not to keep goes to OS temp even in an ignored repo", () => {
+    const { dir, tempRoot } = fixture()
+    try {
+      const repo = path.join(dir, "repo")
+      initRepo(repo, IGNORED)
+      const script = resolutionScript(tempRoot).replace('RUN_KEEP="yes"', 'RUN_KEEP="no"')
+      expect(script, "the block must expose RUN_KEEP as the not-kept lever").toContain('RUN_KEEP="no"')
+
+      const result = run(script, repo)
+      expect(result.status, result.stderr).toBe(0)
+      expect(result.stdout).toBe(path.join(tempRoot, "ce-prototype/2026-08-14-run"))
+      expect(existsSync(path.join(repo, ".context"))).toBe(false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   test("the root is created private and the leaf sits beneath it", () => {
     const { dir, tempRoot } = fixture()
     try {

@@ -12,23 +12,28 @@ Resolve the question directory once, at the start of the run, and reuse the abso
 
 ```bash
 RUN_SLUG="<YYYY-MM-DD>-<run-slug>";
+RUN_KEEP="yes";
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)";
 TEMP_ROOT="/tmp/compound-engineering-$(id -u)";
-if [ -n "$REPO_ROOT" ] && [ ! -L "$REPO_ROOT/.context" ] && [ ! -L "$REPO_ROOT/.context/compound-engineering" ] && git -C "$REPO_ROOT" check-ignore -q .context/compound-engineering/ 2>/dev/null; then
+if [ "$RUN_KEEP" = yes ] && [ -n "$REPO_ROOT" ] && [ ! -L "$REPO_ROOT/.context" ] && [ ! -L "$REPO_ROOT/.context/compound-engineering" ] && git -C "$REPO_ROOT" check-ignore -q .context/compound-engineering/ 2>/dev/null; then
 ROOT="$REPO_ROOT/.context/compound-engineering";
 else
 ROOT="$TEMP_ROOT";
 fi;
 while :; do
+BASE="$ROOT/ce-prototype";
 if [ -L "$ROOT" ]; then echo "unsafe root symlink: $ROOT" >&2;
 elif ! (umask 077; mkdir -p "$ROOT"); then echo "could not create $ROOT" >&2;
 elif [ -L "$ROOT" ] || [ ! -O "$ROOT" ]; then echo "root is not owned by the current user: $ROOT" >&2;
 elif ! chmod 700 "$ROOT"; then echo "could not restrict $ROOT" >&2;
+elif [ -L "$BASE" ]; then echo "unsafe base symlink: $BASE" >&2;
+elif ! (umask 077; mkdir -p "$BASE"); then echo "could not create $BASE" >&2;
+elif [ ! -O "$BASE" ]; then echo "base is not owned by the current user: $BASE" >&2;
+elif ! chmod 700 "$BASE"; then echo "could not restrict $BASE" >&2;
 else break; fi;
 if [ "$ROOT" = "$TEMP_ROOT" ]; then echo "no usable run root" >&2; exit 1; fi;
 echo "falling back to $TEMP_ROOT" >&2; ROOT="$TEMP_ROOT";
 done;
-BASE="$ROOT/ce-prototype"; (umask 077; mkdir -p "$BASE") || exit 1; chmod 700 "$BASE" || exit 1;
 RUN_DIR="$BASE/$RUN_SLUG"; n=1;
 while ! (umask 077; mkdir "$RUN_DIR") 2>/dev/null; do
 if [ ! -e "$RUN_DIR" ]; then echo "could not create $RUN_DIR" >&2; exit 1; fi;
@@ -39,7 +44,9 @@ chmod 700 "$RUN_DIR" || exit 1;
 echo "$RUN_DIR"
 ```
 
-Two things this block is careful about. The symlink and ownership checks run against the **root** — the directory sitting in a shared or world-writable location — and only then is `ce-prototype` created beneath it; checking the leaf instead passes trivially, because the leaf is what `mkdir -p` just created. And an unsafe in-repo root falls back to OS temp rather than aborting, so a hostile or misconfigured `.context` costs the run its durability, not the run itself; only a temp root that also fails is fatal.
+Set `RUN_KEEP="no"` when the user asked that this run not be left in the repo; it sends the run to OS temp without touching the rest of the block.
+
+Three things this block is careful about. The symlink and ownership checks run against both the **root** — the directory sitting in a shared or world-writable location — and the `ce-prototype` directory beneath it, because that one survives between runs: `mkdir -p` follows a symlink that is already there, and `chmod` would then change the link's target rather than anything inside the validated root. Every check is inside the retry loop, so an unsafe in-repo path at either level falls back to OS temp rather than aborting — a hostile or misconfigured `.context` costs the run its durability, not the run itself, and only a temp root that also fails is fatal.
 
 Creating the directory is how it is claimed — never test whether the name is free and then write, which two runs starting together both pass. There is no rejoin: this block runs once per invocation, so a second question never re-derives the run directory and can neither split into a suffixed sibling nor adopt a finished run's directory.
 
