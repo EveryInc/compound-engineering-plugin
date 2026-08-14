@@ -13,7 +13,7 @@ Resolve the question directory once, at the start of the run, and reuse the abso
 ```bash
 RUN_SLUG="<YYYY-MM-DD>-<run-slug>"; QUESTION_SLUG="<NN>-<question-slug>";
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)";
-if [ -n "$REPO_ROOT" ] && git -C "$REPO_ROOT" check-ignore -q .context/compound-engineering/; then
+if [ -n "$REPO_ROOT" ] && git -C "$REPO_ROOT" check-ignore -q .context/compound-engineering/ 2>/dev/null; then
 BASE="$REPO_ROOT/.context/compound-engineering/ce-prototype";
 else
 BASE="/tmp/compound-engineering-$(id -u)/ce-prototype";
@@ -24,6 +24,7 @@ if [ -L "$BASE" ] || [ ! -O "$BASE" ]; then echo "run root is not owned by the c
 chmod 700 "$BASE" || exit 1;
 RUN_DIR="$BASE/$RUN_SLUG"; n=1;
 while ! (umask 077; mkdir "$RUN_DIR") 2>/dev/null; do
+if [ ! -e "$RUN_DIR" ]; then echo "could not create $RUN_DIR" >&2; exit 1; fi;
 if [ -O "$RUN_DIR" ] && [ ! -L "$RUN_DIR" ] && [ -f "$RUN_DIR/decisions.md" ]; then break; fi;
 n=$((n+1)); RUN_DIR="$BASE/$RUN_SLUG-$n";
 if [ "$n" -gt 99 ]; then echo "could not claim a run directory under $BASE" >&2; exit 1; fi;
