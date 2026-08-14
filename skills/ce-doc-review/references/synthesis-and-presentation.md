@@ -143,7 +143,7 @@ A finding is **not** an obligation when its fix would introduce a new user-visib
 
 This is a per-finding test against one document. It needs no comparison to other findings and is independent of the merging in 3.3.
 
-Route obligations to the implementation unit they affect instead of the per-finding walk-through. They render as one grouped list under that unit and are confirmed together, so the user makes a single decision about work the document already settled rather than one decision per finding. **Render the group in full before the confirmation fires** — a batch confirmation with nothing visible above it is a rubber stamp, not a decision.
+Route obligations to the part of the document they affect instead of the per-finding walk-through — the implementation unit when the document has units, the owning section when it does not. Requirements-shaped documents have no units, and an obligation is defined by the document already entailing it, so one can arise there just as easily; leaving it without a destination drops it or invents a unit. They render as one grouped list under that unit or section and are confirmed together, so the user makes a single decision about work the document already settled rather than one decision per finding. **Render the group in full before the confirmation fires** — a batch confirmation with nothing visible above it is a rubber stamp, not a decision.
 
 Obligation grouping governs what the user is asked about, never what applies silently. An obligation at anchor `100` with `autofix_class: safe_auto` still applies silently under the table below.
 
@@ -259,8 +259,9 @@ Applied N fixes:
 - <section>: <what was changed> (<reviewer>)
 
 Implementation obligations (already entailed by the document; confirmed as a group):
+[on a document with no implementation units, title this "Entailed corrections"]
 
-<unit name>
+<unit or section name>
   - <consequence, no opaque identifier> — <change as intent language>
   - <consequence, no opaque identifier> — <change as intent language>
 

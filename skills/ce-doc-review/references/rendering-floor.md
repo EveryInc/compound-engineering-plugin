@@ -115,8 +115,11 @@ consequence-first phrasing, and **not** the full field order above. This is the 
 persisted Open Questions entry gets, and for the same reason.
 
 An obligation renders as a single line: the consequence, then the change as intent. It is grouped under
-the implementation unit it affects, and that unit's name is the only navigation anchor the group needs —
-do not repeat it per line. The group's opaque-anchor budget is **two per line**, unchanged; grouping does
+the part of the document it affects: the implementation unit when the document has units, and otherwise
+the section that carries the decision it follows from — a requirements-shaped document has no units, and
+an obligation there still needs a home rather than being dropped or filed under a unit that does not
+exist. Whichever it is, that name is the only navigation anchor the group needs — do not repeat it per
+line. The group's opaque-anchor budget is **two per line**, unchanged; grouping does
 not license a denser block. Anything beyond the change belongs in the on-request trace, exactly as for an
 actionable finding.
 
