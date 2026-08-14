@@ -1247,6 +1247,8 @@ describe("cross-model peer skip legibility", () => {
       /another attested-different installed\+allowlisted target remains/i,
     )
     expect(reference).toMatch(/announce that new recipient and start a new job/i)
+    expect(reference).toMatch(/Wait for it with the remaining shared deadline/i)
+    expect(reference).toMatch(/do not start a third peer/i)
     expect(reference).toMatch(
       /Otherwise \(explicit recipient, or no other eligible peer\)/i,
     )

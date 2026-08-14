@@ -603,6 +603,34 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
     expect(r.stderr).toContain("peer skip class: execution_context_auth")
   })
 
+  test("classifies a bare HTTP 401 as execution_context_auth", () => {
+    const { env } = sandbox(
+      ["claude"],
+      "#!/bin/sh\ncat >/dev/null\nprintf '%s' 'HTTP 401 Unauthorized' >&2\nexit 1\n",
+    )
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
+    expect(r.stderr).toContain("peer skip class: execution_context_auth")
+  })
+
+  test("classifies weekly and Opus limit messages as session_quota", () => {
+    for (const result of ["You have hit your weekly limit", "You have hit your Opus limit"]) {
+      const payload = JSON.stringify({
+        result,
+        api_error_status: 429,
+        terminal_reason: "api_error",
+      })
+      const { env } = sandbox(
+        ["claude"],
+        `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${payload}'\nexit 1\n`,
+      )
+      const runDir = makeRunDir()
+      const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
+      expect(r.stderr).toContain("peer skip class: session_quota")
+      expect(r.stderr).not.toContain("peer skip class: transient_rate_limit")
+    }
+  })
+
   test("classifies a Claude session-limit 429 as session_quota, not a completed review", () => {
     const payload = JSON.stringify({
       result: "You have hit your session limit",

@@ -938,10 +938,10 @@ classify_skip_class() {
   local text
   text="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
   case "$text" in
-    *'not logged in'*|*'please log in'*|*'please run /login'*|*'api_error_status=401'*)
+    *'not logged in'*|*'please log in'*|*'please run /login'*|*'api_error_status=401'*|*'http 401'*|*unauthorized*)
       printf '%s' execution_context_auth
       ;;
-    *'session limit'*|*'usage limit'*|*'usage-exhausted'*|*'usage exhausted'*|*'hit your limit'*|*'hit your session'*|*quota*|*'api_error_status=402'*)
+    *'session limit'*|*'usage limit'*|*'usage-exhausted'*|*'usage exhausted'*|*'hit your '*|*quota*|*'api_error_status=402'*)
       printf '%s' session_quota
       ;;
     *'rate limit'*|*'api_error_status=429'*)
