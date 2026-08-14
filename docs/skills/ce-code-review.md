@@ -112,7 +112,7 @@ When you pass a PR number or URL, trivial automated PRs (lockfile bumps, chore v
 
 ### Cross-model adversarial pass
 
-When adversarial is selected and the working tree is the reviewed head (current branch, or a PR whose local tree already matches the PR head), the adversarial lens runs through **one different model provider than the host** in a separate read-only process. A started peer **replaces** the in-process `adversarial` persona. They never both receive the same brief. The in-process persona runs only if the peer cannot start. Remote PR or branch diffs stay on the in-process persona, because that reviewer can inspect the fetched refs.
+When adversarial is selected and the working tree is the reviewed head (current branch, or a PR whose local tree already matches the PR head), the adversarial lens runs through **one different model provider than the host** in a separate read-only process. A started peer **replaces** the in-process `adversarial` persona. They never both receive the same brief. The in-process persona runs if the peer cannot start, or if the started peer returns only session-quota or auth-context failure — in that case the next announced different-family peer is tried when one is eligible, otherwise the local persona covers the lens. Remote PR or branch diffs stay on the in-process persona, because that reviewer can inspect the fetched refs.
 
 Agreement between the peer and another in-process reviewer is a strong promotion signal in synthesis.
 

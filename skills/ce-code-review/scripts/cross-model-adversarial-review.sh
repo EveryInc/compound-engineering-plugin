@@ -912,22 +912,45 @@ run_provider() {
     log "provider $provider produced no usable schema-shaped output; skipping fold-in"
     # Surface bounded peer output so the orchestrator can
     # reason about WHY it was skipped (quota/usage-limit exhaustion vs an ordinary
-    # empty review) and, in a repeated-pass session, deprioritize an exhausted
-    # route. Harness-agnostic: the agent classifies from the text; this only makes
-    # the evidence visible in out.log. Surface BOTH streams -- the error can be on
-    # stdout (grok's 402) or stderr (claude/cursor auth/quota). Bash builtins only
-    # (the route sandbox has no tail/tr). Prefer structured error fields because
-    # a raw tail can discard the actionable message in a large CLI envelope.
+    # empty review). Prefer structured error fields because a raw tail can discard
+    # the actionable message in a large CLI envelope. Surface BOTH streams -- the
+    # error can be on stdout (grok's 402) or stderr (claude/cursor auth/quota).
+    # Then emit one structured class the fold-in fallback chain keys on.
+    _class_src=""
     if [ -s "$PEERLOG" ]; then
       _pt="$(bounded_failure_evidence "$PEERLOG")"
       log "  peer skip evidence: $_pt"
+      _class_src="$_pt"
     fi
     if [ -s "$PEERERR" ]; then
       _pe="$(bounded_failure_evidence "$PEERERR")"
       log "  peer skip evidence (stderr): $_pe"
+      _class_src="${_class_src} ${_pe}"
     fi
+    log "  peer skip class: $(classify_skip_class "$_class_src")"
     rm -f "$OUT" "$RAW_OUT"
   fi
+}
+
+# One token for fold-in. Auth before quota; session/usage language before a
+# bare 429, which is only a transient rate limit.
+classify_skip_class() {
+  local text
+  text="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+  case "$text" in
+    *'not logged in'*|*'please log in'*|*'please run /login'*|*'api_error_status=401'*)
+      printf '%s' execution_context_auth
+      ;;
+    *'session limit'*|*'usage limit'*|*'usage-exhausted'*|*'usage exhausted'*|*'hit your limit'*|*'hit your session'*|*quota*|*'api_error_status=402'*)
+      printf '%s' session_quota
+      ;;
+    *'rate limit'*|*'api_error_status=429'*)
+      printf '%s' transient_rate_limit
+      ;;
+    *)
+      printf '%s' other
+      ;;
+  esac
 }
 
 # Prefer structured CLI diagnostics over a raw tail, which can hide the useful

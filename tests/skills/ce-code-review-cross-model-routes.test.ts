@@ -600,6 +600,41 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
     const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
     expect(r.stderr).toContain("Not logged in")
     expect(r.stderr).toContain("terminal_reason=api_error")
+    expect(r.stderr).toContain("peer skip class: execution_context_auth")
+  })
+
+  test("classifies a Claude session-limit 429 as session_quota, not a completed review", () => {
+    const payload = JSON.stringify({
+      result: "You have hit your session limit",
+      api_error_status: 429,
+      terminal_reason: "api_error",
+    })
+    const { env } = sandbox(
+      ["claude"],
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${payload}'\nexit 1\n`,
+    )
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
+    expect(r.code).toBe(0)
+    expect(r.files).not.toContain("adversarial-claude.json")
+    expect(r.stderr).toContain("peer skip class: session_quota")
+    expect(r.stderr).not.toContain("peer skip class: transient_rate_limit")
+  })
+
+  test("classifies a plain 429 rate limit as transient_rate_limit", () => {
+    const payload = JSON.stringify({
+      result: "Rate limit exceeded; retry shortly",
+      api_error_status: 429,
+      terminal_reason: "api_error",
+    })
+    const { env } = sandbox(
+      ["claude"],
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${payload}'\nexit 1\n`,
+    )
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
+    expect(r.stderr).toContain("peer skip class: transient_rate_limit")
+    expect(r.stderr).not.toContain("peer skip class: session_quota")
   })
 
   test("ancillary structured fields do not hide an unrecognized human-readable diagnostic", () => {
