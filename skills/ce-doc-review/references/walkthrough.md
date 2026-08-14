@@ -1,6 +1,6 @@
 # Per-finding Walk-through
 
-This reference defines Interactive mode's per-finding walk-through — the path the user enters by picking option A (`Review each finding one by one — accept the recommendation or choose another action`) from the routing question, plus the unified completion report that every terminal path emits: walk-through, best-judgment, Append-to-Open-Questions, a grouped confirmation that left no decision surface behind it, and the zero-findings case. Only the last of those takes the collapsed form — a run that answered a real confirmation writes the full report, because findings were applied or skipped and that report is the only record of which.
+This reference defines Interactive mode's per-finding walk-through — the path the user enters by picking option A (`Review each finding one by one — accept the recommendation or choose another action`) from the routing question, plus the unified completion report that every terminal path emits: walk-through, best-judgment, Append-to-Open-Questions, a grouped confirmation that left no decision surface behind it, and the zero-findings case. Only the last takes the collapsed form.
 
 Interactive mode only.
 
@@ -8,17 +8,13 @@ Interactive mode only.
 
 ## Grouped confirmation (fires before routing)
 
-Synthesis step 3.7 sends every finding with a concrete fix that touches meaning — plus obligations, and peer-only findings it diverted out of Apply — to the grouped confirmation. These are settled: each has one sensible remedy, so the reader is not choosing between alternatives. What they get is a look before it lands.
+Synthesis step 3.7 sends here every finding with a concrete fix that touches meaning, plus obligations and the peer-only findings it diverted out of Apply. Each has one sensible remedy, so the reader is not choosing between alternatives — they are seeing the batch before it lands.
 
-**This fires after the applied changes and before the routing question, and it is the only place the batch is applied.** The routing question below covers the decision surface only. A run that reaches routing without asking this leaves the whole batch unapplied after showing it as awaiting one answer — the failure this step exists to prevent.
+**This fires after the applied changes and before the routing question, and it is the only place the batch is applied.** The routing question covers the decision surface only. Skip this step when the batch is empty.
 
-Skip this step entirely when the batch is empty, and go straight to the routing question.
+**Render the batch first**, per the floor's "Presenting a batch" rule (`references/rendering-floor.md`), as user-visible assistant text in the same turn — hidden thinking does not satisfy it. The batch is exactly two sections of `references/review-output-template.md`: the obligations section (**Implementation obligations**, or **Entailed corrections** on a document with no units) and **Proposed fixes**. The P-level sections are the decision surface and are not part of this question; sweeping one in turns a genuine fork into a batch answer.
 
-**Render the batch first, per the floor's "Presenting a batch" rule** (`references/rendering-floor.md`) — lead with what the batch does as a whole, group the members by what they share, and show every one of them. Print it as user-visible assistant text in the same turn; hidden thinking does not satisfy this, the same bar the routing question's same-turn presentation invariant sets. The batch is exactly two sections of `references/review-output-template.md` — the obligations section (**Implementation obligations**, or **Entailed corrections** on a document with no units) and **Proposed fixes** — and nothing else. Render those; use the template's per-finding form inside each group. The P-level sections below them carry the decision surface and are **not** part of this question: sweeping one into an apply-all turns a genuine fork into a batch answer.
-
-Then fire one question via the platform's blocking question tool.
-
-**Stem:** name what the batch does, then ask. Carry the themes you just led with — `Six fixes: four align the tier vocabulary, two add the missing cross-references. Apply them?` A stem that says only `6 proposed fixes are ready` throws away the grouping the reader just read and makes them scroll back to answer.
+**Stem:** name what the batch does, then ask — carry the themes you just led with (`Six fixes: four align the tier vocabulary, two add the missing cross-references. Apply them?`). A bare count makes the reader scroll back to answer.
 
 ```
 A. Apply all of them (recommended)
@@ -26,13 +22,9 @@ B. Choose which to apply
 C. Apply none of them
 ```
 
-- **A** — apply the batch in a single pass, exactly as the Apply step applies its own findings. Track each one for the "Applied changes" section.
-- **B** — step through the batch only, one finding at a time, using the per-finding presentation below. This is an escape hatch for a reader who wants to exclude something, not the default path.
-
-  **In batch context that loop is a subroutine, not the end of the run.** It has exactly one exit — back to the routing question — and it never emits the completion report, because the decision surface has not been routed yet. This governs *every* way the loop can end, not just running out of findings: exhausting the batch, `Auto-resolve with best judgment on the rest` (scoped to the remaining batch, and returning here after the preview executes), and any exit added later. The rule is stated once, at the loop rather than per option, because patching exits one at a time is how the decision surface went missing in the first place — an exit that ends the run from inside the batch pass is a bug whatever its name.
+- **A** — apply the batch in one pass, as the Apply step does. Track each for the "Applied changes" section. Recommended because 3.7 already established each member has one sensible remedy.
+- **B** — step through the batch only, using the per-finding presentation below. **In batch context that loop is a subroutine:** exactly one exit, back to the routing question, and it never emits the completion report — including via `Auto-resolve with best judgment on the rest`, which is scoped to the remaining batch and returns here. An exit that ends the run from inside the batch pass is a bug whatever its name.
 - **C** — apply none; every member is reported as skipped in the completion report.
-
-`(recommended)` sits on A because 3.7 already established each member has one sensible remedy. That is a statement about the fixes, not pressure toward automation — the reader has just seen all of them, and B costs one keystroke.
 
 ---
 
@@ -42,7 +34,7 @@ After the applied changes land, the grouped confirmation is answered, and synthe
 
 **Same-turn presentation before routing (required).** Before firing the routing question, emit the Interactive Phase 4 presentation (`references/review-output-template.md`) as user-visible assistant text **in the same turn**. Content composed only in hidden thinking or reasoning does not count — same bar as the Preview event in `references/bulk-preview.md`. If that presentation event has not occurred in this turn, do not invoke the blocking-question tool.
 
-**Render current state, not the state before the confirmation.** Answering the grouped confirmation ends a turn, so this presentation is a fresh render — and the batch is settled by the time it runs. Members the reader applied belong in the applied-changes list; members they skipped are reported as skipped; neither is re-rendered under Proposed fixes, and nothing is summarized as "awaiting one confirmation" when the confirmation already happened. What remains under discussion is the decision surface, which is what the routing question is about. Reprinting the pre-confirmation batch here shows the reader stale state at the exact moment they are choosing a route.
+**Render current state.** The batch is settled by the time this runs: applied members belong in the applied-changes list, skipped ones are reported as skipped, neither reappears under Proposed fixes, and nothing is summarized as awaiting a confirmation that already happened. Only the decision surface is still open.
 
 These do **not** satisfy the invariant:
 
@@ -67,7 +59,7 @@ D. Report only — take no further action
 
 The per-finding `(recommended)` labeling lives inside the walk-through (option A) and the bulk preview (options B/C), where it's applied per-finding from synthesis step 3.5b's `recommended_action`. The routing question itself does not recommend one of A/B/C/D because the right route depends on user intent (engage / trust / triage / skim), not on the finding-set shape — a rule that mapped finding-set shape to routing recommendation (e.g., "most findings are Apply-shaped → recommend best-judgment") would pressure users toward automated paths in ways that conflict with the user-intent framing.
 
-If nothing remains in the decision surface — everything else applied, answered in the grouped confirmation, or landed in the FYI subsection — skip the routing question entirely. An answered grouped confirmation does not warrant a routing question of its own. **Skipping routing never skips the completion report:** emit the unified report, then flow to the Phase 5 terminal question. A run whose whole outcome was a grouped confirmation still applied or skipped real findings, and the report is the only place the reader sees which — jumping straight to Phase 5 ends it with no record of what happened to them.
+If nothing remains in the decision surface — everything else applied, answered in the grouped confirmation, or landed in the FYI subsection — skip the routing question. **Skipping routing never skips the completion report:** emit the unified report, then flow to the Phase 5 terminal question.
 
 **Append-availability adaptation.** When `references/open-questions-defer.md` has cached `append_available: false` at Phase 4 start (e.g., read-only document, unwritable filesystem), option C is suppressed from the routing question because every per-finding Defer would fail into the open-questions failure path. The menu shows three options (A / B / D) and the stem appends one line explaining why (e.g., `Append to Open Questions unavailable — document is read-only in this environment.`). This mirrors the per-finding option B suppression described under "Adaptations" below — both routing-level and per-finding Defer paths share the same availability signal so the user never sees Defer surfaced at one level and omitted at the other.
 
@@ -330,9 +322,7 @@ Failures first (above the per-finding list), then per-finding entries grouped by
 
 ### Zero-findings degenerate case
 
-This collapsed form applies **only** when the applied changes left nothing in either the grouped confirmation or the decision surface — nothing was ever put to the reader. A run where the batch was non-empty and the decision surface was not is **not** this case: the reader answered a confirmation, and findings were applied or skipped as a result, so it takes the **full** report with its applied and skipped entries, counts, failures, Coverage, and verdict. Collapsing there would drop the only record of what the confirmation did.
-
-In the genuine zero case the completion report collapses to its summary-counts + verdict form with one added line — the count of fixes applied. The summary wording:
+This collapsed form applies **only** when nothing was ever put to the reader — the applied changes left both the grouped confirmation and the decision surface empty. A run that answered a real confirmation takes the **full** report instead: applied and skipped entries, counts, failures, Coverage, verdict. In the genuine zero case the report collapses to its summary-counts + verdict form with one added line, the count of fixes applied. The summary wording:
 
 No FYI or residual concerns:
 

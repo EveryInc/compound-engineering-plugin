@@ -8,12 +8,7 @@ Interactive mode only.
 
 ## When the preview fires
 
-Three call sites. **"Pending" is relative to the pass the preview is serving, and there are two:**
-
-- **Serving the routing question** (sites 1 and 2, and site 3 when the walk-through was entered from routing option A) — pending is the decision surface. The grouped confirmation was answered in its own step beforehand (`references/walkthrough.md`), so its batch is not in scope.
-- **Serving the grouped confirmation's batch pass** (site 3 when the walk-through was entered from grouped-confirmation option B) — pending is the rest of that batch, and the decision surface is not in scope, because routing has not happened yet.
-
-Read the scope of each site below against whichever pass is running. Getting this backwards empties the preview: a batch pass that treats the batch as out of scope previews nothing, applies nothing, and hands back a batch the reader was told was about to land.
+Three call sites. **"Pending" is relative to the pass being served:** the decision surface when serving the routing question (sites 1 and 2, and site 3 entered from routing option A), the rest of the batch when serving the grouped confirmation's batch pass (site 3 entered from grouped-confirmation option B). Read each site's scope below against whichever pass is running — reversing it empties the preview, so nothing lands from a batch the reader was just told was about to.
 
 1. **Routing option B (top-level best-judgment)** — after the user picks `Auto-resolve with best judgment — apply per-finding edits the agent can defend, surface the rest` from the routing question, but before any action executes. Scope: every pending finding at confidence anchor `75` or `100`.
 2. **Routing option C (top-level Append-to-Open-Questions)** — after the user picks `Append findings to the doc's Open Questions section and proceed` but before any append runs. Scope: every pending finding at confidence anchor `75` or `100`. Every finding appears under `Appending to Open Questions (N):` regardless of the agent's natural recommendation, because option C is batch-defer.
