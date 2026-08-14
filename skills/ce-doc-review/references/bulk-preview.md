@@ -8,11 +8,16 @@ Interactive mode only.
 
 ## When the preview fires
 
-Three call sites. In all of them, "pending" means the decision surface that reached routing — the grouped confirmation is answered in its own step beforehand (`references/walkthrough.md`), so its batch is never pending here:
+Three call sites. **"Pending" is relative to the pass the preview is serving, and there are two:**
+
+- **Serving the routing question** (sites 1 and 2, and site 3 when the walk-through was entered from routing option A) — pending is the decision surface. The grouped confirmation was answered in its own step beforehand (`references/walkthrough.md`), so its batch is not in scope.
+- **Serving the grouped confirmation's batch pass** (site 3 when the walk-through was entered from grouped-confirmation option B) — pending is the rest of that batch, and the decision surface is not in scope, because routing has not happened yet.
+
+Read the scope of each site below against whichever pass is running. Getting this backwards empties the preview: a batch pass that treats the batch as out of scope previews nothing, applies nothing, and hands back a batch the reader was told was about to land.
 
 1. **Routing option B (top-level best-judgment)** — after the user picks `Auto-resolve with best judgment — apply per-finding edits the agent can defend, surface the rest` from the routing question, but before any action executes. Scope: every pending finding at confidence anchor `75` or `100`.
 2. **Routing option C (top-level Append-to-Open-Questions)** — after the user picks `Append findings to the doc's Open Questions section and proceed` but before any append runs. Scope: every pending finding at confidence anchor `75` or `100`. Every finding appears under `Appending to Open Questions (N):` regardless of the agent's natural recommendation, because option C is batch-defer.
-3. **Walk-through `Auto-resolve with best judgment on the rest`** — after the user picks `Auto-resolve with best judgment on the rest` from a per-finding question, but before the remaining findings are resolved. Scope: the current finding and everything not yet decided. Already-decided findings from the walk-through are not included in the preview.
+3. **Walk-through `Auto-resolve with best judgment on the rest`** — after the user picks `Auto-resolve with best judgment on the rest` from a per-finding question, but before the remaining findings are resolved. Scope: the current finding and everything not yet decided **in the pass that is running** — the decision surface when the walk-through was entered from routing option A, the rest of the batch when it is serving the grouped confirmation's batch pass. Already-decided findings from that pass are not included in the preview.
 
 In all three cases the user confirms with `Proceed` or backs out with `Cancel`. No per-item decisions inside the preview — per-item decisioning is the walk-through's role.
 
