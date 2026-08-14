@@ -168,6 +168,61 @@ describe("ce-prototype protocol", () => {
     ).toBe(true)
   })
 
+  test("prototypes default to the durable in-repo directory", () => {
+    for (const [label, body] of [
+      ["SKILL.md", SKILL_BODY],
+      ["references/preview.md", PREVIEW_BODY],
+    ] as const) {
+      expect(
+        body.includes(".context/compound-engineering/ce-prototype/"),
+        `${label} must name the durable run root. A prototype the next skill is told to read cannot live only where the OS may reap it.`,
+      ).toBe(true)
+      expect(
+        /\/tmp\/compound-engineering-/.test(body),
+        `${label} must still name the OS-temp root, which is the fallback when the durable path is declined, unsafe, or outside a repository.`,
+      ).toBe(true)
+    }
+    const storageRule = (SKILL_BODY.match(/^.*Build under.*$/m) ?? [""])[0]
+    expect(storageRule, "SKILL.md must state where a run builds.").not.toBe("")
+    expect(
+      storageRule.indexOf(".context/compound-engineering/") <
+        storageRule.indexOf("/tmp/compound-engineering-"),
+      "The durable path must be stated as the default and OS temp as the fallback. Reversing them still mentions both paths while inverting the rule.",
+    ).toBe(true)
+  })
+
+  test("the run root is resolved once and consumed by every server call", () => {
+    // The server keys its pidfile and process match off --root, so a start and a
+    // stop that resolve the root separately can disagree and orphan a server.
+    const resolutions = PREVIEW_BODY.match(/git rev-parse --show-toplevel/g) ?? []
+    expect(
+      resolutions.length,
+      "references/preview.md must resolve the run root in exactly one block. A second derivation is a second chance to disagree with the first.",
+    ).toBe(1)
+    const consumers = PREVIEW_BODY.match(/PROTO_DIR="<absolute question directory/g) ?? []
+    expect(
+      consumers.length,
+      "The start block and the status/stop block must each take the already-resolved question directory rather than deriving it again.",
+    ).toBeGreaterThanOrEqual(2)
+  })
+
+  test("the durable path is probed with the trailing slash and claimed atomically", () => {
+    const probe = /git (?:-C "\$REPO_ROOT" )?check-ignore -q \.context\/compound-engineering\//
+    expect(
+      probe.test(SKILL_BODY) && probe.test(PREVIEW_BODY),
+      "Both files must probe coverage with the trailing slash. Without it an existing directory-only ignore rule is missed and a correctly configured repo falls back for no reason.",
+    ).toBe(true)
+    expect(
+      /never test whether the name is free and then write/i.test(PREVIEW_BODY),
+      "The collision rule must be exclusive creation, not check-then-write — two runs starting together both pass the check and then write into one directory.",
+    ).toBe(true)
+    expect(
+      /unsafe run root symlink/.test(PREVIEW_BODY) &&
+        /run root is not owned by the current user/.test(PREVIEW_BODY),
+      "The in-repo run root must carry the same symlink and ownership checks the OS-temp path already had; gitignoring a path does not make it safe to write into.",
+    ).toBe(true)
+  })
+
   test("no skill reintroduces a retired ce-prototype routing predicate", () => {
     // Exact retired wordings only. A looser semantic pattern would fire on the
     // organizing rule's contrast pair in ce-prototype's own spine, which
