@@ -459,6 +459,24 @@ describe("ce-setup check-health", () => {
     }
   })
 
+  test("accepts antigravity with a Gemini model pin", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initConfiguredRepo(
+        root,
+        "work_engine_mode: prefer\nwork_engine_preferences:\n  - harness: antigravity\n    model: gemini-3.7-flash-high\n",
+      )
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("CE Work implementation engine: prefer -> antigravity@gemini-3.7-flash-high")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   test("rejects a model entry that is not attached to a harness", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
 

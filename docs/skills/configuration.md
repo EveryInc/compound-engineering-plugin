@@ -68,7 +68,7 @@ work_engine_preferences:
   - harness: claude
 ```
 
-Supported harnesses are `codex`, `claude`, `grok`, and `cursor`. Omitting `model` uses that harness's configured default. Composer is a model family reached through Cursor, so request it with `harness: cursor` and `model: composer`.
+Supported harnesses are `codex`, `claude`, `grok`, `cursor`, and `antigravity`. Omitting `model` uses that harness's configured default. Composer is a model family reached through Cursor, so request it with `harness: cursor` and `model: composer`.
 
 `ce-work` walks the list in order and skips an entry equivalent to the current host/default model. A different explicit model in the same harness remains eligible. With `prefer`, an unavailable list falls back to native implementation with disclosure. With `require`, an interactive CE Work run asks before weakening the route, while LFG and other headless callers block.
 

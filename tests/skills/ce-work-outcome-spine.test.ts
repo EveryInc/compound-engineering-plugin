@@ -269,13 +269,14 @@ describe("ce-work cross-model engine contract", () => {
 
     expect(protocol).toContain("`cursor` means the Cursor harness with its configured default model")
     expect(protocol).toContain("`composer` means a Composer-family model through Cursor")
+    expect(protocol).toContain("`antigravity` means the Antigravity CLI (`agy`) with its configured default model")
     expect(protocol).toContain("same-host default")
     expect(protocol).toContain("collapse to native execution")
     expect(protocol).toContain("codex")
     expect(protocol).toContain("claude")
     expect(protocol).toContain("grok")
     expect(protocol).toContain("Fixed controller route tokens")
-    expect(protocol).toContain("`codex`, `claude`, `grok-cli`, `cursor`, `composer`, or `grok-cursor`")
+    expect(protocol).toContain("`codex`, `claude`, `grok-cli`, `cursor`, `composer`, `grok-cursor`, or `agy`")
   })
 
   test("defines prefer, require, fixed-recipient sanction, and restriction failure", async () => {
@@ -408,7 +409,7 @@ describe("ce-work cross-model engine contract", () => {
     expect(serial).not.toContain("CE_WORK_MODEL_OVERRIDE_TARGET")
     expect(serial).toContain("one bounded unit packet")
     expect(serial).toContain("exact plural keys `route`, `intermediaries`, and `restrictions`")
-    expect(serial).toContain("direct `codex`, `claude`, `grok-cli`, and `cursor` routes use `intermediaries: []`")
+    expect(serial).toContain("direct `codex`, `claude`, `grok-cli`, `cursor`, and `agy` routes use `intermediaries: []`")
     expect(serial).toContain("Write the packet source directly to OS temp outside the canonical checkout")
     expect(serial).toContain("never draft it inside the repository and move or copy it later")
     expect(serial).toContain("quoting `$(...)` as a direct argument does not expand it")

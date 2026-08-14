@@ -21,7 +21,7 @@ setDefaultTimeout(20_000)
 const SCRIPT = path.join(process.cwd(), "skills/ce-work/scripts/cross-model-work.sh")
 const CONTROLLER = path.join(process.cwd(), "skills/ce-work/scripts/unit-workspace.py")
 const SCHEMA = path.join(process.cwd(), "skills/ce-work/references/implementation-result-schema.json")
-const ROUTES = ["codex", "claude", "grok-cli", "cursor", "composer", "grok-cursor"] as const
+const ROUTES = ["codex", "claude", "grok-cli", "cursor", "composer", "grok-cursor", "agy"] as const
 const ROUTE_CONTRACTS = {
   codex: { target: "codex", harness: "codex", intermediaries: [], model: "auto", restriction: "adapter-enforced" },
   claude: { target: "claude", harness: "claude", intermediaries: [], model: "auto", restriction: "cooperative" },
@@ -29,6 +29,7 @@ const ROUTE_CONTRACTS = {
   cursor: { target: "cursor", harness: "cursor-agent", intermediaries: [], model: "auto", restriction: "adapter-enforced" },
   composer: { target: "composer", harness: "cursor-agent", intermediaries: ["cursor"], model: "composer-2.5-fast", restriction: "adapter-enforced" },
   "grok-cursor": { target: "grok", harness: "cursor-agent", intermediaries: ["cursor"], model: "cursor-grok-4.6-high", restriction: "adapter-enforced" },
+  agy: { target: "antigravity", harness: "agy", intermediaries: [], model: "auto", restriction: "adapter-enforced" },
 } as const
 const roots: string[] = []
 
@@ -116,6 +117,10 @@ case '${route}' in
     ;;
   grok-cli)
     printf '%s\\n' '{"type":"activity","message":"editing"}'
+    printf '%s\\n' '${final.replaceAll("'", "'\\''")}'
+    ;;
+  agy)
+    printf '%s\\n' '{"event":"init","init":{"model":"gemini-3.7-flash-high"}}'
     printf '%s\\n' '${final.replaceAll("'", "'\\''")}'
     ;;
 esac
@@ -234,6 +239,25 @@ describe("ce-work fixed write routes", () => {
     expect(emit("cursor").stdout).not.toContain("--model")
     expect(emit("composer").stdout).toContain("--model composer-2.5-fast")
     expect(emit("grok-cursor").stdout).toContain("--model cursor-grok-4.6-high")
+
+    const agy = emit("agy").stdout
+    expect(agy).toContain("--print <prompt>")
+    expect(agy).not.toContain("<prompt-file>")
+    expect(agy).toContain("--sandbox")
+    expect(agy).toContain("--dangerously-skip-permissions")
+    expect(agy).toContain("--print-timeout 7200s")
+    expect(agy).toContain("--effort high")
+    expect(agy).toContain("--mode accept-edits")
+    expect(agy).toContain("--disable-slash-commands")
+    expect(agy).not.toContain("--model")
+    const agyPinned = emit("agy", {
+      ...process.env,
+      CE_WORK_MODEL_OVERRIDE_TARGET: "antigravity",
+      CE_WORK_MODEL_OVERRIDE: "gemini-3.7-flash-high",
+    })
+    expect(agyPinned.status).toBe(0)
+    expect(agyPinned.stdout).toContain("--model gemini-3.7-flash-high")
+    expect(agyPinned.stdout).toContain("--print <prompt>")
   })
 
   test.each(ROUTES)("%s receives one workspace and bounded packet", (route) => {
@@ -253,6 +277,9 @@ describe("ce-work fixed write routes", () => {
     expect(readFileSync(path.join(f.capture, "stdin"), "utf8")).toContain("Implement U3 only.")
     if (route === "cursor" || route === "composer" || route === "grok-cursor") {
       expect(readFileSync(path.join(f.capture, "argv"), "utf8")).not.toContain("Implement U3 only.")
+    }
+    if (route === "agy") {
+      expect(readFileSync(path.join(f.capture, "argv"), "utf8")).toContain("Implement U3 only.")
     }
     expect(readFileSync(path.join(f.capture, "env"), "utf8")).toContain("PYTHONDONTWRITEBYTECODE=1")
     expect(readFileSync(path.join(f.workspace, "result.txt"), "utf8")).toBe("READY\n")
@@ -366,6 +393,29 @@ describe("ce-work fixed write routes", () => {
     expect(dispatchEnv).not.toContain(oauthSecret)
   })
 
+  test("Antigravity dispatch preserves HOME for CLI auth without forwarding GEMINI_API_KEY", () => {
+    const f = fixture()
+    const bin = fakeBin("agy", f.capture)
+    const home = f.root
+    const apiSecret = "SENTINEL-gemini-api-secret"
+    const result = run("agy", f, {
+      ...process.env,
+      PATH: `${bin}:${process.env.PATH}`,
+      HOME: home,
+      GEMINI_API_KEY: apiSecret,
+    })
+
+    expect(result.code).toBe(0)
+    const dispatchEnv = readFileSync(path.join(f.capture, "env"), "utf8")
+    expect(dispatchEnv).toContain(`HOME=${home}`)
+    expect(dispatchEnv).not.toContain("GEMINI_API_KEY=")
+    expect(dispatchEnv).not.toContain(apiSecret)
+    expect(result.result.model_actual).toBe("gemini-3.7-flash-high")
+    expect(result.result.model_receipt_status).toBe("verified")
+    expect(result.result.target).toBe("antigravity")
+    expect(result.result.harness).toBe("agy")
+  })
+
   test("target-scoped model overrides do not make unrelated route probes unavailable", () => {
     const composerOverride = {
       ...process.env,
@@ -396,6 +446,7 @@ describe("ce-work fixed write routes", () => {
     ["cursor", "claude-sonnet-5-low"],
     ["claude", "sonnet"],
     ["grok-cli", "grok-4.5"],
+    ["agy", "gemini-3.7-flash-high"],
   ] as const)("production %s dispatch honors explicit model %s while defaults stay harness-configured", (route, model) => {
     const f = fixture()
     const bin = fakeBin(route, f.capture)
@@ -441,6 +492,7 @@ describe("ce-work fixed write routes", () => {
     ["Cursor unqualified Grok model", "cursor", { model_requested: "grok-4.5" }],
     ["Cursor Grok route model", "cursor", { model_requested: "cursor-grok-4.5-high" }],
     ["adapter-unsafe model token", "cursor", { model_requested: "model@beta" }],
+    ["agy adapter-unsafe model token", "agy", { model_requested: "model@beta" }],
   ] as const)("forged %s authorization is rejected before CLI invocation", (_name, route, overrides) => {
     const f = fixture()
     const bin = fakeBin(route, f.capture)

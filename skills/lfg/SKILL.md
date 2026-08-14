@@ -42,11 +42,11 @@ Requirement strength is inferred from the whole instruction, not one word: "use 
 **Implementation carrier grammar.** When implementation resolves to one candidate, retain one transient `implementation_engine` object with exactly these four fields:
 
 - `mode`: `prefer` or `require`
-- `target`: exactly one of `codex`, `claude`, `grok`, `cursor`, or `composer` — a **harness** name, never a model name
+- `target`: exactly one of `codex`, `claude`, `grok`, `cursor`, `composer`, or `antigravity` — a **harness** name, never a model name
 - `model`: the explicit model pin, otherwise `null`
 - `source`: caller-visible provenance identifying the current LFG instruction
 
-A directive that names a bare **model** with no harness (e.g. "use fable", "with opus") is a model *pin*, not a target: encode it as the harness that serves that model family with the alias in `model` — a Claude-family model (`fable`, `opus`, `sonnet`, `haiku`) is `{"target":"claude","model":"<alias>"}`. Never put a model name in `target`; if you cannot map the named model to one of the five harnesses, that is a routing-carrier blocker, not a `null` binding that silently drops the user's instruction.
+A directive that names a bare **model** with no harness (e.g. "use fable", "with opus") is a model *pin*, not a target: encode it as the harness that serves that model family with the alias in `model` — a Claude-family model (`fable`, `opus`, `sonnet`, `haiku`) is `{"target":"claude","model":"<alias>"}`; a Gemini-family model (`gemini-*`) is `{"target":"antigravity","model":"<id>"}`. Never put a model name in `target`; if you cannot map the named model to one of the six harnesses, that is a routing-carrier blocker, not a `null` binding that silently drops the user's instruction.
 
 When the implementation instruction instead names an ordered fallback list, do not truncate it to the scalar carrier — retain the whole ordered assignment as current-task implementation intent and pass no `implementation_engine:` object. At the CE Work seam, that still-active current-task assignment outranks config and is normalized/preflighted in order. This is stage-scoped context, not plan content; if the host cannot preserve that context across its skill invocation, stop with a routing-carrier blocker rather than silently dropping later candidates.
 

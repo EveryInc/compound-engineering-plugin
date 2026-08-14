@@ -394,7 +394,7 @@ if [ "$in_repo" = "yes" ]; then
         ITEM)
           work_engine_preferences_count=$((work_engine_preferences_count + 1))
           case "$preference_harness" in
-            codex|claude|grok|cursor) ;;
+            codex|claude|grok|cursor|antigravity) ;;
             *)
               [ -z "$work_engine_preferences_error" ] && work_engine_preferences_error="invalid harness '$preference_harness' in work_engine_preferences"
               ;;

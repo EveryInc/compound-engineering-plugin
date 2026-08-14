@@ -6,7 +6,7 @@
 # Usage:
 #   cross-model-work.sh <authorization-json> <workspace> <unit-packet> <expected-packet-sha256> <result-dir>
 #
-# Routes: codex | claude | grok-cli | cursor | composer | grok-cursor
+# Routes: codex | claude | grok-cli | cursor | composer | grok-cursor | agy
 # Output: <result-dir>/implementation-result.json and redacted adapter.log
 # Exit: 0 host-resolvable terminal result, 1 failed/schema-invalid, 2 unavailable
 #
@@ -34,6 +34,7 @@ route_target() {
   case "$1" in
     codex|claude|cursor|composer) printf '%s' "$1" ;;
     grok-cli|grok-cursor) printf 'grok' ;;
+    agy) printf 'antigravity' ;;
     *) return 1 ;;
   esac
 }
@@ -44,6 +45,7 @@ route_harness() {
     claude) printf 'claude' ;;
     grok-cli) printf 'grok' ;;
     cursor|composer|grok-cursor) printf 'cursor-agent' ;;
+    agy) printf 'agy' ;;
     *) return 1 ;;
   esac
 }
@@ -60,7 +62,7 @@ route_model() {
     return
   fi
   case "$route" in
-    codex|claude|grok-cli|cursor) printf 'auto' ;;
+    codex|claude|grok-cli|cursor|agy) printf 'auto' ;;
     grok-cursor) printf '%s' "$M_GROK_CURSOR" ;;
     composer) printf '%s' "$M_COMPOSER" ;;
   esac
@@ -70,17 +72,19 @@ validate_model_override() {
   local route="$1" override="${CE_WORK_MODEL_OVERRIDE:-}" override_target="${CE_WORK_MODEL_OVERRIDE_TARGET:-}" target override_lower
   [ -n "$override" ] || { [ -z "$override_target" ]; return; }
   case "$override_target" in
-    codex|claude|grok|cursor|composer) ;;
+    codex|claude|grok|cursor|composer|antigravity) ;;
     *) return 1 ;;
   esac
   target="$(route_target "$route")" || return 1
   [ "$override_target" = "$target" ] || return 0
-  if [ "$route" = cursor ]; then
+  if [ "$route" = cursor ] || [ "$route" = agy ]; then
     case "$override" in
       [A-Za-z0-9]*)
         case "$override" in *[!A-Za-z0-9._:/-]*) return 1 ;; esac
-        override_lower="$(printf '%s' "$override" | tr '[:upper:]' '[:lower:]')"
-        case "$override_lower" in composer|composer-*|grok|grok-*|cursor-grok-*) return 1 ;; esac
+        if [ "$route" = cursor ]; then
+          override_lower="$(printf '%s' "$override" | tr '[:upper:]' '[:lower:]')"
+          case "$override_lower" in composer|composer-*|grok|grok-*|cursor-grok-*) return 1 ;; esac
+        fi
         return 0
         ;;
       *) return 1 ;;
@@ -135,6 +139,22 @@ adapter_argv() {
     grok-cursor)
       printf '%s\0' cursor-agent -p --output-format stream-json --stream-partial-output \
         --force --sandbox enabled --trust --workspace "$WORKSPACE" --model "$(route_model grok-cursor)"
+      ;;
+    agy)
+      # agy --print requires the prompt as the next argv token (no stdin /
+      # --prompt-file). Packet max plus persona can approach ARG_MAX.
+      local agy_model agy_prompt
+      agy_model="$(route_model agy)"
+      if [ "${PROMPT_FILE:-}" = "<prompt-file>" ]; then
+        agy_prompt="<prompt>"
+      else
+        agy_prompt="$(cat "$PROMPT_FILE")" || return 1
+      fi
+      printf '%s\0' agy --output-format stream-json \
+        --mode accept-edits --dangerously-skip-permissions --sandbox \
+        --disable-slash-commands --effort high --print-timeout 7200s
+      [ "$agy_model" = auto ] || printf '%s\0' --model "$agy_model"
+      printf '%s\0' --print "$agy_prompt"
       ;;
     *) return 1 ;;
   esac
@@ -213,6 +233,7 @@ contracts = {
     "cursor": ("cursor", "cursor-agent", [], "adapter-enforced"),
     "composer": ("composer", "cursor-agent", ["cursor"], "adapter-enforced"),
     "grok-cursor": ("grok", "cursor-agent", ["cursor"], "adapter-enforced"),
+    "agy": ("antigravity", "agy", [], "adapter-enforced"),
 }
 
 def fail(message):
@@ -236,6 +257,8 @@ def model_allowed(route, model):
         return bool(re.fullmatch(r"composer-[A-Za-z0-9._-]+", model))
     if route == "grok-cursor":
         return bool(re.fullmatch(r"cursor-grok-[A-Za-z0-9._-]+", model))
+    if route == "agy":
+        return bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]*", model))
     return False
 
 try:
@@ -656,6 +679,7 @@ case "$ROUTE" in
   claude) BINARY=claude ;;
   grok-cli) BINARY=grok ;;
   cursor|composer|grok-cursor) BINARY=cursor-agent ;;
+  agy) BINARY=agy ;;
 esac
 if ! command -v "$BINARY" >/dev/null 2>&1; then
   publish_unavailable "fixed route executable '$BINARY' is unavailable" || exit 2
@@ -857,7 +881,11 @@ else:
 for line in stream_text.splitlines():
     try: event=json.loads(line)
     except Exception: continue
-    if isinstance(event,dict) and event.get("model") and (event.get("subtype")=="init" or event.get("type") in ("init","system")):
+    if not isinstance(event, dict):
+        continue
+    if event.get("event") == "init" and isinstance(event.get("init"), dict) and event["init"].get("model"):
+        served=normalize_served_model(event["init"]["model"]); break
+    if event.get("model") and (event.get("subtype")=="init" or event.get("type") in ("init","system")):
         served=normalize_served_model(event["model"]); break
 
 if served == "unverified": receipt="unverified"

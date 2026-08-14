@@ -30,7 +30,7 @@ For example, current-task strict Composer resolves to Composer with `require` ev
 An automatic caller may pass an `implementation_engine` object with exactly these four fields:
 
 - `mode`: `prefer` or `require`
-- `target`: `codex`, `claude`, `grok`, `cursor`, or `composer`
+- `target`: `codex`, `claude`, `grok`, `cursor`, `composer`, or `antigravity`
 - `model`: an optional model pin, otherwise `null`
 - `source`: the binding's caller-visible provenance
 
@@ -40,7 +40,7 @@ Return-to-caller recovery may add a separate `implementation_run:<safe-id>` carr
 
 ### Target and identity vocabulary
 
-Keep `target`, harness/intermediary route, requested model, served model, and receipt status separate. Target `cursor` means the Cursor harness with its configured default model. Target `composer` is shorthand for a Composer-family model requested through Cursor. The host must attempt the documented adapter recipe first. If the installed harness differs, it may inspect local CLI help or version information and adapt only within the same sanctioned harness/model family and only when the fixed adapter can still enforce the route and restrictions. Otherwise that candidate is unavailable. Disclose any compatible model alias or substitution and never relabel an unverified served model.
+Keep `target`, harness/intermediary route, requested model, served model, and receipt status separate. Target `cursor` means the Cursor harness with its configured default model. Target `composer` is shorthand for a Composer-family model requested through Cursor. Target `antigravity` means the Antigravity CLI (`agy`) with its configured default model. The host must attempt the documented adapter recipe first. If the installed harness differs, it may inspect local CLI help or version information and adapt only within the same sanctioned harness/model family and only when the fixed adapter can still enforce the route and restrictions. Otherwise that candidate is unavailable. Disclose any compatible model alias or substitution and never relabel an unverified served model.
 
 When the target resolves to the current host's default execution route and no distinct model or serving route was requested, collapse the request to native execution and record requested-versus-actual identity rather than shelling out to the same host.
 
@@ -60,12 +60,12 @@ work_engine_preferences:
 
 - `work_engine_mode`: `off | prefer | require`
 - `work_engine_preferences`: one or more ordered candidate objects
-- `harness`: `codex | claude | grok | cursor`
+- `harness`: `codex | claude | grok | cursor | antigravity`
 - optional `model`: a model id or family understood by that harness; omission means its configured default
 
 Do not put CLI commands or flags in configuration. The list expresses implementation intent; the skill's adapter recipes and local inspection determine how to invoke it. Composer is therefore `{ harness: cursor, model: composer }`, while `{ harness: cursor }` means Cursor's configured default.
 
-Normalize a qualified candidate to the controller's fixed route: Codex -> `codex`, Claude -> `claude`, native Grok -> `grok-cli`, Cursor with no model -> `cursor`, a Composer-family Cursor model -> `composer`, a Grok-family Cursor model -> `grok-cursor`, and another explicit Cursor model -> `cursor` with that controller-authorized model selector. A model selector is data, never shell syntax; if it cannot be represented by the fixed adapter's safe model token, the candidate is unavailable.
+Normalize a qualified candidate to the controller's fixed route: Codex -> `codex`, Claude -> `claude`, native Grok -> `grok-cli`, Cursor with no model -> `cursor`, a Composer-family Cursor model -> `composer`, a Grok-family Cursor model -> `grok-cursor`, another explicit Cursor model -> `cursor` with that controller-authorized model selector, and Antigravity -> `agy`. A model selector is data, never shell syntax; if it cannot be represented by the fixed adapter's safe model token, the candidate is unavailable.
 
 Traverse each ordered candidate during preflight. If a candidate is equivalent to the current host and its current/default model, continue to the next candidate rather than shelling out to self; an explicit different model in the same harness is still a distinct candidate. If a candidate is unavailable before egress, record why and continue to the next candidate. The first qualified candidate becomes the fixed recipient. After dispatch begins, the recipient is locked by the cross-model contract and list traversal stops.
 
