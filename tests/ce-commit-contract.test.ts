@@ -56,6 +56,9 @@ describe("ce-commit contract", () => {
     expect(content).toMatch(/names the outcome/)
     expect(content).toContain("Fix double-submit on checkout")
     expect(content).toContain("Update checkout.rb")
+    expect(content).toContain("append that unit's U-ID in parentheses — `(U3)` means unit 3")
+    expect(content).toContain("Do not hunt for a plan")
+    expect(content).toContain("Omit when the commit spans units")
   })
 
   test("scopes to local commits and points ship flow at ce-commit-push-pr", async () => {

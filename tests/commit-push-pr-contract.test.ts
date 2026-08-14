@@ -167,6 +167,14 @@ describe("ce-commit-push-pr contract", () => {
     expect(content).toMatch(/PR description.+not.+comment/i)
   })
 
+  test("appends a known plan unit id to the commit subject without hunting", async () => {
+    const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+
+    expect(content).toContain("append that unit's U-ID in parentheses — `(U3)` means unit 3")
+    expect(content).toContain("Do not hunt for a plan")
+    expect(content).toContain("Omit when the commit spans units")
+  })
+
   test("adds generic Compound Engineering branding only on an explicit signal", async () => {
     const reference = await readRepoFile(
       "skills/ce-commit-push-pr/references/pr-description-writing.md",

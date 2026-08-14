@@ -96,7 +96,7 @@ There is no fixed template. A typo can be one or two sentences. A large refactor
 
 ### Named-file commits, then a branch decision tree
 
-Same commit rules as `/ce-commit`: no `git add -A`, file-level splits only, convention from context then history then conventional commits (`fix:` when `fix:` and `feat:` both fit).
+Same commit rules as `/ce-commit`: no `git add -A`, file-level splits only, convention from context then history then conventional commits (`fix:` when `fix:` and `feat:` both fit). A known plan unit ID is appended to the subject in parentheses (`(U3)` for unit 3) when it is already in hand for that commit.
 
 Branch routing is explicit:
 

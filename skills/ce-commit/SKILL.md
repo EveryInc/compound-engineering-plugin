@@ -37,10 +37,11 @@ Treat this as a snapshot. Re-read branch and staged set immediately before commi
 
 4. **Logical commits** — if changed files clearly split into distinct concerns, make separate commits (file level only, 2–3 max, no `git add -p`). If ambiguous, one commit.
 
-5. **Message** — subject is imperative and names the outcome (what is now possible or fixed), not the file list. Body only when motivation or trade-offs are not obvious from the subject.
+5. **Message** — subject is imperative and names the outcome (what is now possible or fixed), not the file list. Body only when motivation or trade-offs are not obvious from the subject. When a plan Implementation Unit ID is already in hand for this commit (conversation, caller, or the files belong to one unit), append that unit's U-ID in parentheses — `(U3)` means unit 3. Do not hunt for a plan. Omit when the commit spans units, the unit is unclear, or no plan is in hand.
 
    - Bad: `Update checkout.rb` / `Add tests and fix stuff`
    - Good: `Fix double-submit on checkout`
+   - Good: `Add per-subscription mute (U3)`
 
 6. **Stage and commit** — stage **named files only** (never `git add -A` or `git add .`). Prefer one shell call per commit group:
 

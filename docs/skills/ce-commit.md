@@ -57,7 +57,7 @@ A rushed commit often does one of these:
 - Files are staged by name. Never `git add -A` or `git add .`
 - Distinct concerns become separate commits at file level only (2-3 max, no `git add -p`). Ambiguous grouping stays one commit
 - Detached HEAD or the default branch gets a feature branch first, with no prompt
-- The subject is imperative and names what is now possible or fixed. A body is added only when the why is not obvious
+- The subject is imperative and names what is now possible or fixed. A body is added only when the why is not obvious. When a plan unit ID is already in hand for that commit, that U-ID is appended in parentheses (`(U3)` for unit 3)
 
 ---
 
