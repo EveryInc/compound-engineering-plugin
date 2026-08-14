@@ -23,7 +23,7 @@ C. Apply none of them
 ```
 
 - **A** — apply the batch in one pass, as the Apply step does. Track each for the "Applied changes" section. Recommended because 3.7 already established each member has one sensible remedy.
-- **B** — step through the batch only, using the per-finding presentation below. **In batch context that loop is a subroutine:** exactly one exit, back to the routing question, and it never emits the completion report — including via `Auto-resolve with best judgment on the rest`, which is scoped to the remaining batch and returns here. An exit that ends the run from inside the batch pass is a bug whatever its name.
+- **B** — step through the batch only, using the per-finding presentation below. **In batch context that loop is a subroutine:** exactly one exit — run the accumulated Apply set against the document, then return to the routing question — and it never emits the completion report, including via `Auto-resolve with best judgment on the rest`, which is scoped to the remaining batch and returns here. **Flushing the edits is part of the exit, not of the report.** The walk-through normally defers them to a single pass at its terminal path, which this exit skips; leaving them staged means fixes the reader approved never land, and a later routing choice of C or D would end the run without dispatching them. An exit that ends the run from inside the batch pass is a bug whatever its name.
 - **C** — apply none; every member is reported as skipped in the completion report.
 
 ---
