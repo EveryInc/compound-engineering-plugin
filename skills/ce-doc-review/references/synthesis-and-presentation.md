@@ -300,7 +300,7 @@ Restated: N (residual/deferred items suppressed as duplicates of actionable find
 Review complete
 ```
 
-Omit any section with zero items. The bucket names are the user-facing vocabulary for the routes 3.7 assigned: "Applied N fixes" reports what already changed, the obligations block and "Proposed fixes" together render the grouped confirmation (obligations first, then the rest of the batch), "Decisions" carries the decision surface, and "FYI observations" carries anchor `50`. End with "Review complete" as the terminal signal so callers can detect completion.
+Omit any section with zero items. The bucket names are the user-facing vocabulary for the routes 3.7 assigned: "Applied N fixes" reports what already changed, the obligations block and "Proposed fixes" together render the grouped confirmation (obligations first, then the rest of the batch, each shaped by the floor's "Presenting a batch" rule — the caller re-narrates this envelope to a reader who has seen none of it, so a flat list here becomes a flat list there), "Decisions" carries the decision surface, and "FYI observations" carries anchor `50`. End with "Review complete" as the terminal signal so callers can detect completion.
 
 **Obligations count as proposed fixes.** They render as a group rather than item by item — grouping changes presentation, not the count. So obligations are included in the proposed-fixes count a caller parses, and the caller's actionable-items gate keeps its meaning. Do **not** export a separate obligation count: a review whose findings are all obligations must still report actionable items, or a caller gating on that sum would hide the confirmation step and the user would never see work the review found.
 

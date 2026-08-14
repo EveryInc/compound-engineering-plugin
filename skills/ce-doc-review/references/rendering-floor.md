@@ -70,13 +70,42 @@ glance, without tracking which header they scrolled past. Give each its own gram
 - **A report** — a change already applied. Settled tense, no recommendation field, no offered actions.
   The reader's job is to notice, and to revert if they disagree. Never phrase a report as a question.
 - **A grouped confirmation** — a batch that applies on one answer. Render every member in full *before*
-  the question; a confirmation with nothing visible above it is a rubber stamp, not a decision.
+  the question; a confirmation with nothing visible above it is a rubber stamp, not a decision. Shape it
+  per "Presenting a batch" below.
 - **A question** — a genuine fork. Carries its options and names what differs between them. **A question
   offering one option is a report wearing a question mark**; if there is only one thing to do, report it.
 
 The summary line follows the same split: count changes made and choices requested separately, and never
 describe an item as awaiting the reader when none is. "N proposed fixes remain" beside "no decisions
 requiring judgment" is the contradiction this rule exists to prevent.
+
+## Presenting a batch
+
+A grouped confirmation lets the reader answer once instead of N times. That only pays off if they can
+also *understand* it once. A batch rendered as N independent entries costs exactly what N questions cost
+to read — the volume moved, the comprehension did not.
+
+So lead with what the batch does, then put the members under it:
+
+- **Open with the shape of the batch, not a count.** One or two sentences naming what is about to change
+  in the document. "Six fixes, all replacing the old tier names with the routes that replaced them" tells
+  the reader what they are approving. "6 proposed fixes" tells them only how much scrolling is left.
+- **Group members by what they share, and head each group with the consequence they share.** The axis
+  that helps is almost always *the change*: one root cause, one kind of edit, one section. Severity and
+  reviewer are review-internal bookkeeping — they sort the list without helping anyone decide.
+- **Every member still appears** under its group, rendered per this floor. Grouping reorganizes; it never
+  hides. A member the reader cannot see is one they cannot exclude.
+- **Do not manufacture structure.** Findings that share nothing stand alone, and a batch with no theme
+  worth naming is just a short list. An invented grouping is worse than none: it asserts a relationship
+  the reader will then act on.
+
+You are the only layer that can do this. You hold every finding at once; the reader holds none of them
+and has not read the document as closely as the reviewers did. Finding the two or three real themes in a
+batch of eleven is the work this step exists to do.
+
+The same shape applies wherever a set of findings is rendered together — the batch table, the
+non-interactive envelope's proposed-fixes section, the bulk preview. A flat list is the failure mode
+each of those inherits by default.
 
 ## Obligation blocks
 

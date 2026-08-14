@@ -14,11 +14,11 @@ Synthesis step 3.7 sends every finding with a concrete fix that touches meaning 
 
 Skip this step entirely when the batch is empty, and go straight to the routing question.
 
-**Render every member in full first.** Print the grouped confirmation section of `references/review-output-template.md` as user-visible assistant text in the same turn, obligations first, then the rest of the batch. A confirmation with nothing visible above it is a rubber stamp, not a decision — the same bar the routing question's same-turn presentation invariant sets, and hidden thinking does not satisfy it.
+**Render the batch first, per the floor's "Presenting a batch" rule** (`references/rendering-floor.md`) — lead with what the batch does as a whole, group the members by what they share, and show every one of them. Print it as user-visible assistant text in the same turn; hidden thinking does not satisfy this, the same bar the routing question's same-turn presentation invariant sets. The batch is exactly two sections of `references/review-output-template.md` — **Implementation obligations** and **Proposed fixes** — and nothing else. Render those; use the template's per-finding form inside each group. The P-level sections below them carry the decision surface and are **not** part of this question: sweeping one into an apply-all turns a genuine fork into a batch answer.
 
 Then fire one question via the platform's blocking question tool.
 
-**Stem:** `N proposed fixes are ready to apply. They are shown above.`
+**Stem:** name what the batch does, then ask. Carry the themes you just led with — `Six fixes: four align the tier vocabulary, two add the missing cross-references. Apply them?` A stem that says only `6 proposed fixes are ready` throws away the grouping the reader just read and makes them scroll back to answer.
 
 ```
 A. Apply all of them (recommended)

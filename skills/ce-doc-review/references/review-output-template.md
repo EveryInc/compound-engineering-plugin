@@ -46,13 +46,24 @@ Already entailed by the plan; confirm as a group.
 
 - Two passages disagree on whether a production reset may run, so executors could take opposite actions at the destructive step — align the assumption with the authoritative stop condition.
 
+### Proposed fixes
+
+Two fixes, both bringing a unit in line with a convention the plan already applies everywhere else. Confirm as a group.
+
+**Units that skip a standard the plan already sets**
+
+| # | Section | Issue | Reviewer | Confidence | Tier |
+|---|---------|-------|----------|------------|------|
+| 1 | Unit 6 — Custom auth | Implementers rebuild login and session flows the existing Devise setup already ships, because no unit says how to migrate off it | feasibility | 100 | gated_auto |
+| 2 | Unit 5 — Webhooks | The public webhook endpoint takes unlimited requests while every other public route in the plan is capped, so a flood reaches the app unthrottled | security-lens | 100 | gated_auto |
+
 ### P0 — Must Fix
 
 #### Errors
 
 | # | Section | Issue | Reviewer | Confidence | Tier |
 |---|---------|-------|----------|------------|------|
-| 1 | Requirements Trace | Goal states "offline support" but technical approach assumes persistent connectivity | coherence | 100 | manual |
+| 3 | Requirements Trace | Goal states "offline support" but technical approach assumes persistent connectivity | coherence | 100 | manual |
 
 ### P1 — Should Fix
 
@@ -60,14 +71,7 @@ Already entailed by the plan; confirm as a group.
 
 | # | Section | Issue | Reviewer | Confidence | Tier |
 |---|---------|-------|----------|------------|------|
-| 2 | Scope Boundaries | 8 of 12 units build admin infrastructure; only 2 touch stated goal | scope-guardian | 75 | manual |
-
-#### Omissions
-
-| # | Section | Issue | Reviewer | Confidence | Tier |
-|---|---------|-------|----------|------------|------|
-| 3 | Unit 6 — Custom auth | Implementers rebuild login and session flows the existing Devise setup already ships, because no unit says how to migrate off it | feasibility | 100 | gated_auto |
-| 4 | Unit 5 — Webhooks | The public webhook endpoint takes unlimited requests while every other public route in the plan is capped, so a flood reaches the app unthrottled | security-lens | 100 | gated_auto |
+| 4 | Scope Boundaries | 8 of 12 units build admin infrastructure; only 2 touch stated goal | scope-guardian | 75 | manual |
 
 ### FYI Observations
 
@@ -113,7 +117,8 @@ Restated: 2 (residual/deferred items suppressed as duplicates of actionable find
 - **Applied fixes**: List every fix synthesis step 3.7 routed to Apply. Include enough detail per fix to convey the substance — especially for fixes that add content. Omit section if none.
 - **Implementation obligations**: Findings the document already entails (synthesis step 3.7), grouped under the implementation unit each affects and confirmed as a group rather than one at a time. Each line is a consequence plus its change as intent, per the rendering floor's obligation-block rule — no recommendation, because there is no decision to make. Render the whole group before any confirmation fires; a batch confirmation with nothing visible above it is a rubber stamp. Omit section if none.
 - **Self-contained references**: Every fix line and table cell obeys the shared rendering floor (`references/rendering-floor.md`). The `Issue` cell leads with the consequence (what goes wrong, for whom) and applies the opaque-token policy to all three classes — navigation anchors (document IDs like `R6`, `U3`: keep the ID, gloss at first mention), provenance anchors (tickets/PRs: gloss only when the event drives the decision, else omit), and mechanism symbols (functions/files/lines: translate to their role) — at most two anchors per cell. A cell whose only description of a referenced item is a bare identifier of any class is not acceptable. The floor is the single source; this template does not restate a weaker per-surface rule.
-- **P0-P3 sections**: Only include sections that have findings still waiting on the user — the decision surface, plus any finding synthesis step 3.7 sent to the grouped confirmation that is not rendered in the obligations section above. Omit empty severity levels. Within each severity, separate into **Errors** and **Omissions** sub-headers. Omit a sub-header if that severity has none of that type. The `Tier` column surfaces the finding's internal class: `manual` for one requiring user judgment, `gated_auto` or `safe_auto` for a concrete fix waiting on the group confirmation.
+- **Proposed fixes**: The grouped confirmation, minus the obligations rendered above it — the two sections together are the batch, and nothing else is. Shape it per the floor's "Presenting a batch" rule (`references/rendering-floor.md`): lead with what the batch does as a whole, head each group with what its members share, and keep every member visible. Severity orders findings *within* a group; it never files them into the P-level sections below. **Nothing from the decision surface appears here.** The apply-all confirmation covers exactly this section plus the obligations, so a `manual` finding rendered into it becomes a genuine fork swept into a batch answer — the failure the split exists to prevent. Omit section if none.
+- **P0-P3 sections**: The decision surface only — findings synthesis step 3.7 routed to a decision, which the reader answers one at a time or routes in bulk. Grouped-confirmation members are rendered above and never repeated here. Omit empty severity levels. Within each severity, separate into **Errors** and **Omissions** sub-headers. Omit a sub-header if that severity has none of that type. The `Tier` column surfaces the finding's internal class — `manual` here, since a decision is what these sections carry; `gated_auto` or `safe_auto` appear in Proposed fixes above. A `gated_auto` row in a P-level table means routing went wrong; re-run 3.7 for that finding rather than rendering it here.
 - **FYI Observations**: Findings at confidence anchor `50` regardless of `autofix_class`. Surface here for transparency; these are not actionable and do not enter the walk-through. Omit section if none.
 - **Residual Concerns**: Residual concerns noted by personas that did not make it above the confidence gate. Listed for transparency; not promoted into the review surface (cross-persona agreement boost runs on findings that already survived the gate, per synthesis step 3.4). Omit section if none.
 - **Deferred Questions**: Questions for later workflow stages. Omit if none.
