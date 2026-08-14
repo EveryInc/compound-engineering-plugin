@@ -37,7 +37,7 @@
           },
           "section": {
             "type": "string",
-            "description": "Document section where the issue appears (e.g., 'Requirements Trace', 'Implementation Unit 3', 'Overview')"
+            "description": "Document section where the issue appears, named so a reader who does not have the document open can tell what it is. Give the identifier a short handle on first mention: 'U1 - Establish profile contracts', not 'U1'. Plain section names that need no handle are fine as-is (e.g., 'Requirements Trace', 'Overview')."
           },
           "why_it_matters": {
             "type": "string",

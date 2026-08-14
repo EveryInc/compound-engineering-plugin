@@ -151,6 +151,10 @@ Obligation grouping governs what the user is asked about, never what applies sil
 
 Route on the pair. **Do not prompt on a finding whose own classification says there is nothing to choose between** — a confirmation whose answer is foreseeable carries no information, and a review full of them teaches the reader to accept without reading, which is what destroys the confirmations that matter.
 
+**When you cannot tell whether a real alternative exists, send the finding to the grouped confirmation.** Do not guess in either direction. The three routes cost very different amounts to get wrong: applying a finding that carried a real choice makes a product decision on the author's behalf, and asking about one that carried none spends a prompt on a foregone answer — but the grouped confirmation costs one question for the whole batch, rendered in full, so a finding that lands there wrongly costs the reader a glance. **Uncertainty belongs in the cheap-to-be-wrong bucket.** This is the same fail-closed reasoning as the merge test in 3.3: when the judgment is genuinely unclear, take the option whose failure is recoverable.
+
+Reserve this for real uncertainty, not for discomfort. If the classification is clear, follow it — routing everything here would rebuild the undifferentiated queue this step exists to dismantle.
+
 | Anchor | Autofix Class | Route |
 |--------|---------------|-------|
 | `100`  | `safe_auto`   | Apply. Report in the change list. Requires `suggested_fix`; demote to `gated_auto` if missing. |

@@ -112,12 +112,23 @@ never by a product-specific vocabulary list:
   with raw symbols the reader cannot evaluate.
 
 **Anchor budget:** at most **two** opaque anchors in the default block. The rest are not deleted — they
-live in the on-request trace. Resolve every handle from the document already in context; the finding's
-fields carry the bare token and do not supply the handle. Re-resolve at render time so the handle stays
-accurate after an Apply has edited or renumbered the item it names. If the referenced section is no
-longer in context — a long render pass may have pushed it out — re-read it before rendering rather than
-emitting a bare identifier. Universally understood section names (`Requirements`, `Open Questions`) are
-not opaque and need no handle.
+live in the on-request trace. Universally understood section names (`Requirements`, `Open Questions`)
+are not opaque and need no handle.
+
+**The handle arrives with the finding; rendering does not reconstruct it.** The reviewer that raised the
+finding had the document open and knew what `U1` was at no cost, so it writes the handle into the
+finding's own fields (see `references/subagent-template.md`). Render what the finding gives you.
+
+This is deliberate placement, not a detail. Rendering happens after a long dispatch has filled the
+context with reviewer returns, and asking it to re-derive fifteen handles from a document it may no
+longer hold is asking the layer that lost the information to reconstruct it. That is why bare
+identifiers survive into output even with this rule in force.
+
+Two consequences follow. **Never emit a bare identifier** — if a finding arrives without a handle, look
+it up in the document before rendering rather than passing the bare token through, and treat that as a
+defect in the reviewer's output rather than the normal path. And **re-resolve a handle at render time
+only when an Apply has renumbered or renamed the item it names**, so a stale handle does not outlive the
+edit that moved it.
 
 ## Code-span and block budget
 
