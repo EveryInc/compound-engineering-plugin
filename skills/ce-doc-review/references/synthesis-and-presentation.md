@@ -159,10 +159,10 @@ Batching is the remedy, not silence. One question over the whole settled set kee
 |--------|---------------|-------|
 | `100`  | `safe_auto`   | Apply. Report in the change list. Mechanical corrections only — evidence directly confirms and there is one right answer. Requires `suggested_fix`; demote to `gated_auto` if missing. |
 | `100`  | `gated_auto`  | Grouped confirmation. A concrete fix that touches meaning, so the reader sees it before it lands — but batched, not asked one at a time. Requires `suggested_fix`; demote to `manual` if missing. |
-| `100`  | `manual`      | A decision — real alternatives exist. Ask **which remedy**, not whether to proceed. |
+| `100`  | `manual`      | A decision — the reader chooses, never a question about whether to proceed with something already settled. Ask **which remedy** only when the finding carries competing ones; see below. |
 | `75`   | `safe_auto`   | Grouped confirmation. Unattended apply stays reserved for anchor `100`, where the evidence directly confirms the fix. |
 | `75`   | `gated_auto`  | Grouped confirmation. Requires `suggested_fix`; demote to `manual` if missing. |
-| `75`   | `manual`      | A decision. Ask **which remedy**. |
+| `75`   | `manual`      | A decision. Same treatment. |
 | `50`   | any           | Surface in the FYI subsection regardless of `autofix_class`. Do not enter the decision surface or any batch action. These are observations. |
 
 **Nothing that touches document meaning applies unattended.** Only `safe_auto` at anchor `100` applies without the reader seeing it first. Everything else with a concrete fix goes to the grouped confirmation: one question covering the whole batch, rendered in full before it fires.
@@ -171,7 +171,9 @@ This is a deliberate retreat from a stricter rule, and the reason is measured. R
 
 So the volume problem and the authority problem get separated. **The grouped confirmation solves volume** — one question for a batch is not eleven prompts, which is the complaint this work started from. **Attended review solves authority** — a wrong classification costs the reader a glance rather than an unrequested change to their document. What `autofix_class` still decides is *how* the reader meets a finding: batched with everything else settled, or as a fork with its own question.
 
-That yields three surfaces, each a different speech act: **applied** (reported, revertable — mechanical corrections only), **grouped confirmation** (everything with a concrete fix, plus obligations and peer-only findings — one question covering a batch shown in full first), and **decisions** (genuine forks, asked as which-remedy). Render them per the shared floor's grammar so a reader can tell which is which without tracking headers.
+That yields three surfaces, each a different speech act: **applied** (reported, revertable — mechanical corrections only), **grouped confirmation** (everything with a concrete fix, plus obligations and peer-only findings — one question covering a batch shown in full first), and **decisions** (genuine forks the reader settles). Render them per the shared floor's grammar so a reader can tell which is which without tracking headers.
+
+**Where competing remedies come from — and where they do not.** The reviewer contract commits `suggested_fix` to a single recommendation and forbids alternative menus (`references/subagent-template.md`), so an ordinary `manual` finding reaches the decision surface with one fix or none. It has no menu to offer, and the walk-through gives it the regular four-option question. The case that genuinely carries two is 3.5's contradiction resolution: two personas disagreeing on the same section become one combined finding holding both perspectives, framed as a tradeoff. Ask which-remedy there. Do not invent a second option elsewhere to make the fork appear — the finding is still a decision when it carries one remedy; the reader is choosing whether that remedy is what they want, which is not the same as being asked to rubber-stamp something settled.
 
 **Cross-model peer safeguard.** A finding whose only reviewers are cross-model peers (a `<lens>-<provider>` name with no in-process co-reviewer) **never routes to Apply**, at any anchor or class. Send it to the grouped confirmation instead. A peer cannot authorize an unattended edit on its own (R18). This rule names the route, not the class, so it holds whatever `autofix_class` the finding carries out of 3.6.
 
@@ -228,7 +230,7 @@ List every applied fix in the output summary so the user can see what changed. U
 After the applied changes land, the rest split by the route 3.7 assigned — not by `autofix_class`:
 
 - **Grouped confirmation** — every finding 3.7 sent there, obligations and peer-only findings among them. One confirmation covering the batch, rendered in full first. In interactive mode this fires as its own step before the routing question (see `references/walkthrough.md`); it is never folded into the routing question, and a run that reaches routing without asking it leaves the batch unapplied. In non-interactive mode the batch is returned unapplied for the caller to confirm.
-- **Decisions** — `manual` findings at anchor `75` or `100`. These enter the routing question and the walk-through (see `references/walkthrough.md`), and carry a which-remedy sub-question when more than one viable remedy exists.
+- **Decisions** — `manual` findings at anchor `75` or `100`. These enter the routing question and the walk-through (see `references/walkthrough.md`), and carry a which-remedy sub-question only when the finding holds competing remedies — in practice a 3.5 contradiction, per the note under the routing table.
 - **FYI** — anchor `50`, presentation only, no routing.
 - **Nothing in the decision surface** → skip the routing question; flow directly to the Phase 5 terminal question. Applied changes and an answered grouped confirmation do not warrant a routing question; report them and move on. When the decision surface is empty but the grouped confirmation is not, the confirmation still fires — it is a separate step, not a branch of routing.
 
@@ -251,6 +253,8 @@ not acceptable rendered output.
 
 **Non-interactive mode:** Do not use interactive question tools. Output all findings as a structured text envelope the caller can parse. Internal enum values (`safe_auto`, `gated_auto`, `manual`, `FYI`) stay in the schema and synthesis prose; the envelope below uses user-facing vocabulary — "fixes", "Proposed fixes", "Decisions", "FYI observations" — so non-interactive output reads the same way interactive output does.
 
+Two things about the template that follows. **Nothing in the batch has been confirmed here** — this mode asks no questions, so the obligations and proposed fixes are returned *awaiting* a confirmation the caller must obtain. Wording that reports them as already confirmed invites a caller, or a user reading over its shoulder, to treat unapplied and unapproved changes as accepted. And **the fence is the output**: on a document with no implementation units, title the obligations section "Entailed corrections" and use the section name as each group heading — do not emit that instruction, or any other bracketed note, into the envelope the caller parses.
+
 ```
 Document review complete (non-interactive mode).
 
@@ -258,17 +262,16 @@ Applied N fixes:
 - <section>: <what was changed> (<reviewer>)
 - <section>: <what was changed> (<reviewer>)
 
-Implementation obligations (already entailed by the document; confirmed as a group):
-[on a document with no implementation units, title this "Entailed corrections"]
+Implementation obligations (already entailed by the document; awaiting one grouped confirmation):
 
 <unit or section name>
   - <consequence, no opaque identifier> — <change as intent language>
   - <consequence, no opaque identifier> — <change as intent language>
 
-<unit name>
+<unit or section name>
   - <consequence, no opaque identifier> — <change as intent language>
 
-Proposed fixes (shown before anything lands; confirmed with the obligations above):
+Proposed fixes (nothing here has landed; awaiting the same grouped confirmation):
 
 [P0] Section: <section> — <consequence-first title> (<reviewer>, confidence <anchor>)
   Recommendation: <Apply | Defer | Skip>

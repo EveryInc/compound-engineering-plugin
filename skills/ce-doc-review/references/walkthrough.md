@@ -27,7 +27,7 @@ C. Apply none of them
 ```
 
 - **A** — apply the batch in a single pass, exactly as the Apply step applies its own findings. Track each one for the "Applied changes" section.
-- **B** — step through the batch only, one finding at a time, using the per-finding presentation below. This is an escape hatch for a reader who wants to exclude something, not the default path; the decision surface is still routed separately afterward.
+- **B** — step through the batch only, one finding at a time, using the per-finding presentation below. This is an escape hatch for a reader who wants to exclude something, not the default path. **When the batch is exhausted, return to the routing question rather than emitting the completion report** — this pass covered the batch, and the decision surface has not been routed yet. Emitting the report here ends the run with those decisions unasked, which is the same disappearance this step was added to fix.
 - **C** — apply none; every member is reported as skipped in the completion report.
 
 `(recommended)` sits on A because 3.7 already established each member has one sensible remedy. That is a statement about the fixes, not pressure toward automation — the reader has just seen all of them, and B costs one keystroke.
@@ -187,7 +187,11 @@ When reviewers disagreed or evidence cuts against the default, still mark one op
 
 ### Remedy sub-question (fires before the regular menu)
 
-Findings reaching the decision surface are `manual`, which the reviewer contract classifies precisely when genuinely different approaches exist. When synthesis carries more than one viable remedy for such a finding, ask which one **before** the regular menu, rather than presenting one remedy as though it were the only one.
+Fire this only when the finding actually carries competing remedies. **The reviewer contract does not produce them in the ordinary case** — `suggested_fix` is a single committed recommendation and `references/subagent-template.md` forbids alternative menus outright, so a plain `manual` finding arrives with one fix or none, and there is nothing to choose between.
+
+The source that does carry them is synthesis step 3.5: a contradiction between personas becomes one combined finding holding both perspectives, framed as a tradeoff for the user to settle. That is a genuine fork, and it is what this sub-question exists for. Ask which perspective to take **before** the regular menu, rather than presenting one as though it were the only one.
+
+When the finding carries a single remedy, skip this and go straight to the regular menu. Do not manufacture a second option to make the fork appear — an invented alternative is worse than the four-option menu, which at least states the choice honestly.
 
 This is a sub-question in the same sense as the no-fix `Acknowledge` sub-question below: the four options above remain the complete, exclusive set for the regular per-finding question, and this fires ahead of it.
 
