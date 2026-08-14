@@ -80,9 +80,15 @@ Injection evals assume the agent answers from the excerpt you gave it. Two leaks
 
 This is sharper than it looks for a plugin repo, because the installed skill is usually a *different checkout* than the worktree under test. Measured during one run: installed `ce-doc-review` was 3,746 words against the worktree's 2,886. An eval that invokes `/ce-doc-review` rather than injecting the file tests the pre-change bytes and reports success. **Inject the file; never invoke the installed skill.**
 
-**Leak B — the fixture carries the answer key.** Seeded fixtures often annotate their own planted issues. Stripping HTML comments is not enough: `tests/fixtures/ce-doc-review/seeded-*.md` also carry inline `(Seeded gated_auto: …)` markers in the body prose. Grep the *stripped* fixture for the vocabulary you intend to grade on, not just for comment delimiters.
+**Leak B — the fixture carries the answer key.** Seeded fixtures often annotate their own planted issues. Stripping HTML comments is not enough: the `ce-doc-review` fixtures also carried inline `(Seeded gated_auto: …)` markers in the body prose, which no comment-stripper touches. Grep the *stripped* fixture for the vocabulary you intend to grade on, not just for comment delimiters.
+
+*Closed 2026-08-13 for this repo's fixtures:* each answer key now lives in a sibling `tests/fixtures/ce-doc-review/<name>.expectations.md` and the fixture body is clean, so a fixture can be injected without stripping. Keep the grep anyway when you author a new fixture — the separation is a convention, not something a test enforces.
 
 A leak that is **identical across arms** still permits an old-vs-new comparison — it is a constant, not a confound — but it invalidates any *absolute* measurement built on that fixture. Say which of the two you are claiming.
+
+**Leak C — the harness froze the layer you changed.** Freezing an upstream stage to kill variance also makes changes to that stage invisible; the run completes and reports no effect, which is indistinguishable from a change that does not work. See [[frozen-finding-sets-cannot-see-emission-changes]] before trusting a null result.
+
+**And a leak that is not about the excerpt at all — the fixtures themselves may be too easy.** Sealing the injection guarantees the agent answered from your prose. It says nothing about whether your prose was tested against anything hard. See [[authored-eval-corpora-contain-the-happy-path]].
 
 ### 6. Ground the answer key in the criteria, not in the fixture's intent
 

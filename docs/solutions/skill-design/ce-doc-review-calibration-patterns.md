@@ -44,9 +44,23 @@ Observed in: auth-plan fixture runs (security-lens escalated), feature-plan fixt
 
 **Do not tighten coherence's `safe_auto` guidance to force these into `safe_auto`.** The reclassification is reviewer judgment doing useful work.
 
-## Premise-dependency chains have scope hierarchy
+## Premise-dependency chains have scope hierarchy — MECHANISM REMOVED 2026-08-13
 
-Synthesis step 3.5c groups manual findings whose fixes cascade from a single premise challenge. When multiple premise-level candidates surface, they may be **peer roots** (independent premises at different scopes) or **nested** (one premise's resolution moots the other). The decision rules:
+**The mechanism this section describes no longer exists.** Synthesis step 3.5c and its sibling 3.3b were
+deleted, along with the rest of the cascade machinery, when the pipeline was simplified. Do not implement
+from this section; it is kept because the reasoning below was hard-won and applies to any future attempt
+at the same problem.
+
+Why it went: the machinery asked the synthesizer to build a dependency graph over findings before it
+could reliably tell which findings carried a genuine choice at all. It was elaborate structure resting on
+a classification the model was not yet doing well, so it added failure modes without reducing the reader's
+decision count. The volume problem was addressed instead by batching settled corrections into one grouped
+confirmation. If chain-linking is revisited, it should be built on top of a classification that has been
+measured, not underneath one that has not.
+
+The original description follows. Step 3.5c grouped manual findings whose fixes cascade from a single
+premise challenge. When multiple premise-level candidates surface, they may be **peer roots** (independent
+premises at different scopes) or **nested** (one premise's resolution moots the other). The decision rules:
 
 ### Peer vs nested — mechanical test, not example-based
 
@@ -103,7 +117,8 @@ Across 7+ runs on the rename fixture, the same document produced user-engagement
 
 ## Related documentation
 
-- `skills/ce-doc-review/references/synthesis-and-presentation.md` — canonical synthesis pipeline spec, including 3.5c premise-dependency chain linking
+- `skills/ce-doc-review/references/synthesis-and-presentation.md` — canonical synthesis pipeline spec. It no longer contains 3.5c chain linking or the 3.3b cascade step; read it, not this doc, for the current pipeline
+- `skills/ce-doc-review/references/rendering-floor.md` — the presentation contract, including the report-versus-question grammar that governs whether a finding is asked about at all
 - `skills/ce-doc-review/references/subagent-template.md` — output contract with schema conformance block and advisory routing rule
 - `skills/ce-doc-review/references/personas/` — the 7 doc-review persona prompts (`coherence-reviewer.md`, `feasibility-reviewer.md`, `design-lens-reviewer.md`, `security-lens-reviewer.md`, `scope-guardian-reviewer.md`, `product-lens-reviewer.md`, `adversarial-document-reviewer.md`) with their confidence calibration bands
 - `tests/fixtures/ce-doc-review/` — three seeded fixtures (rename, auth, feature) for manual calibration testing; see each fixture's header comment for its specific seed map
