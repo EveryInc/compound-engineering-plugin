@@ -11,7 +11,7 @@ import {
   existsSync,
   rmSync,
 } from "node:fs"
-import { tmpdir } from "node:os"
+import { devNull, tmpdir } from "node:os"
 import path from "node:path"
 
 const tempRoots: string[] = []
@@ -24,6 +24,25 @@ afterAll(() => {
   for (const dir of tempRoots) rmSync(dir, { recursive: true, force: true })
 })
 
+/**
+ * Run git while building a fixture repo, isolated from the contributor's own git
+ * configuration and failing loudly.
+ *
+ * `commit.gpgSign=true` with no usable key or noninteractive pinentry makes these
+ * commits fail. Unchecked, that leaves the fixture with no `HEAD` and only shows up
+ * much later as `cannot stage reviewed diff` in every test that uses it.
+ */
+function fixtureGit(repo: string, ...args: string[]): void {
+  const r = spawnSync("git", args, {
+    cwd: repo,
+    encoding: "utf8",
+    env: { ...process.env, GIT_CONFIG_GLOBAL: devNull, GIT_CONFIG_SYSTEM: devNull },
+  })
+  if (r.status !== 0) {
+    throw new Error(`fixture: git ${args.join(" ")} failed (${r.status}): ${r.stderr?.trim()}`)
+  }
+}
+
 // The script diffs the toplevel it resolves from its own cwd, so these tests run it
 // in a throwaway repo rather than this checkout. Against the real checkout the diff
 // was whatever the developer had uncommitted: over roughly 160KB it crossed the
@@ -33,7 +52,7 @@ let fixtureRepo: string | null = null
 function dirtyFixtureRepo(): string {
   if (fixtureRepo) return fixtureRepo
   const repo = mkTempRoot("xmodel-cr-fixture-")
-  const git = (...args: string[]) => spawnSync("git", args, { cwd: repo })
+  const git = (...args: string[]) => fixtureGit(repo, ...args)
   git("init", "-b", "main")
   git("config", "user.email", "test@test")
   git("config", "user.name", "test")
@@ -536,12 +555,12 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
 
   test("empty working-tree diff skips before peer invoke", () => {
     const repo = mkTempRoot("xmodel-cr-empty-")
-    spawnSync("git", ["init", "-b", "main"], { cwd: repo })
-    spawnSync("git", ["config", "user.email", "test@test"], { cwd: repo })
-    spawnSync("git", ["config", "user.name", "test"], { cwd: repo })
+    fixtureGit(repo, "init", "-b", "main")
+    fixtureGit(repo, "config", "user.email", "test@test")
+    fixtureGit(repo, "config", "user.name", "test")
     writeFileSync(path.join(repo, "f"), "x")
-    spawnSync("git", ["add", "f"], { cwd: repo })
-    spawnSync("git", ["commit", "-m", "init"], { cwd: repo })
+    fixtureGit(repo, "add", "f")
+    fixtureGit(repo, "commit", "-m", "init")
     const invoked = path.join(mkTempRoot("xmodel-cr-empty-invoked-"), "marker")
     const { env } = sandbox(
       ["claude"],
