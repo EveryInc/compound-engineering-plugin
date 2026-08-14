@@ -38,6 +38,7 @@ Those are different concerns. Missing optional tools should not make the whole p
 - Refreshes `.compound-engineering/config.example.yaml` from the bundled template.
 - Offers to create `.compound-engineering/config.yaml` if missing.
 - Offers to add `.compound-engineering/*.local.yaml` to `.gitignore` only if `config.local.yaml` already exists.
+- Offers to add `.context/compound-engineering/` to `.gitignore` whether or not that directory exists yet, so skills that keep local scratch never dirty the tree. An uncovered path is reported as a note, not a project issue.
 - Reports the resolved artifact root and which config layer supplied it, and flags an unusable `docs_root` (see [Artifact root](./configuration.md#artifact-root)).
 - Prints install commands or URLs for missing optional tools, but does not bulk-install them.
 
@@ -105,7 +106,7 @@ Skip it when:
 | Phase | Step |
 |-------|------|
 | Diagnose | Determine plugin version, run health check, report optional capabilities and project config |
-| Fix | Remove obsolete local config, refresh example config, create repo config if wanted, ensure gitignore safety when a local override exists |
+| Fix | Remove obsolete local config, refresh example config, create repo config if wanted, ensure gitignore safety when a local override exists, offer the CE scratch-space gitignore entry |
 | Summary | Report fixes applied, skipped actions, and missing optional tools |
 
 ---

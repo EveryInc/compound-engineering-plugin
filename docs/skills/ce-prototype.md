@@ -69,6 +69,16 @@ The substrate defaults to the web whatever the product is written in: a native a
 
 A **narrow** question (this control vs that one) stays a close comparison of two or three variants. A **wide** question (make this more fun to use) names three to five genuinely different mechanisms first, then narrows by using them. The skill does not invent a wild alternative for a one-detail question, and it does not answer a wide question by building a single idea.
 
+### A floor under the thing you are judging
+
+On a question settled by seeing — a layout, a type system, a mark, density — the render itself can produce the wrong answer. Text you cannot read, or a control with no visible focus, gets read as "that direction is worse" when the direction was never the problem. So a seeing question loads a craft floor: measurable thresholds for contrast, line measure, spacing rhythm, real states, and keyboard focus, one authored motion moment instead of scattered effects, and copy that names actions and recoveries. It applies only the items the question's dimensions actually reach — a placement question does not acquire an empty state because the floor lists one.
+
+The floor also judges specificity, not just cleanliness. A surface can clear every threshold and still be the arrangement any product would get for any subject, which is what a request for three distinct avenues usually returns. Avenues have to differ by organizing principle; a palette or typeface swap over one arrangement is one avenue shown twice.
+
+### Where the prototype lives
+
+A prototype is kept rather than discarded. It lands in `.context/compound-engineering/ce-prototype/<date>-<slug>/` — gitignored, not committed — so it is still openable next week when the implementation that follows reads it. Each question in a run gets its own directory beneath that, and the capsule names them, so a second question cannot bury the first one's winner. The skill offers to add the ignore entry the first time it writes; decline it, or run outside a git repository, and it falls back to OS temp, where survival stays best-effort. Nothing is ever deleted for you — the directory is yours to prune.
+
 ### Write-back into the existing artifact
 
 Decisions update the Product Contract in the plan you already have. They do not become a third kind of note. After write-back, `ce-plan` re-enriches HOW.
