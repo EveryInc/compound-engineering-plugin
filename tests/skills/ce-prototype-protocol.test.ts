@@ -223,6 +223,26 @@ describe("ce-prototype protocol", () => {
     ).toBe(true)
   })
 
+  test("the scratch ignore entry is one literal across both writers", () => {
+    // Two skills can append this line and skill isolation forbids sharing a
+    // file, so nothing but this guard stops them drifting into two entries
+    // that both satisfy check-ignore and accumulate as separate lines.
+    const IGNORE_ENTRY = ".context/compound-engineering/"
+    const setupBody = readFileSync(path.join(SKILLS_ROOT, "ce-setup", "SKILL.md"), "utf8")
+    expect(
+      setupBody.includes("```text\n" + IGNORE_ENTRY + "\n```"),
+      "ce-setup must offer the scratch ignore entry as exactly this literal.",
+    ).toBe(true)
+    expect(
+      SKILL_BODY.includes("check-ignore -q " + IGNORE_ENTRY),
+      "ce-prototype must probe the identical literal it would ask ce-setup's user to add.",
+    ).toBe(true)
+    expect(
+      PREVIEW_BODY.includes("check-ignore -q " + IGNORE_ENTRY),
+      "The resolution block must probe that same literal, so the path it picks matches the path the offer covers.",
+    ).toBe(true)
+  })
+
   test("no skill reintroduces a retired ce-prototype routing predicate", () => {
     // Exact retired wordings only. A looser semantic pattern would fire on the
     // organizing rule's contrast pair in ce-prototype's own spine, which

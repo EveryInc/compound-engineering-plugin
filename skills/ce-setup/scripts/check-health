@@ -316,6 +316,7 @@ done
 
 legacy_cfg="skip"
 repo_cfg_gitignore="skip"
+scratch_gitignore="skip"
 local_cfg="skip"
 example_cfg="skip"
 retired_keys=()
@@ -349,6 +350,13 @@ if [ "$in_repo" = "yes" ]; then
     else
       repo_cfg_gitignore="missing"
     fi
+  fi
+
+  # Trailing slash is load-bearing: without it an existing directory-only rule
+  # is missed before the directory exists, and a configured repo reads as bare.
+  scratch_gitignore="missing"
+  if git -C "$repo_root" check-ignore -q .context/compound-engineering/ 2>/dev/null; then
+    scratch_gitignore="ok"
   fi
 
   tracked_cfg="missing"
@@ -546,6 +554,13 @@ if [ "$in_repo" = "yes" ]; then
     fi
   else
     skip "No local override yet (.compound-engineering/config.local.yaml)"
+  fi
+
+  if [ "$scratch_gitignore" = "ok" ]; then
+    ok "CE scratch space is gitignored"
+  else
+    skip "CE scratch space is not gitignored"
+    detail "Skills that keep local scratch write under .context/compound-engineering/"
   fi
 
   if [ "$docs_root_status" = "default" ]; then

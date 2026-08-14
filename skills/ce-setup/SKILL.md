@@ -134,6 +134,18 @@ If `.compound-engineering/config.local.yaml` exists and is not covered by `.giti
 
 Append the entry to the repo-root `.gitignore` only if the user approves. Do not overwrite unrelated `.gitignore` content.
 
+### Step 8: Offer To Gitignore CE Scratch Space
+
+Skills that keep local scratch write it under `.context/compound-engineering/`. Probe coverage with `git check-ignore -q .context/compound-engineering/` — with the trailing slash, so an existing directory-only rule counts before the directory exists — and when it is not covered, offer to add:
+
+```text
+.context/compound-engineering/
+```
+
+Append the entry to the repo-root `.gitignore` only if the user approves. Do not overwrite unrelated `.gitignore` content.
+
+Unlike Step 7 this does not wait for the path to exist. The skill about to write there offers the same entry at its first write, so a repository that never uses one of those skills never needs the line — adding it here only means that prompt never has to fire.
+
 ## Phase 3: Summary
 
 Display a brief summary:

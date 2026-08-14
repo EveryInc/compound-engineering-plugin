@@ -211,6 +211,64 @@ describe("ce-setup check-health", () => {
     }
   })
 
+  // Uncovered scratch space is informational, not a project issue: a repository
+  // that never runs a scratch-producing skill needs no entry, and reporting it
+  // as a problem would make a healthy baseline read as broken.
+  async function healthyRepoWithGitignore(gitignore: string): Promise<string> {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+    await initGitRepo(root)
+    await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+    await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
+    await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.yaml"))
+    await writeFile(path.join(root, ".gitignore"), gitignore)
+    return root
+  }
+
+  test("reports uncovered CE scratch space without failing the project", async () => {
+    const root = await healthyRepoWithGitignore(".compound-engineering/*.local.yaml\n")
+
+    try {
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("CE scratch space is not gitignored")
+      expect(result.stdout).toContain("Project config healthy")
+      expect(result.stdout).not.toContain("project issue(s) found")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("treats a covered CE scratch path as gitignored", async () => {
+    const root = await healthyRepoWithGitignore(
+      ".compound-engineering/*.local.yaml\n.context/compound-engineering/\n",
+    )
+
+    try {
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.stdout).toContain("CE scratch space is gitignored")
+      expect(result.stdout).not.toContain("CE scratch space is not gitignored")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("treats a broader .context rule as covering CE scratch space", async () => {
+    // The probe must not re-offer an entry an existing directory-only rule
+    // already makes effective — that is what the trailing slash buys.
+    const root = await healthyRepoWithGitignore(".compound-engineering/*.local.yaml\n.context/\n")
+
+    try {
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.stdout).toContain("CE scratch space is gitignored")
+      expect(result.stdout).not.toContain("CE scratch space is not gitignored")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   async function repoWithLocalConfig(body: string): Promise<string> {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
     await initGitRepo(root)
