@@ -25,7 +25,7 @@ if [ -z "$PY" ]; then
 fi
 [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; }
 
-M_GROK_CURSOR="cursor-grok-4.5-high"
+M_GROK_CURSOR="cursor-grok-4.6-high"
 M_COMPOSER="composer-2.5-fast"
 
 log() { printf '[cross-model-work] %s\n' "$*" >&2; }

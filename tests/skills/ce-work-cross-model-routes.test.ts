@@ -28,7 +28,7 @@ const ROUTE_CONTRACTS = {
   "grok-cli": { target: "grok", harness: "grok", intermediaries: [], model: "auto", restriction: "cooperative" },
   cursor: { target: "cursor", harness: "cursor-agent", intermediaries: [], model: "auto", restriction: "adapter-enforced" },
   composer: { target: "composer", harness: "cursor-agent", intermediaries: ["cursor"], model: "composer-2.5-fast", restriction: "adapter-enforced" },
-  "grok-cursor": { target: "grok", harness: "cursor-agent", intermediaries: ["cursor"], model: "cursor-grok-4.5-high", restriction: "adapter-enforced" },
+  "grok-cursor": { target: "grok", harness: "cursor-agent", intermediaries: ["cursor"], model: "cursor-grok-4.6-high", restriction: "adapter-enforced" },
 } as const
 const roots: string[] = []
 
@@ -82,6 +82,7 @@ if [ "\${1:-}" = "--list-models" ]; then
 composer-2.5-fast - Composer 2.5 Fast
 composer-next-fast - Composer Next Fast
 cursor-grok-4.5-high - Cursor Grok 4.5 High
+cursor-grok-4.6-high - Cursor Grok 4.6
 claude-sonnet-5-low - Sonnet 5 1M Low
 MODELS
   exit 0
@@ -109,6 +110,7 @@ case '${route}' in
   cursor|composer|grok-cursor)
     model='Cursor Grok 4.5 High'
     [ '${route}' = composer ] && model='Composer 2.5 Fast'
+    [ '${route}' = grok-cursor ] && model='Cursor Grok 4.6'
     printf '%s\\n' "{\\"type\\":\\"system\\",\\"subtype\\":\\"init\\",\\"model\\":\\"$model\\"}"
     printf '%s\\n' '${final.replaceAll("'", "'\\''")}'
     ;;
@@ -231,7 +233,7 @@ describe("ce-work fixed write routes", () => {
     }
     expect(emit("cursor").stdout).not.toContain("--model")
     expect(emit("composer").stdout).toContain("--model composer-2.5-fast")
-    expect(emit("grok-cursor").stdout).toContain("--model cursor-grok-4.5-high")
+    expect(emit("grok-cursor").stdout).toContain("--model cursor-grok-4.6-high")
   })
 
   test.each(ROUTES)("%s receives one workspace and bounded packet", (route) => {
