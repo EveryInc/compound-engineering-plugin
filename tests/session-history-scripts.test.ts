@@ -2345,12 +2345,51 @@ describe("discover-sessions", () => {
     expect(files).toEqual([namedSession])
   })
 
-  test("--platform claude encodes Git Bash drive CWDs and walks ancestors", async () => {
-    // Git Bash reports /d/AI/x for D:\AI\x. Restore the drive form before
-    // folding so the encoded name matches Claude's D--AI / D--AI-x dirs.
+  test("--platform claude folds every non-alphanumeric in the encoded CWD", async () => {
+    const underscoreHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
+    const underscored = await writeClaudeSession(
+      underscoreHome,
+      "-Users-test-my-repo"
+    )
+    const underscoreResult = await runDiscover(
+      ["my-repo", "7", "--cwd", "/Users/test/my_repo", "--platform", "claude"],
+      { HOME: underscoreHome }
+    )
+    expect(underscoreResult.exitCode).toBe(0)
+    expect(underscoreResult.stderr).toBe("")
+    expect(
+      underscoreResult.stdout.trim().split("\n").filter((l) => l.trim())
+    ).toEqual([underscored])
+
+    const spaceHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
+    const spaced = await writeClaudeSession(
+      spaceHome,
+      "-Users-test-Code-my-repo"
+    )
+    const spaceResult = await runDiscover(
+      ["my-repo", "7", "--cwd", "/Users/test/Code/my repo", "--platform", "claude"],
+      { HOME: spaceHome }
+    )
+    expect(spaceResult.exitCode).toBe(0)
+    expect(spaceResult.stderr).toBe("")
+    expect(
+      spaceResult.stdout.trim().split("\n").filter((l) => l.trim())
+    ).toEqual([spaced])
+  })
+
+  test("--platform claude does not treat POSIX /d/foo as a Windows drive", async () => {
+    const uname = new TextDecoder().decode(
+      Bun.spawnSync(["uname", "-s"]).stdout
+    ).trim()
+    if (/^(MINGW|MSYS|CYGWIN)/.test(uname)) {
+      return
+    }
+    // Drive restore is MSYS/MINGW/Cygwin-only. On this host, /d/AI/my-repo
+    // must fold to -d-AI-my-repo, not D--AI-my-repo.
     const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
-    const parentSession = await writeClaudeSession(tempHome, "D--AI")
-    const rootSession = await writeClaudeSession(tempHome, "D--AI-my-repo")
+    const posixRoot = await writeClaudeSession(tempHome, "-d-AI-my-repo")
+    const posixParent = await writeClaudeSession(tempHome, "-d-AI")
+    const windowsMisparse = await writeClaudeSession(tempHome, "D--AI")
 
     const { stdout, stderr, exitCode } = await runDiscover(
       ["my-repo", "7", "--cwd", "/d/AI/my-repo", "--platform", "claude"],
@@ -2360,7 +2399,8 @@ describe("discover-sessions", () => {
     expect(exitCode).toBe(0)
     expect(stderr).toBe("")
     const files = stdout.trim().split("\n").filter((l) => l.trim()).sort()
-    expect(files).toEqual([parentSession, rootSession].sort())
+    expect(files).toEqual([posixParent, posixRoot].sort())
+    expect(files).not.toContain(windowsMisparse)
   })
 
   test("--platform claude encodes Windows paths with dots and does not treat /home as a drive", async () => {

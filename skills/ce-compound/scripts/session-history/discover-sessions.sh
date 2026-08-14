@@ -38,28 +38,28 @@ encode_pi_cwd() {
     printf -- "--%s--" "$encoded"
 }
 
-# Claude Code names ~/.claude/projects/<encoded-cwd>/ after the session CWD,
-# folding / \ : . to -. Git Bash reports /d/foo for D:\foo; restore the drive
-# form before folding so the name matches the on-disk directory.
+# Claude Code names ~/.claude/projects/<encoded-cwd>/ via replace(/[^a-zA-Z0-9]/g, "-").
+# Git Bash reports /d/foo for D:\foo; restore the drive form before folding,
+# but only on MSYS/MINGW/Cygwin so a POSIX /d/... path is not rewritten to D:/.
 encode_claude_cwd() {
     local cwd="${1//\\//}"
     cwd="${cwd%/}"
-    case "$cwd" in
-        /[a-zA-Z]|/[a-zA-Z]/*)
-            local drive rest
-            drive="${cwd:1:1}"
-            case "$drive" in
-                [a-z]) drive=$(printf '%s' "$drive" | tr '[:lower:]' '[:upper:]') ;;
+    case "$(uname -s 2>/dev/null)" in
+        MINGW*|MSYS*|CYGWIN*)
+            case "$cwd" in
+                /[a-zA-Z]|/[a-zA-Z]/*)
+                    local drive rest
+                    drive="${cwd:1:1}"
+                    case "$drive" in
+                        [a-z]) drive=$(printf '%s' "$drive" | tr '[:lower:]' '[:upper:]') ;;
+                    esac
+                    rest="${cwd:2}"
+                    cwd="${drive}:${rest}"
+                    ;;
             esac
-            rest="${cwd:2}"
-            cwd="${drive}:${rest}"
             ;;
     esac
-    local encoded="$cwd"
-    encoded="${encoded//\//-}"
-    encoded="${encoded//:/-}"
-    encoded="${encoded//./-}"
-    printf '%s' "$encoded"
+    printf '%s' "$cwd" | sed 's/[^a-zA-Z0-9]/-/g'
 }
 
 # --- Claude Code ---
