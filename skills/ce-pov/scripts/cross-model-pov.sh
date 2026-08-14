@@ -13,11 +13,13 @@
 # -fast tier is its ceiling, an accepted exception).
 #
 # Usage:
-#   cross-model-pov.sh <host-provider> <fixed-route> <subject-payload> <run-dir>
+#   cross-model-pov.sh <host-serving-family> <fixed-route> <subject-payload> <run-dir>
 #
-#   <host-provider> the peer-key of the host's OWN serving provider, attested by
-#                   the calling skill (it knows its harness): openai->codex,
-#                   anthropic->claude, xai->grok, cursor/composer->composer.
+#   <host-serving-family>
+#                   the peer-key of the host's OWN serving family, attested by
+#                   the calling skill (it knows its harness). A peer-key, never
+#                   a provider name: openai->codex, anthropic->claude,
+#                   xai->grok, cursor/composer->composer.
 #                   Used only to verify independence. `unknown` is allowed for an
 #                   explicitly named peer, but its receipt remains unverified;
 #                   automatic discovery must exclude it before calling this worker.
@@ -31,7 +33,7 @@
 #   <run-dir>         existing private dir outside the repository; output ->
 #                     <run-dir>/pov-<target>.json, where <target> is the resolved
 #                     <fixed-route> target (grok-cli/grok-cursor both collapse to
-#                     grok) -- NOT the <host-provider> key.
+#                     grok) -- NOT the <host-serving-family> key.
 #
 # Test/introspection mode (no model call, no side effects):
 #   cross-model-pov.sh --emit-adapter <route>

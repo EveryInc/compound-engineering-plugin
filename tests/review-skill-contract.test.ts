@@ -1156,6 +1156,34 @@ describe("cross-model peer skip legibility", () => {
     })
   }
 
+  // Same bug class as the route-token check above, one argument to the left: the
+  // first worker positional is a peer-key, so a caller that reads its name and
+  // reconstructs a provider name (`anthropic`) fail-closes both jobs. Wherever a
+  // reference names `<host-serving-family>`, it must spell out the accepted set.
+  for (const { worker, reference } of routeTokenPairs) {
+    test(`${reference} enumerates the worker's accepted host-serving-family tokens`, async () => {
+      const workerSrc = await readRepoFile(worker)
+      const caseBody = workerSrc.match(/case "\$HOST_PROVIDER" in\s*\n\s*([a-z|]+)\)/)?.[1]
+      expect(caseBody).toBeTruthy()
+      const tokens = caseBody!.split("|")
+      expect(tokens).toContain("unknown")
+      expect(tokens.length).toBeGreaterThanOrEqual(5)
+
+      // Collapse whitespace: ce-pov hard-wraps prose, so one enumeration can
+      // straddle a line break while the sibling bullets do not. Stop each span
+      // at `;` as well as `.`: the adjacent <host-harness> clause repeats four
+      // of these five tokens, so a span that runs into it would satisfy this
+      // assertion out of the neighbour's text.
+      const ref = (await readRepoFile(reference)).replace(/\s+/g, " ")
+      const spans = [...ref.matchAll(/`<host-serving-family>`[^.;]*/g)].map((m) => m[0])
+      expect(spans.length).toBeGreaterThan(0)
+      expect(
+        spans.some((span) => tokens.every((token) => span.includes(`\`${token}\``))),
+        `${reference} must enumerate ${tokens.join("|")} where it names <host-serving-family>`,
+      ).toBe(true)
+    })
+  }
+
   // A fixed route succeeded only
   // when it returned a reviewer-shaped object with a top-level `findings` array
   // — not merely any valid JSON. Accepting an error/envelope object (e.g. a grok
@@ -1218,7 +1246,7 @@ describe("cross-model peer skip legibility", () => {
     })
   }
 
-  for (const reference of pairs.map((p) => p.reference)) {
+  for (const reference of routeTokenPairs.map((p) => p.reference)) {
     test(`${reference} keeps Cursor harness identity separate from serving family`, async () => {
       const src = await readRepoFile(reference)
       expect(src).toContain("XHOST_HARNESS=cursor; XHOST_FAMILY=unknown")

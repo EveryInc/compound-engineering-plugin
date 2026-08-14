@@ -13,11 +13,13 @@
 # runs on ONE editorially selected model and reasoning tier per provider.
 #
 # Usage:
-#   cross-model-adversarial-review.sh <host-provider> <candidates> <base-ref> <run-dir>
+#   cross-model-adversarial-review.sh <host-serving-family> <candidates> <base-ref> <run-dir>
 #
-#   <host-provider> the peer-key of the host's OWN serving provider, attested by
-#                   the calling skill (it knows its harness): openai->codex,
-#                   anthropic->claude, xai->grok, cursor/composer->composer.
+#   <host-serving-family>
+#                   the peer-key of the host's OWN serving family, attested by
+#                   the calling skill (it knows its harness). A peer-key, never
+#                   a provider name: openai->codex, anthropic->claude,
+#                   xai->grok, cursor/composer->composer.
 #                   Excluded from selection when attested. `unknown` is allowed,
 #                   but any returned review remains non-independent and cannot
 #                   promote agreement.
