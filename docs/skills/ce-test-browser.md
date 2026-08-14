@@ -78,7 +78,7 @@ A fixed flow:
 
 ### Host-native browser first, `agent-browser` as fallback
 
-A browser surface the harness owns is preferred: local URLs, rendered and interactive state, click/fill/press, screenshots, console errors. A separately configured extension or MCP does not count. If the host has no such surface, the skill uses the `agent-browser` CLI. One driver owns the run. It will not install Playwright, Puppeteer, or another automation stack. A Playwright API *inside* the selected host browser is still that browser.
+Prefer a host-native integrated browser: a surface embedded in or directly owned by the active harness. Local URLs, rendered and interactive state, click/fill/press, screenshots, console errors. Separately configured browser extensions or MCPs do not count. If the host has no such surface, fall back to `agent-browser`. One driver owns the run. It will not install standalone Playwright, Puppeteer, or another automation stack. A Playwright API *inside* the selected host browser is still that browser.
 
 If neither a native browser nor `agent-browser` is available, it stops and points at `/ce-setup`.
 

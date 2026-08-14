@@ -112,15 +112,15 @@ A typical "let's brainstorm" with an AI has shape problems too. It asks five que
 
 ## What Makes It Novel
 
-### One question at a time
+### 1. One question at a time
 
 Stacking several questions in one message produces diluted answers. `ce-brainstorm` asks one question per turn and defaults to the platform's blocking question tool with single-select options when natural choices exist. Free-text is always available.
 
-### Ceremony scales with the work
+### 2. Ceremony scales with the work
 
 Lightweight covers small, well-bounded ideas. Standard handles ordinary features with some decisions. Deep adds probes for cross-cutting work. Deep-product also has to establish product shape (actors, core outcome, positioning, durability) rather than inherit it.
 
-### Named gap lenses, then approaches
+### 3. Named gap lenses, then approaches
 
 Before generating approaches, the skill scans the opening for rigor gaps and probes only the ones that are present:
 
@@ -134,11 +134,11 @@ These probes fire as prose, not menus. A 4-option menu would tell you which kind
 
 Phase 2 then surfaces 2-3 concrete approaches, including at least one non-obvious angle (inversion, constraint removal, or cross-domain analogy). Approaches sit at mechanism or product-shape granularity, not architecture. Architecture on thin research belongs in `ce-plan`. Approaches are shown before the recommendation so you see the alternatives first.
 
-### Visual probes, then prototype when a sketch is not enough
+### 4. Visual probes, then prototype when a sketch is not enough
 
 When a decision is spatial, behavioral, or visual, the skill can offer a rough local visual probe. Those probes are disposable sketches for product feedback, display-only. You respond in chat. A decision a rough sketch cannot settle (finish or motion), or one a sketch was built for and failed to settle, routes to `ce-prototype` instead.
 
-### Synthesis, identifiers, and a last check before handoff
+### 5. Synthesis, identifiers, and a last check before handoff
 
 Before writing the doc, the skill emits a scoping synthesis: what is being built, the trade-offs the dialogue produced, what was deferred, and any genuine forks. Lightweight runs that asked no blocking questions compress this to a single forward-looking sentence. Standard, Deep, and any run that asked a blocking question get the full synthesis and an explicit confirmation gate, including a richly pre-loaded opener that needed no dialogue.
 
@@ -150,7 +150,7 @@ A decision you examined and chose during the dialogue lands as a labeled Key Dec
 
 On Standard and Deep software runs, a cheap scout gathers a grounding dossier (verbatim quotes with `file:line` pointers) while you answer the first question. Before the plan is written, a verifier that never saw the dialogue checks the Product Contract's repo claims. Refuted claims are corrected; unverifiable ones become explicit assumptions. The dossier path is handed to `ce-plan`.
 
-### Blindspot pass and non-software facilitation
+### 6. Blindspot pass and non-software facilitation
 
 When you flag unfamiliarity, or consecutive answers show you cannot weigh the options, the skill offers a blindspot pass before questioning that territory further: a map of 3-7 decisions and hazards, each with why it matters, the realistic options, and a recommended default. You pick which to walk through. The rest take defaults recorded as explicit assumptions. This works on both software and non-software routes.
 

@@ -99,6 +99,8 @@ Planning can be authored on a named model (`plan with fable`) via `ce-plan`'s mo
 
 A preference falls back to native and says so. A requirement that cannot run blocks. `lfg` does not ask whether to weaken it.
 
+On string-only hosts the implementation seam is `mode:return-to-caller implementation_engine:<compact-json> <plan-path>`. The `plan_model:<alias>` carrier rides beside, never inside, `ce-plan`'s request. Neither carrier becomes plan content, a settled product decision, or review input.
+
 ### Residuals and CI leftovers outlive the session
 
 Unapplied review findings are filed and committed. Unfixable CI is reported on the PR. `needs-human` leftovers (a product or design call) are deferred, not guessed. The run can reach `DONE` with those records in place.
