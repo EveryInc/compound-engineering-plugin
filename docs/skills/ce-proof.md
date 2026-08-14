@@ -1,8 +1,14 @@
 # `ce-proof`
 
-> Publish, share, view, comment on, and edit markdown documents via [Proof](https://www.proofeditor.ai), Every's collaborative markdown editor.
+> Publish a local markdown file to a shareable [Proof](https://www.proofeditor.ai) URL, or read, comment on, and edit an existing Proof doc.
 
-`ce-proof` is the **collaborative-doc** skill. Proof is a real-time markdown editor where humans and agents can both work on the same document. The skill's primary use is **one-way publishing**: take a local markdown file (a brainstorm, a plan, a learning, a draft), create a shared Proof doc from it, and hand the user a shareable URL. The local file stays canonical — publishing does not sync anything back to disk. The skill also reads shared Proof docs and makes comment/suggestion/content edits over Proof's **v3 web API** when the agent is handed a URL to participate.
+`ce-proof` is a **publish and collaborate** utility, not a review skill and not a proofreader. Proof is a real-time markdown editor. Humans and agents can work in the same document.
+
+The usual job is **one-way publish**: take a local markdown file (a brainstorm, a plan, a learning, a draft), create a shared Proof doc, and hand back a URL. The local file stays canonical. Publishing does not write anything back to disk.
+
+It also reads a Proof URL and can comment, suggest, or edit over Proof's hosted v3 web API. Pulling remote content down to a local file is a separate, explicit action.
+
+It does not review documents, check math, gather evidence, or stand in for a proof of concept. If the source is an HTML unified plan, it does not upload it. It returns the local browser path instead.
 
 ---
 
@@ -10,166 +16,163 @@
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Publishes local markdown to a shareable Proof doc, reads shared docs, and edits via Proof's v3 HTTP API |
-| When to use it | "Share to Proof", "publish to Proof", "view this in Proof"; offered on non-software wrap-up menus and `ce-ideate`; invoke directly for software brainstorms and plans |
-| What it produces | A shareable Proof URL (publish), or edits/comments on a shared doc you point it at |
-| API surface | Hosted web API at `proofeditor.ai` — `v3/document` (read) and `v3/edit` (write) |
-| Sync direction | One-way publish by default — the local file stays canonical. Pulling a Proof doc back to local is a separate, explicit action |
-| Ownership | Capture `accessToken` (everyday) and `ownerSecret` (delete); claim in the UI revokes `ownerSecret` |
+| What does it do? | Publishes local markdown to a shareable Proof URL, or reads, comments on, and edits a Proof doc you point it at |
+| When to use it | You want a shareable link, a wrap-up menu offered "Publish to Proof", or the agent should work from a Proof URL |
+| What it produces | A shareable `tokenUrl` (publish), comments or edits on a shared doc, or a local markdown file (explicit pull) |
+| What's next | Open the URL, share it, or return to the skill that handed off. The local file is unchanged. |
+| Sync | One-way by default. A pull is a separate, confirmed write. |
 
 ---
 
 ## Example invocations
 
+Publishing creates a new shared doc. A URL argument reads or edits that doc. A pull writes remote content to disk.
+
 ```text
-# Publish a local Markdown document and keep the file canonical
+# Publish a named markdown file and keep the local file canonical
 /ce-proof share docs/plans/notification-mute.md to Proof
 
-# Read or collaborate on an existing Proof document
-/ce-proof https://www.proofeditor.ai/d/example?token=example
-
-# Publish the Markdown file that was just edited
+# Same request in everyday language; the file is the one just created or edited
 /ce-proof share this to Proof
 
-# Pull current Proof content to a local file as a separate explicit action
+# Publish a learning or other draft, not only a plan
+/ce-proof publish docs/solutions/notification-mute-race.md to Proof
+
+# Read, comment on, or edit an existing shared doc
+/ce-proof https://www.proofeditor.ai/d/example?token=example
+
+# Pull current Proof content onto disk. This overwrites the local file.
 /ce-proof pull this Proof document to docs/reviews/notification-mute.md
+
+# Remove an unclaimed doc this session created
+/ce-proof delete the Proof doc we just published
 ```
 
-Publishing is one-way by default. Pulling remote content back to disk is separate because it changes the local source of truth.
+Only markdown is published. An HTML plan stays local. Do not put secrets or private personal data in Proof unless you explicitly approve the upload.
 
 ---
 
 ## The Problem
 
-Sharing markdown drafts for review is harder than it looks:
+Sharing a long markdown draft for review is awkward:
 
-- **Chat is the wrong surface** — pasting a 2,000-line plan into chat for "feedback" loses the structure
-- **Pasting comments is lossy** — "see the bullet on line 47" doesn't anchor; a week later nobody remembers what bullet
-- **Tracked changes need infrastructure** — "suggest this edit" is meaningful only when there's a real accept/reject affordance
-- **Identity drifts** — when an agent edits, who edited? Without consistent attribution, comment authorship in the rendered doc is wrong
-- **Credentials are easy to drop** — create returns an `ownerSecret` that is the only delete credential for ownerless docs; agents that copy incomplete examples leave undeletable orphans
-- **PII / secrets in transit** — uploading content to a third-party editor is a real concern; the user needs to know what's leaving local
+- Chat loses structure. A 2,000-line plan pasted into a thread is hard to comment on.
+- "See the bullet on line 47" does not stay attached to that bullet a week later.
+- Suggested edits need accept/reject, not a second copy of the file.
+- Agent edits need a stable identity, or the comment trail looks like several different authors.
+- Create returns an `ownerSecret` that is the only delete credential for an unclaimed doc. Drop it and the doc cannot be cleaned up.
+- Upload is a real third-party transfer. You should know what is leaving disk.
 
 ## The Solution
 
-`ce-proof` runs publishing and collaboration through Proof's structured v3 API:
+`ce-proof` talks to Proof's hosted API at `proofeditor.ai`:
 
-- **One-way publish** — create a shared doc from a local markdown file and return a shareable URL; the local file stays canonical
-- **Web API** — no install needed; create, read, edit via HTTP; user gets a shareable URL with an access token
-- **v3 one-read / one-write** — `GET /api/agent/<slug>/v3/document` and `POST /api/agent/<slug>/v3/edit`; visible-text targets; optional `baseRevision`; no base tokens
-- **Credential roles** — `accessToken` for everyday calls; `ownerSecret` for owner delete; always hand `tokenUrl`
-- **Consistent identity** — `by: "ai:compound-engineering"` on every op; `name: "Compound Engineering"` bound once via `/presence`
-- **Narrow-first edit ladder** — `replace` / `insert` / `delete` → `suggest` when track-changes matter → `set_document` last (collab-safe)
-- **Retry against `error.current`** — closed error envelope with `retryable`; re-read on `202` / `PENDING`
+- **Publish** reads the local markdown, posts it to `POST /share/markdown`, binds the display name, and returns the `tokenUrl`. Nothing syncs back.
+- **Collaborate** reads `v3/document` and writes through `v3/edit`: narrow replace/insert/delete first, then suggestions, then whole-doc replace only when you asked for it or a narrow edit cannot express the change.
+- **Pull** is explicit. It reads the current Proof markdown and writes it atomically to a local path. If the pull is a side effect of something else, the skill asks first.
+- **Cleanup** deletes an unclaimed doc with the session `ownerSecret` when you ask. Publish handoffs do not auto-delete.
+
+If typed `proof_*` MCP tools are already available, the skill prefers those. Otherwise it uses HTTP.
 
 ---
 
 ## What Makes It Novel
 
-### 1. CE publish shell on Proof's current agent contract
+### One-way publish is the default
 
-Proof's official agent docs define v3 + ownership. `ce-proof` keeps compound-engineering's product shell (publish-primary, fixed identity, pull-to-local, upstream handoffs) while teaching that current HTTP contract — not a stale dual-endpoint agent surface.
+The chain use is "give me a link." The local file remains the record. Two equivalent entries:
 
-### 2. One-way publish as the primary mode
+- A direct request: "share this to proof", "publish this to proof", "get me a proof link for this doc"
+- An upstream handoff from `ce-ideate` (markdown output), non-software `ce-brainstorm`, or non-software `ce-plan`
 
-Publishing is the chain's primary use case:
+Software brainstorm and software plan menus do not offer Proof. Invoke `/ce-proof` yourself on the markdown file. HTML artifacts are not uploaded.
 
-- Create a shared Proof doc from a local markdown file via `POST /share/markdown`; user gets a URL
-- Bind the display name via `POST /presence`
-- Surface the `tokenUrl` — the user opens it to read, comment, and share with others
+When the source is a unified plan, the Proof title is labeled by readiness when that metadata is available, for example `Plan: <title> (requirements-only)` or `Plan: <title> (implementation-ready)`.
 
-The local file remains the canonical record; nothing syncs back to disk as a side effect of publishing. Two entry points, identical mechanics:
+### Two credentials, different jobs
 
-- **Direct user request** — bare phrase like "share this to proof" or "publish this to proof"
-- **Upstream skill handoff** — `ce-ideate` and non-software `ce-brainstorm` / `ce-plan` wrap-ups can hand a draft to publish; software brainstorm and plan menus invoke `ce-proof` only when the user asks
+Create returns `accessToken` (everyday read, edit, presence) and `ownerSecret` (delete while the doc is unclaimed). The skill keeps `ownerSecret` in session memory only. It never writes tokens into the repo. Always share the `tokenUrl`, not a bare `/d/<slug>`.
 
-### 3. Owner credential lifecycle
+If someone claims the doc in the Proof UI, `ownerSecret` is revoked for good. `accessToken` still works. Delete then belongs to the Every owner account.
 
-Create returns both `accessToken` and `ownerSecret`. The skill requires extracting both, keeping `ownerSecret` in session memory only (never in the repo tree), and using it for `DELETE /api/documents/<slug>` when the user wants cleanup of an unclaimed doc. Publish handoffs do **not** auto-delete — review URLs must linger. If a human claims the doc, `ownerSecret` is permanently revoked; `accessToken` keeps working and delete moves to the owner.
+### Narrow edits, then suggestions, then whole-doc
 
-### 4. v3 mutation discipline
+Targets are visible text, not raw markdown syntax. Ambiguous matches fail closed. `set_document` is last and is applied as a minimal diff, so it is safe with live collaborators. Emptying the markdown does not remove comment marks. Delete the document if you need a privacy cleanup.
 
-Every edit goes through `v3/edit` with an `operations` array. Targets are visible text. Ambiguous matches fail closed with `TARGET_AMBIGUOUS` + candidates. Content ops are atomic; review ops follow. Retryable failures carry `error.current` so the agent re-resolves instead of blind-retrying.
-
-### 5. Atomic pull-to-local (separate, explicit action)
-
-Publishing is one-way, but a user can still pull a Proof doc's current state down to a local markdown file as a deliberate step. The skill reads `v3/document`, streams `.markdown` with `jq -jr`, and renames atomically. It asks for confirmation when the pull is a side-effect.
-
-### 6. Consistent agent identity
-
-The skill enforces `by: "ai:compound-engineering"` on every op and `X-Agent-Id: ai:compound-engineering` in headers. Display name `Compound Engineering` is bound once per session via `/presence`. **Don't use `ai:compound` or other ad-hoc variants** — identity stays uniform unless a caller explicitly overrides.
+Identity defaults are `by: "ai:compound-engineering"` and display name `Compound Engineering`. Do not use `ai:compound` unless a caller overrides the pair on purpose.
 
 ---
 
 ## Quick Example
 
-The user asks to publish a notification-mute plan to Proof. The session invokes `ce-proof` with the plan path and title.
+You ask to share a notification-mute plan. The skill reads the markdown, posts it to `/share/markdown`, keeps `accessToken` and `ownerSecret` in session memory, binds the display name, and prints the `tokenUrl`. The local plan file is untouched.
 
-The skill creates a Proof doc via `POST /share/markdown` with the plan content, retains `accessToken` + `ownerSecret`, returns the `tokenUrl`, and binds the display name via `POST /presence`. It surfaces the URL to the user and returns control to `ce-plan` Phase 5.4 — the local plan file remains canonical and untouched.
+You open the URL, leave inline comments, and send the link to a teammate. Nothing syncs back. If a wrap-up menu handed this off, that menu comes back so you can start work, create an issue, or stop.
 
-The user opens the URL in their browser, reads the plan, adds inline comments, and shares the link with a teammate. Nothing syncs back to disk; the menu re-renders so the user can start `/ce-work`, create an issue, or pause.
+Later, `/ce-proof pull this Proof document to docs/reviews/notification-mute.md` writes the current Proof markdown to that path. If the pull is a side effect of another action, the skill asks first.
 
 ---
 
 ## When to Reach For It
 
-Reach for `ce-proof` when:
+Use `ce-proof` when:
 
-- You want a shareable URL for a markdown doc (brainstorm, plan, learning, draft)
-- A chain skill (`ce-brainstorm`, `ce-plan`, `ce-ideate`) handed off to publish for human review
-- You're working from a Proof URL and want the agent to read, comment, or edit
-- You want to pull a shared Proof doc's current state back down to a local file
+- You want a shareable URL for a markdown brainstorm, plan, learning, or draft
+- A wrap-up menu offered "Publish to Proof" (`ce-ideate` markdown, non-software brainstorm, non-software plan)
+- You have a Proof URL and want the agent to read, comment, or edit
+- You want the current Proof state on disk as a deliberate pull
 
-Skip `ce-proof` when:
+Skip it when:
 
-- The doc is small enough that chat-paste-and-discuss works fine
-- You don't have network access (web API needs `proofeditor.ai`)
-- The content is too sensitive to upload to a third-party editor — keep it local
+- You want a document reviewed for gaps or quality → `/ce-doc-review` (or `/ce-code-review` for code)
+- The artifact is HTML → open the local file; Proof does not ingest HTML
+- The doc is small enough that chat is enough
+- You are offline (`proofeditor.ai` is required)
+- The content is too sensitive to upload
 
 ---
 
 ## Use as Part of the Workflow
 
-`ce-proof` integrates with the chain at multiple publish touchpoints:
+Wrap-up menus that offer Proof:
 
-- **Non-software `/ce-brainstorm` and `/ce-plan` wrap-ups** — "Publish to Proof" remains on those menus
-- **`/ce-ideate` Phase 5** — "Publish to Proof" option (markdown output only)
-- **`/ce-compound`** — for sharing a learning before committing to `docs/solutions/`
+- Non-software `/ce-brainstorm` and `/ce-plan`
+- `/ce-ideate` Phase 5, markdown output only
 
-In every case the handoff is one-way: `ce-proof` publishes, surfaces the URL, and returns control. The originating skill's local artifact stays canonical, so the upstream menu re-renders unchanged — there's no review-state machine to reconcile.
+The handoff is one-way. `ce-proof` publishes, prints the URL, and returns control. The originating skill's local file stays canonical, so that menu can re-render as it was.
+
+Software brainstorm and software plan menus do not include Proof. Publish those markdown files with a direct `/ce-proof` invoke.
 
 ---
 
 ## Use Standalone
 
-Direct invocation for ad-hoc Proof work:
-
-- **Publish local markdown** — `/ce-proof "share docs/plans/foo.md to Proof"`
-- **From a Proof URL** — `/ce-proof https://www.proofeditor.ai/d/abc123?token=xxx` (read state, add comments, suggest edits)
-- **Publish the just-edited file** — "share this to proof" picks up whichever markdown was just touched
-- **Pull a Proof doc to local** — sync current Proof state to a markdown file (atomic write; explicit, confirmed)
-- **Cleanup** — when the user asks to remove an unclaimed doc you created, `DELETE` with the session `ownerSecret`
+- **Publish a file:** `/ce-proof share docs/plans/foo.md to Proof`
+- **Publish the file just edited:** `share this to proof`
+- **Work from a URL:** `/ce-proof https://www.proofeditor.ai/d/abc123?token=xxx`
+- **Pull to disk:** an explicit path, atomic write, confirmed when it is a side effect
+- **Cleanup:** delete an unclaimed doc this session created, using the session `ownerSecret`
 
 ---
 
 ## Reference
 
-| API surface | When |
-|-------------|------|
+| Argument | Effect |
+|----------|--------|
+| _(empty)_ or `share this to Proof` | Publishes the markdown file just created, edited, or referenced. Asks which file if that is unclear. |
+| `<path>` / `share <path> to Proof` | Publishes that markdown file. HTML is refused. |
+| `<Proof URL>` | Reads the doc, then comments or edits if that is what you asked. |
+| `pull … to <path>` | Writes current Proof markdown to that local path. Confirms first when the pull is a side effect. |
+| `delete` / `clean up` | Deletes an unclaimed doc this session created. After claim, ask the owner. |
+
+| API | When |
+|-----|------|
 | `POST /share/markdown` | Create / publish |
-| `GET /api/agent/{slug}/v3/document` | Read markdown + comments + suggestions |
+| `GET /api/agent/{slug}/v3/document` | Read markdown, comments, suggestions |
 | `POST /api/agent/{slug}/v3/edit` | Content and review mutations |
 | `DELETE /api/documents/{slug}` | Owner delete (`ownerSecret` or Every owner session) |
 
-| v3 content op | Purpose |
-|---------------|---------|
-| `replace` / `insert` / `delete` | Narrow prose edits (visible-text targets) |
-| `set_document` | Whole-doc replacement (last resort; collab-safe) |
-
-| v3 review op | Purpose |
-|--------------|---------|
-| `comment` / `reply` / `resolve` / `unresolve` | Comment threads (no comment delete) |
-| `suggest` / `accept` / `reject` | Tracked suggestions |
+Content ops: `replace` / `insert` / `delete`, then `set_document` last. Review ops: `comment` / `reply` / `resolve` / `unresolve` (no comment delete), `suggest` / `accept` / `reject`.
 
 Identity defaults: `by: "ai:compound-engineering"`, `X-Agent-Id: ai:compound-engineering`, `name: "Compound Engineering"`.
 
@@ -178,35 +181,29 @@ Identity defaults: `by: "ai:compound-engineering"`, `X-Agent-Id: ai:compound-eng
 ## FAQ
 
 **Does publishing sync edits back to my local file?**
-No. Publishing is one-way — it creates a shared Proof doc and returns a URL; the local file stays canonical. If you want the current Proof state on disk, pull it down explicitly (a separate, confirmed action that writes atomically).
+No. Publishing creates a shared doc and returns a URL. Pull explicitly if you want the current Proof state on disk.
 
 **Why two tokens on create?**
-`accessToken` is the everyday bearer for read/edit/presence. `ownerSecret` is the only credential that can delete an ownerless agent-created doc. Dropping `ownerSecret` leaves an undeletable orphan.
+`accessToken` is the everyday bearer. `ownerSecret` is the only credential that can delete an ownerless agent-created doc. Dropping `ownerSecret` leaves an undeletable orphan.
 
 **Should I rewrite the whole doc?**
-Almost never as a first move. Prefer `replace` / `insert` / `delete`. Use `suggest` when visible track changes matter. Use `set_document` only when the user asked for full replacement or the change cannot be represented narrowly.
-
-**What's the right mutation pattern?**
-Read `v3/document` once, send one `v3/edit` with the operations you need, then inspect the settled response (or re-read on `202`). On retryable errors, re-resolve against `error.current`.
-
-**Why the `ai:compound-engineering` identity?**
-For consistent attribution. Mark authorship in the rendered doc shows who edited; if the agent uses `ai:compound` one day and `ai:compound-engineering` the next, the audit trail looks fragmented. The skill enforces one identity unless a caller explicitly overrides.
+Almost never as a first move. Prefer `replace` / `insert` / `delete`. Use `suggest` when visible track changes matter. Use `set_document` only for a full replacement you asked for, or a change that cannot be expressed narrowly.
 
 **Can I edit a doc while a user is connected?**
-Yes. v3 content and review ops work during active collab. `set_document` is applied as a minimal diff and is documented as safe with live collaborators.
+Yes. v3 content and review ops work during live collab. `set_document` is applied as a minimal diff.
 
 **Does emptying a doc remove comments?**
-No. Emptying markdown does not scrub comment marks. Delete the document with `ownerSecret` (while unclaimed) or ask the owner after claim.
+No. Delete the document with `ownerSecret` while it is unclaimed, or ask the owner after claim.
 
 **What if the upload fails?**
-The skill retries once. If it still fails, callers get a clear error and can decide what to do (often: stay in the chain skill's menu without the Proof handoff, or fall back to local-only). Persistent failures get reported to Proof via `POST /api/bridge/report_bug` for diagnosis.
+The skill retries once. After that you get an error and can stay in the originating menu without the Proof link. Persistent failures can be reported to Proof via `POST /api/bridge/report_bug`.
 
 ---
 
 ## See Also
 
-- [`/ce-brainstorm`](./ce-brainstorm.md) — non-software wrap-up still offers Proof
-- [`/ce-plan`](./ce-plan.md) — non-software wrap-up still offers Proof
-- [`/ce-ideate`](./ce-ideate.md) — Phase 5 "Publish to Proof" option
-- [Proof](https://www.proofeditor.ai) — the editor itself; this skill is the agent client
-- [Proof agent docs](https://www.proofeditor.ai/agent-docs) — hosted agent contract
+- [`/ce-brainstorm`](./ce-brainstorm.md): non-software wrap-up still offers Proof
+- [`/ce-plan`](./ce-plan.md): non-software wrap-up still offers Proof
+- [`/ce-ideate`](./ce-ideate.md): Phase 5 "Publish to Proof" on markdown output
+- [Proof](https://www.proofeditor.ai): the editor
+- [Proof agent docs](https://www.proofeditor.ai/agent-docs): hosted agent contract

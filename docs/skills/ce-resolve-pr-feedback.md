@@ -1,10 +1,14 @@
 # `ce-resolve-pr-feedback`
 
-> Evaluate, fix, and reply to PR review feedback in parallel. Fix what's real; don't churn on what isn't.
+> Evaluate, fix, and reply to PR review feedback in one pass. Fix what is real. Do not churn on what is not.
 
-`ce-resolve-pr-feedback` is the **incoming-feedback resolution** skill. After your PR gets review comments, this skill fetches all unresolved threads, classifies them as new vs already-handled, then judges every finding centrally — in the one context that holds all threads at once — and fans out parallel subagents only to *implement* the fixes it has approved. It commits and pushes, then posts replies and resolves threads via GitHub's GraphQL API. It judges every item on its merits — regardless of source (human or bot) or form (inline thread, formal review body, or top-level comment) — and defaults to fixing, diverting only when reading the code trips a concrete signal (the finding's wrong, the fix would harm, it buys nothing, or the risk can't be bounded). The central judgment is what catches a confidently-wrong code-review bot before it's blindly fixed.
+`ce-resolve-pr-feedback` is the **fix-the-comments-now** skill. It is a git-workflow tool, not a core-loop step. After reviewers comment, it fetches unresolved threads, judges every finding in one place, and dispatches fixers only for items it has already approved. Then it commits, pushes, replies, and resolves threads.
 
-The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-resolve-pr-feedback` is the **post-PR feedback loop** — invoked after reviewers leave comments, complementary to `/ce-code-review` (which reviews *before* the PR is open) and `/ce-debug` (which investigates broken behavior, not review feedback).
+That is a single pass (at most two fix-verify cycles). It is not a watch loop. `/ce-babysit-pr` is the skill that sits on an open PR over time and *calls this one* whenever new comments arrive. Use this skill when you want the comments handled now. Use babysit when you want that repeated until the PR looks ready.
+
+It judges on merit, not source or form. Human or bot, inline thread or top-level comment: the finding is either real or it is not. The default is to fix. It diverts only when reading the code trips a concrete signal.
+
+GitHub only, including GitHub Enterprise that `gh` is configured for.
 
 ---
 
@@ -12,208 +16,166 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Fetches unresolved review threads + PR comments, judges each finding centrally, fans out parallel subagents to fix the approved ones, commits/pushes, replies and resolves threads |
-| When to use it | After a PR receives review feedback you want to address |
-| What it produces | Commits with fixes, replies on each thread, resolved threads via GraphQL, summary of what was done per verdict |
-| Modes | Full (all unresolved threads), Targeted (single thread URL) |
+| What does it do? | Fetches unresolved review feedback, judges it centrally, fixes the approved items, commits, replies, and resolves |
+| When to use it | A PR has review comments you want addressed now |
+| What it produces | Commits with fixes, a reply on each item, resolved threads (except `needs-human`), and a per-verdict summary |
+| Modes | Full (all unresolved feedback) or Targeted (one `#discussion_r` thread) |
 
 ---
 
 ## Example invocations
 
+Empty, a PR number, or a bare `/pull/N` URL is **Full** mode. Only a `#discussion_r` fragment is **Targeted**. A `#issuecomment-` URL is Full: top-level comments have no review thread to pin.
+
 ```text
-# Resolve all new actionable feedback on the current branch's PR
+# All new unresolved feedback on this branch's PR
 /ce-resolve-pr-feedback
 
-# Resolve all new actionable feedback on a specific PR
+# Same Full pass on a numbered PR
 /ce-resolve-pr-feedback 1234
 
-# Address only one review thread and leave every other thread untouched
+# Full pass from a URL (fork-safe; GHE host is taken from the URL)
+/ce-resolve-pr-feedback https://github.com/acme/widgets/pull/1234
+
+# Targeted: only that inline review thread. Every other thread is left alone.
 /ce-resolve-pr-feedback https://github.com/acme/widgets/pull/1234#discussion_r5678901
+
+# Top-level comment URL: Full mode, not Targeted
+/ce-resolve-pr-feedback https://github.com/acme/widgets/pull/1234#issuecomment-9876543
 ```
 
-Use a discussion URL for surgical follow-up. A PR number or bare invocation runs the full unresolved-feedback workflow.
+To keep handling later rounds as they arrive, use `/ce-babysit-pr` instead.
 
 ---
 
 ## The Problem
 
-Resolving PR feedback at scale fails in predictable ways:
+Resolving a pile of review comments by hand, or with a "fix everything" reflex, fails in familiar ways:
 
-- **Over-fixing bot noise** — auto-review bots over-flag, flag immaterial things, and are sometimes wrong; a "fix everything" reflex churns the code and the PR with low-value changes
-- **Findings taken on authority, not merit** — fixing because a reviewer (or bot) said so, without confirming the issue actually exists in the code
-- **Already-replied items re-surface every run** — top-level PR comments and review bodies have no resolve mechanism, so they keep appearing until manually checked
-- **Bot wrapper noise** — review-bot boilerplate ("Here are some automated review suggestions...") inflates the work count
-- **Sequential fixes are slow** — addressing 12 threads one at a time is 12× the wall-clock time
-- **Parallel fixes collide** — two agents writing the same file silently lose one of the changes
-- **No combined validation** — each fixer runs targeted tests on its own change; cross-agent regressions slip through
-- **Outdated comment line numbers** — feedback on lines that have since drifted is hard to relocate
+- Review bots over-flag. Blindly applying them churns the PR
+- A finding is taken on authority ("a reviewer said so") without checking the code
+- Top-level comments and review bodies have no resolve API, so they come back every run
+- Bot wrapper text ("Here are some automated review suggestions...") inflates the work count
+- Twelve threads handled one at a time waste wall-clock. Twelve in parallel collide on the same file
+- Each fixer tests only its own change. Cross-agent breakage slips through
 
 ## The Solution
 
-`ce-resolve-pr-feedback` runs feedback resolution as a structured pipeline:
+The skill runs a fixed pipeline:
 
-- **Fetch all unresolved feedback** (review threads + PR comments + review bodies) via GraphQL
-- **Triage new vs already-handled** — a substantive reply that defers action counts as handled; only new items are processed
-- **Drop bot wrapper noise silently** — non-actionable boilerplate is filtered, not announced
-- **Judge centrally — the legitimacy gate** — the orchestrator decides each finding's verdict in its own context, where it can dedup reads, cluster a systematically-wrong reviewer's findings across threads, and weigh the author's design intent; it fixes by default and diverts only on a concrete signal (the finding's wrong, the fix would harm, it buys nothing, or the risk can't be bounded)
-- **Fan out only the fixes** — subagents are dispatched solely to implement approved fixes (pure executors, no re-judging); fixers that touch overlapping files serialize automatically
-- **Combined validation** — one full validation run after all fixers complete, catches cross-agent regressions
-- **Reply with quoted context** — every reply quotes the relevant feedback for continuity, then states what was done
-- **Resolve via GraphQL** — review threads get resolved; PR comments and review bodies get a top-level reply (no resolve mechanism in the API)
+1. Fetch unresolved review threads, PR comments, and review bodies
+2. Triage new vs already handled. A substantive deferral counts as handled. Bot wrappers are dropped silently
+3. Judge every new item in the orchestrator's own context (the legitimacy gate)
+4. Dispatch fixers only for approved fixes. Overlapping files serialize
+5. One full validation run on the combined diff
+6. Commit and push
+7. Reply with a quote of the original ask, then resolve review threads via GraphQL
+8. Re-fetch. If new threads remain, one more cycle. After two cycles, escalate the pattern as `needs-human`
+
+If you have an unsubmitted (PENDING) review on the PR, the skill stops before it replies. Those replies would disappear into the draft. Submit or discard that review yourself; the skill will not.
 
 ---
 
 ## What Makes It Novel
 
-### 1. Default to fixing — divert only on a tripwire
+### Default to fixing. Divert only on a tripwire
 
-Most review feedback — across P0–P2, nitpicks included — is correct and worth fixing, so the default is to fix it. Crucially, validation isn't a separate analysis pass: the agent has to read the code to make the fix anyway, and the checks are *tripwires it notices during that read*, not a gate every item must argue its way through. When nothing trips, it fixes and moves on — no per-item deliberation. The deep work (reading callers, assessing blast radius, writing a decision for the user) is spent only on the minority of items that trip a wire.
+Most feedback, nitpicks included, is correct. Validation is not a separate analysis pass. The agent has to read the code to make the fix anyway, and it diverts only on a signal it notices during that read:
 
-An item diverts from a fix only on a concrete signal:
+- The finding does not hold -> `not-addressing` with evidence
+- The fix would make the code worse -> `declined`, citing the harm
+- The change buys nothing real (the bar is "no benefit," not "minor") -> `replied`
+- Risk cannot be bounded -> de-risk with a test if possible, else `needs-human`
+- It is a question -> `replied`, or `needs-human` for a product call
+- The fix would reverse a *deliberate* design choice (positive evidence of intent, plus a real disagreement) -> `needs-human`. "The code currently does X" is not evidence of intent
 
-- **the finding doesn't hold** (reading the code disproves it) → `not-addressing` with evidence
-- **the fix would make the code worse** → `declined` citing the harm
-- **the change buys nothing real** (cosmetic or immaterial — small *real* improvements still get fixed; the skip bar is "no benefit," not "minor") → `replied`
-- **the change is risky and the blast radius can't be bounded** (a one-line edit can hit a hot path or thinly-tested code; the reviewer, especially a bot, usually couldn't see it) → de-risk with a test and fix if possible, else `needs-human`
-- **it's a question, not a change** → `replied`, or `needs-human` for a product/business call
+"I'm uneasy" is not a tripwire. Source does not matter. A bot can be right; a human can be wrong.
 
-The guardrail against over-thinking is explicit: "I'm uneasy" is not a tripwire; "I read the callers and this breaks X" is. This matters most for auto-review bots, which over-flag — but the rule is source-agnostic: a bot or a human asserting something is not evidence it's correct.
+### Judge once, then fan out only the fixes
 
-### 2. Judge on merit, not source or form
+The orchestrator holds every thread from a single fetch. It can read a file once, cluster a systematically wrong reviewer, and weigh the author's design intent. Subagents implement approved fixes. They do not re-judge.
 
-Every item is evaluated the same way regardless of **who** raised it (human reviewer or review bot) or **what form** it arrived in (inline review thread, formal review body, or top-level PR comment). Correctness doesn't depend on the source or the surface. Structural form changes only the *response mechanics* (inline threads resolve via GraphQL; review bodies and top-level comments get a top-level reply) — never whether a finding is right.
+1-4 fixes run in parallel. 5+ go in batches of 4. Two fixers that touch the same file never run at the same time. Harnesses without parallel dispatch run them sequentially.
 
-### 3. Six verdicts — each with a different action
+When the same invariant applies to other sites **this PR introduced**, those sites become one class fix, not a drip of follow-up nits.
+
+### Six verdicts
 
 | Verdict | Meaning | Action |
 |---------|---------|--------|
-| `fixed` | Code change made as requested | Commit + reply + resolve |
-| `fixed-differently` | Code change made, with a better approach than suggested | Commit + reply explaining the divergence + resolve |
-| `replied` | No code change needed; question answered, design explained, or change not warranted | Reply + resolve |
-| `not-addressing` | Feedback is factually wrong about the code | Reply with evidence + resolve |
-| `declined` | Implementing the suggested fix would actively make code worse | Reply citing harm + resolve |
-| `needs-human` | Cannot determine the right action | Reply with structured `decision_context` + leave open |
+| `fixed` | Change made as requested | Commit + reply + resolve |
+| `fixed-differently` | Change made, better approach than suggested | Commit + reply explaining the divergence + resolve |
+| `replied` | No code change: question answered, or change not warranted | Reply + resolve |
+| `not-addressing` | Finding is factually wrong about the code | Reply with evidence + resolve |
+| `declined` | Suggested fix would make the code worse | Reply citing harm + resolve |
+| `needs-human` | Cannot determine the right action | Reply with `decision_context`, leave open |
 
-`needs-human` is high-signal and rare — it includes structured analysis of what the reviewer said, what the agent investigated, why a decision is needed, and concrete options with tradeoffs.
+`needs-human` is rare. It includes what the reviewer said, what was investigated, why a decision is needed, and options with tradeoffs. Escalations never block the rest of the run. That is what lets `/ce-babysit-pr` call this skill unattended.
 
-### 4. Triage — new vs already-handled
-
-For each piece of feedback, the skill classifies before processing:
-
-- **Review threads** — read the thread; a substantive reply that defers action ("need to align on this", "going to think through this") is **pending**, don't reprocess. Only original-comment-only threads are **new**.
-- **PR comments + review bodies** — no resolve mechanism, so they reappear every run. Two filters: actionability (skip review wrappers, approvals, status badges, CI summaries with no asks), then already-replied (existing reply that quotes and addresses the feedback). Anything passing both is **new**.
-
-Bot wrappers from CodeRabbit, Codex, Gemini Code Assist, Copilot are dropped silently — recognized by boilerplate content, never announced or counted. This is a *content* check (is there anything actionable here?), not a source check, so it holds regardless of which bot's format changes.
-
-### 5. Central judgment, then parallel fixes with file-collision avoidance
-
-The validity decision is made once, by the orchestrator, over the whole batch — not fanned out to a subagent per thread. Judging centrally is both cheaper (one fetch already holds every thread; reads dedup by file; no per-agent overhead paid on threads that turn out to be skips) and stronger (cross-thread clustering catches a systematically-wrong reviewer; the author's design intent is in view). Subagents are dispatched **only** for items already approved for a fix: for 1-4, all run in parallel; for 5+, batches of 4. **Before dispatching, the skill checks file overlaps** — overlapping fixers serialize so two never write the same file in parallel.
-
-Sequential fallback: platforms without parallel dispatch run fixers sequentially.
-
-### 6. Combined validation after all fixers complete
-
-Each fixer runs targeted tests on its own changes. After all fixers return, the skill aggregates `files_changed` and runs the project's full validation **once** — catching cross-agent interactions targeted runs can't see.
-
-| Outcome | Action |
-|---------|--------|
-| Green | Proceed to commit |
-| Red, failures touch fixer-changed files | One inline diagnose-and-fix pass; if still red, escalate as `needs-human` and don't commit |
-| Red, failures touch only files no fixer changed | Treat as pre-existing; commit with a footer note |
-
-### 7. Reply format with quoted context
-
-Every reply quotes the relevant part of the original feedback for continuity, then states what was done:
-
-- **Fixed:** `> [quoted feedback]` followed by `Addressed: [brief description of the fix]`
-- **Not addressing:** `> [quoted feedback]` followed by `Not addressing: [reason with evidence]`
-- **Declined:** `> [quoted feedback]` followed by `Declined: [specific harm cited]`
-
-This keeps reviewers oriented when they read the reply weeks later — they see what's being addressed without re-reading the whole thread.
-
-### 8. Outdated comment relocation
-
-Threads on outdated lines often have `line: null` and require fallback to `originalLine`. The orchestrator carries the `isOutdated` flag and all four location fields (`line`, `originalLine`, `startLine`, `originalStartLine`) into the gate, relocates the concern via the comment's anchor when the line has drifted, and passes the resolved location to the fixer so it edits the right place.
-
-### 9. Two-pass loop with escalation
-
-If new threads remain after the verify step, the skill repeats from triage for the remaining threads. After two fix-verify cycles, the skill stops looping and surfaces the recurring pattern as `needs-human`: "Multiple rounds of feedback on [theme] suggest a deeper issue."
-
-### 10. Two modes — Full and Targeted
+### Full vs Targeted
 
 | Mode | When | Behavior |
 |------|------|----------|
-| **Full** _(default)_ | No URL provided | Process all unresolved threads on the PR |
-| **Targeted** | Comment/thread URL provided | Process only that specific thread |
-
-Targeted mode is for "address just this one comment" cases — common when the user wants to handle one piece of feedback in isolation.
+| **Full** (default) | Empty, PR number, `/pull/N` URL, or `#issuecomment-` | All unresolved feedback on that PR |
+| **Targeted** | `#discussion_r` fragment | That review thread only |
 
 ---
 
 ## Quick Example
 
-A reviewer (and a review bot) leave 8 comments on your PR. You invoke `/ce-resolve-pr-feedback`.
+A reviewer and a review bot leave eight comments. You invoke `/ce-resolve-pr-feedback`.
 
-The skill detects the PR from the current branch, fetches via GraphQL: 6 unresolved review threads, 2 review bodies (one is a CodeRabbit wrapper), 0 PR comments. Triage: the CodeRabbit wrapper is non-actionable boilerplate — dropped silently. One review thread has a substantive reply from yesterday deferring action — pending, skip. That leaves 5 review threads + 1 review body as **new**.
+Fetch returns six unresolved threads, two review bodies (one is a CodeRabbit wrapper), and no PR comments. The wrapper is dropped. One thread already has a deferral from yesterday; it stays pending. Five threads and one review body are new.
 
-Step 3 is the gate: the orchestrator judges all 6 new items in its own context, reading the code where a verdict turns on it (and reading `app/services/dispatcher.rb` once for the two threads that land on it):
+The orchestrator judges all six, reading `app/services/dispatcher.rb` once for the two threads that land there:
 
-- 2 findings are clearly correct → `fixed`
-- 1 suggests an approach that works, but a cleaner one exists → `fixed-differently`
-- 1 is a bot finding flagging a "possible null deref" the type system already rules out → confirmed against the code, doesn't hold → `not-addressing` with evidence (no churn, and no subagent ever spun up for it)
-- 1 asks "is this intentional?" → answerable from the code → `replied`
-- the review body asks a design question → `replied`
+- Two findings are correct -> `fixed`
+- One suggested approach works; a cleaner one exists -> `fixed-differently`
+- One bot "possible null deref" is already ruled out by the type system -> `not-addressing`
+- One "is this intentional?" is answerable from the code -> `replied`
+- The review body is a design question -> `replied`
 
-So only 3 items reach step 4, which dispatches 3 generic fixer subagents seeded with the skill-local `pr-comment-resolver.md` prompt. File-collision check: the two `dispatcher.rb` fixers serialize; the rest run in parallel. Each fixer implements its already-approved change and returns. Combined validation runs once against the 3 changed files; tests pass. Commit + push.
-
-Step 7 posts replies: each quotes the original feedback and states what was done — fixers' replies for the 3 fixes, the orchestrator's composed replies for the `not-addressing`/`replied` items. All 5 review threads resolve via GraphQL; the review body gets a top-level PR comment (no resolve mechanism in the API). Step 8 verify: fetched again — empty. Done. Summary surfaces.
+Only three items need a fixer. The two `dispatcher.rb` edits serialize; the third runs in parallel. Combined validation passes. Commit and push. Five threads resolve; the review body gets a top-level reply. Verify is empty. The summary lists what was done per verdict.
 
 ---
 
 ## When to Reach For It
 
-Reach for `ce-resolve-pr-feedback` when:
+Use `ce-resolve-pr-feedback` when:
 
-- Your PR received review feedback you want to address
-- An auto-review bot left a pile of findings and you want them validated against the code, not blindly applied
-- You want to handle a specific comment in isolation (Targeted mode with the comment URL)
-- A previous run left `needs-human` items and you've decided how to proceed
+- A PR has review feedback you want addressed now
+- A review bot left a pile of findings and you want them checked against the code
+- You want one comment handled in isolation (Targeted mode, `#discussion_r` URL)
+- A previous run left `needs-human` items and you have decided what to do
 
-Skip `ce-resolve-pr-feedback` when:
+Skip it when:
 
 - The PR has no feedback yet
-- You only want to ack the feedback without fixing — the skill expects to act, not just acknowledge
-- The feedback is on a brainstorm or plan doc, not code → use `/ce-doc-review`
+- You only want to acknowledge comments. This skill expects to act
+- The feedback is on a brainstorm or plan doc, not code -> `/ce-doc-review`
+- You want comments *and* CI *and* later rounds handled while you step away -> `/ce-babysit-pr`
 
 ---
 
-## Use as Part of the Workflow
+## Chain Position
 
-`ce-resolve-pr-feedback` is the closing loop after `/ce-commit-push-pr` opens a PR:
+One-shot closer after a PR has comments. Not a watch.
 
 ```text
-/ce-work → /ce-commit-push-pr → reviewer leaves comments → /ce-resolve-pr-feedback
+/ce-work  ->  /ce-commit-push-pr  ->  reviewers comment  ->  /ce-resolve-pr-feedback
+                                                              ^
+/ce-babysit-pr -----------------------------------------------/
 ```
 
-It complements:
-
-- **`/ce-code-review`** — reviews *before* the PR is open; this skill handles incoming feedback *after*
-- **`/ce-debug`** — for broken behavior; this skill is for review-comment resolution
-
-After resolution lands on the PR, the standard merge / re-review cycle applies. If the next review round produces more feedback, this skill can run again on the new round.
+`/ce-code-review` reviews *before* the PR is open. This skill handles incoming feedback *after*. `/ce-debug` is for broken behavior, not review comments.
 
 ---
 
 ## Use Standalone
 
-The skill works directly:
-
-- **Current branch's PR** — `/ce-resolve-pr-feedback`
-- **Specific PR** — `/ce-resolve-pr-feedback 1234`
-- **Targeted (single thread)** — `/ce-resolve-pr-feedback https://github.com/.../pull/1234#discussion_r5678901`
-
-In Targeted mode, only the URL's specific thread is addressed — no other threads are fetched or processed.
+- Current branch: `/ce-resolve-pr-feedback`
+- Specific PR: `/ce-resolve-pr-feedback 1234` or a `/pull/N` URL
+- One thread: `/ce-resolve-pr-feedback https://github.com/.../pull/1234#discussion_r5678901`
 
 ---
 
@@ -221,39 +183,46 @@ In Targeted mode, only the URL's specific thread is addressed — no other threa
 
 | Argument | Effect |
 |----------|--------|
-| _(empty)_ | Full mode — current branch's PR |
-| `<PR number>` | Full mode — that PR |
-| `<comment/thread URL>` | Targeted mode — only that thread |
+| _(empty)_ | Full mode, current branch's PR |
+| `<PR number>` | Full mode, that PR |
+| `<PR URL>` (`.../pull/N`, no fragment) | Full mode on that host/repo/PR |
+| `<#discussion_r URL>` | Targeted mode: only that review thread |
+| `<#issuecomment- URL>` | Full mode (no thread to target) |
+| `mode:pipeline` | Non-interactive. Used by `/ce-babysit-pr`. Parks `needs-human` on the thread and returns residuals. |
 
-Scripts in `scripts/`: `get-pr-comments` (GraphQL fetch), `get-thread-for-comment` (map comment → thread for targeted), `reply-to-pr-thread` (GraphQL mutation), `resolve-pr-thread` (GraphQL mutation).
+Scripts (from this skill's directory): `get-pr-comments`, `get-thread-for-comment`, `reply-to-pr-thread`, `resolve-pr-thread`.
 
 ---
 
 ## FAQ
 
-**Do you still fix nitpicks?**
-Yes — by default. Most feedback, nitpicks included, is correct and worth fixing, so the agent fixes unless reading the code trips a concrete signal: the finding doesn't hold, the fix would make the code worse, or the change buys nothing real. A correct nit that improves the code (even slightly) gets fixed; a purely cosmetic one with no benefit gets a brief reply instead of churn. The skip bar is "no benefit," not "minor."
+**Does it still fix nitpicks?**
+Yes, by default. A correct nit that improves the code gets fixed. A purely cosmetic one with no benefit gets a brief reply. The skip bar is "no benefit," not "minor."
 
 **Does it treat bot feedback differently from human feedback?**
-No — and that's deliberate. Validation is judged on merit, not authority: reading the actual code to confirm a finding is the same work whether a bot or a human raised it, and an authority heuristic ("bot → probably noise") risks dismissing a real bot-caught bug. The merit tripwires (does the finding hold? does the fix actually help?) naturally filter bot noise — mostly speculative or immaterial — without ever needing to classify the source. The same applies to *form* — inline thread vs. formal review body vs. top-level comment changes only how the reply is posted and resolved, never whether the finding is correct.
+No. Reading the code is the same work either way. An "it's a bot, so ignore it" rule would drop real bugs. Form only changes the reply mechanic: inline threads resolve via GraphQL; review bodies and top-level comments get a top-level reply.
 
 **Why drop bot wrappers silently?**
-Because announcing them adds noise without value. CodeRabbit boilerplate ("Here are some automated review suggestions...") wraps real findings; the wrapper itself isn't actionable. Counting or listing dropped wrappers in the summary clutters the report. The script-level filter handles only CI/status bots; the content-aware drop (an actionability check, not a source check) catches the rest.
+Announcing them adds noise. The wrapper around CodeRabbit findings is not actionable. The findings inside it still go through the gate.
 
-**What if two parallel agents conflict?**
-The file-collision check before dispatch catches most cases — overlapping items serialize. For rare cases where a fix expands beyond its referenced file (rename updates callers elsewhere), the combined validation in step 5 catches test breakage and the verify step in step 8 catches unresolved threads. If either surfaces inconsistency, the skill re-runs the affected agents sequentially.
+**What if two parallel fixers conflict?**
+Overlapping files serialize before dispatch. If a fix expands to callers in another file, combined validation and the verify pass catch the breakage, and those agents re-run sequentially.
 
 **What does `needs-human` mean?**
-The agent investigated the feedback and the code, but cannot determine the right action confidently — usually because the choice depends on user intent the agent can't infer. The thread stays open with an acknowledgment reply, and the summary surfaces a structured `decision_context`: quoted feedback, investigation findings, options with tradeoffs, the agent's lean if any.
+The agent investigated and still cannot choose. The thread stays open. The summary includes `decision_context`: quoted feedback, findings, options, and a lean if any.
 
-**What if the feedback loop never converges?**
-After two fix-verify cycles, the skill stops looping and escalates the recurring pattern as `needs-human` with the cumulative context. It doesn't retry indefinitely.
+**What if the loop never converges?**
+After two fix-verify cycles, it stops and escalates the recurring pattern as `needs-human`. It does not retry forever.
+
+**I have an unsubmitted review on the PR.**
+The skill stops. Replies posted during a PENDING review are swallowed by that draft. Submit or discard the review, then re-invoke.
 
 ---
 
 ## See Also
 
-- [`ce-code-review`](./ce-code-review.md) — pre-PR review; this skill handles post-PR feedback
-- [`ce-commit-push-pr`](./ce-commit-push-pr.md) — opens the PR that this skill responds to
-- [`ce-debug`](./ce-debug.md) — for broken behavior reported as a bug, not review feedback
-- [`ce-doc-review`](./ce-doc-review.md) — for feedback on requirements or plan docs, not code
+- [`/ce-babysit-pr`](./ce-babysit-pr.md): watch the PR over time; calls this skill for each comment round
+- [`/ce-code-review`](./ce-code-review.md): pre-PR review
+- [`/ce-commit-push-pr`](./ce-commit-push-pr.md): opens the PR this skill responds to
+- [`/ce-debug`](./ce-debug.md): broken behavior, not review comments
+- [`/ce-doc-review`](./ce-doc-review.md): feedback on requirements or plan docs

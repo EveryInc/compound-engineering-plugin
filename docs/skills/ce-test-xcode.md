@@ -1,8 +1,12 @@
 # `ce-test-xcode`
 
-> Build and test iOS apps on the simulator using XcodeBuildMCP — captures screenshots, logs, and verifies app behavior across key screens.
+> Build the iOS app, run it on a simulator, capture screenshots and logs, and pause for the device-only flows automated taps cannot finish.
 
-`ce-test-xcode` is the **iOS simulator testing** skill. It builds your iOS project, boots a simulator, installs and launches the app, captures screenshots and logs across key screens, pauses for human verification on flows that require device interaction (Sign in with Apple, push, in-app purchases, camera/photos, location), and produces a structured test summary. Beta-style behavior (`disable-model-invocation: true`) — invoke explicitly only.
+`ce-test-xcode` is on-demand **iOS simulator testing**. It discovers the project and scheme, boots a simulator, builds, installs, launches, walks key screens with screenshots and log checks, and stops for Sign in with Apple, push, IAP, camera, photos, or location. It ends with a structured summary.
+
+It is not `ce-test-browser` (web pages), not XCUITest (this drives the running app, it does not run your UI test target), and not `ce-polish` or `ce-dogfood`.
+
+Manual invocation only. The model will not start a simulator build because you mentioned an iOS file.
 
 ---
 
@@ -10,160 +14,63 @@
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Builds, installs, and launches an iOS app on simulator; takes screenshots; checks logs for errors; pauses for human verification on device-only flows |
-| When to use it | After making iOS code changes; before creating a PR; when verifying app behavior or checking for crashes on simulator |
-| What it produces | Screenshots, captured logs, and a structured test summary (per screen pass/fail, console errors, human verifications, overall result) |
-| Status | Explicit-invocation only (`disable-model-invocation: true`) |
+| What does it do? | Builds, installs, and launches on a simulator; screenshots; reads logs; asks you to finish device-only flows |
+| When to use it | After iOS code changes, before a PR, or when you want crash and screen evidence |
+| What it produces | Screenshots, captured logs, and a summary: per-screen Pass / Fail / Skip, console errors, human verifications, overall result |
+| What's next | Paste the summary into the PR, or fix and re-run |
+
+---
+
+## Example invocations
+
+The only argument is which scheme to build. Empty and `current` both mean the default / last-used scheme.
+
+```text
+# Discover the project, use the default / last-used scheme, full simulator flow
+/ce-test-xcode
+
+# Build and test a named scheme
+/ce-test-xcode MyApp-Debug
+
+# Same as empty: default / last-used scheme, said explicitly
+/ce-test-xcode current
+```
+
+If XcodeBuildMCP is not connected, the skill stops with install instructions. It does not fall back to raw `xcodebuild`.
 
 ---
 
 ## The Problem
 
-Manual iOS simulator testing is slow and inconsistent:
+Manual simulator testing is slow and easy to do incompletely:
 
-- **Build → install → launch → exercise → screenshot** is 5+ steps that need to happen on every change
-- **Logs lost** — without explicit capture, console errors disappear when the simulator restarts
-- **No structured summary** — "I tested it and it looks fine" doesn't show what was tested or what was skipped
-- **Device-only flows can't be automated** — Sign in with Apple, sandbox purchases, push notifications need a human in the loop, but it's easy to forget and skip them
-- **SwiftUI inline links don't respond to simulated taps** — taps report success but have no effect; this catches teams off guard
-- **No artifact to share** — screenshots and logs end up in the developer's filesystem, not the PR description
+- Build, install, launch, tap, screenshot is a lot of steps to repeat
+- Console errors vanish when the simulator restarts
+- "I tested it, looks fine" does not say which screens or what was skipped
+- Sign in with Apple, sandbox purchases, and push need a person, and they get forgotten
+- Simulated taps on SwiftUI inline `Text` links report success and do nothing
+- Screenshots and logs stay on one machine
 
 ## The Solution
 
-`ce-test-xcode` runs simulator testing as a structured flow with explicit gates:
+A gated flow on top of [XcodeBuildMCP](https://github.com/getsentry/xcodebuildmcp):
 
-- **Pre-flight check** confirms XcodeBuildMCP is connected before touching anything
-- **Project + scheme discovery** auto-detects what to build, with a user-supplied scheme override
-- **Build, install, launch, log-capture** as discrete MCP calls with failure handling
-- **Screen-by-screen testing** with screenshots, log inspection, and pass/fail per screen
-- **Human verification step** for flows that require device interaction (with a documented workaround for SwiftUI inline links)
-- **Failure handling** asks the user how to proceed (fix now or skip) rather than silently aborting
-- **Structured test summary** with per-screen status, console errors, human verifications, and overall result
+- Confirm the MCP is connected before touching a project
+- Discover the Xcode project and scheme (override with an argument)
+- Build, install, launch, start log capture
+- Per screen: screenshot, log check, pass or fail
+- Pause for device-only flows (and for SwiftUI inline links)
+- On failure, ask fix-now (debug, rebuild, retest) or skip
+- Print a summary you can paste into a PR
+- Stop log capture; optionally shut down the simulator
 
 ---
 
 ## What Makes It Novel
 
-### 1. XcodeBuildMCP as the substrate
+### XcodeBuildMCP is required
 
-The skill uses Sentry's [XcodeBuildMCP](https://github.com/getsentry/xcodebuildmcp) — an MCP server that exposes Xcode project discovery, simulator management, build/install/launch, log capture, and screenshot capture as tool calls. This means the skill itself is a thin orchestrator over MCP tools rather than a wrapper around `xcodebuild` shell invocations:
-
-- `discover_projs` — find Xcode projects in the workspace
-- `list_schemes` — get available schemes for a project
-- `list_simulators`, `boot_simulator`, `shutdown_simulator` — simulator management
-- `build_ios_sim_app` — build for simulator
-- `install_app_on_simulator`, `launch_app_on_simulator` — install + launch
-- `take_screenshot`, `capture_sim_logs`, `get_sim_logs`, `stop_log_capture` — observation
-
-When XcodeBuildMCP isn't available, the skill stops and provides install instructions — it doesn't attempt fallback paths.
-
-### 2. Structured test flow, not a shell script
-
-Each phase is an explicit step: discover, boot, build, install, launch, log-capture, test screens, handle failures, summary, cleanup. Each step has failure handling. This produces a test run that's auditable in chat — you can see what was tested, what passed, what was skipped.
-
-### 3. Human verification step — Sign in with Apple, IAP, push, camera, location
-
-Some flows can't be automated on the simulator:
-
-| Flow | What human verification asks |
-|------|------------------------------|
-| Sign in with Apple | "Please complete Sign in with Apple on the simulator" |
-| Push notifications | "Send a test push and confirm it appears" |
-| In-app purchases | "Complete a sandbox purchase" |
-| Camera / Photos | "Grant permissions and verify camera works" |
-| Location | "Allow location access and verify map updates" |
-
-The skill pauses with a blocking question, the user does the thing on the simulator, then answers yes (continue) or no (describe the issue). This makes device-only flows explicit rather than silently skipped.
-
-### 4. Documented platform limitation — SwiftUI Text links
-
-Simulated taps don't trigger gesture recognizers on SwiftUI `Text` views with inline `AttributedString` links — they report success but have no effect. This is a platform limitation (inline links aren't exposed as separate elements in the accessibility tree). The skill knows this and prompts the user to tap manually when an inline link won't respond, with a documented `xcrun simctl openurl` fallback when the target URL is known.
-
-### 5. Failure handling — fix now or skip
-
-When a screen fails, the skill captures the error state (screenshot + console logs + reproduction steps) and asks the user how to proceed:
-
-- **Fix now** — investigate, propose a fix, rebuild, retest
-- **Skip** — log as skipped, continue testing other screens
-
-Either path is valid. The point is making the choice explicit rather than silently aborting on the first failure.
-
-### 6. Structured test summary
-
-After all screens are tested, the skill produces a markdown summary with:
-
-- Project name, scheme, simulator
-- Build status (Success / Failed)
-- Per-screen status table (Pass / Fail / Skip with notes)
-- Console errors found
-- Human verifications completed
-- Overall result (PASS / FAIL / PARTIAL)
-
-This is suitable for pasting into a PR description or a release-readiness report.
-
-### 7. Beta-style explicit invocation only
-
-`disable-model-invocation: true` in frontmatter prevents the skill from auto-firing. Simulator testing is a deliberate choice — you don't want it triggered as a side-effect of asking about something else. Invoke `/ce-test-xcode` directly.
-
----
-
-## Quick Example
-
-You finish an iOS feature for a profile-edit screen. You invoke `/ce-test-xcode`.
-
-The skill calls XcodeBuildMCP's `list_simulators` to verify the MCP is connected. Then `discover_projs` finds your Xcode project; `list_schemes` returns three; you didn't pass an argument, so it picks the default last-used scheme.
-
-Boots iPhone 15 Pro simulator. Builds with `build_ios_sim_app` — succeeds. Installs and launches via `install_app_on_simulator` and `launch_app_on_simulator`. Starts log capture.
-
-Tests key screens: Launch (screenshot, no errors), Home (screenshot, no errors), Profile (screenshot — but a Sign in with Apple flow is in the path). The skill pauses for human verification: "Please complete Sign in with Apple on the simulator." You tap through it on the simulator. Answer "yes — continue testing." Profile screen tested — screenshot, no errors. Settings (screenshot — crash on tap of "Privacy" row). The skill captures the crash log, surfaces the failure, and asks: fix now or skip?
-
-You pick "fix now." The skill investigates the crash log, identifies a missing nil check, proposes the fix, rebuilds, reinstalls, retests Settings — passes.
-
-After all screens, the test summary lands: 4 screens tested, 0 console errors, 1 human verification confirmed, 1 fix applied during testing. Overall result: PASS.
-
-The skill stops log capture and optionally shuts down the simulator.
-
----
-
-## When to Reach For It
-
-Reach for `ce-test-xcode` when:
-
-- You finished iOS code changes and want to verify before opening a PR
-- You're checking for crashes on simulator after a refactor
-- The PR includes UI changes that need visual verification
-- You need to exercise device-only flows (Sign in with Apple, IAP, push) manually with a structured wrapper
-- You want a test summary suitable for PR descriptions
-
-Skip `ce-test-xcode` when:
-
-- The change is non-UI (model layer only, internal services with unit-test coverage)
-- XcodeBuildMCP isn't available — the skill stops with install instructions; install it first
-- You want unit-test verification → use `xcodebuild test` directly or your project's test runner
-- You're not on macOS / don't have Xcode → the skill won't function
-
----
-
-## Use as Part of the Workflow
-
-`ce-test-xcode` interlocks with the rest of the chain at the verification side:
-
-- **`/ce-code-review` Tier 2** — when reviewing iOS-touching PRs, the workflow can spawn an agent to run this skill, build on simulator, test key screens, and check for crashes
-- **`/ce-work` Phase 3 / Phase 4** — appropriate before opening the PR for iOS-heavy work; the test summary becomes part of the PR description's verification narrative
-
-The skill's output (test summary) is suitable evidence to include in PR descriptions, alongside any screenshots or recordings captured by the current harness.
-
----
-
-## Use Standalone
-
-Most direct use:
-
-- **Default scheme** — `/ce-test-xcode`
-- **Specific scheme** — `/ce-test-xcode MyApp-Debug`
-- **Last-used** — `/ce-test-xcode current`
-
-The skill discovers the project, picks the simulator (iPhone 15 Pro recommended), and runs the full flow. When XcodeBuildMCP is missing, the skill stops with install instructions:
+The skill is an orchestrator over that MCP: project discovery, schemes, simulator boot, build, install, launch, screenshots, logs. If the server is missing, it stops and prints:
 
 ```text
 Install via Homebrew:
@@ -176,45 +83,124 @@ Then add "XcodeBuildMCP" as an MCP server in your agent configuration
 and restart your agent.
 ```
 
+No shell-`xcodebuild` fallback.
+
+### Human verification for device-only flows
+
+| Flow | What it asks |
+|------|----------------|
+| Sign in with Apple | Complete Sign in with Apple on the simulator |
+| Push notifications | Send a test push and confirm it appears |
+| In-app purchases | Complete a sandbox purchase |
+| Camera / Photos | Grant permissions and verify camera works |
+| Location | Allow location and verify the map updates |
+| SwiftUI `Text` links | Tap the link yourself. Automated taps cannot trigger inline `AttributedString` links |
+
+You do the action on the simulator, then yes (continue) or no (describe the issue). Those flows are not silently skipped.
+
+Simulated taps do not fire gesture recognizers on SwiftUI `Text` with inline links. The tap looks successful. If the target URL is known, `xcrun simctl openurl <device> <URL>` is the fallback.
+
+### Fix now or skip
+
+A failed screen gets a screenshot, logs, and repro steps. You choose: investigate, patch, rebuild, retest; or log Skip and continue. First failure does not abort the run.
+
+### Summary shape
+
+- Project, scheme, simulator
+- Build Success / Failed
+- Per-screen table (Pass / Fail / Skip plus notes)
+- Console errors
+- Human verifications
+- Overall PASS / FAIL / PARTIAL
+
+A failed build never proceeds to install or launch.
+
+---
+
+## Quick Example
+
+You finished a profile-edit screen. You run `/ce-test-xcode`.
+
+MCP is up. Discovery finds the project. Three schemes; no argument, so last-used. It boots iPhone 15 Pro, builds, installs, launches, starts logs.
+
+Launch and Home pass. Profile sits behind Sign in with Apple. It asks you to complete that on the simulator; you do, then say yes. Settings crashes on the Privacy row. It captures the crash, asks fix-now or skip.
+
+You pick fix-now. It finds a missing nil check, you accept the patch, it rebuilds, reinstalls, retests Settings. Pass.
+
+Summary: 4 screens, 0 leftover console errors, 1 human verification, 1 fix during the run, PASS. Logs stop. Simulator shutdown is optional.
+
+---
+
+## When to Reach For It
+
+Use `ce-test-xcode` when:
+
+- iOS code changed and you want simulator evidence before a PR
+- You are checking for crashes after a refactor
+- The PR has UI you want screenshots of
+- You need a wrapper around Sign in with Apple, IAP, or push so those steps are not skipped
+
+Skip it when:
+
+- The change is non-UI and already covered by unit tests
+- XcodeBuildMCP is not installed (install it first)
+- You want `xcodebuild test` / XCUITest
+- You are not on macOS with Xcode
+
+---
+
+## Chain Position
+
+On-demand. `ce-work` and `ce-code-review` do not call this today. Run it yourself when iOS work needs a simulator pass. The summary is evidence for a PR description.
+
+---
+
+## Use Standalone
+
+- **Default scheme:** `/ce-test-xcode`
+- **Named scheme:** `/ce-test-xcode MyApp-Debug`
+- **Last-used:** `/ce-test-xcode current`
+
+It prefers iPhone 15 Pro when that simulator exists, otherwise another available device.
+
 ---
 
 ## Reference
 
 | Argument | Effect |
 |----------|--------|
-| _(empty)_ | Discovers project + uses default scheme |
-| `<scheme name>` | Builds with that scheme |
-| `current` | Uses default / last-used scheme |
+| _(empty)_ | Discover project; default / last-used scheme |
+| `<scheme name>` | Build that scheme |
+| `current` | Default / last-used scheme |
 
-Required: XcodeBuildMCP MCP server connected. Auto-detected: Xcode project, available simulators (iPhone 15 Pro preferred when present).
+Required: Xcode with CLT, a connected XcodeBuildMCP server, an Xcode project or workspace, at least one iOS Simulator.
 
 ---
 
 ## FAQ
 
-**Why XcodeBuildMCP instead of `xcodebuild` directly?**
-Because the MCP server provides higher-level semantics (project discovery, simulator boot/shutdown, screenshot, log capture) as tool calls. The skill becomes a thin orchestrator rather than a shell-script wrapper, and platform-specific edge cases (simulator state, log capture lifecycle) are handled by the MCP.
+**Why XcodeBuildMCP instead of `xcodebuild`?**
+The MCP gives project discovery, simulator lifecycle, screenshots, and log capture as tools. The skill does not wrap `xcodebuild` itself.
 
-**What if a tap on a SwiftUI Text link doesn't work?**
-Known platform limitation — simulated taps don't trigger gesture recognizers on inline `AttributedString` links. The skill prompts you to tap manually in the simulator. If the target URL is known, `xcrun simctl openurl <device> <URL>` opens it directly as a fallback.
+**A tap on a SwiftUI Text link did nothing.**
+Known platform limit. Tap it in the simulator. If you know the URL, `xcrun simctl openurl <device> <URL>`.
 
-**Why is it explicit-invocation only?**
-Because `disable-model-invocation: true` prevents the skill from auto-firing. Simulator testing is a deliberate user choice — you don't want it triggered when you just asked the agent to look at something. Invoke `/ce-test-xcode` directly.
+**Why is it manual only?**
+A simulator build is a deliberate choice. Type `/ce-test-xcode` when you want it.
 
-**What about UI tests (XCUITest)?**
-This skill exercises the running app via simulator interaction (taps, screenshots, log inspection), not via XCUITest scripts. For unit/UI test runs, use `xcodebuild test` or your project's runner. The two complement each other.
+**Is this XCUITest?**
+No. It drives the running app (taps, screenshots, logs). Use `xcodebuild test` for the test target. The two complement each other.
 
-**Can it run without iPhone 15 Pro?**
-Yes — `list_simulators` returns whatever's available; the skill picks one. iPhone 15 Pro is the recommended default but not required.
+**Do I need iPhone 15 Pro?**
+No. That is the preferred default. Any listed simulator works.
 
 **What if the build fails?**
-The skill captures build errors and reports them with specific details. It doesn't proceed to install/launch on a failed build.
+It reports the errors and stops. No install, no launch.
 
 ---
 
 ## See Also
 
-- [`ce-code-review`](./ce-code-review.md) — can spawn this skill for iOS-touching PRs as a verification step
-- [`ce-test-browser`](./ce-test-browser.md) — sibling skill for web-app testing via a host-native browser or `agent-browser` fallback
-- [`ce-commit-push-pr`](./ce-commit-push-pr.md) — can include user-supplied evidence or summarize validation in PR descriptions
-- [`ce-work`](./ce-work.md) — orchestrator that may invoke this skill during Phase 3 verification
+- [`ce-test-browser`](./ce-test-browser.md): the web equivalent
+- [`ce-commit-push-pr`](./ce-commit-push-pr.md): PR body can carry the summary
+- [`ce-work`](./ce-work.md): build the feature; run this yourself when the work is iOS UI

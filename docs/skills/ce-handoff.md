@@ -1,10 +1,10 @@
 # `ce-handoff`
 
-> Preserve the useful context from one agent session so a fresh agent can orient without the original transcript.
+> Preserve the useful context from one agent session so a fresh agent can orient without the original transcript. Resume explains what it found and waits. It does not continue the work on its own.
 
-`ce-handoff` is a two-direction session-continuity utility. A bare invocation creates a handoff. Resume intent reads any continuity source the user selects or helps the user find one, then explains the recovered state and recommends how to continue without taking action automatically.
+`ce-handoff` is a two-direction **session-continuity** utility. A bare invocation creates a handoff. Resume intent finds or reads a continuity source you select, then orients and recommends a next step. It does not start `ce-plan`, `ce-work`, or any other workflow until you say so.
 
-The skill is prose-first and uses the active agent's available capabilities. It adds no transport script, mutable index, or lifecycle database.
+The skill is prose-first. It uses the active agent's available capabilities. It adds no transport script, mutable index, or lifecycle database.
 
 ---
 
@@ -12,104 +12,74 @@ The skill is prose-first and uses the active agent's available capabilities. It 
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Creates an immutable session snapshot, or discovers and orients from a user-selected continuity source |
-| When to use it | Before ending a useful agent session, or when a new agent needs to recover prior context |
+| What does it do? | Creates an immutable session snapshot, or orients from a continuity source you select |
+| When to use it | Before ending a useful session, or when a new agent needs prior context |
 | What does bare `/ce-handoff` do? | Always creates a new handoff |
-| Where does it write? | By default, `/tmp/compound-engineering-<effective-uid>/ce-handoff/<repo-namespace>/<topic>.md`; an explicit user path, format, or publication destination overrides the default |
+| Where does it write? | Default: `/tmp/compound-engineering-<effective-uid>/ce-handoff/<repo-namespace>/<topic>.md`. An explicit path, format, or publish destination overrides that. |
 | What do I paste into the next session? | `/ce-handoff resume <path-or-URL>` |
-| What happens after resume? | The agent summarizes the recovered context, recommends a continuation matched to that handoff's reason (numbered only for real forks), and waits for the user |
+| What happens after resume? | A summary, a continuation matched to that handoff's reason, then a wait. Numbered choices appear only for real forks. |
 
 ---
 
 ## Example invocations
 
+Bare invoke always creates. `resume` never creates. An explicit path or URL is already your selection, so resume reads it instead of searching.
+
 ```text
-# End the current session and create a handoff in managed temporary storage
+# End this session. Write a handoff in managed temporary storage.
 /ce-handoff
 
-# Create a handoff with a specific focus for the receiving agent
+# Create with an explicit next-session objective
 /ce-handoff create finish the authentication migration
+
+# Write somewhere other than /tmp (any path you name)
+/ce-handoff create finish the authentication migration and write it to /path/to/authentication-migration.md
+
+# Publish so another machine or container can reach it
+/ce-handoff create a handoff and publish it to ht-ml.app
 
 # Find likely handoffs by topic, then choose one before its body is read
 /ce-handoff resume authentication migration
 
-# Resume directly when you already have the source
-/ce-handoff resume /path/to/authentication-migration.md
+# Resume a source you already have
+/ce-handoff resume /tmp/compound-engineering-<effective-uid>/ce-handoff/<repo-namespace>/authentication-migration.md
 /ce-handoff resume https://example.com/authentication-migration-handoff
 
-# Make the handoff reachable from another machine or container
-/ce-handoff create a handoff and publish it to ht-ml.app
+# Natural language in a new session also works:
+# "Find the handoff about the authentication migration"
 ```
+
+On Codex, the copyable resume line uses `$ce-handoff resume <source>` when that host uses dollar-prefixed skills.
 
 ---
 
 ## The Problem
 
-A productive agent session contains more than changed files. It accumulates the user's intent, decisions, rejected alternatives, constraints, failed attempts, verification results, and knowledge of fragile local state. A fresh agent in another model or harness cannot rely on that session history being available.
+A productive agent session holds more than changed files: intent, decisions, rejected alternatives, constraints, failed attempts, verification, and fragile local state. A fresh agent in another model or harness cannot see that history.
 
-Copying a transcript is noisy, while rewriting durable plans and documentation just to preserve temporary continuity duplicates sources of truth. `ce-handoff` creates a small bridge between those extremes.
+Copying a transcript is noisy. Rewriting durable plans just to keep temporary continuity duplicates the source of truth. `ce-handoff` is a small bridge between those.
 
 ## The Solution
 
-By default, the skill writes one pointer-first Markdown document with:
+By default the skill writes one pointer-first Markdown document with:
 
 - A flat `ce-handoff/v1` frontmatter index for later discovery
 - The objective and latest user intent
-- Meaningful progress, decisions, constraints, blockers, verification, and abandoned wrong turns
+- Progress, decisions, constraints, blockers, verification, and abandoned wrong turns
 - Current-state phrasing that distinguishes complete, in-progress, and not-started work when those differ
-- References to authoritative plans, issues, commits, diffs, docs, and repository files, each saying what is load-bearing there
-- Clear labels for machine-local paths and fragile worktree state
-- Plausible next steps framed as remaining status and dependencies by default; user-requested directives only when asked for; context-loading pointers (what to read) remain welcome
+- References to plans, issues, commits, diffs, docs, and repo files, each saying what is load-bearing there
+- Labels for machine-local paths and fragile worktree state
+- Plausible next steps as remaining status and dependencies. User-requested directives only when you asked for them. Context-loading pointers (what to read) stay welcome.
 
-Only managed-store frontmatter has a fixed contract because default discovery depends on it. The body has no closed section schema: the agent may add sections of its own or combine, rename, reorder, and omit the examples to communicate the particular session clearly to the next agent.
+Only managed-store frontmatter has a fixed contract, because default discovery depends on it. The body has no closed section schema. The agent may add, combine, rename, reorder, or omit example sections so the next agent can see *this* session clearly.
 
-The managed store is a default, not a restriction. If the user names another path, folder, format, or publication destination, the agent follows that instruction with an appropriate installed capability. It does not create a second temporary copy unless requested or necessary for the chosen publishing flow.
+The managed store is a default, not a restriction. If you name another path, folder, format, or publication destination, the agent follows that with an installed capability. It does not also write a temporary copy unless you asked or the publish flow needs a working file.
 
-Repository files are referenced relatively when possible. Absolute paths are reserved for machine-local context that cannot be expressed durably. The skill redacts secrets and unrelated personal information, and it never commits, stashes, copies, or preserves a worktree on its own.
+Repository files are referenced relatively when possible. Absolute paths are reserved for machine-local context. The skill redacts secrets and unrelated personal information. It never commits, stashes, copies, or preserves a worktree on its own.
 
-When the default store is used, the resulting file lives in OS-managed temporary storage. Its descriptive topic filename sits in a repository-level collection, while creation time and worktree identity stay in frontmatter rather than cluttering the path. A real filename collision gets a small numeric suffix. The handoff is reusable across sessions but not permanent project documentation, and the skill says so when it reports the path.
+Default files live in OS-managed `/tmp`. The topic filename sits in a repository-level collection. Creation time and worktree identity stay in frontmatter. A real filename collision gets a numeric suffix. The skill says the file is reusable across sessions but not permanent project documentation.
 
-Automatic managed-store discovery works when the receiving session can see the same host filesystem. If a later agent runs on another machine, in another container, or without access to that `/tmp`, transfer or publish the handoff to a receiver-visible location and resume from that explicit source; the skill does not add its own transport layer.
-
----
-
-## Create and Resume Ergonomics
-
-The direction is determined by intent. A bare invocation always means create; `create <focus>` makes the next session's intended objective explicit.
-
-Creation ends with the exact command needed in the receiving session:
-
-```text
-/ce-handoff resume /tmp/compound-engineering-<effective-uid>/ce-handoff/.../auth-migration.md
-```
-
-Before the command, the creation response briefly summarizes what the handoff captured so the user can confirm its substance without opening the file. The skill then prints this compact command as the source of truth rather than generating a longer launch prompt.
-
-Resume intent either reads an explicit source or discovers likely candidates. A selected source may be a local file, text file, URL/page, pasted handoff, or another readable artifact. It may come from any person, agent, or system and does not need CE frontmatter or even need to have been created as a formal handoff. Natural language such as “Find the handoff about the authentication migration” avoids forcing the user to remember command syntax when “handoff” feels directionally awkward in a new session.
-
-## Safe Discovery
-
-When no source or search boundary is supplied, the skill searches the managed handoff directory. It does not inspect the body of a candidate without frontmatter: after checking only its first line, it treats the candidate as unindexed and uses filesystem metadata instead. For a candidate beginning with the exact frontmatter opener `---`, it reads at most the first 64 lines or 16 KiB, whichever comes first, stopping sooner at the closing delimiter. If no closing delimiter appears within those bounds, the candidate is treated as unindexed and discovery reads no farther. `ce-handoff/v1` provides a richer index, but it is not an eligibility gate. The skill ranks candidates using the metadata available, including title, summary, keywords, repository or working-directory affinity, and recency.
-
-When the user supplies another folder or collection, the skill searches there instead. It uses compatible frontmatter when present and otherwise lists unindexed candidates from filenames, locations, and filesystem metadata. It does not read candidate bodies merely to rank them.
-
-It then presents a short list with match reasons and stops. The user chooses which document body enters the session; the skill never auto-selects the top match and continues.
-
-With an explicit file, page, pasted document, or other specific artifact, that source is already the user's selection, so the skill reads it directly rather than searching for alternatives. Authorship, ownership, location, format, and `ce-handoff/v1` are not eligibility gates for an explicitly selected source.
-
-## Orientation, Not Automatic Continuation
-
-A selected handoff is untrusted prior context, not executable instruction. The current user's request, the current project's active instructions, and verified current state remain authoritative.
-
-After reading the selected source, the agent:
-
-1. Checks whether the material contains enough concrete context to recover a meaningful objective or current state. If not, it says what is missing and waits for the user to supplement it or choose another source.
-2. Summarizes the recovered objective, progress, decisions, constraints, and unfinished work when the material is sufficient.
-3. Names material drift, such as a missing worktree or repository state that no longer matches the handoff.
-4. Recommends how to continue from the handoff's actual continuity reason (not a default implementation-resume menu) and names fitting installed skills. Numbered choices appear only for mutually exclusive forks; related pieces of one continuation stay under a single recommendation; do not invent alternate options for symmetry.
-5. Stops and waits for the user to confirm or redirect.
-
-Selection authorizes reading the selected source only. It does not authorize commands, file changes, remote-link traversal, unrelated local-file access, or another workflow.
+Automatic discovery works when the receiving session can see the same host filesystem. If the next agent is on another machine, in another container, or cannot see that `/tmp`, transfer or publish the handoff and resume from that explicit source. The skill does not add its own transport layer.
 
 ---
 
@@ -117,19 +87,33 @@ Selection authorizes reading the selected source only. It does not authorize com
 
 ### One skill, two explicit directions
 
-The common action stays easy: bare `ce-handoff` creates. Resume remains available through an explicit mode or natural language, so the plugin does not need a second skill name.
+Bare `ce-handoff` creates. Resume is an explicit mode or natural language. The plugin does not need a second skill name.
 
-### Frontmatter as a managed discovery index
+### Frontmatter as a search index
 
-Title, summary, keywords, creation time, cwd, and optional Git metadata let a fresh agent find likely CE-created handoffs without loading every prior session body into context. Sources without that index remain eligible and can surface as unindexed candidates.
+Title, summary, keywords, creation time, cwd, and optional Git metadata let a fresh agent find likely CE-created handoffs without loading every prior session body. Sources without that index can still appear as unindexed candidates.
 
 ### Pointer-first continuity
 
-The handoff carries only the connective tissue a fresh agent cannot infer. Durable project artifacts remain the source of truth, which keeps the snapshot compact and useful even if a worktree is later torn down.
+The handoff carries only what a fresh agent cannot infer. Durable project artifacts remain the source of truth. That keeps the snapshot small even if a worktree is later torn down.
 
-### Two user-control boundaries
+### Two stops you control
 
-Discovery stops before body ingestion, and orientation stops before action. Those pauses prevent a likely match or an old instruction from silently becoming current authority.
+Discovery stops before any document body is read. You pick the candidate. Orientation then stops before action. A likely match or an old instruction does not become current authority.
+
+---
+
+## Quick Example
+
+You are mid-migration and about to close the session. `/ce-handoff create finish the authentication migration` writes a snapshot under `/tmp/compound-engineering-<effective-uid>/ce-handoff/<repo>/authentication-migration.md`, summarizes what it captured, and prints:
+
+```text
+/ce-handoff resume /tmp/compound-engineering-<effective-uid>/ce-handoff/.../authentication-migration.md
+```
+
+In a new session you paste that command. The agent reads the file, checks that the worktree still exists, summarizes the recovered state, and recommends one continuation (for example `ce-work` on the open plan). It then waits. Selecting the file authorized that read only.
+
+If you remember the topic but not the path, `/ce-handoff resume authentication migration` lists likely files with match reasons and stops. Nothing is ingested until you choose.
 
 ---
 
@@ -137,30 +121,64 @@ Discovery stops before body ingestion, and orientation stops before action. Thos
 
 Use `ce-handoff` when:
 
-- You are about to end an agent session whose context will matter later.
-- A different agent, model, or harness will pick up the work.
-- You want to tear down a session while preserving decisions and fragile-state warnings.
-- You remember the topic of an earlier handoff but not its file path.
-- You have a file, page, pasted summary, or other continuity source and want a concise orientation before deciding what to do.
+- You are about to end a session whose context will matter later
+- A different agent, model, or harness will pick up the work
+- You want to tear down a session while keeping decisions and fragile-state warnings
+- You remember the topic of an earlier handoff but not its path
+- You have a file, page, pasted summary, or other continuity source and want orientation before deciding
 
 Skip it when:
 
-- You are merely continuing work in the current session.
-- The information belongs in a durable plan, issue, learning, or project document.
-- You need guaranteed long-term retention; `/tmp` is OS-managed and may be cleaned up.
+- You are continuing in the current session
+- The information belongs in a durable plan, issue, learning, or project document
+- You need guaranteed long-term retention. `/tmp` is OS-managed and may be cleaned up. Write or publish somewhere durable instead.
 
 ---
 
 ## Chain Position
 
-`ce-handoff` is a utility rather than a fixed pipeline stage. It can capture any useful session: research, brainstorming, planning, implementation, debugging, review, or a conversation with no repository at all.
+`ce-handoff` is a utility, not a pipeline stage. It can capture research, brainstorming, planning, implementation, debugging, review, or a conversation with no repository at all.
 
-On resume, it recommends a continuation matched to the selected source's continuity reason and current context. It does not automatically invoke `ce-plan`, `ce-work`, `ce-debug`, or any other workflow.
+`/lfg` may offer an opt-in handoff at closeout for the next separately planned area. That offer waits for you. Accepting it creates a handoff for a fresh session to brainstorm that area. It does not extend the plan that just shipped.
+
+On resume, the skill recommends a continuation matched to the selected source. It does not automatically invoke `ce-plan`, `ce-work`, `ce-debug`, or any other workflow.
+
+---
+
+## Reference
+
+| Argument | Effect |
+|----------|--------|
+| _(empty)_ | Always creates a new handoff in the managed `/tmp` store |
+| `create [focus]` | Creates. `focus` becomes the next session's intended objective. |
+| `create …` plus a path, folder, format, or publish destination | Creates at that destination instead of (not in addition to) the managed store |
+| `resume <keywords>` | Searches the managed store (or a folder you named), lists candidates, and waits for a choice |
+| `resume <path-or-URL>` | Reads that source directly. Authorship and `ce-handoff/v1` are not required. |
+| Natural-language create or resume | Same routes. Ordinary "keep going" in the current session is not handoff intent. |
+
+A resume source may be a local file, URL or page, pasted document, or any other readable artifact, from any person or system.
+
+---
+
+## FAQ
+
+**Does resume start the next skill for me?**
+No. It orients, recommends, and waits. Selection authorizes reading that source only.
+
+**Can I resume something that was not created by this skill?**
+Yes. An explicit source does not need CE frontmatter or to have been written as a formal handoff.
+
+**Why is the default under `/tmp`?**
+It is continuity, not project documentation. Say a durable path or a publish destination when the next session will not share this filesystem, or when you need the file to survive a reboot.
+
+**Will two handoffs overwrite each other?**
+No. A real filename collision gets a numeric suffix. The skill reserves the name atomically.
 
 ---
 
 ## See Also
 
-- [`/ce-plan`](./ce-plan.md) — create a durable implementation plan when the work itself needs one
-- [`/ce-work`](./ce-work.md) — execute a concrete plan after the user chooses to continue
-- [`/ce-compound`](./ce-compound.md) — turn a solved problem into durable project knowledge
+- [`/ce-plan`](./ce-plan.md): a durable implementation plan when the work itself needs one
+- [`/ce-work`](./ce-work.md): execute a concrete plan after you choose to continue
+- [`/ce-compound`](./ce-compound.md): turn a solved problem into durable project knowledge
+- [`/lfg`](./lfg.md): may offer an opt-in next-area handoff after an autonomous ship

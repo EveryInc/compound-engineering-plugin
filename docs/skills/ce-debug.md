@@ -1,12 +1,14 @@
 # `ce-debug`
 
-> Find root causes systematically — trace the full causal chain before proposing any fix, refuse symptom-level patches, escalate when stuck.
+> Find the root cause before proposing a fix. Trace the causal chain, refuse symptom-level patches, escalate when stuck.
 
-`ce-debug` is the **investigation-first** debugging skill. It refuses to propose a fix until it can explain the full causal chain from trigger to symptom with no gaps. For uncertain links in that chain, it requires a **prediction** — something in a different code path or scenario that must also be true if the link is right. **When a prediction is wrong but a fix appears to work, the skill flags it: you found a symptom, not the cause.**
+`ce-debug` is the on-demand **investigation** skill for broken behavior. It refuses to propose a fix until it can explain the full causal chain from trigger to symptom with no gaps. For uncertain links in that chain, it requires a **prediction**: something in a different code path or scenario that must also be true if the link is right. When a prediction is wrong but a fix appears to work, the skill flags it. You found a symptom, not the cause.
 
-It right-sizes. Trivial bugs (typos, missing imports, obvious one-line fixes) take an explicit fast-path in Phase 0 — fix it, leave a one-line note, stop. Anything else flows through the full framework, with complex bugs spending more time in each phase naturally. The fix is optional — diagnosis-only is a first-class outcome. When you do choose a fix, non-trivial diffs can continue through simplify and code review before the PR handoff so the result is ready to review, not just locally patched.
+It right-sizes. Trivial bugs (typos, missing imports, obvious one-line fixes) take a fast path in triage: present the cause, ask Fix / Diagnosis only, then stop. Anything else flows through the full framework. The fix is optional. Diagnosis-only is a first-class outcome. When you do choose a fix, non-trivial diffs can continue through simplify and code review before the PR handoff.
 
-The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-debug` is the bug-shaped sibling to `/ce-work` — when the input is broken behavior rather than a feature to build, this skill takes over. It can also escalate to `/ce-brainstorm` when investigation reveals the bug isn't really a bug; it's a design problem.
+It is not a verdict (`ce-pov`), not findings on a document (`ce-doc-review`), and not findings on a diff (`ce-code-review`). Use those when the input is a decision, a planning doc, or a change to review. Use this when something is observably broken.
+
+`ce-plan` offers this skill when a planning prompt is bug-shaped. Orchestrators such as `ce-babysit-pr` and `lfg` invoke it with `mode:pipeline` to fix convergent CI failures without asking.
 
 ---
 
@@ -14,31 +16,37 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Investigates a bug end-to-end (reproduce, trace, root-cause), forms hypotheses with predictions, optionally implements a test-first fix, then polishes/reviews non-trivial fixes before commit + PR |
+| What does it do? | Investigates a bug (reproduce, trace, root-cause), forms hypotheses with predictions, optionally implements a test-first fix, then polishes and reviews non-trivial fixes |
 | When to use it | Failed tests, error messages, regressions, GitHub/Linear/Jira issue references, "I've been stuck on this for hours" |
-| What it produces | A debug summary with root cause, recommended tests, applied fix, post-fix quality notes, and (if you opt in) a PR |
-| What's next | Auto commit + PR by default; or "diagnosis only" if you'd rather take it from there |
+| What it produces | A debug summary with root cause, recommended tests, and (if you opt in) an applied fix plus post-fix quality notes. Pipeline mode returns structured JSON |
+| What's next | Fix it now, diagnosis only, or rethink the design. After a fix on a skill-created branch: commit + PR. On an existing branch: you choose PR, commit, or stop |
 
 ---
 
 ## Example invocations
 
+A failing test, a tracker issue, observed behavior, or a paste. Empty invoke waits for the error. `mode:pipeline` is for orchestrators.
+
 ```text
-# Start from a failing test
+# Start from a failing test. Reproduces that test, then traces from there.
 /ce-debug spec/models/notification_subscription_spec.rb
 
-# Start from an issue or ticket and include its full discussion
+# Start from an issue and read the full comment thread, not just the opening post
 /ce-debug https://github.com/acme/widgets/issues/1234
+/ce-debug #1234
 /ce-debug ABC-456
 
 # Start from observed behavior when no ticket exists
 /ce-debug the digest job sends duplicate emails after a retry
 
-# Invoke first, then paste a stack trace when the error is the best evidence
+# Empty invoke: asks for the bug description. Paste a stack trace in the next turn.
 /ce-debug
+
+# Orchestrator path (ce-babysit-pr, lfg). No questions. Fixes convergent bugs only.
+/ce-debug mode:pipeline the checkout job fails on test/checkout_spec.rb
 ```
 
-Describe what is observably broken, not the fix you suspect; the skill validates the causal chain before changing code.
+Describe what is observably broken, not the fix you suspect. The skill validates the causal chain before changing code.
 
 ---
 
@@ -46,131 +54,134 @@ Describe what is observably broken, not the fix you suspect; the skill validates
 
 Common debugging anti-patterns:
 
-- **Shotgun fixes** — change three things at once "to see if it helps"; if anything works, you don't know why
-- **Symptom-level patches** — the bug stops manifesting after the change, but the root cause is still active and surfaces somewhere else weeks later
-- **Wrong-assumption fixation** — the hypothesis is correct, but you're testing it against an assumption (the framework behaves this way, this function returns what its name implies) that isn't true
-- **"Just try one more thing" loops** — three failed fixes in a row means the diagnosis is wrong; trying harder makes it worse
-- **Fixing the first thing that looks wrong** — the root cause is where bad state originates, not where it's first observed
+- Shotgun fixes. Change three things at once "to see if it helps." If anything works, you don't know why
+- Symptom-level patches. The bug stops manifesting, but the root cause is still active and surfaces somewhere else later
+- Wrong-assumption fixation. The hypothesis is correct, but you are testing it against an assumption that isn't true
+- "Just try one more thing" loops. Three failed fixes in a row means the diagnosis is wrong
+- Fixing the first thing that looks wrong. The root cause is where bad state originates, not where it is first observed
 
 ## The Solution
 
-`ce-debug` runs investigation as a structured process with explicit gates:
+`ce-debug` runs investigation with explicit gates:
 
-- **Causal chain gate** — no fix proposed until the chain is explained end-to-end with no gaps
-- **Diagnosis before the choice** — the findings block is written out in full before the Fix / Diagnosis-only question opens, so you are never choosing from a bare prompt
-- **Predictions for uncertain links** — something in a different code path that must also be true if the link is right
-- **Assumption audit** — list "this must be true" beliefs your understanding depends on, mark each verified or assumed
-- **One change at a time** — anti-shotgun discipline
-- **Smart escalation when stuck** — diagnose *why* hypotheses are exhausted, don't just try harder
-- **Test-first fix** — inspect existing tests first, use/update/strengthen the right test home or add a focused regression test, verify it fails for the right reason, then implement; never both at once
-- **Post-fix quality tail** — for non-trivial fixes, simplify the relevant diff, run the self-sizing code review, apply safe findings, and preserve residuals before shipping
+- Causal chain gate. No fix proposed until the chain is explained end-to-end with no gaps
+- Diagnosis before the choice. The findings block is written in full before the Fix / Diagnosis-only / Rethink question opens
+- Predictions for uncertain links. Something in a different code path that must also be true if the link is right
+- Assumption audit. List "this must be true" beliefs, mark each verified or assumed
+- One change at a time
+- Smart escalation when stuck. Diagnose *why* hypotheses are exhausted
+- Test-first fix. Inspect existing tests first, use or strengthen the right test home, verify it fails for the right reason, then implement
+- Post-fix quality tail. For non-trivial fixes, simplify the relevant diff, run a scoped code review, and preserve residuals before shipping
 
 ---
 
 ## What Makes It Novel
 
-### 1. Causal chain gate — no fix until the chain is explained
+### Causal chain gate
 
-`ce-debug` does not propose a fix until it can explain the full causal chain from trigger to symptom with no gaps. "Somehow X leads to Y" is a gap. The fix gate is structural: there's an explicit phase transition that requires the chain explanation to pass.
+The skill does not propose a fix until it can explain the full causal chain from trigger to symptom with no gaps. "Somehow X leads to Y" is a gap.
 
-The gate also constrains *presentation order*: the findings block — root cause with file:line references, the proposed fix, the recommended tests, and any related ticket or PR — must be written out in full before the Fix it now / Diagnosis only question opens. Blocking-question tools render only their own stem on modal harnesses, so a question fired on "root cause confirmed" alone would leave you choosing with none of the chain on screen.
+The findings block (root cause with file:line references, the proposed fix, the recommended tests, and any related ticket or PR) is written in full before the Fix it now / Diagnosis only / Rethink the design question opens. Blocking-question tools render only their own stem on modal harnesses, so a question fired on "root cause confirmed" alone would leave you choosing with none of the chain on screen.
 
-### 2. Predictions for uncertain links — anti-symptom-fix
+### Predictions for uncertain links
 
-For each uncertain link in the causal chain, the skill states a **prediction**: something in a different code path or scenario that must also be true if this link is correct. **If the prediction is wrong but a fix appears to work, you found a symptom, not the cause.** Predictions aren't required for obvious links (missing imports, clear null dereference); they're a tool for testing uncertainty, not a ritual for every hypothesis.
+For each uncertain link, the skill states a **prediction**: something in a different code path or scenario that must also be true if this link is correct. If the prediction is wrong but a fix appears to work, you found a symptom, not the cause. Predictions are not required for obvious links (missing imports, clear null dereference).
 
-### 3. Assumption audit — catches right-hypothesis-wrong-assumption
+### Assumption audit
 
-Before forming hypotheses, the skill enumerates the "this must be true" beliefs your understanding depends on — the framework behaves this way here, this function returns what its name implies, the config loads before this runs, the database is in the state the test implies. Each is marked verified (you read the code, checked state, or ran it) or assumed. Many "wrong hypotheses" are actually correct hypotheses tested against a wrong assumption.
+Before forming hypotheses, the skill enumerates the "this must be true" beliefs the understanding depends on: the framework behaves this way here, this function returns what its name implies, the config loads before this runs, the database is in the state the test implies. Each is marked verified or assumed. Many "wrong hypotheses" are correct hypotheses tested against a wrong assumption.
 
-### 4. Smart escalation when stuck — diagnose, don't try harder
+### Smart escalation when stuck
 
-After 2-3 hypotheses are exhausted without confirmation, the skill diagnoses *why* you're stuck:
+After 2-3 hypotheses are exhausted without confirmation, the skill diagnoses *why*:
 
-- Hypotheses point to different subsystems → likely architecture problem; suggest `/ce-brainstorm`
-- Evidence contradicts itself → wrong mental model of the code; step back and re-read without assumptions
-- Works locally, fails in CI/prod → environment problem; focus on env, config, dependencies, timing
-- Fix works but prediction was wrong → symptom fix; the real cause is still active
+- Hypotheses point to different subsystems → likely an architecture problem. Suggest `/ce-brainstorm`
+- Evidence contradicts itself → wrong mental model. Step back and re-read without assumptions
+- Works locally, fails in CI/prod → environment problem. Focus on env, config, dependencies, timing
+- Fix works but prediction was wrong → symptom fix. The real cause is still active
 
-### 5. Issue tracker integration — reads the full thread
+Three failed fix attempts is the same gate: invalidate the current hypothesis before forming a new one. Do not retry variants of the same theory.
 
-When the input references an issue (`#123`, GitHub URL, Linear URL, Jira key), the skill fetches the full conversation including all comments — not just the original description. Comments frequently contain updated reproduction steps, narrowed scope, prior failed attempts, and pivots to a different suspected root cause. Treating the opening post as the whole picture often sends the investigation in the wrong direction.
+### Issue tracker integration
 
-### 6. Test-first fix discipline
+When the input references an issue (`#123`, GitHub URL, Linear URL, Jira key), the skill fetches the full conversation including all comments. Comments frequently contain updated reproduction steps, narrowed scope, prior failed attempts, and pivots to a different suspected root cause.
 
-If you opt to fix (rather than "diagnosis only"), the skill first inspects existing tests for the affected behavior. It uses an existing failing test when one already captures the bug, updates or strengthens the existing test that owns the contract when appropriate, or adds a focused regression test only when no existing test fits. It verifies the failure, applies the smallest root-cause fix, reruns the focused test plus broader regression checks, then self-reviews the diff before moving to its post-fix quality tail.
+### Test-first fix, then a scoped quality tail
 
-### 7. Post-fix polish and review
+If you opt to fix, the skill first inspects existing tests for the affected behavior. It uses an existing failing test when one already captures the bug, updates or strengthens the existing test that owns the contract, or adds a focused regression test only when no existing test fits. It verifies the failure, applies the smallest root-cause fix, reruns the focused test plus broader checks, then self-reviews the diff.
 
-After the root-cause fix is green, `ce-debug` conditionally runs the same quality tail used by the broader shipping workflow: simplify first when the diff is non-mechanical and large enough to benefit, then review the final fix. Tiny mechanical fixes skip this with a reason. On pre-existing dirty branches, simplify and review are scoped to the bug-fix files so they do not wander into unrelated user work; files with overlapping pre-existing edits skip file-level simplification. The skill records the tail in a Post-Fix Quality block before commit or PR handoff, and accepted residual findings are written to a durable sink even when the user chooses commit-only or stop.
+After the fix is green, non-trivial diffs run the same quality tail used by the shipping workflow: simplify first when the diff is large enough to benefit, then review the final fix. Tiny mechanical fixes skip this with a reason. On pre-existing dirty branches, simplify and review are scoped to the bug-fix files. Files with overlapping pre-existing edits skip file-level simplification. Accepted residual findings are written to a durable sink even when you choose commit-only or stop.
 
-### 8. Conditional defense-in-depth
+### Defense-in-depth, and brainstorm when it is not a bug
 
 When the root-cause pattern appears in 3+ other files, or the bug would have been catastrophic in production, the skill considers four defense layers (entry validation, invariant check, environment guard, diagnostic breadcrumb) and applies what fits. For one-off errors with no realistic recurrence, defense-in-depth is skipped.
 
-### 9. Brainstorm escalation when bug reveals a design problem
+Concrete signals trigger a `/ce-brainstorm` recommendation rather than a fix: the root cause is a wrong responsibility or interface; the requirements are wrong or incomplete; every fix is a workaround. Size alone does not make something a design problem.
 
-Concrete signals trigger a `/ce-brainstorm` recommendation rather than a fix: the root cause is a wrong responsibility or interface; the requirements are wrong or incomplete; every fix is a workaround. Size alone doesn't make something a design problem — clear-fix-but-large bugs are still bugs.
+### Pipeline mode
+
+`mode:pipeline` (set by `ce-babysit-pr` or `lfg`) runs fully non-interactively. It fixes **convergent** bugs (the code is not meeting its planned or tested intent) and defers **divergent** ones (the "failure" would reverse a deliberate contract or product decision). It does not create branches, does not run the polish/review tail, and returns a structured JSON result (`fixed-and-pushed`, `diagnosed-no-fix`, `flaky-infra`, or `needs-human`). A design problem becomes a `needs-human` residual, never a brainstorm handoff.
 
 ---
 
 ## Quick Example
 
-You paste a stack trace or a GitHub issue URL. The skill fetches the full issue thread (including comments with the latest reproduction details), reproduces the bug locally, and verifies environment sanity (correct branch, dependencies installed, env vars present).
+You paste a stack trace or a GitHub issue URL. The skill fetches the full issue thread, reproduces the bug locally, and verifies environment sanity (correct branch, dependencies installed, env vars present).
 
 It traces the code path from the error back upstream, asking "where did this value come from?" until it reaches the point where valid state first became invalid. It performs an assumption audit and flags one belief as unverified.
 
-It forms two hypotheses, ranked by likelihood. The first is testable directly; the second has an uncertain link, so it generates a prediction: if this link is right, a different code path that calls the same function under different conditions should also fail. It tests the prediction.
+It forms two hypotheses, ranked by likelihood. The first is testable directly. The second has an uncertain link, so it generates a prediction: if this link is right, a different code path that calls the same function under different conditions should also fail. It tests the prediction.
 
-The prediction holds. The skill presents the root cause with file:line references, the proposed fix, and the specific tests that should be used, updated, strengthened, or added (with assertion guidance). It asks: fix it now, diagnosis only, or rethink the design?
+The prediction holds. The skill presents the root cause with file:line references, the proposed fix, and the specific tests that should be used, updated, strengthened, or added. Then it asks: fix it now, diagnosis only, or rethink the design?
 
-You pick "fix it now." It creates a feature branch, inspects the existing tests, updates the right test or adds a focused one, verifies it fails for the right reason, implements the minimal fix, and runs tests. If the fix is non-trivial, it runs simplify before code review, applies clear review findings when the review scope is fix-only, reruns targeted checks, records Post-Fix Quality, and then hands off to `/ce-commit-push-pr`.
+You pick "fix it now." It creates a feature branch (you were on the default branch), inspects the existing tests, updates the right test or adds a focused one, verifies it fails for the right reason, implements the minimal fix, and runs tests. If the fix is non-trivial, it runs simplify before code review, applies clear review findings when the review scope is fix-only, reruns targeted checks, records Post-Fix Quality, and then hands off to `/ce-commit-push-pr`.
 
 ---
 
 ## When to Reach For It
 
-Reach for `ce-debug` when:
+Use `ce-debug` when:
 
 - A test is failing and you need to know why
 - You have an error message, stack trace, or unexpected behavior
 - A regression appeared and you need to find when it broke
 - You have a GitHub, Linear, or Jira issue reference
-- You've been stuck on a problem after a few failed fix attempts
-- You suspect the bug surface is wider than one symptom (defense-in-depth territory)
+- You have been stuck after a few failed fix attempts
+- You suspect the bug surface is wider than one symptom
 
 Skip `ce-debug` when:
 
-- You already know the root cause and the fix is obvious — just fix it (or use `/ce-work` for a small change)
+- You already know the root cause and the fix is obvious. Just fix it, or use `/ce-work` for a small change
 - The "bug" is really a feature decision in disguise → `/ce-brainstorm`
 - The work is implementing something new, not investigating something broken → `/ce-work`
+- You want findings on a diff, not an investigation → `/ce-code-review`
+- You want a verdict on exposure (is this CVE ours?) rather than a live failure → `/ce-pov`
 
 ---
 
 ## Use as Part of the Workflow
 
-`ce-debug` interlocks with the rest of the chain in four ways:
+`ce-debug` is an on-demand investigation that other skills can route into:
 
-- **Called from `/ce-plan`** — when a planning prompt is bug-shaped (error message, "fix the bug where X", regression), `ce-plan` surfaces `ce-debug` as a route-out option before doing structural planning
-- **Escalates to `/ce-brainstorm`** — when investigation reveals a design problem rather than a logic error, the skill recommends rethinking before implementing
-- **Runs post-fix quality checks** — non-trivial fixes go through `/ce-simplify-code` and `/ce-code-review` before shipping; tiny mechanical fixes skip with a reason
-- **Hands off to `/ce-commit-push-pr branding:on`** — after a successful fix on a skill-created branch, the skill explicitly marks the CE provenance and defaults to commit-and-PR without further prompting (with an explicit override path if your repo's `AGENTS.md` says otherwise)
+- **Offered from `/ce-plan`** when a planning prompt is bug-shaped (error message, "fix the bug where X", regression)
+- **Called from `/ce-babysit-pr` or `lfg`** with `mode:pipeline` on failing jobs
+- **Escalates to `/ce-brainstorm`** when investigation reveals a design problem rather than a logic error
+- **Runs post-fix quality checks** through `/ce-simplify-code` and `/ce-code-review` on non-trivial interactive fixes
+- **Hands off to `/ce-commit-push-pr` with `branding:on`** after a successful fix on a skill-created branch. On a pre-existing branch it asks: open a PR, commit only, or stop. Project instructions that say otherwise (for example "don't open PRs from skills") outrank the default
 
-After a PR opens, the skill optionally offers `/ce-compound` to capture learning — but only when the bug is generalizable (3+ recurrence, wrong assumption about a shared dependency). Localized mechanical fixes are skipped silently to avoid cluttering `docs/solutions/` with one-off entries.
+After a PR opens, the skill may offer `/ce-compound` when the lesson is generalizable (a one-sentence insight, a pattern in 3+ locations, or a wrong assumption about a shared dependency). Localized mechanical fixes are skipped so `docs/solutions/` does not fill with one-off entries.
 
 ---
 
 ## Use Standalone
 
-`ce-debug` is the standalone entry point for most bug work:
+- **Failing test:** `/ce-debug spec/models/notification_subscription_spec.rb`
+- **Error message paste:** `/ce-debug` followed by a stack trace
+- **GitHub issue:** `/ce-debug #1234` or `/ce-debug https://github.com/.../issues/1234`
+- **Linear or Jira ticket:** `/ce-debug ABC-456` or paste the URL
+- **Stuck on something:** `/ce-debug "why is X returning undefined when Y"`
 
-- **Failing test** — `/ce-debug spec/models/notification_subscription_spec.rb`
-- **Error message paste** — `/ce-debug` followed by a stack trace
-- **GitHub issue** — `/ce-debug #1234` or `/ce-debug https://github.com/.../issues/1234`
-- **Linear ticket** — `/ce-debug ABC-456` or paste the URL
-- **Stuck on something** — `/ce-debug "why is X returning undefined when Y"`
-
-When you only want the diagnosis (you'll handle the fix yourself), pick "Diagnosis only — I'll take it from here" at the Phase 2 handoff. The summary is still produced; the test recommendations are part of the diagnosis regardless.
+When you only want the diagnosis, pick **Diagnosis only** at the fix-choice gate. The summary is still produced. The test recommendations are part of the diagnosis either way.
 
 ---
 
@@ -181,36 +192,41 @@ When you only want the diagnosis (you'll handle the fix yourself), pick "Diagnos
 | _(empty)_ | Asks for the bug description |
 | `<error message or stack trace>` | Direct investigation |
 | `<test path>` | Reproduces the failing test, traces from there |
-| `<issue reference>` (`#123`, URL, Linear ID, Jira key) | Fetches the full thread, reads all comments |
-| `<description>` | e.g., "why is the cart total wrong on checkout" |
+| `<issue reference>` (`#123`, URL, Linear ID, Jira key) | Fetches the full thread, including comments |
+| `<description>` | e.g. "why is the cart total wrong on checkout" |
+| `mode:pipeline` | Non-interactive. Used by orchestrators. Fixes convergent bugs, defers divergent ones, returns JSON |
 
 ---
 
 ## FAQ
 
 **Why investigate before fixing?**
-Fixes that aren't tied to a clear causal chain often address symptoms rather than the cause. The bug stops manifesting, but the real problem is still active and surfaces somewhere else weeks later. The causal chain gate is the structural defense against this.
+Fixes that are not tied to a clear causal chain often address symptoms rather than the cause. The bug stops manifesting, but the real problem is still active. The causal chain gate is the structural defense against this.
 
 **What's the difference between a hypothesis and a prediction?**
-A hypothesis says "I think this is the cause." A prediction says "if my hypothesis is right, then *this other thing* must also be true." Predictions test the hypothesis against independent evidence — and if the prediction is wrong but a fix works, you've found a symptom.
+A hypothesis says "I think this is the cause." A prediction says "if my hypothesis is right, then this other thing must also be true." Predictions test the hypothesis against independent evidence. If the prediction is wrong but a fix works, you have found a symptom.
 
 **When should the skill suggest `/ce-brainstorm`?**
-Only when the bug can't be properly fixed within the current design — wrong responsibility, wrong interface, requirements gap, or every fix is a workaround. Size alone doesn't make something a design problem.
+Only when the bug cannot be properly fixed within the current design: wrong responsibility, wrong interface, requirements gap, or every fix is a workaround. Size alone does not make something a design problem.
 
 **What if I just want to fix it without all this process?**
-Skip the skill — go directly to `/ce-work` or just edit the file. `ce-debug` is for cases where the root cause isn't obvious or the fix has failed to stick.
+Skip the skill. Go directly to `/ce-work` or just edit the file. `ce-debug` is for cases where the root cause is not obvious or the fix has failed to stick.
+
+**Does it always open a PR?**
+No. Diagnosis-only stops after the summary. A fix on a branch this skill created previews the commit and opens a PR. A fix on a branch that already existed asks first. `mode:pipeline` commits and pushes on the current branch and does not open a PR.
 
 **Does it work for non-software bugs?**
-Not really — the skill assumes code, tests, and a tracker. The investigation discipline (causal chain, predictions, assumption audit) generalizes, but the skill's mechanics (test-first fix, defense-in-depth, PR handoff) are software-shaped.
+Not really. The skill assumes code, tests, and a tracker. The investigation discipline (causal chain, predictions, assumption audit) generalizes, but the mechanics (test-first fix, defense-in-depth, PR handoff) are software-shaped.
 
 ---
 
 ## See Also
 
-- [`ce-plan`](./ce-plan.md) — routes bug-shaped prompts here when you start at planning
-- [`ce-brainstorm`](./ce-brainstorm.md) — escalation target when the bug reveals a design problem
-- [`ce-work`](./ce-work.md) — sibling skill for feature work; use this when input isn't bug-shaped
-- [`ce-simplify-code`](./ce-simplify-code.md) — post-fix cleanup pass for non-trivial bug-fix diffs
-- [`ce-code-review`](./ce-code-review.md) — self-sizing post-fix review before PR handoff
-- [`ce-commit-push-pr`](./ce-commit-push-pr.md) — handles the final commit + PR after a fix
-- [`ce-compound`](./ce-compound.md) — capture reusable learning when the bug is generalizable
+- [`ce-plan`](./ce-plan.md): routes bug-shaped prompts here when you start at planning
+- [`ce-brainstorm`](./ce-brainstorm.md): escalation target when the bug reveals a design problem
+- [`ce-work`](./ce-work.md): sibling skill for feature work. Use this when the input is not bug-shaped
+- [`ce-simplify-code`](./ce-simplify-code.md): post-fix cleanup pass for non-trivial bug-fix diffs
+- [`ce-code-review`](./ce-code-review.md): scoped post-fix review before PR handoff
+- [`ce-commit-push-pr`](./ce-commit-push-pr.md): handles the final commit + PR after a fix
+- [`ce-compound`](./ce-compound.md): capture reusable learning when the bug is generalizable
+- [`ce-pov`](./ce-pov.md): exposure verdict (is this CVE ours?), not a live failure

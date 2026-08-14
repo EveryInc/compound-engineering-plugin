@@ -1,10 +1,12 @@
 # `ce-dogfood`
 
-> Hands-off, diff-scoped browser QA of the active branch — maps flows, drives a real browser, autonomously fixes small breakages with regression tests and commits, and writes a durable report. Manual invocation only.
+> Hands-off, diff-scoped browser QA of the active branch. Maps the journeys the diff touches, drives them in a real browser, fixes small breakages (with a regression test and a commit), and writes a durable report.
 
-`ce-dogfood` acts as a QA engineer who dogfoods the **active branch** end to end: it understands every change versus the trunk, maps the user flows the diff touches, exercises each flow in a real browser via `agent-browser`, judges both correctness and experience (including per-persona paper cuts), fixes what's safely fixable on its own — adding a regression test and committing each fix — escalates what isn't, and leaves a durable report under `docs/dogfood-reports/`.
+`ce-dogfood` is on-demand **autonomous QA** of what this branch changed versus the trunk. It maps those journeys, exercises them with `agent-browser`, judges correctness and feel (including per-persona paper cuts), fixes what is small and unambiguous, escalates the rest, and leaves a report under `docs/dogfood-reports/`.
 
-It is **diff-scoped**, not whole-app exploration, and it is **hands-off**: once invoked it runs the full loop autonomously. Because it edits code and creates commits, it is **manual-invocation only** (`disable-model-invocation: true`).
+It is diff-scoped, not a whole-app crawl. Once invoked it runs the loop without check-ins, except for external flows (OAuth, real email, payments, SMS) and for resume questions. It edits code and creates commits, so it is manual invocation only.
+
+It is not `ce-test-browser` (test and report; it fixes only if you pick "fix now"), not `ce-polish` (you drive live UX), and not `ce-simplify-code` (code cleanup with no browser).
 
 ---
 
@@ -12,126 +14,140 @@ It is **diff-scoped**, not whole-app exploration, and it is **hands-off**: once 
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Maps diff → flows → test matrix, drives each flow in a browser, autonomously fixes small breakages (with regression tests + commits), escalates big ones, writes a report |
-| When to use it | Before shipping a branch, when you want a real-browser pass that also *fixes* what it finds — not just reports |
-| What it produces | A durable report (`docs/dogfood-reports/<date>-<branch>-dogfood.md`): flows, test matrix, fixes, paper cuts, escalations, learnings, verdict |
-| How it differs from `ce-test-browser` | `ce-test-browser` tests and reports; `ce-dogfood` adds autonomous fixing, regression tests, fix commits, persona-level experiential judgment, and a durable report artifact |
-| Invocation | Manual only — type `/ce-dogfood` |
+| What does it do? | Maps the branch diff to user flows, drives them in a browser, auto-fixes small issues, escalates the rest, writes a report |
+| When to use it | Before shipping a branch, when you want a real-browser pass that also fixes what it can |
+| What it produces | `docs/dogfood-reports/<YYYY-MM-DD>-<branch-slug>-dogfood.md`: flows, matrix, fixes, paper cuts, escalations, learnings, verdict. Plus any fix commits |
+| How it differs from `ce-test-browser` | That skill tests and reports. This one also fixes, adds regression tests, commits, judges feel per persona, and keeps a resume-able report |
+| Invocation | Manual only. Type `/ce-dogfood` |
 
 ---
 
 ## Example invocations
 
+Arguments pick which ref to dogfood and, optionally, which port. Empty runs **in place** on the current branch.
+
 ```text
-# Dogfood the diff on the current feature branch
+# Current feature branch, in this checkout. Refuses main/master/the default branch
 /ce-dogfood
 
-# Dogfood a specific pull request or branch
+# A PR. Always allowed, even if the head branch is named main. Offers a worktree
 /ce-dogfood 847
+
+# A named branch you are not on. Offers isolation, then dogfoods that ref
 /ce-dogfood feature/new-dashboard
 
-# Reuse a dev server already running on a custom port
+# Reuse or force a port (detection still applies if you omit this)
 /ce-dogfood --port 5000
+
+# Port plus a PR
+/ce-dogfood 847 --port 5000
 ```
 
-Use `ce-test-browser` instead when you want a bounded route test rather than exploratory, experience-focused QA.
+If a matching unfinished report already exists, it asks resume or start fresh. Use `/ce-test-browser` when you want a bounded route test rather than this QA loop.
 
 ---
 
 ## The Problem
 
-A branch can pass static review and unit tests and still be broken or rough in the browser — and finding that out usually means a manual click-through that:
+A branch can pass review and unit tests and still be broken or rough in the browser. A manual click-through usually:
 
-- **Tests pages, not journeys** — the email "sends" but lands in the wrong thread; the form saves but the redirect drops you somewhere confusing
-- **Stops at "does it work"** — it never asks whether the change *feels* right for the people who actually use the product
-- **Finds bugs but doesn't fix them** — the QA pass produces a list, and the fixing is a separate, later task
-- **Lets fixed bugs regress** — nothing locks in the fix with a test
-- **Leaves no durable trace** — the next person re-derives the same flows from scratch
+- Tests pages, not journeys (the email "sends" but opens the wrong thread)
+- Stops at "does it work" and never asks whether it feels right for the people who use the product
+- Produces a list of bugs and leaves the fixing for later
+- Does not lock a fix in with a test
+- Leaves no file the next person can resume
 
 ## The Solution
 
-`ce-dogfood` runs the whole loop as one hands-off pass:
+One pass:
 
-- **Flow-first** — it maps the journeys the diff touches as Mermaid flowcharts *before* building the test matrix, so it tests the journey, not isolated widgets
-- **Persona-grounded** — it grounds flows in the product's personas (from `STRATEGY.md` / `VISION.md` / persona docs, or an inferred persona) and walks each flow looking for **paper cuts**
-- **Autonomous fix loop** — small, low-risk, unambiguous breakages get fixed in place, each with a regression test that fails-before/passes-after and its own commit
-- **Knows when to stop** — large, ambiguous, or product-altering changes are escalated as "Decisions for a human," not forced
-- **Verifies before the verdict** — runs the project's existing test suite once before declaring the branch ready
-- **Durable artifact** — a report doc that doubles as a resume checkpoint
+- Map each user-visible change as a Mermaid flowchart *before* building the test matrix
+- Ground flows in product personas (`STRATEGY.md`, `VISION.md`, persona docs, or one inferred persona)
+- Walk each flow for paper cuts as well as functional failures
+- Auto-fix only small, low-risk, unambiguous breakages, each with a regression test (or a documented replay/screenshot check when no automated test is meaningful) and its own commit
+- Escalate architecture, schema, product, or large changes as "Decisions for a human"
+- Run the project's existing test suite before calling the branch ready
+- Write the report as soon as the matrix exists and update it after every scenario, so the run can stop and resume
 
 ---
 
 ## What Makes It Novel
 
-### 1. Flows before the matrix
+### Flows before the matrix
 
-The skill maps each user-visible change as a Mermaid `flowchart` — entry point, actions, branch points, side effects, true end state (including email click-through destinations) — and only then derives the test matrix from those diagrams. The flowcharts are the understanding; they become the spine of the matrix and ship in the report. The mapping scales to the diff: a one-route change gets one small flowchart, never a skipped step.
+Each user-visible change becomes a flowchart: entry, actions, branches, side effects, true end state (including email click-through). The matrix is derived from those diagrams, not from a flat page list. A one-route change gets one small chart. Mapping is never skipped.
 
-### 2. Functional *and* experiential judgment
+### Functional and experiential judgment
 
-Every scenario is judged twice: "does it work?" (right data, right destination, no console errors) and "does it feel right?" The skill walks each flow as each primary persona and records **paper cuts** — small frictions that pass a functional test but degrade the experience for that persona. A scenario can `Pass` functionally and still carry paper cuts.
+Every scenario is scored twice: right data, right destination, no console errors; and whether it feels aligned with the product. Walking the flow as each primary persona produces **paper cuts**: small frictions that still `Pass` functionally. A sharp paper cut can enter the fix loop. The rest stay in the report.
 
-### 3. Autonomous fix loop with a size gate
+### Size-gated autonomous fixes
 
-When a scenario fails — or a passing scenario carries a sharp paper cut worth fixing now — the skill first judges whether the fix is **its** to make. It auto-fixes only small, well-understood, low-risk changes; anything requiring an architecture/schema decision, changing product behavior, spanning many files, or with plausible competing solutions is escalated instead of forced. Each autonomous fix gets a regression test (or, for a pure copy/visual fix, a documented replay/screenshot check and a note on why no automated test was meaningful) and its own commit.
+Auto-fix when the change is small, understood, and low-risk. Do not auto-fix when it needs an architecture or schema decision, changes product behavior, spans many files, or has competing answers. Each autonomous fix gets a regression test and a `ce-commit`. Too-big items go under **Decisions for a human** and the scenario is `Blocked (human decision)`.
 
-### 4. Escalation as a first-class outcome
+### Resumable report
 
-"Too big to fix autonomously" is a normal result, not a failure. The skill records each one under **Decisions for a human** — what's broken, why it's not a safe autonomous fix, the options with trade-offs, and a recommendation — and marks the scenario `Blocked (human decision)`.
+The report is created at the end of mapping (`docs/dogfood-reports/<date>-<branch-slug>-dogfood.md`) and updated as it goes. `<branch-slug>` is the branch name, lowercased, with non-alphanumeric runs collapsed to `-`. On resume, `Pass` / `Fixed` / `Skipped` stay done; `Pending` is re-queued. `Blocked (needs human verify)` and `Blocked (human decision)` are shown to you, not silently re-run.
 
-### 5. Resumable by design
+### A suite check before "ready"
 
-The report doc is created as soon as the matrix exists and updated incrementally, so a run can be interrupted and resumed (or picked up by a teammate). On resume, done scenarios stay done and pending ones re-queue — but the two `Blocked` states are surfaced to the user rather than silently re-run, because they're waiting on a person.
-
-### 6. A suite check before "ready"
-
-A green browser matrix with a red test suite is not "ready." Before the verdict, the skill runs the project's existing automated tests (plus the new regression tests), discovering the command from the project's conventions rather than assuming a runner.
+A green browser matrix with a red test suite is not ready. Before the verdict it runs the project's automated tests, including new regression tests. The command comes from the project's conventions, not a hardcoded runner.
 
 ---
 
 ## `ce-dogfood` vs `ce-test-browser`
 
-Both take a PR / branch and drive a browser over diff-affected pages. `ce-test-browser` prefers a capable host-native browser and falls back to `agent-browser`; `ce-dogfood` currently requires `agent-browser`. Pick by what you want at the end:
+Both take a PR or branch and drive a browser over diff-affected surfaces. `ce-test-browser` prefers a host-native browser and falls back to `agent-browser`. `ce-dogfood` requires `agent-browser`.
 
 | | `ce-test-browser` | `ce-dogfood` |
 |---|---|---|
-| Output | A test summary | A durable report + committed fixes |
-| Fixes breakages? | No — reports them | Yes — small ones autonomously, with regression tests |
-| Experiential judgment | Functional focus | Functional + per-persona paper cuts |
-| Flow modeling | Route-oriented | Journey-first (Mermaid flowcharts) |
-| Autonomy | Asks how to proceed on failures | Hands-off: fixes, escalates, continues |
-| Invocation | Model- or user-invokable | Manual only |
+| Output | A test summary in chat | A durable report plus fix commits |
+| Fixes breakages? | Only if you pick "fix now" | Small ones on its own, with tests |
+| Feel | Functional | Functional plus per-persona paper cuts |
+| Model | Route-oriented | Journey-first (Mermaid flowcharts) |
+| Autonomy | Asks how to proceed on failures | Fixes, escalates, continues |
+| Invocation | Model or user | Manual only |
+| Checkout | Diff only; does not switch branches | Current branch in place; PR / other branch offers a worktree |
 
-Use `ce-test-browser` for a lighter "do the affected pages still work" pass; reach for `ce-dogfood` when you want the branch driven to genuinely-ready, with fixes applied.
+Use `ce-test-browser` for "do these pages still work." Use `ce-dogfood` when you want the branch driven, fixed where safe, and written up.
 
 ---
 
 ## When to Reach For It
 
-Reach for `ce-dogfood` when:
+Use `ce-dogfood` when:
 
-- You have a branch you want driven to genuinely-ready in a real browser, not just smoke-tested
-- You want breakages *fixed and locked in with tests*, not just listed
-- You care whether the change feels right for real users, not only whether it works
-- You want a durable QA artifact for the branch
+- You want the branch exercised as a user would, not only smoke-tested
+- You want breakages fixed and locked with tests, not only listed
+- Feel for real users matters, not only pass/fail
+- You want a QA file that a later session can resume
 
 Skip it when:
 
-- The change is backend-only with no browser-visible behavior → use the project's test runner
-- You only want a quick "does it still render" check → use `/ce-test-browser`
-- `agent-browser` isn't installed → run `/ce-setup` first
-- The dev server can't be brought up locally → use a different approach
+- The change is backend-only → the project's test runner
+- You only want a quick render check → `/ce-test-browser`
+- You want to sit with the page and direct the edits → `/ce-polish`
+- `agent-browser` is missing → `/ce-setup`, then retry
+- The dev server cannot run locally
+
+---
+
+## Chain Position
+
+On-demand. Nothing in the core loop calls this. After a green (or explicitly blocked) report, ship with `/ce-commit-push-pr` if you want a PR. The skill may itself call `ce-worktree` (isolation), `ce-debug` (unclear failures), `ce-commit` (each fix), and `ce-compound` (a reusable lesson).
 
 ---
 
 ## Use Standalone
 
-- **Current branch** — `/ce-dogfood`
-- **Specific PR** — `/ce-dogfood 847`
-- **Specific branch** — `/ce-dogfood feature/new-dashboard`
-- **Custom port** — `/ce-dogfood --port 5000`
+- **Current branch:** `/ce-dogfood` (in place; refuses the trunk)
+- **PR:** `/ce-dogfood 847` (offers a worktree so this checkout stays put)
+- **Other branch:** `/ce-dogfood feature/new-dashboard` (same isolation offer)
+- **Port:** `/ce-dogfood --port 5000`
 
-The skill refuses to run on the trunk (there is no diff to dogfood) and offers to run in an isolated worktree so the main checkout stays untouched.
+A PR is always diffable against its base, so a PR whose head happens to be named `main` still runs. A bare `/ce-dogfood` on the trunk does not.
+
+If a server is already listening on the chosen port, it reuses it. Otherwise it starts `bin/dev`, `rails server`, or `npm run dev` without asking.
 
 ---
 
@@ -139,20 +155,42 @@ The skill refuses to run on the trunk (there is no diff to dogfood) and offers t
 
 | Argument | Effect |
 |----------|--------|
-| _(empty)_ | Dogfoods the current branch |
-| `<PR number>` | Checks out and dogfoods that PR |
-| `<branch name>` | Checks out and dogfoods that branch |
-| `--port <number>` | Override port detection |
+| _(empty)_ | Dogfood the current branch in place. Stops if that branch is the trunk |
+| `<PR number>` | Dogfood that PR. Offers a worktree. Never refused for a `main`-named head |
+| `<branch name>` | Dogfood that branch. Offers a worktree if you are not already on it |
+| `--port <number>` | Skip port detection |
 
-Required: `agent-browser` CLI installed (run `/ce-setup` if missing); a local dev server the skill can start.
+Required: `agent-browser` on PATH (not `npx agent-browser`), and a local dev server the skill can start or reuse. Port order matches the other browser skills: `--port`, a port already in active project instructions, `package.json`, `.env*`, then `3000`.
+
+Report path relocates with `docs_root` (see [configuration](./configuration.md)).
+
+---
+
+## FAQ
+
+**Why refuse the trunk?**
+There is no branch diff to dogfood. A PR still has a base, so `/ce-dogfood 847` is fine even when the head is `main`.
+
+**Does it always create a worktree?**
+No. Current-branch runs stay here. Isolation is offered only for a PR or a different named branch.
+
+**What if `agent-browser` is missing?**
+It stops and tells you to run `/ce-setup`, then retry the same `/ce-dogfood` arguments.
+
+**Will it rewrite product behavior?**
+Not on its own. Large, ambiguous, or product-changing issues are escalated. Small obvious bugs get a test and a commit.
+
+**What do the Blocked states mean?**
+`Blocked (needs human verify)` is an external flow waiting on you. `Blocked (human decision)` is too big to auto-fix. Resume asks about those instead of re-running them.
 
 ---
 
 ## See Also
 
-- [`ce-test-browser`](./ce-test-browser.md) — the lighter test-and-report sibling
-- [`ce-worktree`](./ce-worktree.md) — isolation offered in Phase 0
-- [`ce-debug`](./ce-debug.md) — root-cause analysis for non-obvious failures
-- [`ce-commit`](./ce-commit.md) — well-scoped commit messages for each fix
-- [`ce-compound`](./ce-compound.md) — capture reusable lessons surfaced during the pass
-- [`ce-setup`](./ce-setup.md) — reports whether `agent-browser` is available and prints the install command when missing
+- [`ce-test-browser`](./ce-test-browser.md): lighter test-and-report sibling
+- [`ce-polish`](./ce-polish.md): you drive UX on a working feature
+- [`ce-worktree`](./ce-worktree.md): isolation offered for a PR or other branch
+- [`ce-debug`](./ce-debug.md): used when a failure's cause is not obvious
+- [`ce-commit`](./ce-commit.md): each autonomous fix
+- [`ce-compound`](./ce-compound.md): reusable lessons from the pass
+- [`ce-setup`](./ce-setup.md): install `agent-browser` when it is missing

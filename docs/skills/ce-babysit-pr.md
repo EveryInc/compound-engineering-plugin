@@ -1,14 +1,18 @@
 # `ce-babysit-pr`
 
-> Watch an open PR and keep it moving toward merge. React to review feedback, CI, and base-branch movement as each arrives, and report when it *looks* ready — or, under an explicit stack posture, continue through a confirmed managed stack (and land only when you asked for land).
+> Watch an open GitHub PR and keep it moving toward merge-ready. Report when it *looks* ready. Land only if you asked.
 
-`ce-babysit-pr` is the **post-open PR watch loop**. After `/ce-commit-push-pr` opens a PR, this skill watches three independent attention streams — incoming review comments, CI status, and branch currency against the PR's base — until the PR looks merge-ready, is blocked on a human decision, or is terminal. It is a thin conductor: it does not resolve feedback or fix CI itself. It **delegates** review comments to `/ce-resolve-pr-feedback` and CI failures to `/ce-debug`, while owning the loop, ordering, dedup across ticks, settle window, safe branch maintenance, and stop decision.
+`ce-babysit-pr` is the **post-open watch**. It is a git-workflow skill, not a core-loop step. After `/ce-commit-push-pr` opens a PR, this skill watches three streams (review comments, CI, base-branch movement) until the PR looks ready, is blocked, hits a budget, or is merged/closed.
 
-**Posture scopes the run.** Default is `target` (named PR only). On a confirmed managed stack you can choose `stack-ready` (advance upstack after settle without merging) or `stack-land` (same traversal, plus authorized `gh stack merge` of the bottom-most open settled prefix). **Settled ≠ merged** — a layer can look ready while still OPEN; continuing babysit does not require landing first.
+It is a conductor. It does **not** fix comments or diagnose CI itself. Comments go to `/ce-resolve-pr-feedback`. Real CI failures go to `/ce-debug`. This skill owns the loop, the order, dedup across ticks, the settle window, bounded branch maintenance, and the stop.
 
-**It cannot guarantee merge-readiness, and does not pretend to.** A reviewer can always add feedback later; required checks can change. Under `target` and `stack-ready` the skill drives toward ready and leaves the merge yours. Under `stack-land`, selecting that posture *is* land authorization for the managed prefix. The safety judgment for "would this fix change behavior I intended?" lives in `/ce-resolve-pr-feedback` (which escalates such fixes to `needs-human`), so the babysit loop can run autonomously without silently changing intended behavior.
+That is the contrast with `/ce-resolve-pr-feedback`, which is a one-pass "fix the comments now" skill. Use that when you want a single round you watch. Use this when you want the PR driven over time.
 
-The compound-engineering shipping chain is `/ce-work → /ce-commit-push-pr → (reviewers comment) → /ce-resolve-pr-feedback`. `ce-babysit-pr` sits **on top of** that last step, invoking it on a schedule instead of by hand, and interleaving CI fixes.
+**Posture** sets the scope. Default is `target` (the named PR only). On a confirmed managed stack you can choose `stack-ready` (advance upstack after settle, no merge) or `stack-land` (same walk, plus `gh stack merge` of the bottom-most open settled prefix). **Settled is not merged.** A layer can look ready and still be OPEN.
+
+It cannot promise merge-readiness. A reviewer can still comment later. Required checks can change. Under `target` and `stack-ready`, you merge. Selecting `stack-land` *is* land authorization for that managed prefix.
+
+GitHub only, including GitHub Enterprise that `gh` is configured for.
 
 ---
 
@@ -16,156 +20,157 @@ The compound-engineering shipping chain is `/ce-work → /ce-commit-push-pr → 
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Watches an open PR (or confirmed managed stack under posture) and keeps it moving toward merge-ready, reacting to review comments, CI, and base-branch movement |
-| When to use it | After a PR is open and you want it moved toward merge hands-off (offered automatically at the end of `/ce-commit-push-pr`); use stack postures when you own a managed stack |
-| What it produces | Delegated fixes (feedback + CI), surfaced human-decision escalations, layer transitions under stack posture, and a high-level summary |
-| How it does work | Delegates comments to `/ce-resolve-pr-feedback` and CI to `/ce-debug`; owns bounded branch-currency maintenance, posture, and the loop |
-| Modes | Self-sustaining in-session watch (default) or Checkpoint; postures `target` / `stack-ready` / `stack-land` |
+| What does it do? | Watches an open PR (or a confirmed managed stack) and reacts to comments, CI, and base movement |
+| When to use it | A PR is open and you want it driven toward merge without handling each round yourself |
+| What it produces | Delegated comment and CI fixes, surfaced `needs-human` items, optional stack-layer moves, and an outcome-first summary |
+| How it works | Delegates comments to `/ce-resolve-pr-feedback` and CI to `/ce-debug`. Owns the loop, posture, and stop. |
+| Modes | In-session watch (default) or Checkpoint. Postures: `target` / `stack-ready` / `stack-land`. |
 
 ---
 
 ## Example invocations
 
+Empty invoke watches the current branch's PR. A number or URL pins the PR. `watch` / `checkpoint` force the loop style. `posture:` is separate from that.
+
 ```text
-# Watch the pull request for the current branch until it is ready or blocked
+# Current branch's PR. In-session watch if the harness can wake you; else one checkpoint tick.
 /ce-babysit-pr
 
-# Watch a specific pull request by number or URL
+# Named PR
 /ce-babysit-pr 1234
 /ce-babysit-pr https://github.com/acme/widgets/pull/1234
 
-# Run one checkpoint tick and return a copyable resume command
+# One tick, persist, print the exact resume command. Monitoring is paused.
 /ce-babysit-pr 1234 checkpoint
 
-# Own a confirmed managed stack through merge-ready (no auto-merge)
+# Force the in-session watch even if the harness would have picked checkpoint
+/ce-babysit-pr 1234 watch
+
+# Cap the active-time budget (default is 8 hours of active watch time)
+/ce-babysit-pr 1234 2 hours
+
+# Confirmed managed stack: after settle, continue upstack. Do not merge.
 /ce-babysit-pr posture:stack-ready
 
-# Own the stack and land settled prefixes when green
+# Same walk, and land the settled prefix when green
 /ce-babysit-pr posture:stack-land
 ```
+
+For a single pass over comments you want to watch yourself, use `/ce-resolve-pr-feedback` instead.
 
 ---
 
 ## The Problem
 
-Babysitting a PR by hand — or with a naive loop — fails in predictable ways:
+Hand-babysitting, or a naive loop, usually fails in the same ways:
 
-- **Serialized timelines** — the common mistake is "wait for the whole CI run, *then* read comments." That burns an entire CI cycle per round. A comment fix pushes a new commit that re-triggers CI anyway, so comments should be handled *while CI runs*.
-- **Premature "ready to merge"** — CI goes green, the loop declares victory, and then review feedback lands. You go to merge and find surprises.
-- **Reinventing engines** — a monolithic babysitter re-implements feedback resolution and CI debugging that already exist as dedicated skills, and drifts from them.
-- **Loops that don't survive the harness** — an in-session `sleep` loop can't run in a GUI app harness that sandboxes the turn, and Claude Code blocks foreground `sleep` outright.
-- **Opaque endings** — the run stops and you're not sure what it did, or it dumps a wall of per-thread receipts you have to wade through.
+- Wait for the whole CI run, *then* read comments. A comment fix pushes and retriggers CI, so that wait burned a cycle
+- CI goes green, the loop says ready, and review lands after
+- The watcher reimplements feedback resolution and CI debugging, then drifts from those skills
+- An in-session `sleep` loop cannot run in a sandboxed GUI harness, and Claude Code blocks foreground `sleep`
+- The run stops and you cannot tell what it did, or you get a wall of per-thread receipts
 
 ## The Solution
 
-`ce-babysit-pr` runs as a **stateless, resumable tick**, driven by whatever background-and-wake capability the current harness actually has:
+Each tick is stateless and resumable from disk. The harness only has to wake the agent when something changed.
 
-- **Comments-first ordering with stale-SHA cancellation** — each tick handles new review threads before CI; after the comment pass it re-snapshots, and if that pass pushed a commit it discards the now-stale CI failure rather than fixing a dead SHA.
-- **Delegation, not reimplementation** — `/ce-resolve-pr-feedback` for comments, `/ce-debug` for real CI failures (dispatched once per new failure signature, never every poll). The only inline CI logic is cheap flaky-vs-real classification to decide *which* skill to call.
-- **Bounded branch-currency maintenance** — an eligible PR that falls behind its normal base becomes a third attention stream. The skill may converge it automatically only when the update mechanically preserves the PR's established intent; any reasonably disputable resolution becomes a sticky `needs-human` residual instead.
-- **A settle window with a bounded stalled-review path** — "looks ready" requires GitHub to report the PR mergeable (`mergeStateStatus == CLEAN`), no open feedback, and enough elapsed quiet time. A review signal that persists or disappears without completion gets a 15-minute minimum, one evidence-backed extension, and a 30-minute ceiling rather than blocking forever.
-- **A bounded review drain when CI needs maintainer approval** — approval-gated CI blocks readiness but not independent review. Interactive watches automatically drain review for 5 minutes with no lifecycle, 15 minutes with one in flight, or 30 minutes when prior-round timing supports it, then hand back instead of stopping immediately or watching indefinitely. Pipeline mode still returns the external blocker immediately.
-- **A self-sustaining in-session watch (the default)** — a token-free background change-detector (`pr-snapshot watch`) wakes the agent *in-session* only when something actionable changes, so the loop keeps every decision the conversation made. Where the harness has no background-and-wake capability, it falls back to checkpoint (one tick + the exact resume command).
-- **One authoritative watcher** — a newer invocation cancels any older invocation still preflighting, but takes active ownership only after its own first snapshot succeeds; it then promptly stops the prior watcher. Wakes carry a persisted generation, so delayed notifications from a superseded process are coalesced against a fresh snapshot without resetting the session or settle clocks.
-- **A fully paginated source of truth** — `pr-snapshot` follows the review-thread connection through its final page. One-shot diagnostic queries such as `reviewThreads(first:50)` never override that canonical snapshot.
-- **A high-level final summary** — outcome first, grouped and counted, no receipts.
-- **Run posture for managed stacks** — `target` stops at the named PR (with one optional stack-wide offer); `stack-ready` continues upstack after settle without merging; `stack-land` continues and merges the bottom-most open settled prefix via `gh stack merge` + sync.
+- **Comments first.** New review threads and non-thread comments are handled before CI. After that pass, if a commit was pushed, the old CI failure is against a dead SHA and is skipped
+- **Delegation.** `/ce-resolve-pr-feedback` for comments, `/ce-debug` for real failures (once per new signature). The only inline CI work is a cheap flaky-vs-real split
+- **Bounded branch currency.** A PR that falls behind its normal base can be updated only when the result mechanically preserves the PR's intent. A disputable conflict becomes a sticky `needs-human`
+- **Settle window.** "Looks ready" needs GitHub `CLEAN`, no open feedback, no parked `needs-human`, and enough quiet time. A started-but-unfinished review waits at least 15 quiet minutes and at most 30
+- **In-session watch by default.** `pr-snapshot watch` polls with no agent tokens and prints `BABYSIT_WAKE` only on an actionable change. If the harness cannot background-and-wake, the skill runs one checkpoint tick and prints the resume command
+- **Posture for confirmed managed stacks.** `target` stops at the named PR. `stack-ready` continues upstack without merging. `stack-land` continues and lands the settled prefix
+
+A `needs-human` item blocks the ready call. It does **not** end the watch. New comments and CI still get handled.
 
 ---
 
 ## What Makes It Novel
 
-### 1. Comments-before-CI, then cancel the stale SHA
+### Comments before CI, then drop the stale SHA
 
-The ordering invariant is the point of the skill. Within a tick: terminal check → resolve new comments → **re-snapshot** → only then act on CI, and only if the comment pass didn't already push (which would have re-triggered CI on a new SHA). A CI fix is never applied against a pre-comment SHA. This collapses the comment and CI timelines instead of serializing them.
+Within a tick: terminal check, then comments, then re-check the head SHA, then CI only if that SHA did not move. A CI fix is never applied against a pre-comment commit.
 
-### 2. Stateless, resumable tick — one loop, any driver
+The same rule applies to an in-progress review (an 👀 or a "reviewing…" note). Already-posted comments are handled immediately. The signal only withholds the "looks ready" call.
 
-All state lives on disk (`/tmp/compound-engineering-<effective-uid>/ce-babysit-pr/<owner>-<repo>-<pr>/state.json`), so a tick is idempotent and any re-invocation drives it: an in-session background-and-wake wait, `/loop`, a durable scheduler, or the user re-running the skill an hour later. This is what makes a single authored-once skill portable across CLI and app harnesses — the loop mechanics don't depend on any one driver that may not exist.
+### One tick, any driver
 
-### 3. A self-sustaining in-session watch, not a per-harness scheduler
+State lives under `/tmp/compound-engineering-<effective-uid>/ce-babysit-pr/<host>-<owner>-<repo>-<pr>/`. A later invoke, a checkpoint resume, or a durable scheduler all drive the same tick. That is why the skill can run in a CLI session or fall back in a GUI harness that cannot keep a background wait.
 
-A skill's turn ends when it returns, so *the skill sets up its own loop* — nothing re-invokes it by magic. The robust, cross-harness-verified way is **not** to call a specific scheduler; it is to background a cheap deterministic change-detector — `pr-snapshot watch` (same fetch→diff, **no agent tokens**, prints one `BABYSIT_WAKE` sentinel *only* on an actionable change or a stop condition) — and **stay in-session**, woken by that sentinel. The one capability needed is generic — *run a background process and be woken when it emits a line, without ending the turn* — so the skill **describes the capability and uses whatever tool the harness exposes** (Claude Code background `Bash` + a `Monitor`/wait, Grok `get_command_or_subagent_output` or `scheduler_create --durable`, Cursor `Shell` + `notify_on_output`, a runtime-owned background exec on Codex — a detached `nohup` is reaped there). Staying in-session is what preserves the conversation's decisions — declined nits, a reviewer judged wrong, mid-run steering — and spends reasoning only when something changed. Where no such capability exists, it falls back to **checkpoint**: one tick, persist, print the resume command, say plainly monitoring is *paused* — the same loop, hand-cranked. For an unattended multi-day watch, escalate to a durable scheduler (Grok `scheduler_create --durable`, or cron running `<cli> exec "/ce-babysit-pr <url>"`), accepting that a fresh headless run reconstructs from disk and is context-blind.
+Default budget is **8 hours of active watch time** (laptop-sleep gaps are excluded). A **3-calendar-day** wall-clock backstop caps every run. You can pass a shorter duration at invoke.
 
-### 4. Quiet time bounds unreliable bot signals
+### Looks ready is a cooling-off judgment
 
-The skill does not maintain a brittle per-bot format matrix, but it does preserve whether an in-progress signal appeared on the current head. If 👀 persists or disappears without a completion marker, the lifecycle remains incomplete: the first stale judgment comes after 15 quiet minutes, concrete timing from earlier rounds may justify one extension, and 30 quiet minutes after the last observable movement is the terminal ceiling. Any new comment, signal transition, check change, or head resets quiet time. The result is still a **cooling-off judgment, not a guarantee**, so the skill reports "cautiously looks ready" and explains the stalled reviewer rather than claiming approval.
+Ready is not "CI is green." GitHub must report the PR mergeable against the current base, the attention set must be empty, and the quiet window (default 5 minutes when no review signal was seen) must have elapsed. An incomplete review lifecycle uses the 15 / 30 minute bounds above. Even then the summary says "looks ready, your call" or "cautiously looks ready."
 
-When a fork PR's CI is waiting for base-repository maintainer approval, the same evidence ladder bounds a separate head-scoped review drain. The detector keeps polling at the active cadence, wakes immediately for new feedback or a lifted gate, and resets only for external review or head movement—not unrelated check/base changes. Once that drain expires, the skill reports that all observed feedback was handled, CI still has not run, and monitoring has stopped with a resume invocation. It never approves the workflow run itself.
+When a fork PR's CI is waiting on maintainer approval, the skill drains review for a bounded window (5, 15, or 30 minutes) and then hands back. It never approves the workflow run. Pipeline mode returns that blocker immediately.
 
-### 5. Branch currency preserves intent, not merely a green merge box
+### Posture is a run value, not a keyword guess
 
-For each unchanged head/base/status observation, the skill claims at most one autonomous branch-changing repair and then confirms the result from remote truth. If a run is interrupted or the result is ambiguous, the next run reconciles what actually happened instead of blindly repeating the operation. One retry is available only when the skill can prove that neither local nor remote state changed.
-
-The two repair paths have different authority. A `BEHIND` PR can use the hosting service's ordinary branch-update capability when that capability is positively reported. A conflicted `DIRTY` PR requires separate proof that the authenticated Git route can push normally to the exact PR head, plus a clean preview against the exact observed base. Host update capability is not proof of direct push authority.
-
-Automatic conflict resolution is limited to cases with one answer fixed by the PR's intent, tests, or an authoritative generated source. If two reasonable behaviors remain, the skill aborts the preview and parks the conflict as `needs-human`, explaining the competing intents and decision needed. That residual stays merge-blocking across restarts and unrelated base movement; it reopens automatically only when the head, route, status, or conflict itself materially changes.
-
-### 6. Claim → act → confirm (crash-safe dedup)
-
-The snapshot never marks an item handled just from *observing* it. An item leaves the actionable set only when the agent confirms it acted (a `mark` after a resolve/debug pass) or when remote truth removes it (a resolved thread drops out of the unresolved fetch). So a resolve pass that crashes, errors, or returns without finishing leaves its items actionable on the next tick — the loop cannot silently drop work. A failing check stays actionable until marked dispatched at the current head; a new head SHA clears that, re-evaluating every check against the new commit. New activity on an escalated thread (an edited or added comment) reactivates it automatically.
-
-### 7. A trustworthy ending
-
-Every stop and every checkpoint tick ends with an outcome-first summary — looks-ready / cautiously looks-ready / blocked / paused, then grouped-and-counted work (threads resolved across N rounds, CI failures fixed, branch maintenance performed), then the specific blocker or resume command. No per-thread receipts. Crucially, it surfaces the **judgment calls** — where the loop did something other than the literal ask, where a reviewer signal stalled, or where branch movement could not be resolved mechanically — with a one-line why, while routine changes stay in the aggregate count. You see the decisions made on your behalf, not a transcript of every edit.
-
-### 8. Posture — continue without merge, land only when asked
-
-On a confirmed managed stack (`manager_status == "confirmed"`), posture is a first-class run value, not a keyword guess:
+Only a fresh probe with `manager_status == "confirmed"` activates stack-wide continuation. A manual base/head chain never does.
 
 | Posture | Behavior |
 |---------|----------|
-| `target` | Named PR only. Stop at looks-ready. May offer once to continue upstack; decline keeps the target-local stop. Never merges. |
-| `stack-ready` | After settle, continue to the next open non-draft upstack layer that needs work. Never merges. |
-| `stack-land` | Like `stack-ready`, plus run-level land auth: after settle, `gh stack merge` the bottom-most open settled PR, then `gh stack sync`, then continue. |
+| `target` | Named PR only. Stop at looks-ready. May offer once to continue upstack. Never merges. |
+| `stack-ready` | After settle, continue to the next open non-draft layer that needs work. Never merges. |
+| `stack-land` | Like `stack-ready`, plus `gh stack merge` of the bottom-most open settled PR, then `gh stack sync`. |
 
-Settled layers stay OPEN under `stack-ready`. Just-landed `MERGED` under `stack-land` is a layer transition, not a whole-run terminal stop. Manual dependency chains never activate stack-wide continuation.
+A just-landed `MERGED` under `stack-land` is a layer transition, not the end of the whole run.
+
+---
+
+## Quick Example
+
+`/ce-commit-push-pr` opens PR #1234 and hands off. `/ce-babysit-pr` confirms GitHub, checks out the PR head, and starts `pr-snapshot watch`.
+
+A review bot posts three inline threads while CI is still running. The next tick sends them to `/ce-resolve-pr-feedback`, which fixes two and parks one as `needs-human`. That push invalidates the in-flight CI SHA, so the skill does not debug the old failure.
+
+New CI comes back red on a real test. `/ce-debug` fixes and pushes. Base moves; the PR is `BEHIND`. Host branch-update succeeds because the merge is mechanical.
+
+The parked thread still blocks "ready." A reviewer answers it. The next tick resolves the rest, waits out the settle window, and reports looks-ready. You merge.
 
 ---
 
 ## When to Reach For It
 
-Reach for `ce-babysit-pr` when:
+Use `ce-babysit-pr` when:
 
-- A PR is open and you want it driven toward merge without hand-holding each round
-- You're about to context-switch away but want CI failures and review comments handled as they come in
-- `/ce-commit-push-pr` just opened a PR and offered the babysit handoff
-- You own a confirmed managed stack and want sequential babysit (`stack-ready`) or land-when-green (`stack-land`)
+- A PR is open and you want it driven toward merge without handling each round
+- You are about to context-switch and still want comments and CI handled
+- `/ce-commit-push-pr` just opened a PR (handoff is the default)
+- You own a confirmed managed stack and want `stack-ready` or `stack-land`
 
 Skip it when:
 
-- The repo is **not on GitHub** — the skill is GitHub-only (it and its delegates use `gh`, review threads, and Actions). It detects a non-GitHub remote (GitLab, Bitbucket) up front and stops rather than half-running.
-- No PR exists yet, or the PR is already merged/closed
-- You want to review and approve each fix yourself before it's pushed — use `/ce-resolve-pr-feedback` directly, one pass at a time
-- The only issue is a single known bug to fix — use `/ce-debug`
-
-**Platform support.** GitHub only today. GitLab is mappable in principle — `glab`, merge requests, MR discussions (`resolvable`/`resolved`), pipelines, and `detailed_merge_status` are clean equivalents — but it would require `glab`-based variants in *both* `pr-snapshot`'s `fetch` layer and `ce-resolve-pr-feedback`'s resolve scripts, and hasn't been built or tested. The platform-specific seam is `pr-snapshot`'s `fetch`/`fetch_threads`; a future GitLab path would swap those behind a platform flag.
+- The remote is not GitHub (GitLab, Bitbucket). The skill stops up front rather than half-running
+- No PR exists, or the PR is already merged or closed
+- An automatic handoff landed on a draft. A direct invoke that resolves to that draft is fine; `watch` / `checkpoint` also arms it
+- You want to approve each fix before it is pushed -> `/ce-resolve-pr-feedback` one pass at a time
+- The only issue is one known bug -> `/ce-debug`
 
 ---
 
-## Use as Part of the Workflow
+## Chain Position
+
+On-demand, after a PR exists.
 
 ```text
-/ce-work → /ce-commit-push-pr → /ce-babysit-pr
-                                     ├── new review comments → /ce-resolve-pr-feedback
-                                     ├── real CI failure      → /ce-debug
-                                     └── base branch moved    → bounded branch maintenance
+/ce-work  ->  /ce-commit-push-pr  ->  /ce-babysit-pr
+                                       |-- new comments -> /ce-resolve-pr-feedback
+                                       |-- real CI      -> /ce-debug
+                                       |-- base moved   -> bounded branch maintenance
 ```
 
-It complements:
-
-- **`/ce-resolve-pr-feedback`** — the engine `ce-babysit-pr` calls for each round of comments; run it directly when you want a single manual pass
-- **`/ce-debug`** — the engine `ce-babysit-pr` calls for genuine CI failures
-- **`/ce-commit-push-pr`** — opens the PR and offers the babysit handoff
+Use `/ce-resolve-pr-feedback` directly when you want one manual pass. Use this skill when you want that pass (and CI, and base movement) repeated until ready.
 
 ---
 
 ## Use Standalone
 
-- **Current branch's PR** — `/ce-babysit-pr`
-- **Specific PR** — `/ce-babysit-pr 1234` or `/ce-babysit-pr <PR-url>`
-- **Force a mode** — `/ce-babysit-pr 1234 checkpoint` (or `watch`)
-- **Stack postures** — `/ce-babysit-pr posture:stack-ready` or `posture:stack-land`
+- Current branch: `/ce-babysit-pr`
+- Specific PR: `/ce-babysit-pr 1234` or a URL
+- One tick: `/ce-babysit-pr 1234 checkpoint`
+- Stack: `/ce-babysit-pr posture:stack-ready` or `posture:stack-land`
 
 ---
 
@@ -173,46 +178,44 @@ It complements:
 
 | Argument | Effect |
 |----------|--------|
-| _(empty)_ | Current branch's PR, mode inferred from harness capability |
+| _(empty)_ | Current branch's PR. Mode from harness capability. Posture `target`. |
 | `<PR number or URL>` | That PR |
 | `watch` / `checkpoint` | Force the execution mode |
-| `posture:target\|stack-ready\|stack-land` | Run scope for confirmed managed stacks (default `target` when unnamed / no stack language) |
+| `<duration>` | Active-time budget (default 8 hours). Example: `2 hours`. |
+| `posture:target\|stack-ready\|stack-land` | Run scope on a confirmed managed stack |
+| `mode:pipeline` | Bounded synchronous ticks for an orchestrator. No settle wait. Structured return. |
 
-`scripts/pr-snapshot` is the deterministic snapshot + state helper: it fully paginates review threads, fetches review, CI, and branch-currency state, reads/writes state atomically under a lock, and emits the per-tick actionable set with `quiet_seconds` for the settle window. Its `watch` subcommand is the token-free change-detector that backs the in-session loop. Watch ownership is latest-valid-wins: a successfully prefetched replacement records a new `watch_generation`, terminates its predecessor, and becomes the only process allowed to persist polls or emit `BABYSIT_WAKE`. Queued wakes from older generations are stale hints to refresh, not independent work, and handoff preserves the original session and settle clocks. `references/watch-loop.md` documents how the watch sustains itself, the state schema, dedup identities, settle window, and edge cases.
+`scripts/pr-snapshot` is the snapshot and state helper: it paginates review threads, records CI and branch currency, and emits the per-tick attention set. Its `watch` subcommand is the token-free change detector. A newer successful invoke takes ownership; older wakes are stale hints. Details live in the skill's `references/watch-loop.md`.
 
 ---
 
 ## FAQ
 
-**Does it merge the PR for me?**
-Under `target` and `stack-ready`, no — it keeps the PR moving and tells you when it *looks* ready; the merge stays yours (for managed stacks it prints the exact `gh stack merge` command when ready-as-next). Under `stack-land`, selecting that posture authorizes landing the bottom-most open settled prefix via `gh stack merge` + sync. It cannot guarantee no further feedback is coming.
+**Does it merge the PR?**
+Under `target` and `stack-ready`, no. It tells you when the PR *looks* ready. For a managed stack it prints the exact `gh stack merge` command when ready-as-next. Under `stack-land`, that posture authorizes landing the bottom-most open settled prefix via `gh stack merge` + sync.
 
-**Why not just wait for CI, then handle comments?**
-Because a comment fix pushes a commit that re-triggers CI anyway. Handling comments while CI runs collapses the two timelines; waiting serializes them and wastes a full CI cycle per round.
+**Why not wait for CI, then handle comments?**
+A comment fix pushes and retriggers CI. Handling comments during the run collapses the two timelines.
 
-**How does it avoid the "green, then surprise feedback" trap?**
-It never calls a PR ready on a single green snapshot. It requires the PR to be unchanged for a settle window (default 5 min when no review signal was observed) *and* GitHub to report it mergeable. A started-but-unfinished review gets at least 15 quiet minutes and at most 30; late activity resets the clock. Even then it says "looks ready, your call" or "cautiously looks ready" — never a promise that no review is coming.
+**How does it avoid "green, then surprise review"?**
+It never calls ready on one green snapshot. It needs `CLEAN`, an empty attention set, and a settle window. A started review gets 15 to 30 quiet minutes. Late activity resets the clock. The wording stays "looks ready, your call."
 
 **Does it run forever in the background?**
-By default it runs a **self-sustaining in-session watch**: a token-free background change-detector (`pr-snapshot watch`) wakes it only when something actionable changes, so it keeps watching without burning reasoning on quiet polls — but it's session-bound (re-invoking resumes cleanly from disk). Where the harness has no background-and-wake capability, it falls back to **checkpoint** — one tick, then the resume command — and for an unattended multi-day watch you escalate to a durable scheduler (e.g. Grok `scheduler_create --durable`, or cron). It never fakes a loop with blocked/foreground sleep or a reaped `nohup`.
+The default is an in-session watch: a token-free detector wakes the agent only when something changed. Close the session and re-invoke to resume from disk. For a multi-day unattended watch, use a durable scheduler (or cron running the resume command). It never fakes a loop with foreground `sleep`.
 
-**Does it fix CI failures itself?**
-It classifies cheaply (flaky → one rerun; real failure → `/ce-debug`) but delegates the actual diagnosis and fix to `/ce-debug`, and comment fixes to `/ce-resolve-pr-feedback`. It doesn't reimplement either.
+**Does it fix CI itself?**
+It classifies (flaky -> one rerun; real -> `/ce-debug`) and delegates. Comments go to `/ce-resolve-pr-feedback`.
 
 **What about merge conflicts?**
-For an eligible PR against a normal base branch, it first previews the exact observed base without changing the PR. It can complete the merge only when every conflict has one mechanically determined answer that preserves the PR's established intent, and when normal push authority to the exact head is positively known. Otherwise it aborts and reports a sticky `needs-human` decision with the competing intents in plain language. It never rebases or force-pushes.
+It previews the exact observed base first. It completes a merge only when every conflict has one mechanical answer that preserves the PR's intent, and when push authority to that head is known. Otherwise it parks a `needs-human`. It never rebases or force-pushes. Managed stacks stay on the manager's restack path.
 
-Managed stacks stay on their manager's refresh/restack path; the ordinary branch-maintenance route does not restructure them. A manual dependency target with an open parent is also excluded. An eligible root may still have open child dependents, but the skill updates only the target: it never rebases, rewrites, or mutates those child heads, and it reports any dependent that becomes stale.
-
-**What happens when the base branch keeps moving?**
-Each distinct head/base/status observation has a bounded claim-and-reconcile lifecycle, not a wall-clock guess or lifetime update limit. Routine movement can converge automatically many times over a long watch, but the same unchanged observation cannot trigger repeated branch-changing attempts across restarts. A parked semantic conflict remains parked when unrelated base commits do not change the conflict itself, and the final summary explains what was observed, what was automated, and what decision is still needed.
-
-For a behind PR, the host update itself carries the claimed head SHA as a precondition. If another actor pushes first, GitHub rejects the stale operation instead of applying it to the newer head, and the skill re-snapshots before deciding what remains.
+**What happens when the base keeps moving?**
+Each distinct head/base/status observation has a bounded claim-and-confirm cycle. Routine movement can be applied many times. The same unchanged observation is not retried across restarts. A parked semantic conflict stays parked when later base commits do not change the conflict.
 
 ---
 
 ## See Also
 
-- [`ce-resolve-pr-feedback`](./ce-resolve-pr-feedback.md) — the per-round feedback engine this skill calls
-- [`ce-debug`](./ce-debug.md) — the CI-failure engine this skill calls
-- [`ce-commit-push-pr`](./ce-commit-push-pr.md) — opens the PR and offers the babysit handoff
+- [`/ce-resolve-pr-feedback`](./ce-resolve-pr-feedback.md): the per-round comment engine this skill calls
+- [`/ce-debug`](./ce-debug.md): the CI-failure engine this skill calls
+- [`/ce-commit-push-pr`](./ce-commit-push-pr.md): opens the PR and offers this handoff
