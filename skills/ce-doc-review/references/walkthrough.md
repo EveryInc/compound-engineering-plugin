@@ -8,7 +8,7 @@ Interactive mode only.
 
 ## Grouped confirmation (fires before routing)
 
-Synthesis step 3.7 sends every finding with a concrete fix that touches meaning — plus obligations and peer-only findings — to the grouped confirmation. These are settled: each has one sensible remedy, so the reader is not choosing between alternatives. What they get is a look before it lands.
+Synthesis step 3.7 sends every finding with a concrete fix that touches meaning — plus obligations, and peer-only findings it diverted out of Apply — to the grouped confirmation. These are settled: each has one sensible remedy, so the reader is not choosing between alternatives. What they get is a look before it lands.
 
 **This fires after the applied changes and before the routing question, and it is the only place the batch is applied.** The routing question below covers the decision surface only. A run that reaches routing without asking this leaves the whole batch unapplied after showing it as awaiting one answer — the failure this step exists to prevent.
 
@@ -65,7 +65,7 @@ D. Report only — take no further action
 
 The per-finding `(recommended)` labeling lives inside the walk-through (option A) and the bulk preview (options B/C), where it's applied per-finding from synthesis step 3.5b's `recommended_action`. The routing question itself does not recommend one of A/B/C/D because the right route depends on user intent (engage / trust / triage / skim), not on the finding-set shape — a rule that mapped finding-set shape to routing recommendation (e.g., "most findings are Apply-shaped → recommend best-judgment") would pressure users toward automated paths in ways that conflict with the user-intent framing.
 
-If nothing remains in the decision surface — everything else applied, answered in the grouped confirmation, or landed in the FYI subsection — skip the routing question entirely and flow to the Phase 5 terminal question. An answered grouped confirmation does not warrant a routing question of its own.
+If nothing remains in the decision surface — everything else applied, answered in the grouped confirmation, or landed in the FYI subsection — skip the routing question entirely. An answered grouped confirmation does not warrant a routing question of its own. **Skipping routing never skips the completion report:** emit the unified report, then flow to the Phase 5 terminal question. A run whose whole outcome was a grouped confirmation still applied or skipped real findings, and the report is the only place the reader sees which — jumping straight to Phase 5 ends it with no record of what happened to them.
 
 **Append-availability adaptation.** When `references/open-questions-defer.md` has cached `append_available: false` at Phase 4 start (e.g., read-only document, unwritable filesystem), option C is suppressed from the routing question because every per-finding Defer would fail into the open-questions failure path. The menu shows three options (A / B / D) and the stem appends one line explaining why (e.g., `Append to Open Questions unavailable — document is read-only in this environment.`). This mirrors the per-finding option B suppression described under "Adaptations" below — both routing-level and per-finding Defer paths share the same availability signal so the user never sees Defer surfaced at one level and omitted at the other.
 
@@ -328,7 +328,9 @@ Failures first (above the per-finding list), then per-finding entries grouped by
 
 ### Zero-findings degenerate case
 
-When the routing question was skipped because the applied changes left nothing in the grouped confirmation or the decision surface, the completion report collapses to its summary-counts + verdict form with one added line — the count of fixes applied. The summary wording:
+This collapsed form applies **only** when the applied changes left nothing in either the grouped confirmation or the decision surface — nothing was ever put to the reader. A run where the batch was non-empty and the decision surface was not is **not** this case: the reader answered a confirmation, and findings were applied or skipped as a result, so it takes the **full** report with its applied and skipped entries, counts, failures, Coverage, and verdict. Collapsing there would drop the only record of what the confirmation did.
+
+In the genuine zero case the completion report collapses to its summary-counts + verdict form with one added line — the count of fixes applied. The summary wording:
 
 No FYI or residual concerns:
 
