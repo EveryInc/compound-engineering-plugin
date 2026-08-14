@@ -72,8 +72,13 @@ PATH — and cross-host per the repo's eval default: Claude Code AND Codex.
    `safe_auto`. Also assert the promotion
    path is capped: a **peer-only** `manual` finding at confidence 100 with a
    mechanically-implied `suggested_fix` is **not** promoted to `safe_auto` by 3.6
-   (nor silently applied by 3.7) — it caps at `gated_auto` unless an in-process
-   reviewer independently raised the same finding (merged twin in 3.3).
+   nor silently applied by 3.7, unless an in-process reviewer independently raised
+   the same finding (merged twin in 3.3). Assert the cap withholds *apply
+   authority only*: a peer-only `manual` finding **stays `manual` on the decision
+   surface** and is not demoted into the grouped confirmation, since `Apply all`
+   would otherwise sweep a genuine choice — and a `manual` finding may carry no
+   `suggested_fix` to apply at all. Only a peer-only finding the table would have
+   sent to Apply is diverted to the batch.
 
 8. **Announce by mode (R12).** Interactive host, default mode → before egress, a
    prominent line names the requested target, fixed route/intermediaries,

@@ -1,6 +1,6 @@
 # Per-finding Walk-through
 
-This reference defines Interactive mode's per-finding walk-through — the path the user enters by picking option A (`Review each finding one by one — accept the recommendation or choose another action`) from the routing question, plus the unified completion report that every terminal path (walk-through, best-judgment, Append-to-Open-Questions, zero findings) emits.
+This reference defines Interactive mode's per-finding walk-through — the path the user enters by picking option A (`Review each finding one by one — accept the recommendation or choose another action`) from the routing question, plus the unified completion report that every terminal path emits: walk-through, best-judgment, Append-to-Open-Questions, a grouped confirmation that left no decision surface behind it, and the zero-findings case. Only the last of those takes the collapsed form — a run that answered a real confirmation writes the full report, because findings were applied or skipped and that report is the only record of which.
 
 Interactive mode only.
 
@@ -41,6 +41,8 @@ C. Apply none of them
 After the applied changes land, the grouped confirmation is answered, and synthesis produces the remaining decision surface, the orchestrator asks a four-option routing question before any walk-through or bulk action runs.
 
 **Same-turn presentation before routing (required).** Before firing the routing question, emit the Interactive Phase 4 presentation (`references/review-output-template.md`) as user-visible assistant text **in the same turn**. Content composed only in hidden thinking or reasoning does not count — same bar as the Preview event in `references/bulk-preview.md`. If that presentation event has not occurred in this turn, do not invoke the blocking-question tool.
+
+**Render current state, not the state before the confirmation.** Answering the grouped confirmation ends a turn, so this presentation is a fresh render — and the batch is settled by the time it runs. Members the reader applied belong in the applied-changes list; members they skipped are reported as skipped; neither is re-rendered under Proposed fixes, and nothing is summarized as "awaiting one confirmation" when the confirmation already happened. What remains under discussion is the decision surface, which is what the routing question is about. Reprinting the pre-confirmation batch here shows the reader stale state at the exact moment they are choosing a route.
 
 These do **not** satisfy the invariant:
 

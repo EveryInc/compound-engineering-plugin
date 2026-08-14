@@ -109,8 +109,9 @@ each of those inherits by default.
 
 ## Obligation blocks
 
-An **obligation** (synthesis step 3.7) is a correction the reviewed document already entails. It carries
-no recommendation, because there is no decision to make — so it takes the token policy and
+An **obligation** (synthesis step 3.7) is a correction the reviewed document already entails *and for
+which a fix exists* — one with no fix written stays a decision, since the line below has no change to
+name. It carries no recommendation, because there is no decision to make — so it takes the token policy and
 consequence-first phrasing, and **not** the full field order above. This is the same treatment a
 persisted Open Questions entry gets, and for the same reason.
 
