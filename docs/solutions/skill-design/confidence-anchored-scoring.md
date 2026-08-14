@@ -198,7 +198,7 @@ Apply the full bundle (anchored rubric + validation pass + mode-aware demotion +
 3. The skill is invoked frequently enough that wasted runs are visible (skip-conditions are pure win in this case; modest cost in low-volume cases).
 
 Apply only the **anchored rubric** (the ce-doc-review subset) when:
-- The skill is single-shot or dismissal is cheap via UI/menu — validation pass adds cost without protecting anything that wasn't already going to be triaged by a human.
+- The skill is single-shot, or a human triages every finding before anything acts on it — a validation pass adds cost without protecting anything that was not already going to be reviewed. (This condition used to read "dismissal is cheap via UI/menu"; see the correction above — a menu offering Skip does not make a surfaced finding cheap.)
 - The skill operates on premise/strategy claims that lack ground-truth verification — anchor 100 is unreachable; threshold should be `>= 50`.
 
 Skip the entire pattern when:

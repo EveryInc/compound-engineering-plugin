@@ -30,7 +30,7 @@ Gate findings by their `confidence` anchor value. Anchors are discrete integers 
 - **FYI-subsection** (anchor `50`): surface in the presentation layer's FYI subsection regardless of `autofix_class`. These do not enter the walk-through or any bulk action — observational value without forcing a decision. Advisory observations ("nothing breaks, but...") naturally land here.
 - **Actionable** (anchors `75` and `100`): enter the classification pipeline. Route by `autofix_class` (see 3.7).
 
-**Why the actionable floor sits at `50`:** A planning document has no linter behind it — this review is the only automated check it gets, which inverts code review's economics. Premise-level concerns (product-lens, adversarial) naturally cap at anchors 50-75 because "is the motivation valid?" cannot be verified against ground truth. The routing menu already makes dismissal cheap (Skip, Append to Open Questions), so surfaced-and-skipped is a low-cost outcome while missed-and-shipped derails downstream implementation. Filter low (`≥ 50`). The anchor rubric is what keeps the actionable tier honest — the routing menu is a dismissal path, not a volume control, and treating it as one licenses broad surfacing against a promise nothing downstream implements.
+**Why the surfacing floor sits at `50`, while the actionable floor stays at `75`:** Anchor `50` buys a place in the FYI subsection, not a place in the pipeline — the bullet above is the authority, and nothing at `50` enters the walk-through, the grouped confirmation, or any bulk action. What follows is the argument for surfacing that low, not for acting that low. A planning document has no linter behind it — this review is the only automated check it gets, which inverts code review's economics. Premise-level concerns (product-lens, adversarial) naturally cap at anchors 50-75 because "is the motivation valid?" cannot be verified against ground truth. And a `50` costs the reader one line in an observational subsection, never a question — while missed-and-shipped derails downstream implementation. That asymmetry is what justifies filtering low (`≥ 50`), and it holds only because `50` stays out of the pipeline. **It is not the claim that dismissal is cheap because a menu offers Skip.** That reasoning is what produced a thirty-four finding review: the cost of a surfaced finding is not the keystroke that dismisses it, it is the reader holding one more open question. The anchor rubric keeps the actionable tier honest; nothing downstream absorbs volume on its behalf.
 
 ### 3.3 Merge Duplicate Findings
 
@@ -71,7 +71,7 @@ This replaces the earlier residual-concern promotion step. Findings at anchors `
 
 ### 3.5 Resolve Contradictions
 
-When personas disagree on the same section:
+When personas disagree — on the same section, or in different sections about the same underlying decision:
 
 - Create a combined finding presenting both perspectives
 - Set `autofix_class: manual` (contradictions are by definition judgment calls)
@@ -83,6 +83,7 @@ Specific conflict patterns:
 - Coherence says "keep for consistency" + scope-guardian says "cut for simplicity" → combined finding, let user decide
 - Feasibility says "this is impossible" + product-lens says "this is essential" → P1 finding framed as a tradeoff
 - Multiple personas flag the same issue (no disagreement) → handled in 3.3 merge, not here
+- **Opposing recommendations 3.3 refused to merge → resolve them here, including when they sit in different sections.** 3.3 applies its one-fix test across sections, so it detects a cut-versus-keep pair wherever the two reviewers attached it, and hands the pair on rather than merging. If this step only looked at same-section disagreements, that pair would survive as two independent decisions — and the best-judgment route would then execute both, applying mutually incompatible fixes. The section is where a disagreement was *noticed*; the decision it turns on is what makes it one contradiction.
 
 ### 3.5b Deterministic Recommended-Action Tie-Break
 

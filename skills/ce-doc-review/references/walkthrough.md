@@ -27,7 +27,9 @@ C. Apply none of them
 ```
 
 - **A** — apply the batch in a single pass, exactly as the Apply step applies its own findings. Track each one for the "Applied changes" section.
-- **B** — step through the batch only, one finding at a time, using the per-finding presentation below. This is an escape hatch for a reader who wants to exclude something, not the default path. **When the batch is exhausted, return to the routing question rather than emitting the completion report** — this pass covered the batch, and the decision surface has not been routed yet. Emitting the report here ends the run with those decisions unasked, which is the same disappearance this step was added to fix.
+- **B** — step through the batch only, one finding at a time, using the per-finding presentation below. This is an escape hatch for a reader who wants to exclude something, not the default path.
+
+  **In batch context that loop is a subroutine, not the end of the run.** It has exactly one exit — back to the routing question — and it never emits the completion report, because the decision surface has not been routed yet. This governs *every* way the loop can end, not just running out of findings: exhausting the batch, `Auto-resolve with best judgment on the rest` (scoped to the remaining batch, and returning here after the preview executes), and any exit added later. The rule is stated once, at the loop rather than per option, because patching exits one at a time is how the decision surface went missing in the first place — an exit that ends the run from inside the batch pass is a bug whatever its name.
 - **C** — apply none; every member is reported as skipped in the completion report.
 
 `(recommended)` sits on A because 3.7 already established each member has one sensible remedy. That is a statement about the fixes, not pressure toward automation — the reader has just seen all of them, and B costs one keystroke.
