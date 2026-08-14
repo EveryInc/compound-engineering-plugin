@@ -136,7 +136,7 @@ Append the entry to the repo-root `.gitignore` only if the user approves. Do not
 
 ### Step 8: Offer To Gitignore CE Scratch Space
 
-Skills that keep local scratch write it under `.context/compound-engineering/`. Probe coverage with `git check-ignore -q .context/compound-engineering/` — with the trailing slash, so an existing directory-only rule counts before the directory exists — and when it is not covered, offer to add:
+Skills that keep local scratch write it under `.context/compound-engineering/`. Probe coverage with `git -C <repo root> check-ignore -q .context/compound-engineering/` — with the trailing slash, so an existing directory-only rule counts before the directory exists, and anchored to the repo root, since that is where the entry is appended — and when it is not covered, offer to add:
 
 ```text
 .context/compound-engineering/

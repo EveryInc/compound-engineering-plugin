@@ -3,12 +3,18 @@ import path from "path"
 import { Glob } from "bun"
 import { describe, expect, test } from "bun:test"
 import { parseFrontmatter } from "../../src/utils/frontmatter"
+import { extractBashBlocks } from "./fenced-blocks"
 
 const SKILLS_ROOT = path.join(process.cwd(), "skills")
 const SKILL_DIR = path.join(SKILLS_ROOT, "ce-prototype")
 const SKILL_BODY = readFileSync(path.join(SKILL_DIR, "SKILL.md"), "utf8")
 const PREVIEW_BODY = readFileSync(path.join(SKILL_DIR, "references/preview.md"), "utf8")
 const CRAFT_FLOOR_BODY = readFileSync(path.join(SKILL_DIR, "references/craft-floor.md"), "utf8")
+// Assert executed shell against the fenced blocks, never the whole file: a probe quoted in
+// explanatory prose would otherwise satisfy every guard while no command actually runs.
+const PREVIEW_SHELL = extractBashBlocks(PREVIEW_BODY)
+  .map((block) => block.body)
+  .join("\n")
 
 function frontmatter(body: string): string {
   const match = body.match(/^---\n([\s\S]*?)\n---/)
@@ -182,6 +188,16 @@ describe("ce-prototype protocol", () => {
         `${label} must still name the OS-temp root, which is the fallback when the durable path is declined, unsafe, or outside a repository.`,
       ).toBe(true)
     }
+    // The durable path must be the taken branch and temp the fallback, not the reverse.
+    const durableBranch = PREVIEW_SHELL.indexOf('ROOT="$REPO_ROOT/.context/compound-engineering"')
+    const fallbackBranch = PREVIEW_SHELL.indexOf('ROOT="$TEMP_ROOT"')
+    expect(durableBranch, "The executed block must assign the durable root.").toBeGreaterThan(-1)
+    expect(fallbackBranch, "The executed block must assign the OS-temp fallback root.").toBeGreaterThan(-1)
+    const resolutionOrder = durableBranch < fallbackBranch
+    expect(
+      resolutionOrder,
+      "The executed block must reach for the durable root before the temp fallback. Swapping the branches would still mention both paths while inverting the default.",
+    ).toBe(true)
     const storageRule = (SKILL_BODY.match(/^.*Build under.*$/m) ?? [""])[0]
     expect(storageRule, "SKILL.md must state where a run builds.").not.toBe("")
     expect(
@@ -194,12 +210,12 @@ describe("ce-prototype protocol", () => {
   test("the run root is resolved once and consumed by every server call", () => {
     // The server keys its pidfile and process match off --root, so a start and a
     // stop that resolve the root separately can disagree and orphan a server.
-    const resolutions = PREVIEW_BODY.match(/git rev-parse --show-toplevel/g) ?? []
+    const resolutions = PREVIEW_SHELL.match(/git rev-parse --show-toplevel/g) ?? []
     expect(
       resolutions.length,
       "references/preview.md must resolve the run root in exactly one block. A second derivation is a second chance to disagree with the first.",
     ).toBe(1)
-    const consumers = PREVIEW_BODY.match(/PROTO_DIR="<absolute question directory/g) ?? []
+    const consumers = PREVIEW_SHELL.match(/PROTO_DIR="<absolute question directory/g) ?? []
     expect(
       consumers.length,
       "The start block and the status/stop block must each take the already-resolved question directory rather than deriving it again.",
@@ -207,9 +223,11 @@ describe("ce-prototype protocol", () => {
   })
 
   test("the durable path is probed with the trailing slash and claimed atomically", () => {
-    const probe = /git (?:-C "\$REPO_ROOT" )?check-ignore -q \.context\/compound-engineering\//
+    // Both prose and executed shell anchor the probe to the repo root; accept either spelling
+    // of that anchor, but require the trailing slash in both.
+    const probe = /git (?:-C [^\n]{0,24})?check-ignore -q \.context\/compound-engineering\//
     expect(
-      probe.test(SKILL_BODY) && probe.test(PREVIEW_BODY),
+      probe.test(SKILL_BODY) && probe.test(PREVIEW_SHELL),
       "Both files must probe coverage with the trailing slash. Without it an existing directory-only ignore rule is missed and a correctly configured repo falls back for no reason.",
     ).toBe(true)
     expect(
@@ -217,9 +235,9 @@ describe("ce-prototype protocol", () => {
       "The collision rule must be exclusive creation, not check-then-write — two runs starting together both pass the check and then write into one directory.",
     ).toBe(true)
     expect(
-      /unsafe run root symlink/.test(PREVIEW_BODY) &&
-        /run root is not owned by the current user/.test(PREVIEW_BODY),
-      "The in-repo run root must carry the same symlink and ownership checks the OS-temp path already had; gitignoring a path does not make it safe to write into.",
+      /unsafe root symlink/.test(PREVIEW_SHELL) &&
+        /root is not owned by the current user/.test(PREVIEW_SHELL),
+      "The run root must carry symlink and ownership checks inside the executed block; gitignoring a path does not make it safe to write into.",
     ).toBe(true)
   })
 
@@ -238,8 +256,8 @@ describe("ce-prototype protocol", () => {
       "ce-prototype must probe the identical literal it would ask ce-setup's user to add.",
     ).toBe(true)
     expect(
-      PREVIEW_BODY.includes("check-ignore -q " + IGNORE_ENTRY),
-      "The resolution block must probe that same literal, so the path it picks matches the path the offer covers.",
+      PREVIEW_SHELL.includes("check-ignore -q " + IGNORE_ENTRY),
+      "The resolution block must probe that same literal in executed shell, so the path it picks matches the path the offer covers.",
     ).toBe(true)
   })
 

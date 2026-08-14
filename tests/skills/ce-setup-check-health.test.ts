@@ -214,6 +214,8 @@ describe("ce-setup check-health", () => {
   // Uncovered scratch space is informational, not a project issue: a repository
   // that never runs a scratch-producing skill needs no entry, and reporting it
   // as a problem would make a healthy baseline read as broken.
+  const LOCAL_CONFIG_ENTRY = ".compound-engineering/*.local.yaml\n"
+
   async function healthyRepoWithGitignore(gitignore: string): Promise<string> {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
     await initConfiguredRepo(root, await readFile(configTemplate, "utf8"))
@@ -221,46 +223,42 @@ describe("ce-setup check-health", () => {
     return root
   }
 
-  test("reports CE scratch coverage without failing an otherwise healthy project", async () => {
-    // The fixtures are independent and each run shells out to check-health, so
-    // they overlap rather than serialize — tests inside one file do not.
-    const LOCAL_CONFIG_ENTRY = ".compound-engineering/*.local.yaml\n"
-    const cases = [
-      { label: "no scratch rule", gitignore: LOCAL_CONFIG_ENTRY, covered: false },
-      {
-        label: "exact scratch rule",
-        gitignore: LOCAL_CONFIG_ENTRY + ".context/compound-engineering/\n",
-        covered: true,
-      },
-      // A broader directory rule already makes the entry effective; re-offering
-      // it would dirty a correctly configured repo. This is what the trailing
-      // slash on the probe buys.
-      { label: "broader .context rule", gitignore: LOCAL_CONFIG_ENTRY + ".context/\n", covered: true },
-    ]
+  const SCRATCH_CASES = [
+    { label: "no scratch rule", gitignore: LOCAL_CONFIG_ENTRY, covered: false },
+    {
+      label: "exact scratch rule",
+      gitignore: LOCAL_CONFIG_ENTRY + ".context/compound-engineering/\n",
+      covered: true,
+    },
+    // A broader directory rule already makes the entry effective; re-offering it would dirty a
+    // correctly configured repo. This is what the trailing slash on the probe buys.
+    { label: "broader .context rule", gitignore: LOCAL_CONFIG_ENTRY + ".context/\n", covered: true },
+  ]
 
-    const roots = await Promise.all(cases.map((each) => healthyRepoWithGitignore(each.gitignore)))
+  test.each(SCRATCH_CASES)(
+    "reports CE scratch coverage without failing an otherwise healthy project: $label",
+    async ({ gitignore, covered }) => {
+      const root = await healthyRepoWithGitignore(gitignore)
 
-    try {
-      const results = await Promise.all(roots.map((root) => runCheckHealth(root, "/usr/bin:/bin")))
+      try {
+        const result = await runCheckHealth(root, "/usr/bin:/bin")
 
-      cases.forEach((each, index) => {
-        const { exitCode, stdout } = results[index]
-        expect(exitCode, each.label).toBe(0)
-        if (each.covered) {
-          expect(stdout, each.label).toContain("CE scratch space is gitignored")
-          expect(stdout, each.label).not.toContain("CE scratch space is not gitignored")
+        expect(result.exitCode).toBe(0)
+        if (covered) {
+          expect(result.stdout).toContain("CE scratch space is gitignored")
+          expect(result.stdout).not.toContain("CE scratch space is not gitignored")
         } else {
-          expect(stdout, each.label).toContain("CE scratch space is not gitignored")
-          // Informational, not a project issue: a repo that never runs a
-          // scratch-producing skill needs no entry and must still read healthy.
-          expect(stdout, each.label).toContain("Project config healthy")
-          expect(stdout, each.label).not.toContain("project issue(s) found")
+          expect(result.stdout).toContain("CE scratch space is not gitignored")
+          // Informational, not a project issue: a repo that never runs a scratch-producing
+          // skill needs no entry and must still read healthy.
+          expect(result.stdout).toContain("Project config healthy")
+          expect(result.stdout).not.toContain("project issue(s) found")
         }
-      })
-    } finally {
-      await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true })))
-    }
-  })
+      } finally {
+        await rm(root, { recursive: true, force: true })
+      }
+    },
+  )
 
   async function repoWithLocalConfig(body: string): Promise<string> {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))

@@ -11,44 +11,65 @@ Resolve the question directory once, at the start of the run, and reuse the abso
 `RUN_SLUG` is `<date>-<short-question-slug>` for the run; `QUESTION_SLUG` is `NN-<question-slug>` for the question being built. A run that covers a second related question resolves a second question directory under the same run directory.
 
 ```bash
-RUN_SLUG="<YYYY-MM-DD>-<run-slug>"; QUESTION_SLUG="<NN>-<question-slug>";
+RUN_SLUG="<YYYY-MM-DD>-<run-slug>";
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)";
-if [ -n "$REPO_ROOT" ] && git -C "$REPO_ROOT" check-ignore -q .context/compound-engineering/ 2>/dev/null; then
-BASE="$REPO_ROOT/.context/compound-engineering/ce-prototype";
+TEMP_ROOT="/tmp/compound-engineering-$(id -u)";
+if [ -n "$REPO_ROOT" ] && [ ! -L "$REPO_ROOT/.context" ] && [ ! -L "$REPO_ROOT/.context/compound-engineering" ] && git -C "$REPO_ROOT" check-ignore -q .context/compound-engineering/ 2>/dev/null; then
+ROOT="$REPO_ROOT/.context/compound-engineering";
 else
-BASE="/tmp/compound-engineering-$(id -u)/ce-prototype";
+ROOT="$TEMP_ROOT";
 fi;
-if [ -L "$BASE" ]; then echo "unsafe run root symlink: $BASE" >&2; exit 1; fi;
-(umask 077; mkdir -p "$BASE") || exit 1;
-if [ -L "$BASE" ] || [ ! -O "$BASE" ]; then echo "run root is not owned by the current user: $BASE" >&2; exit 1; fi;
-chmod 700 "$BASE" || exit 1;
+while :; do
+if [ -L "$ROOT" ]; then echo "unsafe root symlink: $ROOT" >&2;
+elif ! (umask 077; mkdir -p "$ROOT"); then echo "could not create $ROOT" >&2;
+elif [ -L "$ROOT" ] || [ ! -O "$ROOT" ]; then echo "root is not owned by the current user: $ROOT" >&2;
+elif ! chmod 700 "$ROOT"; then echo "could not restrict $ROOT" >&2;
+else break; fi;
+if [ "$ROOT" = "$TEMP_ROOT" ]; then echo "no usable run root" >&2; exit 1; fi;
+echo "falling back to $TEMP_ROOT" >&2; ROOT="$TEMP_ROOT";
+done;
+BASE="$ROOT/ce-prototype"; (umask 077; mkdir -p "$BASE") || exit 1; chmod 700 "$BASE" || exit 1;
 RUN_DIR="$BASE/$RUN_SLUG"; n=1;
 while ! (umask 077; mkdir "$RUN_DIR") 2>/dev/null; do
 if [ ! -e "$RUN_DIR" ]; then echo "could not create $RUN_DIR" >&2; exit 1; fi;
-if [ -O "$RUN_DIR" ] && [ ! -L "$RUN_DIR" ] && [ -f "$RUN_DIR/decisions.md" ]; then break; fi;
 n=$((n+1)); RUN_DIR="$BASE/$RUN_SLUG-$n";
 if [ "$n" -gt 99 ]; then echo "could not claim a run directory under $BASE" >&2; exit 1; fi;
 done;
 chmod 700 "$RUN_DIR" || exit 1;
+echo "$RUN_DIR"
+```
+
+Two things this block is careful about. The symlink and ownership checks run against the **root** — the directory sitting in a shared or world-writable location — and only then is `ce-prototype` created beneath it; checking the leaf instead passes trivially, because the leaf is what `mkdir -p` just created. And an unsafe in-repo root falls back to OS temp rather than aborting, so a hostile or misconfigured `.context` costs the run its durability, not the run itself; only a temp root that also fails is fatal.
+
+Creating the directory is how it is claimed — never test whether the name is free and then write, which two runs starting together both pass. There is no rejoin: this block runs once per invocation, so a second question never re-derives the run directory and can neither split into a suffixed sibling nor adopt a finished run's directory.
+
+Then, once per question, create that question's directory under the run directory the block above printed:
+
+```bash
+RUN_DIR="<absolute run directory the resolution block printed>";
+QUESTION_SLUG="<NN>-<question-slug>";
+if [ -L "$RUN_DIR" ] || [ ! -O "$RUN_DIR" ]; then echo "unsafe run directory: $RUN_DIR" >&2; exit 1; fi;
 PROTO_DIR="$RUN_DIR/$QUESTION_SLUG"; (umask 077; mkdir -p "$PROTO_DIR") || exit 1; chmod 700 "$PROTO_DIR" || exit 1;
 echo "$PROTO_DIR"
 ```
-
-Creating the directory is how it is claimed — never test whether the name is free and then write, which two runs starting together both pass. The loop rejoins a run directory this run already owns (its capsule is there) and otherwise takes the next suffix.
 
 Start (detached), with `PROTO_DIR` set to the absolute path the resolution printed:
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
 PROTO_DIR="<absolute question directory the resolution block printed>";
+if [ -L "$PROTO_DIR" ] || [ ! -O "$PROTO_DIR" ]; then echo "unsafe run directory: $PROTO_DIR" >&2; exit 1; fi;
 node "$SKILL_DIR/scripts/light-webserver.js" start --root "$PROTO_DIR"
 ```
+
+The server takes `--root` on trust — it resolves the path and creates it, and checks nothing — so each call re-checks the directory it is about to hand over. The path arrives here by transcription across separate shell invocations, and a mistyped or stale one would otherwise be written to unverified.
 
 Append `--foreground` to that `start` command for foreground mode. Status and stop take the same anchor and the same `PROTO_DIR` — and because neither persists between Bash invocations, each must re-set both in its own call rather than reuse the `start` block's values:
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
 PROTO_DIR="<absolute question directory the resolution block printed>";
+if [ -L "$PROTO_DIR" ] || [ ! -O "$PROTO_DIR" ]; then echo "unsafe run directory: $PROTO_DIR" >&2; exit 1; fi;
 node "$SKILL_DIR/scripts/light-webserver.js" status --root "$PROTO_DIR"
 # stop: the same command with `stop` in place of `status` (re-set both again)
 ```
