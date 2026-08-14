@@ -8,6 +8,7 @@ const SKILLS_ROOT = path.join(process.cwd(), "skills")
 const SKILL_DIR = path.join(SKILLS_ROOT, "ce-prototype")
 const SKILL_BODY = readFileSync(path.join(SKILL_DIR, "SKILL.md"), "utf8")
 const PREVIEW_BODY = readFileSync(path.join(SKILL_DIR, "references/preview.md"), "utf8")
+const CRAFT_FLOOR_BODY = readFileSync(path.join(SKILL_DIR, "references/craft-floor.md"), "utf8")
 
 function frontmatter(body: string): string {
   const match = body.match(/^---\n([\s\S]*?)\n---/)
@@ -106,6 +107,64 @@ describe("ce-prototype protocol", () => {
         substrateRule,
       ),
       "The web default must be stated as decoupled from the product's implementation language or platform, not as a web-repo-only convenience.",
+    ).toBe(true)
+  })
+
+  test("the craft-floor trigger is inline and gates on the seeing dimension", () => {
+    // The trigger has to be readable from SKILL.md alone. A stub that only
+    // names the file lets an agent skip the load and invent a floor, and a
+    // trigger that lives inside the reference cannot fire before it is read.
+    const loadLine = (SKILL_BODY.match(/^.*references\/craft-floor\.md.*$/m) ?? [""])[0]
+    expect(
+      loadLine,
+      "SKILL.md must name references/craft-floor.md at the point the run decides how finished a seeing question has to get.",
+    ).not.toBe("")
+    expect(
+      /settled by seeing/i.test(SKILL_BODY),
+      "SKILL.md must state what makes a question settled by seeing. That classification is the trigger; stating it only in the reference means it never fires.",
+    ).toBe(true)
+    expect(
+      /settled by driving[^.]{0,80}does not load/i.test(SKILL_BODY),
+      "SKILL.md must state that a question settled by driving does not load the floor, so the floor cannot raise fidelity on a dimension nobody is judging.",
+    ).toBe(true)
+  })
+
+  test("the craft floor states contrast thresholds in the correct direction", () => {
+    const contrastRule = (CRAFT_FLOOR_BODY.match(/^.*4\.5:1.*$/m) ?? [""])[0]
+    expect(
+      contrastRule,
+      "The craft floor must state a body-text contrast threshold. Without it the floor cannot catch the render that reads as a worse direction only because the text is unreadable.",
+    ).not.toBe("")
+    expect(
+      /body[^.]{0,40}4\.5:1/i.test(contrastRule),
+      "Body text must carry the 4.5:1 threshold, stated in the sentence that names it.",
+    ).toBe(true)
+    expect(
+      /large[^.]{0,80}\b3:1/i.test(contrastRule),
+      "Large text must carry the 3:1 threshold in that same sentence.",
+    ).toBe(true)
+    expect(
+      /large[^.]{0,40}4\.5:1/i.test(contrastRule),
+      "The thresholds must not be inverted onto large text — a reversed rule still mentions every ratio this test looks for.",
+    ).toBe(false)
+  })
+
+  test("the craft floor scopes itself per dimension and judges specificity", () => {
+    expect(
+      /Apply only what the question puts in play/i.test(CRAFT_FLOOR_BODY),
+      "The floor must scope its items to the dimensions the question reaches. Applying every item to every seeing run inflates a placement question past the dimension under test.",
+    ).toBe(true)
+    expect(
+      /template|templated/i.test(CRAFT_FLOOR_BODY),
+      "The floor must reject the templated arrangement. Judging only mechanical cleanliness passes the generic result this floor exists to catch.",
+    ).toBe(true)
+    expect(
+      /organizing principle/i.test(CRAFT_FLOOR_BODY),
+      "The floor must state that avenues differ by organizing principle, so a palette or typeface swap is not counted as a second avenue.",
+    ).toBe(true)
+    expect(
+      /SKILL\.md/.test(CRAFT_FLOOR_BODY),
+      "The avenue rule must cite the wide-run rule in SKILL.md rather than restating it — two independent copies drift.",
     ).toBe(true)
   })
 
