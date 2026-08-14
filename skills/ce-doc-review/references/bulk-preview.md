@@ -8,7 +8,7 @@ Interactive mode only.
 
 ## When the preview fires
 
-Three call sites:
+Three call sites. In all of them, "pending" means the decision surface that reached routing — the grouped confirmation is answered in its own step beforehand (`references/walkthrough.md`), so its batch is never pending here:
 
 1. **Routing option B (top-level best-judgment)** — after the user picks `Auto-resolve with best judgment — apply per-finding edits the agent can defend, surface the rest` from the routing question, but before any action executes. Scope: every pending finding at confidence anchor `75` or `100`.
 2. **Routing option C (top-level Append-to-Open-Questions)** — after the user picks `Append findings to the doc's Open Questions section and proceed` but before any append runs. Scope: every pending finding at confidence anchor `75` or `100`. Every finding appears under `Appending to Open Questions (N):` regardless of the agent's natural recommendation, because option C is batch-defer.

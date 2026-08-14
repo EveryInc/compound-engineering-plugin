@@ -617,7 +617,10 @@ describe("ce-doc-review contract", () => {
     expect(synthesis).toContain("Cross-Persona Agreement Promotion")
     expect(synthesis).toContain("one anchor step")
     expect(synthesis).toContain("`independence_verified` is `true`")
-    expect(synthesis).toContain("cannot use the twin fingerprint exception")
+    // Pins the rule, not the mechanism that carried it: an unverified peer stays
+    // attributed evidence and cannot promote. The twin *fingerprint* exception it
+    // used to name was deleted with 3.3's string matching.
+    expect(synthesis).toContain("cannot trigger anchor promotion")
     expect(synthesis).toContain("Cursor default/Auto")
 
     // R29 and R30 round-2 rules

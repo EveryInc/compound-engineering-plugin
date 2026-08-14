@@ -63,7 +63,7 @@ PATH — and cross-host per the repo's eval default: Claude Code AND Codex.
 
 7. **Fold-in + receipt-gated agreement promotion (R8, R9, R18).** Given a
    stubbed `<reviewer-name>-<provider>.json` return with
-   `independence_verified: true` whose finding shares a fingerprint with an
+   `independence_verified: true` whose finding 3.3 merged with an
    in-process twin, assert synthesis promotes the merged finding by one anchor
    step and attributes both reviewers. Repeat with
    `independence_verified: false` and assert the finding remains attributed
@@ -93,7 +93,7 @@ PATH — and cross-host per the repo's eval default: Claude Code AND Codex.
 10. **Whole-document sweep + trio slicing (R20, KTD6, KTD3).** When the pass runs,
     assert exactly **one** additional `whole-doc` call is launched (not one per
     lens) on the **full** document with the same resolved provider, folds in as
-    `whole-doc-<provider>`, and a sweep finding sharing a fingerprint with *any*
+    `whole-doc-<provider>`, and a sweep finding 3.3 merged with *any*
     in-process finding promotes one anchor step (no in-process twin needed) only
     when the whole-doc artifact has `independence_verified: true`; with false or
     absent independence it remains attributed evidence without promotion. The

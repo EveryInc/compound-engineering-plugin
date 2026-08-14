@@ -26,7 +26,7 @@ fi
 
 ## Interactive mode rules
 
-- **Pre-load the platform question tool before any question fires.** In Claude Code, `AskUserQuestion` is a deferred tool whose schema is not available at session start — call `ToolSearch` with query `select:AskUserQuestion` once, eagerly, at the top of the Interactive flow, not at the first question site (the routing question, per-finding walk-through, bulk-preview Proceed/Cancel, and the Phase 5 terminal question all depend on it). Not required on Codex, Gemini, or Pi.
+- **Pre-load the platform question tool before any question fires.** In Claude Code, `AskUserQuestion` is a deferred tool whose schema is not available at session start — call `ToolSearch` with query `select:AskUserQuestion` once, eagerly, at the top of the Interactive flow, not at the first question site (the grouped confirmation, routing question, per-finding walk-through, bulk-preview Proceed/Cancel, and the Phase 5 terminal question all depend on it). Not required on Codex, Gemini, or Pi.
 - **The numbered-list fallback applies only when the harness genuinely lacks a blocking question tool** — `ToolSearch` returns no match, the call explicitly fails, or the runtime mode does not expose it (e.g., Codex edit modes without `request_user_input`). A pending schema load is not a fallback trigger. In genuine-fallback cases, present options as a numbered list and wait for the reply. A question that calls for a user decision must either fire the tool or fall back loudly — rendering it as narrative text because the tool feels inconvenient, because the model is in report-formatting mode, or because the instruction was buried in a long skill is a bug.
 
 ## Phase 0: Detect Mode
@@ -171,9 +171,9 @@ Launch one detached runner job per activated trio lens plus one `whole-doc` swee
 
 ## Phases 3-5: Synthesis, Presentation, and Next Action
 
-After all dispatched agents return — **including any cross-model `<reviewer-name>-<provider>.json` returns** — read `references/synthesis-and-presentation.md` for the synthesis pipeline (validate, anchor-based gate, dedup, conditional agreement promotion, resolve contradictions, auto-promotion, route by three tiers with FYI subsection), fix application, non-interactive-envelope output, and the handoff to the routing question. Peer findings enter ordinary synthesis, but only an artifact with `independence_verified: true` counts as an independent reviewer for promotion.
+After all dispatched agents return — **including any cross-model `<reviewer-name>-<provider>.json` returns** — read `references/synthesis-and-presentation.md` for the synthesis pipeline (validate, anchor-based gate, dedup, conditional agreement promotion, resolve contradictions, auto-promotion, route by confidence and fix class into apply / grouped confirmation / decisions, with an FYI subsection), fix application, non-interactive-envelope output, and the handoff to the grouped confirmation and routing question. Peer findings enter ordinary synthesis, but only an artifact with `independence_verified: true` counts as an independent reviewer for promotion.
 
-For the four-option routing question and per-finding walk-through (interactive mode), read `references/walkthrough.md`. For the bulk-action preview used by best-judgment routing, Append-to-Open-Questions, and walk-through `Auto-resolve with best judgment on the rest`, read `references/bulk-preview.md`. Do not load these files before agent dispatch completes.
+For the grouped confirmation, the four-option routing question, and the per-finding walk-through (interactive mode), read `references/walkthrough.md`. For the bulk-action preview used by best-judgment routing, Append-to-Open-Questions, and walk-through `Auto-resolve with best judgment on the rest`, read `references/bulk-preview.md`. Do not load these files before agent dispatch completes.
 
 ---
 
