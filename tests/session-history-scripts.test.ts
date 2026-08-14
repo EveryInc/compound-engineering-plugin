@@ -2257,4 +2257,170 @@ describe("discover-sessions", () => {
     const files = stdout.trim().split("\n").filter((l) => l.trim())
     expect(files).toEqual([agentSession])
   })
+
+  async function writeClaudeSession(
+    home: string,
+    projectDir: string,
+    name = "2026-04-07T09-00-00-000Z_test.jsonl"
+  ): Promise<string> {
+    const sessionPath = path.join(home, ".claude/projects", projectDir, name)
+    await fs.promises.mkdir(path.dirname(sessionPath), { recursive: true })
+    await fs.promises.writeFile(sessionPath, "{}\n")
+    return sessionPath
+  }
+
+  test("--platform claude with --cwd finds sessions started from an ancestor CWD", async () => {
+    // Claude names ~/.claude/projects/<encoded-cwd>/ after the session CWD,
+    // folding / \\ : . to -. A session started from the parent of the repo
+    // has no repo basename in the directory name, so the REPO_NAME glob
+    // misses it and reports "no history".
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
+    const parentSession = await writeClaudeSession(tempHome, "-Users-test-Code")
+    const rootSession = await writeClaudeSession(
+      tempHome,
+      "-Users-test-Code-my-repo"
+    )
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      [
+        "my-repo",
+        "7",
+        "--cwd",
+        "/Users/test/Code/my-repo/",
+        "--platform",
+        "claude",
+      ],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim()).sort()
+    expect(files).toEqual([parentSession, rootSession].sort())
+  })
+
+  test("--platform claude with --cwd does not pick up unrelated sibling encoded dirs", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
+    const parentSession = await writeClaudeSession(tempHome, "-Users-test-Code")
+    const siblingSession = await writeClaudeSession(
+      tempHome,
+      "-Users-test-Other"
+    )
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      [
+        "my-repo",
+        "7",
+        "--cwd",
+        "/Users/test/Code/my-repo",
+        "--platform",
+        "claude",
+      ],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([parentSession])
+    expect(files).not.toContain(siblingSession)
+  })
+
+  test("--platform claude without --cwd still uses only the repo-name glob", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
+    await writeClaudeSession(tempHome, "-Users-test-Code")
+    const namedSession = await writeClaudeSession(
+      tempHome,
+      "-somewhere-else-my-repo"
+    )
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "claude"],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([namedSession])
+  })
+
+  test("--platform claude encodes Git Bash drive CWDs and walks ancestors", async () => {
+    // Git Bash reports /d/AI/x for D:\AI\x. Restore the drive form before
+    // folding so the encoded name matches Claude's D--AI / D--AI-x dirs.
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
+    const parentSession = await writeClaudeSession(tempHome, "D--AI")
+    const rootSession = await writeClaudeSession(tempHome, "D--AI-my-repo")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--cwd", "/d/AI/my-repo", "--platform", "claude"],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim()).sort()
+    expect(files).toEqual([parentSession, rootSession].sort())
+  })
+
+  test("--platform claude encodes Windows paths with dots and does not treat /home as a drive", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
+    const dotted = await writeClaudeSession(
+      tempHome,
+      "C--Users-KL--claude-mem-observer-sessions"
+    )
+    const dottedParent = await writeClaudeSession(
+      tempHome,
+      "C--Users-KL--claude-mem"
+    )
+    const unixHome = await writeClaudeSession(tempHome, "-home-u-repo")
+    const misparsedDrive = await writeClaudeSession(tempHome, "H--ome")
+
+    const dottedResult = await runDiscover(
+      [
+        "observer-sessions",
+        "7",
+        "--cwd",
+        "C:/Users/KL/.claude-mem/observer-sessions",
+        "--platform",
+        "claude",
+      ],
+      { HOME: tempHome }
+    )
+    expect(dottedResult.exitCode).toBe(0)
+    expect(dottedResult.stderr).toBe("")
+    expect(
+      dottedResult.stdout.trim().split("\n").filter((l) => l.trim()).sort()
+    ).toEqual([dotted, dottedParent].sort())
+
+    const unixResult = await runDiscover(
+      ["repo", "7", "--cwd", "/home/u/repo", "--platform", "claude"],
+      { HOME: tempHome }
+    )
+    expect(unixResult.exitCode).toBe(0)
+    expect(unixResult.stderr).toBe("")
+    const unixFiles = unixResult.stdout
+      .trim()
+      .split("\n")
+      .filter((l) => l.trim())
+    expect(unixFiles).toEqual([unixHome])
+    expect(unixFiles).not.toContain(misparsedDrive)
+  })
+
+  test("--platform claude walks D:/ paths through the drive-root fixed point", async () => {
+    // ${cwd%/*} on "D:" is a fixed point. The walk must stop rather than loop.
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
+    const parentSession = await writeClaudeSession(tempHome, "D--AI")
+    const rootSession = await writeClaudeSession(tempHome, "D--AI-x")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["x", "7", "--cwd", "D:/AI/x", "--platform", "claude"],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim()).sort()
+    expect(files).toEqual([parentSession, rootSession].sort())
+  })
 })

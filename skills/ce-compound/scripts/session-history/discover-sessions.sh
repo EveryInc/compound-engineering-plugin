@@ -10,7 +10,8 @@
 # Arguments:
 #   repo-name  Folder name of the repo (e.g., "my-repo"). Used for directory matching.
 #   days       Scan window in days (e.g., 7). Files older than this are skipped.
-#   --cwd      Absolute repo root. Used for exact Pi encoded-CWD discovery.
+#   --cwd      Absolute repo root. Used for Claude encoded-CWD + ancestor
+#              discovery and for exact Pi encoded-CWD discovery.
 #   --platform Restrict to a single platform. Omit to search all.
 
 set -euo pipefail
@@ -37,16 +38,65 @@ encode_pi_cwd() {
     printf -- "--%s--" "$encoded"
 }
 
+# Claude Code names ~/.claude/projects/<encoded-cwd>/ after the session CWD,
+# folding / \ : . to -. Git Bash reports /d/foo for D:\foo; restore the drive
+# form before folding so the name matches the on-disk directory.
+encode_claude_cwd() {
+    local cwd="${1//\\//}"
+    cwd="${cwd%/}"
+    case "$cwd" in
+        /[a-zA-Z]|/[a-zA-Z]/*)
+            local drive rest
+            drive="${cwd:1:1}"
+            case "$drive" in
+                [a-z]) drive=$(printf '%s' "$drive" | tr '[:lower:]' '[:upper:]') ;;
+            esac
+            rest="${cwd:2}"
+            cwd="${drive}:${rest}"
+            ;;
+    esac
+    local encoded="$cwd"
+    encoded="${encoded//\//-}"
+    encoded="${encoded//:/-}"
+    encoded="${encoded//./-}"
+    printf '%s' "$encoded"
+}
+
 # --- Claude Code ---
 discover_claude() {
     local base="$HOME/.claude/projects"
     [ -d "$base" ] || return 0
 
-    # Find all project dirs matching repo name
-    for dir in "$base"/*"$REPO_NAME"*/; do
-        [ -d "$dir" ] || continue
-        find "$dir" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
-    done
+    {
+        # Basename glob: sessions started at the repo root include the repo
+        # name in the encoded directory. Keep this even when --cwd is set.
+        for dir in "$base"/*"$REPO_NAME"*/; do
+            [ -d "$dir" ] || continue
+            find "$dir" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
+        done
+
+        # Encoded CWD and each ancestor: a session started from a parent of
+        # the repo encodes without the repo basename.
+        if [ -n "$REPO_CWD" ]; then
+            local cwd encoded next hops
+            cwd="${REPO_CWD//\\//}"
+            cwd="${cwd%/}"
+            hops=0
+            while [ -n "$cwd" ] && [ "$hops" -lt 64 ]; do
+                encoded="$(encode_claude_cwd "$cwd")"
+                if [ -n "$encoded" ] && [ -d "$base/$encoded" ]; then
+                    find "$base/$encoded" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
+                fi
+                next="${cwd%/*}"
+                # Windows drive roots ("D:") are a fixed point of ${cwd%/*}.
+                if [ "$next" = "$cwd" ]; then
+                    break
+                fi
+                cwd="$next"
+                hops=$((hops + 1))
+            done
+        fi
+    } | awk '!seen[$0]++'
 }
 
 # --- Codex ---
