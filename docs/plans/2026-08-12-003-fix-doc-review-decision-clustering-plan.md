@@ -155,6 +155,16 @@ Stages A through C have landed. U9 cancelled U12 and U7, so the clustering stage
 
 U2 is independent and can run any time; U11 consumes its verdict.
 
+### The corpus was the weak link (recorded 2026-08-13)
+
+Everything measured in this plan was measured against a corpus authored for the purpose, and that corpus was not representative. It returned **100% merge recall**; the single organic duplicate pair, taken from a real review, returned **20-36%**. The matcher never changed between those two measurements.
+
+The generated documents were built to *contain* duplicates a reasoning matcher should catch, so they contained the matcher's happy path. Every downstream conclusion inherited that — including U12's cancellation, which read a decision-load number off the same inputs.
+
+The blind-manifest discipline this plan was careful about protects against a biased **scorer**. It does nothing about **easy inputs**. Four tuning rounds ran against a corpus that could not fail us, and the one time real material was used the numbers collapsed.
+
+**The general form, which outlives this plan:** a corpus you author to test a mechanism will tend to contain that mechanism's happy path. Prefer captured real artifacts; when you must generate, have something other than the mechanism's author choose the difficulty, and validate the corpus against at least one real case before trusting anything measured on it.
+
 ### Risks and Mitigations
 
 | Risk | Why it matters here | Mitigation |
@@ -487,7 +497,7 @@ Landed in `ddf0a46b`. The security persona's per-element rule, the adversarial p
 
 **Verification:** No captured learning contradicts shipped behavior.
 
-### U12. Decision clustering and the presentation unit — CANCELLED
+### U12. Decision clustering and the presentation unit — CANCELLED, BUT THE EVIDENCE IS SUSPECT
 
 **Goal:** If load remains too high after Stage A and B, group distinct findings by the question that resolves them and make that group the unit the user acts on.
 
@@ -498,6 +508,10 @@ Landed in `ddf0a46b`. The security persona's per-element rule, the adversarial p
 **Cancellation (2026-08-13):** U9 did not establish excess residual decision load beyond variance. Reliable new-arm cells were fully precise and recall-complete with a bounded 5-8 choices; weaker cells exposed routing instability rather than a missing clustering layer. Do not build this unit.
 
 The verdict was reached before U14 existed and did not read the post-U14 re-measurement this plan specifies. It stands anyway: U14 only reduces load further, so no result it could produce would revive the case for a clustering layer. The weaker-cell instability that remains is U15's, not this unit's — an instruction-following failure gains nothing from another presentation layer on top of it.
+
+**Reopen this before treating the cancellation as settled (2026-08-13).** The verdict rested on decision load being "bounded at 5-8 choices" on the reliable cells — measured against the U8 generated corpus. That corpus is now known to be unrepresentative: it produced **100% merge recall**, while the one organic duplicate pair produced **20-36%**. If real duplicates survive merging at that rate, the true post-dedup decision count is well above 5-8, and the number this cancellation was read from does not describe real reviews.
+
+Do not rebuild U12 on that basis alone. Rebuild the corpus first (see the Risks entry on corpus representativeness), re-measure merge recall and obligation routing against real reviews, and let that decide. Cancelled-and-reopenable, not cancelled-and-closed.
 
 **Files:** `skills/ce-doc-review/references/synthesis-and-presentation.md`, `references/rendering-floor.md`, `references/walkthrough.md`, `references/bulk-preview.md`, `references/open-questions-defer.md`, `references/decision-primer.md`, `SKILL.md`
 
@@ -511,7 +525,21 @@ The verdict was reached before U14 existed and did not read the post-U14 re-meas
 
 **Verification:** Traceability holds — every finding maps to exactly one group, obligation, or advisory observation — and decision load drops by more than the measured variance.
 
-### U14. Stop prompting where the rubric says there is no choice
+### U14. Stop prompting where the rubric says there is no choice — SHIPPED NARROWED, TARGET NOT MET
+
+**Outcome (2026-08-13).** Four evaluation rounds. The 2/9 target was never reached, and the unit shipped in a materially narrower form than the approach below describes. Read this block before the approach; the approach records the original intent, not what landed.
+
+What shipped: only `safe_auto` at anchor `100` applies unattended. Every other finding with a concrete fix goes to a **grouped confirmation** — one question over the batch, rendered in full — and `manual` findings are asked as which-remedy questions. Volume is addressed by batching rather than by skipping the confirmation.
+
+What the rounds established:
+
+- **Rounds 1-2 failed on reconciliation, not design.** The new routing table was added while seven downstream surfaces still described the old behaviour, so the skill carried two answers and models followed either one. The signature was *instability* (`6,6,6,6,10,10`) rather than uniform failure — read as noise the first time.
+- **Round 3 showed a clean pendulum.** Gating Apply at anchor `100` gave zero false applies but reported only 2-4 of 9 corrections; opening it to anchor `75` reported 7-9 of 9 but applied a real product fork in most runs. Forks-asked plus false-applies equalled two in every trial, which says routing works and the *classification* does not.
+- **Round 4 killed the escape hatch.** Routing the model's own uncertainty to the cheap bucket had **zero effect** — it never used that route. A model that is miscalibrated about its own certainty does not experience the uncertainty the rule addresses; it decides, and is sometimes wrong. "When unsure, do X" is not an available mechanism.
+
+The two changes never measured: identifier glossing at emission, and the report-versus-question grammar. The frozen finding set predates both, so the harness could not see them. An emission-layer change is invisible to a frozen-set eval by construction — the freeze removes reviewer variance and reviewer behaviour together.
+
+
 
 **Goal:** Ask the user only where a realistic answer other than "yes" exists.
 
@@ -582,7 +610,11 @@ Two things follow, and they are the whole unit.
 
 **Verification:** Re-running the observed sibling-worktree plan surfaces the two product forks as which-remedy questions and applies the other nine as reported changes — matching the split the agent itself reached under challenge. No applied change commits to product behaviour the document had not already settled; in particular the two forks are asked, not decided and disclosed.
 
-### U15. Check whether one weak cell is a route defect, and record the floor
+### U15. Check whether one weak cell is a route defect, and record the floor — RESCOPE PREDATES THE CORPUS FINDING
+
+**Read with the corpus finding above.** This unit was scoped when the weak-cell numbers were believed to describe model capability. They were measured on the unrepresentative corpus, so "Haiku reaches 69.8% recall" may say as much about the inputs as about the model. Re-measure against real reviews before concluding anything about a capability floor. The Codex Sol check — whether a flat `0%` across seven runs is a route defect rather than a tier limit — is unaffected and still worth doing, since a flat zero is not a shape that easy inputs explain.
+
+
 
 **Goal:** Determine whether Codex Sol's flat failure is a capability floor or a defect in how that route is driven. Record the weak-model floor as an accepted limitation rather than engineering around it.
 
