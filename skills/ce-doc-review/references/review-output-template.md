@@ -23,7 +23,7 @@ This template describes the Phase 4 interactive presentation — what the user s
 - security-lens -- plan adds public API endpoint with auth flow
 - scope-guardian -- plan has 15 requirements across 3 priority levels
 
-Applied 7 changes. 3 awaiting one confirmation. 2 decisions (2 errors). 2 FYI observations.
+Applied 5 changes. 5 awaiting one confirmation. 2 decisions (2 errors). 2 FYI observations.
 
 ### Applied fixes
 
@@ -31,9 +31,7 @@ Applied 7 changes. 3 awaiting one confirmation. 2 decisions (2 errors). 2 FYI ob
 - Fixed cross-reference: Section 4 referenced "Section 3.2" which is actually "Section 3.1" (coherence)
 - Updated unit count from "6 units" to "7 units" to match listed units (coherence)
 - Added "update API rate-limit config" step to Unit 4 -- implied by Unit 3's rate-limit introduction (feasibility)
-- Added the migration path from the existing Devise setup into Unit 3's custom-auth work, so implementers do not rebuild what already ships (feasibility)
 - Added auth token refresh to test scenarios -- required by Unit 2's token expiry handling (security-lens)
-- Added a rate limit to the public webhook endpoint, matching the limits the plan already sets on its other public routes (security-lens)
 
 ### Implementation obligations
 
@@ -64,6 +62,13 @@ Already entailed by the plan; confirm as a group.
 |---|---------|-------|----------|------------|------|
 | 2 | Scope Boundaries | 8 of 12 units build admin infrastructure; only 2 touch stated goal | scope-guardian | 75 | manual |
 
+#### Omissions
+
+| # | Section | Issue | Reviewer | Confidence | Tier |
+|---|---------|-------|----------|------------|------|
+| 3 | Unit 6 — Custom auth | Implementers rebuild login and session flows the existing Devise setup already ships, because no unit says how to migrate off it | feasibility | 100 | gated_auto |
+| 4 | Unit 5 — Webhooks | The public webhook endpoint takes unlimited requests while every other public route in the plan is capped, so a flood reaches the app unthrottled | security-lens | 100 | gated_auto |
+
 ### FYI Observations
 
 Low-confidence observations surfaced without requiring a decision. Content advisory only.
@@ -92,8 +97,8 @@ Residual concerns are issues the reviewers noticed but could not confirm at conf
 | Persona | Status | Findings | Auto | Proposed | Decisions | FYI | Residual |
 |---------|--------|----------|------|----------|-----------|-----|----------|
 | coherence | completed | 7 | 3 | 2 | 1 | 1 | 0 |
-| feasibility | completed | 3 | 2 | 1 | 0 | 0 | 1 |
-| security-lens | completed | 2 | 2 | 0 | 0 | 0 | 0 |
+| feasibility | completed | 3 | 1 | 2 | 0 | 0 | 1 |
+| security-lens | completed | 2 | 1 | 1 | 0 | 0 | 0 |
 | scope-guardian | completed | 2 | 0 | 0 | 1 | 1 | 0 |
 | product-lens | not activated | -- | -- | -- | -- | -- | -- |
 | design-lens | not activated | -- | -- | -- | -- | -- | -- |
@@ -105,10 +110,10 @@ Restated: 2 (residual/deferred items suppressed as duplicates of actionable find
 ## Section Rules
 
 - **Summary line**: Always present after the reviewer list. **Count changes made and choices requested separately** — they are different speech acts and collapsing them is what produces a line claiming both "N items need attention" and "no decisions requiring judgment." Format: "Applied N changes. M awaiting one confirmation. K decisions (X errors, Y omissions). Z FYI observations." Omit any zero clause except the FYI clause when zero (it's informative that none surfaced). Never describe an item as needing attention when nothing is being asked of the reader.
-- **Applied fixes**: List every fix synthesis step 3.7 routed to Apply. Include enough detail per fix to convey the substance — especially for fixes that add content or touch document meaning. Omit section if none.
+- **Applied fixes**: List every fix synthesis step 3.7 routed to Apply. Include enough detail per fix to convey the substance — especially for fixes that add content. Omit section if none.
 - **Implementation obligations**: Findings the document already entails (synthesis step 3.7), grouped under the implementation unit each affects and confirmed as a group rather than one at a time. Each line is a consequence plus its change as intent, per the rendering floor's obligation-block rule — no recommendation, because there is no decision to make. Render the whole group before any confirmation fires; a batch confirmation with nothing visible above it is a rubber stamp. Omit section if none.
 - **Self-contained references**: Every fix line and table cell obeys the shared rendering floor (`references/rendering-floor.md`). The `Issue` cell leads with the consequence (what goes wrong, for whom) and applies the opaque-token policy to all three classes — navigation anchors (document IDs like `R6`, `U3`: keep the ID, gloss at first mention), provenance anchors (tickets/PRs: gloss only when the event drives the decision, else omit), and mechanism symbols (functions/files/lines: translate to their role) — at most two anchors per cell. A cell whose only description of a referenced item is a bare identifier of any class is not acceptable. The floor is the single source; this template does not restate a weaker per-surface rule.
-- **P0-P3 sections**: Only include sections that have findings still waiting on the user — the decision surface, plus any finding synthesis step 3.7 sent to the grouped confirmation that is not rendered in the obligations section above. Omit empty severity levels. Within each severity, separate into **Errors** and **Omissions** sub-headers. Omit a sub-header if that severity has none of that type. The `Tier` column surfaces whether a finding is `manual` (requires user judgment) or `gated_auto` (a concrete fix held back for the group confirmation).
+- **P0-P3 sections**: Only include sections that have findings still waiting on the user — the decision surface, plus any finding synthesis step 3.7 sent to the grouped confirmation that is not rendered in the obligations section above. Omit empty severity levels. Within each severity, separate into **Errors** and **Omissions** sub-headers. Omit a sub-header if that severity has none of that type. The `Tier` column surfaces the finding's internal class: `manual` for one requiring user judgment, `gated_auto` or `safe_auto` for a concrete fix waiting on the group confirmation.
 - **FYI Observations**: Findings at confidence anchor `50` regardless of `autofix_class`. Surface here for transparency; these are not actionable and do not enter the walk-through. Omit section if none.
 - **Residual Concerns**: Residual concerns noted by personas that did not make it above the confidence gate. Listed for transparency; not promoted into the review surface (cross-persona agreement boost runs on findings that already survived the gate, per synthesis step 3.4). Omit section if none.
 - **Deferred Questions**: Questions for later workflow stages. Omit if none.

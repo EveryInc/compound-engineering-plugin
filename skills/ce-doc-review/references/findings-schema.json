@@ -46,7 +46,7 @@
           "autofix_class": {
             "type": "string",
             "enum": ["safe_auto", "gated_auto", "manual"],
-            "description": "How this issue should be handled. safe_auto = one clear correct fix applied silently (typo, wrong count, stale cross-reference, mechanically-implied addition, terminology drift). gated_auto = concrete fix that touches document meaning or scope, with no genuine alternative to it (substantive additions from codebase-pattern-resolved fixes, framework-native-API substitutions, missing standard controls). manual = requires user judgment; multiple valid approaches. Low-confidence manual findings surface in an FYI subsection at the presentation layer."
+            "description": "How this issue should be handled. safe_auto = one clear correct fix, mechanical enough that stating it and doing it are the same act (typo, wrong count, stale cross-reference, mechanically-implied addition, terminology drift). gated_auto = concrete fix that touches document meaning or scope, with no genuine alternative to it (substantive additions from codebase-pattern-resolved fixes, framework-native-API substitutions, missing standard controls). manual = requires user judgment; multiple valid approaches. Low-confidence manual findings surface in an FYI subsection at the presentation layer."
           },
           "finding_type": {
             "type": "string",

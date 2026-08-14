@@ -127,7 +127,7 @@ Do not promote if the finding involves scope or priority changes where the autho
 
 **Cross-model peer cap.** A finding whose reviewers are *only* cross-model peers (a `<lens>-<provider>` name such as `adversarial-codex`, with no bare in-process `<lens>` reviewer) — i.e. one no in-process reviewer independently raised — is **never** promoted to `safe_auto` here; cap it at `gated_auto` at most. A peer is a corroboration signal, not an apply authority (R18): silent apply requires in-process corroboration, so only a peer finding that *merged* with its in-process twin in 3.3 (its Reviewer shows both `<lens>` and `<lens>-<provider>`) may reach `safe_auto` under the normal rules. This is independent of the peer's returned `autofix_class` — the promotion scan, not just the peer's own classification, is capped.
 
-**Strawman-downgrade safeguard.** If a `safe_auto` finding names dismissed alternatives in `why_it_matters` (per the subagent template's strawman rule), verify the alternatives are genuinely strawmen. If any alternative is a plausible design choice that the persona dismissed too aggressively, downgrade to `manual` — a real alternative makes the finding a decision, per the misclassification guard in 3.7. Downgrading to `gated_auto` does not hold the fix back.
+**Strawman-downgrade safeguard.** If a `safe_auto` finding names dismissed alternatives in `why_it_matters` (per the subagent template's strawman rule), verify the alternatives are genuinely strawmen. If any alternative is a plausible design choice that the persona dismissed too aggressively, downgrade to `manual` — a real alternative makes the finding a decision, per the misclassification guard in 3.7.
 
 ### 3.7 Route by Autofix Class
 
@@ -149,27 +149,31 @@ Obligation grouping governs what the user is asked about, never what applies sil
 
 **Every finding carries two claims, and they have independent entropy.** The *problem-claim* — this is wrong — is scored by the confidence anchor. The *remedy-claim* — fix it this way — is scored by `autofix_class`, because the rubric in `references/subagent-template.md` classifies `manual` precisely when genuinely different approaches exist and `gated_auto` when the only alternatives are strawmen. So `gated_auto` already asserts that no real alternative exists.
 
-Route on the pair. **Do not prompt on a finding whose own classification says there is nothing to choose between** — a confirmation whose answer is foreseeable carries no information, and a review full of them teaches the reader to accept without reading, which is what destroys the confirmations that matter.
+Route on the pair. **Do not spend a separate question on a finding whose own classification says there is nothing to choose between.** Eleven questions with foregone answers teach the reader to accept without reading, and that habit is what destroys the confirmations that matter.
 
-**When you cannot tell whether a real alternative exists, send the finding to the grouped confirmation.** Do not guess in either direction. The three routes cost very different amounts to get wrong: applying a finding that carried a real choice makes a product decision on the author's behalf, and asking about one that carried none spends a prompt on a foregone answer — but the grouped confirmation costs one question for the whole batch, rendered in full, so a finding that lands there wrongly costs the reader a glance. **Uncertainty belongs in the cheap-to-be-wrong bucket.** This is the same fail-closed reasoning as the merge test in 3.3: when the judgment is genuinely unclear, take the option whose failure is recoverable.
+Batching is the remedy, not silence. One question over the whole settled set keeps the changes in front of the reader without pretending each is a decision. What earns a question of its own is a genuine fork.
 
-Reserve this for real uncertainty, not for discomfort. If the classification is clear, follow it — routing everything here would rebuild the undifferentiated queue this step exists to dismantle.
+**When the call between `gated_auto` and `manual` is genuinely close, choose `manual`.** With nothing but mechanical corrections applying unattended, the remaining risk is not a bad edit — it is a real fork buried inside a batch the reader skims. A fork wrongly asked costs one question; a fork wrongly batched costs the decision itself.
 
 | Anchor | Autofix Class | Route |
 |--------|---------------|-------|
-| `100`  | `safe_auto`   | Apply. Report in the change list. Requires `suggested_fix`; demote to `gated_auto` if missing. |
-| `100`  | `gated_auto`  | Apply. Report in the change list. The problem is confirmed and no genuine alternative exists, so there is nothing to ask. Requires `suggested_fix`; demote to `manual` if missing. |
+| `100`  | `safe_auto`   | Apply. Report in the change list. Mechanical corrections only — evidence directly confirms and there is one right answer. Requires `suggested_fix`; demote to `gated_auto` if missing. |
+| `100`  | `gated_auto`  | Grouped confirmation. A concrete fix that touches meaning, so the reader sees it before it lands — but batched, not asked one at a time. Requires `suggested_fix`; demote to `manual` if missing. |
 | `100`  | `manual`      | A decision — real alternatives exist. Ask **which remedy**, not whether to proceed. |
-| `75`   | `safe_auto`   | Apply. Report in the change list. Requires `suggested_fix`; demote to `gated_auto` if missing. |
-| `75`   | `gated_auto`  | Apply. Report in the change list. Requires `suggested_fix`; demote to `manual` if missing. |
+| `75`   | `safe_auto`   | Grouped confirmation. Unattended apply stays reserved for anchor `100`, where the evidence directly confirms the fix. |
+| `75`   | `gated_auto`  | Grouped confirmation. Requires `suggested_fix`; demote to `manual` if missing. |
 | `75`   | `manual`      | A decision. Ask **which remedy**. |
 | `50`   | any           | Surface in the FYI subsection regardless of `autofix_class`. Do not enter the decision surface or any batch action. These are observations. |
 
-**Anchor does not gate Apply.** Anchors `75` and `100` route identically, because the anchor scores the *problem-claim* and Apply turns on the *remedy-claim*. Anchor `75` means the reviewer double-checked and the issue will be hit in practice — that is a settled problem, not a doubtful one. Requiring `100` would mix the two axes back together, which is the confusion this step exists to undo, and it empties the Apply path in practice: a real review returns almost everything at `75`. What separates Apply from a decision is whether an alternative exists, and nothing else.
+**Nothing that touches document meaning applies unattended.** Only `safe_auto` at anchor `100` applies without the reader seeing it first. Everything else with a concrete fix goes to the grouped confirmation: one question covering the whole batch, rendered in full before it fires.
 
-That yields three surfaces, and each is a different speech act: **applied** (reported, revertable), **grouped confirmation** (obligations and peer-only findings — one question covering a batch shown in full first), and **decisions** (genuine forks). Render them per the shared floor's grammar so a reader can tell which is which without tracking headers.
+This is a deliberate retreat from a stricter rule, and the reason is measured. Routing `gated_auto` straight to Apply was evaluated across four rounds on a real review. It reported far more corrections — 7 to 9 of 9, against 2 to 4 when Apply was gated harder — but it also applied a genuine product fork in most runs, because the model cannot reliably tell which findings carry a real choice. Asking it to route its own uncertainty to a safer bucket did not help: it never used that route, since it does not experience the uncertainty as uncertainty. It simply decides, and is sometimes wrong.
 
-**Cross-model peer safeguard.** A finding whose only reviewers are cross-model peers (a `<lens>-<provider>` name with no in-process co-reviewer) **never routes to Apply**, at any anchor or class. Send it to the grouped confirmation instead. A peer cannot authorize an unattended edit on its own (R18). Note that demoting its `autofix_class` no longer accomplishes this — `gated_auto` now applies too — so this rule targets the route directly rather than the class.
+So the volume problem and the authority problem get separated. **The grouped confirmation solves volume** — one question for a batch is not eleven prompts, which is the complaint this work started from. **Attended review solves authority** — a wrong classification costs the reader a glance rather than an unrequested change to their document. What `autofix_class` still decides is *how* the reader meets a finding: batched with everything else settled, or as a fork with its own question.
+
+That yields three surfaces, each a different speech act: **applied** (reported, revertable — mechanical corrections only), **grouped confirmation** (everything with a concrete fix, plus obligations and peer-only findings — one question covering a batch shown in full first), and **decisions** (genuine forks, asked as which-remedy). Render them per the shared floor's grammar so a reader can tell which is which without tracking headers.
+
+**Cross-model peer safeguard.** A finding whose only reviewers are cross-model peers (a `<lens>-<provider>` name with no in-process co-reviewer) **never routes to Apply**, at any anchor or class. Send it to the grouped confirmation instead. A peer cannot authorize an unattended edit on its own (R18). This rule names the route, not the class, so it holds whatever `autofix_class` the finding carries out of 3.6.
 
 **Misclassification guard.** A concrete `suggested_fix` never outranks a real alternative. If a finding classed `gated_auto` would let a competent author reasonably prefer a different remedy, it is `manual` and belongs in the decision surface — reclassify it here rather than applying it. This is the failure that puts scope and behaviour changes into an unattended path, so when the two readings are close, prefer `manual`.
 
@@ -208,22 +212,22 @@ a weaker per-surface rule; the floor is authoritative.
 
 ### Apply the findings 3.7 routed to Apply
 
-Apply, in a single pass, every finding 3.7 routed to Apply — **anchor `75` or `100` with `safe_auto` or `gated_auto`**. All four apply for the same reason: the problem is settled and the classification asserts no genuine alternative to the remedy, so there is nothing to ask. The anchor does not gate this; only the presence of an alternative does.
+Apply, in a single pass, every finding 3.7 routed to Apply — **anchor `100` with `safe_auto`, and nothing else**. Evidence directly confirms the problem and there is one right answer, so the reader loses nothing by seeing it as a reported change rather than a question. Everything else with a concrete fix goes to the grouped confirmation, where the reader sees it before it lands.
 
 - Edit the document inline using the platform's edit tool
 - Track what was changed for the "Applied changes" section in the rendered output
 - Do not ask for approval — 3.7 already established there is no choice to offer
 - Do **not** apply anything 3.7 routed elsewhere. Obligations and peer-only findings join the grouped confirmation; anchor `50` routes to FYI; `manual` at any anchor is a decision. If a finding reaches this step from any of those routes, 3.7 was not applied correctly — re-run it for that finding before continuing.
 - Do **not** apply a finding whose only reviewers are cross-model peers, at any anchor or class. 3.7 sends those to the grouped confirmation regardless of classification.
-- An applied fix must never remove or reword a `session-settled:` annotation. If a `suggested_fix`'s text would touch one, do not apply it — send the finding to the grouped confirmation so the user answers before the annotation changes. Demoting its `autofix_class` does not accomplish this.
+- An applied fix must never remove or reword a `session-settled:` annotation. If a `suggested_fix`'s text would touch one, do not apply it — send the finding to the grouped confirmation so the user answers before the annotation changes.
 
-List every applied fix in the output summary so the user can see what changed. Use enough detail to convey the substance of each fix (section, what was changed, reviewer attribution). This is especially important for fixes that add content or touch document meaning — the user should not have to diff the document to understand what the review did.
+List every applied fix in the output summary so the user can see what changed. Use enough detail to convey the substance of each fix (section, what was changed, reviewer attribution). This is especially important for fixes that add content — the user should not have to diff the document to understand what the review did.
 
 ### Route Remaining Findings
 
 After the applied changes land, the rest split by the route 3.7 assigned — not by `autofix_class`:
 
-- **Grouped confirmation** — obligations and peer-only findings. One confirmation covering the batch, rendered in full first. Anchor `75` does **not** land here: it applies alongside anchor `100`, because Apply turns on the absence of an alternative rather than on evidence strength.
+- **Grouped confirmation** — every finding 3.7 sent there, obligations and peer-only findings among them. One confirmation covering the batch, rendered in full first.
 - **Decisions** — `manual` findings at anchor `75` or `100`. These enter the routing question and the walk-through (see `references/walkthrough.md`), and carry a which-remedy sub-question when more than one viable remedy exists.
 - **FYI** — anchor `50`, presentation only, no routing.
 - **Nothing in either actionable bucket** → skip the routing question; flow directly to the Phase 5 terminal question. Applied changes alone do not warrant a routing question; report them and move on.
@@ -263,7 +267,7 @@ Implementation obligations (already entailed by the document; confirmed as a gro
 <unit name>
   - <consequence, no opaque identifier> — <change as intent language>
 
-Proposed fixes (raised only by a cross-model peer; confirmed with the obligations above):
+Proposed fixes (shown before anything lands; confirmed with the obligations above):
 
 [P0] Section: <section> — <consequence-first title> (<reviewer>, confidence <anchor>)
   Recommendation: <Apply | Defer | Skip>
@@ -296,9 +300,9 @@ Restated: N (residual/deferred items suppressed as duplicates of actionable find
 Review complete
 ```
 
-Omit any section with zero items. The bucket names are the user-facing vocabulary for the routes 3.7 assigned: "Applied N fixes" reports what already changed, the obligations block and "Proposed fixes" together render the grouped confirmation (obligations first, then any finding no in-process reviewer raised), "Decisions" carries the decision surface, and "FYI observations" carries anchor `50`. End with "Review complete" as the terminal signal so callers can detect completion.
+Omit any section with zero items. The bucket names are the user-facing vocabulary for the routes 3.7 assigned: "Applied N fixes" reports what already changed, the obligations block and "Proposed fixes" together render the grouped confirmation (obligations first, then the rest of the batch), "Decisions" carries the decision surface, and "FYI observations" carries anchor `50`. End with "Review complete" as the terminal signal so callers can detect completion.
 
-**Obligations count as proposed fixes.** They are the bulk of that bucket, rendered as a group rather than item by item — grouping changes presentation, not the count. So obligations are included in the proposed-fixes count a caller parses, and the caller's actionable-items gate keeps its meaning. Do **not** export a separate obligation count: a review whose findings are all obligations must still report actionable items, or a caller gating on that sum would hide the confirmation step and the user would never see work the review found.
+**Obligations count as proposed fixes.** They render as a group rather than item by item — grouping changes presentation, not the count. So obligations are included in the proposed-fixes count a caller parses, and the caller's actionable-items gate keeps its meaning. Do **not** export a separate obligation count: a review whose findings are all obligations must still report actionable items, or a caller gating on that sum would hide the confirmation step and the user would never see work the review found.
 
 **Compact rendering for FYI observations, residual concerns, and deferred questions (high-count mode).** When the combined count of these three buckets is 5 or more, collapse each to a one-line count followed by a tight bullet list — FYI observations use their consequence line, residual concerns and deferred questions their concern or question text — with no per-item elaboration. Actionable buckets (Proposed fixes / Decisions) remain fully rendered regardless. This mirrors the interactive-mode rule in `references/review-output-template.md` so both modes produce the same shape.
 
