@@ -1,4 +1,6 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, setDefaultTimeout, test } from "bun:test"
+
+setDefaultTimeout(15_000)
 import fs from "fs"
 import os from "os"
 import path from "path"

@@ -120,7 +120,20 @@ discover_claude() {
                     break
                 fi
                 # POSIX: /Users -> ""; still need to visit /.
+                # Git Bash: /d -> ""; Claude names D:\ as D--, so visit D:/.
                 if [ -z "$next" ]; then
+                    case "$cwd" in
+                        /[a-zA-Z])
+                            local drive
+                            drive="${cwd:1:1}"
+                            case "$drive" in
+                                [a-z]) drive=$(printf '%s' "$drive" | tr '[:lower:]' '[:upper:]') ;;
+                            esac
+                            cwd="${drive}:/"
+                            hops=$((hops + 1))
+                            continue
+                            ;;
+                    esac
                     if [ "$cwd" != "/" ] && [ "${cwd#/}" != "$cwd" ]; then
                         cwd="/"
                         hops=$((hops + 1))
