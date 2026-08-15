@@ -433,6 +433,11 @@ describe("ce-debug regression test selection", () => {
     // `ce-commit-push-pr`) and a non-repo tried to commit before reaching its stop.
     expect(routing).toMatch(/never an action of its own/i)
     expect(routing).toMatch(/exactly one of these runs/i)
+    // The ship gate tests for *unpublished* work, not any commit since the base —
+    // otherwise a branch with an open PR (whose commits are already pushed) is refused
+    // the shipping route and the fix silently never reaches that PR.
+    expect(routing).toMatch(/unpublished/i)
+    expect(routing).toMatch(/updates that PR rather than opening a second one/i)
     // The entangled state is the one place a blocking question survives — no safe
     // default exists once a fix-owned file already held the user's edits.
     expect(routing).toMatch(/Ask \(per \*\*Blocking questions\*\*\)/)
