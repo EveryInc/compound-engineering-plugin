@@ -438,12 +438,15 @@ describe("ce-debug regression test selection", () => {
     // the route to a branch with an open PR (the fix never reaches it); gating on
     // "unpushed" lets backup-pushed WIP be swept into a first PR spanning it.
     expect(routing).toMatch(/updates that PR rather than opening a second one/i)
-    expect(routing).toMatch(/pushed alone is not offered/i)
-    // Both conditions must hold together. Each earlier revision kept one and dropped
-    // the other: commits-since-base alone refuses a branch with an open PR, and
-    // unpushed-only lets backup-pushed WIP ride into a first PR.
+    // The two arms use different tests and must not be merged. Applying `@{u}` to the
+    // no-PR arm breaks every branch `git checkout -b` just made (no upstream), and
+    // applying only commits-since-base to the open-PR arm refuses a branch with a PR.
     expect(routing).toMatch(/@\{u\}\.\.HEAD/)
     expect(routing).toMatch(/<default-branch>\.\.HEAD/)
+    expect(routing).toMatch(/do not test `@\{u\}` on this arm/i)
+    // Pushing happens before PR creation, so a non-GitHub or unauthenticated remote
+    // publishes the branch and then fails to open the promised PR.
+    expect(routing).toMatch(/PR-capable/i)
     // Declining the entangled commit must terminate, not fall through to question 2 and
     // commit the very file the user chose to leave alone.
     expect(routing).toMatch(/only the first answer continues/i)
