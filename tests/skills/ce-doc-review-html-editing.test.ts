@@ -25,6 +25,9 @@ describe("ce-doc-review HTML editing", () => {
     expect(WALKTHROUGH).not.toContain("single-file markdown changes")
     expect(OPEN_QUESTIONS).toMatch(/native format/i)
     expect(OPEN_QUESTIONS).toMatch(/never insert markdown syntax into HTML/i)
+    expect(OPEN_QUESTIONS).toMatch(
+      /If no sibling entry exists, use a semantic HTML list with one deferred finding per list item/i,
+    )
     expect(REVIEWER_TEMPLATE).toMatch(
       /Deferred \/ Open Questions[\s\S]{0,240}Markdown or HTML/i,
     )

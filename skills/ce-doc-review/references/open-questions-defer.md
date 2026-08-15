@@ -28,7 +28,7 @@ Date format: ISO 8601 calendar date (`YYYY-MM-DD`). If multiple reviews occur on
 
 Per deferred finding, append a reader-facing list entry in the document's native format. The entry carries no hidden comment; every field Step 4's dedup needs is reconstructable from visible text:
 
-The example below is markdown. In HTML, mirror the nearest sibling entry's element structure.
+The example below is markdown. In HTML, mirror the nearest sibling entry's element structure. If no sibling entry exists, use a semantic HTML list with one deferred finding per list item.
 
 ```
 - **{title}** — {section} ({severity}, {reviewer}, confidence {confidence})
