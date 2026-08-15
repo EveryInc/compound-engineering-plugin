@@ -133,22 +133,20 @@ Determine how to proceed based on what was provided in `<input_document>` (after
    current_branch=$(git branch --show-current)
    default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
 
-   # Fallback if remote HEAD isn't set: the first of main/master that exists on origin or locally
+   # Fallback if remote HEAD isn't set: main/master on origin first, then a local main/master (local-only repo)
    if [ -z "$default_branch" ]; then
-     for candidate in main master; do
-       if git show-ref --verify --quiet "refs/remotes/origin/$candidate" || git show-ref --verify --quiet "refs/heads/$candidate"; then
-         default_branch=$candidate; break
-       fi
+     for ref in refs/remotes/origin/main refs/remotes/origin/master refs/heads/main refs/heads/master; do
+       if git show-ref --verify --quiet "$ref"; then default_branch=${ref##*/}; break; fi
      done
    fi
    git status --short
    ```
 
-   **Record the pre-work scope** — the files `git status --short` already lists — before editing anything. That list is the user's in-progress work; incremental commits stage only work-owned files, so untouched pre-existing dirt never enters a commit. It rides along on any branch move (`git checkout -b` and `git branch -m` both carry uncommitted changes), which is the intended outcome — do not stash it, do not ask about it, and do not derive the branch name from it: name the branch from the plan or work description regardless of what is dirty. Where a unit later edits a file that was already dirty at start, one commit cannot separate their edits from yours (`ce-commit` and the incremental-commit rule group at file level). Ask once — one question covering every such file, at the first commit that would include one — whether to commit those files with their pre-existing edits included, or leave them uncommitted for the user to handle. That is the single branch/tree question this skill asks, because both answers lose something the agent cannot choose for the user. "Leave them uncommitted" is an exclusion that holds for the rest of the run: those files stay out of every later commit, including the shipping handoff — pass them as excluded files on the `ce-commit-push-pr` / `ce-commit` invocation, since either skill would otherwise commit the still-dirty file at file granularity — and name them in the final summary as work-owned changes left unshipped. In Return-to-Caller Mode do not ask: commit them with the unit and name those files in the envelope so the caller can surface it.
+   **Record the pre-work scope** — the files `git status --short` already lists — before editing anything. That list is the user's in-progress work; incremental commits stage only work-owned files, so untouched pre-existing dirt never enters a commit. It rides along on any branch move (`git checkout -b` and `git branch -m` both carry uncommitted changes), which is the intended outcome — do not stash it, do not ask about it, and do not derive the branch name from it: name the branch from the plan or work description regardless of what is dirty. Where a unit later edits a file that was already dirty at start, one commit cannot separate their edits from yours (`ce-commit` and the incremental-commit rule group at file level). Ask once — one question covering every such file, at the first commit that would include one — whether to commit those files with their pre-existing edits included, or leave them uncommitted for the user to handle. That is the single branch/tree question this skill asks, because both answers lose something the agent cannot choose for the user. "Leave them uncommitted" is an exclusion that holds for the rest of the run: those files stay out of every later commit, including the shipping handoff — pass them as `exclude:<paths>` on the `ce-commit-push-pr` / `ce-commit` invocation (both honor it; without it either skill would commit the still-dirty file at file granularity) — and name them in the final summary as work-owned changes left unshipped. In Return-to-Caller Mode do not ask: commit them with the unit and name those files in the envelope so the caller can surface it.
 
    **If on the default branch, or detached (`current_branch` is empty):** create a feature branch without asking — `git checkout -b <name>`, named from the plan title or work description (e.g., `feat/user-authentication`, `fix/email-validation`) — and say which branch you moved to; re-read `git branch --show-current` afterwards so the rest of the run uses the new name. A `current_branch` equal to `main` or `master` is the default branch even when the fallback above resolved nothing, as in a local-only repo. If the user asked for a worktree in this session, invoke the `ce-worktree` skill instead of branching in place. Continue on the default branch only when the user explicitly said so this session.
 
-   **If already on a feature branch:** continue on it. If its name is opaque or auto-generated (for example `worktree-jolly-beaming-raven`) and it has no upstream (`git rev-parse --abbrev-ref @{upstream}` fails), rename it to a name derived from the work with `git branch -m <meaningful-name>` and say so. Leave the name alone when the branch has an upstream — a rename after publication forks the local and remote names, which is not a one-command undo.
+   **If already on a feature branch:** continue on it. If its name is opaque or auto-generated (for example `worktree-jolly-beaming-raven`) and it is unpublished — no branch of that name on the remote (`git ls-remote --heads origin <current_branch>` prints nothing) — rename it to a name derived from the work with `git branch -m <meaningful-name>` and say so. A missing upstream is not the test: a branch pushed without `-u` has none yet is published. Leave a published branch's name alone — a rename forks the local and remote names, so the shipping tail would push a second branch and miss any open PR, which is not a one-command undo.
 
 3. **Create Task List** _(skip if Phase 0 already built one, or if Phase 0 routed as Trivial)_
    - Use the platform's task-tracking capability when available (`TaskCreate`/`TaskUpdate`/`TaskList` in Claude Code, `update_plan` in Codex, or the equivalent on other harnesses) to break the plan into actionable tasks. If none is available, continue normally without simulating a task list in chat
@@ -258,9 +256,11 @@ Before implementing the first task, you must read `references/implementation-loo
    # 2. Stage only files related to this logical unit (not `git add .`)
    git add <files related to this logical unit>
 
-   # 3. Commit with conventional message
-   git commit -m "feat(scope): description of this unit"
+   # 3. Commit with conventional message, limited to those same paths
+   git commit -m "feat(scope): description of this unit" -- <files related to this logical unit>
    ```
+
+   The path limit on `git commit` is load-bearing: a bare `git commit` takes the whole index, so anything the user had staged before this run started (Phase 1 Step 2's pre-work scope) would ride into the unit's commit. Naming the paths commits only them and leaves the user's staged entries in the index.
 
    **Handling merge conflicts:** If conflicts arise during rebasing or merging, resolve them immediately. Incremental commits make conflict resolution easier since each commit is small and focused.
 

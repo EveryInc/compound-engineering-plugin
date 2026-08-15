@@ -43,7 +43,7 @@ Treat this as a snapshot. Re-read branch and staged set immediately before commi
    - Good: `Fix double-submit on checkout`
    - Good: `Add per-subscription mute (U3)`
 
-6. **Stage and commit** — stage **named files only** (never `git add -A` or `git add .`). Prefer one shell call per commit group:
+6. **Stage and commit** — stage **named files only** (never `git add -A` or `git add .`). Honor `exclude:<paths>` when the invocation carries it: those files stay uncommitted no matter what else changed; say in the report that they were left out. Prefer one shell call per commit group:
 
 ```bash
 git add file1 file2 file3 && git commit -m "$(cat <<'EOF'
