@@ -145,15 +145,22 @@ jobs:
       - name: Peer-job-runner Windows smoke
         # Hosted windows-latest Python intermittently fails `import ctypes`
         # mid-suite (DLL init on _ctypes) after earlier tests already passed.
-        # Product code cannot recover; retry this step only.
+        # Product code cannot recover. Retries are signature-gated: only
+        # `DLL load failed while importing _ctypes` is retried; any other
+        # nonzero exit fails this step immediately.
         shell: pwsh
         run: |
           $max = 3
           for ($i = 1; $i -le $max; $i++) {
-            python tests/fixtures/peer-job-runner-windows-smoke.py
-            if ($LASTEXITCODE -eq 0) { exit 0 }
-            Write-Host "Windows smoke failed (attempt $i/$max, exit $LASTEXITCODE)"
-            if ($i -eq $max) { exit $LASTEXITCODE }
+            $log = Join-Path $env:TEMP "peer-job-runner-windows-smoke-$i.log"
+            python tests/fixtures/peer-job-runner-windows-smoke.py *> $log
+            $code = $LASTEXITCODE
+            $text = Get-Content -Raw -ErrorAction SilentlyContinue $log
+            if ($null -ne $text) { Write-Host $text }
+            if ($code -eq 0) { exit 0 }
+            if ($text -notmatch 'DLL load failed while importing _ctypes') { exit $code }
+            Write-Host "Windows smoke failed with known _ctypes flake (attempt $i/$max, exit $code)"
+            if ($i -eq $max) { exit $code }
             Start-Sleep -Seconds 15
           }
 
