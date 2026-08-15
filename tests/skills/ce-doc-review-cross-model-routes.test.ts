@@ -350,6 +350,18 @@ describe("cross-model-doc-review provider selection (R7, R15, R16)", () => {
     expect(resolvePeers("composer", "codex,claude,grok,composer", all)).toBe("codex")
   })
 
+  test("reference states the unset-allowlist contract the script implements", () => {
+    // Regression: without this sentence, hosts read "verify against CROSS_MODEL_PEERS"
+    // + unset allowlist as a fail-closed gate and skipped the pass in non-interactive
+    // runs (ce-plan) claiming no user could sanction egress. Parity with ce-code-review.
+    const ref = readFileSync(
+      path.join(__dirname, "../../skills/ce-doc-review/references/cross-model-review.md"),
+      "utf8",
+    )
+    expect(ref).toContain("`CROSS_MODEL_PEERS` is an optional restriction: when unset")
+    expect(ref).not.toContain("fail-closed-by-default")
+  })
+
   test("a front-loaded preference overrides the default order", () => {
     const all = ["codex", "claude", "grok", "cursor-agent"]
     expect(resolvePeers("claude", "grok,codex,claude,composer", all)).toBe("grok")
