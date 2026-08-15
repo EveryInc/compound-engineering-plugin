@@ -17,9 +17,9 @@ It is not a verdict (`ce-pov`), not findings on a document (`ce-doc-review`), an
 | Question | Answer |
 |----------|--------|
 | What does it do? | Investigates a bug (reproduce, trace, root-cause), forms hypotheses with predictions, optionally implements a test-first fix, then polishes and reviews non-trivial fixes |
-| When to use it | Failed tests, error messages, regressions, GitHub/Linear/Jira issue references, "I've been stuck on this for hours" |
+| When to use it | Failed tests, error messages, regressions, an issue reference from whatever tracker or error monitor you use (GitHub, Linear, Jira, Sentry), "I've been stuck on this for hours" |
 | What it produces | A debug summary with root cause, recommended tests, and (if you opt in) an applied fix plus post-fix quality notes. Pipeline mode returns structured JSON |
-| What's next | Fix it now, diagnosis only, or rethink the design. After a fix on a skill-created branch: commit + PR. On an existing branch: you choose PR, commit, or stop |
+| What's next | Fix it now, diagnosis only, or rethink the design. After a fix, it commits and — when the branch holds only that fix — opens a PR without asking |
 
 ---
 
@@ -104,7 +104,13 @@ Three failed fix attempts is the same gate: invalidate the current hypothesis be
 
 ### Issue tracker integration
 
-When the input references an issue (`#123`, GitHub URL, Linear URL, Jira key), the skill fetches the full conversation including all comments. Comments frequently contain updated reproduction steps, narrowed scope, prior failed attempts, and pivots to a different suspected root cause.
+When the input references an issue (`#123`, GitHub URL, Linear URL, Jira key, Sentry issue), the skill fetches the full conversation including all comments. Comments frequently contain updated reproduction steps, narrowed scope, prior failed attempts, and pivots to a different suspected root cause.
+
+Whatever you hand it becomes the **issue of record**: the skill links back to that one and never opens a duplicate for the same bug in another system, even when the repo's own tracker is something else. A Sentry issue counts as much as a Linear ticket. New tickets are only ever filed for a *different* problem found along the way.
+
+### A dirty tree is a suspect
+
+If you have uncommitted work when you invoke the skill, it treats that as a hypothesis rather than noise — the most common reason to be debugging at all is that your own in-progress edit caused the failure. When the changed files could plausibly reach the failing behavior, it stashes them (`-u`, so untracked files go too), reruns the reproduction, and pops immediately. The failure disappearing names your edit as the cause and ends the investigation; the failure persisting rules it out and leaves a clean tree to trace. It never auto-resolves a pop conflict in your work, and it never stashes just to simplify its own shipping route.
 
 ### Test-first fix, then a scoped quality tail
 
@@ -145,7 +151,7 @@ Use `ce-debug` when:
 - A test is failing and you need to know why
 - You have an error message, stack trace, or unexpected behavior
 - A regression appeared and you need to find when it broke
-- You have a GitHub, Linear, or Jira issue reference
+- You have an issue reference from a tracker or error monitor (GitHub, Linear, Jira, Sentry)
 - You have been stuck after a few failed fix attempts
 - You suspect the bug surface is wider than one symptom
 
@@ -167,7 +173,7 @@ Skip `ce-debug` when:
 - **Called from `/ce-babysit-pr` or `lfg`** with `mode:pipeline` on failing jobs
 - **Escalates to `/ce-brainstorm`** when investigation reveals a design problem rather than a logic error
 - **Runs post-fix quality checks** through `/ce-simplify-code` and `/ce-code-review` on non-trivial interactive fixes
-- **Hands off to `/ce-commit-push-pr` with `branding:on`** after a successful fix on a skill-created branch. On a pre-existing branch it asks: open a PR, commit only, or stop. Project instructions that say otherwise (for example "don't open PRs from skills") outrank the default
+- **Hands off to `/ce-commit-push-pr` with `branding:on`** after a successful fix, without asking permission, when the branch holds only that fix. It previews what it is about to commit so you can interrupt. If the branch also carries unrelated work, or there is no remote, it commits just the fix-owned files locally and pushes nothing. Project instructions that say otherwise (for example "don't open PRs from skills") outrank the default
 
 After a PR opens, the skill may offer `/ce-compound` when the lesson is generalizable (a one-sentence insight, a pattern in 3+ locations, or a wrong assumption about a shared dependency). Localized mechanical fixes are skipped so `docs/solutions/` does not fill with one-off entries.
 
@@ -192,7 +198,7 @@ When you only want the diagnosis, pick **Diagnosis only** at the fix-choice gate
 | _(empty)_ | Asks for the bug description |
 | `<error message or stack trace>` | Direct investigation |
 | `<test path>` | Reproduces the failing test, traces from there |
-| `<issue reference>` (`#123`, URL, Linear ID, Jira key) | Fetches the full thread, including comments |
+| `<issue reference>` (`#123`, URL, Linear ID, Jira key, Sentry issue) | Fetches the full thread, including comments |
 | `<description>` | e.g. "why is the cart total wrong on checkout" |
 | `mode:pipeline` | Non-interactive. Used by orchestrators. Fixes convergent bugs, defers divergent ones, returns JSON |
 
@@ -213,7 +219,11 @@ Only when the bug cannot be properly fixed within the current design: wrong resp
 Skip the skill. Go directly to `/ce-work` or just edit the file. `ce-debug` is for cases where the root cause is not obvious or the fix has failed to stick.
 
 **Does it always open a PR?**
-No. Diagnosis-only stops after the summary. A fix on a branch this skill created previews the commit and opens a PR. A fix on a branch that already existed asks first. `mode:pipeline` commits and pushes on the current branch and does not open a PR.
+Whenever the branch holds only the fix — the common case, and the one the skill optimizes for. Then it previews the commit and opens a PR without asking: a reviewed fix belongs in a PR, and the preview already gives you a chance to stop it.
+
+If the branch also carries unrelated work it does not push, because pushing would publish work you never offered up. It commits just the fix-owned files locally and tells you what it held back, then opens the PR if you ask. The one case where it stops and asks is entanglement — a file the fix had to touch already contained your own edits, so no commit can separate them and every option costs something.
+
+Diagnosis-only stops after the summary. With no remote configured it commits locally. `mode:pipeline` commits and pushes on the current branch and does not open a PR.
 
 **Does it work for non-software bugs?**
 Not really. The skill assumes code, tests, and a tracker. The investigation discipline (causal chain, predictions, assumption audit) generalizes, but the mechanics (test-first fix, defense-in-depth, PR handoff) are software-shaped.

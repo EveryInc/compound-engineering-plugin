@@ -396,23 +396,39 @@ describe("ce-debug regression test selection", () => {
 
   // Regression guard for the failure class in
   // docs/solutions/skill-design/post-menu-routing-belongs-inline.md (issue #714):
-  // Phase 4's per-option actions are always reached once a fix lands, so they must live
+  // Phase 4's per-case actions are always reached once a fix lands, so they must live
   // in the always-loaded SKILL.md body. A reference-only copy lets an agent that skipped
-  // the load render the menu and stop, or ship without `branding:on`.
-  test("keeps Phase 4 per-option handoff routing inline, not reference-only", async () => {
+  // the load stop at the summary, or ship without `branding:on`.
+  test("keeps Phase 4 per-case handoff routing inline, not reference-only", async () => {
     const content = await readRepoFile("skills/ce-debug/SKILL.md")
     const routing = content.slice(content.indexOf("#### Routing"))
 
     expect(content).toContain("#### Routing")
-    // Both branches name their action, and the action is a skill invocation, not advice
+    // Every case names its action, and the action is a skill invocation, not advice
     // to the user to type a command.
-    expect(routing).toContain("Skill-owned branch")
-    expect(routing).toContain("Pre-existing branch")
     expect(routing).toContain("via the platform's skill-invocation primitive")
     expect(routing).toContain("`ce-commit-push-pr` skill with `branding:on`")
     expect(routing).toContain("invoke the `ce-commit` skill")
     expect(routing).toContain("Stop here")
     expect(routing).toContain("`ce-compound`")
+
+    // Opening a PR is the default, not a question. The old three-option permission
+    // menu returning here is the regression this pins.
+    expect(routing).toMatch(/do not ask whether to open a pr/i)
+    expect(routing).not.toMatch(/commit the fix \(`ce-commit`\)/i)
+
+    // ...but "no question" is not "always push". `ce-commit-push-pr` pushes the whole
+    // branch and PRs every commit on it, so a branch carrying the user's unrelated work
+    // must commit locally instead of publishing it. All three states must stay
+    // distinguishable; collapsing them back to one unconditional PR route is the
+    // regression this pins.
+    expect(routing).toMatch(/carries only this fix/i)
+    expect(routing).toMatch(/cleanly separable/i)
+    expect(routing).toMatch(/entangled with the fix/i)
+    expect(routing).toMatch(/do not push and do not open a pr/i)
+    // The entangled state is the one place a blocking question survives — no safe
+    // default exists once a fix-owned file already held the user's edits.
+    expect(routing).toMatch(/Ask \(per \*\*Blocking questions\*\*\)/)
 
     // The reference load must still be demanded, and must not be improvisable from the
     // inline routing: it has to name what only it carries and what skipping it costs.
@@ -423,6 +439,25 @@ describe("ce-debug regression test selection", () => {
     expect(stub).toContain("`references/post-fix-handoff.md`")
     expect(stub).toMatch(/none of that appears in this body/i)
     expect(stub).toMatch(/skipping the read/i)
+  })
+
+  // The reported failure was a skill proposing a Linear ticket for a bug the user had
+  // already handed it as a Sentry issue. The rule that prevents it spans Phase 0, Phase
+  // 1.4, and the handoff reference, so pin the load-bearing clause in each.
+  test("links an existing issue of record instead of creating a second one", async () => {
+    const content = await readRepoFile("skills/ce-debug/SKILL.md")
+    const handoff = await readRepoFile("skills/ce-debug/references/post-fix-handoff.md")
+
+    // Phase 0 records whatever the user supplied, tracker or error monitor alike.
+    expect(content).toMatch(/issue of record/i)
+    expect(content).toMatch(/Sentry/)
+    // The no-reference input (stack trace, failing test) has no record and needs none —
+    // without this, "never open a second record" still permits opening a first.
+    expect(content).toMatch(/no issue of record/i)
+    // Phase 1.4 reads prior work; it cannot become the bug's home.
+    expect(content).toMatch(/never establishes a new home for the bug/i)
+    // Linking an existing ticket stays allowed; only creating one is forbidden.
+    expect(handoff).toMatch(/never open a new record/i)
   })
 })
 
@@ -954,10 +989,9 @@ describe("explicit Compound Engineering branding provenance", () => {
 
     expect(shipping).toContain("Load the `ce-commit-push-pr` skill with `branding:on`")
     expect(lfg).toContain("ce-commit-push-pr` skill with `mode:pipeline branding:on`")
-    // Both branch invocations must stay in the always-loaded body, not the reference —
+    // The shipping invocation must stay in the always-loaded body, not the reference —
     // see the Phase 4 routing test below.
     expect(debug).toContain("invoke the `ce-commit-push-pr` skill with `branding:on`.")
-    expect(debug).toContain("reviewed fix (invoke the `ce-commit-push-pr` skill with `branding:on`)")
     expect(debug).not.toContain("`/ce-commit-push-pr branding:on`")
     expect(debugHandoff).not.toContain("`/ce-commit-push-pr branding:on`")
   })
