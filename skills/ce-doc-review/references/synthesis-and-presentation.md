@@ -217,6 +217,8 @@ a weaker per-surface rule; the floor is authoritative.
 
 Apply, in a single pass, every finding 3.7 routed to Apply — **anchor `100` with `safe_auto`, and nothing else**. Evidence directly confirms the problem and there is one right answer, so the reader loses nothing by seeing it as a reported change rather than a question. Everything else with a concrete fix goes to the grouped confirmation, where the reader sees it before it lands.
 
+Apply each edit in the document's native format and preserve its existing structure. Never insert markdown syntax into HTML.
+
 - Edit the document inline using the platform's edit tool
 - Track what was changed for the "Applied changes" section in the rendered output
 - Do not ask for approval — 3.7 already established there is no choice to offer

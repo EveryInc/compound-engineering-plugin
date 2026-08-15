@@ -2,7 +2,7 @@
 
 > Review a requirements or plan document with parallel persona agents, apply mechanical fixes, and route the rest.
 
-`ce-doc-review` is the on-demand **findings** skill for documents. Point it at a requirements-only unified plan, an implementation-ready plan, or a legacy requirements/plan doc. It picks reviewer personas from what the doc actually contains, dispatches them in parallel, applies only full-confidence mechanical markdown fixes, then routes everything else.
+`ce-doc-review` is the on-demand **findings** skill for documents. Point it at a requirements-only unified plan, an implementation-ready plan, or a legacy requirements/plan doc. It picks reviewer personas from what the doc actually contains, dispatches them in parallel, applies only full-confidence mechanical fixes in the document's native format, then routes everything else.
 
 It is the sibling of `/ce-code-review` for the docs side. It is not a verdict. Use `/ce-pov` when you want a holistic take (strengths, risks, bottom line) rather than an issue list. Use `/ce-code-review` for findings on a diff, and `/ce-debug` when something is actually broken.
 
@@ -16,14 +16,14 @@ It is the sibling of `/ce-code-review` for the docs side. It is not a verdict. U
 |----------|--------|
 | What does it do? | Selects reviewer personas from the doc, dispatches them in parallel, applies mechanical fixes, and routes remaining findings |
 | When to use it | After a requirements-only plan lands, after `ce-plan` writes or enriches a plan, or any time you want structured findings on a planning doc |
-| What it produces | An updated markdown doc with mechanical fixes applied, plus structured handling of proposed fixes and decisions. HTML unified plans are report-only until HTML-safe mutation exists |
+| What it produces | An updated markdown or HTML doc with mechanical fixes applied in its native format, plus structured handling of proposed fixes and decisions |
 | Modes | Interactive (direct invoke, or a caller's follow-up option). Non-interactive (default when `ce-plan` chains it) |
 
 ---
 
 ## Example invocations
 
-A path, no path, or non-interactive. HTML plans can be read but not mutated.
+A path, no path, or non-interactive. Markdown and HTML plans use the same review and mutation routes.
 
 ```text
 # Review a specific requirements or plan document. Interactive by default:
@@ -43,7 +43,7 @@ A path, no path, or non-interactive. HTML plans can be read but not mutated.
 /ce-doc-review mode:headless docs/plans/notification-mute.md
 ```
 
-An HTML unified plan (`.html`) is reviewed report-only. Nothing is edited. Callers that asked for autofix skip mutation and say so.
+For HTML, edits preserve the artifact's existing structure and never insert markdown syntax.
 
 ---
 
@@ -117,7 +117,7 @@ After mechanical fixes land and the grouped confirmation is answered, remaining 
 |--------|--------|
 | Review each finding one by one | Step through each decision. Apply, skip, defer to Open Questions, or auto-resolve the rest |
 | Auto-resolve with best judgment | Applies what it judges safe. You review a bulk preview before it commits |
-| Append to Open Questions | All remaining findings deferred to the doc's `## Open Questions` section as a batch |
+| Append to Open Questions | All remaining findings deferred to the doc's `Deferred / Open Questions` section as a batch |
 | Report only | No further edits. Report stays in chat |
 
 The walk-through itself supports an "auto-resolve the rest" escape mid-flow. Bulk actions show a preview (section, title, action, brief rationale) before anything lands.
@@ -187,8 +187,8 @@ Skip `ce-doc-review` when:
 
 `ce-doc-review` is invoked from the skills that write planning docs:
 
-- **`/ce-brainstorm` post-doc menu** offers **Pressure-test the requirements**. Runs interactive, with full premise scrutiny. Shown only for a markdown unified plan, and hidden when a prototype offer is on the same menu. HTML brainstorms skip it (`ce-doc-review` is markdown-only today)
-- **`/ce-plan` after the plan is written** runs `mode:non-interactive` by default on markdown plans. Mechanical fixes apply silently. Remaining findings surface as a one-line summary above the post-generation menu, where **Decide on the review's open items** opts into the interactive walkthrough. HTML plans skip the review
+- **`/ce-brainstorm` post-doc menu** offers **Pressure-test the requirements** for markdown or HTML unified plans. It runs interactively with full premise scrutiny and is hidden when a prototype offer is on the same menu
+- **`/ce-plan` after the plan is written** runs `mode:non-interactive` by default on markdown and HTML plans. Mechanical fixes apply silently in the native format. Remaining findings surface as a one-line summary above the post-generation menu, where **Decide on the review's open items** opts into the interactive walkthrough
 - In non-interactive mode, callers receive structured findings and route the user-decision options themselves
 
 ---
@@ -219,7 +219,7 @@ Non-interactive mode without a path errors out rather than guessing.
 `ce-code-review` reviews diffs (code changes). `ce-doc-review` reviews docs (requirements, plans). Different reviewer personas, different findings shape, different routing. Both share multi-persona dispatch plus synthesis, and both can run a cross-model pass. Lens policy differs: `ce-code-review` runs its adversarial lens cross-model. `ce-doc-review` runs the three-lens judgment trio plus a whole-doc sweep, because doc-review judgment is spread across more lenses.
 
 **What's the difference between this and `ce-pov`?**
-`ce-pov` gives a holistic take: bottom line, strengths, risks. This skill gives issue-shaped findings and can edit the markdown.
+`ce-pov` gives a holistic take: bottom line, strengths, risks. This skill gives issue-shaped findings and can edit markdown or HTML in place.
 
 **Which lenses run cross-model, and why not all of them?**
 Only the judgment trio (adversarial, product-lens, security-lens) get a dedicated cross-model twin. Those are where a second model's different priors produce genuinely different findings. Coherence and scope-guardian are convergent. Feasibility is always-on, so giving it a twin would spawn a peer on every review. The separate whole-document sweep still gives feasibility, coherence, and scope broad cross-model coverage through one general-reviewer read.
@@ -228,7 +228,7 @@ Only the judgment trio (adversarial, product-lens, security-lens) get a dedicate
 Without it, every round re-surfaces the same findings, including ones you already rejected. The primer uses fingerprint plus evidence-snippet matching to suppress rejected findings and verify applied fixes.
 
 **What's "Append to Open Questions" for?**
-For findings you want to address later, not now. They get appended to the doc's `## Open Questions` section so they survive the session and the next planner or implementer sees them.
+For findings you want to address later, not now. They get appended to the doc's visible `Deferred / Open Questions` section in its native format so they survive the session and the next planner or implementer sees them.
 
 **Why a bulk preview?**
 Mass changes deserve a confirmation step. "Auto-resolve with best judgment" is delegation. The preview shows the changes before they commit so you can cancel.

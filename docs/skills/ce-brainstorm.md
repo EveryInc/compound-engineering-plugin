@@ -226,7 +226,7 @@ Many teams skip `ce-ideate` (they already know what to explore). Some also stop 
 - Strategic decisions: Deep-product surfaces durability and adjacent-product risks
 - Non-software: name a product, plan an event, decide a roadmap
 
-The software Phase 4 menu offers planning, autonomous ship with `lfg` (when a unified plan exists and no blockers remain), markdown doc review or a prototype, an HTML open-in-browser option, or more questions. There is no skip-to-`ce-work` from this menu. Non-software wrap-up offers `ce-plan`, save the summary, publish to Proof, or stop.
+The software Phase 4 menu offers planning, autonomous ship with `lfg` (when a unified plan exists and no blockers remain), document review or a prototype, an HTML open-in-browser option, or more questions. There is no skip-to-`ce-work` from this menu. Non-software wrap-up offers `ce-plan`, save the summary, publish to Proof, or stop.
 
 If a related requirements-only plan already exists, the skill offers to resume it instead of starting a duplicate.
 
@@ -285,7 +285,7 @@ This works on any harness. The host serves the chosen model natively where it ca
 - [`ce-ideate`](./ce-ideate.md): upstream "what's worth exploring" discovery; survivors arrive here with a tagged basis
 - [`ce-pov`](./ce-pov.md): a decisive verdict on a named external candidate, not a new scope
 - [`ce-plan`](./ce-plan.md): enrich the requirements-only unified plan into an implementation-ready plan
-- [`ce-doc-review`](./ce-doc-review.md): persona-based review of the Product Contract (markdown artifacts only)
+- [`ce-doc-review`](./ce-doc-review.md): persona-based review of the Product Contract in markdown or HTML
 - [`ce-prototype`](./ce-prototype.md): decide how something should work or feel before committing an approach
 - [`ce-strategy`](./ce-strategy.md): anchor brainstorms to a documented product strategy
 - [`lfg`](./lfg.md): autonomous plan-then-ship from a requirements-only artifact

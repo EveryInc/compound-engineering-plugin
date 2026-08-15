@@ -155,7 +155,7 @@ It dispatches research in parallel (repo analyst, learnings researcher). Strong 
 
 The plan is written. The confidence check then runs automatically. It finds `Risks & Dependencies` thin on a mute-leak risk and one unit's tests missing permission edge cases, dispatches reviewers, and synthesizes findings back. The plan is stamped with a `deepened:` date.
 
-Document review then runs in non-interactive mode on markdown plans. Safe auto-fixes apply silently. Remaining findings surface as a one-line summary above the post-generation menu (`Doc review applied 2 fixes. 3 decisions, 1 FYI remain.`). HTML plans skip that review pass. The menu offers: start `ce-work` (recommended), run it as a `/goal` when the host supports that, decide on remaining review items or prototype a remaining feel-question, create a tracked issue, or open the file if it is HTML. There is no Proof option on the software menu, and no pause option. The file is already saved.
+Document review then runs in non-interactive mode on markdown or HTML plans. Safe auto-fixes apply silently in the artifact's native format. Remaining findings surface as a one-line summary above the post-generation menu (`Doc review applied 2 fixes. 3 decisions, 1 FYI remain.`). The menu offers: start `ce-work` (recommended), run it as a `/goal` when the host supports that, decide on remaining review items or prototype a remaining feel-question, create a tracked issue, or open the file if it is HTML. There is no Proof option on the software menu, and no pause option. The file is already saved.
 
 ---
 
@@ -291,7 +291,7 @@ This works on any harness. The host serves the chosen model natively where it ca
 - [`ce-brainstorm`](./ce-brainstorm.md): produce the requirements-only unified plan that `ce-plan` enriches
 - [`ce-ideate`](./ce-ideate.md): upstream "what to even work on" ideation
 - [`ce-work`](./ce-work.md): execute the plan U-ID by U-ID
-- [`ce-doc-review`](./ce-doc-review.md): persona-based review of the plan (markdown artifacts only)
+- [`ce-doc-review`](./ce-doc-review.md): persona-based review of markdown or HTML plans
 - [`ce-prototype`](./ce-prototype.md): offered from the post-plan menu when a remaining feel-question is expensive to unravel
 - [`ce-debug`](./ce-debug.md): bug-shaped prompts route here
 - [`ce-strategy`](./ce-strategy.md): anchor plans to documented product strategy

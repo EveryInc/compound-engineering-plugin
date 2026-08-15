@@ -166,25 +166,13 @@ describe("ce-plan output:html mode", () => {
     ).toBe(true)
   })
 
-  test("Phase 5.2 names the HTML/ce-doc-review timing relationship", () => {
-    // Composition timing rule: Phase 5.2 must surface the relationship between
-    // HTML emission and ce-doc-review so an agent doesn't ship a pre-review
-    // artifact without understanding the gap. ce-doc-review's mutation mechanics
-    // are markdown-only today (its walkthrough applies single-file markdown
-    // edits and the open-questions flow inserts `##`/`###` headings), so HTML
-    // plans skip the 5.3.8 doc-review pass entirely — see plan-handoff.md format
-    // gate. Phase 5.2 must reference that gap inline at the write phase, either
-    // by naming the format gate, calling out that ce-doc-review is skipped on
-    // HTML, or otherwise tying the two phases together so the agent knows what
-    // the first HTML emission does and does not reflect.
+  test("Phase 5.2 sends both output formats through ce-doc-review", () => {
     const phase52Start = SKILL_BODY.indexOf("#### 5.2 Write Plan File")
     expect(phase52Start).toBeGreaterThan(-1)
     const phase52Region = SKILL_BODY.slice(phase52Start, phase52Start + 2000)
     expect(
-      /skipped in HTML|markdown-only|format gate|Phase 5\.3\.8|safe_auto|after.*ce-doc-review/i.test(
-        phase52Region,
-      ),
-      "Phase 5.2 must surface the HTML/ce-doc-review relationship inline — either naming the 5.3.8 format gate that skips ce-doc-review on HTML, or stating that ce-doc-review is markdown-only today, so an agent composing the HTML knows what the artifact does and does not reflect.",
+      /both formats|markdown and HTML|native format/i.test(phase52Region),
+      "Phase 5.2 must state that markdown and HTML both continue through ce-doc-review in their native format.",
     ).toBe(true)
   })
 

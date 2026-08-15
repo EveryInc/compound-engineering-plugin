@@ -1,12 +1,12 @@
 ---
 name: ce-doc-review
 description: Review requirements, plans, or specs with role-specific lenses. Use when the user wants to improve an existing planning document.
-argument-hint: "[mode:non-interactive] [path/to/document.md]"
+argument-hint: "[mode:non-interactive] [path/to/document.{md,html}]"
 ---
 
 # Document Review
 
-Review a requirements or plan document through multi-persona analysis: dispatch generic subagents seeded with skill-local reviewer prompt assets, apply and report the fixes synthesis routes to Apply, and route what remains to the user.
+Review a requirements or plan document through multi-persona analysis: dispatch generic subagents seeded with skill-local reviewer prompt assets, apply and report the fixes synthesis routes to Apply in the document's native format, and route what remains to the user.
 
 **Done when:** every dispatched reviewer has returned or been named as failed in Coverage, the fixes synthesis routed to Apply are applied and reported, and remaining findings have either been routed through the four-option interaction (interactive) or returned as structured text with classifications intact (non-interactive).
 
@@ -39,7 +39,7 @@ Arguments may contain a document path, a mode token, or both; both tokens togeth
 - everything else — the grouped confirmation, decisions, and FYI observations — is returned as structured text with the original classifications intact, for the caller to handle — no blocking-question prompts, no interactive routing
 - Phase 5 returns immediately with "Review complete" (no routing question, no terminal question)
 
-**Non-interactive argument contract:** `mode:non-interactive <document-path>`, for example `mode:non-interactive <path-to-doc>.md`. `mode:headless` is a deprecated alias for the same contract.
+**Non-interactive argument contract:** `mode:non-interactive <document-path>`, for example `mode:non-interactive <path-to-doc>.{md,html}`. `mode:headless` is a deprecated alias for the same contract.
 
 Absent either token, run interactive, with the routing question, walk-through, and bulk-preview behaviors documented in `references/walkthrough.md` and `references/bulk-preview.md`.
 
@@ -75,7 +75,7 @@ First check the unified artifact contract (`artifact_contract: ce-unified-plan/v
 - `artifact_readiness: requirements-only` -> **`unified-requirements`**. Review the Product Contract only; the absence of Planning Contract, Implementation Units, Verification Contract, or Definition of Done is expected and must not be flagged.
 - `artifact_readiness: implementation-ready` -> **`unified-plan`**. Review Product Contract and Planning Contract with different lenses, then Implementation Units/Verification/DoD for execution completeness.
 - Progress-like readiness values (`active`, `in_progress`, `completed`, `done`) are invalid — a document-contract finding, not an execution state to honor.
-- HTML unified artifacts (`.html`) are read/reviewed report-only. Never apply markdown mutation paths to HTML; if a caller requested mutation/autofix, skip with the existing markdown-only message or return report-only findings.
+- HTML unified artifacts (`.html`) use the same review and mutation routes. Apply changes in the document's native format and preserve its existing structure; never insert markdown syntax into HTML. For an ID-bearing HTML item, mirror the nearest sibling's structure and preserve both its anchor convention and visible ID text.
 
 Otherwise decide between the two legacy types on these signals:
 

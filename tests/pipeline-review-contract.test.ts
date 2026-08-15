@@ -460,10 +460,10 @@ describe("ce-plan review contract", () => {
     )
     expect(content).toContain("ce-doc-review` with `mode:non-interactive`")
     expect(content).toContain(
-      "Pipeline runs invoke `ce-doc-review` with `mode:non-interactive` and the plan path",
+      "They invoke `ce-doc-review` with `mode:non-interactive` and the plan path",
     )
     expect(skillStub).toContain(
-      "The default mode for markdown is non-interactive (`mode:non-interactive`)",
+      "The default is non-interactive (`mode:non-interactive`)",
     )
     expect(content).not.toContain("skip document-review and return control")
 
@@ -789,7 +789,8 @@ describe("ce-doc-review contract", () => {
 
     // Append mechanic steps
     expect(defer).toContain("## Deferred / Open Questions")
-    expect(defer).toContain("### From YYYY-MM-DD review")
+    expect(defer).toContain("From YYYY-MM-DD review")
+    expect(defer).toContain("regardless of heading syntax")
 
     // Entry format includes required fields but excludes suggested_fix and evidence
     expect(defer).toContain("{title}")

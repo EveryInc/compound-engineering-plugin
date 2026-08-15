@@ -50,12 +50,6 @@ const modelVisibleRendererCases = [
     unnecessaryOmp: ["/skill:ce-compound-refresh <scope>", "/skill:ce-compound"],
   },
   {
-    file: "skills/ce-plan/references/plan-handoff.md",
-    defaults: ["/ce-plan output:md"],
-    codex: ["$ce-plan output:md"],
-    unnecessaryOmp: ["/skill:ce-plan output:md"],
-  },
-  {
     file: "skills/ce-plan/references/universal-planning.md",
     defaults: ["/ce-plan"],
     codex: ["$ce-plan"],

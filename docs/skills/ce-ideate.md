@@ -266,5 +266,5 @@ A subject-identification gate asks one scope question when the prompt names only
 - [`ce-pov`](./ce-pov.md): when the options are already known and you need a verdict, not a new candidate set
 - [`ce-plan`](./ce-plan.md): once requirements are clear, plan the implementation
 - [`ce-strategy`](./ce-strategy.md): anchor ideation to a documented product strategy
-- [`ce-doc-review`](./ce-doc-review.md): review the saved ideation artifact for clarity and completeness (markdown output only; run with `output:md` first)
+- [`ce-doc-review`](./ce-doc-review.md): review a saved markdown or HTML planning artifact for clarity and completeness
 - [`ce-proof`](./ce-proof.md): publish the artifact to Proof for a shareable link (markdown output only; Proof can't ingest HTML)
