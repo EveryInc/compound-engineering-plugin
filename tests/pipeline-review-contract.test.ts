@@ -438,12 +438,14 @@ describe("ce-debug regression test selection", () => {
     // the route to a branch with an open PR (the fix never reaches it); gating on
     // "unpushed" lets backup-pushed WIP be swept into a first PR spanning it.
     expect(routing).toMatch(/updates that PR rather than opening a second one/i)
-    // The two arms use different tests and must not be merged. Applying `@{u}` to the
-    // no-PR arm breaks every branch `git checkout -b` just made (no upstream), and
-    // applying only commits-since-base to the open-PR arm refuses a branch with a PR.
-    expect(routing).toMatch(/@\{u\}\.\.HEAD/)
-    expect(routing).toMatch(/<default-branch>\.\.HEAD/)
-    expect(routing).toMatch(/do not test `@\{u\}` on this arm/i)
+    // Both arms measure against remote refs. A local range hides the case where the
+    // user's own default branch is ahead of the remote and Phase 3 branched off it.
+    expect(routing).toMatch(/origin\/<branch>\.\.HEAD/)
+    expect(routing).toMatch(/origin\/<default-branch>\.\.HEAD/)
+    expect(routing).toMatch(/never local ones/i)
+    // `@{u}` is not a safe stand-in: tracking config is optional and can be absent even
+    // with a PR open, where the range errors rather than answering.
+    expect(routing).toMatch(/do not use `@\{u\}`/i)
     // Pushing happens before PR creation, so a non-GitHub or unauthenticated remote
     // publishes the branch and then fails to open the promised PR.
     expect(routing).toMatch(/PR-capable/i)
