@@ -141,7 +141,9 @@ describe("ce-compound YAML safety rule presence", () => {
     expect(/YAML[- ]safety/i.test(replaceFlow)).toBe(true)
     expect(replaceFlow).toMatch(/yaml-schema\.md/)
   })
+})
 
+describe("ce-compound-refresh named-guidance comparison", () => {
   test("ce-compound-refresh compares a knowledge-track learning against guidance it names, and never edits that guidance", async () => {
     // Narrow form of issue #1265: the check is bounded to guidance files the
     // learning itself names (no search over the guidance layer), and the
@@ -152,6 +154,8 @@ describe("ce-compound YAML safety rule presence", () => {
     const investigate = section("Investigate")
     const classify = section("Classify")
     expect(investigate).toMatch(/guidance file[^\n]*(names|links)/i)
+    // The blockquoted subagent prompt is what delegated investigations see; pin it on its own.
+    expect(investigate).toMatch(/^> [^\n]*guidance file[^\n]*(names|links)/im)
     expect(classify).toMatch(/never edit[^\n]*(skill|runbook|instruction file)/i)
   })
 })
