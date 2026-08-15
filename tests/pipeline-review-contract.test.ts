@@ -438,17 +438,17 @@ describe("ce-debug regression test selection", () => {
     // the route to a branch with an open PR (the fix never reaches it); gating on
     // "unpushed" lets backup-pushed WIP be swept into a first PR spanning it.
     expect(routing).toMatch(/updates that PR rather than opening a second one/i)
-    // Both arms measure against remote refs. A local range hides the case where the
-    // user's own default branch is ahead of the remote and Phase 3 branched off it.
-    expect(routing).toMatch(/origin\/<branch>\.\.HEAD/)
-    expect(routing).toMatch(/origin\/<default-branch>\.\.HEAD/)
-    expect(routing).toMatch(/never local ones/i)
-    // `@{u}` is not a safe stand-in: tracking config is optional and can be absent even
-    // with a PR open, where the range errors rather than answering.
-    expect(routing).toMatch(/do not use `@\{u\}`/i)
-    // Pushing happens before PR creation, so a non-GitHub or unauthenticated remote
-    // publishes the branch and then fails to open the promised PR.
+    // Pin the knowledge the agent cannot derive, NOT the git commands that answer it.
+    // Six revisions of this gate each prescribed a range or ref, and five were wrong for
+    // some git configuration (no upstream, local ahead of remote, no tracking config).
+    // The intent was never what reviewers found wrong, so the commands are gone and
+    // these pins guard the facts that make the check non-obvious.
+    expect(routing).toMatch(/whole branch/i)
+    expect(routing).toMatch(/not already \*\*offered\*\*/i)
+    expect(routing).toMatch(/compare against the remote rather than a local ref/i)
     expect(routing).toMatch(/PR-capable/i)
+    // Failing to establish it must fall to the local route, never to shipping anyway.
+    expect(routing).toMatch(/take the local route instead/i)
     // Declining the entangled commit must terminate, not fall through to question 2 and
     // commit the very file the user chose to leave alone.
     expect(routing).toMatch(/only the first answer continues/i)
