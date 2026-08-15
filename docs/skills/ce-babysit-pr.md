@@ -95,7 +95,7 @@ The same rule applies to an in-progress review (an 👀 or a "reviewing…" note
 
 ### One tick, any driver
 
-State lives under `/tmp/compound-engineering-<effective-uid>/ce-babysit-pr/<host>-<owner>-<repo>-<pr>/`. A later invoke, a checkpoint resume, or a durable scheduler all drive the same tick. That is why the skill can run in a CLI session or fall back in a GUI harness that cannot keep a background wait.
+State lives under `/tmp/compound-engineering-<effective-uid>/ce-babysit-pr/<host>-<owner>-<repo>-<pr>/` (under `$TMPDIR/compound-engineering-<effective-uid>/` instead when `/tmp` cannot host a writable private root, as in a sandbox that only allowlists `$TMPDIR`). A later invoke, a checkpoint resume, or a durable scheduler all drive the same tick. That is why the skill can run in a CLI session or fall back in a GUI harness that cannot keep a background wait.
 
 Default budget is **8 hours of active watch time** (laptop-sleep gaps are excluded). A **3-calendar-day** wall-clock backstop caps every run. You can pass a shorter duration at invoke.
 

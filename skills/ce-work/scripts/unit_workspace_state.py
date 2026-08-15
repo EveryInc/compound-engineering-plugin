@@ -39,11 +39,6 @@ OWNER_SCRATCH_ROOT = (
     if _EFFECTIVE_UID is not None
     else None
 )
-DEFAULT_RUNS_ROOT = (
-    os.path.join(OWNER_SCRATCH_ROOT, "ce-work")
-    if OWNER_SCRATCH_ROOT is not None
-    else None
-)
 MAX_JSON_BYTES = 2 * 1024 * 1024
 MAX_PACKET_BYTES = 200_000
 SAFE_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
@@ -97,6 +92,43 @@ def test_fault(point: str) -> None:
         raise Operational("INTERRUPTED", f"injected test interruption at {point}")
 
 
+def _private_root_usable(path: str) -> bool:
+    """True when `path` is (or can now be) a directory we own and can write into.
+
+    Creation is the probe: a sandbox that denies writes under /tmp refuses the
+    mkdir, and one that lets a pre-existing root stand still fails the access
+    check, so both land on the fallback instead of failing at the first run.
+    """
+    try:
+        os.mkdir(path, 0o700)
+    except FileExistsError:
+        pass
+    except OSError:
+        return False
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    if not stat.S_ISDIR(st.st_mode):
+        return False
+    if _EFFECTIVE_UID is not None and st.st_uid != _EFFECTIVE_UID:
+        return False
+    return os.access(path, os.W_OK)
+
+
+def _fallback_scratch_root() -> str:
+    return os.path.join(os.environ.get("TMPDIR") or "/tmp", f"compound-engineering-{_EFFECTIVE_UID}")
+
+
+def owner_scratch_root() -> str:
+    """The owner-private scratch root, in the same candidate order as the skills' shell preamble."""
+    if OWNER_SCRATCH_ROOT is None:
+        raise TrustFailure("effective user ID is unavailable; cannot derive the runs root")
+    if _private_root_usable(OWNER_SCRATCH_ROOT):
+        return OWNER_SCRATCH_ROOT
+    return _fallback_scratch_root()
+
+
 def runs_root() -> str:
     configured = os.environ.get("CE_WORK_RUNS_ROOT")
     if configured:
@@ -104,9 +136,7 @@ def runs_root() -> str:
     peer_root = os.environ.get("CE_PEER_JOBS_ROOT")
     if peer_root:
         return os.path.join(os.path.abspath(peer_root), "ce-work")
-    if DEFAULT_RUNS_ROOT is None:
-        raise TrustFailure("effective user ID is unavailable; cannot derive the runs root")
-    return DEFAULT_RUNS_ROOT
+    return os.path.join(owner_scratch_root(), "ce-work")
 
 
 def safe_id(value: str, label: str) -> str:
@@ -259,8 +289,14 @@ def ensure_private_dir(path: str) -> None:
 def _owner_root_for_runs(root: str) -> str | None:
     if OWNER_SCRATCH_ROOT is None:
         return None
-    owner_root = os.path.abspath(OWNER_SCRATCH_ROOT)
-    return owner_root if os.path.commonpath([owner_root, os.path.abspath(root)]) == owner_root else None
+    for candidate in (OWNER_SCRATCH_ROOT, _fallback_scratch_root()):
+        owner_root = os.path.abspath(candidate)
+        try:
+            if os.path.commonpath([owner_root, os.path.abspath(root)]) == owner_root:
+                return owner_root
+        except ValueError:  # different drives on Windows: not under this candidate
+            continue
+    return None
 
 
 def _ensure_owner_scratch_root(path: str) -> None:

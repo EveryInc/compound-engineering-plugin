@@ -15,6 +15,7 @@ RUN_SLUG="<YYYY-MM-DD>-<run-slug>";
 RUN_KEEP="yes";
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)";
 TEMP_ROOT="/tmp/compound-engineering-$(id -u)";
+[ ! -L "$TEMP_ROOT" ] && (umask 077; mkdir -p "$TEMP_ROOT") 2>/dev/null && [ ! -L "$TEMP_ROOT" ] && [ -O "$TEMP_ROOT" ] && [ -w "$TEMP_ROOT" ] || TEMP_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)";
 if [ "$RUN_KEEP" = yes ] && [ -n "$REPO_ROOT" ] && [ ! -L "$REPO_ROOT/.context" ] && [ ! -L "$REPO_ROOT/.context/compound-engineering" ] && git -C "$REPO_ROOT" check-ignore -q .context/compound-engineering/ 2>/dev/null; then
 ROOT="$REPO_ROOT/.context/compound-engineering";
 else

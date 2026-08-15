@@ -130,6 +130,62 @@ print(mod.jobs_root_base())
     expect(result.stdout.trim()).toBe(`/tmp/compound-engineering-${process.getuid!()}`)
   })
 
+  // Same sandbox state as the shell preamble's fallback (#1294): the /tmp root cannot be created
+  // or written, so the runner must resolve its jobs root under $TMPDIR — and to the same path the
+  // shell preamble picks, or `status`/`wait`/`result` look in a root no job was started in.
+  test("peer runner falls back to the TMPDIR root when the /tmp root is unusable", () => {
+    const runner = path.join(SKILLS_ROOT, "ce-doc-review", "scripts/peer-job-runner.py")
+    const parent = mkdtempSync(path.join(tmpdir(), "ce-peer-fallback-"))
+    const driver = String.raw`
+import importlib.util, os, sys
+os.environ.pop("CE_PEER_JOBS_ROOT", None)
+spec = importlib.util.spec_from_file_location("peer_job_runner", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+primary = os.path.join(sys.argv[2], "primary")
+open(primary, "w").close()          # occupies the path: mkdir cannot create it
+mod.DEFAULT_ROOT = primary
+os.environ["TMPDIR"] = os.path.join(sys.argv[2], "sandbox-tmp")
+os.mkdir(os.environ["TMPDIR"])
+print(mod.jobs_root_base())
+`
+    try {
+      const result = spawnSync("python3", ["-c", driver, runner, parent], { encoding: "utf8" })
+      expect(result.status, result.stderr).toBe(0)
+      expect(result.stdout.trim()).toBe(
+        path.join(parent, "sandbox-tmp", `compound-engineering-${process.getuid!()}`),
+      )
+    } finally {
+      rmSync(parent, { recursive: true, force: true })
+    }
+  })
+
+  test("ce-work runs root falls back to the TMPDIR root when the /tmp root is unusable", () => {
+    const script = path.join(SKILLS_ROOT, "ce-work", "scripts/unit_workspace_state.py")
+    const parent = mkdtempSync(path.join(tmpdir(), "ce-work-fallback-"))
+    const driver = String.raw`
+import os, sys
+sys.path.insert(0, os.path.dirname(sys.argv[1]))
+os.environ.pop("CE_PEER_JOBS_ROOT", None); os.environ.pop("CE_WORK_RUNS_ROOT", None)
+import unit_workspace_state as state
+primary = os.path.join(sys.argv[2], "primary")
+open(primary, "w").close()
+state.OWNER_SCRATCH_ROOT = primary
+os.environ["TMPDIR"] = os.path.join(sys.argv[2], "sandbox-tmp")
+os.mkdir(os.environ["TMPDIR"])
+print(state.ensure_root())
+`
+    try {
+      const result = spawnSync("python3", ["-c", driver, script, parent], { encoding: "utf8" })
+      expect(result.status, result.stderr).toBe(0)
+      expect(result.stdout.trim()).toBe(
+        path.join(parent, "sandbox-tmp", `compound-engineering-${process.getuid!()}`, "ce-work"),
+      )
+    } finally {
+      rmSync(parent, { recursive: true, force: true })
+    }
+  })
+
   test("peer runner secures newly created directories under a restrictive umask", () => {
     const runner = path.join(SKILLS_ROOT, "ce-doc-review", "scripts/peer-job-runner.py")
     const parent = mkdtempSync(path.join(tmpdir(), "ce-peer-root-"))

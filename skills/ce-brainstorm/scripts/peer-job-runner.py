@@ -58,7 +58,10 @@ outcome exactly once; when both the worker's internal cap and the
 supervisor's window fire, the supervisor's record wins.
 
 Environment overrides (defaults in parentheses):
-  CE_PEER_JOBS_ROOT         base dir (/tmp/compound-engineering-<effective-uid>)
+  CE_PEER_JOBS_ROOT         base dir (/tmp/compound-engineering-<effective-uid>,
+                            or $TMPDIR/compound-engineering-<effective-uid> when
+                            /tmp cannot host a writable private root, e.g. under
+                            a sandbox that only allowlists $TMPDIR)
   CE_WORK_RUNS_ROOT         parent CE Work dir containing all <run-id>/ dirs
   CE_PEER_IDLE_SECS         idle window, no out.log growth (240)
   CE_PEER_HARD_SECS         hard cap on worker wall clock
@@ -202,13 +205,38 @@ _RUNNER_HARD_FLOOR = 1230.0
 _RUNNER_HARD_GRACE = 30.0
 
 
+def _private_root_usable(path: str) -> bool:
+    """True when `path` is (or can now be) a directory we own and can write into.
+
+    Creation is the probe: a sandbox that denies writes under /tmp refuses the
+    mkdir, and one that lets a pre-existing root stand still fails the access
+    check, so both land on the fallback instead of failing at the first job.
+    """
+    try:
+        os.mkdir(path, 0o700)
+    except FileExistsError:
+        pass
+    except OSError:
+        return False
+    try:
+        _check_owned_dir(path)
+    except (OSError, RunnerError):
+        return False
+    return os.access(path, os.W_OK)
+
+
 def jobs_root_base() -> str:
     configured = os.environ.get("CE_PEER_JOBS_ROOT")
     if configured:
         return os.path.abspath(configured)
     if DEFAULT_ROOT is None:
         raise RunnerError("effective user ID is unavailable; cannot derive the jobs root")
-    return os.path.abspath(DEFAULT_ROOT)
+    if IS_WINDOWS or _private_root_usable(DEFAULT_ROOT):
+        return os.path.abspath(DEFAULT_ROOT)
+    # Same order and candidates as the skills' shell preamble, so a job started
+    # there is found here.
+    fallback = os.path.join(os.environ.get("TMPDIR") or "/tmp", f"compound-engineering-{_EFFECTIVE_UID}")
+    return os.path.abspath(fallback)
 
 
 def skill_runs_root(skill: str) -> str:

@@ -15,7 +15,7 @@ The skill is prose-first. It uses the active agent's available capabilities. It 
 | What does it do? | Creates an immutable session snapshot, or orients from a continuity source you select |
 | When to use it | Before ending a useful session, or when a new agent needs prior context |
 | What does bare `/ce-handoff` do? | Always creates a new handoff |
-| Where does it write? | Default: `/tmp/compound-engineering-<effective-uid>/ce-handoff/<repo-namespace>/<topic>.md`. An explicit path, format, or publish destination overrides that. |
+| Where does it write? | Default: `/tmp/compound-engineering-<effective-uid>/ce-handoff/<repo-namespace>/<topic>.md` (under `$TMPDIR/compound-engineering-<effective-uid>/` instead when `/tmp` cannot host a writable private root, as in a sandbox that only allowlists `$TMPDIR`; the skill prints the path it used). An explicit path, format, or publish destination overrides that. |
 | What do I paste into the next session? | `/ce-handoff resume <path-or-URL>` |
 | What happens after resume? | A summary, a continuation matched to that handoff's reason, then a wait. Numbered choices appear only for real forks. |
 

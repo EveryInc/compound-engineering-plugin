@@ -28,8 +28,10 @@ const SHELL = posixShell()
 
 setDefaultTimeout(120_000)
 
-/** The run-root resolution block, with its placeholders and its temp root made testable. */
-function resolutionScript(tempRoot: string): string {
+/** The run-root resolution block, with its placeholders and both temp-root candidates made
+ *  testable. The `/tmp` root is preferred; `${TMPDIR:-/tmp}/…` is where it goes when `/tmp`
+ *  cannot host a writable private root (#1294). */
+function resolutionScript(tempRoot: string, fallbackRoot = `${tempRoot}-fallback`): string {
   const blocks = extractBashBlocks(readFileSync(PREVIEW, "utf8")).filter(
     (block) => block.body.includes("TEMP_ROOT=") && block.body.includes("check-ignore"),
   )
@@ -39,6 +41,7 @@ function resolutionScript(tempRoot: string): string {
   ).toBe(1)
   return blocks[0].body
     .replace(/RUN_SLUG="[^"]*"/, 'RUN_SLUG="2026-08-14-run"')
+    .replaceAll("${TMPDIR:-/tmp}/compound-engineering-$(id -u)", fallbackRoot)
     .replace(/\/tmp\/compound-engineering-\$\(id -u\)/g, tempRoot)
 }
 
@@ -188,6 +191,23 @@ describe("ce-prototype run-root resolution executes", () => {
     }
   })
 
+  test("a /tmp root that cannot be created moves the run to the TMPDIR root", () => {
+    const { dir, tempRoot } = fixture()
+    try {
+      const work = path.join(dir, "work")
+      mkdirSync(work, { recursive: true })
+      // A regular file where the /tmp root belongs, as a sandbox that denies writes under /tmp
+      // would leave it: the run lands under the TMPDIR candidate instead of stopping.
+      writeFileSync(tempRoot, "not a directory\n")
+
+      const result = run(resolutionScript(tempRoot), work)
+      expect(result.status, result.stderr).toBe(0)
+      expect(result.stdout).toBe(path.join(`${tempRoot}-fallback`, "ce-prototype", "2026-08-14-run"))
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   test("a root that cannot be created fails closed and names the path", () => {
     const { dir, tempRoot } = fixture()
     try {
@@ -195,9 +215,10 @@ describe("ce-prototype run-root resolution executes", () => {
       mkdirSync(work, { recursive: true })
       // A regular file where the root belongs: mkdir -p cannot succeed, and the temp root is
       // already the fallback, so the run must stop rather than write somewhere unverified.
+      // Both temp candidates point at the same blocked path, so no TMPDIR fallback rescues it.
       writeFileSync(tempRoot, "not a directory\n")
 
-      const result = run(resolutionScript(tempRoot), work)
+      const result = run(resolutionScript(tempRoot, tempRoot), work)
       expect(result.status).not.toBe(0)
       expect(result.stderr).toContain("could not create")
       expect(result.stderr).toContain("no usable run root")
