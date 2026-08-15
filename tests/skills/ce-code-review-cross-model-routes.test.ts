@@ -649,6 +649,37 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
     expect(r.stderr).not.toContain("peer skip class: transient_rate_limit")
   })
 
+  test("classifies hit-your-rate-limit wording as transient, not session_quota", () => {
+    const payload = JSON.stringify({
+      result: "You have hit your rate limit on this model",
+      api_error_status: 429,
+      terminal_reason: "api_error",
+    })
+    const { env } = sandbox(
+      ["claude"],
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${payload}'\nexit 1\n`,
+    )
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
+    expect(r.stderr).toContain("peer skip class: transient_rate_limit")
+    expect(r.stderr).not.toContain("peer skip class: session_quota")
+  })
+
+  test("does not treat review text mentioning unauthorized access as auth", () => {
+    const payload = JSON.stringify({
+      result: "Finding: unauthorized access to the admin API is possible",
+      terminal_reason: "api_error",
+    })
+    const { env } = sandbox(
+      ["claude"],
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${payload}'\nexit 1\n`,
+    )
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
+    expect(r.stderr).toContain("peer skip class: other")
+    expect(r.stderr).not.toContain("peer skip class: execution_context_auth")
+  })
+
   test("classifies a plain 429 rate limit as transient_rate_limit", () => {
     const payload = JSON.stringify({
       result: "Rate limit exceeded; retry shortly",
