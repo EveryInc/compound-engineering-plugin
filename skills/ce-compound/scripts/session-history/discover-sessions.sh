@@ -43,9 +43,17 @@ encode_pi_cwd() {
 # characters are two surrogates, so /Users/😀/Code -> -Users----Code.
 # Git Bash reports /d/foo for D:\foo; restore the drive form before folding,
 # but only on MSYS/MINGW/Cygwin so a POSIX /d/... path is not rewritten to D:/.
+# Keep / and D:/ intact; those roots encode as - and D--.
+strip_claude_cwd_slash() {
+    case "$1" in
+        /|[A-Za-z]:/) printf '%s' "$1" ;;
+        *) printf '%s' "${1%/}" ;;
+    esac
+}
+
 encode_claude_cwd() {
     local cwd="${1//\\//}"
-    [ "$cwd" = "/" ] || cwd="${cwd%/}"
+    cwd="$(strip_claude_cwd_slash "$cwd")"
     case "$(uname -s 2>/dev/null)" in
         MINGW*|MSYS*|CYGWIN*)
             case "$cwd" in
@@ -99,7 +107,7 @@ discover_claude() {
         if [ -n "$REPO_CWD" ]; then
             local cwd encoded next hops
             cwd="${REPO_CWD//\\//}"
-            [ "$cwd" = "/" ] || cwd="${cwd%/}"
+            cwd="$(strip_claude_cwd_slash "$cwd")"
             hops=0
             while [ -n "$cwd" ] && [ "$hops" -lt 64 ]; do
                 encoded="$(encode_claude_cwd "$cwd")"
@@ -120,6 +128,16 @@ discover_claude() {
                     fi
                     break
                 fi
+                # Windows: D:/AI -> D:; Claude names D:\ as D--, so visit D:/ first.
+                case "$next" in
+                    [A-Za-z]:)
+                        if [ "$cwd" != "${next}/" ]; then
+                            cwd="${next}/"
+                            hops=$((hops + 1))
+                            continue
+                        fi
+                        ;;
+                esac
                 cwd="$next"
                 hops=$((hops + 1))
             done

@@ -2452,6 +2452,7 @@ describe("discover-sessions", () => {
     const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
     const parentSession = await writeClaudeSession(tempHome, "D--AI")
     const rootSession = await writeClaudeSession(tempHome, "D--AI-x")
+    const driveRootSession = await writeClaudeSession(tempHome, "D--")
 
     const { stdout, stderr, exitCode } = await runDiscover(
       ["x", "7", "--cwd", "D:/AI/x", "--platform", "claude"],
@@ -2461,7 +2462,7 @@ describe("discover-sessions", () => {
     expect(exitCode).toBe(0)
     expect(stderr).toBe("")
     const files = stdout.trim().split("\n").filter((l) => l.trim()).sort()
-    expect(files).toEqual([parentSession, rootSession].sort())
+    expect(files).toEqual([driveRootSession, parentSession, rootSession].sort())
   })
 
   test("--platform claude folds astral characters as UTF-16 code units", async () => {
