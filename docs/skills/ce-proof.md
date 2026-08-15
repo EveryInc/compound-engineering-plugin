@@ -172,7 +172,7 @@ Software brainstorm and software plan menus do not include Proof. Publish those 
 | `POST /api/agent/{slug}/v3/edit` | Content and review mutations |
 | `DELETE /api/documents/{slug}` | Owner delete (`ownerSecret` or Every owner session) |
 
-Content ops: `replace` / `insert` / `delete`, then `set_document` last. Review ops: `comment` / `reply` / `resolve` / `unresolve` (no comment delete), `suggest` / `accept` / `reject`.
+Content ops: `replace` / `insert` / `delete`, then `set_document` last. Review ops: `comment` / `reply` / `resolve` / `unresolve` (no comment delete), `suggest` (text, plus typed table/format/atom/node forms) / `modify_suggestion` / `accept` / `reject`. Limits: 100 ops per request, 2 MiB per `set_document`.
 
 Identity defaults: `by: "ai:compound-engineering"`, `X-Agent-Id: ai:compound-engineering`, `name: "Compound Engineering"`.
 

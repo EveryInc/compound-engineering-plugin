@@ -10,7 +10,7 @@ allowed-tools:
 
 # Proof - Collaborative Markdown Editor
 
-Proof is a collaborative document editor for humans and agents. This skill uses the **hosted web API** at `https://www.proofeditor.ai` (HTTP/`Bash`). If typed `proof_*` MCP tools are already available in the harness (`proof_share_markdown`, `proof_v3_document`, `proof_v3_edit`, `proof_presence`, `proof_document_title`, `proof_document_delete`, `proof_report_bug`), prefer them; otherwise use the HTTP recipes below. In MCP mode the server injects `by`, `X-Agent-Id`, and presence identity — pass the `?token=` value from the Proof URL as `shareToken` for edits, presence, and deletes on docs the signed-in user does not own.
+Proof is a collaborative document editor for humans and agents. This skill uses the **hosted web API** at `https://www.proofeditor.ai` (HTTP/`Bash`). If typed `proof_*` MCP tools are already available in the harness (`proof_share_markdown`, `proof_v3_document`, `proof_v3_edit`, `proof_presence`, `proof_document_title`, `proof_document_delete`, `proof_report_bug`), prefer them; otherwise use the HTTP recipes below. In MCP mode the server injects `by`, `X-Agent-Id`, and presence identity — pass the `?token=` value from the Proof URL as `shareToken` for edits and presence on docs the signed-in user does not own. Delete authority is unchanged in MCP mode: an unclaimed doc still needs its `ownerSecret`, a claimed doc its owner's session — an editor `accessToken` passed as `shareToken` cannot delete.
 
 On Claude Code, each new `curl` pattern prompts for permission; suggest (do not silently add) the allowlist rule `"Bash(curl * https://www.proofeditor.ai/*)"` under `permissions.allow` if the user wants a quieter session.
 
