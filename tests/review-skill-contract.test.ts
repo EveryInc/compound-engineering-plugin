@@ -899,9 +899,12 @@ describe("ce-code-review contract", () => {
 
       // Accept-and-proceed path threads findings into the PR description.
       expect(workflow).toContain("Known Residuals")
-      expect(workflow).toContain("<root>/residual-review-findings/<branch-or-head-sha>.md")
       expect(workflow).toContain("If the user later chooses the no-PR `ce-commit` path")
-      expect(workflow).toContain("must not live only in the transient session")
+      // With no PR and no reachable tracker there is no durable sink, so the run says so
+      // outright. The committed record file that used to fill this slot was removed: it
+      // fired once in the repo's history, wrongly, and outlived the ticket it duplicated.
+      expect(workflow).toContain("recorded nowhere else")
+      expect(workflow).not.toContain("residual-review-findings")
     }
   })
 
@@ -937,10 +940,11 @@ describe("ce-code-review contract", () => {
     expect(lfg).toContain("never the PR body")
     expect(lfg).not.toContain("gh pr edit PR_NUMBER --body-file BODY_FILE")
     expect(lfg).toContain("## Residual Review Findings")
-    expect(lfg).toContain("<root>/residual-review-findings/<branch-or-head-sha>.md")
-    expect(lfg).toContain("first configured remote")
-    expect(lfg).toContain("git push --set-upstream <remote> HEAD")
-    expect(lfg).not.toContain("git push --set-upstream origin HEAD")
+    // ...and not a committed record file either. Residuals ride the same run-report
+    // comment `ce-babysit-pr` already uses for unfixable CI, so nothing is committed to
+    // carry them and the DONE gate no longer waits on a file write plus a push.
+    expect(lfg).toContain("run-report comment")
+    expect(lfg).not.toContain("residual-review-findings")
     expect(lfg).toContain("Do not output DONE until the residuals are durable")
 
     // Step 9 delegates CI to ce-babysit-pr pipeline mode; the hand-rolled

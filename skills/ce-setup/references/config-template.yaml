@@ -8,7 +8,7 @@
 
 # --- Artifact root ---
 # Relocate every CE-written artifact folder (solutions, plans, ideation,
-# explainers, residual-review-findings, pulse-reports, dogfood-reports,
+# explainers, pulse-reports, dogfood-reports,
 # feedback-sweep, personas) under one repo-relative root. Unset -> `docs`,
 # byte-identical to today. A configured root becomes the sole location CE reads
 # and writes; CE never falls back to reading `docs/`.

@@ -73,7 +73,7 @@ Without an explicit pipeline, autonomous runs tend to skip planning, treat revie
 3. `/ce-work` runs in return-to-caller mode so `lfg` keeps the shipping tail. Behavior-changing work must return verification evidence. Missing evidence is retried once, then the run stops rather than shipping blind.
 4. `/ce-simplify-code` runs on the branch diff before review, unless the change is docs-only or roughly under 10 lines.
 5. `/ce-code-review` (`mode:agent`) reports findings. `lfg` applies eligible mechanical fixes and commits them. Review itself does not edit the tree.
-6. Leftover actionable findings, plus any flagged settlement conflicts, become durable as tracker tickets and a committed file under `<root>/residual-review-findings/`. They are not written into the PR body.
+6. Leftover actionable findings, plus any flagged settlement conflicts, become durable as tracker tickets and one run-report comment on the PR. They are not written into the PR body.
 7. `/ce-test-browser` runs in pipeline mode.
 8. `/ce-commit-push-pr mode:pipeline branding:on` commits remaining changes, pushes, and opens a PR when a remote exists, and marks CE provenance.
 9. `/ce-babysit-pr mode:pipeline` watches the open PR: CI repairs via `/ce-debug`, incoming review comments via `/ce-resolve-pr-feedback`, up to three fix rounds by default. Pipeline babysit stops at "CI decided," not "merged."
@@ -115,7 +115,7 @@ If the completed plan explicitly describes separately planned future areas, `lfg
 
 You finish `/ce-brainstorm` on account-level notification mute. The wrap-up offers `lfg`. You invoke `/lfg` (or `/lfg plan with fable`).
 
-`lfg` builds a settled-decisions brief from the brainstorm, invokes `/ce-plan` on the requirements-only artifact, and waits until that file is `implementation-ready` with `execution: code`. Then `/ce-work` implements in return-to-caller mode. Simplify runs. Review reports findings. `lfg` applies the eligible mechanical ones, commits them, and writes the rest into `<root>/residual-review-findings/<branch>.md` plus tracker tickets when a sink exists. Browser tests run. `ce-commit-push-pr` opens a PR. `ce-babysit-pr` watches CI for up to three repair rounds.
+`lfg` builds a settled-decisions brief from the brainstorm, invokes `/ce-plan` on the requirements-only artifact, and waits until that file is `implementation-ready` with `execution: code`. Then `/ce-work` implements in return-to-caller mode. Simplify runs. Review reports findings. `lfg` applies the eligible mechanical ones, commits them, and surfaces the rest as tracker tickets plus one run-report comment on the PR. Browser tests run. `ce-commit-push-pr` opens a PR. `ce-babysit-pr` watches CI for up to three repair rounds.
 
 The run prints `DONE` and a line to run `/ce-babysit-pr <pr-url>` if you want it watched through review toward merge. It does not merge. If the plan named a later area, you may get a handoff offer. Decline it and the session is over.
 
@@ -211,7 +211,7 @@ No. That is the point of the skill, and why it is the wrong tool for in-the-loop
 The pipeline stops. Non-software tasks, requirements-only leftovers, knowledge-work plans, and invalidating settlement conflicts all halt before implementation.
 
 **Where do leftover review findings go?**
-Not into the PR description. They are filed in the project tracker when possible and always written to `<root>/residual-review-findings/<branch-or-head-sha>.md`.
+Not into the PR description. They are filed in the project tracker when possible, and carried in one run-report comment on the PR.
 
 **What happens if there is no `origin`?**
 Local commits only. No push, no PR, no CI watch.
