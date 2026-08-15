@@ -419,11 +419,15 @@ describe("ce-debug regression test selection", () => {
 
     // ...but "no question" is not "always push". `ce-commit-push-pr` pushes the whole
     // branch and PRs every commit on it, so a branch carrying the user's unrelated work
-    // must commit locally instead of publishing it. Pin the goal and the refusal, not
-    // the case labels: the enumerated states are illustrative, and an earlier revision
-    // shipped a hole precisely because a case list was treated as exhaustive.
-    expect(routing).toMatch(/publishing anything the user did not offer up/i)
-    expect(routing).toMatch(/do not push and do not open a pr/i)
+    // must commit locally instead. Pin the goal and the refusal, not case labels: three
+    // separate holes shipped here because routes were written as a flat case list and
+    // each new state matched one case while skipping another's handling.
+    expect(routing).toMatch(/anything the user did not offer up/i)
+    expect(routing).toMatch(/push nothing/i)
+    // The two questions must stay independent — collapsing them back into one flat list
+    // is what let "no remote" match a route that skipped commit scoping entirely.
+    expect(routing).toMatch(/the fix-owned files and nothing else/i)
+    expect(routing).toMatch(/holds on every route, remote or not/i)
     // The entangled state is the one place a blocking question survives — no safe
     // default exists once a fix-owned file already held the user's edits.
     expect(routing).toMatch(/Ask \(per \*\*Blocking questions\*\*\)/)
