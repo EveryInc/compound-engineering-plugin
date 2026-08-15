@@ -111,9 +111,10 @@ cat .claude-plugin/plugin.json | jq .
 
 ## Cross-Model Skill Authoring
 
-This repository authors each skill once and distributes it across multiple agent models and harnesses. Before creating, materially revising, or reviewing a skill or skill-local persona, read `docs/solutions/skill-design/portable-agent-skill-authoring.md`.
+This repository authors each skill once and distributes it across multiple agent models and harnesses. A skill hands the agent the goal, the done condition, the safe failure direction, and the facts it cannot derive from the repo in front of it, then gets out of the way; when you find yourself adding cases to a block to make it hold, name the condition those cases are proxies for and state that instead. Before creating, materially revising, or reviewing a skill or skill-local persona, read `docs/solutions/skill-design/portable-agent-skill-authoring.md`, applying only the sections relevant to the skill. The repository-specific rules elsewhere in this file supplement it and take precedence where they are more specific.
 
-That field guide is the canonical reasoning layer for outcome-first authoring, model and harness portability, protocol versus judgment, proportional authority, tool adapters, evidence-backed review, and targeted behavioral evaluation. It is not a template: apply only the sections relevant to the skill. The repository-specific rules elsewhere in this file supplement the guide and take precedence where they are more specific.
+- **Prescribe a mechanism only where it is owned.** A skill spells out commands, exit semantics, or state transitions for the mechanics it owns (`ce-commit-push-pr` owns PR detection) and for deterministic work that is cheap to compute but costly to reason to (a data-processing script, a path anchor). A skill that delegates that work states the condition that must hold, the safe failure direction, and the non-derivable facts about the callee -- never a re-derivation of the callee's commands. Prescribed commands in a delegating skill encode one configuration and are wrong for the next one (`docs/solutions/skill-design/skill-gates-state-conditions-not-prescribed-git-commands.md`).
+- **Repeated case-specific repair is the defect signal.** When a block keeps absorbing "add the case we just found" -- in authoring, in a review round, or in your own fix to a finding -- the representation is wrong, usually a procedure that should be a condition. Delete the additions and restate the goal, then re-verify the shorter rule against every path the additions served: a condensed rule that no longer names a path is a new defect, not a simplification. Reviewers: "command X fails in state Y" against a delegating skill is a finding about the representation, and the concrete fix is to drop the command and state the condition, not to correct the command.
 
 ### Skill Prose Admission Rules
 
@@ -136,7 +137,7 @@ Applying review, peer, or eval feedback to a skill is a material revision govern
 2. **Owning layer** — for each Change, identify its owning layer: activation contract, outcome spine or skill boundary, runtime protocol, loading or placement, deterministic enforcement, or shared authoring rule.
 3. **Mechanism** — fix the gap at its owning layer. Add prose only when it is the smallest mechanism that closes the gap, and then only the smallest falsifiable unit per the Skill Prose Admission Rules.
 4. **Reconcile** — reread the affected block; remove or rewrite text the change makes conflicting, duplicated, or obsolete. Resolve conflicting feedback items rather than stacking both.
-5. **Stop the accretion loop** — when a finding targets text an earlier round added, prefer deleting that addition over qualifying it; a section that has absorbed three rounds of additions is itself the defect. After collapsing one, re-verify the shortened rule against every path it served: a condensed rule that no longer names a path is a new defect, not a simplification.
+5. **Stop the accretion loop** — when a finding targets text an earlier round added, prefer deleting that addition over qualifying it, per the repeated-repair rule above.
 
 When evidence shows the same cause across skills, fix the shared guide, rule, or mechanism unless the skills' contracts materially differ.
 

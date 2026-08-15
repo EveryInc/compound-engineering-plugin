@@ -232,7 +232,7 @@ Learning: these skills should be designed and reviewed like tiny state machines,
 
 ## Prevention
 
-- For Git/GitHub skills, treat workflow design as a state machine, not as a linear checklist.
+- For skills that *own* Git/GitHub mechanics (`ce-commit`, `ce-commit-push-pr`), treat workflow design as a state machine, not as a linear checklist. This does not extend to skills that delegate that work to them: a caller states the condition that must hold and lets the owner run the machine -- see [skill-gates-state-conditions-not-prescribed-git-commands.md](skill-gates-state-conditions-not-prescribed-git-commands.md).
 - Re-run the command that answers the current question at the point of decision. Do not rely on values gathered earlier if a mutating command may have changed them.
 - Use `git status` for "is there local work?" and reserve `git diff` for describing content, not determining whether work exists.
 - Model expected non-zero CLI exits explicitly when they represent state, such as `gh pr view` on a branch with no PR.
@@ -252,5 +252,6 @@ Learning: these skills should be designed and reviewed like tiny state machines,
 ## Related Issues
 
 - [no-load-time-pre-resolution-for-fallible-context.md](no-load-time-pre-resolution-for-fallible-context.md) — why the PR check moved to `gh pr list` and out of load-time pre-resolution; the source of the current §4 decision.
+- [skill-gates-state-conditions-not-prescribed-git-commands.md](skill-gates-state-conditions-not-prescribed-git-commands.md) — the caller-side rule: state the condition, do not re-derive this doc's commands in a delegating skill.
 - [script-first-skill-architecture.md](script-first-skill-architecture.md)
 - [pass-paths-not-content-to-subagents.md](pass-paths-not-content-to-subagents.md)
