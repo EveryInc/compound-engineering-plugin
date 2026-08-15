@@ -228,15 +228,24 @@ state.OWNER_SCRATCH_ROOT = os.path.join(sys.argv[2], "primary")
 os.environ["TMPDIR"] = os.path.join(sys.argv[2], "sandbox-tmp")
 existing = os.path.join(os.environ["TMPDIR"], "compound-engineering-%d" % state._EFFECTIVE_UID, "ce-work", "run-1")
 os.makedirs(existing, 0o700)
+os.chmod(os.path.dirname(existing), 0o700); os.chmod(os.path.dirname(os.path.dirname(existing)), 0o700)
 print(state.run_dir("run-1"))
 print(state.run_dir("run-2"))
+# The manifest lock must open the run where it actually lives, not under the creation root.
+import json
+with open(os.open(os.path.join(existing, "manifest.lock"), os.O_WRONLY | os.O_CREAT, 0o600), "w"): pass
+with open(os.open(os.path.join(existing, "manifest.json"), os.O_WRONLY | os.O_CREAT, 0o600), "w") as f:
+    json.dump({"schema_version": state.SCHEMA_VERSION, "run_id": "run-1", "revision": 0}, f)
+with state.locked_manifest("run-1") as doc:
+    print(doc["run_id"])
 `
     try {
       const result = spawnSync("python3", ["-c", driver, script, parent], { encoding: "utf8" })
       expect(result.status, result.stderr).toBe(0)
-      const [found, fresh] = result.stdout.trim().split("\n")
+      const [found, fresh, locked] = result.stdout.trim().split("\n")
       expect(found).toBe(path.join(parent, "sandbox-tmp", `compound-engineering-${process.getuid!()}`, "ce-work", "run-1"))
       expect(fresh).toBe(path.join(parent, "primary", "ce-work", "run-2"))
+      expect(locked).toBe("run-1")
     } finally {
       rmSync(parent, { recursive: true, force: true })
     }

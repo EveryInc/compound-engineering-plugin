@@ -324,7 +324,12 @@ def _ensure_owner_scratch_root(path: str) -> None:
 
 
 def ensure_root() -> str:
-    root = runs_root()
+    return ensure_runs_root(runs_root())
+
+
+def ensure_runs_root(root: str) -> str:
+    """Create or verify one runs root (the creation root, or the other candidate
+    root an existing run was found under) and its private lock directory."""
     owner_root = _owner_root_for_runs(root)
     if owner_root is not None:
         _ensure_owner_scratch_root(owner_root)
@@ -463,8 +468,8 @@ def run_dir(run_id: str) -> str:
 @contextlib.contextmanager
 def locked_manifest(run_id: str, write: bool = False):
     run_id = safe_id(run_id, "run id")
-    root = ensure_root()
-    rd = os.path.join(root, run_id)
+    rd = run_dir(run_id)
+    ensure_runs_root(os.path.dirname(rd))
     validate_private_dir(rd)
     lock_path = os.path.join(rd, "manifest.lock")
     try:
@@ -746,7 +751,7 @@ def event(doc: dict, kind: str, unit_id: str | None = None, detail: dict | None 
 
 
 def cmd_init(args) -> tuple[str, dict]:
-    root = ensure_root()
+    ensure_root()
     rid = safe_id(args.run_id, "run id")
     info = repo_info(args.repo)
     if args.plan:
@@ -783,7 +788,7 @@ def cmd_init(args) -> tuple[str, dict]:
     binding = parse_json_arg(args.binding_json, "binding")
     egress = parse_json_arg(args.egress_json, "egress")
     fixed_route_contract(binding, egress, "REFUSED")
-    rd = os.path.join(root, rid)
+    rd = run_dir(rid)
     if not os.path.lexists(rd):
         # A capability refusal must happen before READY closes route selection.
         # prepare repeats this probe because ignored inventory can change later.

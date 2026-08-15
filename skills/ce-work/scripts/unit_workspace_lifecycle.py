@@ -100,10 +100,18 @@ def unfinished_run(doc: dict, canonical_head: str) -> bool:
 def discover_resume_run(repo: str, plan_digest: str) -> tuple[str, list[dict]]:
     if not re.fullmatch(r"[0-9a-f]{64}", plan_digest):
         raise Operational("REFUSED", "plan digest must be a lowercase SHA-256 hex value")
-    root = ensure_root()
+    ensure_root()
     info = repo_info(repo)
     candidates: list[dict] = []
-    for entry in sorted(os.scandir(root), key=lambda row: row.name):
+    # A run recorded under the other candidate root (sandboxed vs unsandboxed
+    # session) must still be discoverable; scan every candidate that exists.
+    entries = []
+    for root in candidate_runs_roots():
+        if not os.path.isdir(root) or os.path.islink(root):
+            continue
+        ensure_runs_root(root)
+        entries.extend(os.scandir(root))
+    for entry in sorted(entries, key=lambda row: row.path):
         if entry.name == ".locks":
             continue
         if not entry.is_dir(follow_symlinks=False):
