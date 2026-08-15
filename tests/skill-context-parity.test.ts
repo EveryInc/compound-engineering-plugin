@@ -51,6 +51,10 @@ describe("skill context shared-asset parity", () => {
     // Without this carve-out, a pre-launch argument rejection reads as a failed
     // pass and burns the workflow's inline fallback instead of being corrected.
     expect(body).toContain("correctable invocation error")
+    // Ten of the fifteen skills carry no local backpressure prose, so this
+    // exclusion is their only guard against a capacity error being "corrected"
+    // and retried once instead of staying queued.
+    expect(body).toContain("capacity or active-agent-limit rejection is not malformed")
     expect(body).toContain("HARNESS_ATTRIBUTION:")
     expect(body).toContain("AUTONOMY_DIRECTIVE_CHECK:")
     expect(body).toContain("INDEPENDENCE_ACCOUNTING:")
