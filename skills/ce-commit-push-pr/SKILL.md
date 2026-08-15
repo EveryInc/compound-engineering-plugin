@@ -92,8 +92,10 @@ Stage and commit each group. **Avoid `git add -A` and `git add .`** — they swe
 git add file1 file2 file3 && git commit -m "$(cat <<'EOF'
 commit message here
 EOF
-)"
+)" -- file1 file2 file3
 ```
+
+The trailing path list on `git commit` is load-bearing: a bare `git commit` takes the whole index, so anything already staged before this run (a caller's `exclude:` paths, or work the user staged and did not name) would ride into the commit. Naming the paths commits exactly the group and leaves other index entries alone.
 
 Then push. Immediately before pushing, re-confirm you are on the intended feature branch (`git branch --show-current`) — the branch gathered in Context is a hint, and Step 1 may have created or switched branches since. Push the live `HEAD` so it reflects the current checkout, never a stale branch name:
 

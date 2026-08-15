@@ -51,7 +51,9 @@ type(scope): subject line here
 
 Optional body when the why is not obvious from the subject.
 EOF
-)"
+)" -- file1 file2 file3
 ```
+
+The trailing path list on `git commit` is load-bearing: a bare `git commit` takes the whole index, so anything already staged before this run (a caller's `exclude:` paths, or work the user staged and did not name) would ride into the commit. Naming the paths commits exactly the group and leaves other index entries alone.
 
 7. **Confirm** — `git status`; report hash(es) and subject(s).
