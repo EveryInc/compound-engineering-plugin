@@ -34,6 +34,9 @@ describe("ce-doc-review HTML editing", () => {
     expect(DOC_REVIEW).toMatch(
       /ID-bearing[\s\S]{0,240}nearest sibling[\s\S]{0,240}anchor[\s\S]{0,120}visible ID/i,
     )
+    expect(DOC_REVIEW).toMatch(
+      /HTML-escape inserted text and attribute values; construct markup only deliberately/i,
+    )
   })
 
   test("keeps HTML deferrals format-neutral and separate from plan questions", () => {
