@@ -960,7 +960,8 @@ describe("ce-compound vocabulary is corpus-first, not Rails-specific (issue #126
   test("ce-compound-refresh replace flow keeps the old learning's component/root_cause", async () => {
     const flows = await readRepoFile("skills/ce-compound-refresh/references/per-action-flows.md")
     const replaceFlow = sliceSection(flows, "## Replace Flow", "3. **Validate parser-safety")
-    expect(replaceFlow).toMatch(/old learning's `component`\/`root_cause` values, which the replacement keeps/)
+    expect(replaceFlow).toMatch(/old learning's `component`\/`root_cause` values — the replacement keeps them only when the surrounding corpus uses them too/)
+    expect(replaceFlow).toMatch(/when the corpus has settled on different values for that area, use those instead/)
   })
 
   test("yaml-schema.md category mapping defers to an existing directory taxonomy", async () => {

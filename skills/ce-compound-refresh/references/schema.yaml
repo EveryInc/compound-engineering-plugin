@@ -85,7 +85,7 @@ required_fields:
       - testing_framework
       - documentation
       - tooling
-    description: "Component or area involved. Open vocabulary: reuse the value existing docs under <root>/solutions/ already use for this area; the suggested_values are the fallback when no existing doc covers it. Lowercase, underscore-separated."
+    description: "Component or area involved. Open vocabulary: reuse the value existing docs under <root>/solutions/ already use for this area; the suggested_values are the fallback when no existing doc covers it. Corpus values are reused as spelled; a newly chosen fallback value is lowercase, underscore-separated."
 
   severity:
     type: enum

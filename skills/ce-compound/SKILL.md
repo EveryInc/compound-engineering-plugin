@@ -71,7 +71,7 @@ Resolve two values at runtime with the shell tool before Phase 1 session-history
 These files are the durable contract for the workflow. Read them on-demand at the step that needs them — do not bulk-load at skill start.
 
 - `references/schema.yaml` — canonical frontmatter fields and enum values (read when validating YAML)
-- `references/yaml-schema.md` — category mapping from problem_type to directory (read when classifying)
+- `references/yaml-schema.md` — default category mapping from problem_type to directory, and the corpus-first vocabulary rule (read when classifying)
 - `references/concepts-vocabulary.md` — CONCEPTS.md format and inclusion rules (read in Phase 2.4 when domain terms surface)
 - `references/agents/session-historian.md` — skill-local synthesis prompt for optional session-history compounding context (read only when the user opts into session history)
 - `references/grounding-validation.md` — grounding-validation protocol: flag adjudication rules and the semantic validator prompt (read in Phase 2.45)
@@ -192,10 +192,10 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
      - **Bug track**: symptoms, root_cause, resolution_type
      - **Knowledge track**: applies_when (symptoms/root_cause/resolution_type optional)
    - Incorporates auto memory excerpts (if provided by the orchestrator) as supplementary evidence
-   - Reads `references/yaml-schema.md` for category mapping into `<root>/solutions/`
+   - Reads `references/yaml-schema.md` for the default category mapping into `<root>/solutions/` (used when the corpus has no directory for this area — see the corpus-sampling bullet above)
    - Suggests a filename using the pattern `[sanitized-problem-slug].md` — no date suffix, even if existing files in the target directory have one; the `date:` frontmatter field is the canonical creation date
-   - Writes to `context.json`: YAML frontmatter skeleton (must include `category:` field mapped from problem_type), category directory path, suggested filename, and which track applies. Returns only the artifact path.
-   - Does not invent enum values, categories, or frontmatter fields from memory; reads the schema and mapping files above, and takes open-vocabulary values from the corpus sample
+   - Writes to `context.json`: YAML frontmatter skeleton (must include `category:` — the corpus directory when one covers this area, else the directory mapped from problem_type), category directory path, suggested filename, and which track applies. Returns only the artifact path.
+   - Does not invent enum values, categories, or frontmatter fields from memory; takes the category/directory from the corpus sample first, falling back to the schema and mapping files above, and takes open-vocabulary values from the corpus sample
    - Does not force bug-track fields onto knowledge-track learnings or vice versa
 
 #### 2. **Solution Extractor**
