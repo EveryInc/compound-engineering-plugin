@@ -38,12 +38,14 @@ encode_pi_cwd() {
     printf -- "--%s--" "$encoded"
 }
 
-# Claude Code names ~/.claude/projects/<encoded-cwd>/ via replace(/[^a-zA-Z0-9]/g, "-").
+# Claude Code names ~/.claude/projects/<encoded-cwd>/ via JS
+# replace(/[^a-zA-Z0-9]/g, "-") over UTF-16 code units (cli fEo). Astral
+# characters are two surrogates, so /Users/😀/Code -> -Users----Code.
 # Git Bash reports /d/foo for D:\foo; restore the drive form before folding,
 # but only on MSYS/MINGW/Cygwin so a POSIX /d/... path is not rewritten to D:/.
 encode_claude_cwd() {
     local cwd="${1//\\//}"
-    cwd="${cwd%/}"
+    [ "$cwd" = "/" ] || cwd="${cwd%/}"
     case "$(uname -s 2>/dev/null)" in
         MINGW*|MSYS*|CYGWIN*)
             case "$cwd" in
@@ -59,7 +61,24 @@ encode_claude_cwd() {
             esac
             ;;
     esac
-    printf '%s' "$cwd" | sed 's/[^a-zA-Z0-9]/-/g'
+    local py
+    py="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
+    if [ -n "$py" ]; then
+        "$py" -c 'import sys
+s = sys.argv[1]
+out = []
+units = s.encode("utf-16-le")
+for i in range(0, len(units), 2):
+    u = units[i] | (units[i + 1] << 8)
+    if 48 <= u <= 57 or 65 <= u <= 90 or 97 <= u <= 122:
+        out.append(chr(u))
+    else:
+        out.append("-")
+sys.stdout.write("".join(out))
+' "$cwd"
+    else
+        printf '%s' "$cwd" | sed 's/[^a-zA-Z0-9]/-/g'
+    fi
 }
 
 # --- Claude Code ---
@@ -80,7 +99,7 @@ discover_claude() {
         if [ -n "$REPO_CWD" ]; then
             local cwd encoded next hops
             cwd="${REPO_CWD//\\//}"
-            cwd="${cwd%/}"
+            [ "$cwd" = "/" ] || cwd="${cwd%/}"
             hops=0
             while [ -n "$cwd" ] && [ "$hops" -lt 64 ]; do
                 encoded="$(encode_claude_cwd "$cwd")"
@@ -90,6 +109,15 @@ discover_claude() {
                 next="${cwd%/*}"
                 # Windows drive roots ("D:") are a fixed point of ${cwd%/*}.
                 if [ "$next" = "$cwd" ]; then
+                    break
+                fi
+                # POSIX: /Users -> ""; still need to visit /.
+                if [ -z "$next" ]; then
+                    if [ "$cwd" != "/" ] && [ "${cwd#/}" != "$cwd" ]; then
+                        cwd="/"
+                        hops=$((hops + 1))
+                        continue
+                    fi
                     break
                 fi
                 cwd="$next"

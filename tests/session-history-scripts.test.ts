@@ -2463,4 +2463,36 @@ describe("discover-sessions", () => {
     const files = stdout.trim().split("\n").filter((l) => l.trim()).sort()
     expect(files).toEqual([parentSession, rootSession].sort())
   })
+
+  test("--platform claude folds astral characters as UTF-16 code units", async () => {
+    // JS replace(/[^a-zA-Z0-9]/g, "-") walks UTF-16 surrogates, so 😀 is "--".
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
+    const sessionPath = await writeClaudeSession(tempHome, "-Users----my-repo")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--cwd", "/Users/\u{1F600}/my-repo", "--platform", "claude"],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("--platform claude probes the POSIX filesystem root ancestor", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
+    const rootSession = await writeClaudeSession(tempHome, "-")
+    const namedSession = await writeClaudeSession(tempHome, "-foo-my-repo")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--cwd", "/foo/my-repo", "--platform", "claude"],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim()).sort()
+    expect(files).toEqual([rootSession, namedSession].sort())
+  })
 })
