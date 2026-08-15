@@ -110,7 +110,7 @@ Whatever you hand it becomes the **issue of record**: the skill links back to th
 
 ### A dirty tree is a suspect
 
-If you have uncommitted work when you invoke the skill, it treats that as a hypothesis rather than noise — the most common reason to be debugging at all is that your own in-progress edit caused the failure. When the changed files could plausibly reach the failing behavior, it stashes them (`-u`, so untracked files go too), reruns the reproduction, and pops immediately. The failure disappearing names your edit as the cause and ends the investigation; the failure persisting rules it out and leaves a clean tree to trace. It never auto-resolves a pop conflict in your work, and it never stashes just to simplify its own shipping route.
+If you have uncommitted work when you invoke the skill, it treats that as a hypothesis rather than noise — the most common reason to be debugging at all is that your own in-progress edit caused the failure. When the changed files could plausibly reach the failing behavior, it stashes them (`-u`, so untracked files go too), reruns the reproduction, and pops immediately with `--index` so your staging survives. The failure disappearing names your edit as the cause and ends the investigation; the failure persisting rules it out and leaves a clean tree to trace. It never auto-resolves a pop conflict in your work, and it never stashes just to simplify its own shipping route.
 
 ### Test-first fix, then a scoped quality tail
 
