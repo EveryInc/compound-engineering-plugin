@@ -1253,6 +1253,16 @@ describe("cross-model peer skip legibility", () => {
     )
   })
 
+  test("code review exclusivity pointers allow in-process restore after a failed same-route rate-limit retry", async () => {
+    const skill = await readRepoFile("skills/ce-code-review/SKILL.md")
+    const dispatch = await readRepoFile(
+      "skills/ce-code-review/references/dispatch-reviewers.md",
+    )
+
+    expect(skill).toMatch(/failed same-route rate-limit retry/)
+    expect(dispatch).toMatch(/failed same-route rate-limit retry/)
+  })
+
   // A restricted host sandbox (e.g. a Codex task with network disabled) denies
   // the spawned peer CLI network/keychain, producing the exact same
   // `Not logged in` signal as a genuine account logout. The classifier surfaces
