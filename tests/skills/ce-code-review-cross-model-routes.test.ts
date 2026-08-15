@@ -156,7 +156,8 @@ function sandbox(
     writeFileSync(f, stubBody)
     chmodSync(f, 0o755)
   }
-  return { bin, env: { ...process.env, PATH: bin } }
+  // Mask any real Codex.app bundle so discovery sees only what the test stages.
+  return { bin, env: { ...process.env, PATH: bin, CROSS_MODEL_CODEX_APP_DIRS: mkTempRoot("xmodel-cr-nobundle-") } }
 }
 
 function makeRunDir(): string {
@@ -455,6 +456,29 @@ describe("cross-model-adversarial-review provider selection", () => {
     expect(resolvePeers("claude", "codex,claude,grok,composer", all)).toBe("codex")
     expect(resolvePeers("codex", "codex,claude,grok,composer", all)).toBe("claude")
     expect(resolvePeers("composer", "codex,claude,grok,composer", all)).toBe("codex")
+  })
+
+  test("an app-bundled codex CLI off PATH is discovered (issue #1272)", () => {
+    // Codex.app ships Contents/Resources/codex without linking it onto PATH.
+    const bundle = path.join(mkTempRoot("xmodel-cr-bundle-"), "Codex.app", "Contents", "Resources")
+    mkdirSync(bundle, { recursive: true })
+    writeFileSync(path.join(bundle, "codex"), "#!/bin/sh\nexit 0\n")
+    chmodSync(path.join(bundle, "codex"), 0o755)
+    const dirs = { CROSS_MODEL_CODEX_APP_DIRS: bundle }
+    expect(resolvePeers("claude", "codex,claude,grok,composer", [], dirs)).toBe("codex")
+    expect(resolvePeers("claude", "codex,claude,grok,composer", [], {})).toBe("")
+  })
+
+  test("a PATH-installed codex stays authoritative over the app bundle (issue #1272)", () => {
+    const bundle = path.join(mkTempRoot("xmodel-cr-bundle-"), "Codex.app", "Contents", "Resources")
+    mkdirSync(bundle, { recursive: true })
+    const bundleInvoked = path.join(mkTempRoot("xmodel-cr-invoked-"), "bundle")
+    writeFileSync(path.join(bundle, "codex"), `#!/bin/sh\n: > '${bundleInvoked}'\nexit 0\n`)
+    chmodSync(path.join(bundle, "codex"), 0o755)
+    const { env } = sandbox(["codex"])
+    const runDir = makeRunDir()
+    run(["claude", "codex", "HEAD", runDir], runDir, { ...env, CROSS_MODEL_CODEX_APP_DIRS: bundle })
+    expect(existsSync(bundleInvoked)).toBe(false)
   })
 
   test("a front-loaded preference overrides the default order", () => {

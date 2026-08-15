@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 import {
   chmodSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -9,6 +10,7 @@ import {
   readdirSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
@@ -548,6 +550,27 @@ printf '%02048d' 0
     expect(noisyResult.result.terminal_status).toBe("unavailable")
     expect(noisyResult.result.failure_reason).toContain("exceeded 256 bytes")
     expect(statSync(path.join(noisy.resultDir, "adapter.log")).size).toBeLessThanOrEqual(256)
+  })
+
+  test("an app-bundled codex CLI off PATH satisfies the codex route (issue #1272)", () => {
+    const f = fixture()
+    const bin = fakeBin("codex", f.capture)
+    const bundle = path.join(temp("ce-work-bundle-"), "Codex.app", "Contents", "Resources")
+    mkdirSync(bundle, { recursive: true })
+    copyFileSync(path.join(bin, "codex"), path.join(bundle, "codex"))
+    chmodSync(path.join(bundle, "codex"), 0o755)
+    // Hide any real codex from PATH without losing co-located tools: drop dirs
+    // that contain codex, then re-expose the tools the worker needs via symlinks.
+    const realDirs = (process.env.PATH ?? "").split(path.delimiter).filter(Boolean)
+    const tools = temp("ce-work-tools-")
+    for (const tool of ["python3", "python", "git", "jq", "bash", "sh", "env"]) {
+      const dir = realDirs.find((d) => existsSync(path.join(d, tool)))
+      if (dir) symlinkSync(path.join(dir, tool), path.join(tools, tool))
+    }
+    const pathWithoutCodex = [tools, ...realDirs.filter((d) => !existsSync(path.join(d, "codex")))].join(path.delimiter)
+    const result = run("codex", f, { ...process.env, PATH: pathWithoutCodex, CROSS_MODEL_CODEX_APP_DIRS: bundle })
+    expect(result.result.terminal_status).toBe("completed")
+    expect(existsSync(path.join(f.capture, "argv"))).toBe(true)
   })
 
   test.each(["claude", "grok-cli"] as const)("%s is unavailable when enforceable confinement is required", (route) => {
