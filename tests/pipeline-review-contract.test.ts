@@ -408,7 +408,7 @@ describe("ce-debug regression test selection", () => {
     // to the user to type a command.
     expect(routing).toContain("via the platform's skill-invocation primitive")
     expect(routing).toContain("`ce-commit-push-pr` skill with `branding:on`")
-    expect(routing).toContain("invoke the `ce-commit` skill")
+    expect(routing).toMatch(/invoke the `ce-commit` skill/i)
     expect(routing).toContain("Stop here")
     expect(routing).toContain("`ce-compound`")
 
@@ -428,6 +428,11 @@ describe("ce-debug regression test selection", () => {
     // is what let "no remote" match a route that skipped commit scoping entirely.
     expect(routing).toMatch(/the fix-owned files and nothing else/i)
     expect(routing).toMatch(/holds on every route, remote or not/i)
+    // ...and question 1 must stay a constraint. When it also told the agent to invoke
+    // `ce-commit`, the shipping path committed twice (once there, once inside
+    // `ce-commit-push-pr`) and a non-repo tried to commit before reaching its stop.
+    expect(routing).toMatch(/never an action of its own/i)
+    expect(routing).toMatch(/exactly one of these runs/i)
     // The entangled state is the one place a blocking question survives — no safe
     // default exists once a fix-owned file already held the user's edits.
     expect(routing).toMatch(/Ask \(per \*\*Blocking questions\*\*\)/)
