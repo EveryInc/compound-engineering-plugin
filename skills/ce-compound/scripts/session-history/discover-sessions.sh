@@ -10,8 +10,9 @@
 # Arguments:
 #   repo-name  Folder name of the repo (e.g., "my-repo"). Used for directory matching.
 #   days       Scan window in days (e.g., 7). Files older than this are skipped.
-#   --cwd      Absolute repo root. Used for Claude encoded-CWD + ancestor
-#              discovery and for exact Pi encoded-CWD discovery.
+#   --cwd      Absolute repo root. Used for exact Pi encoded-CWD discovery
+#              and the omp raw-bucket probe. Claude listing is unfiltered;
+#              extract-metadata.py --cwd-filter matches recorded cwd.
 #   --platform Restrict to a single platform. Omit to search all.
 
 set -euo pipefail
@@ -38,124 +39,14 @@ encode_pi_cwd() {
     printf -- "--%s--" "$encoded"
 }
 
-# Claude Code names ~/.claude/projects/<encoded-cwd>/ via JS
-# replace(/[^a-zA-Z0-9]/g, "-") over UTF-16 code units (cli fEo). Astral
-# characters are two surrogates, so /Users/😀/Code -> -Users----Code.
-# Git Bash reports /d/foo for D:\foo; restore the drive form before folding,
-# but only on MSYS/MINGW/Cygwin so a POSIX /d/... path is not rewritten to D:/.
-# Keep / and D:/ intact; those roots encode as - and D--.
-strip_claude_cwd_slash() {
-    case "$1" in
-        /|[A-Za-z]:/) printf '%s' "$1" ;;
-        *) printf '%s' "${1%/}" ;;
-    esac
-}
-
-encode_claude_cwd() {
-    local cwd="${1//\\//}"
-    cwd="$(strip_claude_cwd_slash "$cwd")"
-    case "$(uname -s 2>/dev/null)" in
-        MINGW*|MSYS*|CYGWIN*)
-            case "$cwd" in
-                /[a-zA-Z]|/[a-zA-Z]/*)
-                    local drive rest
-                    drive="${cwd:1:1}"
-                    case "$drive" in
-                        [a-z]) drive=$(printf '%s' "$drive" | tr '[:lower:]' '[:upper:]') ;;
-                    esac
-                    rest="${cwd:2}"
-                    cwd="${drive}:${rest}"
-                    ;;
-            esac
-            ;;
-    esac
-    local py
-    py="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
-    if [ -n "$py" ]; then
-        "$py" -c 'import sys
-s = sys.argv[1]
-out = []
-units = s.encode("utf-16-le")
-for i in range(0, len(units), 2):
-    u = units[i] | (units[i + 1] << 8)
-    if 48 <= u <= 57 or 65 <= u <= 90 or 97 <= u <= 122:
-        out.append(chr(u))
-    else:
-        out.append("-")
-sys.stdout.write("".join(out))
-' "$cwd"
-    else
-        printf '%s' "$cwd" | sed 's/[^a-zA-Z0-9]/-/g'
-    fi
-}
-
 # --- Claude Code ---
+# List every recent jsonl under ~/.claude/projects. Folder names are an
+# undocumented encoder of session CWD; do not invert them. Repo attribution
+# is the recorded `cwd` field, applied by extract-metadata.py --cwd-filter.
 discover_claude() {
     local base="$HOME/.claude/projects"
     [ -d "$base" ] || return 0
-
-    {
-        # Basename glob: sessions started at the repo root include the repo
-        # name in the encoded directory. Keep this even when --cwd is set.
-        for dir in "$base"/*"$REPO_NAME"*/; do
-            [ -d "$dir" ] || continue
-            find "$dir" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
-        done
-
-        # Encoded CWD and each ancestor: a session started from a parent of
-        # the repo encodes without the repo basename.
-        if [ -n "$REPO_CWD" ]; then
-            local cwd encoded next hops
-            cwd="${REPO_CWD//\\//}"
-            cwd="$(strip_claude_cwd_slash "$cwd")"
-            hops=0
-            while [ -n "$cwd" ] && [ "$hops" -lt 64 ]; do
-                encoded="$(encode_claude_cwd "$cwd")"
-                if [ -n "$encoded" ] && [ -d "$base/$encoded" ]; then
-                    find "$base/$encoded" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
-                fi
-                next="${cwd%/*}"
-                # Windows drive roots ("D:") are a fixed point of ${cwd%/*}.
-                if [ "$next" = "$cwd" ]; then
-                    break
-                fi
-                # POSIX: /Users -> ""; still need to visit /.
-                # Git Bash: /d -> ""; Claude names D:\ as D--, so visit D:/.
-                if [ -z "$next" ]; then
-                    case "$cwd" in
-                        /[a-zA-Z])
-                            local drive
-                            drive="${cwd:1:1}"
-                            case "$drive" in
-                                [a-z]) drive=$(printf '%s' "$drive" | tr '[:lower:]' '[:upper:]') ;;
-                            esac
-                            cwd="${drive}:/"
-                            hops=$((hops + 1))
-                            continue
-                            ;;
-                    esac
-                    if [ "$cwd" != "/" ] && [ "${cwd#/}" != "$cwd" ]; then
-                        cwd="/"
-                        hops=$((hops + 1))
-                        continue
-                    fi
-                    break
-                fi
-                # Windows: D:/AI -> D:; Claude names D:\ as D--, so visit D:/ first.
-                case "$next" in
-                    [A-Za-z]:)
-                        if [ "$cwd" != "${next}/" ]; then
-                            cwd="${next}/"
-                            hops=$((hops + 1))
-                            continue
-                        fi
-                        ;;
-                esac
-                cwd="$next"
-                hops=$((hops + 1))
-            done
-        fi
-    } | awk '!seen[$0]++'
+    find "$base" -mindepth 2 -maxdepth 2 -type f -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
 }
 
 # --- Codex ---

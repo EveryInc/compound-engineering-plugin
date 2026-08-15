@@ -15,7 +15,7 @@ The dispatch prompt provides:
   - `errors_path` *(optional)* — absolute path to an errors text file when the orchestrator extracted errors-mode for this session
   - `platform` — `claude`, `codex`, `cursor`, `pi`, or `omp`
   - `branch` — git branch when present (Claude Code only)
-  - `cwd` — working directory when present (Codex, Pi, and omp)
+  - `cwd` — working directory when present (Claude, Codex, Pi, and omp)
   - `ts` and `last_ts` — session start and last-message timestamps
   - `match_count` and `keyword_matches` — when keyword filtering was used by the orchestrator
 - **`output_schema`** *(optional)* — the structure the response should follow. When supplied, honor it verbatim.

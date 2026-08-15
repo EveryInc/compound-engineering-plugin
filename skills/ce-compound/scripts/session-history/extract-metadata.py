@@ -20,19 +20,29 @@ MAX_LINES = 25  # Only need first ~25 lines for metadata
 
 
 def try_claude(lines):
+    result = None
+    cwd = ""
     for line in lines:
         try:
             obj = json.loads(line.strip())
-            if obj.get("type") == "user" and "gitBranch" in obj:
-                return {
-                    "platform": "claude",
-                    "branch": obj["gitBranch"],
-                    "ts": obj.get("timestamp", ""),
-                    "session": obj.get("sessionId", ""),
-                }
         except (json.JSONDecodeError, KeyError):
-            pass
-    return None
+            continue
+        if not cwd and obj.get("cwd"):
+            cwd = obj["cwd"]
+        if result is None and obj.get("type") == "user" and "gitBranch" in obj:
+            result = {
+                "platform": "claude",
+                "branch": obj["gitBranch"],
+                "ts": obj.get("timestamp", ""),
+                "session": obj.get("sessionId", ""),
+            }
+            if obj.get("cwd"):
+                cwd = obj["cwd"]
+        if result is not None and cwd:
+            break
+    if result is not None and cwd:
+        result["cwd"] = cwd
+    return result
 
 
 def try_codex(lines):
@@ -376,19 +386,6 @@ def process_file(filepath):
         if result:
             result["file"] = filepath
             result["size"] = size
-            if result["platform"] == "cursor":
-                # Cursor transcripts have no timestamps in JSONL.
-                # Use file modification time as the best available signal.
-                # Derive session ID from the parent directory name (UUID).
-                mtime = os.path.getmtime(filepath)
-                from datetime import datetime, timezone
-
-                result["ts"] = datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
-                result["session"] = os.path.basename(os.path.dirname(filepath))
-            else:
-                last_ts = get_last_timestamp(filepath, size)
-                if last_ts:
-                    result["last_ts"] = last_ts
             return result, None
         else:
             return None, filepath
@@ -396,12 +393,57 @@ def process_file(filepath):
         return None, filepath
 
 
+def _normalize_cwd(path):
+    path = path.replace("\\", "/").strip()
+    if len(path) > 1 and path.endswith("/") and not (
+        len(path) == 3 and path[1] == ":"
+    ):
+        path = path.rstrip("/")
+    return path
+
+
+def _is_abs_cwd(path):
+    if os.path.isabs(path):
+        return True
+    return len(path) >= 2 and path[1] == ":"
+
+
+def _cwd_paths_related(session_cwd, cwd_filter):
+    if session_cwd == cwd_filter:
+        return True
+    prefix = cwd_filter if cwd_filter.endswith("/") else cwd_filter + "/"
+    if session_cwd.startswith(prefix):
+        return True
+    prefix = session_cwd if session_cwd.endswith("/") else session_cwd + "/"
+    return cwd_filter.startswith(prefix)
+
+
+def _attach_timestamps(result, filepath):
+    if result["platform"] == "cursor":
+        # Cursor transcripts have no timestamps in JSONL.
+        # Use file modification time as the best available signal.
+        # Derive session ID from the parent directory name (UUID).
+        mtime = os.path.getmtime(filepath)
+        from datetime import datetime, timezone
+
+        result["ts"] = datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
+        result["session"] = os.path.basename(os.path.dirname(filepath))
+        return
+    last_ts = get_last_timestamp(filepath, result["size"])
+    if last_ts:
+        result["last_ts"] = last_ts
+
+
 def cwd_matches_filter(session_cwd, cwd_filter):
     if not session_cwd or not cwd_filter:
         return True
-    if os.path.isabs(cwd_filter):
-        return os.path.normpath(session_cwd) == os.path.normpath(cwd_filter)
-    return cwd_filter in session_cwd
+    session = _normalize_cwd(session_cwd)
+    filt = _normalize_cwd(cwd_filter)
+    if not session or not filt:
+        return True
+    if _is_abs_cwd(filt):
+        return _cwd_paths_related(session, filt)
+    return filt in session.split("/")
 
 
 # Parse arguments: files and optional --cwd-filter / --keyword
@@ -435,14 +477,15 @@ if files:
         result, error = process_file(filepath)
         processed += 1
         if result:
-            # Apply CWD filter first: cheap metadata-only check. Skip Codex
+            # Apply CWD filter first: cheap metadata-only check. Skip
             # sessions from other repos before paying the full-file keyword
-            # scan cost — Codex discovery returns sessions across all repos,
+            # scan cost — Claude and Codex discovery list across projects,
             # so without this ordering --keyword would scan files that are
             # immediately discarded.
             if cwd_filter and result.get("cwd") and not cwd_matches_filter(result["cwd"], cwd_filter):
                 filtered += 1
                 continue
+            _attach_timestamps(result, filepath)
             # Apply keyword scan only after cheap filters pass.
             if keywords:
                 matches = count_keyword_matches(filepath, keywords)
