@@ -100,9 +100,10 @@ the tree.
 # skills/ce-work/references/cross-model-execution.md:43
 An external worker may edit only inside its controller-owned detached
 worktree. Do not instruct it to run `git add`, `git commit`, or another Git
-index write unless that adapter's sandbox can write the linked-worktree Git
-admin dir. Codex workspace-write and Cursor --sandbox enabled cannot: the
-index lives in the shared Git common dir, outside the workspace.
+index write. Leave the completed working tree uncommitted; the host snapshots
+the tree. Codex workspace-write and Cursor --sandbox enabled cannot write the
+linked-worktree Git admin dir: the index lives in the shared Git common dir,
+outside the workspace.
 ```
 
 **Host snapshot (the sequence the worker must not duplicate).**
