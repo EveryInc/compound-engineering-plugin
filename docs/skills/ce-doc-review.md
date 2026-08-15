@@ -147,6 +147,8 @@ When the **conditional judgment trio** (adversarial, product-lens, security-lens
 
 A single **whole-document sweep** has one different-provider peer review the entire document as a general reviewer, folding in as `whole-doc-<provider>`. On unified plans the focused trio peers are sliced to match their in-process twins. The sweep reads the whole document.
 
+The pass needs a peer *agent* CLI (`codex`, `claude`, `grok`, or `cursor-agent`) — an API key alone does not enable it, and Gemini has no standalone target. Peers are found on `PATH` or inside the Codex desktop app bundle; see the [prerequisite note in `ce-code-review`](./ce-code-review.md#cross-model-adversarial-pass).
+
 Which target runs the peer is auto-chosen and overridable: conversation, `cross_model_peer:` in CE config, active project instructions, then `codex → claude → grok → composer`. `Cursor` means `cursor-agent` using its configured default/Auto model. `Composer` means a Composer model through Cursor. `cross_model_model:` and `cross_model_effort:` in CE config pin that target's model (e.g. `fable`) and reasoning effort; a value the peer cannot honor skips the pass with a stated reason rather than substituting. See the [configuration reference](./configuration.md).
 
 The pass embeds the document into the peer prompt and sends it to an external provider. `CROSS_MODEL_PEERS` restricts which providers may receive content. Peers are strictly read-only. Failures are non-blocking. A second target remains opt-in (`CROSS_MODEL_MAX_PEERS=2`).

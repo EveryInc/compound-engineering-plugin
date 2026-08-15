@@ -122,7 +122,8 @@ function sandbox(
     writeFileSync(f, stubBody)
     chmodSync(f, 0o755)
   }
-  return { bin, env: { ...process.env, PATH: bin } }
+  // Mask any real Codex.app bundle so discovery sees only what the test stages.
+  return { bin, env: { ...process.env, PATH: bin, CROSS_MODEL_CODEX_APP_DIRS: mkTempRoot("xmodel-nobundle-") } }
 }
 
 function makeDoc(body = "# doc\n"): string {
@@ -348,6 +349,14 @@ describe("cross-model-doc-review provider selection (R7, R15, R16)", () => {
     expect(resolvePeers("claude", "codex,claude,grok,composer", all)).toBe("codex")
     expect(resolvePeers("codex", "codex,claude,grok,composer", all)).toBe("claude")
     expect(resolvePeers("composer", "codex,claude,grok,composer", all)).toBe("codex")
+  })
+
+  test("an app-bundled codex CLI off PATH is discovered (issue #1272)", () => {
+    const bundle = path.join(mkTempRoot("xmodel-bundle-"), "Codex.app", "Contents", "Resources")
+    mkdirSync(bundle, { recursive: true })
+    writeFileSync(path.join(bundle, "codex"), "#!/bin/sh\nexit 0\n")
+    chmodSync(path.join(bundle, "codex"), 0o755)
+    expect(resolvePeers("claude", "codex,claude,grok,composer", [], { CROSS_MODEL_CODEX_APP_DIRS: bundle })).toBe("codex")
   })
 
   test("reference states the unset-allowlist contract the script implements", () => {

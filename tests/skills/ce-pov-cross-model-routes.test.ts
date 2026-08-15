@@ -64,7 +64,8 @@ function sandbox(providers: string[], body = "#!/bin/sh\nexit 0\n") {
     writeFileSync(file, body)
     chmodSync(file, 0o755)
   }
-  return { bin, env: { ...process.env, PATH: bin } }
+  // Mask any real Codex.app bundle so discovery sees only what the test stages.
+  return { bin, env: { ...process.env, PATH: bin, CROSS_MODEL_CODEX_APP_DIRS: temp("pov-nobundle-") } }
 }
 
 function payload(contents = "Subject: choose A or B\nProject floor: TypeScript CLI\n") {
@@ -387,6 +388,19 @@ describe("ce-pov output gate and receipts", () => {
 })
 
 describe("ce-pov fixed route and egress allowlist", () => {
+  test("an app-bundled codex CLI off PATH satisfies the fixed codex route (issue #1272)", () => {
+    const { env } = sandbox([])
+    const bundle = path.join(temp("pov-bundle-"), "Codex.app", "Contents", "Resources")
+    mkdirSync(bundle, { recursive: true })
+    const invoked = path.join(temp("pov-invoked-"), "codex")
+    writeFileSync(path.join(bundle, "codex"), `#!/bin/sh\n: > '${invoked}'\nexit 0\n`)
+    chmodSync(path.join(bundle, "codex"), 0o755)
+    const dir = runDir()
+    const result = run(["claude", "codex", payload(), dir], dir, { ...env, CROSS_MODEL_CODEX_APP_DIRS: bundle })
+    expect(result.stderr).not.toContain("is unavailable")
+    expect(existsSync(invoked)).toBe(true)
+  })
+
   test("failed Grok CLI returns control without invoking Cursor", () => {
     const { bin, env } = sandbox(["grok", "cursor-agent"])
     const cursorInvoked = path.join(temp("pov-invoked-"), "cursor")

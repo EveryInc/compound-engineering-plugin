@@ -118,6 +118,8 @@ Agreement between the peer and another in-process reviewer is a strong promotion
 
 Which target runs the peer is auto-chosen and overridable: conversation, `cross_model_peer:` in CE config, active project instructions, then `codex → claude → grok → composer`. `Cursor` means `cursor-agent` using its configured default/Auto model. `Composer` means a Composer model through Cursor. Cursor Auto does not count as independent agreement unless its serving family is verified different from the host. `cross_model_model:` and `cross_model_effort:` in CE config pin that target's model (e.g. `fable`) and reasoning effort; a value the peer cannot honor skips the pass with a stated reason rather than substituting. See the [configuration reference](./configuration.md).
 
+**Prerequisite: a peer agent CLI.** The pass drives a read-only *agent* CLI (`codex`, `claude`, `grok`, or `cursor-agent`) so the peer can inspect the tree itself; a bare `OPENAI_API_KEY`, Anthropic key, or Gemini key does not enable it. Peers are discovered on `PATH`, plus the CLI bundled inside the Codex desktop app (`Codex.app/Contents/Resources/codex`, which the app does not link onto `PATH`). Gemini has no standalone peer target — it participates only through Cursor when `cursor-agent` attests a Gemini serving family. With no peer CLI installed the skill runs the in-process adversarial reviewer and reports "cross-model pass: not run"; the skip reason names what to install.
+
 This shares the provider/route kernel with `ce-doc-review` but keeps a narrower product scope: adversarial-only, diff/work-tree delivery, not doc-review's judgment trio or whole-doc sweep.
 
 ### Severity and autofix class are orthogonal
