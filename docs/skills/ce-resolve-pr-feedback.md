@@ -91,6 +91,8 @@ Most feedback, nitpicks included, is correct. Validation is not a separate analy
 
 "I'm uneasy" is not a tripwire. Source does not matter. A bot can be right; a human can be wrong.
 
+The one place the default inverts is agent instruction prose (a `SKILL.md`, a skill reference, a persona or rule file). A natural-language condition can always be made more specific, so a case the stated condition already decides is answered with the condition (`not-addressing`), not patched; only a wrong or missing condition, or a mechanism at the wrong owning layer, is a fix. A second round of findings against text the first round added is a signal to restate the block, not qualify it, and the loop cap counts rounds per PR (from the branch's review-fix commits) so it survives re-invocation by `ce-babysit-pr`. The project's own review guidance in context frames these verdicts.
+
 ### Judge once, then fan out only the fixes
 
 The orchestrator holds every thread from a single fetch. It can read a file once, cluster a systematically wrong reviewer, and weigh the author's design intent. Subagents implement approved fixes. They do not re-judge.

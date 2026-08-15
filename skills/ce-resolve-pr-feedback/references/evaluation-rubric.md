@@ -13,6 +13,17 @@ Most review feedback -- across P0-P2, nitpicks included -- is correct and worth 
 
 The checks below are tripwires, not a gate to deliberate on per item. When nothing trips, mark it to fix and move on -- don't manufacture doubt or risk to avoid work. "I'm uneasy" is not a tripwire; "I read the callers and this breaks X" is.
 
+**What counts as a valid fix is the project's call, not only what counts as harm.** If the project's active instructions and conventions already in your context carry review or authoring guidance (what a finding is, how feedback on a class of file is applied), apply it here as the frame for the verdict -- not just as a veto in the "would make the code worse" divert below. Where it says a class of finding is answered rather than fixed, that is the verdict.
+
+## Instruction prose is not code (skills, agent prompts, rule files)
+
+When the target file is agent instruction prose -- a `SKILL.md`, a skill's `references/`, a persona or system prompt, a project rule file -- "default to fixing" does not transfer, because the failure mode inverts: a natural-language condition can always be made more specific, so a reviewer can produce a valid-looking edge case against any rule indefinitely, and patching each one dilutes the rule instead of strengthening it. For these files:
+
+- **A case the stated condition already decides is not a fix.** Read the rule the finding targets and ask whether its condition covers the case ("rename only on positive proof the branch was never published; any other result keeps the name" already decides an unreachable remote). If it does -> `not-addressing`, quoting the condition. If it is a question -> `replied`.
+- **Fix only the condition or the layer.** Mark to fix when the condition itself is wrong or missing (goal, done state, or safe failure direction), or when a mechanism sits at the wrong owning layer (a command prescribed in a skill that delegates that work; a rule placed where it will not fire). The fix instruction you hand the fixer is then "restate the condition as ..." or "move this to <owner>", never "add the case".
+- **A finding against text a prior round of this PR added is a representation signal.** Check `git log` on the branch for earlier review-fix commits touching the same block. On the second round against the same block, stop patching: mark one item to fix with the instruction "delete the additions and restate this block as its goal, done condition, and safe direction; re-verify against every path the additions served", and answer the remaining items in that block with `not-addressing` pointing at that restatement. Fires on the block, not the PR -- other files still get ordinary judgment.
+- Ordinary code in the same PR (scripts, tests, source) keeps the ordinary rubric.
+
 ## How deep to read
 
 Read enough to decide the verdict, no more:
