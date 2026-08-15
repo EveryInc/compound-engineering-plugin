@@ -2466,11 +2466,13 @@ describe("discover-sessions", () => {
 
   test("--platform claude folds astral characters as UTF-16 code units", async () => {
     // JS replace(/[^a-zA-Z0-9]/g, "-") walks UTF-16 surrogates, so 😀 is "--".
+    // Repo name is absent from the encoded dir so the basename glob cannot
+    // hide a broken fold.
     const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
-    const sessionPath = await writeClaudeSession(tempHome, "-Users----my-repo")
+    const sessionPath = await writeClaudeSession(tempHome, "-Users----proj")
 
     const { stdout, stderr, exitCode } = await runDiscover(
-      ["my-repo", "7", "--cwd", "/Users/\u{1F600}/my-repo", "--platform", "claude"],
+      ["sentinel-repo", "7", "--cwd", "/Users/\u{1F600}/proj", "--platform", "claude"],
       { HOME: tempHome }
     )
 
