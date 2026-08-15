@@ -106,6 +106,14 @@ Liveness and progress are distinct signals, and an idle window detects only whic
 ### Cross-model pass
 An additive delegated run that sends the host workflow's review or judgment brief through a different model-provider route and folds the structured result back into the host's synthesis. It stays non-blocking when the peer cannot run, and it counts as independent corroboration only when the serving model family can be verified rather than merely requested.
 
+### Terminalize
+The host-owned step that turns a finished external worker's working tree into one inspectable Transport commit, without requiring the worker to stage or commit.
+
+The snapshot includes committed, uncommitted, and untracked output. The worker may edit and test; the host alone creates the Transport commit and later the canonical checkout commit.
+
+### Transport commit
+A synthetic, base-parented commit the host builds from an external worker's complete final tree so the host can inspect and fold the result. It is intermediate evidence, not the canonical checkout commit, and it is never the worker's own tip.
+
 ### Model identity receipt
 The serving backend's own report of which model actually handled a delegated run, recorded alongside the requested model so the two can disagree visibly. A run's model identity is verified only by such a receipt — never by the request parameters or the model's own text — and outputs without one are labeled as requested-but-unverified; logic that weights cross-model agreement follows the receipt, not the request.
 
