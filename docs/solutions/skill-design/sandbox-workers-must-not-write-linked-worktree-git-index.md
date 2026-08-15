@@ -46,7 +46,7 @@ Issue #1318 is the originating report. The contract, persona, adapter appendix, 
 
 **Default: forbid worker Git index writes.** The implementation-worker persona is unconditional: edit and test; do not run `git add`, `git commit`, or another Git index write; leave the completed working tree uncommitted; report `completed` when files and scoped checks are done; the host snapshots the tree (`skills/ce-work/references/agents/implementation-worker.md:6`).
 
-**Contract: commit only if the sandbox can write the linked-worktree Git admin dir.** Bound worker authority grants edit-only access inside the controller-owned detached worktree. Do not instruct the worker to run `git add`, `git commit`, or another Git index write unless that adapter's sandbox can write the linked-worktree Git admin dir. Codex `workspace-write` and Cursor `--sandbox enabled` cannot: the index lives in the shared Git common dir, outside the workspace (`cross-model-execution.md:43`).
+**Contract: do not instruct any external worker to write the Git index.** Bound worker authority grants edit-only access inside the controller-owned detached worktree. Do not instruct the worker to run `git add`, `git commit`, or another Git index write. Leave the completed working tree uncommitted; the host snapshots the tree. Codex `workspace-write` and Cursor `--sandbox enabled` cannot write the linked-worktree Git admin dir: the index lives in the shared Git common dir, outside the workspace (`cross-model-execution.md:43`). The same no-commit rule is always-loaded in `SKILL.md` so the host protocol and the worker persona cannot diverge.
 
 **Host `terminalize` is the snapshot.** On authoritative `done`, the host calls `unit-workspace.py terminalize`. That path, not the worker, stages the complete tree and pins a synthetic transport commit:
 
@@ -58,7 +58,7 @@ The serial protocol requires that pinned transport commit to have the recorded b
 
 **Codex capability probes are host-owned.** A Codex `workspace-write` packet must treat socket binds, OS permission checks, and peer-credential probes as host-owned. Preserve the host command and observed result; do not treat a sandbox `EPERM` as proof the host lacks the capability (`cross-model-execution.md:45`). The adapter injects that appendix only when `ROUTE=codex` (`cross-model-work.sh:604-606`).
 
-**Do not weaken this into "commit if you can."** Worker commits remain optional intermediate evidence only for a sandbox that includes the Git admin dir, and they are never required. Today's shipped Codex and Cursor adapters cannot write that dir. Instructing those workers to commit is a protocol error even if a particular sandbox happens to succeed.
+**Do not weaken this into "commit if you can."** Worker commits are never required. Instructing any external worker to commit is a protocol error even if a particular sandbox happens to succeed.
 
 **Keep native and external commit ownership distinct.** Ordinary native workers also do not commit — the orchestrator owns staging, committing, and authoritative tests (`skills/ce-work/SKILL.md:239`). Shared-workspace native workers additionally must not `git add` because concurrent index writes corrupt the shared index (`SKILL.md:241`). That is a different failure class.
 

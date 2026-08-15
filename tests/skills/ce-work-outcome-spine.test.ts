@@ -309,12 +309,16 @@ describe("ce-work cross-model engine contract", () => {
     expect(protocol).toContain("isolated transport commit")
     expect(protocol).toContain("host-only canonical")
     expect(protocol).not.toContain("An external worker may edit and commit only")
+    expect(protocol).not.toContain("unless that adapter's sandbox can write")
     expect(protocol).toContain("`git add`")
     expect(protocol).toContain("`git commit`")
     expect(protocol).toContain("Git admin dir")
     expect(protocol).toContain("workspace-write")
     expect(protocol).toContain("--sandbox enabled")
     expect(protocol).toContain("never required")
+    expect(protocol).toContain("Leave the completed working tree uncommitted")
+    expect(engineGate).toContain("An external cross-model worker also must not run `git add`")
+    expect(engineGate).toContain("Leave its working tree uncommitted")
     for (const forbiddenAuthority of ["canonical commit", "push", "PR", "shipping", "recipient-switch"]) {
       expect(protocol).toContain(forbiddenAuthority)
     }
