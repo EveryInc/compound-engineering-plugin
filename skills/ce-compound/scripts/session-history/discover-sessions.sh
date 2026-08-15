@@ -40,18 +40,20 @@ encode_pi_cwd() {
 }
 
 # --- Claude Code ---
-# List every recent jsonl under ~/.claude/projects. Folder names are an
+# List every recent jsonl under <config-dir>/projects. Folder names are an
 # undocumented encoder of session CWD; do not invert them. Repo attribution
 # is the recorded `cwd` field, applied by extract-metadata.py --cwd-filter.
+# CLAUDE_CONFIG_DIR relocates the whole config tree (official); unset -> ~/.claude.
 discover_claude() {
-    local base="$HOME/.claude/projects"
+    local base="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
     [ -d "$base" ] || return 0
     find "$base" -mindepth 2 -maxdepth 2 -type f -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
 }
 
 # --- Codex ---
 discover_codex() {
-    for base in "$HOME/.codex/sessions" "$HOME/.agents/sessions"; do
+    local codex_home="${CODEX_HOME:-$HOME/.codex}"
+    for base in "$codex_home/sessions" "$HOME/.agents/sessions"; do
         [ -d "$base" ] || continue
 
         # Use mtime-based discovery (consistent with Claude/Cursor) so that

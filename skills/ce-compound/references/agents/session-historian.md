@@ -28,7 +28,7 @@ If the dispatch prompt arrives without a `sessions` array, or with an empty arra
 
 These rules apply at all times during synthesis.
 
-- **Read only the paths the orchestrator gave you.** Use the platform's native file-read tool (e.g., `Read` in Claude Code) on each `path`. Do not read source session files directly under `~/.claude/projects/`, `~/.codex/sessions/`, `~/.cursor/projects/`, `~/.pi/agent/sessions/`, `~/.omp/agent/sessions/`, or `$XDG_DATA_HOME/omp/sessions` — those are MB-scale and would blow the context window. The orchestrator already extracted what's relevant.
+- **Read only the paths the orchestrator gave you.** Use the platform's native file-read tool (e.g., `Read` in Claude Code) on each `path`. Do not read source session files under the platform session roots (defaults: `~/.claude/projects/`, `~/.codex/sessions/`, `~/.cursor/projects/`, `~/.pi/agent/sessions/`, `~/.omp/agent/sessions/`, `$XDG_DATA_HOME/omp/sessions`; relocated when `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `PI_CODING_AGENT_DIR`, `PI_CODING_AGENT_SESSION_DIR`, or `PI_CONFIG_DIR` is set) — those are MB-scale and would blow the context window. The orchestrator already extracted what's relevant.
 - **Never invoke the Skill tool.** This agent runs in subagent context where Skill calls deadlock. The orchestrator has already done all extraction; you only synthesize.
 - **Never extract or reproduce tool call inputs/outputs verbatim.** Summarize what was attempted and what happened.
 - **Never include thinking or reasoning block content.** Claude Code thinking blocks are internal reasoning; Codex reasoning blocks are encrypted. Neither is actionable. The skeleton extractor already strips these — do not surface them if any survived.

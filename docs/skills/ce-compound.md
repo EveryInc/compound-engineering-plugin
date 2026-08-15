@@ -103,7 +103,7 @@ Before the doc compounds, claims are checked against the tree. A deterministic s
 
 ### Session history, refresh, and auto-invoke
 
-Full mode always runs a cheap two-stage session-history probe. A discovery+metadata pass runs in parallel with the research subagents. Claude sessions are listed from `~/.claude/projects/` and kept when the recorded `cwd` is the repo root, a parent of it, or a path inside it — including sessions started from a parent directory. It escalates to extraction and synthesis only when a candidate session clears a relevance bar (current-branch match or at least two topic-keyword hits). On a hit, findings fold into "What Didn't Work" (bug track) or "Context" (knowledge track). Lightweight skips this entirely.
+Full mode always runs a cheap two-stage session-history probe. A discovery+metadata pass runs in parallel with the research subagents. Claude sessions are listed from `~/.claude/projects/` (or `CLAUDE_CONFIG_DIR/projects` when that env var is set) and kept when the recorded `cwd` is the repo root, a parent of it, or a path inside it — including sessions started from a parent directory. Codex sessions come from `~/.codex/sessions/` (or `CODEX_HOME/sessions` when set) plus `~/.agents/sessions/`. It escalates to extraction and synthesis only when a candidate session clears a relevance bar (current-branch match or at least two topic-keyword hits). On a hit, findings fold into "What Didn't Work" (bug track) or "Context" (knowledge track). Lightweight skips this entirely.
 
 After capturing the new learning, `ce-compound` checks whether it should invoke `/ce-compound-refresh` on a narrow scope hint. It does not default to running refresh. Only when the new learning suggests a specific older doc may now be stale.
 

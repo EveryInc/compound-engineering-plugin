@@ -1842,7 +1842,12 @@ describe("discover-sessions", () => {
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     const scriptPath = path.join(SCRIPTS_DIR, "discover-sessions.sh")
     const proc = Bun.spawn(["bash", scriptPath, ...args], {
-      env: { ...process.env, ...env },
+      env: {
+        ...process.env,
+        CLAUDE_CONFIG_DIR: "",
+        CODEX_HOME: "",
+        ...env,
+      },
       stdout: "pipe",
       stderr: "pipe",
     })
@@ -2363,16 +2368,77 @@ describe("discover-sessions", () => {
     expect(files).toEqual([agentSession])
   })
 
+  async function writeClaudeSessionUnder(
+    configRoot: string,
+    projectDir: string,
+    name = "2026-04-07T09-00-00-000Z_test.jsonl"
+  ): Promise<string> {
+    const sessionPath = path.join(configRoot, "projects", projectDir, name)
+    await fs.promises.mkdir(path.dirname(sessionPath), { recursive: true })
+    await fs.promises.writeFile(sessionPath, "{}\n")
+    return sessionPath
+  }
+
   async function writeClaudeSession(
     home: string,
     projectDir: string,
     name = "2026-04-07T09-00-00-000Z_test.jsonl"
   ): Promise<string> {
-    const sessionPath = path.join(home, ".claude/projects", projectDir, name)
+    return writeClaudeSessionUnder(path.join(home, ".claude"), projectDir, name)
+  }
+
+  async function writeCodexSession(
+    sessionsRoot: string,
+    name = "2026-04-07T09-00-00-000Z_test.jsonl"
+  ): Promise<string> {
+    const sessionPath = path.join(sessionsRoot, name)
     await fs.promises.mkdir(path.dirname(sessionPath), { recursive: true })
     await fs.promises.writeFile(sessionPath, "{}\n")
     return sessionPath
   }
+
+  test("--platform claude honors CLAUDE_CONFIG_DIR over ~/.claude", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "claude-config-"))
+    const relocated = await writeClaudeSessionUnder(configDir, "-relocated")
+    const ignored = await writeClaudeSession(tempHome, "-default-home")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "claude"],
+      { HOME: tempHome, CLAUDE_CONFIG_DIR: configDir }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([relocated])
+    expect(files).not.toContain(ignored)
+  })
+
+  test("--platform codex honors CODEX_HOME over ~/.codex and still scans ~/.agents/sessions", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-home-"))
+    const profileHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-profile-"))
+    const relocated = await writeCodexSession(
+      path.join(profileHome, "sessions")
+    )
+    const ignored = await writeCodexSession(
+      path.join(tempHome, ".codex/sessions")
+    )
+    const agents = await writeCodexSession(
+      path.join(tempHome, ".agents/sessions")
+    )
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "codex"],
+      { HOME: tempHome, CODEX_HOME: profileHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim()).sort()
+    expect(files).toEqual([agents, relocated].sort())
+    expect(files).not.toContain(ignored)
+  })
 
   test("--platform claude lists every recent jsonl under ~/.claude/projects", async () => {
     // Folder names are an undocumented encoder of session CWD. Discovery
