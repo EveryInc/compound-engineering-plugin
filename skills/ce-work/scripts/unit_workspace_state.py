@@ -432,8 +432,32 @@ def atomic_private_json(path: str, doc: dict) -> None:
         raise
 
 
+def candidate_runs_roots() -> list:
+    """Every root an existing run may live under (configured root alone, or the
+    /tmp root and the $TMPDIR fallback, primary first). Creation uses runs_root();
+    lookup must not depend on which root this invocation would create under."""
+    configured = os.environ.get("CE_WORK_RUNS_ROOT")
+    if configured:
+        return [os.path.abspath(configured)]
+    peer_root = os.environ.get("CE_PEER_JOBS_ROOT")
+    if peer_root:
+        return [os.path.join(os.path.abspath(peer_root), "ce-work")]
+    if OWNER_SCRATCH_ROOT is None:
+        raise TrustFailure("effective user ID is unavailable; cannot derive the runs root")
+    roots = [os.path.join(os.path.abspath(OWNER_SCRATCH_ROOT), "ce-work")]
+    fallback = os.path.join(os.path.abspath(_fallback_scratch_root()), "ce-work")
+    if fallback not in roots:
+        roots.append(fallback)
+    return roots
+
+
 def run_dir(run_id: str) -> str:
-    return os.path.join(runs_root(), safe_id(run_id, "run id"))
+    rid = safe_id(run_id, "run id")
+    for root in candidate_runs_roots():
+        existing = os.path.join(root, rid)
+        if os.path.isdir(existing) and not os.path.islink(existing):
+            return existing
+    return os.path.join(runs_root(), rid)
 
 
 @contextlib.contextmanager

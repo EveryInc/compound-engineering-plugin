@@ -225,6 +225,10 @@ def _private_root_usable(path: str) -> bool:
     return os.access(path, os.W_OK)
 
 
+def _fallback_root() -> str:
+    return os.path.join(os.environ.get("TMPDIR") or "/tmp", f"compound-engineering-{_EFFECTIVE_UID}")
+
+
 def jobs_root_base() -> str:
     configured = os.environ.get("CE_PEER_JOBS_ROOT")
     if configured:
@@ -235,14 +239,40 @@ def jobs_root_base() -> str:
         return os.path.abspath(DEFAULT_ROOT)
     # Same order and candidates as the skills' shell preamble, so a job started
     # there is found here.
-    fallback = os.path.join(os.environ.get("TMPDIR") or "/tmp", f"compound-engineering-{_EFFECTIVE_UID}")
-    return os.path.abspath(fallback)
+    return os.path.abspath(_fallback_root())
+
+
+def candidate_jobs_root_bases() -> list:
+    """Every root an existing job may live under: the configured root alone, or
+    both the /tmp root and the $TMPDIR fallback (deduplicated, primary first).
+
+    Creation uses jobs_root_base(); lookup of an already-started job must not
+    depend on which root *this* invocation would create under, because a
+    sandboxed session and a later unsandboxed one resolve different roots.
+    """
+    configured = os.environ.get("CE_PEER_JOBS_ROOT")
+    if configured:
+        return [os.path.abspath(configured)]
+    if DEFAULT_ROOT is None:
+        raise RunnerError("effective user ID is unavailable; cannot derive the jobs root")
+    bases = [os.path.abspath(DEFAULT_ROOT)]
+    if not IS_WINDOWS:
+        fallback = os.path.abspath(_fallback_root())
+        if fallback not in bases:
+            bases.append(fallback)
+    return bases
 
 
 def skill_runs_root(skill: str) -> str:
     if skill == "ce-work" and os.environ.get("CE_WORK_RUNS_ROOT"):
         return os.path.abspath(os.environ["CE_WORK_RUNS_ROOT"])
     return os.path.join(jobs_root_base(), skill)
+
+
+def candidate_skill_runs_roots(skill: str) -> list:
+    if skill == "ce-work" and os.environ.get("CE_WORK_RUNS_ROOT"):
+        return [os.path.abspath(os.environ["CE_WORK_RUNS_ROOT"])]
+    return [os.path.join(base, skill) for base in candidate_jobs_root_bases()]
 
 
 def _env_num(name: str, default: float, conv, *, allow_zero: bool = False):
@@ -852,14 +882,14 @@ def resolve_job_dir(ref: str, skill=None) -> str:
     if skill is not None:
         if not _is_safe_token(skill):
             raise RunnerError(f"invalid skill: {skill!r}")
-        search_root = skill_runs_root(skill)
-        patterns = [os.path.join(search_root, "*", "jobs", ref)]
+        search_roots = candidate_skill_runs_roots(skill)
+        patterns = [os.path.join(root, "*", "jobs", ref) for root in search_roots]
     else:
-        search_root = jobs_root_base()
-        patterns = [os.path.join(search_root, "*", "*", "jobs", ref)]
+        search_roots = candidate_jobs_root_bases()
+        patterns = [os.path.join(root, "*", "*", "jobs", ref) for root in search_roots]
     matches = sorted({match for pattern in patterns for match in glob.glob(pattern)})
     if not matches:
-        raise RunnerError(f"job not found under {search_root}: {ref}")
+        raise RunnerError(f"job not found under {', '.join(search_roots)}: {ref}")
     if len(matches) > 1:
         raise RunnerError(f"ambiguous job id {ref}: {len(matches)} matches; pass the job dir path")
     return matches[0]

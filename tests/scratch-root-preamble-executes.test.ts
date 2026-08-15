@@ -140,7 +140,9 @@ describe("scratch-root preamble executes on this host", () => {
         const r = spawnSync(SHELL, ["-c", `CE_ROOT="$1"\n${redirect(script, index)}\nprintf %s "$SCRATCH_ROOT"`,
           "sh", parent], { encoding: "utf8" })
         const expected = path.join(parent, `${index}-fallback`)
-        if (r.status !== 0 || r.stdout !== expected || !existsSync(expected)) {
+        // Git Bash prints the redirected `$CE_ROOT/<n>-fallback` with a forward slash on Windows;
+        // compare resolved paths so a separator difference does not read as a wrong root.
+        if (r.status !== 0 || !r.stdout || path.resolve(r.stdout) !== path.resolve(expected) || !existsSync(expected)) {
           failures.push(`${file} [${index}] status=${r.status} root=${r.stdout} stderr=${(r.stderr || "").trim()}`)
         }
       })

@@ -186,6 +186,62 @@ print(state.ensure_root())
     }
   })
 
+  // The reverse transition of the fallback: a job started under $TMPDIR (sandboxed session) must
+  // still be found by status/wait/result from a later invocation whose /tmp root is usable again.
+  test("peer runner locates an existing job under the fallback root when /tmp is usable", () => {
+    const runner = path.join(SKILLS_ROOT, "ce-doc-review", "scripts/peer-job-runner.py")
+    const parent = mkdtempSync(path.join(tmpdir(), "ce-peer-both-roots-"))
+    const driver = String.raw`
+import importlib.util, os, sys
+os.environ.pop("CE_PEER_JOBS_ROOT", None)
+spec = importlib.util.spec_from_file_location("peer_job_runner", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+mod.DEFAULT_ROOT = os.path.join(sys.argv[2], "primary")   # usable: creation resolves here
+os.environ["TMPDIR"] = os.path.join(sys.argv[2], "sandbox-tmp")
+uid = mod._EFFECTIVE_UID
+job = os.path.join(os.environ["TMPDIR"], "compound-engineering-%d" % uid, "ce-doc-review", "run1", "jobs", "job-abc")
+os.makedirs(job, 0o700)
+assert mod.jobs_root_base() == mod.DEFAULT_ROOT, mod.jobs_root_base()
+print(mod.resolve_job_dir("job-abc", "ce-doc-review"))
+print(mod.resolve_job_dir("job-abc"))
+`
+    try {
+      const result = spawnSync("python3", ["-c", driver, runner, parent], { encoding: "utf8" })
+      expect(result.status, result.stderr).toBe(0)
+      const expected = path.join(parent, "sandbox-tmp", `compound-engineering-${process.getuid!()}`, "ce-doc-review", "run1", "jobs", "job-abc")
+      expect(result.stdout.trim().split("\n")).toEqual([expected, expected])
+    } finally {
+      rmSync(parent, { recursive: true, force: true })
+    }
+  })
+
+  test("ce-work run_dir prefers an existing run under the fallback root", () => {
+    const script = path.join(SKILLS_ROOT, "ce-work", "scripts/unit_workspace_state.py")
+    const parent = mkdtempSync(path.join(tmpdir(), "ce-work-both-roots-"))
+    const driver = String.raw`
+import os, sys
+sys.path.insert(0, os.path.dirname(sys.argv[1]))
+os.environ.pop("CE_PEER_JOBS_ROOT", None); os.environ.pop("CE_WORK_RUNS_ROOT", None)
+import unit_workspace_state as state
+state.OWNER_SCRATCH_ROOT = os.path.join(sys.argv[2], "primary")
+os.environ["TMPDIR"] = os.path.join(sys.argv[2], "sandbox-tmp")
+existing = os.path.join(os.environ["TMPDIR"], "compound-engineering-%d" % state._EFFECTIVE_UID, "ce-work", "run-1")
+os.makedirs(existing, 0o700)
+print(state.run_dir("run-1"))
+print(state.run_dir("run-2"))
+`
+    try {
+      const result = spawnSync("python3", ["-c", driver, script, parent], { encoding: "utf8" })
+      expect(result.status, result.stderr).toBe(0)
+      const [found, fresh] = result.stdout.trim().split("\n")
+      expect(found).toBe(path.join(parent, "sandbox-tmp", `compound-engineering-${process.getuid!()}`, "ce-work", "run-1"))
+      expect(fresh).toBe(path.join(parent, "primary", "ce-work", "run-2"))
+    } finally {
+      rmSync(parent, { recursive: true, force: true })
+    }
+  })
+
   test("peer runner secures newly created directories under a restrictive umask", () => {
     const runner = path.join(SKILLS_ROOT, "ce-doc-review", "scripts/peer-job-runner.py")
     const parent = mkdtempSync(path.join(tmpdir(), "ce-peer-root-"))
