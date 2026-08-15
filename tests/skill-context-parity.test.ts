@@ -48,6 +48,9 @@ describe("skill context shared-asset parity", () => {
     )
     // These tokens are the payload. Renaming one silently disarms the fix.
     expect(body).toContain("SUBAGENT_AUTHORIZATION:")
+    // Without this carve-out, a pre-launch argument rejection reads as a failed
+    // pass and burns the workflow's inline fallback instead of being corrected.
+    expect(body).toContain("correctable invocation error")
     expect(body).toContain("HARNESS_ATTRIBUTION:")
     expect(body).toContain("AUTONOMY_DIRECTIVE_CHECK:")
     expect(body).toContain("INDEPENDENCE_ACCOUNTING:")
@@ -68,6 +71,9 @@ describe("skill context shared-asset parity", () => {
     expect(lines[0]).toBe("=== skill context (follow these directives; if CE_CONTEXT_END is missing below, rerun this script once; otherwise do not rerun) ===")
     expect(lines[lines.length - 1]).toBe("CE_CONTEXT_END")
     expect(out).toContain("SUBAGENT_AUTHORIZATION:")
+    // Emitted, not merely present: the source pin above would still pass if the
+    // carve-out were demoted into a comment and never reached the model.
+    expect(out).toContain("correctable invocation error")
   })
 
   for (const skill of DISPATCH_SKILLS) {
