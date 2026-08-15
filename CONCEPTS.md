@@ -156,3 +156,21 @@ A configured origin of customer or user feedback — a Slack channel, a GitHub I
 
 ### Beta skill
 A parallel copy of a stable Skill, suffixed `-beta`, used to trial a new version alongside the stable one without disrupting users. Invoked manually (model auto-invocation is disabled); promoting it to stable is more than a rename — every caller must move in the same change so none silently inherits stale defaults, and the retired beta name must be registered for stale-artifact cleanup so upgrading users don't keep a dead duplicate of the skill alongside the promoted one.
+
+### Offered work
+Work the user has put up for review, as distinct from work that merely exists in the tree or on a remote. Commits in an open pull request are offered; uncommitted edits, local commits, and commits pushed only for backup or to trigger CI are not.
+
+The distinction is what a shipping gate tests before publishing anything, and it is not the same as pushed — a push moves bytes to a remote, review is what makes work offered. Because the skill that ships pushes the whole branch and its pull request spans every commit on that branch, a gate that admits unoffered work publishes it alongside the change it was asked to ship.
+
+### Fix-owned files
+The tests and implementation a run changed to fix the bug it was invoked on, as distinct from files that were already modified when the run began.
+
+Recorded before any edit so later phases can scope to them: the commit takes fix-owned files and nothing else, and a quality pass is handed that scope explicitly rather than a branch diff, since a pass that rewrites what it is given would otherwise reach work in progress that was never offered. A fix-owned file that already carried the user's own edits cannot be separated by a file-level commit, and that entanglement is the one case the handoff stops to ask about.
+
+### Issue of record
+Whichever tracker or monitor item the user supplied as a bug's entry point, treated as that bug's canonical record regardless of which system it lives in — an error-monitor issue counts the same as a tracker ticket.
+
+Later phases link it rather than opening a second record for the same bug elsewhere, and never ask whether to. Discovering the project's own tracker serves reading prior work, not establishing a new home. An input carrying no such reference simply has none, which is an ordinary state rather than a gap to fill.
+
+### Residual
+A review finding a run accepted or deferred rather than fixed, which must reach a durable sink before the run reports itself done — a section in the pull request body, or a ticket in the project's tracker. A finding that lives only in the session is lost when the session ends, so an accepted residual blocks a merge-ready claim until it is recorded somewhere a human will find it.
