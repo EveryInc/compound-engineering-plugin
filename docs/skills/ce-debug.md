@@ -116,7 +116,7 @@ If you have uncommitted work when you invoke the skill, it treats that as a hypo
 
 If you opt to fix, the skill first inspects existing tests for the affected behavior. It uses an existing failing test when one already captures the bug, updates or strengthens the existing test that owns the contract, or adds a focused regression test only when no existing test fits. It verifies the failure, applies the smallest root-cause fix, reruns the focused test plus broader checks, then self-reviews the diff.
 
-After the fix is green, non-trivial diffs run the same quality tail used by the shipping workflow: simplify first when the diff is large enough to benefit, then review the final fix. Tiny mechanical fixes skip this with a reason. On pre-existing dirty branches, simplify and review are scoped to the bug-fix files. Files with overlapping pre-existing edits skip file-level simplification. Accepted residual findings are written to a durable sink even when you choose commit-only or stop.
+After the fix is green, non-trivial diffs run the same quality tail used by the shipping workflow: simplify first when the diff is large enough to benefit, then review the final fix. Tiny mechanical fixes skip this with a reason. Simplify is always handed an explicit scope of the bug-fix files and never the branch diff, so it cannot reach unrelated work in progress; review is scoped the same way unless the tree was clean enough to prove a diff base is the fix. Files with overlapping pre-existing edits skip file-level simplification. Accepted residual findings are written to a durable sink even when you choose commit-only or stop.
 
 ### Defense-in-depth, and brainstorm when it is not a bug
 
