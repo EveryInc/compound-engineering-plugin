@@ -125,7 +125,9 @@ Determine how to proceed based on what was provided in `<input_document>` (after
 
 2. **Setup Environment**
 
-   First, check the current branch:
+   **Do not ask about branches.** Branch creation and a local rename are both reversible in one command, so state what you did in one line and proceed; the user can interrupt or undo. The only branch action that still needs an explicit user instruction is committing to the default branch — never do that unless the user asked to in this session.
+
+   Check the current branch and record the tree's starting state:
 
    ```bash
    current_branch=$(git branch --show-current)
@@ -135,47 +137,14 @@ Determine how to proceed based on what was provided in `<input_document>` (after
    if [ -z "$default_branch" ]; then
      default_branch=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo "main" || echo "master")
    fi
+   git status --short
    ```
 
-   **If already on a feature branch** (not the default branch):
+   **Record the pre-work scope** — the files `git status --short` already lists — before editing anything. That list is the user's in-progress work; incremental commits stage only work-owned files, so untouched pre-existing dirt never enters a commit. It rides along on any branch move (`git checkout -b` and `git branch -m` both carry uncommitted changes), which is the intended outcome — do not stash it, do not ask about it, and do not derive the branch name from it: name the branch from the plan or work description regardless of what is dirty. Where a unit later edits a file that was already dirty at start, one commit cannot separate their edits from yours (`ce-commit` and the incremental-commit rule group at file level). Ask once — one question covering every such file, at the first commit that would include one — whether to commit those files with their pre-existing edits included, or leave them uncommitted for the user to handle. That is the single branch/tree question this skill asks, because both answers lose something the agent cannot choose for the user. In Return-to-Caller Mode do not ask: commit them with the unit and name those files in the envelope so the caller can surface it.
 
-   First, check whether the branch name is **meaningful** — a name like `feat/crowd-sniff` or `fix/email-validation` tells future readers what the work is about. Auto-generated worktree names (e.g., `worktree-jolly-beaming-raven`) or other opaque names do not.
+   **If on the default branch:** create a feature branch without asking — `git checkout -b <name>`, named from the plan title or work description (e.g., `feat/user-authentication`, `fix/email-validation`) — and say which branch you moved to. If the user asked for a worktree in this session, invoke the `ce-worktree` skill instead of branching in place. Continue on the default branch only when the user explicitly said so this session.
 
-   If the branch name is meaningless or auto-generated, suggest renaming it before continuing:
-   ```bash
-   git branch -m <meaningful-name>
-   ```
-   Derive the new name from the plan title or work description (e.g., `feat/crowd-sniff`). Present the rename as a recommended option alongside continuing as-is.
-
-   Then ask: "Continue working on `[current_branch]`, or create a new branch?"
-   - If continuing (with or without rename), proceed to step 3
-   - If creating new, follow Option A or B below
-
-   **If on the default branch**, choose how to proceed:
-
-   **Option A: Create a new branch**
-   ```bash
-   git pull origin [default_branch]
-   git checkout -b feature-branch-name
-   ```
-   Use a meaningful name based on the work (e.g., `feat/user-authentication`, `fix/email-validation`).
-
-   **Option B: Use a worktree (recommended for parallel development)**
-   ```bash
-   skill: ce-worktree
-   # Ensures isolation: detects an existing worktree, prefers the harness's
-   # native worktree tool, else creates one from the default branch
-   ```
-
-   **Option C: Continue on the default branch**
-   - Requires explicit user confirmation
-   - Only proceed after user explicitly says "yes, commit to [default_branch]"
-   - Never commit directly to the default branch without explicit permission
-
-   **Recommendation**: Use worktree if:
-   - You want to work on multiple features simultaneously
-   - You want to keep the default branch clean while experimenting
-   - You plan to switch between branches frequently
+   **If already on a feature branch:** continue on it. If its name is opaque or auto-generated (for example `worktree-jolly-beaming-raven`) and it has no upstream (`git rev-parse --abbrev-ref @{upstream}` fails), rename it to a name derived from the work with `git branch -m <meaningful-name>` and say so. Leave the name alone when the branch has an upstream — a rename after publication forks the local and remote names, which is not a one-command undo.
 
 3. **Create Task List** _(skip if Phase 0 already built one, or if Phase 0 routed as Trivial)_
    - Use the platform's task-tracking capability when available (`TaskCreate`/`TaskUpdate`/`TaskList` in Claude Code, `update_plan` in Codex, or the equivalent on other harnesses) to break the plan into actionable tasks. If none is available, continue normally without simulating a task list in chat
@@ -390,6 +359,7 @@ Return:
 - `source_kind` and `source_digest`: controller-recorded implementation authority (`plan` plus its digest in Return-to-Caller Mode; standalone bare-prompt runs use `prompt`)
 - `unit_receipts`: route, model, detached-process, integration, verification, canonical-commit, and cleanup state for each attempted unit
 - `plan_checkpoint`: the disclosed checkpoint commit when the selected plan was the only canonical dirt, otherwise `null`
+- `pre_existing_edits_committed`: files that were already dirty at Phase 1 Step 2 and were committed with a unit because their edits could not be separated; empty when none
 - `blockers`
 - `recovery_path`: preserved owner-checked run/workspace location when recovery remains, otherwise `null`
 - `settled_decision_conflicts`: conflicts with `session-settled:`-labeled KTDs or Key Decisions encountered during implementation — each entry names the labeled entry, the evidence, and how it was routed (proceeded-and-flagged vs blocker); empty when none

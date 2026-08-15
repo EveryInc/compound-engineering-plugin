@@ -135,7 +135,7 @@ A KTD carrying a `session-settled:` label records a decision the user examined a
 
 ## Quick Example
 
-A plan with four implementation units arrives. `ce-work` reads it, picks up an `Execution note` asking for a failing request-level proof on one unit, and notes a deferred-implementation question. It builds a task list with U-ID prefixes and confirms the current branch name is meaningful.
+A plan with four implementation units arrives. `ce-work` reads it, picks up an `Execution note` asking for a failing request-level proof on one unit, and notes a deferred-implementation question. It builds a task list with U-ID prefixes and moves off the default branch onto a feature branch named from the plan, without asking.
 
 Two units share a contract, so they run serially. The other two are independent and can author concurrently. With native execution they use the host's available worker isolation. With a selected external route, each gets a detached sibling worktree. The host inspects every actual change set, folds results into the active checkout one at a time, verifies, and creates separate canonical commits. The idempotency check catches that one unit's verification was already satisfied by a prior session and marks it complete without reimplementation.
 
