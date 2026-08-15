@@ -102,7 +102,7 @@ Each doc gets a specific action and an evidence bar. Age alone is not staleness.
 
 ### Set-level problems
 
-After the per-doc pass, the skill looks for overlap, a newer doc that subsumes an older one, and contradictions between docs. Contradictions outrank individual drift. Category-shape notes (a directory that mixes unrelated themes, a near-empty category) are report-only. It never renames categories or invents new ones.
+After the per-doc pass, the skill looks for overlap, a newer doc that subsumes an older one, and contradictions between docs. Contradictions outrank individual drift. For a knowledge-track learning, it also compares any guidance file the learning names (a skill's `SKILL.md`, a runbook, a root instruction file) for a conflicting order or rule on the same procedure — only guidance the learning names, never a search — and reports a wrong guidance file rather than editing it. Category-shape notes (a directory that mixes unrelated themes, a near-empty category) are report-only. It never renames categories or invents new ones.
 
 ### Delete is conservative
 
