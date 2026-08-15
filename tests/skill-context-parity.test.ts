@@ -78,6 +78,7 @@ describe("skill context shared-asset parity", () => {
     // Emitted, not merely present: the source pin above would still pass if the
     // carve-out were demoted into a comment and never reached the model.
     expect(out).toContain("correctable invocation error")
+    expect(out).toContain("capacity or active-agent-limit rejection is not malformed")
   })
 
   for (const skill of DISPATCH_SKILLS) {
