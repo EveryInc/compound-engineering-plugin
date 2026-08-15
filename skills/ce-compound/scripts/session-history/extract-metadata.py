@@ -399,6 +399,10 @@ def _normalize_cwd(path):
         len(path) == 3 and path[1] == ":"
     ):
         path = path.rstrip("/")
+    # Windows drive paths are case-insensitive. Do not rewrite POSIX /d/...
+    # to D:/ — those are different filesystems.
+    if len(path) >= 2 and path[1] == ":":
+        path = path[0].upper() + ":" + path[2:].casefold()
     return path
 
 
@@ -482,9 +486,15 @@ if files:
             # scan cost — Claude and Codex discovery list across projects,
             # so without this ordering --keyword would scan files that are
             # immediately discarded.
-            if cwd_filter and result.get("cwd") and not cwd_matches_filter(result["cwd"], cwd_filter):
-                filtered += 1
-                continue
+            if cwd_filter:
+                session_cwd = result.get("cwd")
+                if session_cwd:
+                    if not cwd_matches_filter(session_cwd, cwd_filter):
+                        filtered += 1
+                        continue
+                elif result.get("platform") in ("claude", "codex", "pi", "omp"):
+                    filtered += 1
+                    continue
             _attach_timestamps(result, filepath)
             # Apply keyword scan only after cheap filters pass.
             if keywords:

@@ -456,6 +456,13 @@ describe("extract-metadata", () => {
       filter: "/Users/test/Code/my-repo",
       keep: null,
     },
+    {
+      name: "treats Windows drive paths as case-insensitive",
+      fixture: "claude-session.jsonl",
+      cwd: "C:/Users/Me/Repo",
+      filter: "c:/users/me/repo",
+      keep: "C:/Users/Me/Repo",
+    },
   ] as const
 
   for (const cse of cwdFilterCases) {
@@ -476,6 +483,41 @@ describe("extract-metadata", () => {
       }
     })
   }
+
+  test("--cwd-filter drops Claude sessions that have no recorded cwd", async () => {
+    const tempDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "claude-no-cwd-")
+    )
+    const sessionPath = path.join(tempDir, "claude-session.jsonl")
+    try {
+      const body = (await Bun.file(
+        path.join(FIXTURES_DIR, "claude-session.jsonl")
+      ).text()).replace(',"cwd":"/Users/test/Code/my-repo"', "")
+      await fs.promises.writeFile(sessionPath, body)
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--cwd-filter",
+        "/Users/test/Code/my-repo",
+        sessionPath,
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      expect(lines.filter((l) => !l._meta).length).toBe(0)
+      expect(lines.find((l) => l._meta).filtered_by_cwd).toBe(1)
+    } finally {
+      await fs.promises.rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
+  test("--cwd-filter still keeps Cursor sessions that have no cwd", async () => {
+    const { stdout, exitCode } = await runScript("extract-metadata.py", [
+      "--cwd-filter",
+      "/Users/test/Code/my-repo",
+      path.join(FIXTURES_DIR, "cursor-session.jsonl"),
+    ])
+    expect(exitCode).toBe(0)
+    const lines = parseJsonLines(stdout)
+    expect(lines.filter((l) => !l._meta).length).toBe(1)
+  })
 
   test("reports clean zero-file result for empty stdin", async () => {
     const { stdout, exitCode } = await runScript(
