@@ -75,6 +75,8 @@ skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no o
 # CROSS_MODEL_MODEL_OVERRIDE, same target/family only) and the reasoning effort
 # (CROSS_MODEL_EFFORT_OVERRIDE, validated per route); both fail closed.
 # Keep these in sync with ce-doc-review's script (parity-tested in CI).
+# codex: luna/xhigh is the benchmarked pick on API dollars (~0.30x sol-medium, tied
+# detection, slower tail) -- docs/solutions/skill-design/benchmark-review-peer-model-and-reasoning-tier.md
 M_CODEX="gpt-5.6-luna"         # codex CLI            (-c model_reasoning_effort="xhigh")
 M_CLAUDE="claude-opus-5"       # claude CLI, Opus 5   (--effort high)
 M_GROK="grok-4.6"              # grok CLI             (--effort high)

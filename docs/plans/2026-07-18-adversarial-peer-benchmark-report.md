@@ -1,5 +1,11 @@
 # Adversarial-Review Peer — Model & Reasoning-Tier Benchmark
 
+> **Superseded (2026-07-21).** This write-up priced cost in token volume and did not
+> run a Luna arm. The refreshed benchmark re-priced cost in API dollars and adopted
+> `gpt-5.6-luna` at `xhigh` (#1208); see
+> `docs/solutions/skill-design/benchmark-review-peer-model-and-reasoning-tier.md`
+> for the current recommendation. Kept as the historical record.
+
 **Date:** 2026-07-18 · **Scope:** ce-code-review cross-model adversarial pass ·
 **Visual:** https://claude.ai/code/artifact/693e1aa6-6619-4a81-a61f-59b08da137e5 ·
 **Harness:** github.com/tmchow/cross-model-peer-eval (private)
