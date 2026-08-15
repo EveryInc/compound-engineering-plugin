@@ -63,6 +63,12 @@ A documented solution to a past problem — a bug fix, a convention, or a workfl
 ### Pattern doc
 Guidance generalized from several Learnings into a broader rule. Higher-leverage than any single incident-level Learning, and higher-risk when stale, because future work treats it as broadly applicable.
 
+### Knowledge track
+One of the two classifications a Learning carries, set by its problem type: the knowledge track holds guidance — conventions, workflow patterns, practices, decisions — while the bug track holds diagnosed defects. The track decides which metadata a Learning must carry and which maintenance checks apply to it; procedure-shaped checks, such as comparing a Learning against the Guidance layer, key on the knowledge track.
+
+### Guidance layer
+The agent-facing instructions an agent loads at the moment it acts — a skill's instructions, a runbook, a root instruction file. Because an agent reads it at the moment of acting, a Learning that disagrees with it is not merely stale but liable to be overridden in practice, so a contradiction there outranks ordinary staleness. Maintenance skills compare a Learning only against guidance the Learning itself names or links, resolve the disagreement by which side current code follows, and report a wrong guidance file rather than editing it.
+
 ### Explainer
 A dense, visual teaching artifact written for the developer personally — explaining a concept, a change, an idea, or a window of their own recent work — so the human keeps learning when agents do the writing. The complement of a Learning: a Learning teaches the repo's future work; an explainer teaches the human.
 
