@@ -105,11 +105,12 @@ def discover_resume_run(repo: str, plan_digest: str) -> tuple[str, list[dict]]:
     candidates: list[dict] = []
     # A run recorded under the other candidate root (sandboxed vs unsandboxed
     # session) must still be discoverable; scan every candidate that exists.
+    # Read-only: repairing a root this session cannot write (a leftover /tmp
+    # tree under the sandbox) would abort discovery before the writable one.
     entries = []
     for root in candidate_runs_roots():
         if not os.path.isdir(root) or os.path.islink(root):
             continue
-        ensure_runs_root(root)
         entries.extend(os.scandir(root))
     for entry in sorted(entries, key=lambda row: row.path):
         if entry.name == ".locks":

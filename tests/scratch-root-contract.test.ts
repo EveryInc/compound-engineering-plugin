@@ -238,14 +238,19 @@ with open(os.open(os.path.join(existing, "manifest.json"), os.O_WRONLY | os.O_CR
     json.dump({"schema_version": state.SCHEMA_VERSION, "run_id": "run-1", "revision": 0}, f)
 with state.locked_manifest("run-1") as doc:
     print(doc["run_id"])
+# Cross-run integration locks anchor to the run's own root, not this invocation's creation root.
+import unit_workspace_integration as integ
+print(integ.integration_lock_path({"run_id": "run-1", "repository": {"identity_digest": "d"}, "branch": {"ref": "refs/heads/x"}}))
 `
     try {
       const result = spawnSync("python3", ["-c", driver, script, parent], { encoding: "utf8" })
       expect(result.status, result.stderr).toBe(0)
-      const [found, fresh, locked] = result.stdout.trim().split("\n")
-      expect(found).toBe(path.join(parent, "sandbox-tmp", `compound-engineering-${process.getuid!()}`, "ce-work", "run-1"))
+      const [found, fresh, locked, lockPath] = result.stdout.trim().split("\n")
+      const fallbackRoot = path.join(parent, "sandbox-tmp", `compound-engineering-${process.getuid!()}`, "ce-work")
+      expect(found).toBe(path.join(fallbackRoot, "run-1"))
       expect(fresh).toBe(path.join(parent, "primary", "ce-work", "run-2"))
       expect(locked).toBe("run-1")
+      expect(path.dirname(path.dirname(lockPath))).toBe(fallbackRoot)
     } finally {
       rmSync(parent, { recursive: true, force: true })
     }
