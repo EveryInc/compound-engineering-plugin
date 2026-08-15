@@ -143,7 +143,19 @@ jobs:
         run: python tests/fixtures/peer-job-runner-unit.py
 
       - name: Peer-job-runner Windows smoke
-        run: python tests/fixtures/peer-job-runner-windows-smoke.py
+        # Hosted windows-latest Python intermittently fails `import ctypes`
+        # mid-suite (DLL init on _ctypes) after earlier tests already passed.
+        # Product code cannot recover; retry this step only.
+        shell: pwsh
+        run: |
+          $max = 3
+          for ($i = 1; $i -le $max; $i++) {
+            python tests/fixtures/peer-job-runner-windows-smoke.py
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            Write-Host "Windows smoke failed (attempt $i/$max, exit $LASTEXITCODE)"
+            if ($i -eq $max) { exit $LASTEXITCODE }
+            Start-Sleep -Seconds 15
+          }
 
       - name: Peer-job-runner parity
         run: bun test tests/peer-job-runner-parity.test.ts
