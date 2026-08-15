@@ -13,7 +13,7 @@ Use this file as the quick reference for:
 
 `component` and `root_cause` are open vocabulary, and the category directories are a default layout, not a fixed one. Repos that already hold learnings usually have their own self-consistent values and directory names, and their retrieval (agent instructions, greps, tooling) is keyed on those. A doc written to this file's defaults instead of the repo's vocabulary is a doc the repo cannot find, which defeats the point of writing it.
 
-So, before classifying: when `<root>/solutions/` already contains docs, sample their frontmatter (`component`, `root_cause`, `problem_type`, `tags`) and directory names, and reuse the values and directory the corpus already uses for this area, verbatim. Fall back to the suggested values and the Category Mapping below only when the corpus is empty or has no consistent value for the area. Do not coin a near-synonym of a value the corpus already uses. `problem_type`, `severity`, and `resolution_type` remain closed enums (`problem_type` drives track selection).
+So, before classifying: when `<root>/solutions/` already contains docs, sample their frontmatter (`component`, `root_cause`, `problem_type`, `tags`) and directory names for this area. For each open-vocabulary field (`component`, `root_cause`): use the value the corpus's existing docs use for this area. When the corpus has more than one spelling for the area, use the spelling the most docs use (tie: the most recently dated doc). Use the schema's suggested default only when no existing doc covers the area. Reuse corpus values as spelled — do not coin a near-synonym of a value the corpus already uses. Directory choice is a separate condition: file the doc in the existing directory that covers this area; use the Category Mapping below only when no existing directory covers it. `problem_type`, `severity`, and `resolution_type` remain closed enums (`problem_type` drives track selection).
 
 ## Tracks
 
@@ -95,7 +95,7 @@ Default layout for a repo with no existing learnings. When `<root>/solutions/` a
 4. Knowledge-track docs have no additional required fields beyond the shared ones.
 5. Bug-track fields on existing knowledge-track docs are harmless (see Backward Compatibility).
 6. Enum fields (`problem_type`, `severity`, `resolution_type`) must match the allowed values exactly.
-7. Open-vocabulary fields (`component`, `root_cause`) reuse the corpus's existing value for the area verbatim; the suggested defaults apply only when no existing doc covers it.
+7. Open-vocabulary fields (`component`, `root_cause`) follow the Corpus-First Vocabulary rule above.
 8. Array fields must respect min/max item counts.
 9. `date` must match `YYYY-MM-DD`.
 10. `framework_version`, if present, only applies to bug-track docs.

@@ -187,7 +187,7 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
    - Extracts conversation history
    - Reads `references/schema.yaml` for field rules and **track classification**
    - Determines the track (bug or knowledge) from the problem_type
-   - **Samples the corpus before choosing vocabulary.** When existing docs are present under `<root>/solutions/`, reads their frontmatter (`component`, `root_cause`, `problem_type`, `tags`) and directory names, and reuses the value and directory the corpus already uses for this area, verbatim. The schema's suggested values and `yaml-schema.md`'s category mapping are the fallback for an empty corpus or an area no existing doc covers — never a reason to coin a near-synonym or a new sibling directory beside an established taxonomy. Records in `context.json` which side (corpus or default) each open-vocabulary value came from
+   - **Samples the corpus before choosing vocabulary.** Reads existing docs under `<root>/solutions/` (frontmatter and directory names) and applies the corpus-first rule in `references/yaml-schema.md` for `component`/`root_cause` and for the directory. Records in `context.json` whether each came from the corpus or the default
    - Identifies problem type, component, and track-appropriate fields:
      - **Bug track**: symptoms, root_cause, resolution_type
      - **Knowledge track**: applies_when (symptoms/root_cause/resolution_type optional)
