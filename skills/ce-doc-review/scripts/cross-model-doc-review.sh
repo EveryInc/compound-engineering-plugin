@@ -419,12 +419,13 @@ if [ "$DOC_CHARS" -gt "$MAX_DOC_CHARS" ]; then
   skip "document is ${DOC_CHARS} bytes (limit ${MAX_DOC_CHARS}); skipping cross-model pass rather than truncating"
 fi
 
-# Codex.app ships `codex` at Contents/Resources without linking it onto PATH
-# (#1272). Append, never prepend, so a PATH-installed CLI stays authoritative.
+# The Codex desktop app (Codex.app, or ChatGPT.app since the July 2026 merger)
+# ships `codex` at Contents/Resources without linking it onto PATH (#1272).
+# Append, never prepend, so a PATH-installed CLI stays authoritative.
 # CROSS_MODEL_CODEX_APP_DIRS (colon-separated) overrides the probed dirs.
 if ! command -v codex >/dev/null 2>&1; then
   OLDIFS="$IFS"; IFS=':'
-  for d in ${CROSS_MODEL_CODEX_APP_DIRS-"${HOME:-}/Applications/Codex.app/Contents/Resources:/Applications/Codex.app/Contents/Resources"}; do
+  for d in ${CROSS_MODEL_CODEX_APP_DIRS-"${HOME:-}/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources:${HOME:-}/Applications/Codex.app/Contents/Resources:/Applications/Codex.app/Contents/Resources"}; do
     if [ -n "$d" ] && [ -x "$d/codex" ]; then PATH="${PATH:+$PATH:}$d"; export PATH; break; fi
   done
   IFS="$OLDIFS"
