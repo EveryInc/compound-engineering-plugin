@@ -75,7 +75,7 @@ First check the unified artifact contract (`artifact_contract: ce-unified-plan/v
 - `artifact_readiness: requirements-only` -> **`unified-requirements`**. Review the Product Contract only; the absence of Planning Contract, Implementation Units, Verification Contract, or Definition of Done is expected and must not be flagged.
 - `artifact_readiness: implementation-ready` -> **`unified-plan`**. Review Product Contract and Planning Contract with different lenses, then Implementation Units/Verification/DoD for execution completeness.
 - Progress-like readiness values (`active`, `in_progress`, `completed`, `done`) are invalid — a document-contract finding, not an execution state to honor.
-- HTML unified artifacts (`.html`) use the same review and mutation routes. Apply changes in the document's native format and preserve its existing structure; never insert markdown syntax into HTML. HTML-escape inserted text and attribute values; construct markup only deliberately. For an ID-bearing HTML item, mirror the nearest sibling's structure and preserve both its anchor convention and visible ID text.
+- HTML unified artifacts (`.html`) use the same review and mutation routes. Apply changes in the document's native format and preserve its existing structure; never insert markdown syntax into HTML. For an ID-bearing HTML item, mirror the nearest sibling's structure and preserve both its anchor convention and visible ID text.
 
 Otherwise decide between the two legacy types on these signals:
 
@@ -170,6 +170,8 @@ If any of the **conditional judgment trio** — `adversarial-document-reviewer`,
 Launch one detached runner job per activated trio lens plus one `whole-doc` sweep in the same wave as the in-process reviewers, using the exact invocation contract in the reference. Every trio peer receives its twin's same reviewer-specific slice; `whole-doc` receives the full document. All calls use the same sanctioned target/route. Poll, reap, attribute, and clean up through the runner; a failure or timeout stays non-blocking and is named in Coverage. Fold findings into ordinary synthesis, but agreement promotion requires the artifact's top-level `independence_verified: true` — false or absent independence is useful evidence, not different-model corroboration. Feasibility and the convergent lenses (coherence, scope-guardian) do **not** run cross-model.
 
 ## Phases 3-5: Synthesis, Presentation, and Next Action
+
+HTML-escape inserted text and attribute values; construct markup only deliberately.
 
 After all dispatched agents return — **including any cross-model `<reviewer-name>-<provider>.json` returns** — read `references/synthesis-and-presentation.md` for the synthesis pipeline (validate, anchor-based gate, dedup, conditional agreement promotion, resolve contradictions, auto-promotion, route by confidence and fix class into apply / grouped confirmation / decisions, with an FYI subsection), fix application, non-interactive-envelope output, and the handoff to the grouped confirmation and routing question. Peer findings enter ordinary synthesis, but only an artifact with `independence_verified: true` counts as an independent reviewer for promotion.
 

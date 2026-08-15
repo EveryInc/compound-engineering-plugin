@@ -16,6 +16,9 @@ const PLAN_HTML = read("skills/ce-plan/references/html-rendering.md")
 const BRAINSTORM_HTML = read("skills/ce-brainstorm/references/html-rendering.md")
 const BRAINSTORM_DOCS = read("docs/skills/ce-brainstorm.md")
 const DOC_REVIEW_DOCS = read("docs/skills/ce-doc-review.md")
+const PHASES_3_5 = DOC_REVIEW.match(
+  /## Phases 3-5: Synthesis, Presentation, and Next Action[\s\S]*?(?=\n---)/,
+)?.[0]
 
 describe("ce-doc-review HTML editing", () => {
   test("applies review fixes in the document's native format", () => {
@@ -34,8 +37,15 @@ describe("ce-doc-review HTML editing", () => {
     expect(DOC_REVIEW).toMatch(
       /ID-bearing[\s\S]{0,240}nearest sibling[\s\S]{0,240}anchor[\s\S]{0,120}visible ID/i,
     )
-    expect(DOC_REVIEW).toMatch(
-      /HTML-escape inserted text and attribute values; construct markup only deliberately/i,
+    expect(PHASES_3_5).toContain(
+      "HTML-escape inserted text and attribute values; construct markup only deliberately.",
+    )
+    expect(DOC_REVIEW.match(/HTML-escape inserted text and attribute values/g)).toHaveLength(1)
+    expect(SYNTHESIS).not.toMatch(
+      /escape inserted text and attribute values|construct markup only deliberately/i,
+    )
+    expect(OPEN_QUESTIONS).not.toMatch(
+      /escape inserted text and attribute values|construct markup only deliberately/i,
     )
   })
 
