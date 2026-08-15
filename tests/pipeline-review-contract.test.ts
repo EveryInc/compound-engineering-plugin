@@ -437,9 +437,16 @@ describe("ce-debug regression test selection", () => {
     // review, not on whether they were pushed. Gating on "commits since base" refuses
     // the route to a branch with an open PR (the fix never reaches it); gating on
     // "unpushed" lets backup-pushed WIP be swept into a first PR spanning it.
-    expect(routing).toMatch(/already has an open PR/i)
     expect(routing).toMatch(/updates that PR rather than opening a second one/i)
-    expect(routing).toMatch(/pushed is not the same as offered/i)
+    expect(routing).toMatch(/pushed alone is not offered/i)
+    // Both conditions must hold together. Each earlier revision kept one and dropped
+    // the other: commits-since-base alone refuses a branch with an open PR, and
+    // unpushed-only lets backup-pushed WIP ride into a first PR.
+    expect(routing).toMatch(/@\{u\}\.\.HEAD/)
+    expect(routing).toMatch(/<default-branch>\.\.HEAD/)
+    // Declining the entangled commit must terminate, not fall through to question 2 and
+    // commit the very file the user chose to leave alone.
+    expect(routing).toMatch(/only the first answer continues/i)
     // The entangled state is the one place a blocking question survives — no safe
     // default exists once a fix-owned file already held the user's edits.
     expect(routing).toMatch(/Ask \(per \*\*Blocking questions\*\*\)/)
