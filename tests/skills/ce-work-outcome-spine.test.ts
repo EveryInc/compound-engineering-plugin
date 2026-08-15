@@ -259,6 +259,11 @@ describe("ce-work cross-model engine contract", () => {
     expect(worker).toContain("complete Git delta")
     expect(worker).toContain("disposable artifacts created by your own checks")
     expect(worker).toContain("every remaining changed path")
+    expect(worker).not.toContain("make intermediate commits")
+    expect(worker).toContain("`git add`")
+    expect(worker).toContain("`git commit`")
+    expect(worker).toContain("Leave the completed working tree uncommitted")
+    expect(worker).toContain("host snapshots the tree")
     for (const dispatchPolicy of ["recipient", "model", "harness", "intermediary", "retry", "route", "additional workers"]) {
       expect(worker.toLowerCase()).not.toContain(dispatchPolicy)
     }
@@ -303,6 +308,13 @@ describe("ce-work cross-model engine contract", () => {
     expect(engineGate).toContain("external cross-model controller")
     expect(protocol).toContain("isolated transport commit")
     expect(protocol).toContain("host-only canonical")
+    expect(protocol).not.toContain("An external worker may edit and commit only")
+    expect(protocol).toContain("`git add`")
+    expect(protocol).toContain("`git commit`")
+    expect(protocol).toContain("Git admin dir")
+    expect(protocol).toContain("workspace-write")
+    expect(protocol).toContain("--sandbox enabled")
+    expect(protocol).toContain("never required")
     for (const forbiddenAuthority of ["canonical commit", "push", "PR", "shipping", "recipient-switch"]) {
       expect(protocol).toContain(forbiddenAuthority)
     }
@@ -529,7 +541,7 @@ describe("ce-work cross-model engine contract", () => {
     expect(evalPack).toContain("Change")
     expect(evalPack).toContain("Verify")
     expect(evalPack).toContain("Consider")
-    for (let fixture = 1; fixture <= 39; fixture += 1) {
+    for (let fixture = 1; fixture <= 40; fixture += 1) {
       expect(evalPack).toContain(`E${fixture} `)
     }
     for (const seam of [
@@ -564,6 +576,7 @@ describe("ce-work cross-model engine contract", () => {
       "sibling-clone recovery isolation",
       "plugin-bundled reference load",
       "incremental idle window",
+      "sandboxed worker no-commit",
     ]) {
       expect(evalPack).toContain(seam)
     }

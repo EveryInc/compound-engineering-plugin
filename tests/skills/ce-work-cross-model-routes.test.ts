@@ -248,7 +248,19 @@ describe("ce-work fixed write routes", () => {
     )
     expect(result.code).toBe(0)
     expect(readFileSync(path.join(f.capture, "pwd"), "utf8")).toBe(realpathSync(f.workspace))
-    expect(readFileSync(path.join(f.capture, "stdin"), "utf8")).toContain("Implement U3 only.")
+    const stdin = readFileSync(path.join(f.capture, "stdin"), "utf8")
+    expect(stdin).toContain("Implement U3 only.")
+    expect(stdin).toContain("Leave the completed working tree uncommitted")
+    expect(stdin).toContain("`git add`")
+    expect(stdin).toContain("`git commit`")
+    if (route === "codex") {
+      expect(stdin).toContain("host-owned")
+      expect(stdin).toContain("Socket binds")
+      expect(stdin).toContain("EPERM")
+    } else {
+      expect(stdin).not.toContain("Socket binds")
+      expect(stdin).not.toContain("EPERM")
+    }
     if (route === "cursor" || route === "composer" || route === "grok-cursor") {
       expect(readFileSync(path.join(f.capture, "argv"), "utf8")).not.toContain("Implement U3 only.")
     }

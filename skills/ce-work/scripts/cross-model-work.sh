@@ -602,6 +602,9 @@ while True:
 
 {
   cat "$PERSONA"
+  if [ "$ROUTE" = codex ]; then
+    printf '\n\nSocket binds, OS permission checks, peer credentials, and similar capability probes are host-owned. Preserve the host command and observed result; do not treat a sandbox EPERM as proof the host lacks the capability.\n'
+  fi
   printf '\n\nThe required final-result JSON schema is:\n\n'
   cat "$SCHEMA"
   printf '\n\n--- BOUNDED IMPLEMENTATION UNIT PACKET ---\n\n'
