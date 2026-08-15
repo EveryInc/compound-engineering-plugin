@@ -174,7 +174,7 @@ describe("ce-pov cross-model route safety", () => {
 })
 
 describe("ce-pov output gate and receipts", () => {
-  const valid = '{"structured_output":{"voice":"peer","position":"Choose A","reasoning":"Lower correction cost","evidence":["https://example.com"],"external_check":"ran","mode":"independent","movement":"initial"},"modelUsage":{"claude-opus-4-8-20260115":{"inputTokens":10}}}'
+  const valid = '{"structured_output":{"voice":"peer","position":"Choose A","reasoning":"Lower correction cost","evidence":["https://example.com"],"external_check":"ran","mode":"independent","movement":"initial"},"modelUsage":{"claude-opus-5-20260801":{"inputTokens":10}}}'
 
   test.each([
     ["missing position", '{"structured_output":{"reasoning":"why"}}'],
@@ -210,6 +210,22 @@ describe("ce-pov output gate and receipts", () => {
     expect(result.files).not.toContain("pov-claude.json")
   })
 
+  test("accepts the fable alias as a claude override and verifies its receipt", () => {
+    const fable = valid.replace("claude-opus-5-20260801", "claude-fable-5")
+    const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${fable}'\n`)
+    const dir = runDir()
+    const result = run(["codex", "claude", payload(), dir], dir, {
+      ...env,
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+      CROSS_MODEL_MODEL_OVERRIDE: "fable",
+    })
+    expect(result.files).toContain("pov-claude.json")
+    const out = JSON.parse(readFileSync(path.join(dir, "pov-claude.json"), "utf8"))
+    expect(out.model_requested).toBe("fable")
+    expect(out.model_actual).toBe("claude-fable-5")
+    expect(result.stderr).not.toContain("model mismatch")
+  })
+
   test("normalizes a valid POV with actual route and served-model receipt", () => {
     const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${valid}'\n`)
     const dir = runDir()
@@ -222,8 +238,8 @@ describe("ce-pov output gate and receipts", () => {
     expect(out.cross_model_target).toBe("claude")
     expect(out.cross_model_harness).toBe("claude")
     expect(out.serving_family).toBe("claude")
-    expect(out.model_requested).toBe("opus")
-    expect(out.model_actual).toBe("claude-opus-4-8-20260115")
+    expect(out.model_requested).toBe("claude-opus-5")
+    expect(out.model_actual).toBe("claude-opus-5-20260801")
     expect(out.movement).toBe("initial")
     expect(out.independence_verified).toBe(true)
   })

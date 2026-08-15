@@ -116,7 +116,7 @@ When adversarial is selected and the working tree is the reviewed head (current 
 
 Agreement between the peer and another in-process reviewer is a strong promotion signal in synthesis.
 
-Which target runs the peer is auto-chosen and overridable: conversation, `cross_model_peer:` in CE config, active project instructions, then `codex → claude → grok → composer`. `Cursor` means `cursor-agent` using its configured default/Auto model. `Composer` means a Composer model through Cursor. Cursor Auto does not count as independent agreement unless its serving family is verified different from the host. See the [configuration reference](./configuration.md).
+Which target runs the peer is auto-chosen and overridable: conversation, `cross_model_peer:` in CE config, active project instructions, then `codex → claude → grok → composer`. `Cursor` means `cursor-agent` using its configured default/Auto model. `Composer` means a Composer model through Cursor. Cursor Auto does not count as independent agreement unless its serving family is verified different from the host. `cross_model_model:` and `cross_model_effort:` in CE config pin that target's model (e.g. `fable`) and reasoning effort; a value the peer cannot honor skips the pass with a stated reason rather than substituting. See the [configuration reference](./configuration.md).
 
 This shares the provider/route kernel with `ce-doc-review` but keeps a narrower product scope: adversarial-only, diff/work-tree delivery, not doc-review's judgment trio or whole-doc sweep.
 

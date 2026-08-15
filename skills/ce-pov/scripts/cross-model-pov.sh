@@ -83,7 +83,7 @@ skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no o
 # ONE model at HIGH reasoning per provider. Concrete IDs are the CURRENT instance of the tier principle
 # and the single maintenance point when model families change.
 M_CODEX="gpt-5.6-sol"          # codex CLI            (-c model_reasoning_effort="high")
-M_CLAUDE="opus"                # claude CLI, Opus 4.8 (--effort high)
+M_CLAUDE="claude-opus-5"       # claude CLI, Opus 5   (--effort high)
 M_GROK="grok-4.6"              # grok CLI             (--effort high)
 M_GROK_CURSOR="cursor-grok-4.6-high" # cursor-agent grok route (reasoning baked into id)
 M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is the ceiling)
@@ -92,15 +92,19 @@ M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is t
 # "Which model ran" is a claim that needs a serving-side receipt. Only the
 # claude CLI reports one today: its JSON envelope carries a modelUsage object
 # keyed by the full dated id that actually served the run. Match requested vs
-# actual by expected full-family prefix (alias -> dated id counts as a match;
-# never substring). Every other route records the literal "unverified" — never
-# a fallback to the requested value. Keep this block byte-identical across
+# actual by expected family prefix, delimited on "-": the served id must equal
+# the prefix or continue it with "-" (alias or undated id -> dated id counts
+# as a match; a longer sibling such as claude-opus-50-* does not; never
+# substring). Every other route records the literal
+# "unverified" — never a fallback to the requested value. Keep this block byte-identical across
 # ce-code-review and ce-doc-review (kernel parity).
-expected_model_prefix() {   # <requested-alias> -> expected served-id prefix
+expected_model_prefix() {   # <requested-alias-or-id> -> expected served-id family prefix
   case "$1" in
-    opus)   printf 'claude-opus-' ;;
-    sonnet) printf 'claude-sonnet-' ;;
-    haiku)  printf 'claude-haiku-' ;;
+    fable)    printf 'claude-fable' ;;
+    opus)     printf 'claude-opus' ;;
+    sonnet)   printf 'claude-sonnet' ;;
+    haiku)    printf 'claude-haiku' ;;
+    claude-*) printf '%s' "$1" ;;
   esac
 }
 
@@ -165,12 +169,13 @@ extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODE
   # requested value).
   matched=""
   if [ -n "$prefix" ]; then
-    # first modelUsage key matching the expected family prefix (jq-native, no
-    # external `head`: the route sandbox may not carry coreutils on PATH).
+    # first modelUsage key equal to, or delimited under, the expected prefix
+    # (jq-native, no external `head`: the route sandbox may not carry coreutils
+    # on PATH).
     if [ -n "$envelope" ]; then
-      matched="$(printf '%s' "$envelope" | jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(startswith($p)))) // empty' 2>/dev/null)"
+      matched="$(printf '%s' "$envelope" | jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(. == $p or startswith($p + "-")))) // empty' 2>/dev/null)"
     else
-      matched="$(jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(startswith($p)))) // empty' "$PEERLOG" 2>/dev/null)"
+      matched="$(jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(. == $p or startswith($p + "-")))) // empty' "$PEERLOG" 2>/dev/null)"
     fi
   fi
   if [ -n "$matched" ]; then
@@ -252,7 +257,7 @@ apply_model_override() {
   [ "$target" != "cursor" ] || return 1
   case "$route:$override" in
     codex:gpt-*|codex:o[0-9]* ) ;;
-    claude:opus|claude:sonnet|claude:haiku|claude:claude-* ) ;;
+    claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-* ) ;;
     grok-cli:grok-* ) ;;
     grok-cursor:cursor-grok-* ) ;;
     composer:composer-* ) ;;

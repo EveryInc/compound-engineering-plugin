@@ -106,8 +106,17 @@
 # Preferred peer for ce-doc-review and ce-code-review when their conditional
 # cross-model pass activates. Conversation instructions still win, and the
 # skills skip routes that cannot establish the required host/peer distinction.
+# `cross_model_model` and `cross_model_effort` pin the model and reasoning
+# effort of whichever peer target runs; unset keeps the skills' editorial
+# mapping. The model must belong to that target's family (an alias such as
+# `fable` or a full id such as `claude-opus-5` for claude; `gpt-*` for codex).
+# Effort levels: claude low|medium|high|xhigh|max, codex minimal|low|medium|
+# high|xhigh, grok low|medium|high; cursor/composer routes take none. A value
+# the peer cannot honor skips the pass with a stated reason -- never substituted.
 
 # cross_model_peer: codex          # codex | claude | grok | cursor | composer
+# cross_model_model: fable         # model alias or full id for the resolved peer target (no default)
+# cross_model_effort: xhigh        # reasoning effort for the resolved peer target (no default)
 
 # --- ce-work implementation engine ---
 # Standing preferences for who authors implementation units. Live

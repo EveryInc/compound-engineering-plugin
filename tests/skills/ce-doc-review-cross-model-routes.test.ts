@@ -272,7 +272,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(cmd).toContain("--disable-slash-commands")
     expect(cmd).not.toContain("--bare")
     expect(cmd).toContain("--effort high")
-    expect(cmd).toContain("--model opus")
+    expect(cmd).toContain("--model claude-opus-5")
     expect(cmd).toContain("--output-format stream-json")
     expect(cmd).toContain("--verbose")
   })
@@ -604,10 +604,10 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
 
   test("records model_requested and the dated model_actual when the claude receipt matches (R7)", () => {
     // Real claude CLI envelope shape: modelUsage at the envelope top level, keyed
-    // by the full dated id that actually served the run. Requested alias "opus"
-    // expects a served id starting claude-opus-.
+    // by the full dated id that actually served the run. Requested id "claude-opus-5"
+    // expects a served id starting claude-opus-5 (undated or dated).
     const receiptStub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"section":"X","title":"t"}]},"modelUsage":{"claude-opus-4-8-20260115":{"inputTokens":10}}}'\n`
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"section":"X","title":"t"}]},"modelUsage":{"claude-opus-5-20260801":{"inputTokens":10}}}'\n`
     const { env } = sandbox(["claude"], receiptStub)
     const doc = makeDoc()
     const runDir = makeRunDir()
@@ -617,9 +617,26 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
       readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"),
     )
     expect(out.cross_model_route).toBe("claude")
-    expect(out.model_requested).toBe("opus")
-    expect(out.model_actual).toBe("claude-opus-4-8-20260115")
+    expect(out.model_requested).toBe("claude-opus-5")
+    expect(out.model_actual).toBe("claude-opus-5-20260801")
+    expect(out.effort_requested).toBe("high")
     expect(r.stderr).not.toContain("model mismatch")
+  })
+
+  test("a valid effort override is recorded as effort_requested and an invalid one skips the pass", () => {
+    const { env } = sandbox(["claude"], claudeStub)
+    const doc = makeDoc()
+    let dir = makeRunDir()
+    let r = run(["codex", "claude", "adversarial", doc, "plan", "none", dir], dir, { ...env, CROSS_MODEL_EFFORT_OVERRIDE: "xhigh" })
+    expect(r.files).toContain("adversarial-claude.json")
+    const out = JSON.parse(readFileSync(path.join(dir, "adversarial-claude.json"), "utf8"))
+    expect(out.effort_requested).toBe("xhigh")
+    expect(r.stderr).toContain("(effort xhigh)")
+
+    dir = makeRunDir()
+    r = run(["codex", "claude", "adversarial", doc, "plan", "none", dir], dir, { ...env, CROSS_MODEL_EFFORT_OVERRIDE: "minimal" })
+    expect(r.files).not.toContain("adversarial-claude.json")
+    expect(r.stderr).toContain("effort override 'minimal' not compatible with route 'claude'; skipping")
   })
 
   test("multi-key receipt: prefers the requested-family key over the alphabetically-first auxiliary key (R7)", () => {
@@ -628,7 +645,7 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     // pick) would choose haiku; the prefix match must select the opus key and
     // raise no mismatch warning.
     const multiKeyStub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"section":"X","title":"t"}]},"modelUsage":{"claude-haiku-4-5-20251001":{"inputTokens":2},"claude-opus-4-8-20260115":{"inputTokens":10}}}'\n`
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"section":"X","title":"t"}]},"modelUsage":{"claude-haiku-4-5-20251001":{"inputTokens":2},"claude-opus-5-20260801":{"inputTokens":10}}}'\n`
     const { env } = sandbox(["claude"], multiKeyStub)
     const doc = makeDoc()
     const runDir = makeRunDir()
@@ -637,8 +654,8 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     const out = JSON.parse(
       readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"),
     )
-    expect(out.model_requested).toBe("opus")
-    expect(out.model_actual).toBe("claude-opus-4-8-20260115")
+    expect(out.model_requested).toBe("claude-opus-5")
+    expect(out.model_actual).toBe("claude-opus-5-20260801")
     expect(r.stderr).not.toContain("model mismatch")
   })
 
@@ -654,9 +671,9 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     const out = JSON.parse(
       readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"),
     )
-    expect(out.model_requested).toBe("opus")
+    expect(out.model_requested).toBe("claude-opus-5")
     expect(out.model_actual).toBe("claude-haiku-4-5-20251001")
-    expect(r.stderr).toContain("WARNING: model mismatch - requested opus, backend served claude-haiku-4-5-20251001")
+    expect(r.stderr).toContain("WARNING: model mismatch - requested claude-opus-5, backend served claude-haiku-4-5-20251001")
   })
 
   test("records model_actual unverified with a parse warning when the claude envelope carries no receipt (R8)", () => {
@@ -670,7 +687,7 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     const out = JSON.parse(
       readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"),
     )
-    expect(out.model_requested).toBe("opus")
+    expect(out.model_requested).toBe("claude-opus-5")
     expect(out.model_actual).toBe("unverified")
     expect(r.stderr).toContain("model receipt absent/unparseable on claude route; recording unverified")
   })
