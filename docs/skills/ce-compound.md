@@ -89,6 +89,8 @@ The skill classifies the work from `problem_type`:
 
 The track determines section order and frontmatter fields.
 
+`problem_type`, `severity`, and `resolution_type` are closed enums. `component` and `root_cause` are open vocabulary, and the category directories are a default layout: when `docs/solutions/` already holds learnings, the classifier samples their frontmatter and directory names and reuses what the corpus already uses for the area, falling back to the schema's suggested values and default mapping only for an empty corpus or an uncovered area. Repos with their own documentation vocabulary keep it, so their existing retrieval still finds the new doc.
+
 ### Overlap, discoverability, and grounding
 
 The Related Docs Finder scores overlap with existing `docs/solutions/` content across five dimensions: problem statement, root cause, solution approach, referenced files, prevention rules.

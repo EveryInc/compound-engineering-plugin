@@ -6,6 +6,14 @@ async function readRepoFile(relativePath: string): Promise<string> {
   return readFile(path.join(process.cwd(), relativePath), "utf8")
 }
 
+function sliceSection(content: string, startAnchor: string, endAnchor: string): string {
+  const start = content.indexOf(startAnchor)
+  expect(start, `start anchor not found: ${startAnchor}`).toBeGreaterThanOrEqual(0)
+  const end = content.indexOf(endAnchor, start + startAnchor.length)
+  expect(end, `end anchor not found: ${endAnchor}`).toBeGreaterThan(start)
+  return content.slice(start, end)
+}
+
 async function readCeWorkImplementationContract(): Promise<string> {
   const skill = await readRepoFile("skills/ce-work/SKILL.md")
   const implementationLoop = await readRepoFile("skills/ce-work/references/implementation-loop.md").catch(() => "")
@@ -247,14 +255,6 @@ describe("verification_evidence seam parity (ce-work <-> lfg)", () => {
     { fact: "deliberate exception", ceWork: "exception reason", lfg: "deliberate test exception" },
   ]
 
-  function sliceSection(content: string, startAnchor: string, endAnchor: string): string {
-    const start = content.indexOf(startAnchor)
-    expect(start, `start anchor not found: ${startAnchor}`).toBeGreaterThanOrEqual(0)
-    const end = content.indexOf(endAnchor, start + startAnchor.length)
-    expect(end, `end anchor not found: ${endAnchor}`).toBeGreaterThan(start)
-    return content.slice(start, end)
-  }
-
   test("ce-work return contract owns the verification_evidence field and gates completion on it", async () => {
     const content = await readRepoFile("skills/ce-work/SKILL.md")
     // Scope to the Return-to-Caller "Return:" contract, not the whole file — the
@@ -326,14 +326,6 @@ describe("cross-model execution receipt seam parity (ce-work <-> lfg)", () => {
     "blockers",
     "recovery_path",
   ]
-
-  function sliceSection(content: string, startAnchor: string, endAnchor: string): string {
-    const start = content.indexOf(startAnchor)
-    expect(start, `start anchor not found: ${startAnchor}`).toBeGreaterThanOrEqual(0)
-    const end = content.indexOf(endAnchor, start + startAnchor.length)
-    expect(end, `end anchor not found: ${endAnchor}`).toBeGreaterThan(start)
-    return content.slice(start, end)
-  }
 
   test("lfg requires every route receipt exposed by ce-work", async () => {
     const ceWork = await readRepoFile("skills/ce-work/SKILL.md")
@@ -908,6 +900,73 @@ describe("ce-compound frontmatter schema expansion contract", () => {
     expect(mapping).toContain("design_pattern` -> `<root>/solutions/design-patterns/")
     expect(mapping).toContain("tooling_decision` -> `<root>/solutions/tooling-decisions/")
     expect(mapping).toContain("convention` -> `<root>/solutions/conventions/")
+  })
+})
+
+describe("ce-compound vocabulary is corpus-first, not Rails-specific (issue #1264)", () => {
+  const RAILS_VALUES = [
+    "rails_model",
+    "rails_controller",
+    "rails_view",
+    "frontend_stimulus",
+    "hotwire_turbo",
+    "email_processing",
+    "brief_system",
+    "missing_association",
+    "missing_include",
+    "thread_violation",
+    "rails_version",
+  ]
+
+  test("schema.yaml no longer defines origin-repo Rails vocabulary", async () => {
+    const schema = await readRepoFile("skills/ce-compound/references/schema.yaml")
+    for (const value of RAILS_VALUES) {
+      // list items and field keys are definitions; the backward-compat comment may still name them
+      expect(schema).not.toMatch(new RegExp(`^\\s+- ${value}$`, "m"))
+      expect(schema).not.toMatch(new RegExp(`^\\s+${value}:`, "m"))
+    }
+  })
+
+  test("yaml-schema.md no longer defines origin-repo Rails vocabulary", async () => {
+    const mapping = await readRepoFile("skills/ce-compound/references/yaml-schema.md")
+    for (const value of RAILS_VALUES) {
+      // definitions are field bullets and "One of ..." value lists; the backward-compat note may still name them
+      expect(mapping).not.toContain("**" + value + "**")
+      expect(mapping).not.toMatch(new RegExp("One of[^\\n]*`" + value + "`"))
+    }
+  })
+
+  test("schema.yaml treats component and root_cause as open vocabulary with suggested defaults", async () => {
+    const schema = await readRepoFile("skills/ce-compound/references/schema.yaml")
+    // problem_type stays a closed enum because it drives track selection
+    expect(schema).toMatch(/problem_type:\n\s+type: enum/)
+    // component / root_cause are strings with suggestions, not closed enums
+    expect(schema).toMatch(/component:\n\s+type: string\n\s+suggested_values:/)
+    expect(schema).toMatch(/root_cause:\n\s+type: string\n\s+suggested_values:/)
+    // the corpus-first rule is a validation rule, not a comment
+    expect(schema).toMatch(/validation_rules:[\s\S]*existing docs/)
+  })
+
+  test("SKILL.md tells the classifier to sample existing docs before falling back to schema defaults", async () => {
+    const content = await readRepoFile("skills/ce-compound/SKILL.md")
+    const contextAnalyzer = sliceSection(content, "#### 1. **Context Analyzer**", "#### 2. **Solution Extractor**")
+    expect(contextAnalyzer).toMatch(/existing docs .*<root>\/solutions\//)
+    expect(contextAnalyzer).toMatch(/directory/)
+    // lightweight mode classifies inline and must carry the same rule
+    const lightweight = content.slice(content.indexOf("### Lightweight Mode"))
+    expect(lightweight).toMatch(/existing docs/)
+  })
+
+  test("ce-compound-refresh replace flow keeps the old learning's component/root_cause", async () => {
+    const flows = await readRepoFile("skills/ce-compound-refresh/references/per-action-flows.md")
+    const replaceFlow = sliceSection(flows, "## Replace Flow", "3. **Validate parser-safety")
+    expect(replaceFlow).toMatch(/old learning's `component`\/`root_cause` values, which the replacement keeps/)
+  })
+
+  test("yaml-schema.md category mapping defers to an existing directory taxonomy", async () => {
+    const mapping = await readRepoFile("skills/ce-compound/references/yaml-schema.md")
+    const section = sliceSection(mapping, "## Category Mapping", "## Validation Rules")
+    expect(section).toMatch(/existing director/)
   })
 })
 
