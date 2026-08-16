@@ -658,15 +658,25 @@ txt = open(sys.argv[1], encoding="utf-8", errors="replace").read()
 best = None
 best_score = -1
 decoder = json.JSONDecoder()
-REQUIRED = ("voice", "position", "reasoning", "evidence", "external_check", "mode", "movement")
+def shaped(d):
+    # Mirror of pov_shaped() in the shell: the same field types and enums,
+    # so ranking cannot promote a fully keyed but invalid draft.
+    return (
+        isinstance(d.get("voice"), str) and d["voice"] != ""
+        and isinstance(d.get("position"), str) and d["position"] != ""
+        and isinstance(d.get("reasoning"), str) and d["reasoning"] != ""
+        and isinstance(d.get("evidence"), list)
+        and d.get("external_check") in ("ran", "unavailable")
+        and d.get("mode") in ("independent", "skeptic")
+        and d.get("movement") in ("initial", "moved", "held")
+    )
 
 def score(d):
     # Prefer a schema-shaped final POV over a shaped non-final one over any
     # dict that merely carries a position; ties go to the later candidate.
-    shaped = all(k in d for k in REQUIRED) and isinstance(d.get("position"), str) and d["position"]
-    if shaped and d.get("final") is True:
+    if shaped(d) and d.get("final") is True:
         return 2
-    if shaped:
+    if shaped(d):
         return 1
     return 0
 

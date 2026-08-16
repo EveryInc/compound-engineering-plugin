@@ -250,6 +250,17 @@ describe("ce-pov output gate and receipts", () => {
     expect(result.stderr).not.toContain("non-final position")
   })
 
+  test("a valid final POV in text is not outranked by a later fully keyed but invalid draft", () => {
+    const settled = '{\\"voice\\":\\"peer\\",\\"position\\":\\"Choose A\\",\\"reasoning\\":\\"why\\",\\"evidence\\":[],\\"external_check\\":\\"unavailable\\",\\"mode\\":\\"independent\\",\\"movement\\":\\"initial\\",\\"final\\":true}'
+    const invalid = '{\\"voice\\":\\"peer\\",\\"position\\":\\"Choose B\\",\\"reasoning\\":42,\\"evidence\\":\\"none\\",\\"external_check\\":\\"maybe\\",\\"mode\\":\\"independent\\",\\"movement\\":\\"initial\\",\\"final\\":true}'
+    const envelope = `{"text":"${settled}${invalid}"}`
+    const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${envelope}'\n`)
+    const dir = runDir()
+    const result = run(["codex", "claude", payload(), dir], dir, env)
+    expect(result.files).toContain("pov-claude.json")
+    expect(JSON.parse(readFileSync(path.join(dir, "pov-claude.json"), "utf8")).position).toBe("Choose A")
+  })
+
   test("a bare {final:true} structured stub does not beat a complete final POV in text", () => {
     const settled = '{\\"voice\\":\\"peer\\",\\"position\\":\\"Choose A\\",\\"reasoning\\":\\"why\\",\\"evidence\\":[],\\"external_check\\":\\"unavailable\\",\\"mode\\":\\"independent\\",\\"movement\\":\\"initial\\",\\"final\\":true}'
     const envelope = `{"structured_output":{"final":true},"text":"${settled}"}`
