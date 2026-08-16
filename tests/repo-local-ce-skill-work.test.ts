@@ -7,13 +7,12 @@ import path from "path"
 // part of the distributed plugin (plugin skills live under `skills/`), so none
 // of the plugin-facing tests see it. This guard pins the three facts the
 // AGENTS.md pointer depends on: the skill exists at the harness-neutral
-// `.agents/skills` path, the Claude Code and Cursor paths are symlinks to that
-// one copy (one source of truth), and AGENTS.md still routes skill work to it.
+// `.agents/skills` path (which Codex and Cursor both discover), the Claude Code
+// path is a symlink to that one copy, and AGENTS.md still routes skill work to it.
 
 const ROOT = process.cwd()
 const AGENTS_SKILL = path.join(ROOT, ".agents", "skills", "ce-skill-work")
 const CLAUDE_SKILL = path.join(ROOT, ".claude", "skills", "ce-skill-work")
-const CURSOR_SKILL = path.join(ROOT, ".cursor", "skills", "ce-skill-work")
 
 describe("repo-local ce-skill-work skill", () => {
   test("exists at the .agents/skills path with a job-plus-condition description", () => {
@@ -31,13 +30,11 @@ describe("repo-local ce-skill-work skill", () => {
     }
   })
 
-  test("Claude Code and Cursor paths are symlinks to the single .agents copy", () => {
+  test("Claude Code path is a symlink to the single .agents copy", () => {
     expect(lstatSync(AGENTS_SKILL).isSymbolicLink()).toBe(false)
-    for (const link of [CLAUDE_SKILL, CURSOR_SKILL]) {
-      expect(lstatSync(link).isSymbolicLink()).toBe(true)
-      expect(readlinkSync(link)).toBe(path.join("..", "..", ".agents", "skills", "ce-skill-work"))
-      expect(realpathSync(link)).toBe(realpathSync(AGENTS_SKILL))
-    }
+    expect(lstatSync(CLAUDE_SKILL).isSymbolicLink()).toBe(true)
+    expect(readlinkSync(CLAUDE_SKILL)).toBe(path.join("..", "..", ".agents", "skills", "ce-skill-work"))
+    expect(realpathSync(CLAUDE_SKILL)).toBe(realpathSync(AGENTS_SKILL))
   })
 
   test("SKILL.md maps each of the four modes to its reference and shapes the report per mode", () => {
@@ -54,7 +51,6 @@ describe("repo-local ce-skill-work skill", () => {
     expect(agents).toMatch(/Before creating, editing, reviewing, or acting on review feedback for anything under `skills\/\*\*`, invoke the repo-local `ce-skill-work` skill/)
     expect(agents).toContain(".agents/skills/ce-skill-work/")
     expect(agents).toContain(".claude/skills/ce-skill-work")
-    expect(agents).toContain(".cursor/skills/ce-skill-work")
     expect(agents).toMatch(/### Reviewing a skill change \(bots and humans\)/)
     expect(agents).toMatch(/A case a stated condition already covers is not a finding/)
   })
