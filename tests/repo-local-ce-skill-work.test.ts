@@ -18,7 +18,13 @@ const CURSOR_SKILL = path.join(ROOT, ".cursor", "skills", "ce-skill-work")
 describe("repo-local ce-skill-work skill", () => {
   test("exists at the Claude Code project-skill path with trigger-only frontmatter", () => {
     const skill = readFileSync(path.join(CLAUDE_SKILL, "SKILL.md"), "utf8")
-    expect(skill).toMatch(/^---\nname: ce-skill-work\ndescription: "Use when /)
+    expect(skill).toMatch(/^---\nname: ce-skill-work\ndescription: "/)
+    const description = skill.split("\n")[2]
+    // Activation contract: the job, then the routing condition, then the adjacent negative —
+    // not a workflow summary and not a synonym list of phrasings.
+    expect(description).toMatch(/skill-authoring standard/)
+    expect(description).toMatch(/Use (for|when) any change to, or judgment about, a file under skills\/\*\*/)
+    expect(description).toMatch(/Not for src\/, tests\/, or scripts\/ code/)
     for (const ref of ["new-skill", "edit-skill", "review-skill", "respond-to-review", "evaluate"]) {
       expect(existsSync(path.join(CLAUDE_SKILL, "references", `${ref}.md`))).toBe(true)
       expect(skill).toContain(`references/${ref}.md`)
