@@ -4,7 +4,7 @@ Mechanical contracts (frontmatter, paths, greppable invariants, parity, script b
 
 ## When an eval is required
 
-Any change to how a skill routes, what it asks, when it stops, what it commits or publishes, or how it degrades — on any harness. A pure removal still needs one when a removed line had provenance you overrode. Skip only for changes that cannot alter behavior (typo, path, formatting) and say so in the report.
+Any change to how a skill routes, what it asks, when it stops, what it commits or publishes, or how it degrades — on any harness. A pure removal still needs one when a removed line had provenance you overrode. Skip for changes that cannot alter behavior (typo, path, formatting) and say so. When the eval is required but a capability it needs is unavailable — no fresh-context subagent, or one of the two hosts unreachable — record that as the exact skip reason (which capability, on which host) and finish; run the part that is available (a single-host eval is evidence, labeled as single-host). Convenience is not a capability gap.
 
 ## How
 
