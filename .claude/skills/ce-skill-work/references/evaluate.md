@@ -8,7 +8,7 @@ Any change to how a skill routes, what it asks, when it stops, what it commits o
 
 ## How
 
-Use `skill-creator`'s eval workflow (invoke `/skill-creator`); it injects the current skill content from disk into a fresh subagent, so it tests your edit rather than the session-cached copy. The project's active instructions ("Validating Agent and Skill Changes") explain why in-session `Skill`-tool or typed-agent dispatch runs pre-edit content; do not test through those, and do not touch the plugin cache to force a reload.
+Use `skill-creator`'s eval workflow — invoke the `skill-creator` skill through the active harness's skill mechanism; it injects the current skill content from disk into a fresh subagent, so it tests your edit rather than the session-cached copy. The project's active instructions ("Validating Agent and Skill Changes") explain why in-session `Skill`-tool or typed-agent dispatch runs pre-edit content; do not test through those, and do not touch the plugin cache to force a reload.
 
 **Keep the test honest.** A test subagent must not know it is testing a skill: prompt it the way a user would ("use the `<skill>` skill to do X"), pass the raw artifacts (the file, the finding, the diff), never your diagnosis, the intended fix, or the expected answer. Fresh context per pass; clean up anything a run leaves on disk before the next; if a scenario passes only when the agent can see leaked context, tighten the skill or the setup before trusting the result. Read the transcripts, not just the final outputs — a skill that reaches the right answer while spending turns on unproductive steps has a defect the output hides, and several runs independently writing the same helper is a signal to bundle a script.
 
