@@ -4,7 +4,7 @@ A review agent is biased toward producing changes. Counter it: state the runtime
 
 ## What a finding is, on `skills/**`
 
-A gap in the goal, the done condition, or the safe failure direction; over-prescription that degrades the agent's degrees of freedom; or a mechanism at the wrong owning layer — commands prescribed in a skill that delegates that work, repeated command blocks where one parameterized recipe would decide the same behavior, per-step done checks not protecting a fragile gate, a rule placed where it will not fire, a Claude-only construct in a cross-host skill, a rendering that breaks on another harness, a route that hands off to a party not present in the run.
+A gap in the goal, the done condition, or the safe failure direction; over-prescription that degrades the agent's degrees of freedom; or a mechanism at the wrong owning layer — commands prescribed in a skill that delegates that work, repeated command blocks where one parameterized recipe would decide the same behavior, per-step done checks not protecting a fragile gate, blanket brevity slogans in cross-model skills, a rule placed where it will not fire, a Claude-only construct in a cross-host skill, a rendering that breaks on another harness, a route that hands off to a party not present in the run.
 
 **A case a stated condition already decides is not a finding.** Before filing "what if X" against a rule, read the rule's condition and ask whether it decides X. If it does, do not file. If the condition is wrong or missing, file that — as a condition.
 
@@ -27,6 +27,7 @@ Do not solve a non-problem with a rewrite. Prefer an additive guard or an explic
 - One skill-level done bar decides ordinary completion; local done checks appear only around mutation, auth, scope expansion, irreversible external effects, fragile transitions, or silent handoff risk.
 - CLI-wrapper skills use one canonical invocation plus named deltas; five or more near-duplicate command blocks is a Change unless each block protects a distinct load-bearing gate.
 - Autonomy policy is one envelope; repeated "ask first" gates are a Change unless each marks a different external, destructive, scope-expanding, or user-only boundary.
+- Cross-model skills do not ship blanket "be concise" / "keep it short" slogans or Fable-only brevity blocks; they name the report content to preserve. For CLI wrappers, that includes command, exit status, output path/size, and stderr or blocker.
 - Always-loaded prose vs conditionally-loaded references: cost them differently, and say whether the change moved weight between them.
 - Cross-skill contracts changed on both ends, with the contract test.
 - Portability: capabilities before tools, fallbacks for platform variables, no `!` pre-resolution, `SKILL_DIR` anchor on executed bundled scripts.

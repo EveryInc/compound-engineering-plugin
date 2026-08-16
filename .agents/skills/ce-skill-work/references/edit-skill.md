@@ -20,6 +20,7 @@ Skills predate the current standard and evolve toward it. The standard is the gu
 | Lean-prompt regression | Does the block repeat an instruction, completion check, autonomy gate, or command skeleton that one earlier rule already decides? |
 | Command catalog | Do two recipes share the same command skeleton? If yes, the command belongs once with parameters or deltas unless each full command protects a distinct fragile gate. |
 | Per-step completion | Is a local done check protecting mutation, auth, scope expansion, irreversible external effects, a fragile transition, or a silent handoff failure? If not, the skill-level done bar decides. |
+| Blanket brevity | Does a cross-model skill say "be concise", "keep it short", or paste a Fable brevity block instead of naming what the report must preserve? |
 | Prescribed mechanism | Does this skill own the command/state it spells out, or does it delegate that work? |
 | Vestigial mode | Is there a caller anywhere in the corpus that sets this mode, flag, or branch? |
 | Cross-unit duplication | Is this near-identical elsewhere, and is factoring it out actually permitted (parity tests)? |
@@ -32,6 +33,7 @@ Skills predate the current standard and evolve toward it. The standard is the gu
 - **Repeated case-specific repair is the defect signal.** If this block has been patched before for "the case we just found" — in an earlier round of the same PR, or in git history — do not add another case. Delete the additions and restate the goal, then re-verify the restatement against every path the additions served; a restatement that no longer names a path is a new defect, not a simplification.
 - **For every mandate you remove, name what now decides**, and check that decider may decide it. A required gate stays.
 - **Prefer one governing sentence over behavior enumeration.** If one sentence decides the listed behaviors, keep the sentence and delete the list; if a listed item is a separate invariant, state that invariant locally.
+- **Control length by preserved content.** For portable skills, replace blanket brevity slogans with the fields the short output must retain and the details it may omit.
 - **Keep scope beside the action it governs.** A quantifier, threshold, or exclusion ("for each candidate separately", "do not change files outside …") sits next to the step it bounds, not in a distant reminder — literal models lose the distant one.
 - **Runtime placement:** an instruction that must fire at a point stays inline at that point; do not push it into a reference the agent may not load. Where the same rule must live in two always-loaded places, protect it with a parity test.
 - **Scripted replacements** across many files: assert each anchor matches exactly once before writing anything, and fail closed per file.

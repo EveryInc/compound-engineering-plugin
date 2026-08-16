@@ -58,9 +58,11 @@ Prefer an observable rule over a qualitative exhortation:
 |---|---|
 | "Be thorough." | "Check every changed execution path and report any path you could not verify." |
 | "Produce high-quality work." | "The handoff must name the decision, supporting evidence, unresolved risk, and next owner." |
-| "Be concise." | "Lead with the outcome; omit details that would not change the reader's next decision." |
+| "Be concise." | "For a short CLI-wrapper report, include command, exit status, output path/size, and stderr or blocker; omit secondary detail first." |
 
 This reflects current vendor guidance, not a preference for terseness. [OpenAI's GPT-5.6 guidance](https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6) says leaner prompts can improve task performance and token efficiency, to state each instruction once, and to keep examples only when they encode a product requirement or measured gap. [Fable 5 guidance](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5) says brief instructions can replace behavior-by-behavior enumeration and warns that skills tuned for earlier models may be too prescriptive. [Anthropic's skill best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) says to match degrees of freedom to task fragility.
+
+For portable Sol/Fable skills, control output length by naming what shortened output must preserve. Do not paste a Fable-only brevity block or ship a blanket "be concise" / "keep it short" slogan into a cross-model skill; GPT-5.6 Sol can undershoot when broad brevity instructions stack on top of its default concision.
 
 This is not a ban on targeted steering. A phrase that counters a documented runtime behavior can stay as a model-behavior adapter: name the condition it addresses and verify the effect rather than promoting it to a universal quality slogan.
 
@@ -259,7 +261,7 @@ For consequential workflows, distinguish:
 
 Invocation may satisfy a default confirmation requirement when the skill clearly names a bounded class of mutations as part of its job. It does not override system, organization, or user prohibitions.
 
-Keep autonomy as one compact envelope. In-scope local work that follows from the user's request proceeds without per-action confirmation; external writes, destructive actions, purchases, material scope expansion, and input only the user can provide stop for confirmation. Repeating "ask first" at each step causes unnecessary pauses unless each occurrence marks a different boundary.
+Keep autonomy as one compact envelope. Name safe local actions — reading files, inspecting logs, editing in-scope files, and running non-destructive validation — and let them proceed when they follow from the user's request. External writes, destructive actions, purchases, material scope expansion, and input only the user can provide stop for confirmation. Do not repeat "ask first", "do not mutate", or "wait for approval" at each step unless each occurrence marks a different boundary.
 
 Write the positive rule when invocation supplies authority:
 
@@ -370,6 +372,7 @@ Measure the outcome the skill exists to improve, not proxy volume:
 - [ ] The skill has one skill-level done bar; local done checks protect only unsafe or fragile seams.
 - [ ] Each instruction is stated once; variants name deltas instead of repeating the full rule.
 - [ ] CLI recipes that share a command skeleton are one parameterized recipe, not repeated blocks.
+- [ ] Cross-model output guidance names must-preserve content instead of using blanket "be concise" / "keep it short" slogans.
 - [ ] Generic quality exhortations and motivational rationale are absent.
 
 ### Protocol and judgment
@@ -438,11 +441,13 @@ the approach. Add only the protocol needed to protect that outcome.
    the semantic floor and define degradation.
 8. State each instruction once. For CLI wrappers, one canonical invocation plus
    named deltas beats repeated command blocks with the same skeleton.
-9. Add authority and delegation machinery only when the skill actually mutates
+9. For cross-model skills, control output length by naming what a short report
+   must preserve; do not ship blanket "be concise" / "keep it short" slogans.
+10. Add authority and delegation machinery only when the skill actually mutates
    or delegates consequential work.
-10. Use a small targeted evaluation set for the weakest realistic layer,
+11. Use a small targeted evaluation set for the weakest realistic layer,
    strong-model regression, restraint, activation, and the next consumer.
-11. Choose the smallest supported change and record any material deviation.
+12. Choose the smallest supported change and record any material deviation.
 
 Return the outcome spine, proposed skill or findings, intentionally inapplicable
 guide sections, Change/Verify/Consider findings, targeted tests, and unresolved
