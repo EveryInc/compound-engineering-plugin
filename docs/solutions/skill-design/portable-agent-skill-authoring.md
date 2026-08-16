@@ -267,13 +267,14 @@ For consequential workflows, distinguish:
 
 Invocation may satisfy a default confirmation requirement when the skill clearly names a bounded class of mutations as part of its job. It does not override system, organization, or user prohibitions.
 
-Keep autonomy as one compact envelope. Name safe local actions — reading files, inspecting logs, editing in-scope files, and running non-destructive validation — and let them proceed when they follow from the user's request. External writes, destructive actions, purchases, material scope expansion, and input only the user can provide stop for confirmation. Do not repeat "ask first", "do not mutate", or "wait for approval" at each step unless each occurrence marks a different boundary.
+Keep autonomy as one compact envelope. Name safe local actions — reading files, inspecting logs, editing in-scope files, and running non-destructive validation — and let in-scope work that follows from the user's request proceed, including an external write that is the requested job or named in the skill's authority envelope. Stop for confirmation when an external write, destructive action, purchase, or material scope expansion is outside that envelope, or when only the user can supply the input. Do not repeat "ask first", "do not mutate", or "wait for approval" at each step unless each occurrence marks a different boundary.
 
 Write the positive rule when invocation supplies authority:
 
 ```text
 Invoking this workflow authorizes the following in-envelope actions without
-per-action confirmation: [...]. It does not authorize: [...].
+per-action confirmation, including named external writes: [...]. It does not
+authorize actions outside that envelope: [...].
 ```
 
 For chained mutation workflows, carry authority as bounded data. Include the target, permitted action classes, exclusions, and whether authority is user-direct or inherited. Downstream skills may narrow inherited authority, never broaden it. If structured authority cannot travel, fall back to the harness confirmation default. A live user instruction can narrow or revoke the active envelope at any time.
