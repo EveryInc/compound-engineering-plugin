@@ -37,7 +37,7 @@ Do not use the old custom Bun converter/install path for Cursor.
 |-------|------|
 | Project rules | `.cursor/rules/*.mdc` |
 | Project commands | `.cursor/commands/*.md` |
-| Project skills | `.cursor/skills/*/SKILL.md` |
+| Project skills | `.cursor/skills/*/SKILL.md` (Cursor also discovers `.agents/skills/*/SKILL.md`; the writer emits only `.cursor/skills`) |
 | Project MCP | `.cursor/mcp.json` |
 | Project CLI permissions | `.cursor/cli.json` |
 | Global MCP | `~/.cursor/mcp.json` |

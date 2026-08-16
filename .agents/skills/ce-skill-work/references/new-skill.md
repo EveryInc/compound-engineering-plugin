@@ -4,7 +4,7 @@ Read the guide's "Author in this order", "Build the skill around an outcome spin
 
 ## Before the first line
 
-1. **Confirm the gate.** New skills from non-maintainers need an approved issue first (see the working agreement in the project's active instructions). Confirm the skill does not already exist under another name — grep `skills/*/SKILL.md` descriptions for the same trigger.
+1. **Confirm the gate.** Apply the new-skill contribution gate exactly as the working agreement in the project's active instructions states it (who is exempt, and what approval must exist before work starts) — do not paraphrase it here. Confirm the skill does not already exist under another name — grep `skills/*/SKILL.md` descriptions for the same trigger.
 2. **Write the outcome spine as prose, first, alone:** the result or decision this skill produces, who consumes it next, the done condition, and the non-obvious intent only if it changes the approach. If you cannot write these four in a paragraph, the skill is not ready to author.
 3. **Write the activation contract:** name and description as trigger conditions — positive cases, adjacent negatives ("not for X, use Y"), and how explicit invocation looks. Third person; symptoms and situations, not workflow. Agents under-trigger: state the condition broadly enough that it covers the situations a user reaches without naming the skill — as a condition ("any change to a skill file"), not as a list of phrasings, which is a case list and adds nothing the model's semantic match does not already do. Lead with the job in one clause, then the condition, then the adjacent negatives. Name: hyphen-case, verb-led where it reads naturally, under 64 characters; public plugin skills carry the `ce-` prefix.
 
