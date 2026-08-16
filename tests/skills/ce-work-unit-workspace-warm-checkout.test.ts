@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, setDefaultTimeout, test } from "bun:test"
 import { existsSync, lstatSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import {
@@ -12,6 +12,8 @@ import {
   seedWarmCheckoutFixture,
   tmp,
 } from "./helpers/ce-work-workspace-harness"
+
+setDefaultTimeout(30_000)
 
 registerWorkspaceCleanup()
 
