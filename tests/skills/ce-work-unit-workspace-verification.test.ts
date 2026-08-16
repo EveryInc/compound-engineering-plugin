@@ -45,89 +45,160 @@ setDefaultTimeout(30_000)
 registerWorkspaceCleanup()
 
 describe("ce-work unit workspace controller: verification locks, waves, and checkpoints", () => {
-  test("init reports every ignored snapshot blocker before route selection closes", () => {
-    const f = makeRepo()
-    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
-    const runId = "run-ignored-capability"
-    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "ignored/\nopaque/\n")
-    const ignored = path.join(f.repo, "ignored")
-    mkdirSync(ignored)
-    const oversized = path.join(ignored, "oversized")
-    writeFileSync(oversized, "")
-    truncateSync(oversized, 64 * 1024 * 1024 + 1)
-    symlinkSync("oversized", path.join(ignored, "link"))
-    writeFileSync(path.join(ignored, "hard-a"), "hard")
-    linkSync(path.join(ignored, "hard-a"), path.join(ignored, "hard-b"))
-    for (let index = 0; index < 508; index += 1) {
-      writeFileSync(path.join(ignored, `${index.toString().padStart(4, "0")}`), "x")
+  function seedWarmCheckout(repo: string, fileCount: number) {
+    writeFileSync(path.join(repo, ".git", "info", "exclude"), "node_modules/\nnested/\n")
+    const bin = path.join(repo, "node_modules", ".bin")
+    mkdirSync(bin, { recursive: true })
+    for (let index = 0; index < fileCount; index += 1) {
+      writeFileSync(path.join(repo, "node_modules", `${index.toString().padStart(4, "0")}.js`), "x")
     }
-    const opaque = path.join(f.repo, "opaque")
-    mkdirSync(opaque)
-    git(opaque, "init")
-    const refused = init(runs, runId, f)
+    writeFileSync(path.join(bin, "tool.js"), "#!/usr/bin/env node\n")
+    symlinkSync("tool.js", path.join(bin, "tool"))
+    linkSync(path.join(repo, "node_modules", "0000.js"), path.join(repo, "node_modules", "0000.hard"))
+    const nested = path.join(repo, "nested")
+    mkdirSync(nested)
+    git(nested, "init")
+    writeFileSync(path.join(nested, "inner.txt"), "inner\n")
+  }
 
-    expect(refused.word).toBe("REFUSED")
-    expect(refused.stderr).toContain("ignored artifact snapshot capability is unavailable")
-    expect(refused.body).toMatchObject({
-      inventory: { entries: 513 },
-      effective_limits: { max_entries: 512, max_bytes: 64 * 1024 * 1024 },
-      blocking_counts: {
-        entry_limit: 1,
-        symlink: 1,
-        non_regular: 0,
-        multiple_links: 2,
-        opaque_directory: 1,
-        ownership_mismatch: 0,
-      },
-      repair_route: expect.stringContaining("retry cross-model execution"),
-    })
-    expect(refused.body.blocking_counts.byte_limit).toBeGreaterThan(0)
-    expect(refused.body.top_offenders.length).toBeLessThanOrEqual(10)
-    expect(existsSync(path.join(runs, runId))).toBe(false)
-  })
-
-  test("prepare rechecks ignored capability after route selection", () => {
-    const f = makeRepo()
-    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
-    const runId = "run-ignored-capability-changed"
-    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "ignored-link\n")
-    expect(initWithBinding(runs, runId, f, "require").word).toBe("READY")
-    symlinkSync("missing", path.join(f.repo, "ignored-link"))
-
-    const refused = ctl(
-      runs, "prepare", "--run-id", runId, "--unit-id", "U",
-      "--base", f.base, "--packet", packetFile("packet"),
-    )
-
-    expect(refused.word).toBe("REFUSED")
-    expect(refused.body).toMatchObject({
-      blocking_counts: { symlink: 1 },
-      repair_route: "Remove or reduce the reported ignored artifacts, then retry cross-model execution.",
-    })
-    expect(existsSync(path.join(runs, runId, "units", "U", "workspace"))).toBe(false)
-  })
-
-  test("ignored capability probe reports ownership mismatch from a scratch repository", () => {
-    const f = makeRepo()
-    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "owned.verification-cache\n")
-    writeFileSync(path.join(f.repo, "owned.verification-cache"), "owned\n")
+  function ignoredModule(repo: string, body: string[]) {
     const source = [
       "import json, os, sys",
       `sys.path.insert(0, ${JSON.stringify(path.dirname(SCRIPT))})`,
       "import unit_workspace_ignored as ignored",
-      "ignored._effective_uid = lambda: os.geteuid() + 1",
-      "paths = ignored.ignored_paths(sys.argv[1])",
-      "_, _, report = ignored.inspect_ignored_snapshot_capability(sys.argv[1], paths)",
-      "print(json.dumps(report, sort_keys=True))",
-    ].join("; ")
+      "repo = sys.argv[1]",
+      ...body,
+    ].join("\n")
+    const result = sh(repo, ["python3", "-c", source, repo])
+    return JSON.parse(result.stdout)
+  }
 
-    const result = sh(f.repo, ["python3", "-c", source, f.repo])
-    const report = JSON.parse(result.stdout)
-    expect(report.blocking_counts.ownership_mismatch).toBe(1)
-    expect(report.top_offenders[0]).toMatchObject({
-      path: "owned.verification-cache",
-      reasons: ["ownership_mismatch"],
-    })
+  test("init then prepare succeed on a warm checkout with a large ignored inventory", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-warm-checkout"
+    seedWarmCheckout(f.repo, 513)
+
+    const ready = init(runs, runId, f)
+    expect(ready.word).toBe("READY")
+    expect(ready.body.blocking_counts).toBeUndefined()
+    expect(existsSync(path.join(runs, runId))).toBe(true)
+
+    const prepared = ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    expect(prepared.word).toBe("PREPARED")
+    expect(prepared.body.blocking_counts).toBeUndefined()
+    expect(existsSync(path.join(runs, runId, "units", "U", "workspace"))).toBe(true)
+  })
+
+  test("inventory_ignored_state records symlinks, hardlinks, and nested repositories without refusing", () => {
+    const f = makeRepo()
+    seedWarmCheckout(f.repo, 600)
+    mkdirSync(path.join(f.repo, "node_modules", "empty-dir"))
+    const out = ignoredModule(f.repo, [
+      "inv = ignored.inventory_ignored_state(repo)",
+      "print(json.dumps({'count': len(inv), 'paths': sorted(inv), 'nested': inv.get('nested/'), 'link': inv.get('node_modules/.bin/tool')}))",
+    ])
+    expect(out.count).toBe(604)
+    expect(out.paths).toContain("nested/")
+    expect(out.paths.some((p: string) => p.startsWith("nested/") && p !== "nested/")).toBe(false)
+    expect(out.paths.some((p: string) => p.includes("empty-dir"))).toBe(false)
+    expect(out.nested[0]).toBe("directory")
+    expect(out.link[0]).toBe("symlink")
+  })
+
+  test("diff_ignored_state buckets overwrite, chmod, retarget, deletion, and creation", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "cache/\n")
+    const cache = path.join(f.repo, "cache")
+    mkdirSync(path.join(cache, "empty"), { recursive: true })
+    writeFileSync(path.join(cache, "overwrite"), "aaaa")
+    writeFileSync(path.join(cache, "chmod"), "m")
+    writeFileSync(path.join(cache, "target-a"), "a")
+    writeFileSync(path.join(cache, "target-b"), "b")
+    symlinkSync("target-a", path.join(cache, "link"))
+    writeFileSync(path.join(cache, "gone"), "g")
+    writeFileSync(path.join(cache, "same"), "s")
+    const out = ignoredModule(f.repo, [
+      "before = ignored.inventory_ignored_state(repo)",
+      "st = os.stat(os.path.join(repo, 'cache', 'overwrite'))",
+      "open(os.path.join(repo, 'cache', 'overwrite'), 'w').write('bbbb')",
+      "os.utime(os.path.join(repo, 'cache', 'overwrite'), ns=(st.st_atime_ns, st.st_mtime_ns))",
+      "os.chmod(os.path.join(repo, 'cache', 'chmod'), 0o600)",
+      "os.unlink(os.path.join(repo, 'cache', 'link')); os.symlink('target-b', os.path.join(repo, 'cache', 'link'))",
+      "os.unlink(os.path.join(repo, 'cache', 'gone'))",
+      "os.makedirs(os.path.join(repo, 'cache', 'deep', 'er'))",
+      "open(os.path.join(repo, 'cache', 'deep', 'er', 'new'), 'w').write('n')",
+      "after = ignored.inventory_ignored_state(repo)",
+      "print(json.dumps({'nt': os.name == 'nt', 'diff': ignored.diff_ignored_state(before, after)}))",
+    ])
+    const diff = out.diff
+    expect(diff.before).toBe(7)
+    expect(diff.after).toBe(7)
+    expect(diff.removed).toBe(1)
+    expect(diff.created).toBe(1)
+    expect(diff.uninspectable).toBe(0)
+    expect(diff.sample.removed).toEqual(["cache/gone"])
+    expect(diff.sample.created).toEqual(["cache/deep/er/new"])
+    expect(diff.sample_limit).toBe(20)
+    expect(diff.restored).toBe(false)
+    const expectedChanged = out.nt
+      ? ["cache/chmod", "cache/link"]
+      : ["cache/chmod", "cache/link", "cache/overwrite"]
+    expect(diff.sample.changed).toEqual(expectedChanged)
+    expect(diff.changed).toBe(expectedChanged.length)
+    expect(diff.sample.changed).not.toContain("cache/same")
+    expect(JSON.stringify(diff)).not.toContain("cache/empty")
+  })
+
+  test("diff_ignored_state caps samples at the limit while counts stay exact", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "cache/\n")
+    const cache = path.join(f.repo, "cache")
+    mkdirSync(cache)
+    for (let index = 0; index < 25; index += 1) {
+      writeFileSync(path.join(cache, `${index.toString().padStart(3, "0")}`), "x")
+    }
+    const out = ignoredModule(f.repo, [
+      "before = ignored.inventory_ignored_state(repo)",
+      "import shutil; shutil.rmtree(os.path.join(repo, 'cache'))",
+      "after = ignored.inventory_ignored_state(repo)",
+      "print(json.dumps(ignored.diff_ignored_state(before, after)))",
+    ])
+    expect(out.before).toBe(25)
+    expect(out.after).toBe(0)
+    expect(out.removed).toBe(25)
+    expect(out.sample.removed).toHaveLength(20)
+    expect(out.sample.removed).toEqual([...out.sample.removed].sort())
+    expect(out.sample.removed[0]).toBe("cache/000")
+    expect(out.sample.removed[19]).toBe("cache/019")
+  })
+
+  test("inventory_ignored_state records unreadable entries as uninspectable instead of refusing", () => {
+    if (process.getuid?.() === 0) return
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "cache/\n")
+    const locked = path.join(f.repo, "cache", "locked")
+    mkdirSync(locked, { recursive: true })
+    writeFileSync(path.join(locked, "secret"), "s")
+    writeFileSync(path.join(f.repo, "cache", "open"), "o")
+    chmodSync(locked, 0o600)
+    try {
+      const out = ignoredModule(f.repo, [
+        "before = ignored.inventory_ignored_state(repo)",
+        "after = ignored.inventory_ignored_state(repo)",
+        "diff = ignored.diff_ignored_state(before, after)",
+        "print(json.dumps({'entry': before.get('cache/locked/secret'), 'diff': diff}))",
+      ])
+      expect(out.entry[0]).toBe("uninspectable")
+      expect(out.diff.uninspectable).toBeGreaterThan(0)
+      expect(out.diff.changed).toBe(0)
+      expect(out.diff.removed).toBe(0)
+    } finally {
+      chmodSync(locked, 0o700)
+    }
   })
 
   test("prepare passes through supported ignored regular files", () => {
@@ -141,47 +212,6 @@ describe("ce-work unit workspace controller: verification locks, waves, and chec
       runs, "prepare", "--run-id", "run-ignored-capability-clear", "--unit-id", "U",
       "--base", f.base, "--packet", packetFile("packet"),
     ).word).toBe("PREPARED")
-  })
-
-  test("plan verification refuses oversized ignored state before directory traversal", () => {
-    const f = makeRepo()
-    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
-    const runId = "run-plan-ignored-entry-limit"
-    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\n")
-    init(runs, runId, f)
-    ctl(
-      runs, "prepare", "--run-id", runId, "--unit-id", "U",
-      "--base", f.base, "--packet", packetFile("packet"),
-    )
-    const workspace = path.join(runs, runId, "units", "U", "workspace")
-    writeFileSync(path.join(workspace, "integrated.txt"), "integrated\n")
-    const job = fakeDoneJob(runs, runId, "U", "packet")
-    ctl(
-      runs, "record-job", "--run-id", runId, "--unit-id", "U",
-      "--attempt-id", "attempt-1", "--job-id", job,
-    )
-    ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U")
-    expect(ctl(
-      runs, "integrate", "--run-id", runId, "--unit-id", "U",
-      "--commit-message", "feat(test): integrate ignored limit fixture", "--", "true",
-    ).word).toBe("UNIT_COMMITTED")
-
-    const cache = path.join(f.repo, "many-ignored")
-    mkdirSync(cache)
-    for (let index = 0; index < 513; index += 1) {
-      writeFileSync(path.join(cache, `${index.toString().padStart(4, "0")}.verification-cache`), "x")
-    }
-    const marker = path.join(tmp("ce-work-verification-marker-"), "ran")
-    const refused = ctlWithEnv(
-      runs, { CE_WORK_TEST_FAULT: "directory-snapshot-before-walk" },
-      "verify-run", "--run-id", runId, "--", "python3", "-c",
-      `from pathlib import Path; Path(${JSON.stringify(marker)}).write_text('ran')`,
-    )
-    expect(refused.word).toBe("REFUSED")
-    expect(refused.stderr).toContain("ignored artifact snapshot capability is unavailable")
-    expect(refused.body.blocking_counts.entry_limit).toBe(1)
-    expect(existsSync(marker)).toBe(false)
-    expect(ctl(runs, "status", "--run-id", runId).body.integration_lock).toBeNull()
   })
 
   test("failed unit verification reports and removes its new ignored artifact", () => {

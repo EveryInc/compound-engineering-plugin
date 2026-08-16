@@ -789,12 +789,6 @@ def cmd_init(args) -> tuple[str, dict]:
     egress = parse_json_arg(args.egress_json, "egress")
     fixed_route_contract(binding, egress, "REFUSED")
     rd = run_dir(rid)
-    if not os.path.lexists(rd):
-        # A capability refusal must happen before READY closes route selection.
-        # prepare repeats this probe because ignored inventory can change later.
-        from unit_workspace_ignored import require_ignored_snapshot_capability
-
-        require_ignored_snapshot_capability(info["toplevel"])
     try:
         os.mkdir(rd, 0o700)
     except FileExistsError:

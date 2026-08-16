@@ -35,7 +35,10 @@ from unit_workspace_lifecycle import (
 )
 from unit_workspace_ignored import artifact_path as _artifact_path
 from unit_workspace_ignored import ignored_paths as _ignored_paths
-from unit_workspace_ignored import preflight_ignored_artifacts as _preflight_ignored_artifacts
+
+# TODO(U2): removed by U2 -- temporary shim until the transactions stop snapshotting ignored state.
+def _preflight_ignored_artifacts(repo, paths):
+    return None, {}
 
 
 def _args(**values):
@@ -131,6 +134,7 @@ def _snapshot_ignored_artifacts(repo: str, paths: set[str], private_parent: str)
     """Copy bounded ignored regular files to private state without following symlinks."""
     validate_private_dir(private_parent)
     planned, directories = _preflight_ignored_artifacts(repo, paths)
+    planned = planned or []  # TODO(U2): removed by U2
     backup_root = os.path.join(private_parent, f"ignored-snapshot-{secrets.token_hex(8)}")
     os.mkdir(backup_root, 0o700)
     validate_private_dir(backup_root)
