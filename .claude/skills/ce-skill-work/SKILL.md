@@ -17,7 +17,7 @@ Skills in this repository are goals, not state machines. A skill hands the agent
 
 `docs/solutions/skill-design/portable-agent-skill-authoring.md` is the authority. Read the sections the mode below names; do not restate the guide in the skill you are editing. The always-loaded rules in the project's active instructions supplement it and win where more specific.
 
-Five things every block must hand the reading agent, in this order: the result and next consumer, the done condition, the safe failure direction, the non-derivable facts, and only then any protocol the outcome cannot protect on its own. If a block does not need one, it omits it; if it has something else instead — a menu, a bash procedure, a list of cases — that is the finding.
+Five things every block must hand the reading agent, in this order: the result and next consumer, the done condition, the safe failure direction, the non-derivable facts, and only then any protocol the outcome cannot protect on its own. If a block does not need one, it omits it. What it must not have instead is a list of cases standing in for a condition it could state, or a mechanism prescribed for work this skill delegates — that is the finding. A procedure for a mechanic this skill owns, or a menu whose omitted item would silently drop required coverage, is protocol and stays.
 
 ## Rules that hold in every mode
 

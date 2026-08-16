@@ -113,7 +113,7 @@ cat .claude-plugin/plugin.json | jq .
 
 This repository authors each skill once and distributes it across multiple agent models and harnesses. A skill is a set of goals, not a state machine: it hands the agent the goal, the done condition, the safe failure direction, and the facts it cannot derive from the repo in front of it, then gets out of the way. `docs/solutions/skill-design/portable-agent-skill-authoring.md` is the standard; the rules in this file supplement it and take precedence where more specific.
 
-**Before creating, editing, reviewing, or acting on review feedback for anything under `skills/**`, invoke the repo-local `ce-skill-work` skill** (`.claude/skills/ce-skill-work/`, symlinked at `.agents/skills/ce-skill-work` for Codex). It carries the procedures for each of those four activities, the audit questions, the provenance rule for removals, and the validation contract. This file states only what must be always-loaded; when the two disagree, fix the disagreement rather than following the shorter one.
+**Before creating, editing, reviewing, or acting on review feedback for anything under `skills/**`, invoke the repo-local `ce-skill-work` skill** (`.claude/skills/ce-skill-work/`, symlinked at `.agents/skills/ce-skill-work` for Codex and `.cursor/skills/ce-skill-work` for Cursor). It carries the procedures for each of those four activities, the audit questions, the provenance rule for removals, and the validation contract. This file states only what must be always-loaded; when the two disagree, fix the disagreement rather than following the shorter one.
 
 Three rules that hold regardless of whether the skill was invoked:
 
