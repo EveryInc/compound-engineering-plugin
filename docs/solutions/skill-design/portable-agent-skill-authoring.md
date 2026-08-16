@@ -190,9 +190,11 @@ Mixed blocks must be decomposed before classification. Preserve the invariant sk
 
 ## Match degrees of freedom to fragility
 
-Use high freedom when many approaches are valid and context should decide: state the outcome, hard constraints, and failure direction. Use medium freedom when one pattern is preferred: give one parameterized command, script, or example. Use low freedom only when exact order, flags, or state transitions are fragile and load-bearing.
+Use high freedom when many approaches are valid and context should decide: state the outcome, hard constraints, and failure direction. Use medium freedom when one pattern is preferred: give one parameterized command, script, or example. Use low freedom when one known-good invocation exists and agents fail if they invent it: interacting flags, brittle order, a format selector that actually works, clip/archive/auth recipes, or anything live `--help` will not reconstruct. Pin that command once.
 
 For CLI-wrapper skills, the default is one canonical invocation plus named deltas. If two recipes share the same command skeleton, they are one recipe with a parameter, not two blocks. A catalog of commands is protocol only when each command protects a distinct invariant or supplies a non-derivable fact.
+
+This is not a ban on deterministic commands or bundled scripts. A bundled script is right when the glue is deterministic and annoying — quoting, combining inspection output, or a checked flag set — and agents would rebuild it wrong. The test is: if a capable model with live `--help` still ships the wrong command, the skill must give the command; if a one-line condition would steer it correctly, the extra block is noise.
 
 ## Preserve literal scope locally
 
@@ -380,7 +382,7 @@ Measure the outcome the skill exists to improve, not proxy volume:
 - [ ] Protocol is explicit and falsifiable.
 - [ ] Judgment is deleted when the outcome already guides it.
 - [ ] Remaining judgment guidance is the smallest supported principle or contrast pair.
-- [ ] The degrees of freedom match the task's fragility: high for many valid approaches, medium for a preferred pattern, low only for fragile exact sequences.
+- [ ] The degrees of freedom match the task's fragility: high for many valid approaches, medium for a preferred pattern, low for known-good fragile commands or exact sequences.
 - [ ] Required coverage menus and local quantifiers are preserved.
 - [ ] Mixed blocks were decomposed before classification.
 
@@ -440,7 +442,8 @@ the approach. Add only the protocol needed to protect that outcome.
 7. Describe capabilities and observable behavior before named tools. Preserve
    the semantic floor and define degradation.
 8. State each instruction once. For CLI wrappers, one canonical invocation plus
-   named deltas beats repeated command blocks with the same skeleton.
+   named deltas beats repeated command blocks with the same skeleton. Pin a
+   known-good fragile command once when live `--help` is not enough.
 9. For cross-model skills, control output length by naming what a short report
    must preserve; do not ship blanket "be concise" / "keep it short" slogans.
 10. Add authority and delegation machinery only when the skill actually mutates
