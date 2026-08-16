@@ -699,12 +699,21 @@ PY
 }
 
 # Parse a schema-shaped object out of a headless CLI JSON envelope (claude/grok/cursor).
+# The published candidate is the highest-scoring POV anywhere in the envelope --
+# schema-shaped and final, then shaped, then any position-bearing object -- with
+# ties to the later candidate. A structured field (structured_output /
+# structuredOutput / result) is one candidate among those, not an authority:
+# grok >= 1.0.4 names it structuredOutput and its text can carry a first-turn
+# placeholder beside the settled object, a bare stub beside a shaped answer,
+# or a bare {"final":true} beside the real POV. Take the structured field first
+# only as a shortcut when it already scores top; otherwise the scored scan
+# over the whole envelope decides.
+pov_score() {   # <file> -> 2 shaped+final, 1 shaped, 0 otherwise
+  if pov_shaped "$1"; then
+    if jq -e '.final == true' "$1" >/dev/null 2>&1; then echo 2; else echo 1; fi
+  else echo 0; fi
+}
 parse_structured() {   # <logfile> <outfile>
-  # A structured field's presence is not authority: grok >= 1.0.4 names it
-  # structuredOutput and its text can carry a first-turn placeholder beside
-  # (or instead of) the settled object. Take the structured field first, then
-  # let the scored recovery scan replace it whenever the envelope holds a
-  # better candidate (schema-shaped and final beats shaped-but-non-final).
   local picked=false
   # Buffered single-object envelopes (grok-cli json, test stubs).
   if jq -e '.structured_output // .structuredOutput' "$1" > "$2" 2>/dev/null; then picked=true
@@ -719,14 +728,10 @@ parse_structured() {   # <logfile> <outfile>
       fi
     fi
   fi
-  if [ "$picked" = true ] && jq -e '.final == true' "$2" >/dev/null 2>&1; then return 0; fi
-  # The scan keeps the highest-validity candidate (final > shaped > any); it
-  # replaces the pick when it is final, or when it is at least as shaped as the
-  # pick -- so a shaped non-final POV in text still reaches the retry gate even
-  # when a bare stub sits in the structured field.
+  if [ "$picked" = true ] && [ "$(pov_score "$2")" = 2 ]; then return 0; fi
   local scan="$2.scan"
   if recover_pov_json "$1" "$scan"; then
-    if [ "$picked" != true ] || jq -e '.final == true' "$scan" >/dev/null 2>&1 || ! pov_shaped "$2"; then
+    if [ "$picked" != true ] || [ "$(pov_score "$scan")" -ge "$(pov_score "$2")" ]; then
       mv "$scan" "$2"; return 0
     fi
   fi

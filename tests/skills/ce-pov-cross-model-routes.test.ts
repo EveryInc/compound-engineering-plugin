@@ -250,6 +250,16 @@ describe("ce-pov output gate and receipts", () => {
     expect(result.stderr).not.toContain("non-final position")
   })
 
+  test("a bare {final:true} structured stub does not beat a complete final POV in text", () => {
+    const settled = '{\\"voice\\":\\"peer\\",\\"position\\":\\"Choose A\\",\\"reasoning\\":\\"why\\",\\"evidence\\":[],\\"external_check\\":\\"unavailable\\",\\"mode\\":\\"independent\\",\\"movement\\":\\"initial\\",\\"final\\":true}'
+    const envelope = `{"structured_output":{"final":true},"text":"${settled}"}`
+    const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${envelope}'\n`)
+    const dir = runDir()
+    const result = run(["codex", "claude", payload(), dir], dir, env)
+    expect(result.files).toContain("pov-claude.json")
+    expect(JSON.parse(readFileSync(path.join(dir, "pov-claude.json"), "utf8")).position).toBe("Choose A")
+  })
+
   test("a shaped non-final POV in text beside a bare structured stub still reaches the retry", () => {
     const placeholder = '{\\"voice\\":\\"peer\\",\\"position\\":\\"gathering evidence\\",\\"reasoning\\":\\"why\\",\\"evidence\\":[],\\"external_check\\":\\"unavailable\\",\\"mode\\":\\"independent\\",\\"movement\\":\\"initial\\",\\"final\\":false}'
     const stubEnvelope = `{"structured_output":{},"text":"${placeholder}"}`
