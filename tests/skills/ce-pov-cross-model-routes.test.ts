@@ -183,6 +183,8 @@ describe("ce-pov output gate and receipts", () => {
     ["missing reasoning", '{"structured_output":{"position":"Choose A"}}'],
     ["missing mode", '{"structured_output":{"voice":"peer","position":"Choose A","reasoning":"why","evidence":[],"external_check":"unavailable","movement":"initial","final":true}}'],
     ["missing evidence", '{"structured_output":{"voice":"peer","position":"Choose A","reasoning":"why","external_check":"unavailable","mode":"independent","movement":"initial","final":true}}'],
+    ["non-string evidence item", '{"structured_output":{"voice":"peer","position":"Choose A","reasoning":"why","evidence":[42],"external_check":"unavailable","mode":"independent","movement":"initial","final":true}}'],
+    ["empty evidence item", '{"structured_output":{"voice":"peer","position":"Choose A","reasoning":"why","evidence":[""],"external_check":"unavailable","mode":"independent","movement":"initial","final":true}}'],
     ["missing external check", '{"structured_output":{"voice":"peer","position":"Choose A","reasoning":"why","evidence":[],"mode":"independent","movement":"initial","final":true}}'],
     ["missing voice", '{"structured_output":{"position":"Choose A","reasoning":"why","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial","final":true}}'],
   ])("%s fails the fixed route without publishing an artifact", (_name, invalid) => {
@@ -253,7 +255,8 @@ describe("ce-pov output gate and receipts", () => {
   test("a valid final POV in text is not outranked by a later fully keyed but invalid draft", () => {
     const settled = '{\\"voice\\":\\"peer\\",\\"position\\":\\"Choose A\\",\\"reasoning\\":\\"why\\",\\"evidence\\":[],\\"external_check\\":\\"unavailable\\",\\"mode\\":\\"independent\\",\\"movement\\":\\"initial\\",\\"final\\":true}'
     const invalid = '{\\"voice\\":\\"peer\\",\\"position\\":\\"Choose B\\",\\"reasoning\\":42,\\"evidence\\":\\"none\\",\\"external_check\\":\\"maybe\\",\\"mode\\":\\"independent\\",\\"movement\\":\\"initial\\",\\"final\\":true}'
-    const envelope = `{"text":"${settled}${invalid}"}`
+    const badEvidence = '{\\"voice\\":\\"peer\\",\\"position\\":\\"Choose C\\",\\"reasoning\\":\\"why\\",\\"evidence\\":[42,\\"\\"],\\"external_check\\":\\"unavailable\\",\\"mode\\":\\"independent\\",\\"movement\\":\\"initial\\",\\"final\\":true}'
+    const envelope = `{"text":"${settled}${invalid}${badEvidence}"}`
     const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${envelope}'\n`)
     const dir = runDir()
     const result = run(["codex", "claude", payload(), dir], dir, env)
