@@ -56,7 +56,8 @@ Two guards existed and did not fire:
 
 ## Where it landed
 
-- `AGENTS.md` — the `## Working on Skills` lifecycle: authoring, editing an existing skill (bring the touched block to the standard), reviewing a skill change (what a finding is), and acting on review feedback.
+- `AGENTS.md` — `## Working on Skills`: the always-loaded standard, the reviewer rules bots read, and a pointer to the repo-local `skill-work` skill.
+- `.claude/skills/skill-work/` (symlinked at `.agents/skills/skill-work` for Codex) — the lifecycle procedures: new skill, edit (provenance search, audit questions, over-cut guard), review (Change/Verify/Consider), respond (covered case → condition; second round → restate), and the validation contract. Procedures live in a skill that loads when the work starts, not in always-loaded context read once at session start.
 - `skills/ce-resolve-pr-feedback/references/evaluation-rubric.md` — the project's review guidance frames the verdict, not just the harm veto; an "instruction prose is not code" section with the covered-case, condition-or-layer, and second-round rules.
 - `skills/ce-resolve-pr-feedback/references/full-mode.md` — the loop cap counts rounds per PR via the branch's review-fix commits.
 - `skills/ce-resolve-pr-feedback/references/agents/pr-comment-resolver.md` — a fixer editing prose implements the restatement it was handed and returns `blocked` rather than adding a case.
