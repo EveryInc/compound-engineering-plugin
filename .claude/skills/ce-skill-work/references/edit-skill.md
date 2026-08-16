@@ -18,6 +18,7 @@ Skills predate the current standard and evolve toward it. The standard is the gu
 | Prescribed mechanism | Does this skill own the command/state it spells out, or does it delegate that work? |
 | Vestigial mode | Is there a caller anywhere in the corpus that sets this mode, flag, or branch? |
 | Cross-unit duplication | Is this near-identical elsewhere, and is factoring it out actually permitted (parity tests)? |
+| Shouting | Is this ALWAYS / NEVER / MUST carrying a rule the surrounding condition does not already state? Capitals are a smell that the rule is not stated as a condition. |
 
 ## Making the change
 

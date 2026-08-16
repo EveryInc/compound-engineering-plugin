@@ -1,6 +1,6 @@
 ---
 name: ce-skill-work
-description: "Use when creating, editing, reviewing, or acting on review feedback for anything under this repository's skills/** — a SKILL.md, a references/ file, a persona prompt, or the prose contract of a bundled script. Not for src/, tests/, or scripts/ code."
+description: "Use when creating, editing, reviewing, or acting on review feedback for anything under this repository's skills/** — a SKILL.md, a references/ file, a persona prompt, or the prose contract of a bundled script — including when the ask is phrased as fixing, tightening, slimming, or adding a step to a skill, addressing a review comment or bot finding on a skill file, writing a new ce- skill, or checking a skill change before it ships. Not for src/, tests/, or scripts/ code."
 ---
 
 # CE Skill Work
