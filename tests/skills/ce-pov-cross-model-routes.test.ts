@@ -250,6 +250,23 @@ describe("ce-pov output gate and receipts", () => {
     expect(result.stderr).not.toContain("non-final position")
   })
 
+  test("a shaped non-final POV in text beside a bare structured stub still reaches the retry", () => {
+    const placeholder = '{\\"voice\\":\\"peer\\",\\"position\\":\\"gathering evidence\\",\\"reasoning\\":\\"why\\",\\"evidence\\":[],\\"external_check\\":\\"unavailable\\",\\"mode\\":\\"independent\\",\\"movement\\":\\"initial\\",\\"final\\":false}'
+    const stubEnvelope = `{"structured_output":{},"text":"${placeholder}"}`
+    const counter = path.join(temp("pov-attempts-"), "n")
+    const stub = `#!/bin/sh
+cat >/dev/null
+n=$(cat '${counter}' 2>/dev/null || echo 0); n=$((n+1)); echo $n > '${counter}'
+if [ $n -eq 1 ]; then printf '%s' '${stubEnvelope}'; else printf '%s' '${valid}'; fi
+`
+    const { env } = sandbox(["claude"], stub)
+    const dir = runDir()
+    const result = run(["codex", "claude", payload(), dir], dir, env)
+    expect(readFileSync(counter, "utf8").trim()).toBe("2")
+    expect(result.stderr).toContain("non-final position (\"gathering evidence\")")
+    expect(result.files).toContain("pov-claude.json")
+  })
+
   test("a shaped artifact that omits final is non-final, whatever its position says", () => {
     const nofinal = '{"structured_output":{"voice":"peer","position":"Choose A","reasoning":"why","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"}}'
     const counter = path.join(temp("pov-attempts-"), "n")

@@ -352,11 +352,12 @@ in_csv() { case ",$2," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
 # Require a usable POV, not merely valid JSON. Error envelopes and incomplete
 # objects fail the fixed route and return control to the host without publishing
 # a cross-check artifact.
-out_missing_or_invalid() {
-  [ ! -s "$RAW_OUT" ] || ! jq -e \
+pov_shaped() {   # <file>: schema-shaped POV (finality is a separate gate)
+  [ -s "$1" ] && jq -e \
     '(.voice|type)=="string" and (.voice|length)>0 and (.position|type)=="string" and (.position|length)>0 and (.reasoning|type)=="string" and (.reasoning|length)>0 and (.evidence|type)=="array" and (.external_check=="ran" or .external_check=="unavailable") and (.mode=="independent" or .mode=="skeptic") and (.movement=="initial" or .movement=="moved" or .movement=="held")' \
-    "$RAW_OUT" >/dev/null 2>&1
+    "$1" >/dev/null 2>&1
 }
+out_missing_or_invalid() { ! pov_shaped "$RAW_OUT"; }
 
 # A usable position is a settled answer to the framed question. The peer
 # declares that itself through the schema's required `final` boolean: a
@@ -719,12 +720,18 @@ parse_structured() {   # <logfile> <outfile>
     fi
   fi
   if [ "$picked" = true ] && jq -e '.final == true' "$2" >/dev/null 2>&1; then return 0; fi
+  # The scan keeps the highest-validity candidate (final > shaped > any); it
+  # replaces the pick when it is final, or when it is at least as shaped as the
+  # pick -- so a shaped non-final POV in text still reaches the retry gate even
+  # when a bare stub sits in the structured field.
   local scan="$2.scan"
-  if recover_pov_json "$1" "$scan" && jq -e '.final == true' "$scan" >/dev/null 2>&1; then
-    mv "$scan" "$2"; return 0
+  if recover_pov_json "$1" "$scan"; then
+    if [ "$picked" != true ] || jq -e '.final == true' "$scan" >/dev/null 2>&1 || ! pov_shaped "$2"; then
+      mv "$scan" "$2"; return 0
+    fi
   fi
   rm -f "$scan"
-  [ "$picked" = true ] || recover_pov_json "$1" "$2"
+  [ "$picked" = true ]
 }
 
 bounded_failure_evidence() {   # <logfile>; prefer structured diagnostics, then bounded head+tail

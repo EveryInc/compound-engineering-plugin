@@ -348,7 +348,7 @@ describe("ce-pov cross-model panel contract", () => {
 
   test("the worker rejects output without non-empty string position and reasoning", async () => {
     const worker = await skillFile("scripts/cross-model-pov.sh")
-    const usableOutputGate = between(worker, "out_missing_or_invalid()", "# Backward-compatible matrix")
+    const usableOutputGate = between(worker, "pov_shaped()", "# Backward-compatible matrix")
 
     expect(usableOutputGate).toContain('(.position|type)=="string" and (.position|length)>0')
     expect(usableOutputGate).toContain('(.reasoning|type)=="string" and (.reasoning|length)>0')
