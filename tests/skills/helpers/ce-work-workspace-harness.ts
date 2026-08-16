@@ -321,3 +321,27 @@ export function worktreePaths(repo: string): string[] {
   const out = git(repo, "worktree", "list", "--porcelain")
   return out.split("\n").filter((line) => line.startsWith("worktree ")).map((line) => path.resolve(line.slice(9)))
 }
+
+/**
+ * Seeds a node_modules-shaped ignored inventory: >512 regular files (~1 MiB
+ * total), a `.bin/` directory of shim symlinks, and one hardlink pair —
+ * mirroring the warm-checkout shape describe in the cross-model plan (U5).
+ */
+export function seedWarmCheckoutFixture(repo: string, fileCount = 520, fileSizeBytes = 2000) {
+  writeFileSync(path.join(repo, ".git", "info", "exclude"), "node_modules/\n")
+  const nodeModules = path.join(repo, "node_modules")
+  const bin = path.join(nodeModules, ".bin")
+  mkdirSync(bin, { recursive: true })
+  const content = "x".repeat(fileSizeBytes)
+  const files: string[] = []
+  for (let index = 0; index < fileCount; index += 1) {
+    const name = `pkg-${index.toString().padStart(4, "0")}.js`
+    const filePath = path.join(nodeModules, name)
+    writeFileSync(filePath, content)
+    files.push(filePath)
+  }
+  symlinkSync(path.join("..", "pkg-0000.js"), path.join(bin, "tool-a"))
+  symlinkSync(path.join("..", "pkg-0001.js"), path.join(bin, "tool-b"))
+  linkSync(files[2], path.join(nodeModules, "pkg-hardlink.js"))
+  return { nodeModules, bin, files }
+}
