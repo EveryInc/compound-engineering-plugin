@@ -8,7 +8,7 @@ import path from "path"
 // of the plugin-facing tests see it. This guard pins the three facts the
 // AGENTS.md pointer depends on: the skill exists at the harness-neutral
 // `.agents/skills` path (which Codex and Cursor both discover), the Claude Code
-// path is a symlink to that one copy, and AGENTS.md still routes skill work to it.
+// skills folder is a symlink to `.agents/skills`, and AGENTS.md still routes skill work to it.
 
 const ROOT = process.cwd()
 const AGENTS_SKILL = path.join(ROOT, ".agents", "skills", "ce-skill-work")
@@ -30,10 +30,11 @@ describe("repo-local ce-skill-work skill", () => {
     }
   })
 
-  test("Claude Code path is a symlink to the single .agents copy", () => {
+  test(".claude/skills is a symlink to the whole .agents/skills folder", () => {
     expect(lstatSync(AGENTS_SKILL).isSymbolicLink()).toBe(false)
-    expect(lstatSync(CLAUDE_SKILL).isSymbolicLink()).toBe(true)
-    expect(readlinkSync(CLAUDE_SKILL)).toBe(path.join("..", "..", ".agents", "skills", "ce-skill-work"))
+    const claudeSkills = path.join(ROOT, ".claude", "skills")
+    expect(lstatSync(claudeSkills).isSymbolicLink()).toBe(true)
+    expect(readlinkSync(claudeSkills)).toBe(path.join("..", ".agents", "skills"))
     expect(realpathSync(CLAUDE_SKILL)).toBe(realpathSync(AGENTS_SKILL))
   })
 
@@ -50,7 +51,7 @@ describe("repo-local ce-skill-work skill", () => {
     const agents = readFileSync(path.join(ROOT, "AGENTS.md"), "utf8")
     expect(agents).toMatch(/Before creating, editing, reviewing, or acting on review feedback for anything under `skills\/\*\*`, invoke the repo-local `ce-skill-work` skill/)
     expect(agents).toContain(".agents/skills/ce-skill-work/")
-    expect(agents).toContain(".claude/skills/ce-skill-work")
+    expect(agents).toContain("`.claude/skills` is a symlink to `.agents/skills`")
     expect(agents).toMatch(/### Reviewing a skill change \(bots and humans\)/)
     expect(agents).toMatch(/A case a stated condition already covers is not a finding/)
   })
