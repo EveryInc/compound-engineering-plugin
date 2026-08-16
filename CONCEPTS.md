@@ -52,16 +52,22 @@ The methodology this project embodies: structure engineering work so each unit m
 The chained progression of Skills that carries a piece of work from strategy and ideation through brainstorm, plan, execution, and review, and closes by capturing what was learned. Each stage hands a durable artifact to the next, and research is gathered at the stage that needs it rather than re-gathered downstream.
 
 ### Visual probe
-A disposable, display-only decision sketch used during brainstorming for one shape, layout, or relationship question. The user looks at it and answers in chat. It is not a prototype, a spec, or something you click through to feel an interaction.
+A disposable, display-only decision sketch used during brainstorming for one shape, layout, or relationship question. The user looks at it and answers in chat. It is not a prototype or a spec: a decision a rough sketch cannot settle — anything turning on real finish or motion — goes to an experience prototype instead.
 
 ### Experience prototype
-A throwaway prototype of the product, built so a human can try it and decide how something should work or feel before that choice is encoded in a plan and code. How finished it gets follows the question being answered. What the user decided carries into whatever is built next. Distinct from a visual probe (inspection) and from polish (a feature that already works).
+A throwaway prototype of the product, built so a human can experience it — by driving it, or by seeing it at real finish — and decide how something should work, feel, or read before that choice is encoded in a plan and code. Modality, fidelity, and medium all follow one rule: do not fake the dimension being tested. Throwaway means unmaintained and unshipped rather than discarded — a scratch prototype is left in place as a best-effort reference for what gets built next, alongside the decisions, though an in-app overlay run is undone and leaves nothing behind. Distinct from a visual probe (rough, one decision) and from polish (a feature that already works).
 
 ### Learning
 A documented solution to a past problem — a bug fix, a convention, or a workflow pattern — stored as the unit of compounded knowledge so future work can find and reuse it. Also called a solution doc. Carries structured metadata (category, tags, problem type) for retrieval; its creation date lives in the entry, not the filename.
 
 ### Pattern doc
 Guidance generalized from several Learnings into a broader rule. Higher-leverage than any single incident-level Learning, and higher-risk when stale, because future work treats it as broadly applicable.
+
+### Knowledge track
+One of the two classifications a Learning carries, set by its problem type: the knowledge track holds guidance — conventions, workflow patterns, practices, decisions — while the bug track holds diagnosed defects. The track decides which metadata a Learning must carry and which maintenance checks apply to it; procedure-shaped checks, such as comparing a Learning against the Guidance layer, key on the knowledge track.
+
+### Guidance layer
+The agent-facing instructions an agent loads at the moment it acts — a skill's instructions, a runbook, a root instruction file. Because an agent reads it at the moment of acting, a Learning that disagrees with it is not merely stale but liable to be overridden in practice, so a contradiction there outranks ordinary staleness. Maintenance skills compare a Learning only against guidance the Learning itself names or links, resolve the disagreement by which side current code follows, and report a wrong guidance file rather than editing it.
 
 ### Explainer
 A dense, visual teaching artifact written for the developer personally — explaining a concept, a change, an idea, or a window of their own recent work — so the human keeps learning when agents do the writing. The complement of a Learning: a Learning teaches the repo's future work; an explainer teaches the human.
@@ -106,6 +112,21 @@ Liveness and progress are distinct signals, and an idle window detects only whic
 ### Cross-model pass
 An additive delegated run that sends the host workflow's review or judgment brief through a different model-provider route and folds the structured result back into the host's synthesis. It stays non-blocking when the peer cannot run, and it counts as independent corroboration only when the serving model family can be verified rather than merely requested.
 
+A peer result is usable only when it is a settled answer to the framed question — a settled Blocked verdict with its reason included. Settledness is declared by the peer in the output contract itself, never inferred from its prose; a result that satisfies the schema but is not declared final is a placeholder: it earns one bounded retry on the same route with the same target, model, and scope, inside the same time window, and if it recurs the voice is dropped with the observed reason rather than folded in as a position.
+
+### Terminalize
+The host-owned step that turns a finished external worker's working tree into one inspectable Transport commit, without requiring the worker to stage or commit.
+
+The snapshot includes committed, uncommitted, and untracked output. The worker may edit and test; the host alone creates the Transport commit and later the canonical checkout commit.
+
+### Transport commit
+A synthetic, base-parented commit the host builds from an external worker's complete final tree so the host can inspect and fold the result. It is intermediate evidence, not the canonical checkout commit, and it is never the worker's own tip.
+
+### Warm checkout
+A checkout whose git-ignored inventory already contains what the project's verification command needs to run: installed dependencies, virtualenvs, build caches. It is the normal state of a developer's canonical checkout, and it is the opposite of a fresh clone or newly added worktree, where verification cannot run until something installs those artifacts.
+
+Ignored state in a warm checkout is large, symlink-heavy, and owned by tooling the controller never ran, so any host-side guarantee about it can only be detection and disclosure, never byte-exact custody.
+
 ### Model identity receipt
 The serving backend's own report of which model actually handled a delegated run, recorded alongside the requested model so the two can disagree visibly. A run's model identity is verified only by such a receipt — never by the request parameters or the model's own text — and outputs without one are labeled as requested-but-unverified; logic that weights cross-model agreement follows the receipt, not the request.
 
@@ -148,6 +169,24 @@ A configured origin of customer or user feedback — a Slack channel, a GitHub I
 
 ### Beta skill
 A parallel copy of a stable Skill, suffixed `-beta`, used to trial a new version alongside the stable one without disrupting users. Invoked manually (model auto-invocation is disabled); promoting it to stable is more than a rename — every caller must move in the same change so none silently inherits stale defaults, and the retired beta name must be registered for stale-artifact cleanup so upgrading users don't keep a dead duplicate of the skill alongside the promoted one.
+
+### Offered work
+Work the user has put up for review, as distinct from work that merely exists in the tree or on a remote. Commits in an open pull request are offered; uncommitted edits, local commits, and commits pushed only for backup or to trigger CI are not.
+
+The distinction is what a shipping gate tests before publishing anything, and it is not the same as pushed — a push moves bytes to a remote, review is what makes work offered. Because the skill that ships pushes the whole branch and its pull request spans every commit on that branch, a gate that admits unoffered work publishes it alongside the change it was asked to ship.
+
+### Fix-owned files
+The tests and implementation a run changed to fix the bug it was invoked on, as distinct from files that were already modified when the run began.
+
+Recorded before any edit so later phases can scope to them: the commit takes fix-owned files and nothing else, and a quality pass is handed that scope explicitly rather than a branch diff, since a pass that rewrites what it is given would otherwise reach work in progress that was never offered. A fix-owned file that already carried the user's own edits cannot be separated by a file-level commit, and that entanglement is the one case the handoff stops to ask about.
+
+### Issue of record
+Whichever tracker or monitor item the user supplied as a bug's entry point, treated as that bug's canonical record regardless of which system it lives in — an error-monitor issue counts the same as a tracker ticket.
+
+Later phases link it rather than opening a second record for the same bug elsewhere, and never ask whether to. Discovering the project's own tracker serves reading prior work, not establishing a new home. An input carrying no such reference simply has none, which is an ordinary state rather than a gap to fill.
+
+### Residual
+A review finding a run accepted or deferred rather than fixed, which must reach a durable sink before the run reports itself done — a section in the pull request body, or a ticket in the project's tracker. A finding that lives only in the session is lost when the session ends, so an accepted residual blocks a merge-ready claim until it is recorded somewhere a human will find it.
 
 ## Domain vocabulary
 

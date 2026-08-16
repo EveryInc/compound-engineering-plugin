@@ -12,7 +12,7 @@ Review every candidate idea critically. Critique runs in two layers — a fresh-
 
 2. **Orchestrator arbitration.** The orchestrator makes the final cut, weighing verifier verdicts without being bound by them — overrule a verdict when evidence in context contradicts it, and say so in the rejection reason.
 
-If verifier dispatch fails (platform limits, errors), fall back to orchestrator-only filtering and note the degradation in the rejection summary.
+If verifier dispatch fails for a reason that survives correcting the invocation, fall back to orchestrator-only filtering and note the degradation in the rejection summary.
 
 Do not generate replacement ideas in this phase unless explicitly refining.
 

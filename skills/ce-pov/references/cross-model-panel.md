@@ -29,6 +29,27 @@ not present it as different-model corroboration. If the host family is unknown,
 automatic discovery excludes any candidate whose independence cannot be
 verified rather than guessing.
 
+Attest the host harness and its serving family as two separate tokens:
+
+```bash
+if [ "${CLAUDECODE:-}" = "1" ]; then XHOST_HARNESS=claude; XHOST_FAMILY=claude;
+elif [ -n "${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}" ]; then XHOST_HARNESS=codex; XHOST_FAMILY=codex;
+elif [ -n "${CURSOR_AGENT:-}${CURSOR_CONVERSATION_ID:-}" ]; then XHOST_HARNESS=cursor; XHOST_FAMILY=unknown;
+else XHOST_HARNESS=unknown; XHOST_FAMILY=unknown; fi
+```
+
+Both tokens come from the same peer-key vocabulary as the targets above, never
+from a provider's corporate name: `<host-serving-family>` (`XHOST_FAMILY`) is
+`codex`, `claude`, `grok`, `composer`, or `unknown`. `<host-harness>`
+(`XHOST_HARNESS`) is `codex`, `claude`, `grok`, `cursor`, or `unknown`. Claude
+Code maps to harness/family `claude`; Codex maps to `codex`. Cursor maps to
+harness `cursor` and family `unknown` unless an observable serving-family
+attestation lets you set `XHOST_FAMILY` to `codex`, `claude`, `grok`, or
+`composer`. Never infer serving family from the Cursor brand. Section 4 passes
+`XHOST_FAMILY` as the worker's first argument and `XHOST_HARNESS` as
+`CROSS_MODEL_HOST_HARNESS`; a provider name such as `anthropic`, `openai`, or
+`xai` in either slot fail-closes the job with no artifact.
+
 `Cursor` and `Composer` are distinct targets:
 
 - `cursor` uses `cursor-agent` with no forced model, allowing Cursor's configured
@@ -208,13 +229,12 @@ partial-panel degradation rule.
 
 Use `scripts/cross-model-pov.sh` from this skill's directory to run one resolved
 fixed route per peer, and `scripts/peer-job-runner.py` for detached lifecycle
-control. Follow the worker's current usage rather than reconstructing provider
-arguments. Pass the fixed target/route, any host-resolved same-family model
-override, the canonical scope and identity, payload path, and round output
-directory. Pass the actual repository root separately from any narrower read
-root, and pre-create the round output directory as private scratch outside the
-repository. For named peers, start one job per exact target; for a selected panel,
-start one job per selected peer. Start all jobs before waiting.
+control. Fill in the start command below rather than reconstructing the worker's
+arguments from its usage header. Pass the actual repository root separately from
+any narrower read root, and pre-create the round output directory as private
+scratch outside the repository. For named peers, start one job per exact target;
+for a selected panel, start one job per selected peer. Start all jobs before
+waiting.
 
 **At the defaults, the peer budget needs nothing from you.** This skill's worker
 self-bounds at 600s and the runner supervisor derives a floor of 1230s, so the
@@ -247,6 +267,31 @@ execution rather than presence.
 PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
 ```
 
+Start one job per peer with the command below, filling every `<...>` slot. Set
+`SKILL_DIR` to the absolute directory of **this** skill's `SKILL.md`; the Bash
+tool's CWD is the user's project on every host, not the skill directory.
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+CE_PEER_HARD_SECS= "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" start --skill ce-pov --run-id "<run-id>" --label "<target>" --result-path "<run-dir>/pov-<target>.json" -- env CROSS_MODEL_HOST_HARNESS="<host-harness>" CROSS_MODEL_REPO_ROOT="<repo-root>" CROSS_MODEL_READ_ROOT="<read-root>" CROSS_MODEL_SCRATCH_PARENT="<scratch-dir>" bash "$SKILL_DIR/scripts/cross-model-pov.sh" "<host-serving-family>" "<fixed-route>" "<payload-path>" "<run-dir>"
+```
+
+- `<host-serving-family>` is `codex`, `claude`, `grok`, `composer`, or
+  `unknown`; `<host-harness>` is `codex`, `claude`, `grok`, `cursor`, or
+  `unknown`. Both are the Section 1 attestation, not a provider name.
+- `<fixed-route>` is the sanctioned route token from Section 3's table;
+  `<target>` is its resolved target, with `grok-cli` and `grok-cursor`
+  collapsing to `grok`.
+- `<payload-path>` is this round's mode-600 payload and `<run-dir>` the
+  pre-created round output directory; `<scratch-dir>` is the Phase 1 scratch
+  root, and `<run-id>` its basename.
+- `<read-root>` is Section 2's normalized workspace root and `<repo-root>` the
+  actual repository root containing it.
+- Add `CROSS_MODEL_INCLUDE_PATHS` / `CROSS_MODEL_EXCLUDE_PATHS` only when
+  Section 2 resolved patterns, and `CROSS_MODEL_MODEL_OVERRIDE_TARGET` /
+  `CROSS_MODEL_MODEL_OVERRIDE` only for a Section 3 same-family substitution.
+
 Record every job id and the epoch after the final start. Poll all jobs in
 bounded slices (resolve `$PY` again in each tool call — shells do not persist):
 
@@ -277,10 +322,19 @@ Classify every started job from its terminal state; `done` alone does not
 prove a usable artifact exists.
 
 Read artifacts and logs only through the runner's ownership-checked `result`
-interface. Accept only schema-shaped artifacts with non-empty `position` and
-`reasoning`, a valid `movement`, and the route/model receipt tuple. Initial
-responses require `movement: initial`; reconcile responses require `moved` or
-`held` plus what changed or why the new evidence was insufficient.
+interface. Accept only schema-shaped artifacts whose `position` is a settled
+answer to the framed question, with non-empty `reasoning`, a valid `movement`,
+and the route/model receipt tuple. Settledness is the peer's own declaration
+through the schema's required `final` flag, never a reading of its prose: a
+settled `Blocked — …` verdict marked `final: true` is a usable answer, while
+any shaped artifact whose `final` is not true is a placeholder. The worker
+retries a non-final artifact once on the same route with a final-answer
+requirement, inside the same hard window, and if it recurs or no window
+remains drops the voice with `peer skip evidence: non-final position`. Should
+a non-final artifact still reach you, treat it as no usable artifact, not as a
+peer voice. Initial responses require `movement: initial`; reconcile
+responses require `moved` or `held` plus what changed or why the new evidence
+was insufficient.
 
 Attribute from the receipt, never expectation. Record target, actual
 harness/intermediary route, requested model, served model, and
@@ -362,7 +416,9 @@ note:
   add **Further rounds:** recommend a specific bounded extension with its new
   evidence path, or recommend stopping because no additional exchange is likely
   to change the result.
-- **Partial:** name surviving and dropped targets and the observed failure state.
+- **Partial:** name surviving and dropped targets and the observed failure state
+  (for example quota, authentication, timeout, or a non-final placeholder
+  position that survived the bounded retry).
 - **No survivor:** deliver the solo POV with "cross-model check unavailable or
   incomplete." When a summons was present but the panel branch never entered
   (no reachable peers, or the branch never fired), still state that panel status —

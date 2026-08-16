@@ -13,11 +13,13 @@
 # runs on ONE editorially selected model and reasoning tier per provider.
 #
 # Usage:
-#   cross-model-adversarial-review.sh <host-provider> <candidates> <base-ref> <run-dir>
+#   cross-model-adversarial-review.sh <host-serving-family> <candidates> <base-ref> <run-dir>
 #
-#   <host-provider> the peer-key of the host's OWN serving provider, attested by
-#                   the calling skill (it knows its harness): openai->codex,
-#                   anthropic->claude, xai->grok, cursor/composer->composer.
+#   <host-serving-family>
+#                   the peer-key of the host's OWN serving family, attested by
+#                   the calling skill (it knows its harness). A peer-key, never
+#                   a provider name: openai->codex, anthropic->claude,
+#                   xai->grok, cursor/composer->composer.
 #                   Excluded from selection when attested. `unknown` is allowed,
 #                   but any returned review remains non-independent and cannot
 #                   promote agreement.
@@ -69,14 +71,22 @@ skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no o
 # --- model + reasoning per provider ----------------------------------------
 # ONE editorial model/reasoning mapping per provider. Concrete IDs are the CURRENT
 # instance of the tier principle and the single maintenance point when families change.
+# A checkout may override the model (CROSS_MODEL_MODEL_OVERRIDE_TARGET +
+# CROSS_MODEL_MODEL_OVERRIDE, same target/family only) and the reasoning effort
+# (CROSS_MODEL_EFFORT_OVERRIDE, validated per route); both fail closed.
 # Keep these in sync with ce-doc-review's script (parity-tested in CI).
+# codex: luna/xhigh is the benchmarked pick on API dollars (~0.30x sol-medium, tied
+# detection, slower tail) -- docs/solutions/skill-design/benchmark-review-peer-model-and-reasoning-tier.md
 M_CODEX="gpt-5.6-luna"         # codex CLI            (-c model_reasoning_effort="xhigh")
-M_CLAUDE="opus"                # claude CLI, Opus 4.8 (--effort high)
-M_GROK="grok-4.5"              # grok CLI             (--effort high)
-M_GROK_CURSOR="cursor-grok-4.5-high"  # fixed cursor-agent Grok route (current id)
+M_CLAUDE="claude-opus-5"       # claude CLI, Opus 5   (--effort high)
+M_GROK="grok-4.6"              # grok CLI             (--effort high)
+M_GROK_CURSOR="cursor-grok-4.6-high"  # fixed cursor-agent Grok route (current id)
 M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is the ceiling)
 
-route_effort() {
+route_effort() {   # <route> -> requested effort: the override where the route takes one, else editorial
+  if [ -n "${CROSS_MODEL_EFFORT_OVERRIDE:-}" ]; then
+    case "$1" in codex|claude|grok-cli) printf '%s' "$CROSS_MODEL_EFFORT_OVERRIDE"; return 0 ;; esac
+  fi
   case "$1" in
     codex) printf 'xhigh' ;;
     claude|grok-cli) printf 'high' ;;
@@ -97,15 +107,19 @@ route_receipt_supported() {
 # "Which model ran" is a claim that needs a serving-side receipt. Only the
 # claude CLI reports one today: its JSON envelope carries a modelUsage object
 # keyed by the full dated id that actually served the run. Match requested vs
-# actual by expected full-family prefix (alias -> dated id counts as a match;
-# never substring). Every other route records the literal "unverified" — never
-# a fallback to the requested value. Keep this block byte-identical across
+# actual by expected family prefix, delimited on "-": the served id must equal
+# the prefix or continue it with "-" (alias or undated id -> dated id counts
+# as a match; a longer sibling such as claude-opus-50-* does not; never
+# substring). Every other route records the literal
+# "unverified" — never a fallback to the requested value. Keep this block byte-identical across
 # ce-code-review and ce-doc-review (kernel parity).
-expected_model_prefix() {   # <requested-alias> -> expected served-id prefix
+expected_model_prefix() {   # <requested-alias-or-id> -> expected served-id family prefix
   case "$1" in
-    opus)   printf 'claude-opus-' ;;
-    sonnet) printf 'claude-sonnet-' ;;
-    haiku)  printf 'claude-haiku-' ;;
+    fable)    printf 'claude-fable' ;;
+    opus)     printf 'claude-opus' ;;
+    sonnet)   printf 'claude-sonnet' ;;
+    haiku)    printf 'claude-haiku' ;;
+    claude-*) printf '%s' "$1" ;;
   esac
 }
 
@@ -170,12 +184,13 @@ extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODE
   # requested value).
   matched=""
   if [ -n "$prefix" ]; then
-    # first modelUsage key matching the expected family prefix (jq-native, no
-    # external `head`: the route sandbox may not carry coreutils on PATH).
+    # first modelUsage key equal to, or delimited under, the expected prefix
+    # (jq-native, no external `head`: the route sandbox may not carry coreutils
+    # on PATH).
     if [ -n "$envelope" ]; then
-      matched="$(printf '%s' "$envelope" | jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(startswith($p)))) // empty' 2>/dev/null)"
+      matched="$(printf '%s' "$envelope" | jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(. == $p or startswith($p + "-")))) // empty' 2>/dev/null)"
     else
-      matched="$(jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(startswith($p)))) // empty' "$PEERLOG" 2>/dev/null)"
+      matched="$(jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(. == $p or startswith($p + "-")))) // empty' "$PEERLOG" 2>/dev/null)"
     fi
   fi
   if [ -n "$matched" ]; then
@@ -206,7 +221,7 @@ adapter_argv() {
   case "$1" in
     codex)
       printf '%s\0' codex exec - -C "$PEER_WORKDIR" --skip-git-repo-check -s read-only --json \
-        -o "$RAW_OUT" -m "$(route_model codex)" -c 'model_reasoning_effort="xhigh"' -c 'hide_agent_reasoning=false'
+        -o "$RAW_OUT" -m "$(route_model codex)" -c "model_reasoning_effort=\"$(route_effort codex)\"" -c 'hide_agent_reasoning=false'
       ;;
     claude)
       # Read allowed for surrounding context; mutators / shell / subagents / MCP /
@@ -215,7 +230,7 @@ adapter_argv() {
       # pass is in-tree by design.
       # stream-json + --verbose: PEERLOG grows mid-run so run_timeout_cmd idle
       # detection works; --json-schema still composes (#1270 measurement).
-      printf '%s\0' claude -p --model "$(route_model claude)" --effort high --permission-mode dontAsk
+      printf '%s\0' claude -p --model "$(route_model claude)" --effort "$(route_effort claude)" --permission-mode dontAsk
       [ -z "${LARGE_DIFF_CONTEXT_DIR:-}" ] || printf '%s\0' --add-dir "$LARGE_DIFF_CONTEXT_DIR"
       printf '%s\0' --disallowedTools Edit Write NotebookEdit Bash Task WebFetch WebSearch Skill 'mcp__*' \
         --max-turns "$PEER_MAX_TURNS" --no-session-persistence --json-schema "$SCHEMA_REF" \
@@ -226,7 +241,7 @@ adapter_argv() {
       # Schema forces non-streaming json on grok — keep hard-only (no PEERLOG idle).
       # --verbatim: without it grok offloads a large prompt to a session file and
       # sends only a preview, spending scarce turns to re-read what it was given.
-      printf '%s\0' grok --prompt-file "$PROMPT_FILE" --verbatim --model "$(route_model grok-cli)" --effort high \
+      printf '%s\0' grok --prompt-file "$PROMPT_FILE" --verbatim --model "$(route_model grok-cli)" --effort "$(route_effort grok-cli)" \
         --cwd "$PEER_WORKDIR" --permission-mode dontAsk
       [ -z "${LARGE_DIFF_CONTEXT_DIR:-}" ] || printf '%s\0' --allow "Read($LARGE_DIFF_CONTEXT_DIR/**)"
       printf '%s\0' --deny Edit --deny Write --deny Bash --deny Task --deny 'mcp__*' \
@@ -266,7 +281,23 @@ validate_model_override() {
   [ "$override_target" = "$target" ] || return 0
   [ "$target" != "cursor" ] || return 1
   case "$route:$override" in
-    codex:gpt-*|codex:o[0-9]*|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|composer:composer-*) ;;
+    codex:gpt-*|codex:o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|composer:composer-*) ;;
+    *) return 1 ;;
+  esac
+}
+
+# Accept an effort override only where the route exposes an effort flag and the
+# value is one that CLI documents (claude: low|medium|high|xhigh|max; codex
+# model_reasoning_effort: minimal|low|medium|high|xhigh; grok: low|medium|high).
+# cursor-agent routes imply effort in the model id, so any override there is
+# invalid for the route rather than silently dropped. Empty means "no override".
+validate_effort_override() {
+  local route="$1" effort="${CROSS_MODEL_EFFORT_OVERRIDE:-}"
+  [ -n "$effort" ] || return 0
+  case "$route:$effort" in
+    claude:low|claude:medium|claude:high|claude:xhigh|claude:max) ;;
+    codex:minimal|codex:low|codex:medium|codex:high|codex:xhigh) ;;
+    grok-cli:low|grok-cli:medium|grok-cli:high) ;;
     *) return 1 ;;
   esac
 }
@@ -279,6 +310,7 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   PROMPT_FILE="<prompt-file>"; SCHEMA_REF="<schema>"
   route="${2:-}"
   validate_model_override "$route" 2>/dev/null || { echo "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
+  validate_effort_override "$route" 2>/dev/null || { echo "effort override '${CROSS_MODEL_EFFORT_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
   adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer)" >&2; exit 2; }
   adapter_argv "$route" | tr '\0' ' '; echo
   exit 0
@@ -338,6 +370,18 @@ out_missing_or_invalid() {
 # does not sanction Cursor must not fall through grok -> cursor-agent.
 cursor_egress_ok() { [ -z "$ALLOW" ] || in_csv cursor "$ALLOW" || in_csv composer "$ALLOW"; }
 
+# The Codex desktop app (Codex.app, or ChatGPT.app since the July 2026 merger)
+# ships `codex` at Contents/Resources without linking it onto PATH (#1272).
+# Append, never prepend, so a PATH-installed CLI stays authoritative.
+# CROSS_MODEL_CODEX_APP_DIRS (colon-separated) overrides the probed dirs.
+if ! command -v codex >/dev/null 2>&1; then
+  OLDIFS="$IFS"; IFS=':'
+  for d in ${CROSS_MODEL_CODEX_APP_DIRS-"${HOME:-}/Applications/ChatGPT.app/Contents/Resources:/Applications/ChatGPT.app/Contents/Resources:${HOME:-}/Applications/Codex.app/Contents/Resources:/Applications/Codex.app/Contents/Resources"}; do
+    if [ -n "$d" ] && [ -x "$d/codex" ]; then PATH="${PATH:+$PATH:}$d"; export PATH; break; fi
+  done
+  IFS="$OLDIFS"
+fi
+
 provider_available() {
   case "$1" in
     codex)    command -v codex >/dev/null 2>&1 ;;
@@ -365,7 +409,7 @@ IFS="$OLDIFS"
 SELECTED="$(printf '%s' "$SELECTED" | sed 's/^ *//')"
 
 [ "$MAX_PEERS" -ge 1 ] || skip "CROSS_MODEL_MAX_PEERS=0; cross-model pass disabled"
-[ -n "$SELECTED" ] || skip "no different-provider peer reachable (host=$HOST_PROVIDER, candidates='$CANDIDATES'); skipping"
+[ -n "$SELECTED" ] || skip "no different-provider peer reachable (host=$HOST_PROVIDER, candidates='$CANDIDATES'); the pass needs a peer agent CLI on PATH (codex, claude, grok, or cursor-agent), not an API key alone; skipping"
 log "reachable cross-model candidates for adversarial: $SELECTED (host $HOST_PROVIDER excluded; up to $MAX_PEERS successful peer(s))"
 
 first_n() {
@@ -800,8 +844,7 @@ attempt_route() {
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT"
   build_cmd "$route"
   case "$route" in
-    codex)                  note="$(route_model "$route") (effort xhigh)" ;;
-    claude|grok-cli)        note="$(route_model "$route") (effort high)" ;;
+    codex|claude|grok-cli) note="$(route_model "$route") (effort $(route_effort "$route"))" ;;
     grok-cursor|composer)  note="$(route_model "$route")" ;;
     cursor)                note="auto (serving model unverified)" ;;
   esac
@@ -855,6 +898,7 @@ run_provider() {
   fi
   primary="$fixed"
   validate_model_override "$primary" || { log "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$primary'; skipping"; rm -f "$OUT"; return 0; }
+  validate_effort_override "$primary" || { log "effort override '${CROSS_MODEL_EFFORT_OVERRIDE:-}' not compatible with route '$primary'; skipping"; rm -f "$OUT"; return 0; }
   ACTUAL_ROUTE="$primary"
   attempt_route "$provider" "$primary"
 
@@ -908,14 +952,11 @@ run_provider() {
     log "wrote $n finding(s) to $OUT (reviewer adversarial-$provider)"
   else
     log "provider $provider produced no usable schema-shaped output; skipping fold-in"
-    # Surface bounded peer output so the orchestrator can
-    # reason about WHY it was skipped (quota/usage-limit exhaustion vs an ordinary
-    # empty review) and, in a repeated-pass session, deprioritize an exhausted
-    # route. Harness-agnostic: the agent classifies from the text; this only makes
-    # the evidence visible in out.log. Surface BOTH streams -- the error can be on
-    # stdout (grok's 402) or stderr (claude/cursor auth/quota). Bash builtins only
-    # (the route sandbox has no tail/tr). Prefer structured error fields because
-    # a raw tail can discard the actionable message in a large CLI envelope.
+    # Surface bounded peer output so the orchestrator can reason about WHY it
+    # was skipped (quota/usage-limit exhaustion vs an ordinary empty review).
+    # Prefer structured error fields because a raw tail can discard the
+    # actionable message in a large CLI envelope. Surface BOTH streams -- the
+    # error can be on stdout (grok's 402) or stderr (claude/cursor auth/quota).
     if [ -s "$PEERLOG" ]; then
       _pt="$(bounded_failure_evidence "$PEERLOG")"
       log "  peer skip evidence: $_pt"

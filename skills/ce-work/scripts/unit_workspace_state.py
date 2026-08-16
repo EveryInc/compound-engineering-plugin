@@ -39,11 +39,6 @@ OWNER_SCRATCH_ROOT = (
     if _EFFECTIVE_UID is not None
     else None
 )
-DEFAULT_RUNS_ROOT = (
-    os.path.join(OWNER_SCRATCH_ROOT, "ce-work")
-    if OWNER_SCRATCH_ROOT is not None
-    else None
-)
 MAX_JSON_BYTES = 2 * 1024 * 1024
 MAX_PACKET_BYTES = 200_000
 SAFE_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
@@ -97,6 +92,43 @@ def test_fault(point: str) -> None:
         raise Operational("INTERRUPTED", f"injected test interruption at {point}")
 
 
+def _private_root_usable(path: str) -> bool:
+    """True when `path` is (or can now be) a directory we own and can write into.
+
+    Creation is the probe: a sandbox that denies writes under /tmp refuses the
+    mkdir, and one that lets a pre-existing root stand still fails the access
+    check, so both land on the fallback instead of failing at the first run.
+    """
+    try:
+        os.mkdir(path, 0o700)
+    except FileExistsError:
+        pass
+    except OSError:
+        return False
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    if not stat.S_ISDIR(st.st_mode):
+        return False
+    if _EFFECTIVE_UID is not None and st.st_uid != _EFFECTIVE_UID:
+        return False
+    return os.access(path, os.W_OK)
+
+
+def _fallback_scratch_root() -> str:
+    return os.path.join(os.environ.get("TMPDIR") or "/tmp", f"compound-engineering-{_EFFECTIVE_UID}")
+
+
+def owner_scratch_root() -> str:
+    """The owner-private scratch root, in the same candidate order as the skills' shell preamble."""
+    if OWNER_SCRATCH_ROOT is None:
+        raise TrustFailure("effective user ID is unavailable; cannot derive the runs root")
+    if _private_root_usable(OWNER_SCRATCH_ROOT):
+        return OWNER_SCRATCH_ROOT
+    return _fallback_scratch_root()
+
+
 def runs_root() -> str:
     configured = os.environ.get("CE_WORK_RUNS_ROOT")
     if configured:
@@ -104,9 +136,7 @@ def runs_root() -> str:
     peer_root = os.environ.get("CE_PEER_JOBS_ROOT")
     if peer_root:
         return os.path.join(os.path.abspath(peer_root), "ce-work")
-    if DEFAULT_RUNS_ROOT is None:
-        raise TrustFailure("effective user ID is unavailable; cannot derive the runs root")
-    return DEFAULT_RUNS_ROOT
+    return os.path.join(owner_scratch_root(), "ce-work")
 
 
 def safe_id(value: str, label: str) -> str:
@@ -259,8 +289,14 @@ def ensure_private_dir(path: str) -> None:
 def _owner_root_for_runs(root: str) -> str | None:
     if OWNER_SCRATCH_ROOT is None:
         return None
-    owner_root = os.path.abspath(OWNER_SCRATCH_ROOT)
-    return owner_root if os.path.commonpath([owner_root, os.path.abspath(root)]) == owner_root else None
+    for candidate in (OWNER_SCRATCH_ROOT, _fallback_scratch_root()):
+        owner_root = os.path.abspath(candidate)
+        try:
+            if os.path.commonpath([owner_root, os.path.abspath(root)]) == owner_root:
+                return owner_root
+        except ValueError:  # different drives on Windows: not under this candidate
+            continue
+    return None
 
 
 def _ensure_owner_scratch_root(path: str) -> None:
@@ -288,7 +324,12 @@ def _ensure_owner_scratch_root(path: str) -> None:
 
 
 def ensure_root() -> str:
-    root = runs_root()
+    return ensure_runs_root(runs_root())
+
+
+def ensure_runs_root(root: str) -> str:
+    """Create or verify one runs root (the creation root, or the other candidate
+    root an existing run was found under) and its private lock directory."""
     owner_root = _owner_root_for_runs(root)
     if owner_root is not None:
         _ensure_owner_scratch_root(owner_root)
@@ -396,15 +437,39 @@ def atomic_private_json(path: str, doc: dict) -> None:
         raise
 
 
+def candidate_runs_roots() -> list:
+    """Every root an existing run may live under (configured root alone, or the
+    /tmp root and the $TMPDIR fallback, primary first). Creation uses runs_root();
+    lookup must not depend on which root this invocation would create under."""
+    configured = os.environ.get("CE_WORK_RUNS_ROOT")
+    if configured:
+        return [os.path.abspath(configured)]
+    peer_root = os.environ.get("CE_PEER_JOBS_ROOT")
+    if peer_root:
+        return [os.path.join(os.path.abspath(peer_root), "ce-work")]
+    if OWNER_SCRATCH_ROOT is None:
+        raise TrustFailure("effective user ID is unavailable; cannot derive the runs root")
+    roots = [os.path.join(os.path.abspath(OWNER_SCRATCH_ROOT), "ce-work")]
+    fallback = os.path.join(os.path.abspath(_fallback_scratch_root()), "ce-work")
+    if fallback not in roots:
+        roots.append(fallback)
+    return roots
+
+
 def run_dir(run_id: str) -> str:
-    return os.path.join(runs_root(), safe_id(run_id, "run id"))
+    rid = safe_id(run_id, "run id")
+    for root in candidate_runs_roots():
+        existing = os.path.join(root, rid)
+        if os.path.isdir(existing) and not os.path.islink(existing):
+            return existing
+    return os.path.join(runs_root(), rid)
 
 
 @contextlib.contextmanager
 def locked_manifest(run_id: str, write: bool = False):
     run_id = safe_id(run_id, "run id")
-    root = ensure_root()
-    rd = os.path.join(root, run_id)
+    rd = run_dir(run_id)
+    ensure_runs_root(os.path.dirname(rd))
     validate_private_dir(rd)
     lock_path = os.path.join(rd, "manifest.lock")
     try:
@@ -689,7 +754,7 @@ def event(doc: dict, kind: str, unit_id: str | None = None, detail: dict | None 
 
 
 def cmd_init(args) -> tuple[str, dict]:
-    root = ensure_root()
+    ensure_root()
     rid = safe_id(args.run_id, "run id")
     info = repo_info(args.repo)
     if args.plan:
@@ -726,13 +791,7 @@ def cmd_init(args) -> tuple[str, dict]:
     binding = parse_json_arg(args.binding_json, "binding")
     egress = parse_json_arg(args.egress_json, "egress")
     fixed_route_contract(binding, egress, "REFUSED")
-    rd = os.path.join(root, rid)
-    if not os.path.lexists(rd):
-        # A capability refusal must happen before READY closes route selection.
-        # prepare repeats this probe because ignored inventory can change later.
-        from unit_workspace_ignored import require_ignored_snapshot_capability
-
-        require_ignored_snapshot_capability(info["toplevel"])
+    rd = run_dir(rid)
     try:
         os.mkdir(rd, 0o700)
     except FileExistsError:

@@ -76,11 +76,20 @@ Document review inverts all three:
 2. **Doc review is low-frequency and private.** One review per plan, not per PR. Surfaced findings are dismissed with a keystroke via the routing menu; they are not public commentary.
 3. **Premise claims have a natural confidence ceiling.** "Is the motivation valid?" and "does this scope match the goal?" cannot be verified against ground truth. Personas working in strategy, premise, and adversarial domains (product-lens, adversarial) legitimately cap at anchors 50-75 because full verification is not possible from document text alone. A `>= 80` filter would silence those personas.
 
-Filter at `>= 50` for doc review; let the routing menu handle volume. Dismissing a surfaced finding is cheap; missing a real concern is expensive.
+Filter at `>= 50` for doc review; missing a real concern is expensive.
+
+> **Correction (2026-08-13).** This section originally continued "let the routing menu handle volume.
+> Dismissing a surfaced finding is cheap." **The second half was wrong, and it is the assumption that
+> produced a 34-finding review no human would read.** Dismissing one finding is cheap; being asked
+> thirty times is not, because the cost is not per-keystroke — it is the reader holding thirty open
+> questions at once and losing track of which ones mattered. A permissive gate is only safe when
+> something downstream converts volume into few decisions. The threshold itself survives: the fix was
+> to batch settled corrections into one grouped confirmation, so a low gate feeds a short question
+> list rather than a long menu. Keep `>= 50`; do not keep the reasoning that the menu absorbs volume.
 
 ## When to port this pattern
 
-- Other persona-based review skills with similar economics (no linter backstop, one-shot consumption, dismissal cheap via routing). Default threshold for such skills: `>= 50`.
+- Other persona-based review skills with similar economics (no linter backstop, one-shot consumption) **that batch settled items rather than asking per finding**. Default threshold for such skills: `>= 50`. Without the batching, a low gate hands the reader every finding individually — see the correction above.
 - Any scoring workflow where the model is asked to self-report confidence on a continuous scale and clustering on round numbers is observed.
 
 ## When NOT to port directly
@@ -189,7 +198,7 @@ Apply the full bundle (anchored rubric + validation pass + mode-aware demotion +
 3. The skill is invoked frequently enough that wasted runs are visible (skip-conditions are pure win in this case; modest cost in low-volume cases).
 
 Apply only the **anchored rubric** (the ce-doc-review subset) when:
-- The skill is single-shot or dismissal is cheap via UI/menu — validation pass adds cost without protecting anything that wasn't already going to be triaged by a human.
+- The skill is single-shot, or a human triages every finding before anything acts on it — a validation pass adds cost without protecting anything that was not already going to be reviewed. (This condition used to read "dismissal is cheap via UI/menu"; see the correction above — a menu offering Skip does not make a surfaced finding cheap.)
 - The skill operates on premise/strategy claims that lack ground-truth verification — anchor 100 is unreachable; threshold should be `>= 50`.
 
 Skip the entire pattern when:

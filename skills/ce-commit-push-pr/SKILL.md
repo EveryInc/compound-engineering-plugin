@@ -18,7 +18,7 @@ argument-hint: "[PR ref] [mode:pipeline] [archive:on|off] [branding:on|off] [bab
 
 ## Stack mode (opt-in)
 
-**Opt-in only.** Enter stack mode when user intent or standing preference wants a multi-PR stack. Prefer intent over keyword matching. **Do not** proactively suggest PR stacks. **Refuse** nonsense stacks (one logical change, artificial slices) and stay on the single-PR path.
+**Opt-in only.** Enter stack mode when user intent or standing preference wants a multi-PR stack. An explicit stack request is **required intent** — do not re-read it as a single PR with a custom `--base`. **Do not** proactively suggest PR stacks. When the user did **not** ask for one, **refuse** nonsense stacks (one logical change, artificial slices) and stay on the single-PR path.
 
 When stack mode is active, load `references/stack-submit.md` **before Step 3**. At this point follow only its Probe, Topology, and, when needed, Retrospective construction sections; do not submit. When that reference constructs a retrospective stack, its layer-by-layer commit flow replaces ordinary Step 3. Step 5 exclusively owns stack submission and the reference's post-submit metadata route for PRs created in this run. Soft-depend on `gh stack` CLI only. On missing/unavailable CLI: required stack intent → hard-stop with residual; soft intent → residual + ordinary single-PR create.
 
@@ -86,14 +86,16 @@ If on the default branch, branch creation needs to handle stale local `<base>`, 
 
 Scan changed files for naturally distinct concerns. If they clearly group into separate logical changes, create separate commits (2-3 max). Group at file level only — no `git add -p`. When ambiguous, one commit is fine.
 
-Stage and commit each group. **Avoid `git add -A` and `git add .`** — they sweep in `.env`, build artifacts, and generated files:
+Stage and commit each group. **Avoid `git add -A` and `git add .`** — they sweep in `.env`, build artifacts, and generated files. **Honor `exclude:<paths>` when the invocation carries it:** a caller names files that must stay uncommitted (typically a user's own in-progress edits it could not separate from its work); never stage or commit them, and say in the report that they were left out. When a plan Implementation Unit ID is already in hand for this commit (conversation, caller, or the files belong to one unit), append that unit's U-ID in parentheses — `(U3)` means unit 3. Do not hunt for a plan. Omit when the commit spans units, the unit is unclear, or no plan is in hand.
 
 ```bash
 git add file1 file2 file3 && git commit -m "$(cat <<'EOF'
 commit message here
 EOF
-)"
+)" -- file1 file2 file3
 ```
+
+The trailing path list on `git commit` is load-bearing: a bare `git commit` takes the whole index, so anything already staged before this run (a caller's `exclude:` paths, or work the user staged and did not name) would ride into the commit. Naming the paths commits exactly the group and leaves other index entries alone.
 
 Then push. Immediately before pushing, re-confirm you are on the intended feature branch (`git branch --show-current`) — the branch gathered in Context is a hint, and Step 1 may have created or switched branches since. Push the live `HEAD` so it reflects the current checkout, never a stale branch name:
 

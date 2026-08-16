@@ -259,6 +259,11 @@ describe("ce-work cross-model engine contract", () => {
     expect(worker).toContain("complete Git delta")
     expect(worker).toContain("disposable artifacts created by your own checks")
     expect(worker).toContain("every remaining changed path")
+    expect(worker).not.toContain("make intermediate commits")
+    expect(worker).toContain("`git add`")
+    expect(worker).toContain("`git commit`")
+    expect(worker).toContain("Leave the completed working tree uncommitted")
+    expect(worker).toContain("host snapshots the tree")
     for (const dispatchPolicy of ["recipient", "model", "harness", "intermediary", "retry", "route", "additional workers"]) {
       expect(worker.toLowerCase()).not.toContain(dispatchPolicy)
     }
@@ -304,6 +309,17 @@ describe("ce-work cross-model engine contract", () => {
     expect(engineGate).toContain("external cross-model controller")
     expect(protocol).toContain("isolated transport commit")
     expect(protocol).toContain("host-only canonical")
+    expect(protocol).not.toContain("An external worker may edit and commit only")
+    expect(protocol).not.toContain("unless that adapter's sandbox can write")
+    expect(protocol).toContain("`git add`")
+    expect(protocol).toContain("`git commit`")
+    expect(protocol).toContain("Git admin dir")
+    expect(protocol).toContain("workspace-write")
+    expect(protocol).toContain("--sandbox enabled")
+    expect(protocol).toContain("never required")
+    expect(protocol).toContain("Leave the completed working tree uncommitted")
+    expect(engineGate).toContain("An external cross-model worker also must not run `git add`")
+    expect(engineGate).toContain("Leave its working tree uncommitted")
     for (const forbiddenAuthority of ["canonical commit", "push", "PR", "shipping", "recipient-switch"]) {
       expect(protocol).toContain(forbiddenAuthority)
     }
@@ -382,7 +398,10 @@ describe("ce-work cross-model engine contract", () => {
     expect(serial).toContain("<controller-result-dir>/implementation-result.json")
     expect(serial).toContain("Do not pre-create the run directory")
     expect(serial).toContain("`git -C <canonical-checkout>`")
-    expect(serial).toContain("new verification artifacts")
+    expect(serial).toContain("Any change to tracked state")
+    expect(serial).toContain("`ignored_state`")
+    expect(serial).toContain("never copies, restores, or deletes ignored files")
+    expect(serial).not.toContain("exact-snapshot")
     expect(serial).toContain("authoritative command's exit status")
     expect(serial).toContain("never infer a pass from stdout")
     expect(serial).toContain("`run_id`, `unit_id`, and `attempt_id`")
@@ -430,7 +449,7 @@ describe("ce-work cross-model engine contract", () => {
     expect(serial).toContain("restore")
     expect(serial).toContain("before fallback, retry, or another unit")
     expect(serial).toContain("plan-wide Verification Contract gates")
-    expect(serial).toContain("restores verification-created canonical artifacts")
+    expect(serial).toContain("restores tracked state to the exact starting snapshot")
     expect(serial.indexOf("integration-acquire")).toBeLessThan(serial.indexOf("git cherry-pick --no-commit"))
     expect(serial.indexOf("mark-verified")).toBeLessThan(serial.indexOf("mark-committed"))
   })
@@ -530,7 +549,7 @@ describe("ce-work cross-model engine contract", () => {
     expect(evalPack).toContain("Change")
     expect(evalPack).toContain("Verify")
     expect(evalPack).toContain("Consider")
-    for (let fixture = 1; fixture <= 39; fixture += 1) {
+    for (let fixture = 1; fixture <= 40; fixture += 1) {
       expect(evalPack).toContain(`E${fixture} `)
     }
     for (const seam of [
@@ -565,6 +584,7 @@ describe("ce-work cross-model engine contract", () => {
       "sibling-clone recovery isolation",
       "plugin-bundled reference load",
       "incremental idle window",
+      "sandboxed worker no-commit",
     ]) {
       expect(evalPack).toContain(seam)
     }

@@ -9,9 +9,9 @@ duplicated into the question so modal dialogs are decidable), the batch report t
 (`references/bulk-preview.md`), and the Open Questions entry a Defer persists into the document
 (`references/open-questions-defer.md`). Each surface keeps its own layout and maps that layout onto the
 rules below; the rules themselves do not vary by surface. The token policy applies to every surface; the
-full decision-first field order applies to the surfaces that render an actionable finding (a persisted
-Open Questions entry is a concern, not an actionable finding, so it takes the token policy and
-consequence-first phrasing only). The walkthrough question string is derived from the terminal block
+full decision-first field order applies to the surfaces that render an actionable finding. A persisted
+Open Questions entry is a concern and an obligation block is an already-entailed correction; neither is
+an actionable finding, so both take the token policy and consequence-first phrasing only. The walkthrough question string is derived from the terminal block
 and inherits this floor's opaque-token policy and two-anchor budget; it must not invent a denser second
 narrative.
 
@@ -28,9 +28,15 @@ depth, and every distinct consequence, qualification, or required action.
 
 ## Decision-first field order
 
-Every actionable finding carries these fields, and each surface makes them decision-first in its own
-idiom rather than reproducing the exact label sequence. The invariant both share: the **consequence is
-legible up front with no opaque token**, and the **recommendation is unmistakably marked**. Concretely:
+**Scope: this applies to a finding the reader is being asked about — a decision, or a member of a
+grouped confirmation. It does not apply to a reported change**, which carries no recommendation because
+there is nothing to recommend; see "Reporting versus asking" below, which governs that case and wins
+where the two appear to conflict.
+
+Every finding the reader is asked about carries these fields, and each surface makes them decision-first
+in its own idiom rather than reproducing the exact label sequence. The invariant both share: the
+**consequence is legible up front with no opaque token**, and the **recommendation is unmistakably
+marked**. Concretely:
 the **non-interactive envelope** prints them as explicit labeled lines; the **walkthrough block** leads with a
 consequence-phrased title, then What's-wrong / Proposed-fix / If-left-as-is, and marks the recommendation
 on its question options; the **walkthrough question string** duplicates those three compact fields so a
@@ -56,6 +62,68 @@ the four field labels verbatim.
    Moving this cost onto the reader, who has less context than the review did, is the failure this
    floor exists to prevent.
 
+## Reporting versus asking
+
+Three surfaces exist and they are different speech acts. A reader must be able to tell them apart at a
+glance, without tracking which header they scrolled past. Give each its own grammar:
+
+- **A report** — a change already applied. Settled tense, no recommendation field, no offered actions.
+  The reader's job is to notice, and to revert if they disagree. Never phrase a report as a question.
+- **A grouped confirmation** — a batch that applies on one answer. Render every member in full *before*
+  the question; a confirmation with nothing visible above it is a rubber stamp, not a decision. Shape it
+  per "Presenting a batch" below.
+- **A question** — a genuine fork. Carries its options and names what differs between them. **A question
+  offering one option is a report wearing a question mark**; if there is only one thing to do, report it.
+
+The summary line follows the same split: count changes made and choices requested separately, and never
+describe an item as awaiting the reader when none is. "N proposed fixes remain" beside "no decisions
+requiring judgment" is the contradiction this rule exists to prevent.
+
+## Presenting a batch
+
+A grouped confirmation lets the reader answer once instead of N times. That only pays off if they can
+also *understand* it once. A batch rendered as N independent entries costs exactly what N questions cost
+to read — the volume moved, the comprehension did not.
+
+So lead with what the batch does, then put the members under it:
+
+- **Open with the shape of the batch, not a count.** One or two sentences naming what is about to change
+  in the document. "Six fixes, all replacing the old tier names with the routes that replaced them" tells
+  the reader what they are approving. "6 proposed fixes" tells them only how much scrolling is left.
+- **Group members by what they share, and head each group with the consequence they share.** The axis
+  that helps is almost always *the change*: one root cause, one kind of edit, one section. Severity and
+  reviewer are review-internal bookkeeping — they sort the list without helping anyone decide.
+- **Every member still appears** under its group, rendered per this floor. Grouping reorganizes; it never
+  hides. A member the reader cannot see is one they cannot exclude.
+- **Do not manufacture structure.** Findings that share nothing stand alone, and a batch with no theme
+  worth naming is just a short list. An invented grouping is worse than none: it asserts a relationship
+  the reader will then act on.
+
+You are the only layer that can do this. You hold every finding at once; the reader holds none of them
+and has not read the document as closely as the reviewers did. Finding the two or three real themes in a
+batch of eleven is the work this step exists to do.
+
+The same shape applies wherever a set of findings is rendered together — the batch table, the
+non-interactive envelope's proposed-fixes section, the bulk preview. A flat list is the failure mode
+each of those inherits by default.
+
+## Obligation blocks
+
+An **obligation** (synthesis step 3.7) is a correction the reviewed document already entails *and for
+which a fix exists* — one with no fix written stays a decision, since the line below has no change to
+name. It carries no recommendation, because there is no decision to make — so it takes the token policy and
+consequence-first phrasing, and **not** the full field order above. This is the same treatment a
+persisted Open Questions entry gets, and for the same reason.
+
+An obligation renders as a single line: the consequence, then the change as intent. It is grouped under
+the part of the document it affects: the implementation unit when the document has units, and otherwise
+the section that carries the decision it follows from — a requirements-shaped document has no units, and
+an obligation there still needs a home rather than being dropped or filed under a unit that does not
+exist. Whichever it is, that name is the only navigation anchor the group needs — do not repeat it per
+line. The group's opaque-anchor budget is **two per line**, unchanged; grouping does
+not license a denser block. Anything beyond the change belongs in the on-request trace, exactly as for an
+actionable finding.
+
 ## Opaque-token policy (domain-agnostic, by function)
 
 An **opaque token** is any token the reader would have to open the document, the issue tracker, or the
@@ -77,12 +145,23 @@ never by a product-specific vocabulary list:
   with raw symbols the reader cannot evaluate.
 
 **Anchor budget:** at most **two** opaque anchors in the default block. The rest are not deleted — they
-live in the on-request trace. Resolve every handle from the document already in context; the finding's
-fields carry the bare token and do not supply the handle. Re-resolve at render time so the handle stays
-accurate after an Apply has edited or renumbered the item it names. If the referenced section is no
-longer in context — a long render pass may have pushed it out — re-read it before rendering rather than
-emitting a bare identifier. Universally understood section names (`Requirements`, `Open Questions`) are
-not opaque and need no handle.
+live in the on-request trace. Universally understood section names (`Requirements`, `Open Questions`)
+are not opaque and need no handle.
+
+**The handle arrives with the finding; rendering does not reconstruct it.** The reviewer that raised the
+finding had the document open and knew what `U1` was at no cost, so it writes the handle into the
+finding's own fields (see `references/subagent-template.md`). Render what the finding gives you.
+
+This is deliberate placement, not a detail. Rendering happens after a long dispatch has filled the
+context with reviewer returns, and asking it to re-derive fifteen handles from a document it may no
+longer hold is asking the layer that lost the information to reconstruct it. That is why bare
+identifiers survive into output even with this rule in force.
+
+Two consequences follow. **Never emit a bare identifier** — if a finding arrives without a handle, look
+it up in the document before rendering rather than passing the bare token through, and treat that as a
+defect in the reviewer's output rather than the normal path. And **re-resolve a handle at render time
+only when an Apply has renumbered or renamed the item it names**, so a stale handle does not outlive the
+edit that moved it.
 
 ## Code-span and block budget
 

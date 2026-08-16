@@ -1,10 +1,12 @@
 # `ce-polish`
 
-> Start the dev server, open the feature in a browser, and iterate together — you say what feels off, fixes happen.
+> Start the dev server, open the feature in a browser, and iterate together. You say what feels off; fixes land on the running page.
 
-`ce-polish` is the **conversational UX polish** skill. It auto-detects your dev-server setup (or reads `.claude/launch.json`), starts the server in the background, opens the feature in a browser via your IDE's preferred mechanism, and then enters a tight iteration loop: you describe something to fix, the change lands, hot-reload picks it up, repeat until you're happy. No checklist, no envelope — just conversation paired with a running browser.
+`ce-polish` is on-demand **live UX polish** for a feature that already works. It starts the project's dev server (from `.claude/launch.json` if present, otherwise by detecting the framework), hands the URL to your IDE's browser when it can, and then waits. You use the page and name what is off. The change lands, hot-reload updates the page, and you keep going until you are done.
 
-This skill is **manual-invocation only** (`disable-model-invocation: true`). It only fires when you invoke it explicitly via slash command — never auto-triggered. Polish starts a dev server and runs the branch's code, so it stays a deliberate user choice. The framework auto-detection is broad (Rails / Next / Vite / Nuxt / Astro / Remix / SvelteKit / Procfile), but the polish loop is intentionally minimal.
+It is not `ce-prototype` (decide how something should feel before it exists), not `ce-simplify-code` (trim recently changed code), and not `ce-dogfood` or `ce-test-browser` (autonomous QA or a test pass). Polish is a conversation with a running app.
+
+Manual invocation only. The model will not start this on its own, because it starts a server and runs the branch.
 
 ---
 
@@ -12,117 +14,121 @@ This skill is **manual-invocation only** (`disable-model-invocation: true`). It 
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Starts the dev server, opens the feature in a browser, iterates on UX/visual polish through conversation |
-| When to use it | Late-stage UX polish on a feature that already works; visual or interaction refinement that's hard to specify in advance |
-| What it produces | Committed fixes on the current branch (no PR by default — use `/ce-commit-push-pr` after) |
-| Status | Stable — manual invocation only |
+| What does it do? | Starts the dev server, opens the feature, and iterates on UX through conversation |
+| When to use it | The feature works. You are refining spacing, copy, states, motion, or other feel that is easier to see than to specify up front |
+| What it produces | Commits on the current branch. No PR. Use `/ce-commit-push-pr` when you want one |
+| What's next | `/ce-commit-push-pr` if you are shipping, or stop if you will polish again later |
+
+---
+
+## Example invocations
+
+Arguments only pick which branch to sit on. The loop after that is always the same: running server, open page, you talk, it edits.
+
+```text
+# Current branch (refuses main/master). Starts the server, opens the URL, waits
+/ce-polish
+
+# Check out PR 1234 (looks for an existing worktree first), then polish
+/ce-polish 1234
+
+# Check out a named feature branch, then polish
+/ce-polish feat/notification-settings
+```
+
+If the project type is unknown, it asks how to start. A `.claude/launch.json` at the repo root skips detection next time.
 
 ---
 
 ## The Problem
 
-Late-stage UX polish doesn't fit other skills well:
+Late-stage feel is a poor fit for the other skills:
 
-- **Pre-implementation review** doesn't apply — the feature already works, you're refining feel
-- **Code review** is the wrong angle — you don't need static analysis, you need to *use* the thing
-- **Static screenshots in chat** aren't enough — interaction, hover states, transitions, edge-case data all need a real session
-- **Writing a polish plan** is over-engineered — by the time you list the issues, you could have fixed three of them
-- **Manual loop** — start the dev server, open the browser, paste screenshots back into chat, describe the issue, watch the fix, refresh — too many handoffs
+- The feature already works, so a build or plan skill is the wrong tool
+- Code review does not tell you the toggle looks off or the empty state is cold
+- Screenshots in chat miss hover, motion, and odd data
+- Writing a polish plan takes longer than fixing the first few issues
+- Starting the server, opening a browser, and pasting shots back into chat is a lot of handoffs for small visual work
 
 ## The Solution
 
-`ce-polish` collapses the loop:
+`ce-polish` does the plumbing, then stays in a short loop:
 
-- **Phase 0** picks the right branch (PR number, branch name, or current)
-- **Phase 1** starts the dev server (auto-detects framework or reads `.claude/launch.json`) and opens the feature in your IDE's preferred browser surface
-- **Phase 2** is a conversation: you describe what to fix, the agent makes the change, hot-reload kicks in, you keep going
+- Phase 0 gets onto the right branch (PR, named branch, or current) and checks you are not on `main`/`master`
+- Phase 1 starts the server in the background and opens the URL
+- Phase 2 is conversation: you describe a fix, it edits, hot-reload shows the result
 
-There's no decision tree, no envelope, no scoring rubric — just running iteration. The skill does the boring parts (resolve port, pick package manager, route to the framework's start command, open the right browser) so you spend time on the polish, not the plumbing.
+When you ask it to check something, it screenshots or inspects the page with `agent-browser` if installed, otherwise with whatever the host exposes. When you say you are done, it commits and stops.
 
 ---
 
 ## What Makes It Novel
 
-### 1. Auto dev-server detection across 8 frameworks
+### Dev-server start without a setup lecture
 
-The skill detects the project type (Rails, Next.js, Vite, Nuxt, Astro, Remix, SvelteKit, Procfile-based) via `scripts/detect-project-type.sh` and routes to the matching recipe (`references/dev-server-<framework>.md`). Each recipe carries the framework's typical start command, port defaults, and quirks. For unknown projects, the skill asks how to start.
+It reads `.claude/launch.json` when that file exists. Otherwise it classifies the project (Rails, Next.js, Vite, Nuxt, Astro, Remix, SvelteKit, or Procfile) and uses that type's start command, package manager, and port. Unknown projects get one question: how do you start this?
 
-### 2. `.claude/launch.json` override
+The server runs in the background with output in a temp log. It probes `http://localhost:<port>` for up to 30 seconds. If nothing answers, it shows the last 20 log lines and asks what to do.
 
-If the project has `.claude/launch.json`, the skill uses that configuration instead of auto-detecting — you've already told the skill how to start the project, so it doesn't need to guess. Schema documented in `references/launch-json-schema.md`.
+### IDE handoff, then a printed URL if that fails
 
-### 3. IDE-aware browser handoff
+It probes the host (Claude Code, Cursor, VS Code) and uses that environment's browser handoff. Outside those, or if the probe is inconclusive, it prints the URL. The server is already up either way.
 
-The skill detects the host IDE (Claude Code, Cursor, VS Code) via env-var probes (`references/ide-detection.md`) and opens the dev server URL using the matching mechanism: `open` for Claude Code, Cursor's built-in browser, VS Code's Simple Browser. The right surface for the right environment, no manual juggling.
+### Conversation, not a checklist
 
-### 4. Conversational iteration — no checklist
-
-Phase 2 is the polish loop. The user describes something to fix; the agent makes the change; the dev server hot-reloads; the user looks at the result and says the next thing. When `agent-browser` is installed, the agent can take screenshots or inspect the page on request. When the user says they're done, fixes are committed.
-
-> No checklist. No envelope. Just conversation.
-
-That's not laziness — it's the right shape for late-stage polish. A fixed checklist makes the work feel like an audit; conversation makes it feel like collaborative refinement.
-
-### 5. Background dev server with health probe
-
-The dev server starts in the background with output logged to a temp file. The skill probes `http://localhost:<port>` for up to 30 seconds. If the server doesn't come up, it shows the last 20 lines of the log and asks what to do — instead of silently waiting or proceeding to a dead URL.
-
-### 6. Manual invocation only
-
-`disable-model-invocation: true` in the frontmatter prevents the skill from auto-triggering. Polish is a deliberate user choice — the skill only fires when you type `/ce-polish` directly. This avoids surprising the user when they just wanted to look at a page.
+There is no scoring rubric. You name what is wrong; it changes that. A fixed checklist would turn this into an inspection.
 
 ---
 
 ## Quick Example
 
-You've just finished a notification settings page. It works, but the spacing feels off, the toggle states aren't quite right, and the empty-state copy is dry. You invoke `/ce-polish`.
+The notification settings page works. Spacing is tight, the off toggle is easy to miss, and the empty-state copy is dry. You run `/ce-polish` on the feature branch.
 
-The skill verifies you're on a feature branch (not main), checks for `.claude/launch.json` (none), runs `detect-project-type.sh` (detects `next`), reads `references/dev-server-next.md` for the start command, resolves your package manager (pnpm) via `resolve-package-manager.sh`, picks port 3000, and starts `pnpm dev` in the background. After 4 seconds, `localhost:3000` responds. The skill opens it in Cursor's built-in browser.
+No `.claude/launch.json`. It detects Next.js, resolves `pnpm`, starts `pnpm dev` on port 3000, waits until the port answers, and opens the URL in the IDE browser.
 
-You browse to `/settings/notifications`. You say "the spacing between the toggle rows feels too tight." The agent finds the component, adjusts the spacing, hot-reload kicks in. You say "now the toggle states need a clearer affordance — make the off state look more obviously off." The agent updates the component. You browse the empty state and say "this copy is sterile, make it warmer." The agent rewrites the copy.
+You go to `/settings/notifications`. "The toggle rows are too tight." It edits the component; hot-reload updates. "The off state needs to look more off." Another edit. "This empty-state copy is sterile." It rewrites the copy.
 
-You're happy. The agent commits the fixes. You move on with `/ce-commit-push-pr`.
+You say you are done. It commits. You ship with `/ce-commit-push-pr` or leave the commits for a later session.
 
 ---
 
 ## When to Reach For It
 
-Reach for `ce-polish` when:
+Use `ce-polish` when:
 
-- The feature already works and you're refining UX/visual feel
-- You can articulate issues by *seeing* them, not by writing them down up front
-- Hot-reload + browser-side iteration would beat the alternative (chat → screenshot → describe → fix → repeat)
-- The change set is visual: spacing, copy, transitions, affordances, empty states, micro-interactions
+- The feature already works and you are refining how it feels
+- You can see the issue more easily than you can specify it in advance
+- The work is visual or interactive: spacing, copy, transitions, affordances, empty states
 
-Skip `ce-polish` when:
+Skip it when:
 
-- The feature isn't built yet → use `/ce-work`
-- The polish needs design specs (Figma comparison, brand-system alignment) → use `/ce-work` with its Figma design-sync support
-- The work is non-frontend (API behavior, backend logic) — there's nothing to browse
+- The feature is not built yet, or you are deciding how it should feel before it exists → `/ce-prototype`
+- You need Figma or brand-system alignment as the source of truth → `/ce-work` (it has a Figma design-sync path)
+- The change has nothing to browse (API behavior, backend logic)
+- You want a test report or autonomous QA of the branch → `/ce-test-browser` or `/ce-dogfood`
+- You want to clean recently changed code without a browser → `/ce-simplify-code`
 
 ---
 
-## Use as Part of the Workflow
+## Chain Position
 
-`ce-polish` is invoked late, after a feature is functionally complete:
+On-demand, after the feature works:
 
 ```text
-/ce-work or /ce-debug → feature works → /ce-polish → /ce-commit-push-pr
+/ce-work or /ce-debug  ->  feature works  ->  /ce-polish  ->  /ce-commit-push-pr
 ```
 
-It doesn't have direct callers in the chain — polish is a deliberate user invocation when the work needs visual refinement. After the polish loop ends, the standard shipping handoff is `/ce-commit-push-pr` to open the PR.
+Nothing in the core loop calls this. `ce-explain` may tell you to run it; you still type `/ce-polish` yourself. After the loop, shipping is a separate choice (`/ce-commit-push-pr`). Polish often spans more than one session, so it does not open a PR.
 
 ---
 
 ## Use Standalone
 
-The skill is always invoked standalone:
+- **Current branch:** `/ce-polish`
+- **A PR:** `/ce-polish 1234` (checks it out; probes worktrees first)
+- **A branch:** `/ce-polish feat/notification-settings`
 
-- **Current branch** — `/ce-polish`
-- **Specific PR** — `/ce-polish 1234` (checks out the PR)
-- **Specific branch** — `/ce-polish feat/notification-settings`
-
-When the framework is unknown to the auto-detector, the skill asks how to start the project. Adding a `.claude/launch.json` to the repo persists the answer for next time.
+Add `.claude/launch.json` when detection is wrong or you are tired of answering how to start.
 
 ---
 
@@ -130,40 +136,39 @@ When the framework is unknown to the auto-detector, the skill asks how to start 
 
 | Argument | Effect |
 |----------|--------|
-| _(empty)_ | Use the current branch |
-| `<PR number>` | Check out the PR (probes for existing worktrees first) |
-| `<branch name>` | Check out the branch |
+| _(empty)_ | Current branch. Refuses `main`/`master`. Starts the server and waits for you |
+| `<PR number>` | Checks out that PR (existing worktree first), then the same loop |
+| `<branch name>` | Checks out that branch, then the same loop |
 
-Supporting files:
-
-- `.claude/launch.json` (project-local override) — schema in `references/launch-json-schema.md`
-- Framework recipes — `references/dev-server-<rails|next|vite|nuxt|astro|remix|sveltekit|procfile>.md`
-- IDE detection — `references/ide-detection.md`
-- Scripts — `scripts/detect-project-type.sh`, `scripts/read-launch-json.sh`, `scripts/resolve-package-manager.sh`, `scripts/resolve-port.sh`
+Required: a startable local dev server. `agent-browser` is optional; without it, Phase 2 is still conversation plus whatever browser tools the host already has.
 
 ---
 
 ## FAQ
 
-**Why is it manual-invocation only?**
-Polish starts a dev server and runs the checked-out branch's code — a side-effecting action that should be a deliberate choice, not something the model auto-fires when you were just looking at a page. `disable-model-invocation: true` keeps it from triggering unless you invoke it explicitly. Type `/ce-polish` when you want it.
+**Why is it manual only?**
+It starts a server and runs the checked-out branch. That should be a choice you type, not something the model starts because you mentioned a page.
 
-**What if my framework isn't on the detection list?**
-The skill asks how to start the project. You can add a `.claude/launch.json` to persist the answer for future runs.
+**What if my framework is not detected?**
+It asks how to start. Put the answer in `.claude/launch.json` if you want the next run to skip the question.
 
 **Does it work without `agent-browser`?**
-Yes — Phase 2 still works as conversation, the agent just can't take screenshots or inspect the page on request. The hot-reload + your eyes still works fine. Install `agent-browser` if you want the agent to capture state without you describing it.
+Yes. You still browse and describe fixes; hot-reload still applies. Install `agent-browser` if you want it to screenshot or inspect without you narrating the DOM.
 
-**What about non-Claude-Code IDEs?**
-The skill detects Cursor and VS Code via env-var probes and uses each IDE's preferred browser surface. Outside those, it falls back to `open`. The framework detection and dev-server start are IDE-agnostic.
+**What about Cursor, VS Code, or a plain terminal?**
+It tries the host's browser handoff, then prints the URL. Framework detection and server start do not depend on the IDE.
 
-**Why no PR creation at the end?**
-Polish often needs more than one session, and forcing a PR every time would clutter. Commit-and-PR is a separate user choice via `/ce-commit-push-pr`.
+**Why no PR at the end?**
+Polish is often more than one sitting. A PR every time would pile up. Commit-and-PR is `/ce-commit-push-pr`.
 
 ---
 
 ## See Also
 
-- [`ce-work`](./ce-work.md) — build the feature first; polish second
-- [`ce-commit-push-pr`](./ce-commit-push-pr.md) — open the PR after polish is done
-- [`ce-debug`](./ce-debug.md) — for fixing bugs you find during polish, when root-cause investigation matters
+- [`ce-prototype`](./ce-prototype.md): decide how something should feel before it exists
+- [`ce-work`](./ce-work.md): build the feature first
+- [`ce-simplify-code`](./ce-simplify-code.md): trim recently changed code, no browser
+- [`ce-test-browser`](./ce-test-browser.md): test affected routes and report
+- [`ce-dogfood`](./ce-dogfood.md): autonomous browser QA of the branch, with fixes
+- [`ce-commit-push-pr`](./ce-commit-push-pr.md): open the PR after polish
+- [`ce-debug`](./ce-debug.md): a bug you find during polish that needs a causal chain

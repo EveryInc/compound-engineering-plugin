@@ -68,26 +68,24 @@ required_fields:
     description: "Primary category — determines track (bug vs knowledge). Prefer the narrowest applicable value; best_practice is the fallback when no narrower knowledge-track value fits."
 
   component:
-    type: enum
-    values:
-      - rails_model
-      - rails_controller
-      - rails_view
-      - service_object
+    type: string
+    suggested_values:
+      - data_model
+      - api_layer
+      - service_layer
       - background_job
       - database
-      - frontend_stimulus
-      - hotwire_turbo
-      - email_processing
-      - brief_system
-      - assistant
+      - frontend
+      - messaging
+      - infrastructure
+      - observability
       - authentication
       - payments
       - development_workflow
       - testing_framework
       - documentation
       - tooling
-    description: "Component involved"
+    description: "Component or area involved. Open vocabulary: choose it per the corpus-first rule in yaml-schema.md (corpus value for this area, most-used spelling when the corpus disagrees, suggested_values only when no doc covers the area; corpus values reused as spelled). A newly chosen suggested_values fallback is lowercase, underscore-separated."
 
   severity:
     type: enum
@@ -108,14 +106,11 @@ track_rules:
         max_items: 5
         description: "Observable symptoms such as errors or broken behavior"
       root_cause:
-        type: enum
-        values:
-          - missing_association
-          - missing_include
-          - missing_index
+        type: string
+        suggested_values:
           - wrong_api
-          - scope_issue
-          - thread_violation
+          - data_integrity
+          - concurrency
           - async_timing
           - memory_leak
           - config_error
@@ -127,7 +122,7 @@ track_rules:
           - inadequate_documentation
           - missing_tooling
           - incomplete_setup
-        description: "Fundamental technical cause of the problem"
+        description: "Fundamental technical cause of the problem. Open vocabulary, corpus-first rule as for component, matched by the cause itself rather than the area."
       resolution_type:
         type: enum
         values:
@@ -154,14 +149,11 @@ track_rules:
         max_items: 5
         description: "Observable gaps or friction that prompted this guidance (optional for knowledge track)"
       root_cause:
-        type: enum
-        values:
-          - missing_association
-          - missing_include
-          - missing_index
+        type: string
+        suggested_values:
           - wrong_api
-          - scope_issue
-          - thread_violation
+          - data_integrity
+          - concurrency
           - async_timing
           - memory_leak
           - config_error
@@ -173,7 +165,7 @@ track_rules:
           - inadequate_documentation
           - missing_tooling
           - incomplete_setup
-        description: "Underlying cause, if there is a specific one (optional for knowledge track)"
+        description: "Underlying cause, if there is a specific one (optional for knowledge track). Open vocabulary, corpus-first rule as for component, matched by the cause itself rather than the area."
       resolution_type:
         type: enum
         values:
@@ -202,10 +194,9 @@ optional_fields:
 
 # --- Fields optional for bug track only -------------------------------------
 bug_optional_fields:
-  rails_version:
+  framework_version:
     type: string
-    pattern: '^\d+\.\d+\.\d+$'
-    description: "Rails version in X.Y.Z format. Only relevant for bug-track docs."
+    description: "Framework or runtime name and version the bug was observed on, e.g. \"rails 7.1.2\" or \"node 22.4.0\". Only relevant for bug-track docs."
 
 # --- Backward compatibility --------------------------------------------------
 # Docs created before the track system was introduced may have bug-track
@@ -214,6 +205,10 @@ bug_optional_fields:
 #   - Bug-track fields present on a knowledge-track doc are harmless. Do not
 #     strip them during refresh unless the doc is being rewritten for other reasons.
 #   - When creating NEW docs, follow the track rules above.
+# Docs written before component/root_cause became open vocabulary may carry
+# values from the earlier closed list (rails_*, hotwire_turbo, missing_include,
+# ...) or a rails_version field. They stay valid; the corpus-first rule means a
+# repo whose docs consistently use those values keeps using them.
 
 # --- Validation rules --------------------------------------------------------
 validation_rules:
@@ -223,9 +218,10 @@ validation_rules:
   - "Knowledge-track docs have no additional required fields beyond the shared ones"
   - "Bug-track fields on existing knowledge-track docs are harmless (see backward compatibility note)"
   - "Track-specific optional fields may be included but are not required"
-  - "Enum fields must match allowed values exactly"
+  - "Enum fields (problem_type, severity, resolution_type) must match allowed values exactly"
+  - "Open-vocabulary fields (component, root_cause) follow the corpus-first rule in yaml-schema.md: component is matched by area (the value existing docs under <root>/solutions/ use for that area, most-used spelling when existing docs disagree), root_cause is matched by the cause itself (the value existing docs use for that same cause, most-used spelling when existing docs disagree), suggested_values only when no existing doc covers the area (component) or names the cause (root_cause). Do not coin a near-synonym of a value the corpus already uses"
   - "Array fields must respect min_items/max_items when specified"
   - "date must match YYYY-MM-DD format"
-  - "rails_version, if provided, must match X.Y.Z format and only applies to bug-track docs"
+  - "framework_version, if provided, only applies to bug-track docs"
   - "tags should be lowercase and hyphen-separated"
   - "Array-of-strings frontmatter items (symptoms, applies_when, tags, related_components, or any future array field) must be wrapped in double quotes when the value starts with a YAML reserved indicator (`, [, *, &, !, |, >, %, @, ?) or contains the substring `: ` — otherwise strict YAML parsers reject the file"

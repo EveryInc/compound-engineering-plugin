@@ -3,7 +3,7 @@
   "title": "Cross-model point of view",
   "type": "object",
   "additionalProperties": false,
-  "required": ["voice", "position", "reasoning", "evidence", "external_check", "mode", "movement"],
+  "required": ["voice", "position", "reasoning", "evidence", "external_check", "mode", "movement", "final"],
   "properties": {
     "voice": {
       "type": "string",
@@ -40,6 +40,10 @@
       "type": "string",
       "enum": ["initial", "moved", "held"],
       "description": "Initial position, or whether the voice moved or held during reconciliation."
+    },
+    "final": {
+      "type": "boolean",
+      "description": "true when position is your settled answer (a settled Blocked verdict counts); false when you have not finished inspecting and position is a placeholder."
     },
     "cross_model_route": { "type": "string" },
     "cross_model_target": { "type": "string" },

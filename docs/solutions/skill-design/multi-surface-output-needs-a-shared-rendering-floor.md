@@ -88,6 +88,33 @@ independently is a latent divergence** — the same shape as the coverage/render
 coverage and rendering"). The remedy is identical: one source of truth, referenced by every consumer,
 guarded by a parity assertion.
 
+## The same shape bites harder for behavior rules than for presentation rules (2026-08-13)
+
+The floor above covers **how a finding is rendered**. The same skill's **routing** rules — which findings
+apply unattended, which are batched, which become questions — had no equivalent, and they are restated in
+roughly eight places: the routing table, the phase that acts on it, an apply gate, an envelope
+description, the always-loaded `SKILL.md`, and several persona and template files.
+
+Changing routing therefore drifted three times in a row. Each time the rule was updated at its table and
+a downstream restatement was left describing the old behavior — and the sequence is worth naming, because
+each fix revealed the next: the table was added and the acting phase left stale; the phase was fixed and
+an apply gate left stale; the gate was fixed and the envelope's vocabulary left stale. A later check found
+`SKILL.md` still claiming a class of finding was returned rather than applied.
+
+Two things make the behavior case worse than the presentation case:
+
+- **A stale presentation rule produces ugly output; a stale routing rule produces wrong action.** One
+  surface saying "return this" while the source says "apply it" is a safety difference, not a formatting
+  difference.
+- **The always-loaded file is the most dangerous copy.** `SKILL.md` is in context for every run, so its
+  stale sentence competes with the reference the agent is told to load — and it is the copy least likely
+  to be reread when the rule changes, precisely because it is always there.
+
+**Guidance:** treat a routing or authority rule the same way this doc treats a presentation rule — one
+source, every other mention a pointer rather than a restatement. When you change one, grep for the
+*behavior* it describes rather than the rule's name, since restatements paraphrase. And check the
+always-loaded file first, not last.
+
 ## When to Apply
 
 - A skill emits the same result data through two or more surfaces (interactive vs batch vs headless vs

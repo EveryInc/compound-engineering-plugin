@@ -54,6 +54,16 @@ describe("ce-brainstorm visual probes", () => {
       /routine UI|known button|standard control/i.test(rules),
       "The prototype offer must skip routine existing-pattern UI.",
     ).toBe(true)
+    expect(
+      /cheap[^.]{0,60}sketch[^.]{0,60}settle|sketch[^.]{0,40}cannot settle/i.test(rules),
+      "Interaction Rule 7 owns this skill's routing test and must state it in full: the decision is expensive to unravel AND a cheap sketch cannot settle it. Every other routing site in ce-brainstorm cites this rule, so dropping the sketch half here leaves them citing an incomplete test.",
+    ).toBe(true)
+    expect(
+      /unravel cost is a precondition|cheap to reverse[^.]{0,60}(does not|doesn't) escalate|(does not|doesn't) escalate[^.]{0,60}cheap to reverse/i.test(
+        rules,
+      ),
+      "Unravel cost must read as a precondition, not decoration: a cheap-to-reverse decision does not escalate to ce-prototype however visual it is. Without that clause, widening the rule to visual decisions turns every styling choice into a prototype offer.",
+    ).toBe(true)
     expect(rules).not.toMatch(/Phase 1\.3 `ce-prototype`/)
   })
 

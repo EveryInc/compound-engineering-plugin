@@ -1,8 +1,12 @@
 # `ce-riffrec-feedback-analysis`
 
-> Turn raw [Riffrec](https://github.com/kieranklaassen/riffrec) recordings into structured product feedback — quick bug reports for short captures, extensive analysis for longer ones, with handoff to `ce-brainstorm` when requirements emerge.
+> Turn a [Riffrec](https://github.com/kieranklaassen/riffrec) capture (or a video, audio clip, or meeting notes) into structured product feedback.
 
-`ce-riffrec-feedback-analysis` is the **product-feedback consumption** skill. Riffrec is a separate capture tool that records synchronized screen + voice + event sessions and emits a `riffrec-*.zip` bundle. This skill is the consumption side: it analyzes those bundles (or any video / audio / meeting-notes file), routes between three paths based on length and intent, and produces the right artifact for what's actually inside the recording.
+`ce-riffrec-feedback-analysis` is the **consumption** skill for Riffrec recordings. Riffrec is a separate capture tool. It records synchronized screen, voice, and events and emits a `riffrec-*.zip`. This skill analyzes that zip, or a standalone video, audio file, or notes file, and routes to setup, a quick bug report, or extensive analysis.
+
+Use it for those recordings. Short text feedback can go straight into `/ce-brainstorm`. A debug session is `/ce-debug`. Bare transcription, with no structure, is a transcription tool.
+
+The skill also activates when an unpacked Riffrec set appears (`session.json`, `events.json`, `recording.webm`, `voice.webm`). The analyzer itself wants a zip, or one standalone media or notes file. If you still have the zip, pass that.
 
 ---
 
@@ -10,160 +14,136 @@
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Analyzes a Riffrec zip (or video/audio/notes file), routes to setup / quick-bug / extensive-analysis path, produces structured feedback artifacts |
-| When to use it | A `riffrec-*.zip` lands in chat; a video, audio, or meeting-notes file is shared as feedback; the user asks how to capture and share Riffrec sessions |
-| What it produces | Quick: one concise bug report. Extensive: requirements-shaped analysis + handoff to `/ce-brainstorm` |
-| Three paths | Setup (no recording yet), Quick bug report (under ~60s, single issue), Extensive analysis (longer, multiple issues) |
+| What does it do? | Routes a capture to setup, a quick bug report, or extensive analysis, then produces the matching artifact |
+| When to use it | A `riffrec-*.zip` lands in chat, someone shares recorded feedback, or you ask how to capture with Riffrec |
+| What it produces | Quick: one bug report in chat. Extensive: a requirements-shaped analysis, then a handoff to `/ce-brainstorm` |
+| Three paths | Setup (no recording yet), quick (under ~60s or one issue), extensive (longer or several issues) |
 
 ---
 
 ## Example invocations
 
+Length and wording pick the path. You do not pass a flag.
+
 ```text
-# Analyze a complete Riffrec capture bundle
+# A complete Riffrec zip. Length and event count pick quick vs extensive
 /ce-riffrec-feedback-analysis riffrec-2026-05-04-checkout-flow.zip
 
-# Analyze video, audio, or written feedback through the same router
+# Same router for video, audio, or written notes
 /ce-riffrec-feedback-analysis demo.mp4
 /ce-riffrec-feedback-analysis voice-memo.m4a
 /ce-riffrec-feedback-analysis meeting-notes.md
 
-# Get capture setup help when no recording exists yet
+# Force the short path: one bug report in chat, no brainstorm, nothing written unless you ask
+/ce-riffrec-feedback-analysis just transcribe this clip.mp4
+
+# Longer walkthrough, extract only. Artifacts land, brainstorm does not start
+/ce-riffrec-feedback-analysis extract the analysis from checkout-walkthrough.mp4, do not brainstorm
+
+# No recording yet. Install and capture guide, analyzer does not run
 /ce-riffrec-feedback-analysis how do I install and use Riffrec?
 ```
 
-Short single-issue inputs become concise bug reports; longer or multi-issue inputs produce structured analysis and hand off to `ce-brainstorm`.
+A zip with no extra wording is inspected first (duration, event count). If that is still unclear, the skill asks before doing the heavy work.
 
 ---
 
 ## The Problem
 
-Raw user-feedback recordings don't reduce to structured input automatically:
+A raw walkthrough does not turn into something you can build from:
 
-- **Long recordings get ignored** — a 12-minute walkthrough is too dense to act on without preprocessing
-- **Multi-issue recordings collapse to a single fix** — the recording covers 4 distinct problems but only the first one gets attention
-- **Audio nuance lost in transcription** — what the user said matters less than what they were trying to do; raw transcripts miss the intent
-- **Privacy bleed** — raw screen captures and audio on disk get committed accidentally
-- **No bridge to building** — the feedback exists, but nothing turns it into a brainstorm or plan
-- **Setup friction** — the user wants to share feedback but doesn't know how to install the capture tool
+- A 12-minute session is too dense to act on as a blob
+- Several issues collapse into whichever one is mentioned first
+- A transcript of what was said misses what the person was trying to do
+- Raw screen and audio sitting in the repo get committed by accident
+- Nothing in the chain consumes the recording as requirements
+- The capture tool itself still needs an install path
 
 ## The Solution
 
-`ce-riffrec-feedback-analysis` runs a routed flow with three paths:
+Three paths, chosen from the input, not from a mode flag:
 
-- **Setup path** — when the user has no recording yet and asks how to install / capture / share, this surfaces the Riffrec install guide and capture instructions
-- **Quick bug report** — short recording, single issue, "just transcribe" intent → one concise bug report, no full artifact set
-- **Extensive analysis** — longer recording or multiple issues → structured analysis with screenshots, requirements-shaped output, mandatory handoff to `/ce-brainstorm`
+- **Setup** when there is no recording yet and the question is how to install, capture, or share. The skill walks the Riffrec install guide. The analyzer does not run.
+- **Quick bug report** when the clip is under ~60 seconds, names a single issue, or asks for "quick", "small", or "just transcribe". One concise bug report, printed in chat. No full artifact set, no brainstorm. A file is written only if you ask for one.
+- **Extensive analysis** when the recording is longer, covers several issues or a workflow, or you want requirements material. Structured analysis plus screenshots, then a handoff to `/ce-brainstorm`. Say "extract only" or "analyze, do not brainstorm" to stop after the artifacts.
 
-The skill defaults raw recordings, audio chunks, zip contents, and extracted screenshots to local-only — no automatic commit. Text artifacts (analysis summaries, problem analyses) can be committed when traceability matters and there's no sensitive data.
+Raw recordings, audio, zip contents, and extracted frames stay local by default. Text artifacts can be committed when they are needed for traceability and contain no sensitive data.
 
 ---
 
 ## What Makes It Novel
 
-### 1. Three-path routing on length + intent
+### The path follows the recording
 
-The path is chosen by what the input actually warrants, not by a flag:
+A short single-issue clip should not pay for a requirements package. A multi-issue walkthrough should not collapse into one ticket. When a zip arrives without context, the skill looks at length and event count before choosing. If a quick-path transcript turns out to hold several issues, it says so and switches to extensive.
 
-- **Setup** — user has no recording yet, asks how to install Riffrec, capture a session, or share feedback. The skill loads `references/install-riffrec.md` and walks through it.
-- **Quick bug report** — under ~60 seconds, single issue, or the user explicitly asks for "quick", "small", or "just transcribe". Output is one concise bug report; the skill skips the full artifact set and brainstorm handoff.
-- **Extensive analysis** — longer, multiple issues / requirements / workflow walkthroughs, or the user wants requirements material. Output is the full structured analysis with screenshots; the skill **always continues into `/ce-brainstorm`**.
+### Privacy default on the raw bits
 
-When the input is ambiguous (a zip arrived without context), the skill inspects recording length and event count before choosing. If still unclear, it asks the user.
+`raw/` and `frames/` are not committed unless you ask and confirm privacy is acceptable. Committed docs use repo-relative screenshot paths so a later agent can open the evidence without an absolute local path.
 
-### 2. Privacy-default for raw artifacts
+### One intake, several file shapes
 
-Raw recordings, audio chunks, zip contents, session dumps, and extracted screenshot frames stay local-only by default. The `raw/` and `frames/` directories are not committed unless the user explicitly asks and confirms privacy is acceptable. Text/metadata artifacts (analysis summaries, problem analyses, source manifests) may be committed when needed for traceability and they contain no sensitive data.
+Non-setup runs share one analyzer. Accepted files: a Riffrec `.zip`; `.mp4` / `.mov` / `.webm` video; `.m4a` / `.mp3` / `.wav` audio; a meeting-notes `.md`. A Riffrec zip is richer because events and timestamps come along. A video or voice memo still goes through the same router.
 
-Repo-relative screenshot paths in committed docs ensure later agents can open the evidence without absolute local paths.
+In a repo that has `docs/brainstorms/`, extensive output defaults to `docs/brainstorms/riffrec-feedback/` as kickoff evidence. The durable plan still comes from `ce-brainstorm` under `docs/plans/`. The quick path writes to a temp directory so a one-issue report does not land in that tree.
 
-### 3. Single analyzer entry point — accepts multiple input shapes
+### Extensive always continues, unless you said not to
 
-All non-setup paths share one entry point: `python scripts/analyze_riffrec_zip.py /path/to/input`. Accepted inputs:
-
-- A Riffrec `.zip` bundle
-- An `.mp4` / `.mov` / `.webm` video
-- An `.m4a` / `.mp3` / `.wav` audio file
-- A meeting-notes `.md`
-
-This is what makes the skill useful beyond Riffrec — any recorded feedback fits the same pipeline.
-
-### 4. Context-aware output location
-
-In repos with `docs/brainstorms/`, the default output directory remains `docs/brainstorms/riffrec-feedback/` as an evidence/kickoff-artifact exception. The durable downstream artifact is still produced by `ce-brainstorm` as a requirements-only unified plan under `docs/plans/`. The quick path overrides to a temp location so it doesn't pollute the repo with single-issue bug reports.
-
-### 5. Compound Engineering output format for extensive analysis
-
-The extensive path produces output in the Compound Engineering feedback format documented in `references/compound-engineering-feedback-format.md` — structured to feed cleanly into `/ce-brainstorm` as raw input. Multiple issues / requirements / observations get separated, each with the relevant screenshot frames and timestamps. The brainstorm receives a starting point, not a transcript.
-
-### 6. Mandatory `ce-brainstorm` handoff for extensive analysis
-
-The extensive path always continues into `/ce-brainstorm` after the analysis lands. The recording captured *what the user experienced*; the brainstorm clarifies *what to build in response*. Without the handoff, the analysis sits on disk and nobody knows what to do with it.
-
-The quick path skips the handoff — a single bug report is its own deliverable.
-
-### 7. Lazy reference loading
-
-The skill loads only the reference for the chosen path: `install-riffrec.md` for setup, `quick-bug-report.md` for quick, `extensive-analysis.md` for extensive. The other references stay unread, keeping the skill's runtime context small.
+The recording is what the user experienced. That is evidence, not a decision. After the analysis lands, the skill loads `/ce-brainstorm` with `requirements-kickoff.md` and asks you to confirm, correct, or regroup the captured requirements. The quick path skips that handoff because the bug report is the deliverable.
 
 ---
 
 ## Quick Example
 
-A teammate shares a `riffrec-2026-05-04-checkout-flow.zip` in your chat. You drag it in.
+A teammate drops `riffrec-2026-05-04-checkout-flow.zip` into chat.
 
-The skill detects a Riffrec zip, runs the analyzer to inspect length and event count: 8 minutes, 47 events, multiple distinct UI surfaces touched. It routes to **extensive analysis**.
+The analyzer reports 8 minutes, 47 events, several UI surfaces. That is extensive analysis.
 
-The analyzer extracts: synchronized voice transcript, screen capture frames at event boundaries, event log with timestamps. It identifies 4 distinct issues: (1) the "Buy now" CTA hides on mobile, (2) form validation doesn't surface the error inline, (3) confirmation email subject line is unclear, (4) a confused "wait, why did it skip step 3?" moment that signals a flow gap.
+It extracts a voice transcript, frames at event boundaries, and an event log. Four issues show up: the "Buy now" CTA hides on mobile, form validation does not surface the error inline, the confirmation email subject is unclear, and a "wait, why did it skip step 3?" moment that points at a flow gap.
 
-It produces a structured analysis at `docs/brainstorms/riffrec-feedback/2026-05-04-checkout-flow-analysis.md` with each issue, the relevant frames, and timestamps. Raw recording stays local-only.
+The write-up lands under `docs/brainstorms/riffrec-feedback/riffrec-2026-05-04-checkout-flow/`, with `analysis.md`, `problem-analysis.md`, and `requirements-kickoff.md` among the files. Each issue keeps its frames and timestamps. The raw recording stays local.
 
-The skill loads `/ce-brainstorm` with the analysis as the starting point. Brainstorm clarifies which issue to address first, what success looks like, and produces the requirements-only unified plan.
+The skill then loads `/ce-brainstorm` on that analysis. Brainstorm asks whether the captured requirements are right, then writes the requirements-only unified plan.
 
 ---
 
 ## When to Reach For It
 
-Reach for `ce-riffrec-feedback-analysis` when:
+Use `ce-riffrec-feedback-analysis` when:
 
 - A `riffrec-*.zip` arrives and you want to act on it
-- Someone shares a video, audio, or meeting notes as product feedback
-- The user asks how to install Riffrec or capture a session for feedback
-- A long walkthrough recording needs to become structured input for `/ce-brainstorm`
+- Someone shares a video, audio clip, or meeting notes as product feedback
+- You need the Riffrec install and capture steps
+- A long walkthrough needs to become structured input for `/ce-brainstorm`
 
-Skip `ce-riffrec-feedback-analysis` when:
+Skip it when:
 
-- The feedback is text-only and short — just paste it directly into `/ce-brainstorm`
-- The recording is for a debug session, not feedback — handle the bug directly
-- You just want to transcribe audio with no further structure — use a transcription tool, not this skill
+- The feedback is short and already text. Paste it into `/ce-brainstorm`
+- The recording is a debug session, not product feedback → `/ce-debug`
+- You only want a transcript with no structure. Use a transcription tool
+- You already have a single known bug and a stack trace. Skip the capture skill
 
 ---
 
 ## Use as Part of the Workflow
 
-The skill is a **front-door entry point** to the chain:
+This skill is a front door, not a stage in the core loop:
 
 ```text
 recording → /ce-riffrec-feedback-analysis → (extensive) → /ce-brainstorm → /ce-plan → /ce-work
-                                          → (quick)     → bug report (standalone)
-                                          → (setup)     → instructions for capturing
+                                          → (quick)     → bug report in chat
+                                          → (setup)     → capture instructions
 ```
 
-The extensive path always continues into `/ce-brainstorm` so the captured feedback becomes a real artifact downstream skills can use. The quick path produces a complete artifact on its own (a bug report) without forcing brainstorm overhead.
+Extensive analysis is supposed to become a plan. Quick is done when the report is in chat.
 
 ---
 
 ## Use Standalone
 
-The skill is most often invoked directly with a Riffrec zip or other input file:
+Most invocations are a file path plus optional intent ("just transcribe", "do not brainstorm", "how do I install").
 
-- **Riffrec zip** — `/ce-riffrec-feedback-analysis riffrec-2026-05-04-checkout-flow.zip`
-- **Video file** — `/ce-riffrec-feedback-analysis demo.mp4`
-- **Audio file** — `/ce-riffrec-feedback-analysis voice-memo.m4a`
-- **Meeting notes** — `/ce-riffrec-feedback-analysis meeting-notes.md`
-- **Setup question** — `/ce-riffrec-feedback-analysis "how do I install riffrec"` (no input file; routes to setup path)
-
-When the input is ambiguous (a zip arrived without context, or the path-routing signals are mixed), the skill inspects length and event count before choosing — and asks if still unclear.
+If you already unzipped a capture, pass the zip if you still have it. Passing `recording.webm` alone works as video and drops the synchronized event log.
 
 ---
 
@@ -171,39 +151,43 @@ When the input is ambiguous (a zip arrived without context, or the path-routing 
 
 | Argument | Effect |
 |----------|--------|
-| `<file path>` | Analyzes the file — Riffrec zip, video, audio, or meeting notes |
-| Setup intent ("how do I install", "how to capture") | Routes to setup path with install instructions |
-| Length + intent inferred from input | Routes to quick or extensive path |
+| `<riffrec-*.zip>` | Analyze the bundle. Duration and events pick quick vs extensive |
+| `<video / audio / notes>` | Same router (`.mp4` `.mov` `.webm` / `.m4a` `.mp3` `.wav` / `.md`) |
+| "quick", "small", "just transcribe" | Force the quick path: one bug report in chat |
+| "extract only" / "analyze, do not brainstorm" | Extensive artifacts, no `/ce-brainstorm` handoff |
+| Setup wording ("how do I install", "how to capture") | Install and capture guide. Analyzer does not run |
 
-Analyzer: `scripts/analyze_riffrec_zip.py`. Compound Engineering output format: `references/compound-engineering-feedback-format.md`.
+Extensive artifacts (under the output dir): `analysis.md`, `problem-analysis.md`, `review-prompt.md`, `source-materials.md`, `requirements-kickoff.md`, plus local-only `raw/` and `frames/`.
+
+The output format the extensive path writes for brainstorm is `references/compound-engineering-feedback-format.md`.
 
 ---
 
 ## FAQ
 
-**What's Riffrec?**
-A separate capture tool ([github.com/kieranklaassen/riffrec](https://github.com/kieranklaassen/riffrec)) that records synchronized screen + voice + event sessions and emits a `riffrec-*.zip`. This skill is the consumption side — it doesn't capture, it analyzes captures.
+**What is Riffrec?**
+A separate capture tool ([github.com/kieranklaassen/riffrec](https://github.com/kieranklaassen/riffrec)). Screen, microphone, console, network, and DOM events into one `riffrec-*.zip`. This skill does not record. It consumes recordings.
 
-**Do I have to use Riffrec to use this skill?**
-No. The analyzer accepts videos (`.mp4`, `.mov`, `.webm`), audio (`.m4a`, `.mp3`, `.wav`), and meeting notes (`.md`) as well. Riffrec just provides a structured zip with synchronized event timestamps that produces richer analysis.
+**Do I have to use Riffrec?**
+No. Video, audio, and markdown notes take the same paths. The zip is richer because events and timestamps travel with it.
 
-**Why does the extensive path always continue into `/ce-brainstorm`?**
-Because the recording captures what the user experienced — that's evidence, not a decision. Without continuing into brainstorm, the analysis sits on disk as a transcript-with-screenshots and nobody knows what to build in response. The handoff is what makes the feedback actionable.
+**Why does extensive analysis continue into `/ce-brainstorm`?**
+The recording is evidence. Without brainstorm, the analysis sits on disk and nobody decides what to build. Ask for extract-only if you want the files and not the handoff.
 
 **Why is the quick path different?**
-A 30-second recording showing a single bug doesn't need the full artifact set or a brainstorm — the bug report itself is the deliverable. The user already knows what's wrong; the skill produces a concise report and stops.
+A 30-second single-bug clip does not need a requirements package. The report is printed in chat so you can confirm it. Nothing is written unless you ask.
 
-**What stays local vs gets committed?**
-Raw recordings, audio, zip contents, frames stay local by default — privacy-first. Text artifacts (analysis summaries, bug reports) can be committed when traceability matters and the content is safe. Repo-relative paths in committed docs let later agents reference local screenshots without absolute paths.
+**What stays local?**
+Raw recordings, audio, zip contents, and frames stay local by default. Text artifacts can be committed when they are safe and you need the trace.
 
 **What if the input is ambiguous?**
-The skill inspects length and event count first. If still unclear, it asks the user which path applies. Better to ask one question than to run the wrong path.
+The skill inspects length and event count. If that is still unclear, it asks. Better one question than the wrong path.
 
 ---
 
 ## See Also
 
-- [`ce-brainstorm`](./ce-brainstorm.md) — extensive-analysis output feeds directly into brainstorm
-- [`ce-plan`](./ce-plan.md) — downstream of brainstorm; enriches the unified plan that came from the recording
-- [`ce-debug`](./ce-debug.md) — when a quick-path bug report has a clear root cause to investigate
-- [Riffrec](https://github.com/kieranklaassen/riffrec) — the capture-side tool (separate project)
+- [`ce-brainstorm`](./ce-brainstorm.md): where extensive analysis is supposed to go
+- [`ce-plan`](./ce-plan.md): enriches the unified plan that came from the recording
+- [`ce-debug`](./ce-debug.md): when the quick-path report has a clear failure to investigate
+- [Riffrec](https://github.com/kieranklaassen/riffrec): the capture tool (separate project)

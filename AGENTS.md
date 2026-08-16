@@ -43,9 +43,9 @@ bun run codex:dev -- remove   # remove both supported CE installation surfaces
 - **Scratch Space:** Default to OS temp. Use `.context/` only when explicitly justified by the rules below.
   - **Default: OS temp** — covers most scratch, including per-run throwaway AND cross-invocation reusable, regardless of whether a repo is present or whether other skills may read the files. A stable OS-temp prefix handles cross-skill and cross-invocation coordination equally well as an in-repo path; repo-adjacency is rarely the relevant property.
     - **Per-run throwaway**: `mktemp -d "${TMPDIR:-/tmp}/<prefix>-XXXXXX"` (OS handles cleanup). Use for files consumed once and discarded — captured screenshots, stitched GIFs, intermediate build outputs, recordings, delegation prompts/results, single-run checkpoints. Always pass an explicit template under `${TMPDIR:-/tmp}`. Do not use bare `mktemp`, bare `mktemp -d`, `mktemp -t`, or `mktemp -d -t`: those forms ignore `$TMPDIR` on macOS and can resolve outside a sandbox's writable temp directory.
-    - **Cross-invocation reusable**: use a stable, effective-user-owned prefix under `/tmp/compound-engineering-<effective-uid>/<skill-name>/` — **not** `mktemp -d` — so later invocations by the same OS user can find prior outputs without sharing a writable root with other users. Derive the effective UID with `id -u`, reject a symlink or path not owned by the current user, and create or repair the top-level root to mode `0700` before use. The default layout is one `<scratch-root>/<skill-name>/<run-id>/` directory per run; use it for caches keyed by session, checkpoints meant to survive context compaction, intermediate state, and outputs whose lifecycle or mutation belongs to one run.
+    - **Cross-invocation reusable**: use a stable, effective-user-owned prefix under `/tmp/compound-engineering-<effective-uid>/<skill-name>/` — **not** `mktemp -d` — so later invocations by the same OS user can find prior outputs without sharing a writable root with other users. Derive the effective UID with `id -u`, reject a symlink or path not owned by the current user, and create or repair the top-level root to mode `0700` before use. **Probe before committing to `/tmp`:** when that root cannot be created, is not yours, or is not writable, use `${TMPDIR:-/tmp}/compound-engineering-<effective-uid>` instead — the same rule, in the same order, in every shell preamble and Python default, so a later invocation resolves the same root. Claude Code's macOS sandbox allowlists writes under `$TMPDIR` (`/tmp/claude-<uid>`) but not `/tmp` itself, so without the fallback every skill's scratch setup aborts there with `Operation not permitted`; and an existing root from an unsandboxed session passes `mkdir -p` as a no-op yet refuses the first write, which is why the probe is a writability check (`[ -w ]`), not creation alone. Copy the block from any shipped skill (for example `skills/ce-compound/SKILL.md`) rather than re-deriving it; `tests/scratch-root-preamble-executes.test.ts` runs every copy, including the fallback. The default layout is one `<scratch-root>/<skill-name>/<run-id>/` directory per run; use it for caches keyed by session, checkpoints meant to survive context compaction, intermediate state, and outputs whose lifecycle or mutation belongs to one run.
       - **Discoverable collection exception**: omit the per-run directory only when later invocations intentionally enumerate multiple sibling **final artifacts** as core product behavior and run isolation would materially worsen discovery or the user-facing path. Use a stable collection namespace (for example, repository identity plus a `general` fallback), descriptive immutable filenames, metadata that supports ranking, and no-overwrite collision handling that atomically reserves the final filename and retries with the next suffix on collision; never check availability and then write. Do not use this exception for caches, checkpoints, intermediate files, or merely to shorten a path.
-      - Use `/tmp` directly rather than `$TMPDIR` so paths stay accessible: `$TMPDIR` on macOS resolves to `/var/folders/64/.../T/`, which is hostile for users who want to inspect checkpoints, grep them, or copy them out. The explicit effective-UID segment supplies the required cross-user boundary while preserving a readable path. Agents running as the same OS user intentionally remain in one discretionary-access-control principal.
+      - Prefer `/tmp` over `$TMPDIR` so paths stay accessible: `$TMPDIR` on unsandboxed macOS resolves to `/var/folders/64/.../T/`, which is hostile for users who want to inspect checkpoints, grep them, or copy them out — which is why `$TMPDIR` is the fallback, taken only when `/tmp` cannot host the root, and never the first choice. The explicit effective-UID segment supplies the required cross-user boundary while preserving a readable path. Agents running as the same OS user intentionally remain in one discretionary-access-control principal.
   - **Exception: `.context/`** — use only when the artifact is genuinely bound to the CWD repo AND meets at least one of:
     - (a) **User-curated**: the user is expected to inspect, manipulate, or manually curate the artifact outside the skill (e.g., a per-repo TODO database, a per-spec optimization log that survives across sessions on the same checkout).
     - (b) **Repo+branch-inseparable**: the artifact's meaning is inseparable from this specific repo or branch (e.g., branch-specific resume state that a user expects to pick up again in the same checkout).
@@ -124,18 +124,17 @@ Do not add fork-only personas to make an upstream role mismatch pass. The fork r
 
 `AGENTS.md`, `CLAUDE.md` (symlink to `AGENTS.md`), and `GEMINI.md` are authoring context for this source repository. Skills are installed into end-user environments, where they run against the user's local instruction files, not this repo's. Behavioral rules that must affect a skill at runtime belong in that skill's `SKILL.md` or files under its own `references/` directory.
 
-## Cross-Model Skill Authoring
+## Working on Skills
 
-This repository authors each skill once and distributes it across multiple agent models and harnesses. Before creating, materially revising, or reviewing a skill or skill-local persona, read `docs/solutions/skill-design/portable-agent-skill-authoring.md`.
+This repository authors each skill once and distributes it across multiple agent models and harnesses. A skill is a set of goals, not a state machine: it hands the agent the goal, the done condition, the safe failure direction, and the facts it cannot derive from the repo in front of it, then gets out of the way. `docs/solutions/skill-design/portable-agent-skill-authoring.md` is the standard; the rules in this file supplement it and take precedence where more specific.
 
-That field guide is the canonical reasoning layer for outcome-first authoring, model and harness portability, protocol versus judgment, proportional authority, tool adapters, evidence-backed review, and targeted behavioral evaluation. It is not a template: apply only the sections relevant to the skill. The repository-specific rules elsewhere in this file supplement the guide and take precedence where they are more specific.
+**Before creating, editing, reviewing, or acting on review feedback for anything under `skills/**`, invoke the repo-local `ce-skill-work` skill** (`.agents/skills/ce-skill-work/`, which Codex and Cursor discover directly; `.claude/skills` is a symlink to `.agents/skills` for Claude Code). It carries the procedures for each of those four activities, the audit questions, the provenance rule for removals, and the validation contract. This file states only what must be always-loaded; when the two disagree, fix the disagreement rather than following the shorter one.
 
-### Skill Prose Admission Rules
+Three rules that hold regardless of whether the skill was invoked:
 
-- Keep a line only when it states a falsifiable constraint, counters a known default tendency or observed shortcut, or supplies domain knowledge that materially changes a decision.
-- Do not keep vague effort or quality language such as "be thorough" or "produce high-quality work" as a standalone instruction. Replace it with an observable rule, or retain a targeted effort cue only when it counters a documented runtime tendency and has been evaluated there.
-- Do not append motivational rationale to a directive that already stands on its own.
-- Repeat an instruction only at a demonstrated drift point where placement changes whether it fires. Protect genuinely required always-loaded duplicates with a parity test.
+- **State conditions, not procedures or cases.** When a block keeps absorbing "add the case we just found" — in authoring, in a review round, or in your own fix to a finding — the representation is wrong. Delete the additions and restate the goal, then re-verify against every path the additions served; a restatement that no longer names a path is a new defect, not a simplification.
+- **Prescribe a mechanism only where it is owned.** A delegating skill states the condition, the safe failure direction, and the non-derivable callee facts, never a re-derivation of the callee's commands (`docs/solutions/skill-design/skill-gates-state-conditions-not-prescribed-git-commands.md`).
+- **Bring the block you touch up to the standard**; leave untouched blocks alone and name them as follow-up. Skills predate the standard and evolve toward it.
 
 ### User-Facing Skill Invocations
 
@@ -143,26 +142,19 @@ Keep agent-to-agent or skill-to-skill routing semantic: format formal skill name
 
 At runtime, put the smallest self-contained rendering rule immediately before the smallest section that contains all affected user-copy seams. Do not repeat it in every step; repeat it only in a separately loaded reference that independently owns output.
 
-### Applying Feedback to Skills
+### Reviewing a skill change (bots and humans)
 
-Applying review, peer, or eval feedback to a skill is a material revision governed by the authoring guide. An item is not addressed because a sentence landed; it is addressed when a demonstrated gap is closed at its owning layer by the smallest mechanism. Before editing:
+Review bots read this file when reviewing a PR here. On `skills/**`:
 
-1. **Evidence** — classify each item as Change, Verify, or Consider using the guide's evidence rules. Do not edit the skill for Verify or Consider items.
-2. **Owning layer** — for each Change, identify its owning layer: activation contract, outcome spine or skill boundary, runtime protocol, loading or placement, deterministic enforcement, or shared authoring rule.
-3. **Mechanism** — fix the gap at its owning layer. Add prose only when it is the smallest mechanism that closes the gap, and then only the smallest falsifiable unit per the Skill Prose Admission Rules.
-4. **Reconcile** — reread the affected block; remove or rewrite text the change makes conflicting, duplicated, or obsolete. Resolve conflicting feedback items rather than stacking both.
-5. **Stop the accretion loop** — when a finding targets text an earlier round added, prefer deleting that addition over qualifying it; a section that has absorbed three rounds of additions is itself the defect. After collapsing one, re-verify the shortened rule against every path it served: a condensed rule that no longer names a path is a new defect, not a simplification.
+- **A finding is a gap in the goal, the done condition, or the safe failure direction, or a mechanism at the wrong owning layer** — commands prescribed in a skill that delegates that work, a rule placed where it will not fire, a Claude-only construct in a cross-host skill, a rendering that breaks on another harness.
+- **A case a stated condition already covers is not a finding.** Before filing "what if X" against a rule, check whether the rule's condition decides X. If it does, do not file; if the condition is wrong or missing, file *that*.
+- **State the requested fix as a condition or an owning-layer move, never as a case to add.** "Command X fails in state Y" against a delegating skill is a finding about the representation; the fix is to drop the command and state the condition, not to correct the command.
+- **A block restated to the standard is the expected shape of an edit**, not scope creep, when the restatement covers every path the old text served.
+- Ordinary code under `src/`, `tests/`, and `scripts/` gets ordinary code review; these rules are about instruction prose.
 
-When evidence shows the same cause across skills, fix the shared guide, rule, or mechanism unless the skills' contracts materially differ.
+### Acting on review feedback
 
-For a multi-item round, record one line per item in the existing PR body or work note: `item -> Change|Verify|Consider | owning layer | mechanism - why`. A single-item fix still follows the steps above; the written line is optional. Reviewer wording is a hypothesis about mechanism, not authority over it — the reviewer's one-line prose fix is sometimes exactly right.
-
-### Skill Loading Supplements
-
-- Keep every load-bearing action, route, and reference-load instruction inline at the point where it must fire (`docs/solutions/skill-design/post-menu-routing-belongs-inline.md`).
-- Do not inline a summary complete enough to suppress loading the authoritative reference.
-- Extract a block to `references/` when it is conditional or late-sequence and a meaningful share of the skill (~20%+). Replace it with a 1-3 line condition and backtick path.
-- Never use `@` for an extracted block; it inlines at load time and defeats extraction.
+This governs any agent or tool that acts on review feedback in this repository — `ce-resolve-pr-feedback`, another vendor's resolver, or a person — and on `skills/**` it takes precedence over the tool's own "default to fixing". Skill prose is not code: a natural-language instruction can always be made more specific, so a reviewer can produce a valid-looking edge case against any condition indefinitely, and patching each one dilutes the instruction (#1397: 24 findings over nine rounds on a two-condition step). A case the stated condition already decides is answered with the condition, not patched; only a wrong or missing condition, or a mechanism at the wrong owning layer, is a fix. On the second round against the same block, restate it rather than qualify it. The full procedure — Evidence, Owning layer, Mechanism, Reconcile, Stop the accretion loop — is `ce-skill-work`'s respond mode.
 
 ## Referencing Project Conventions in Skills
 
@@ -201,11 +193,27 @@ PR CI (`.github/workflows/ci.yml`) is the merge gate. It runs, in order: PR-titl
 
 The `test` script runs `bun test --parallel`, which distributes test *files* across worker processes (one file still runs its own tests serially, and `--parallel` implies `--isolate`). This is the single biggest lever on CI wall time, because most of the suite is spent blocked on subprocesses — `python3`, `bash`, `git`, and `bun run src/index.ts` — not on CPU. Keeping it in the package script rather than the workflow means CI and a contributor's local run cannot drift apart.
 
-That makes cross-file isolation load-bearing rather than incidental: a test file may not depend on another file's leftovers, and any test that writes outside its own `mktemp` directory is a latent flake. `tests/skills/ce-code-review-cross-model-routes.test.ts` is the one deliberate exception — it stages a marker file in the repo root to exercise dirty-tree handling, and cleans it up in `afterAll`.
+That makes cross-file isolation load-bearing rather than incidental: a test file may not depend on another file's leftovers, and any test that writes outside its own `mktemp` directory is a latent flake. There are no exceptions — a test that needs a dirty tree builds a throwaway git repo for it.
+
+**A test that runs a bundled script which inspects the repository must point that script at a throwaway repo, never this checkout.** Otherwise the developer's uncommitted work becomes test input. `tests/skills/ce-code-review-cross-model-routes.test.ts` ran the real review script against `git diff HEAD` in the checkout, so any uncommitted change over roughly 160KB crossed the script's large-diff threshold and failed 31 of its tests for reasons unrelated to the change under test. CI never saw it, because CI runs on a committed tree. The fixture pattern is `dirtyFixtureRepo()` in that file: `git init` a temp dir, two commits so `HEAD~1` resolves, then one staged edit.
 
 **Do not pin a worker count.** `--parallel` with no value tracks the runner's core count, which is what you want. Raising it looks free — the suite is idle-bound, so more workers should pack better — but it was measured on CI and it is not: at `--parallel=8` on a 4-core runner, wall time improved ~9% (102s -> 93s) while total test-CPU inflated from 223s to 343s, and five tests crossed the 5000ms default per-test timeout. That converts runner busyness into red builds. A file that legitimately runs for seconds should call `setDefaultTimeout` instead, as the subprocess-heavy suites do.
 
-Wall time is now bounded by the **slowest single file**, since a file never splits across workers. As measured: `tests/skills/ce-work-unit-workspace.test.ts` is 61s of a ~100s run and `tests/ce-babysit-pr-snapshot.test.ts` is 40s. The next real speedup is splitting those two, not more workers.
+A file never splits across workers, so an oversized file sets a floor. `tests/skills/ce-work-unit-workspace.test.ts` was 4,564 lines and 86 tests under one `describe`; it is now five `ce-work-unit-workspace-*.test.ts` files sharing `tests/skills/helpers/ce-work-workspace-harness.ts`. Measured with three `workflow_dispatch` runs per ref in the same window, the `Run tests` step went from a median of 88s (87/112/88) to 81s (83/80/81).
+
+**Splitting bought ~8% of CI wall time and most of the run-to-run variance** — baseline spread 25s, split spread 3s. That second effect is the durable one: a 60s serial file makes wall time depend on which worker takes it, so a busy runner produced the 112s outlier. Locally the same split is much larger (160s -> 75s), because a developer machine has enough cores for the long file to be the whole critical path.
+
+**Do not use `bun test --parallel=4` on a many-core laptop as a CI proxy.** It predicted a 26% CI win where the real number was 8%: capping bun to four workers still leaves the other cores absorbing the `git` / `python3` / `bash` subprocess load, so it does not behave like a 4-core runner. Dispatch the real workflow on both refs instead.
+
+At 81s the suite is nearer CPU-bound on a 4-core runner than bounded by its slowest file, so further file splitting has small returns; `tests/ce-babysit-pr-snapshot.test.ts` (~36s) is the largest remaining file and was deliberately left intact.
+
+**Size a test file by its measured time, not its line count.** A file is a wall-time problem when it approaches the suite's slowest-file ceiling. Roughly a thousand lines under one `describe` is a smell worth measuring, never a threshold to split at on sight — splitting a file that already runs well under the ceiling buys nothing. Get per-file times before deciding:
+
+```bash
+bun test --parallel --reporter=junit --reporter-outfile=/tmp/t.xml
+```
+
+The `ce-work-unit-workspace-*` shards run 10-23s each against that ~36s ceiling, so two of them sitting just over a thousand lines is fine and they are deliberately left whole. Put shared fixtures in `tests/skills/helpers/`.
 
 ### What belongs where
 

@@ -1,12 +1,12 @@
 # `ce-ideate`
 
-> Discover strong, qualified directions worth exploring — across any domain — and let the rest fall away.
+> When you don't yet have an idea, get a ranked set of grounded directions you can pick from, discuss, or discard.
 
-`ce-ideate` is the upstream **discovery** skill. It's where you reach when you don't yet have a specific idea — when the question is "which directions even matter here?" rather than "let me refine the one I already have." It does the homework first (parallel grounding agents pull from your codebase, past learnings, **external prior art on the open web**, and optionally Slack and your issue tracker), generates candidates from six different conceptual frames, requires a tagged **basis** for every idea, and presents only the survivors of an adversarial critique — with explicit reasons for what was rejected.
+`ce-ideate` is the optional **discovery** step. Use it when the question is "which directions are worth exploring?" not "help me refine this one I already have." It grounds first (the repo, past learnings, prior art on the web, and optionally Slack or your issue tracker), generates candidates from six frames, and keeps only the ones that survive an adversarial cut. Every survivor carries a tagged **basis** you can check. Rejected ideas come with reasons.
 
-It runs equally well on software topics, product topics, and entirely non-software topics — naming, narrative, personal decisions, weekend trips, business strategy. The same generate-critique-survive engine; the same basis requirement; the same anti-slop discipline.
+It works on software in this repo, on a product outside the repo, and on topics with no software surface (names, narrative, personal decisions, business strategy). The generate-then-critique engine and the basis rule stay the same.
 
-This is the first step in the compound-engineering ideation chain:
+This is the first step in the compound-engineering ideation chain. Skip it when you already know what to explore:
 
 ```text
 /ce-ideate         /ce-brainstorm      /ce-plan             /ce-work
@@ -15,7 +15,9 @@ This is the first step in the compound-engineering ideation chain:
                                         this?"
 ```
 
-The chain works across domains — every step supports universal mode. `ce-ideate` is the upstream "find the strong candidates" step, but it's a complete cycle on its own.
+Acting on a survivor goes to `ce-brainstorm`. In a repo, do not skip from ideation to `ce-plan`. Outside a software build, the saved idea set can be the end of the run.
+
+If the options are already on the table and you need a verdict, use `ce-pov` instead.
 
 ---
 
@@ -23,10 +25,10 @@ The chain works across domains — every step supports universal mode. `ce-ideat
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Grounds in real material, decomposes the topic into orthogonal axes, generates candidates across six conceptual frames spread over those axes, critiques them adversarially, presents 5-7 survivors — each with a tagged basis |
-| When to use it | Greenfield exploration, big-picture thinking, codebase audits, surprise-me runs, naming, decisions, business strategy — any domain where you want a qualified candidate set rather than a refined idea |
-| What it produces | Ranked ideation artifact written as a single self-contained HTML file by default (humans are the audience — rich, openable in a browser); pass `output:md` for markdown. Written automatically to `docs/ideation/` when present, else an announced temp path under `/tmp/compound-engineering-<effective-uid>/` |
-| What's next | `/ce-brainstorm` on a chosen survivor, iterate on one first, or just keep the saved file |
+| What does it do? | Grounds in real material, splits the topic into axes, generates candidates across six frames, critiques them, and presents 5-7 survivors, each with a tagged basis |
+| When to use it | You don't have a specific idea yet: greenfield, a codebase audit, issue-tracker mining, surprise-me, naming, a decision, a strategy question |
+| What it produces | A ranked ideation file, HTML by default (openable in a browser). `output:md` writes markdown. Lands in `docs/ideation/` when that tree exists, otherwise a temp path under `/tmp/compound-engineering-<effective-uid>/` |
+| What's next | `ce-brainstorm` on one survivor, stay here and discuss or refine the set, or keep the file and stop |
 
 ---
 
@@ -58,7 +60,7 @@ The chain works across domains — every step supports universal mode. `ce-ideat
 /ce-ideate developer experience improvements output:md
 ```
 
-Use `ce-pov` when the candidates are already known and need judgment; use `ce-brainstorm` when one candidate needs scope.
+Use `ce-pov` when the candidates are already known and need judgment. Use `ce-brainstorm` when one candidate needs scope.
 
 ---
 
@@ -66,69 +68,84 @@ Use `ce-pov` when the candidates are already known and need judgment; use `ce-br
 
 Asking an AI "what's worth exploring here?" usually returns:
 
-- Plausible-sounding bullets with no grounding in the actual subject
-- The first three obvious frames and nothing surprising
-- A flat list with no signal about which directions are strong vs filler
+- Plausible bullets with no grounding in the actual subject
+- The first few obvious frames and nothing else
+- A flat list with no signal about which directions are strong
 - No record of what was considered and rejected
-- No way to audit the basis — every claim sounds confident, none cite evidence
+- Claims that sound confident and cite nothing
 
 ## The Solution
 
-`ce-ideate` separates **grounding**, **generation**, **critique**, and **selection** as discrete phases — and the quality mechanism is **explicit rejection with reasons**, not optimistic ranking.
+`ce-ideate` separates grounding, generation, critique, and selection. Quality comes from explicit rejection with reasons, not optimistic ranking.
 
-- Grounding agents do the homework first — codebase scan, past learnings, external prior art, optional Slack and issue intelligence
-- The topic is decomposed into 3-5 orthogonal axes derived from grounding — *what aspects of the subject* sub-agents must cover, distinct from *how they think about it*
-- Six parallel ideation sub-agents work from different conceptual frames, each spreading ideas across the axes
-- Every idea must carry a tagged **basis** — direct evidence, named external prior art, or a written-out first-principles argument
-- Ideas without a basis are rejected; the failure mode being prevented is "AI slop"
-- Survivors are scored against a consistent rubric and presented with downsides and confidence
-- A rejection summary shows what was considered and cut
+- Grounding agents go first: codebase scan (in a repo), past learnings, web prior art, optional Slack and issue intelligence
+- The topic is split into 3-5 axes from that grounding: *what* to cover, separate from *how* to think
+- Six frames generate in parallel, each spreading ideas across those axes
+- Every idea carries a tagged basis: `direct:`, `external:`, or `reasoned:`
+- Ideas without a basis are dropped
+- Survivors are scored and shown with downsides and confidence
+- A rejection summary shows what was cut and why
 
 ---
 
 ## What Makes It Novel
 
-### 1. Comprehensive grounding before any idea is generated
+### 1. Grounding before any idea is generated
 
-Every run starts with parallel grounding agents that supply the substance ideas will be qualified against — codebase scan (in repo mode), past institutional learnings from `docs/solutions/`, external prior art via web research, and optional Slack and issue intelligence when those tools are available. In repo mode, cheap **evidence scouts** then deepen the grounding: one per topic axis, each returning a dossier of verbatim quotes and `file:line` pointers, so ideation agents cite real code rather than a paraphrased summary. **External prior art is critical**: without it, the agent is just remixing what's already in your codebase or your head. With it, ideas can cite "this is how X solved this" — concrete, verifiable, named precedent. You can also hand the run your own research: point the prompt at a research artifact (a social-listening report, survey export, analytics dump) and a cheap agent distills it into a citable evidence dossier — enriching web research with source classes it doesn't reach, not replacing it.
+Every run starts with parallel grounding: the codebase (in repo mode), `docs/solutions/`, web prior art, and optional Slack or issue intelligence. In a repo, cheap evidence scouts then pull verbatim quotes with `file:line` pointers so later ideas cite real code. Web prior art is the piece that stops the run from remixing only what's already in the repo or in your head.
 
-### 2. Basis requirement — every idea cites its evidence
+You can also point the prompt at your own research (a survey export, an analytics dump, a social-listening report). A cheap agent distills that into a citable dossier. It adds source classes web research doesn't reach; it does not replace the web pass.
 
-Each surviving candidate carries a tagged basis: `direct:` (quoted evidence), `external:` (named prior art), or `reasoned:` (written-out first-principles argument, not a gesture). Speculation that sounds plausible but has no basis is rejected. **Comprehensive grounding + basis requirement is the dual anti-slop mechanism.** One without the other is weaker: grounding without a basis gives well-informed speculation; a basis without grounding gives clever-sounding rationalization.
+### 2. Every idea cites its evidence
 
-### 3. Six-frame divergent generation
+Each survivor carries one tagged basis:
 
-Parallel sub-agents cover six generative frames: pain & friction, inversion/removal/automation, assumption-breaking, leverage & compounding, cross-domain analogy, and constraint-flipping. Single-prompt ideation collapses into the agent's most-trained directions — different frames force genuine breadth, especially cross-domain analogy and constraint-flipping which surface ideas no single prompt would. The fleet is **cost-tiered**: evidence-driven frames run on a mid-tier model (the dossiers do the heavy lifting), while the ceiling frames — where the strong model's reasoning is the product — inherit the conversation's model. Say `go deep` to raise the whole fleet to the top tier; conversely, a tactical ask (`quick wins`, `polish`, `cleanup`) scales the run *down* — but through **volume, not lenses**. Each frame targets 3-4 ideas instead of 6-8, verification reads drop, axes and scouts cap at 3, and the ambition floor is waived. On most software and product topics the fleet itself is untouched: the same five agents cover all six lenses, with one ceiling-tier agent holding assumption-breaking and constraint-flipping together as it does by default. (An issue-tracker run is the exception — when the scan returns usable themes those themes become the frames, so it dispatches four.) (Non-software topics run a facilitator instead, where the depth you pick decides the fleet — Quick and Standard dispatch no ideation agents at all, Full dispatches one per lens.) Packing frames together to save money was tried and rejected, because the verification budget is per agent — an agent holding three lenses checks each idea's basis a third as thoroughly, and the basis check is the thing that separates this from a plausible-sounding list.
+- `direct:` quoted evidence
+- `external:` named prior art
+- `reasoned:` a written-out first-principles argument, not a gesture
 
-### 4. Topic-surface decomposition — axis coverage as a dispatch invariant
+Plausible speculation with no basis is rejected. Grounding without a basis is well-informed speculation. A basis without grounding is clever-sounding rationalization.
 
-Frames decide *how to think* about a topic; **axes** decide *what part of the topic to think on*. Before frame dispatch, the orchestrator decomposes the topic into 3-5 orthogonal axes derived from grounding (e.g., for "social sharing" — send, discovery, arrival, compounding, actor types). Each frame is then instructed to spread its ideas across axes, and an axis-coverage check after generation catches blind spots — if any axis has zero ideas, a bounded recovery dispatch fills it. The failure mode this prevents: six lenses converging on the most salient interpretation of a topic and missing the rest of its surface entirely. Atomic topics (a name, a tagline) and surprise-me runs skip decomposition cleanly.
+### 3. Six frames, then a cut
 
-### 5. Adversarial filtering with stated rejection reasons
+The frames are pain and friction; inversion, removal, or automation; assumption-breaking; leverage and compounding; cross-domain analogy; and constraint-flipping. One prompt tends to collapse into the model's most-trained directions. Separate frames, especially analogy and constraint-flipping, produce a wider set.
 
-Critique runs in two layers. A **fresh-context verifier** — an agent that never saw the generation — tries to refute each candidate: do cited quotes actually exist, is the named prior art real, does the argument hold? Then the orchestrator arbitrates the final cut against a consistent rubric — groundedness, basis strength, expected value, novelty, pragmatism, leverage, implementation burden, overlap. One-line reasons accompany every rejection. Survivors are presented alongside a rejection summary so you see what was considered and cut.
+Default software and product runs use five agents to cover all six frames. `go deep` raises the whole fleet to the conversation's top-tier model, doubles verification, and adds a second critic. A tactical ask (`quick wins`, `polish`, `cleanup`) keeps every frame and shrinks volume: fewer ideas per frame, fewer verification reads, at most 3 axes. Issue-tracker runs replace the six frames with the tracker's highest-leverage themes (up to four) when the scan returns usable themes.
 
-### 6. Three modes — software, software-product, and entirely non-software
+Critique is two layers. A verifier that never saw generation tries to refute each candidate: do the quotes exist, is the prior art real, does the argument hold? Then the orchestrator makes the final cut. Every rejection gets a one-line reason.
 
-The same generate-critique-survive mechanism runs across very different topic domains: things in your codebase, software products outside your repo (pages, apps, flows), or topics with no software surface at all (naming, narrative, personal decisions, business strategy). In non-software mode, a domain-agnostic facilitator takes over — same six frames, same basis requirement, same critique, but in domain-native language.
+### 4. Axes so six frames don't all land on the same slice
 
-### 7. Surprise-me mode — no subject required
+Frames decide *how* to think. Axes decide *what part* of the topic to think on. Before dispatch, the orchestrator derives 3-5 orthogonal axes from grounding. For social sharing those might be send, discovery, arrival, compounding, and actor types. Each frame spreads ideas across them. If an axis has zero ideas, one bounded recovery dispatch fills it. Atomic topics (a name, a tagline) and surprise-me runs skip this.
 
-`/ce-ideate "surprise me"` skips the subject step entirely. Sub-agents discover their own subjects from grounding material. Different frames finding different subjects is the feature, not a bug — cross-cutting combinations across discovered subjects often produce the strongest ideas.
+### 5. Three modes, plus surprise-me and the issue tracker
 
-### 8. Issue-tracker intent
+The same engine runs on things in this codebase, a software product outside this repo, or a topic with no software surface.
 
-Phrases like "what users are reporting" or "biggest issue patterns" trigger an issue-intelligence agent that pulls real issues from your tracker — GitHub, Linear, or Jira, whichever is reachable — and feeds leverage-ranked clustered themes into the ideation frames. It scopes large trackers by the tracker's own structure and asks at most one question, only when the tracker is genuinely split; it discloses what it did and didn't analyze rather than implying it read everything.
+Non-software mode uses a facilitator in the topic's own language. Same six frames, same basis rule, same critique. Depth is Quick (3-5 survivors, one inline round), Standard (5-7, still inline), or Full (5-7, frames dispatched as agents). `ce-brainstorm` on a non-software survivor develops that idea further (a name into a brand brief, a plot into an outline). It is not the first step of a build chain.
+
+`/ce-ideate surprise me` skips naming a subject. Each frame picks its own from the grounding. Combinations across those subjects are expected.
+
+Phrases like "what users are reporting" or "biggest issue patterns" start an issue-intelligence pass against GitHub, Linear, or Jira, whichever is reachable. Large trackers are scoped by the tracker's own structure. The skill asks at most one question, and only when the tracker is genuinely split. It says what it did and did not analyze.
 
 ---
 
 ## Quick Example
 
-You invoke `ce-ideate "DX improvements"` from inside a code repo. The agent announces the grounding and ideation agents it's about to dispatch — most on cheap tiers — and offers skip phrases for cost control.
+You invoke `ce-ideate "DX improvements"` from inside a repo. The agent names the grounding and ideation agents it will dispatch and lists the skip phrases (`no external research`, `no slack`).
 
-Grounding agents return in parallel — a codebase summary, relevant past learnings, external prior art on developer-experience patterns. The orchestrator decomposes the topic into 4-5 axes derived from that grounding (e.g., for "DX improvements" — feedback loops, environment friction, tooling ergonomics, knowledge accessibility, automation surface), then cheap evidence scouts gather a quote-and-pointer dossier per axis. Five ideation sub-agents covering six frames generate candidates from that evidence, each idea tagged with the axis it targets and verified against the actual files before submission. The orchestrator merges 40+ candidates into one list, synthesizes cross-cutting combinations, runs an axis-coverage check (any empty axis triggers one bounded recovery dispatch), and runs the two-layer critique pass — a fresh-context verifier tries to refute each candidate, then the orchestrator makes the final cut. About 13 ideas are cut for being too vague, unjustified, refuted, or duplicative.
+Grounding returns a codebase summary, relevant learnings, and prior art on developer-experience patterns. The orchestrator splits the topic into axes (feedback loops, environment friction, tooling, knowledge access, automation), then scouts gather a quote-and-pointer dossier per axis. Five agents covering six frames generate candidates from that evidence. The orchestrator merges the list, synthesizes combinations, checks axis coverage, and runs the two-layer critique.
 
-The full deliverable — all seven cards with basis, rationale, downsides, confidence, complexity, plus the rejection summary — is written automatically to a self-contained HTML file and opened in your browser; the session itself shows just a concise ranked summary and the path, so you read the rich version, not a wall of terminal text. Then a four-option next-steps menu: open it in the browser, brainstorm one idea with `ce-brainstorm`, iterate on one idea (adjust or ask, staying here), or done. (Markdown runs swap "open in browser" for "publish to Proof".)
+A default run generates on the order of 36-48 raw ideas and keeps 5-7. The session summary looks like `Wrote 7 ranked ideas (36 raw, 13 cut) across 5 axes`.
+
+The full cards (basis, rationale, downsides, confidence, complexity) plus the rejection summary land in a self-contained HTML file that opens in the browser. The session shows a one-line count, a ranked one-liner per survivor, and the path. Then a four-option menu:
+
+1. Open in browser (or Publish to Proof on a markdown run)
+2. Brainstorm one idea with `ce-brainstorm`
+3. Discuss or refine the ideas first
+4. Done: keep the file and stop
+
+Say `discard` if you don't want a file created this run. Discard does not delete a resumed existing doc.
 
 ---
 
@@ -136,16 +153,17 @@ The full deliverable — all seven cards with basis, rationale, downsides, confi
 
 Reach for `ce-ideate` when:
 
-- You don't yet have a specific idea — you want strong, qualified candidates rather than to refine one
+- You don't have a specific idea yet and want a qualified candidate set
 - The thinking is greenfield or big-picture
-- You want a focus area explored without committing to a direction yet
+- You want a focus area explored without committing to a direction
 - You want a surprising direction (`surprise me`)
-- You want to mine your issue tracker for patterns
-- The topic is non-software entirely
+- You want to mine the issue tracker for patterns
+- The topic is not software at all
 
 Skip `ce-ideate` when:
 
 - You already have a specific feature or decision in mind → `/ce-brainstorm`
+- The options are already on the table and you need a verdict → `/ce-pov`
 - Requirements are ready and you need execution guardrails → `/ce-plan`
 - You're debugging a known bug → `/ce-debug`
 
@@ -164,37 +182,41 @@ Skip `ce-ideate` when:
    v
 /ce-plan              "What's needed to accomplish this?"
    |
-   |   structured plan (U-IDs, files, test scenarios — guardrails, not code)
+   |   structured plan (U-IDs, files, test scenarios: guardrails, not code)
    v
 /ce-work              "Build it."
 ```
 
-Each artifact is structured input for the next: the survivor's basis carries forward as the brainstorm's evidence base; the brainstorm's decisions flow into the plan's requirements and scope; the plan's U-IDs and test scenarios become the guardrails `ce-work` executes against. When you pick "Brainstorm one idea" in the next-steps menu, `ce-brainstorm` loads with that idea as a substance seed (its basis, rationale, and tradeoffs) — the ideation file is already saved.
+Each artifact is input for the next. The survivor's basis becomes the brainstorm's evidence seed. The brainstorm's decisions become the plan's requirements and scope. The plan's U-IDs and test scenarios are the guardrails `ce-work` executes against. When you pick "Brainstorm one idea," `ce-brainstorm` loads with that idea's basis, rationale, and tradeoffs. The ideation file is already saved.
 
-The chain runs in non-software domains too — ideating on weekend-trip directions feeds a brainstorm that defines the trip, which feeds a plan that structures bookings, packing, and itinerary as guardrails.
+In a repo, acting on an idea always goes to `ce-brainstorm`, not `ce-plan`. `ce-plan` wants a brainstorm-grounded Product Contract.
+
+The chain works outside software too: weekend-trip directions feed a brainstorm that defines the trip, which can feed a plan that structures bookings, packing, and itinerary. In that mode brainstorming is optional deeper development, not a required next rung.
 
 ---
 
 ## Use Standalone
 
-`ce-ideate` is a complete ideation cycle on its own — it produces a ranked, reasoned idea set as a saved file you can open, share, brainstorm from, or discard.
+`ce-ideate` is a complete ideation cycle on its own. It produces a ranked, reasoned idea set as a saved file you can open, share, brainstorm from, or discard.
 
 **Software:**
 
-- **Codebase audits** — `/ce-ideate "what to improve in this repo"` (pair with `STRATEGY.md` for strategy-aligned weighting)
-- **Issue triage** — `/ce-ideate "biggest issue themes in the last quarter"`
-- **Pricing or positioning ideation** — `/ce-ideate "pricing page A/B test ideas"`
-- **Surprise-me runs on any subject** — `/ce-ideate "surprise me"` from inside any repo
+- **Codebase audits:** `/ce-ideate "what to improve in this repo"` (pair with `STRATEGY.md` for strategy-aligned weighting)
+- **Issue triage:** `/ce-ideate "biggest issue themes in the last quarter"`
+- **Pricing or positioning ideation:** `/ce-ideate "pricing page A/B test ideas"`
+- **Surprise-me runs:** `/ce-ideate "surprise me"` from inside any repo
 
 **Non-software:**
 
-- **Naming** — coffee shops, baby names, products, brands
-- **Personal decisions** — career options, sabbatical destinations
-- **Plot or narrative ideation** — short story directions, character beats
-- **Business strategy** — go-to-market, positioning against a competitor
-- **Travel and events** — trip themes, wedding-venue concepts
+- **Naming:** coffee shops, baby names, products, brands
+- **Personal decisions:** career options, sabbatical destinations
+- **Plot or narrative ideation:** short story directions, character beats
+- **Business strategy:** go-to-market, positioning against a competitor
+- **Travel and events:** trip themes, wedding-venue concepts
 
-The deliverable is written automatically — you don't have to ask. If a run was purely exploratory and you don't want it kept, say "discard" and the file is deleted.
+The file is written every run. Say `discard` to delete a file created this run.
+
+If a related ideation file from the last 30 days exists, the skill offers to resume it instead of starting a duplicate.
 
 ---
 
@@ -207,9 +229,10 @@ The deliverable is written automatically — you don't have to ask. If a run was
 | `<path>` | a directory or file to focus on |
 | `<constraint>` | e.g., `low-complexity quick wins`, `polish-only` |
 | `surprise me` | Surprise-me mode |
-| `go deep` | Maximum depth: every ideation agent runs on the top-tier model, verification budgets double, and a second critic joins the filtering pass |
+| `go deep` | Maximum depth: every ideation agent on the top-tier model, doubled verification, a second critic |
 | `top issue themes in <area>` | Triggers issue-tracker intent |
-| `output:md` | Write the artifact as markdown instead of the default self-contained HTML (`output:html` forces HTML explicitly). Also settable per-project via `ideate_output` in CE config (`config.local.yaml` then `config.yaml`); see the [configuration reference](./configuration.md) |
+| `top 3` / `100 ideas` / `raise the bar` | Volume override: survivor count, raw total, or a higher bar |
+| `output:md` | Write the artifact as markdown instead of the default self-contained HTML (`output:html` forces HTML). Also settable per-project via `ideate_output` in CE config (`config.local.yaml` then `config.yaml`); see the [configuration reference](./configuration.md). Pipeline and `disable-model-invocation` runs force markdown. |
 
 Skip phrases supported anywhere in the prompt: `no external research`, `no slack`.
 
@@ -218,26 +241,30 @@ Skip phrases supported anywhere in the prompt: `no external research`, `no slack
 ## FAQ
 
 **Why six frames? Why not just one "give me ideas" prompt?**
-Single-prompt ideation collapses into the agent's most-trained directions. Different frames force genuine breadth — cross-domain analogy and constraint-flipping in particular surface ideas no single prompt would.
+One prompt collapses into the model's most-trained directions. Separate frames, especially cross-domain analogy and constraint-flipping, surface ideas a single prompt usually misses.
 
-**Why a basis requirement? Isn't this just AI hand-waving?**
-Without a basis, plausible-sounding ideas pass through unfiltered. The basis requirement means every survivor cites real evidence, real prior art, or a written-out argument. You can audit it.
+**Why a basis requirement?**
+Without a basis, plausible-sounding ideas pass through unfiltered. Every survivor cites real evidence, real prior art, or a written-out argument. You can audit it.
 
-**Does it really work for non-software topics?**
-Yes. The same generate-critique-survive engine runs in domain-native language for naming, narrative, personal decisions, and business strategy. Codebase grounding is replaced by user-context synthesis and external research.
+**Does it work for non-software topics?**
+Yes. A facilitator runs the same generate-critique-survive engine in the topic's own language for naming, narrative, personal decisions, and business strategy. Codebase grounding is replaced by user-context synthesis and web research.
+
+**Can I go straight to `ce-plan` from a survivor?**
+Not from inside a repo. Acting on an idea loads `ce-brainstorm` with a substance seed. `ce-plan` wants a brainstorm-grounded Product Contract. Outside a software build, the saved idea set can be the end of the run; brainstorming there is optional deeper development of one idea.
 
 **What if I want to tweak or talk through the ideas before committing to a brainstorm?**
-Pick "Discuss or refine the ideas first" — stay in ce-ideate to work across the set: adjust or interrogate one idea, compare several, or combine/merge them. Adjustments and merges update the saved file; pure Q&A and comparison don't. The file is written automatically, so if you didn't want it kept, just say "discard".
+Pick "Discuss or refine the ideas first." Stay in `ce-ideate` and work across the set: adjust or interrogate one idea, compare several, or combine them. Adjustments and merges update the saved file; pure Q&A and comparison do not. The file is written automatically, so if you didn't want a new one kept, say `discard`.
 
 **What if my prompt is ambiguous?**
-A subject-identification gate asks one scope question when the prompt refers only to a quality (`improvements`, `quick wins`) rather than a specific thing. "Surprise me" is offered as a real option, not a fallback.
+A subject-identification gate asks one scope question when the prompt names only a quality (`improvements`, `quick wins`) rather than a specific thing. "Surprise me" is a real option, not a fallback.
 
 ---
 
 ## See Also
 
-- [`ce-brainstorm`](./ce-brainstorm.md) — once you've picked a survivor, brainstorm the chosen direction into a requirements-only unified plan
-- [`ce-plan`](./ce-plan.md) — once requirements are clear, plan the implementation
-- [`ce-strategy`](./ce-strategy.md) — anchor ideation to a documented product strategy
-- [`ce-doc-review`](./ce-doc-review.md) — review the saved ideation artifact for clarity and completeness (markdown output only — run with `output:md` first)
-- [`ce-proof`](./ce-proof.md) — publish the artifact to Proof for a shareable link (markdown output only — Proof can't ingest HTML)
+- [`ce-brainstorm`](./ce-brainstorm.md): once you've picked a survivor, brainstorm the chosen direction into a requirements-only unified plan
+- [`ce-pov`](./ce-pov.md): when the options are already known and you need a verdict, not a new candidate set
+- [`ce-plan`](./ce-plan.md): once requirements are clear, plan the implementation
+- [`ce-strategy`](./ce-strategy.md): anchor ideation to a documented product strategy
+- [`ce-doc-review`](./ce-doc-review.md): review a saved markdown or HTML planning artifact for clarity and completeness
+- [`ce-proof`](./ce-proof.md): publish the artifact to Proof for a shareable link (markdown output only; Proof can't ingest HTML)

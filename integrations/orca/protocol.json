@@ -2,7 +2,7 @@
   "schema": "ce-orca.protocol-compatibility/v1",
   "integration": {
     "name": "compound-engineering-orca",
-    "revision": 4,
+    "revision": 5,
     "versionFormat": "{upstream.version}-orca.{integration.revision}",
     "workflowCoverage": {
       "ce-code-review": {

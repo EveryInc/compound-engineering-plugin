@@ -262,7 +262,7 @@ The first pass tightens recent branch changes before review. The targeted pass i
 /lfg
 ```
 
-`/lfg` runs the loop hands-off: it plans, works through the plan, simplifies, runs code review and applies the fixes, runs browser tests, commits, pushes, opens a PR, then watches CI and repairs failures until it's green. Start it after `/ce-brainstorm` so it plans against real requirements rather than a one-line prompt. It's the autopilot version of the standard loop -- neat when you want to step away and come back to an open, green PR. When an eligible multi-area plan still has unplanned work, `lfg` also recommends and justifies the next separately planned area; only if you accept does it create a `/ce-handoff` for a fresh session and separate plan.
+`/lfg` runs the loop hands-off: it plans, works through the plan, simplifies, runs code review and applies the fixes, runs browser tests, then commits. When a git remote exists it pushes, opens a PR, and watches CI with a bounded repair loop (it does not merge, and it can finish with leftovers if the repair budget is hit). With no remote it stops at local commits. Start it after `/ce-brainstorm` so it plans against real requirements rather than a one-line prompt. It's the autopilot version of the standard loop when you want to step away and come back to an open PR. When an eligible multi-area plan still has unplanned work, `lfg` also recommends and justifies the next separately planned area; only if you accept does it create a `/ce-handoff` for a fresh session and separate plan.
 
 ## Getting Started
 
@@ -302,7 +302,7 @@ The `compound-engineering` plugin currently ships 33 skills. Its core workflows 
 | [`/ce-setup`](docs/skills/ce-setup.md) | Diagnose optional tool capabilities and create repo `config.yaml` |
 | [`/ce-handoff`](docs/skills/ce-handoff.md) | Create a session handoff at the default temp store or a requested destination, then resume from a selected source |
 | [`/ce-simplify-code`](docs/skills/ce-simplify-code.md) | Simplify recent code changes |
-| [`/ce-prototype`](docs/skills/ce-prototype.md) | Build a throwaway prototype so someone can try how the product should work or feel |
+| [`/ce-prototype`](docs/skills/ce-prototype.md) | Build a throwaway prototype so someone can experience how the product should work, feel, or read |
 | [`/ce-polish`](docs/skills/ce-polish.md) | Start a dev server and iterate on UX polish |
 | [`/ce-proof`](docs/skills/ce-proof.md) | Create, edit, and share Proof documents |
 | [`/ce-dogfood`](docs/skills/ce-dogfood.md) | Hands-off diff-scoped browser QA of the active branch, with autonomous fixes |

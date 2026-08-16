@@ -15,7 +15,11 @@ from unit_workspace_jobs import find_attempt, parse_diff_paths, scope_expansion_
 
 def integration_lock_path(doc: dict) -> str:
     ident = doc["repository"]["identity_digest"] + "\0" + doc["branch"]["ref"]
-    return os.path.join(runs_root(), ".locks", f"integration-{digest_bytes(ident.encode())}.json")
+    # Anchor to the root this run actually lives under (run_dir searches both
+    # candidate roots), never the current invocation's preferred creation root:
+    # a fallback-root run must validate and release the lock it recorded.
+    run_root = os.path.dirname(run_dir(doc["run_id"]))
+    return os.path.join(run_root, ".locks", f"integration-{digest_bytes(ident.encode())}.json")
 
 
 def read_integration_lock(path: str) -> dict:
@@ -441,6 +445,11 @@ def cmd_mark_verified(args) -> tuple[str, dict]:
                 },
             )
         evidence = {"at": now_iso(), "digest": args.evidence_digest, "summary": args.summary}
+        ignored_state = getattr(args, "ignored_state", None)
+        if isinstance(ignored_state, str):
+            ignored_state = parse_json_arg(ignored_state, "ignored-state")
+        if ignored_state is not None:
+            evidence["ignored_state"] = ignored_state
         unit["integration"]["verification"] = evidence
         unit["state"] = "verified"
         event(doc, "canonical-verification-passed", args.unit_id, {"digest": args.evidence_digest})

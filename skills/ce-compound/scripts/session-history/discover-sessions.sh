@@ -10,7 +10,9 @@
 # Arguments:
 #   repo-name  Folder name of the repo (e.g., "my-repo"). Used for directory matching.
 #   days       Scan window in days (e.g., 7). Files older than this are skipped.
-#   --cwd      Absolute repo root. Used for exact Pi encoded-CWD discovery.
+#   --cwd      Absolute repo root. Used for exact Pi encoded-CWD discovery
+#              and the omp raw-bucket probe. Claude listing is unfiltered;
+#              extract-metadata.py --cwd-filter matches recorded cwd.
 #   --platform Restrict to a single platform. Omit to search all.
 
 set -euo pipefail
@@ -38,15 +40,14 @@ encode_pi_cwd() {
 }
 
 # --- Claude Code ---
+# List every recent jsonl under <config-dir>/projects. Folder names are an
+# undocumented encoder of session CWD; do not invert them. Repo attribution
+# is the recorded `cwd` field, applied by extract-metadata.py --cwd-filter.
+# CLAUDE_CONFIG_DIR relocates the whole config tree (official); unset -> ~/.claude.
 discover_claude() {
-    local base="$HOME/.claude/projects"
+    local base="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
     [ -d "$base" ] || return 0
-
-    # Find all project dirs matching repo name
-    for dir in "$base"/*"$REPO_NAME"*/; do
-        [ -d "$dir" ] || continue
-        find "$dir" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
-    done
+    find "$base" -mindepth 2 -maxdepth 2 -type f -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
 }
 
 # --- Codex ---
@@ -103,9 +104,10 @@ discover_codex() {
 $(codex_session_roots)
 EOF
     # Orca's real-home migration hardlinks/copies the same rollout into more
-    # than one root. Rollout basenames carry a session UUID, so the first root
-    # wins and replicated paths do not make session-history process it twice.
-    } | awk -F/ '!seen[$NF]++'
+    # than one root. Real rollout basenames carry a session UUID, so the first
+    # root wins. Preserve non-rollout files with coincidentally equal basenames:
+    # tests, imports, and alternate session stores need not share that identity.
+    } | awk -F/ '{ key = ($NF ~ /^rollout-.*\.jsonl$/ ? $NF : $0); if (!seen[key]++) print }'
 }
 
 # --- Cursor ---

@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 import {
   chmodSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -9,6 +10,7 @@ import {
   readdirSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
@@ -109,7 +111,7 @@ case '${route}' in
     printf '%s\\n' '${final.replaceAll("'", "'\\''")}'
     ;;
   cursor|composer|grok-cursor)
-    model='Cursor Grok 4.5 High'
+    model='Cursor Grok 4.6'
     [ '${route}' = composer ] && model='Composer 2.5 Fast'
     [ '${route}' = grok-cursor ] && model='Cursor Grok 4.6'
     printf '%s\\n' "{\\"type\\":\\"system\\",\\"subtype\\":\\"init\\",\\"model\\":\\"$model\\"}"
@@ -239,7 +241,6 @@ describe("ce-work fixed write routes", () => {
     expect(emit("cursor").stdout).not.toContain("--model")
     expect(emit("composer").stdout).toContain("--model composer-2.5-fast")
     expect(emit("grok-cursor").stdout).toContain("--model cursor-grok-4.6-high")
-
     const agy = emit("agy").stdout
     expect(agy).toContain("--print <prompt>")
     expect(agy).not.toContain("<prompt-file>")
@@ -274,7 +275,19 @@ describe("ce-work fixed write routes", () => {
     )
     expect(result.code).toBe(0)
     expect(readFileSync(path.join(f.capture, "pwd"), "utf8")).toBe(realpathSync(f.workspace))
-    expect(readFileSync(path.join(f.capture, "stdin"), "utf8")).toContain("Implement U3 only.")
+    const stdin = readFileSync(path.join(f.capture, "stdin"), "utf8")
+    expect(stdin).toContain("Implement U3 only.")
+    expect(stdin).toContain("Leave the completed working tree uncommitted")
+    expect(stdin).toContain("`git add`")
+    expect(stdin).toContain("`git commit`")
+    if (route === "codex") {
+      expect(stdin).toContain("host-owned")
+      expect(stdin).toContain("Socket binds")
+      expect(stdin).toContain("EPERM")
+    } else {
+      expect(stdin).not.toContain("Socket binds")
+      expect(stdin).not.toContain("EPERM")
+    }
     if (route === "cursor" || route === "composer" || route === "grok-cursor") {
       expect(readFileSync(path.join(f.capture, "argv"), "utf8")).not.toContain("Implement U3 only.")
     }
@@ -307,7 +320,7 @@ describe("ce-work fixed write routes", () => {
     expect(cursor.status).toBe(0)
     expect(cursor.stdout).toContain("--model claude-sonnet-5-low")
 
-    for (const reserved of ["composer", "composer-2.5-fast", "grok-4.5", "cursor-grok-4.5-high"]) {
+    for (const reserved of ["composer", "composer-2.5-fast", "grok-4.6", "cursor-grok-4.6-high"]) {
       const rejected = emit("cursor", {
         ...process.env,
         CE_WORK_MODEL_OVERRIDE_TARGET: "cursor",
@@ -340,7 +353,7 @@ describe("ce-work fixed write routes", () => {
     const cursorAgent = path.join(bin, "cursor-agent")
     writeFileSync(
       cursorAgent,
-      readFileSync(cursorAgent, "utf8").replace("model='Cursor Grok 4.5 High'", "model='Sonnet 5 1M Low'"),
+      readFileSync(cursorAgent, "utf8").replace("model='Cursor Grok 4.6'", "model='Sonnet 5 1M Low'"),
     )
     chmodSync(cursorAgent, 0o755)
     const cursorConfig = path.join(f.root, "cursor-config")
@@ -445,7 +458,7 @@ describe("ce-work fixed write routes", () => {
   test.each([
     ["cursor", "claude-sonnet-5-low"],
     ["claude", "sonnet"],
-    ["grok-cli", "grok-4.5"],
+    ["grok-cli", "grok-4.6"],
     ["agy", "gemini-3.7-flash-high"],
   ] as const)("production %s dispatch honors explicit model %s while defaults stay harness-configured", (route, model) => {
     const f = fixture()
@@ -489,8 +502,8 @@ describe("ce-work fixed write routes", () => {
     ["route mismatch", "codex", { route: "claude" }],
     ["Composer family mismatch", "composer", { model_requested: "gpt-5.6-sol" }],
     ["Cursor Composer model", "cursor", { model_requested: "composer-2.5-fast" }],
-    ["Cursor unqualified Grok model", "cursor", { model_requested: "grok-4.5" }],
-    ["Cursor Grok route model", "cursor", { model_requested: "cursor-grok-4.5-high" }],
+    ["Cursor unqualified Grok model", "cursor", { model_requested: "grok-4.6" }],
+    ["Cursor Grok route model", "cursor", { model_requested: "cursor-grok-4.6-high" }],
     ["adapter-unsafe model token", "cursor", { model_requested: "model@beta" }],
     ["agy adapter-unsafe model token", "agy", { model_requested: "model@beta" }],
   ] as const)("forged %s authorization is rejected before CLI invocation", (_name, route, overrides) => {
@@ -590,6 +603,27 @@ printf '%02048d' 0
     expect(noisyResult.result.terminal_status).toBe("unavailable")
     expect(noisyResult.result.failure_reason).toContain("exceeded 256 bytes")
     expect(statSync(path.join(noisy.resultDir, "adapter.log")).size).toBeLessThanOrEqual(256)
+  })
+
+  test("an app-bundled codex CLI off PATH satisfies the codex route (issue #1272)", () => {
+    const f = fixture()
+    const bin = fakeBin("codex", f.capture)
+    const bundle = path.join(temp("ce-work-bundle-"), "Codex.app", "Contents", "Resources")
+    mkdirSync(bundle, { recursive: true })
+    copyFileSync(path.join(bin, "codex"), path.join(bundle, "codex"))
+    chmodSync(path.join(bundle, "codex"), 0o755)
+    // Hide any real codex from PATH without losing co-located tools: drop dirs
+    // that contain codex, then re-expose the tools the worker needs via symlinks.
+    const realDirs = (process.env.PATH ?? "").split(path.delimiter).filter(Boolean)
+    const tools = temp("ce-work-tools-")
+    for (const tool of ["python3", "python", "git", "jq", "bash", "sh", "env"]) {
+      const dir = realDirs.find((d) => existsSync(path.join(d, tool)))
+      if (dir) symlinkSync(path.join(dir, tool), path.join(tools, tool))
+    }
+    const pathWithoutCodex = [tools, ...realDirs.filter((d) => !existsSync(path.join(d, "codex")))].join(path.delimiter)
+    const result = run("codex", f, { ...process.env, PATH: pathWithoutCodex, CROSS_MODEL_CODEX_APP_DIRS: bundle })
+    expect(result.result.terminal_status).toBe("completed")
+    expect(existsSync(path.join(f.capture, "argv"))).toBe(true)
   })
 
   test.each(["claude", "grok-cli"] as const)("%s is unavailable when enforceable confinement is required", (route) => {
@@ -817,7 +851,7 @@ printf '%s\\n' '{"terminal_status":"completed","summary":"done","changed_files":
     const response = '{"terminal_status":"completed","summary":"done","changed_files":["result.txt"],"evidence":[],"scope_expansion":null}'
     const bin = fakeBin("cursor", f.capture, response)
     const script = path.join(bin, "cursor-agent")
-    const body = readFileSync(script, "utf8").replace("model='Cursor Grok 4.5 High'", `model='${served}'`)
+    const body = readFileSync(script, "utf8").replace("model='Cursor Grok 4.6'", `model='${served}'`)
     writeFileSync(script, body)
     chmodSync(script, 0o755)
     const result = run(

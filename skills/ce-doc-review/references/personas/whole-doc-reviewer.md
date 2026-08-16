@@ -22,4 +22,4 @@ Honor the shared confidence rubric and false-positive catalog in the `<output-co
 
 ## Output
 
-Return one JSON object matching the findings schema. Your findings fold into synthesis as an independent reviewer named `whole-doc-<provider>`; agreement between one of your findings and any in-process reviewer's finding (same dedup fingerprint) is a cross-model corroboration signal that promotes it. You are a corroboration and coverage signal only — you never carry apply authority (`safe_auto`).
+Return one JSON object matching the findings schema. Your findings fold into synthesis as an independent reviewer named `whole-doc-<provider>`; agreement between one of your findings and any in-process reviewer's finding — judged by whether one fix would resolve both — is a cross-model corroboration signal that promotes it. You are a corroboration and coverage signal only — you never carry apply authority (`safe_auto`).

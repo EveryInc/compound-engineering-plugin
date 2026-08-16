@@ -71,7 +71,7 @@ Resolve two values at runtime with the shell tool before Phase 1 session-history
 These files are the durable contract for the workflow. Read them on-demand at the step that needs them — do not bulk-load at skill start.
 
 - `references/schema.yaml` — canonical frontmatter fields and enum values (read when validating YAML)
-- `references/yaml-schema.md` — category mapping from problem_type to directory (read when classifying)
+- `references/yaml-schema.md` — default category mapping from problem_type to directory, and the corpus-first vocabulary rule (read when classifying)
 - `references/concepts-vocabulary.md` — CONCEPTS.md format and inclusion rules (read in Phase 2.4 when domain terms surface)
 - `references/domain-vocabulary.md` — which glossary a vocabulary write targets, and the states that block it (read in Phase 2.4 alongside the format rules)
 - `references/agents/session-historian.md` — skill-local synthesis prompt for optional session-history compounding context (read only when the user opts into session history)
@@ -159,6 +159,7 @@ Before any Phase 1 subagent dispatch, read `references/orca-routing.md` and `ref
 
 ```bash
 SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
+[ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") 2>/dev/null && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && [ -w "$SCRATCH_ROOT" ] || SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)";
 if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
 (umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
 if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
@@ -190,16 +191,17 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
 
 #### 1. **Context Analyzer**
    - Extracts conversation history
-   - Reads `references/schema.yaml` for enum validation and **track classification**
+   - Reads `references/schema.yaml` for field rules and **track classification**
    - Determines the track (bug or knowledge) from the problem_type
+   - **Samples the corpus before choosing vocabulary.** Reads existing docs under `<root>/solutions/` (frontmatter and directory names) and applies the corpus-first rule in `references/yaml-schema.md` for `component`/`root_cause` and for the directory. Records in `context.json` whether each came from the corpus or the default
    - Identifies problem type, component, and track-appropriate fields:
      - **Bug track**: symptoms, root_cause, resolution_type
      - **Knowledge track**: applies_when (symptoms/root_cause/resolution_type optional)
    - Incorporates auto memory excerpts (if provided by the orchestrator) as supplementary evidence
-   - Reads `references/yaml-schema.md` for category mapping into `<root>/solutions/`
+   - Reads `references/yaml-schema.md` for the default category mapping into `<root>/solutions/` (used when the corpus has no directory for this area — see the corpus-sampling bullet above)
    - Suggests a filename using the pattern `[sanitized-problem-slug].md` — no date suffix, even if existing files in the target directory have one; the `date:` frontmatter field is the canonical creation date
-   - Writes to `context.json`: YAML frontmatter skeleton (must include `category:` field mapped from problem_type), category directory path, suggested filename, and which track applies. Returns only the artifact path.
-   - Does not invent enum values, categories, or frontmatter fields from memory; reads the schema and mapping files above
+   - Writes to `context.json`: YAML frontmatter skeleton (must include `category:` — the corpus directory when one covers this area, else the directory mapped from problem_type), category directory path, suggested filename, and which track applies. Returns only the artifact path.
+   - Does not invent enum values, categories, or frontmatter fields from memory; takes the category/directory from the corpus sample first, falling back to the schema and mapping files above, and takes open-vocabulary values from the corpus sample
    - Does not force bug-track fields onto knowledge-track learnings or vice versa
 
 #### 2. **Solution Extractor**
@@ -295,7 +297,7 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
    else echo "Session history bundled scripts were not found in this skill's directory; skipping the session-history probe for this run."; fi
    ```
 
-   Pi sessions are included when present under `~/.pi/agent/sessions/`, and oh-my-pi (`omp`) sessions under `~/.omp/agent/sessions/` (named profiles: `~/.omp/profiles/<name>/agent/sessions/`; XDG: `$XDG_DATA_HOME/omp/sessions` and `$XDG_DATA_HOME/omp/profiles/<name>/sessions`); they carry `cwd` like Codex but no git branch. Codex sessions are discovered from the active runtime home (the `sessions/` directory under an inherited `CODEX_HOME`, when that variable is set), the conventional homes, Orca's legacy runtime home and per-account homes, and any additional colon-separated roots supplied via `CE_CODEX_SESSION_ROOTS`. Managed runtimes that relocate the Codex home are covered without extra configuration; duplicate routes to one directory and rollout replicas across different homes yield one candidate. If `_meta.files_processed` is `0`, return `no relevant prior sessions`. If the first pass finds no relevant branch matches, or if processing Codex, Pi, or oh-my-pi (`omp`) sessions, derive 2-4 keywords from the topic and re-run metadata extraction with `--keyword K1,K2,...`. Keep at most 5 sessions across Claude Code, Codex, Cursor, Pi, and oh-my-pi (`omp`), ranked by branch match, keyword match count, file size over 30KB, and recency. Exclude the current session.
+   Claude sessions live under `~/.claude/projects/` unless `CLAUDE_CONFIG_DIR` is set, in which case they live under that directory's `projects/`. Codex sessions are discovered from the active runtime home (the `sessions/` directory under an inherited `CODEX_HOME`, when set), the conventional `~/.codex/sessions/` and `~/.agents/sessions/` homes, Orca's legacy runtime home and per-account homes, and any additional colon-separated roots supplied via `CE_CODEX_SESSION_ROOTS`. Managed runtimes that relocate the Codex home are covered without extra configuration; duplicate routes to one directory and rollout replicas across different homes yield one candidate. Pi sessions are included when present under `~/.pi/agent/sessions/` (`PI_CODING_AGENT_DIR` / `PI_CODING_AGENT_SESSION_DIR` override), and oh-my-pi (`omp`) sessions under `~/.omp/agent/sessions/` (named profiles: `~/.omp/profiles/<name>/agent/sessions/`; XDG: `$XDG_DATA_HOME/omp/sessions` and `$XDG_DATA_HOME/omp/profiles/<name>/sessions`; `PI_CONFIG_DIR` / `PI_CODING_AGENT_DIR` / `PI_CODING_AGENT_SESSION_DIR` override). Claude, Codex, Pi, and oh-my-pi (`omp`) sessions carry a recorded `cwd` (Claude also has git branch; Pi/omp do not). `--cwd-filter` keeps a session when that cwd is the repo root, an ancestor of it, or a path inside it (path-component boundaries: `my-repo` vs `my-repo-old` do not match). Claude, Codex, Pi, and omp sessions with no recorded cwd are dropped. Cursor has no cwd and stays. Do not drop a Claude session because its project folder name lacks the repo basename — that is how Claude stores parent-started sessions. If `_meta.files_processed` is `0`, return `no relevant prior sessions`. If the first pass finds no relevant branch matches, or if processing Codex, Pi, or oh-my-pi (`omp`) sessions, derive 2-4 keywords from the topic and re-run metadata extraction with `--keyword K1,K2,...`. Keep at most 5 sessions across Claude Code, Codex, Cursor, Pi, and oh-my-pi (`omp`), ranked by branch match, keyword match count, file size over 30KB, and recency. Exclude the current session.
 
    **Escalation gate.** The discovery+metadata pass above is the cheap probe and always runs in Full mode. Escalate to the extraction and synthesis stages below **only** when at least one retained candidate clears the relevance bar: a current-branch match, or ≥2 topic-keyword matches. If no candidate clears the bar (including the `_meta.files_processed` is `0` case), stop here, record `no relevant prior sessions` as the session-history input, and skip extraction and synthesis. This gate is what keeps the always-on probe cheap — the expensive synthesis is paid for only when a prior session is genuinely relevant.
 
@@ -551,7 +553,7 @@ Non-interactive mode enters Lightweight only when explicitly invoked with `depth
 The orchestrator (main conversation) performs ALL of the following in one sequential pass:
 
 1. **Extract from conversation**: Identify the problem and solution from conversation history. Also scan the "user's auto-memory" block injected into your system prompt, if present (Claude Code only) -- use any relevant notes as supplementary context alongside conversation history. Tag any memory-sourced content incorporated into the final doc with "(auto memory [claude])". Before asserting how code behaves (enum values, status semantics, limits, defaults), Read the defining line at the current tree — soften or attribute any claim you cannot verify. Cite PR numbers over bare commit SHAs, and phrase unmerged fixes as pending
-2. **Classify**: Read `references/schema.yaml` and `references/yaml-schema.md`, then determine track (bug vs knowledge), category, and filename
+2. **Classify**: Read `references/schema.yaml` and `references/yaml-schema.md`, then determine track (bug vs knowledge), category, and filename. Sample existing docs under `<root>/solutions/` and choose `component`, `root_cause`, and the directory under the corpus-first rule in `references/yaml-schema.md` (it names what each is matched on and when the suggested defaults apply)
 3. **Write minimal doc**: Before writing, check whether the exact proposed `<root>/solutions/[category]/[filename].md` path exists. If it exists, read it: update it only when it covers the same problem, preserving its path and frontmatter structure and adding `last_updated: YYYY-MM-DD`; otherwise choose a distinct, descriptive filename and re-check that exact path is absent before writing. This is exact-path collision handling only — do not run Full mode's semantic overlap research or dispatch subagents. Create or update the doc using the appropriate track template from `assets/resolution-template.md`, with:
    - YAML frontmatter with track-appropriate fields, applying the YAML-safety quoting rule for array items (see `references/yaml-schema.md` > YAML Safety Rules)
    - Bug track: Problem, root cause, solution with key code snippets, one prevention tip
@@ -622,7 +624,7 @@ In lightweight mode, the overlap check is skipped (no Related Docs Finder subage
 
 - File: `<root>/solutions/[category]/[filename].md`
 
-**Categories auto-detected from problem:**
+**Categories auto-detected from problem** (default layout — an established directory taxonomy under `<root>/solutions/` wins over this list):
 
 Bug track:
 - build-errors/
@@ -718,7 +720,7 @@ Ran Full mode.
 Auto memory: 2 relevant entries used as supplementary evidence
 
 Subagent Results:
-  ✓ Context Analyzer: Identified performance_issue in brief_system, category: performance-issues/
+  ✓ Context Analyzer: Identified performance_issue in background_job (component from corpus), category: performance-issues/
   ✓ Solution Extractor: 3 code fixes, prevention strategies
   ✓ Related Docs Finder: 2 related issues
   ✓ Session History: 3 prior sessions on same branch, 2 failed approaches surfaced

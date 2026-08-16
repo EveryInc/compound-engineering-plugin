@@ -37,6 +37,7 @@ When the user did not choose another destination, resolve the managed root with 
 
 ```bash
 SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
+[ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") 2>/dev/null && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && [ -w "$SCRATCH_ROOT" ] || SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)";
 if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
 (umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
 if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
@@ -117,7 +118,7 @@ A supplied folder or collection is a discovery boundary, not a selected document
 
 ### Without an explicit source
 
-1. Search the folder or collection the user supplied; otherwise run the managed-root block above in the current shell call and enumerate candidate files beneath `$SCRATCH_ROOT/ce-handoff/`. Bound the candidate set before inspecting content; prefer recent files and current repository or working-directory affinity without making repository affinity mandatory.
+1. Search the folder or collection the user supplied; otherwise run the managed-root block above in the current shell call and enumerate candidate files beneath `$SCRATCH_ROOT/ce-handoff/` and, when it differs from `$SCRATCH_ROOT` and passes the same symlink and ownership checks, beneath the other candidate root's `ce-handoff/` as well (`/tmp/compound-engineering-$(id -u)` or `${TMPDIR:-/tmp}/compound-engineering-$(id -u)`, whichever the block did not select) — a handoff written from a sandboxed session and resumed from an unsandboxed one, or the reverse, lives under the other root. Bound the candidate set before inspecting content; prefer recent files and current repository or working-directory affinity without making repository affinity mandatory.
 2. Before reading any candidate metadata or frontmatter, resolve the discovery boundary and exclude symlink candidates and candidates whose resolved path escapes that boundary. This discovery-only containment rule does not restrict an explicit selected source.
 3. During discovery, do not inspect the body of a candidate without frontmatter: check only its first line, then treat it as unindexed using its filename, location, and filesystem metadata. For a candidate beginning with the exact frontmatter opener `---`, read at most the first 64 lines or 16 KiB, whichever comes first, stopping sooner at the closing delimiter. If no closing delimiter appears within those bounds, treat the candidate as unindexed and do not read farther. Treat `ce-handoff/v1` metadata as an enriched index, not an eligibility gate. Never read an unselected body merely to rank it.
 4. Rank only available frontmatter, filename, location, and filesystem metadata using the user's keywords, title, summary, keyword overlap, repository or worktree affinity, working-directory affinity, and recency.

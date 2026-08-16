@@ -14,7 +14,7 @@ Before step 1, use the platform's task-tracking capability when available to pub
 
 ## Artifact Root
 
-This pipeline records the plan under `<root>/plans/` and review residuals under `<root>/residual-review-findings/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it. A write to `<root>/...` and a read of `<root>/solutions/` both count as composing a `<root>/` path, so either one triggers resolution; only a run that touches no `<root>/` path at all -- a scratch-only or no-repo flow -- skips it.
+This pipeline records the plan under `<root>/plans/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it. A write to `<root>/...` and a read of `<root>/solutions/` both count as composing a `<root>/` path, so either one triggers resolution; only a run that touches no `<root>/` path at all -- a scratch-only or no-repo flow -- skips it.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**
@@ -105,15 +105,15 @@ reinterprets the invoking conversation.
 
    1. Load `references/tracker-defer.md` in **non-interactive mode**. Pass the residual actionable findings from step 4/5 (or the run artifact when the summary was truncated).
    2. Collect the structured return: `{ filed: [...], failed: [...], no_sink: [...] }`.
-   3. Compose a `## Residual Review Findings` markdown section from the structured return (this goes into the committed record file in step 4, **not** the PR body):
+   3. Compose a `## Residual Review Findings` markdown section from the structured return (this goes into the run-report PR comment in step 4, **not** the PR body):
       - For each item in `filed`: a bullet with severity, file:line, title, and a link to the tracker ticket URL.
       - For each item in `failed`: a bullet with severity, file:line, title, and the failure reason (e.g., `Defer failed: gh returned 401 — tracker unavailable`).
-      - For each item in `no_sink`: a bullet with severity, file:line, and title inlined verbatim so the committed record file is the durable record.
+      - For each item in `no_sink`: a bullet with severity, file:line, and title inlined verbatim, since the comment is the only record these get.
       - For each `settled_conflict`-stamped finding from step 4: a bullet with severity, file:line, title, and the conflicting KTD the stamp names — included even though the finding is report-only.
       - For each proceeded-and-flagged `settled_decision_conflicts` entry from step 2: a bullet with the KTD, the evidence, and how it was routed.
-   4. **Durable record — never the PR body.** Do NOT write a `## Residual Review Findings` section into the PR description; it duplicates GitHub's own tracking and goes stale as items resolve. Review residuals have no GitHub thread of their own, so they are made durable by the tracker tickets filed in step 2 plus a committed record file — not a PR-body section and not a PR comment that duplicates the tickets. Create/replace `<root>/residual-review-findings/<branch-or-head-sha>.md` with the composed section (ticket links included) and the source run context. Stage only that file, commit `docs(review): record residual review findings`, and push **when a remote is configured** (per the shipping precondition): if an upstream exists, `git push`; else if a remote exists, resolve a writable one (prefer `origin`, otherwise the first configured remote) and `git push --set-upstream <remote> HEAD`; if there is no remote at all, the local commit is the durable sink.
+   4. **Durable record — never the PR body.** Do NOT write a `## Residual Review Findings` section into the PR description; it duplicates GitHub's own tracking and goes stale as items resolve. Review residuals have no GitHub thread of their own, so they are made durable by the tracker tickets filed in step 2 plus **one run-report comment on the PR** carrying the composed section (ticket links included) and the source run context — the same surface `ce-babysit-pr` already uses for unfixable CI. Post it with `gh pr comment`; a point-in-time comment does not go stale as items resolve, the way a body section or a committed file does.
 
-   Do not output DONE until the residuals are durable (tracker tickets filed and/or the record file committed). Never block DONE on tracker filing failures once the record file exists. A push that fails when a remote exists is a stop-and-report; never retry a push, or block DONE, when no remote exists.
+   Do not output DONE until the residuals are durable: tracker tickets filed, and — when a PR exists — the run-report comment posted. Never block DONE on tracker filing failures once the comment is posted. When no PR exists at all (no remote, per the shipping precondition), the run output is the record: state the residuals in the DONE report rather than committing a file nobody will read.
 
 7. Invoke the `ce-test-browser` skill with `mode:pipeline`.
 

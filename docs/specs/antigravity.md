@@ -140,5 +140,8 @@ Builtin skills ship under `~/.gemini/antigravity-cli/builtin/skills/`.
 - Whether a generated root `plugin.json` (vs `.claude-plugin/plugin.json`) is the right emission
   target, and how it coexists with the existing Claude/Codex manifests at the repo root.
   **Resolved for CE:** root `plugin.json` is the Antigravity manifest; `.agy/plugin.json` symlinks to it.
+  As of 2026-08-07 the root file also declares the Agent Plugins v1.0.0 `$schema` (shared surface;
+  see `docs/specs/agent-plugins.md`). `agy` v1.0.10 accepts that foreign `$schema` (fixture +
+  `agy plugin validate .` after the swap).
 - Marketplace (`<plugin>@<marketplace>`, `agy plugin link`) distribution — deferred until Antigravity
   documents a stable catalog schema (unlike Kimi's `.kimi-plugin/marketplace.json`).

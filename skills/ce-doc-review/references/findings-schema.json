@@ -37,7 +37,7 @@
           },
           "section": {
             "type": "string",
-            "description": "Document section where the issue appears (e.g., 'Requirements Trace', 'Implementation Unit 3', 'Overview')"
+            "description": "Document section where the issue appears, named so a reader who does not have the document open can tell what it is. Give the identifier a short handle on first mention: 'U1 - Establish profile contracts', not 'U1'. Plain section names that need no handle are fine as-is (e.g., 'Requirements Trace', 'Overview')."
           },
           "why_it_matters": {
             "type": "string",
@@ -46,7 +46,7 @@
           "autofix_class": {
             "type": "string",
             "enum": ["safe_auto", "gated_auto", "manual"],
-            "description": "How this issue should be handled. safe_auto = one clear correct fix applied silently (typo, wrong count, stale cross-reference, mechanically-implied addition, terminology drift). gated_auto = concrete fix exists but touches document meaning or scope and warrants user confirmation (substantive additions from codebase-pattern-resolved fixes, framework-native-API substitutions, missing standard controls). manual = requires user judgment; multiple valid approaches. Low-confidence manual findings surface in an FYI subsection at the presentation layer."
+            "description": "How this issue should be handled. safe_auto = one clear correct fix, mechanical enough that stating it and doing it are the same act (typo, wrong count, stale cross-reference, mechanically-implied addition, terminology drift). gated_auto = concrete fix that touches document meaning or scope, with no genuine alternative to it (substantive additions from codebase-pattern-resolved fixes, framework-native-API substitutions, missing standard controls). manual = requires user judgment; multiple valid approaches. Low-confidence manual findings surface in an FYI subsection at the presentation layer."
           },
           "finding_type": {
             "type": "string",

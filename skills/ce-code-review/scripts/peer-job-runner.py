@@ -58,7 +58,10 @@ outcome exactly once; when both the worker's internal cap and the
 supervisor's window fire, the supervisor's record wins.
 
 Environment overrides (defaults in parentheses):
-  CE_PEER_JOBS_ROOT         base dir (/tmp/compound-engineering-<effective-uid>)
+  CE_PEER_JOBS_ROOT         base dir (/tmp/compound-engineering-<effective-uid>,
+                            or $TMPDIR/compound-engineering-<effective-uid> when
+                            /tmp cannot host a writable private root, e.g. under
+                            a sandbox that only allowlists $TMPDIR)
   CE_WORK_RUNS_ROOT         parent CE Work dir containing all <run-id>/ dirs
   CE_PEER_IDLE_SECS         idle window, no out.log growth (240)
   CE_PEER_HARD_SECS         hard cap on worker wall clock
@@ -202,19 +205,74 @@ _RUNNER_HARD_FLOOR = 1230.0
 _RUNNER_HARD_GRACE = 30.0
 
 
+def _private_root_usable(path: str) -> bool:
+    """True when `path` is (or can now be) a directory we own and can write into.
+
+    Creation is the probe: a sandbox that denies writes under /tmp refuses the
+    mkdir, and one that lets a pre-existing root stand still fails the access
+    check, so both land on the fallback instead of failing at the first job.
+    """
+    try:
+        os.mkdir(path, 0o700)
+    except FileExistsError:
+        pass
+    except OSError:
+        return False
+    try:
+        _check_owned_dir(path)
+    except (OSError, RunnerError):
+        return False
+    return os.access(path, os.W_OK)
+
+
+def _fallback_root() -> str:
+    return os.path.join(os.environ.get("TMPDIR") or "/tmp", f"compound-engineering-{_EFFECTIVE_UID}")
+
+
 def jobs_root_base() -> str:
     configured = os.environ.get("CE_PEER_JOBS_ROOT")
     if configured:
         return os.path.abspath(configured)
     if DEFAULT_ROOT is None:
         raise RunnerError("effective user ID is unavailable; cannot derive the jobs root")
-    return os.path.abspath(DEFAULT_ROOT)
+    if IS_WINDOWS or _private_root_usable(DEFAULT_ROOT):
+        return os.path.abspath(DEFAULT_ROOT)
+    # Same order and candidates as the skills' shell preamble, so a job started
+    # there is found here.
+    return os.path.abspath(_fallback_root())
+
+
+def candidate_jobs_root_bases() -> list:
+    """Every root an existing job may live under: the configured root alone, or
+    both the /tmp root and the $TMPDIR fallback (deduplicated, primary first).
+
+    Creation uses jobs_root_base(); lookup of an already-started job must not
+    depend on which root *this* invocation would create under, because a
+    sandboxed session and a later unsandboxed one resolve different roots.
+    """
+    configured = os.environ.get("CE_PEER_JOBS_ROOT")
+    if configured:
+        return [os.path.abspath(configured)]
+    if DEFAULT_ROOT is None:
+        raise RunnerError("effective user ID is unavailable; cannot derive the jobs root")
+    bases = [os.path.abspath(DEFAULT_ROOT)]
+    if not IS_WINDOWS:
+        fallback = os.path.abspath(_fallback_root())
+        if fallback not in bases:
+            bases.append(fallback)
+    return bases
 
 
 def skill_runs_root(skill: str) -> str:
     if skill == "ce-work" and os.environ.get("CE_WORK_RUNS_ROOT"):
         return os.path.abspath(os.environ["CE_WORK_RUNS_ROOT"])
     return os.path.join(jobs_root_base(), skill)
+
+
+def candidate_skill_runs_roots(skill: str) -> list:
+    if skill == "ce-work" and os.environ.get("CE_WORK_RUNS_ROOT"):
+        return [os.path.abspath(os.environ["CE_WORK_RUNS_ROOT"])]
+    return [os.path.join(base, skill) for base in candidate_jobs_root_bases()]
 
 
 def _env_num(name: str, default: float, conv, *, allow_zero: bool = False):
@@ -824,14 +882,14 @@ def resolve_job_dir(ref: str, skill=None) -> str:
     if skill is not None:
         if not _is_safe_token(skill):
             raise RunnerError(f"invalid skill: {skill!r}")
-        search_root = skill_runs_root(skill)
-        patterns = [os.path.join(search_root, "*", "jobs", ref)]
+        search_roots = candidate_skill_runs_roots(skill)
+        patterns = [os.path.join(root, "*", "jobs", ref) for root in search_roots]
     else:
-        search_root = jobs_root_base()
-        patterns = [os.path.join(search_root, "*", "*", "jobs", ref)]
+        search_roots = candidate_jobs_root_bases()
+        patterns = [os.path.join(root, "*", "*", "jobs", ref) for root in search_roots]
     matches = sorted({match for pattern in patterns for match in glob.glob(pattern)})
     if not matches:
-        raise RunnerError(f"job not found under {search_root}: {ref}")
+        raise RunnerError(f"job not found under {', '.join(search_roots)}: {ref}")
     if len(matches) > 1:
         raise RunnerError(f"ambiguous job id {ref}: {len(matches)} matches; pass the job dir path")
     return matches[0]

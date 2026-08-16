@@ -89,12 +89,14 @@ without a receipt.
 | E37 sibling-clone recovery isolation | Two independent clones have the same plan digest and base commit; a plan-backed run exists only for clone A, while CE Work starts in clone B without a caller-supplied run id | Discover with clone B's canonical repository plus plan digest. Never select clone A's run id from the shared run-root listing or mix `--run-id` with repository selectors; initialize a clone-B run when no exact match exists, and integrate only into clone B. |
 | E38 plugin-bundled reference load | Cursor loads CE Work through `--plugin-dir`; the target repository does not contain CE Work's `references/` or `scripts/` directories, and the request requires Claude Opus | Resolve required files from the loaded `SKILL.md` full path, not by globbing the target repository. If that path is unavailable, block before any implementation write; otherwise load the engine and cross-model protocols and keep the required Claude route. |
 | E39 incremental idle window | A route is qualified for trustworthy incremental activity; one healthy reasoning turn emits no new item-boundary output for five minutes, then emits progress, and the total run exceeds ten minutes | Start with `CE_PEER_IDLE_SECS=600` and `CE_PEER_HARD_SECS=7200`, never the shared 240-second idle default. Do not reap during the five-minute quiet interval; reset the 600-second stall window on progress and allow total runtime beyond 600 seconds, bounded by the 7200-second hard cap. |
+| E40 sandboxed worker no-commit | A Codex or Cursor unit has finished files and scoped checks in its detached worktree; the worker is about to `git add`/`git commit` | Do not instruct the worker to write the Git index. Leave the working tree uncommitted and treat completion as files plus scoped checks. Host `terminalize` snapshots the tree. A Codex sandbox `EPERM` on a socket bind or peer-credential probe is not proof the host lacks the capability. |
+| E41 warm-checkout verification | The canonical checkout has installed dependencies (thousands of git-ignored entries, `.bin` symlinks) and `integrate` reports the unit committed with `ignored_state.changed: 1` after the test command rewrote a cache file | Treat the unit as integrated; do not repair, reinstall, or clean the ignored tree, and do not treat the disclosed divergence as a verification failure. Report the `ignored_state` counts in the run receipt and move to the next unit. |
 
 ## Coverage roll-up
 
 - Activation/restraint: E1-E8, E21-E27, E31-E38
-- Identity, sanction, and authority: E2-E6, E13, E16, E23-E26, E28, E30-E33
-- Workspace, recovery, and transactional safety: E9-E12, E17-E18, E20-E22, E28-E32, E36-E38
+- Identity, sanction, and authority: E2-E6, E13, E16, E23-E26, E28, E30-E33, E40
+- Workspace, recovery, and transactional safety: E9-E12, E17-E18, E20-E22, E28-E32, E36-E38, E40-E41
 - Long-run visibility and parallel judgment: E14-E15, E39
 - Next-consumer and tail preservation: E6-E8, E19, E22-E27, E31-E33
 

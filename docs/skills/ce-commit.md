@@ -1,10 +1,10 @@
 # `ce-commit`
 
-> Create a single, well-crafted git commit from working tree changes — convention-aware, sensitive-file-safe, with logical splitting when concerns are clearly distinct.
+> Make local git commit(s) from the working tree. No push, no PR.
 
-`ce-commit` is the **commit-only** skill — sibling to `/ce-commit-push-pr` for the case where you want commits without pushing or opening a PR. It picks up your repo's existing commit conventions (project instructions first, then recent commit history, then conventional-commits as fallback), groups changed files by naturally distinct concerns (no `git add -p`, file level only), and avoids `git add -A` / `git add .` so sensitive files (`.env`, credentials, build artifacts) don't sneak in.
+`ce-commit` is a **git-workflow** skill, not a core-loop step. Use it when you want changes saved on the current branch and nothing else. It reads the repo's commit convention, stages named files only, and splits into separate commits when the files fall into distinct concerns.
 
-For the full ship flow (commit + push + PR), use `/ce-commit-push-pr`. For just the commit, this skill.
+It is the local-only sibling of `/ce-commit-push-pr`. That skill ships a PR. This one stops after the commit.
 
 ---
 
@@ -12,98 +12,88 @@ For the full ship flow (commit + push + PR), use `/ce-commit-push-pr`. For just 
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Creates one or two well-formed commits from the working tree, following repo conventions, staging files explicitly |
-| When to use it | "Commit this", "save my changes" — when you want commits without push or PR |
-| What it produces | One or two commits on the current branch (no push, no PR) |
-| What's next | `/ce-commit-push-pr` later if you want to open a PR; otherwise `git push` manually |
+| What does it do? | Commits current work locally, following repo conventions, staging files by name |
+| When to use it | "Commit this" or "save my changes" when you do not want a push or a PR |
+| What it produces | One commit, or up to three when files split cleanly. Stays on the branch. |
+| What's next | `/ce-commit-push-pr` when you want a PR, or `git push` yourself |
+
+---
+
+## Example invocations
+
+Most prompts are a hint for the subject or the file grouping. There is no mode flag. An empty invoke is the common case.
+
+```text
+# Current work, local only. On main or detached HEAD, create a feature branch first.
+# Clean tree: report nothing to commit and stop.
+/ce-commit
+
+# Steer the subject and which files belong together
+/ce-commit commit the auth changes
+
+# Mid-flow save. Same local-only path.
+/ce-commit save my changes
+```
+
+For commit plus push plus an open PR, use `/ce-commit-push-pr` instead.
 
 ---
 
 ## The Problem
 
-Manual commits go wrong in predictable ways:
+A rushed commit often does one of these:
 
-- **`git add -A` / `git add .`** sweep in unintended files — `.env` files, build artifacts, generated files, untracked notes
-- **Wrong commit convention** — defaulting to conventional commits when the repo uses ticket-prefix style, or vice versa
-- **Mixing distinct concerns** — backend models + frontend components + docs all in one commit because nobody bothered to split
-- **Subject lines that describe what changed, not why** — `update foo.rb` tells future readers nothing
-- **Detached-HEAD commits** that are hard to recover later
-- **Default-branch commits** that fight PR workflow and branch protection
+- `git add -A` or `git add .` pulls in `.env` files, build output, generated files, or scratch notes
+- The message follows conventional commits in a repo that uses ticket prefixes, or the other way around
+- Backend, frontend, and docs land in one commit because splitting felt like extra work
+- The subject lists files (`update foo.rb`) instead of the outcome
+- The commit lands on a detached HEAD or on the default branch, where it is easy to lose or fights branch protection
 
 ## The Solution
 
-`ce-commit` runs commit creation as a structured pass:
+`ce-commit` treats commit creation as a short, fixed pass:
 
-- **Convention detection** — repo conventions in context first, then recent 10 commits, then conventional-commits fallback
-- **Explicit staging** — never `git add -A`/`git add .`; stage files by name
-- **Logical splitting** at the file level (no `git add -p`) when 2-3 distinct concerns are present; single commit when ambiguous
-- **Detached HEAD / default branch** — automatically creates a feature branch (commit-only still must not leave work only on detached HEAD or the default branch)
-- **Heredoc commit messages** — preserves multi-line formatting without shell-escape pain
+- Convention comes from project instructions already in context, then the last 10 commits, then conventional commits
+- Files are staged by name. Never `git add -A` or `git add .`
+- Distinct concerns become separate commits at file level only (2-3 max, no `git add -p`). Ambiguous grouping stays one commit
+- Detached HEAD or the default branch gets a feature branch first, with no prompt
+- The subject is imperative and names what is now possible or fixed. A body is added only when the why is not obvious. When a plan unit ID is already in hand for that commit, that U-ID is appended in parentheses (`(U3)` for unit 3)
 
 ---
 
 ## What Makes It Novel
 
-### 1. Convention detection in priority order
+### Convention before the message
 
-For the commit message format, the skill consults sources in priority:
+The skill matches the repo rather than forcing a house style:
 
-1. **Repo conventions in context** — project instructions (`AGENTS.md`, `CLAUDE.md`) already loaded at session start; if they specify conventions, follow those
-2. **Recent commit history** — examine the last 10 commits; if a clear pattern emerges (conventional commits, ticket prefixes, emoji prefixes), match it
-3. **Default to conventional commits** — `type(scope): description` with `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`, `ci`, `style`, `build` as types
+1. Project conventions already in context
+2. A clear pattern in the last 10 commits (conventional commits, ticket prefixes, emoji prefixes)
+3. Conventional commits as fallback: `type(scope): description`
 
-When using conventional commits and `fix:` vs `feat:` both seem to fit, the skill defaults to `fix:` (a change that remedies broken or missing behavior is `fix:` even when implemented by adding code). The user can override.
+When conventional commits are in use and both `fix:` and `feat:` fit, it defaults to `fix:` (a change that remedies broken or missing behavior, even if it adds code). You can override.
 
-### 2. Explicit staging — no `git add -A`
+### Named files only
 
-The skill stages files by name in a single command (`git add file1 file2 file3`). This avoids accidentally including:
+It stages an explicit list (`git add file1 file2 file3`). That keeps `.env` credentials, `dist/` / `.next/` output, generated files, and untracked notes out of the commit.
 
-- `.env` files with credentials
-- Build artifacts (`dist/`, `.next/`, compiled binaries)
-- Generated files
-- Notes or scratch files in untracked directories
+### File-level splits only
 
-The deliberate avoidance is documented in the skill — `git add -A` and `git add .` are explicitly called out as the wrong move.
+If the changed files group into two or three distinct concerns (a data-layer change in one directory, a UI change in another), it makes separate commits. Splits stay at the file boundary. `git add -p` is out of scope. When the grouping is unclear, one commit is correct.
 
-### 3. Logical splitting at file level
+### Feature branch when HEAD is unsafe
 
-Before staging, the skill scans changed files for naturally distinct concerns. If files clearly group into 2-3 separate logical changes (a refactor in one directory, a new feature in another; or test files for a different change than source files), the skill creates separate commits. Splits happen at the **file level only** — no `git add -p`, no hunk-level interactive splitting. When the split is ambiguous, one commit is fine. The sweet spot is 2-3 commits, not many tiny ones.
-
-### 4. Detached HEAD and default branch — auto feature branch
-
-If HEAD is detached, or the current branch is `main`/`master`/the resolved default, the skill creates a feature branch from the change content and continues there. It does not ask and does not commit on the default branch or leave work only on a detached HEAD.
-
-### 5. Heredoc commit messages — clean multi-line formatting
-
-The skill uses a `cat <<'EOF'` heredoc for the commit message so multi-line bodies preserve their formatting. Example:
-
-```bash
-git add file1 file2 file3 && git commit -m "$(cat <<'EOF'
-type(scope): subject line here
-
-Optional body explaining why this change was made,
-not just what changed.
-EOF
-)"
-```
-
-The quoted sentinel (`'EOF'`) prevents `$VAR`, backticks, and embedded `EOF` from being expanded inside the body.
-
-### 6. Subject focused on outcome, not file inventory
-
-The skill writes subject lines in imperative mood that name what is now possible or fixed. "Fix double-submit on checkout" beats "Update checkout.rb." A body is added only when the motivation is not obvious from the subject.
+On detached HEAD, or on `main` / `master` / the resolved default, it creates a feature branch from the change content and continues there. It does not ask, and it does not leave the only copy of the work on detached HEAD or the default branch.
 
 ---
 
 ## Quick Example
 
-You finish a feature touching backend models, controller, and frontend component. You invoke `/ce-commit`.
+You finish a notification-mute change that touches a model, a controller, and a JS component. You invoke `/ce-commit`.
 
-The skill reads git status: 4 files modified across `app/models/`, `app/controllers/`, and `app/javascript/`. Reads recent commits — the project uses conventional commits with scope (`feat(auth): ...`, `fix(billing): ...`). On feature branch `tmchow/notification-mute`, not on default branch.
+Git status shows four modified files. Recent commits use conventional commits with a scope (`feat(auth): ...`). The branch is `tmchow/notification-mute`, not the default.
 
-The skill scans changed files for distinct concerns: model + controller hang together (data layer); the JS component is its own concern (UI). Two logical commits.
-
-Commit 1: stages `app/models/notification_subscription.rb`, `app/controllers/settings_controller.rb`. Composes message:
+Model and controller group as the data layer. The JS component is the UI. Two commits:
 
 ```text
 feat(notifications): add per-subscription mute_until column
@@ -112,89 +102,77 @@ Subscriptions can now carry a mute timestamp; nil means not muted.
 Controller exposes the toggle endpoint.
 ```
 
-Commit 2: stages `app/javascript/controllers/notification_toggle_controller.js`. Composes:
-
 ```text
 feat(notifications): wire toggle UI to mute endpoint
 ```
 
-Reports both commit hashes and subject lines.
+The skill reports both hashes and subjects. Nothing is pushed.
 
 ---
 
 ## When to Reach For It
 
-Reach for `ce-commit` when:
+Use `ce-commit` when:
 
-- You have changes to commit and you want them on the local branch only — no push, no PR
-- You're committing mid-flow and intend to push later
-- You want repo-convention-aware commit messages
-- You want `git add -A` avoided and logical splitting handled
+- You want the work on the local branch only
+- You are mid-flow and will push later
+- You want the repo's commit style and named-file staging handled for you
 
-Skip `ce-commit` when:
+Skip it when:
 
-- You also want to push and open a PR → `/ce-commit-push-pr` does it all
-- You need very specific hunk-level splitting → use `git add -p` directly; the skill is file-level
-- The change is so trivial that the agent can run `git add` + `git commit` in one breath without the skill — though even tiny changes benefit from the convention detection
-
----
-
-## Use as Part of the Workflow
-
-`ce-commit` is invoked from skills that explicitly want commit-only flow:
-
-- **`/ce-debug` Phase 4** — when the skill is on a pre-existing branch (not skill-owned) and the user picks "Commit the fix" instead of "Commit and PR", `ce-commit` handles the local commit
-- **`/ce-work` Phase 4 (no-PR path)** — when the user prefers to commit without pushing, `ce-commit` is the alternate handoff
-- Standalone via `/ce-commit`
-
-The full ship flow (commit + push + PR) is `/ce-commit-push-pr`; this skill is the local-only sibling.
+- You also want a push and a PR -> `/ce-commit-push-pr`
+- You need hunk-level splits -> `git add -p` yourself; this skill is file-level
+- There is nothing to commit. The skill reports that and stops.
 
 ---
 
-## Use Standalone
+## Chain Position
 
-Direct invocation with no arguments — the skill reads git context and proceeds:
+`ce-commit` is on-demand. It is not a required pipeline stage.
 
-- `/ce-commit` — commit current changes following repo conventions
-- The user describes what to commit ("commit the auth changes") in conversation; the skill applies that as a hint when grouping or composing the message
+```text
+/ce-work  ->  /ce-commit              (local only)
+/ce-work  ->  /ce-commit-push-pr      (open a PR)
 
-There are no arguments. Convention detection, file grouping, and message composition all happen from context.
+/ce-debug ->  /ce-commit              (when you pick commit-only on a branch you already had)
+```
+
+`/ce-work` and `/ce-debug` can hand off here when you choose not to open a PR. Most people invoke it directly.
 
 ---
 
 ## Reference
 
-| Step | Action |
-|------|--------|
-| 1 | Gather context (git status, diff, branch, recent commits, default branch) |
-| 2 | Determine commit message convention (instructions > recent history > conventional-commits) |
-| 3 | Consider logical commits (file-level split when concerns are clearly distinct) |
-| 4–6 | Convention, logical split, message, stage/commit (auto-branch if needed) |
-| 7 | Confirm via `git status`; report commit hashes |
+| Argument | Effect |
+|----------|--------|
+| _(empty)_ | Commit current changes on this branch. Creates a feature branch first if HEAD is detached or on the default. |
+| `<hint>` | Natural-language steer for the subject or which files to group, e.g. `commit the auth changes` |
+
+No mode flags. No push. No PR.
 
 ---
 
 ## FAQ
 
 **Why not `git add -A`?**
-Because it sweeps in unintended files — `.env` with credentials, build artifacts, generated files. Explicit staging by name keeps commits clean and prevents secret leakage.
+It sweeps in files you did not mean to commit. Staging by name keeps secrets and junk out.
 
 **Why no hunk-level splitting?**
-Because hunk-level splitting (`git add -p`) is interactive and fragile in agent flows. File-level splitting is the right granularity for "logical commits" — distinct concerns naturally separate at the file level. If you genuinely need hunk-level, do it manually.
+`git add -p` is interactive and easy to get wrong in an agent flow. Distinct concerns usually already sit in different files. If you need hunks, do that yourself, then invoke this skill.
 
-**What if my repo uses a non-standard convention?**
-The skill detects from project instructions first (which is the right place to document conventions), then recent commit history (which is the de facto convention even when not documented). Conventional commits is just the fallback when neither source applies.
+**What if the repo does not use conventional commits?**
+Project instructions win, then recent history. Conventional commits are only the fallback.
 
-**Why auto-create a feature branch on the default branch or detached HEAD?**
-Committing on the default branch fights normal PR workflows and branch protection; a detached HEAD commit is easy to lose. Creating a feature branch is the safe default and matches `ce-commit-push-pr`.
+**Why a feature branch on the default or on detached HEAD?**
+A default-branch commit fights PR workflow and branch protection. A detached HEAD commit is easy to lose. Creating a feature branch is the same safe default `/ce-commit-push-pr` uses.
 
-**What if I want to push and PR after?**
-Use `/ce-commit-push-pr` for the full flow, or run `git push` and `gh pr create` manually after this skill commits.
+**What if I want the PR after all?**
+Run `/ce-commit-push-pr`. It will see the commits already made and continue from there.
 
 ---
 
 ## See Also
 
-- [`/ce-commit-push-pr`](./ce-commit-push-pr.md) — full flow: commit + push + PR
-- [`/ce-debug`](./ce-debug.md) — invokes this skill at Phase 4 for the commit-only handoff path
-- [`/ce-work`](./ce-work.md) — invokes this skill at Phase 4 when the user picks no-PR
+- [`/ce-commit-push-pr`](./ce-commit-push-pr.md): commit, push, and open a PR
+- [`/ce-babysit-pr`](./ce-babysit-pr.md): watch an already-open PR over time
+- [`/ce-worktree`](./ce-worktree.md): isolate the checkout before you start committing

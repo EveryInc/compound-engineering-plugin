@@ -274,6 +274,7 @@ describe("extract-metadata", () => {
     expect(session.branch).toBe("feat/auth-fix")
     expect(session.session).toBe("test-claude-session-1")
     expect(session.ts).toContain("2026-04-05")
+    expect(session.cwd).toBe("/Users/test/Code/my-repo")
   })
 
   test("detects Codex platform and extracts CWD", async () => {
@@ -391,20 +392,108 @@ describe("extract-metadata", () => {
     expect(sessions[0].cwd).toContain("my-repo")
   })
 
-  test("--cwd-filter excludes sibling Pi repos when given an absolute repo root", async () => {
+  async function extractWithCwd(
+    fixture: string,
+    sessionCwd: string,
+    cwdFilter: string
+  ) {
     const tempDir = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), "pi-cwd-filter-")
+      path.join(os.tmpdir(), "cwd-filter-")
     )
-    const sessionPath = path.join(tempDir, "pi-sibling-session.jsonl")
-    const sibling = (await Bun.file(
-      path.join(FIXTURES_DIR, "pi-session.jsonl")
-    ).text()).replace(
-      '"cwd":"/Users/test/Code/my-repo"',
-      '"cwd":"/Users/test/Code/my-repo-old"'
-    )
-
+    const sessionPath = path.join(tempDir, path.basename(fixture))
     try {
-      await fs.promises.writeFile(sessionPath, sibling)
+      const body = (await Bun.file(
+        path.join(FIXTURES_DIR, fixture)
+      ).text()).replace(
+        '"cwd":"/Users/test/Code/my-repo"',
+        `"cwd":"${sessionCwd}"`
+      )
+      await fs.promises.writeFile(sessionPath, body)
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--cwd-filter",
+        cwdFilter,
+        sessionPath,
+      ])
+      return { exitCode, lines: parseJsonLines(stdout) }
+    } finally {
+      await fs.promises.rm(tempDir, { recursive: true, force: true })
+    }
+  }
+
+  const cwdFilterCases = [
+    {
+      name: "keeps Claude sessions whose cwd is an ancestor of the repo",
+      fixture: "claude-session.jsonl",
+      cwd: "/Users/test/Code",
+      filter: "/Users/test/Code/my-repo",
+      keep: "/Users/test/Code",
+    },
+    {
+      name: "keeps Claude sessions whose cwd is inside the repo",
+      fixture: "claude-session.jsonl",
+      cwd: "/Users/test/Code/my-repo/packages/app",
+      filter: "/Users/test/Code/my-repo",
+      keep: "/Users/test/Code/my-repo/packages/app",
+    },
+    {
+      name: "excludes sibling Claude repos when given an absolute repo root",
+      fixture: "claude-session.jsonl",
+      cwd: "/Users/test/Code/my-repo-old",
+      filter: "/Users/test/Code/my-repo",
+      keep: null,
+    },
+    {
+      name: "basename match uses path-component boundaries",
+      fixture: "codex-session.jsonl",
+      cwd: "/Users/test/Code/my-repo-old",
+      filter: "my-repo",
+      keep: null,
+    },
+    {
+      name: "excludes sibling Pi repos when given an absolute repo root",
+      fixture: "pi-session.jsonl",
+      cwd: "/Users/test/Code/my-repo-old",
+      filter: "/Users/test/Code/my-repo",
+      keep: null,
+    },
+    {
+      name: "treats Windows drive paths as case-insensitive",
+      fixture: "claude-session.jsonl",
+      cwd: "C:/Users/Me/Repo",
+      filter: "c:/users/me/repo",
+      keep: "C:/Users/Me/Repo",
+    },
+  ] as const
+
+  for (const cse of cwdFilterCases) {
+    test(`--cwd-filter ${cse.name}`, async () => {
+      const { exitCode, lines } = await extractWithCwd(
+        cse.fixture,
+        cse.cwd,
+        cse.filter
+      )
+      expect(exitCode).toBe(0)
+      const sessions = lines.filter((l) => !l._meta)
+      if (cse.keep) {
+        expect(sessions.length).toBe(1)
+        expect(sessions[0].cwd).toBe(cse.keep)
+      } else {
+        expect(sessions.length).toBe(0)
+        expect(lines.find((l) => l._meta).filtered_by_cwd).toBe(1)
+      }
+    })
+  }
+
+  test("--cwd-filter drops Claude sessions that have no recorded cwd", async () => {
+    const tempDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "claude-no-cwd-")
+    )
+    const sessionPath = path.join(tempDir, "claude-session.jsonl")
+    try {
+      const body = (await Bun.file(
+        path.join(FIXTURES_DIR, "claude-session.jsonl")
+      ).text()).replace(',"cwd":"/Users/test/Code/my-repo"', "")
+      await fs.promises.writeFile(sessionPath, body)
       const { stdout, exitCode } = await runScript("extract-metadata.py", [
         "--cwd-filter",
         "/Users/test/Code/my-repo",
@@ -417,6 +506,17 @@ describe("extract-metadata", () => {
     } finally {
       await fs.promises.rm(tempDir, { recursive: true, force: true })
     }
+  })
+
+  test("--cwd-filter still keeps Cursor sessions that have no cwd", async () => {
+    const { stdout, exitCode } = await runScript("extract-metadata.py", [
+      "--cwd-filter",
+      "/Users/test/Code/my-repo",
+      path.join(FIXTURES_DIR, "cursor-session.jsonl"),
+    ])
+    expect(exitCode).toBe(0)
+    const lines = parseJsonLines(stdout)
+    expect(lines.filter((l) => !l._meta).length).toBe(1)
   })
 
   test("reports clean zero-file result for empty stdin", async () => {
@@ -1742,7 +1842,12 @@ describe("discover-sessions", () => {
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     const scriptPath = path.join(SCRIPTS_DIR, "discover-sessions.sh")
     const proc = Bun.spawn(["bash", scriptPath, ...args], {
-      env: { ...process.env, ...env },
+      env: {
+        ...process.env,
+        CLAUDE_CONFIG_DIR: "",
+        CODEX_HOME: "",
+        ...env,
+      },
       stdout: "pipe",
       stderr: "pipe",
     })
@@ -1753,8 +1858,13 @@ describe("discover-sessions", () => {
   }
 
   test("returns zero files for nonexistent repo without error", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
+    await fs.promises.mkdir(path.join(tempHome, ".claude/projects"), {
+      recursive: true,
+    })
     const { stdout, stderr, exitCode } = await runDiscover(
-      ["nonexistent-repo-xyz", "7", "--platform", "claude"]
+      ["nonexistent-repo-xyz", "7", "--platform", "claude"],
+      { HOME: tempHome }
     )
     expect(exitCode).toBe(0)
     expect(stderr).toBe("")
@@ -2464,5 +2574,212 @@ describe("discover-sessions", () => {
     expect(stderr).toBe("")
     const files = stdout.trim().split("\n").filter((l) => l.trim())
     expect(files).toEqual([agentSession])
+  })
+
+  async function writeClaudeSessionUnder(
+    configRoot: string,
+    projectDir: string,
+    name = "2026-04-07T09-00-00-000Z_test.jsonl"
+  ): Promise<string> {
+    const sessionPath = path.join(configRoot, "projects", projectDir, name)
+    await fs.promises.mkdir(path.dirname(sessionPath), { recursive: true })
+    await fs.promises.writeFile(sessionPath, "{}\n")
+    return sessionPath
+  }
+
+  async function writeClaudeSession(
+    home: string,
+    projectDir: string,
+    name = "2026-04-07T09-00-00-000Z_test.jsonl"
+  ): Promise<string> {
+    return writeClaudeSessionUnder(path.join(home, ".claude"), projectDir, name)
+  }
+
+  async function writeCodexSession(
+    sessionsRoot: string,
+    name = "2026-04-07T09-00-00-000Z_test.jsonl"
+  ): Promise<string> {
+    const sessionPath = path.join(sessionsRoot, name)
+    await fs.promises.mkdir(path.dirname(sessionPath), { recursive: true })
+    await fs.promises.writeFile(sessionPath, "{}\n")
+    return sessionPath
+  }
+
+  test("--platform claude honors CLAUDE_CONFIG_DIR over ~/.claude", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), "claude-config-"))
+    const relocated = await writeClaudeSessionUnder(configDir, "-relocated")
+    const ignored = await writeClaudeSession(tempHome, "-default-home")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "claude"],
+      { HOME: tempHome, CLAUDE_CONFIG_DIR: configDir }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([relocated])
+    expect(files).not.toContain(ignored)
+  })
+
+  test("--platform codex adds CODEX_HOME while still scanning conventional roots", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-home-"))
+    const profileHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-profile-"))
+    const relocated = await writeCodexSession(
+      path.join(profileHome, "sessions")
+    )
+    const conventional = await writeCodexSession(
+      path.join(tempHome, ".codex/sessions")
+    )
+    const agents = await writeCodexSession(
+      path.join(tempHome, ".agents/sessions")
+    )
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "codex"],
+      { HOME: tempHome, CODEX_HOME: profileHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim()).sort()
+    expect(files).toEqual([agents, conventional, relocated].sort())
+  })
+
+  test("--platform claude lists every recent jsonl under ~/.claude/projects", async () => {
+    // Folder names are an undocumented encoder of session CWD. Discovery
+    // lists them all; extract-metadata.py --cwd-filter attributes by the
+    // recorded cwd, including parent-started sessions whose folder has no
+    // repo basename.
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
+    const parentSession = await writeClaudeSession(tempHome, "-Users-test-Code")
+    const rootSession = await writeClaudeSession(
+      tempHome,
+      "-Users-test-Code-my-repo"
+    )
+    const siblingSession = await writeClaudeSession(
+      tempHome,
+      "-Users-test-Other"
+    )
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      [
+        "my-repo",
+        "7",
+        "--cwd",
+        "/Users/test/Code/my-repo",
+        "--platform",
+        "claude",
+      ],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim()).sort()
+    expect(files).toEqual(
+      [parentSession, rootSession, siblingSession].sort()
+    )
+  })
+
+  test("--platform claude listing does not depend on --cwd or repo name", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
+    const parentSession = await writeClaudeSession(tempHome, "-Users-test-Code")
+    const namedSession = await writeClaudeSession(
+      tempHome,
+      "-somewhere-else-my-repo"
+    )
+
+    const withCwd = await runDiscover(
+      [
+        "my-repo",
+        "7",
+        "--cwd",
+        "/Users/test/Code/my-repo",
+        "--platform",
+        "claude",
+      ],
+      { HOME: tempHome }
+    )
+    const withoutCwd = await runDiscover(
+      ["unrelated-name", "7", "--platform", "claude"],
+      { HOME: tempHome }
+    )
+
+    expect(withCwd.exitCode).toBe(0)
+    expect(withoutCwd.exitCode).toBe(0)
+    expect(withCwd.stderr).toBe("")
+    expect(withoutCwd.stderr).toBe("")
+    const expected = [parentSession, namedSession].sort()
+    expect(
+      withCwd.stdout.trim().split("\n").filter((l) => l.trim()).sort()
+    ).toEqual(expected)
+    expect(
+      withoutCwd.stdout.trim().split("\n").filter((l) => l.trim()).sort()
+    ).toEqual(expected)
+  })
+
+  test("discover then extract keeps parent-cwd Claude sessions and drops siblings", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "claude-home-"))
+    const fixture = await Bun.file(
+      path.join(FIXTURES_DIR, "claude-session.jsonl")
+    ).text()
+    const writeSession = async (dir: string, cwd: string, name: string) => {
+      const sessionPath = path.join(
+        tempHome,
+        ".claude/projects",
+        dir,
+        `${name}.jsonl`
+      )
+      await fs.promises.mkdir(path.dirname(sessionPath), { recursive: true })
+      await fs.promises.writeFile(
+        sessionPath,
+        fixture
+          .replace('"cwd":"/Users/test/Code/my-repo"', `"cwd":"${cwd}"`)
+          .replace(
+            '"sessionId":"test-claude-session-1"',
+            `"sessionId":"${name}"`
+          )
+      )
+      return sessionPath
+    }
+    const parentPath = await writeSession(
+      "-Users-test-Code",
+      "/Users/test/Code",
+      "parent"
+    )
+    const rootPath = await writeSession(
+      "-Users-test-Code-my-repo",
+      "/Users/test/Code/my-repo",
+      "root"
+    )
+    await writeSession(
+      "-Users-test-Code-my-repo-old",
+      "/Users/test/Code/my-repo-old",
+      "sibling"
+    )
+
+    const discovered = await runDiscover(
+      ["my-repo", "7", "--platform", "claude"],
+      { HOME: tempHome }
+    )
+    expect(discovered.exitCode).toBe(0)
+    const files = discovered.stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files.length).toBe(3)
+
+    const extracted = await runScript("extract-metadata.py", [
+      "--cwd-filter",
+      "/Users/test/Code/my-repo",
+      ...files,
+    ])
+    expect(extracted.exitCode).toBe(0)
+    const lines = parseJsonLines(extracted.stdout)
+    const sessions = lines.filter((l) => !l._meta)
+    expect(sessions.map((s) => s.session).sort()).toEqual(["parent", "root"])
+    expect(sessions.map((s) => s.file).sort()).toEqual(
+      [parentPath, rootPath].sort()
+    )
+    expect(lines.find((l) => l._meta).filtered_by_cwd).toBe(1)
   })
 })

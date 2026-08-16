@@ -9,7 +9,6 @@ import re
 import stat
 
 from unit_workspace_state import *
-from unit_workspace_ignored import require_ignored_snapshot_capability
 
 
 def _valid_retry_commit_id(value: object) -> bool:
@@ -95,7 +94,6 @@ def cmd_prepare(args) -> tuple[str, dict]:
             raise Operational("BLOCKED", "canonical HEAD does not equal requested unit base")
         if status_paths(repo):
             raise Operational("BLOCKED", "canonical checkout is dirty; external workspace unavailable")
-        require_ignored_snapshot_capability(repo)
         existing = doc["units"].get(uid)
         unit_root = os.path.join(run_dir(args.run_id), "units", uid)
         workspace = os.path.join(unit_root, "workspace")

@@ -1,10 +1,17 @@
 # `ce-worktree`
 
-> Ensure work happens in an isolated git worktree without disturbing the current checkout — by detecting existing isolation, deferring to the harness's native worktree tool, and only falling back to plain git.
+> Put the work in an isolated git worktree without disturbing the current checkout.
 
-`ce-worktree` is the **isolation guardrail** skill. Its value is judgment, not mechanics: most coding harnesses now create a worktree by default at session start, so the common case is that you are *already* isolated. The skill encodes the discipline to recognize that, defer to the harness's own worktree tooling, and only create a worktree with plain git as a last resort — so you never nest worktrees or create state the harness can't manage.
+`ce-worktree` is the **isolation** skill. It is a git-workflow tool, not a core-loop step. Most coding harnesses already create a worktree at session start, so the common case is that you are already isolated. The skill checks that first, prefers the harness's own worktree tool, and only then falls back to plain `git worktree add`.
 
-It is pure prose + inline git, with **no bundled script**, so it works verbatim on every supported target (Claude Code, Codex, Gemini, OpenCode, Pi).
+Nesting a worktree inside another one, or creating one the harness cannot see, is worse than working where you already are.
+
+There is no bundled script. The agent runs inline git from the project directory, so the same instructions work on Claude Code, Codex, Gemini, OpenCode, and Pi.
+
+Two modes:
+
+- **New work** (default). No ref named. Create a fresh branch from trunk.
+- **Attach.** You name a branch, PR, or commit. Check that ref out in a worktree instead of creating a new branch.
 
 ---
 
@@ -12,133 +19,164 @@ It is pure prose + inline git, with **no bundled script**, so it works verbatim 
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Ensures isolation exists. Detects an existing worktree first, prefers the harness's native worktree tool, falls back to `git worktree add` under `.worktrees/<branch>` |
-| When to use it | Starting work that should stay isolated; when `ce-work` or `ce-code-review` offers a worktree option |
-| What it produces | Either "you're already isolated, work in place" or a new isolated worktree |
+| What does it do? | Makes sure isolation exists. Detects an existing worktree, prefers the harness tool, else `git worktree add` under `.worktrees/<branch>` |
+| When to use it | Starting work that should stay off the current checkout, or when `ce-work` / `ce-code-review` offers a worktree |
+| What it produces | Either "already isolated, work here" or a new isolated worktree, with path and branch reported |
 | Skip when | Single-task work that fits on a branch in the current checkout |
 
 ---
 
 ## Example invocations
 
+Empty or a work description is **create**. `isolate` plus a ref is **attach**. If this checkout is already a linked worktree, every form works in place rather than nesting.
+
 ```text
-# Start fresh work in isolation; existing isolation is detected first
+# New work. Detect isolation first. If none, create .worktrees/<named-branch> from trunk.
 /ce-worktree for the account-notifications feature
 
-# Isolate an existing branch rather than creating a new one
+# Already isolated (common in Orca or Cursor): report path and branch, stay here
+/ce-worktree
+
+# Attach a worktree to an existing branch. Does not create a second checkout of that branch.
 /ce-worktree isolate feature/account-notifications
 
-# Isolate a pull request without disturbing the current checkout
+# Attach a worktree to a PR head on a local pr-1234 branch (so later commits can push back)
 /ce-worktree isolate PR 1234
+
+# Attach a worktree at an existing commit
+/ce-worktree isolate abcdef1
 ```
 
-If the current checkout is already an isolated worktree, every form works in place rather than nesting another worktree.
+A branch can be checked out in only one worktree at a time. If the named ref is already checked out somewhere, the skill reports that path and stops. It does not force a second worktree.
 
 ---
 
 ## The Problem
 
-Asking an agent to "make a worktree" is increasingly the *wrong* default, because the agent is usually already in one:
+"Make a worktree" is often the wrong default, because the agent is usually already in one:
 
-- **Worktree-from-worktree** — creating a worktree from inside a linked worktree resolves the new one against the *main* clone, landing it in a different directory tree the user isn't working in.
-- **Phantom state** — a behind-the-back `git worktree add` is invisible to the harness (Orca, Cursor, etc.) that owns worktree lifecycle: it can't list, navigate to, or clean it up.
-- **Committed worktree contents** — if `.worktrees/` isn't gitignored, the worktree pollutes `git status` and risks being committed.
-- **Cryptic branch names** — auto-generated names like `worktree-jolly-beaming-raven` obscure what the worktree is for.
+- Creating a worktree from inside a linked worktree resolves the new one against the main clone, in a directory tree you are not using
+- A behind-the-back `git worktree add` is invisible to the harness (Orca, Cursor, and similar). It cannot list, open, or clean up that tree
+- If `.worktrees/` is not gitignored, the extra tree shows up in `git status` and can be committed
+- Auto-generated names like `worktree-jolly-beaming-raven` hide what the tree is for
 
 ## The Solution
 
-`ce-worktree` runs isolation as an ordered decision, not a creation script:
+Isolation is an ordered decision, not a create script:
 
-1. **Detect existing isolation** (compare `--git-dir` against `--git-common-dir`, with a submodule guard). Already isolated → report and work in place.
-2. **Prefer the harness's native worktree tool** (e.g. an `EnterWorktree` tool, a `/worktree` command, a `--worktree` flag) so the worktree stays managed.
-3. **Inline git fallback** only when neither applies: create `.worktrees/<branch>`, ensuring `.worktrees` is gitignored first, with a meaningful branch name.
+1. **Detect existing isolation.** Compare the resolved absolute git dir with the resolved absolute common git dir, then rule out submodules. Already isolated -> report path and branch, work in place. In attach mode, check the named ref out here rather than nesting.
+2. **Prefer the harness tool** (`EnterWorktree`, `/worktree`, `--worktree`, or similar) so the harness still owns the tree.
+3. **Git fallback** only when neither applies: create `.worktrees/<branch>` from the repo root, after confirming `.worktrees/` is gitignored, with a meaningful branch name.
+
+If `git worktree add` fails on sandbox or permissions, the skill does **not** continue in the current checkout. It reports the failure and asks whether to work here anyway or stop.
 
 ---
 
 ## What Makes It Novel
 
-### 1. Detection before creation
+### Detection before creation
 
-The single most important behavior: before creating anything, determine whether the current directory is already a linked worktree. `git rev-parse --git-dir` and `--git-common-dir` differ inside both linked worktrees and submodules, so a `git rev-parse --show-superproject-working-tree` submodule guard disambiguates. When already isolated, the skill works in place rather than nesting.
+`git rev-parse --absolute-git-dir` is compared to the resolved common git dir. A raw string compare is not enough: from a subdirectory, one side can be absolute and the other relative, which looks like "already isolated" when it is not.
 
-### 2. Native-tool deference
+When the two differ, `git rev-parse --show-superproject-working-tree` splits the cases. Non-empty is a submodule (treat as a normal checkout). Empty is a linked worktree: stay there.
 
-If the harness provides a worktree primitive, the skill uses it instead of shelling out to git. This avoids creating phantom worktrees the harness can't see or clean up — the "don't fight the harness" rule.
+### Native tool first
 
-### 3. Portable by construction
+If the harness has a worktree primitive, the skill uses it and stops. A hidden `git worktree add` creates state the harness cannot manage.
 
-There is no bundled script and no `${CLAUDE_SKILL_DIR}` dependence — only inline git the agent runs from the project directory. That is why the skill resolves identically on every target, and why it carries no `ce_platforms` gate.
+### Two modes, one-branch-one-worktree
 
-### 4. Gitignore safety before creation
+**New work** creates `feat/...` or `fix/...` from origin's default branch (or local default if fetch fails; fetch is non-fatal). **Attach** checks out the named branch, tag, commit, or PR.
 
-When the git fallback runs, the skill verifies `.worktrees` is gitignored (`git check-ignore`) before creating the worktree, so its contents are never committed.
+A PR is fetched to a local `pr-<n>` branch, then that branch is added as the worktree. A detached `FETCH_HEAD` is not used, because later fix commits would not update the PR. When you need fork-safe push tracking, the fallback is a detached add followed by `gh pr checkout`.
 
-### 5. Naming guidance for upstream callers
+If git reports the ref is already checked out, that is the end of the create path.
 
-When `ce-work` or `ce-code-review` invoke the skill, they pass a meaningful branch name derived from the work (`feat/crowd-sniff`, `fix/email-validation`) — never an opaque auto-generated name.
+### Gitignore before the add
+
+The fallback runs `git check-ignore -q .worktrees/` (trailing slash required) from the repo root, and adds that line to `.gitignore` if needed. Then it creates the tree.
 
 ---
 
 ## Quick Example
 
-You're in an Orca-managed worktree (the harness created it at session start) and ask `ce-work` to isolate the work. The skill runs Step 0: `--git-dir` and `--git-common-dir` differ, and the submodule guard returns empty → **you are already isolated**. It reports the worktree path and current branch and proceeds in place — no second worktree, no phantom state.
+You are in an Orca-managed worktree created at session start. `ce-work` offers isolation. `/ce-worktree` sees that the absolute git dir and the common dir differ, and the submodule guard is empty. You are already isolated. It reports the path and branch and continues in place.
 
-In a plain terminal checkout with no native worktree tool, the same invocation falls through to Step 2: it confirms `.worktrees` is gitignored, fetches the base branch, runs `git worktree add -b feat/login .worktrees/feat/login origin/main`, and `cd`s in.
+In a plain terminal checkout with no native tool, the same "new work" prompt confirms `.worktrees/` is ignored, fetches the base, runs `git worktree add -b feat/login .worktrees/feat/login origin/main`, and `cd`s in.
 
 ---
 
 ## When to Reach For It
 
-Reach for `ce-worktree` when:
+Use `ce-worktree` when:
 
-- You're starting work that should stay isolated from the current checkout
-- A skill (`ce-work`, `ce-code-review`) offered worktree as an option
+- The work should stay off the current checkout
+- `ce-work` or `ce-code-review` offered a worktree
 
 Skip it when:
 
-- The work is single-task and fits on a branch in the current checkout
-- You are already isolated and have no need for a *second*, parallel workspace (the skill detects this for you)
+- The work fits on a branch in the current checkout
+- You are already isolated and do not need a second, parallel workspace (the skill detects this)
 
 ---
 
-## Use as Part of the Workflow
+## Chain Position
 
-`ce-worktree` is invoked from chain skills as their isolation step:
+On-demand isolation. Callers pass a meaningful branch name (`feat/...`, `fix/...`, `refactor/...`), not a random label.
 
-- **`/ce-work`** — when starting work, the user can choose worktree isolation over branching in the current checkout
-- **`/ce-code-review`** — for reviewing PRs concurrently without disturbing in-progress work
-
-Upstream callers pass meaningful branch names; the skill expects `feat/...`, `fix/...`, `refactor/...` shapes — not auto-generated random names.
+```text
+/ce-work         ->  /ce-worktree   (optional isolation before implementation)
+/ce-code-review  ->  /ce-worktree   (review a PR without touching in-progress work)
+```
 
 ---
 
-## Other worktree operations
+## Use Standalone
 
-List, remove, and switch use `git` directly — the skill provides no wrapper:
+- New work: `/ce-worktree for the account-notifications feature`
+- Attach a branch: `/ce-worktree isolate feature/account-notifications`
+- Attach a PR: `/ce-worktree isolate PR 1234`
+
+List, remove, and switch are plain git. The skill does not wrap them:
 
 ```bash
-git worktree list                          # list worktrees
-git worktree remove .worktrees/<branch>    # remove a worktree
-cd .worktrees/<branch>                     # switch to a worktree
-cd "$(git rev-parse --show-toplevel)"      # return to the current checkout root
+git worktree list
+git worktree remove .worktrees/<branch>
+cd .worktrees/<branch>
+cd "$(git rev-parse --show-toplevel)"
 ```
+
+---
+
+## Reference
+
+| Argument | Effect |
+|----------|--------|
+| _(empty)_ | Detect isolation. If none, new-work fallback needs a name from context. |
+| `<work description>` | New work: create a named branch worktree from trunk |
+| `isolate <branch\|tag\|commit>` | Attach a worktree to that ref |
+| `isolate PR <n>` | Attach a worktree to that PR head on local `pr-<n>` |
 
 ---
 
 ## FAQ
 
-**Why a skill instead of just `git worktree add`?**
-The value isn't the `git worktree add` command — the agent knows that. It's the *judgment*: detect that you're probably already isolated, defer to the harness's worktree tooling, and don't nest or create phantom state. That discipline is shared by `ce-work` and `ce-code-review`, so it lives in one named skill rather than being duplicated and drifting.
+**Why a skill instead of `git worktree add`?**
+The agent already knows that command. The skill is the order: detect first, defer to the harness, do not nest or create phantom state. `ce-work` and `ce-code-review` share that order by calling this skill.
 
-**I'm already in a worktree — will it make another?**
-No. Step 0 detects existing isolation and works in place. A worktree-from-worktree is exactly the failure mode the skill prevents.
+**I am already in a worktree. Will it make another?**
+No. Existing isolation is detected and used in place.
 
-**How do I clean up a worktree?**
-`cd "$(git rev-parse --show-toplevel)"` to leave it, then `git worktree remove .worktrees/<branch>`. If the remote tracking branch is gone, prune with normal git commands such as `git fetch --prune` followed by `git branch -d <branch>` after verifying the branch is merged.
+**The branch I named is already checked out.**
+Git allows a branch in only one worktree. The skill reports that path. Work there, or (only if you truly need a separate tree) ask for a detached worktree at the same commit.
+
+**How do I clean up?**
+Leave with `cd "$(git rev-parse --show-toplevel)"`, then `git worktree remove .worktrees/<branch>`. If the remote tracking branch is gone, `git fetch --prune` and `git branch -d <branch>` after you confirm it is merged.
 
 ---
 
 ## See Also
 
-- [`/ce-work`](./ce-work.md) — offers this skill as its isolation option
-- [`/ce-code-review`](./ce-code-review.md) — offers worktree isolation for concurrent review
+- [`/ce-work`](./ce-work.md): offers this skill as its isolation option
+- [`/ce-code-review`](./ce-code-review.md): offers worktree isolation for concurrent review
+- [`/ce-commit`](./ce-commit.md): commit in the isolated tree without shipping

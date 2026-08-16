@@ -12,13 +12,17 @@ Use this reference only when the next question has a specific visual decision:
 - state shape: "Which empty/loading/error state communicates the right thing?"
 - diagram shape: "Which relationship or system boundary is clearer?"
 
-Do not use a visual probe for product goals, scope boundaries, success criteria, evidence probes, tradeoff prose, or technical decisions that are easier to discuss in chat. If settling the question would commit an approach later work will treat as given, and a cheap one-decision sketch cannot settle it, that is Interaction Rule 7 (`ce-prototype`), not a visual probe.
+Do not use a visual probe for product goals, scope boundaries, success criteria, evidence probes, tradeoff prose, or technical decisions that are easier to discuss in chat. A decision that meets Interaction Rule 7 in the skill body — which owns that test — belongs to `ce-prototype`, not to a visual probe.
+
+**Classifying a wide decision.** Per-avenue classification applies only once the avenues have been named. An undecomposed decision is classified once, on its dominant dimension. When any named avenue meets Rule 7, the whole decision goes to `ce-prototype` — the sketchable avenues ride along there as thin variants rather than splitting one decision across two tiers.
 
 ## The gate (when the offer must fire)
 
-When the Phase 0.3 tripwire flagged an inherently-visual topic, the offer must fire before the **first** display-only decision about shape, behavior, state, layout, flow, or a diagram is raised in *any* form — plain chat or a blocking question. A decision the user has to drive rather than look at routes to Interaction Rule 7 (`ce-prototype`) instead, per the Trigger above; this gate does not fire for it.
+When the Phase 0.3 tripwire flagged an inherently-visual topic, the offer must fire before the **first** decision about shape, behavior, state, layout, flow, or a diagram is raised in *any* form — plain chat or a blocking question. A decision that meets Interaction Rule 7 routes to `ce-prototype` instead; this gate does not fire for it.
 
 **Timing is state-based, not memory-based.** Anchor the check to the decision you are about to raise, not to a "pending gate" remembered since Phase 0.3: offer unless this specific decision has already been through the offer (the user already chose text or visual for it). This gate takes precedence over the default blocking-question path — do not raise the shape decision as an `AskUserQuestion`/`request_user_input` menu, or as a plain-chat shape question, until the user has declined visual (or visual feedback has returned to chat).
+
+**Having been through the offer closes only this offer, never Rule 7.** Two paths reopen the prototype route for a decision already offered here: the user chose text and the decision then turns on finish or motion, or a rough sketch was built and did not settle it. Route those to `ce-prototype` rather than treating the decision as closed.
 
 **An ASCII preview or text mockup embedded inside the question's choices does NOT satisfy the offer** — that shortcut is exactly what this gate exists to stop. The offer is its own prior question with two options (sketch vs describe); only after the user chooses does the shape decision proceed.
 
@@ -73,6 +77,7 @@ Start (detached):
 ```bash
 SKILL_DIR="<absolute path of the ce-brainstorm skill directory>";
 SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
+[ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") 2>/dev/null && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && [ -w "$SCRATCH_ROOT" ] || SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)";
 if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
 (umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
 if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
@@ -86,6 +91,7 @@ Append `--foreground` to that `start` command for foreground mode. Status and st
 ```bash
 SKILL_DIR="<absolute path of the ce-brainstorm skill directory>";
 SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
+[ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") 2>/dev/null && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && [ -w "$SCRATCH_ROOT" ] || SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)";
 if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
 (umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
 if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;

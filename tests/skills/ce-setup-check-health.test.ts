@@ -211,6 +211,55 @@ describe("ce-setup check-health", () => {
     }
   })
 
+  // Uncovered scratch space is informational, not a project issue: a repository
+  // that never runs a scratch-producing skill needs no entry, and reporting it
+  // as a problem would make a healthy baseline read as broken.
+  const LOCAL_CONFIG_ENTRY = ".compound-engineering/*.local.yaml\n"
+
+  async function healthyRepoWithGitignore(gitignore: string): Promise<string> {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+    await initConfiguredRepo(root, await readFile(configTemplate, "utf8"))
+    await writeFile(path.join(root, ".gitignore"), gitignore)
+    return root
+  }
+
+  const SCRATCH_CASES = [
+    { label: "no scratch rule", gitignore: LOCAL_CONFIG_ENTRY, covered: false },
+    {
+      label: "exact scratch rule",
+      gitignore: LOCAL_CONFIG_ENTRY + ".context/compound-engineering/\n",
+      covered: true,
+    },
+    // A broader directory rule already makes the entry effective; re-offering it would dirty a
+    // correctly configured repo. This is what the trailing slash on the probe buys.
+    { label: "broader .context rule", gitignore: LOCAL_CONFIG_ENTRY + ".context/\n", covered: true },
+  ]
+
+  test.each(SCRATCH_CASES)(
+    "reports CE scratch coverage without failing an otherwise healthy project: $label",
+    async ({ gitignore, covered }) => {
+      const root = await healthyRepoWithGitignore(gitignore)
+
+      try {
+        const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+        expect(result.exitCode).toBe(0)
+        if (covered) {
+          expect(result.stdout).toContain("CE scratch space is gitignored")
+          expect(result.stdout).not.toContain("CE scratch space is not gitignored")
+        } else {
+          expect(result.stdout).toContain("CE scratch space is not gitignored")
+          // Informational, not a project issue: a repo that never runs a scratch-producing
+          // skill needs no entry and must still read healthy.
+          expect(result.stdout).toContain("Project config healthy")
+          expect(result.stdout).not.toContain("project issue(s) found")
+        }
+      } finally {
+        await rm(root, { recursive: true, force: true })
+      }
+    },
+  )
+
   async function repoWithLocalConfig(body: string): Promise<string> {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
     await initGitRepo(root)

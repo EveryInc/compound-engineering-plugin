@@ -10,7 +10,9 @@ allowed-tools:
 
 # Proof - Collaborative Markdown Editor
 
-Proof is a collaborative document editor for humans and agents. This skill uses the **hosted web API** at `https://www.proofeditor.ai` (HTTP/`Bash`). If typed `proof_*` MCP tools are already available in the harness, prefer them; otherwise use the HTTP recipes below.
+Proof is a collaborative document editor for humans and agents. This skill uses the **hosted web API** at `https://www.proofeditor.ai` (HTTP/`Bash`). If typed `proof_*` MCP tools are already available in the harness (`proof_share_markdown`, `proof_v3_document`, `proof_v3_edit`, `proof_presence`, `proof_document_title`, `proof_document_delete`, `proof_report_bug`), prefer them; otherwise use the HTTP recipes below. In MCP mode the server injects `by`, `X-Agent-Id`, and presence identity — pass the `?token=` value from the Proof URL as `shareToken` for edits and presence on docs the signed-in user does not own. Delete authority is unchanged in MCP mode: an unclaimed doc still needs its `ownerSecret`, a claimed doc its owner's session — an editor `accessToken` passed as `shareToken` cannot delete.
+
+On Claude Code, each new `curl` pattern prompts for permission; suggest (do not silently add) the allowlist rule `"Bash(curl * https://www.proofeditor.ai/*)"` under `permissions.allow` if the user wants a quieter session.
 
 ## Identity and Attribution
 
@@ -48,7 +50,7 @@ Always hand humans the tokenized link (`tokenUrl`), never a bare `/d/<slug>` alo
 
 Public creates are ownerless until a signed-in Every user claims the doc in the browser (account menu → Claim ownership). Claiming permanently revokes `ownerSecret`; `accessToken` keeps working. After claim, delete and other owner ops belong to the owner's Every account — ask the owner, or use their Every session token. Do not retry delete with a revoked `ownerSecret`.
 
-Treat a `403` with `code: "DOCUMENT_DELETE_FORBIDDEN"` and `reason: "CREDENTIAL_NOT_OWNER"`, or a `401` when presenting the creation `ownerSecret`, as evidence the secret was revoked (commonly after claim). Stop using that `ownerSecret`; ask the owner to delete or supply an Every owner session.
+Treat a `403` with `code: "DOCUMENT_DELETE_FORBIDDEN"` and `reason: "CREDENTIAL_NOT_OWNER"`, or a `401` when presenting the creation `ownerSecret`, as evidence the secret was revoked (commonly after claim). Stop using that `ownerSecret`; ask the owner to delete or supply an Every owner session. `reason: "DOCUMENT_HAS_NO_OWNER"` means the opposite: the doc is still unclaimed, so only its original `ownerSecret` can delete it — an Every session cannot until someone claims it.
 
 ## Web API
 
@@ -108,7 +110,7 @@ curl -sS "https://www.proofeditor.ai/api/agent/{slug}/v3/document" \
 
 ACTIVE docs can be read tokenlessly via `v3/document`. Mutations, presence, and events need a tokenized credential. Tokenless `GET /d/<slug>` JSON reports `role: null` and no mutation links — that is truthful capability reporting, not a browser lock.
 
-`comments[]` and `suggestions[]` on the v3 read are the source of review state. Use a comment's `id` for `reply` / `resolve` / `unresolve`. Use a suggestion's `id` for `accept` / `reject`. v3 supports resolving and unresolving comments; it does **not** support deleting comments.
+`comments[]` and `suggestions[]` on the v3 read are the source of review state. Use a comment's `id` for `reply` / `resolve` / `unresolve`. Use a suggestion's `id` for `accept` / `reject`. v3 supports resolving and unresolving comments; it does **not** support deleting comments. A comment with `orphaned: true` and an empty `quote` has lost its anchor — its thread is still readable and replyable, but do not treat its old target text as a live anchor.
 
 When `mutationReady` is `false`, `revision` may be `null` — omit `baseRevision` and re-read shortly.
 
@@ -149,6 +151,9 @@ curl -sS -X POST "https://www.proofeditor.ai/api/agent/{slug}/v3/edit" \
 | `resolve` / `unresolve` | `comment` (id) |
 | `suggest` | `kind: "insert"\|"delete"\|"replace"`, `find`, `with?` (`with` required for insert/replace) |
 | `accept` / `reject` | `suggestion` (id) |
+| `modify_suggestion` | `suggestion` (id), `with` — replace the proposed text of a pending plain insert/replace suggestion |
+
+`suggest` also accepts typed structural forms (`command: "table.*"`, `"format.*"`, `"node.update"`, and atom `target: {node: "image"|"hr"|...}`); see `https://www.proofeditor.ai/agent-docs` before using them. A request holds at most 100 operations; `set_document` accepts at most 2 MiB of markdown.
 
 ### Edit Strategy
 
@@ -168,6 +173,8 @@ Content ops in one request apply atomically; review ops then apply in order. If 
 - `retryable: true` with `error.current` — re-resolve targets against `current` and retry once
 - `TARGET_AMBIGUOUS` — add `occurrence` / `before` / `after` from `candidates`
 - `BUSY` — brief backoff and retry
+- Retryable `CONFLICT` on a structural suggestion — a connected editor is on an older suggestion reader; retry after it reconnects. Non-retryable `CONFLICT` — the op crosses frontmatter, raw HTML, or unknown content; use a whole-block op or leave it
+- `accept` that keeps failing with `SUGGESTION_OWNERSHIP_MISSING` after a fresh read — the suggestion is wedged; `reject` it (always allowed) and recreate instead of retrying `accept`
 - Settled `200` with `ok:true` — inspect returned `revision` / document; chain without an extra read when the body is complete
 - `202` / `PENDING` — write may have committed; re-read `v3/document` before chaining or reporting success
 

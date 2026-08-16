@@ -1,10 +1,12 @@
 # `ce-doc-review`
 
-> Review requirements or plan documents using parallel persona agents that surface role-specific issues.
+> Review a requirements or plan document with parallel persona agents, apply mechanical fixes, and route the rest.
 
-`ce-doc-review` is the **document review** skill — sibling to `/ce-code-review` for the docs side of the chain. It analyzes a requirements-only unified plan, implementation-ready plan, or legacy document, selects reviewer personas based on what the doc contains (product framing, design surfaces, security implications, scope sprawl), dispatches them in parallel, then auto-applies safe markdown fixes and routes the rest through a structured four-option interaction (per-finding walk-through, auto-resolve with best judgment, append to Open Questions, report-only).
+`ce-doc-review` is the on-demand **findings** skill for documents. Point it at a requirements-only unified plan, an implementation-ready plan, or a legacy requirements/plan doc. It picks reviewer personas from what the doc actually contains, dispatches them in parallel, applies only full-confidence mechanical fixes in the document's native format, then routes everything else.
 
-The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-doc-review` is the **review skill for the artifacts produced by `ce-brainstorm` and `ce-plan`** — invoked at their respective Phase 4 / Phase 5.3.8 handoffs, and also directly when you want a structured review of a doc on disk.
+It is the sibling of `/ce-code-review` for the docs side. It is not a verdict. Use `/ce-pov` when you want a holistic take (strengths, risks, bottom line) rather than an issue list. Use `/ce-code-review` for findings on a diff, and `/ce-debug` when something is actually broken.
+
+`ce-brainstorm` and `ce-plan` both invoke it on the artifacts they write. You can also run it on any planning doc on disk.
 
 ---
 
@@ -12,22 +14,36 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Selects reviewer personas based on doc content, dispatches them in parallel, applies `safe_auto` fixes, routes remaining findings through structured interaction |
-| When to use it | After `ce-brainstorm` produces a requirements-only unified plan; after `ce-plan` writes or enriches a plan; before handing an implementation-ready plan to execution |
-| What it produces | An updated markdown doc with `safe_auto` fixes applied, plus structured handling of `gated_auto` / `manual` findings; HTML unified plans are report-only/skipped until HTML-safe mutation exists |
-| Modes | Interactive (direct invocation), Non-interactive (default when chained from `/ce-plan`) |
+| What does it do? | Selects reviewer personas from the doc, dispatches them in parallel, applies mechanical fixes, and routes remaining findings |
+| When to use it | After a requirements-only plan lands, after `ce-plan` writes or enriches a plan, or any time you want structured findings on a planning doc |
+| What it produces | An updated markdown or HTML doc with mechanical fixes applied in its native format, plus structured handling of proposed fixes and decisions |
+| Modes | Interactive (direct invoke, or a caller's follow-up option). Non-interactive (default when `ce-plan` chains it) |
 
 ---
 
 ## Example invocations
 
+A path, no path, or non-interactive. Markdown and HTML plans use the same review and mutation routes.
+
 ```text
-# Review a specific requirements or plan document interactively
+# Review a specific requirements or plan document. Interactive by default:
+# mechanical fixes land, then you route the rest.
 /ce-doc-review docs/plans/notification-mute.md
 
-# Let the skill find the most recent planning document
+# Same, on an implementation-ready plan
+/ce-doc-review docs/plans/2026-05-04-001-feat-notification-mute-plan.md
+
+# No path: asks which doc, or finds the most recent file in the project's plans directory
 /ce-doc-review
+
+# Non-interactive: requires a path. Applies mechanical fixes, returns the rest as structured text
+/ce-doc-review mode:non-interactive docs/plans/notification-mute.md
+
+# Deprecated alias for the same non-interactive contract
+/ce-doc-review mode:headless docs/plans/notification-mute.md
 ```
+
+For HTML, edits preserve the artifact's existing structure and never insert markdown syntax.
 
 ---
 
@@ -35,171 +51,155 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 Document review is harder than code review in specific ways:
 
-- **No type checker** — there's no compiler error when a requirements doc has internal contradictions
-- **No execution** — you can't "run" a plan to see if its scope fits its goals
-- **Generalist review collapses** — "looks good" misses the design gap, the security implication, the unstated scope expansion
-- **Interleaved concerns** — product framing, security, design, scope, and feasibility all need different lenses, but a single reviewer prioritizes one
-- **Findings lack ownership** — "consider revising" without saying who decides or what to do
-- **Rejected findings re-surface** — the same issue gets flagged round after round because the rejection wasn't recorded
+- No type checker. A requirements doc can contradict itself with no compiler error
+- No execution. You cannot "run" a plan to see if its scope fits its goals
+- A generalist pass says "looks good" and misses the design gap, the security implication, or the unstated scope expansion
+- Product framing, security, design, scope, and feasibility need different lenses. One reviewer prioritizes one
+- Findings lack ownership. "Consider revising" does not say who decides or what to do
+- Rejected findings re-surface because the rejection was never recorded
 
 ## The Solution
 
-`ce-doc-review` runs document review as a structured pipeline with explicit gates:
+`ce-doc-review` runs document review as a pipeline with explicit gates:
 
-- **Always-on personas** for coherence and feasibility
-- **Conditional personas** selected based on doc content — product-lens, design-lens, security-lens, scope-guardian, adversarial
-- **Parallel persona dispatch** with bounded concurrency
-- **Synthesis pipeline** with cross-persona agreement promotion, contradiction resolution, and three-tier routing (`safe_auto`, `gated_auto`, `manual` + FYI)
-- **Decision primer** — round-to-round suppression so rejected findings don't re-surface and applied findings get verification
-- **Four-option interaction** — per-finding walk-through, auto-resolve with best judgment, append to Open Questions, report-only
+- Always-on personas for coherence and feasibility
+- Conditional personas selected from doc content: product-lens, design-lens, security-lens, scope-guardian, adversarial
+- Parallel persona dispatch with bounded concurrency
+- Synthesis that promotes on cross-persona agreement, resolves contradictions, and routes on confidence and fix class together. Only a mechanical correction at full confidence applies unattended. Everything else that touches meaning is batched into one confirmation. Only a real fork becomes a question
+- Decision primer: round-to-round suppression so rejected findings do not re-surface, and applied findings get verification
+- Four-option interaction over the remaining decisions: per-finding walk-through, auto-resolve with best judgment, append to Open Questions, report-only
 
 ---
 
 ## What Makes It Novel
 
-### 1. Doc-content-aware persona selection
+### Doc-content-aware persona selection
 
-Conditional personas activate based on what the doc actually says, not keyword matching:
+Conditional personas activate from what the doc says, not keyword matching:
 
-- **`product-lens-reviewer`** — when the doc makes challengeable claims about what to build and why, or when the proposed work carries strategic weight (trajectory, identity, adoption, opportunity cost)
-- **`design-lens-reviewer`** — when the doc contains UI/UX references, user flows, interaction descriptions, or visual design language
-- **`security-lens-reviewer`** — when the doc touches auth, public APIs, data handling, PII, payments, third-party trust boundaries
-- **`scope-guardian-reviewer`** — when the doc has multiple priority tiers, large requirement counts, or scope-boundary language that seems misaligned
-- **`adversarial-document-reviewer`** — when the doc touches high-stakes domains (auth, payments, migrations), proposes new abstractions, has missing or extended origin, contains requirements-shape premise content, or presents explicit alternatives
+- **product-lens** when the doc makes challengeable claims about what to build and why, or the work carries strategic weight
+- **design-lens** when it contains UI/UX references, user flows, or visual design language
+- **security-lens** when it touches auth, public APIs, sensitive data, payments, or third-party trust boundaries
+- **scope-guardian** when it has multiple priority tiers, a large requirement count, or scope-boundary language that looks misaligned
+- **adversarial** when it touches high-stakes domains, proposes new abstractions, has missing or extended origin, contains requirements-shape premise content, or presents explicit alternatives
 
-The 2 always-on (`coherence-reviewer`, `feasibility-reviewer`) run on every review. Conditional personas add depth where the doc's content warrants it.
+`coherence-reviewer` and `feasibility-reviewer` run on every review.
 
-Personas also **scope their techniques by doc shape**. On plan-shape docs with validated upstream Product Contract provenance — legacy `Origin:` requirements docs, `product_contract_source: ce-brainstorm`, or `product_contract_source: legacy-requirements` — `product-lens-reviewer`, `adversarial-document-reviewer`, and `scope-guardian-reviewer` suppress their premise-level techniques and run only implementation-level checks (technical assumptions, decision stress-testing, architectural alternatives, deferred-work scope creep). On requirements-shape docs they run their full technique set. `feasibility-reviewer` inverts: shadow-path tracing, implementability, and migration mechanics are scoped to plan-shape docs; on requirements docs it runs a tight "would this direction force a fundamental rework?" check. Doc-type classification happens once in the orchestrator (readiness metadata, content-shape signals, frontmatter, R-IDs vs U-IDs, section structure) and the result is passed to every persona. Unified artifacts are sliced: requirements-only plans review the Product Contract, while implementation-ready plans review Product Contract, Planning Contract, Implementation Units, Verification Contract, and Definition of Done without sending the whole artifact to every reviewer by default.
+Personas also scope their techniques by doc shape. On plan-shape docs with validated upstream Product Contract provenance, product-lens, adversarial, and scope-guardian suppress premise-level techniques and run only implementation-level checks. On requirements-shape docs they run their full technique set. Feasibility inverts: deep implementability checks on plan-shape docs, a tight "would this direction force a fundamental rework?" check on requirements docs.
 
-### 2. Synthesis pipeline with three-tier routing
+Classification happens once from readiness metadata, content-shape signals, frontmatter, R-IDs vs U-IDs, and section structure. Unified artifacts are sliced: a requirements-only plan reviews the Product Contract. An implementation-ready plan reviews Product Contract, Planning Contract, Implementation Units, Verification Contract, and Definition of Done.
 
-After all personas return, synthesis:
+### Three surfaces, not a flat list
 
-- Validates each finding against the schema
-- Applies an anchor-based gate (drops findings that don't anchor to actual doc content)
-- Deduplicates across personas
-- **Promotes findings on cross-persona agreement** — two reviewers spotting the same issue raises priority
-- Resolves contradictions (different personas disagree on what to do)
-- Auto-promotes safe-auto candidates that meet the bar
-- Routes findings into three tiers — `safe_auto` (applied directly), `gated_auto` / `manual` (user decision), and FYI (advisory only)
+After personas return, synthesis validates, drops unanchored findings, deduplicates, promotes on agreement, and routes:
 
-The output is one consolidated set, not a flat list of every persona's raw output.
+- **Applied** (reported): only `safe_auto` at confidence 100. Mechanical corrections. One right answer
+- **Proposed fixes** (grouped confirmation): everything with a concrete fix that touches meaning, plus obligations the document already entailed. One question over the batch, shown in full first
+- **Decisions**: genuine forks. The question is which remedy, never whether to proceed with something already settled
+- **FYI**: observational items. No question
 
-### 3. Decision primer — round-to-round suppression
+The output is one consolidated set, not every persona's raw list.
 
-When the user runs multiple rounds in the same session (apply some findings, leave the rest, run again), the decision primer carries forward what was applied vs rejected:
+### Decision primer
 
-- **Applied findings** flow back so round-N+1 personas can verify the fix actually landed
-- **Rejected findings** (skip / defer / acknowledge) are suppressed via fingerprint + evidence-substring overlap matching, so the same issue doesn't re-surface
+When you run multiple rounds in the same session, the primer carries forward what was applied vs rejected:
 
-The primer uses an evidence-snippet (first ~120 chars of each finding's evidence) for the overlap test, beyond just title fingerprinting. Without the snippet, suppression falls back to title-only and either re-surfaces rejected findings or suppresses too aggressively.
+- Applied findings flow back so the next round can verify the fix landed
+- Rejected findings (skip / defer / acknowledge) are suppressed by fingerprint plus evidence-substring overlap, so the same issue does not re-surface
 
-### 4. Four-option interaction model
+Without the evidence snippet, suppression falls back to title-only and either re-surfaces rejected findings or suppresses too aggressively.
 
-When findings land in `gated_auto` / `manual` tiers, the user picks how to handle them:
+### Four-option interaction
+
+After mechanical fixes land and the grouped confirmation is answered, remaining decisions get one routing question over the whole remaining set:
 
 | Option | Effect |
 |--------|--------|
-| Per-finding walk-through | Step through each finding individually; apply, skip, defer to Open Questions, or acknowledge |
-| Auto-resolve with best judgment | Skill applies what it judges safe; user reviews bulk preview before committing |
-| Append to Open Questions | All findings deferred to the doc's `## Open Questions` section as a batch |
-| Report-only | No edits; report stays in chat |
+| Review each finding one by one | Step through each decision. Apply, skip, defer to Open Questions, or auto-resolve the rest |
+| Auto-resolve with best judgment | Applies what it judges safe. You review a bulk preview before it commits |
+| Append to Open Questions | All remaining findings deferred to the doc's `Deferred / Open Questions` section as a batch |
+| Report only | No further edits. Report stays in chat |
 
-The walk-through itself supports an "auto-resolve the rest" escape mid-flow if the user has reviewed enough to trust the rest.
+The walk-through itself supports an "auto-resolve the rest" escape mid-flow. Bulk actions show a preview (section, title, action, brief rationale) before anything lands.
 
-**Decision context before every choice.** Interactive Phase 4 findings render in the same turn before the routing question — a prior non-interactive envelope or a one-line count is not enough. Each per-finding step prints a terminal block *and* duplicates compact What's wrong / Proposed fix / If left as-is into the blocking-question string so modal harnesses stay decidable without scrolling.
+Each per-finding step prints a terminal block and duplicates What's wrong / Proposed fix / If left as-is into the blocking question, so modal harnesses stay decidable without scrolling.
 
-### 5. Bulk-action preview before mass changes
-
-When the user picks "Auto-resolve with best judgment" or "Append to Open Questions" — or escapes mid walk-through to "Auto-resolve the rest" — the skill shows a preview of every change before applying. The preview includes the section, finding title, action (apply / skip / defer / acknowledge), and brief rationale. The user confirms or cancels. This is the safety valve for bulk operations: the user sees what's about to land before it does.
-
-### 6. Two modes — Interactive and Non-interactive
+### Interactive vs non-interactive
 
 | Mode | When | Behavior |
 |------|------|----------|
-| **Interactive** | Direct user invocation, or opt-in via `Run deeper doc review` from a caller's post-generation menu | Routing question, per-finding walk-through, bulk-preview confirmations |
-| **Non-interactive** _(default for chained invocation)_ | `mode:non-interactive` (deprecated alias `mode:headless`); default at `/ce-plan` Phase 5.3.8 | Apply `safe_auto` silently; return all other findings as structured text; surface a one-line summary above the caller's next menu; no prompts |
+| **Interactive** | Direct invoke, brainstorm's "Pressure-test the requirements", or `ce-plan`'s "Decide on the review's open items" | Grouped confirmation, routing question, walk-through, bulk-preview confirmations |
+| **Non-interactive** | `mode:non-interactive` (deprecated alias `mode:headless`). Default when `ce-plan` chains the review | Apply full-confidence mechanical corrections silently. Return everything else as structured text. No prompts |
 
-Non-interactive is the default for chained invocation from doc-producing skills — `/ce-plan` Phase 5.3.8 invokes it non-interactively so routine plans autofix and surface a summary line without blocking the user. Interactive is for direct invocation, or when the user opts into `Run deeper doc review` from the post-generation menu.
+Non-interactive requires a path. Without one it errors rather than guessing.
 
-### 7. Bounded parallelism with backpressure
+### Coverage, settled decisions, and the rendering floor
 
-Persona dispatch respects the harness's active-subagent limit. Selected reviewers queue; the skill dispatches as many as the harness accepts and fills freed slots as reviewers complete. Active-agent / concurrency-limit spawn errors are treated as backpressure (retry after a slot frees), not as reviewer failure. Reviewers are recorded as failed only when a successful dispatch times out or fails for a non-capacity reason.
+The output names which personas ran, which were activated by what signals, and whether any failed or timed out.
 
-### 8. Coverage transparency
+Decisions you examined and settled carry a `session-settled:` annotation. The safe-auto pass never strips it. A persona that wants to challenge a settled decision must frame the challenge as infeasibility, not preference, and it is never auto-applied.
 
-The output names which personas ran, which were activated by what signals, and whether any failed or timed out. The user can audit "did the right reviewers actually look at this" without parsing internal state.
+Findings lead with a recommendation and a one-sentence consequence that names no opaque token. Document IDs (`R6`, `U3`) keep the ID and get a handle. Code symbols are translated to the role they play. You can decide Apply / Defer / Skip without opening the reviewed codebase.
 
-### 9. Cross-model judgment pass
+### Cross-model judgment pass
 
-The **conditional judgment trio** — `adversarial-document-reviewer`, `product-lens-reviewer`, `security-lens-reviewer` — also runs through **one different model provider than the host**, in a separate read-only process, whenever those lenses activate. These are the lenses whose output diverges most across models — premise falsification, strategic-claim challenge, and threat coverage — so a second, genuinely independent model surfaces findings the host model misses, and agreement between a peer return and its in-process twin is the strongest promotion signal in the synthesis (different model providers, separate processes). The convergent lenses (coherence, scope-guardian) and the always-on feasibility lens stay single-model — feasibility is excluded specifically so the pass stays conditional and doesn't spawn a peer on every review.
+When the **conditional judgment trio** (adversarial, product-lens, security-lens) activates, those lenses also run through one different model provider than the host, in a separate read-only process. Agreement between a peer return and its in-process twin is the strongest promotion signal in synthesis. Coherence, scope-guardian, and feasibility stay single-model so the pass does not spawn a peer on every review.
 
-Alongside those focused twins, a single **whole-document sweep** has one different-provider peer review the *entire* document as a general reviewer (not lens-scoped), folding in as `whole-doc-<provider>` — so a different model catches blind spots across **every** section (feasibility, coherence, scope), not just the trio's premise lenses. It's one extra call, corroborating by dedup fingerprint against any in-process finding, so broad coverage comes without a per-lens fan-out. On unified plans the focused trio peers are sliced to review exactly what their in-process twin reviewed (true corroboration), while the sweep deliberately reads the whole document (breadth) — two complementary modes.
+A single **whole-document sweep** has one different-provider peer review the entire document as a general reviewer, folding in as `whole-doc-<provider>`. On unified plans the focused trio peers are sliced to match their in-process twins. The sweep reads the whole document.
 
-**Which target runs the peer** is auto-chosen and overridable. Host harness and serving family are tracked separately so the pass can exclude same-model checks. Preference precedence is conversation, `cross_model_peer:` in CE config (`config.local.yaml` then `config.yaml`), active project instructions, then `codex → claude → grok → composer`. `Cursor` is also accepted explicitly and means `cursor-agent` using its configured default/Auto model; `Composer` means a Composer model through Cursor; Grok prefers its native CLI and may use a sanctioned Grok-via-Cursor route. Cursor Auto is not promoted as independent corroboration unless a receipt proves a different serving family. See the [configuration reference](./configuration.md) for the shared local-config contract.
+The pass needs a peer *agent* CLI (`codex`, `claude`, `grok`, or `cursor-agent`) — an API key alone does not enable it, and Gemini has no standalone target. Peers are found on `PATH` or inside the Codex desktop app bundle; see the [prerequisite note in `ce-code-review`](./ce-code-review.md#cross-model-adversarial-pass).
 
-The declared model/route mappings are attempted first. When a current CLI rejects an obsolete or incompatible adapter default, the skill may discover the closest compatible equivalent within the same target/family and hard read-only, host-exclusion, authority, and egress boundaries. It records the substitution and actual route. An explicit user model or newly receiving intermediary never changes silently: route selection returns to the host for the required disclosure and sanction. A second target remains opt-in (`CROSS_MODEL_MAX_PEERS=2`), and failures remain non-blocking.
+`cross_model_review_mode: off` in CE config keeps this pass from running at all — no peer is resolved and nothing leaves the host; the in-process reviewers cover the lens and Coverage says the pass was disabled by checkout config. A direct request in conversation for a peer overrides it for one run. Which target runs the peer is auto-chosen and overridable: conversation, `cross_model_peer:` in CE config, active project instructions, then `codex → claude → grok → composer`. `Cursor` means `cursor-agent` using its configured default/Auto model. `Composer` means a Composer model through Cursor. `cross_model_model:` and `cross_model_effort:` in CE config pin that target's model (e.g. `fable`) and reasoning effort; a value the peer cannot honor skips the pass with a stated reason rather than substituting. See the [configuration reference](./configuration.md).
 
-**Trust boundary:** the pass embeds the full document content into the peer prompt and sends it to an external model provider (OpenAI, Anthropic, xAI, or Cursor, depending on the resolved peer); `CROSS_MODEL_PEERS` restricts which providers may receive content (unset = default order; set = allowlist). The peer runs strictly read-only, from an empty scratch dir with no project context — every route denies writes, network, MCP, and subagents. On **reads**, the routes are two tiers: **truly tool-less** — claude (`--safe-mode --tools ""`, all built-ins disabled and custom behavior suppressed) and grok (denies `Read`/`Edit`/`Write`/`Bash`/`Task`/web/`mcp__*`), with no read tool at all; and **read-only residual** — codex (`-s read-only`) and cursor-agent (`--mode ask --sandbox enabled`), which still permit a read tool (codex also read-only shell exec). So impact is bounded to disclosure rather than repo mutation, and the script emits a one-line audit log of each cross-model send so the egress is auditable even in non-interactive mode. Peer prompts use basename-only document paths (content is already embedded). Over-size documents skip cleanly rather than truncating. The read residual on the codex/cursor-agent routes is **accepted** for the own-document threat model: the reviewed doc is the maintainer's own, and the host agent already runs in-repo with more privilege than any peer, so a peer that can read a file adds no material exposure.
-
-### 10. Settled-decision protection
-
-Decisions the user examined and settled carry a `session-settled:` annotation, and `ce-doc-review` treats it as protected content: the safe-auto pass never strips it, and a persona that wants to challenge a settled decision must frame the challenge as infeasibility, not preference — surfaced for decision, never auto-applied.
-
-### 11. Shared rendering floor — decision-first, domain-agnostic legibility
-
-Because the skill reviews documents for arbitrary products, a finding can name identifiers only its author understands: document IDs (`R6`, `U3`), external refs (tickets, PR numbers), and code symbols the reviewed doc happens to mention (functions, files, line references). A single source — `references/rendering-floor.md` — governs every presentation surface (interactive walkthrough, batch table, non-interactive envelope, bulk preview) so each finding leads with a recommendation and a one-sentence consequence that names no opaque token, caps mechanism at two sentences, and glosses opaque tokens by function: navigation anchors keep their ID and get a handle, provenance anchors appear only when the referenced event drives the decision, and code symbols are translated to the role they play. The user can decide Apply / Defer / Skip without opening the reviewed codebase.
+The pass embeds the document into the peer prompt and sends it to an external provider. `CROSS_MODEL_PEERS` restricts which providers may receive content. Peers are strictly read-only. Failures are non-blocking. A second target remains opt-in (`CROSS_MODEL_MAX_PEERS=2`).
 
 ---
 
 ## Quick Example
 
-`/ce-plan` finishes producing a Standard plan for a notification-mute feature. Phase 5.3.8 invokes `/ce-doc-review` in `mode:non-interactive` with the plan path.
+`/ce-plan` finishes a Standard plan for a notification-mute feature and invokes `/ce-doc-review` in `mode:non-interactive` with the plan path.
 
-The skill reads the doc, classifies it as `plan` from content-shape signals (U-IDs, plan section structure), reads the `Origin:` slot, and analyzes content for conditional personas. The plan touches a UI surface (mute toggle copy) but no high-stakes domains and proposes no new abstractions. It activates `coherence-reviewer` (always-on), `feasibility-reviewer` (always-on, scoped to plan-shape techniques), and `design-lens-reviewer` (UI surface). Adversarial, scope-guardian, security-lens, and product-lens skip — none of their triggers fire on a routine plan with origin set.
+The skill reads the doc, classifies it as a plan from content-shape signals (U-IDs, plan section structure), and analyzes content for conditional personas. The plan touches a UI surface (mute toggle copy) but no high-stakes domains and proposes no new abstractions. It activates coherence (always-on), feasibility (always-on, plan-shape techniques), and design-lens (UI surface). Adversarial, scope-guardian, security-lens, and product-lens skip.
 
-Three reviewers dispatch in parallel. They return 9 raw findings. Synthesis merges them into 6 distinct findings: 2 `safe_auto` (typo, broken cross-reference), 3 `gated_auto` (wording on the durability tradeoff, missing edge case in test scenarios for U2, design-lens flag on the toggle copy), 1 FYI (suggested scope clarification).
+Three reviewers return 9 raw findings. Synthesis merges them into 6: 2 mechanical fixes (typo, broken cross-reference), 3 proposed fixes (wording on a durability tradeoff, a missing edge case in test scenarios for U2, a design-lens flag on the toggle copy), 1 FYI.
 
-The 2 `safe_auto` apply directly. Non-interactive mode returns the rest as structured text — no walkthrough, no per-finding routing. A single summary line surfaces above the post-generation menu: `Doc review applied 2 fixes. 3 decisions, 1 FYI remain.` The user picks `Start /ce-work` and goes. Had they wanted to address the 3 decisions interactively, they'd have picked `Run deeper doc review` instead.
+The 2 mechanical fixes apply directly. Non-interactive mode returns the rest as structured text. A single summary line surfaces above the post-generation menu: `Doc review applied 2 fixes. 3 proposed fixes and 1 FYI remain; no decisions requiring judgment.` The user can pick `Start /ce-work` and go, or `Decide on the review's open items` to walk the three proposed fixes interactively.
 
 ---
 
 ## When to Reach For It
 
-Reach for `ce-doc-review` when:
+Use `ce-doc-review` when:
 
 - A requirements-only unified plan just landed from `/ce-brainstorm` and you want a structured Product Contract review before planning
 - A plan just landed from `/ce-plan` and you want a deeper review before execution
-- You're in non-interactive mode and a programmatic caller (the chain skills) needs review with structured output
-- You want round-to-round refinement on a doc — the decision primer prevents loops
+- You want round-to-round refinement on a planning doc. The decision primer prevents loops
+- A programmatic caller needs review with structured output (`mode:non-interactive`)
 
 Skip `ce-doc-review` when:
 
-- The doc is trivially short (a 2-bullet plan; review overhead exceeds yield)
+- The doc is trivially short (a 2-bullet plan). Review overhead exceeds yield
+- You want a holistic take, not an issue list → `/ce-pov`
 - You want code review, not doc review → `/ce-code-review`
-- The doc is purely informational (a learning doc, a release note) — there's nothing to "review for shipping"
+- The doc is purely informational (a learning doc, a release note). There is nothing to review for shipping
 
 ---
 
 ## Use as Part of the Workflow
 
-`ce-doc-review` is invoked from doc-producing skills as their review pass:
+`ce-doc-review` is invoked from the skills that write planning docs:
 
-- **`/ce-brainstorm` Phase 4** — offered as one of the post-doc options ("Agent review of Product Contract"); runs interactive with full premise scrutiny, since validating premise is exactly what brainstorm exists for
-- **`/ce-plan` Phase 5.3.8** — runs in `mode:non-interactive` by default after the confidence check. `safe_auto` fixes apply silently; remaining findings surface as a one-line summary above the post-generation menu, where `Run deeper doc review` is exposed as a first-class option for users who want the interactive walkthrough
-- **`/ce-resolve-pr-feedback`** — when reviewer feedback lands on a brainstorm or plan doc rather than code
-
-In non-interactive mode, callers receive structured findings and route the user-decision options themselves.
+- **`/ce-brainstorm` post-doc menu** offers **Pressure-test the requirements** for markdown or HTML unified plans. It runs interactively with full premise scrutiny and is hidden when a prototype offer is on the same menu
+- **`/ce-plan` after the plan is written** runs `mode:non-interactive` by default on markdown and HTML plans. Mechanical fixes apply silently in the native format. Remaining findings surface as a one-line summary above the post-generation menu, where **Decide on the review's open items** opts into the interactive walkthrough
+- In non-interactive mode, callers receive structured findings and route the user-decision options themselves
 
 ---
 
 ## Use Standalone
 
-The skill works directly on unified plan artifacts, legacy requirements docs, and plan docs:
-
-- **Specific path** — `/ce-doc-review docs/plans/2026-05-04-001-feat-notification-mute-plan.md`
-- **Ask the user** — `/ce-doc-review` with no path asks which doc to review (or auto-finds the most recent in `docs/brainstorms/` or `docs/plans/`)
-- **Non-interactive** — `/ce-doc-review mode:non-interactive docs/plans/.../plan.md` returns structured findings without interactive prompts
+- **Specific path:** `/ce-doc-review docs/plans/2026-05-04-001-feat-notification-mute-plan.md`
+- **No path:** `/ce-doc-review` asks which doc to review, or auto-finds the most recent file in the project's plans directory
+- **Non-interactive:** `/ce-doc-review mode:non-interactive docs/plans/.../plan.md` returns structured findings without prompts
 
 ---
 
@@ -207,42 +207,46 @@ The skill works directly on unified plan artifacts, legacy requirements docs, an
 
 | Argument | Effect |
 |----------|--------|
-| _(empty, interactive)_ | Asks which doc to review or auto-finds the most recent |
-| `<doc path>` | Reviews that specific doc |
-| `mode:non-interactive <doc path>` | Non-interactive mode; structured text output, no prompts. Deprecated alias: `mode:headless`. |
+| _(empty, interactive)_ | Asks which doc to review, or auto-finds the most recent file under the project's plans directory |
+| `<doc path>` | Reviews that specific doc. Interactive unless a mode token is also present |
+| `mode:non-interactive <doc path>` | Non-interactive mode. Structured text output, no prompts. Requires a path. Deprecated alias: `mode:headless` |
 
-Non-interactive mode requires a path; without one it errors out rather than guessing.
+Non-interactive mode without a path errors out rather than guessing.
 
 ---
 
 ## FAQ
 
 **What's the difference between this and `ce-code-review`?**
-`ce-code-review` reviews diffs (code changes); `ce-doc-review` reviews docs (requirements, plans). Different reviewer personas, different findings shape, different routing. Both share the multi-persona dispatch + synthesis pattern, and both run a **cross-model pass** with the same provider-selection mechanics (host attestation, preference order, codex/claude/grok/composer routes). Lens policy differs: `ce-code-review` runs its single adversarial lens cross-model; `ce-doc-review` runs the three-lens judgment trio (adversarial, product-lens, security-lens) plus a whole-doc sweep, because doc-review's high-value judgment is spread across more lenses.
+`ce-code-review` reviews diffs (code changes). `ce-doc-review` reviews docs (requirements, plans). Different reviewer personas, different findings shape, different routing. Both share multi-persona dispatch plus synthesis, and both can run a cross-model pass. Lens policy differs: `ce-code-review` runs its adversarial lens cross-model. `ce-doc-review` runs the three-lens judgment trio plus a whole-doc sweep, because doc-review judgment is spread across more lenses.
+
+**What's the difference between this and `ce-pov`?**
+`ce-pov` gives a holistic take: bottom line, strengths, risks. This skill gives issue-shaped findings and can edit markdown or HTML in place.
 
 **Which lenses run cross-model, and why not all of them?**
-Only the judgment trio — adversarial, product-lens, security-lens — get a dedicated cross-model *twin*, because those are where a second model's different priors and knowledge produce genuinely different findings, so agreement carries real signal. Coherence and scope-guardian are convergent (a second model just echoes them), and feasibility is always-on, so giving each its own twin would spawn a peer on every review rather than only on documents that warrant deeper scrutiny. Those areas aren't left uncovered, though: the separate whole-document sweep (above) still gives feasibility, coherence, and scope broad cross-model coverage — it just does so through one general-reviewer read rather than a per-lens twin.
+Only the judgment trio (adversarial, product-lens, security-lens) get a dedicated cross-model twin. Those are where a second model's different priors produce genuinely different findings. Coherence and scope-guardian are convergent. Feasibility is always-on, so giving it a twin would spawn a peer on every review. The separate whole-document sweep still gives feasibility, coherence, and scope broad cross-model coverage through one general-reviewer read.
 
 **Why does the decision primer matter?**
-Without it, every round re-surfaces the same findings, including ones the user already rejected. The primer uses fingerprint + evidence-snippet matching to suppress rejected findings and verify applied fixes — making round-to-round refinement actually iterate, not loop.
+Without it, every round re-surfaces the same findings, including ones you already rejected. The primer uses fingerprint plus evidence-snippet matching to suppress rejected findings and verify applied fixes.
 
 **What's "Append to Open Questions" for?**
-For findings the user wants to address later, not now. Rather than losing them in chat, they get appended to the doc's `## Open Questions` section so they survive the session and the next planner / implementer sees them.
+For findings you want to address later, not now. They get appended to the doc's visible `Deferred / Open Questions` section in its native format so they survive the session and the next planner or implementer sees them.
 
-**Why does it have a bulk preview?**
-Because mass changes deserve a confirmation step. "Auto-resolve with best judgment" feels like delegation, but if the skill silently applies 12 changes you can't review without a preview, that's a risk. The preview shows the changes before commit so the user can cancel.
+**Why a bulk preview?**
+Mass changes deserve a confirmation step. "Auto-resolve with best judgment" is delegation. The preview shows the changes before they commit so you can cancel.
 
 **What if a persona times out or fails?**
-The skill proceeds with findings from agents that completed and notes the failure in the Coverage section. A single agent failure doesn't block the entire review.
+The skill proceeds with findings from agents that completed and notes the failure in Coverage. A single agent failure does not block the review.
 
 **Can it review documents other than requirements and plans?**
-The personas are tuned for those two types specifically. Reviewing a learning doc or release note works mechanically but the persona advice may not be calibrated for that artifact type. For broad doc review, this is the right tool; for specific other types, the personas may surface noise.
+The personas are tuned for those two types. Reviewing a learning doc or release note works mechanically, but the persona advice may not be calibrated. For a planning doc this is the right tool. For other types the personas may surface noise.
 
 ---
 
 ## See Also
 
-- [`ce-brainstorm`](./ce-brainstorm.md) — produces requirements-only unified plans whose Product Contract this skill reviews
-- [`ce-plan`](./ce-plan.md) — produces the plan docs this skill reviews; invokes this skill at Phase 5.3.8
-- [`ce-code-review`](./ce-code-review.md) — sibling skill for code (diffs); same multi-persona pattern, different artifact
-- [`ce-proof`](./ce-proof.md) — publish a doc to Every's collaborative editor for human review and sharing; complementary, not a substitute
+- [`ce-brainstorm`](./ce-brainstorm.md): produces requirements-only unified plans whose Product Contract this skill reviews
+- [`ce-plan`](./ce-plan.md): produces the plan docs this skill reviews; invokes this skill after the plan is written
+- [`ce-pov`](./ce-pov.md): holistic take on a document. This skill produces issue-shaped findings
+- [`ce-code-review`](./ce-code-review.md): sibling skill for code diffs
+- [`ce-proof`](./ce-proof.md): publish a doc to Every's collaborative editor for human review and sharing

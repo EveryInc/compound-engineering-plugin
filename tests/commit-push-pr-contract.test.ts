@@ -167,6 +167,14 @@ describe("ce-commit-push-pr contract", () => {
     expect(content).toMatch(/PR description.+not.+comment/i)
   })
 
+  test("appends a known plan unit id to the commit subject without hunting", async () => {
+    const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+
+    expect(content).toContain("append that unit's U-ID in parentheses — `(U3)` means unit 3")
+    expect(content).toContain("Do not hunt for a plan")
+    expect(content).toContain("Omit when the commit spans units")
+  })
+
   test("adds generic Compound Engineering branding only on an explicit signal", async () => {
     const reference = await readRepoFile(
       "skills/ce-commit-push-pr/references/pr-description-writing.md",
@@ -324,13 +332,48 @@ describe("PR concept teaching contract", () => {
   })
 
   test("opt-in stack mode constructs or submits a stack and hands off with posture", async () => {
-    const [skill, submit] = await Promise.all([
+    const [skill, submit, cli] = await Promise.all([
       readRepoFile("skills/ce-commit-push-pr/SKILL.md"),
       readRepoFile("skills/ce-commit-push-pr/references/stack-submit.md"),
+      readRepoFile("skills/ce-commit-push-pr/references/gh-stack-cli.md"),
     ])
 
+    expect(submit).toContain("Compose `<bottom-message>` and `<next-message>` with the same subject rule as Step 3")
+    expect(submit).toContain("append that unit's U-ID in parentheses — `(U3)` means unit 3")
+    expect(submit).toMatch(/named a parent PR or branch to stack on, classify it/i)
+    expect(submit).toContain("references/gh-stack-cli.md")
+    expect(submit).toMatch(/Classify by \*\*PR number\*\*.{0,140}pulls a stack down from GitHub/is)
+    expect(submit).toMatch(/exit 0 — parent now checked out/i)
+    expect(submit).toMatch(/exit 2 — nothing checked out/i)
+    // Classification moves HEAD; construction reads the checked-out branch as the original.
+    expect(submit).toMatch(/record your work branch and its tip \*\*before\*\* classifying and return to them before construction/i)
+    expect(submit).toMatch(/plan the layers from your restored work branch, then check the parent out again/i)
+    expect(submit).toMatch(/Exit \*\*5\*\* means that parent is not the top: residual/i)
+    expect(submit).toMatch(/Never clear it with `gh stack top`/i)
+    // The facts file must not prescribe the recovery Topology forbids.
+    expect(cli).toMatch(/moving there with `gh stack top` is a\s+decision, not a fix/i)
+    expect(submit).toMatch(/resolve `<parent-branch>` first/i)
+    // Both conditions below regressed twice while this block was compressed.
+    expect(submit).toMatch(/From a branch with no PR, fetch and verify that ref directly/i)
+    expect(submit).toMatch(/make sure a local branch sits \*\*at `headRefOid`\*\*/i)
+    expect(submit).toMatch(/verify it is at that commit and stop with a residual otherwise/i)
+    expect(cli).toMatch(/reachability leaves the commit with no branch to name/i)
+    expect(cli).toMatch(/no documented branch ordering, so do not derive position/i)
+    expect(submit).toMatch(/only when `author` is the current user/i)
+    expect(submit).toMatch(/in place of the generic one shown in construction/i)
+    expect(submit).toMatch(/\*\*Unproven\*\* — a residual, not a guess/i)
+    expect(cli).toMatch(/Existing branches are adopted;\s+missing ones are created/i)
+    expect(submit).toMatch(/stop with a residual on a name that fails/i)
+    expect(cli).toMatch(/gh stack version 0\.1\.0/i)
+    expect(cli).toMatch(/--help` is authoritative/i)
+    expect(cli).toMatch(/must run from the \*\*top\*\* branch.{0,120}exits \*\*5\*\*/is)
+    expect(cli).toMatch(/Existing branches are adopted;\s+missing ones are created/i)
+    expect(cli).toMatch(/gh stack link`\*\* — GitHub-only by design.{0,140}no local tracking/is)
+    expect(cli).toMatch(/gh pr merge`\*\* on a stack member/i)
     expect(skill).toContain("## Stack mode (opt-in)")
     expect(skill).toContain("**Do not** proactively suggest PR stacks")
+    expect(skill).toMatch(/explicit stack request is \*\*required intent\*\*.{0,120}not re-read it as a single PR/is)
+    expect(skill).toMatch(/did \*\*not\*\* ask for one, \*\*refuse\*\* nonsense stacks/i)
     expect(skill).toContain("references/stack-submit.md")
     expect(skill).toMatch(/do not add `posture:` to this skill's argument-hint/i)
     expect(skill).toMatch(/before Step 3[\s\S]{0,180}Probe[\s\S]{0,80}Topology[\s\S]{0,120}Retrospective construction/is)
@@ -349,7 +392,11 @@ describe("PR concept teaching contract", () => {
     expect(submit).toMatch(/Do not hard-code `origin\/<parent>`/i)
     expect(submit).toMatch(/starts on the resolved default branch.+follow `references\/branch-creation\.md`/is)
     expect(submit).toMatch(/starts on an existing feature branch.+do not follow `references\/branch-creation\.md`/is)
-    expect(submit).toMatch(/feature branch.+fetch the resolved default branch.+verify the fetched remote-tracking tip/is)
+    expect(submit).toMatch(/feature branch.+fetch the resolved base `<base>` from Topology.+verify the fetched remote-tracking tip/is)
+    expect(submit).toMatch(/no remote-tracking branch to fetch or verify/i)
+    expect(submit).toMatch(/stop with a residual on a name that fails/i)
+    expect(submit).toMatch(/did not ask for a stack in this request.{0,80}standing preference alone is not asking/is)
+    expect(submit).toMatch(/refuse the stack.{0,80}explicit request is not refusable/is)
     expect(submit).toMatch(/original tip.+recovery (ref|branch)/is)
     expect(submit).toMatch(/committed.+planned commit tip/is)
     expect(submit).toMatch(/uncommitted.+save.+tracked and untracked.+restore.+planned layer/is)

@@ -412,7 +412,11 @@ the approach. Add only the protocol needed to protect that outcome.
 3. Separate model behavior, harness mechanics, and authority context.
 4. Treat the name and description as an activation contract.
 5. Keep protocol explicit. Delete judgment guidance when the outcome is enough;
-   otherwise use the smallest supported principle or contrast pair.
+   otherwise use the smallest supported principle or contrast pair. Prescribe a
+   mechanism only where this skill owns it; a delegating skill states the
+   condition, the safe failure direction, and the non-derivable callee facts.
+   A finding that a prescribed command fails in some state, against a
+   delegating skill, is a representation finding: propose the deletion.
 6. Preserve local quantifiers, gates, stable fields, coverage floors, and
    completion branches.
 7. Describe capabilities and observable behavior before named tools. Preserve

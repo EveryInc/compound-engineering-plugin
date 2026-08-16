@@ -6,8 +6,8 @@ Use this path only when the resolved execution request assigns the
 ## Ownership boundary
 
 - Keep document classification, persona selection, prompt construction,
-  synthesis, `safe_auto` edits, interactive questions, and final presentation in
-  the current CE controller.
+  synthesis, Apply-routed changes, grouped confirmation, decisions,
+  interactive questions, and final presentation in the current CE controller.
 - Give Orca exactly one node per already-selected reviewer. Do not add, remove,
   or rename reviewers from the Phase 2 list.
 - Treat Orca as the sole owner of those reviewer nodes. An Orca reviewer must not

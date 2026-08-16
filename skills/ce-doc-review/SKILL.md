@@ -1,14 +1,14 @@
 ---
 name: ce-doc-review
 description: Review requirements, plans, or specs with role-specific lenses. Use when the user wants to improve an existing planning document.
-argument-hint: "[mode:non-interactive] [path/to/document.md]"
+argument-hint: "[mode:non-interactive] [path/to/document.{md,html}]"
 ---
 
 # Document Review
 
-Review a requirements or plan document through multi-persona analysis: dispatch generic subagents seeded with skill-local reviewer prompt assets, auto-apply `safe_auto` fixes, and route what remains to the user.
+Review a requirements or plan document through multi-persona analysis: dispatch generic subagents seeded with skill-local reviewer prompt assets, apply and report the fixes synthesis routes to Apply in the document's native format, and route what remains to the user.
 
-**Done when:** every dispatched reviewer has returned or been named as failed in Coverage, `safe_auto` fixes are applied, and remaining findings have either been routed through the four-option interaction (interactive) or returned as structured text with classifications intact (non-interactive).
+**Done when:** every dispatched reviewer has returned or been named as failed in Coverage, the fixes synthesis routed to Apply are applied and reported, and remaining findings have either been routed through the four-option interaction (interactive) or returned as structured text with classifications intact (non-interactive).
 
 ## Setup
 
@@ -26,20 +26,20 @@ fi
 
 ## Interactive mode rules
 
-- **Pre-load the platform question tool before any question fires.** In Claude Code, `AskUserQuestion` is a deferred tool whose schema is not available at session start — call `ToolSearch` with query `select:AskUserQuestion` once, eagerly, at the top of the Interactive flow, not at the first question site (the routing question, per-finding walk-through, bulk-preview Proceed/Cancel, and the Phase 5 terminal question all depend on it). Not required on Codex, Gemini, or Pi.
+- **Pre-load the platform question tool before any question fires.** In Claude Code, `AskUserQuestion` is a deferred tool whose schema is not available at session start — call `ToolSearch` with query `select:AskUserQuestion` once, eagerly, at the top of the Interactive flow, not at the first question site (the grouped confirmation, routing question, per-finding walk-through, bulk-preview Proceed/Cancel, and the Phase 5 terminal question all depend on it). Not required on Codex, Gemini, or Pi.
 - **The numbered-list fallback applies only when the harness genuinely lacks a blocking question tool** — `ToolSearch` returns no match, the call explicitly fails, or the runtime mode does not expose it (e.g., Codex edit modes without `request_user_input`). A pending schema load is not a fallback trigger. In genuine-fallback cases, present options as a numbered list and wait for the reply. A question that calls for a user decision must either fire the tool or fall back loudly — rendering it as narrative text because the tool feels inconvenient, because the model is in report-formatting mode, or because the instruction was buried in a long skill is a bug.
 
 ## Phase 0: Detect Mode
 
 Arguments may contain a document path, a mode token, or both; both tokens together is not a conflict. Tokens starting with `mode:` are flags, not paths — strip them, and use any remaining token as the document path for Phase 1.
 
-`mode:non-interactive` (or its deprecated alias `mode:headless`) sets **non-interactive mode**, which changes the delivery of non-`safe_auto` findings, not the classification boundaries — apply the same judgment about which tier each finding belongs in:
+`mode:non-interactive` (or its deprecated alias `mode:headless`) sets **non-interactive mode**, which changes the delivery of the findings that were not applied, not the classification boundaries — apply the same judgment about which tier each finding belongs in:
 
-- `safe_auto` fixes are applied silently (same as interactive)
-- `gated_auto`, `manual`, and FYI findings are returned as structured text with their original classifications intact, for the caller to handle — no blocking-question prompts, no interactive routing
+- fixes synthesis routes to Apply are applied and reported in the change list (same as interactive)
+- everything else — the grouped confirmation, decisions, and FYI observations — is returned as structured text with the original classifications intact, for the caller to handle — no blocking-question prompts, no interactive routing
 - Phase 5 returns immediately with "Review complete" (no routing question, no terminal question)
 
-**Non-interactive argument contract:** `mode:non-interactive <document-path>`, for example `mode:non-interactive <path-to-doc>.md`. `mode:headless` is a deprecated alias for the same contract.
+**Non-interactive argument contract:** `mode:non-interactive <document-path>`, for example `mode:non-interactive <path-to-doc>.{md,html}`. `mode:headless` is a deprecated alias for the same contract.
 
 Absent either token, run interactive, with the routing question, walk-through, and bulk-preview behaviors documented in `references/walkthrough.md` and `references/bulk-preview.md`.
 
@@ -75,7 +75,7 @@ First check the unified artifact contract (`artifact_contract: ce-unified-plan/v
 - `artifact_readiness: requirements-only` -> **`unified-requirements`**. Review the Product Contract only; the absence of Planning Contract, Implementation Units, Verification Contract, or Definition of Done is expected and must not be flagged.
 - `artifact_readiness: implementation-ready` -> **`unified-plan`**. Review Product Contract and Planning Contract with different lenses, then Implementation Units/Verification/DoD for execution completeness.
 - Progress-like readiness values (`active`, `in_progress`, `completed`, `done`) are invalid — a document-contract finding, not an execution state to honor.
-- HTML unified artifacts (`.html`) are read/reviewed report-only. Never apply markdown mutation paths to HTML; if a caller requested mutation/autofix, skip with the existing markdown-only message or return report-only findings.
+- HTML unified artifacts (`.html`) use the same review and mutation routes. Apply changes in the document's native format and preserve its existing structure; never insert markdown syntax into HTML. For an ID-bearing HTML item, mirror the nearest sibling's structure and preserve both its anchor convention and visible ID text.
 
 Otherwise decide between the two legacy types on these signals:
 
@@ -136,7 +136,7 @@ Read `references/orca-routing.md` and resolve the current run before dispatch. I
 reviewers. Otherwise, execute the native dispatch paragraph below unchanged.
 <!-- ce-orca-hook:end ce-doc-review.persona-dispatch -->
 
-Dispatch generic subagents with **bounded parallelism** using the platform's subagent primitive (e.g., `Agent` in Claude Code, `spawn_agent` in Codex) where available; otherwise run the work inline or serially. Omit the `mode` parameter so the user's configured permission settings apply. Respect the harness's active-subagent limit even at the 7-agent maximum: queue the selected reviewers, dispatch only as many as the harness accepts, and fill freed slots as reviewers complete. Treat active-agent/thread/concurrency-limit spawn errors as backpressure, not reviewer failure — leave the reviewer queued and retry after a slot frees, and if the harness cap is lower than the team size, queue the remainder rather than dropping it. Record a reviewer as failed only after a successful dispatch times out or fails, or when dispatch fails for a non-capacity reason.
+Dispatch generic subagents with **bounded parallelism** using the platform's subagent primitive (e.g., `Agent` in Claude Code, `spawn_agent` in Codex) where available; otherwise run the work inline or serially. Omit the `mode` parameter so the user's configured permission settings apply. Respect the harness's active-subagent limit even at the 7-agent maximum: queue the selected reviewers, dispatch only as many as the harness accepts, and fill freed slots as reviewers complete. Treat active-agent/thread/concurrency-limit spawn errors as backpressure, not reviewer failure — leave the reviewer queued and retry after a slot frees, and if the harness cap is lower than the team size, queue the remainder rather than dropping it. Record a reviewer as failed only after a successful dispatch times out or fails, or when dispatch fails for a non-capacity reason that survives correcting the invocation.
 
 For each selected reviewer, read `references/personas/<reviewer-name>.md` and pass its full content as `{persona_file}`. Do not dispatch standalone agents by type/name and do not rely on platform-level custom-agent registration.
 
@@ -171,15 +171,15 @@ Round 1 — no prior decisions.
 
 ### Cross-Model Judgment Pass
 
-If any of the **conditional judgment trio** — `adversarial-document-reviewer`, `product-lens-reviewer`, `security-lens-reviewer` — was activated, load `references/cross-model-review.md` and follow it for the additive, non-blocking peer pass. Attest the host as a harness plus serving family, resolve one target and one concrete route for the whole document, verify every actual recipient against the egress allowlist, and disclose and sanction that fixed route before content leaves the host. `cursor` means Cursor default/Auto; `composer` means an explicit Composer-family model through Cursor. Try the declared mapping first; only after an observed incompatibility may a target-bound same-family model override adapt a stale default. Never silently change an explicit model or recipient, and never let a dispatched worker choose a recipient-changing fallback.
+If any of the **conditional judgment trio** — `adversarial-document-reviewer`, `product-lens-reviewer`, `security-lens-reviewer` — was activated, load `references/cross-model-review.md` and follow it for the additive, non-blocking peer pass. Its checkout egress policy (`cross_model_review_mode`) is evaluated first and can skip the whole pass with a named reason. Attest the host as a harness plus serving family, resolve one target and one concrete route for the whole document, verify every actual recipient against the egress allowlist, and disclose and sanction that fixed route before content leaves the host. `cursor` means Cursor default/Auto; `composer` means an explicit Composer-family model through Cursor. Try the declared mapping first; only after an observed incompatibility may a target-bound same-family model override adapt a stale default. Never silently change an explicit model or recipient, and never let a dispatched worker choose a recipient-changing fallback.
 
 Launch one detached runner job per activated trio lens plus one `whole-doc` sweep in the same wave as the in-process reviewers, using the exact invocation contract in the reference. Every trio peer receives its twin's same reviewer-specific slice; `whole-doc` receives the full document. All calls use the same sanctioned target/route. Poll, reap, attribute, and clean up through the runner; a failure or timeout stays non-blocking and is named in Coverage. Fold findings into ordinary synthesis, but agreement promotion requires the artifact's top-level `independence_verified: true` — false or absent independence is useful evidence, not different-model corroboration. Feasibility and the convergent lenses (coherence, scope-guardian) do **not** run cross-model.
 
 ## Phases 3-5: Synthesis, Presentation, and Next Action
 
-After all dispatched agents return — **including any cross-model `<reviewer-name>-<provider>.json` returns** — read `references/synthesis-and-presentation.md` for the synthesis pipeline (validate, anchor-based gate, dedup, conditional agreement promotion, resolve contradictions, auto-promotion, route by three tiers with FYI subsection), `safe_auto` fix application, non-interactive-envelope output, and the handoff to the routing question. Peer findings enter ordinary synthesis, but only an artifact with `independence_verified: true` counts as an independent reviewer for promotion.
+After all dispatched agents return — **including any cross-model `<reviewer-name>-<provider>.json` returns** — read `references/synthesis-and-presentation.md` for the synthesis pipeline (validate, anchor-based gate, dedup, conditional agreement promotion, resolve contradictions, auto-promotion, route by confidence and fix class into apply / grouped confirmation / decisions, with an FYI subsection), fix application, non-interactive-envelope output, and the handoff to the grouped confirmation and routing question. Peer findings enter ordinary synthesis, but only an artifact with `independence_verified: true` counts as an independent reviewer for promotion.
 
-For the four-option routing question and per-finding walk-through (interactive mode), read `references/walkthrough.md`. For the bulk-action preview used by best-judgment routing, Append-to-Open-Questions, and walk-through `Auto-resolve with best judgment on the rest`, read `references/bulk-preview.md`. Do not load these files before agent dispatch completes.
+For the grouped confirmation, the four-option routing question, and the per-finding walk-through (interactive mode), read `references/walkthrough.md`. For the bulk-action preview used by best-judgment routing, Append-to-Open-Questions, and walk-through `Auto-resolve with best judgment on the rest`, read `references/bulk-preview.md`. Do not load these files before agent dispatch completes.
 
 ---
 

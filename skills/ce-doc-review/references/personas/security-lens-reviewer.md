@@ -12,7 +12,7 @@ Read the `Document type:` line in your prompt's `<review-context>` block — it 
 
 Skip areas not relevant to the document's scope.
 
-**Attack surface inventory** -- New endpoints (who can access?), new data stores (sensitivity? access control?), new integrations (what crosses the trust boundary?), new user inputs (validation mentioned?). Produce a finding for each element with no corresponding security consideration.
+**Attack surface inventory** -- New endpoints (who can access?), new data stores (sensitivity? access control?), new integrations (what crosses the trust boundary?), new user inputs (validation mentioned?). Inventory every element, then surface only those whose missing consideration is exploitable under the design the document actually describes. Enumerating the inventory is analysis; it is not a finding list.
 
 **Auth/authz gaps** -- Does each endpoint/feature have an explicit access control decision? Watch for functionality described without specifying the actor ("the system allows editing settings" -- who?). New roles or permission changes need defined boundaries.
 

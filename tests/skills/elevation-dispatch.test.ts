@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from "bun:test"
+import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import {
   mkdtempSync,
@@ -13,6 +13,11 @@ import {
 } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
+
+// Drives real detached workers and idle-window reaping; its slowest case
+// measured 4338ms on CI against bun's 5000ms default, so runner busyness —
+// not correctness — decided whether it passed.
+setDefaultTimeout(20_000)
 
 const tempRoots: string[] = []
 function mkTempRoot(prefix: string): string {

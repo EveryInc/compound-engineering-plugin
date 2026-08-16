@@ -6,6 +6,14 @@ async function readRepoFile(relativePath: string): Promise<string> {
   return readFile(path.join(process.cwd(), relativePath), "utf8")
 }
 
+function sliceSection(content: string, startAnchor: string, endAnchor: string): string {
+  const start = content.indexOf(startAnchor)
+  expect(start, `start anchor not found: ${startAnchor}`).toBeGreaterThanOrEqual(0)
+  const end = content.indexOf(endAnchor, start + startAnchor.length)
+  expect(end, `end anchor not found: ${endAnchor}`).toBeGreaterThan(start)
+  return content.slice(start, end)
+}
+
 async function readCeWorkImplementationContract(): Promise<string> {
   const skill = await readRepoFile("skills/ce-work/SKILL.md")
   const implementationLoop = await readRepoFile("skills/ce-work/references/implementation-loop.md").catch(() => "")
@@ -247,14 +255,6 @@ describe("verification_evidence seam parity (ce-work <-> lfg)", () => {
     { fact: "deliberate exception", ceWork: "exception reason", lfg: "deliberate test exception" },
   ]
 
-  function sliceSection(content: string, startAnchor: string, endAnchor: string): string {
-    const start = content.indexOf(startAnchor)
-    expect(start, `start anchor not found: ${startAnchor}`).toBeGreaterThanOrEqual(0)
-    const end = content.indexOf(endAnchor, start + startAnchor.length)
-    expect(end, `end anchor not found: ${endAnchor}`).toBeGreaterThan(start)
-    return content.slice(start, end)
-  }
-
   test("ce-work return contract owns the verification_evidence field and gates completion on it", async () => {
     const content = await readRepoFile("skills/ce-work/SKILL.md")
     // Scope to the Return-to-Caller "Return:" contract, not the whole file — the
@@ -327,14 +327,6 @@ describe("cross-model execution receipt seam parity (ce-work <-> lfg)", () => {
     "recovery_path",
   ]
 
-  function sliceSection(content: string, startAnchor: string, endAnchor: string): string {
-    const start = content.indexOf(startAnchor)
-    expect(start, `start anchor not found: ${startAnchor}`).toBeGreaterThanOrEqual(0)
-    const end = content.indexOf(endAnchor, start + startAnchor.length)
-    expect(end, `end anchor not found: ${endAnchor}`).toBeGreaterThan(start)
-    return content.slice(start, end)
-  }
-
   test("lfg requires every route receipt exposed by ce-work", async () => {
     const ceWork = await readRepoFile("skills/ce-work/SKILL.md")
     const lfg = await readRepoFile("skills/lfg/SKILL.md")
@@ -396,23 +388,65 @@ describe("ce-debug regression test selection", () => {
 
   // Regression guard for the failure class in
   // docs/solutions/skill-design/post-menu-routing-belongs-inline.md (issue #714):
-  // Phase 4's per-option actions are always reached once a fix lands, so they must live
+  // Phase 4's per-case actions are always reached once a fix lands, so they must live
   // in the always-loaded SKILL.md body. A reference-only copy lets an agent that skipped
-  // the load render the menu and stop, or ship without `branding:on`.
-  test("keeps Phase 4 per-option handoff routing inline, not reference-only", async () => {
+  // the load stop at the summary, or ship without `branding:on`.
+  test("keeps Phase 4 per-case handoff routing inline, not reference-only", async () => {
     const content = await readRepoFile("skills/ce-debug/SKILL.md")
     const routing = content.slice(content.indexOf("#### Routing"))
 
     expect(content).toContain("#### Routing")
-    // Both branches name their action, and the action is a skill invocation, not advice
+    // Every case names its action, and the action is a skill invocation, not advice
     // to the user to type a command.
-    expect(routing).toContain("Skill-owned branch")
-    expect(routing).toContain("Pre-existing branch")
     expect(routing).toContain("via the platform's skill-invocation primitive")
     expect(routing).toContain("`ce-commit-push-pr` skill with `branding:on`")
-    expect(routing).toContain("invoke the `ce-commit` skill")
+    expect(routing).toMatch(/invoke the `ce-commit` skill/i)
     expect(routing).toContain("Stop here")
     expect(routing).toContain("`ce-compound`")
+
+    // Opening a PR is the default, not a question. The old three-option permission
+    // menu returning here is the regression this pins.
+    expect(routing).toMatch(/do not ask whether to open a pr/i)
+    expect(routing).not.toMatch(/commit the fix \(`ce-commit`\)/i)
+
+    // ...but "no question" is not "always push". `ce-commit-push-pr` pushes the whole
+    // branch and PRs every commit on it, so a branch carrying the user's unrelated work
+    // must commit locally instead. Pin the goal and the refusal, not case labels: three
+    // separate holes shipped here because routes were written as a flat case list and
+    // each new state matched one case while skipping another's handling.
+    expect(routing).toMatch(/anything the user did not offer up/i)
+    expect(routing).toMatch(/push nothing/i)
+    // The two questions must stay independent — collapsing them back into one flat list
+    // is what let "no remote" match a route that skipped commit scoping entirely.
+    expect(routing).toMatch(/the fix-owned files and nothing else/i)
+    expect(routing).toMatch(/holds on every route, remote or not/i)
+    // ...and question 1 must stay a constraint. When it also told the agent to invoke
+    // `ce-commit`, the shipping path committed twice (once there, once inside
+    // `ce-commit-push-pr`) and a non-repo tried to commit before reaching its stop.
+    expect(routing).toMatch(/never an action of its own/i)
+    expect(routing).toMatch(/exactly one of these runs/i)
+    // The ship gate turns on whether the branch's other commits are already under
+    // review, not on whether they were pushed. Gating on "commits since base" refuses
+    // the route to a branch with an open PR (the fix never reaches it); gating on
+    // "unpushed" lets backup-pushed WIP be swept into a first PR spanning it.
+    expect(routing).toMatch(/updates that PR rather than opening a second one/i)
+    // Pin the knowledge the agent cannot derive, NOT the git commands that answer it.
+    // Six revisions of this gate each prescribed a range or ref, and five were wrong for
+    // some git configuration (no upstream, local ahead of remote, no tracking config).
+    // The intent was never what reviewers found wrong, so the commands are gone and
+    // these pins guard the facts that make the check non-obvious.
+    expect(routing).toMatch(/whole branch/i)
+    expect(routing).toMatch(/not already \*\*offered\*\*/i)
+    expect(routing).toMatch(/compare against the remote rather than a local ref/i)
+    expect(routing).toMatch(/PR-capable/i)
+    // Failing to establish it must fall to the local route, never to shipping anyway.
+    expect(routing).toMatch(/take the local route instead/i)
+    // Declining the entangled commit must terminate, not fall through to question 2 and
+    // commit the very file the user chose to leave alone.
+    expect(routing).toMatch(/only the first answer continues/i)
+    // The entangled state is the one place a blocking question survives — no safe
+    // default exists once a fix-owned file already held the user's edits.
+    expect(routing).toMatch(/Ask \(per \*\*Blocking questions\*\*\)/)
 
     // The reference load must still be demanded, and must not be improvisable from the
     // inline routing: it has to name what only it carries and what skipping it costs.
@@ -423,6 +457,25 @@ describe("ce-debug regression test selection", () => {
     expect(stub).toContain("`references/post-fix-handoff.md`")
     expect(stub).toMatch(/none of that appears in this body/i)
     expect(stub).toMatch(/skipping the read/i)
+  })
+
+  // The reported failure was a skill proposing a Linear ticket for a bug the user had
+  // already handed it as a Sentry issue. The rule that prevents it spans Phase 0, Phase
+  // 1.4, and the handoff reference, so pin the load-bearing clause in each.
+  test("links an existing issue of record instead of creating a second one", async () => {
+    const content = await readRepoFile("skills/ce-debug/SKILL.md")
+    const handoff = await readRepoFile("skills/ce-debug/references/post-fix-handoff.md")
+
+    // Phase 0 records whatever the user supplied, tracker or error monitor alike.
+    expect(content).toMatch(/issue of record/i)
+    expect(content).toMatch(/Sentry/)
+    // The no-reference input (stack trace, failing test) has no record and needs none —
+    // without this, "never open a second record" still permits opening a first.
+    expect(content).toMatch(/no issue of record/i)
+    // Phase 1.4 reads prior work; it cannot become the bug's home.
+    expect(content).toMatch(/never establishes a new home for the bug/i)
+    // Linking an existing ticket stays allowed; only creating one is forbidden.
+    expect(handoff).toMatch(/never open a new record/i)
   })
 })
 
@@ -460,10 +513,10 @@ describe("ce-plan review contract", () => {
     )
     expect(content).toContain("ce-doc-review` with `mode:non-interactive`")
     expect(content).toContain(
-      "Pipeline runs invoke `ce-doc-review` with `mode:non-interactive` and the plan path",
+      "They invoke `ce-doc-review` with `mode:non-interactive` and the plan path",
     )
     expect(skillStub).toContain(
-      "The default mode for markdown is non-interactive (`mode:non-interactive`)",
+      "The default is non-interactive (`mode:non-interactive`)",
     )
     expect(content).not.toContain("skip document-review and return control")
 
@@ -617,7 +670,10 @@ describe("ce-doc-review contract", () => {
     expect(synthesis).toContain("Cross-Persona Agreement Promotion")
     expect(synthesis).toContain("one anchor step")
     expect(synthesis).toContain("`independence_verified` is `true`")
-    expect(synthesis).toContain("cannot use the twin fingerprint exception")
+    // Pins the rule, not the mechanism that carried it: an unverified peer stays
+    // attributed evidence and cannot promote. The twin *fingerprint* exception it
+    // used to name was deleted with 3.3's string matching.
+    expect(synthesis).toContain("cannot trigger anchor promotion")
     expect(synthesis).toContain("Cursor default/Auto")
 
     // R29 and R30 round-2 rules
@@ -786,7 +842,8 @@ describe("ce-doc-review contract", () => {
 
     // Append mechanic steps
     expect(defer).toContain("## Deferred / Open Questions")
-    expect(defer).toContain("### From YYYY-MM-DD review")
+    expect(defer).toContain("From YYYY-MM-DD review")
+    expect(defer).toContain("regardless of heading syntax")
 
     // Entry format includes required fields but excludes suggested_fix and evidence
     expect(defer).toContain("{title}")
@@ -843,6 +900,74 @@ describe("ce-compound frontmatter schema expansion contract", () => {
     expect(mapping).toContain("design_pattern` -> `<root>/solutions/design-patterns/")
     expect(mapping).toContain("tooling_decision` -> `<root>/solutions/tooling-decisions/")
     expect(mapping).toContain("convention` -> `<root>/solutions/conventions/")
+  })
+})
+
+describe("ce-compound vocabulary is corpus-first, not Rails-specific (issue #1264)", () => {
+  const RAILS_VALUES = [
+    "rails_model",
+    "rails_controller",
+    "rails_view",
+    "frontend_stimulus",
+    "hotwire_turbo",
+    "email_processing",
+    "brief_system",
+    "missing_association",
+    "missing_include",
+    "thread_violation",
+    "rails_version",
+  ]
+
+  test("schema.yaml no longer defines origin-repo Rails vocabulary", async () => {
+    const schema = await readRepoFile("skills/ce-compound/references/schema.yaml")
+    for (const value of RAILS_VALUES) {
+      // list items and field keys are definitions; the backward-compat comment may still name them
+      expect(schema).not.toMatch(new RegExp(`^\\s+- ${value}$`, "m"))
+      expect(schema).not.toMatch(new RegExp(`^\\s+${value}:`, "m"))
+    }
+  })
+
+  test("yaml-schema.md no longer defines origin-repo Rails vocabulary", async () => {
+    const mapping = await readRepoFile("skills/ce-compound/references/yaml-schema.md")
+    for (const value of RAILS_VALUES) {
+      // definitions are field bullets and "One of ..." value lists; the backward-compat note may still name them
+      expect(mapping).not.toContain("**" + value + "**")
+      expect(mapping).not.toMatch(new RegExp("One of[^\\n]*`" + value + "`"))
+    }
+  })
+
+  test("schema.yaml treats component and root_cause as open vocabulary with suggested defaults", async () => {
+    const schema = await readRepoFile("skills/ce-compound/references/schema.yaml")
+    // problem_type stays a closed enum because it drives track selection
+    expect(schema).toMatch(/problem_type:\n\s+type: enum/)
+    // component / root_cause are strings with suggestions, not closed enums
+    expect(schema).toMatch(/component:\n\s+type: string\n\s+suggested_values:/)
+    expect(schema).toMatch(/root_cause:\n\s+type: string\n\s+suggested_values:/)
+    // the corpus-first rule is a validation rule, not a comment
+    expect(schema).toMatch(/validation_rules:[\s\S]*existing docs/)
+  })
+
+  test("SKILL.md tells the classifier to sample existing docs before falling back to schema defaults", async () => {
+    const content = await readRepoFile("skills/ce-compound/SKILL.md")
+    const contextAnalyzer = sliceSection(content, "#### 1. **Context Analyzer**", "#### 2. **Solution Extractor**")
+    expect(contextAnalyzer).toMatch(/existing docs .*<root>\/solutions\//)
+    expect(contextAnalyzer).toMatch(/directory/)
+    // lightweight mode classifies inline and must carry the same rule
+    const lightweight = content.slice(content.indexOf("### Lightweight Mode"))
+    expect(lightweight).toMatch(/existing docs/)
+  })
+
+  test("ce-compound-refresh replace flow keeps the old learning's component/root_cause", async () => {
+    const flows = await readRepoFile("skills/ce-compound-refresh/references/per-action-flows.md")
+    const replaceFlow = sliceSection(flows, "## Replace Flow", "3. **Validate parser-safety")
+    expect(replaceFlow).toMatch(/corpus-first rule in `references\/yaml-schema\.md`/)
+    expect(replaceFlow).toMatch(/counting the old learning as one of the corpus's docs/)
+  })
+
+  test("yaml-schema.md category mapping defers to an existing directory taxonomy", async () => {
+    const mapping = await readRepoFile("skills/ce-compound/references/yaml-schema.md")
+    const section = sliceSection(mapping, "## Category Mapping", "## Validation Rules")
+    expect(section).toMatch(/existing director/)
   })
 })
 
@@ -950,10 +1075,9 @@ describe("explicit Compound Engineering branding provenance", () => {
 
     expect(shipping).toContain("Load the `ce-commit-push-pr` skill with `branding:on`")
     expect(lfg).toContain("ce-commit-push-pr` skill with `mode:pipeline branding:on`")
-    // Both branch invocations must stay in the always-loaded body, not the reference —
+    // The shipping invocation must stay in the always-loaded body, not the reference —
     // see the Phase 4 routing test below.
     expect(debug).toContain("invoke the `ce-commit-push-pr` skill with `branding:on`.")
-    expect(debug).toContain("reviewed fix (invoke the `ce-commit-push-pr` skill with `branding:on`)")
     expect(debug).not.toContain("`/ce-commit-push-pr branding:on`")
     expect(debugHandoff).not.toContain("`/ce-commit-push-pr branding:on`")
   })

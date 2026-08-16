@@ -1,12 +1,14 @@
 # `ce-promote`
 
-> Turn a shipped feature into copy-pasteable, user-facing announcement copy — right inside the engineering workflow. Spiral-agnostic by default; voice-matched when the Spiral CLI is installed.
+> Draft user-facing announcement copy for a feature that just shipped. It never posts.
 
-`ce-promote` is the **post-ship messaging** skill. After a feature merges, it figures out what shipped, picks the right channels, and drafts the announcement copy — an X post or thread, a one-line changelog blurb, a LinkedIn post, an email, a blog intro, a short demo script. It produces good copy with nothing installed, and uses the [Spiral CLI](https://www.npmjs.com/package/@every-env/spiral-cli) for brand-voice-matched drafts when it's present and authed.
+`ce-promote` is the **post-ship messaging** utility. After a merge, it figures out what a user can now do, picks channels, and drafts copy you can paste: an X post or thread, a one-line changelog blurb, a LinkedIn post, an email, a blog intro, a short demo script.
 
-Declining the one-time Spiral setup offer is remembered in the checkout-local config; see the [configuration reference](./configuration.md).
+It drafts with nothing extra installed. When the [Spiral CLI](https://www.npmjs.com/package/@every-env/spiral-cli) is present and signed in, those drafts are voice-matched to your brand. Declining the one-time Spiral setup offer is remembered in checkout-local config. See the [configuration reference](./configuration.md).
 
-It drafts only. It never posts, publishes, commits, or opens PRs — shipping the copy is a human action.
+It is explicit-invocation only (`disable-model-invocation: true`). Shipping a feature does not start it on its own.
+
+It drafts only. It never posts, publishes, schedules, commits, or opens a PR.
 
 ---
 
@@ -14,93 +16,108 @@ It drafts only. It never posts, publishes, commits, or opens PRs — shipping th
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Summarizes what shipped, picks channels, drafts announcement copy, presents it for review |
-| When to use it | Right after a feature ships and you want the user-facing messaging drafted in-workflow |
-| What it produces | Copy-pasteable drafts, labeled by channel — never an auto-post |
-| Spiral | Optional enhancement: voice-matched drafts when the CLI is ready; otherwise offers setup once, then drafts with a lite layer of editorial & social expertise |
+| What does it do? | Summarizes the user-facing value, picks channels, drafts copy, and presents it for review |
+| When to use it | Right after a user-facing feature ships, while the context is still in the session |
+| What it produces | Copy-pasteable drafts, labeled by channel. Never an auto-post. |
+| What's next | You paste and publish. The skill offers a revision if the tone or channel is wrong. |
+| Spiral | Optional. Ready CLI: voice-matched drafts plus a web URL per draft. Otherwise a one-time setup offer, then direct drafts. |
 
 ---
 
 ## Example invocations
 
+Empty invoke derives what shipped from the repo. Named channels change the set. The skill always drafts and never posts.
+
 ```text
-# Derive what shipped from the current project and draft the default channels
+# Derive what shipped from the merged PR, diff, changelog, and recent commits
 /ce-promote
 
-# Supply the shipped value when the repository context is not enough
+# Supply the user-facing value when the repo context is not enough
 /ce-promote announce one-click CSV export for account reports
 
-# Ask for several alternatives on one channel
+# Several alternatives on one channel (not a cross-channel set)
 /ce-promote 3 tweet options for the new one-click CSV export
 
-# Draft a coordinated cross-channel launch set
+# Coordinated set across named channels
 /ce-promote a launch across X, LinkedIn, and email for one-click CSV export
+
+# A single quieter channel
+/ce-promote a one-line changelog blurb for one-click CSV export
+
+# Spoken beats rather than a social post
+/ce-promote a short demo script for the CSV export
 ```
 
-Name channels when you need a particular distribution shape; otherwise the skill chooses a small default set. It always drafts and never posts.
+Name channels when you need a particular shape. Otherwise the default is an X post (or short thread) plus a one-line changelog blurb.
 
 ---
 
 ## The Problem
 
-Messaging usually waits for a separate marketing pass, so it lags the ship — and the engineer who has the most context on the user value isn't the one who writes the copy. When announcement copy *is* written ad hoc, it tends toward AI tells ("We're thrilled to announce…"), hashtag spam, and implementation-speak instead of user value.
+Announcement copy usually waits for a later marketing pass, so it lags the ship. The engineer who knows the user value is often not the person who writes it. Ad hoc drafts tend toward "We're thrilled to announce…", hashtag spam, and implementation talk instead of what a user can now do.
 
 ## The Solution
 
-`ce-promote` drafts the copy at ship time, from ship context:
+`ce-promote` drafts at ship time, from ship context:
 
-- **Derives what shipped** from a free-form description, or from the merged PR, the diff, the changelog, and recent commits — then summarizes the *user-facing value*, not the code.
-- **Picks channels** sensibly (an X post + a changelog blurb by default) and scales to what the user asks for and what the change warrants.
-- **Drafts voice-matched copy via Spiral** when ready; when not, offers setup once (sign in or install), and on a decline draws on a lite layer of editorial & social-media fundamentals to draft strong channel-specific copy on its own.
-- **Presents drafts for review** — copy-pasteable, labeled by channel, never posted.
+- A free-form description in the prompt is the source of truth. Otherwise it derives what shipped from the merged or active PR, the diff, the changelog, and recent commits, then writes a short **user-facing** summary. Outcome, not the serializer or endpoint.
+- Default channels are an X post plus a changelog blurb. Named channels replace or add to that. A small fix gets one or two short drafts. A flagship change can get a cross-channel set.
+- If Spiral is ready, drafts come back voice-matched and persist to the Spiral account. If not, the skill offers setup once, then drafts itself. A decline is recorded so the offer does not repeat in this repo.
+- Every draft is presented as a labeled, copy-pasteable block. Then it offers a revision. It does not post.
 
 ---
 
 ## What Makes It Novel
 
-### 1. Spiral as a subtle, optional enhancement — never a dependency
+### Spiral is optional
 
-Spiral is detected into three states (`which spiral` + `spiral auth status --json`): ready, installed-but-unauthed, or absent. When ready, drafts are voice-matched to the user's brand and persist to their Spiral account (each draft carries a web-app `url` for tweaking). When not ready, the skill offers setup **once** — if installed but unauthed the agent runs `spiral login` and shares the sign-in link (you approve in a browser — the API key never touches the agent); if absent it points to the one-step install command — and a decline is always fine: it falls back to a lite layer of editorial & social-media expertise to draft strong copy on its own, and records the opt-out so it never nags again. The skill is equally useful with or without Spiral.
+Detection is `which spiral` plus `spiral auth status --json`: ready, installed but not signed in, or absent. Ready uses Spiral. Otherwise it offers setup once (sign in, or the one-step install). You approve in a browser. The API key never goes through the agent. Decline and it drafts directly, then writes `ce_promote_spiral_optout: true` in `.compound-engineering/config.local.yaml` so it does not ask again.
 
-### 2. The multi-channel / cue-word gotcha is encoded
+Non-interactive runs skip the offer and draft directly.
 
-Spiral's multi-channel behavior is phrasing-driven, not flag-driven, and it has a sharp edge the skill handles explicitly:
+### Phrasing picks one channel or many
 
-- **N variations of one channel** → ask for "3 tweet options", *avoid* cue words (`campaign`, `across`, `multi-channel`, `everywhere`, `cross-post`), and pass `--num-drafts 3`. A stray cue word trips campaign mode and collapses output to a single draft, silently ignoring `--num-drafts`.
-- **A real cross-channel set** → name the channels in the prompt; Spiral returns a set of drafts per channel — it decides the count, often several — and `--num-drafts` is ignored. One call produces the whole cross-channel set.
+Spiral treats "3 tweet options" as N variations of one channel. Words like `campaign`, `across`, `multi-channel`, `everywhere`, or `cross-post`, or naming two or more channels, switch it to a cross-channel set. The skill phrases the request so you get the shape you asked for. When you want several tweets, avoid those cue words. When you want a launch set, name the channels.
 
-### 3. Drafts only — posting is always human
+Without Spiral, the same split still holds: one strong draft per named channel, or more only when you ask (`3 tweet options`), capped at about three.
 
-The skill never posts, schedules, publishes, commits, or opens a PR. Output is always review-ready drafts. This keeps a human in the loop for the one action that's outward-facing and hard to reverse.
+### Drafts only
 
-### 4. User value over implementation
-
-The "what shipped" summary describes what a user can now do and why they'd care — never the serializer or endpoint that made it possible. Direct drafting bans AI tells, throat-clearing, and hashtag spam, and matches length/tone to each channel.
+The summary is what a user can now do and why they would care. Direct drafts ban AI tells, throat-clearing, and hashtag spam, and match length to the channel. Posting stays a human action because it is outward-facing and hard to undo.
 
 ---
 
 ## Quick Example
 
-You merge a PR adding one-click CSV export.
+A PR adding one-click CSV export just merged.
 
-**Single-channel variations:** `/ce-promote 3 tweet options for the new one-click CSV export` → the skill summarizes the value, then (Spiral path) runs `spiral write "3 tweet options for one-click CSV export" --instant --num-drafts 3 --json` with no cue words, or (no-Spiral path) writes three distinct tweets directly. All three are presented as copy-pasteable blocks.
+`/ce-promote 3 tweet options for the new one-click CSV export` summarizes the value, then returns three distinct X drafts as labeled blocks. If Spiral is ready, each draft also has a web URL you can tweak.
 
-**Cross-channel set:** `/ce-promote draft a launch across X, LinkedIn, and email` → (Spiral path) `spiral write "announcing one-click CSV export — a launch across X, LinkedIn, and email" --instant --json` returns a set of drafts per channel (Spiral decides the count); (no-Spiral path) the skill drafts one X post, one LinkedIn post, and one email directly. Every returned draft is labeled by channel and ready to copy.
+`/ce-promote a launch across X, LinkedIn, and email` returns a labeled set for those channels. Spiral decides how many drafts per channel. Without Spiral, you get one draft per named channel.
 
 ---
 
 ## When to Reach For It
 
-Reach for `ce-promote` when:
+Use `ce-promote` when:
 
-- A feature just shipped and you want the announcement drafted before context fades
-- You need cross-channel copy (tweet + LinkedIn + email) from one prompt
-- You want voice-matched copy and have Spiral installed
+- A user-facing feature just shipped and you want the announcement drafted before the context fades
+- You need several channels from one prompt
+- You want voice-matched copy and Spiral is installed
 
 Skip it when:
 
 - Nothing user-facing shipped (internal refactor, CI-only, test-only)
-- You only need internal release history — use GitHub Releases for plugin release history
+- You only need internal release history (use GitHub Releases for plugin history)
+- You want the agent to post or open a PR. This skill will not do that.
+
+---
+
+## Use Standalone
+
+This is a post-ship utility, not a pipeline stage. Invoke it after merge, or after you already know what to announce.
+
+It does not run as a side effect of `/ce-work`, `/lfg`, or `/ce-commit-push-pr`. Call it when you want the copy.
 
 ---
 
@@ -108,14 +125,33 @@ Skip it when:
 
 | Argument | Effect |
 |----------|--------|
-| _(empty)_ | Derives what shipped from PR/diff/changelog/commits; drafts the default channel set |
-| `<description>` | Free-form description of what shipped, used as the source of truth |
-| `<channels>` | e.g., "a tweet thread and a LinkedIn post", "3 tweet options", "a launch across X, LinkedIn, and email" |
+| _(empty)_ | Derives what shipped from PR, diff, changelog, and recent commits. Drafts the default set (X plus a changelog blurb). |
+| `<description>` | Free-form source of truth for what shipped, for example `announce one-click CSV export` |
+| `<channels>` | Named shape: `3 tweet options`, `a tweet thread and a LinkedIn post`, `a launch across X, LinkedIn, and email`, `a one-line changelog blurb`, `a short demo script` |
 
-Detailed Spiral CLI mechanics live in the skill's `references/spiral-cli.md`.
+Supported channels: X (post or short thread), changelog / release blurb, LinkedIn, email, blog intro, demo script.
+
+Spiral CLI details live in the skill's `references/spiral-cli.md`.
+
+---
+
+## FAQ
+
+**Will it post the tweet or publish the email?**
+No. It prints labeled drafts and reminds you they are yours to ship.
+
+**What if I do not have Spiral?**
+It still drafts. You get a one-time setup offer. Decline it and the skill will not ask again in this repo.
+
+**Why did I get one tweet when I asked for three?**
+A cue word (`campaign`, `across`, `multi-channel`, and similar) or a second channel name switches Spiral into campaign mode, which ignores the variation count. Ask for `3 tweet options` and do not name other channels.
+
+**What if it cannot tell what shipped?**
+It asks one short question rather than guessing.
 
 ---
 
 ## See Also
 
-- Harness-native screenshots or recordings — useful visual context to pair with announcement copy when available
+- [Compound Engineering configuration](./configuration.md): `ce_promote_spiral_optout` and how local config is resolved
+- Harness-native screenshots or recordings: useful visual context to pair with the copy when you have them

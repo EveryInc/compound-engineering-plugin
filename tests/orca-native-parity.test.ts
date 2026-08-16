@@ -28,7 +28,7 @@ const REPO_ROOT = path.resolve(import.meta.dir, "..")
 const SKILL_FILE = path.join(REPO_ROOT, "skills/ce-doc-review/SKILL.md")
 const tempRoots: string[] = []
 
-const NATIVE_DISPATCH = "Dispatch generic subagents with **bounded parallelism** using the platform's subagent primitive (e.g., `Agent` in Claude Code, `spawn_agent` in Codex) where available; otherwise run the work inline or serially. Omit the `mode` parameter so the user's configured permission settings apply. Respect the harness's active-subagent limit even at the 7-agent maximum: queue the selected reviewers, dispatch only as many as the harness accepts, and fill freed slots as reviewers complete. Treat active-agent/thread/concurrency-limit spawn errors as backpressure, not reviewer failure — leave the reviewer queued and retry after a slot frees, and if the harness cap is lower than the team size, queue the remainder rather than dropping it. Record a reviewer as failed only after a successful dispatch times out or fails, or when dispatch fails for a non-capacity reason."
+const NATIVE_DISPATCH = "Dispatch generic subagents with **bounded parallelism** using the platform's subagent primitive (e.g., `Agent` in Claude Code, `spawn_agent` in Codex) where available; otherwise run the work inline or serially. Omit the `mode` parameter so the user's configured permission settings apply. Respect the harness's active-subagent limit even at the 7-agent maximum: queue the selected reviewers, dispatch only as many as the harness accepts, and fill freed slots as reviewers complete. Treat active-agent/thread/concurrency-limit spawn errors as backpressure, not reviewer failure — leave the reviewer queued and retry after a slot frees, and if the harness cap is lower than the team size, queue the remainder rather than dropping it. Record a reviewer as failed only after a successful dispatch times out or fails, or when dispatch fails for a non-capacity reason that survives correcting the invocation."
 
 const fixtureOutput = (reviewer: string) => ({
   reviewer,
@@ -228,7 +228,7 @@ const PARITY_CASES: ParityCase[] = [
     reference: "skills/ce-doc-review/references/orca-dispatch.md",
     controllerAnchors: [
       "Keep document classification, persona selection, prompt construction",
-      "synthesis, `safe_auto` edits, interactive questions, and final presentation",
+      "synthesis, Apply-routed changes, grouped confirmation, decisions",
     ],
     contract: "integrations/orca/contracts/doc-review-result.schema.json",
     resultSchema: DOC_RESULT_SCHEMA,
@@ -700,7 +700,7 @@ describe("native and Orca document review parity", () => {
     expect(orcaResults).toEqual(nativeResults)
   })
 
-  test("preserves parent ownership of selection, synthesis, and safe fixes", async () => {
+  test("preserves parent ownership of selection, synthesis, and presentation", async () => {
     const [skill, dispatchReference] = await Promise.all([
       fs.readFile(SKILL_FILE, "utf8"),
       fs.readFile(
@@ -712,7 +712,7 @@ describe("native and Orca document review parity", () => {
     expect(skill).toContain("### Select Conditional Personas")
     expect(skill).toContain("read `references/synthesis-and-presentation.md` for the synthesis pipeline")
     expect(dispatchReference).toContain("Keep document classification, persona selection, prompt construction,")
-    expect(dispatchReference).toContain("synthesis, `safe_auto` edits, interactive questions, and final presentation")
+    expect(dispatchReference).toContain("synthesis, Apply-routed changes, grouped confirmation, decisions")
     expect(dispatchReference).toContain("An Orca reviewer must not")
   })
 
