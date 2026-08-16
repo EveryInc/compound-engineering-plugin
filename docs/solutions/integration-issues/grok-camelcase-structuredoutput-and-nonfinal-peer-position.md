@@ -53,44 +53,40 @@ jq -e '.structured_output // .structuredOutput' "$1" > "$2" 2>/dev/null && retur
 
 A well-formed grok response is now read directly from its own final `structuredOutput` object instead of falling through to the text-scan fallback.
 
-**2. Classify non-final positions and retry once.** New regex and helpers (grep `NONFINAL_POSITION_RE` in `cross-model-pov.sh`). A settled `Blocked — insufficient project grounding` verdict is a legitimate terminal state (`skills/ce-pov/references/method.md`, `skills/ce-pov/references/pov-schema.json`), so a leading `blocked` counts only when pending-work language follows it:
+**2. Make finality part of the output contract, and retry once.** `skills/ce-pov/references/pov-schema.json` gains a required `final` boolean ("true when position is your settled answer — a settled Blocked verdict counts; false when you have not finished inspecting"), and `skills/ce-pov/references/agents/pov-peer.md` tells the peer how to set it. The worker never reads finality out of the prose — an earlier draft used a phrase list (`blocked|pending|gathering|…`) and review round 1–2 on the PR showed both failure directions: a settled `Blocked — insufficient project grounding` verdict misclassified as unfinished, and any routine wording variation (`Blocked: I am still gathering…`) slipping past. Model prose cannot be exhaustively classified; the owned contract can. So:
 
 ```bash
-NONFINAL_POSITION_RE='^[[:space:]]*(blocked[[:space:][:punct:]]+)?(pending|placeholder|tbd|todo|in[- ]progress|gathering|still[[:space:]]+(reading|gathering|inspecting|reviewing)|need(s)?[[:space:]]+to[[:space:]]+(read|inspect|gather|review))([[:space:]]|[[:punct:]]|$)'
-raw_position() { [ -s "$RAW_OUT" ] && jq -r '.position // ""' "$RAW_OUT" 2>/dev/null; }
-position_is_nonfinal() {   # <position>
-  printf '%s' "$1" | tr 'A-Z' 'a-z' | grep -Eq "$NONFINAL_POSITION_RE"
-}
+out_final() { [ -s "$RAW_OUT" ] && jq -e '.final == true' "$RAW_OUT" >/dev/null 2>&1; }
 ```
 
-`run_fixed_route` calls `attempt_route` as before, then checks the position (the retry block in `run_fixed_route`):
+`run_fixed_route` calls `attempt_route`, then, when the artifact is schema-shaped but not final, retries once inside what remains of the worker's own `HARD_SECS` window (the retry block in `run_fixed_route`):
 
 ```bash
 ROUTE_STARTED_AT="$(date +%s)"
 attempt_route "$provider" "$FIXED_ROUTE"
 nonfinal_position=""
-position="$(raw_position)"
-if [ "$RUN_SUCCEEDED" = true ] && position_is_nonfinal "$position"; then
+if [ "$RUN_SUCCEEDED" = true ] && ! out_missing_or_invalid && ! out_final; then
   remaining=$(( HARD_SECS - ( $(date +%s) - ROUTE_STARTED_AT ) ))
   if [ "$remaining" -lt "$RETRY_MIN_SECS" ]; then
     nonfinal_position="$position"; rm -f "$RAW_OUT"      # no window left: drop, no retry
   else
-    printf '\n\nYour previous response declared the point of view unfinished. This response is the final one: ...\n' >> "$PROMPT_FILE"
+    printf '\n\nYour previous response set final to false. This response is the final one: ...\n' >> "$PROMPT_FILE"
     HARD_SECS="$remaining"; UNGUARDED_HARD_SECS="$remaining"
     attempt_route "$provider" "$FIXED_ROUTE"
-    position="$(raw_position)"
-    if [ "$RUN_SUCCEEDED" = true ] && position_is_nonfinal "$position"; then
-      nonfinal_position="$position"; rm -f "$RAW_OUT"
+    if [ "$RUN_SUCCEEDED" = true ] && ! out_missing_or_invalid && ! out_final; then
+      nonfinal_position="$(jq -r .position "$RAW_OUT")"; rm -f "$RAW_OUT"
     fi
   fi
 fi
 ```
 
-The retry reuses the same route, target, model, and scope; only the appended prompt paragraph changes, and it gets only what remains of the worker's `HARD_SECS` window so both attempts stay inside the panel's aggregate deadline (`CROSS_MODEL_HARD_SECS` + 10s). If the second attempt is still non-final, or too little window remains to retry (`CROSS_MODEL_RETRY_MIN_SECS`, default 60s), the artifact is discarded and logged as `peer skip evidence: non-final position: ...` rather than folded in.
+The retry reuses the same route, target, model, and scope; only the appended prompt paragraph changes, and both attempts stay inside the panel's aggregate deadline (`CROSS_MODEL_HARD_SECS` + 10s). If the second attempt is still non-final, or too little window remains to retry (`CROSS_MODEL_RETRY_MIN_SECS`, default 60s), the artifact is discarded and logged as `peer skip evidence: non-final position: ...` rather than folded in. A shaped artifact that omits `final` is non-final too (fail-closed).
+
+**Candidate selection is by validity and finality, not key presence.** `parse_structured` still takes the structured field first, but a structured candidate that is not `final: true` no longer wins outright: `recover_pov_json` scores every `position`-bearing dict in the envelope (schema-shaped and final > shaped > any) and replaces the pick when the envelope holds a better one — so a settled object in `text` beside a non-final `structuredOutput` is what gets published, and a placeholder in `text` beside a final `structuredOutput` is ignored.
 
 **3. Classify blocked-but-schema-valid states in the protocol.** `cross-model-panel.md` section 4 (line 325) previously accepted "schema-shaped artifacts with non-empty `position` and `reasoning`, a valid `movement`, and the route/model receipt tuple" with no finality condition. It now reads (section 4, "Read artifacts and logs…" paragraph):
 
-> Accept only schema-shaped artifacts whose `position` is a settled answer to the framed question, with non-empty `reasoning`, a valid `movement`, and the route/model receipt tuple. A settled `Blocked — …` verdict is a usable answer (a grounding-floor failure with its reason); a `position` that declares work still pending — gathering, reading, placeholder — is non-final: the worker retries it once on the same route with a final-answer requirement, inside the same hard window, and if it recurs or no window remains drops the voice with `peer skip evidence: non-final position`. Should such an artifact still reach you, treat it as no usable artifact, not as a peer voice.
+> Accept only schema-shaped artifacts whose `position` is a settled answer to the framed question, with non-empty `reasoning`, a valid `movement`, and the route/model receipt tuple. Settledness is the peer's own declaration through the schema's required `final` flag, never a reading of its prose: a settled `Blocked — …` verdict marked `final: true` is a usable answer, while any shaped artifact whose `final` is not true is a placeholder. The worker retries a non-final artifact once on the same route with a final-answer requirement, inside the same hard window, and if it recurs or no window remains drops the voice with `peer skip evidence: non-final position`. Should a non-final artifact still reach you, treat it as no usable artifact, not as a peer voice.
 
 Section 6 also names the failure mode in the Partial-result reporting guidance: "for example quota, authentication, timeout, or a non-final placeholder position that survived the bounded retry."
 
@@ -99,14 +95,15 @@ Section 6 also names the failure mode in the Partial-result reporting guidance: 
 The bug had three independent layers, and each is closed at the layer that owns it:
 
 - **Envelope key.** `parse_structured` was reading the wrong field name on grok, so it never saw grok's actual final answer and always landed in a text-scan fallback. Reading `structuredOutput` directly removes the dependency on that fallback for the common case.
-- **Finality acceptance.** Even with the right key parsed, a schema-valid object can still be a "not done yet" answer — `skills/ce-pov/references/pov-schema.json` describes `position` as "The adoption grade, document or approach bottom line, skeptic verdict, or blocked state," so a blocked position is schema-sanctioned but not usable. The worker now owns one deterministic condition (`position_is_nonfinal`) and gives the peer exactly one bounded chance to produce a settled answer before giving up.
+- **Finality acceptance.** Even with the right key parsed, a schema-valid object can still be a "not done yet" answer — `skills/ce-pov/references/pov-schema.json` describes `position` as "The adoption grade, document or approach bottom line, skeptic verdict, or blocked state," and a settled Blocked verdict is legitimate, so the prose cannot carry finality. The contract now does (`final`), the worker owns one deterministic condition (`out_final`), and it gives the peer exactly one bounded chance to produce a settled answer before giving up.
 - **Protocol classification.** The acceptance rule the orchestrator reads was silent on this state, so a non-final artifact had no documented status. The protocol text now states the condition once — position must be a settled answer — instead of enumerating cases, and tells the orchestrator what to do if a non-final artifact ever reaches it anyway.
 
 This preserves the panel's degradation rules: peers never block a POV, and a dropped voice degrades to partial or solo rather than making grok mandatory or hopping routes mid-retry.
 
 ## Prevention
 
-- `tests/skills/ce-pov-cross-model-routes.test.ts` adds fixtures pinning this behavior: camelCase `structuredOutput` wins over a first-turn placeholder in `text`; a non-final position is retried once with the final-answer line in the second prompt; a second non-final drops the voice with the named skip evidence; a non-final position with no hard window left is dropped without a retry; and settled `Hold: …` and `Blocked — …` verdicts are accepted — the last guards against over-broad matching (review round 1 on the PR caught that a bare `blocked` prefix would have misclassified the legitimate grounding-floor verdicts).
+- `tests/skills/ce-pov-cross-model-routes.test.ts` adds fixtures pinning this behavior: a final `structuredOutput` wins over a first-turn placeholder in `text`; a settled final object in `text` beats a non-final `structuredOutput`; a shaped artifact that omits `final` is non-final; a non-final artifact is retried once with the final-answer line in the second prompt; a second non-final drops the voice with the named skip evidence; a non-final artifact with no hard window left is dropped without a retry; and settled `Hold: …` and `Blocked — …` verdicts marked final are accepted whatever their wording.
+- When adding a field like `final` to a schema-constrained peer contract, remember every route's stub fixture must carry it — the gate is fail-closed, so a fixture missing the field now exercises the retry-and-drop path.
 - When adding a new peer CLI route or a new schema-constrained peer: verify the envelope field name against that CLI's actual headless JSON output rather than assuming it matches your other integrations (grok-cli 1.0.4 uses `structuredOutput`, camelCase). Do not assume schema validity implies usability — if the schema's own description allows an in-progress or blocked value, the worker needs an explicit finality check before folding the artifact in, and the calling protocol needs to say what "usable" means as a condition, not just "matches the schema". Keep the deterministic finality check in the worker script and the acceptance semantics in the protocol doc; do not duplicate one into the other.
 
 ## Related Issues

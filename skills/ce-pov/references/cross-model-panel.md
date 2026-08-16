@@ -324,14 +324,15 @@ prove a usable artifact exists.
 Read artifacts and logs only through the runner's ownership-checked `result`
 interface. Accept only schema-shaped artifacts whose `position` is a settled
 answer to the framed question, with non-empty `reasoning`, a valid `movement`,
-and the route/model receipt tuple. A settled `Blocked — …` verdict is a
-usable answer (a grounding-floor failure with its reason); a `position` that
-declares work still pending — gathering, reading, placeholder — is non-final:
-the worker retries it once on the same route with a final-answer requirement,
-inside the same hard window, and if it recurs or no window remains drops the
-voice with `peer skip evidence: non-final position`. Should such an artifact
-still reach you, treat it as no usable artifact, not as a peer voice. Initial
-responses require `movement: initial`; reconcile
+and the route/model receipt tuple. Settledness is the peer's own declaration
+through the schema's required `final` flag, never a reading of its prose: a
+settled `Blocked — …` verdict marked `final: true` is a usable answer, while
+any shaped artifact whose `final` is not true is a placeholder. The worker
+retries a non-final artifact once on the same route with a final-answer
+requirement, inside the same hard window, and if it recurs or no window
+remains drops the voice with `peer skip evidence: non-final position`. Should
+a non-final artifact still reach you, treat it as no usable artifact, not as a
+peer voice. Initial responses require `movement: initial`; reconcile
 responses require `moved` or `held` plus what changed or why the new evidence
 was insufficient.
 

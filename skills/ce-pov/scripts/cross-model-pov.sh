@@ -358,19 +358,14 @@ out_missing_or_invalid() {
     "$RAW_OUT" >/dev/null 2>&1
 }
 
-# A usable position is a settled answer to the framed question. A position that
-# announces work still pending (gathering, reading, pending, placeholder) is
-# schema-valid but non-final: it must not be published as a peer voice.
-# Observed on grok-cli (#1402 panel): the model emitted its final schema object
-# on turn one, before spending any read turns. A settled Blocked verdict
-# ("Blocked — insufficient project grounding") is a legitimate terminal state
-# per pov-schema.json and method.md; only pending-work language marks non-final,
-# so a leading "blocked" counts only when such language follows it.
-NONFINAL_POSITION_RE='^[[:space:]]*(blocked[[:space:][:punct:]]+)?(pending|placeholder|tbd|todo|in[- ]progress|gathering|still[[:space:]]+(reading|gathering|inspecting|reviewing)|need(s)?[[:space:]]+to[[:space:]]+(read|inspect|gather|review))([[:space:]]|[[:punct:]]|$)'
-raw_position() { [ -s "$RAW_OUT" ] && jq -r '.position // ""' "$RAW_OUT" 2>/dev/null; }
-position_is_nonfinal() {   # <position>
-  printf '%s' "$1" | tr 'A-Z' 'a-z' | grep -Eq "$NONFINAL_POSITION_RE"
-}
+# A usable position is a settled answer to the framed question. The peer
+# declares that itself through the schema's required `final` boolean: a
+# schema-shaped artifact whose `final` is not true is non-final (a placeholder
+# emitted before the peer finished inspecting -- observed on grok-cli in the
+# #1402 panel, where the model returned its final schema object on turn one)
+# and must not be published as a peer voice. Finality lives in the owned output
+# contract, never in a phrase list over model prose.
+out_final() { [ -s "$RAW_OUT" ] && jq -e '.final == true' "$RAW_OUT" >/dev/null 2>&1; }
 
 # Backward-compatible matrix: legacy `composer` continues to sanction Cursor as
 # the Grok intermediary, while the distinct Cursor-default target requires the
@@ -660,13 +655,27 @@ recover_pov_json() {   # <logfile> <outfile>
 import sys, json
 txt = open(sys.argv[1], encoding="utf-8", errors="replace").read()
 best = None
+best_score = -1
 decoder = json.JSONDecoder()
+REQUIRED = ("voice", "position", "reasoning", "evidence", "external_check", "mode", "movement")
+
+def score(d):
+    # Prefer a schema-shaped final POV over a shaped non-final one over any
+    # dict that merely carries a position; ties go to the later candidate.
+    shaped = all(k in d for k in REQUIRED) and isinstance(d.get("position"), str) and d["position"]
+    if shaped and d.get("final") is True:
+        return 2
+    if shaped:
+        return 1
+    return 0
 
 def inspect(value):
-    global best
+    global best, best_score
     if isinstance(value, dict):
         if "position" in value:
-            best = value
+            sc = score(value)
+            if sc >= best_score:
+                best, best_score = value, sc
         for child in value.values():
             inspect(child)
     elif isinstance(value, list):
@@ -690,19 +699,32 @@ PY
 
 # Parse a schema-shaped object out of a headless CLI JSON envelope (claude/grok/cursor).
 parse_structured() {   # <logfile> <outfile>
-  # Buffered single-object envelopes (grok-cli json, test stubs). grok >= 1.0.4
-  # names the key structuredOutput; falling through to the text scan there can
-  # pick a first-turn placeholder the model printed before its final object.
-  jq -e '.structured_output // .structuredOutput' "$1" > "$2" 2>/dev/null && return 0
-  jq -r '.result // empty' "$1" 2>/dev/null | jq -e '.' > "$2" 2>/dev/null && return 0
-  # stream-json NDJSON: last type=result event (elevation-dispatch pattern).
-  local event
-  event="$(grep -a '"type":"result"' "$1" 2>/dev/null | tail -1 || true)"
-  if [ -n "$event" ]; then
-    printf '%s' "$event" | jq -e '.structured_output // .structuredOutput' > "$2" 2>/dev/null && return 0
-    printf '%s' "$event" | jq -r '.result // empty' 2>/dev/null | jq -e '.' > "$2" 2>/dev/null && return 0
+  # A structured field's presence is not authority: grok >= 1.0.4 names it
+  # structuredOutput and its text can carry a first-turn placeholder beside
+  # (or instead of) the settled object. Take the structured field first, then
+  # let the scored recovery scan replace it whenever the envelope holds a
+  # better candidate (schema-shaped and final beats shaped-but-non-final).
+  local picked=false
+  # Buffered single-object envelopes (grok-cli json, test stubs).
+  if jq -e '.structured_output // .structuredOutput' "$1" > "$2" 2>/dev/null; then picked=true
+  elif jq -r '.result // empty' "$1" 2>/dev/null | jq -e '.' > "$2" 2>/dev/null; then picked=true
+  else
+    # stream-json NDJSON: last type=result event (elevation-dispatch pattern).
+    local event
+    event="$(grep -a '"type":"result"' "$1" 2>/dev/null | tail -1 || true)"
+    if [ -n "$event" ]; then
+      if printf '%s' "$event" | jq -e '.structured_output // .structuredOutput' > "$2" 2>/dev/null; then picked=true
+      elif printf '%s' "$event" | jq -r '.result // empty' 2>/dev/null | jq -e '.' > "$2" 2>/dev/null; then picked=true
+      fi
+    fi
   fi
-  recover_pov_json "$1" "$2"
+  if [ "$picked" = true ] && jq -e '.final == true' "$2" >/dev/null 2>&1; then return 0; fi
+  local scan="$2.scan"
+  if recover_pov_json "$1" "$scan" && jq -e '.final == true' "$scan" >/dev/null 2>&1; then
+    mv "$scan" "$2"; return 0
+  fi
+  rm -f "$scan"
+  [ "$picked" = true ] || recover_pov_json "$1" "$2"
 }
 
 bounded_failure_evidence() {   # <logfile>; prefer structured diagnostics, then bounded head+tail
@@ -789,8 +811,8 @@ run_fixed_route() {
   # too little left means no retry. A second non-final position drops the
   # voice with skip evidence -- no route hopping.
   nonfinal_position=""
-  position="$(raw_position)"
-  if [ "$RUN_SUCCEEDED" = true ] && position_is_nonfinal "$position"; then
+  if [ "$RUN_SUCCEEDED" = true ] && ! out_missing_or_invalid && ! out_final; then
+    position="$(jq -r '.position' "$RAW_OUT" 2>/dev/null)"
     remaining=$(( HARD_SECS - ( $(date +%s) - ROUTE_STARTED_AT ) ))
     if [ "$remaining" -lt "$RETRY_MIN_SECS" ]; then
       log "peer returned a non-final position (\"${position:0:120}\") with ${remaining}s of the ${HARD_SECS}s window left; not retrying"
@@ -798,12 +820,11 @@ run_fixed_route() {
       rm -f "$RAW_OUT"
     else
       log "peer returned a non-final position (\"${position:0:120}\"); retrying once on the same route with a final-answer requirement (${remaining}s left)"
-      printf '\n\nYour previous response declared the point of view unfinished. This response is the final one: inspect the subject and shared working tree now, then return the settled position with its evidence. Do not return a pending or gathering placeholder.\n' >> "$PROMPT_FILE"
+      printf '\n\nYour previous response set final to false. This response is the final one: inspect the subject and shared working tree now, then return the settled position with its evidence and final set to true.\n' >> "$PROMPT_FILE"
       HARD_SECS="$remaining"; UNGUARDED_HARD_SECS="$remaining"
       attempt_route "$provider" "$FIXED_ROUTE"
-      position="$(raw_position)"
-      if [ "$RUN_SUCCEEDED" = true ] && position_is_nonfinal "$position"; then
-        nonfinal_position="$position"
+      if [ "$RUN_SUCCEEDED" = true ] && ! out_missing_or_invalid && ! out_final; then
+        nonfinal_position="$(jq -r '.position' "$RAW_OUT" 2>/dev/null)"
         rm -f "$RAW_OUT"
       fi
     fi
@@ -831,7 +852,7 @@ run_fixed_route() {
          --arg family "$serving_family" \
          --arg mreq "$(route_model "$ACTUAL_ROUTE")" --arg mact "$MODEL_ACTUAL" \
          --argjson independent "$independence" \
-         'if ((.voice|type)=="string" and (.voice|length)>0 and (.position|type)=="string" and (.position|length)>0 and (.reasoning|type)=="string" and (.reasoning|length)>0 and (.evidence|type)=="array" and (.external_check=="ran" or .external_check=="unavailable") and (.mode=="independent" or .mode=="skeptic") and (.movement=="initial" or .movement=="moved" or .movement=="held"))
+         'if ((.voice|type)=="string" and (.voice|length)>0 and (.position|type)=="string" and (.position|length)>0 and (.reasoning|type)=="string" and (.reasoning|length)>0 and (.evidence|type)=="array" and (.external_check=="ran" or .external_check=="unavailable") and (.mode=="independent" or .mode=="skeptic") and (.movement=="initial" or .movement=="moved" or .movement=="held") and .final==true)
           then { voice: $v,
                  cross_model_route: $route,
                  cross_model_target: $target,
@@ -845,7 +866,8 @@ run_fixed_route() {
                  evidence: .evidence,
                  external_check: .external_check,
                  mode: .mode,
-                 movement: .movement }
+                 movement: .movement,
+                 final: true }
           else empty end' \
          "$RAW_OUT" > "$_norm" 2>/dev/null; then
       mv "$_norm" "$OUT"

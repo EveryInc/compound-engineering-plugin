@@ -112,7 +112,7 @@ Liveness and progress are distinct signals, and an idle window detects only whic
 ### Cross-model pass
 An additive delegated run that sends the host workflow's review or judgment brief through a different model-provider route and folds the structured result back into the host's synthesis. It stays non-blocking when the peer cannot run, and it counts as independent corroboration only when the serving model family can be verified rather than merely requested.
 
-A peer result is usable only when it is a settled answer to the framed question — a settled Blocked verdict with its reason included. A result that satisfies the output schema yet declares work still pending — gathering, reading, placeholder — is non-final: it earns one bounded retry on the same route with the same target, model, and scope, inside the same time window, and if it recurs the voice is dropped with the observed reason rather than folded in as a position.
+A peer result is usable only when it is a settled answer to the framed question — a settled Blocked verdict with its reason included. Settledness is declared by the peer in the output contract itself, never inferred from its prose; a result that satisfies the schema but is not declared final is a placeholder: it earns one bounded retry on the same route with the same target, model, and scope, inside the same time window, and if it recurs the voice is dropped with the observed reason rather than folded in as a position.
 
 ### Terminalize
 The host-owned step that turns a finished external worker's working tree into one inspectable Transport commit, without requiring the worker to stage or commit.
