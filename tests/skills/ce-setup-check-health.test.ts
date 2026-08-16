@@ -51,6 +51,12 @@ async function initConfiguredRepo(root: string, localConfig: string): Promise<vo
 }
 
 describe("ce-setup check-health", () => {
+  test("does not require temporary-file-backed here-strings", async () => {
+    const script = await readFile(checkHealthScript, "utf8")
+
+    expect(script).not.toMatch(/<<<\s/)
+  })
+
   test("keeps the committed example identical to the bundled template", async () => {
     const [template, example] = await Promise.all([
       readFile(configTemplate, "utf8"),
