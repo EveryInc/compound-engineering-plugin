@@ -322,10 +322,16 @@ Classify every started job from its terminal state; `done` alone does not
 prove a usable artifact exists.
 
 Read artifacts and logs only through the runner's ownership-checked `result`
-interface. Accept only schema-shaped artifacts with non-empty `position` and
-`reasoning`, a valid `movement`, and the route/model receipt tuple. Initial
-responses require `movement: initial`; reconcile responses require `moved` or
-`held` plus what changed or why the new evidence was insufficient.
+interface. Accept only schema-shaped artifacts whose `position` is a settled
+answer to the framed question, with non-empty `reasoning`, a valid `movement`,
+and the route/model receipt tuple. A `position` that declares the peer
+unfinished — blocked, pending, still gathering or reading — is non-final: the
+worker retries it once on the same route with a final-answer requirement and,
+if it recurs, drops the voice with `peer skip evidence: non-final position`.
+Should such an artifact still reach you, treat it as no usable artifact, not as
+a peer voice. Initial responses require `movement: initial`; reconcile
+responses require `moved` or `held` plus what changed or why the new evidence
+was insufficient.
 
 Attribute from the receipt, never expectation. Record target, actual
 harness/intermediary route, requested model, served model, and
@@ -407,7 +413,9 @@ note:
   add **Further rounds:** recommend a specific bounded extension with its new
   evidence path, or recommend stopping because no additional exchange is likely
   to change the result.
-- **Partial:** name surviving and dropped targets and the observed failure state.
+- **Partial:** name surviving and dropped targets and the observed failure state
+  (for example quota, authentication, timeout, or a non-final placeholder
+  position that survived one retry).
 - **No survivor:** deliver the solo POV with "cross-model check unavailable or
   incomplete." When a summons was present but the panel branch never entered
   (no reachable peers, or the branch never fired), still state that panel status —

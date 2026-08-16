@@ -227,6 +227,64 @@ describe("ce-pov output gate and receipts", () => {
     expect(result.stderr).not.toContain("model mismatch")
   })
 
+  test("reads grok's camelCase structuredOutput instead of a first-turn placeholder in text", () => {
+    const envelope = '{"text":"{\\"position\\":\\"blocked: gathering subject evidence\\"}{\\"position\\":\\"Choose A\\"}","structuredOutput":{"voice":"peer","position":"Choose A","reasoning":"Lower correction cost","evidence":["src/a.ts:1"],"external_check":"unavailable","mode":"independent","movement":"initial"},"modelUsage":{"grok-4.6":{"inputTokens":1}}}'
+    const { env } = sandbox(["grok"], `#!/bin/sh\nprintf '%s' '${envelope}'\n`)
+    const dir = runDir()
+    const result = run(["codex", "grok-cli", payload(), dir], dir, env)
+    expect(result.files).toContain("pov-grok.json")
+    const out = JSON.parse(readFileSync(path.join(dir, "pov-grok.json"), "utf8"))
+    expect(out.position).toBe("Choose A")
+  })
+
+  test("a non-final position is retried once on the same route with a final-answer requirement", () => {
+    const placeholder = '{"structured_output":{"voice":"peer","position":"blocked: gathering subject evidence","reasoning":"Need to inspect the tree first.","evidence":["subject-payload: round 1"],"external_check":"unavailable","mode":"independent","movement":"initial"}}'
+    const counter = path.join(temp("pov-attempts-"), "n")
+    const prompts = path.join(temp("pov-prompts-"), "p")
+    const stub = `#!/bin/sh
+prompt=""; while [ $# -gt 0 ]; do [ "$1" = "--prompt-file" ] && prompt="$2"; shift; done
+n=$(cat '${counter}' 2>/dev/null || echo 0); n=$((n+1)); echo $n > '${counter}'
+cp "$prompt" '${prompts}'.$n
+if [ $n -eq 1 ]; then printf '%s' '${placeholder}'; else printf '%s' '${valid}'; fi
+`
+    const { env } = sandbox(["grok"], stub)
+    const dir = runDir()
+    const result = run(["codex", "grok-cli", payload(), dir], dir, env)
+    expect(readFileSync(counter, "utf8").trim()).toBe("2")
+    expect(result.stderr).toContain("non-final position")
+    expect(readFileSync(`${prompts}.1`, "utf8")).not.toContain("This response is the final one")
+    expect(readFileSync(`${prompts}.2`, "utf8")).toContain("This response is the final one")
+    expect(result.files).toContain("pov-grok.json")
+    const out = JSON.parse(readFileSync(path.join(dir, "pov-grok.json"), "utf8"))
+    expect(out.position).toBe("Choose A")
+  })
+
+  test("a second non-final position drops the voice with skip evidence naming it", () => {
+    const placeholder = '{"structured_output":{"voice":"peer","position":"Blocked: still gathering evidence","reasoning":"why","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"}}'
+    const counter = path.join(temp("pov-attempts-"), "n")
+    const stub = `#!/bin/sh
+cat >/dev/null
+n=$(cat '${counter}' 2>/dev/null || echo 0); echo $((n+1)) > '${counter}'
+printf '%s' '${placeholder}'
+`
+    const { env } = sandbox(["claude"], stub)
+    const dir = runDir()
+    const result = run(["codex", "claude", payload(), dir], dir, env)
+    expect(result.code).toBe(0)
+    expect(readFileSync(counter, "utf8").trim()).toBe("2")
+    expect(result.files).not.toContain("pov-claude.json")
+    expect(result.stderr).toContain("peer skip evidence: non-final position after retry: Blocked: still gathering evidence")
+  })
+
+  test("a settled Hold position is not treated as non-final", () => {
+    const hold = '{"structured_output":{"voice":"peer","position":"Hold: do not adopt","reasoning":"Need evidence","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"}}'
+    const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${hold}'\n`)
+    const dir = runDir()
+    const result = run(["codex", "claude", payload(), dir], dir, env)
+    expect(result.files).toContain("pov-claude.json")
+    expect(result.stderr).not.toContain("non-final position")
+  })
+
   test("normalizes a valid POV with actual route and served-model receipt", () => {
     const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${valid}'\n`)
     const dir = runDir()

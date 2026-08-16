@@ -358,6 +358,17 @@ out_missing_or_invalid() {
     "$RAW_OUT" >/dev/null 2>&1
 }
 
+# A usable position is a settled answer to the framed question. A position that
+# announces the peer has not finished (blocked, pending, still gathering or
+# reading) is schema-valid but non-final: it must not be published as a peer
+# voice. Observed on grok-cli (#1402 panel): the model emitted its final
+# schema object on turn one, before spending any read turns.
+NONFINAL_POSITION_RE='^[[:space:]]*(blocked|pending|placeholder|tbd|todo|in[- ]progress|gathering|still[[:space:]]+(reading|gathering|inspecting|reviewing)|need(s)?[[:space:]]+to[[:space:]]+(read|inspect|gather|review))([[:space:]]|[[:punct:]]|$)'
+raw_position() { [ -s "$RAW_OUT" ] && jq -r '.position // ""' "$RAW_OUT" 2>/dev/null; }
+position_is_nonfinal() {   # <position>
+  printf '%s' "$1" | tr 'A-Z' 'a-z' | grep -Eq "$NONFINAL_POSITION_RE"
+}
+
 # Backward-compatible matrix: legacy `composer` continues to sanction Cursor as
 # the Grok intermediary, while the distinct Cursor-default target requires the
 # new `cursor` key. Composer itself remains sanctioned by `composer`.
@@ -675,14 +686,16 @@ PY
 
 # Parse a schema-shaped object out of a headless CLI JSON envelope (claude/grok/cursor).
 parse_structured() {   # <logfile> <outfile>
-  # Buffered single-object envelopes (grok-cli json, test stubs).
-  jq -e '.structured_output' "$1" > "$2" 2>/dev/null && return 0
+  # Buffered single-object envelopes (grok-cli json, test stubs). grok >= 1.0.4
+  # names the key structuredOutput; falling through to the text scan there can
+  # pick a first-turn placeholder the model printed before its final object.
+  jq -e '.structured_output // .structuredOutput' "$1" > "$2" 2>/dev/null && return 0
   jq -r '.result // empty' "$1" 2>/dev/null | jq -e '.' > "$2" 2>/dev/null && return 0
   # stream-json NDJSON: last type=result event (elevation-dispatch pattern).
   local event
   event="$(grep -a '"type":"result"' "$1" 2>/dev/null | tail -1 || true)"
   if [ -n "$event" ]; then
-    printf '%s' "$event" | jq -e '.structured_output' > "$2" 2>/dev/null && return 0
+    printf '%s' "$event" | jq -e '.structured_output // .structuredOutput' > "$2" 2>/dev/null && return 0
     printf '%s' "$event" | jq -r '.result // empty' 2>/dev/null | jq -e '.' > "$2" 2>/dev/null && return 0
   fi
   recover_pov_json "$1" "$2"
@@ -764,6 +777,21 @@ run_fixed_route() {
   OUT="$RUN_DIR/pov-$provider.json"
   ACTUAL_ROUTE="$FIXED_ROUTE"
   attempt_route "$provider" "$FIXED_ROUTE"
+  # One bounded retry on the same route, target, model, and scope; the only
+  # change is a final-answer instruction. A second non-final position drops
+  # the voice with skip evidence -- no route hopping.
+  nonfinal_position=""
+  position="$(raw_position)"
+  if [ "$RUN_SUCCEEDED" = true ] && position_is_nonfinal "$position"; then
+    log "peer returned a non-final position (\"${position:0:120}\"); retrying once on the same route with a final-answer requirement"
+    printf '\n\nYour previous response declared the point of view unfinished. This response is the final one: inspect the subject and shared working tree now, then return the settled position with its evidence. Do not return a blocked, pending, or gathering placeholder.\n' >> "$PROMPT_FILE"
+    attempt_route "$provider" "$FIXED_ROUTE"
+    position="$(raw_position)"
+    if [ "$RUN_SUCCEEDED" = true ] && position_is_nonfinal "$position"; then
+      nonfinal_position="$position"
+      rm -f "$RAW_OUT"
+    fi
+  fi
 
   # --- normalize + validate against the peer POV contract ------------------
   # Force voice = peer-<provider>, preserve the POV fields, and add route/model
@@ -817,6 +845,7 @@ run_fixed_route() {
     log "wrote peer POV to $OUT (voice peer-$provider)"
   else
     log "provider $provider produced no usable schema-shaped output; skipping fold-in"
+    [ -n "$nonfinal_position" ] && log "  peer skip evidence: non-final position after retry: ${nonfinal_position:0:200}"
     # Surface bounded, actionable peer evidence so the orchestrator can
     # reason about WHY it was skipped (quota/usage-limit exhaustion vs an ordinary
     # empty review) and, in a repeated-pass session, deprioritize an exhausted
