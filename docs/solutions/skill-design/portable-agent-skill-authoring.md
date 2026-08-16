@@ -62,6 +62,8 @@ Prefer an observable rule over a qualitative exhortation:
 
 This reflects current vendor guidance, not a preference for terseness. [OpenAI's GPT-5.6 guidance](https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6) says leaner prompts can improve task performance and token efficiency, to state each instruction once, and to keep examples only when they encode a product requirement or measured gap. [Fable 5 guidance](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5) says brief instructions can replace behavior-by-behavior enumeration and warns that skills tuned for earlier models may be too prescriptive. [Anthropic's skill best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) says to match degrees of freedom to task fragility.
 
+For Compound Engineering's multi-model skills, portable means Sol-first and Fable-acceptable. When Fable guidance to strip procedure or add a brevity block conflicts with Sol guidance to preserve a known-good command, required report content, or no blanket brevity slogan, keep the Sol form. Fable's strong instruction following tolerates a slightly thicker skill; Sol undershoots when Sol-critical determinism is omitted.
+
 For portable Sol/Fable skills, control output length by naming what shortened output must preserve. Do not paste a Fable-only brevity block or ship a blanket "be concise" / "keep it short" slogan into a cross-model skill; GPT-5.6 Sol can undershoot when broad brevity instructions stack on top of its default concision.
 
 This is not a ban on targeted steering. A phrase that counters a documented runtime behavior can stay as a model-behavior adapter: name the condition it addresses and verify the effect rather than promoting it to a universal quality slogan.
@@ -375,6 +377,7 @@ Measure the outcome the skill exists to improve, not proxy volume:
 - [ ] Each instruction is stated once; variants name deltas instead of repeating the full rule.
 - [ ] CLI recipes that share a command skeleton are one parameterized recipe, not repeated blocks.
 - [ ] Cross-model output guidance names must-preserve content instead of using blanket "be concise" / "keep it short" slogans.
+- [ ] Vendor guidance conflicts resolve Sol-first for this org's multi-model skills; Fable-only deletions do not strip Sol-critical determinism.
 - [ ] Generic quality exhortations and motivational rationale are absent.
 
 ### Protocol and judgment
@@ -446,11 +449,13 @@ the approach. Add only the protocol needed to protect that outcome.
    known-good fragile command once when live `--help` is not enough.
 9. For cross-model skills, control output length by naming what a short report
    must preserve; do not ship blanket "be concise" / "keep it short" slogans.
-10. Add authority and delegation machinery only when the skill actually mutates
+10. Resolve vendor conflicts Sol-first for this org's multi-model skills:
+   Fable-only deletions must not strip Sol-critical determinism.
+11. Add authority and delegation machinery only when the skill actually mutates
    or delegates consequential work.
-11. Use a small targeted evaluation set for the weakest realistic layer,
+12. Use a small targeted evaluation set for the weakest realistic layer,
    strong-model regression, restraint, activation, and the next consumer.
-12. Choose the smallest supported change and record any material deviation.
+13. Choose the smallest supported change and record any material deviation.
 
 Return the outcome spine, proposed skill or findings, intentionally inapplicable
 guide sections, Change/Verify/Consider findings, targeted tests, and unresolved

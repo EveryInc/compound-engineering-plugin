@@ -21,6 +21,7 @@ Skills predate the current standard and evolve toward it. The standard is the gu
 | Command freedom | Do two recipes share the same command skeleton? If yes, the command belongs once with parameters or deltas unless each full command protects a distinct fragile gate. Conversely, would a capable model with live `--help` still ship the wrong command? If yes, pin the known-good command once. |
 | Per-step completion | Is a local done check protecting mutation, auth, scope expansion, irreversible external effects, a fragile transition, or a silent handoff failure? If not, the skill-level done bar decides. |
 | Blanket brevity | Does a cross-model skill say "be concise", "keep it short", or paste a Fable brevity block instead of naming what the report must preserve? |
+| Vendor priority | Is a Fable-only lean-prompt preference being used to delete a Sol-critical command, report field, or no-blanket-brevity rule? |
 | Prescribed mechanism | Does this skill own the command/state it spells out, or does it delegate that work? |
 | Vestigial mode | Is there a caller anywhere in the corpus that sets this mode, flag, or branch? |
 | Cross-unit duplication | Is this near-identical elsewhere, and is factoring it out actually permitted (parity tests)? |
@@ -34,6 +35,7 @@ Skills predate the current standard and evolve toward it. The standard is the gu
 - **For every mandate you remove, name what now decides**, and check that decider may decide it. A required gate stays.
 - **Prefer one governing sentence over behavior enumeration.** If one sentence decides the listed behaviors, keep the sentence and delete the list; if a listed item is a separate invariant, state that invariant locally.
 - **Do not overcorrect away deterministic guidance.** Removing duplicate easy commands is right; stripping a known-good fragile command is a new defect. The deciding test is whether a capable model with live `--help` would still get the command wrong.
+- **Resolve model conflicts by product target.** For this org's multi-model skills, keep the Sol form when Fable-optimal brevity or anti-prescription would make Sol undershoot. Sol-critical determinism beats Fable-only hygiene.
 - **Control length by preserved content.** For portable skills, replace blanket brevity slogans with the fields the short output must retain and the details it may omit.
 - **Keep scope beside the action it governs.** A quantifier, threshold, or exclusion ("for each candidate separately", "do not change files outside …") sits next to the step it bounds, not in a distant reminder — literal models lose the distant one.
 - **Runtime placement:** an instruction that must fire at a point stays inline at that point; do not push it into a reference the agent may not load. Where the same rule must live in two always-loaded places, protect it with a parity test.
