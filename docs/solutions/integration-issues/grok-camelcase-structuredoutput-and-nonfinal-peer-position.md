@@ -36,13 +36,13 @@ During a `ce-pov oracle` panel run (2026-08-16, reviewing PR #1402), the grok-cl
 
 - **Requiring evidence to cite something beyond the payload, as the finality condition.** Considered and rejected: a document-only POV (reviewing a spec with no code to inspect) legitimately cites only the payload as evidence. Gating on "cites more than the payload" would false-positive on every valid document-only POV, not just the placeholder case.
 - **Assuming `--json-schema` blocks tool use on grok-cli.** A direct repro on grok 1.0.4 (same flags, tiny directory, prompt requiring a file read) showed tools do work under `--json-schema` (`num_turns: 2`, evidence `note.txt:1`). The CLI is not the root cause; the model's habit of emitting a schema-shaped placeholder before spending read turns is. In 1 of 4 repro runs the envelope's `text` field held that placeholder object concatenated with the final one, while `structuredOutput` held only the final.
-- **The pre-existing `recover_pov_json` fallback, which only worked by accident.** Before the fix, `parse_structured()` (`skills/ce-pov/scripts/cross-model-pov.sh:692`, `698`) checked only `jq -e '.structured_output'` — snake_case. grok-cli's headless JSON envelope names the key `structuredOutput` (camelCase), so on grok the lookup always missed and execution fell through to `recover_pov_json`, a Python text scan that returns the last dict containing a `position` key. That scan is key-agnostic and has no notion of finality, so a placeholder that is the model's final object is returned as if it were an answer. The sibling scripts `skills/ce-code-review/scripts/cross-model-adversarial-review.sh` and `skills/ce-doc-review/scripts/cross-model-doc-review.sh` already handled `structuredOutput` in their own recovery Python; `ce-pov`'s copy had lagged behind.
+- **The pre-existing `recover_pov_json` fallback, which only worked by accident.** Before the fix, `parse_structured()` (`skills/ce-pov/scripts/cross-model-pov.sh:696 702 `, ``) checked only `jq -e '.structured_output'` — snake_case. grok-cli's headless JSON envelope names the key `structuredOutput` (camelCase), so on grok the lookup always missed and execution fell through to `recover_pov_json`, a Python text scan that returns the last dict containing a `position` key. That scan is key-agnostic and has no notion of finality, so a placeholder that is the model's final object is returned as if it were an answer. The sibling scripts `skills/ce-code-review/scripts/cross-model-adversarial-review.sh` and `skills/ce-doc-review/scripts/cross-model-doc-review.sh` already handled `structuredOutput` in their own recovery Python; `ce-pov`'s copy had lagged behind.
 
 ## Solution
 
 Two changes in `skills/ce-pov/scripts/cross-model-pov.sh` and one in `skills/ce-pov/references/cross-model-panel.md`, opened on branch `tmchow/ce-pov-nonfinal-peer`, unmerged as of this writing.
 
-**1. Parse the actual envelope key.** `parse_structured()` now checks both cases at both call sites — the buffered envelope (`cross-model-pov.sh:692`) and the stream-json `result` event (`cross-model-pov.sh:698`):
+**1. Parse the actual envelope key.** `parse_structured()` now checks both cases at both call sites — the buffered envelope (`cross-model-pov.sh:696 702 `) and the stream-json `result` event (`cross-model-pov.sh:`):
 
 ```bash
 # before
@@ -53,41 +53,46 @@ jq -e '.structured_output // .structuredOutput' "$1" > "$2" 2>/dev/null && retur
 
 A well-formed grok response is now read directly from its own final `structuredOutput` object instead of falling through to the text-scan fallback.
 
-**2. Classify non-final positions and retry once.** New regex and helpers at `cross-model-pov.sh:366-370`:
+**2. Classify non-final positions and retry once.** New regex and helpers (grep `NONFINAL_POSITION_RE` in `cross-model-pov.sh`). A settled `Blocked — insufficient project grounding` verdict is a legitimate terminal state (`skills/ce-pov/references/method.md`, `skills/ce-pov/references/pov-schema.json`), so a leading `blocked` counts only when pending-work language follows it:
 
 ```bash
-NONFINAL_POSITION_RE='^[[:space:]]*(blocked|pending|placeholder|tbd|todo|in[- ]progress|gathering|still[[:space:]]+(reading|gathering|inspecting|reviewing)|need(s)?[[:space:]]+to[[:space:]]+(read|inspect|gather|review))([[:space:]]|[[:punct:]]|$)'
+NONFINAL_POSITION_RE='^[[:space:]]*(blocked[[:space:][:punct:]]+)?(pending|placeholder|tbd|todo|in[- ]progress|gathering|still[[:space:]]+(reading|gathering|inspecting|reviewing)|need(s)?[[:space:]]+to[[:space:]]+(read|inspect|gather|review))([[:space:]]|[[:punct:]]|$)'
 raw_position() { [ -s "$RAW_OUT" ] && jq -r '.position // ""' "$RAW_OUT" 2>/dev/null; }
 position_is_nonfinal() {   # <position>
   printf '%s' "$1" | tr 'A-Z' 'a-z' | grep -Eq "$NONFINAL_POSITION_RE"
 }
 ```
 
-`run_fixed_route` calls `attempt_route` as before, then checks the position (`cross-model-pov.sh:779-795`):
+`run_fixed_route` calls `attempt_route` as before, then checks the position (the retry block in `run_fixed_route`):
 
 ```bash
+ROUTE_STARTED_AT="$(date +%s)"
 attempt_route "$provider" "$FIXED_ROUTE"
 nonfinal_position=""
 position="$(raw_position)"
 if [ "$RUN_SUCCEEDED" = true ] && position_is_nonfinal "$position"; then
-  log "peer returned a non-final position (\"${position:0:120}\"); retrying once on the same route with a final-answer requirement"
-  printf '\n\nYour previous response declared the point of view unfinished. This response is the final one: ...\n' >> "$PROMPT_FILE"
-  attempt_route "$provider" "$FIXED_ROUTE"
-  position="$(raw_position)"
-  if [ "$RUN_SUCCEEDED" = true ] && position_is_nonfinal "$position"; then
-    nonfinal_position="$position"
-    rm -f "$RAW_OUT"
+  remaining=$(( HARD_SECS - ( $(date +%s) - ROUTE_STARTED_AT ) ))
+  if [ "$remaining" -lt "$RETRY_MIN_SECS" ]; then
+    nonfinal_position="$position"; rm -f "$RAW_OUT"      # no window left: drop, no retry
+  else
+    printf '\n\nYour previous response declared the point of view unfinished. This response is the final one: ...\n' >> "$PROMPT_FILE"
+    HARD_SECS="$remaining"; UNGUARDED_HARD_SECS="$remaining"
+    attempt_route "$provider" "$FIXED_ROUTE"
+    position="$(raw_position)"
+    if [ "$RUN_SUCCEEDED" = true ] && position_is_nonfinal "$position"; then
+      nonfinal_position="$position"; rm -f "$RAW_OUT"
+    fi
   fi
 fi
 ```
 
-The retry reuses the same route, target, model, and scope; only the appended prompt paragraph changes. If the second attempt is still non-final, the artifact is discarded and logged as skip evidence (`cross-model-pov.sh:848`: `peer skip evidence: non-final position after retry: ...`) rather than folded in.
+The retry reuses the same route, target, model, and scope; only the appended prompt paragraph changes, and it gets only what remains of the worker's `HARD_SECS` window so both attempts stay inside the panel's aggregate deadline (`CROSS_MODEL_HARD_SECS` + 10s). If the second attempt is still non-final, or too little window remains to retry (`CROSS_MODEL_RETRY_MIN_SECS`, default 60s), the artifact is discarded and logged as `peer skip evidence: non-final position: ...` rather than folded in.
 
-**3. Classify blocked-but-schema-valid states in the protocol.** `cross-model-panel.md` section 4 (line 325) previously accepted "schema-shaped artifacts with non-empty `position` and `reasoning`, a valid `movement`, and the route/model receipt tuple" with no finality condition. It now reads (`cross-model-panel.md:325-331`):
+**3. Classify blocked-but-schema-valid states in the protocol.** `cross-model-panel.md` section 4 (line 325) previously accepted "schema-shaped artifacts with non-empty `position` and `reasoning`, a valid `movement`, and the route/model receipt tuple" with no finality condition. It now reads (section 4, "Read artifacts and logs…" paragraph):
 
-> Accept only schema-shaped artifacts whose `position` is a settled answer to the framed question, with non-empty `reasoning`, a valid `movement`, and the route/model receipt tuple. A `position` that declares the peer unfinished — blocked, pending, still gathering or reading — is non-final: the worker retries it once on the same route with a final-answer requirement and, if it recurs, drops the voice with `peer skip evidence: non-final position`. Should such an artifact still reach you, treat it as no usable artifact, not as a peer voice.
+> Accept only schema-shaped artifacts whose `position` is a settled answer to the framed question, with non-empty `reasoning`, a valid `movement`, and the route/model receipt tuple. A settled `Blocked — …` verdict is a usable answer (a grounding-floor failure with its reason); a `position` that declares work still pending — gathering, reading, placeholder — is non-final: the worker retries it once on the same route with a final-answer requirement, inside the same hard window, and if it recurs or no window remains drops the voice with `peer skip evidence: non-final position`. Should such an artifact still reach you, treat it as no usable artifact, not as a peer voice.
 
-Section 6 (`cross-model-panel.md:417-418`) also names the failure mode in the Partial-result reporting guidance: "for example quota, authentication, timeout, or a non-final placeholder position that survived one retry."
+Section 6 also names the failure mode in the Partial-result reporting guidance: "for example quota, authentication, timeout, or a non-final placeholder position that survived the bounded retry."
 
 ## Why This Works
 
@@ -101,7 +106,7 @@ This preserves the panel's degradation rules: peers never block a POV, and a dro
 
 ## Prevention
 
-- `tests/skills/ce-pov-cross-model-routes.test.ts` adds four fixtures pinning this behavior: `reads grok's camelCase structuredOutput instead of a first-turn placeholder in text` (line 230), `a non-final position is retried once on the same route with a final-answer requirement` (line 240), `a second non-final position drops the voice with skip evidence naming it` (line 262), and `a settled Hold position is not treated as non-final` (line 279) — the last guards against over-broad matching, since "Hold: do not adopt" is a legitimate settled verdict.
+- `tests/skills/ce-pov-cross-model-routes.test.ts` adds fixtures pinning this behavior: camelCase `structuredOutput` wins over a first-turn placeholder in `text`; a non-final position is retried once with the final-answer line in the second prompt; a second non-final drops the voice with the named skip evidence; a non-final position with no hard window left is dropped without a retry; and settled `Hold: …` and `Blocked — …` verdicts are accepted — the last guards against over-broad matching (review round 1 on the PR caught that a bare `blocked` prefix would have misclassified the legitimate grounding-floor verdicts).
 - When adding a new peer CLI route or a new schema-constrained peer: verify the envelope field name against that CLI's actual headless JSON output rather than assuming it matches your other integrations (grok-cli 1.0.4 uses `structuredOutput`, camelCase). Do not assume schema validity implies usability — if the schema's own description allows an in-progress or blocked value, the worker needs an explicit finality check before folding the artifact in, and the calling protocol needs to say what "usable" means as a condition, not just "matches the schema". Keep the deterministic finality check in the worker script and the acceptance semantics in the protocol doc; do not duplicate one into the other.
 
 ## Related Issues

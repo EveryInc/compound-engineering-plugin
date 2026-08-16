@@ -273,16 +273,38 @@ printf '%s' '${placeholder}'
     expect(result.code).toBe(0)
     expect(readFileSync(counter, "utf8").trim()).toBe("2")
     expect(result.files).not.toContain("pov-claude.json")
-    expect(result.stderr).toContain("peer skip evidence: non-final position after retry: Blocked: still gathering evidence")
+    expect(result.stderr).toContain("peer skip evidence: non-final position: Blocked: still gathering evidence")
   })
 
-  test("a settled Hold position is not treated as non-final", () => {
-    const hold = '{"structured_output":{"voice":"peer","position":"Hold: do not adopt","reasoning":"Need evidence","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"}}'
-    const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${hold}'\n`)
+  test.each([
+    ["settled Hold", "Hold: do not adopt"],
+    ["settled Blocked grounding-floor verdict", "Blocked — insufficient project grounding"],
+    ["settled Blocked approach-set verdict", "Blocked: the supplied approaches lack enough detail to choose"],
+  ])("a %s position is not treated as non-final", (_name, position) => {
+    const settled = `{"structured_output":{"voice":"peer","position":"${position}","reasoning":"Need evidence","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"}}`
+    const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${settled}'\n`)
     const dir = runDir()
     const result = run(["codex", "claude", payload(), dir], dir, env)
     expect(result.files).toContain("pov-claude.json")
     expect(result.stderr).not.toContain("non-final position")
+  })
+
+  test("a non-final position with no hard window left is dropped without a retry", () => {
+    const placeholder = '{"structured_output":{"voice":"peer","position":"pending: reading the tree","reasoning":"why","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial"}}'
+    const counter = path.join(temp("pov-attempts-"), "n")
+    const stub = `#!/bin/sh
+cat >/dev/null
+sleep 2
+n=$(cat '${counter}' 2>/dev/null || echo 0); echo $((n+1)) > '${counter}'
+printf '%s' '${placeholder}'
+`
+    const { env } = sandbox(["claude"], stub)
+    const dir = runDir()
+    const result = run(["codex", "claude", payload(), dir], dir, { ...env, CROSS_MODEL_HARD_SECS: "60", CROSS_MODEL_RETRY_MIN_SECS: "59" })
+    expect(readFileSync(counter, "utf8").trim()).toBe("1")
+    expect(result.files).not.toContain("pov-claude.json")
+    expect(result.stderr).toContain("not retrying")
+    expect(result.stderr).toContain("peer skip evidence: non-final position: pending: reading the tree")
   })
 
   test("normalizes a valid POV with actual route and served-model receipt", () => {

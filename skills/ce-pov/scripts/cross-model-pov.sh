@@ -359,11 +359,14 @@ out_missing_or_invalid() {
 }
 
 # A usable position is a settled answer to the framed question. A position that
-# announces the peer has not finished (blocked, pending, still gathering or
-# reading) is schema-valid but non-final: it must not be published as a peer
-# voice. Observed on grok-cli (#1402 panel): the model emitted its final
-# schema object on turn one, before spending any read turns.
-NONFINAL_POSITION_RE='^[[:space:]]*(blocked|pending|placeholder|tbd|todo|in[- ]progress|gathering|still[[:space:]]+(reading|gathering|inspecting|reviewing)|need(s)?[[:space:]]+to[[:space:]]+(read|inspect|gather|review))([[:space:]]|[[:punct:]]|$)'
+# announces work still pending (gathering, reading, pending, placeholder) is
+# schema-valid but non-final: it must not be published as a peer voice.
+# Observed on grok-cli (#1402 panel): the model emitted its final schema object
+# on turn one, before spending any read turns. A settled Blocked verdict
+# ("Blocked — insufficient project grounding") is a legitimate terminal state
+# per pov-schema.json and method.md; only pending-work language marks non-final,
+# so a leading "blocked" counts only when such language follows it.
+NONFINAL_POSITION_RE='^[[:space:]]*(blocked[[:space:][:punct:]]+)?(pending|placeholder|tbd|todo|in[- ]progress|gathering|still[[:space:]]+(reading|gathering|inspecting|reviewing)|need(s)?[[:space:]]+to[[:space:]]+(read|inspect|gather|review))([[:space:]]|[[:punct:]]|$)'
 raw_position() { [ -s "$RAW_OUT" ] && jq -r '.position // ""' "$RAW_OUT" 2>/dev/null; }
 position_is_nonfinal() {   # <position>
   printf '%s' "$1" | tr 'A-Z' 'a-z' | grep -Eq "$NONFINAL_POSITION_RE"
@@ -470,6 +473,7 @@ trap 'cleanup_private_scratch' EXIT
 IDLE_SECS="${CROSS_MODEL_IDLE_SECS:-180}"
 HARD_SECS="${CROSS_MODEL_HARD_SECS:-600}"
 UNGUARDED_HARD_SECS="${CROSS_MODEL_HARD_SECS:-600}"
+RETRY_MIN_SECS="${CROSS_MODEL_RETRY_MIN_SECS:-60}"   # least window worth spending on a non-final retry
 TO_BIN="$(command -v gtimeout || command -v timeout || true)"
 
 # Reap a backgrounded job's whole process group: TERM, then KILL after a grace.
@@ -776,20 +780,32 @@ run_fixed_route() {
   local provider="$TARGET"
   OUT="$RUN_DIR/pov-$provider.json"
   ACTUAL_ROUTE="$FIXED_ROUTE"
+  ROUTE_STARTED_AT="$(date +%s)"
   attempt_route "$provider" "$FIXED_ROUTE"
   # One bounded retry on the same route, target, model, and scope; the only
-  # change is a final-answer instruction. A second non-final position drops
-  # the voice with skip evidence -- no route hopping.
+  # change is a final-answer instruction. The retry gets only what is left of
+  # this worker's HARD_SECS window so both attempts stay inside the panel's
+  # aggregate deadline (cross-model-panel.md: CROSS_MODEL_HARD_SECS + 10s);
+  # too little left means no retry. A second non-final position drops the
+  # voice with skip evidence -- no route hopping.
   nonfinal_position=""
   position="$(raw_position)"
   if [ "$RUN_SUCCEEDED" = true ] && position_is_nonfinal "$position"; then
-    log "peer returned a non-final position (\"${position:0:120}\"); retrying once on the same route with a final-answer requirement"
-    printf '\n\nYour previous response declared the point of view unfinished. This response is the final one: inspect the subject and shared working tree now, then return the settled position with its evidence. Do not return a blocked, pending, or gathering placeholder.\n' >> "$PROMPT_FILE"
-    attempt_route "$provider" "$FIXED_ROUTE"
-    position="$(raw_position)"
-    if [ "$RUN_SUCCEEDED" = true ] && position_is_nonfinal "$position"; then
+    remaining=$(( HARD_SECS - ( $(date +%s) - ROUTE_STARTED_AT ) ))
+    if [ "$remaining" -lt "$RETRY_MIN_SECS" ]; then
+      log "peer returned a non-final position (\"${position:0:120}\") with ${remaining}s of the ${HARD_SECS}s window left; not retrying"
       nonfinal_position="$position"
       rm -f "$RAW_OUT"
+    else
+      log "peer returned a non-final position (\"${position:0:120}\"); retrying once on the same route with a final-answer requirement (${remaining}s left)"
+      printf '\n\nYour previous response declared the point of view unfinished. This response is the final one: inspect the subject and shared working tree now, then return the settled position with its evidence. Do not return a pending or gathering placeholder.\n' >> "$PROMPT_FILE"
+      HARD_SECS="$remaining"; UNGUARDED_HARD_SECS="$remaining"
+      attempt_route "$provider" "$FIXED_ROUTE"
+      position="$(raw_position)"
+      if [ "$RUN_SUCCEEDED" = true ] && position_is_nonfinal "$position"; then
+        nonfinal_position="$position"
+        rm -f "$RAW_OUT"
+      fi
     fi
   fi
 
@@ -845,7 +861,7 @@ run_fixed_route() {
     log "wrote peer POV to $OUT (voice peer-$provider)"
   else
     log "provider $provider produced no usable schema-shaped output; skipping fold-in"
-    [ -n "$nonfinal_position" ] && log "  peer skip evidence: non-final position after retry: ${nonfinal_position:0:200}"
+    [ -n "$nonfinal_position" ] && log "  peer skip evidence: non-final position: ${nonfinal_position:0:200}"
     # Surface bounded, actionable peer evidence so the orchestrator can
     # reason about WHY it was skipped (quota/usage-limit exhaustion vs an ordinary
     # empty review) and, in a repeated-pass session, deprioritize an exhausted
