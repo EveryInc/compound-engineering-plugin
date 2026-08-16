@@ -113,7 +113,7 @@ cat .claude-plugin/plugin.json | jq .
 
 This repository authors each skill once and distributes it across multiple agent models and harnesses. A skill is a set of goals, not a state machine: it hands the agent the goal, the done condition, the safe failure direction, and the facts it cannot derive from the repo in front of it, then gets out of the way. `docs/solutions/skill-design/portable-agent-skill-authoring.md` is the standard; the rules in this file supplement it and take precedence where more specific.
 
-**Before creating, editing, reviewing, or acting on review feedback for anything under `skills/**`, invoke the repo-local `skill-work` skill** (`.claude/skills/skill-work/`, symlinked at `.agents/skills/skill-work` for Codex). It carries the procedures for each of those four activities, the audit questions, the provenance rule for removals, and the validation contract. This file states only what must be always-loaded; when the two disagree, fix the disagreement rather than following the shorter one.
+**Before creating, editing, reviewing, or acting on review feedback for anything under `skills/**`, invoke the repo-local `ce-skill-work` skill** (`.claude/skills/ce-skill-work/`, symlinked at `.agents/skills/ce-skill-work` for Codex). It carries the procedures for each of those four activities, the audit questions, the provenance rule for removals, and the validation contract. This file states only what must be always-loaded; when the two disagree, fix the disagreement rather than following the shorter one.
 
 Three rules that hold regardless of whether the skill was invoked:
 
@@ -139,7 +139,7 @@ Review bots read this file when reviewing a PR here. On `skills/**`:
 
 ### Acting on review feedback
 
-Skill prose is not code: a natural-language instruction can always be made more specific, so a reviewer can produce a valid-looking edge case against any condition indefinitely, and patching each one dilutes the instruction (#1397: 24 findings over nine rounds on a two-condition step). A case the stated condition already decides is answered with the condition, not patched; only a wrong or missing condition, or a mechanism at the wrong owning layer, is a fix. On the second round against the same block, restate it rather than qualify it. The full procedure — Evidence, Owning layer, Mechanism, Reconcile, Stop the accretion loop — is `skill-work`'s respond mode.
+Skill prose is not code: a natural-language instruction can always be made more specific, so a reviewer can produce a valid-looking edge case against any condition indefinitely, and patching each one dilutes the instruction (#1397: 24 findings over nine rounds on a two-condition step). A case the stated condition already decides is answered with the condition, not patched; only a wrong or missing condition, or a mechanism at the wrong owning layer, is a fix. On the second round against the same block, restate it rather than qualify it. The full procedure — Evidence, Owning layer, Mechanism, Reconcile, Stop the accretion loop — is `ce-skill-work`'s respond mode.
 
 ## Referencing Project Conventions in Skills
 

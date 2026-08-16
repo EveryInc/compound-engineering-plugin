@@ -1,9 +1,9 @@
 ---
-name: skill-work
+name: ce-skill-work
 description: "Use when creating, editing, reviewing, or acting on review feedback for anything under this repository's skills/** — a SKILL.md, a references/ file, a persona prompt, or the prose contract of a bundled script. Not for src/, tests/, or scripts/ code."
 ---
 
-# Skill Work
+# CE Skill Work
 
 Skills in this repository are goals, not state machines. A skill hands the agent the goal, the done condition, the safe failure direction, and the facts it cannot derive from the repo in front of it, then gets out of the way. Everything this skill does — authoring, editing, reviewing, responding to review — is that one standard applied to a different starting state.
 

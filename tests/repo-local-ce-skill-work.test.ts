@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync } from "fs"
 import path from "path"
 
-// The repo-local `skill-work` skill is how the skill lifecycle (author / edit /
+// The repo-local `ce-skill-work` skill is how the skill lifecycle (author / edit /
 // review / respond) is delivered to agents working in this checkout. It is not
 // part of the distributed plugin (plugin skills live under `skills/`), so none
 // of the plugin-facing tests see it. This guard pins the three facts the
@@ -11,13 +11,13 @@ import path from "path"
 // still routes skill work to it.
 
 const ROOT = process.cwd()
-const CLAUDE_SKILL = path.join(ROOT, ".claude", "skills", "skill-work")
-const CODEX_SKILL = path.join(ROOT, ".agents", "skills", "skill-work")
+const CLAUDE_SKILL = path.join(ROOT, ".claude", "skills", "ce-skill-work")
+const CODEX_SKILL = path.join(ROOT, ".agents", "skills", "ce-skill-work")
 
-describe("repo-local skill-work skill", () => {
+describe("repo-local ce-skill-work skill", () => {
   test("exists at the Claude Code project-skill path with trigger-only frontmatter", () => {
     const skill = readFileSync(path.join(CLAUDE_SKILL, "SKILL.md"), "utf8")
-    expect(skill).toMatch(/^---\nname: skill-work\ndescription: "Use when /)
+    expect(skill).toMatch(/^---\nname: ce-skill-work\ndescription: "Use when /)
     for (const ref of ["new-skill", "edit-skill", "review-skill", "respond-to-review", "evaluate"]) {
       expect(existsSync(path.join(CLAUDE_SKILL, "references", `${ref}.md`))).toBe(true)
       expect(skill).toContain(`references/${ref}.md`)
@@ -26,7 +26,7 @@ describe("repo-local skill-work skill", () => {
 
   test("Codex path is a symlink to the single Claude Code copy", () => {
     expect(lstatSync(CODEX_SKILL).isSymbolicLink()).toBe(true)
-    expect(readlinkSync(CODEX_SKILL)).toBe(path.join("..", "..", ".claude", "skills", "skill-work"))
+    expect(readlinkSync(CODEX_SKILL)).toBe(path.join("..", "..", ".claude", "skills", "ce-skill-work"))
     expect(realpathSync(CODEX_SKILL)).toBe(realpathSync(CLAUDE_SKILL))
   })
 
@@ -41,9 +41,9 @@ describe("repo-local skill-work skill", () => {
 
   test("AGENTS.md routes all four activities to the skill and keeps the reviewer rules bots read", () => {
     const agents = readFileSync(path.join(ROOT, "AGENTS.md"), "utf8")
-    expect(agents).toMatch(/Before creating, editing, reviewing, or acting on review feedback for anything under `skills\/\*\*`, invoke the repo-local `skill-work` skill/)
-    expect(agents).toContain(".claude/skills/skill-work/")
-    expect(agents).toContain(".agents/skills/skill-work")
+    expect(agents).toMatch(/Before creating, editing, reviewing, or acting on review feedback for anything under `skills\/\*\*`, invoke the repo-local `ce-skill-work` skill/)
+    expect(agents).toContain(".claude/skills/ce-skill-work/")
+    expect(agents).toContain(".agents/skills/ce-skill-work")
     expect(agents).toMatch(/### Reviewing a skill change \(bots and humans\)/)
     expect(agents).toMatch(/A case a stated condition already covers is not a finding/)
   })
