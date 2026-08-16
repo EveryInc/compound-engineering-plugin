@@ -4,12 +4,14 @@ Skills predate the current standard and evolve toward it. The standard is the gu
 
 ## Before editing
 
+0. **State the runtime you are authoring from and what it may mask.** Run the guide's decentering step ("Your model is not a neutral author"): name the model tier and harness, then check each reaction against its bias — "this rule is redundant" (would a more literal model still hold the contract?), "this needs more steps" (protocol, or compensation for this runtime?), "it worked in my test" (which harness capability supplied that?), "this is missing X" (what observable failure does X address?). Do this before deciding anything is sediment.
 1. **Read the block's goal, not just the lines you were pointed at.** What result does this block produce, for whom, and what is its done condition? If the block cannot answer that, the edit starts by restating the block; if it can, your change must keep that answer true.
 2. **Search provenance for what you intend to remove or rewrite** — a test that asserts it (`rg` under `tests/`), a `docs/solutions/` learning that records it, a commit that added it to fix a named bug (`git log -S`). Then apply SKILL.md's sediment rule as written — this step does not restate it. A duplication mandate that is itself the recorded fix for a bug that regressed twice is a scar, not ceremony — keep it and cite the bug. Say which of your removals rest on absence of evidence.
 3. **Audit the block with these questions** before deciding the smallest change. Ordered by expected behavior change per finding:
 
 | Class | Diagnostic question |
 |---|---|
+| Protocol or judgment | If this instruction disappeared, could the workflow produce a wrong path, state, count, gate, field, boundary, coverage floor, or handoff? Yes → protocol, keep it explicit and falsifiable. No → judgment; try deleting it. A menu whose omitted item silently drops required coverage is protocol, not judgment. Decompose a mixed block before classifying it. |
 | Phantom handoff | Does the party this sentence hands off to exist in this run? |
 | Step machinery | Would a different order, or skipping the ceremony, produce a different artifact? |
 | Capability restatement | Would the model do this if the line were deleted? |
@@ -26,6 +28,8 @@ Skills predate the current standard and evolve toward it. The standard is the gu
 - **Scope to your change plus what it makes wrong.** Reconcile blocks your change contradicts or duplicates. Leave untouched blocks alone even when short of the standard, and name them in the PR as follow-up. A repo-wide modernization is its own change, requested explicitly.
 - **Repeated case-specific repair is the defect signal.** If this block has been patched before for "the case we just found" — in an earlier round of the same PR, or in git history — do not add another case. Delete the additions and restate the goal, then re-verify the restatement against every path the additions served; a restatement that no longer names a path is a new defect, not a simplification.
 - **For every mandate you remove, name what now decides**, and check that decider may decide it. A required gate stays.
+- **Keep scope beside the action it governs.** A quantifier, threshold, or exclusion ("for each candidate separately", "do not change files outside …") sits next to the step it bounds, not in a distant reminder — literal models lose the distant one.
+- **Record a material deviation from the guide** in the guide's own form (rule and strength, the local fact that makes the normal form unsuitable, the failure or cost it would create here, the alternative and its substitute safeguard, verification). "This skill is unusual" is not a record. The same justified exception recurring across skills means the guide changes, not another local carve-out.
 - **Runtime placement:** an instruction that must fire at a point stays inline at that point; do not push it into a reference the agent may not load. Where the same rule must live in two always-loaded places, protect it with a parity test.
 - **Scripted replacements** across many files: assert each anchor matches exactly once before writing anything, and fail closed per file.
 - **Cross-file invariants:** when a skill's contract is consumed by another skill (an envelope field, a mode token, a status enum), change both ends in the same commit and check the contract test.

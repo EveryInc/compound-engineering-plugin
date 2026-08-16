@@ -1,6 +1,6 @@
 # Reviewing a skill change
 
-A review agent is biased toward producing changes. Counter it: diagnose before prescribing. Read the guide's "Diagnose before prescribing" section and its "Compact review prompt"; use the prompt as your working frame.
+A review agent is biased toward producing changes. Counter it: state the runtime you review from and what it may mask (the guide's decentering step — "this is missing X" and "this rule is redundant" are the two reactions to distrust first), then diagnose before prescribing. Read the guide's "Diagnose before prescribing" section and its "Compact review prompt"; use the prompt as your working frame.
 
 ## What a finding is, on `skills/**`
 

@@ -16,6 +16,8 @@ Baseline, then compare: run the scenario against the pre-change skill first when
 
 Cover, proportionally to risk: the path the change touches on the weakest realistic model tier; strong-model regression (did prose make a capable model worse); restraint (does the skill stop where it should); activation (positive, adjacent-negative, explicit invoke) when the description or trigger changed — with substantive prompts, since a trivial one-step ask never triggers a skill regardless of description; and the next consumer's contract when an envelope or handoff changed. Run on Claude and Codex by default — cross-host divergence is the biggest portability risk and the one a single-host run cannot see.
 
+**Read the result honestly.** If old and new prose both succeed on a strong model, that is no regression, not improvement — test the claimed insurance at the layer where it matters (the weaker tier or the other harness). Measure the outcome the skill exists to improve, not proxy volume: routing, state, authority, and completion for an orchestrator; claim support for research; clarification burden and execution errors for planning. For a side-effecting skill, grade intended and suppressed actions first, then use fake boundaries or dry-run contracts before anything live.
+
 ## Record
 
 In the PR: scenarios, tiers/hosts, what the pre-change run did, what the post-change run did, and anything the eval surfaced that you did not act on. Authored scenario sets over-represent the happy path; add one scenario from a real failure (a bot finding, a session that went wrong) whenever you have one. Improve from what generalizes across scenarios, not from what fixes one — a skill tuned to its handful of eval cases is overfit.
