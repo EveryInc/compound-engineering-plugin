@@ -37,6 +37,7 @@ import {
   terminalizeFakeJob,
   tmp,
   worktreePaths,
+  seedWarmCheckoutFixture,
 } from "./helpers/ce-work-workspace-harness"
 
 setDefaultTimeout(30_000)
@@ -44,22 +45,6 @@ setDefaultTimeout(30_000)
 registerWorkspaceCleanup()
 
 describe("ce-work unit workspace controller: verification locks, waves, and checkpoints", () => {
-  function seedWarmCheckout(repo: string, fileCount: number) {
-    writeFileSync(path.join(repo, ".git", "info", "exclude"), "node_modules/\nnested/\n")
-    const bin = path.join(repo, "node_modules", ".bin")
-    mkdirSync(bin, { recursive: true })
-    for (let index = 0; index < fileCount; index += 1) {
-      writeFileSync(path.join(repo, "node_modules", `${index.toString().padStart(4, "0")}.js`), "x")
-    }
-    writeFileSync(path.join(bin, "tool.js"), "#!/usr/bin/env node\n")
-    symlinkSync("tool.js", path.join(bin, "tool"))
-    linkSync(path.join(repo, "node_modules", "0000.js"), path.join(repo, "node_modules", "0000.hard"))
-    const nested = path.join(repo, "nested")
-    mkdirSync(nested)
-    git(nested, "init")
-    writeFileSync(path.join(nested, "inner.txt"), "inner\n")
-  }
-
   function ignoredModule(repo: string, body: string[]) {
     const source = [
       "import json, os, sys",
@@ -76,7 +61,7 @@ describe("ce-work unit workspace controller: verification locks, waves, and chec
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
     const runId = "run-warm-checkout"
-    seedWarmCheckout(f.repo, 513)
+    seedWarmCheckoutFixture(f.repo, 513, 1, { nestedRepo: true })
 
     const ready = init(runs, runId, f)
     expect(ready.word).toBe("READY")
@@ -94,11 +79,11 @@ describe("ce-work unit workspace controller: verification locks, waves, and chec
 
   test("inventory_ignored_state records symlinks, hardlinks, and nested repositories without refusing", () => {
     const f = makeRepo()
-    seedWarmCheckout(f.repo, 600)
+    seedWarmCheckoutFixture(f.repo, 600, 1, { nestedRepo: true })
     mkdirSync(path.join(f.repo, "node_modules", "empty-dir"))
     const out = ignoredModule(f.repo, [
       "inv = ignored.inventory_ignored_state(repo)",
-      "print(json.dumps({'count': len(inv), 'paths': sorted(inv), 'nested': inv.get('nested/'), 'link': inv.get('node_modules/.bin/tool')}))",
+      "print(json.dumps({'count': len(inv), 'paths': sorted(inv), 'nested': inv.get('nested/'), 'link': inv.get('node_modules/.bin/tool-a')}))",
     ])
     expect(out.count).toBe(604)
     expect(out.paths).toContain("nested/")
@@ -217,7 +202,7 @@ describe("ce-work unit workspace controller: verification locks, waves, and chec
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
     const runId = "run-warm-integrate"
-    seedWarmCheckout(f.repo, 600)
+    seedWarmCheckoutFixture(f.repo, 600, 1, { nestedRepo: true })
     init(runs, runId, f)
     ctl(runs, "prepare", "--run-id", runId, "--unit-id", "U", "--base", f.base, "--packet", packetFile("packet"))
     const workspace = path.join(runs, runId, "units", "U", "workspace")
@@ -244,7 +229,7 @@ describe("ce-work unit workspace controller: verification locks, waves, and chec
     })
     expect(integrated.body.ignored_state.before).toBeGreaterThan(512)
     expect(integrated.body.ignored_state.after).toBe(integrated.body.ignored_state.before)
-    expect(existsSync(path.join(f.repo, "node_modules", ".bin", "tool"))).toBe(true)
+    expect(existsSync(path.join(f.repo, "node_modules", ".bin", "tool-a"))).toBe(true)
     expect(ctl(runs, "status", "--run-id", runId).body.units.U.integration.verification.ignored_state).toMatchObject({
       changed: 0,
       created: 0,

@@ -324,11 +324,17 @@ export function worktreePaths(repo: string): string[] {
 
 /**
  * Seeds a node_modules-shaped ignored inventory: >512 regular files (~1 MiB
- * total), a `.bin/` directory of shim symlinks, and one hardlink pair —
- * mirroring the warm-checkout shape describe in the cross-model plan (U5).
+ * total), a `.bin/` directory of shim symlinks, one hardlink pair, and
+ * optionally a nested git repository — the warm-checkout shape from the
+ * cross-model plan.
  */
-export function seedWarmCheckoutFixture(repo: string, fileCount = 520, fileSizeBytes = 2000) {
-  writeFileSync(path.join(repo, ".git", "info", "exclude"), "node_modules/\n")
+export function seedWarmCheckoutFixture(
+  repo: string,
+  fileCount = 520,
+  fileSizeBytes = 2000,
+  options: { nestedRepo?: boolean } = {},
+) {
+  writeFileSync(path.join(repo, ".git", "info", "exclude"), options.nestedRepo ? "node_modules/\nnested/\n" : "node_modules/\n")
   const nodeModules = path.join(repo, "node_modules")
   const bin = path.join(nodeModules, ".bin")
   mkdirSync(bin, { recursive: true })
@@ -343,5 +349,11 @@ export function seedWarmCheckoutFixture(repo: string, fileCount = 520, fileSizeB
   symlinkSync(path.join("..", "pkg-0000.js"), path.join(bin, "tool-a"))
   symlinkSync(path.join("..", "pkg-0001.js"), path.join(bin, "tool-b"))
   linkSync(files[2], path.join(nodeModules, "pkg-hardlink.js"))
+  if (options.nestedRepo) {
+    const nested = path.join(repo, "nested")
+    mkdirSync(nested)
+    git(nested, "init")
+    writeFileSync(path.join(nested, "inner.txt"), "inner\n")
+  }
   return { nodeModules, bin, files }
 }
