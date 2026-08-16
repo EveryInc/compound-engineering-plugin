@@ -122,6 +122,11 @@ The snapshot includes committed, uncommitted, and untracked output. The worker m
 ### Transport commit
 A synthetic, base-parented commit the host builds from an external worker's complete final tree so the host can inspect and fold the result. It is intermediate evidence, not the canonical checkout commit, and it is never the worker's own tip.
 
+### Warm checkout
+A checkout whose git-ignored inventory already contains what the project's verification command needs to run: installed dependencies, virtualenvs, build caches. It is the normal state of a developer's canonical checkout, and it is the opposite of a fresh clone or newly added worktree, where verification cannot run until something installs those artifacts.
+
+Ignored state in a warm checkout is large, symlink-heavy, and owned by tooling the controller never ran, so any host-side guarantee about it can only be detection and disclosure, never byte-exact custody.
+
 ### Model identity receipt
 The serving backend's own report of which model actually handled a delegated run, recorded alongside the requested model so the two can disagree visibly. A run's model identity is verified only by such a receipt — never by the request parameters or the model's own text — and outputs without one are labeled as requested-but-unverified; logic that weights cross-model agreement follows the receipt, not the request.
 
