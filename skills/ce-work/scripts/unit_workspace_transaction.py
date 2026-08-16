@@ -434,6 +434,8 @@ def _integration_recovery_failure(args, original: Operational, failure: Operatio
         "retain_integration_lock": True,
         "recovery_path": os.path.join(run_dir(args.run_id), "units", args.unit_id),
     }
+    if "ignored_state" in original.detail:
+        detail["ignored_state"] = original.detail["ignored_state"]
     with locked_manifest(args.run_id, write=True) as doc:
         doc["blockers"].append({"at": now_iso(), **detail})
         event(doc, event_name, args.unit_id, {
@@ -452,6 +454,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
     before = None
     verification_log = None
     committed = False
+    ignored_state = None
     try:
         acquired = cmd_integration_acquire(_args(run_id=args.run_id, unit_id=args.unit_id, resume=False))[1]
         token = acquired["lock_token"]
@@ -563,6 +566,8 @@ def cmd_integrate(args) -> tuple[str, dict]:
             "ignored_state": ignored_state,
         }
     except (Operational, TrustFailure) as original:
+        if ignored_state is not None:
+            original.detail.setdefault("ignored_state", ignored_state)
         if token is not None and committed:
             detail = {
                 "reason": "canonical commit accepted but post-commit finalization is incomplete",
@@ -572,6 +577,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
                 "original_word": original.word,
                 "retain_integration_lock": True,
                 "recovery_path": os.path.join(run_dir(args.run_id), "units", args.unit_id),
+                "ignored_state": ignored_state,
             }
             with locked_manifest(args.run_id, write=True) as doc:
                 doc["blockers"].append({"at": now_iso(), **detail})

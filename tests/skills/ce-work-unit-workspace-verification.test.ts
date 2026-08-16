@@ -323,6 +323,38 @@ describe("ce-work unit workspace controller: verification locks, waves, and chec
     })
   })
 
+  test("failed unit verification whose restore is refused still discloses ignored state", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-failed-verification-restore-refused"
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "local-cache/\n")
+    mkdirSync(path.join(f.repo, "local-cache"))
+    writeFileSync(path.join(f.repo, "local-cache", "entry.txt"), "cached\n")
+    init(runs, runId, f)
+    ctl(runs, "prepare", "--run-id", runId, "--unit-id", "U", "--base", f.base, "--packet", packetFile("packet"))
+    const workspace = path.join(runs, runId, "units", "U", "workspace")
+    writeFileSync(path.join(workspace, "integrated.txt"), "integrated\n")
+    const job = fakeDoneJob(runs, runId, "U", "packet")
+    ctl(runs, "record-job", "--run-id", runId, "--unit-id", "U", "--attempt-id", "attempt-1", "--job-id", job)
+    expect(ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U").word).toBe("INTEGRATION_PENDING")
+
+    const failed = ctl(
+      runs, "integrate", "--run-id", runId, "--unit-id", "U",
+      "--commit-message", "feat(test): verification must not move HEAD",
+      "--", "bash", "-c",
+      "echo mutated > local-cache/entry.txt && git commit -q --allow-empty -m 'verification moved HEAD'",
+    )
+    expect(failed.word).toBe("BLOCKED")
+    expect(failed.body.retain_integration_lock).toBe(true)
+    expect(failed.body.ignored_state).toMatchObject({ changed: 1, created: 0, removed: 0, restored: false, sample: { changed: ["local-cache/entry.txt"] } })
+    expect(readFileSync(path.join(f.repo, "local-cache", "entry.txt"), "utf8")).toBe("mutated\n")
+    expect(ctl(runs, "status", "--run-id", runId).body.blockers.at(-1)).toMatchObject({
+      unit_id: "U",
+      retain_integration_lock: true,
+      ignored_state: { changed: 1 },
+    })
+  })
+
   test("resume releases an integration lock acquired before preflight intent", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
