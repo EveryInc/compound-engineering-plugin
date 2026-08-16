@@ -649,6 +649,7 @@ class FeatureTest(unittest.TestCase):
     )
     expect(failed.word).toBe("BLOCKED")
     expect(failed.body.retain_integration_lock).toBe(true)
+    expect(failed.body.ignored_state).toMatchObject({ changed: 0, created: 0, removed: 0, restored: false })
     const blocked = control(runs, "status", "--run-id", "run-verify-lock").body
     const retainedNonce = blocked.integration_lock.nonce
     expect(blocked.blockers.at(-1)).toMatchObject({

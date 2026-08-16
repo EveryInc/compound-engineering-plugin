@@ -98,6 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--lock-token", required=True)
     p.add_argument("--evidence-digest", required=True)
     p.add_argument("--summary", default="authoritative verification passed")
+    p.add_argument("--ignored-state", default=None)
 
     p = sub.add_parser("mark-committed")
     p.add_argument("--run-id", required=True)

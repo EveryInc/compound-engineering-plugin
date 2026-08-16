@@ -445,6 +445,11 @@ def cmd_mark_verified(args) -> tuple[str, dict]:
                 },
             )
         evidence = {"at": now_iso(), "digest": args.evidence_digest, "summary": args.summary}
+        ignored_state = getattr(args, "ignored_state", None)
+        if isinstance(ignored_state, str):
+            ignored_state = parse_json_arg(ignored_state, "ignored-state")
+        if ignored_state is not None:
+            evidence["ignored_state"] = ignored_state
         unit["integration"]["verification"] = evidence
         unit["state"] = "verified"
         event(doc, "canonical-verification-passed", args.unit_id, {"digest": args.evidence_digest})
