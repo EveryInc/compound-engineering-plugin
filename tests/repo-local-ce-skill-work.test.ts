@@ -44,7 +44,7 @@ describe("repo-local ce-skill-work skill", () => {
     expect(skill).toMatch(/Changing an existing skill \| `references\/edit-skill\.md`/)
     expect(skill).toMatch(/Reviewing a skill change \| `references\/review-skill\.md`/)
     expect(skill).toMatch(/Acting on review feedback for a skill \| `references\/respond-to-review\.md`/)
-    expect(skill).toMatch(/\*\*Review mode:\*\*[^\n]*no changed-block entries/)
+    expect(skill).toMatch(/\*\*Review mode:\*\*[^\n]*never has changed-block entries/)
   })
 
   test("AGENTS.md routes all four activities to the skill and keeps the reviewer rules bots read", () => {
