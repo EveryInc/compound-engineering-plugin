@@ -5,7 +5,7 @@ Skills predate the current standard and evolve toward it. The standard is the gu
 ## Before editing
 
 1. **Read the block's goal, not just the lines you were pointed at.** What result does this block produce, for whom, and what is its done condition? If the block cannot answer that, the edit starts by restating the block; if it can, your change must keep that answer true.
-2. **Search provenance for what you intend to remove or rewrite** — a test that asserts it (`rg` under `tests/`), a `docs/solutions/` learning that records it, a commit that added it to fix a named bug (`git log -S`). Then apply SKILL.md's sediment rule: provenance sets how hard to look and what the line protects; retention is decided by whether that consumer still exists and by admission. A duplication mandate that is itself the recorded fix for a bug that regressed twice is a scar, not ceremony — keep it and cite the bug. Say which of your removals rest on absence of evidence.
+2. **Search provenance for what you intend to remove or rewrite** — a test that asserts it (`rg` under `tests/`), a `docs/solutions/` learning that records it, a commit that added it to fix a named bug (`git log -S`). Then apply SKILL.md's sediment rule as written — this step does not restate it. A duplication mandate that is itself the recorded fix for a bug that regressed twice is a scar, not ceremony — keep it and cite the bug. Say which of your removals rest on absence of evidence.
 3. **Audit the block with these questions** before deciding the smallest change. Ordered by expected behavior change per finding:
 
 | Class | Diagnostic question |
