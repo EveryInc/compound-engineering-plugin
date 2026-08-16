@@ -192,11 +192,13 @@ Mixed blocks must be decomposed before classification. Preserve the invariant sk
 
 ## Match degrees of freedom to fragility
 
-Use high freedom when many approaches are valid and context should decide: state the outcome, hard constraints, and failure direction. Use medium freedom when one pattern is preferred: give one parameterized command, script, or example. Use low freedom when one known-good invocation exists and agents fail if they invent it: interacting flags, brittle order, a format selector that actually works, clip/archive/auth recipes, or anything live `--help` will not reconstruct. Pin that command once.
+Use high freedom when many approaches are valid and context should decide: state the outcome, hard constraints, and failure direction. Use medium freedom when one pattern is preferred: give one parameterized command, script, or example. Use low freedom when one known-good invocation exists and agents fail if they invent it: interacting flags, brittle order, a format selector that actually works, clip/archive/auth recipes, or anything live `--help` will not reconstruct. Pin that command once as the default, not a suggestion.
 
 For CLI-wrapper skills, the default is one canonical invocation plus named deltas. If two recipes share the same command skeleton, they are one recipe with a parameter, not two blocks. A catalog of commands is protocol only when each command protects a distinct invariant or supplies a non-derivable fact.
 
 This is not a ban on deterministic commands or bundled scripts. A bundled script is right when the glue is deterministic and annoying — quoting, combining inspection output, or a checked flag set — and agents would rebuild it wrong. The test is: if a capable model with live `--help` still ships the wrong command, the skill must give the command; if a one-line condition would steer it correctly, the extra block is noise.
+
+A pinned command still needs an ordered hatch. Write: run the pinned command; if it exits non-zero, returns the wrong shape, hits a bot/auth/version signal, or another named mismatch, then inspect, run live `--help`, or use the named fallback. Do not offer the hatch as a peer option to the default.
 
 ## Preserve literal scope locally
 
@@ -446,7 +448,8 @@ the approach. Add only the protocol needed to protect that outcome.
    the semantic floor and define degradation.
 8. State each instruction once. For CLI wrappers, one canonical invocation plus
    named deltas beats repeated command blocks with the same skeleton. Pin a
-   known-good fragile command once when live `--help` is not enough.
+   known-good fragile command once when live `--help` is not enough; make it
+   the default with an ordered failure hatch, not a peer option.
 9. For cross-model skills, control output length by naming what a short report
    must preserve; do not ship blanket "be concise" / "keep it short" slogans.
 10. Resolve vendor conflicts Sol-first for this org's multi-model skills:
