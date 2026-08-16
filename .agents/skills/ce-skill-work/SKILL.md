@@ -17,7 +17,7 @@ Skills in this repository are goals, not state machines. A skill hands the agent
 
 `docs/solutions/skill-design/portable-agent-skill-authoring.md` is the authority. Read the sections the mode below names; do not restate the guide in the skill you are editing. The always-loaded rules in the project's active instructions supplement it and win where more specific.
 
-Five things every block must hand the reading agent, in this order: the result and next consumer, the done condition, the safe failure direction, the non-derivable facts, and only then any protocol the outcome cannot protect on its own. If a block does not need one, it omits it. What it must not have instead is a list of cases standing in for a condition it could state, or a mechanism prescribed for work this skill delegates — that is the finding. A procedure for a mechanic this skill owns, or a menu whose omitted item would silently drop required coverage, is protocol and stays.
+Each block starts from the same possible elements, in this order: the result and next consumer, any local done check the skill-level bar cannot protect, the safe failure direction, the non-derivable facts, and only then any protocol the outcome cannot protect on its own. If a block does not need one, it omits it. What it must not have instead is a list of cases standing in for a condition it could state, or a mechanism prescribed for work this skill delegates — that is the finding. A procedure for a mechanic this skill owns, or a menu whose omitted item would silently drop required coverage, is protocol and stays.
 
 ## Rules that hold in every mode
 
@@ -27,8 +27,10 @@ Five things every block must hand the reading agent, in this order: the result a
 - **For every mandate you remove, name what now decides.** If the answer is "the model, at its discretion, whether a required step happens", that mandate is a required gate and it stays. Removing a "must" does not remove the decision.
 - **A line earns its place** by stating a falsifiable constraint, countering a demonstrated default tendency, or supplying a fact the agent cannot derive. Rationale after a directive that stands alone, effort language, and capability restatement do not.
 - **User-facing invocations render per harness** — the rule and its placement are in the project's active instructions ("User-Facing Skill Invocations"); apply it wherever a skill prints or copies an invocation.
-- **The description is a trigger, not a summary.** It says when to use the skill — situations, symptoms, adjacent negatives — never what the skill does; a description that summarizes the workflow gets followed instead of the body.
-- **Every step states how the agent tells done from not-done.** A step without a checkable completion invites stopping early; sharpen the criterion before hiding later steps.
+- **The description is discovery metadata, not a workflow dump.** It says what user-visible job the skill does and when to use it — situations, symptoms, adjacent negatives — in third person; the body owns the procedure.
+- **One done bar first.** Every skill needs a skill-level done condition. Add a local done check only where skipping it can produce an unsafe action, fragile transition, scope expansion, mutation, auth mistake, or silent handoff failure.
+- **Lean prompts for current strong models.** State each instruction once. If a brief instruction decides a family of behaviors, use it instead of enumerating the behaviors. If two recipes share the same command skeleton, write one recipe with parameters or deltas; if the skeleton is the same, repeated full commands are a defect.
+- **Match freedom to fragility.** High freedom for many valid approaches; medium freedom for a preferred pattern or parameterized command; low freedom only for fragile sequences whose exact order or flags are load-bearing.
 - **Validate to the risk.** Mechanical contracts (frontmatter, paths, greppable invariants) go in `bun test`. Behavior-bearing prose changes get a targeted eval per `references/evaluate.md`, on Claude and Codex, or an explicit skip reason in the report. Never ship an untested behavior change as "reference".
 
 ## Modes
