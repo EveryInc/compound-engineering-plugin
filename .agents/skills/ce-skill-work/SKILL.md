@@ -37,7 +37,7 @@ Pick the mode from what you were asked to do; a request can chain them (a review
 
 | You are | Read | Done when |
 |---|---|---|
-| Creating a new skill | `references/new-skill.md` | The outcome spine exists before any workflow, activation cases are written, repo inventory is updated, and the eval ran |
+| Creating a new skill | `references/new-skill.md` | The outcome spine exists before any workflow, activation cases are written, repo inventory is updated, and the eval ran or its exact skip reason is recorded |
 | Changing an existing skill | `references/edit-skill.md` | The touched block meets the standard, nothing your change contradicts remains, and validation ran |
 | Reviewing a skill change | `references/review-skill.md` | Every finding is Change / Verify / Consider with the evidence its class requires, and each Change names a condition or an owning-layer move |
 | Acting on review feedback for a skill | `references/respond-to-review.md` | Each item has a verdict, each Change closed a gap at its owning layer, and no block was patched twice |

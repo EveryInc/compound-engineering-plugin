@@ -29,4 +29,4 @@ Read `references/evaluate.md`. A new skill needs at minimum: activation fixtures
 
 ## Done when
 
-The outcome spine reads correctly before any workflow; every route completes or blocks; the description triggers on the intended situations and not on the adjacent ones; inventory is updated; the eval ran and its findings are applied or recorded.
+The outcome spine reads correctly before any workflow; every route completes or blocks; the description triggers on the intended situations and not on the adjacent ones; inventory is updated; the eval ran and its findings are applied or recorded, or its exact capability skip reason is recorded per `references/evaluate.md`.
