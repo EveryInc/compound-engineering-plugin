@@ -30,9 +30,18 @@ describe("repo-local skill-work skill", () => {
     expect(realpathSync(CODEX_SKILL)).toBe(realpathSync(CLAUDE_SKILL))
   })
 
-  test("AGENTS.md routes skill work to the skill and keeps the reviewer rules bots read", () => {
+  test("SKILL.md maps each of the four modes to its reference and shapes the report per mode", () => {
+    const skill = readFileSync(path.join(CLAUDE_SKILL, "SKILL.md"), "utf8")
+    expect(skill).toMatch(/Creating a new skill \| `references\/new-skill\.md`/)
+    expect(skill).toMatch(/Changing an existing skill \| `references\/edit-skill\.md`/)
+    expect(skill).toMatch(/Reviewing a skill change \| `references\/review-skill\.md`/)
+    expect(skill).toMatch(/Acting on review feedback for a skill \| `references\/respond-to-review\.md`/)
+    expect(skill).toMatch(/\*\*Review mode:\*\*[^\n]*no changed-block entries/)
+  })
+
+  test("AGENTS.md routes all four activities to the skill and keeps the reviewer rules bots read", () => {
     const agents = readFileSync(path.join(ROOT, "AGENTS.md"), "utf8")
-    expect(agents).toMatch(/invoke the repo-local `skill-work` skill/)
+    expect(agents).toMatch(/Before creating, editing, reviewing, or acting on review feedback for anything under `skills\/\*\*`, invoke the repo-local `skill-work` skill/)
     expect(agents).toContain(".claude/skills/skill-work/")
     expect(agents).toContain(".agents/skills/skill-work")
     expect(agents).toMatch(/### Reviewing a skill change \(bots and humans\)/)

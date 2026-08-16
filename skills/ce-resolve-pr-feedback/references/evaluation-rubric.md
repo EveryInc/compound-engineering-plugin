@@ -13,7 +13,7 @@ Most review feedback -- across P0-P2, nitpicks included -- is correct and worth 
 
 The checks below are tripwires, not a gate to deliberate on per item. When nothing trips, mark it to fix and move on -- don't manufacture doubt or risk to avoid work. "I'm uneasy" is not a tripwire; "I read the callers and this breaks X" is.
 
-**What counts as a valid fix is the project's call, not only what counts as harm.** If the project's active instructions and conventions already in your context carry review or authoring guidance (what a finding is, how feedback on a class of file is applied), apply it here as the frame for the verdict -- not just as a veto in the "would make the code worse" divert below. Where it says a class of finding is answered rather than fixed, that is the verdict.
+**What counts as a valid fix is the project's call, not only what counts as harm.** If the project's active instructions and conventions already in your context carry review or authoring guidance (what a finding is, how feedback on a class of file is applied), apply it here as the frame for the verdict -- not just as a veto in the "would make the code worse" divert below. When those instructions route feedback on a class of file to a project-local skill or procedure, invoke or read it before judging items on that class. Where it says a class of finding is answered rather than fixed, that is the verdict.
 
 ## Instruction prose is not code (skills, agent prompts, rule files)
 
