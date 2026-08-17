@@ -82,7 +82,7 @@ When every section is captured, read `references/strategy-template.md`, fill it 
 
 ### Phase 2: Update Run
 
-Read the existing `STRATEGY.md` thoroughly. Summarize current state in 3-5 lines so the user sees what is on file. A file written by an earlier version uses older headings (`Target problem`, `Our approach`, `Who it's for`, `Not working on`, `Marketing`); treat each as its current section, and when this skill writes that section, rename its heading to the current one in place - a heading rename, content untouched, mentioned in chat. A section this skill does not write keeps its heading, which is what keeps principle 6's protected and unowned content untouched. A file in any other shape is read by meaning and updated in its own shape (principle 6).
+Read the existing `STRATEGY.md` thoroughly. Summarize current state in 3-5 lines so the user sees what is on file. A house-format file written by an earlier version uses older headings (`Target problem`, `Our approach`, `Who it's for`, `Not working on`, `Marketing`); treat each as its current section, and on any write of that file migrate all of them to the current headings at once - headings only, content untouched, mentioned in chat - so the file ends the run in one shape. A section carrying an author-approved marker keeps its heading along with its content. A file in any other shape is read by meaning and updated in its own shape (principle 6).
 
 Check for drift: compare every section of the doc against the repo model - stated intent, structure, and recent history (commits or PRs, plans and learnings under `docs/`) - not only against what changed since the last write, since a targeted update advances `last_updated` without reviewing the rest. Name any section the evidence suggests is stale, with the evidence, as a candidate - not a verdict.
 
@@ -95,7 +95,7 @@ If no specific target, ask the user which section to revisit using the blocking 
 - "Users"
 - "Metrics, tracks, boundaries, or other"
 
-For each revisited section, re-interview with full pushback. For sections the user confirms are still accurate, leave them untouched. If the file is in this skill's house format but predates a section the template now requires (Boundaries, in files written before it existed), offer to add it - do not add it silently, and do not add it to a file in another shape. When the file has YAML frontmatter, set `last_updated` to today's ISO date; when it has none, leave it that way - readers fall back to the file's own date.
+For each revisited section, re-interview with full pushback. For sections the user confirms are still accurate, leave them untouched. If the file is in this skill's house format and no section carries a meaning the template now requires (Boundaries - a migrated `Not working on` already carries it), offer to add it - do not add it silently, and do not add it to a file in another shape. When the file has YAML frontmatter, set `last_updated` to today's ISO date; when it has none, leave it that way - readers fall back to the file's own date.
 
 Write the updated doc back to `STRATEGY.md`.
 
