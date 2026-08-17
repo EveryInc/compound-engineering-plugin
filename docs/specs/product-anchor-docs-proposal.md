@@ -1,10 +1,10 @@
-# Proposal: one shared project doc for `vision`, `ce-strategy`, and `impeccable`
+# Proposal: one shared `VISION.md` for `vision`, `ce-strategy`, and `impeccable`
 
 *Converge on a single repo-root document that all three skills read and write: a small set of universal sections every project has, conditional sections that appear only when they apply, and simple conduct rules so writers never collide.*
 
 Status: draft for discussion, revision 2 · From: the compound-engineering maintainers · To: the maintainers of `vision` and `impeccable`
 
-Revision 2 changes from the first draft: `PRODUCT.md` is dropped as the filename and two candidates are laid out (`VISION.md`, `STRATEGY.md`); the doc is written for any project (framework, library, system, product), not only products; sections are split into universal and conditional; and linking between separate files is kept as the fallback.
+Revision 2 changes from the first draft: the filename is `VISION.md` (with `STRATEGY.md` considered and passed over); the doc is written for any project (framework, library, system, product), not only products; sections are split into universal and conditional; and linking between separate files is kept as the fallback.
 
 ## Why
 
@@ -22,12 +22,11 @@ The strong version of interop is one file every agent opens — north star, dire
 
 ## The document
 
-**Filename** — one file at the repo root. `PRODUCT.md` is out: it is awkward for React, and equally awkward for a design system, a docs site, or an internal tool — the non-product repos impeccable also works in. Two candidates remain, and the design below works under either; this is open question 1:
+**Filename: `VISION.md`** at the repo root. The deciding reason is adoption: large repos such as openclaw already ship a `VISION.md`, so agents and humans have learned to look for that name, and a convention is worth exactly as much as the number of people who already follow it. It is also semantically universal — a north star for a framework, a library, or a system as much as for a product, distinct from status quo and from how the team operates — and it is the `vision` author's filename, so the skill being asked to accept the most (other skills contributing to its doc) keeps its name.
 
-- **`VISION.md`.** Precedent in the wild (openclaw and other large repos ship one, so agents and humans have seen it) and a clear semantic: the north star, distinct from status quo and from how the team operates. It is also the `vision` author's filename, and `vision` is the skill being asked to accept the most (other skills contributing to its doc), so keeping its name is the cheap concession. Cost: direction and design sections (metrics, tracks, platform) are guests below the north star, which stretches "vision".
-- **`STRATEGY.md`.** Semantically the superset: a strategy — Rumelt's diagnosis, guiding policy, coherent action — *contains* the vision (purpose, positioning, principles) and naturally extends to tracks, metrics, and constraints, so nothing in the doc is a guest. Equally universal (a library or framework has a strategy). Cost: less precedent as a repo-root file, and `vision` renames rather than us.
+Two alternatives were considered and passed over. `PRODUCT.md` is awkward for React, and equally awkward for a design system, a docs site, or an internal tool — the non-product repos impeccable also works in. `STRATEGY.md` is arguably the better superset (a strategy — Rumelt's diagnosis, guiding policy, coherent action — contains the vision and extends naturally to tracks and metrics, so nothing in the doc would be a guest), but it has no comparable precedent as a repo-root file, and precedent is what makes a shared name useful.
 
-Either way the north-star sections come first, so a human can stop after the first screen and still have read the vision; direction and design sections follow, clearly headed and present only when they apply. The rest of this document says `VISION.md` where a name is needed; read it as "the shared file".
+The north-star sections come first, so a human can stop after the first screen and still have read the vision; direction and design sections follow, clearly headed and present only when they apply — that ordering is what keeps a `VISION.md` that also carries metrics and platform honest to its name.
 
 **Frontmatter** (small, machine-readable):
 
@@ -85,13 +84,13 @@ Four rules, each a paragraph in a skill's prose. They are what make N writers co
 
 ## What each of us gives up, and gets
 
-- **vision** keeps its anatomy and its process (and its filename, if `VISION.md` is chosen); it accepts direction and design sections living below its north star when they apply, and other skills contributing to the universal sections under the conduct rules. It gains its vision being the file every other agent in the repo actually reads, and stated intent (strategy, design truth) as first-class evidence.
+- **vision** keeps its filename, its anatomy, and its process; it accepts direction and design sections living below its north star when they apply, and other skills contributing to the universal sections under the conduct rules. It gains its vision being the file every other agent in the repo actually reads, and stated intent (strategy, design truth) as first-class evidence.
 - **impeccable** adds `VISION.md` to discovery and moves its universal sections (Users, Purpose, Positioning, Principles) into the shared ones; its design-truth sections are unchanged and appear only where an interface is in scope. It gains vision and strategy context for design without asking the user twice.
-- **compound-engineering** renames `STRATEGY.md` (unless it is chosen), folds Purpose / Positioning / Users / Boundaries into the shared sections, and gives up "one short doc that reads in five minutes"; it gains a strategy that sits under the principles its planning skills need anyway. We are already reading `VISION.md` and `PRODUCT.md` as stated intent and have moved our headings toward the shared candidates.
+- **compound-engineering** renames `STRATEGY.md`, folds Purpose / Positioning / Users / Boundaries into the shared sections, and gives up "one short doc that reads in five minutes"; it gains a strategy that sits under the principles its planning skills need anyway. We are already reading `VISION.md` and `PRODUCT.md` as stated intent and have moved our headings toward the shared candidates.
 
 ## Open questions for you
 
-1. Filename: `VISION.md` (precedent, north-star semantics, vision keeps its name) or `STRATEGY.md` (the semantic superset — vision plus direction — so no section is a guest)? Either way, any objection to direction and design sections living below the north star when they apply?
+1. `VISION.md` as the shared filename — agreed? Any objection to direction and design sections living below the north star when they apply?
 2. Are the five universal sections right, and the heading strings? Argue for your own framing where it is stronger — the table already credits several of yours.
 3. Is inline protection (a per-section HTML comment your skill writes) enough to keep author-ratified content safe from foreign edits?
 4. For impeccable: are there interface-bearing repos where even Users or Positioning don't apply, or where a design section should be considered universal?
