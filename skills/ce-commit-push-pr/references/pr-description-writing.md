@@ -82,11 +82,13 @@ Decision cost raises the content floor, not the length ceiling (high-uncertainty
 |---|---|
 | Small + simple (typo, config, dep bump) | 1-2 sentences, no headers. Under ~300 characters. |
 | Small + non-trivial (bug fix, behavioral change) | 3-5 sentences. No headers unless two distinct concerns. User-visible before/after when the bug was observable. |
-| Medium feature or refactor | Narrative frame, then what changed and why. Call out design decisions. |
-| Large or architecturally significant | Narrative frame + 3-5 design-decision callouts + brief test summary. Target ~100 lines, cap ~150. Many mechanisms → Summary table, not an H3 per mechanism. |
+| Medium feature or refactor | Opening (one or two sentences), then sections that each answer one reviewer question — see the shape below. Call out design decisions. |
+| Large or architecturally significant | Same shape, plus 3-5 design-decision callouts, a where-to-look guide, and a brief test summary. Target ~100 lines, cap ~150. Many mechanisms → Summary table, not an H3 per mechanism. |
 | Performance improvement | Before/after measurements as a markdown table. |
 
 A project PR-body contract sets the structural floor; this table sizes the content within it, never against it. Small + simple: the value-led sentence is the whole description.
+
+**Shape for medium and large (scannable, stop-anytime).** A reviewer should be able to stop after the opening and know what the PR does, stop after the next block and know how behavior differs, and read on only for the reasoning. So: the opening is one or two sentences carrying one idea — what is now different and the gap or failure it replaces; when observable behavior changed, a short **before / after** table follows it (one row per behavior shift, not per file); each further section answers exactly one reviewer question (what changed, why these decisions, where to look, what was left out, how it was validated) and a bullet inside it is one clause — reasoning belongs under design decisions, not in the bullet; a **where to look** guide (files with the one thing to check in each) belongs whenever the diff spans several files or the substantive change is a few lines inside a large diff; deliberately deferred scope is stated once under its own heading ("Not in this PR"), never woven into the opening. Program or series context (below) gets its own short block after the opening rather than sharing the opening's sentence.
 
 ---
 
@@ -154,7 +156,7 @@ Preserve an existing `## New concepts` section and explainer-doc link verbatim o
 
 When a project PR-body contract supplies headings or order, preserve that structure and place the applicable elements below within the sections it permits. Otherwise: opening → body sections that earn their keep → related references when they need their own block → test plan if non-obvious → session-settled provenance when a labeled plan is in hand → New concepts section when Step B2 produced one → evidence block if one exists → branding when Step D calls for it.
 
-When the project PR-body contract supplies a heading or location for the opening, place it there without inventing or renaming a heading. Otherwise, the opening goes under `## Summary` if the body uses any `##` headings; bare paragraph otherwise. No orphaned opening above the first heading. When program context is present, the opening carries program altitude before mechanism detail.
+When the project PR-body contract supplies a heading or location for the opening, place it there without inventing or renaming a heading. Otherwise, the opening goes under `## Summary` if the body uses any `##` headings; bare paragraph otherwise. No orphaned opening above the first heading. The opening carries one idea — this PR's outcome. When program context is present, program altitude comes immediately after it as its own line or short block (program → lead-in → this contribution → lead-out), before mechanism detail; do not fold the program into the outcome sentence.
 
 **Session-settled provenance:** when a plan is already in hand (caller path or conversation) with `session-settled:`-labeled KTDs, one static sentence naming settled decisions and classes (e.g. "Session-settled decisions carried from planning: X (user-directed, over Y); Z (user-approved)."). Add proceed-under-conflict clauses only when the caller flagged them. Never an outstanding-items ledger; never hunt for plans when none is in hand.
 
@@ -185,6 +187,8 @@ For an **existing PR body**, preserve an existing branding block verbatim (inclu
 Before returning the title and body, check against the scope map and material claims from Step A and revise if wrong:
 
 - Does the title express the umbrella outcome rather than one cluster or mechanism?
+- Does the opening carry one idea in one or two sentences, and could a reviewer stop there and know what the PR does? If it also carries program context, deferrals, or mechanism, move those to their own block.
+- For medium and large: does each section answer one reviewer question, are bullets one clause each with reasoning under design decisions, is there a before / after table when observable behavior changed, a where-to-look guide when the diff spans several files, and one place for deferred scope?
 - Is every material outcome represented by the umbrella framing or body, or intentionally omitted because it is supporting-only?
 - Is every claim the diff can't establish present — and any claim the diff *does* show restated needlessly?
 - When program context was present: does the lead place this PR on the arc (program + this contribution, with lead-in and/or lead-out when known)? When program context was absent: does the body invent a multi-PR series? If so, cut it.
