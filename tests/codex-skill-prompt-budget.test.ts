@@ -72,14 +72,40 @@ function crlfByteSize(contents: string): number {
   return Buffer.byteLength(lf, "utf8") + (lf.match(/\n/g)?.length ?? 0)
 }
 
-/** Why a SKILL.md's frontmatter would be rejected by a strict Agent Skills client, or null. */
+/**
+ * Why a SKILL.md's frontmatter would be rejected by a strict Agent Skills client, or null.
+ * Mirrors omp's `validateAgentSkillFrontmatter` (itself a port of skills-ref).
+ */
 function frontmatterNonconformance(contents: string): string | null {
   const { data } = parseFrontmatter(contents)
   const keys = Object.keys(data)
   if (keys.length === 0) return "missing frontmatter"
   const unknown = keys.filter((key) => !AGENT_SKILLS_FRONTMATTER_KEYS.has(key))
   if (unknown.length > 0) return `unknown key(s): ${unknown.join(", ")}`
-  if ("allowed-tools" in data && typeof data["allowed-tools"] !== "string") {
+  const { name, description, license, compatibility, metadata } = data
+  const allowedTools = data["allowed-tools"]
+  if (typeof name !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name) || name.length > 64) {
+    return "name is not a lowercase hyphenated string of at most 64 chars"
+  }
+  if (typeof description !== "string" || description.trim() === "" || description.length > 1024) {
+    return "description is not a non-empty string of at most 1024 chars"
+  }
+  if (license !== undefined && typeof license !== "string") return "license is not a string"
+  if (
+    compatibility !== undefined &&
+    (typeof compatibility !== "string" || compatibility.length > 500)
+  ) {
+    return "compatibility is not a string of at most 500 chars"
+  }
+  if (metadata !== undefined) {
+    if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) {
+      return "metadata is not a map"
+    }
+    if (Object.values(metadata).some((v) => typeof v !== "string")) {
+      return "metadata values are not all strings"
+    }
+  }
+  if (allowedTools !== undefined && typeof allowedTools !== "string") {
     return "allowed-tools is not a string"
   }
   return null
@@ -140,8 +166,23 @@ describe("Codex skill prompt budget (#1412)", () => {
     }
   })
 
-  test("frontmatter predicate rejects any non-string allowed-tools spelling", () => {
+  test("frontmatter predicate type-checks every permitted field", () => {
     const fm = (yaml: string) => `---\nname: x\ndescription: y\n${yaml}\n---\nbody\n`
+    expect(frontmatterNonconformance(fm("metadata: text"))).toBe("metadata is not a map")
+    expect(frontmatterNonconformance(fm("metadata:\n  k: 1"))).toBe(
+      "metadata values are not all strings",
+    )
+    expect(frontmatterNonconformance(fm("license: false"))).toBe("license is not a string")
+    expect(frontmatterNonconformance(fm("compatibility: [a]"))).toBe(
+      "compatibility is not a string of at most 500 chars",
+    )
+    expect(frontmatterNonconformance(fm("license: MIT\ncompatibility: any\nmetadata:\n  k: v"))).toBeNull()
+    expect(frontmatterNonconformance("---\nname: Bad_Name\ndescription: y\n---\n")).toBe(
+      "name is not a lowercase hyphenated string of at most 64 chars",
+    )
+    expect(frontmatterNonconformance("---\nname: x\ndescription: ''\n---\n")).toBe(
+      "description is not a non-empty string of at most 1024 chars",
+    )
     expect(frontmatterNonconformance(fm("allowed-tools: [Read, Write]"))).toBe(
       "allowed-tools is not a string",
     )
