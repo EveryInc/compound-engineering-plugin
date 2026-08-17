@@ -18,7 +18,7 @@ Cover, proportionally to risk: the path the change touches on the weakest realis
 
 For new CLI-wrapper skills, include a restraint fixture where the tempting output is five or more near-duplicate command blocks sharing the same flags. Passing behavior is one canonical invocation with parameters or named deltas, plus late references only for demonstrated gaps or non-derivable facts.
 
-For new model-invoked skills, include a description-restraint fixture. The tempting output is either a site/synonym/capability catalog for one branch or an identity-boilerplate opener such as "This skill should be used when...". Passing behavior is a context pointer: what the skill is with the leading prompt word first, one trigger per genuinely distinct branch in "Use when..." or "Use for..." form, and adjacent negatives only when they block real false-trigger neighbors.
+For new model-invoked skills, include a description-restraint fixture using the single contrast pair in `references/new-skill.md` as the fixture source. Passing behavior is a context pointer: what the skill is with the leading prompt word first, one trigger per genuinely distinct branch in "Use when..." or "Use for..." form, and adjacent negatives only when they block real false-trigger neighbors.
 
 For cross-model output guidance, include a restraint check that the authored skill does not copy a Fable-only brevity block or use a blanket "be concise" / "keep it short" slogan. Passing behavior names the report fields that must survive shortening; for CLI wrappers: command, exit status, output path/size, and stderr or blocker.
 

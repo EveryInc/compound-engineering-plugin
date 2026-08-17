@@ -57,6 +57,12 @@ describe("repo-local ce-skill-work skill", () => {
       "utf8",
     )
     const agents = readFileSync(path.join(ROOT, "AGENTS.md"), "utf8")
+    const ownDescription = skill.match(/^description: "(.+)"$/m)?.[1] ?? ""
+    const catalogFailure = [
+      "\"This skill should be used when a user wants media from a yt-dlp-supported URL ",
+      "such as YouTube, Twitter/X, TikTok, and similar sites downloaded, audio extracted, ",
+      "playlists archived, or 403/bot-check failures fixed.\"",
+    ].join("")
 
     for (const content of [skill, newSkill, reviewSkill, evaluate, guide]) {
       expect(content).toContain("context pointer")
@@ -66,10 +72,16 @@ describe("repo-local ce-skill-work skill", () => {
 
     expect(newSkill).toContain("Use this skill's own frontmatter as the shape")
     expect(newSkill).not.toContain("Lead with the job in one clause")
+    expect(newSkill.match(/^Contrast pair \(the only description example\):$/gm) ?? []).toHaveLength(1)
+    expect(newSkill).toContain(`- Good: "${ownDescription}"`)
+    expect(newSkill).toContain(`- Bad (failure): ${catalogFailure}`)
+    expect(newSkill).toContain(
+      "Why it fails: identity boilerplate + one branch written as a site/capability catalog.",
+    )
     expect(reviewSkill).toMatch(/identity-boilerplate opener[\s\S]*catalog[\s\S]*is a Change/)
+    expect(reviewSkill).toContain("Use the single contrast pair in `references/new-skill.md`")
     expect(evaluate).toMatch(/description-restraint fixture/)
-    expect(evaluate).toMatch(/tempting output[\s\S]*site\/synonym\/capability catalog/)
-    expect(evaluate).toMatch(/This skill should be used when/)
+    expect(evaluate).toContain("single contrast pair in `references/new-skill.md`")
     expect(evaluate).toMatch(/Passing behavior is a context pointer/)
     expect(guide).toMatch(/Do not open with identity boilerplate/)
     expect(agents).toMatch(/model-invoked description that opens with identity boilerplate or catalogs one branch/)
