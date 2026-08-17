@@ -18,6 +18,8 @@ Cover, proportionally to risk: the path the change touches on the weakest realis
 
 For new CLI-wrapper skills, include a restraint fixture where the tempting output is five or more near-duplicate command blocks sharing the same flags. Passing behavior is one canonical invocation with parameters or named deltas, plus late references only for demonstrated gaps or non-derivable facts.
 
+For new model-invoked skills, include a description-restraint fixture. The tempting output is either a site/synonym/capability catalog for one branch or an identity-boilerplate opener such as "This skill should be used when...". Passing behavior is a context pointer: what the skill is with the leading prompt word first, one trigger per genuinely distinct branch in "Use when..." or "Use for..." form, and adjacent negatives only when they block real false-trigger neighbors.
+
 For cross-model output guidance, include a restraint check that the authored skill does not copy a Fable-only brevity block or use a blanket "be concise" / "keep it short" slogan. Passing behavior names the report fields that must survive shortening; for CLI wrappers: command, exit status, output path/size, and stderr or blocker.
 
 **Read the result honestly.** If old and new prose both succeed on a strong model, that is no regression, not improvement — test the claimed insurance at the layer where it matters (the weaker tier or the other harness). Measure the outcome the skill exists to improve, not proxy volume: routing, state, authority, and completion for an orchestrator; claim support for research; clarification burden and execution errors for planning. For a side-effecting skill, grade intended and suppressed actions first, then use fake boundaries or dry-run contracts before anything live.

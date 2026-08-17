@@ -47,6 +47,34 @@ describe("repo-local ce-skill-work skill", () => {
     expect(skill).toMatch(/\*\*Review mode:\*\*[^\n]*never has changed-block entries/)
   })
 
+  test("description guidance requires the pointer shape and rejects catalogs", () => {
+    const skill = readFileSync(path.join(AGENTS_SKILL, "SKILL.md"), "utf8")
+    const newSkill = readFileSync(path.join(AGENTS_SKILL, "references", "new-skill.md"), "utf8")
+    const reviewSkill = readFileSync(path.join(AGENTS_SKILL, "references", "review-skill.md"), "utf8")
+    const evaluate = readFileSync(path.join(AGENTS_SKILL, "references", "evaluate.md"), "utf8")
+    const guide = readFileSync(
+      path.join(ROOT, "docs", "solutions", "skill-design", "portable-agent-skill-authoring.md"),
+      "utf8",
+    )
+    const agents = readFileSync(path.join(ROOT, "AGENTS.md"), "utf8")
+
+    for (const content of [skill, newSkill, reviewSkill, evaluate, guide]) {
+      expect(content).toContain("context pointer")
+      expect(content).toMatch(/leading (prompt )?word/i)
+      expect(content).toMatch(/one (positive )?trigger per genuinely distinct branch/i)
+    }
+
+    expect(newSkill).toContain("Use this skill's own frontmatter as the shape")
+    expect(newSkill).not.toContain("Lead with the job in one clause")
+    expect(reviewSkill).toMatch(/identity-boilerplate opener[\s\S]*catalog[\s\S]*is a Change/)
+    expect(evaluate).toMatch(/description-restraint fixture/)
+    expect(evaluate).toMatch(/tempting output[\s\S]*site\/synonym\/capability catalog/)
+    expect(evaluate).toMatch(/This skill should be used when/)
+    expect(evaluate).toMatch(/Passing behavior is a context pointer/)
+    expect(guide).toMatch(/Do not open with identity boilerplate/)
+    expect(agents).toMatch(/model-invoked description that opens with identity boilerplate or catalogs one branch/)
+  })
+
   test("AGENTS.md routes all four activities to the skill and keeps the reviewer rules bots read", () => {
     const agents = readFileSync(path.join(ROOT, "AGENTS.md"), "utf8")
     expect(agents).toMatch(/Before creating, editing, reviewing, or acting on review feedback for anything under `skills\/\*\*`, invoke the repo-local `ce-skill-work` skill/)

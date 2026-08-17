@@ -22,7 +22,7 @@ Do not solve a non-problem with a rewrite. Prefer an additive guard or an explic
 
 ## Also check
 
-- Description says what user-visible job the skill does and when to use it, in third person; it is not a workflow summary, and adjacent negatives are present.
+- Description is a context pointer for a model-invoked skill: it states what the skill is with the leading prompt word first, names one trigger per genuinely distinct branch in "Use when..." or "Use for..." form, and keeps adjacent negatives only when they block real false-trigger neighbors. An identity-boilerplate opener, or a site/synonym/capability catalog for one branch, is a Change; workflow, flags, procedure, or body-owned detail in the description is also a Change.
 - Every route completes or blocks; no phantom handoffs.
 - One skill-level done bar decides ordinary completion; local done checks appear only around mutation, auth, scope expansion, irreversible external effects, fragile transitions, or silent handoff risk.
 - CLI-wrapper skills use one canonical invocation plus named deltas; five or more near-duplicate command blocks is a Change unless each block protects a distinct load-bearing gate.

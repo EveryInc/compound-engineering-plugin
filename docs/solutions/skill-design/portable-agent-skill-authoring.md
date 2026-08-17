@@ -150,15 +150,16 @@ If many invariants share one outcome, authority domain, mutable state, and defin
 
 ## Make activation portable
 
-The name and description are an activation contract. A correct body is useless if it never runs.
+The name and description are an activation contract. A correct body is useless if it never runs. For a model-invoked skill, the description is also a context pointer: it sits in the window every turn, so it is pruned harder than the body.
 
-- Describe the user-visible job and the situations that should route to the skill.
-- Name the closest adjacent requests that belong elsewhere.
+- State what the skill is, front-loading the leading word that should fire it in prompts.
+- List one trigger per genuinely distinct branch in "Use when..." or "Use for..." form.
+- Keep adjacent negatives only when they block a real false-trigger neighbor; pair each hard guardrail with the positive trigger it protects.
 - Preserve deliberate invocation as a fallback when automatic routing is unavailable.
 - Use capability language instead of relying on one harness's command syntax.
-- Do not stuff the workflow into frontmatter.
+- Do not open with identity boilerplate, catalog synonyms or examples of one branch, dump workflow, flags, or procedure, or spend description words on content the body already carries.
 
-Evaluate activation separately from execution with a few positive triggers, adjacent negatives, and explicit invocations. A routing failure is not an execution failure.
+Evaluate activation separately from execution with a few positive triggers, adjacent negatives, explicit invocations, and description-restraint fixtures for new model-invoked skills. A routing failure is not an execution failure.
 
 ### Render user invocations at the output boundary
 
