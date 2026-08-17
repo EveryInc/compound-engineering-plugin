@@ -1,6 +1,6 @@
 import { describe, expect, test, beforeEach, setDefaultTimeout } from "bun:test"
 import { spawn, spawnSync } from "node:child_process"
-import { existsSync, mkdtempSync, writeFileSync, readFileSync, renameSync } from "node:fs"
+import { chmodSync, existsSync, mkdtempSync, writeFileSync, readFileSync, renameSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 
@@ -1437,7 +1437,10 @@ print(json.dumps({"current": current, "same_head_mixed_case": same_head_mixed_ca
     expect(result.base.oid).toBe(baseOid)
     expect(result.calls).toHaveLength(2)
     expect(result.calls[1]).toEqual([
-      "git", "-c", "core.askPass=", "ls-remote", "--exit-code", "--refs",
+      "git", "-c", "core.askPass=",
+      "-c", "credential.helper=",
+      "-c", "credential.helper=!gh auth git-credential",
+      "ls-remote", "--exit-code", "--refs",
       "https://ghe.acme.test/o/r.git", "refs/heads/main",
     ])
 
@@ -1483,6 +1486,54 @@ print(json.dumps({"current": current, "same_head_mixed_case": same_head_mixed_ca
     })
     expect(forbidden.base.identity).toBe("probe-error")
     expect(forbidden.calls).toHaveLength(1)
+  })
+
+  test("private ref fallback clears configured helpers and delegates credentials to gh auth", () => {
+    const credentialDir = mkdtempSync(path.join(tmpdir(), "ce-babysit-pr-credential-"))
+    const fakeGh = path.join(credentialDir, "gh")
+    const poisonHelper = path.join(credentialDir, "poison-helper")
+    const poisonMarker = path.join(credentialDir, "poison-invoked")
+    writeFileSync(fakeGh, `#!/bin/sh
+if [ "$1 $2 $3" != "auth git-credential get" ]; then
+  exit 92
+fi
+printf 'username=oauth-user\\npassword=session-token\\n'
+`)
+    writeFileSync(poisonHelper, `#!/bin/sh
+: > "$PR_SNAPSHOT_POISON_MARKER"
+exit 91
+`)
+    chmodSync(fakeGh, 0o755)
+    chmodSync(poisonHelper, 0o755)
+    writeFileSync(path.join(credentialDir, ".gitconfig"), `[credential]
+\thelper = !${poisonHelper}
+`)
+
+    const result = spawnSync("git", [
+      "-c", "core.askPass=",
+      "-c", "credential.helper=",
+      "-c", "credential.helper=!gh auth git-credential",
+      "credential", "fill",
+    ], {
+      encoding: "utf8",
+      input: "protocol=https\nhost=ghe.acme.test\n\n",
+      env: {
+        ...process.env,
+        HOME: credentialDir,
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_TERMINAL_PROMPT: "0",
+        GCM_INTERACTIVE: "never",
+        GIT_ASKPASS: "",
+        SSH_ASKPASS: "",
+        PATH: `${credentialDir}:${process.env.PATH ?? ""}`,
+        PR_SNAPSHOT_POISON_MARKER: poisonMarker,
+      },
+    })
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stdout).toContain("username=oauth-user")
+    expect(result.stdout).toContain("password=session-token")
+    expect(existsSync(poisonMarker)).toBe(false)
   })
 
   test("Git ref probes are bounded and non-interactive", () => {

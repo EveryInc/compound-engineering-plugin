@@ -410,7 +410,10 @@ def fetch_base_ref(owner, name, ref, merge_identity, host=None):
                       f"{quote(owner, safe='')}/{quote(name, safe='')}.git")
         try:
             git_result = _run_git([
-                "git", "-c", "core.askPass=", "ls-remote", "--exit-code", "--refs",
+                "git", "-c", "core.askPass=",
+                "-c", "credential.helper=",
+                "-c", "credential.helper=!gh auth git-credential",
+                "ls-remote", "--exit-code", "--refs",
                 remote_url, exact_ref,
             ])
         except (subprocess.TimeoutExpired, OSError):
