@@ -43,7 +43,7 @@ Resolve the preference in this order:
 3. A preference already in your **project instructions** (the active instructions in your context) — consumed from context, **never** read from a named file.
 4. **Default:** first available attested-different target in `codex → claude → grok → composer`; Cursor-default participates only when explicitly preferred.
 
-Before egress, resolve the target to one concrete installed route, verify every recipient against `CROSS_MODEL_PEERS`, announce it, and pass it as `CROSS_MODEL_FIXED_ROUTE`. `CROSS_MODEL_FIXED_ROUTE` accepts exactly these tokens — the worker fail-closes on anything else (including route-shaped guesses like `codex-cli`):
+Before egress, resolve the target to one concrete installed route, announce it, and pass it as `CROSS_MODEL_FIXED_ROUTE`. `CROSS_MODEL_PEERS` is an optional egress restriction, not a required approval: when it is set, every recipient (target and intermediary) must be sanctioned by it under the alias rule below, and an unsanctioned recipient is a named skip; when it is unset or empty, no recipient is filtered and the pass proceeds — this skill invocation plus the pre-egress disclosure is the sanction. Do not inspect the worker source to rediscover this; it implements exactly this contract. `CROSS_MODEL_FIXED_ROUTE` accepts exactly these tokens — the worker fail-closes on anything else (including route-shaped guesses like `codex-cli`):
 
 | Target | Route token(s) |
 |--------|----------------|
@@ -54,8 +54,6 @@ Before egress, resolve the target to one concrete installed route, verify every 
 | `composer` | `composer` |
 
 A failed route returns no artifact and never changes provider or intermediary internally. A retry is a new disclosed and sanctioned dispatch. For backward compatibility, either `cursor` or `composer` in `CROSS_MODEL_PEERS` sanctions Cursor as an intermediary, but selecting Cursor-default requires target `cursor`; `grok` alone never sanctions Grok-via-Cursor.
-
-`CROSS_MODEL_PEERS` is an optional restriction: when unset, it leaves the resolved route unfiltered and this skill invocation plus the concrete pre-egress disclosure sanctions that route; when set, the selected target/intermediary must appear. Use this contract directly. Do not inspect the worker source to rediscover its allowlist behavior.
 
 **Checkout-configured model and effort.** After the target is resolved, read `cross_model_model:` and `cross_model_effort:` from the same two repo CE config files under the ordinary-key rule. When `cross_model_model` is set, pass `CROSS_MODEL_MODEL_OVERRIDE_TARGET=<resolved-target>` and `CROSS_MODEL_MODEL_OVERRIDE=<value>`; when `cross_model_effort` is set, pass `CROSS_MODEL_EFFORT_OVERRIDE=<value>`. Both ride the `env` prefix of the start invocation below. The worker validates each against the route it actually runs — a model must be the resolved target's own family (an alias such as `fable` or a full id such as `claude-opus-5` for `claude`), an effort must be a level that CLI documents, and cursor-agent routes accept no effort override — and an incompatible value fails the pass closed with a named skip reason rather than substituting. Unset keys leave the script's editorial mapping unchanged. Announce the configured model and effort in the Step 3 line exactly as requested. A model or effort the user states in conversation outranks the config keys.
 
