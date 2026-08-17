@@ -31,23 +31,19 @@ Per deferred finding, append a reader-facing list entry in the document's native
 The example below is markdown. In HTML, mirror the nearest sibling entry's element structure. If no sibling entry exists, use a semantic HTML list with one deferred finding per list item.
 
 ```
-- **{title}** — {section} ({severity}, {reviewer}, confidence {confidence})
+- **{plain-English impact title}**
 
-  {why_it_matters}
+  {user impact}
 ```
 
-Fields come from the finding's schema:
+Render these fields from the finding's schema:
 
-- `{title}` — the finding's title field
-- `{section}` — the finding's section field, unmodified (human-readable)
-- `{severity}` — P0 / P1 / P2 / P3
-- `{reviewer}` — the persona that produced the finding (after dedup, the persona with the highest confidence anchor; surface all co-flagging personas if multiple)
-- `{confidence}` — the integer anchor (`50`, `75`, or `100`), emitted without a decimal point or percent sign
-- `{why_it_matters}` — the full why_it_matters text, preserving the framing guidance from the subagent template
+- `{plain-English impact title}` — a short effect on the user, product, or team
+- `{user impact}` — the consequence-first part of `why_it_matters`, without identifiers or review metadata
 
-Do not include `suggested_fix` or the full `evidence` array in the appended entry. Those live in the review run artifact (when applicable) and do not belong in the document's Open Questions section — the entry is a concern summary for the reader returning later, not a full decision packet.
+Do not include the section path, severity, reviewer, confidence, suggested fix, or evidence array. Those live in the review run record and do not belong in the document's Open Questions section. The entry is a concern summary for the reader returning later, not a technical review record.
 
-**Render `{title}` and `{why_it_matters}` under the shared rendering floor** (`references/rendering-floor.md`). This entry is persisted for a later reader who no longer has the review's context, so apply the floor's opaque-token policy to all three classes — gloss navigation IDs at first mention, translate mechanism symbols (functions, files, line refs) to their role, drop non-decision provenance — and lead `{why_it_matters}` with the consequence. The floor's full decision-first field order does not apply: a deferred entry is a persisted concern, not an actionable finding, so it carries no Recommendation/Change/Basis. A deferred entry whose only description of a referenced item is a bare identifier of any class is not acceptable.
+**Render the title and user impact under the shared rendering floor** (`references/rendering-floor.md`). This entry is persisted for a later reader who no longer has the review's context. Lead with the consequence and remove opaque identifiers. The floor's full decision-first field order does not apply because a deferred entry is a persisted concern, not an actionable finding.
 
 ### Step 4: Idempotence on compound-key collisions
 
@@ -56,12 +52,12 @@ If an entry with the same compound key already exists under the same visible `Fr
 - The same review session re-routes the same finding to Defer a second time (rare but possible via best-judgment-the-rest after a walk-through Defer)
 - The orchestrator retries after a partial failure
 
-**Compound key for dedup:** `normalize(section) + normalize(title) + why_fingerprint`, computed on both sides from the **rendered entry text that will actually be written** (after Step 3's floor rendering) — not the raw schema fields. Keying on the rendered text is what keeps new-entry keys aligned with parsed existing-entry keys now that the floor rewrites `{title}` and leads `{why_it_matters}` with a paraphrased consequence: an existing persisted entry retains only its rendered bullet, so a new entry must be keyed from the same rendered form it is about to write. Within a session the same finding renders identically against the same document, so a retry or a second Defer recomputes the same key and collides. All three parts reconstruct from the visible entry, so no hidden metadata is needed:
+**Compound key for dedup:** `normalize(title) + impact_fingerprint`, computed on both sides from the **rendered entry text that will actually be written**, not the raw schema fields. Keying on the rendered text keeps new-entry keys aligned with parsed existing-entry keys. Within a session the same finding renders identically against the same document, so a retry or a second Defer recomputes the same key and collides. Both parts reconstruct from the visible entry, so no hidden metadata is needed:
 
-- `normalize(section)` and `normalize(title)` use the same normalization as synthesis step 3.3 dedup (lowercase, strip punctuation, collapse whitespace). For a new finding, render the entry per Step 3 first, then normalize the rendered `{title}` (the bold leader) and `{section}`; for an existing entry, parse the same fields out of the rendered bullet. (`{section}` renders unmodified, so it matches either way; `{title}` may be glossed, which is exactly why the new-finding side must normalize the rendered title, not the schema title.)
-- `why_fingerprint` is the first ~120 characters of the entry's **rendered** `{why_it_matters}` prose — the consequence-first text actually written — word-boundary-preserving, with any run of whitespace collapsed to a single space. Because both sides use the rendered prose, the same fingerprint recomputes from the visible bullet on any retry or reread. When why_it_matters is empty, fall back to `normalize(section) + normalize(title)` alone.
+- `normalize(title)` uses the same normalization as synthesis step 3.3 dedup: lowercase, strip punctuation, and collapse whitespace.
+- `impact_fingerprint` is the first approximately 120 characters of the rendered user-impact prose, with whitespace collapsed and word boundaries preserved. When user impact is empty, use the normalized title alone.
 
-Title-only dedup is not sufficient: two different findings in the same document (even on the same review date) can legitimately share a short title if their sections or rationale differ. Using only `{title}` would silently drop one — losing user-visible backlog context. Matching on section and the why-fingerprint keeps distinct findings distinct, and stays close to the R29/R30 matching predicate (`section + title + evidence-substring overlap`) so cross-round and intra-round dedup behave consistently.
+Title-only dedup is not sufficient. Two different findings can share a short title. The impact fingerprint keeps those entries distinct without adding review metadata to the document.
 
 **Pre-existing entries with a `dedup-key` HTML comment:** entries written by the prior format carry a trailing `<!-- dedup-key: ... -->` comment. Ignore it for matching — the visible-text key above is authoritative — and strip the comment if the entry is otherwise edited. Do not write new ones.
 
@@ -122,9 +118,9 @@ Starting document state:
 
 ### From 2026-04-10 review
 
-- **Alias compatibility-theater concern** — Risks (P1, scope-guardian, confidence 75)
+- **Compatibility support may have no user**
 
-  The alias exists without documented external consumers...
+  The plan adds maintenance work without showing who still needs it.
 
 ```
 
@@ -139,18 +135,18 @@ After appending two findings in a 2026-04-18 session:
 
 ### From 2026-04-10 review
 
-- **Alias compatibility-theater concern** — Risks (P1, scope-guardian, confidence 75)
+- **Compatibility support may have no user**
 
-  The alias exists without documented external consumers...
+  The plan adds maintenance work without showing who still needs it.
 
 ### From 2026-04-18 review
 
-- **Unit 2/3 merge judgment call** — Scope Boundaries (P2, scope-guardian, confidence 75)
+- **The split adds delivery work without a clear benefit**
 
   The two units update consumer sites that deploy together. Splitting
   adds dependency tracking without enabling independent delivery.
 
-- **Strawman alternatives on migration strategy** — Unit 3 Files (P2, coherence, confidence 75)
+- **The listed choices do not solve the stated problem**
 
   The fix options list (a) through (c) as alternatives, but (b) and (c)
   are "accept the regression" framings that don't solve the problem the

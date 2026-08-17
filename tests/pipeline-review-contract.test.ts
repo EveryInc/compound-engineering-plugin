@@ -548,8 +548,10 @@ describe("ce-plan review contract", () => {
     expect(content).toContain("Hide `Decide on the review's open items` (option 3) when no actionable findings remain")
     expect(content).toContain("proposed_fixes_count + decisions_count > 0")
 
-    // Summary line above the menu surfaces autofix counts and remaining-bucket counts
-    expect(content).toContain("Summary line above the menu")
+    // The menu shows an owner summary. It does not expose review bookkeeping.
+    expect(content).toContain("Summary above the menu")
+    expect(content).toContain("Lead with whether the plan is ready")
+    expect(content).toContain("Do not show priority codes")
 
     // No conditional ordering based on plan depth (review already ran)
     expect(content).not.toContain("**Options when ce-doc-review is recommended:**")
@@ -845,12 +847,10 @@ describe("ce-doc-review contract", () => {
     expect(defer).toContain("From YYYY-MM-DD review")
     expect(defer).toContain("regardless of heading syntax")
 
-    // Entry format includes required fields but excludes suggested_fix and evidence
-    expect(defer).toContain("{title}")
-    expect(defer).toContain("{severity}")
-    expect(defer).toContain("{reviewer}")
-    expect(defer).toContain("{confidence}")
-    expect(defer).toContain("{why_it_matters}")
+    // Entry format keeps plain impact and excludes internal review fields.
+    expect(defer).toContain("{plain-English impact title}")
+    expect(defer).toContain("{user impact}")
+    expect(defer).toContain("Do not include the section path, severity, reviewer, confidence")
 
     // Failure-path sub-question with three options
     expect(defer).toContain("Retry")

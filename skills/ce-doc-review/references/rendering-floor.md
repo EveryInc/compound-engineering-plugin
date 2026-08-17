@@ -2,7 +2,7 @@
 
 The single source of truth for how any finding is rendered for a human decision — across **every**
 presentation surface: the interactive walkthrough terminal block (`references/walkthrough.md`), the
-walkthrough blocking-question string (same file — compact What's wrong / Proposed fix / If left as-is
+walkthrough blocking-question string (same file — compact User impact / Recommended change / If unchanged
 duplicated into the question so modal dialogs are decidable), the batch report table
 (`references/review-output-template.md`), the non-interactive envelope
 (`references/synthesis-and-presentation.md` Phase 4), the bulk-action preview line
@@ -22,9 +22,28 @@ without reconstructing the finding from expert narrative. A finding whose only p
 
 Write human-facing finding prose in an ASD-STE100 Simplified Technical English (STE)-inspired style.
 Use short, direct sentences. Keep one consequence, recommendation, or supporting idea per sentence,
-and use one consistent term for each concept. Preserve exact document identifiers and domain terms
-when they help the decision. Shorten sentences, not content: preserve coverage, evidence, technical
-depth, and every distinct consequence, qualification, or required action.
+and use one consistent term for each concept. Preserve every decision-relevant consequence and action.
+Keep identifiers, evidence, confidence, reviewer provenance, and mechanism in the structured envelope
+or technical trace. Show them only when the user asks.
+
+## Default owner surface
+
+The default human response is an owner summary. It answers these questions in this order:
+
+1. What does this mean for the user, product, or team?
+2. Does the document need a change or a decision?
+3. What change is recommended?
+4. What important uncertainty remains?
+
+Do not show priority codes, requirement or unit IDs, section paths, code symbols, reviewer names,
+model names, confidence values, routing classes, coverage tables, suppressed-item counts, or validation
+machinery. Do not show the technical artifact path. Keep all of that information in the structured
+envelope and provide it only after an explicit request for technical detail.
+
+This rule changes presentation, not review coverage. Every finding that can change the document or the
+decision must appear as plain user impact, a recommended action, or a material uncertainty. Group items
+when one plain-language action fully covers them. End the default response with an offer to show the
+technical review details.
 
 ## Decision-first field order
 
@@ -36,26 +55,23 @@ where the two appear to conflict.
 Every finding the reader is asked about carries these fields, and each surface makes them decision-first
 in its own idiom rather than reproducing the exact label sequence. The invariant both share: the
 **consequence is legible up front with no opaque token**, and the **recommendation is unmistakably
-marked**. Concretely:
-the **non-interactive envelope** prints them as explicit labeled lines; the **walkthrough block** leads with a
-consequence-phrased title, then What's-wrong / Proposed-fix / If-left-as-is, and marks the recommendation
-on its question options; the **walkthrough question string** duplicates those three compact fields so a
-modal dialog is decidable without prior chat; the **batch table** leads its Issue cell with the
-consequence and carries the recommendation in its Tier/action column; the **bulk-preview line** leads
-with the consequence and takes its recommendation from the bucket it is grouped under (Applying /
-Appending / Skipping). A surface satisfies the floor when those two invariants hold, not when it emits
-the four field labels verbatim.
+marked**. Concretely: the **non-interactive envelope** retains the full structured fields for its caller;
+the caller translates them before showing them to a person. The **walkthrough block** and question string
+use User impact / Recommended change / If unchanged. The **owner summary** groups findings by the change
+or decision they require. The **bulk-preview line** leads with the consequence and takes its recommendation
+from the bucket it is grouped under (Applying / Appending / Skipping). A surface satisfies the floor when
+those two invariants hold, not when it exposes the internal envelope.
 
-1. **Recommendation** — the recommended action (`Apply` / `Defer` / `Skip`, from the finding's
-   `recommended_action`), stated up front. This is what the user is being asked to accept or reject.
-2. **Consequence if unchanged** — one short sentence per distinct consequence: what goes wrong, for
+1. **User impact** — one short sentence per distinct consequence: what goes wrong, for
    whom, if the finding is not acted on. Use multiple sentences only when required to preserve
    independent consequences. **Contains no opaque identifier at all** (see the token policy). A reader
    who skimmed the document once must be able to judge it without looking anything up. This is the
    load-bearing field.
-3. **Change** — one sentence of intent: what the fix achieves and where it lives. Prefer intent
+2. **Recommended change** — one sentence of intent: what the fix achieves and where it lives. Prefer intent
    language over quoted text or raw markup.
-4. **Basis** — at most **two** sentences of mechanism explaining how the problem arises. Every opaque
+3. **If unchanged** — include only when it adds a material consequence that is not already clear from
+   the user-impact line.
+4. **Basis on request** — at most **two** sentences of mechanism when the user asks for more detail. Every opaque
    token is glossed per the token policy, and the block carries **at most two opaque anchors total**.
 5. **Trace on request** — anything beyond that (file-level tracing, multi-hop call paths, competing
    call sites) is not printed. Offer it in one closing line (e.g. `Ask for the call-path detail.`).

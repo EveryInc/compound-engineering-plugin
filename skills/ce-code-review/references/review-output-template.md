@@ -1,6 +1,6 @@
-# Code Review Output Template
+# Code Review Technical Report Template
 
-This is the **canonical skeleton** for *which sections appear and in what order* — copy the section structure; the example below shows one good rendering, not the only permitted layout. Shape each finding for the reader's next action per *Presentation direction* in SKILL.md Stage 6 (what & where / why it matters / what response it needs / how sure; let the shape serve the finding type). Findings are grouped by severity, not by reviewer.
+This is the **canonical technical artifact skeleton** for *which sections appear and in what order*. Write it to `report.md`. Do not present it as the default human response. The default human response follows `owner-summary-template.md`. The example below shows one good technical rendering, not the only permitted layout. Findings are grouped by severity, not by reviewer.
 
 **Hard constraints (non-negotiable; the rest is judgment):** ASCII-safe only — no box-drawing or per-item horizontal-rule separators (`────`), no Unicode arrows or middot; use `->`. Don't paste file contents or re-print the diff — cite `file:line`. Stable `#` numbering, reused wherever a finding reappears. The Verdict and Actionable list are present, last, and self-sufficient.
 

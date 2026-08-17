@@ -12,7 +12,7 @@ Synthesis step 3.7 sends here every finding with a concrete fix that touches mea
 
 **This fires after the applied changes and before the routing question, and it is the only place the batch is applied.** The routing question covers the decision surface only. Skip this step when the batch is empty.
 
-**Render the batch first**, per the floor's "Presenting a batch" rule (`references/rendering-floor.md`), as user-visible assistant text in the same turn — hidden thinking does not satisfy it. The batch is exactly two sections of `references/review-output-template.md`: the obligations section (**Implementation obligations**, or **Entailed corrections** on a document with no units) and **Proposed fixes**. The P-level sections are the decision surface and are not part of this question; sweeping one in turns a genuine fork into a batch answer.
+**Render the batch first**, per the floor's "Presenting a batch" rule (`references/rendering-floor.md`), as user-visible assistant text in the same turn. Hidden thinking does not satisfy it. Use the owner format in `references/review-output-template.md`: state the shared user or product impact, then list the recommended changes. Do not show priority levels, document locations, reviewer names, confidence, or routing fields. The decision surface is not part of this confirmation.
 
 **Stem:** name what the batch does, then ask — carry the themes you just led with (`Six fixes: four align the tier vocabulary, two add the missing cross-references. Apply them?`). A bare count makes the reader scroll back to answer.
 
@@ -34,7 +34,7 @@ After the applied changes land, the grouped confirmation is answered, and synthe
 
 **Same-turn presentation before routing (required).** Before firing the routing question, emit the Interactive Phase 4 presentation (`references/review-output-template.md`) as user-visible assistant text **in the same turn**. Content composed only in hidden thinking or reasoning does not count — same bar as the Preview event in `references/bulk-preview.md`. If that presentation event has not occurred in this turn, do not invoke the blocking-question tool.
 
-**Render current state.** The batch is settled by the time this runs: applied members belong in the applied-changes list, skipped ones are reported as skipped, neither reappears under Proposed fixes, and nothing is summarized as awaiting a confirmation that already happened. Only the decision surface is still open.
+**Render current state.** The batch is settled by the time this runs. Applied members belong under `What changed`. Skipped members do not appear as pending. Nothing is described as awaiting a confirmation that already happened. Only the decision surface is still open.
 
 These do **not** satisfy the invariant:
 
@@ -85,38 +85,36 @@ Each finding's recommended action has already been normalized by synthesis step 
 
 ## Per-finding presentation
 
-Each finding is presented in two parts: a terminal output block carrying the explanation, and a question via the platform's blocking question tool carrying the decision. Never merge the two into a single surface — the terminal block uses markdown and remains mandatory; the question uses plain text. On modal harnesses, text immediately before a blocking dialog is easy to miss, so the question string **also duplicates** a compact decision-first copy of What's wrong / Proposed fix / If left as-is (see "Question string" below). That duplication is additive: emitting only the question, or stuffing the fix into an option label instead of the question string, is a bug. The no-fix sub-question and Defer-failure sub-questions share modal exposure but keep their existing shorter stems for this change — the regular per-finding question is the high-volume path whose option labels alone are not enough to decide.
+Each finding is presented in two parts: a terminal output block carrying the explanation, and a question via the platform's blocking question tool carrying the decision. Never merge the two into a single surface. The terminal block uses markdown and remains mandatory. The question uses plain text. On modal harnesses, text immediately before a blocking dialog is easy to miss, so the question string **also duplicates** a compact copy of User impact / Recommended change / If unchanged (see "Question string" below). That duplication is additive. Emitting only the question, or stuffing the change into an option label instead of the question string, is a bug.
 
 ### Terminal output block (print before firing the question)
 
 Render as markdown. Labels on their own line, blank lines between sections:
 
 ```
-## Finding {N} of {M} — {severity} {plain-English title}
+## Finding {N} of {M} — {plain-English impact title}
 
-Section: {section}
-
-**What's wrong**
+**User impact**
 
 {plain-English problem statement from why_it_matters}
 
-**Proposed fix**
+**Recommended change**
 
 {suggested_fix — rendered per the substitution rules below: prose-first, intent-language}
 
-**If this is left as-is**
+**If unchanged**
 
 {one sentence naming the concrete downstream cost}
 
 {Conflict-context line, when applicable — see below}
 ```
 
-Substitutions below are this surface's expression of the shared rendering floor (`references/rendering-floor.md`) — the canonical source for the decision-first field order, the opaque-token policy across all three token classes, and the code-span budget. The terminal block's field order (title → What's wrong → Proposed fix → If this is left as-is) is the floor's order rendered as a labeled block; keep the two in sync.
+Substitutions below are this surface's expression of the shared rendering floor (`references/rendering-floor.md`). The terminal block's field order (impact title -> User impact -> Recommended change -> If unchanged) is the floor's order rendered as a labeled block. Keep the two in sync.
 
 Substitutions:
 
 - **`{plain-English title}`** — a 3–8 word summary suitable as a heading. Derived from the merged finding's `title` field but rephrased so it reads as observable consequence (e.g., "Implementers will pick different tiers" rather than "Section X-Y lists four tiers"). For document-review findings, observable consequence is the *effect on a reader, implementer, or downstream decision*, not runtime behavior.
-- **`{section}`** — from the finding's `section` field.
+- **`{section}`** — keep this in the technical trace. Do not print it in the default block.
 - **Opaque identifiers** — any token the user would have to open the document or the code to understand carries a short plain-language handle on its first mention. This covers both document-defined IDs (`R6`, `U3`, `KTD2`) and implementation identifiers the document happens to name — functions, files, variables, and line references such as `run_codex_cmd`, `$PEERLOG`, or `peer-job-runner.py`. Gloss each on first mention (e.g., `R6 (suppress peer panels on low-stakes calls)`); never leave a bare identifier as the block's only description of what it names. Keep the ID itself: it anchors the finding for anyone editing the document, and later mentions within the same block stay bare so the block scans. The handle arrives with the finding — the reviewer that raised it wrote it into the finding's fields, so render what you were given rather than rebuilding it here. If a finding arrives without one, look it up in the document before rendering rather than passing a bare token through, and treat that as a defect in the reviewer's output, not the normal path. This applies to `{section}` and to the body fields below — it is the one exception to rendering those fields as-is, and it is narrow: gloss the identifier at first mention and leave the surrounding prose untouched. Per the self-contained-rendered-lines rule in `references/synthesis-and-presentation.md`. Respect the code-span budget below.
 - **`why_it_matters`** — from the merged finding's `why_it_matters` field, held to the same altitude cap as `suggested_fix` below. Rules:
   - **First sentence states the consequence, and contains no identifier at all.** What goes wrong, for whom. A reader who skimmed the document once must be able to judge it without looking anything up.
@@ -130,30 +128,30 @@ Substitutions:
   - **Code-span budget** — at most 2 inline backtick spans per sentence, each a single identifier, flag, or short phrase (e.g., `` `safe_auto` ``, `` `<work-context>` ``). Always leave a space before and after each backtick span.
   - **Raw code blocks** — only for short (≤5-line) genuinely additive content where no before-state exists. Above 5 lines, switch to a summary.
   - **No diff blocks.** Document mutations render as prose.
-- **`If this is left as-is`** — one sentence naming the concrete downstream cost of not acting: what breaks, for whom, at what point. This is the line the user's decision turns on when they have not read the document as closely as the review did, so it must be evaluable on its own — no identifier the user would have to look up, no appeal to a claim only the reviewer can verify. When the honest answer is that the cost is small or speculative, say so plainly rather than inflating it.
-- **Conflict-context line (when applicable)** — when contributing personas implied different actions for this finding and synthesis step 3.6 broke the tie, surface that briefly. Example: `Coherence recommends Apply; scope-guardian recommends Skip. Agent's recommendation: Skip.` The orchestrator's recommendation — the post-tie-break value — is what the menu labels "recommended."
+- **`If unchanged`** — one sentence naming the concrete downstream cost of not acting: what breaks, for whom, at what point. This is the line the user's decision turns on when they have not read the document as closely as the review did, so it must be evaluable on its own. When the honest answer is that the cost is small or speculative, say so plainly rather than inflating it.
+- **Conflict-context line (when applicable)** — when the review evidence supports different actions, state the tradeoff without reviewer names or internal route labels. Example: `One option improves consistency. The other avoids extra scope. The recommended change favors consistency.` The orchestrator's post-tie-break recommendation is what the menu labels "recommended."
 
 ### Question string (decision-focused; self-sufficient on modal harnesses)
 
 After the terminal block renders, fire the platform's blocking question tool. Most adapters expose a single question string (`AskUserQuestion`, `request_user_input`, `ask_question`, `ask_user`), so the stem and the compact decision fields share that string. Shape:
 
 ```
-Finding {N} of {M} — {severity} {short handle}.
-What's wrong: {consequence-first sentence, no opaque identifier}
-Proposed fix: {intent sentence}
-If left as-is: {one-sentence downstream cost}
+Finding {N} of {M} — {short impact handle}.
+User impact: {consequence-first sentence, no opaque identifier}
+Recommended change: {intent sentence}
+If unchanged: {one-sentence downstream cost}
 {Action framing in a phrase}?
 ```
 
 Where:
 
 - **Short handle** matches the `{plain-English title}` from the terminal block heading.
-- **What's wrong / Proposed fix / If left as-is** — the same three fields as the terminal block, compressed to one sentence each, obeying the shared rendering floor (`references/rendering-floor.md`) opaque-token policy and two-anchor budget. Derive them from the block already rendered; do not invent a second narrative. Always emit all three labeled lines. When the merged finding has no `suggested_fix`, write `Proposed fix: none` — do not drop the line.
+- **User impact / Recommended change / If unchanged** — the same three fields as the terminal block, compressed to one sentence each, obeying the shared rendering floor (`references/rendering-floor.md`). Derive them from the block already rendered; do not invent a second narrative. Always emit all three labeled lines. When the merged finding has no `suggested_fix`, write `Recommended change: none` — do not drop the line.
 - **Action framing** — one phrase describing what the single recommended action does, as a yes/no question. Examples: `Apply the rename?`, `Defer to Open Questions since the tradeoff is genuine?`, `Skip since the document already resolves this elsewhere?`.
 
 Never enumerate alternatives in the question string. One recommendation as a yes/no — the option list carries the alternatives. When the recommendation is close, surface the disagreement in the terminal block's conflict-context line, not as a multi-option stem. Do not put the proposed-fix text into the Apply option label; keep labels short per "Options" below.
 
-If the blocking-question tool rejects the multi-line question string (schema / length / single-prompt constraints on a host), retry once with a short action-framing stem only — the terminal block already carries What's wrong / Proposed fix / If left as-is. Do not skip the question, and do not treat that retry as license to omit the three fields on hosts that accept the full string.
+If the blocking-question tool rejects the multi-line question string (schema / length / single-prompt constraints on a host), retry once with a short action-framing stem only — the terminal block already carries User impact / Recommended change / If unchanged. Do not skip the question, and do not treat that retry as license to omit the three fields on hosts that accept the full string.
 
 ### Confirmation between findings
 
@@ -204,7 +202,7 @@ Do not fire this sub-question with a single option. One option means there is no
 
 ### Adaptations
 
-- **N=1 (exactly one pending finding):** the terminal block's heading omits `Finding N of M` and renders as `## {severity} {plain-English title}`. The question string's first line drops the position counter, becoming `{severity} {short handle}.` The three compact decision-field lines and the action-framing line remain. Option D (`Auto-resolve with best judgment on the rest`) is suppressed because no subsequent findings exist — the menu shows three options: Apply / Defer / Skip.
+- **N=1 (exactly one pending finding):** the terminal block's heading omits `Finding N of M` and renders as `## {plain-English impact title}`. The question string's first line drops the position counter and uses the short impact handle. The three compact decision-field lines and the action-framing line remain. Option D (`Auto-resolve with best judgment on the rest`) is suppressed because no subsequent findings exist — the menu shows three options: Apply / Defer / Skip.
 
 - **Open-Questions append unavailable** (read-only document, write-failed): when `references/open-questions-defer.md` reports the in-doc append mechanic cannot run, option B is omitted. The question string appends one line explaining why (e.g., `Defer unavailable — document is read-only in this environment.`). The menu shows three options: Apply / Skip / Auto-resolve with best judgment on the rest. Before rendering options, remap any per-finding `Defer` recommendation from synthesis to `Skip` so the `(recommended)` marker lands on an option that's actually in the menu. Surface the remap on the conflict-context line (e.g., `Synthesis recommended Defer; downgraded to Skip — document is read-only.`).
 

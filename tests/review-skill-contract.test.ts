@@ -216,7 +216,8 @@ describe("ce-code-review contract", () => {
     expect(content).not.toContain("What should I do?")
 
     expect(content).toContain("Actionable Findings")
-    expect(content).toContain("Actionable findings: none.")
+    expect(content).toContain("### Emit owner summary")
+    expect(content).toContain("Plain-English owner summary")
 
     expect(content).not.toContain("ce-todo-create")
     expect(content).not.toContain("create durable todo files")
@@ -582,9 +583,9 @@ describe("ce-code-review contract", () => {
       "skills/ce-code-review/references/review-output-template.md",
     )
 
-    // Render-time load of the canonical skeleton (not just "see the template")
-    expect(content).toContain("load `references/review-output-template.md` and mirror")
-    expect(template).toContain("canonical skeleton")
+    // Render-time load of both surfaces: technical evidence and owner summary.
+    expect(content).toContain("load both output templates")
+    expect(template).toContain("canonical technical artifact skeleton")
 
     // Per-finding clarity: the four things an actor needs (what/why/response/confidence)
     expect(content).toMatch(/what response it needs/i)
@@ -597,9 +598,9 @@ describe("ce-code-review contract", () => {
     // Economy is about expression, not coverage: no file pasting / diff restating
     expect(content).toMatch(/do not paste file contents/i)
 
-    // Long output: the closing (verdict + actionable list) stands alone
-    expect(content).toMatch(/stand alone without scrolling/i)
-    expect(content).toMatch(/Actionable list are present, last, and self-sufficient/i)
+    // The technical artifact keeps a complete closing. The user gets a separate owner summary.
+    expect(content).toMatch(/technical Verdict and Actionable list are present, last, and self-sufficient/i)
+    expect(content).toMatch(/readiness, user impact, required actions, and missing proof/i)
 
     // Shape serves the finding type, but consistent within a section
     expect(content).toMatch(/consistent within (a |the )?section/i)
@@ -965,12 +966,19 @@ describe("ce-code-review contract", () => {
     expect(lfg).toMatch(/Never block DONE on tracker filing failures/i)
   })
 
-  test("ce-code-review emits actionable findings summary for callers", async () => {
+  test("ce-code-review emits a plain-English owner summary by default", async () => {
     const content = await readRepoFile("skills/ce-code-review/SKILL.md")
-    expect(content).toContain("### Emit actionable findings summary")
-    expect(content).toContain("Actionable Findings")
-    expect(content).toContain("with stable `#`, severity, file:line, title, `autofix_class`")
-    expect(content).toContain("Actionable findings: none.")
+    const owner = await readRepoFile(
+      "skills/ce-code-review/references/owner-summary-template.md",
+    )
+    expect(content).toContain("### Emit owner summary")
+    expect(content).toContain("what a person using the product could experience")
+    expect(content).toContain("Do not show severity codes")
+    expect(owner).toContain("### What needs to change")
+    expect(owner).toContain("### What still needs proof")
+    expect(owner).toContain("Ask for technical details if you want the full engineering report.")
+    expect(owner).toContain("Do not show priority codes")
+    expect(owner).toContain("Do not link or print the artifact path")
   })
 
   test("ce-code-review uses stable sequential finding numbers across grouped output", async () => {

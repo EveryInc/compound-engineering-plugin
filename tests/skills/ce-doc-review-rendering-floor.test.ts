@@ -35,14 +35,14 @@ describe("ce-doc-review shared rendering floor", () => {
   const floor = read(FLOOR)
   const synth = read("synthesis-and-presentation.md")
 
-  test("floor pins the decision-first field order", () => {
-    // Assert the bolded field labels so short words ("Change", "Basis") can't
+  test("floor pins the owner-first field order", () => {
+    // Assert the bolded field labels so short words cannot
     // pass by incidental substring match elsewhere in the file.
     for (const field of [
-      "**Recommendation**",
-      "**Consequence if unchanged**",
-      "**Change**",
-      "**Basis**",
+      "**User impact**",
+      "**Recommended change**",
+      "**If unchanged**",
+      "**Basis on request**",
       "**Trace on request**",
     ]) {
       expect(floor).toContain(field)
@@ -85,19 +85,24 @@ describe("ce-doc-review shared rendering floor", () => {
     expect(synth).toContain("Recommendation: <Apply | Defer | Skip>")
     expect(synth).toContain("Consequence if unchanged: <one sentence, no opaque identifier>")
   })
+
+  test("default owner surface hides internal review machinery", () => {
+    expect(floor).toContain("## Default owner surface")
+    expect(floor).toContain("Do not show priority codes")
+    expect(floor).toContain("coverage tables")
+    expect(floor).toMatch(/provide it only after an explicit request for technical detail/i)
+  })
 })
 
-describe("ce-plan surfaces doc-review findings verbatim, not re-narrated", () => {
-  // The observed illegible output came through ce-plan re-narrating the non-interactive
-  // envelope into denser prose. This pins the instruction that keeps the
-  // returned decision-first structure intact.
+describe("ce-plan translates the technical envelope into an owner summary", () => {
   const handoff = readFileSync(
     path.join(process.cwd(), "skills/ce-plan/references/plan-handoff.md"),
     "utf8",
   )
-  test("plan-handoff forbids re-narrating returned findings", () => {
-    expect(handoff).toMatch(/do not re-narrate/i)
-    expect(handoff).toContain("Consequence if unchanged")
+  test("plan-handoff does not expose the returned envelope", () => {
+    expect(handoff).toMatch(/Do not render the returned envelope verbatim/i)
+    expect(handoff).toContain("User impact / Recommended change / If unchanged")
+    expect(handoff).toContain("Ask for technical details")
   })
 })
 
@@ -128,10 +133,10 @@ describe("ce-doc-review interaction-order decision context", () => {
     expect(walkthrough).toContain("Never merge the two into a single surface")
     expect(walkthrough).toContain("terminal block uses markdown and remains mandatory")
     expect(walkthrough).toContain("Question string (decision-focused; self-sufficient on modal harnesses)")
-    expect(walkthrough).toContain("What's wrong:")
-    expect(walkthrough).toContain("Proposed fix:")
-    expect(walkthrough).toContain("If left as-is:")
-    expect(walkthrough).toContain("Proposed fix: none")
+    expect(walkthrough).toContain("User impact:")
+    expect(walkthrough).toContain("Recommended change:")
+    expect(walkthrough).toContain("If unchanged:")
+    expect(walkthrough).toContain("Recommended change: none")
     expect(walkthrough).toMatch(/Always emit all three labeled lines/)
     expect(walkthrough).toMatch(/rejects the multi-line question string/)
     expect(walkthrough).not.toContain("compact two-line stem")

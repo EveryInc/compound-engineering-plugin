@@ -50,7 +50,7 @@ Follow these boundaries in order; references supply the detail but never change 
 2. Read `references/persona-catalog.md`, then select the risk-driven reviewer roster and discover applicable standards paths. Do not select or dispatch personas without that catalog load.
 3. When adversarial is selected for a local reviewed tree, start and persist the sanctioned cross-model job **before any local persona dispatch**. Invoking this skill authorizes its configured/allowlisted peer route after the required recipient-and-code-egress disclosure; do not ask for a second confirmation or skip merely because the user did not separately repeat that authorization. An explicit user prohibition on external review still wins, as does a checkout `cross_model_review_mode: off` absent a live opt-in (resolved in the reference before any route). A started peer replaces the local adversarial persona; only an actual scope, allowlist, availability, authentication, or start failure leaves the local fallback at Stage 3d. Fold-in may still run the did-not-run fallback in `references/cross-model-review.md` when skip evidence shows session/usage quota or execution-context auth, or restore local after a failed same-route rate-limit retry.
 4. Before any local dispatch, read `references/dispatch-reviewers.md`; if it is not loaded, stop and load it. Then dispatch the materialized local roster as a foreground concurrent batch sized to the host's active-agent cap — spawn multiple reviewers in one message with background execution off where the harness runs same-message calls concurrently, and collect every reviewer before synthesis (one blocking wait on Claude-style harnesses; repeated non-polling collection waits on async `spawn_agent` harnesses); degrade to serial where it does not. Detaching local review into a polled background job is forbidden; the cross-model peer is the only detached work and overlaps with this batch. Shell no-ops and wakeup polling are forbidden.
-5. After the reviewer returns are ready, read `references/finish-review.md`; if it is not loaded, stop and load it. Fold in the peer once, run the documented findings mechanics, run every validator the reference selects, and only then return the report. Never synthesize directly from raw reviewer artifacts. The exact Actionable Findings, Coverage, and Verdict completion fields are required. When a peer ran, Coverage must record its route plus the literal keyed fields `model_requested`, `model_actual`, `effort_requested`, `effort_actual`, `receipt_supported`, and `independence_verified` from the artifact; never shorten that tuple to a model family or vague "high reasoning" claim. In the multi-agent path, emit only this skill's report; do not also invoke a harness-native findings/reporting tool. The native review tool belongs only to the explicit Quick Review Short-Circuit. Bare and `mode:agent` reviews never apply fixes; only explicit `apply:local` can enter the apply stage.
+5. After the reviewer returns are ready, read `references/finish-review.md`; if it is not loaded, stop and load it. Fold in the peer once, run the documented findings mechanics, run every validator the reference selects, and only then return the result. Never synthesize directly from raw reviewer artifacts. The technical artifact must contain the exact Actionable Findings, Coverage, and Verdict completion fields. The default user response is the plain-English owner summary defined in `references/owner-summary-template.md`; technical details stay in the artifact and are shown only when the user asks. When a peer ran, Coverage must record its route plus the literal keyed fields `model_requested`, `model_actual`, `effort_requested`, `effort_actual`, `receipt_supported`, and `independence_verified` from the artifact; never shorten that tuple to a model family or vague "high reasoning" claim. In the multi-agent path, emit only this skill's result; do not also invoke a harness-native findings/reporting tool. The native review tool belongs only to the explicit Quick Review Short-Circuit. Bare and `mode:agent` reviews never apply fixes; only explicit `apply:local` can enter the apply stage.
 
 Bundled helper contracts in the stage references are authoritative. Run the documented commands directly; do not inspect helper source, grep model mappings, dry-run adapters, or probe `--help` unless a documented command actually fails with an incompatibility.
 
@@ -99,17 +99,17 @@ Same review pipeline for default and `mode:agent`:
 - **No blocking prompts.** Never use `AskUserQuestion`, `request_user_input`, `ask_user`, or other blocking question tools. Infer intent, plan, and scope from explicit tokens, git state, PR metadata, and conversation. Note uncertainty in Coverage or the verdict — do not stop to ask.
 - **Explicit mutations only.** Never run `gh pr checkout`, `git checkout`, `git switch`, or similar branch-switch commands. Passing a PR number, URL, or branch name selects **review scope**, not permission to mutate the working tree. To review local uncommitted work on a feature branch, check out that branch yourself (or stay on it) and pass `base:` or no target.
 - **Smart defaults.** Untracked files: review tracked changes only and list excluded paths in Coverage. Plan: use `plan:` when passed; otherwise discover conservatively from PR body or branch keywords. Weak advisory P2/P3 from testing/maintainability alone: demote to `testing_gaps` / `residual_risks` per Stage 5.
-- **Report outcomes, not machinery.** What you show the user is about the review: what's being examined (the PR/branch), which coverage is included and the one-line reason for each conditional lens, the independent cross-model pass and which model runs it, and the findings. Keep the skill's internals out of user-facing text — model-tier assignments, raw scope-mode codenames (`local-aligned`/`pr-remote`), staging the diff to disk, loading persona files, parallel-dispatch bookkeeping, and step-by-step narration of your own setup. Name what the user would recognize (a PR number, a reviewer's concern, a peer model), not the plumbing. This governs *what* you surface and suppress; it does not script the wording — use your own voice.
+- **Report outcomes, not machinery.** The default response shows readiness, user impact, required actions, and missing proof. Keep reviewer names, models, confidence, coverage bookkeeping, scope codenames, and dispatch mechanics in the technical artifacts. Show them only when the user asks for technical detail.
 
 ## Output format
 
 | Invocation | Deliverable |
 |------------|-------------|
-| **Default** | Report-only markdown (pipe-delimited finding tables) + Actionable Findings summary |
-| **Explicit local apply** | The same markdown report plus verified local fixes and an Applied section |
+| **Default** | Plain-English owner summary. Full technical markdown stays in the run artifacts |
+| **Explicit local apply** | The same owner summary after verified local fixes. Technical applied-fix detail stays in the report artifact |
 | **`mode:agent`** | One JSON object (see ### JSON output format below) + the same `/tmp/.../ce-code-review/<run-id>/` artifacts |
 
-Default and `mode:agent` are **report-only**. `mode:agent` changes only the serialization from markdown to JSON for programmatic callers; it does not change reviewer selection, merge logic, or scope rules. `apply:local` is separate mutation authority, not an output mode. The default markdown is the human view; keep it ASCII-safe (pipe tables, `->` not middot `·`, no box-drawing) so it degrades gracefully across terminals.
+Default and `mode:agent` are **report-only**. `mode:agent` returns JSON for programmatic callers; it does not change reviewer selection, merge logic, or scope rules. `apply:local` is separate mutation authority, not an output mode. The default human view is the plain-English owner summary. The full technical markdown stays in the run artifacts.
 
 ## Quick Review Short-Circuit
 
@@ -500,13 +500,15 @@ Stack-specific reviewers fire only when the diff touches runtime behavior they s
 
 After Stage 6, stop. Never push, open PRs, or file tickets from this skill. Bare and `mode:agent` reviews mutate nothing. When local apply was explicitly authorized, Stage 5c may already have applied and, on a clean pre-review tree, committed verified fixes. Otherwise the caller or user decides what to apply from the report and artifacts.
 
-### Emit actionable findings summary (default mode only)
+### Emit owner summary (default mode only)
 
-After Stage 6 **in default mode**, emit a compact **Actionable Findings** summary for callers:
+After Stage 6 **in default mode**, emit the plain-English owner summary from `references/owner-summary-template.md`:
 
-- List each actionable finding (`gated_auto` or `manual` with `downstream-resolver`) with stable `#`, severity, file:line, title, `autofix_class`, whether `suggested_fix` is present, and `confidence`.
-- Include the resolved run-artifact path when one was written.
-- When the actionable queue is empty, state `Actionable findings: none.` explicitly.
+- Lead with whether the change is ready and what a person using the product could experience.
+- State the required action in ordinary product language.
+- State only the missing proof that can change the decision.
+- Do not show severity codes, requirement IDs, file paths, line numbers, code symbols, reviewer names, confidence values, routing fields, or validator mechanics.
+- End with `Ask for technical details if you want the full engineering report.`
 
 In `mode:agent` do **not** emit this markdown summary — the actionable findings are carried solely by the `actionable_findings` field of the JSON object. Emit nothing after the JSON object, so the response stays a single parseable JSON value.
 
@@ -514,9 +516,9 @@ Do not run post-review triage (no per-finding walk-through, bulk ticket filing, 
 
 ### Mode-specific completion
 
-| Mode | After Stage 6 + actionable summary |
+| Mode | After Stage 6 |
 |------|-----------------------------------|
-| **Default** | Markdown tables + Actionable Findings summary. |
+| **Default** | Plain-English owner summary. The technical report stays in the run artifacts. |
 | **`mode:agent`** | JSON object + `review.json` in run artifact dir. |
 
 Do not offer push/PR/create-branch next steps from this skill.
@@ -530,7 +532,8 @@ Always write run artifacts under the resolved `<run-dir>`:
 - advisory outputs
 - per-agent `{reviewer_name}.json` from Stage 4
 - `adversarial-review-brief.md` when the cross-model route starts — the orchestrator's compact semantic divisions, never a copied diff
-- `report.md` — the rendered markdown report exactly as presented to the user (default mode only), so format and numbering stay auditable after the run
+- `report.md` — the full technical markdown report (default mode only), with stable evidence and numbering for engineers and on-request detail
+- `summary.md` — the plain-English owner summary exactly as presented to the user (default mode only)
 
 `metadata.json` minimum fields:
 
@@ -567,5 +570,6 @@ Every reference lives in this skill's directory and loads **on demand at the sta
 | `references/finish-review.md` | Stage 5 | Merge, validation, action routing, and final report |
 | `references/action-class-rubric.md` | Action Routing (as needed) | Persona guidance for `autofix_class` |
 | `references/review-output-template.md` | Stage 6 | Canonical section skeleton for the report |
+| `references/owner-summary-template.md` | Stage 6 | Default plain-English response for the owner |
 
 Selected reviewer prompt assets live under `references/personas/`. Read only the prompt files selected for the current review.

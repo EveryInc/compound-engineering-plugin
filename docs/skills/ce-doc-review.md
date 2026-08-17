@@ -16,7 +16,7 @@ It is the sibling of `/ce-code-review` for the docs side. It is not a verdict. U
 |----------|--------|
 | What does it do? | Selects reviewer personas from the doc, dispatches them in parallel, applies mechanical fixes, and routes remaining findings |
 | When to use it | After a requirements-only plan lands, after `ce-plan` writes or enriches a plan, or any time you want structured findings on a planning doc |
-| What it produces | An updated markdown or HTML doc with mechanical fixes applied in its native format, plus structured handling of proposed fixes and decisions |
+| What it produces | An updated markdown or HTML doc, plus a plain-English owner summary. Technical review detail remains available on request |
 | Modes | Interactive (direct invoke, or a caller's follow-up option). Non-interactive (default when `ce-plan` chains it) |
 
 ---
@@ -122,7 +122,7 @@ After mechanical fixes land and the grouped confirmation is answered, remaining 
 
 The walk-through itself supports an "auto-resolve the rest" escape mid-flow. Bulk actions show a preview (section, title, action, brief rationale) before anything lands.
 
-Each per-finding step prints a terminal block and duplicates What's wrong / Proposed fix / If left as-is into the blocking question, so modal harnesses stay decidable without scrolling.
+Each per-finding step prints a terminal block and duplicates User impact / Recommended change / If unchanged into the blocking question, so modal harnesses stay decidable without scrolling.
 
 ### Interactive vs non-interactive
 
@@ -133,9 +133,9 @@ Each per-finding step prints a terminal block and duplicates What's wrong / Prop
 
 Non-interactive requires a path. Without one it errors rather than guessing.
 
-### Coverage, settled decisions, and the rendering floor
+### Owner summary, coverage, and settled decisions
 
-The output names which personas ran, which were activated by what signals, and whether any failed or timed out.
+The default response starts with the effect on users, the product, or the team. It then states what changed, what decision remains, and the recommended action. It does not show reviewer names, confidence scores, priority codes, document IDs, code symbols, or coverage tables. Those details remain in the structured review record and are available on request.
 
 Decisions you examined and settled carry a `session-settled:` annotation. The safe-auto pass never strips it. A persona that wants to challenge a settled decision must frame the challenge as infeasibility, not preference, and it is never auto-applied.
 
@@ -190,7 +190,7 @@ Skip `ce-doc-review` when:
 `ce-doc-review` is invoked from the skills that write planning docs:
 
 - **`/ce-brainstorm` post-doc menu** offers **Pressure-test the requirements** for markdown or HTML unified plans. It runs interactively with full premise scrutiny and is hidden when a prototype offer is on the same menu
-- **`/ce-plan` after the plan is written** runs `mode:non-interactive` by default on markdown and HTML plans. Mechanical fixes apply silently in the native format. Remaining findings surface as a one-line summary above the post-generation menu, where **Decide on the review's open items** opts into the interactive walkthrough
+- **`/ce-plan` after the plan is written** runs `mode:non-interactive` by default on markdown and HTML plans. Mechanical fixes apply silently in the native format. Remaining findings surface as a plain-English owner summary above the post-generation menu, where **Decide on the review's open items** opts into the interactive walkthrough
 - In non-interactive mode, callers receive structured findings and route the user-decision options themselves
 
 ---

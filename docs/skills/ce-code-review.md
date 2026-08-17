@@ -1,6 +1,6 @@
 # `ce-code-review`
 
-> Structured code review: risk-selected personas, confidence-gated findings, and a merge/dedup report.
+> Structured code review with a plain-English result and technical detail on request.
 
 `ce-code-review` is the on-demand **findings** skill for a diff. It analyzes a PR, a named branch, or the current checkout, selects reviewer personas for what was actually touched, dispatches them, then merges and deduplicates their findings into one report. Each finding carries a severity (P0-P3), an autofix class (`gated_auto`, `manual`, `advisory`) that signals follow-up shape, and an owner.
 
@@ -86,7 +86,7 @@ Generalist code review prompts collapse in predictable ways:
 - Parallel persona dispatch, bounded to the harness's active-subagent limit
 - Confidence-gated synthesis. Findings merge, dedupe, promote on cross-persona agreement, and route by autofix class
 - Severity (P0-P3) and autofix class are orthogonal: urgency vs follow-up shape
-- Separate presentation and authority. Default markdown and `mode:agent` JSON are report-only. `apply:local` grants local mutation
+- Separate presentation and authority. The default response is a plain-English owner summary. `mode:agent` returns the full structured JSON for callers. `apply:local` grants local mutation
 - Quick-review short-circuit. A "quick", "fast", or "light" request defers to the harness-native `/review`
 
 ---
@@ -136,7 +136,7 @@ Synthesis owns the final route. Persona-provided routing metadata is input. Disa
 
 | Mode | When | Behavior |
 |------|------|----------|
-| **Default markdown** | Direct user invocation | Report-only markdown with stable findings and an Actionable Findings summary |
+| **Default owner summary** | Direct user invocation | Readiness, user impact, required actions, and missing proof in plain English. Technical detail is available on request |
 | **`mode:agent`** | `mode:agent` (alias `mode:headless`) | One JSON object. Report-only. The caller applies findings. `mode:non-interactive` is not this alias (fail closed if passed) |
 | **Explicit local apply** | `apply:local`, or an explicit ask to apply/fix this review's findings | Keeps markdown presentation. May apply verified fixes and commit them when the pre-review tree was clean. Never pushes |
 
@@ -148,7 +148,7 @@ When you ask for a "quick", "fast", or "light" review, the skill defers to the h
 
 ### Synthesis, grouping, and plan checks
 
-After reviewers return, synthesis validates each finding, anchors it to the actual diff, deduplicates across personas, promotes confidence on agreement, resolves contradictions, and routes by autofix class. The output is one report with calibrated severity, evidence quotes, and explicit ownership.
+After reviewers return, synthesis validates each finding, anchors it to the actual diff, deduplicates across personas, promotes confidence on agreement, resolves contradictions, and routes by autofix class. The default response translates that work into readiness, user impact, required actions, and missing proof. The full technical report stays in the run artifacts.
 
 When findings span distinct concerns, related ones are grouped under a short theme (`grouping:auto`, the default). Groups are a triage lens, not a restructure: findings keep their stable `#`s, and groups reference them (`#2, #3`). Pass `grouping:off` for a flat report or `grouping:always` to group even small reviews.
 
@@ -158,7 +158,7 @@ Pipeline artifacts under `plans/`, `solutions/`, and legacy `brainstorms/` are p
 
 When a discovered plan carries `session-settled:` decisions, a finding that merely prefers a different approach is routed report-only with a `settled_conflict` stamp. A real defect inside a settled approach keeps its full severity. Reviewers stay blind to the annotations. The orchestrator triages after the fact.
 
-Callers such as `/ce-work` read the Actionable Findings summary (or the JSON `actionable_findings` field) and own residual handling: apply now, file tickets, accept with a durable sink, or stop. This skill does not run that gate.
+Callers such as `/ce-work` use `mode:agent` and read the JSON `actionable_findings` field. They do not parse the owner summary. They own residual handling: apply now, file tickets, accept with a durable sink, or stop. This skill does not run that gate.
 
 ---
 
@@ -246,7 +246,7 @@ Use it when it is the right tool. The quick-review short-circuit defers to it ex
 Agent judgment over the actual diff, not keyword matching. Correctness runs for every multi-agent review. Project-standards runs when applicable standards files exist. Generic, cross-cutting, and stack-specific personas are added only when their concern is present. Production-file presence alone and non-behavioral edits do not select testing. A silent-pass verification mechanism gets adversarial (and the cross-model pass, when the tree is local) regardless of size.
 
 **What's the difference between default, `mode:agent`, and `apply:local`?**
-Default is a human-facing markdown report and is report-only. `mode:agent` is the same pipeline serialized as one JSON object for a caller. It is always report-only. `apply:local` is separate authority for the markdown run to apply verified findings locally. `mode:headless` is a deprecated alias for `mode:agent`. `mode:non-interactive` means "suppress prompts" in other CE skills and is not valid here.
+Default is a human-facing plain-English owner summary and is report-only. The full technical markdown report stays in the run artifacts and is available on request. `mode:agent` is the same pipeline serialized as one JSON object for a caller. It is always report-only. `apply:local` is separate authority for the human-facing run to apply verified findings locally. `mode:headless` is a deprecated alias for `mode:agent`. `mode:non-interactive` means "suppress prompts" in other CE skills and is not valid here.
 
 **What's the difference between this and `ce-doc-review`'s cross-model pass?**
 Same independence system (host attestation, multi-provider selection, read-only peer CLI). Different lens policy: code-review runs **adversarial only**, and a started peer replaces the in-process adversarial persona. Doc-review runs a judgment trio plus a whole-doc sweep alongside the in-process reviewers. Code-review peers review the work tree/diff in place. Doc-review embeds the document into a more isolated scratch.

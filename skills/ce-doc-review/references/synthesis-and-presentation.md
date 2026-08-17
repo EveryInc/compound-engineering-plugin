@@ -254,7 +254,7 @@ recommendation, so they render as a single line under the token policy, not the 
 consequence / concern / question, and for an obligation the consequence plus its change as intent. A line whose only description of a referenced item is a bare identifier — of any class — is
 not acceptable rendered output.
 
-**Non-interactive mode:** Do not use interactive question tools. Output all findings as a structured text envelope the caller can parse. Internal enum values (`safe_auto`, `gated_auto`, `manual`, `FYI`) stay in the schema and synthesis prose; the envelope below uses user-facing vocabulary — "fixes", "Proposed fixes", "Decisions", "FYI observations" — so non-interactive output reads the same way interactive output does.
+**Non-interactive mode:** Do not use interactive question tools. Output all findings as a structured text envelope the caller can parse. This is an agent-to-agent record, not a default human response. It keeps internal enum values and detailed fields so the caller can act. A caller that shows review results to a person must translate the envelope through `references/rendering-floor.md`.
 
 Two things about the template that follows. **Nothing in the batch has been confirmed here** — this mode asks no questions, so the obligations and proposed fixes are returned *awaiting* a confirmation the caller must obtain. Wording that reports them as already confirmed invites a caller, or a user reading over its shoulder, to treat unapplied and unapproved changes as accepted. And **the fence is the output**: on a document with no implementation units, title the obligations section "Entailed corrections" and use the section name as each group heading — do not emit that instruction, or any other bracketed note, into the envelope the caller parses.
 
@@ -307,24 +307,19 @@ Restated: N (residual/deferred items suppressed as duplicates of actionable find
 Review complete
 ```
 
-Omit any section with zero items. The bucket names are the user-facing vocabulary for the routes 3.7 assigned: "Applied N fixes" reports what already changed, the obligations block and "Proposed fixes" together render the grouped confirmation (obligations first, then the rest of the batch, each shaped by the floor's "Presenting a batch" rule — the caller re-narrates this envelope to a reader who has seen none of it, so a flat list here becomes a flat list there), "Decisions" carries the decision surface, and "FYI observations" carries anchor `50`. End with "Review complete" as the terminal signal so callers can detect completion.
+Omit any section with zero items. The bucket names describe the routes 3.7 assigned. End with "Review complete" as the terminal signal so callers can detect completion. Do not pass this envelope through verbatim to a person.
 
 **Obligations count as proposed fixes.** They render as a group rather than item by item — grouping changes presentation, not the count. So obligations are included in the proposed-fixes count a caller parses, and the caller's actionable-items gate keeps its meaning. Do **not** export a separate obligation count: a review whose findings are all obligations must still report actionable items, or a caller gating on that sum would hide the confirmation step and the user would never see work the review found.
 
-**Compact rendering for FYI observations, residual concerns, and deferred questions (high-count mode).** When the combined count of these three buckets is 5 or more, collapse each to a one-line count followed by a tight bullet list — FYI observations use their consequence line, residual concerns and deferred questions their concern or question text — with no per-item elaboration. Actionable buckets (Proposed fixes / Decisions) remain fully rendered regardless. This mirrors the interactive-mode rule in `references/review-output-template.md` so both modes produce the same shape.
+**Compact rendering for FYI observations, residual concerns, and deferred questions (high-count mode).** When the combined count of these three buckets is 5 or more, collapse each to a one-line count followed by a tight bullet list. Actionable buckets remain fully rendered. This rule keeps the agent envelope compact; the interactive owner summary uses its own template.
 
 **Interactive mode:**
 
-Present findings using the review output template (read `references/review-output-template.md`). This presentation must appear as user-visible assistant text in the same turn immediately before the routing question in `references/walkthrough.md` fires — a prior-turn non-interactive envelope or a one-line count does not satisfy that invariant. Within each severity level, separate findings by type:
+Present the plain-English owner summary from `references/review-output-template.md`. This presentation must appear as user-visible assistant text in the same turn immediately before the routing question in `references/walkthrough.md` fires. A prior-turn non-interactive envelope or a one-line count does not satisfy that invariant.
 
-- Errors (design tensions, contradictions, incorrect statements) first — these need resolution
-- Omissions (missing steps, absent details, forgotten entries) second — these need additions
+Lead with the result and user impact. Then state what changed, the recommended actions, the decisions that remain, and any uncertainty that can change readiness. Keep the full severity, reviewer, confidence, evidence, routing, coverage, residual, and suppression data in the structured run record. Do not print those internal fields in the default human response. Offer them only when the user asks for technical detail.
 
-Brief summary at the top, in the shape the template's summary-line rule defines — changes made and choices requested counted separately, never merged into one "needs attention" number.
-
-Include the Coverage table, applied fixes, FYI observations (as a distinct subsection), residual concerns, and deferred questions.
-
-**All tables MUST be pipe-delimited markdown (`| col | col |`). Do NOT use ASCII box-drawing characters (`┌ ┬ ┐ ├ ┼ ┤ └ ┴ ┘ │ ─`) under any circumstances, including for the Coverage table.** This rule restates the template's formatting requirement at the point of rendering so it cannot drift. Pipe-delimited tables render correctly across all target harnesses; box-drawing characters break rendering in some and violate the repo convention documented in root `AGENTS.md`.
+Do not use a findings table in the default human response. A short list is easier to read and keeps the focus on user impact and decisions.
 
 ### R29 Rejected-Finding Suppression (Round 2+)
 

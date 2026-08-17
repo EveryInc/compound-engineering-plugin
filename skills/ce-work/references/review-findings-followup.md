@@ -30,11 +30,11 @@ ce-code-review mode:agent plan:<plan-path> base:<merge-base-or-ref>
 - `base:` — when the diff base is already resolved on the current checkout; omit when reviewing a PR number/URL or standalone current branch.
 - Do **not** pass deprecated `mode:autofix`.
 
-For human-facing shipping, invoke `ce-code-review` without `mode:agent` if markdown tables are preferred. It still reports only unless the invocation explicitly authorizes local apply. Capture the Actionable Findings and artifact dir before caller-owned apply.
+For human-facing shipping, the caller may also show the default plain-English owner summary. Do not parse that summary for follow-up work. Programmatic shipping must use the `mode:agent` JSON receipt and its artifact directory.
 
 ## Inputs for apply
 
-- `actionable_findings` from JSON, or the Actionable Findings section from markdown
+- `actionable_findings` from `mode:agent` JSON
 - Full finding detail when needed: `review.json` / artifact `findings`, or `{reviewer}.json` for `why_it_matters` and `evidence`
 - Stable finding `#` — reuse in commits, residual sinks, and subagent prompts
 
