@@ -187,7 +187,7 @@ For an **existing PR body**, preserve an existing branding block verbatim (inclu
 Before returning the title and body, check against the scope map and material claims from Step A and revise if wrong:
 
 - Does the title express the umbrella outcome rather than one cluster or mechanism?
-- Does the opening carry one idea in one or two sentences, and could a reviewer stop there and know what the PR does? If it also carries program context, deferrals, or mechanism, move those to their own block.
+- Does the opening carry one idea in one or two sentences, and could a reviewer stop there and know what the PR does? If it also carries program context, deferrals, or implementation detail the diff already supplies, move those out; mechanism that is itself the outcome (an atomicity, protocol, or API guarantee) stays in the opening, per the prose rule above.
 - Does any section, table, or hint restate what the Files-changed tab or diff already shows? Cut it. Does any section answer no remaining reviewer question? Cut it.
 - Is every material outcome represented by the umbrella framing or body, or intentionally omitted because it is supporting-only?
 - Is every claim the diff can't establish present — and any claim the diff *does* show restated needlessly?
