@@ -409,9 +409,12 @@ def fetch_base_ref(owner, name, ref, merge_identity, host=None):
         remote_url = (f"https://{host or 'github.com'}/"
                       f"{quote(owner, safe='')}/{quote(name, safe='')}.git")
         try:
+            # Reuse the gh session (GH_TOKEN or keyring) as git's credential source so a
+            # headless host with no configured Git credential helper is not anonymous here.
             git_result = _run_git([
-                "git", "-c", "core.askPass=", "ls-remote", "--exit-code", "--refs",
-                remote_url, exact_ref,
+                "git", "-c", "core.askPass=",
+                "-c", "credential.helper=!gh auth git-credential",
+                "ls-remote", "--exit-code", "--refs", remote_url, exact_ref,
             ])
         except (subprocess.TimeoutExpired, OSError):
             git_result = None

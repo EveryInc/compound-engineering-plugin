@@ -1437,7 +1437,9 @@ print(json.dumps({"current": current, "same_head_mixed_case": same_head_mixed_ca
     expect(result.base.oid).toBe(baseOid)
     expect(result.calls).toHaveLength(2)
     expect(result.calls[1]).toEqual([
-      "git", "-c", "core.askPass=", "ls-remote", "--exit-code", "--refs",
+      "git", "-c", "core.askPass=",
+      "-c", "credential.helper=!gh auth git-credential",
+      "ls-remote", "--exit-code", "--refs",
       "https://ghe.acme.test/o/r.git", "refs/heads/main",
     ])
 
