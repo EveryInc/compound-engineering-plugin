@@ -115,7 +115,7 @@ When `STRATEGY.md` is at the repo root:
 - `ce-plan` flags decisions that pull away from the tracks or the stated positioning, or land inside the stated boundaries
 - `ce-product-pulse` seeds product name and key metrics, then wires sources to measure them
 
-The skills work without the file. With it, they have a signal for what kind of work matters right now. They read by section meaning rather than exact heading, and also pick up `PRODUCT.md` or `VISION.md` written by other tools; `ce-strategy` itself reads those as stated intent when grounding.
+The skills work without the file. With it, they have a signal for what kind of work matters right now. `ce-ideate`, `ce-brainstorm`, `ce-plan`, and `ce-dogfood` read by section meaning rather than exact heading, and also pick up `PRODUCT.md` or `VISION.md` written by other tools; `ce-strategy` itself reads those as stated intent when grounding. `ce-product-pulse` is the exception: it reads `STRATEGY.md` only and takes metrics from its `## Key metrics` section by exact heading, so metrics kept elsewhere or under another heading do not reach the pulse.
 
 The skill does not compute metric values, update the issue tracker, prioritize a backlog, or write requirements or plans.
 
