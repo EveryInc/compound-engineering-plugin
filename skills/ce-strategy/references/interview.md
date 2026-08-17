@@ -15,7 +15,7 @@ For each section: ask the opening question, evaluate the answer against the qual
 
 ---
 
-## 1. Target Problem
+## 1. Purpose
 
 **Opening question:** "What's the core problem this product solves - and what makes that problem hard?"
 
@@ -29,11 +29,11 @@ Strong answers name a specific situation the target user is in, identify what ma
 - **Too broad** ("communication at work is broken") -> "That's a civilization-scale problem. Narrow it to a situation you can actually affect - which users, doing what, when does it hurt most?"
 - **Feature-shaped** ("there's no good way to do [specific workflow] with AI") -> "That's a missing feature, not the underlying problem. What outcome do users want that the feature would give them?"
 
-**Capture:** One or two sentences naming the user's situation and the crux. No solution language.
+**Capture:** One or two sentences naming the user's situation and the crux - the reason the product exists. No solution language.
 
 ---
 
-## 2. Our Approach
+## 2. Positioning
 
 **Opening question:** "Given that problem, what's your approach - the commitment or principle that makes it tractable?"
 
@@ -49,12 +49,13 @@ Strong answers are a choice (implying alternatives explicitly *not* pursued), ar
 - **Goal restated** ("our approach is to be the market leader") -> "That's still the goal. How does the product win? What choice are you making that competitors aren't?"
 - **Multiple approaches at once** ("we're going deep on enterprise, self-serve, and a consumer app") -> "Pick one as the guiding approach. The others may still get work, but one of them organizes the rest. Which is it?"
 - **Doesn't connect to the problem** (problem: "users can't trust AI output"; approach: "build a fast, beautiful UI") -> "How does that approach solve the problem you named? If there's no line between them, one of the two is wrong."
+- **Any neighbor could say it** ("we're the simplest way to do X") -> "Could the nearest competing product truthfully make the same claim? If yes, it isn't positioning. What's the claim only you can make?"
 
 **Capture:** One or two sentences. Ideally ends with or implies "...so that [outcome tied to the problem]".
 
 ---
 
-## 3. Who It's For
+## 3. Users
 
 **Opening question:** "Who is the primary user, and what job are they hiring this product to do?"
 
@@ -117,7 +118,7 @@ Recent commits or PRs show where attention has gone lately, so this is the one s
 
 ## Stress Test
 
-Run this once sections 1-5 are captured, before the optional sections and before drafting. A strategy is only useful if it decides things, so test whether the assembled answers do.
+Run this once sections 1-5 are captured, before Boundaries and the optional sections and before drafting. A strategy is only useful if it decides things, so test whether the assembled answers do.
 
 Pose 3-5 concrete proposals, one at a time, aimed at the draft's fault lines: a tempting feature that sits just off the approach, a second persona pulling in a different direction, a track that would starve another, a metric that would look good while the approach failed. Pick proposals where you cannot predict the user's answer from the draft; a proposal the draft plainly accepts or rejects tests nothing - replace it. Where the repo model shows a tempting direction (a request in the issues, a recent burst of work outside the tracks), use it.
 
@@ -125,13 +126,23 @@ For each answer:
 
 - The strategy already decides it the same way -> confirmed; move on.
 - The strategy cannot decide it, or decides it differently from the user -> the approach or a track is too vague; ask the sharpening question and update the captured answer.
-- The user resists the proposal -> candidate for Not working on.
+- The user resists the proposal -> candidate for Boundaries.
 
-One round per proposal. Do not add sections or metrics to the doc to absorb a proposal; either the doc already handles it, an existing section gets sharper, or it becomes a Not working on line.
+One round per proposal. Do not add sections or metrics to the doc to absorb a proposal; either the doc already handles it, an existing section gets sharper, or it becomes a Boundaries line.
 
 ---
 
-## 6. Milestones (optional)
+## 6. Boundaries
+
+**Opening question:** "Is there anything you've explicitly decided *not* to do right now that's worth naming? This is for things the team keeps being tempted by."
+
+Clarity tool, not a blocker list. Proposals the user resisted in the stress test are the natural candidates - offer them; do not invent others. If the user names items, one sentence each. Do not encourage a long list. The section is always written: when nothing came up, it says so in one line, so readers have a reliable place to look for boundaries.
+
+From the resisted proposals, also draft one line completing "Resist a change when ..." - the test a future reader (human or agent) can apply to a concrete proposal. Show it to the user with the list; drop it if nothing was resisted.
+
+---
+
+## 7. Milestones (optional)
 
 **Opening question:** "Are there any dated milestones worth anchoring - a launch, a fundraise, a conference, a renewal? Skip if none apply."
 
@@ -141,15 +152,7 @@ Default is to skip. Do not push the user to invent milestones. If they name some
 
 ---
 
-## 7. Not Working On (optional)
-
-**Opening question:** "Is there anything you've explicitly decided *not* to do right now that's worth naming? This is for things the team keeps being tempted by."
-
-Clarity tool, not a blocker list. Proposals the user resisted in the stress test below are the natural candidates - offer them; do not invent others. If the user names items, one sentence each. Do not encourage a long list. Skip when nothing came up.
-
----
-
-## 8. Marketing (optional)
+## 8. Brand (optional)
 
 **Opening question:** "Any positioning or narrative language you want the doc to carry - a one-liner, a tagline, a key message? Skip if not yet."
 
