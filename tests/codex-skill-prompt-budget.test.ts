@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import path from "node:path"
+import { parseFrontmatter } from "../src/utils/frontmatter"
 
 /**
  * Codex >= 0.147 (openai/codex#37027) classifies a plugin as an Agent Plugin when the
@@ -73,15 +74,14 @@ function crlfByteSize(contents: string): number {
 
 /** Why a SKILL.md's frontmatter would be rejected by a strict Agent Skills client, or null. */
 function frontmatterNonconformance(contents: string): string | null {
-  const match = contents.match(/^---\r?\n([\s\S]*?)\r?\n---/)
-  if (!match) return "missing frontmatter"
-  const keys = match[1]
-    .split(/\r?\n/)
-    .filter((line) => /^[A-Za-z][\w-]*:/.test(line))
-    .map((line) => line.slice(0, line.indexOf(":")))
+  const { data } = parseFrontmatter(contents)
+  const keys = Object.keys(data)
+  if (keys.length === 0) return "missing frontmatter"
   const unknown = keys.filter((key) => !AGENT_SKILLS_FRONTMATTER_KEYS.has(key))
   if (unknown.length > 0) return `unknown key(s): ${unknown.join(", ")}`
-  if (/^allowed-tools:\s*$/m.test(match[1])) return "allowed-tools is not a string"
+  if ("allowed-tools" in data && typeof data["allowed-tools"] !== "string") {
+    return "allowed-tools is not a string"
+  }
   return null
 }
 
@@ -138,6 +138,20 @@ describe("Codex skill prompt budget (#1412)", () => {
         `$schema present but blocked by:\n${blockers.join("\n")}`,
       ).toBe(false)
     }
+  })
+
+  test("frontmatter predicate rejects any non-string allowed-tools spelling", () => {
+    const fm = (yaml: string) => `---\nname: x\ndescription: y\n${yaml}\n---\nbody\n`
+    expect(frontmatterNonconformance(fm("allowed-tools: [Read, Write]"))).toBe(
+      "allowed-tools is not a string",
+    )
+    expect(frontmatterNonconformance(fm("allowed-tools:\n  - Read"))).toBe(
+      "allowed-tools is not a string",
+    )
+    expect(frontmatterNonconformance(fm("allowed-tools: null"))).toBe(
+      "allowed-tools is not a string",
+    )
+    expect(frontmatterNonconformance(fm("allowed-tools: Read Write"))).toBeNull()
   })
 
   test("frontmatter predicate matches the strict-client rejection set", () => {
