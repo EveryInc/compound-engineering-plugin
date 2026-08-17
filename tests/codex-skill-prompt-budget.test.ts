@@ -1,33 +1,23 @@
 import { describe, expect, test } from "bun:test"
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import path from "node:path"
-import { parseFrontmatter } from "../src/utils/frontmatter"
 
 /**
- * Codex >= 0.147 (openai/codex#37027) classifies a plugin as an Agent Plugin when the
- * root `plugin.json` carries an `https://agent-plugins.org/schemas/...` `$schema`, and
- * then injects only the first MAX_SKILL_PROMPT_BYTES (8000) of each SKILL.md into the
- * model-visible prompt (#1412). Legacy manifests (`.codex-plugin/plugin.json`) are exempt.
+ * Two shipping hosts route on a root `plugin.json` `$schema` under the Agent Plugins prefix,
+ * and both break this plugin when they do:
  *
- * oh-my-pi >= 17.3 (#1411) routes on the same `$schema` prefix to a strict provider that
- * rejects any SKILL.md whose frontmatter has a key outside the Agent Skills closed set or a
- * non-string `allowed-tools`; 30 of 33 skills fail that today and silently vanish.
+ * - Codex >= 0.147 (openai/codex#37027, #1412) injects only the first MAX_SKILL_PROMPT_BYTES
+ *   (8000) of each Agent Plugin SKILL.md; 26 skills exceed that.
+ * - oh-my-pi >= 17.3 (#1411) rejects any SKILL.md whose frontmatter has a key outside the
+ *   Agent Skills closed set; the Claude Code keys `argument-hint` / `disable-model-invocation`
+ *   are load-bearing, so 30 skills vanish. omp has no per-host override.
  *
- * So the root manifest must not carry that `$schema` until BOTH hold: every skill entrypoint
- * fits the byte bound, and every skill's frontmatter is Agent Skills-conformant. Shrink
- * OVER_BUDGET as skills are restructured; the `$schema` may return only when both are clear.
+ * So the root manifest stays schema-less unconditionally (docs/specs/agent-plugins.md); a
+ * strict client that needs conformance gets a separately emitted package. Independently, no
+ * new skill may cross Codex's byte bound, and OVER_BUDGET shrinks as skills are restructured.
  */
 const CODEX_MAX_SKILL_PROMPT_BYTES = 8_000
 const AGENT_PLUGINS_SCHEMA_PREFIX = "https://agent-plugins.org/schemas/"
-/** Agent Skills closed frontmatter field set, as enforced by skills-ref and omp. */
-const AGENT_SKILLS_FRONTMATTER_KEYS = new Set([
-  "name",
-  "description",
-  "license",
-  "compatibility",
-  "metadata",
-  "allowed-tools",
-])
 
 /**
  * Skills known to exceed the bound. Membership is a set on purpose: an over-budget skill is
@@ -72,45 +62,6 @@ function crlfByteSize(contents: string): number {
   return Buffer.byteLength(lf, "utf8") + (lf.match(/\n/g)?.length ?? 0)
 }
 
-/**
- * Why a SKILL.md's frontmatter would be rejected by a strict Agent Skills client, or null.
- * Mirrors omp's `validateAgentSkillFrontmatter` (itself a port of skills-ref).
- */
-function frontmatterNonconformance(contents: string): string | null {
-  const { data } = parseFrontmatter(contents)
-  const keys = Object.keys(data)
-  if (keys.length === 0) return "missing frontmatter"
-  const unknown = keys.filter((key) => !AGENT_SKILLS_FRONTMATTER_KEYS.has(key))
-  if (unknown.length > 0) return `unknown key(s): ${unknown.join(", ")}`
-  const { name, description, license, compatibility, metadata } = data
-  const allowedTools = data["allowed-tools"]
-  if (typeof name !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name) || name.length > 64) {
-    return "name is not a lowercase hyphenated string of at most 64 chars"
-  }
-  if (typeof description !== "string" || description.trim() === "" || description.length > 1024) {
-    return "description is not a non-empty string of at most 1024 chars"
-  }
-  if (license !== undefined && typeof license !== "string") return "license is not a string"
-  if (
-    compatibility !== undefined &&
-    (typeof compatibility !== "string" || compatibility.length === 0 || compatibility.length > 500)
-  ) {
-    return "compatibility is not a string of 1-500 chars"
-  }
-  if (metadata !== undefined) {
-    if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) {
-      return "metadata is not a map"
-    }
-    if (Object.values(metadata).some((v) => typeof v !== "string")) {
-      return "metadata values are not all strings"
-    }
-  }
-  if (allowedTools !== undefined && typeof allowedTools !== "string") {
-    return "allowed-tools is not a string"
-  }
-  return null
-}
-
 function skillSizes(): Map<string, number> {
   const sizes = new Map<string, number>()
   for (const name of readdirSync(skillsDir)) {
@@ -145,67 +96,11 @@ describe("Codex skill prompt budget (#1412)", () => {
     expect(stale).toEqual([])
   })
 
-  test("root plugin.json omits the Agent Plugins $schema while any skill is over budget or non-conformant", () => {
+  test("root plugin.json never carries an Agent Plugins $schema", () => {
     const manifest = JSON.parse(
       readFileSync(path.join(repoRoot, "plugin.json"), "utf8"),
     ) as Record<string, unknown>
     const schema = typeof manifest.$schema === "string" ? manifest.$schema : ""
-    const blockers: string[] = []
-    for (const [name, size] of sizes) {
-      if (size > CODEX_MAX_SKILL_PROMPT_BYTES) blockers.push(`${name}: ${size} bytes`)
-      const why = frontmatterNonconformance(
-        readFileSync(path.join(skillsDir, name, "SKILL.md"), "utf8"),
-      )
-      if (why) blockers.push(`${name}: ${why}`)
-    }
-    if (blockers.length > 0) {
-      expect(
-        schema.startsWith(AGENT_PLUGINS_SCHEMA_PREFIX),
-        `$schema present but blocked by:\n${blockers.join("\n")}`,
-      ).toBe(false)
-    }
-  })
-
-  test("frontmatter predicate type-checks every permitted field", () => {
-    const fm = (yaml: string) => `---\nname: x\ndescription: y\n${yaml}\n---\nbody\n`
-    expect(frontmatterNonconformance(fm("metadata: text"))).toBe("metadata is not a map")
-    expect(frontmatterNonconformance(fm("metadata:\n  k: 1"))).toBe(
-      "metadata values are not all strings",
-    )
-    expect(frontmatterNonconformance(fm("license: false"))).toBe("license is not a string")
-    expect(frontmatterNonconformance(fm("compatibility: [a]"))).toBe(
-      "compatibility is not a string of 1-500 chars",
-    )
-    expect(frontmatterNonconformance(fm("compatibility: ''"))).toBe(
-      "compatibility is not a string of 1-500 chars",
-    )
-    expect(frontmatterNonconformance(fm("license: MIT\ncompatibility: any\nmetadata:\n  k: v"))).toBeNull()
-    expect(frontmatterNonconformance("---\nname: Bad_Name\ndescription: y\n---\n")).toBe(
-      "name is not a lowercase hyphenated string of at most 64 chars",
-    )
-    expect(frontmatterNonconformance("---\nname: x\ndescription: ''\n---\n")).toBe(
-      "description is not a non-empty string of at most 1024 chars",
-    )
-    expect(frontmatterNonconformance(fm("allowed-tools: [Read, Write]"))).toBe(
-      "allowed-tools is not a string",
-    )
-    expect(frontmatterNonconformance(fm("allowed-tools:\n  - Read"))).toBe(
-      "allowed-tools is not a string",
-    )
-    expect(frontmatterNonconformance(fm("allowed-tools: null"))).toBe(
-      "allowed-tools is not a string",
-    )
-    expect(frontmatterNonconformance(fm("allowed-tools: Read Write"))).toBeNull()
-  })
-
-  test("frontmatter predicate matches the strict-client rejection set", () => {
-    const rejected = [...sizes.keys()].filter((name) =>
-      frontmatterNonconformance(readFileSync(path.join(skillsDir, name, "SKILL.md"), "utf8")),
-    )
-    expect(rejected).toContain("ce-plan")
-    expect(rejected).toContain("ce-setup")
-    expect(rejected).toContain("ce-proof")
-    expect(rejected).not.toContain("ce-commit")
-    expect(rejected).not.toContain("ce-worktree")
+    expect(schema.startsWith(AGENT_PLUGINS_SCHEMA_PREFIX)).toBe(false)
   })
 })
