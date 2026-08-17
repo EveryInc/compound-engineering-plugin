@@ -93,9 +93,9 @@ function frontmatterNonconformance(contents: string): string | null {
   if (license !== undefined && typeof license !== "string") return "license is not a string"
   if (
     compatibility !== undefined &&
-    (typeof compatibility !== "string" || compatibility.length > 500)
+    (typeof compatibility !== "string" || compatibility.length === 0 || compatibility.length > 500)
   ) {
-    return "compatibility is not a string of at most 500 chars"
+    return "compatibility is not a string of 1-500 chars"
   }
   if (metadata !== undefined) {
     if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) {
@@ -174,7 +174,10 @@ describe("Codex skill prompt budget (#1412)", () => {
     )
     expect(frontmatterNonconformance(fm("license: false"))).toBe("license is not a string")
     expect(frontmatterNonconformance(fm("compatibility: [a]"))).toBe(
-      "compatibility is not a string of at most 500 chars",
+      "compatibility is not a string of 1-500 chars",
+    )
+    expect(frontmatterNonconformance(fm("compatibility: ''"))).toBe(
+      "compatibility is not a string of 1-500 chars",
     )
     expect(frontmatterNonconformance(fm("license: MIT\ncompatibility: any\nmetadata:\n  k: v"))).toBeNull()
     expect(frontmatterNonconformance("---\nname: Bad_Name\ndescription: y\n---\n")).toBe(
