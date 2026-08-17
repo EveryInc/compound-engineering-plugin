@@ -57,7 +57,13 @@ describe("repo-local ce-skill-work skill", () => {
       "utf8",
     )
     const agents = readFileSync(path.join(ROOT, "AGENTS.md"), "utf8")
-    const ownDescription = skill.match(/^description: "(.+)"$/m)?.[1] ?? ""
+    const shapeDescription = [
+      "Applies this repository's skill-authoring standard as a procedure. ",
+      "Use for any change to, or judgment about, a file under skills/** — a SKILL.md, ",
+      "a reference, a persona prompt, a bundled script's instructions: creating a skill, ",
+      "editing one, reviewing a skill change, or acting on review feedback (human or bot) about one. ",
+      "Not for src/, tests/, or scripts/ code.",
+    ].join("")
     const catalogFailure = [
       "\"This skill should be used when a user wants media from a yt-dlp-supported URL ",
       "such as YouTube, Twitter/X, TikTok, and similar sites downloaded, audio extracted, ",
@@ -70,13 +76,14 @@ describe("repo-local ce-skill-work skill", () => {
       expect(content).toMatch(/one (positive )?trigger per genuinely distinct branch/i)
     }
 
-    expect(newSkill).toContain("Use this skill's own frontmatter as the shape")
+    expect(skill).not.toContain("frontmatter as the template")
+    expect(newSkill).not.toContain("Use this skill's own frontmatter")
+    expect(newSkill).not.toContain("frontmatter as the shape")
     expect(newSkill).not.toContain("Lead with the job in one clause")
     expect(newSkill.match(/^Contrast pair \(the only description example\):$/gm) ?? []).toHaveLength(1)
-    expect(newSkill).toContain(`- Good: "${ownDescription}"`)
-    expect(newSkill).toContain(`- Bad (failure): ${catalogFailure}`)
+    expect(newSkill).toContain(`- Good (shape): "${shapeDescription}"`)
     expect(newSkill).toContain(
-      "Why it fails: identity boilerplate + one branch written as a site/capability catalog.",
+      `- Bad (failure: identity boilerplate + one branch written as a site/capability catalog): ${catalogFailure}`,
     )
     expect(reviewSkill).toMatch(/identity-boilerplate opener[\s\S]*catalog[\s\S]*is a Change/)
     expect(reviewSkill).toContain("Use the single contrast pair in `references/new-skill.md`")
