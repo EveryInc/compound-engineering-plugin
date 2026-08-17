@@ -171,7 +171,10 @@ present. They carry the contracts downstream consumers depend on.
   **Objective** is always the outcome: what is true afterwards, phrased so it
   would still read as the goal under a different implementation. The chosen
   approach is the **Means**, its own line whenever the request or the plan
-  has fixed one — never invented for outcome-only work. Test: if the
+  has fixed one — never invented for outcome-only work. It is a linked
+  projection under the one-owner rule below: one line naming the approach and
+  citing the KTD or Key Decision that owns it (`Means: … (KTD2)`), never a
+  restatement of that owner's mechanism. Test: if the
   implementation changed, would the Objective still be the goal? If not, it is
   a Means. When a request supplies only its approach ("move X out of A into
   B"), that is the Means; the Objective is the outcome it serves, derived from
