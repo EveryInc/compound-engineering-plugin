@@ -75,7 +75,7 @@ Without an explicit pipeline, autonomous runs tend to skip planning, treat revie
 5. `/ce-code-review` (`mode:agent`) reports findings. `lfg` applies eligible mechanical fixes and commits them. Review itself does not edit the tree.
 6. Leftover actionable findings, plus any flagged settlement conflicts, become durable as tracker tickets and one run-report comment on the PR. They are not written into the PR body.
 7. `/ce-test-browser` runs in pipeline mode.
-8. `/ce-commit-push-pr mode:pipeline branding:on` commits remaining changes, pushes, and opens a PR when a remote exists, and marks CE provenance.
+8. `/ce-commit-push-pr mode:pipeline branding:on` commits remaining changes, pushes, and opens a PR when a remote exists, and marks CE provenance. If the project's instructions name their own shipping process (e.g. a `/create-pr` skill), that process runs instead, so CE branding may not appear.
 9. `/ce-babysit-pr mode:pipeline` watches the open PR: CI repairs via `/ce-debug`, incoming review comments via `/ce-resolve-pr-feedback`, up to three fix rounds by default. Pipeline babysit stops at "CI decided," not "merged."
 10. Print `DONE`. If the plan named a larger body of separately planned work and an area is still unplanned, `lfg` may offer an opt-in `/ce-handoff` for a fresh session. It does not continue that area itself.
 
