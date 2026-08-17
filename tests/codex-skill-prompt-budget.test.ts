@@ -8,12 +8,25 @@ import path from "node:path"
  * then injects only the first MAX_SKILL_PROMPT_BYTES (8000) of each SKILL.md into the
  * model-visible prompt (#1412). Legacy manifests (`.codex-plugin/plugin.json`) are exempt.
  *
- * Until every skill entrypoint fits, the root manifest must not carry that `$schema`,
- * and no skill may newly cross the bound. Shrink OVER_BUDGET as skills are restructured;
- * when it is empty, the `$schema` may return.
+ * oh-my-pi >= 17.3 (#1411) routes on the same `$schema` prefix to a strict provider that
+ * rejects any SKILL.md whose frontmatter has a key outside the Agent Skills closed set or a
+ * non-string `allowed-tools`; 30 of 33 skills fail that today and silently vanish.
+ *
+ * So the root manifest must not carry that `$schema` until BOTH hold: every skill entrypoint
+ * fits the byte bound, and every skill's frontmatter is Agent Skills-conformant. Shrink
+ * OVER_BUDGET as skills are restructured; the `$schema` may return only when both are clear.
  */
 const CODEX_MAX_SKILL_PROMPT_BYTES = 8_000
 const AGENT_PLUGINS_SCHEMA_PREFIX = "https://agent-plugins.org/schemas/"
+/** Agent Skills closed frontmatter field set, as enforced by skills-ref and omp. */
+const AGENT_SKILLS_FRONTMATTER_KEYS = new Set([
+  "name",
+  "description",
+  "license",
+  "compatibility",
+  "metadata",
+  "allowed-tools",
+])
 
 /**
  * Skills known to exceed the bound. Membership is a set on purpose: an over-budget skill is
@@ -58,6 +71,20 @@ function crlfByteSize(contents: string): number {
   return Buffer.byteLength(lf, "utf8") + (lf.match(/\n/g)?.length ?? 0)
 }
 
+/** Why a SKILL.md's frontmatter would be rejected by a strict Agent Skills client, or null. */
+function frontmatterNonconformance(contents: string): string | null {
+  const match = contents.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+  if (!match) return "missing frontmatter"
+  const keys = match[1]
+    .split(/\r?\n/)
+    .filter((line) => /^[A-Za-z][\w-]*:/.test(line))
+    .map((line) => line.slice(0, line.indexOf(":")))
+  const unknown = keys.filter((key) => !AGENT_SKILLS_FRONTMATTER_KEYS.has(key))
+  if (unknown.length > 0) return `unknown key(s): ${unknown.join(", ")}`
+  if (/^allowed-tools:\s*$/m.test(match[1])) return "allowed-tools is not a string"
+  return null
+}
+
 function skillSizes(): Map<string, number> {
   const sizes = new Map<string, number>()
   for (const name of readdirSync(skillsDir)) {
@@ -92,16 +119,35 @@ describe("Codex skill prompt budget (#1412)", () => {
     expect(stale).toEqual([])
   })
 
-  test("root plugin.json omits the Agent Plugins $schema while any skill is over budget", () => {
+  test("root plugin.json omits the Agent Plugins $schema while any skill is over budget or non-conformant", () => {
     const manifest = JSON.parse(
       readFileSync(path.join(repoRoot, "plugin.json"), "utf8"),
     ) as Record<string, unknown>
     const schema = typeof manifest.$schema === "string" ? manifest.$schema : ""
-    const anyOverBudget = [...sizes.values()].some(
-      (size) => size > CODEX_MAX_SKILL_PROMPT_BYTES,
-    )
-    if (anyOverBudget) {
-      expect(schema.startsWith(AGENT_PLUGINS_SCHEMA_PREFIX)).toBe(false)
+    const blockers: string[] = []
+    for (const [name, size] of sizes) {
+      if (size > CODEX_MAX_SKILL_PROMPT_BYTES) blockers.push(`${name}: ${size} bytes`)
+      const why = frontmatterNonconformance(
+        readFileSync(path.join(skillsDir, name, "SKILL.md"), "utf8"),
+      )
+      if (why) blockers.push(`${name}: ${why}`)
     }
+    if (blockers.length > 0) {
+      expect(
+        schema.startsWith(AGENT_PLUGINS_SCHEMA_PREFIX),
+        `$schema present but blocked by:\n${blockers.join("\n")}`,
+      ).toBe(false)
+    }
+  })
+
+  test("frontmatter predicate matches the strict-client rejection set", () => {
+    const rejected = [...sizes.keys()].filter((name) =>
+      frontmatterNonconformance(readFileSync(path.join(skillsDir, name, "SKILL.md"), "utf8")),
+    )
+    expect(rejected).toContain("ce-plan")
+    expect(rejected).toContain("ce-setup")
+    expect(rejected).toContain("ce-proof")
+    expect(rejected).not.toContain("ce-commit")
+    expect(rejected).not.toContain("ce-worktree")
   })
 })
