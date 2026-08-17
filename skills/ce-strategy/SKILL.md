@@ -82,9 +82,9 @@ When every section is captured, read `references/strategy-template.md`, fill it 
 
 ### Phase 2: Update Run
 
-Read the existing `STRATEGY.md` thoroughly. Summarize current state in 3-5 lines so the user sees what is on file. A file written by an earlier version uses older headings (`Target problem`, `Our approach`, `Who it's for`, `Not working on`, `Marketing`); treat each as its current section, and on write rename it to the current heading in place - a heading rename, content untouched, mentioned in chat. A file in any other shape is read by meaning and updated in its own shape (principle 6).
+Read the existing `STRATEGY.md` thoroughly. Summarize current state in 3-5 lines so the user sees what is on file. A file written by an earlier version uses older headings (`Target problem`, `Our approach`, `Who it's for`, `Not working on`, `Marketing`); treat each as its current section, and when this skill writes that section, rename its heading to the current one in place - a heading rename, content untouched, mentioned in chat. A section this skill does not write keeps its heading, which is what keeps principle 6's protected and unowned content untouched. A file in any other shape is read by meaning and updated in its own shape (principle 6).
 
-Check for drift: compare the doc against the repo model and against what has landed since `last_updated` (recent commits or PRs, plans and learnings under `docs/`). Name any section the evidence suggests is stale, with the evidence, as a candidate - not a verdict.
+Check for drift: compare every section of the doc against the repo model - stated intent, structure, and recent history (commits or PRs, plans and learnings under `docs/`) - not only against what changed since the last write, since a targeted update advances `last_updated` without reviewing the rest. Name any section the evidence suggests is stale, with the evidence, as a candidate - not a verdict.
 
 If the argument named a specific section, jump to that section in `references/interview.md`. Preserve all other sections exactly, including sections this skill did not write. Apply pushback as if this were a first run - do not rubber-stamp existing weak content just because it is already written.
 

@@ -120,7 +120,7 @@ Recent commits or PRs show where attention has gone lately, so this is the one s
 
 Run this once sections 1-5 are captured, before Boundaries and the optional sections and before drafting. A strategy is only useful if it decides things, so test whether the assembled answers do.
 
-Pose 3-5 concrete proposals, one at a time, aimed at the draft's fault lines: a tempting feature that sits just off the approach, a second persona pulling in a different direction, a track that would starve another, a metric that would look good while the approach failed. Pick proposals where you cannot predict the user's answer from the draft; a proposal the draft plainly accepts or rejects tests nothing - replace it. Where the repo model shows a tempting direction (a request in the issues, a recent burst of work outside the tracks), use it.
+Pose 3-5 concrete proposals, one at a time, aimed at the draft's fault lines: a tempting feature that sits just off the approach, a second persona pulling in a different direction, a track that would starve another, a metric that would look good while the approach failed. Pick proposals whose answer the user could reasonably give either way, so the test carries information; the draft may already imply a position on it - that implied position is what the user's answer confirms or overturns. Skip proposals that are obviously on- or off-strategy for anyone ("add payroll" to a product whose README already excludes it), since the user's answer is a foregone conclusion and tests nothing. Where the repo model shows a tempting direction (a request in the issues, a recent burst of work outside the tracks), use it.
 
 For each answer:
 
