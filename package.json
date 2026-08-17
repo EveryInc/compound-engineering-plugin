@@ -1,6 +1,6 @@
 {
   "name": "compound-engineering",
-  "version": "3.22.2",
+  "version": "3.22.3",
   "description": "Official Compound Engineering skills plugin for coding agents",
   "type": "module",
   "private": true,
