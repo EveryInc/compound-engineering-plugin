@@ -1051,13 +1051,13 @@ describe("Goal Capsule objective is outcome-shaped (issue #1423)", () => {
     ] as const) {
       const capsule = sliceSection(doc, marker, "\n- ")
       expect(capsule).toMatch(/\bMeans\b/)
-      expect(capsule).toMatch(/different (implementation|mechanism)/i)
+      expect(capsule).toMatch(/different\s+(implementation|mechanism)/i)
     }
   })
 
-  test("Success Criteria skip does not fire on mechanism-shaped requirements", () => {
+  test("Success Criteria skip does not fire on approach-shaped requirements", () => {
     const sc = sliceSection(planSections, "- **Success Criteria**", "\n- **")
-    expect(sc).toMatch(/mechanism/i)
+    expect(sc).toMatch(/approach rather than an outcome/)
   })
 
   test("bootstrap exit requires an outcome-shaped problem frame", () => {

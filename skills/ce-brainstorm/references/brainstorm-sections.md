@@ -38,12 +38,11 @@ A requirements-only unified plan is kept **light and standalone-readable**. It
 includes:
 
 - `## Goal Capsule` with objective, product authority, and open blockers. The
-  objective is the outcome — what is true for users or operators afterwards,
-  phrased so it would still read as the goal under a different implementation.
-  When the seed is an engineering request rather than a user problem ("move X
-  to Y", "replace A with B"), the request is the **Means** (its own line) and
-  the objective is the outcome it serves, surfaced in the dialogue rather than
-  assumed. When the coherent-work gate split a broader request, the objective
+  objective is always the outcome — what is true for users or operators
+  afterwards, phrased so it would still read as the goal under a different
+  implementation. When the seed supplies an approach ("move X to Y"), that is
+  the **Means** (its own line) and the objective is the outcome it serves,
+  surfaced in the dialogue rather than assumed. When the coherent-work gate split a broader request, the objective
   names the current area and product authority says the surrounding areas are
   not active scope.
 - `## Product Contract` containing the brainstorm sections below.

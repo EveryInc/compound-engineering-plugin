@@ -165,18 +165,16 @@ message or `<root>/solutions/` if they're worth carrying forward.
 When an implementation-ready software plan is warranted, these sections are
 present. They carry the contracts downstream consumers depend on.
 
-- **Goal Capsule** — objective, means (when the approach was chosen for the
-  plan), authority hierarchy, stop conditions, execution profile, and tail
-  ownership. This is the fastest way for an executor to avoid drifting from
-  the plan. The **Objective** is the outcome: what is true afterwards, phrased
-  so it would still read as the goal under a different implementation. The
-  chosen approach — a move, migration, replacement, extraction — is the
-  **Means**, its own line. Test: if the implementation changed, would the
-  Objective still be the goal? If not, it is a Means. A request that arrives
-  mechanism-shaped ("move X out of A into B") supplies the Means; the
-  Objective is the operational outcome it serves (separation, isolation,
-  scaling, cost, reliability, velocity), derived from the request's
-  motivation or asked for, never left as the mechanism restated.
+- **Goal Capsule** — objective, means, authority hierarchy, stop conditions,
+  execution profile, and tail ownership. This is the fastest way for an
+  executor to avoid drifting from the plan. The **Objective** is always the
+  outcome: what is true afterwards, phrased so it would still read as the goal
+  under a different implementation. The chosen approach is the **Means**, its
+  own line whenever the request or the plan has fixed one. Test: if the
+  implementation changed, would the Objective still be the goal? If not, it is
+  a Means. When a request supplies only its approach ("move X out of A into
+  B"), that is the Means; the Objective is the outcome it serves, derived from
+  the request's motivation or asked for — never the approach restated.
 - **Product Contract** — product scope and behavior. Contains Summary, Problem
   Frame, Requirements with stable R-IDs, and any material Actors, Flows,
   Acceptance Examples, Success Criteria, Scope Boundaries, Dependencies,
@@ -259,10 +257,9 @@ them fire.
   latency under 200ms"), qualitative criteria ("the agent's output reads as
   one voice"), process / handoff quality ("ce-doc-review can act on this
   without follow-ups"). Skip when Requirements ARE the success criteria
-  (every R is "done when the R is true") — which they are not when they
-  describe a mechanism (a refactor, migration, or replacement whose Rs say
-  what moves where): then include at least one outcome-shaped criterion that
-  would show the Goal Capsule Objective was reached.
+  (every R is "done when the R is true"). Requirements that describe an
+  approach rather than an outcome are not success criteria; then include at
+  least one criterion that would show the Goal Capsule Objective was reached.
 
 - **Actors** — include when the work has multi-party behavior (multiple
   humans, agents, or systems meaningfully involved) that the units must
