@@ -1,5 +1,4 @@
 {
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "compound-engineering",
   "version": "3.22.2",
   "description": "Brainstorm, plan, debug, review, and compound learnings with AI agents",

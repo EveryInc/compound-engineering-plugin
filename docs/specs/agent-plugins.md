@@ -4,11 +4,13 @@ Last verified: 2026-08-07 against [Agent Plugins v1.0.0](https://agent-plugins.o
 
 ## What this repo does
 
-Root `plugin.json` targets the Agent Plugins 1.0.0 manifest schema:
+Root `plugin.json` follows the Agent Plugins 1.0.0 manifest authoring rules (field set and shapes) but **currently omits the `$schema` field**:
 
 ```text
 https://agent-plugins.org/schemas/1.0.0/plugin.schema.json
 ```
+
+**Why `$schema` is withheld (#1412):** Codex >= 0.147 ([openai/codex#37027](https://github.com/openai/codex/pull/37027)) treats a root `plugin.json` whose `$schema` starts with `https://agent-plugins.org/schemas/` as an Agent Plugin, and for Agent Plugin skills injects only the first `MAX_SKILL_PROMPT_BYTES` (8000) of each `SKILL.md` into the model-visible prompt, silently dropping the rest. Legacy manifests (`.codex-plugin/plugin.json`) are exempt. Most bundled skills exceed 8000 bytes, so shipping the `$schema` truncates them on Codex. `tests/codex-skill-prompt-budget.test.ts` pins this: it forbids the `$schema` while any skill is over budget, and holds a shrink-only allowlist of over-budget skills (CRLF-adjusted, since Windows checkouts inflate the byte count). Restore the `$schema` only once that allowlist is empty.
 
 Layout already matches the portable package shape: root manifest + `skills/<name>/SKILL.md`. No `mcp.json` (valid — MCP is optional).
 
@@ -44,6 +46,8 @@ Agent Plugins discovers skills via the [Agent Skills](https://agentskills.io/spe
 
 ## Re-verify when
 
+- Every `SKILL.md` fits Codex's 8000-byte prompt bound (then restore `$schema`)
+- Codex changes `MAX_SKILL_PROMPT_BYTES` or applies it to legacy/host skills ([openai/codex#37463](https://github.com/openai/codex/issues/37463))
 - Agent Plugins leaves Working Draft / publishes a new schema version
 - Adding top-level fields to root `plugin.json`
 - A concrete Agent Plugins client is observed to skip or reject skills with Claude-only frontmatter
