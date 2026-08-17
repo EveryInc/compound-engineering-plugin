@@ -48,7 +48,7 @@ Then build a **repo model** - your working understanding of what this product is
 
 If the repo has no substantive content (new or near-empty), say so in one line and run the interview ungrounded - that is a normal path, not a blocker.
 
-Show the repo model in chat before the first question: three to five lines stating what you take the product to be, who it seems to serve, and where recent attention has gone, each with its source named. Invite correction. This is the head start; the interview still runs in full.
+Show the repo model in chat before the first question: three to five lines stating what you take the product to be, who it seems to serve, and where recent attention has gone, each with its source named. Invite correction. This is the head start; the interview still runs in full. If the repo model could not supply the product's name, ask for it here - the template's frontmatter and title need it.
 
 Route by file state:
 
@@ -95,7 +95,7 @@ If no specific target, ask the user which section to revisit using the blocking 
 - "Users"
 - "Metrics, tracks, boundaries, or other"
 
-For each revisited section, re-interview with full pushback. For sections the user confirms are still accurate, leave them untouched. Update the `last_updated` value in the YAML frontmatter to today's ISO date.
+For each revisited section, re-interview with full pushback. For sections the user confirms are still accurate, leave them untouched. If the file is in this skill's house format but predates a section the template now requires (Boundaries, in files written before it existed), offer to add it - do not add it silently, and do not add it to a file in another shape. When the file has YAML frontmatter, set `last_updated` to today's ISO date; when it has none, leave it that way - readers fall back to the file's own date.
 
 Write the updated doc back to `STRATEGY.md`.
 
