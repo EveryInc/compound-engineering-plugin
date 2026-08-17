@@ -334,7 +334,7 @@ Model tiering lives in this caller, not in prompt assets. Local prompt files hav
 Prepare a concise planning context summary (a paragraph or two) to pass as input to the research agents:
 - If an origin document exists, summarize the problem frame, requirements, and key decisions from that document
 - Otherwise use the feature description directly
-- If `STRATEGY.md` exists, read it and include the relevant pieces (target problem, approach, active tracks, and any Not working on items) in the summary so downstream research and planning decisions are anchored to product strategy
+- Read whichever product docs exist at the repo root — `STRATEGY.md`, `PRODUCT.md`, `VISION.md` — and include the relevant pieces (purpose, positioning or approach, active tracks, and stated boundaries or non-goals; go by each section's meaning, since heading names vary by writer and version) in the summary so downstream research and planning decisions are anchored to product strategy
 - If `CONCEPTS.md` exists at repo root, read it — its definitions are the canonical names for domain entities, named processes, and status concepts. Plan with those terms rather than synonyms.
 - Include session-settled decisions with their rejected alternatives, plus the standing line "If you find evidence a settled decision cannot work, report it — do not suppress it." Do not pass the decision's advocacy or rationale, and keep any adversarial or validation lens blind to settlement markers.
 
@@ -359,7 +359,7 @@ Collect:
 - Relevant architecture and implementation patterns, files, modules, and tests for the requested scope
 - Applicable constraints from the project's active instructions and context
 - Institutional learnings from `<root>/solutions/`
-- Product strategy context when `STRATEGY.md` is present — flag any plan decisions that pull away from the active tracks or the stated approach, or that land on its Not working on list
+- Product strategy context when any product doc is present — flag any plan decisions that pull away from the active tracks or the stated positioning, or that land inside its stated boundaries or non-goals
 - Agent-native planning findings when the conditional triage dispatched: action/context parity decisions, tool/workspace/execution-lifecycle choices, scope boundaries, and verification scenarios
 
 **Slack context** (opt-in) — never auto-dispatch. Route by condition:

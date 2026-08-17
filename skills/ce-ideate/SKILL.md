@@ -300,7 +300,7 @@ Run grounding agents in parallel in the **foreground** (do not background — re
 
    > **Grounding scope:** use the supplied project context and go directly to current patterns bearing on the focus, pain points, leverage points, applicable workflow constraints, and in surprise-me mode representative files plus recent activity. If the focus cannot be scoped, use one targeted root or workspace probe.
    >
-   > Start with the files and areas named by the focus or caller context. Read the applicable current project instructions when operational rules affect the scan, `STRATEGY.md` when product alignment matters, and `CONCEPTS.md` when canonical vocabulary matters.
+   > Start with the files and areas named by the focus or caller context. Read the applicable current project instructions when operational rules affect the scan, whichever product docs exist at the repo root (`STRATEGY.md`, `PRODUCT.md`, `VISION.md`) when product alignment matters, and `CONCEPTS.md` when canonical vocabulary matters.
    >
    > If the focus names a root-level `*.md` file, read it and include its relevant content under `User-named references`. When that file is listed on the research-artifacts line below, leave its full distillation to the research agent and include only a one-line gist here.
    >
@@ -309,7 +309,7 @@ Run grounding agents in parallel in the **foreground** (do not background — re
    > - current patterns and conventions relevant to the focus
    > - pain points or gaps relevant to the focus
    > - likely leverage points
-   > - relevant product strategy, if `STRATEGY.md` was read
+   > - relevant product strategy and boundaries, if a product doc was read
    > - `User-named references` section (when the focus hint named root-level `*.md` files)
    >
    > Keep the scan shallow. Do not analyze unrelated issues, templates, contribution guidelines, or code.
