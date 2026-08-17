@@ -176,7 +176,12 @@ function eyesReactionIdentities(pages: unknown): string[] {
 
 function probeBaseIdentity(options: {
   refStatus?: number
+  refError?: string
   refOid?: string
+  gitStatus?: number
+  gitOutput?: string
+  gitTimeout?: boolean
+  gitOSError?: boolean
   historicalOid?: string
   graphqlOid?: string | null
   headOid?: string
@@ -185,10 +190,15 @@ function probeBaseIdentity(options: {
   mergeCommitOid?: string | null
   parentOids?: string[]
   host?: string
-}): { base: any; call: string[] } {
+}): { base: any; calls: string[][] } {
   const values = {
     refStatus: 0,
+    refError: "not found",
     refOid: "2".repeat(40),
+    gitStatus: 1,
+    gitOutput: "",
+    gitTimeout: false,
+    gitOSError: false,
     historicalOid: "1".repeat(40),
     graphqlOid: "2".repeat(40) as string | null,
     headOid: "3".repeat(40),
@@ -200,7 +210,7 @@ function probeBaseIdentity(options: {
     ...options,
   }
   const r = spawnSync("python3", ["-c", `
-import json
+import json, subprocess
 from importlib.machinery import SourceFileLoader
 m = SourceFileLoader("prs", ${JSON.stringify(SCRIPT)}).load_module()
 values = json.loads(${JSON.stringify(JSON.stringify(values))})
@@ -210,10 +220,22 @@ def run(cmd):
     calls.append(cmd)
     result = Result()
     result.returncode = values["refStatus"]
-    result.stderr = "not found" if result.returncode else ""
+    result.stderr = values["refError"] if result.returncode else ""
     result.stdout = values["refOid"] + "\\n" if result.returncode == 0 else ""
     return result
+def run_git(cmd):
+    calls.append(cmd)
+    if values["gitTimeout"]:
+        raise subprocess.TimeoutExpired(cmd, 30)
+    if values["gitOSError"]:
+        raise FileNotFoundError("git")
+    result = Result()
+    result.returncode = values["gitStatus"]
+    result.stderr = "git ref probe failed" if result.returncode else ""
+    result.stdout = values["gitOutput"]
+    return result
 m._run = run
+m._run_git = run_git
 potential = None if values["mergeCommitOid"] is None else {
     "oid": values["mergeCommitOid"],
     "parents": {"nodes": [{"oid": oid} for oid in values["parentOids"]]},
@@ -227,7 +249,7 @@ identity = {
     "potentialMergeCommit": potential,
 }
 base = m.fetch_base_ref("o", "r", "main", identity, values["host"])
-print(json.dumps({"base": base, "call": calls[0]}))
+print(json.dumps({"base": base, "calls": calls}))
 `], { encoding: "utf8" })
   expect(r.status, r.stderr).toBe(0)
   return JSON.parse(r.stdout)
@@ -1392,9 +1414,112 @@ print(json.dumps({"current": current, "same_head_mixed_case": same_head_mixed_ca
         parentOids: [baseOid, headOid],
       })
       expect(result.base.identity).toBe("current")
-      expect(result.call).toContain("--hostname")
-      expect(result.call).toContain("ghe.acme.test")
+      expect(result.calls[0]).toContain("--hostname")
+      expect(result.calls[0]).toContain("ghe.acme.test")
     }
+  })
+
+  test("private REST ref 404 falls back to an exact non-interactive Git ref probe", () => {
+    const baseOid = "a".repeat(40)
+    const headOid = "b".repeat(40)
+    const result = probeBaseIdentity({
+      refStatus: 1,
+      refError: "gh: Not Found (HTTP 404)",
+      gitStatus: 0,
+      gitOutput: `${baseOid}\trefs/heads/main\n`,
+      graphqlOid: baseOid,
+      headOid,
+      mergeCommitOid: "d".repeat(40),
+      parentOids: [baseOid, headOid],
+    })
+
+    expect(result.base.identity).toBe("current")
+    expect(result.base.oid).toBe(baseOid)
+    expect(result.calls).toHaveLength(2)
+    expect(result.calls[1]).toEqual([
+      "git", "-c", "core.askPass=", "ls-remote", "--exit-code", "--refs",
+      "https://ghe.acme.test/o/r.git", "refs/heads/main",
+    ])
+
+    expect(probeBaseIdentity({
+      refStatus: 1,
+      refError: "gh: Not Found (HTTP 404)",
+      gitStatus: 1,
+    }).base.identity).toBe("probe-error")
+    expect(probeBaseIdentity({
+      refStatus: 1,
+      refError: "gh: Not Found (HTTP 404)",
+      gitStatus: 0,
+      gitOutput: `${baseOid}\trefs/heads/not-main\n`,
+    }).base.identity).toBe("probe-error")
+    expect(probeBaseIdentity({
+      refStatus: 1,
+      refError: "gh: Not Found (HTTP 404)",
+      gitStatus: 0,
+      gitOutput: `not-an-oid\trefs/heads/main\n`,
+    }).base.identity).toBe("probe-error")
+    expect(probeBaseIdentity({
+      refStatus: 1,
+      refError: "gh: Not Found (HTTP 404)",
+      gitStatus: 0,
+      gitOutput: `${baseOid}\trefs/heads/main\n${baseOid}\trefs/heads/main\n`,
+    }).base.identity).toBe("probe-error")
+    expect(probeBaseIdentity({
+      refStatus: 1,
+      refError: "gh: Not Found (HTTP 404)",
+      gitTimeout: true,
+    }).base.identity).toBe("probe-error")
+    expect(probeBaseIdentity({
+      refStatus: 1,
+      refError: "gh: Not Found (HTTP 404)",
+      gitOSError: true,
+    }).base.identity).toBe("probe-error")
+
+    const forbidden = probeBaseIdentity({
+      refStatus: 1,
+      refError: "gh: Forbidden (HTTP 403)",
+      gitStatus: 0,
+      gitOutput: `${baseOid}\trefs/heads/main\n`,
+    })
+    expect(forbidden.base.identity).toBe("probe-error")
+    expect(forbidden.calls).toHaveLength(1)
+  })
+
+  test("Git ref probes are bounded and non-interactive", () => {
+    const r = spawnSync("python3", ["-c", `
+import json, os
+from importlib.machinery import SourceFileLoader
+m = SourceFileLoader("pr_snapshot", ${JSON.stringify(SCRIPT)}).load_module()
+observed = {}
+class Result:
+    returncode = 1
+    stdout = ""
+    stderr = ""
+def run(cmd, **kwargs):
+    observed.update(kwargs)
+    observed["inherited"] = kwargs["env"].get("PR_SNAPSHOT_TEST_ENV")
+    return Result()
+m.subprocess.run = run
+os.environ["PR_SNAPSHOT_TEST_ENV"] = "preserved"
+m._run_git(["git", "ls-remote"])
+print(json.dumps({
+    "prompt": observed["env"].get("GIT_TERMINAL_PROMPT"),
+    "gcm": observed["env"].get("GCM_INTERACTIVE"),
+    "askpass": observed["env"].get("GIT_ASKPASS"),
+    "ssh_askpass": observed["env"].get("SSH_ASKPASS"),
+    "inherited": observed["inherited"],
+    "timeout": observed["timeout"],
+}))
+`], { encoding: "utf8" })
+    expect(r.status, r.stderr).toBe(0)
+    expect(JSON.parse(r.stdout)).toEqual({
+      prompt: "0",
+      gcm: "never",
+      askpass: "",
+      ssh_askpass: "",
+      inherited: "preserved",
+      timeout: 30,
+    })
   })
 
   test("DIRTY conflict state does not require a generated test merge commit", () => {
