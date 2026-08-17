@@ -81,6 +81,7 @@ export interface CodexDevStatus {
   collection: LocalCollectionState
   localTarget?: string
   localMatchesCheckout: boolean
+  officialPluginConfigured: boolean
 }
 
 const OFFICIAL_PLUGIN_ID = "compound-engineering@compound-engineering-plugin"
@@ -457,6 +458,21 @@ async function listCompoundEngineeringPlugins(
   )
 }
 
+async function isOfficialPluginConfigured(context: CodexDevContext): Promise<boolean> {
+  const configPath = path.join(context.codexHome, "config.toml")
+  try {
+    const config = Bun.TOML.parse(await fs.readFile(configPath, "utf8")) as {
+      plugins?: Record<string, { enabled?: unknown }>
+    }
+    return config.plugins?.[OFFICIAL_PLUGIN_ID]?.enabled === true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false
+    throw new Error(
+      `Could not inspect ${configPath}: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+}
+
 function normalizedGitUrl(value: string | undefined): string | undefined {
   return value?.replace(/\.git\/?$/, "").replace(/\/$/, "").toLowerCase()
 }
@@ -480,9 +496,10 @@ export async function inspectCodexDevStatus(
   context: CodexDevContext,
   runner: CommandRunner = new BunCommandRunner(),
 ): Promise<CodexDevStatus> {
-  const [collection, plugins] = await Promise.all([
+  const [collection, plugins, officialPluginConfigured] = await Promise.all([
     inspectLocalCollection(context),
     listCompoundEngineeringPlugins(context, runner),
+    isOfficialPluginConfigured(context),
   ])
   const localTarget = collection.kind === "valid" ? collection.resolvedTarget : undefined
   const localMatchesCheckout =
@@ -491,11 +508,11 @@ export async function inspectCodexDevStatus(
   let mode: CodexDevMode
   if (collection.kind === "collision" || collection.kind === "broken" || collection.kind === "unrelated") {
     mode = "drifted"
-  } else if (collection.kind === "valid" && plugins.length > 0) {
+  } else if (collection.kind === "valid" && (plugins.length > 0 || officialPluginConfigured)) {
     mode = "mixed"
   } else if (collection.kind === "valid") {
     mode = localMatchesCheckout ? "local" : "drifted"
-  } else if (plugins.length === 0) {
+  } else if (plugins.length === 0 && !officialPluginConfigured) {
     mode = "absent"
   } else if (plugins.length === 1 && isOfficialMarketplacePlugin(plugins[0]!)) {
     mode = "remote"
@@ -503,7 +520,7 @@ export async function inspectCodexDevStatus(
     mode = "drifted"
   }
 
-  return { mode, plugins, collection, localTarget, localMatchesCheckout }
+  return { mode, plugins, collection, localTarget, localMatchesCheckout, officialPluginConfigured }
 }
 
 async function removePlugins(
@@ -514,6 +531,24 @@ async function removePlugins(
   for (const plugin of plugins) {
     await runCodex(context, runner, ["plugin", "remove", plugin.pluginId, "--json"])
   }
+}
+
+async function removeLocalPluginConflicts(
+  context: CodexDevContext,
+  runner: CommandRunner,
+  plugins: InstalledPlugin[],
+): Promise<void> {
+  if (
+    plugins.some((plugin) => plugin.pluginId === OFFICIAL_PLUGIN_ID) ||
+    (await isOfficialPluginConfigured(context))
+  ) {
+    await runCodex(context, runner, ["plugin", "remove", OFFICIAL_PLUGIN_ID, "--json"])
+  }
+  await removePlugins(
+    context,
+    runner,
+    plugins.filter((plugin) => plugin.pluginId !== OFFICIAL_PLUGIN_ID),
+  )
 }
 
 export async function switchToLocal(
@@ -528,7 +563,7 @@ export async function switchToLocal(
   await activateLocalCollection(context)
   try {
     const plugins = await listCompoundEngineeringPlugins(context, runner)
-    await removePlugins(context, runner, plugins)
+    await removeLocalPluginConflicts(context, runner, plugins)
     const status = await inspectCodexDevStatus(context, runner)
     if (status.mode !== "local") {
       throw new Error(`Could not verify local Codex development mode (reported ${status.mode})`)
@@ -611,7 +646,7 @@ export async function removeCodexDevInstallation(
   runner: CommandRunner = new BunCommandRunner(),
 ): Promise<CodexDevStatus> {
   const plugins = await listCompoundEngineeringPlugins(context, runner)
-  await removePlugins(context, runner, plugins)
+  await removeLocalPluginConflicts(context, runner, plugins)
   await removeLocalCollection(context)
   const status = await inspectCodexDevStatus(context, runner)
   if (status.mode !== "absent") {
@@ -647,6 +682,9 @@ function statusLines(context: CodexDevContext, status: CodexDevStatus): string[]
     lines.push(
       `Plugin: ${plugin.pluginId} (${plugin.enabled ? "enabled" : "disabled"}, version ${plugin.version ?? "unknown"}, ${source})`,
     )
+  }
+  if (status.officialPluginConfigured && !status.plugins.some((plugin) => plugin.pluginId === OFFICIAL_PLUGIN_ID)) {
+    lines.push(`Plugin config: ${OFFICIAL_PLUGIN_ID} (enabled, omitted from codex plugin list)`)
   }
   if (status.mode === "mixed") {
     lines.push("Action required: both local skills and a Compound Engineering plugin are enabled.")

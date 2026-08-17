@@ -113,6 +113,7 @@ class StatefulCodexRunner implements CommandRunner {
   failAdd = false
   failRemove: string | null = null
   beforeFailedRemove?: () => Promise<void>
+  afterRemove?: (pluginId: string) => Promise<void>
 
   constructor(plugins: InstalledPlugin[] = [], marketplaces: typeof officialMarketplace[] = []) {
     this.plugins = [...plugins]
@@ -135,6 +136,7 @@ class StatefulCodexRunner implements CommandRunner {
         return { exitCode: 1, stdout: "", stderr: "remove failed" }
       }
       this.plugins = this.plugins.filter((entry) => entry.pluginId !== args[2])
+      await this.afterRemove?.(args[2]!)
       return { exitCode: 0, stdout: "{}", stderr: "" }
     }
     if (joined === "plugin marketplace add EveryInc/compound-engineering-plugin --json") {
@@ -459,6 +461,43 @@ describe("Codex development installation transitions", () => {
     expect(runner.calls.filter((call) => call[1] === "plugin" && call[2] === "remove")).toEqual([
       ["codex", "plugin", "remove", "compound-engineering@compound-engineering-plugin", "--json"],
       ["codex", "plugin", "remove", "compound-engineering@personal", "--json"],
+    ])
+  })
+
+  test("status reports mixed mode when Codex config enables an unlisted official plugin", async () => {
+    const context = await makeContext()
+    await activateLocalCollection(context)
+    await fs.writeFile(
+      path.join(context.codexHome, "config.toml"),
+      '[plugins."compound-engineering@compound-engineering-plugin"]\nenabled = true\n',
+    )
+
+    expect((await inspectCodexDevStatus(context, new StatefulCodexRunner())).mode).toBe("mixed")
+  })
+
+  test("local mode removes an official plugin enabled in config but omitted from plugin list", async () => {
+    const context = await makeContext()
+    const configPath = path.join(context.codexHome, "config.toml")
+    await fs.writeFile(
+      configPath,
+      '[plugins."compound-engineering@compound-engineering-plugin"]\nenabled = true\n',
+    )
+    const runner = new StatefulCodexRunner()
+    runner.afterRemove = async (pluginId) => {
+      if (pluginId === "compound-engineering@compound-engineering-plugin") {
+        await fs.writeFile(configPath, "")
+      }
+    }
+
+    const status = await switchToLocal(context, runner)
+
+    expect(status.mode).toBe("local")
+    expect(runner.calls).toContainEqual([
+      "codex",
+      "plugin",
+      "remove",
+      "compound-engineering@compound-engineering-plugin",
+      "--json",
     ])
   })
 
