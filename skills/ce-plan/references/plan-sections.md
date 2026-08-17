@@ -70,7 +70,7 @@ skills grep or anchor-scan for these names before reading large bodies.
 
 | Logical section | Markdown heading | HTML id | Reader use |
 |---|---|---|---|
-| Goal Capsule | `## Goal Capsule` | `goal-capsule` | Objective, authority hierarchy, and stop conditions |
+| Goal Capsule | `## Goal Capsule` | `goal-capsule` | Objective (outcome), Means (chosen approach), authority hierarchy, and stop conditions |
 | Product Contract | `## Product Contract` | `product-contract` | Requirements, actors, flows, acceptance examples, product scope |
 | Product Requirements | `### Requirements` under Product Contract | `product-requirements` | Requirement extraction for review and implementation trace |
 | Planning Contract | `## Planning Contract` | `planning-contract` | KTDs, technical design, assumptions, sequencing |
@@ -165,9 +165,18 @@ message or `<root>/solutions/` if they're worth carrying forward.
 When an implementation-ready software plan is warranted, these sections are
 present. They carry the contracts downstream consumers depend on.
 
-- **Goal Capsule** — objective, authority hierarchy, stop conditions, execution
-  profile, and tail ownership. This is the fastest way for an executor to
-  avoid drifting from the plan.
+- **Goal Capsule** — objective, means (when the approach was chosen for the
+  plan), authority hierarchy, stop conditions, execution profile, and tail
+  ownership. This is the fastest way for an executor to avoid drifting from
+  the plan. The **Objective** is the outcome: what is true afterwards, phrased
+  so it would still read as the goal under a different implementation. The
+  chosen approach — a move, migration, replacement, extraction — is the
+  **Means**, its own line. Test: if the implementation changed, would the
+  Objective still be the goal? If not, it is a Means. A request that arrives
+  mechanism-shaped ("move X out of A into B") supplies the Means; the
+  Objective is the operational outcome it serves (separation, isolation,
+  scaling, cost, reliability, velocity), derived from the request's
+  motivation or asked for, never left as the mechanism restated.
 - **Product Contract** — product scope and behavior. Contains Summary, Problem
   Frame, Requirements with stable R-IDs, and any material Actors, Flows,
   Acceptance Examples, Success Criteria, Scope Boundaries, Dependencies,
@@ -250,7 +259,10 @@ them fire.
   latency under 200ms"), qualitative criteria ("the agent's output reads as
   one voice"), process / handoff quality ("ce-doc-review can act on this
   without follow-ups"). Skip when Requirements ARE the success criteria
-  (every R is "done when the R is true").
+  (every R is "done when the R is true") — which they are not when they
+  describe a mechanism (a refactor, migration, or replacement whose Rs say
+  what moves where): then include at least one outcome-shaped criterion that
+  would show the Goal Capsule Objective was reached.
 
 - **Actors** — include when the work has multi-party behavior (multiple
   humans, agents, or systems meaningfully involved) that the units must
