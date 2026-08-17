@@ -33,7 +33,7 @@ Interpret any argument as an optional focus: a section name to revisit (`metrics
 3. **Rigor in the questions, not the headings.** The section headers are plain English. The interview questions enforce strategy discipline.
 4. **Short is a feature.** The template is constrained. Adding sections costs more than it looks like. Push back on expansion.
 5. **Durable across runs.** This skill is rerunnable. On a second run it updates in place, preserves what is working, and only challenges sections that look stale or weak.
-6. **A good citizen in the file.** Other people and other skills may write to `STRATEGY.md`. Sections this skill did not write are someone else's captured intent: read them before writing, leave them in place and unchanged, and if this run learned something that makes one of them false, make the smallest edit that keeps its intent true and say so in chat. A section marked with an HTML comment as approved or ratified by its author (for example `<!-- vision: author-approved 2026-07-10 -->`) is not edited at all - report the conflict and leave it to that owner.
+6. **Meaning is the contract; shape belongs to whoever created the doc.** When this skill creates `STRATEGY.md`, it writes the house format in `references/strategy-template.md`. When a doc already exists - written by an earlier version, by hand, or by another skill - adapt to it: read it by meaning (a section counts as present when the doc expresses it anywhere, under any heading or in prose), make only additive or minimal changes in its own idiom, and never restructure it, add frontmatter or headings uninvited, or duplicate a meaning under a new heading. Sections this skill did not write are someone else's captured intent: leave them in place; if this run learned something that makes one false, make the smallest edit that keeps its intent true and say so in chat. A section marked as approved by its author (for example `<!-- vision: author-approved 2026-07-10 -->`), or a doc the user does not own, is not edited at all - report the conflict, or write to a separate file with a link, and leave the rest to its owner. The worst outcome is turning someone's existing doc into this template and breaking what already reads it.
 
 ## Execution Flow
 
@@ -82,7 +82,7 @@ When every section is captured, read `references/strategy-template.md`, fill it 
 
 ### Phase 2: Update Run
 
-Read the existing `STRATEGY.md` thoroughly. Summarize current state in 3-5 lines so the user sees what is on file. A file written by an earlier version uses older headings (`Target problem`, `Our approach`, `Who it's for`, `Not working on`, `Marketing`); treat each as its current section, and on write rename it to the current heading in place - a heading rename, content untouched, mentioned in chat.
+Read the existing `STRATEGY.md` thoroughly. Summarize current state in 3-5 lines so the user sees what is on file. A file written by an earlier version uses older headings (`Target problem`, `Our approach`, `Who it's for`, `Not working on`, `Marketing`); treat each as its current section, and on write rename it to the current heading in place - a heading rename, content untouched, mentioned in chat. A file in any other shape is read by meaning and updated in its own shape (principle 6).
 
 Check for drift: compare the doc against the repo model and against what has landed since `last_updated` (recent commits or PRs, plans and learnings under `docs/`). Name any section the evidence suggests is stale, with the evidence, as a candidate - not a verdict.
 

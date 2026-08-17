@@ -193,7 +193,7 @@ The file is meant to be readable in under five minutes.
 
 Output: `STRATEGY.md` at the repo root (not under `docs/`). YAML frontmatter has `name` and `last_updated: YYYY-MM-DD`.
 
-Required sections: Purpose, Positioning, Users, Key metrics (3-5), Tracks (2-4), Boundaries. Optional: Milestones (external dates only), Brand. Files written with the older headings are read as-is and renamed in place on the next update.
+Required sections: Purpose, Positioning, Users, Key metrics (3-5), Tracks (2-4), Boundaries. Optional: Milestones (external dates only), Brand. Files written with the older headings are read as-is and renamed in place on the next update. A `STRATEGY.md` in any other shape (hand-written, or from another tool) is read by meaning and updated in its own shape, never restructured into the template.
 
 ---
 

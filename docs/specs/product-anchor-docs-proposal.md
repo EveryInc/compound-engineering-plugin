@@ -2,9 +2,9 @@
 
 *Converge on a single repo-root document that all three skills read and write: a small set of universal sections every project has, conditional sections that appear only when they apply, and simple conduct rules so writers never collide.*
 
-Status: draft for discussion, revision 2 · From: the compound-engineering maintainers · To: the maintainers of `vision` and `impeccable`
+Status: draft for discussion, revision 3 · From: the compound-engineering maintainers · To: the maintainers of `vision` and `impeccable`
 
-Revision 2 changes from the first draft: the filename is `VISION.md` (with `STRATEGY.md` considered and passed over); the doc is written for any project (framework, library, system, product), not only products; sections are split into universal and conditional; and linking between separate files is kept as the fallback.
+Revision 2 changes from the first draft: the filename is `VISION.md` (with `STRATEGY.md` considered and passed over); the doc is written for any project (framework, library, system, product), not only products; sections are split into universal and conditional; and linking between separate files is kept as the fallback. Revision 3 adds the rule that decides everything else: the document's *meaning* is the contract, its *shape* belongs to whoever created it — house format when a skill authors from scratch, adapt-in-place when a doc already exists, and readers require nothing but meaning.
 
 ## Why
 
@@ -39,7 +39,7 @@ last_updated: 2026-08-17 # ISO date of the last write by any skill
 
 That is the whole shared frontmatter. A skill that needs a private version stamp (impeccable's `<!-- impeccable:product-schema N -->`, which lets a later version tell a deliberately short section set from one written before a section existed) keeps it as an HTML comment beside its own sections; nobody else needs to read or agree on it.
 
-**Universal sections** — every project has these, so every writer fills them when empty and merges into them when present, and readers may rely on them. Heading strings are placeholders until we agree; the strongest existing framing is credited to whichever skill has it, and the merged section keeps it:
+**Universal sections** — every project has these, so readers may rely on the *meaning* being present, and a writer creating the doc from scratch lays them out under these headings. Heading strings are placeholders until we agree; the strongest existing framing is credited to whichever skill has it, and the merged section keeps it:
 
 | Section (candidate heading) | Meaning | Merges | Strongest current framing |
 |---|---|---|---|
@@ -61,14 +61,19 @@ No registry, no ownership map, no fixed order beyond "universal first, then cond
 
 ## Conduct rules
 
-Four rules, each a paragraph in a skill's prose. They are what make N writers coexist.
+**The rule that decides the rest: meaning is the contract, shape belongs to the creator.** Two cases:
+
+- **Authoring from scratch** (no `VISION.md`, and no legacy sibling to fold in): write the house format above — frontmatter, universal sections under the agreed headings, your conditional sections after. Downstream readers get a predictable shape and nothing is inherited.
+- **A `VISION.md` already exists** — hand-written, or written by another skill, in whatever shape (openclaw's, for example, has no frontmatter, an H2 title, and topical sections like `## Security` and `## Plugins & Memory` with priorities and contribution rules in prose): adapt to it. Read it by meaning; a universal meaning counts as present when the doc expresses it anywhere, under any heading or in prose, so never add a duplicate heading for it. Make only additive changes, in the doc's own idiom, and confirm before writing; do not add frontmatter, an H1, or heading renames uninvited; do not restructure. When the user isn't the doc's owner (a contributor in someone else's repo), default to leaving `VISION.md` untouched and writing your sections to your own file with a link at the top. A one-time restructure into the house format is something the user opts into, never a side effect. The worst outcome this convention can produce is a skill "improving" a maintainer's existing vision doc into a template and breaking whatever already reads it.
+
+Four rules follow, each a paragraph in a skill's prose. They are what make N writers coexist.
 
 1. **Read the whole document before writing.** Sections you did not create are someone else's captured intent. Seed your interview from them; cite them when an answer contradicts them.
-2. **Write your own sections; merge into the universal ones.** Add or update universal sections from what your run learned, in the author's own words. Where a section already says something your run contradicts, that is a question for the user, not a silent overwrite.
+2. **Write your own sections; merge into the universal ones by meaning.** Add or update universal content from what your run learned, in the author's own words, in the doc's existing shape. Where the doc already says something your run contradicts, that is a question for the user, not a silent overwrite.
 3. **Preserve foreign sections; keep them true.** Do not restructure, restyle, or delete a section you don't own. If your run made a foreign section factually false, make the minimal edit that keeps its intent true and tell the user what you changed. Formatting rules (vision's one-sentence-per-line, for example) apply to that skill's sections, not to the document.
 4. **Honor inline protection.** A skill whose content is author-ratified may mark a section with an HTML comment (`<!-- vision: author-approved 2026-07-10 -->`). Every writer treats marked sections as flag-don't-edit: report the conflict to the user and let that skill's own process resolve it. Protection is declared by the skill that needs it, inline, on the sections that need it — never a document-wide map.
 
-**Reader conduct** for consumers: read `VISION.md`; use whatever sections exist; require none of them; when sections disagree on a meaning, surface it rather than pick silently.
+**Reader conduct** for consumers: read `VISION.md`; extract meaning from whatever is there, under any headings; require no section and no frontmatter (use `name` and `last_updated` when present, else the title line and the file's own date); when parts of the doc disagree on a meaning, surface it rather than pick silently. This is what lets every skill work with an existing hand-written vision doc today, before anyone adopts the house format.
 
 ## How each skill's core rules survive
 
