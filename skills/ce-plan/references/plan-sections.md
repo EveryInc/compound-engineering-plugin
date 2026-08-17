@@ -165,12 +165,13 @@ message or `<root>/solutions/` if they're worth carrying forward.
 When an implementation-ready software plan is warranted, these sections are
 present. They carry the contracts downstream consumers depend on.
 
-- **Goal Capsule** — objective, means, authority hierarchy, stop conditions,
-  execution profile, and tail ownership. This is the fastest way for an
-  executor to avoid drifting from the plan. The **Objective** is always the
-  outcome: what is true afterwards, phrased so it would still read as the goal
-  under a different implementation. The chosen approach is the **Means**, its
-  own line whenever the request or the plan has fixed one. Test: if the
+- **Goal Capsule** — objective, means (only when an approach is fixed),
+  authority hierarchy, stop conditions, execution profile, and tail ownership.
+  This is the fastest way for an executor to avoid drifting from the plan. The
+  **Objective** is always the outcome: what is true afterwards, phrased so it
+  would still read as the goal under a different implementation. The chosen
+  approach is the **Means**, its own line whenever the request or the plan
+  has fixed one — never invented for outcome-only work. Test: if the
   implementation changed, would the Objective still be the goal? If not, it is
   a Means. When a request supplies only its approach ("move X out of A into
   B"), that is the Means; the Objective is the outcome it serves, derived from
