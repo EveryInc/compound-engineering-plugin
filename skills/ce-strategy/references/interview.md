@@ -162,4 +162,4 @@ Skip by default. Keep to 2-3 lines if present.
 
 ## After the Interview
 
-Once sections 1-5 are captured, the stress test has run, and any optional sections the user engaged with are captured, read `strategy-template.md` and fill it in. Present the full draft in chat before writing. Offer one edit round. Then write to `STRATEGY.md`.
+Once sections 1-5 are captured, the stress test has run, Boundaries (section 6) is captured - it is always written, even if only to say nothing is named yet - and any optional sections the user engaged with are captured, read `strategy-template.md` and fill it in. Present the full draft in chat before writing. Offer one edit round. Then write to `STRATEGY.md`.

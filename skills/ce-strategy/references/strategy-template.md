@@ -57,12 +57,6 @@ _Why it serves the approach:_ {{one line}}
 
 <!-- Duplicate the block above for 2-4 tracks total. If you can't keep it to 4, something is wrong - fold related tracks together. -->
 
-## Milestones
-
-- **{{YYYY-MM-DD}}** - {{milestone}}
-
-<!-- Optional. Delete the section if unused. Only externally visible milestones: launches, fundraises, conferences, renewals. -->
-
 ## Boundaries
 
 - {{one line per item the team is tempted by and has decided against; "Nothing named yet." if none}}
@@ -70,6 +64,12 @@ _Why it serves the approach:_ {{one line}}
 _Resist a change when:_ {{one line, from the proposals the user resisted in the stress test; omit the line if none}}
 
 <!-- Always present. Things the team keeps being tempted by, plus the resist test. Not a blocker list. -->
+
+## Milestones
+
+- **{{YYYY-MM-DD}}** - {{milestone}}
+
+<!-- Optional. Delete the section if unused. Only externally visible milestones: launches, fundraises, conferences, renewals. -->
 
 ## Brand
 
