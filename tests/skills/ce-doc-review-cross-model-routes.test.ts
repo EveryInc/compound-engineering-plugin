@@ -367,7 +367,15 @@ describe("cross-model-doc-review provider selection (R7, R15, R16)", () => {
       path.join(__dirname, "../../skills/ce-doc-review/references/cross-model-review.md"),
       "utf8",
     )
-    expect(ref).toContain("`CROSS_MODEL_PEERS` is an optional restriction: when unset")
+    expect(ref).toContain("`CROSS_MODEL_PEERS` is an optional egress restriction, not a required approval")
+    expect(ref).toContain("when it is unset or empty, no recipient is filtered and the pass proceeds")
+    expect(ref).not.toMatch(/verify every (actual )?recipient against/)
+    const skill = readFileSync(path.join(__dirname, "../../skills/ce-doc-review/SKILL.md"), "utf8")
+    expect(skill).not.toMatch(/verify every (actual )?recipient against/)
+    expect(skill).toContain("unset means unfiltered, not unsanctioned")
+    const twin = readFileSync(path.join(__dirname, "../../skills/ce-code-review/references/cross-model-review.md"), "utf8")
+    expect(twin).toContain("`CROSS_MODEL_PEERS` is an optional egress restriction, not a required approval")
+    expect(twin).not.toMatch(/verify every (actual )?recipient against/)
     expect(ref).not.toContain("fail-closed-by-default")
   })
 
