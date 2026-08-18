@@ -8,7 +8,7 @@ argument-hint: "[PR number, branch name, 'current', or --port PORT]"
 
 Run end-to-end browser tests on pages affected by a PR or branch using the best approved browser driver available in the active harness.
 
-**Done:** every affected route was exercised with one driver and reported in the summary as Pass, Fail, or Skip with its reason, and the run ends with PASS / FAIL / PARTIAL. A route nobody could reach is a Skip with the blocker named, not a silent omission.
+**Done:** the run ends by reporting what it found — either the summary, with every affected route marked Pass, Fail, or Skip and each Skip carrying its reason, or, when a preflight blocker stops testing before any route can be exercised, the blocker and what would clear it. Reaching neither, or dropping a route from the summary because nobody could reach it, is the failure this bar exists to prevent.
 
 ## Modes
 
