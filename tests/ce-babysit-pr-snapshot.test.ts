@@ -3880,11 +3880,15 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
       merge_state_status: "CLEAN", mergeable: "MERGEABLE",
       head_sha: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", head_parents: null }))
     expect(noParents.unrequested_base_merge).toBeNull()
+    expect(noParents.unrequested_base_merge_pending).toBe(true)
+    expect(noParents.base_ref_blocker).toBe("mergeability-pending")
+    expect(noParents.mergeability_certain).toBe(false)
     const recovered = snapshot(s3, fetchFile(dir, "ubm-t3.json", { ...fixture,
       merge_state_status: "CLEAN", mergeable: "MERGEABLE",
       head_sha: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
       head_parents: [String(fixture.head_sha), baseOid] }))
     expect(recovered.unrequested_base_merge?.base_parent).toBe(baseOid)
+    expect(recovered.unrequested_base_merge_pending).toBe(false)
 
     // A consumed item from an earlier head does not exempt a later, unrelated base merge.
     const stale = snapshot(state, fetchFile(dir, "ubm-dirty-4.json", { ...fixture,

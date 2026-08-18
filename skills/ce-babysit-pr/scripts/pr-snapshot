@@ -1672,6 +1672,11 @@ def diff(state, cur, now=None, advance_trajectory=True):
         state["blocked_external_review_last_activity_at"] = None
     state["pr_chain"] = cur.get("pr_chain") or _default_pr_chain()
     unrequested_base_merge = _detect_unrequested_base_merge(state, cur, head, head_changed, now)
+    unrequested_base_merge_pending = state.get("unrequested_base_merge_pending") == head
+    if unrequested_base_merge_pending and isinstance(cur.get("base"), dict) \
+            and cur["base"].get("identity") == BASE_REF_CURRENT:
+        # An unclassified head is a pending merge computation: not certain, not ready, not landable.
+        cur["base"]["identity"] = BASE_REF_MERGEABILITY_PENDING
     state["base"] = cur.get("base")
     branch_currency = _apply_branch_currency(state, cur, head, head_changed, now)
 
@@ -1730,6 +1735,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
         "host_branch_update_capability": cur.get("host_branch_update_capability", "unknown"),
         "branch_currency": branch_currency,
         "unrequested_base_merge": unrequested_base_merge,
+        "unrequested_base_merge_pending": unrequested_base_merge_pending,
         "branch_currency_blocker": ({
             "key": branch_currency.get("key"),
             "disposition": branch_currency.get("disposition"),
