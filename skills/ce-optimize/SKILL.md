@@ -61,7 +61,7 @@ Four phases run in order. Each one names the reference it cannot start without. 
 
 **Phase 2 — Hypothesis generation.** Analyze the current approach, rank the hypotheses, record the backlog (CP-2). **Read `references/loop.md`** for this phase and Phase 3. One gate: **dependency pre-approval.** Collect every new dependency across all hypotheses and present the full list for bulk approval. A dependency the user does not approve stays in the backlog, is skipped in batch selection, and comes back at wrap-up.
 
-**Phase 3 — Optimization loop.** Select a batch, dispatch experiments, persist each result as it lands (CP-3), evaluate, update state and the digest (CP-4), then check whether to stop. Stop as soon as any one of seven criteria holds: target reached, max iterations, max hours, judge budget exhausted, plateau, a user interrupt, or an empty backlog. `references/loop.md` states each one exactly. Otherwise start the next batch.
+**Phase 3 — Optimization loop.** Select a batch, dispatch experiments, persist each result as it lands (CP-3), evaluate, update state and the digest (CP-4), then check whether to stop. Stop as soon as any one of seven criteria holds: target reached, max iterations, max hours, judge budget exhausted, plateau, a user interrupt, or no runnable hypothesis left. `references/loop.md` states each one exactly. Otherwise start the next batch.
 
 **Phase 4 — Wrap-up.** **Read `references/wrap-up.md`** for the deferred hypotheses, the summary, what is preserved, and cleanup. Then present the options below. CP-5 marks the log final. **Write it only after the user picks an option that does not return to Phase 3.** Two options do return: Continue, and approving a deferred dependency.
 

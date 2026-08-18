@@ -61,8 +61,7 @@ Select hypotheses for this batch:
 - Prefer diversity: select from different categories when possible
 - Within a category, select by priority (high first)
 
-If the backlog is empty and no new hypotheses can be generated, proceed to Phase 4 (wrap-up).
-If the backlog is non-empty but no runnable hypotheses remain because everything needs approval or is otherwise blocked, proceed to Phase 4 so the user can approve dependencies instead of spinning forever.
+When no runnable hypothesis is left — the backlog is empty and no new one can be generated, or everything remaining is blocked or awaiting approval — proceed to Phase 4 (wrap-up), where the user can approve deferred dependencies instead of the loop spinning forever.
 
 ### 3.2 Dispatch Experiments
 
@@ -213,7 +212,7 @@ Stop the loop as soon as any one of these holds:
 - **Judge budget exhausted**: `metric.judge.max_total_cost_usd` is set and cumulative judge spend has reached it
 - **Plateau**: no improvement for `stopping.plateau_iterations` **consecutive** experiments
 - **Manual stop**: the user interrupts. Save state, then go to Phase 4.
-- **Empty backlog**: no hypothesis remains and no new one can be generated
+- **No runnable hypothesis left**: the backlog is empty and no new one can be generated, or every hypothesis still in it is blocked or awaiting approval
 
 If none is met, proceed to the next batch (3.1).
 
