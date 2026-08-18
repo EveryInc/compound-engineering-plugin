@@ -18,25 +18,13 @@ Map each changed file to the route(s) that render it, then build the list of URL
 | `src/app/*` (Next.js) | Corresponding routes |
 | `src/components/*` | Pages using those components |
 
-## Determine the dev server port
+## Determine the port and verify the dev server is running
+
+`scripts/resolve-port.sh` resolves the port and prints it alone on stdout, so the shell call that needs it captures the value instead of a later step re-typing a printed number. Append the explicit port as an argument when you have one.
 
 ```bash
-# Set EXPLICIT_PORT first when a higher-priority source gave you a port: a --port argument,
-# or a port your in-context project instructions state.
-PORT="${EXPLICIT_PORT:-}"
-if [ -z "$PORT" ]; then
-  PORT=$(grep -Eo '\-\-port[= ]+[0-9]{4,5}' package.json 2>/dev/null | grep -Eo '[0-9]{4,5}' | head -1)
-fi
-if [ -z "$PORT" ]; then
-  PORT=$(grep -h '^PORT=' .env .env.local .env.development 2>/dev/null | tail -1 | cut -d= -f2)
-fi
-PORT="${PORT:-3000}"
-echo "Preferred dev server port: $PORT"
-```
-
-## Verify the dev server is running
-
-```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+PORT=$(bash "$SKILL_DIR/scripts/resolve-port.sh");
 if lsof -i ":${PORT}" -sTCP:LISTEN -t >/dev/null 2>&1; then
   echo "Server running on port ${PORT}";
 else
@@ -116,7 +104,7 @@ Did it work correctly?
 ## Browser Test Results
 
 **Test Scope:** PR #[number] / [branch name]
-**Server:** http://localhost:${PORT}
+**Server:** http://localhost:<port>
 
 ### Pages Tested: [count]
 

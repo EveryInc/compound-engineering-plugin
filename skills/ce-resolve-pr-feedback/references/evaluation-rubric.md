@@ -103,7 +103,7 @@ For `needs-human`, the **reply_text** posted to the thread sounds natural -- it'
 [Natural acknowledgment, e.g., "Good question -- this is a tradeoff between X and Y. Going to think through this before making a call." or "Need to align with the team on this one -- [brief why]."]
 ```
 
-The **decision_context** (presented to the user, not posted) is where the depth goes:
+The **decision_context** (presented to the user in ordinary runs; under `mode:pipeline` it is posted on the thread as the reply instead — see [pipeline-mode.md](pipeline-mode.md)) is where the depth goes:
 ```markdown
 ## What the reviewer said
 [Quoted feedback -- the specific ask or concern]
