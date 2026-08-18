@@ -1,6 +1,6 @@
 # Phase 1.5 topic-surface decomposition
 
-Required read before Phase 2 dispatch, unless decomposition is skipped. Owns the axis criteria, the worked examples, the skip conditions, and the evidence-scout dispatch.
+Owns the axis criteria, the worked examples, the skip conditions, and the evidence-scout dispatch. SKILL.md owns when this file is read.
 
 ### Phase 1.5: Topic-Surface Decomposition
 
