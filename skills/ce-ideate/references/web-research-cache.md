@@ -18,7 +18,7 @@ Read this when checking the V15 cache before dispatching `web-researcher`, or wh
 ]
 ```
 
-Files live under `<scratch-dir>/web-research-cache.json`, where `<scratch-dir>` is `<scratch-root>/ce-ideate/<run-id>`, resolved once in SKILL.md Phase 1.
+Files live under `<scratch-dir>/web-research-cache.json`, where `<scratch-dir>` is `<scratch-root>/ce-ideate/<run-id>`, resolved once in `references/grounding.md` Phase 1.
 
 ## Reuse check
 

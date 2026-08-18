@@ -1,6 +1,6 @@
 # Issue Intelligence (Phase 1, conditional)
 
-Read this when SKILL.md Phase 1 step 4 fires — issue-tracker intent was detected in Phase 0.2. SKILL.md owns the four-step sequence (scan → fall back or scope → cluster → await); this file owns the payload of each call and the scoping question's construction.
+Read this when Phase 1 step 4 fires — issue-tracker intent was detected in Phase 0.2. `references/grounding.md` owns the four-step sequence (scan → fall back or scope → cluster → await); this file owns the payload of each call and the scoping question's construction.
 
 The lens works against whichever tracker is reachable — GitHub, Linear, or Jira. Probe by capability (a connector/MCP, a documented API, or a documented CLI), never by assuming a specific binary exists. A missing binary or env var is not proof the tracker is unreachable.
 
@@ -27,7 +27,7 @@ Read the scan's ambiguity assessment.
 
 **Auto-scope silently by default.** Compose the scope from focus hint → priority (when populated) → workflow-state → recency.
 
-Fire **one** blocking scoping question (per SKILL.md Interaction Method) **only** on irreducible ambiguity: two or more coherent, materially-different scopes that no single deliberately-varied sample could fairly represent. Skip it entirely when the scan is unambiguous.
+Fire **one** blocking scoping question (per the asking rules in `references/grounding.md`) **only** on irreducible ambiguity: two or more coherent, materially-different scopes that no single deliberately-varied sample could fairly represent. Skip it entirely when the scan is unambiguous.
 
 Its options are the scan's distribution-derived slices plus an always-present **"analyze a representative sample of everything,"** so the user can decline to narrow. When the slices plus that option would exceed the platform's blocking-tool option cap (Codex `request_user_input` takes 2-3 explicit options; `AskUserQuestion` takes 4), show the highest-mass slices that fit and fold the rest into the representative-sample option, or fall back to a numbered chat list. **Never drop the representative-sample option.**
 
