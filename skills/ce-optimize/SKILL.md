@@ -6,9 +6,9 @@ argument-hint: "[path to optimization spec YAML, or describe the optimization go
 
 # Iterative Optimization Loop
 
-`references/usage-guide.md` covers hard metrics versus a judge, and the first-run defaults.
+`references/usage-guide.md` covers hard metrics versus a judge, and first-run defaults.
 
-**Done when:** a stopping criterion fired, the final state is written and verified on disk, and the user has been given the post-completion options — or the run stopped at a gate it could not clear, with what blocked it named. A results table the user has seen but disk has not is not done.
+**Done when:** a stopping criterion fired, the final state is written and verified on disk, and the user has been given the post-completion options — or the run stopped at a gate it could not clear, with what blocked it named.
 
 ## Setup
 
@@ -26,15 +26,11 @@ fi
 
 ## Interaction Method
 
-Use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (needs the `pi-ask-user` extension). Fall back to numbered options on the host's chat surface only when no blocking tool exists or the call errors — never because a schema load is pending, and never skip the question silently.
-
-## Input
-
-What this skill was invoked with, from the user or a calling skill: a goal to optimize, or a path to an optimization spec YAML. If none was provided, ask: "What would you like to optimize? Describe the goal, or provide a path to an optimization spec YAML file."
+Use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (needs the `pi-ask-user` extension). Fall back to numbered options on the host's chat surface only when no blocking tool exists or the call errors — never because a schema load is pending, and never skip it silently.
 
 ## Artifact Root
 
-Resolve `<root>` when you first compose such a path — reading learnings under `<root>/solutions/` counts as much as a write — and pass the resolved path to any subagent, never the config.
+Resolve `<root>` when you first compose such a path — reading learnings under `<root>/solutions/` counts — and give any subagent the resolved path, never the config.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**
@@ -46,31 +42,31 @@ Resolve `<root>` when you first compose such a path — reading learnings under 
 
 ## Persistence Discipline
 
-**The experiment log on disk is the single source of truth; the conversation is not durable storage, and results that exist only there will be lost.** The write order never inverts: **measure -> write -> verify -> then show the user.** Showing a results table disk has not seen is a bug. During Phase 3 the log is append-only, and every phase boundary and decision re-reads it from disk rather than trusting memory.
+**The experiment log on disk is the single source of truth; the conversation is not durable storage, and results that exist only there are lost.** The write order never inverts: **measure -> write -> verify -> then show the user.** Showing a table disk has not seen is a bug. During Phase 3 the log is append-only, and every phase boundary and decision re-reads it from disk.
 
-Six checkpoints are non-negotiable, each a write then a read-back: **CP-0** spec (Phase 0), **CP-1** baseline (Phase 1), **CP-2** backlog (Phase 2), **CP-3** each result as it is measured (3.3), **CP-4** batch summary and strategy digest (3.5), **CP-5** final state (Phase 4).
+Six checkpoints are non-negotiable, each a write then a read-back. The phases below mark where CP-0 through CP-5 fall; `references/persistence.md` says what each writes.
 
-**Read `references/persistence.md` now** for the rules behind those, the file layout, and resume. The scratch space under `.context/` is gitignored: it survives a local resume and does not travel with the branch, so anything needed durably must be exported to a tracked path.
+**Read `references/persistence.md` now** for the rules behind those, the file layout, and resume. The scratch space under `.context/` is gitignored: it survives a local resume but does not travel with the branch, so anything needed durably must be exported to a tracked path.
 
 ## The phases
 
-Four phases in order, each naming the reference it cannot start without. No phase is skipped — a harder optimization spends longer in one, not fewer.
+Four phases in order, each naming the reference it cannot start without. On a fresh run none is skipped — a harder optimization spends longer in one, not fewer. **A resume is not one:** continue from the phase the log records, never re-entering an earlier phase and overwriting its checkpoint.
 
-**Phase 0 — Setup.** Load or build the spec from the input and save it (CP-0) — **read `references/spec.md`**. Then search prior learnings, detect run identity so an existing run resumes instead of forking a second one, and create the branch and scratch space. **Read `references/measurement.md`** for the rest of Phase 0 and Phase 1.
+**Phase 0 — Setup.** The input is a goal or a path to a spec YAML, from the user or a calling skill; if none came, ask: "What would you like to optimize? Describe the goal, or provide a path to an optimization spec YAML file." Load or build the spec and save it (CP-0) — **read `references/spec.md`**. Then search prior learnings, detect run identity so an existing run resumes instead of forking a second one, and create the branch and scratch space. **Read `references/measurement.md`** for the rest of Phase 0 and Phase 1.
 
-**Phase 1 — Measurement scaffolding.** Build or validate the harness, establish and write the baseline (CP-1), probe parallelism, check the worktree budget. Two gates stop the run:
+**Phase 1 — Measurement scaffolding.** Build or validate the harness, write the baseline (CP-1), probe parallelism, check the worktree budget. Two gates stop the run:
 
 - **Clean-tree gate.** No uncommitted changes to files in `scope.mutable` or `scope.immutable`. Name the dirty in-scope files and ask the user to commit or stash; do not continue until they are clean.
-- **User approval gate.** Present the baseline metrics, log location, parallel readiness, clean-tree status, worktree budget, and judge budget — and when the primary type is `judge` with `max_total_cost_usd` unset, say plainly that spend is uncapped. Offer proceed / adjust spec / fix issues. **Do not enter Phase 2 until the user explicitly approves**, then re-read the spec and baseline from disk.
+- **User approval gate.** Present what Phase 1 assembled — the reference lists it — and when the primary type is `judge` with `max_total_cost_usd` unset, say plainly that spend is uncapped. Offer proceed / adjust spec / fix issues. **Do not enter Phase 2 until the user explicitly approves**, then re-read the spec and baseline from disk.
 
-**Phase 2 — Hypothesis generation.** Analyze the current approach, rank the hypotheses, record the backlog (CP-2). **Read `references/loop.md`** for this phase and Phase 3. One gate: **dependency pre-approval** — collect every new dependency across all hypotheses and present the full list for bulk approval. Unapproved hypotheses stay in the backlog, are skipped during batch selection, and return at wrap-up.
+**Phase 2 — Hypothesis generation.** Analyze the current approach, rank the hypotheses, record the backlog (CP-2). **Read `references/loop.md`** for this phase and Phase 3. One gate: **dependency pre-approval** — collect every new dependency across all hypotheses and present the full list for bulk approval. Unapproved ones stay in the backlog, are skipped in batch selection, and return at wrap-up.
 
-**Phase 3 — Optimization loop.** Select a batch, dispatch experiments, persist each result as it lands (CP-3), evaluate, update state and the strategy digest (CP-4), then check whether to stop. **Stop when any of these holds:** the target is reached per `metric.primary.direction`; experiments >= `stopping.max_iterations`; elapsed >= `stopping.max_hours`; judge spend >= `metric.judge.max_total_cost_usd`; no improvement for `stopping.plateau_iterations`; the user interrupts (save state, go to Phase 4); or the backlog is empty with none available. Otherwise start the next batch.
+**Phase 3 — Optimization loop.** Select a batch, dispatch experiments, persist each result as it lands (CP-3), evaluate, update state and the digest (CP-4), then check whether to stop. **Stop when any holds:** `stopping.target_reached` is true, `metric.primary.target` set, and the metric reaches it per `metric.primary.direction`; experiments >= `stopping.max_iterations`; elapsed >= `stopping.max_hours`; `metric.judge.max_total_cost_usd` set and judge spend has reached it; no improvement for `stopping.plateau_iterations` **consecutive** experiments; the user interrupts (save state, go to Phase 4); or the backlog is empty with none available. Otherwise start the next batch.
 
-**Phase 4 — Wrap-up.** Write the final state (CP-5) and **read `references/wrap-up.md`** for the deferred hypotheses, the summary, what is preserved, and cleanup. Then present the post-completion options:
+**Phase 4 — Wrap-up.** **Read `references/wrap-up.md`** for the deferred hypotheses, the summary, what is preserved, and cleanup, then present the options below. **Write CP-5 only once the choice does not return to Phase 3** — Continue and approving deferred dependencies both re-enter the loop, and a log marked final while the run continues is what this prevents.
 
 1. **Run `ce-code-review`** on the cumulative diff (baseline to final), on the optimization branch. The reference's mechanical-apply bar decides which findings land; do not commit or push from this step.
 2. **Run `ce-compound`** to document the winning strategy as an institutional learning.
 3. **Create PR** from the optimization branch to the default branch.
-4. **Continue** with more experiments: re-enter Phase 3, state re-read first.
+4. **Continue** — re-enter Phase 3, state re-read first.
 5. **Done** — leave the branch for manual review.
