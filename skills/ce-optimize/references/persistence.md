@@ -54,6 +54,6 @@ When Phase 0.4 detects an existing run:
 1. Read the experiment log from disk — this is the ground truth
 2. Scan worktree directories for `result.yaml` markers not yet in the log
 3. Recover any measured-but-unlogged experiments
-4. Continue from where the log left off
+4. Continue as the body's resume rule directs: skip the work the log proves finished, and re-enter any gate the log does not prove was cleared
 
 ---

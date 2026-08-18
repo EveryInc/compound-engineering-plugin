@@ -17,7 +17,7 @@ git rev-parse --verify "optimize/<spec-name>" 2>/dev/null
 **If branch exists**, check for an existing experiment log at `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml`.
 
 Present the user with a choice via the platform question tool:
-- **Resume**: read ALL state from the experiment log on disk (do not rely on any in-memory context from a prior session). Recover any measured-but-unlogged experiments by scanning worktree directories for `result.yaml` markers. Continue from the last iteration number in the log.
+- **Resume**: read ALL state from the experiment log on disk (do not rely on any in-memory context from a prior session). Recover any measured-but-unlogged experiments by scanning worktree directories for `result.yaml` markers. Then apply the body's resume rule to decide what is skipped and which gates are re-entered; the log's last iteration number is where the loop picks up.
 - **Fresh start**: archive the old branch to `optimize-archive/<spec-name>/archived-<timestamp>`, clear the experiment log, start from scratch
 
 ### 0.5 Create Optimization Branch and Scratch Space
@@ -129,6 +129,6 @@ If count + `execution.max_concurrent` would exceed 12:
 
 ### 1.7 User Approval Gate
 
-The body owns this gate — what is presented, the three options, the uncapped-spend disclosure, and the rule that Phase 2 does not start without explicit approval. What this phase supplies to it: the baseline's gate values, diagnostic values, and judge scores; the experiment log path; the probe results with any blockers and mitigations; the clean-tree confirmation; the worktree count and projection; and the estimated per-experiment judge cost against the configured cap.
+The body owns this gate — what is presented, the options and the condition on adjusting the spec, the uncapped-spend disclosure, and the rule that Phase 2 does not start without explicit approval. A resume that cannot prove the user cleared this gate runs it again, so this phase supplies the same payload then. What this phase supplies to it: the baseline's gate values, diagnostic values, and judge scores; the experiment log path; the probe results with any blockers and mitigations; the clean-tree confirmation; the worktree count and projection; and the estimated per-experiment judge cost against the configured cap.
 
 ---
