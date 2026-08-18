@@ -117,3 +117,7 @@ Treating every stop as the enemy is the failure mode of applying this file. Run 
 5. **The word bounds an activity, not the turn.** "Stop expanding the search once you have three candidates", "halt the retry loop after two failures." A grep for `stop` catches these; they are scope quantifiers and removing them removes a threshold.
 
 **Sixth case, stated separately because it is the one that gets deleted anyway:** a workflow whose product **is** stopping to ask. An interview that must take one question at a time. A teaching check-in that pauses for the learner's answer. An approval gate that exists in order to be a gate. Deleting the pause deletes the unit. These get an unattended degradation path — a stated default, a skip-with-reason, or an explicit refusal to run unattended — never a deletion. If such a unit fails the benchmark, the benchmark's task is wrong for it: exclude the unit and report the exclusion rather than editing the unit to pass.
+
+## Why the fix is never more capability
+
+Every class above reduces to prose written as if a second party were waiting. The fix is never to add capability — it is to remove the fictional seam and keep the requirement.

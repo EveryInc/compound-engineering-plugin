@@ -38,6 +38,6 @@ The test: with the product's name and copy removed, could a reader tell which pr
 
 ## How avenues differ
 
-`SKILL.md`'s wide-run rule already requires distinct mechanisms rather than tweaks of one idea. On a seeing question that means the avenues differ by organizing principle — what governs the arrangement, what the eye is meant to do first, what the surface is behaving like. A palette swap or a typeface swap over one arrangement is one avenue shown twice.
+The wide-run rule in `references/scoping.md` already requires distinct mechanisms rather than tweaks of one idea. On a seeing question that means the avenues differ by organizing principle — what governs the arrangement, what the eye is meant to do first, what the surface is behaving like. A palette swap or a typeface swap over one arrangement is one avenue shown twice.
 
 Say what each avenue's principle is before building it. If two of them resolve to the same sentence, one of them is not a separate avenue, and building both spends the run to give the user a choice they do not actually have.

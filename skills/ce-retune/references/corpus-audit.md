@@ -119,3 +119,10 @@ Expect roughly half of `reduce` items to be pinned by a test asserting exact str
 - Budget the assertion retarget as part of the item, not as follow-up. Moving an assertion from a wording to the invariant it was protecting is often larger than the prose edit.
 - **A half-applied structural fix is worse than either endpoint.** If a pass cannot land both the prose change and the retarget, leave the item unstarted. A corpus half-migrated between two shapes has the ceremony of both and the guarantees of neither, and the harness cannot attribute a resulting failure to either shape.
 - If the invariant a pinned string was protecting cannot be named, that is a finding to report, not a license to loosen the assertion.
+
+## Two rules separate an audit from a demolition
+
+- **A cut with no provenance found after a real search is a confident cut. A cut the defender saves with a citation is off the list.** Do not relitigate a defended keep.
+- **Absence of evidence is weaker than the project's own standard for a change.** Where the guidance requires a reproduced failure or an exact failing path, a search that found nothing is a verification task, not a change. Say which of your cuts rest on that weaker basis.
+
+Dispatch shape: one agent per skill, each reading that skill's full directory and proposing cuts with a target and a reason; then a second agent per skill whose job is the opposite — **defend the existing prose** using the project's own documented learnings, its tests, and git history. Expect the audit to contradict the premise you started with. That is its value.

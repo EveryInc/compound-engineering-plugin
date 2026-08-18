@@ -126,7 +126,7 @@ Concrete signals trigger a `/ce-brainstorm` recommendation rather than a fix: th
 
 ### Pipeline mode
 
-`mode:pipeline` (set by `ce-babysit-pr` or `lfg`) runs fully non-interactively. It fixes **convergent** bugs (the code is not meeting its planned or tested intent) and defers **divergent** ones (the "failure" would reverse a deliberate contract or product decision). It does not create branches, does not run the polish/review tail, and returns a structured JSON result (`fixed-and-pushed`, `diagnosed-no-fix`, `flaky-infra`, or `needs-human`). A design problem becomes a `needs-human` residual, never a brainstorm handoff.
+`mode:pipeline` (set by `ce-babysit-pr` or `lfg`) runs fully non-interactively. It fixes **convergent** bugs (the code is not meeting its planned or tested intent) and defers **divergent** ones (the "failure" would reverse a deliberate contract or product decision). It does not create branches, does not run the polish/review tail, and returns a structured JSON result (`fixed-and-pushed`, `fixed-not-pushed` when the fix is committed but could not be pushed, `diagnosed-no-fix`, `flaky-infra`, or `needs-human`). A design problem becomes a `needs-human` residual, never a brainstorm handoff.
 
 ---
 
