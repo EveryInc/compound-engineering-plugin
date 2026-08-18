@@ -8,7 +8,7 @@ argument-hint: "[issue reference, error message, test path, or description of br
 
 Find the root cause of a failure, then — when the user chooses to — fix it with test-first discipline.
 
-**Done when:** the causal chain from trigger to symptom is stated with no gaps and file:line evidence, and either a verified fix has been handed off (PR, commit, or the user's chosen stop) or a diagnosis-only summary has been delivered. **Escalate rather than persist:** 2-3 hypotheses exhausted without confirmation, or 3 failed fix attempts means diagnosing *why* instead of trying again. One hypothesis, one change at a time; changing several to see what helps is shotgun debugging.
+**Done when:** the causal chain from trigger to symptom is stated with no gaps and file:line evidence, and either a verified fix has been handed off (PR, commit, or the user's chosen stop) or a diagnosis-only summary has been delivered. **Escalate rather than persist:** 2-3 hypotheses exhausted without confirmation, or 3 failed fix attempts, means diagnose *why* instead of trying again — that is the smart escalation `references/investigate.md` describes. One hypothesis, one change at a time; changing several to see what helps is shotgun debugging.
 
 `<bug_description>` is whatever this skill was invoked with — a failure description, a `mode:` token, or an issue reference (`#123`, `org/repo#123`, an issue URL) — from the user or from a calling skill (`ce-babysit-pr` / `lfg` in `mode:pipeline` pass the failing jobs and log tails). Blank if nothing was provided.
 
@@ -54,7 +54,7 @@ Five phases in order: **0 Triage -> 1 Investigate -> 2 Root Cause -> 3 Fix -> 4 
 
 **Read `references/investigate.md` now and follow it for Phases 0-2** — issue fetching, reproduction, environment sanity and the dirty-tree stash experiment, backward tracing, the tracker/PR-history search, hypothesis grounding, and the escalation table. Only the gates below are stated here.
 
-**The issue of record.** Whatever the user handed you is where this bug already lives, whichever system that is — a Sentry issue counts as much as a Linear ticket; carry its identifier and URL to Phase 4. Input that is only a stack trace, test path, or description means this run has **no issue of record**: an ordinary state, not a gap to fill. Ship the fix without one; never open a ticket to manufacture a record, and never ask whether to. Phase 1's tracker search reads prior work and **never establishes a new home for the bug** — an existing ticket for this bug is one to *link* in Phase 4, never one to create.
+**The issue of record.** Whatever the user handed you is where this bug already lives, whichever system that is — a Sentry issue counts as much as a Linear ticket. Carry its identifier and URL through to Phase 4. Input that is only a stack trace, test path, or description means this run has **no issue of record**. That is an ordinary state, not a gap to fill: ship the fix without one, never open a ticket to manufacture a record, and never ask the user whether to. Phase 1's tracker search reads prior work and **never establishes a new home for the bug** — an existing ticket for this bug is one to *link* in Phase 4, never one to create.
 
 **The trivial-bug fast-path** (cause readable from the input, one-line fix, no deep tracing) still runs Phase 2's fix-choice gate before editing: it saves investigation ceremony, not the user's choice over whether to apply a fix.
 
@@ -103,20 +103,20 @@ If the user chose "Diagnosis only," skip to Phase 4's summary. If they chose "Re
 
 **If Phase 3 was skipped**, stop after the summary — the user already said they were taking it from here. Do not prompt.
 
-**If Phase 3 ran, read `references/post-fix-handoff.md` now and follow it before routing below.** It owns this phase's quality tail — the contextual-override checks, the skip-for-mechanical-fixes rule, the scoping that keeps `ce-simplify-code` and `ce-code-review` off unrelated branch work, residual handling, the `## Post-Fix Quality` block, and the learning-capture criteria — and none of that appears in this body. The routing below names *which* action fires, never the scope rules that make it safe, so it cannot be improvised from: skipping the read ships an unreviewed fix, lets review reach into unrelated branch work, and strands accepted findings in the session.
+**If Phase 3 ran, read `references/post-fix-handoff.md` now and follow it before routing below.** It owns this phase's quality tail — the contextual-override checks, the skip-for-mechanical-fixes rule, the scoping that keeps `ce-simplify-code` and `ce-code-review` off unrelated branch work, residual handling, the `## Post-Fix Quality` block, and the learning-capture criteria — and none of that appears in this body. The routing below names *which* action fires, never the scope rules that make it safe, so it cannot be improvised from. Skipping the read ships an unreviewed fix, lets review reach into unrelated branch work, and strands accepted findings in the session.
 
 #### Routing
 
 **Land the fix without carrying along anything the user did not offer up** — not into a commit, not into a push, not into a PR. Do not ask whether to open a PR; permission is not the gate. Two questions decide the handoff, answered from the pre-fix scope Phase 3 recorded rather than inferred from how the branch came to exist. **Fire the action itself** via the platform's skill-invocation primitive — never merely tell the user to type a command.
 
-**1. What may go into the commit — the fix-owned files and nothing else.** A constraint on whichever skill commits in question 2, never an action of its own; it holds on every route, remote or not. Do not commit here.
+**1. What may go into the commit — the fix-owned files and nothing else.** This is a constraint on whichever skill commits in question 2, never an action of its own. It holds on every route, remote or not. Do not commit here.
 
 - No fix-owned file carried pre-existing edits: those files are the commit scope, passed to whichever skill commits.
 - A fix-owned file already carried the user's edits: no commit separates them (`ce-commit` groups at file level and never splits a file). Ask (per **Blocking questions**) *before* anything commits: commit that file including their edits, leave the fix uncommitted, or stop. Only the first answer continues — the other two end the handoff, so question 2 never runs and nothing commits; say what was left and why. Every option loses something the agent cannot choose on the user's behalf, which is why this question survives. Phase 3's confirmation covered *editing* the file, never committing the user's edits with the fix.
 
 **2. Who commits, and whether it ships.** Exactly one of these runs.
 
-- **Ships** — the pre-fix tree was clean, nothing on the branch is work the user has not already offered, and `origin` is **PR-capable**: somewhere `gh` can actually open a PR. Establish those however fits the repo in front of you; two facts make it less obvious than it looks.
+- **Ships** — the pre-fix tree was clean, nothing on the branch is work the user has not already offered, and `origin` is **PR-capable**: somewhere `gh` can actually open a PR. Establish those however fits the repo in front of you. Two facts make it less obvious than it looks.
   - `ce-commit-push-pr` pushes the **whole branch**, and its PR spans every commit on it, not just your fix — so the question is about the branch, not your diff. It also pushes *before* creating the PR, so a remote `gh` cannot open a PR against leaves the branch published with no PR.
   - Already pushed is not already **offered**. Commits in an open PR are under review, so they are offered and this run updates that PR rather than opening a second one; commits pushed for backup or to trigger CI are not, and a first PR would publish them. Compare against the remote rather than a local ref — a local branch, including the default branch Phase 3 may have branched off, can itself be ahead of what was pushed.
 
