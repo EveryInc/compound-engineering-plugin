@@ -48,50 +48,21 @@ git diff --name-only main...[branch]
 
 ### 3. Map Changed Files to Routes
 
-Map each changed file to the route(s) that render it, then build the list of URLs to test. The table below is a starting point of common patterns, not an exhaustive rule set — apply judgment for the project's actual layout:
-
-| File Pattern | Route(s) |
-|-------------|----------|
-| `app/views/users/*` | `/users`, `/users/:id`, `/users/new` |
-| `app/controllers/settings_controller.rb` | `/settings` |
-| `app/javascript/controllers/*_controller.js` | Pages using that Stimulus controller |
-| `app/components/*_component.rb` | Pages rendering that component |
-| `app/views/layouts/*` | All pages (test homepage at minimum) |
-| `app/assets/stylesheets/*` | Visual regression on key pages |
-| `app/helpers/*_helper.rb` | Pages using that helper |
-| `src/app/*` (Next.js) | Corresponding routes |
-| `src/components/*` | Pages using those components |
+Map each changed file to the route(s) that render it, then build the list of URLs to test. `references/route-mapping.md` in this skill's directory lists common patterns as a starting point; the project's actual layout decides.
 
 ### 4. Determine the Dev Server Port
 
-Determine the preferred port using this priority:
+`scripts/resolve-port.sh` owns the resolution and prints the port alone on stdout: the explicit port argument, else a `--port` flag in `package.json`, else `PORT=` in `.env`, `.env.local`, or `.env.development`, else `3000`. Pass an explicit port when the user gave `--port N`, or when your active project instructions already in context state the dev-server port. Do not grep instruction files for a port — prose mentions in docs and troubleshooting are unreliable, while config files and `.env` are not.
 
-1. **Explicit argument** — if the user passed `--port 5000`, use that directly.
-2. **In-context project instructions** — if your active project instructions already in context explicitly state the dev-server port, use it. Don't grep instruction files for a port: prose mentions (docs, examples, troubleshooting) are unreliable and false-positive-prone — config files and `.env` are the trustworthy sources.
-3. **package.json** — check dev/start scripts for `--port` flags.
-4. **Environment files** — check `.env`, `.env.local`, `.env.development` for `PORT=`.
-5. **Default** — fall back to `3000`.
-
-```bash
-# If your in-context project instructions state the dev-server port, set EXPLICIT_PORT first.
-PORT="${EXPLICIT_PORT:-}"
-if [ -z "$PORT" ]; then
-  PORT=$(grep -Eo '\-\-port[= ]+[0-9]{4,5}' package.json 2>/dev/null | grep -Eo '[0-9]{4,5}' | head -1)
-fi
-if [ -z "$PORT" ]; then
-  PORT=$(grep -h '^PORT=' .env .env.local .env.development 2>/dev/null | tail -1 | cut -d= -f2)
-fi
-PORT="${PORT:-3000}"
-echo "Preferred dev server port: $PORT"
-```
-
-Manual mode uses this preferred port as-is — the user controls their own server, so do not scan for alternatives. In pipeline mode, `references/pipeline-orchestration.md` takes the preferred port value printed here and scans upward to a genuinely free port.
+Each mode runs the script itself, in the shell call that needs the port, so no port value has to survive between shell calls or be transcribed out of prose. Manual mode runs it in step 5 and uses the port as-is — the user controls their own server, so do not scan for alternatives. Pipeline mode runs it with `--free` inside the block that starts the server, per `references/pipeline-orchestration.md`.
 
 ### 5. Verify the Dev Server Is Running
 
 Confirm the server is up before asking the headed/headless question — a manual run with no server stops here, so asking first would waste the question.
 
 ```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+PORT=$(bash "$SKILL_DIR/scripts/resolve-port.sh");   # append the explicit port as an argument when you have one
 if lsof -i ":${PORT}" -sTCP:LISTEN -t >/dev/null 2>&1; then
   echo "Server running on port ${PORT}";
 else
@@ -138,87 +109,9 @@ For each affected route, use the selected driver to navigate and capture fresh r
 
 **Take screenshots:** capture viewport and full-page evidence when the selected driver supports it. Materialize screenshots as local artifacts when a later workflow or report needs file paths; otherwise in-app evidence is sufficient.
 
-### 8. Human Verification (When Required)
+### 8. Pauses, Failures, and the Result Report
 
-Pause for human input when testing touches flows that require external interaction. **Pipeline mode:** do not pause — log each such flow as Skip with the reason and continue.
-
-| Flow Type | What to Ask |
-|-----------|-------------|
-| OAuth | "Please sign in with [provider] and confirm it works" |
-| Email | "Check your inbox for the test email and confirm receipt" |
-| Payments | "Complete a test purchase in sandbox mode" |
-| SMS | "Verify you received the SMS code" |
-| External APIs | "Confirm the [service] integration is working" |
-
-Ask the user (using the platform's question tool, or present numbered options and wait):
-
-```
-Human Verification Needed
-
-This test touches [flow type]. Please:
-1. [Action to take]
-2. [What to verify]
-
-Did it work correctly?
-1. Yes - continue testing
-2. No - describe the issue
-```
-
-### 9. Handle Failures
-
-When a test fails (**pipeline mode:** do not ask how to proceed — capture the error screenshot and repro steps, log the failure, and continue):
-
-1. **Document the failure:**
-   - Capture a screenshot of the error state with the selected driver
-   - Note the exact reproduction steps
-
-2. **Ask the user how to proceed:**
-
-   ```
-   Test Failed: [route]
-
-   Issue: [description]
-   Console errors: [if any]
-
-   How to proceed?
-   1. Fix now - debug and fix the failing test
-   2. Skip - continue testing other pages
-   ```
-
-3. **If "Fix now":** investigate, propose a fix, apply, re-run the failing test
-4. **If "Skip":** log as skipped, continue
-
-### 10. Test Summary
-
-After all tests complete, present a summary:
-
-```markdown
-## Browser Test Results
-
-**Test Scope:** PR #[number] / [branch name]
-**Server:** http://localhost:${PORT}
-
-### Pages Tested: [count]
-
-| Route | Status | Notes |
-|-------|--------|-------|
-| `/users` | Pass | |
-| `/settings` | Pass | |
-| `/dashboard` | Fail | Console error: [msg] |
-| `/checkout` | Skip | Requires payment credentials |
-
-### Console Errors: [count]
-- [List any errors found]
-
-### Human Verifications: [count]
-- OAuth flow: Confirmed
-- Email delivery: Confirmed
-
-### Failures: [count]
-- `/dashboard` - [issue description]
-
-### Result: [PASS / FAIL / PARTIAL]
-```
+Read `references/pauses-failures-and-report.md` from this skill's directory before this step. It carries the flows that need a human, how to record a failure, and the result table that ends the run. In pipeline mode nothing here blocks: log the flow or failure with its reason and continue.
 
 ## Quick Usage Examples
 

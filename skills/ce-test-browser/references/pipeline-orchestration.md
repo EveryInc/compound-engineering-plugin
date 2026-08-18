@@ -11,22 +11,13 @@ Unattended execution does not mean hidden execution. Do not ask a visibility que
 
 ## 2. Claim a free port and start the server
 
-Multiple agents may run on the same machine, so never assume the preferred port is free: scan upward to the first free port, then start the server there in the background.
+Multiple agents may run on the same machine, so never assume the resolved port is free: `scripts/resolve-port.sh --free` in this skill's directory resolves the port and scans upward to the first port with no listener, printing it alone on stdout.
 
-Run the whole thing as **one** command. Shell variables do not survive between separate Bash calls, so the free-port scan and the startup must share a single block, and that block must seed `PORT` itself — the `$PORT` computed in step 4 is gone by the time this runs. Set `PORT` on the first line to the preferred port step 4 printed ("Preferred dev server port: N"); it defaults to `3000` only if step 4 found nothing.
+Run the whole thing as **one** command. Shell variables do not survive between separate Bash calls, so the port resolution, the free scan, and the startup all happen inside this block — it seeds `PORT` by capturing the script's output, not from anything an earlier step printed. Add the explicit port as a second argument when the user gave `--port N` or your in-context project instructions state the dev-server port.
 
 ```bash
-PORT=3000   # replace 3000 with the preferred port from step 4
-
-# scan upward to the first free port
-find_free_port() {
-  local p=$1
-  while lsof -i ":$p" -sTCP:LISTEN -t >/dev/null 2>&1; do
-    p=$((p + 1))
-  done
-  echo "$p"
-}
-PORT=$(find_free_port "$PORT")
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+PORT=$(bash "$SKILL_DIR/scripts/resolve-port.sh" --free);   # append the explicit port as a further argument when you have one
 echo "Using dev server port: $PORT"
 
 # start in the background (the scan guarantees this port is free), then wait up to 30s
@@ -49,4 +40,4 @@ if ! lsof -i ":${PORT}" -sTCP:LISTEN -t >/dev/null 2>&1; then
 fi
 ```
 
-The scan may land on a different port than the preferred one, and `$PORT` does not survive into later shell calls. Note the number this block echoes ("Using dev server port: N") and use that literal port in every subsequent selected-driver navigation — do not rely on `${PORT}` carrying over. Then return to the "Test Each Affected Page" step, navigate to `http://localhost:<N>`, inspect the rendered state, and test each route.
+The scan may land on a different port than the resolved one, and `$PORT` does not survive into later shell calls. Note the number this block echoes ("Using dev server port: N") and use that literal port in every subsequent selected-driver navigation — do not rely on `${PORT}` carrying over. Then return to the "Test Each Affected Page" step, navigate to `http://localhost:<N>`, inspect the rendered state, and test each route.
