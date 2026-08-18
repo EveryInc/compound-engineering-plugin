@@ -4,6 +4,8 @@ Required read before any Proof HTTP call. Endpoints, operation tables, error han
 
 ## Web API
 
+On Claude Code, each new `curl` pattern prompts for permission. Suggest the allowlist rule `"Bash(curl * https://www.proofeditor.ai/*)"` under `permissions.allow` if the user wants a quieter session; do not add it silently.
+
 Auth on document surfaces (preferred first):
 
 - `Authorization: Bearer <accessToken>`
