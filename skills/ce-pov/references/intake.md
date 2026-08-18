@@ -2,6 +2,12 @@
 
 Every Phase 0 loads this, because every run has to settle a frame, a tier, and whether the field is bounded before spending the scout fan-out. How much of it applies depends on the input. **Reversibility tier and the selection escape hatch** (in *Tier, sizing, and the selection hatch* at the end) decide every invocation, including one whose subject and intent are obvious. The orienting and proposing steps (Steps 1-3) are the path for an input that does not already say what POV the user wants — a bare link, a bare topic, a warm invocation with no stated question; on a clear frame, state it in one line and go straight to the tier and the hatch. Either way the rule is the same: propose, **never guess**.
 
+## Output mode and warm invocations
+
+By default this skill writes no document. The POV is a compact chat block, and a write-up or a `ce-compound` capture is offered at Phase 4. Do not resolve an output format or load a rendering reference up front.
+
+A **warm** invocation is a mid-session second opinion, with the question sitting in the conversation or absent. On one, read `references/invocation.md`, and take only the *question and claims-to-verify* from the conversation, never grounding.
+
 ## Why this gate exists
 
 The same subject supports very different verdicts. A link to a new sign-in method could mean "should we **adopt** it?", "should we **migrate** to it, and how costly?", "how does it **compare** to what we have?", or "I just have a **question** about it." Guessing "migrate" sends all three scouts after migration cost and answers a question the user never asked. The frame determines what the scouts even look for, so settle it first.

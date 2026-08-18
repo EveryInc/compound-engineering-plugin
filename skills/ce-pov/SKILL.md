@@ -6,7 +6,7 @@ argument-hint: "[question, document, or approaches] [cross-check] — or bare"
 
 # Form a Point of View
 
-Produce a decisive, project-grounded point of view in the subject's own shape: a **graded verdict** on an external-adoption question, a **holistic take** on a document, or a **position** on a supplied approach set. The subject is whatever this skill was invoked with, in the prompt or conversation. Read-only while forming and reconciling the POV, and done when it is delivered with its attribution and required disclosure, or an explicit blocker is returned. **The year is 2026** for source recency.
+Produce a decisive, project-grounded point of view in the subject's own shape: a **graded verdict** on an external-adoption question, a **holistic take** on a document, or a **position** on a supplied approach set. The subject is whatever this skill was invoked with, in the prompt or the conversation. Stay read-only while forming and reconciling the POV. You are done when the POV is delivered with its attribution and required disclosure, or when an explicit blocker is returned. **The year is 2026**, for source recency.
 
 ## Setup
 
@@ -24,19 +24,19 @@ fi
 
 ## The moat
 
-**Never issue a POV you did not earn against the project's own context.** Every subject clears the project floor in `references/method.md`; the external floor applies in full to an adoption question, and on a document or approach set to the external claims carrying the bottom line. Nothing the conversation asserts substitutes.
+**Never issue a POV you did not earn against the project's own context.** Every subject must clear the **project floor** in `references/method.md`. An external-adoption verdict must also clear the full external floor. A document or approach-set POV must externally verify any external claim that is load-bearing to its bottom line. Nothing the conversation asserts substitutes for grounding.
 
 ## User-facing communication
 
-Write for the person deciding what to do: lead with the decision, question, or recommendation, and keep internal workflow vocabulary and mechanics out of chat unless asked — put any consequence they need in ordinary language. Call the codebase "this project" or "the repository" unless the user supplied a recognizable name; never promote a directory, worktree, checkout, branch, or path into the project name.
+Write for the person deciding what to do. Lead with the decision, question, or recommendation. Keep internal workflow vocabulary and mechanics out of chat unless asked, and put any consequence they need into ordinary language. Call the codebase "this project" or "the repository" unless the user supplied a recognizable name. Never promote a directory, worktree, checkout, branch, or path into the project name.
 
 ## Interaction Method
 
-Ask through the host's blocking question tool, one at a time: `AskUserQuestion` (Claude Code; `ToolSearch` `select:AskUserQuestion` if unloaded), `request_user_input` (Codex), `ask_question` (`agy`), `ask_user` (Pi). Numbered chat options only when none exists or the call errors; never skip the question.
+Ask through the host's blocking question tool, one question at a time: `AskUserQuestion` (Claude Code; run `ToolSearch` with `select:AskUserQuestion` if its schema is not loaded), `request_user_input` (Codex), `ask_question` (`agy`), `ask_user` (Pi). Fall back to numbered chat options only when none exists or the call errors. Never skip the question.
 
 ## Artifact Root
 
-Resolve `<root>` only when you first compose a `<root>/` path (a `<root>/solutions/` read counts); pass it to scouts, never the config. A non-git project has no `<root>`; its prior-decision scan uses local design docs.
+Resolve `<root>` the first time you compose a `<root>/` path; a read of `<root>/solutions/` counts as composing one. Pass the resolved path to scouts, never the config. A non-git project has no `<root>`, so its prior-decision scan uses local design docs instead.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**
@@ -48,28 +48,28 @@ Resolve `<root>` only when you first compose a `<root>/` path (a `<root>/solutio
 
 ### Phase 0: Frame and Classify
 
-No document by default: the POV is a compact chat block; a write-up or `ce-compound` capture is offered at Phase 4. On a **warm** invocation (a mid-session second opinion, the question in the conversation or absent) read `references/invocation.md`: take only the *question and claims-to-verify*, never grounding.
-
-**Read `references/intake.md` now, before any grounding** — orientation, framing proposal, tier definitions and sizing, and the escape hatch for an unbounded field. Settle the subject, the POV intent (adopt / migrate / compare / is-this-our-problem / Document-take / Approach-set / explainer), and the reversibility tier; state frame and tier in one line, let the user override it, and size the run to it. Read `references/boundaries.md` when this skill's fit is in doubt.
+**Read `references/intake.md` now, before any grounding.** It owns the output mode, the warm-invocation contract, orientation and framing, sizing, and the unbounded-field escape hatch. Settle three things there: the subject, the POV intent (adopt / migrate / compare / is-this-our-problem / Document-take / Approach-set / explainer), and the reversibility tier. State the frame and the tier in one line, let the user override it, and size the run to it. Read `references/boundaries.md` when this skill's fit is in doubt.
 
 ### Phase 1: Ground
 
-**Read `references/grounding.md` now, before grounding by either path** — model tiers (the POV reasoning itself is never dispatched), scratch fence, scout payload and fleet, capability gating, and the provenance buckets keeping grounded facts apart from unconfirmed ones. Send scouts directly to candidate-specific current evidence, never a generic repo profile; they search in their own context and return a dossier path plus a gist, read on demand. Where the load-bearing facts are already located, confirm them with bounded reads of the authoritative source instead of dispatching scouts; unscoped or noisy grounding still dispatches, and a conversation claim is a pointer to check, never self-verifying. The prior-decision scan (`<root>/solutions/`, ADRs, design docs) stays mandatory on either path.
+**Read `references/grounding.md` now, before grounding by either path.** It owns the model tiers (the POV reasoning itself is never dispatched), the scratch fence, the scout payload and fleet, capability gating, and the provenance buckets that keep grounded facts apart from unconfirmed ones.
+
+Send scouts directly to candidate-specific current evidence, never a generic repo profile. They search in their own context and return a dossier path plus a gist, which you read on demand. Where the load-bearing facts are already located, confirm them with bounded reads of the authoritative source instead of dispatching scouts; unscoped or noisy grounding still dispatches. A claim made in the conversation is a pointer to check, never self-verifying. The prior-decision scan (`<root>/solutions/`, ADRs, design docs) stays mandatory on either path.
 
 ### Phase 2: Verify Grounding
 
-**Read `references/method.md` now**, before reasoning about the POV — Verify and POV steps, skeptic stance, tiering, gate. Apply that gate over the grounded evidence: a failed floor forbids Adopt/Reject and returns the matching Hold subtype, or Blocked on a document or approach set.
+**Read `references/method.md` now**, before reasoning about the POV. It owns the Verify and POV steps, the skeptic stance, tiering, and the gate. Apply that gate over the grounded evidence. A failed floor forbids Adopt and Reject; that reference names what is returned instead.
 
 ### Phase 3: Point of View
 
-First form ce-pov's own independent POV under the active subject-shape contract in `references/method.md`, but do not emit it. Freeze that position: keep it out of an independent peer's initial context, exposing it only to critique that position or in a later reconciliation.
+First form ce-pov's own independent POV under the active subject-shape contract in `references/method.md`, but do not emit it. Freeze that position. Keep it out of an independent peer's initial context; expose it only when the task is to critique that position, or in a later reconciliation round.
 
-A summons is an affirmative request to consult or reconcile peers (a panel, a cross-check, `oracle`) anywhere in the invocation context; declining or recounting one is not a summons. On a summons, or when a cold POV may qualify for a proactive offer, read `references/cross-model-panel.md` before resolving participation or deciding whether to offer; it owns announcement, granted authority, the unbiased first round, and reconciliation. Finish the panel branch before composing the result: a POV after a summons states which peers ran, or that none did and why; one with no summons carries no panel note.
+A summons is an affirmative request to consult or reconcile peers — a panel, a cross-check, `oracle` — anywhere in the invocation context. Declining one, or merely recounting one, is not a summons. On a summons, or when a cold POV may qualify for a proactive offer, read `references/cross-model-panel.md` before resolving participation or deciding whether to offer. Finish the panel branch before composing the result. A POV that follows a summons states which peers ran, or that none did and why. A POV with no summons carries no panel note.
 
-Only then emit the subject shape's contract as a **compact chat block, not a research report**: grade, bottom line, or position first, never reprinting dossiers or raw output.
+Only then emit the subject shape's contract, as a **compact chat block, not a research report**. Lead with the grade, bottom line, or position, and never reprint dossiers or raw output.
 
 ### Phase 4: Follow-up
 
-The chat POV is the deliverable; implementation is not. **Read `references/followup.md`**: four-part handoff gate, per-shape routing, write-up and `ce-compound` continuations. Hand the POV on without another question only when that gate passes; otherwise offer one continuation and wait, reasoned from the active subject shape's result (external adoption, Document take, Approach-set position) — never a fixed menu, never an assumption that everything routes to a plan, and blocking only where that reference says the user must choose.
+The chat POV is the deliverable; implementation is not. **Read `references/followup.md`** for the four-part handoff gate, the routing, and the continuations. Hand the POV on without another question only when that gate passes. Otherwise offer one continuation and wait. Reason that offer from the active subject shape's result — external adoption, Document take, or Approach-set position — never from a fixed menu, and never assume everything routes to a plan. Block only where that reference says the user must choose.
 
 **Warm invocations stay a guest:** output the POV block, hand control back, and offer none of this unless asked.
