@@ -106,3 +106,24 @@ Fail closed, all-or-nothing per file at minimum. A script that writes files 1 th
 Removing a "you must" does not remove the decision. It hands the decision to the model. `references/halt-taxonomy.md` class 10 carries the mechanism and the observed failure; the line that resolved it without restoring the old prose was **a unit decides its own internal delegation; whether a step runs at all is not its call.**
 
 The pass-loop rule: for every mandate you remove, name what now decides, and check that the new decider is allowed to decide it. If the answer is "the model, at its discretion, whether a required step happens" — that is a required gate, and it stays. This class is also invisible to a probe that never enters the skipped phase, which is why Phase 5 audits the phases the instrument cannot reach and why one clean run proves nothing (`references/noise-floor.md`).
+
+## Discipline that survives contact
+
+- **Fix at the smallest owning layer.** Reword only when rewording is the smallest mechanism; prefer deleting the structure that made the wording necessary.
+- **Field names, enums, greppable markers and security guards are data.** They stay. What goes is the justification clause around them that teaches the model a separate consumer is waiting.
+- **Never edit tests to make a suite green.** A removed string a test pins is a finding to report, not a test to weaken.
+- One problem per agent, each owning a disjoint file set so parallel work cannot collide.
+
+## Reading the failure (Phase 5)
+
+A failure that moves to a later phase is progress and names the next target. A failure at the same site means the fix missed. A run that completes the task while skipping the workflow is a different defect than a halt, and only shows up if Phase 1's two metrics stayed separate.
+
+**Audit the phases the instrument cannot reach.** A probe that skips a phase can never fail in it, so a green streak certifies only what it exercised. List the phases your task never enters, read those files, and treat what you find there as equal in weight to what the runs found. Some of the most consequential defects live where no test looks.
+
+**Report the limit.** Name the paths that remain unmeasured and what would be needed to measure them. Do not let a cleared bar imply coverage it does not have.
+
+## Ship (Phase 6)
+
+Commit each pass separately with its own message so the history says which change was made and why, and so release tooling can classify intent. Keep the measurement artifacts.
+
+Then write the finding down where the next person will hit it: the mechanism, the before and after, the measured numbers, and the hypotheses that died. **Record the ones that died.** They are what stops the next attempt from re-running a dead end, and they are the part every write-up omits.

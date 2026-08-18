@@ -1,8 +1,8 @@
-# `/ce-optimize` Usage Guide
+# `ce-optimize` Usage Guide
 
 ## What This Skill Is For
 
-`/ce-optimize` is for hard engineering problems where:
+The `ce-optimize` skill is for hard engineering problems where:
 
 1. You can try multiple code or config variants.
 2. You can run the same evaluation against each variant.
@@ -12,7 +12,7 @@ It is best for "search the space and score the results" work, not one-shot imple
 
 ## When To Use It
 
-Use `/ce-optimize` when the problem looks like:
+Reach for `ce-optimize` when the problem looks like:
 
 - "Find the smallest memory limit that stops OOM crashes without wasting RAM."
 - "Tune clustering parameters without collapsing everything into one garbage cluster."
@@ -37,7 +37,7 @@ Choose `type: judge` when a numeric metric can be gamed or when human usefulness
 
 ## When Not To Use It
 
-`/ce-optimize` is usually the wrong tool when:
+`ce-optimize` is usually the wrong tool when:
 
 - The fix is obvious and does not need experimentation
 - There is no repeatable measurement harness
@@ -125,3 +125,13 @@ Common pattern:
 - Judge mode scores the surviving candidates for actual usefulness.
 
 That hybrid setup is often the best default for ranking, clustering, and prompt work.
+
+## First-run defaults
+
+A first run optimizes for signal and safety, not throughput:
+
+- Start from `references/example-hard-spec.yaml` when the metric is objective and cheap to measure; use `references/example-judge-spec.yaml` only when quality genuinely requires semantic judgment.
+- Prefer `execution.mode: serial` with `execution.max_concurrent: 1`.
+- Cap the run with `stopping.max_iterations: 4` and `stopping.max_hours: 1`.
+- Add no new dependencies until the baseline and measurement harness are trusted.
+- For judge mode, start at `sample_size: 10`, `batch_size: 5`, and `max_total_cost_usd: 5`.
