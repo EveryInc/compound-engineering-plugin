@@ -143,6 +143,50 @@ describe("ce-compound YAML safety rule presence", () => {
   })
 })
 
+// The body carries the conditions and one pointer per step; the detail moved into
+// references the body names at that step. Split the guard the same way: the body
+// pins the mandatory reads (a lost pointer silently drops the whole reference),
+// and each reference keeps the invariant it now owns.
+describe("ce-compound-refresh body pointers and relocated invariants", () => {
+  const ref = (name: string) =>
+    readFile(path.join(PLUGIN_ROOT, "ce-compound-refresh", "references", name), "utf8")
+
+  test("the body names every reference at the step that needs it", async () => {
+    const skill = await readFile(
+      path.join(PLUGIN_ROOT, "ce-compound-refresh", "SKILL.md"),
+      "utf8",
+    )
+    for (const name of [
+      "modes.md",
+      "scope.md",
+      "investigate.md",
+      "classify.md",
+      "per-action-flows.md",
+      "concepts-vocabulary.md",
+      "report.md",
+      "commit.md",
+      "discoverability.md",
+    ]) {
+      expect(skill, `SKILL.md must point at references/${name}`).toContain(`references/${name}`)
+    }
+  })
+
+  test("relocated invariants stay stated in the reference that owns them", async () => {
+    // Auto-delete is the only unattended destructive path; its gate must survive the move.
+    expect(await ref("classify.md")).toContain("Auto-delete")
+    expect(await ref("classify.md")).toMatch(/all three hold/)
+    // Non-interactive delivery splits into applied vs recommended writes.
+    const report = await ref("report.md")
+    expect(report).toContain("**Applied:**")
+    expect(report).toContain("**Recommended:**")
+    // Unattended relocation is gated on four conditions, splits never auto-apply.
+    expect(await ref("modes.md")).toMatch(/four-condition gate/)
+    expect(await ref("modes.md")).toMatch(/Splits are always recommend-only/)
+    // A scope hint that matches nothing must not widen to the whole store.
+    expect(await ref("scope.md")).toMatch(/report the miss and exit/)
+  })
+})
+
 describe("ce-compound-refresh named-guidance comparison", () => {
   test("ce-compound-refresh compares a knowledge-track learning against guidance it names, and never edits that guidance", async () => {
     // Narrow form of issue #1265: the check is bounded to guidance files the

@@ -26,7 +26,8 @@ const modelVisibleRendererCases = [
     unnecessaryOmp: ["/skill:ce-babysit-pr <url>"],
   },
   {
-    file: "skills/ce-commit-push-pr/SKILL.md",
+    // The concept trailer that prints the invocation moved into the apply reference.
+    file: "skills/ce-commit-push-pr/references/apply-and-handoff.md",
     defaults: ["/ce-explain <name>"],
     codex: ["$ce-explain <name>"],
     unnecessaryOmp: ["/skill:ce-explain <name>"],
@@ -164,9 +165,9 @@ describe("user-facing skill invocation rendering", () => {
     const debug = readRepoFile("skills/ce-debug/SKILL.md")
     expect(debug).toContain("control has transferred to `ce-brainstorm`")
 
-    const optimize = readRepoFile("skills/ce-optimize/SKILL.md")
-    expect(optimize).toContain("**Run `ce-code-review`**")
-    expect(optimize).toContain("**Run `ce-compound`**")
+    const optimizeWrapUp = readRepoFile("skills/ce-optimize/references/wrap-up.md")
+    expect(optimizeWrapUp).toContain("**Run `ce-code-review`**")
+    expect(optimizeWrapUp).toContain("**Run `ce-compound`**")
   })
 
   test("static ce-optimize examples use host-neutral capability wording", () => {
