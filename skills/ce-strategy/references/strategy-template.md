@@ -90,5 +90,5 @@ Before confirming the write, scan the draft for:
 - [ ] No placeholders remain (`{{...}}`).
 - [ ] Optional sections (Milestones, Brand) with no content have been deleted, not left empty; Boundaries is present.
 - [ ] Sections this skill did not write are unchanged and still in place.
-- [ ] Metric count is between 3 and 5. Track count is between 2 and 4.
+- [ ] Metric count is between 3 and 5 and track count between 2 and 4 - counting a meaning explicitly deferred to a linked legacy doc as carried there, not as missing here.
 - [ ] Purpose and Positioning are connected - one clearly responds to the other.

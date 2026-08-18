@@ -101,14 +101,14 @@ If the argument was `setup`, `reconfigure`, or `edit config`, go to Phase 1 rega
 
 #### 1.0 Seed from strategy (if available)
 
-Before asking any questions, read `STRATEGY.md` using the native file-read tool. If the file exists, extract:
+Before asking any questions, read `STRATEGY.md` using the native file-read tool; when it is absent, read a legacy `VISION.md` or `PRODUCT.md` in its place (readers accept those names while other tools converge on `STRATEGY.md`). If a doc exists, extract:
 
 - The product name from the `name` key in the YAML frontmatter, falling back to the H1 title (stripping the trailing ` Strategy` suffix, e.g., `# Spiral Strategy` -> `Spiral`) if frontmatter is missing; `STRATEGY.md` is shared with other tools and may carry neither, in which case take the name from the README or repository and confirm it in the interview
 - The list of key metrics, one per line, from the section that carries them: `## Key metrics` when `ce-strategy` wrote it, otherwise whichever section of a shared or hand-written file lists the success measures (go by meaning, since headings vary by writer). When `STRATEGY.md` carries no metrics but points to a legacy sibling doc (`VISION.md`, `PRODUCT.md`) for content it defers, read the metrics from there. When no section anywhere carries them, treat them as not yet on file and say so
 
 Open the interview by surfacing what was extracted: announce that a strategy doc was found, show the seeded product name and the list of key metrics that will be carried into event/data setup, and invite the user to correct any of it before continuing.
 
-If `STRATEGY.md` does not exist, note that explicitly in chat: no strategy doc on file, running setup from scratch, and mention that `ce-strategy` can seed pulse later if run first.
+If none of those docs exists, note that explicitly in chat: no strategy doc on file, running setup from scratch, and mention that `ce-strategy` can seed pulse later if run first.
 
 #### 1.1 Interview
 
