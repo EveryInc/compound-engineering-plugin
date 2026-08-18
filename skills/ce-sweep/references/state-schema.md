@@ -94,7 +94,7 @@ start).
 
 The **primary** sensitivity mechanism is per-item: the orchestrator reads each
 source's config `sensitive` flag and includes `"sensitive": true` in the item
-JSON on every `upsert-item` for that source (SKILL.md phase 2d). A `sensitive:
+JSON on every `upsert-item` for that source (run.md phase 2d). A `sensitive:
 true` on a **source entry** in state is a defensive fallback the engine also
 honors, but nothing seeds it today — the per-item flag is what enforces R28, so
 sensitivity works even though source entries carry only a `cursor`. On any
