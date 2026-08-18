@@ -30,7 +30,6 @@ const AGENT_PLUGINS_SCHEMA_PREFIX = "https://agent-plugins.org/schemas/"
 const OVER_BUDGET = new Set([
   "ce-brainstorm",
   "ce-code-review",
-  "ce-commit-push-pr",
   "ce-compound",
   "ce-compound-refresh",
   "ce-debug",

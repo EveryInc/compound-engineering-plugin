@@ -125,10 +125,12 @@ describe("ce-commit-push-pr contract", () => {
 
   test("existing PR rewrites carry the old body into composition", async () => {
     const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+    const contextRef = await readRepoFile("skills/ce-commit-push-pr/references/context.md")
 
     // Existing-PR detection uses `gh pr list` (exits 0, returns `[]` when none)
     // rather than `gh pr view` (exits 1 with no PR, which aborted `!` load).
-    expect(content).toContain("gh pr list --head <branch> --state open --json number,url,title,body,state,isDraft,headRefName,headRepositoryOwner")
+    // The exact probe command moved into the context reference read before Step 1.
+    expect(contextRef).toContain("gh pr list --head <branch> --state open --json number,url,title,body,state,isDraft,headRefName,headRepositoryOwner")
     // Multi-fork same-branch matches are disambiguated by head owner, not index 0 (PR #1109 review).
     expect(content).toContain("do **not** blindly take index 0")
     expect(content).toContain("Note the URL and body from that entry")
@@ -170,16 +172,22 @@ describe("ce-commit-push-pr contract", () => {
   test("appends a known plan unit id to the commit subject without hunting", async () => {
     const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
 
-    expect(content).toContain("append that unit's U-ID in parentheses — `(U3)` means unit 3")
-    expect(content).toContain("Do not hunt for a plan")
-    expect(content).toContain("Omit when the commit spans units")
+    // Commit-message construction lives in the reference Step 3 mandates.
+    const commitRef = await readRepoFile("skills/ce-commit-push-pr/references/commit-and-push.md")
+    expect(commitRef).toContain("append that unit's U-ID in parentheses — `(U3)` means unit 3")
+    expect(commitRef).toContain("Do not hunt for a plan")
+    expect(commitRef).toContain("Omit when the commit spans units")
   })
 
   test("adds generic Compound Engineering branding only on an explicit signal", async () => {
     const reference = await readRepoFile(
       "skills/ce-commit-push-pr/references/pr-description-writing.md",
     )
+    // The body owns the gate default; the apply reference owns the no-op rule for a
+    // branding-only delta, since that decision happens at apply time.
     const skill = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+    const apply = await readRepoFile("skills/ce-commit-push-pr/references/apply-and-handoff.md")
+    const compose = await readRepoFile("skills/ce-commit-push-pr/references/compose.md")
 
     expect(reference).toContain("Built_with-Compound_Engineering")
     expect(reference).not.toContain("MODEL_SLUG")
@@ -190,16 +198,19 @@ describe("ce-commit-push-pr contract", () => {
     expect(reference).toMatch(/existing PR body.+preserve.+verbatim/is)
     expect(reference).toMatch(/never add one when absent/is)
     expect(reference).toMatch(/explicitly asks.+remove or replace/is)
-    expect(skill).toMatch(/branding-only delta.+explicitly request/is)
+    expect(apply).toMatch(/branding-only delta.+explicitly request/is)
     expect(skill).toMatch(/branding is \*\*off unless.+branding:on/is)
-    expect(skill).toContain("normalize that natural-language request to `branding:on`")
-    expect(skill).toContain("If both tokens are present, stop and report the conflict")
+    expect(compose).toContain("normalize that natural-language request to `branding:on`")
+    // The gate lives in the compose reference the body mandates before Step 4.
+    expect(compose).toContain("If both tokens are present, stop and report the conflict")
     expect(skill).not.toContain("pr_branding")
     expect(skill).toMatch(/branding:on\|off/)
   })
 
   test("babysit handoff is default-on with off-switches and drivable fork PRs", async () => {
-    const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+    const content = await readRepoFile(
+      "skills/ce-commit-push-pr/references/apply-and-handoff.md",
+    )
 
     // Default-on: completion gate, announce, transfer ownership, never ask yes/no.
     expect(content).toMatch(/completion gate/i)
@@ -231,11 +242,19 @@ describe("ce-commit-push-pr contract", () => {
 })
 
 describe("PR concept teaching contract", () => {
+  // Split by load-time: the body keeps the pipeline modifier and names the gate keys
+  // at Step 4; the gate resolution and the printed trailer live in the two references
+  // that step mandates (compose.md before composition, apply-and-handoff.md at apply).
   test("SKILL.md wires the teaching gate, pipeline mode, and trailer", async () => {
     const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
-    const trailerStart = content.indexOf("**User-runnable invocation rendering.**")
-    const trailerEnd = content.indexOf("**Babysit handoff", trailerStart)
-    const trailer = content.slice(trailerStart, trailerEnd)
+    const compose = await readRepoFile("skills/ce-commit-push-pr/references/compose.md")
+    const applyRef = await readRepoFile(
+      "skills/ce-commit-push-pr/references/apply-and-handoff.md",
+    )
+    const trailerStart = applyRef.indexOf("**User-runnable invocation rendering.**")
+    const trailerEnd = applyRef.indexOf("**Babysit handoff", trailerStart)
+    const trailer =
+      trailerEnd > trailerStart ? applyRef.slice(trailerStart, trailerEnd) : applyRef.slice(trailerStart)
 
     // Non-interactive modifier for orchestrated callers
     expect(content).toContain("mode:pipeline")
@@ -245,7 +264,7 @@ describe("PR concept teaching contract", () => {
     expect(content).toContain("pr_teaching_section")
     expect(content).toContain("pr_teaching_archive")
     expect(content).toContain("active (non-commented)")
-    expect(content).toContain("Step B2")
+    expect(compose).toContain("Step B2")
 
     // Machine-readable trailer + host-rendered interactive offer
     expect(trailerStart).toBeGreaterThan(-1)
@@ -259,7 +278,10 @@ describe("PR concept teaching contract", () => {
   })
 
   test("SKILL.md archival transition guards ordering, gitignore, and modes", async () => {
-    const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+    // Archival executes inside Step 5, in the reference that step mandates.
+    const content = await readRepoFile(
+      "skills/ce-commit-push-pr/references/apply-and-handoff.md",
+    )
 
     expect(content).toContain("<root>/explainers/")
     expect(content).toContain("input_shape: concept")
@@ -295,8 +317,20 @@ describe("PR concept teaching contract", () => {
     expect(template).toContain("pr_teaching_archive")
   })
 
+  // Split by load-time: the body carries the completion gate (this run is not done
+  // until ce-babysit-pr owns the PR, no substitute watch, blocked is a stop), and the
+  // reference Step 5 mandates carries the handoff mechanics and the do-not-fire cases.
   test("babysit handoff requires ownership transfer, forbids substitutes, hard-fails on load failure", async () => {
-    const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+    const body = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+    expect(body).toMatch(/not done.+until `ce-babysit-pr` owns/is)
+    expect(body).toMatch(/Reporting the PR URL alone is not success/)
+    expect(body).toContain("`ci-watcher`")
+    expect(body).toContain("`gh pr checks --watch`")
+    expect(body).toMatch(/cannot be loaded or started/i)
+
+    const content = await readRepoFile(
+      "skills/ce-commit-push-pr/references/apply-and-handoff.md",
+    )
 
     const handoff = content.match(/\*\*Babysit handoff — default on; completion gate\.\*\*[\s\S]+?(?=\n\n)/)?.[0]
     expect(handoff).toBeDefined()
@@ -323,7 +357,8 @@ describe("PR concept teaching contract", () => {
     // session to improvise "never mark ready" caveats. Drafts are a not-ready signal; the
     // auto-handoff must not fire on them (explicit babysit tokens still force it).
     // Soft-degrade is checkpoint-only after successful ownership — not a failed-handoff fallback.
-    const doNotFire = content.match(/\*\*Do not fire \(auto-detected[\s\S]+?(?=\n\n)/)?.[0]
+    // `$` alternative: the do-not-fire block is now the body's final paragraph.
+    const doNotFire = content.match(/\*\*Do not fire \(auto-detected[\s\S]+?(?=\n\n|$)/)?.[0]
     expect(doNotFire).toBeDefined()
     expect(doNotFire).toContain("draft")
     expect(doNotFire).toContain("`babysit:continuous`")
@@ -337,6 +372,9 @@ describe("PR concept teaching contract", () => {
       readRepoFile("skills/ce-commit-push-pr/references/stack-submit.md"),
       readRepoFile("skills/ce-commit-push-pr/references/gh-stack-cli.md"),
     ])
+    const applyRef = await readRepoFile(
+      "skills/ce-commit-push-pr/references/apply-and-handoff.md",
+    )
 
     expect(submit).toContain("Compose `<bottom-message>` and `<next-message>` with the same subject rule as Step 3")
     expect(submit).toContain("append that unit's U-ID in parentheses — `(U3)` means unit 3")
@@ -376,17 +414,22 @@ describe("PR concept teaching contract", () => {
     expect(skill).toMatch(/did \*\*not\*\* ask for one, \*\*refuse\*\* nonsense stacks/i)
     expect(skill).toContain("references/stack-submit.md")
     expect(skill).toMatch(/do not add `posture:` to this skill's argument-hint/i)
-    expect(skill).toMatch(/before Step 3[\s\S]{0,180}Probe[\s\S]{0,80}Topology[\s\S]{0,120}Retrospective construction/is)
-    expect(skill).toMatch(/before Step 3[\s\S]{0,260}do not submit/is)
-    expect(skill).toMatch(/Step 5 exclusively owns stack submission[\s\S]{0,160}PRs created in this run/is)
+    // The body mandates the reference before Step 3; the probe -> topology ->
+    // retrospective ordering is that reference's own contract.
+    expect(skill).toMatch(/load `references\/stack-submit\.md` \*\*before Step 3\*\*/i)
+    expect(submit).toMatch(/Probe[\s\S]{0,4000}Topology[\s\S]{0,8000}Retrospective/is)
+    // Submission ownership is stated where submission happens.
+    expect(submit).toMatch(/Step 5 exclusively owns stack submission[\s\S]{0,160}PRs created in this run/is)
     expect(skill).toMatch(/replaces ordinary Step 3/i)
     expect(skill).toContain("posture:stack-ready")
     expect(skill).toContain("posture:stack-land")
     expect(skill).toMatch(/bottom open non-draft/i)
-    expect(skill).toMatch(/Stack mode[\s\S]{0,80}still follow the Submit section of `references\/stack-submit\.md`/i)
-    expect(skill).toMatch(/mode:pipeline` \*\*except\*\* when this run completed a stack-mode submit/i)
-    expect(skill).toMatch(/outer orchestrator[\s\S]{0,80}second bare babysit/i)
-    expect(skill).toMatch(/mode:pipeline[\s\S]{0,160}started-only is not enough/i)
+    // The mid-stack existing-PR route runs at apply time, in the Step 5 reference.
+    expect(applyRef).toMatch(/Stack mode[\s\S]{0,80}still follow the Submit section of `references\/stack-submit\.md`/i)
+    // The pipeline exception is part of the do-not-fire list in the apply reference.
+    expect(applyRef).toMatch(/mode:pipeline` \*\*except\*\* when this run completed a stack-mode submit/i)
+    expect(applyRef).toMatch(/outer orchestrator[\s\S]{0,80}second bare babysit/i)
+    expect(applyRef).toMatch(/mode:pipeline[\s\S]{0,160}started-only is not enough/i)
     expect(submit).toMatch(/authoritative parent tip/i)
     expect(submit).toContain('git checkout -b -- "<branch-name>" "<parent-tip>"')
     expect(submit).toMatch(/Do not hard-code `origin\/<parent>`/i)

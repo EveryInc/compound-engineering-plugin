@@ -26,7 +26,8 @@ const modelVisibleRendererCases = [
     unnecessaryOmp: ["/skill:ce-babysit-pr <url>"],
   },
   {
-    file: "skills/ce-commit-push-pr/SKILL.md",
+    // The concept trailer that prints the invocation moved into the apply reference.
+    file: "skills/ce-commit-push-pr/references/apply-and-handoff.md",
     defaults: ["/ce-explain <name>"],
     codex: ["$ce-explain <name>"],
     unnecessaryOmp: ["/skill:ce-explain <name>"],

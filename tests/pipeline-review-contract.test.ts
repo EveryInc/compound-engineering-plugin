@@ -1040,10 +1040,11 @@ describe("concept-teaching seam parity (ce-commit-push-pr <-> lfg)", () => {
   // that both ends name the same trailer format and that the callsite hardcodes the
   // non-interactive mode (a drift on either end fails here, not in production runs).
   test("lfg hardcodes mode:pipeline at the callsite and echoes the trailer", async () => {
-    const skill = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+    const skill = await readRepoFile("skills/ce-commit-push-pr/references/apply-and-handoff.md")
     const lfg = await readRepoFile("skills/lfg/SKILL.md")
 
-    // Both ends name the same trailer format
+    // Both ends name the same trailer format (ce-commit-push-pr prints it from the
+    // apply reference its Step 5 mandates).
     expect(skill).toContain("New concepts:")
     expect(lfg).toContain("New concepts:")
 
