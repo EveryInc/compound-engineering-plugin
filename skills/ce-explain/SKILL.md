@@ -58,7 +58,21 @@ Read `references/intake.md` now and classify the request into one of the four in
 
 ### Phase 2: Ground
 
-Create the run directory first, using the ownership-checked block in `references/orchestration.md` verbatim — read it now rather than composing your own `mkdir`, since a scratch root you do not own is a leak. Then match grounding to the input shape per that file's grounding section. **External concepts** with no footprint in this repo skip repo grounding entirely rather than having repo context forced into the output; when no web tool is reachable and you explain from model knowledge, the artifact must label that content **Unverified — from model knowledge, not checked against current sources** in its metadata header.
+Create the run directory first with this block — a scratch root you do not own, or one reached through a symlink, receives the explainer and the recap evidence, so never improvise a `mkdir` in its place:
+
+```bash
+SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
+[ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") 2>/dev/null && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && [ -w "$SCRATCH_ROOT" ] || SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)";
+if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
+(umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
+if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
+chmod 700 "$SCRATCH_ROOT" || exit 1;
+RUN_DIR="$SCRATCH_ROOT/ce-explain/$(date +%Y%m%d)-$(openssl rand -hex 3)";
+(umask 077; mkdir -p "$RUN_DIR") || exit 1; chmod 700 "$RUN_DIR" || exit 1;
+echo "$RUN_DIR";
+```
+
+Then match grounding to the input shape per that file's grounding section. **External concepts** with no footprint in this repo skip repo grounding entirely rather than having repo context forced into the output; when no web tool is reachable and you explain from model knowledge, the artifact must label that content **Unverified — from model knowledge, not checked against current sources** in its metadata header.
 
 - **Diff mode.** Gather silently: nothing learned here is narrated to the user until Phase 3's ordering rule is satisfied. **Empty range** (the ref resolves to no commits — e.g. `main..HEAD` where the work is still uncommitted): do not silently explain something else. Say what the ref resolved to, name the nearest real candidate (the working tree, the last commit), and use it only after the user agrees — or, when they can't be asked, use it and state the substitution in the artifact's `Subject`. Apply the same rule when the named subject doesn't exist in this repo at all ("the retry logic" where there is none): report that before explaining an adjacent thing.
 - **Recap mode.** Do not pre-scan, count, or characterize the window in the main conversation — dispatch a generic subagent directly at the extraction tier, seeded with `references/agents/work-recap-scout.md` and passed the resolved window, the repo root, and `$RUN_DIR`, because an early `git --all` summary seeds the run with a false branch or activity model. **Empty window** (no git activity, no doc changes): say so, offer to widen it, write no artifact, and end the run after the user responds. **When the harness exposes no subagent primitive**, the degradation rule applies: run the scout inline against its own prompt's sources and budgets, and still write `recap-evidence.md`; the no-pre-scan rule then means what it protects rather than where it runs — do the scout's evidence pass first and form no view of the window until it is done.
