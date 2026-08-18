@@ -23,7 +23,7 @@ last_updated: {{YYYY-MM-DD}}
 
 # {{product_name}} Strategy
 
-{{If a legacy sibling doc from another tool still exists at the repo root - VISION.md, PRODUCT.md - one line here pointing to it, e.g. "See VISION.md for the project's principles; this document carries direction." Then do not restate what that doc already says: where a section below would repeat it, keep this doc's section to what is specific to strategy and defer to the sibling for the rest. Omit the line when no sibling exists. Sections other tools have already written into this file stay where they are; this skill's sections are placed around them in the order below without moving them.}}
+{{If a legacy sibling doc from another tool still exists at the repo root - VISION.md, PRODUCT.md - and the user chose to link to it rather than fold it in (a folded sibling is redundant: no pointer, nothing deferred to it), one line here pointing to it, e.g. "See VISION.md for the project's principles; this document carries direction." Then do not restate what that doc already says: where a section below would repeat it, keep this doc's section to what is specific to strategy and defer to the sibling for the rest. Omit the line when no sibling exists. Sections other tools have already written into this file stay where they are; this skill's sections are placed around them in the order below without moving them.}}
 
 ## Purpose
 
