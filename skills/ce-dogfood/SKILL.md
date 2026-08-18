@@ -9,7 +9,7 @@ argument-hint: "[PR number, branch name, or blank for current branch] [--port PO
 
 Act as a QA engineer who dogfoods the **active branch** end-to-end, autonomously, until it is genuinely ready.
 
-**Outcome:** every user-visible change this branch introduced has been driven in a real browser along its whole journey, judged for correctness and for how it feels to the product's personas, with small breakages fixed, regression-tested, and committed. **Done:** every matrix scenario is `Pass`, `Fixed`, `Skipped`, or in a terminal `Blocked` state; the project's automated suite has been run once and its result recorded — a green matrix over a red suite finalizes as a not-ready verdict rather than a ready one, and chasing that suite green is not this run's job; and the report at `<root>/dogfood-reports/<YYYY-MM-DD>-<branch-slug>-dogfood.md` is finalized against its template.
+**Outcome:** every user-visible change this branch introduced has been driven in a real browser along its whole journey, judged for correctness and for how it feels to the product's personas, with small breakages fixed, regression-tested, and committed. **Done:** every matrix scenario is `Pass`, `Fixed`, `Skipped`, or in a terminal `Blocked` state; the project's automated suite has been run once and its result recorded; and the report at `<root>/dogfood-reports/<YYYY-MM-DD>-<branch-slug>-dogfood.md` is finalized against its template. A green matrix over a red suite finalizes as a not-ready verdict rather than a ready one. Chasing that suite green is not this run's job.
 
 This is **diff-scoped**, not whole-app exploration. You test what *this branch* introduced or modified versus the trunk.
 
@@ -39,7 +39,7 @@ This is **diff-scoped**, not whole-app exploration. You test what *this branch* 
 
 ## Artifact Root
 
-Reports live under `<root>/dogfood-reports/` and personas under `<root>/personas/`. Resolve `<root>` the first time you compose any `<root>/` path, read or write, never before — a run composing none skips it.
+Reports live under `<root>/dogfood-reports/` and personas under `<root>/personas/`. Resolve `<root>` the first time you compose any `<root>/` path, whether you are reading or writing, and never before. A run that composes none skips it.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**
@@ -55,8 +55,8 @@ Reports live under `<root>/dogfood-reports/` and personas under `<root>/personas
 
 ## Phase order
 
-Scope -> analyze the diff -> map the flows -> derive the matrix -> serve -> execute -> fix loop -> report. The order is the invariant: the flow model precedes the matrix, the matrix precedes any browser work, and each phase's conditions are in `references/phases.md` — read it before Phase 0 rather than reconstructing a phase from this line. A scenario is worked one at a time, judged for correctness *and* for how it feels to each persona, and a fix is not done until a regression test fails before it and passes after (or the report says why no automated test was meaningful).
+Scope -> analyze the diff -> map the flows -> derive the matrix -> serve -> execute -> fix loop -> report. The order is the invariant: the flow model precedes the matrix, and the matrix precedes any browser work. Each phase's conditions are in `references/phases.md` — read it before Phase 0 rather than reconstructing a phase from this line. Work one scenario at a time, judged for correctness *and* for how it feels to each persona. A fix is not done until a regression test fails before it and passes after, or the report says why no automated test was meaningful.
 
-**Checkpoint, not a final write.** Create the report from `references/dogfood-report-template.md` as soon as the matrix exists, with every scenario at `Pending`, and update it after each scenario is judged and each fix is committed. `<branch-slug>` is the branch name lowercased with every run of non-alphanumeric characters, slashes included, collapsed to one `-`; a prior run is found by globbing `<root>/dogfood-reports/*-<branch-slug>-dogfood.md`. The task list is session-scoped; the report on disk is what a later run or a teammate resumes from, so an interrupted run must leave a template-shaped checkpoint rather than a bare matrix.
+**Checkpoint, not a final write.** Create the report from `references/dogfood-report-template.md` as soon as the matrix exists, with every scenario at `Pending`, and update it after each scenario is judged and each fix is committed. `<branch-slug>` is the branch name lowercased, with every run of non-alphanumeric characters — slashes included — collapsed to one `-`. Find a prior run by globbing `<root>/dogfood-reports/*-<branch-slug>-dogfood.md`. The task list is session-scoped, but the report on disk is what a later run or a teammate resumes from, so an interrupted run must leave a template-shaped checkpoint rather than a bare matrix.
 
 **Terminal states.** `Blocked (needs human verify)` (an external-interaction leg — OAuth, real email, payments, SMS — that cannot be driven headlessly) and `Blocked (human decision)` (a fix too big to make autonomously) both wait on a person. Each ends that scenario, not the run: ask the person about that leg, continue the rest of the matrix, and never silently re-queue a blocked scenario, on this run or on resume.
