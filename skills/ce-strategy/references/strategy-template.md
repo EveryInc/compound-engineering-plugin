@@ -23,7 +23,7 @@ last_updated: {{YYYY-MM-DD}}
 
 # {{product_name}} Strategy
 
-{{If a sibling product doc exists at the repo root - VISION.md, PRODUCT.md - one line here pointing to it, e.g. "See VISION.md for the project's north star; this document carries direction." Then do not restate what that doc already says: where a section below would repeat it, keep this doc's section to what is specific to strategy and defer to the sibling for the rest. Omit the line when no sibling exists.}}
+{{If a legacy sibling doc from another tool still exists at the repo root - VISION.md, PRODUCT.md - one line here pointing to it, e.g. "See VISION.md for the project's principles; this document carries direction." Then do not restate what that doc already says: where a section below would repeat it, keep this doc's section to what is specific to strategy and defer to the sibling for the rest. Omit the line when no sibling exists. Sections other tools have already written into this file stay where they are; this skill's sections are placed around them in the order below without moving them.}}
 
 ## Purpose
 
@@ -38,6 +38,14 @@ last_updated: {{YYYY-MM-DD}}
 **Primary:** {{Persona name}} - {{one-sentence JTBD, e.g. "They're hiring {{product_name}} to..."}}
 
 <!-- Duplicate the block above for additional personas only if truly necessary. Fewer is better. -->
+
+## Boundaries
+
+- {{one line per item the team is tempted by and has decided against; "Nothing named yet." if none}}
+
+_Resist a change when:_ {{one line, from the proposals the user resisted in the stress test; omit the line if none}}
+
+<!-- Always present. Things the team keeps being tempted by, plus the resist test. Not a blocker list. -->
 
 ## Key metrics
 
@@ -56,14 +64,6 @@ last_updated: {{YYYY-MM-DD}}
 _Why it serves the approach:_ {{one line}}
 
 <!-- Duplicate the block above for 2-4 tracks total. If you can't keep it to 4, something is wrong - fold related tracks together. -->
-
-## Boundaries
-
-- {{one line per item the team is tempted by and has decided against; "Nothing named yet." if none}}
-
-_Resist a change when:_ {{one line, from the proposals the user resisted in the stress test; omit the line if none}}
-
-<!-- Always present. Things the team keeps being tempted by, plus the resist test. Not a blocker list. -->
 
 ## Milestones
 

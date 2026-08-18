@@ -11,6 +11,10 @@ Then build a **repo model** - your working understanding of what this product is
 
 If the repo has no substantive content, say so in one line and run the interview ungrounded - a normal path, not a blocker.
 
+## A legacy sibling doc and no `STRATEGY.md`
+
+`STRATEGY.md` is the shared project doc; `VISION.md` and `PRODUCT.md` are legacy names other tools used before converging on it. When one of those exists and `STRATEGY.md` does not, it has already seeded the repo model; before the interview, offer the user the choice of folding it in or linking to it. Folding: this skill creates `STRATEGY.md` in the template's order and carries the legacy doc in - any legacy meaning this run also writes (purpose, users, positioning, boundaries, metrics, tracks, brand) merges into one section in the author's words, with any contradiction put to the user; every meaning outside this skill's contribution is carried in under its own heading with content unchanged. The legacy file then becomes redundant: say so and leave its removal to the user (this skill never deletes a user's file; readers prefer `STRATEGY.md` in the meantime). Linking: leave the legacy file where it is and point to it from the template's sibling line. Never edit the legacy file either way.
+
 Show the repo model in chat before the first question: three to five lines on what you take the product to be, who it seems to serve, and where attention has gone, each with its source named. Invite correction. On a first run the interview then runs in full; an update run still revisits only the section Phase 2 settles on. If it could not supply the product's name, ask for that here - the template's frontmatter and title need it.
 
 ## Focus hint

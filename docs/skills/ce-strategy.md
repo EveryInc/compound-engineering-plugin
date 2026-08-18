@@ -2,7 +2,7 @@
 
 > Create or maintain `STRATEGY.md`: what the product is, who it is for, how it succeeds, and where the team is investing.
 
-`ce-strategy` is the **upstream anchor**. It writes one short document at the repo root, next to `README.md`. It is not a step in `/ce-ideate` → `/ce-brainstorm` → `/ce-plan` → `/ce-work`. Those skills read `STRATEGY.md` when it exists and weight their suggestions toward the active tracks and the stated approach. `ce-product-pulse` also reads it to seed the metrics it measures.
+`ce-strategy` is the **upstream anchor**. It writes its sections of `STRATEGY.md`, the shared project document at the repo root next to `README.md` — a file other tools and people also write their own sections into, so the skill owns only what its template names and preserves the rest. It is not a step in `/ce-ideate` → `/ce-brainstorm` → `/ce-plan` → `/ce-work`. Those skills read `STRATEGY.md` when it exists and weight their suggestions toward the active tracks and the stated approach. `ce-product-pulse` also reads it to seed the metrics it measures.
 
 The doc is short on purpose. The skill grounds itself in what the repo already says the product is, asks a handful of sharp questions, pushes back on slogans and feature lists, and writes what you actually said.
 
