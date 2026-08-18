@@ -11,7 +11,7 @@ Then build a **repo model** - your working understanding of what this product is
 
 If the repo has no substantive content, say so in one line and run the interview ungrounded - a normal path, not a blocker.
 
-Show the repo model in chat before the first question: three to five lines on what you take the product to be, who it seems to serve, and where attention has gone, each with its source named. Invite correction; the interview still runs in full. If it could not supply the product's name, ask for that here - the template's frontmatter and title need it.
+Show the repo model in chat before the first question: three to five lines on what you take the product to be, who it seems to serve, and where attention has gone, each with its source named. Invite correction. On a first run the interview then runs in full; an update run still revisits only the section Phase 2 settles on. If it could not supply the product's name, ask for that here - the template's frontmatter and title need it.
 
 ## Focus hint
 
