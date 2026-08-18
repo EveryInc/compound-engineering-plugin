@@ -32,7 +32,7 @@ Two rules hold in both modes. A failed write is recorded as **recommended**, and
 
 ## Artifact Root
 
-Resolve `<root>` when you first compose a `<root>/solutions/` path. Pass that resolved path to any subagent, not the config. Every subagent spawn omits the `mode` parameter, so the user's permission settings apply.
+Resolve `<root>` when you first compose a `<root>/solutions/` path. Pass the resolved `<root>/solutions/` path to any subagent, not the config. Every subagent spawn omits the `mode` parameter, so the user's permission settings apply.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**
@@ -82,7 +82,7 @@ Edits apply silently in every mode. The report's `CONCEPTS.md` line records what
 
 ## Commit
 
-Skip this step if nothing changed. Otherwise stage **only** the files this refresh modified, and commit in the repo's convention. **Read `references/commit.md`** for the per-mode branch decision and the git-failure fallback.
+Skip if nothing changed. Otherwise stage **only** the files this refresh modified, and commit in the repo's convention. **Read `references/commit.md`** for the per-mode branch decision and the git-failure fallback.
 
 ## Discoverability Check
 
