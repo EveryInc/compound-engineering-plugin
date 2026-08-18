@@ -1154,6 +1154,11 @@ def _detect_unrequested_base_merge(state, cur, head, head_changed, now):
         if isinstance(persisted, dict) and persisted.get("head") == head:
             return persisted
         return None
+    if "head_parents" not in cur:
+        # Pre-detector fixture or persisted snapshot: no parent evidence exists to wait for.
+        state["unrequested_base_merge_pending"] = None
+        state["unrequested_base_merge"] = None
+        return None
     parents = cur.get("head_parents")
     if parents is None:
         state["unrequested_base_merge_pending"] = head
