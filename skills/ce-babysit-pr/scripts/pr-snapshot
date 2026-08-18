@@ -1165,9 +1165,13 @@ def _detect_unrequested_base_merge(state, cur, head, head_changed, now):
     if base_parent is None:
         state["unrequested_base_merge"] = None
         return None
+    # Only a consumed mutation that produced THIS merge exempts it: the claimed item's head must be
+    # the merge's other parent. A confirmed item lingering from an earlier head is not evidence.
     currency = _load_branch_currency_state(state)
+    other_parents = {p for p in parents if p != base_parent}
     for item in (currency.get("items") or {}).values():
-        if isinstance(item, dict) and item.get("mutation_consumed"):
+        if (isinstance(item, dict) and item.get("mutation_consumed")
+                and str(item.get("head_sha") or "").lower() in other_parents):
             state["unrequested_base_merge"] = None
             return None
     fact = {"head": head, "base_parent": base_parent, "observed_at": _iso(now)}
