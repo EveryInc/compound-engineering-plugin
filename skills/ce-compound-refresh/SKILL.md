@@ -24,7 +24,7 @@ fi
 
 ## Mode
 
-**Read `references/modes.md` now** — it reads the mode off the arguments (`mode:non-interactive`, deprecated alias `mode:headless`) and owns what each mode may apply unattended, the stale-marking fallback, the blocking-question tools, and the `CONCEPTS.md` bootstrap. Two rules hold in both modes: a failed write is recorded as **recommended** and the run continues, and a question is asked through the host's blocking tool or not at all.
+**Read `references/modes.md` now** — it reads the mode off the arguments (`mode:non-interactive`, alias `mode:headless`) and owns what each mode may apply unattended, the stale-marking fallback, the question tools, and the `CONCEPTS.md` bootstrap. Two rules hold in both modes: a failed write is recorded as **recommended** and the run continues, and a question is asked through the host's blocking tool — or the numbered-options fallback that reference defines — never silently skipped.
 
 ## Artifact Root
 
@@ -40,19 +40,19 @@ Resolve `<root>` when you first compose a `<root>/solutions/` path, and pass tha
 
 ## Scope
 
-Candidates are the `.md` files under `<root>/solutions/`, excluding `README.md` and anything under `_archived/`; a hint that matches nothing never widens the scope. **Read `references/scope.md`** for the narrowing strategy, what each mode does on a miss, the empty-store message, triage order for a broad sweep, and the README-row cleanup any action carries.
+Candidates are the `.md` files under `<root>/solutions/`, excluding `README.md` and anything under `_archived/`; a hint that matches nothing never widens the scope. **Read `references/scope.md`** for the narrowing strategy, what each mode does on a miss, the empty-store message, broad-sweep triage order, and the README-row cleanup any action carries.
 
 ## Investigate
 
 **Read `references/investigate.md`** — staleness dimensions, auto-memory rules, subagent roles, category-shape notes. Check each learning against the current codebase, then the set for overlap, supersession, and contradiction; a contradiction misleads actively and outranks individual staleness. For a knowledge-track learning that includes a guidance file the learning names or links (a skill's `SKILL.md`, a runbook, an instruction file): compare only guidance the learning names, never search the guidance layer for one.
 
-Every investigation subagent's prompt carries that reference's three **Subagent prompt** clauses verbatim — search tools, auto-memory, and this one:
+Every investigation subagent's prompt carries that reference's three **Subagent prompt** clauses verbatim — search tools, auto-memory, and this:
 
 > If the learning is knowledge-track and names or links a guidance file (a skill's `SKILL.md`, a runbook, a root instruction file), read that file and, when it states a different order or a contradictory rule for the same procedure, return both conflicting quotes plus which side current code follows — or that code witnesses neither. Read only guidance the learning names; do not search for one, and do not edit it.
 
 ## Classify
 
-Every doc gets exactly one outcome — **Keep** (no edit, no breadcrumb), **Update** (solution right, references drifted), **Consolidate** (merge into the canonical doc, delete the subsumed one), **Replace** (guidance now misleading; a subagent writes the successor, old deleted), or **Delete** (git history is the archive; no `_archived/`). **Read `references/classify.md` before assigning any of them**: Update/Replace boundary, auto-delete gate and pre-checks, relocation and split rules, the retrieval-value test, unverifiable-is-not-false, pattern docs, and what interactive mode must ask.
+Every doc gets exactly one outcome — **Keep** (no edit, no breadcrumb), **Update** (solution right, references drifted), **Consolidate** (merge into the canonical doc, delete the subsumed), **Replace** (guidance now misleading; a subagent writes the successor, old deleted), or **Delete** (git history is the archive; no `_archived/`). **Read `references/classify.md` before assigning any of them**: Update/Replace boundary, auto-delete gate and pre-checks, relocation and split rules, the retrieval-value test, unverifiable-is-not-false, pattern docs, and what interactive mode asks.
 
 Two boundaries hold whatever the evidence says: when code and doc disagree the doc changes, never the code — code review is out of scope — and the refresh reports, but must never edit, a skill, runbook, or instruction file a learning contradicts.
 
@@ -66,15 +66,15 @@ After the per-doc actions, reconcile the domain terms flagged during investigati
 
 ## Report
 
-**Print the full report as markdown — it is the deliverable, not an internal summary**, and in non-interactive mode the sole one: self-contained, never abbreviated, split into **Applied** and **Recommended**. **Read `references/report.md`** for the summary block, the per-file detail, and what belongs under Recommended.
+**Print the full report as markdown — it is the deliverable, not an internal summary**, and in non-interactive mode the sole one: self-contained, never abbreviated, split into **Applied** and **Recommended**. **Read `references/report.md`** for the summary block, per-file detail, and what belongs under Recommended.
 
 ## Commit
 
-Skip if nothing changed; otherwise stage **only** the files this refresh modified and commit in the repo's convention. **Read `references/commit.md`** for the per-mode branch decision and the git-failure fallback.
+Skip if nothing changed; otherwise stage **only** the files this refresh modified and commit in the repo's convention. **Read `references/commit.md`** for the per-mode branch decision and git-failure fallback.
 
 ## Discoverability Check
 
-After the report, check that the project's instruction files would lead an agent to `<root>/solutions/` before working in a documented area — every time, since the store compounds value only when agents can find it. **Read `references/discoverability.md`**: what the reader must learn, the smallest-addition rule and its tone, the `CONCEPTS.md` variant, consent versus a report line per mode, and folding a late edit into the commit.
+After the report, check that the project's instructions would lead an agent to `<root>/solutions/` before working in a documented area — every time, since the store compounds value only when agents can find it. **Read `references/discoverability.md`**: what the reader must learn, the smallest-addition rule and its tone, the `CONCEPTS.md` variant, consent versus a report line per mode, and folding a late edit into the commit.
 
 ## Relationship to ce-compound
 
