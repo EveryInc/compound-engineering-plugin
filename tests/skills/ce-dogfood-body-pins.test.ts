@@ -1,25 +1,22 @@
 import { describe, expect, test } from "bun:test"
-import { readFileSync, readdirSync } from "fs"
+import { readFileSync } from "fs"
 import path from "path"
 
 // ce-dogfood's body was cut to fit Codex's 8000-byte skill prompt budget, with
 // the per-phase procedure relocated to references/phases.md. Guards split by
 // load-time: rules that must fire before any reference is read are pinned
-// against SKILL.md; relocated procedure is pinned against the skill corpus.
+// against SKILL.md; relocated procedure is pinned against phases.md, the file
+// that now owns it.
 const SKILL_DIR = path.join(import.meta.dir, "..", "..", "skills", "ce-dogfood")
 const body = readFileSync(path.join(SKILL_DIR, "SKILL.md"), "utf8")
-const corpus = [
-  body,
-  ...readdirSync(path.join(SKILL_DIR, "references")).map((f) =>
-    readFileSync(path.join(SKILL_DIR, "references", f), "utf8"),
-  ),
-].join("\n")
 
 describe("ce-dogfood always-loaded body pins", () => {
-  test("states the outcome and a done bar that a red suite cannot satisfy", () => {
+  test("states the outcome and a done bar a red suite resolves to not-ready", () => {
     expect(body).toContain("**Outcome:**")
     expect(body).toContain("**Done:**")
     expect(body).toMatch(/green matrix over a red suite/i)
+    // The run still finalizes a report; it does not stay open chasing the suite.
+    expect(body).toMatch(/not-ready verdict rather than a ready one/i)
   })
 
   test("keeps the boundaries that decide mutations and tooling", () => {
@@ -49,7 +46,13 @@ describe("ce-dogfood always-loaded body pins", () => {
   })
 })
 
-describe("ce-dogfood relocated procedure stays greppable in the corpus", () => {
+// The phase procedure moved to exactly one file, so pin it there rather than to
+// the corpus: several of these strings also occur in the report template, where
+// they are descriptive rather than operative, and a corpus grep would stay green
+// after the operative instruction was deleted.
+describe("ce-dogfood relocated procedure stays in references/phases.md", () => {
+  const phases = readFileSync(path.join(SKILL_DIR, "references", "phases.md"), "utf8")
+
   for (const invariant of [
     "refs/remotes/origin/HEAD",
     'git diff --name-only "$TRUNK...HEAD"',
@@ -62,8 +65,8 @@ describe("ce-dogfood relocated procedure stays greppable in the corpus", () => {
     "Decisions for a human",
     "one logical fix per commit",
   ]) {
-    test(`corpus keeps: ${invariant.slice(0, 48)}`, () => {
-      expect(corpus.toLowerCase()).toContain(invariant.toLowerCase())
+    test(`phases.md keeps: ${invariant.slice(0, 48)}`, () => {
+      expect(phases.toLowerCase()).toContain(invariant.toLowerCase())
     })
   }
 })
