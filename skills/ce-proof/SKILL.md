@@ -10,7 +10,7 @@ allowed-tools:
 
 # Proof - Collaborative Markdown Editor
 
-Proof is a collaborative document editor for humans and agents, reached through the hosted web API at `https://www.proofeditor.ai` (HTTP/`Bash`). **Outcome:** the user holds a working tokenized Proof link, or the doc carries the read, comment, suggestion, or edit they asked for. **Done:** the API returned `ok: true` (or a `202` re-read confirmed it), the intended change is visible in a fresh `v3/document` read, and the link plus a short summary went back to the user.
+Proof is a collaborative document editor for humans and agents, reached through the hosted web API at `https://www.proofeditor.ai` (HTTP/`Bash`). **Outcome:** the user holds a working tokenized Proof link, or the doc carries the read, comment, suggestion, or edit they asked for. **Done:** the operation the user asked for is confirmed at its own level — a create by the `tokenUrl` it returned, a mutation by `ok: true` (a `202` or a `partial: true` response by re-reading `v3/document`), a pull by the local file it wrote, a read by the content it returned — and the user has the result plus a short summary.
 
 **Read `references/api.md` before the first Proof read or mutation, HTTP or MCP** — it owns the endpoints (`share/markdown`, `/api/agent/<slug>/v3/document`, `/api/agent/<slug>/v3/edit`, presence, title, `/api/documents/<slug>` DELETE), the operation tables, and the error/retry classes. **Read `references/workflows.md`** before reviewing a shared doc, creating and sharing one, or pulling a doc to a local file; those flows have exact recipes there. Do not invent agent mutation paths outside v3.
 
