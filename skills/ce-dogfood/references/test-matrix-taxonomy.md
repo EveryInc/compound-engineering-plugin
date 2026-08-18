@@ -33,7 +33,7 @@ The email test is the canonical example: "an email sends" is not a pass. Right r
 
 ### Persona paper cuts
 
-Walk each flow as each primary persona (from the persona section of STRATEGY.md, read by meaning — `Users` when ce-strategy wrote it, `Who it's for` in older files — else a legacy PRODUCT.md or VISION.md, or a persona doc). A **paper cut** is small friction that passes functional tests but degrades the experience for that persona: confusing label, extra click, unexpected jump, slow-feeling step, missing feedback, copy that doesn't match how they think. Record the paper cut, which persona feels it, and severity. Functionally-passing scenarios can still carry paper cuts.
+Walk each flow as each primary persona (from STRATEGY.md or PRODUCT.md "Users" — "Who it's for" in older strategy files — VISION.md, or a persona doc). A **paper cut** is small friction that passes functional tests but degrades the experience for that persona: confusing label, extra click, unexpected jump, slow-feeling step, missing feedback, copy that doesn't match how they think. Record the paper cut, which persona feels it, and severity. Functionally-passing scenarios can still carry paper cuts.
 
 ## 4. Edge, error, and empty states
 
