@@ -42,3 +42,18 @@ The subject is usually recoverable; the **intent** is the ambiguous part. Classi
 ## Warm invocations
 
 A warm invocation with no clear question is this same gate — the conversation is the material you orient on. Infer the decision from it, propose/confirm it, then proceed. For the rest of the warm contract (guest output, provenance buckets), see `references/invocation.md`.
+
+## Phase 0 framing detail (relocated from the body)
+
+2. **Establish the frame before grounding — orient, then infer or propose; never guess.** The same input supports very different verdicts: a bare link to a new sign-in method could mean adopt it, migrate to it, compare it to what we have, or just answer a question about it. Guessing sends the scouts after the wrong question. So orient cheaply on what was provided — fetch a bare link lightly to learn what it is, recognize a bare topic, read a paste (orientation, not grounding) — then settle the **subject and the POV intent** (adopt / migrate / compare / is-this-our-problem / Document-take / Approach-set / explainer):
+   - Both clear -> state the frame in one line and proceed.
+   - Intent ambiguous (a bare link or topic with no stated intent, or a warm invocation with no clear question) -> propose the concrete candidate framings this input suggests and confirm before grounding. Do not guess and fan out.
+
+3. **Apply the selection escape hatch.** If the input is a *selection* over a field ("what should we use for auth?"), it belongs here only when the realistic field is bounded (roughly five or fewer real candidates) and the criteria are knowable. If the field can't be bounded without inventing options, or the criteria are unclear, **stop**: return a Hold and route to `ce-ideate` (to enumerate) or `ce-brainstorm` (to surface criteria), then offer to re-run.
+
+4. **Classify the reversibility tier — three levels.** Infer it from project signals:
+   - **Tier 1 — two-way door:** a dependency, lint rule, or config; trivially reversible.
+   - **Tier 2 — one-way but bounded:** a data store, an internal API/contract, or a migration whose blast radius stays inside this codebase.
+   - **Tier 3 — one-way and high-stakes:** a security, legal, or privacy surface; a public API/contract; or an irreversible data migration.
+
+   State the tier in the verdict and let the user override. The tier sizes the rest of the run (Phase 1 scout count, Phase 2 depth, Phase 3 reversal trigger): Tier 1 stays a one-screen verdict off a single combined grounding pass; Tier 2 adds the full scout fleet and an alternatives pass; Tier 3 adds deep external research, a precedent search, and a durable-record offer. Do not run a Tier-3 workup on a trivially reversible `npm i`, or hand a security-surface decision the moderate Tier-2 treatment.
