@@ -28,7 +28,7 @@ allowed-tools:
 
 - A source whose config entry has `approved: false` receives no source-side write, ever — no ack, no close-out — even when the write tool is available. Its items are still fetched and upserted as `ack_deferred`; they are never skipped.
 - Raw media is never committed. Only the plan and the repo-internal state are.
-- A fix ref reaches a git or gh command only when it matches `#?\d+` or `[0-9a-f]{7,40}`. Anything else stays an unresolved claim.
+- A fix ref reaches a git or gh command only when the whole value is a bare PR number (`#?\d+`) or a commit SHA (`[0-9a-f]{7,40}`). Anything else stays an unresolved claim.
 - Every upsert carries its source's `sensitive` flag.
 
 ## Setup
