@@ -1148,7 +1148,11 @@ def _detect_unrequested_base_merge(state, cur, head, head_changed, now):
     base-into-head merge on such a PR is a defect the loop must report, not maintenance. Persisted
     on the head that introduced it and cleared by the next head change; a legitimate DIRTY repair
     (mutation_consumed on a claimed item whose head is the merge's other parent) is excluded. A head
-    whose parents could not be observed stays pending and is re-evaluated every snapshot."""
+    whose parents could not be observed stays pending and is re-evaluated every snapshot. The head
+    seen on the first-ever snapshot of a state dir is the watch's baseline, not a candidate: the
+    loop has no evidence about who produced it (a user merging main by hand before invoking is
+    ordinary), and state persists across re-invocations, so only heads that appear during the
+    watch are classified."""
     # Must run before diff() overwrites state["base"] with the current observation.
     prior_base = state.get("base") if isinstance(state.get("base"), dict) else {}
     persisted = state.get("unrequested_base_merge")
