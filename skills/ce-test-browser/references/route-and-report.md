@@ -21,7 +21,8 @@ Map each changed file to the route(s) that render it, then build the list of URL
 ## Determine the dev server port
 
 ```bash
-# If your in-context project instructions state the dev-server port, set EXPLICIT_PORT first.
+# Set EXPLICIT_PORT first when a higher-priority source gave you a port: a --port argument,
+# or a port your in-context project instructions state.
 PORT="${EXPLICIT_PORT:-}"
 if [ -z "$PORT" ]; then
   PORT=$(grep -Eo '\-\-port[= ]+[0-9]{4,5}' package.json 2>/dev/null | grep -Eo '[0-9]{4,5}' | head -1)
