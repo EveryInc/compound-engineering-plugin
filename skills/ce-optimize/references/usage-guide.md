@@ -130,7 +130,7 @@ That hybrid setup is often the best default for ranking, clustering, and prompt 
 
 A first run optimizes for signal and safety, not throughput:
 
-- Start from `example-hard-spec.yaml` when the metric is objective and cheap to measure; use `example-judge-spec.yaml` only when quality genuinely requires semantic judgment.
+- Start from `references/example-hard-spec.yaml` when the metric is objective and cheap to measure; use `references/example-judge-spec.yaml` only when quality genuinely requires semantic judgment.
 - Prefer `execution.mode: serial` with `execution.max_concurrent: 1`.
 - Cap the run with `stopping.max_iterations: 4` and `stopping.max_hours: 1`.
 - Add no new dependencies until the baseline and measurement harness are trusted.

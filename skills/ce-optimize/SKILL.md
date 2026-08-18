@@ -44,15 +44,15 @@ Resolve `<root>` when you first compose such a path — reading learnings under 
 
 **The experiment log on disk is the single source of truth; the conversation is not durable storage, and results that exist only there are lost.** The write order never inverts: **measure -> write -> verify -> then show the user.** Showing a table disk has not seen is a bug. During Phase 3 the log is append-only, and every phase boundary and decision re-reads it from disk.
 
-Six checkpoints are non-negotiable, each a write then a read-back. The phases below mark where CP-0 through CP-5 fall; `references/persistence.md` says what each writes.
+Six checkpoints are non-negotiable, each a write then a read-back. The phases below mark where CP-0 through CP-5 fall; the reference says what each writes.
 
 **Read `references/persistence.md` now** for the rules behind those, the file layout, and resume. The scratch space under `.context/` is gitignored: it survives a local resume but does not travel with the branch, so anything needed durably must be exported to a tracked path.
 
 ## The phases
 
-Four phases in order, each naming the reference it cannot start without. On a fresh run none is skipped — a harder optimization spends longer in one, not fewer. **A resume is not one:** continue from the phase the log records, never re-entering an earlier phase and overwriting its checkpoint.
+Four phases in order, each naming the reference it cannot start without. On a fresh run none is skipped — a harder optimization spends longer in one, not fewer. **A resume is not one:** re-enter Phase 0 only far enough to detect the run and recover any `result.yaml` markers the log is missing, then continue from the phase it records — never redoing a phase whose checkpoint already exists.
 
-**Phase 0 — Setup.** The input is a goal or a path to a spec YAML, from the user or a calling skill; if none came, ask: "What would you like to optimize? Describe the goal, or provide a path to an optimization spec YAML file." Load or build the spec and save it (CP-0) — **read `references/spec.md`**. Then search prior learnings, detect run identity so an existing run resumes instead of forking a second one, and create the branch and scratch space. **Read `references/measurement.md`** for the rest of Phase 0 and Phase 1.
+**Phase 0 — Setup.** The input is a goal or a path to a spec YAML, from the user or a calling skill; if none came, ask: "What would you like to optimize? Describe the goal, or provide a path to an optimization spec YAML file." Load or build the spec and save it (CP-0) — **read `references/spec.md`**. Then search prior learnings, detect run identity, and create the branch and scratch space. **Read `references/measurement.md`** for the rest of Phase 0 and Phase 1.
 
 **Phase 1 — Measurement scaffolding.** Build or validate the harness, write the baseline (CP-1), probe parallelism, check the worktree budget. Two gates stop the run:
 
