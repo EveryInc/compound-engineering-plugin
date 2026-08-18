@@ -85,7 +85,7 @@ MEDIA_DIR="$SCRATCH_ROOT/ce-sweep/<run-id>";
 (umask 077; mkdir -p "$MEDIA_DIR") || exit 1; chmod 700 "$MEDIA_DIR" || exit 1;
 ```
 
-Pass absolute artifact paths beneath `$MEDIA_DIR` to subagents.
+Pass absolute artifact paths beneath `$MEDIA_DIR` to subagents. If that block exits without a usable `$MEDIA_DIR`, media is the only thing lost: upsert every item carrying `media` as `needs_download` (counting the attempt), note the scratch failure in the summary, and continue the run at 2f — state is still writable, so the run does not stop.
 
 For each new item carrying `media`:
 - Download attachments into `$MEDIA_DIR`; raw media is never committed. A download failure -> set the item `needs_download` and continue.
