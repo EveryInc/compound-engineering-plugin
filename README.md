@@ -27,11 +27,13 @@ Or search for "compound engineering" in the plugin marketplace.
 
 ### Grok Bot
 
-In Grok Bot, send:
+Grok Bot loads Compound Engineering from the Cursor account it is signed into. In Cursor Agent chat:
 
 ```text
-Install Compound Engineering from https://github.com/EveryInc/compound-engineering-plugin
+/add-plugin compound-engineering
 ```
+
+Or search for "compound engineering" in the Cursor plugin marketplace. Do not run `/add-plugin` or other Cursor/Claude plugin commands in the Grok Bot chat, and do not clone this repository onto the Grok Bot computer.
 
 ### Codex App
 
@@ -488,7 +490,7 @@ Refresh the marketplace from the **Plugins** panel (remove and re-add the `Every
 
 **Grok Bot**
 
-Tell Grok Bot to reinstall or refresh Compound Engineering from `https://github.com/EveryInc/compound-engineering-plugin`. Do not clone this repository onto the Grok Bot computer for normal updates.
+Reinstall or refresh Compound Engineering on the Cursor account Grok Bot is signed into (`/add-plugin compound-engineering` in Cursor Agent chat, or marketplace search). Grok Bot then picks up the new snapshot from that account's plugin cache. Do not clone this repository onto the Grok Bot computer for a normal update.
 
 If you configured a host with a direct path or sparse path under `plugins/compound-engineering`, edit or reinstall that source so it points at the repository root with no sparse path.
 
