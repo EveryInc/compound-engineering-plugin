@@ -3940,6 +3940,19 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     expect(recovered.unrequested_base_merge?.base_parent).toBe(baseOid)
     expect(recovered.unrequested_base_merge_pending).toBe(false)
 
+    // A consumed item for base A does not exempt a merge of the same head with a newer base B.
+    const s6 = path.join(dir, "ubm-newer-base")
+    snapshot(s6, fetchFile(dir, "ubm-nb1.json", fixture))
+    const k6 = snapshot(s6, fetchFile(dir, "ubm-nb1.json", fixture)).branch_currency?.key
+    markCurrency(s6, k6, "claimed"); markCurrencyOutcome(s6, k6, "mutation-observed")
+    const newerBase = "3333333333333333333333333333333333333333"
+    const withB = snapshot(s6, fetchFile(dir, "ubm-nb2.json", { ...fixture,
+      merge_state_status: "CLEAN", mergeable: "MERGEABLE",
+      base: { ...fixture.base, oid: newerBase, graphql_oid: newerBase },
+      head_sha: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      head_parents: [String(fixture.head_sha), newerBase] }))
+    expect(withB.unrequested_base_merge?.base_parent).toBe(newerBase)
+
     // A consumed item from an earlier head does not exempt a later, unrelated base merge.
     const stale = snapshot(state, fetchFile(dir, "ubm-dirty-4.json", { ...fixture,
       merge_state_status: "CLEAN", mergeable: "MERGEABLE",
