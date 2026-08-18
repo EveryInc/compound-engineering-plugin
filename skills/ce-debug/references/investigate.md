@@ -34,7 +34,7 @@ Confirm the bug exists and understand its behavior — run the test, trigger the
 - **Does not reproduce after 2-3 attempts:** read `references/investigation-techniques.md` for intermittent-bug techniques.
 - **Cannot reproduce at all here:** document what was tried and which conditions appear to be missing.
 
-**Choosing the regression test** (this rule governs Phase 3's test-first step too): use the active project instructions and any applicable subdirectory-scoped instructions, and always inspect existing tests before adding coverage. Use an existing failing test when it already captures the bug, update an existing test when it owns the contract but has the wrong expectation, strengthen an over-mocked test that should have caught the bug, or add a new minimal isolated test only when no existing test is the right home. The chosen test must fail on the current bug and pass once the corrected behavior lands; name it so the failure message itself explains the bug.
+**Choosing the regression test** is the body's rule, including its precondition that the test is for a confirmed defect. Apply it from there; do not restate it here.
 
 #### 1.2 Verify environment sanity
 
