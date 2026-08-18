@@ -62,7 +62,7 @@ This skill writes pulse reports under `<root>/pulse-reports/`. Resolve `<root>` 
 - **Do not** use this rule for `docs_root` — that key is `config.yaml` only.
 <!-- ce-config-layers:end -->
 
-Resolve `<repo-root>` with `git rev-parse --show-toplevel`, then apply the ordinary-key rule above to the `pulse_*` keys. Read `references/config.md` whenever a `pulse_*` value has to be interpreted — it defines each key, its allowed values, and its default, and an unset or invalid value takes the documented default rather than being guessed.
+Resolve `<repo-root>` with `git rev-parse --show-toplevel`, then apply the ordinary-key rule above to the `pulse_*` keys. Read `references/config.md` whenever a `pulse_*` value has to be interpreted — it is the key schema and nothing else: each key, its allowed values, and its default, with an unset or invalid value taking the documented default rather than being guessed.
 
 **Routing:**
 
@@ -73,7 +73,7 @@ If the argument was `setup`, `reconfigure`, or `edit config`, go to Phase 1 rega
 
 ## Phase 1: First-run interview
 
-Read `references/config.md` first — a non-optional load. It owns the `pulse_*` key definitions and defaults, the `STRATEGY.md` seeding, the interview order and its pushback bar, the read-write database refusal, how the config is written to `config.local.yaml` without disturbing other keys, and the scheduling offer. The questions themselves come from `references/interview.md`, which that file names as its own required read.
+Read `references/setup.md` first — a non-optional load. It owns the `STRATEGY.md` seeding, the interview order and its pushback bar, the read-write database refusal, how the config is written to `config.local.yaml` without disturbing other keys, and the one-time scheduling offer. The questions themselves come from `references/interview.md`, which that file names as its own required read.
 
 ## Phase 2: Run the pulse
 
@@ -83,4 +83,4 @@ Then read `references/run.md` before dispatching any query — a non-optional lo
 
 ## Phase 3: Scheduling
 
-Setup offers a recurring run once (`references/config.md`). On later runs, re-surface it lightly: if the argument was a schedule keyword (`daily`, `hourly`, `weekly`), say this run is ad-hoc and point at the harness's scheduling primitive; if no schedule is on file and this is the third or later run, mention once that scheduling is available. Do not nag on every run, and never schedule automatically — any handoff to a scheduling primitive requires explicit confirmation.
+Setup offers a recurring run once (`references/setup.md`). On later runs, re-surface it lightly: if the argument was a schedule keyword (`daily`, `hourly`, `weekly`), say this run is ad-hoc and point at the harness's scheduling primitive; if no schedule is on file and this is the third or later run, mention once that scheduling is available. Do not nag on every run, and never schedule automatically — any handoff to a scheduling primitive requires explicit confirmation.
