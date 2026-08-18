@@ -37,7 +37,6 @@ const OVER_BUDGET = new Set([
   "ce-doc-review",
   "ce-dogfood",
   "ce-explain",
-  "ce-handoff",
   "ce-optimize",
   "ce-plan",
   "ce-pov",
