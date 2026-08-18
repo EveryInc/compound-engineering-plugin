@@ -205,7 +205,17 @@ After all experiments in the batch have been measured:
 
 ### 3.6 Check Stopping Criteria
 
-The body owns the criteria. Two details they are evaluated against: "target reached" also requires `stopping.target_reached` true and `metric.primary.target` set, with `>=` for `maximize` and `<=` for `minimize`; and max-hours is wall-clock since Phase 3 started, not since the invocation. If none is met, proceed to the next batch (3.1).
+Stop the loop as soon as any one of these holds:
+
+- **Target reached**: `stopping.target_reached` is true, `metric.primary.target` is set, and the primary metric reaches that target per `metric.primary.direction` (`>=` for `maximize`, `<=` for `minimize`)
+- **Max iterations**: total experiments run >= `stopping.max_iterations`
+- **Max hours**: wall-clock time since Phase 3 started — not since the invocation — >= `stopping.max_hours`
+- **Judge budget exhausted**: `metric.judge.max_total_cost_usd` is set and cumulative judge spend has reached it
+- **Plateau**: no improvement for `stopping.plateau_iterations` **consecutive** experiments
+- **Manual stop**: the user interrupts. Save state, then go to Phase 4.
+- **Empty backlog**: no hypothesis remains and no new one can be generated
+
+If none is met, proceed to the next batch (3.1).
 
 ### 3.7 Cross-Cutting Concerns
 

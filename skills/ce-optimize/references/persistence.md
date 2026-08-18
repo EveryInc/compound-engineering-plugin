@@ -39,6 +39,8 @@ These are non-negotiable write-then-verify steps. At each checkpoint, the agent 
 
 ### File Locations (all under `.context/compound-engineering/ce-optimize/<spec-name>/`)
 
+The scratch space under `.context/` is gitignored: it survives a local resume but does not travel with the branch, so anything needed durably must be exported to a tracked path.
+
 | File | Purpose | Written When |
 |------|---------|-------------|
 | `spec.yaml` | Optimization spec (immutable during run) | Phase 0 (CP-0) |
