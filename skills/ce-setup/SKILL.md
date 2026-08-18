@@ -64,9 +64,9 @@ Display the diagnostic output to the user. Missing optional tools are not setup 
 
 **User-runnable invocation rendering.** In setup summaries, default to `/ce-setup`; use `$ce-setup` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. On oh-my-pi (`omp`), use `/skill:ce-setup`. Render only the invocation as inline code and output one form only.
 
-Always continue to Phase 2 after the health report when this checkout is a git repository, including when `project_issues` is 0. Phase 2 always refreshes the example and always offers to create `config.yaml` when that file is missing.
+Always continue to Phase 2 after the health report when this session has a writable git checkout, including when `project_issues` is 0. Phase 2 always refreshes the example and always offers to create `config.yaml` when that file is missing.
 
-If the health report says `Not inside a git repository`, skip Phase 2 and go to Phase 3. Repo-local files cannot be created or refreshed without a repo root.
+If the health report says `Not inside a git repository`, repo-local files cannot be created or refreshed in the current session. When the user named a repository and the harness exposes a remote repo-work surface with a writable checkout, run Phase 2 on that surface instead and report the remote repo-local fixes in Phase 3. Otherwise skip Phase 2 and go to Phase 3, saying repo-local writes were skipped because no writable checkout is available.
 
 Also remediate these project issues when the report names them:
 
