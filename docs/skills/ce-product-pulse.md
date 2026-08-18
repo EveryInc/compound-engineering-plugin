@@ -85,7 +85,7 @@ Pick the shortest window that answers the question. A launch check and a weekly 
 - Every query's upper bound is `now - 15m`, so ingestion lag does not under-count the tail of the window
 - Saved reports hold counts and anonymized notes. No emails, account IDs, or message text.
 - Every data source is queried read-only. The interview refuses read-write database credentials.
-- When `STRATEGY.md` exists, setup seeds product name and key metrics from it, then wires sources to measure those metrics
+- When a strategy doc exists (`STRATEGY.md`, or when absent the first of `VISION.md`, `PRODUCT.md`), setup seeds product name and key metrics from it, then wires sources to measure those metrics
 - Every run writes `docs/pulse-reports/` so past pulses are a browseable timeline
 
 ---
@@ -100,9 +100,9 @@ Deltas compare this window to the previous equal-length window. If a comparison 
 
 ### Strategy-seeded setup
 
-On first run (or `reconfigure`), the interview reads `STRATEGY.md` when present, shows the seeded product name and key metrics, and lets you correct them before wiring sources. Metrics that are not instrumented yet are not silently dropped: each one is either marked pending (`no data` in every report) or explicitly excluded from the pulse while staying in `STRATEGY.md`.
+On first run (or `reconfigure`), the interview reads the strategy doc when present (`STRATEGY.md`, else the first of `VISION.md`, `PRODUCT.md` that exists; metrics are found by meaning, and a linked legacy doc is followed when `STRATEGY.md` defers them there), shows the seeded product name and key metrics, and lets you correct them before wiring sources. Metrics that are not instrumented yet are not silently dropped: each one is either marked pending (`no data` in every report) or explicitly excluded from the pulse while staying in `STRATEGY.md`.
 
-When no strategy file exists, setup says so and starts from scratch. It also notes that `ce-strategy` can seed a later reconfigure.
+When none of those docs exists, setup says so and starts from scratch. It also notes that `ce-strategy` can seed a later reconfigure.
 
 Every metric, event, and signal you propose is checked for being specific, measurable, actionable, relevant, and timely. Vanity metrics get a sharper question. The interview never uses the word "SMART" with you.
 
@@ -169,7 +169,7 @@ Skip `ce-product-pulse` when:
 
 In a configured project:
 
-- `STRATEGY.md` (from `/ce-strategy`) names the metrics
+- `STRATEGY.md` (from `/ce-strategy`, or a legacy `VISION.md`/`PRODUCT.md` in its absence) names the metrics
 - `/ce-product-pulse` writes the report and surfaces follow-ups
 - Follow-ups go to `/ce-ideate`, `/ce-debug`, or `/ce-brainstorm`
 
@@ -219,7 +219,7 @@ A report skill should not be able to mutate production. The interview refuses re
 A 40-metric dashboard spreads attention. Four sections on one page force a choice about what matters. Depth still lives in the native tools.
 
 **What's the relationship to `STRATEGY.md`?**
-The first-run interview seeds product name and key metrics from it. Each later pulse re-reads those metrics. Pending ones render as `no data`. Excluded ones stay in the strategy file and do not appear.
+The first-run interview seeds product name and key metrics from it (or, when it is absent, from the first of `VISION.md`, `PRODUCT.md` that exists — the same rule every report re-resolves). Each later pulse re-reads those metrics from that source. Pending ones render as `no data`. Excluded ones stay in the strategy file and do not appear.
 
 **Does it support scheduling?**
 Yes, as an offer during setup (and a one-time reminder after several manual runs). Confirmation is required. The skill does not schedule itself.

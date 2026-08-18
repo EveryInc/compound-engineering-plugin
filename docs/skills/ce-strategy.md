@@ -179,7 +179,7 @@ This skill is always invoked on its own. Nothing in the loop produces `STRATEGY.
 - Targeted update: `/ce-strategy positioning` jumps to that section
 - Open update: `/ce-strategy` (file exists, no argument) asks which section to revisit
 
-The file is meant to be readable in under five minutes.
+The sections this skill writes are meant to be readable in under five minutes; other tools' sections in the shared file are their own.
 
 ---
 
