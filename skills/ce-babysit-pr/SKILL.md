@@ -10,7 +10,7 @@ Keep an open PR moving toward merge by reacting to three streams as each arrives
 
 **Outcome:** the PR is left at an honest terminal, looks-ready, blocked, or budget state under the run's posture. **Done:** a Step 3 true stop reached, Step 4 report written. Settled ≠ merged.
 
-**Every tick, mutation, and stop is driven by the bundled `pr-snapshot` output — never by prose, events you notice, or a coordinator's say-so.** Read `references/tick.md` before the first snapshot; `references/envelope.md` holds full boundaries.
+**Every tick's attention set and every mutation are driven by the bundled `pr-snapshot` output — never by prose, events you notice, or a coordinator's say-so** (readiness also applies `references/settle.md`'s review-signal judgment). Read `references/tick.md` before the first snapshot; `references/envelope.md` holds full boundaries.
 
 ## Posture (one value per run)
 
@@ -18,7 +18,7 @@ Keep an open PR moving toward merge by reacting to three streams as each arrives
 - `stack-ready` — once a layer has zero actionable backlog (CI may still run), advance to the next open non-draft upstack layer needing work; lower layers stay probed and the lowest that re-opens pulls the walk back; never merges.
 - `stack-land` — as `stack-ready`, and selecting it **is** land authorization: once the bottom-most open layer is settled, `gh stack merge` it + `gh stack sync`.
 
-One PR named → `target` (ask once if a confirmed multi-layer stack exists); own the stack → `stack-ready`; land → `stack-land`. `mode:pipeline` never asks. Restate posture per transition (`references/stack.md`).
+One PR named → `target` (ask once if a confirmed multi-layer stack exists); own the stack → `stack-ready`; land → `stack-land`. `mode:pipeline` never asks. Restate posture per transition.
 
 ## Non-negotiable boundaries
 
@@ -35,7 +35,7 @@ One PR named → `target` (ask once if a confirmed multi-layer stack exists); ow
 1. `gh repo view` must succeed, else say GitHub-only, stop.
 2. Resolve the PR from the argument or current branch (`references/setup.md`); none → report, stop.
 3. Chain classification comes from the snapshot, never the user; resolve posture before semantic work.
-4. **Checkout must be the PR's head branch with matching upstream** before any delegated mutation (delegates push the current branch); default `gh pr checkout <ref>`; no push access or dirty checkout → stop, say so.
+4. **Checkout must be the PR's head branch with matching upstream** before any delegated mutation; default `gh pr checkout <ref>`; no push access or dirty checkout → stop, say so.
 5. **Sustain mode** (`references/watch-loop.md`): default is the self-sustaining in-session watch — background `pr-snapshot watch`, wait on its `BABYSIT_WAKE` sentinel with your harness's background-and-wake tool, one tick per wake; never collapse the loop into a script. **Checkpoint** only when no such capability exists: one tick, report, say monitoring is paused, print the resume invocation — default to `/ce-babysit-pr <url>` (+ non-target posture), `$ce-babysit-pr <url>` on Codex; render only the invocation as inline code, output one form only. **Pipeline** (`mode:pipeline`): bounded synchronous ticks, structured return (`references/pipeline.md`).
 
 ## Step 2: One tick (ordering invariant)
@@ -48,7 +48,7 @@ Snapshot first, then in this order:
 4. **Stale-SHA cancellation.** Head moved since step 2 → this snapshot's CI is dead; skip.
 5. **CI on the current head**, one pass for all failures: flaky/infra → `gh run rerun <run-id> --failed -R <host>/<owner>/<repo>`; real failure → `ce-debug mode:pipeline` once; mark each check acted on; unfixed checks stay red residuals.
 6. **Branch currency** — consume the exact emitted item (`references/branch-currency.md`); no item → nothing. `unrequested_base_merge` is a defect to report, never undo.
-7. **Managed upstack maintenance** after a delegate pushed a confirmed managed target (`references/stack.md`); re-snapshot only next tick.
+7. **Managed upstack maintenance** after a delegate pushed a confirmed managed target (`references/stack.md`).
 
 ## Step 3: Stop conditions
 

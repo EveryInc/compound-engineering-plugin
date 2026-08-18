@@ -1146,11 +1146,20 @@ def _detect_unrequested_base_merge(state, cur, head, head_changed, now):
     # Must run before diff() overwrites state["base"] with the current observation.
     prior_base = state.get("base") if isinstance(state.get("base"), dict) else {}
     persisted = state.get("unrequested_base_merge")
-    if not head_changed:
+    # A head stays unclassified (and re-evaluated every snapshot) until parent evidence has been
+    # observed for it: a transient merge-identity probe failure on the head-change tick must not
+    # let a base merge pass readiness or stack-land unflagged.
+    pending = state.get("unrequested_base_merge_pending")
+    if not head_changed and pending != head:
         if isinstance(persisted, dict) and persisted.get("head") == head:
             return persisted
         return None
     parents = cur.get("head_parents")
+    if parents is None:
+        state["unrequested_base_merge_pending"] = head
+        state["unrequested_base_merge"] = None
+        return None
+    state["unrequested_base_merge_pending"] = None
     if not isinstance(parents, list) or len(parents) != 2:
         state["unrequested_base_merge"] = None
         return None
