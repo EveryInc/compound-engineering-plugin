@@ -8,7 +8,7 @@ It is a conductor. It does **not** fix comments or diagnose CI itself. Comments 
 
 That is the contrast with `/ce-resolve-pr-feedback`, which is a one-pass "fix the comments now" skill. Use that when you want a single round you watch. Use this when you want the PR driven over time.
 
-**Posture** sets the scope. Default is `target` (the named PR only). On a confirmed managed stack you can choose `stack-ready` (advance upstack after settle, no merge) or `stack-land` (same walk, plus `gh stack merge` of the bottom-most open settled prefix). **Settled is not merged.** A layer can look ready and still be OPEN.
+**Posture** sets the scope. Default is `target` (the named PR only). On a confirmed managed stack you can choose `stack-ready` (advance upstack as soon as a layer has nothing actionable — even while its CI is still running — with lower layers kept under probe; no merge) or `stack-land` (same walk, plus `gh stack merge` of the bottom-most open **settled** prefix). **Settled is not merged.** A layer can look ready and still be OPEN.
 
 It cannot promise merge-readiness. A reviewer can still comment later. Required checks can change. Under `target` and `stack-ready`, you merge. Selecting `stack-land` *is* land authorization for that managed prefix.
 
@@ -49,7 +49,7 @@ Empty invoke watches the current branch's PR. A number or URL pins the PR. `watc
 # Cap the active-time budget (default is 8 hours of active watch time)
 /ce-babysit-pr 1234 2 hours
 
-# Confirmed managed stack: after settle, continue upstack. Do not merge.
+# Confirmed managed stack: walk upstack as layers go quiet (CI may still run). Do not merge.
 /ce-babysit-pr posture:stack-ready
 
 # Same walk, and land the settled prefix when green
@@ -76,7 +76,7 @@ Each tick is stateless and resumable from disk. The harness only has to wake the
 
 - **Comments first.** New review threads and non-thread comments are handled before CI. After that pass, if a commit was pushed, the old CI failure is against a dead SHA and is skipped
 - **Delegation.** `/ce-resolve-pr-feedback` for comments, `/ce-debug` for real failures (once per new signature). The only inline CI work is a cheap flaky-vs-real split
-- **Bounded branch currency.** A PR that falls behind its normal base can be updated only when the result mechanically preserves the PR's intent. A disputable conflict becomes a sticky `needs-human`
+- **Consumption-only branch currency.** The base is merged or updated into the PR only when the snapshot emits a `branch_currency` item (`BEHIND` via GitHub's update-branch endpoint, `DIRTY` via an exact-base local repair) and only after it is claimed; ordinary base movement on a CLEAN PR, a sibling merging, or someone saying "update the branch" never triggers one. A disputable conflict becomes a sticky `needs-human`; an unrequested base merge on the head is flagged as a defect
 - **Settle window.** "Looks ready" needs GitHub `CLEAN`, no open feedback, no parked `needs-human`, and enough quiet time. A started-but-unfinished review waits at least 15 quiet minutes and at most 30
 - **In-session watch by default.** `pr-snapshot watch` polls with no agent tokens and prints `BABYSIT_WAKE` only on an actionable change. If the harness cannot background-and-wake, the skill runs one checkpoint tick and prints the resume command
 - **Posture for confirmed managed stacks.** `target` stops at the named PR. `stack-ready` continues upstack without merging. `stack-land` continues and lands the settled prefix
@@ -112,7 +112,7 @@ Only a fresh probe with `manager_status == "confirmed"` activates stack-wide con
 | Posture | Behavior |
 |---------|----------|
 | `target` | Named PR only. Stop at looks-ready. May offer once to continue upstack. Never merges. |
-| `stack-ready` | After settle, continue to the next open non-draft layer that needs work. Never merges. |
+| `stack-ready` | Once a layer is quiescent (zero actionable backlog, no standing residual), continue to the next open non-draft layer that needs work; lower layers stay probed and pull the walk back if they re-open. Never merges. |
 | `stack-land` | Like `stack-ready`, plus `gh stack merge` of the bottom-most open settled PR, then `gh stack sync`. |
 
 A just-landed `MERGED` under `stack-land` is a layer transition, not the end of the whole run.
@@ -185,7 +185,7 @@ Use `/ce-resolve-pr-feedback` directly when you want one manual pass. Use this s
 | `posture:target\|stack-ready\|stack-land` | Run scope on a confirmed managed stack |
 | `mode:pipeline` | Bounded synchronous ticks for an orchestrator. No settle wait. Structured return. |
 
-`scripts/pr-snapshot` is the snapshot and state helper: it paginates review threads, records CI and branch currency, and emits the per-tick attention set. Its `watch` subcommand is the token-free change detector. A newer successful invoke takes ownership; older wakes are stale hints. Details live in the skill's `references/watch-loop.md`.
+`scripts/pr-snapshot` is the snapshot and state helper: it paginates review threads, records CI and branch currency, and emits the per-tick attention set. Its `watch` subcommand is the token-free change detector (with `--downstack-pr` it also probes lower stack layers so the walk returns when one re-opens). A newer successful invoke takes ownership; older wakes are stale hints. The skill body itself is a short always-loaded kernel; the tick commands, currency routes, stack contract, settle policy, and report shape live in the skill's `references/` (`tick.md`, `branch-currency.md`, `stack.md`, `settle.md`, `report.md`, `watch-loop.md`).
 
 ---
 
