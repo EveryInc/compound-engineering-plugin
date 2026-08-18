@@ -42,6 +42,17 @@ Skills predate the current standard and evolve toward it. The standard is the gu
 - **Scripted replacements** across many files: assert each anchor matches exactly once before writing anything, and fail closed per file.
 - **Cross-file invariants:** when a skill's contract is consumed by another skill (an envelope field, a mode token, a status enum), change both ends in the same commit and check the contract test.
 
+## Restructuring for a size or platform constraint
+
+A rewrite whose stated reason is a byte cap, a host's frontmatter rules, or a converter target is a different starting state from a behavior fix, and it fails in its own ways (`docs/solutions/skill-design/size-driven-skill-restructure.md`):
+
+- **Prove the constraint applies before cutting.** Name the doc or test that pins it and say which shipping path it governs; a cap that only binds a hypothetical future package is a ratchet goal, not an outage, and the PR says so. Both are legitimate; confusing them mis-sizes the eval.
+- **Relocate before you delete.** Move blocks verbatim into references first, then bring the touched block up to the standard. Every invariant in the old body must be findable in the corpus by the same words a contract test greps for; a restructure that "simplifies" a fragile command while moving it has made two changes and can defend neither.
+- **The body keeps what must fire without a read**: outcome/done, boundaries, the ordering invariant, stop classes, and a pointer to each reference at the point of use. A reference the tick cannot start without is named in the body as a required read before that step; the eval below checks whether models actually load it.
+- **Tests split by load-time.** Rules that must control behavior from the window get body pins; relocated invariants get corpus greps (body + references). Do not silently convert every body pin to a corpus grep.
+- **Get an adversarial cross-model read of the draft before splitting.** A second model given the old file, the draft, and the incident that motivated the change finds dropped invariants a first author cannot see; treat its list as work items, and re-verify each of its premises against the repo (it will also be wrong).
+- **Eval the extraction itself, on more than one harness.** Besides the behavior scenarios, ask each run which files it read; a body that no run follows into the reference has failed regardless of the outcome that time.
+
 ## Validate
 
 Read `references/evaluate.md`. A behavior-bearing change gets a targeted eval on the paths the change touches, on Claude and Codex; a mechanical change gets `bun run test`. A change to always-loaded prose that only removes text still needs the eval when a removed line had provenance you overrode.

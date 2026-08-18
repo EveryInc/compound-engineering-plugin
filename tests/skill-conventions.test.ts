@@ -101,10 +101,13 @@ const ROOT_README = readFileSync(path.join(process.cwd(), "README.md"), "utf8")
  *    byte cap on skill bodies. The line guidance is advice, not a constraint —
  *    several skills in this plugin are large by design, and gating guidance
  *    would tax every deliberately-large skill with exemption-list ceremony.
- *    The "8KB Codex body cap" that circulates in ecosystem lint tooling turned
- *    out to be folklore: Codex's real limit is an ~8,000-character budget on
- *    the injected skills metadata LIST, while full SKILL.md bodies are read
- *    from disk on demand (see the note in tests/real-plugin-conversion.test.ts).
+ *    The "8KB Codex body cap" that circulates in ecosystem lint tooling is
+ *    not a universal body cap: on the legacy (schema-less) path Codex reads
+ *    full SKILL.md bodies from disk on demand and only budgets the injected
+ *    skills metadata LIST (see tests/real-plugin-conversion.test.ts). It IS a
+ *    real 8000-byte body truncation on the Agent Plugins path (Codex >= 0.147),
+ *    which is why tests/codex-skill-prompt-budget.test.ts ratchets every skill
+ *    under it as a standing goal — that test owns the size gate, not this one.
  *
  * 4. PLATFORM-VARIABLE FALLBACK (AGENTS.md "Platform-Specific Variables in
  *    Skills"): skill markdown using harness variables (${CLAUDE_*},

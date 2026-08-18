@@ -92,6 +92,7 @@ Removing the `$schema` puts both hosts on their lenient legacy paths (`.codex-pl
 ## Prevention
 
 - `tests/codex-skill-prompt-budget.test.ts` fails CI if the root manifest regains an Agent Plugins `$schema`, if a new skill crosses 8000 CRLF-adjusted bytes, or if `OVER_BUDGET` lists a skill that now fits.
+- The schema-less posture is a workaround, not a resolution: the `OVER_BUDGET` sweep is the standing goal that eventually makes a conformant package possible. Procedure for taking a skill under the cap: `docs/solutions/skill-design/size-driven-skill-restructure.md`.
 - Before adopting a manifest field that a spec calls "metadata", read the shipping hosts' discovery source (curl the raw Codex tree; `npm pack @oh-my-pi/pi-coding-agent` for omp) rather than trusting "clients MUST skip". A field can be a routing switch.
 - Reproduce Windows-reported byte figures with `Buffer.byteLength(lf) + count('\n')`; a Codex truncation number that matches CRLF size confirms the mechanism.
 - Write guards as unconditional statements of the decided posture; a guard qualified by content predicates invites an accretion loop of edge cases.

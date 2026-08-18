@@ -81,3 +81,7 @@ The fix followed `ce-plan`'s: a `#### Routing` block inline with the bare per-op
 
 - `docs/solutions/skill-design/git-workflow-skills-need-explicit-state-machines.md` — same family: skills that render decision points need their state transitions to be deterministic in the loaded context, not one reference-load away.
 - `docs/solutions/skill-design/confidence-anchored-scoring.md` — load-bearing scoring rubrics also belong inline in SKILL.md so they fire reliably across sessions.
+
+## Scope note (2026-08-17)
+
+The 0/5 vs 5/5 result above is about a menu whose *only* routing lived in a reference the body mentioned once, in passing. It is not evidence that references are never followed. The `ce-babysit-pr` 90KB -> 8KB restructure (`size-driven-skill-restructure.md`) named each reference at the step that needs it ("read `references/tick.md` before the first snapshot") and measured with a `FILES_READ` probe: Codex, Grok, and Claude all loaded the references on the paths under test. Rule that reconciles both: always-on routing stays inline; a required read is named at its point of use and its loading is measured, not assumed.
