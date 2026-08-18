@@ -1,6 +1,6 @@
 # User-Supplied Research Artifacts (Phase 1, conditional)
 
-Read this when SKILL.md Phase 1's routing test has classified a named file as *evidence* rather than *directive*. SKILL.md owns the routing test and the await; this file owns the handling and the distiller dispatch.
+Read this when the Phase 1 routing test in `references/grounding.md` has classified a named file as *evidence* rather than *directive*. `references/grounding.md` owns the routing test and the await; this file owns the handling and the distiller dispatch.
 
 ## Enrichment, not substitution
 
