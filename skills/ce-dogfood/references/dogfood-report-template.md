@@ -11,7 +11,7 @@
 
 ## Personas
 
-<The primary personas the flows were judged against, and what each cares about. Note the source: STRATEGY.md or PRODUCT.md "Users" ("Who it's for" in older strategy files), VISION.md, a persona doc, or "inferred" if none existed.>
+<The primary personas the flows were judged against, and what each cares about. Note the source: STRATEGY.md's persona section (whatever its heading), a legacy PRODUCT.md or VISION.md, a persona doc, or "inferred" if none existed.>
 
 - **<Persona name>** — <job-to-be-done / what they care about>
 

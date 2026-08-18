@@ -11,7 +11,7 @@ When this skill creates `STRATEGY.md`, it writes the house format in `references
 The conduct above protects other writers' content. Applying it to a file that has none freezes this skill's own old format for no reason, so decide from the file itself (history cannot attribute a section to a writer):
 
 - **Solely this skill's** when every `##` heading is one of the template's - current (`Purpose`, `Positioning`, `Users`, `Boundaries`, `Key metrics`, `Tracks`, `Milestones`, `Brand`) or legacy (`Target problem`, `Our approach`, `Who it's for`, `Not working on`, `Marketing`) - and no HTML-comment marker from another tool appears anywhere in it. Frontmatter with `name` and `last_updated` and a `# <name> Strategy` title corroborate; a hand-written file that copied this shape is treated the same way. Such a file is *maintained* in house format on any write: legacy headings renamed, sections put in the template's current order, a missing required section offered, `last_updated` set - the file ends the run in the current shape, and this stays true for as long as no one else has written into it.
-- **Multi-writer** the moment any other heading or another tool's marker is present. This skill's own headings are still its to rename and its own sections may still be put in template order among themselves, but every foreign section keeps its place relative to the section it followed, and nothing foreign is moved, restyled, or edited.
+- **Multi-writer** the moment any other heading or another tool's marker is present. This skill's own headings are still its to rename, but nothing is reordered - not this skill's sections and not anyone else's - and nothing foreign is restyled or edited. Ordering into the template belongs to solely-owned files only.
 
 ## The update run
 
@@ -19,7 +19,7 @@ Read the existing `STRATEGY.md` thoroughly. Summarize current state in 3-5 lines
 
 Check for drift: compare every section of the doc against the repo model - stated intent, structure, and recent history (commits or PRs, plans and learnings under `docs/`) - not only against what changed since the last write, since a targeted update advances `last_updated` without reviewing the rest. Name any section the evidence suggests is stale, with the evidence, as a candidate - not a verdict.
 
-If the focus hint named a specific section, jump to that section in `references/interview.md`. Preserve every other section's content exactly, including sections this skill did not write, and its place per the ownership test above (a solely-owned file takes the template's order; a foreign section keeps its relative place); the heading migration is a rename only and does not conflict with that. Apply pushback as if this were a first run - do not rubber-stamp existing weak content just because it is already written.
+If the focus hint named a specific section, jump to that section in `references/interview.md`. Preserve every other section's content exactly, including sections this skill did not write, and its place per the ownership test above (a solely-owned file takes the template's order; a multi-writer file is never reordered); the heading migration is a rename only and does not conflict with that. Apply pushback as if this were a first run - do not rubber-stamp existing weak content just because it is already written.
 
 If no specific target, ask the user which section to revisit using the blocking question tool, listing any drift candidates first. Options:
 
