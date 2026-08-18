@@ -52,7 +52,7 @@ When every section is captured, read `references/strategy-template.md`, fill it 
 
 ## Phase 2: Update run
 
-Summarize the file's current state in 3-5 lines, name any section the repo model suggests is stale as a candidate rather than a verdict, re-interview the section the focus hint named or the one the user picks from those candidates, and leave every other section's content and place untouched. Read `references/update-run.md` first - a non-optional load, before the summary, the drift check, or any question. It decides how drift candidates are raised, which section is revisited, and what is preserved untouched. Questions and pushback still come from `references/interview.md`, applied as if this were a first run.
+Read `references/update-run.md` first - a non-optional load, before the summary, the drift check, or any question. It decides how drift candidates are raised, which section is revisited, and what is preserved untouched. An update run summarizes the file's current state in 3-5 lines, names any section the repo model suggests is stale as a candidate rather than a verdict, and revisits the section the focus hint named, or the one the user picks when asked — any section, with the drift candidates listed first as suggestions rather than as the choices. Every other section's content and place is left untouched. Questions and pushback still come from `references/interview.md`, applied as if this were a first run.
 
 ## Phase 3: Downstream handoff
 
