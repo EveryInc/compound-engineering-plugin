@@ -23,7 +23,7 @@ tags:
   - cross-model-review
   - ce-babysit-pr
 related_components: ["skills/ce-babysit-pr/SKILL.md", "skills/ce-babysit-pr/references/*", "tests/ce-babysit-pr-contract.test.ts", "tests/codex-skill-prompt-budget.test.ts", ".agents/skills/ce-skill-work/references/edit-skill.md"]
-updated: 2026-08-18
+last_updated: 2026-08-18
 ---
 
 # Restructuring a large skill under a byte cap without losing its invariants
