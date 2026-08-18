@@ -21,11 +21,13 @@ const AGENT_PLUGINS_SCHEMA_PREFIX = "https://agent-plugins.org/schemas/"
 
 /**
  * Skills known to exceed the bound. Membership is a set on purpose: an over-budget skill is
- * already truncated on Codex, so its exact size is not pinned and ordinary edits do not churn
- * this list. Remove a name once its SKILL.md fits; never add one for a new skill.
+ * already truncated on Codex's Agent Plugins path, so its exact size is not pinned and ordinary
+ * edits do not churn this list. Remove a name once its SKILL.md fits; never add one for a new
+ * skill. Emptying this set is a standing goal (the precondition for a conformant Agent Plugins
+ * package), not a nice-to-have — see docs/solutions/skill-design/size-driven-skill-restructure.md
+ * for the procedure that took ce-babysit-pr off it.
  */
 const OVER_BUDGET = new Set([
-  "ce-babysit-pr",
   "ce-brainstorm",
   "ce-code-review",
   "ce-commit-push-pr",
