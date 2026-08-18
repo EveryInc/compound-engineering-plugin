@@ -11,6 +11,8 @@ applies_when:
   - Moving skill body text into references and deciding what must stay always-loaded
   - A skill already contained the correct rule and an agent still violated it (salience failure)
   - Repointing greppable contract tests after text moves out of SKILL.md
+  - A relocated phase left its gate stated in both the body and the reference
+  - A skill that cannot reach the cap because shared blocks already exceed it
 tags:
   - skill-design
   - 8kb-budget
@@ -21,6 +23,7 @@ tags:
   - cross-model-review
   - ce-babysit-pr
 related_components: ["skills/ce-babysit-pr/SKILL.md", "skills/ce-babysit-pr/references/*", "tests/ce-babysit-pr-contract.test.ts", "tests/codex-skill-prompt-budget.test.ts", ".agents/skills/ce-skill-work/references/edit-skill.md"]
+updated: 2026-08-18
 ---
 
 # Restructuring a large skill under a byte cap without losing its invariants
@@ -95,6 +98,46 @@ Those runs exposed a cost, and the fix was folded into the same change: the trav
 Bugbot did not review `gh stack submit` PRs in this repo (no review, no check) — seed human review threads for stack fixtures.
 
 Still not measured: GitHub Enterprise.
+
+## The second sweep (PRs #1435, #1438, #1441, #1445, #1449, #1452, 2026-08-18)
+
+Six more skills through the same procedure, with the cap treated as a ceiling rather than a target. Two failure modes showed up that the first restructure did not, both of them consequences of "relocate verbatim" rather than of cutting too much.
+
+### Verbatim relocation leaves the gate stated twice
+
+**Relocating a phase verbatim reliably leaves its gate in both files, because the body keeps its own copy of what it owns.** That is the intended half-step; the move is not finished until the duplicate is gone. Six of the eight review findings across the sweep were this one shape, and none of them were caught by tests or by the size measurement:
+
+- `ce-debug` stated the Phase 3 branch check, the pre-fix scope record, and the entangled-file confirmation in both `SKILL.md` and `references/fix.md`, so a run would have asked the same question twice and captured the snapshot twice (#1449).
+- The same skill restated the Phase 2 causal-chain gate, the fix-choice options, the brainstorm signals, and the issue-of-record rule in `references/investigate.md` (#1449).
+- `ce-setup`'s relocation summary added a blanket "nothing is written without the user's approval" that contradicted a standing promise the body still made (#1445).
+
+**After relocating, diff each reference against the body and delete every gate, condition, or confirmation the body still owns — before the eval, not after.** The eval will not catch it: both copies say the same thing on the day you write them, so the run behaves correctly. What it costs is later, when one copy gets fixed and the other does not.
+
+That is not hypothetical. In #1449 a cross-model eval found a rule that needed a precondition; the precondition went into the body, the stale copy stayed in the reference, and the reference kept a live path to the exact defect the fix had just closed. One rule, one place.
+
+### A hoisted rule reads against its new neighbors
+
+**Pulling procedure out of the body changes what sits beside what, and a rule that was unambiguous mid-phase can read as license against a boundary it now borders.** In #1449 the regression-test-selection rule ("update an existing test when it owns the contract but has the wrong expectation") moved from inside Phase 1.1 up into the always-loaded gates, where it landed a few lines from the `mode:pipeline` convergent/divergent boundary. Codex quoted that clause, rewrote a test asserting a product behavior the PR deliberately reversed, and returned `fixed-and-pushed` — the divergent change pipeline mode exists to defer. Claude and Grok deferred correctly on the same body; the collision was reachable, not certain.
+
+The fix was one sentence naming the rule's precondition where it now sits (a *confirmed defect*, and a test the change deliberately reverses is not a wrong expectation), after which all three harnesses deferred. **Re-read every rule the restructure moved next to a boundary, against its new neighbors.**
+
+### Pointer-following, measured
+
+The first restructure asked whether models actually follow a body pointer into a reference. Across 44 scored runs in this sweep with a `FILES_READ` line, on five restructured skills:
+
+| Harness | runs | opened >= 1 reference | distinct references opened |
+|---|---:|---:|---:|
+| Claude Code | 14 | 11 | 18 |
+| Codex CLI | 15 | 13 | 36 |
+| Grok CLI | 15 | 13 | 30 |
+
+Every run that opened none was the same scenario — `ce-retune`'s Phase 0 refusal, which correctly stops before any reference is needed. **No run failed to open a reference it needed, on any harness**, and Codex opened the most. Pointer-following is not the risk; what is stated in the reference, and whether the body still states it too, is.
+
+This does not weaken `post-menu-routing-belongs-inline.md` (#714): always-on routing that must fire after a menu still belongs in the body, and `ce-debug`'s Phase 4 routing stayed inline for that reason. The measurement says a *required read named at the point of use* is reliably followed; it says nothing about a reference an agent was told about once, far from where it matters.
+
+### The floor is shared blocks, not prose
+
+`ce-debug` could not reach 8,000 at any level of prose compression: the `## Setup` context fence (1,420), the `ce-docs-root` parity block (920), and the Phase 4 routing block that #714 requires inline (3,733) are 6,073 bytes before the skill says anything of its own. Compressing everything else lands near 12,000. **When a skill cannot reach the cap, say so with the floor measured and name which shared contract would have to change** — do not gut a pinned safety block to hit a number. #1452 then took 220 bytes off the fence for all fifteen skills that carry it, which is the corpus-wide version of the same lever.
 
 ## What did not work / traps
 
