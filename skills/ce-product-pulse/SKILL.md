@@ -58,7 +58,7 @@ This skill writes pulse reports under `<root>/pulse-reports/`. Resolve `<root>` 
 4. **Parallel where safe, serial where it matters.** Analytics and tracing queries run in parallel. Database queries run serially to avoid load.
 5. **Memory through saved reports.** Every run writes to `<root>/pulse-reports/` so past pulses are browseable as a timeline.
 6. **Read-only database access only.** If a database is used as a data source, the connection must be read-only. The interview refuses to accept read-write credentials. Database access is optional - many products complete the pulse with analytics and tracing alone.
-7. **Strategy-seeded when available.** If `STRATEGY.md` exists, the interview reads it before asking questions and carries forward the product name and key metrics as seeds. The goal of data-source setup is to wire up whatever connections are needed to actually measure those metrics.
+7. **Strategy-seeded when available.** The interview reads the project's strategy doc before asking questions and carries forward the product name and key metrics as seeds. The doc is `STRATEGY.md`; when it is absent, the first of `VISION.md`, `PRODUCT.md` (in that order) that exists - the same rule every setup and report resolves from current files, so the source never depends on a prior run. The goal of data-source setup is to wire up whatever connections are needed to actually measure those metrics.
 
 ## Execution Flow
 
@@ -101,14 +101,14 @@ If the argument was `setup`, `reconfigure`, or `edit config`, go to Phase 1 rega
 
 #### 1.0 Seed from strategy (if available)
 
-Before asking any questions, read `STRATEGY.md` using the native file-read tool. If the file exists, extract:
+Before asking any questions, read the strategy doc with the native file-read tool - `STRATEGY.md`, or when it is absent the first of `VISION.md`, `PRODUCT.md` (in that order) that exists; readers accept the legacy names while other tools converge on `STRATEGY.md`. If a doc exists, extract:
 
-- The product name from the `name` key in the YAML frontmatter, falling back to the H1 title (stripping the trailing ` Strategy` suffix, e.g., `# Spiral Strategy` -> `Spiral`) if frontmatter is missing
-- The list of key metrics from the `## Key metrics` section, one per line
+- The product name from the `name` key in the YAML frontmatter, falling back to the H1 title (stripping the trailing ` Strategy` suffix, e.g., `# Spiral Strategy` -> `Spiral`) if frontmatter is missing; `STRATEGY.md` is shared with other tools and may carry neither, in which case take the name from the README or repository and confirm it in the interview
+- The list of key metrics, one per line, from the section that carries them: `## Key metrics` when `ce-strategy` wrote it, otherwise whichever section of a shared or hand-written file lists the success measures (go by meaning, since headings vary by writer). When `STRATEGY.md` carries no metrics but points to a legacy sibling doc (`VISION.md`, `PRODUCT.md`) for content it defers, read the metrics from there. When no section anywhere carries them, treat them as not yet on file and say so
 
-Open the interview by surfacing what was extracted: announce that a strategy doc was found, show the seeded product name and the list of key metrics that will be carried into event/data setup, and invite the user to correct any of it before continuing.
+Open the interview by surfacing what was extracted: name the doc that was read, show the seeded product name and the list of key metrics that will be carried into event/data setup, and invite the user to correct any of it before continuing.
 
-If `STRATEGY.md` does not exist, note that explicitly in chat: no strategy doc on file, running setup from scratch, and mention that `ce-strategy` can seed pulse later if run first.
+If none of those docs exists, note that explicitly in chat: no strategy doc on file, running setup from scratch, and mention that `ce-strategy` can seed pulse later if run first.
 
 #### 1.1 Interview
 

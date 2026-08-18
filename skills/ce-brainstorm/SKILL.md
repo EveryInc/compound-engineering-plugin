@@ -226,7 +226,7 @@ Scan the repo before substantive brainstorming. Match depth to scope:
 
 **Standard and Deep** — Two passes:
 
-*Constraint Check (inline)* — Use the project's active instructions and conventions already in your context. Read whichever product docs exist at the repo root (`STRATEGY.md`, `PRODUCT.md`, `VISION.md`) for product direction and boundaries — go by section meaning, since headings vary by writer — and `CONCEPTS.md` if it exists for canonical vocabulary. Use canonical names in dialogue, approaches, and the Product Contract; if a source adds nothing, move on.
+*Constraint Check (inline)* — Use the project's active instructions and conventions already in your context. Read `STRATEGY.md` at the repo root for product direction and boundaries — a legacy `PRODUCT.md` or `VISION.md` only when `STRATEGY.md` is absent or lacks a meaning you need; go by section meaning, since headings vary by writer — and `CONCEPTS.md` if it exists for canonical vocabulary. Use canonical names in dialogue, approaches, and the Product Contract; if a source adds nothing, move on.
 
 *Topic Scan (grounding scout)* — Create and retain the absolute scratch directory with this shell block, substituting the absolute path of this skill's directory and a short unique run slug:
 
