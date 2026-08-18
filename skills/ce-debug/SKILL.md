@@ -30,7 +30,7 @@ fi
 
 Default is **interactive**: investigate, run the Phase 2 fix-choice gate, then the Phase 4 handoff.
 
-**`mode:pipeline`** (set by an orchestrator such as `ce-babysit-pr` or `lfg`): run fully non-interactively and never call the blocking-question tool. Strip the token from `<bug_description>`, then **read `references/pipeline-mode.md` and follow it** — it overrides every "ask the user" point with a conservative default, replaces the Phase 2 fix-gate with "fix convergent bugs, defer divergent ones", and replaces the Phase 4 handoff with a structured return whose `status` is exactly one of `fixed-and-pushed | fixed-not-pushed | diagnosed-no-fix | flaky-infra | needs-human`. The caller branches on those four spellings, so never rename, abbreviate, or add to them.
+**`mode:pipeline`** (set by an orchestrator such as `ce-babysit-pr` or `lfg`): run fully non-interactively and never call the blocking-question tool. Strip the token from `<bug_description>`, then **read `references/pipeline-mode.md` and follow it** — it overrides every "ask the user" point with a conservative default, replaces the Phase 2 fix-gate with "fix convergent bugs, defer divergent ones", and replaces the Phase 4 handoff with a structured return whose `status` is exactly one of `fixed-and-pushed | fixed-not-pushed | diagnosed-no-fix | flaky-infra | needs-human`. The caller branches on those exact spellings, so never rename, abbreviate, or add to them.
 
 ## Blocking questions
 
