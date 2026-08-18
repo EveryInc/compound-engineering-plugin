@@ -127,9 +127,16 @@ describe("ce-setup check-health", () => {
   })
 
   test("routes retired and malformed dormant engine settings into preference repair", async () => {
+    // Split by load-time: Step 3 decides whether Phase 2 runs at all, so it stays in the
+    // always-loaded body; Step 6a is the repair procedure and lives in the reference the
+    // body requires before any repo-local write.
     const skill = await readFile(path.join(repoRoot, "skills", "ce-setup", "SKILL.md"), "utf8")
-    const step3 = skill.match(/### Step 3:[\s\S]*?(?=### Step 4:)/)?.[0] ?? ""
-    const step6a = skill.match(/### Step 6a:[\s\S]*?(?=### Step 7:)/)?.[0] ?? ""
+    const repoFixes = await readFile(
+      path.join(repoRoot, "skills", "ce-setup", "references", "repo-fixes.md"),
+      "utf8",
+    )
+    const step3 = skill.match(/### Step 3:[\s\S]*?(?=## Phase 2)/)?.[0] ?? ""
+    const step6a = repoFixes.match(/### Step 6a:[\s\S]*?(?=### Step 7:)/)?.[0] ?? ""
 
     for (const section of [step3, step6a]) {
       expect(section).toContain("retired scalar routing keys")
@@ -631,7 +638,14 @@ describe("ce-setup check-health", () => {
   })
 
   test("setup skill offers create config.yaml and never creates the override", async () => {
-    const skill = await readFile(path.join(repoRoot, "skills", "ce-setup", "SKILL.md"), "utf8")
+    // Corpus grep: these are Phase 2 mechanics, which the body requires the reference for
+    // before any repo-local write, so they may live in either file.
+    const skill = (
+      await Promise.all([
+        readFile(path.join(repoRoot, "skills", "ce-setup", "SKILL.md"), "utf8"),
+        readFile(path.join(repoRoot, "skills", "ce-setup", "references", "repo-fixes.md"), "utf8"),
+      ])
+    ).join("\n")
     expect(skill).toContain("Set up a repo config file for this project?")
     expect(skill).toContain("copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.yaml`")
     expect(skill).toContain("Do not create `config.local.yaml`")
