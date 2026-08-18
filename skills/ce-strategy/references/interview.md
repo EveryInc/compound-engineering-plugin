@@ -163,3 +163,7 @@ Skip by default. Keep to 2-3 lines if present.
 ## After the Interview
 
 Once sections 1-5 are captured, the stress test has run, Boundaries (section 6) is captured - it is always written, even if only to say nothing is named yet - and any optional sections the user engaged with are captured, read `strategy-template.md` and fill it in. Present the full draft in chat before writing. Offer one edit round. Then write to `STRATEGY.md`.
+
+## Why these questions
+
+The "Purpose / Positioning / Tracks" structure is informed by Richard Rumelt's *Good Strategy Bad Strategy* - specifically his kernel of diagnosis, guiding policy, and coherent action. The questions above are designed to push past the patterns he calls "bad strategy": fluff, goals dressed up as strategy, and feature lists in place of a guiding choice. The book is the recommended follow-up reading if the distinction between a slogan and a strategy is not yet sharp.
