@@ -20,6 +20,12 @@ const UNIVERSAL_BODY = readFileSync(
   path.join(SKILL_DIR, "references/universal-ideation.md"),
   "utf8",
 )
+const GROUNDING_BODY = readFileSync(path.join(SKILL_DIR, "references/grounding.md"), "utf8")
+const SCOPE_GATES_BODY = readFileSync(path.join(SKILL_DIR, "references/scope-gates.md"), "utf8")
+const DECOMPOSITION_BODY = readFileSync(
+  path.join(SKILL_DIR, "references/decomposition.md"),
+  "utf8",
+)
 
 // Two Phase 1 blocks were extracted to references during the ce-ideate
 // slimming pass. Both are conditional (rare, explicit triggers), so extraction
@@ -27,9 +33,17 @@ const UNIVERSAL_BODY = readFileSync(
 // the exact shape that scored 0/5 in the ce-debug Phase 4 measurement recorded
 // in docs/solutions/skill-design/post-menu-routing-belongs-inline.md. The
 // bargain that made extraction safe is that the state-transition skeleton stays
-// inline in SKILL.md and only the payloads move. These tests pin the BODY, not
-// wherever the string currently lives: moving a guard along with the content it
-// guards is how that solution doc says the previous guard got deleted.
+// beside the steps it orders, and that a guard is never moved away from the
+// content it guards: moving a guard along with the content it guards is how
+// that solution doc says the previous guard got deleted.
+//
+// The 8KB restructure (tests/codex-skill-prompt-budget.test.ts) moved Phase 0's
+// gates, Phase 1's dispatch, and Phase 1.5 into required-read references. These
+// assertions follow the procedure into the file that now owns it: the ordering
+// guard still fires ahead of the first executable step, in the same file as
+// that step. What stays pinned to SKILL.md is the always-loaded layer -- the
+// required-read pointer at each phase, and the rules that decide a dispatch or
+// a stop before any reference is opened (see "always-loaded body pins" below).
 
 // Mirrors the sliceSection helper in ce-work-outcome-spine.test.ts and
 // pipeline-review-contract.test.ts. Both anchors are asserted: a renamed
@@ -43,14 +57,16 @@ function sliceSection(content: string, startAnchor: string, endAnchor: string): 
   return content.slice(start, end)
 }
 
-const PHASE_1 = sliceSection(SKILL_BODY, "### Phase 1: Mode-Aware Grounding", "### Phase 1.5")
-const PHASE_1_SCAN = sliceSection(SKILL_BODY, "### Phase 1: Mode-Aware Grounding", "#### Web Research")
-const PHASE_1_5 = sliceSection(SKILL_BODY, "### Phase 1.5: Topic-Surface Decomposition", "### Phase 2")
-const GATE_0_2 = sliceSection(SKILL_BODY, "#### 0.2 Subject-Identification Gate", "#### 0.3")
-const VOLUME_0_5 = sliceSection(SKILL_BODY, "#### 0.5 Interpret Focus and Volume", "#### 0.6")
-const COST_0_6 = sliceSection(SKILL_BODY, "#### 0.6 Cost Transparency Notice", "### Phase 1:")
+const PHASE_1 = GROUNDING_BODY.slice(GROUNDING_BODY.indexOf("### Phase 1: Mode-Aware Grounding"))
+const PHASE_1_SCAN = sliceSection(GROUNDING_BODY, "### Phase 1: Mode-Aware Grounding", "#### Web Research")
+const PHASE_1_5 = DECOMPOSITION_BODY.slice(
+  DECOMPOSITION_BODY.indexOf("### Phase 1.5: Topic-Surface Decomposition"),
+)
+const GATE_0_2 = sliceSection(SCOPE_GATES_BODY, "#### 0.2 Subject-Identification Gate", "#### 0.3")
+const VOLUME_0_5 = sliceSection(SCOPE_GATES_BODY, "#### 0.5 Interpret Focus and Volume", "#### 0.6")
+const COST_0_6 = SCOPE_GATES_BODY.slice(SCOPE_GATES_BODY.indexOf("#### 0.6 Cost Transparency Notice"))
 const RESEARCH = sliceSection(
-  SKILL_BODY,
+  GROUNDING_BODY,
   "#### User-Supplied Research Artifacts",
   "#### Consolidated Grounding Summary",
 )
@@ -143,7 +159,7 @@ describe("ce-ideate issue-intelligence extraction keeps its skeleton inline", ()
       "Phase 1 must cite Phase 0.2 as the detection site, not 0.3.",
     ).toBe(true)
     expect(
-      /issue-tracker intent was detected in Phase 0\.3/.test(SKILL_BODY),
+      /issue-tracker intent was detected in Phase 0\.3/.test(SKILL_BODY + GROUNDING_BODY + SCOPE_GATES_BODY),
       "Phase 1 must not cite Phase 0.3 for issue-tracker detection.",
     ).toBe(false)
   })
@@ -170,8 +186,8 @@ describe("ce-ideate user-research extraction keeps its routing test inline", () 
     // The reference requires distillers to run in parallel with the other
     // Phase 1 agents. Loading it only at the section below the batch would
     // serialize the most expensive read behind everything else.
-    const load = SKILL_BODY.indexOf("read `references/user-research-artifacts.md` now, before the batch below")
-    const batch = SKILL_BODY.indexOf("Run grounding agents in parallel in the **foreground**")
+    const load = GROUNDING_BODY.indexOf("read `references/user-research-artifacts.md` now, before the batch below")
+    const batch = GROUNDING_BODY.indexOf("Run grounding agents in parallel in the **foreground**")
     expect(load, "Phase 1 must load the distiller spec before the batch.").toBeGreaterThan(-1)
     expect(batch, "Phase 1 must carry the parallel-batch instruction.").toBeGreaterThan(-1)
     expect(load, "The distiller spec load must precede the grounding batch.").toBeLessThan(batch)
@@ -181,11 +197,11 @@ describe("ce-ideate user-research extraction keeps its routing test inline", () 
     // Elsewhere-mode synthesis reads "any rich-prompt material", so a research
     // export reached synthesis AND a distiller -- duplicating the file into
     // Topic context -- when the test was stated only for the repo scan.
-    const gate = SKILL_BODY.indexOf("Before either dispatch block, run the research-artifact routing test")
+    const gate = GROUNDING_BODY.indexOf("Before either dispatch block, run the research-artifact routing test")
     expect(gate, "Phase 1 must run the routing test before either dispatch block.").toBeGreaterThan(-1)
     for (const block of ["**Repo mode dispatch:**", "**Elsewhere mode dispatch"]) {
       expect(
-        SKILL_BODY.indexOf(block),
+        GROUNDING_BODY.indexOf(block),
         `The routing test must precede ${block}.`,
       ).toBeGreaterThan(gate)
     }
@@ -312,7 +328,9 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
     ).toBe(true)
     // The reverted shape must not come back.
     expect(
-      /2 ideation agents covering all six frames|2 agents, 3 frames each/i.test(SKILL_BODY + DIVERGENT_BODY),
+      /2 ideation agents covering all six frames|2 agents, 3 frames each/i.test(
+        SKILL_BODY + SCOPE_GATES_BODY + DIVERGENT_BODY,
+      ),
       "The 2x3 tactical packing must not be reintroduced.",
     ).toBe(false)
     expect(
@@ -384,7 +402,9 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
     }
     // No site may still claim tactical changes the fleet.
     expect(
-      /2 under tactical scope/i.test(ISSUE_INTELLIGENCE_BODY + DIVERGENT_BODY + SKILL_BODY),
+      /2 under tactical scope/i.test(
+        ISSUE_INTELLIGENCE_BODY + DIVERGENT_BODY + SKILL_BODY + SCOPE_GATES_BODY,
+      ),
       "No site may still say tactical resolves a 2-agent fleet.",
     ).toBe(false)
   })
@@ -636,7 +656,7 @@ describe("ce-ideate cost transparency states no hand-maintained totals", () => {
       "Phase 0.6 must keep the concrete warning against the default figure.",
     ).toBe(true)
     expect(
-      /the one mode whose ideation count is not settled/i.test(SKILL_BODY),
+      /the one mode whose ideation count is not settled/i.test(SKILL_BODY + SCOPE_GATES_BODY),
       "Phase 0.6 must not claim exclusivity for one unresolved-count mode.",
     ).toBe(false)
     expect(
@@ -672,17 +692,69 @@ describe("ce-ideate surprise-me deltas are consolidated but locally hooked", () 
     // Consolidation alone risks the opposite failure of duplication: a rule
     // stated only in a table 200 lines earlier. Every phase the table names
     // keeps a one-clause pointer beside the action it governs.
-    for (const [heading, next] of [
-      ["#### 0.3 Mode Classification", "#### 0.4"],
-      ["#### 0.4 Context-Substance Gate", "#### 0.5"],
-      ["### Phase 1: Mode-Aware Grounding", "#### Web Research"],
-      ["### Phase 1.5: Topic-Surface Decomposition", "### Phase 2"],
+    for (const [source, heading, next] of [
+      [SCOPE_GATES_BODY, "#### 0.3 Mode Classification", "#### 0.4"],
+      [SCOPE_GATES_BODY, "#### 0.4 Context-Substance Gate", "#### 0.5"],
+      [GROUNDING_BODY, "### Phase 1: Mode-Aware Grounding", "#### Web Research"],
+      [DECOMPOSITION_BODY, "### Phase 1.5: Topic-Surface Decomposition", "**Evidence scouts"],
     ] as const) {
-      const region = sliceSection(SKILL_BODY, heading, next)
+      const region = sliceSection(source, heading, next)
       expect(
         /surprise-me/i.test(region),
         `"${heading}" must keep a local surprise-me hook.`,
       ).toBe(true)
     }
+  })
+})
+
+describe("ce-ideate always-loaded body pins", () => {
+  // Everything above follows the procedure into the reference that owns it.
+  // These are the rules that must control behavior from the prompt window,
+  // before any reference is opened: the required-read pointer at each phase,
+  // and the decisions that gate a dispatch or a stop.
+  test("each phase names its required read at the point of use", () => {
+    for (const [phase, reference] of [
+      ["Phase 0", "references/scope-gates.md"],
+      ["Phase 0", "references/output-mode.md"],
+      ["Phase 1", "references/grounding.md"],
+      ["Phase 1.5", "references/decomposition.md"],
+      ["Phase 2", "references/divergent-ideation.md"],
+      ["Phase 2", "references/post-ideation-workflow.md"],
+    ] as const) {
+      expect(
+        SKILL_BODY.includes(reference),
+        `${phase} must name ${reference} in the always-loaded body.`,
+      ).toBe(true)
+    }
+  })
+
+  test("the gates that stop a run stay in the body", () => {
+    expect(
+      /Never dispatch on an unidentified subject/i.test(SKILL_BODY),
+      "The subject gate decides whether anything is dispatched; it cannot wait for a reference read.",
+    ).toBe(true)
+    expect(
+      /Surprise me/i.test(SKILL_BODY),
+      "Surprise-me must stay a first-class option in the window, not only in the gates reference.",
+    ).toBe(true)
+    expect(
+      /blocking question tool/i.test(SKILL_BODY),
+      "The ask mechanism must be named where the decision to ask is made.",
+    ).toBe(true)
+    expect(
+      /Never print the internal taxonomy label/i.test(SKILL_BODY),
+      "The label ban governs user-facing output from the first sentence of the run.",
+    ).toBe(true)
+  })
+
+  test("output-mode exclusivity and the pipeline override stay in the body", () => {
+    expect(/exclusive/i.test(SKILL_BODY)).toBe(true)
+    expect(/never both/i.test(SKILL_BODY)).toBe(true)
+    expect(/pipeline|disable-model-invocation/i.test(SKILL_BODY)).toBe(true)
+  })
+
+  test("the scratch root and its `.context/` prohibition stay in the body", () => {
+    expect(/compound-engineering-<uid>/.test(SKILL_BODY)).toBe(true)
+    expect(/never `\.context\/`/.test(SKILL_BODY)).toBe(true)
   })
 })
