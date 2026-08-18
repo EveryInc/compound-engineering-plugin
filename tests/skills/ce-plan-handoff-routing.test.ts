@@ -24,6 +24,16 @@ const DOC_REVIEW_BODY = readFileSync(
   "utf8",
 )
 
+const DOC_REVIEW_MODES = readFileSync(
+  path.join(process.cwd(), "skills/ce-doc-review/references/modes.md"),
+  "utf8",
+)
+
+const DOC_REVIEW_INTAKE = readFileSync(
+  path.join(process.cwd(), "skills/ce-doc-review/references/document-intake.md"),
+  "utf8",
+)
+
 const ISSUE_CREATION_START = HANDOFF_BODY.indexOf("## Issue Creation")
 const ISSUE_CREATION_SECTION =
   ISSUE_CREATION_START > -1 ? HANDOFF_BODY.slice(ISSUE_CREATION_START) : ""
@@ -208,27 +218,33 @@ describe("ce-plan post-generation menu routing", () => {
   })
 
   test("caller and callee responsibilities stay explicit in failure paths", () => {
+    // The argument contract and the missing-path failure text moved into the
+    // references the body mandates (modes.md at mode detection, document-intake.md
+    // at Phase 1); the no-self-invocation and no-caller-routing rules are checked
+    // across the whole always-loaded body plus those two files.
+    const DOC_REVIEW_CONTRACT = DOC_REVIEW_MODES + DOC_REVIEW_INTAKE
     expect(
-      /\*\*Non-interactive argument contract:\*\*/.test(DOC_REVIEW_BODY),
+      /\*\*Non-interactive argument contract:\*\*/.test(DOC_REVIEW_CONTRACT),
       "ce-doc-review must present mode:non-interactive as its input contract, not as an instruction to invoke itself.",
     ).toBe(true)
     expect(
-      DOC_REVIEW_BODY.includes(
+      DOC_REVIEW_CONTRACT.includes(
         "Review failed: non-interactive mode requires a document path. Expected arguments: mode:non-interactive <path>",
       ),
       "ce-doc-review's missing-path error must report the expected arguments without telling the skill to re-invoke itself.",
     ).toBe(true)
+    const DOC_REVIEW_ALL = DOC_REVIEW_BODY + DOC_REVIEW_CONTRACT
     expect(
-      DOC_REVIEW_BODY.includes("Re-invoke the ce-doc-review skill"),
+      DOC_REVIEW_ALL.includes("Re-invoke the ce-doc-review skill"),
       "ce-doc-review must not describe its own argument-validation failure as self-invocation.",
     ).toBe(false)
     expect(
-      /re-invoke/i.test(DOC_REVIEW_BODY),
+      /re-invoke/i.test(DOC_REVIEW_ALL),
       "ce-doc-review validation errors must state the required correction and stop, not ambiguously tell the running workflow to re-invoke.",
     ).toBe(false)
     expect(
       /calling workflow|host(?:'s)? normal skill-invocation mechanism|`ce-doc-review` may/i.test(
-        DOC_REVIEW_BODY,
+        DOC_REVIEW_ALL,
       ),
       "ce-doc-review must own only its argument and execution contracts; caller-side routing belongs in ce-plan.",
     ).toBe(false)
