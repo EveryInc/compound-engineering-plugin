@@ -50,7 +50,6 @@ const OVER_BUDGET = new Set([
   "ce-setup",
   "ce-strategy",
   "ce-sweep",
-  "ce-test-browser",
   "ce-work",
   "lfg",
 ])
