@@ -44,21 +44,19 @@ Resolve `<root>` the first time you compose a path under it. Reading learnings u
 
 **The experiment log on disk is the single source of truth.** The conversation is not durable storage. A result that exists only in the conversation is lost. So the write order never inverts: **measure -> write -> verify -> then show the user.** Showing the user a table that disk has not seen yet is a bug. During Phase 3 the log is append-only, and every phase boundary and every decision re-reads it from disk.
 
-Six checkpoints, CP-0 through CP-5, are non-negotiable. Each one is a write followed by a read-back. The phases below mark where each falls.
-
-**Read `references/persistence.md` now** for the rules behind those checkpoints, the file layout, and resume.
+**Read `references/persistence.md` now** for the six mandatory checkpoints, CP-0 through CP-5 — each a write followed by a read-back — plus the rules behind them, the file layout, and resume. The phases below mark where each checkpoint falls.
 
 ## The phases
 
 Four phases run in order. Each one names the reference it cannot start without. A fresh run skips none of them: a harder optimization spends longer in a phase, it does not run fewer phases.
 
-**A resume is not a fresh run.** On a resume, re-enter Phase 0 only far enough to detect the run and to recover any `result.yaml` markers the log is missing. Then continue from the phase the log records. Never redo a phase whose checkpoint already exists.
+**A resume is not a fresh run.** On a resume, re-enter Phase 0 only far enough to detect the run and to recover any `result.yaml` markers the log is missing. Then continue from the phase the log records: skip the work the log proves finished, and re-enter any gate it does not. A checkpoint proves the work that produced it, never a user decision — the log holds no record of approval, so a resume that has not seen the user approve presents the Phase 1 gate again.
 
 **Phase 0 — Setup.** The input is a goal, or a path to a spec YAML. It comes from the user or from a calling skill. If neither supplied one, ask: "What would you like to optimize? Describe the goal, or provide a path to an optimization spec YAML file." Load or build the spec and save it (CP-0) — **read `references/spec.md`**. Then search prior learnings, detect run identity, and create the branch and scratch space. **Read `references/measurement.md`** for the rest of Phase 0 and Phase 1.
 
 **Phase 1 — Measurement scaffolding.** Build or validate the harness, write the baseline (CP-1), probe parallelism, check the worktree budget. Two gates stop the run:
 
-- **Clean-tree gate.** No uncommitted changes to files in `scope.mutable` or `scope.immutable`. Name the dirty in-scope files and ask the user to commit or stash; do not continue until they are clean.
+- **Clean-tree gate.** Do not continue while any file in `scope.mutable` or `scope.immutable` has uncommitted changes. The reference owns the check and what to ask for.
 - **User approval gate.** Present what Phase 1 assembled; the reference lists what to include. If the primary type is `judge` and `max_total_cost_usd` is unset, say plainly that spend is uncapped. Offer proceed / adjust spec / fix issues. **Do not enter Phase 2 until the user explicitly approves.** Then re-read the spec and baseline from disk.
 
 **Phase 2 — Hypothesis generation.** Analyze the current approach, rank the hypotheses, record the backlog (CP-2). **Read `references/loop.md`** for this phase and Phase 3. One gate: **dependency pre-approval.** Collect every new dependency across all hypotheses and present the full list for bulk approval. A dependency the user does not approve stays in the backlog, is skipped in batch selection, and comes back at wrap-up.
@@ -67,7 +65,7 @@ Four phases run in order. Each one names the reference it cannot start without. 
 
 **Phase 4 — Wrap-up.** **Read `references/wrap-up.md`** for the deferred hypotheses, the summary, what is preserved, and cleanup. Then present the options below. CP-5 marks the log final. **Write it only after the user picks an option that does not return to Phase 3.** Two options do return: Continue, and approving a deferred dependency. Until the user picks one of the others, the run is still going and the log is not final.
 
-1. **Run `ce-code-review`** on the cumulative diff (baseline to final), on the optimization branch. The reference's mechanical-apply bar decides which findings land; do not commit or push from this step.
+1. **Run `ce-code-review`** on the cumulative diff (baseline to final), on the optimization branch. Do not commit or push from this step.
 2. **Run `ce-compound`** to document the winning strategy as an institutional learning.
 3. **Create PR** from the optimization branch to the default branch.
 4. **Continue** — re-enter Phase 3, state re-read first.
