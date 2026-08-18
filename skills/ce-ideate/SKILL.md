@@ -53,7 +53,7 @@ Artifacts go under `<root>/ideation/`, and learnings are read from `<root>/solut
 
 ## Phase 0: Resume and Scope
 
-When the subject, mode, and format are already clear, resolve this phase in one pass. The gates below are for the ambiguous cases.
+Both reads this phase names are required, even when the subject, mode, and format look clear. They own the resume check, the format decision, and the scope classification, and nothing here is resolved before them.
 
 **Output mode is exclusive.** A run produces HTML (`.html`) or markdown (`.md`), never both. A pipeline or `disable-model-invocation` context forces `md`. Otherwise precedence runs from a request in this prompt, through a stated user preference and config (`ideate_output:`), down to the `html` default.
 
@@ -69,7 +69,7 @@ Read `references/output-mode.md` whenever a format is resolved. The read is requ
 
 **Non-software routing.** A topic with no software surface runs elsewhere-mode grounding rather than the repo scan. It then follows `references/universal-ideation.md` in place of Phase 2's frames and the Phase 5 menu. The deliverable is still written automatically.
 
-**The gates.** `references/scope-gates.md` owns every Phase 0 gate, plus the surprise-me and tactical deltas. Read it before you resolve any of them, which puts the read before classification, not merely before a grounding dispatch. Ask when the subject is not identifiable. `go deep` beats a tactical signal.
+**The gates.** `references/scope-gates.md` owns every Phase 0 gate, plus the surprise-me and tactical deltas. Ask when the subject is not identifiable. `go deep` beats a tactical signal.
 
 ## Phase 1: Mode-Aware Grounding
 
