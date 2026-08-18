@@ -64,6 +64,8 @@ Display the diagnostic output to the user. Missing optional tools are not setup 
 
 **User-runnable invocation rendering.** In setup summaries, default to `/ce-setup`; use `$ce-setup` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. On oh-my-pi (`omp`), use `/skill:ce-setup`. Render only the invocation as inline code and output one form only.
 
+Report-gated repo-local remediations apply only to the checkout the health report diagnosed; if Phase 2 will write a different writable checkout, diagnose that checkout first, while session-level findings such as plugin version and optional tools remain from this session's Phase 1.
+
 After the health report, decide Phase 2 from writable-checkout availability:
 
 - If this session has a writable git checkout, run Phase 2 locally, including when `project_issues` is 0. Phase 2 always refreshes the example and always offers to create `config.yaml` when that file is missing.
