@@ -11,7 +11,7 @@ When the bundled `scripts/check-health` is unavailable, perform these checks by 
 5. Check whether `.compound-engineering/config.local.yaml` exists and, if it does, whether `git check-ignore -q .compound-engineering/config.local.yaml` succeeds.
 6. Compare `.compound-engineering/config.example.yaml` with `references/config-template.yaml` when the template is readable; otherwise report that the example refresh must be done manually.
 
-Read this after the health report, once Step 3 has decided that a writable checkout exists and which reported issues need remediation. Every fix here is offered, previewed, and applied only on the user's approval, using the blocking question tool named in SKILL.md.
+Read this after the health report, once Step 3 has decided that a writable checkout exists and which reported issues need remediation. Ask with the blocking question tool named in SKILL.md. Step 5's example refresh is the one write this phase makes on its own; every other fix here is offered and applied only if the user approves.
 
 ## Phase 2: Fix Repo-Local Issues
 
