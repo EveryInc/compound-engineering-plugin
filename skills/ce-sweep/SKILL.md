@@ -86,7 +86,7 @@ Resolve `<state>`, `<writer>`, and `<run-id>` once per run.md's "Run identity" a
 
 Within 2d, per item in cursor order, never batched across the read-back: ack at source unless its own-identity `existing_ack` is already there -> read back and confirm -> `upsert-item` -> `cursor-advance`, never past an item not yet upserted.
 
-**Stop classes.** The run continues only while the lease is yours and state writes land. `LOCKED` -> record `aborted-locked`, exit; `LEASE-LOST` -> stop writing, record `partial`, exit; anything leaving state unwritable (no working Python, an engine error, a refused scratch root) -> stop before any further source-side write, since an ack state cannot record is acked again next run. A failure state *can* record continues: a failed ack marks the item `ack_deferred` and holds its cursor, a failed download or analysis marks it and moves on.
+**Stop classes.** The run continues only while the lease is yours and state writes land. `LOCKED` -> record `aborted-locked`, exit; `LEASE-LOST` -> stop writing, record `partial`, exit; an engine call that cannot write state at all -> stop before any further source-side write, since an ack state cannot record is acked again next run. Everything state *can* record continues: a failed ack marks the item `ack_deferred` and holds its cursor, a failed download, scratch setup, or analysis marks it and moves on.
 
 #### 2i. Wrap-up
 
