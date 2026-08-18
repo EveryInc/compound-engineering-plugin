@@ -99,13 +99,13 @@ Bugbot did not review `gh stack submit` PRs in this repo (no review, no check) �
 
 Still not measured: GitHub Enterprise.
 
-## The second sweep (PRs #1435, #1438, #1441, #1445, #1449, #1452, 2026-08-18)
+## The second sweep (PRs #1435, #1438, #1441, #1445, #1449, #1452, #1456, 2026-08-18)
 
-Six more skills through the same procedure, with the cap treated as a ceiling rather than a target. Two failure modes showed up that the first restructure did not, both of them consequences of "relocate verbatim" rather than of cutting too much.
+Seven more skills through the same procedure, with the cap treated as a ceiling rather than a target. Three failure modes showed up that the first restructure did not. None of them is "cut too much" — each is a consequence of *how* the move was made.
 
 ### Verbatim relocation leaves the gate stated twice
 
-**Relocating a phase verbatim reliably leaves its gate in both files, because the body keeps its own copy of what it owns.** That is the intended half-step; the move is not finished until the duplicate is gone. Six of the eight review findings across the sweep were this one shape, and none of them were caught by tests or by the size measurement:
+**Relocating a phase verbatim reliably leaves its gate in both files, because the body keeps its own copy of what it owns.** That is the intended half-step; the move is not finished until the duplicate is gone. This shape produced more findings than any other across the sweep, and none of them were caught by tests or by the size measurement:
 
 - `ce-debug` stated the Phase 3 branch check, the pre-fix scope record, and the entangled-file confirmation in both `SKILL.md` and `references/fix.md`, so a run would have asked the same question twice and captured the snapshot twice (#1449).
 - The same skill restated the Phase 2 causal-chain gate, the fix-choice options, the brainstorm signals, and the issue-of-record rule in `references/investigate.md` (#1449).
@@ -120,6 +120,16 @@ That is not hypothetical. In #1449 a cross-model eval found a rule that needed a
 **Pulling procedure out of the body changes what sits beside what, and a rule that was unambiguous mid-phase can read as license against a boundary it now borders.** In #1449 the regression-test-selection rule ("update an existing test when it owns the contract but has the wrong expectation") moved from inside Phase 1.1 up into the always-loaded gates, where it landed a few lines from the `mode:pipeline` convergent/divergent boundary. Codex quoted that clause, rewrote a test asserting a product behavior the PR deliberately reversed, and returned `fixed-and-pushed` — the divergent change pipeline mode exists to defer. Claude and Grok deferred correctly on the same body; the collision was reachable, not certain.
 
 The fix was one sentence naming the rule's precondition where it now sits (a *confirmed defect*, and a test the change deliberately reverses is not a wrong expectation), after which all three harnesses deferred. **Re-read every rule the restructure moved next to a boundary, against its new neighbors.**
+
+### A size-driven restatement overshoots into an absolute
+
+**When a byte budget forces a rule to be restated shorter, the short form tends to come out absolute — and an absolute forbids paths the original allowed.** The tell is a sentence qualified twice: it was added to close one finding, and a later finding lands on the addition itself.
+
+`ce-optimize` (#1456) ran that loop in two rounds on one sentence. The condensed phase list said no phase is skipped, which would have let a resume re-enter Phase 1 and overwrite the baseline checkpoint. The fix added "never re-entering an earlier phase" — which then read as forbidding the Phase 0.4 scan that recovers `result.yaml` markers the log is missing, losing measured experiments after a crash. Opposite failures, same sentence, one round apart.
+
+Neither round's wording was the condition. "Do not re-enter a phase" was a proxy for "do not redo a completed checkpoint", and only the proxy broke. Restated as the condition — re-enter Phase 0 far enough to detect the run and recover missing markers, then continue from the phase the log records, **never redoing a phase whose checkpoint already exists** — one sentence covers both paths.
+
+**On the second round against one sentence, stop shortening it and state the condition it was a proxy for**, even when that costs bytes the budget does not have. Pay for those bytes by deleting what the restatement makes redundant elsewhere — in #1456 the restated resume rule made Phase 0's run-identity rationale redundant, which covered the difference.
 
 ### Pointer-following, measured
 
