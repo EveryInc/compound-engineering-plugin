@@ -27,7 +27,8 @@ if [ -z "$port" ]; then
   port=$(grep -Eo -- '--port[= ]+[0-9]{2,5}' package.json 2>/dev/null | grep -Eo '[0-9]{2,5}' | head -1)
 fi
 if [ -z "$port" ]; then
-  port=$(grep -h '^PORT=' .env .env.local .env.development 2>/dev/null | tail -1 | cut -d= -f2 | tr -dc '0-9')
+  # take the first digit run after PORT=, so quotes and a trailing "# comment" drop out
+  port=$(grep -h '^PORT=' .env .env.local .env.development 2>/dev/null | tail -1 | grep -Eo '[0-9]+' | head -1)
 fi
 port="${port:-3000}"
 

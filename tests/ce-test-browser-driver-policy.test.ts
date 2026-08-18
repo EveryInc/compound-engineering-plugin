@@ -94,7 +94,7 @@ describe("ce-test-browser browser-driver policy", () => {
 
       expect(run()).toBe("3000")
 
-      writeFileSync(path.join(dir, ".env"), "PORT=4100\n")
+      writeFileSync(path.join(dir, ".env"), "PORT=4100 # dev server\n")
       expect(run()).toBe("4100")
 
       writeFileSync(
