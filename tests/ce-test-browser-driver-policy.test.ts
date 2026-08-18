@@ -1,4 +1,6 @@
+import { mkdtempSync, writeFileSync } from "fs"
 import { readFile } from "fs/promises"
+import { tmpdir } from "os"
 import path from "path"
 import { describe, expect, test } from "bun:test"
 
@@ -53,6 +55,56 @@ describe("ce-test-browser browser-driver policy", () => {
     expect(content).toMatch(/visible.+non-blocking/is)
     expect(content).not.toContain("subsequent `agent-browser` command")
     expect(content).not.toContain("never pass `--headed`")
+  })
+
+  // Port seeding used to cross files as a prose-emitted line ("Preferred dev server
+  // port: N") that step 4's block echoed and pipeline-orchestration.md told the agent
+  // to retype. Claude Code routinely skipped emitting it, so pipeline runs silently
+  // seeded 3000. The port now comes from a bundled script each mode runs itself.
+  describe("port resolution is a script, not a printed line", () => {
+    const script = "skills/ce-test-browser/scripts/resolve-port.sh"
+
+    test("no file re-implements the port ladder or carries a port across shell calls", async () => {
+      const body = await readRepoFile("skills/ce-test-browser/SKILL.md")
+      const pipeline = await readRepoFile(
+        "skills/ce-test-browser/references/pipeline-orchestration.md",
+      )
+      const routeAndReport = await readRepoFile(
+        "skills/ce-test-browser/references/route-and-report.md",
+      )
+
+      for (const content of [body, pipeline, routeAndReport]) {
+        expect(content).toContain("scripts/resolve-port.sh")
+        expect(content).not.toContain("Preferred dev server port")
+      }
+      expect(pipeline).toContain('PORT=$(bash "$SKILL_DIR/scripts/resolve-port.sh" --free')
+      expect(pipeline).not.toContain("find_free_port")
+    })
+
+    test("the script prints only the port, honoring the documented order", () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "ce-test-browser-port-"))
+      const run = (...args: string[]) => {
+        const proc = Bun.spawnSync({
+          cmd: ["bash", path.join(process.cwd(), script), ...args],
+          cwd: dir,
+        })
+        expect(proc.exitCode).toBe(0)
+        return proc.stdout.toString().trim()
+      }
+
+      expect(run()).toBe("3000")
+
+      writeFileSync(path.join(dir, ".env"), "PORT=4100 # dev server\n")
+      expect(run()).toBe("4100")
+
+      writeFileSync(
+        path.join(dir, "package.json"),
+        JSON.stringify({ scripts: { dev: "serve --port 4200" } }),
+      )
+      expect(run()).toBe("4200")
+
+      expect(run("4300")).toBe("4300")
+    })
   })
 
   test("user documentation describes the same hierarchy", async () => {
