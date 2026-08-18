@@ -86,7 +86,7 @@ Before confirming the write, scan the draft for:
 
 - [ ] Frontmatter present at the top with `name` and `last_updated` keys.
 - [ ] `last_updated` carries today's date in ISO format (YYYY-MM-DD).
-- [ ] No section has more than 4 sentences except Tracks (where each track has its own short block).
+- [ ] No section this skill wrote has more than 4 sentences except Tracks (where each track has its own short block); sections other writers contribute are not measured.
 - [ ] No placeholders remain (`{{...}}`).
 - [ ] Optional sections (Milestones, Brand) with no content have been deleted, not left empty; Boundaries is present.
 - [ ] Sections this skill did not write are unchanged and still in place.
