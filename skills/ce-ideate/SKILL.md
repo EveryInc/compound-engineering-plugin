@@ -57,7 +57,7 @@ When the subject, mode, and format are already clear, resolve this phase in one 
 
 **Output mode is exclusive.** A run produces HTML (`.html`) or markdown (`.md`), never both. A pipeline or `disable-model-invocation` context forces `md`. Otherwise precedence runs from a request in this prompt, through a stated user preference and config (`ideate_output:`), down to the `html` default.
 
-Read `references/output-mode.md` whenever a format is resolved. The read is required. It owns each step of the decision, and the 30-day recent-work check: when a relevant recent doc exists, update it in place in its own format rather than writing a duplicate, unless an explicit `output:` this run switches the format.
+Read `references/output-mode.md` whenever a format is resolved. The read is required. It owns each step of the decision, and the 30-day recent-work check that decides whether this run updates an existing doc instead of writing a new one.
 
 <!-- ce-config-layers:start -->
 **Resolve ordinary CE yaml keys from the two repo files.**
@@ -69,7 +69,7 @@ Read `references/output-mode.md` whenever a format is resolved. The read is requ
 
 **Non-software routing.** A topic with no software surface runs elsewhere-mode grounding rather than the repo scan. It then follows `references/universal-ideation.md` in place of Phase 2's frames and the Phase 5 menu. The deliverable is still written automatically.
 
-**The gates.** Read `references/scope-gates.md` before any grounding dispatch. The read is required. That reference owns every Phase 0 gate, plus the surprise-me and tactical deltas. Ask when the subject is not identifiable. `go deep` beats a tactical signal.
+**The gates.** `references/scope-gates.md` owns every Phase 0 gate, plus the surprise-me and tactical deltas. Read it before you resolve any of them, which puts the read before classification, not merely before a grounding dispatch. Ask when the subject is not identifiable. `go deep` beats a tactical signal.
 
 ## Phase 1: Mode-Aware Grounding
 
@@ -79,8 +79,8 @@ Scratch lives beneath the effective user's private CE root: `/tmp/compound-engin
 
 ## Phase 1.5: Topic-Surface Decomposition
 
-Before frames are dispatched, decompose the topic into 3-5 orthogonal **axes** — what aspects of the subject to think about. Read `references/decomposition.md`. The read is required except in surprise-me mode or on an atomic subject; those are the only two skips. Append the axis list, or the skip reason, to the grounding summary under `Topic axes`. Evidence scouts are repo-mode only.
+Before frames are dispatched, decompose the topic into 3-5 orthogonal **axes** — what aspects of the subject to think about. Read `references/decomposition.md`. Surprise-me mode is the only skip; whether a subject is atomic is decided by that file's own criteria, so that judgment comes after the read. Append the axis list, or the skip reason, to the grounding summary under `Topic axes`. Evidence scouts are repo-mode only.
 
 ## Phase 2: Divergent Ideation
 
-Read `references/divergent-ideation.md` before building any dispatch prompt. The fleet, the frames, and the generation rules live only there. Once its merge, synthesis, and axis-coverage steps are complete, load `references/post-ideation-workflow.md`. The filtering rubric, the Phase 4 auto-write, and the Phase 5 menu live only there.
+Read `references/divergent-ideation.md` before building any dispatch prompt. The fleet, the frames, and the generation rules live only there. When its merge, synthesis, and axis-coverage steps are complete it hands off to `references/post-ideation-workflow.md`, which it names as the next required read.
