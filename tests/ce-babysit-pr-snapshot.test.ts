@@ -3764,6 +3764,20 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     expect(later.mergeability_certain).toBe(true)
     expect(wakeReason(later)).toBe("merge-ready")
 
+    // A pending (unclassified) head forces uncertainty even through the stale-computation degrade.
+    const pendingStale = snapshot(state, fetchFile(dir, "stale-race-pending.json", { ...race,
+      head_sha: "cccccccccccccccccccccccccccccccccccccccc", head_parents: null,
+      base: { ...race.base, merge_parent_oids: ["1111111111111111111111111111111111111111", "cccccccccccccccccccccccccccccccccccccccc"] } }))
+    expect(pendingStale.unrequested_base_merge_pending).toBe(true)
+    const sp = JSON.parse(readFileSync(statePath, "utf8"))
+    sp.stale_merge_computation.first_seen_at = "2026-07-17T12:00:00+00:00"
+    writeFileSync(statePath, JSON.stringify(sp))
+    const pendingStale2 = snapshot(state, fetchFile(dir, "stale-race-pending.json", { ...race,
+      head_sha: "cccccccccccccccccccccccccccccccccccccccc", head_parents: null,
+      base: { ...race.base, merge_parent_oids: ["1111111111111111111111111111111111111111", "cccccccccccccccccccccccccccccccccccccccc"] } }))
+    expect(pendingStale2.base_ref_blocker).toBe("mergeability-pending")
+    expect(pendingStale2.mergeability_certain).toBe(false)
+
     // A base parent that does not match the head is a genuine race, never degraded.
     const genuine = snapshot(path.join(dir, "genuine-race"), fetchFile(dir, "genuine-race.json", {
       ...race, base: { ...race.base, stale_computation_candidate: false } }))
@@ -3823,10 +3837,22 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     await waitForWatchGeneration(state)
     await Bun.sleep(400)
     expect(child.exitCode).toBeNull()
-    writeFileSync(lowerFile, JSON.stringify({ ...lowerQuiet, head_sha: "cccccccccccccccccccccccccccccccccccccccc" }))
+    // Loss of quiescence with no new event: the lower layer turns DIRTY on the same head.
+    writeFileSync(lowerFile, JSON.stringify({ ...lowerQuiet, merge_state_status: "DIRTY" }))
     const out = await Promise.race([result, Bun.sleep(4000).then(() => null)])
     expect(out).not.toBeNull()
     expect(JSON.parse(out!.stdout.trim().split("\n").pop()!).reason).toBe("downstack-actionable")
+    // And a head change alone.
+    const s3 = path.join(dir, "ds-head")
+    const lower3 = fetchFile(dir, "lower3.json", lowerQuiet)
+    snapshot(s3, upperFile, ["--start-invocation"])
+    const w3 = startWatch(s3, upperFile, ["--downstack-pr", "7", "--downstack-fetch-file", `7=${lower3}`, "--interval", "0.2"])
+    await waitForWatchGeneration(s3)
+    await Bun.sleep(400)
+    writeFileSync(lower3, JSON.stringify({ ...lowerQuiet, head_sha: "cccccccccccccccccccccccccccccccccccccccc" }))
+    const out3 = await Promise.race([w3.result, Bun.sleep(4000).then(() => null)])
+    expect(out3).not.toBeNull()
+    expect(JSON.parse(out3!.stdout.trim().split("\n").pop()!).reason).toBe("downstack-actionable")
 
     // Residual suppression: an unrequested_base_merge present at arm time is in the baseline.
     const flagged = { ...quietUpper, checks: [], head_sha: "dddddddddddddddddddddddddddddddddddddddd",
