@@ -10,10 +10,6 @@ Fidelity is a different axis from size (`references/scoping.md` owns sizing, whi
 
 On the web path the artifact is whatever a browser can display and you can author — HTML, SVG, CSS renderings, images — shown inside the page the preview helper already serves. Where the host offers image generation, use it. Where it does not, author the candidates as markup when markup can carry the dimension honestly, and say so; when it cannot — a photographic or painterly direction — report the missing capability instead, because substituting markup there fakes the very thing being judged. Do not introduce a second display mechanism alongside that page; a yielded run displays however its own medium does.
 
-## When the web yields
-
-The substrate yields in exactly two cases: the user names a technology, or the dimension under test cannot be rendered in a browser without faking it. In that second case build in the medium the dimension requires and name that choice before you build; if a technology was named and it also cannot render the dimension, say so rather than yielding silently.
-
 ## Which run root
 
 Prefer `.context/compound-engineering/ce-prototype/<date>-<slug>/` so the prototype survives alongside the decisions capsule. Fall back to `/tmp/compound-engineering-<uid>/ce-prototype/<date>-<slug>/` when the user declines the `.gitignore` append, when they ask that this run not be left in their repo, when the run is not inside a git repository, or when the path fails the safety checks; survival there is best-effort, so do not promise it a lifetime. Calling the prototype throwaway is not a request to leave the repo — throwaway describes the code, and a kept prototype is never deleted.
