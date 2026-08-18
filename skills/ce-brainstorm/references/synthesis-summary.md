@@ -245,7 +245,7 @@ When the soft-cut fires, use the platform's blocking question tool (`AskUserQues
 - `Proceed and write the requirements-only plan`
 - `Hold off — keep discussing before the doc`
 
-Fall back to a numbered list in chat only when no blocking tool exists or the call errors. Never silently skip.
+Fall back to a numbered list on the host's user-visible chat surface only when no blocking tool exists or the call errors. Never silently skip.
 
 ---
 
