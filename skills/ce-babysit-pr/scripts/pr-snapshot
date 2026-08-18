@@ -881,20 +881,24 @@ def _body_hash(body):
 
 
 def _extract_feedback(v):
-    """Every non-empty top-level PR comment and review body not known to be from the PR author.
+    """Every non-empty top-level PR comment and review body, whoever wrote it.
     `gh pr view --json comments,reviews` returns flat arrays (not GraphQL {nodes}). Content,
-    identity, and surface are evidence for the resolver to judge, not deterministic exclusions."""
-    author = (v.get("author") or {}).get("login")
+    identity, and surface are evidence for the resolver to judge, not deterministic exclusions --
+    and that includes the PR author, whose own top-level "please rename X" is the ordinary way a
+    human asks an agent-opened PR for a change. Excluding the author here made that request
+    invisible to the tick, so no resolver pass ever ran for it. Loop prevention is the dispatched
+    mark, which silences a candidate permanently once it has been classified, not identity."""
     out = []
     for c in v.get("comments") or []:
-        a = (c.get("author") or {}).get("login")
-        if (not author or a != author) and (c.get("body") or "").strip():
-            out.append({"id": c.get("id"), "kind": "comment", "author": a, "edit_id": _body_hash(c.get("body"))})
+        if (c.get("body") or "").strip():
+            out.append({"id": c.get("id"), "kind": "comment",
+                        "author": (c.get("author") or {}).get("login"),
+                        "edit_id": _body_hash(c.get("body"))})
     for r in v.get("reviews") or []:
-        a = (r.get("author") or {}).get("login")
-        if (not author or a != author) and (r.get("body") or "").strip():
-            out.append({"id": r.get("id"), "kind": "review", "author": a, "state": r.get("state"),
-                        "edit_id": _body_hash(r.get("body"))})
+        if (r.get("body") or "").strip():
+            out.append({"id": r.get("id"), "kind": "review",
+                        "author": (r.get("author") or {}).get("login"),
+                        "state": r.get("state"), "edit_id": _body_hash(r.get("body"))})
     return out
 
 

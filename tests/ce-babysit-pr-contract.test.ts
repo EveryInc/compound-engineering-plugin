@@ -190,6 +190,20 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(babysit).toContain("never settle")
   })
 
+  test("neither non-thread fetcher excludes feedback by author identity", async () => {
+    // The two fetchers are one chain: pr-snapshot decides whether a tick invokes ce-resolve at all,
+    // and get-pr-comments decides what that pass can see. When both excluded comments whose author
+    // matched the PR author, a plain "please rename X" on an agent-opened PR was invisible end to
+    // end — no wake, no pass, and babysit could report the PR ready with the request unhandled.
+    // Loop prevention lives in the dispatched mark and in ce-resolve's actionability filter.
+    const [snapshotScript, getComments] = await Promise.all([
+      readRepoFile(PR_SNAPSHOT),
+      readRepoFile("skills/ce-resolve-pr-feedback/scripts/get-pr-comments"),
+    ])
+    expect(snapshotScript).not.toContain("a != author")
+    expect(getComments).not.toContain("!= $author.login")
+  })
+
   test("ce-resolve routes a whole-PR URL to full mode, a comment-fragment URL to targeted", async () => {
     // babysit hands ce-resolve the fork->upstream PR URL; a bare /pull/N must run full mode against
     // the parsed host/repo, while a comment-fragment URL stays targeted.
