@@ -54,7 +54,7 @@ A rewrite whose stated reason is a byte cap, a host's frontmatter rules, or a co
 - **The body keeps what must fire without a read**: outcome/done, boundaries, the ordering invariant, stop classes, and a pointer to each reference at the point of use. A reference the tick cannot start without is named in the body as a required read before that step; the eval below checks whether models actually load it.
 - **Tests split by load-time.** Rules that must control behavior from the window get body pins; relocated invariants get corpus greps (body + references). Do not silently convert every body pin to a corpus grep.
 - **Get an adversarial cross-model read of the draft before splitting.** A second model given the old file, the draft, and the incident that motivated the change finds dropped invariants a first author cannot see; treat its list as work items, and re-verify each of its premises against the repo (it will also be wrong).
-- **Eval the extraction itself, on more than one harness.** Besides the behavior scenarios, ask each run which files it read; a body that no run follows into the reference has failed regardless of the outcome that time.
+- **Eval the extraction itself, on more than one harness.** Besides the behavior scenarios, ask each run which files it read; a body that no run follows into the reference has failed regardless of the outcome that time. When the restructured skill's key behavior is delegation, that extraction eval also dispatches for real — a `FILES_READ` probe with dispatch forbidden cannot show that the relocated rules still govern a live delegate (`references/evaluate.md`).
 
 ## Validate
 

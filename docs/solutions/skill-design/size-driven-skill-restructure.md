@@ -45,6 +45,38 @@ Two things landed together:
 6. **Add the mechanical gate the incident wanted.** `pr-snapshot` now emits `unrequested_base_merge {head, base_parent}` (and wakes with reason `unrequested-base-merge`) when the head is a two-parent merge of the base tip and no claimed currency item observed a mutation; cleared by the next head. Two tests: flagged-and-wakes-once, and a claimed DIRTY repair is not flagged (with a no-claim control on a fresh state). Prose said "this is a defect" three times; the script now says it too.
 7. **Eval the extraction, not just the behavior, on every harness you have.** Two scenarios (A: CLEAN + base moved + coordinator says "update the branch"; B: own push -> `BLOCKED` with checks running), pre- and post-change, on Claude, Codex, Grok, Cursor. The prompt gives the skill dir, the snapshot JSON, and forbids git/gh; the answer format includes `FILES_READ` so the run itself reports whether it followed the body into a reference.
 
+## Eval the delegation, not the recognition
+
+Every restructure in the sweep (#1435-#1456) was validated the same way: a fake-boundary run with dispatch, `git`, and `gh` forbidden, graded on whether the model recognized the trigger and named the right reference in `FILES_READ`. That grades recognition and pointer-following, which is the whole behavior for a skill whose job is judgment inside the window — and it is a cheap, honest first pass for any skill.
+
+**It cannot validate a skill whose key behavior is live delegation.** When the skill dispatches peers or subagents to other harnesses, runs a multi-turn exchange, consumes a structured return in an orchestrator, or gates a mutation on what a delegate returned, a fake-boundary run sees none of the things that can break: whether the delegate was dispatched at all, what payload it received, whether attribution was gated on an actual receipt, whether the return contract held, whether the reconciliation was a real synthesis or a plausible narration of one. The model's own account of what it would have done is the artifact under test, so it cannot be the evidence.
+
+`ce-pov` (#1440, the oracle panel) shipped as "eval green" on that basis. A live A/B afterwards — four cells, real `codex` and `grok` peers through the peer-job runner, graded on subprocess logs and on-disk artifacts rather than the transcript — happened to pass, but nothing in the shipping eval had established that.
+
+**So classify the skill's key behavior before sizing the eval.** If it delegates, the eval dispatches for real, pre- and post-change, on at least two harnesses, and is graded on subprocess and artifact evidence.
+
+### The ce-pov live A/B (2026-08-18)
+
+Four cells: `main` and the PR branch, each driven from Claude Code and from Codex, each running the oracle panel against real `codex` and `grok` peers in a throwaway subject repo.
+
+| Outcome graded (`main` / PR) | driven from Claude Code | driven from Codex |
+|---|---|---|
+| Peers actually dispatched, per worker logs | yes / yes | yes / yes |
+| Panel artifacts written, return contract intact | yes / yes | yes / yes |
+| Attribution gated on a real receipt | yes / yes | yes / yes |
+| Verdict synthesized from the peer returns, not narrated | yes / yes | yes / yes |
+| Peer receipt attests the true host | yes / yes | no / no |
+
+Fifteen graded outcomes, identical between the two arms. The two non-passes are the same cell on both arms and are eval-level rather than skill-level — the Codex-driven cells were launched from a Claude Code shell and inherited `CLAUDECODE=1`, so the host attested as Claude no matter which branch was running. The restructure changed nothing about the delegation, which is the claim the fake-boundary eval had asserted without evidence.
+
+**Could not be exercised by a single run, and is recorded as unexercised rather than passing:** the reconciliation rounds that only open when peers disagree (seven of eight peers concurred; the one dissent converged without a second round), the degradation paths for an unavailable or timing-out peer, and any path behind a second panel round.
+
+### Gotchas from the live runs
+
+- **`codex exec` launched from a Claude Code shell inherits `CLAUDECODE=1` and corrupts host attestation** — the peer reports itself as running under Claude Code. Launch it as `env -u CLAUDECODE codex exec ...`.
+- **A live A/B needs a throwaway subject repo, not the checkout.** The delegating skill mutates, and the developer's uncommitted work is not test input.
+- **Grade the worker logs, the JSON artifacts, and the subject's `git log`** — not the orchestrator's narration of them.
+
 ## Results (2026-08-17)
 
 | Harness | pre A | post A | pre B | post B | post FILES_READ |
