@@ -723,28 +723,47 @@ describe("ce-doc-review contract", () => {
     expect(synthesis).toContain("ce-work")
   })
 
+  // Split by load-time: the question-tool rules and the dispatch backpressure
+  // contract must fire from the always-loaded window, while the payload table
+  // (decision primer included) lives in the reference the body mandates before
+  // dispatch.
   test("SKILL.md has Interactive mode rules with AskUserQuestion pre-load", async () => {
     const content = await readRepoFile(
       "skills/ce-doc-review/SKILL.md"
     )
 
-    // Interactive mode rules section at top
+    // Interactive mode rules section at top: the body must route into the mode
+    // reference before anything else and must keep the never-narrate rule; the
+    // per-harness tool names and the fallback trigger live in that reference,
+    // which is read before any question can fire.
     expect(content).toContain("## Interactive mode rules")
-    expect(content).toContain("AskUserQuestion")
-    expect(content).toContain("ToolSearch")
-    expect(content).toContain("numbered-list fallback")
+    expect(content).toContain("`references/modes.md`")
+    expect(content).toMatch(/fires the tool or falls back loudly/)
     expect(content).toContain("bounded parallelism")
-    expect(content).toContain("active-subagent limit")
-    expect(content).toContain("spawn errors as backpressure, not reviewer failure")
-    expect(content).toContain("queue the remainder")
-
-    // Decision primer variable in the dispatch table
-    expect(content).toContain("{decision_primer}")
-    expect(content).toContain("<prior-decisions>")
+    // The body keeps the condition that a capacity rejection is backpressure;
+    // the queueing mechanics live in the dispatch reference read at that step.
+    expect(content).toMatch(/backpressure, not reviewer failure/)
 
     // References loaded lazily via backtick paths for walk-through and bulk-preview
     expect(content).toContain("`references/walkthrough.md`")
     expect(content).toContain("`references/bulk-preview.md`")
+  })
+
+  test("the dispatch reference carries the payload table and decision primer", async () => {
+    const dispatch = await readRepoFile("skills/ce-doc-review/references/dispatch.md")
+    const modes = await readRepoFile("skills/ce-doc-review/references/modes.md")
+    const skill = await readRepoFile("skills/ce-doc-review/SKILL.md")
+
+    expect(skill).toContain("`references/dispatch.md`")
+    expect(dispatch).toContain("{decision_primer}")
+    expect(dispatch).toContain("<prior-decisions>")
+    // The harness tool names and the fallback trigger moved with the mode rules.
+    expect(modes).toContain("AskUserQuestion")
+    expect(modes).toContain("ToolSearch")
+    expect(modes).toContain("numbered-list fallback")
+    expect(dispatch).toContain("active-subagent limit")
+    expect(dispatch).toContain("spawn errors as backpressure, not reviewer failure")
+    expect(dispatch).toContain("queue the remainder")
   })
 
   // Reproduced on Codex (gpt-5.6-sol), 4/4 runs: a plan whose only storage-related
@@ -754,7 +773,8 @@ describe("ce-doc-review contract", () => {
   // conditional judgment trio, so a false positive also fires the cross-model peer
   // pass — the over-activation costs real peer spend, not just an extra reviewer.
   test("security-lens is bounded to sensitive data, not any data handling", async () => {
-    const content = await readRepoFile("skills/ce-doc-review/SKILL.md")
+    // Activation now lives in the reference the body mandates before selection.
+    const content = await readRepoFile("skills/ce-doc-review/references/persona-selection.md")
     const line = content
       .split("\n")
       .find((l) => l.startsWith("**security-lens**"))
@@ -769,7 +789,7 @@ describe("ce-doc-review contract", () => {
   })
 
   test("keeps security document review on the parent capability tier", async () => {
-    const content = await readRepoFile("skills/ce-doc-review/SKILL.md")
+    const content = await readRepoFile("skills/ce-doc-review/references/dispatch.md")
     const modelTierSection = content.slice(content.indexOf("Model tiering lives here"))
     const securityTierLine = modelTierSection
       .split("\n")
@@ -1040,10 +1060,11 @@ describe("concept-teaching seam parity (ce-commit-push-pr <-> lfg)", () => {
   // that both ends name the same trailer format and that the callsite hardcodes the
   // non-interactive mode (a drift on either end fails here, not in production runs).
   test("lfg hardcodes mode:pipeline at the callsite and echoes the trailer", async () => {
-    const skill = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+    const skill = await readRepoFile("skills/ce-commit-push-pr/references/apply-and-handoff.md")
     const lfg = await readRepoFile("skills/lfg/SKILL.md")
 
-    // Both ends name the same trailer format
+    // Both ends name the same trailer format (ce-commit-push-pr prints it from the
+    // apply reference its Step 5 mandates).
     expect(skill).toContain("New concepts:")
     expect(lfg).toContain("New concepts:")
 

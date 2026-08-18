@@ -59,6 +59,11 @@ const docReview = readRepoFile("skills/ce-doc-review/SKILL.md")
 const docReviewTemplate = readRepoFile(
   "skills/ce-doc-review/references/subagent-template.md",
 )
+// Reviewer payload construction (slices, provenance, settled decisions) moved into
+// the dispatch reference the body mandates before Phase 2 dispatch.
+const docReviewDispatch = readRepoFile("skills/ce-doc-review/references/dispatch.md")
+// Document classification signals moved into the Phase 1 intake reference.
+const docReviewIntake = readRepoFile("skills/ce-doc-review/references/document-intake.md")
 const codeReview = readRepoFile("skills/ce-code-review/SKILL.md")
 const codeReviewFinish = readRepoFile(
   "skills/ce-code-review/references/finish-review.md",
@@ -361,9 +366,9 @@ describe("unified plan artifact contract", () => {
     expect(docReview).toContain("unified-plan")
     expect(docReview).toContain("Product Contract only")
     expect(docReview).toContain("HTML unified artifacts")
-    expect(docReview).toContain("section slice")
-    expect(docReview).toContain("product_contract_source: ce-brainstorm")
-    expect(docReview).toContain("product_contract_source:<value>")
+    expect(docReviewDispatch).toContain("section slice")
+    expect(docReviewIntake).toContain("product_contract_source: ce-brainstorm")
+    expect(docReviewDispatch).toContain("product_contract_source:<value>")
     expect(docReviewTemplate).toContain("product_contract_source:ce-brainstorm")
     expect(docReviewTemplate).toContain("product_contract_source:ce-plan-bootstrap")
 
@@ -690,7 +695,7 @@ describe("session-settled decision contract", () => {
   })
 
   test("ce-doc-review threads settled KTDs through the {settled_ktds} slot and protects the annotation", () => {
-    expect(docReview).toContain("| `{settled_ktds}` |")
+    expect(docReviewDispatch).toContain("| `{settled_ktds}` |")
     expect(docReviewTemplate).toContain("Settled decisions: {settled_ktds}")
     expect(docReviewSynthesis).toContain(
       "must never remove or reword a `session-settled:` annotation",

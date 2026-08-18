@@ -11,6 +11,8 @@ applies_when:
   - Moving skill body text into references and deciding what must stay always-loaded
   - A skill already contained the correct rule and an agent still violated it (salience failure)
   - Repointing greppable contract tests after text moves out of SKILL.md
+  - A relocated phase left its gate stated in both the body and the reference
+  - A skill that cannot reach the cap because shared blocks already exceed it
 tags:
   - skill-design
   - 8kb-budget
@@ -21,6 +23,7 @@ tags:
   - cross-model-review
   - ce-babysit-pr
 related_components: ["skills/ce-babysit-pr/SKILL.md", "skills/ce-babysit-pr/references/*", "tests/ce-babysit-pr-contract.test.ts", "tests/codex-skill-prompt-budget.test.ts", ".agents/skills/ce-skill-work/references/edit-skill.md"]
+last_updated: 2026-08-18
 ---
 
 # Restructuring a large skill under a byte cap without losing its invariants
@@ -44,6 +47,38 @@ Two things landed together:
 5. **Repoint tests by load-time, not wholesale.** In `tests/ce-babysit-pr-contract.test.ts`: `readBabysit()` concatenates body + every reference for relocated invariants; a new `describe("always-loaded body pins")` asserts the rules that must control behavior from the window (the currency condition, the false-trigger list, the upward authority clause, the tick order, the required-read pointer, the description no longer saying "base movement", the byte budget itself). Two tests that anchored on body-only structure (`## Step 4 ... ## Step 5` regex, the Terminal -> baseline -> Feedback ordering) were pointed at the file that now owns that structure. Remove the skill from `OVER_BUDGET` (the ratchet test forces this).
 6. **Add the mechanical gate the incident wanted.** `pr-snapshot` now emits `unrequested_base_merge {head, base_parent}` (and wakes with reason `unrequested-base-merge`) when the head is a two-parent merge of the base tip and no claimed currency item observed a mutation; cleared by the next head. Two tests: flagged-and-wakes-once, and a claimed DIRTY repair is not flagged (with a no-claim control on a fresh state). Prose said "this is a defect" three times; the script now says it too.
 7. **Eval the extraction, not just the behavior, on every harness you have.** Two scenarios (A: CLEAN + base moved + coordinator says "update the branch"; B: own push -> `BLOCKED` with checks running), pre- and post-change, on Claude, Codex, Grok, Cursor. The prompt gives the skill dir, the snapshot JSON, and forbids git/gh; the answer format includes `FILES_READ` so the run itself reports whether it followed the body into a reference.
+
+## Eval the delegation, not the recognition
+
+Every restructure in the sweep (#1435-#1456) was validated the same way: a fake-boundary run with dispatch, `git`, and `gh` forbidden, graded on whether the model recognized the trigger and named the right reference in `FILES_READ`. That grades recognition and pointer-following, which is the whole behavior for a skill whose job is judgment inside the window — and it is a cheap, honest first pass for any skill.
+
+**It cannot validate a skill whose key behavior is live delegation.** When the skill dispatches peers or subagents to other harnesses, runs a multi-turn exchange, consumes a structured return in an orchestrator, or gates a mutation on what a delegate returned, a fake-boundary run sees none of the things that can break: whether the delegate was dispatched at all, what payload it received, whether attribution was gated on an actual receipt, whether the return contract held, whether the reconciliation was a real synthesis or a plausible narration of one. The model's own account of what it would have done is the artifact under test, so it cannot be the evidence.
+
+`ce-pov` (#1440, the oracle panel) shipped as "eval green" on that basis. A live A/B afterwards — four cells, real `codex` and `grok` peers through the peer-job runner, graded on subprocess logs and on-disk artifacts rather than the transcript — happened to pass, but nothing in the shipping eval had established that.
+
+**So classify the skill's key behavior before sizing the eval.** If it delegates, the eval dispatches for real, pre- and post-change, on at least two harnesses, and is graded on subprocess and artifact evidence.
+
+### The ce-pov live A/B (2026-08-18)
+
+Four cells: `main` and the PR branch, each driven from Claude Code and from Codex, each running the oracle panel against real `codex` and `grok` peers in a throwaway subject repo.
+
+| Outcome graded (`main` / PR) | driven from Claude Code | driven from Codex |
+|---|---|---|
+| Peers actually dispatched, per worker logs | yes / yes | yes / yes |
+| Panel artifacts written, return contract intact | yes / yes | yes / yes |
+| Attribution gated on a real receipt | yes / yes | yes / yes |
+| Verdict synthesized from the peer returns, not narrated | yes / yes | yes / yes |
+| Peer receipt attests the true host | yes / yes | no / no |
+
+The full checklist had fifteen graded outcomes (dispatch, payload contract, frozen position withheld from round 1, artifact gate, receipt-gated attribution, dissent handling, synthesis, disclosure, read-only, cleanup, and so on); the table shows the five that carry the delegation claim. Every one of the fifteen was identical between the two arms. The two non-passes are the same cell on both arms and are eval-level rather than skill-level — the Codex-driven cells were launched from a Claude Code shell and inherited `CLAUDECODE=1`, so the host attested as Claude no matter which branch was running. The restructure changed nothing about the delegation, which is the claim the fake-boundary eval had asserted without evidence.
+
+**Could not be exercised by a single run, and is recorded as unexercised rather than passing:** the reconciliation rounds that only open when peers disagree (seven of eight peers concurred; the one dissent converged without a second round), the degradation paths for an unavailable or timing-out peer, and any path behind a second panel round.
+
+### Gotchas from the live runs
+
+- **`codex exec` launched from a Claude Code shell inherits `CLAUDECODE=1` and corrupts host attestation** — the peer reports itself as running under Claude Code. Launch it as `env -u CLAUDECODE codex exec ...`.
+- **A live A/B needs a throwaway subject repo, not the checkout.** The delegating skill mutates, and the developer's uncommitted work is not test input.
+- **Grade the worker logs, the JSON artifacts, and the subject's `git log`** — not the orchestrator's narration of them.
 
 ## Results (2026-08-17)
 
@@ -96,8 +131,59 @@ Bugbot did not review `gh stack submit` PRs in this repo (no review, no check) �
 
 Still not measured: GitHub Enterprise.
 
+## The second sweep (PRs #1435, #1438, #1441, #1445, #1449, #1452, #1456, 2026-08-18)
+
+Seven more skills through the same procedure, with the cap treated as a ceiling rather than a target. Three failure modes showed up that the first restructure did not. None of them is "cut too much" — each is a consequence of *how* the move was made.
+
+### Verbatim relocation leaves the gate stated twice
+
+**Relocating a phase verbatim reliably leaves its gate in both files, because the body keeps its own copy of what it owns.** That is the intended half-step; the move is not finished until the duplicate is gone. This shape produced more findings than any other across the sweep, and none of them were caught by tests or by the size measurement:
+
+- `ce-debug` stated the Phase 3 branch check, the pre-fix scope record, and the entangled-file confirmation in both `SKILL.md` and `references/fix.md`, so a run would have asked the same question twice and captured the snapshot twice (#1449).
+- The same skill restated the Phase 2 causal-chain gate, the fix-choice options, the brainstorm signals, and the issue-of-record rule in `references/investigate.md` (#1449).
+- `ce-setup`'s relocation summary added a blanket "nothing is written without the user's approval" that contradicted a standing promise the body still made (#1445).
+
+**After relocating, diff each reference against the body and delete from the reference every gate, condition, or confirmation the body still owns — before the eval, not after.** The body's copy is the one that stays, because it must fire without a read; the reference names what it supplies to the gate instead of restating it. The eval will not catch it: both copies say the same thing on the day you write them, so the run behaves correctly. What it costs is later, when one copy gets fixed and the other does not.
+
+That is not hypothetical. In #1449 a cross-model eval found a rule that needed a precondition; the precondition went into the body, the stale copy stayed in the reference, and the reference kept a live path to the exact defect the fix had just closed. One rule, one place.
+
+### A hoisted rule reads against its new neighbors
+
+**Pulling procedure out of the body changes what sits beside what, and a rule that was unambiguous mid-phase can read as license against a boundary it now borders.** In #1449 the regression-test-selection rule ("update an existing test when it owns the contract but has the wrong expectation") moved from inside Phase 1.1 up into the always-loaded gates, where it landed a few lines from the `mode:pipeline` convergent/divergent boundary. Codex quoted that clause, rewrote a test asserting a product behavior the PR deliberately reversed, and returned `fixed-and-pushed` — the divergent change pipeline mode exists to defer. Claude and Grok deferred correctly on the same body; the collision was reachable, not certain.
+
+The fix was one sentence naming the rule's precondition where it now sits (a *confirmed defect*, and a test the change deliberately reverses is not a wrong expectation), after which all three harnesses deferred. **Re-read every rule the restructure moved next to a boundary, against its new neighbors.**
+
+### A size-driven restatement overshoots into an absolute
+
+**When a byte budget forces a rule to be restated shorter, the short form tends to come out absolute — and an absolute forbids paths the original allowed.** The tell is a sentence qualified twice: it was added to close one finding, and a later finding lands on the addition itself.
+
+`ce-optimize` (#1456) ran that loop in two rounds on one sentence. The condensed phase list said no phase is skipped, which would have let a resume re-enter Phase 1 and overwrite the baseline checkpoint. The fix added "never re-entering an earlier phase" — which then read as forbidding the Phase 0.4 scan that recovers `result.yaml` markers the log is missing, losing measured experiments after a crash. Opposite failures, same sentence, one round apart.
+
+Neither round's wording was the condition. "Do not re-enter a phase" was a proxy for "do not redo a completed checkpoint", and only the proxy broke. Restated as the condition — re-enter Phase 0 far enough to detect the run and recover missing markers, then continue from the phase the log records, **never redoing a phase whose checkpoint already exists** — one sentence covers both paths.
+
+**On the second round against one sentence, stop shortening it and state the condition it was a proxy for**, even when that costs bytes the budget does not have. Pay for those bytes by deleting what the restatement makes redundant elsewhere — in #1456 the restated resume rule made Phase 0's run-identity rationale redundant, which covered the difference.
+
+### Pointer-following, measured
+
+The first restructure asked whether models actually follow a body pointer into a reference. Across 44 scored runs in this sweep with a `FILES_READ` line, on five restructured skills:
+
+| Harness | runs | opened >= 1 reference | distinct references opened |
+|---|---:|---:|---:|
+| Claude Code | 14 | 11 | 18 |
+| Codex CLI | 15 | 13 | 36 |
+| Grok CLI | 15 | 13 | 30 |
+
+Every run that opened none was the same scenario — `ce-retune`'s Phase 0 refusal, which correctly stops before any reference is needed. **No run failed to open a reference it needed, on any harness**, and Codex opened the most. Pointer-following is not the risk; what is stated in the reference, and whether the body still states it too, is.
+
+This does not weaken `post-menu-routing-belongs-inline.md` (#714): always-on routing that must fire after a menu still belongs in the body, and `ce-debug`'s Phase 4 routing stayed inline for that reason. The measurement says a *required read named at the point of use* is reliably followed; it says nothing about a reference an agent was told about once, far from where it matters.
+
+### The floor is shared blocks, not prose
+
+`ce-debug` could not reach 8,000 at any level of prose compression: the `## Setup` context fence (1,420), the `ce-docs-root` parity block (920), and the Phase 4 routing block that #714 requires inline (3,733) are 6,073 bytes before the skill says anything of its own. Compressing everything else lands near 12,000. **When a skill cannot reach the cap, say so with the floor measured and name which shared contract would have to change** — do not gut a pinned safety block to hit a number. #1452 then took 220 bytes off the fence for all fifteen skills that carry it, which is the corpus-wide version of the same lever.
+
 ## What did not work / traps
 
+- Compressing sentences to fit. Nine bodies in the 2026-08-18 sweep landed within 35 bytes of the cap by fusing clauses, dropping articles, and packing rules into one sentence; an independent reader flagged dense or meaning-shifted sentences in thirteen of nineteen, and one rewrite inverted a safety guard. A PR that only compressed a shared paragraph across fifteen skills (#1452) was rejected as unreadable. Savings come from relocating a block or deleting redundancy; if the body is still over after plain rewriting, move another block, and land with room to spare.
 - Trusting Grok's "the cap doesn't apply, don't do it" as a stop. It was right about the shipping path and wrong about the goal; the user's call was to proceed. Verify premises, keep the findings.
 - Concatenating *every* body grep into a corpus grep. It passes and deletes the guarantee. Split by load-time.
 - Deleting "Settled != merged", the ask-tool list, the `ce-debug` enum, and "never declare non-convergence yourself" as "obvious". Two of them are contract-pinned; all four have provenance in the file's history.

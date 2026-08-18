@@ -169,8 +169,8 @@ describe("ce-prototype protocol", () => {
       "The floor must state that avenues differ by organizing principle, so a palette or typeface swap is not counted as a second avenue.",
     ).toBe(true)
     expect(
-      /SKILL\.md/.test(CRAFT_FLOOR_BODY),
-      "The avenue rule must cite the wide-run rule in SKILL.md rather than restating it — two independent copies drift.",
+      /references\/scoping\.md/.test(CRAFT_FLOOR_BODY),
+      "The avenue rule must cite the wide-run rule where it lives (references/scoping.md) rather than restating it — two independent copies drift.",
     ).toBe(true)
   })
 
