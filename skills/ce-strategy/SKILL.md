@@ -30,6 +30,8 @@ Any argument this skill was invoked with — present in the current prompt or co
 
 Read `references/grounding.md` first - a non-optional load. It owns the file read, the repo model and its two inputs, what to show the user before the first question, and how an invocation argument is read as a focus hint.
 
+Whatever the harness reads, Phase 0 ends the same way. Before the first question, show the user the repo model you built - what you take the product to be, who it seems to serve, and where attention has gone, each with its source named - and invite correction. If it did not supply the product's name, ask for that here; the template's frontmatter and title need it. A repo with no substantive content is a normal path: say so in one line and run the interview ungrounded.
+
 Then announce the path in one line and route by file state: no file -> Phase 1 ("Strategy doc not found - let's write it."); file exists -> Phase 2 ("Found existing strategy - let's review and update.").
 
 ## Phase 1: First-run interview
