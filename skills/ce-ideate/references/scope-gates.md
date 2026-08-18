@@ -64,8 +64,6 @@ The user can correct at any point by interrupting and re-invoking with a named s
 
 Do not resolve or create the artifact root before mode is classified — an elsewhere or no-repo run never needs it.
 
-Do not resolve or create the artifact root before mode is classified — an elsewhere or no-repo run never needs it.
-
 Classify the **subject of ideation** (settled in 0.2) into one of three modes for dispatch routing. A user inside any repo can ideate about something unrelated to that repo; a user in `/tmp` can ideate about code they hold in their head.
 
 **Surprise-me short-circuit.** In surprise-me mode, skip the two decisions below and the ambiguity-confirmation step; apply the 0.2 table's `0.3 mode` row. State the chosen mode in one sentence and proceed to 0.4.

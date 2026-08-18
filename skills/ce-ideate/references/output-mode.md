@@ -8,7 +8,6 @@ Determine `OUTPUT_FORMAT` for the ideation artifact this run might persist. Outp
 
 Unlike `ce-plan` and `ce-brainstorm` (which default to `md`), ce-ideate defaults to **`html`** — ideation artifacts are read mainly by humans weighing candidate directions, and a rich self-contained HTML file makes the ideas easier to approach.
 
-<!-- ce-config-layers:start -->
 **Read config.** Resolve `<repo-root>` with `git rev-parse --show-toplevel`, then apply the ordinary-key cascade block in `SKILL.md`. Read both files when they exist. If the root cannot be resolved, fall through to the defaults below.
 
 Resolution steps:
