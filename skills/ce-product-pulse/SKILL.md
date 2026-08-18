@@ -64,12 +64,7 @@ This skill writes pulse reports under `<root>/pulse-reports/`. Resolve `<root>` 
 
 Resolve `<repo-root>` with `git rev-parse --show-toplevel`, then apply the ordinary-key rule above to the `pulse_*` keys. Read `references/config.md` whenever a `pulse_*` value has to be interpreted — it is the key schema and nothing else: each key, its allowed values, and its default, with an unset or invalid value taking the documented default rather than being guessed.
 
-**Routing:**
-
-- **`pulse_product_name` is unset after cascade**, or the repo root cannot be resolved -> First run. Go to Phase 1, then Phase 2.
-- **`pulse_product_name` is set** -> Skip to Phase 2.
-
-If the argument was `setup`, `reconfigure`, or `edit config`, go to Phase 1 regardless of config state.
+**Routing:** every run ends in Phase 2. Run Phase 1 first when `pulse_product_name` is unset after cascade, when the repo root cannot be resolved, or when the argument was `setup`, `reconfigure`, or `edit config`. Otherwise start at Phase 2.
 
 ## Phase 1: First-run interview
 
