@@ -9,7 +9,7 @@ For each section: ask the opening question, evaluate the answer against the qual
 1. **Push back, but don't spiral.** One round of pushback per section max. If the second answer still isn't usable, capture what the user gave, flag it in the config as `needs-review`, and move on.
 2. **Name events in the user's own words.** The config will be readable by the whole team - use the terms they actually use, not a generic template.
 3. **Ask about tools, not credentials.** The interview captures *which* tool and *what shape of query*. It does not collect API keys, tokens, or database passwords. Those stay in the user's environment.
-4. **Honor strategy seeds.** If the strategy seeding in `references/setup.md` surfaced a product name or a list of key metrics from `STRATEGY.md`, start with those as defaults and let the user edit. Do not re-ask questions that the strategy doc already answered unambiguously.
+4. **Honor strategy seeds.** If the strategy seeding in `references/setup.md` surfaced a product name or a list of key metrics from the strategy doc it read, start with those as defaults and let the user edit. Do not re-ask questions that the strategy doc already answered unambiguously.
 5. **Evaluate metrics against the SMART bar.** Every event, metric, and signal the user proposes should be:
    - **Specific** - a named event or a named metric, not a category. `message_sent` passes; "engagement" does not.
    - **Measurable** - you can point to the tool and query that returns a number. "Users like it" does not pass; "NPS score from Delighted" does.

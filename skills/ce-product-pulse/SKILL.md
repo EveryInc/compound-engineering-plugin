@@ -73,7 +73,7 @@ If the argument was `setup`, `reconfigure`, or `edit config`, go to Phase 1 rega
 
 ## Phase 1: First-run interview
 
-Read `references/setup.md` first — a non-optional load. It owns the `STRATEGY.md` seeding, the interview order and its pushback bar, the read-write database refusal, how the config is written to `config.local.yaml` without disturbing other keys, and the one-time scheduling offer. The questions themselves come from `references/interview.md`, which that file names as its own required read.
+Read `references/setup.md` first — a non-optional load. It owns the strategy-doc seeding, the interview order and its pushback bar, the read-write database refusal, how the config is written to `config.local.yaml` without disturbing other keys, and the one-time scheduling offer. The questions themselves come from `references/interview.md`, which that file names as its own required read.
 
 ## Phase 2: Run the pulse
 

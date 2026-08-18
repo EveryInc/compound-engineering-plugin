@@ -4,14 +4,14 @@ Required read on a first run or a `setup`/`reconfigure`/`edit config` run. Key d
 
 ## Seed from strategy (if available)
 
-Before asking any questions, read `STRATEGY.md` using the native file-read tool. If the file exists, extract:
+Before asking any questions, read the strategy doc with the native file-read tool - `STRATEGY.md`, or when it is absent the first of `VISION.md`, `PRODUCT.md` (in that order) that exists; readers accept the legacy names while other tools converge on `STRATEGY.md`. Every setup and every report resolves the doc this way from current files, so the source never depends on a prior run. If a doc exists, extract:
 
-- The product name from the `name` key in the YAML frontmatter, falling back to the H1 title (stripping the trailing ` Strategy` suffix, e.g., `# Spiral Strategy` -> `Spiral`) if frontmatter is missing
-- The list of key metrics from the `## Key metrics` section, one per line
+- The product name from the `name` key in the YAML frontmatter, falling back to the H1 title (stripping the trailing ` Strategy` suffix, e.g., `# Spiral Strategy` -> `Spiral`) if frontmatter is missing. `STRATEGY.md` is the agreed shared project doc and may carry neither, in which case take the name from the README or repository and confirm it in the interview.
+- The list of key metrics, one per line, from the section that carries them: `## Key metrics` when `ce-strategy` wrote it, otherwise whichever section of a shared or hand-written file lists the success measures (go by meaning, since headings vary by writer). When `STRATEGY.md` carries no metrics but points to a legacy sibling doc (`VISION.md`, `PRODUCT.md`) for content it defers, read the metrics from there. When no section anywhere carries them, treat them as not yet on file and say so.
 
-Open the interview by surfacing what was extracted: announce that a strategy doc was found, show the seeded product name and the list of key metrics that will be carried into event/data setup, and invite the user to correct any of it before continuing.
+Open the interview by surfacing what was extracted: name the doc that was read, show the seeded product name and the list of key metrics that will be carried into event/data setup, and invite the user to correct any of it before continuing.
 
-If `STRATEGY.md` does not exist, note that explicitly in chat: no strategy doc on file, running setup from scratch, and mention that `ce-strategy` can seed pulse later if run first.
+If none of those docs exists, note that explicitly in chat: no strategy doc on file, running setup from scratch, and mention that `ce-strategy` can seed pulse later if run first.
 
 ## Interview
 
