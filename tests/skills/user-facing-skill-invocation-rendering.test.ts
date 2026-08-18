@@ -164,9 +164,9 @@ describe("user-facing skill invocation rendering", () => {
     const debug = readRepoFile("skills/ce-debug/SKILL.md")
     expect(debug).toContain("control has transferred to `ce-brainstorm`")
 
-    const optimize = readRepoFile("skills/ce-optimize/SKILL.md")
-    expect(optimize).toContain("**Run `ce-code-review`**")
-    expect(optimize).toContain("**Run `ce-compound`**")
+    const optimizeWrapUp = readRepoFile("skills/ce-optimize/references/wrap-up.md")
+    expect(optimizeWrapUp).toContain("**Run `ce-code-review`**")
+    expect(optimizeWrapUp).toContain("**Run `ce-compound`**")
   })
 
   test("static ce-optimize examples use host-neutral capability wording", () => {

@@ -43,7 +43,7 @@ The scratch space under `.context/` is gitignored: it survives a local resume bu
 
 | File | Purpose | Written When |
 |------|---------|-------------|
-| `spec.yaml` | Optimization spec (immutable during run) | Phase 0 (CP-0) |
+| `spec.yaml` | Optimization spec (fixed once the Phase 1 approval gate is cleared) | Phase 0 (CP-0) |
 | `experiment-log.yaml` | Full history of all experiments | Initialized at CP-1, appended at CP-3, updated at CP-4 |
 | `strategy-digest.md` | Compressed learnings for hypothesis generation | Written at CP-4 after each batch |
 | `<worktree>/result.yaml` | Per-experiment crash-recovery marker | Immediately after measurement, before CP-3 |
