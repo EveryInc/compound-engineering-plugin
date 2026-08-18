@@ -46,16 +46,7 @@ bash "$SKILL_DIR/scripts/<name>"
 
 ### 1.1 Clean-Tree Gate
 
-Verify no uncommitted changes to files within `scope.mutable` or `scope.immutable`:
-
-```bash
-git status --porcelain
-```
-
-Filter the output against the scope paths. If any in-scope files have uncommitted changes:
-- Report which files are dirty
-- Ask the user to commit or stash before proceeding
-- Do NOT continue until the working tree is clean for in-scope files
+The body owns this gate. Run `git status --porcelain`, filter the output against `scope.mutable` and `scope.immutable`, and apply the body's rule to the result.
 
 ### 1.2 Build or Validate Measurement Harness
 
@@ -138,24 +129,6 @@ If count + `execution.max_concurrent` would exceed 12:
 
 ### 1.7 User Approval Gate
 
-Present to the user via the platform question tool:
-
-- **Baseline metrics**: all gate values, diagnostic values, and judge scores (if applicable)
-- **Experiment log location**: show the file path so the user knows where results are saved
-- **Parallel readiness**: probe results, any blockers, mitigations applied
-- **Clean-tree status**: confirmed clean
-- **Worktree budget**: current count and projected usage
-- **Judge budget**: estimated per-experiment judge cost and configured `max_total_cost_usd` cap (or an explicit note that spend is uncapped)
-
-**Options:**
-1. **Proceed** -- approve baseline and parallel config, move to Phase 2
-2. **Adjust spec** -- modify spec settings before proceeding
-3. **Fix issues** -- user needs to resolve blockers first
-
-Do NOT proceed to Phase 2 until the user explicitly approves.
-
-If primary type is `judge` and `max_total_cost_usd` is null, call that out as uncapped spend and require explicit approval before proceeding.
-
-**State re-read:** After gate approval, re-read the spec and baseline from disk. Do not carry stale in-memory values forward.
+The body owns this gate — what is presented, the three options, the uncapped-spend disclosure, and the rule that Phase 2 does not start without explicit approval. What this phase supplies to it: the baseline's gate values, diagnostic values, and judge scores; the experiment log path; the probe results with any blockers and mitigations; the clean-tree confirmation; the worktree count and projection; and the estimated per-experiment judge cost against the configured cap.
 
 ---

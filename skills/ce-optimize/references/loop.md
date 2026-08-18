@@ -27,14 +27,7 @@ Aim for 10-30 hypotheses in the initial backlog. More can be generated during th
 
 ### 2.3 Dependency Pre-Approval
 
-Collect all unique new dependencies across all hypotheses.
-
-If any hypotheses require new dependencies:
-1. Present the full dependency list to the user via the platform question tool
-2. Ask for bulk approval
-3. Mark each hypothesis's `dep_status` as `approved` or `needs_approval`
-
-Hypotheses with unapproved dependencies remain in the backlog but are skipped during batch selection. They are re-presented at wrap-up for potential approval.
+The body owns this gate. Record its outcome on each hypothesis as `dep_status: approved` or `needs_approval`, which is what batch selection reads.
 
 ### 2.4 Record Hypothesis Backlog (CP-2)
 
@@ -212,16 +205,7 @@ After all experiments in the batch have been measured:
 
 ### 3.6 Check Stopping Criteria
 
-Stop the loop if ANY of these are true:
-- **Target reached**: `stopping.target_reached` is true, `metric.primary.target` is set, and the primary metric reaches that target according to `metric.primary.direction` (`>=` for `maximize`, `<=` for `minimize`)
-- **Max iterations**: total experiments run >= `stopping.max_iterations`
-- **Max hours**: wall-clock time since Phase 3 start >= `stopping.max_hours`
-- **Judge budget exhausted**: cumulative judge spend >= `metric.judge.max_total_cost_usd` (if set)
-- **Plateau**: no improvement for `stopping.plateau_iterations` consecutive experiments
-- **Manual stop**: user interrupts (save state and proceed to Phase 4)
-- **Empty backlog**: no hypotheses remain and no new ones can be generated
-
-If no stopping criterion is met, proceed to the next batch (step 3.1).
+The body owns the criteria. Two details they are evaluated against: "target reached" also requires `stopping.target_reached` true and `metric.primary.target` set, with `>=` for `maximize` and `<=` for `minimize`; and max-hours is wall-clock since Phase 3 started, not since the invocation. If none is met, proceed to the next batch (3.1).
 
 ### 3.7 Cross-Cutting Concerns
 

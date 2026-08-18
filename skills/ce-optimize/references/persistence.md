@@ -1,6 +1,6 @@
 # Persistence: the rules, the checkpoints, and resume
 
-Read this before Phase 0 and follow it for the whole run. The body states the invariant — the log on disk is the source of truth and nothing is shown to the user before it is written and verified — and this file carries the rules that implement it, the checkpoint table, the file layout, and the resume procedure.
+Read this before Phase 0 and follow it for the whole run. The body states the invariant and names the six checkpoints; this file carries the rules that implement them, the checkpoint table, the file layout, and the resume procedure.
 
 ### Core Rules
 
