@@ -31,26 +31,26 @@ GitHub only — **including GitHub Enterprise**, which the mode references handl
 
 | Argument | Mode |
 |----------|------|
-| No argument | **Full** -- all unresolved threads on the current branch's PR |
-| PR number (e.g., `123`) | **Full** -- all unresolved threads on that PR |
-| PR URL (e.g., `https://HOST/OWNER/REPO/pull/123`, no comment fragment) | **Full** -- all unresolved threads on that PR; parse `HOST`, `OWNER/REPO`, and the number from the URL (this is how `ce-babysit-pr` hands a fork→upstream PR to full mode against the right host/base) |
+| No argument | **Full** -- all unresolved feedback on the current branch's PR |
+| PR number (e.g., `123`) | **Full** -- all unresolved feedback on that PR |
+| PR URL (e.g., `https://HOST/OWNER/REPO/pull/123`, no comment fragment) | **Full** -- all unresolved feedback on that PR; parse `HOST`, `OWNER/REPO`, and the number from the URL (this is how `ce-babysit-pr` hands a fork→upstream PR to full mode against the right host/base) |
 | Review-comment URL (a `pull/123#discussion_r...` fragment — a diff/review-thread comment) | **Targeted** -- only that specific review thread |
 | Issue-comment URL (a `pull/123#issuecomment-...` fragment — a top-level PR comment) | **Full** -- a top-level comment has no review thread to resolve; process the PR and address it as non-thread feedback |
 
-**Distinguishing the URL shapes**: a bare `/pull/N` URL **or** an `#issuecomment-` (top-level) fragment routes to **Full**; only a `#discussion_r` (review/diff-thread) fragment is **Targeted**. Targeted mode resolves a review thread via `repos/OWNER/REPO/pulls/comments/COMMENT_ID`, which only exists for diff comments — an issue comment sent there 404s, so it must go to Full.
+Only a `#discussion_r` fragment is **Targeted**: that mode resolves a thread via `repos/OWNER/REPO/pulls/comments/COMMENT_ID`, which exists only for diff comments — an `#issuecomment-` ID sent there 404s.
 
 **Targeted mode**: When a comment/thread URL is provided, ONLY address that feedback. Do not fetch or process other threads.
 
 After determining mode, read the matching reference and follow it; each is self-contained for that mode:
 
-- **Full Mode** → `references/full-mode.md` (9 steps: fetch, triage, consolidate & decide (the gate), parallel fix, validate, commit/push, reply/resolve, verify, summary)
+- **Full Mode** → `references/full-mode.md` — covers all three feedback surfaces (inline review threads, review submission bodies, top-level PR comments), which differ only in whether GitHub can resolve them, never in whether they are judged (9 steps: fetch, triage, consolidate & decide (the gate), parallel fix, validate, commit/push, reply/resolve, verify, summary)
 - **Targeted Mode** → `references/targeted-mode.md` (2 steps: extract thread context from URL, then judge/fix/reply/resolve via the same validate/commit/push/reply pipeline)
 - Evaluation rubric → `references/evaluation-rubric.md` (the orchestrator reads this to judge each item before any fix is dispatched)
 - Fixer prompt asset → `references/agents/pr-comment-resolver.md` (read before dispatching fixer subagents for approved fixes; do not dispatch a standalone agent by type/name)
 
 ## Success Criteria
 
-- All unresolved review threads evaluated
+- Every unresolved item evaluated, across all three surfaces
 - Valid fixes committed and pushed
 - Each thread replied to with quoted context
 - Threads resolved via GraphQL (except `needs-human`)

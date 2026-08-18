@@ -40,10 +40,10 @@ fi
 #   review_threads   - unresolved inline review threads, edge-wrapped as
 #                      [{ node: { id, isResolved, isOutdated, path, line, ...,
 #                                 comments: { nodes: [...] } } }]
-#   pr_comments      - non-empty top-level PR conversation comments, excluding
-#                      messages from the known PR author
-#   review_bodies    - non-empty review submission bodies, with the same
-#                      structural filtering as pr_comments
+#   pr_comments      - non-empty top-level PR conversation comments
+#   review_bodies    - non-empty review submission bodies
+#   pr_author        - the PR author's login, or null
+#   viewer           - the acting account's login, or null
 #
 # Pagination (issue #798): each top-level connection -- reviewThreads,
 # comments, reviews -- is fetched in its own paginated query because
@@ -57,9 +57,13 @@ fi
 #
 # Content, identity, and surface are evidence for the resolver, not deterministic
 # exclusions. CI/status bots can carry actionable setup or posting failures, and
-# automation identities can transport human-authored reviews. Keep this fetch
-# limited to structural loop-prevention facts: blank bodies and messages known
-# to come from the PR author. If the PR author is unavailable, fail open.
+# automation identities can transport human-authored reviews -- and an author
+# posting on their own PR is the ordinary way a human asks an agent-opened PR
+# for a change (#1435 eval: every run silently dropped "please rename check_id"
+# because this fetch excluded it before the skill could judge it). So the only
+# exclusion here is a blank body; `pr_author` and `viewer` are reported so the
+# resolver can weigh identity as evidence, including recognizing its own prior
+# replies as already-handled.
 
 tmp_threads=$(mktemp "${TMPDIR:-/tmp}/ce-pr-threads.XXXXXX")
 tmp_comments=$(mktemp "${TMPDIR:-/tmp}/ce-pr-comments.XXXXXX")
@@ -159,9 +163,9 @@ jq -n \
       | .id) // null),
     review_threads: [$unresolved[] | { node: . }],
     pr_comments: [$all_comments[]
-      | select(($author.login == null) or (.author.login != $author.login))
       | select((.body // "") | test("^\\s*$") | not)],
     review_bodies: [$all_reviews[]
-      | select(($author.login == null) or (.author.login != $author.login))
-      | select((.body // "") | test("^\\s*$") | not)]
+      | select((.body // "") | test("^\\s*$") | not)],
+    pr_author: ($author.login // null),
+    viewer: ($viewer // null)
   }'

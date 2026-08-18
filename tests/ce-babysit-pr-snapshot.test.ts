@@ -2831,11 +2831,13 @@ m.cmd_snapshot(args)
     expect(d2.open_needs_human).toBe(1) // parked comment blocks merge-ready just like a parked thread
   })
 
-  test("_extract_feedback surfaces every non-empty external body for agent judgment", () => {
+  test("_extract_feedback surfaces every non-empty body, the PR author's included", () => {
     const v = {
       author: { login: "me" },
       comments: [
-        { id: "c-me", author: { login: "me" }, body: "my own note" }, // author -> excluded
+        // The PR author's own top-level ask is how a human requests a change on an agent-opened
+        // PR. Excluding it here kept the tick from ever invoking ce-resolve-pr-feedback for it.
+        { id: "c-me", author: { login: "me" }, body: "please rename check_id to validate_id" },
         { id: "c-cov", author: { login: "codecov[bot]" }, body: "coverage -0.1%" },
         { id: "c-wrapper", author: { login: "chatgpt-codex-connector" }, body: CODEX_WRAPPER },
         { id: "c-near-match", author: { login: "chatgpt-codex-connector" }, body: `${CODEX_WRAPPER}\n\nP1: Preserve this appended actionable finding.` },
@@ -2851,7 +2853,7 @@ m.cmd_snapshot(args)
       ],
     }
     expect(extractFeedback(v).map((f: any) => f.id).sort()).toEqual([
-      "c-claude", "c-cov", "c-ghost", "c-near-match", "c-wrapper", "r-codex", "r-cr", "r-wrapper",
+      "c-claude", "c-cov", "c-ghost", "c-me", "c-near-match", "c-wrapper", "r-codex", "r-cr", "r-wrapper",
     ])
   })
 

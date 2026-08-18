@@ -28,14 +28,17 @@ GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/get-pr-comments" PR_NUMBER OWNER
 
 **Pass the base `OWNER/REPO`** (parsed from the PR URL, when one was given) as the second arg. `get-pr-comments` otherwise falls back to `gh repo view` in the *current checkout* — so for a fork→upstream PR handed in as a URL, omitting it would fetch review feedback from the fork (or fail) instead of the upstream base repo. Every `get-pr-comments` call below (fetch and verify) takes the same `OWNER/REPO`.
 
-Returns a JSON object with four keys:
+Returns a JSON object with these keys:
 
 | Key | Contents | Has file/line? | Resolvable? |
 |-----|----------|---------------|-------------|
 | `pending_review` | Node ID of your own unsubmitted (PENDING) review on this PR, or `null` | n/a | n/a |
 | `review_threads` | Unresolved inline code review threads (includes outdated; each carries its `isOutdated` flag so line drift can be accounted for) | Yes | Yes (GraphQL) |
-| `pr_comments` | Top-level PR conversation comments (excludes PR author) | No | No |
-| `review_bodies` | Review submission bodies with non-empty text (excludes PR author) | No | No |
+| `pr_comments` | Top-level PR conversation comments | No | No |
+| `review_bodies` | Review submission bodies with non-empty text | No | No |
+| `pr_author` / `viewer` | The PR author's login and the acting account's login, for judging identity in step 2 | n/a | n/a |
+
+**All three feedback surfaces are in scope.** `review_threads`, `pr_comments`, and `review_bodies` are judged the same way in step 3; only the reply and resolve mechanics differ (step 7). The fetch excludes nothing by identity — a top-level comment from the PR author is the ordinary way a human asks for a change on an agent-opened PR, so it is feedback like any other.
 
 **Stop here if `pending_review` is non-null.** Thread replies posted while you hold an unsubmitted review are absorbed into that draft: the reply call returns a comment ID and URL as if it succeeded, but nothing is visible to the reviewer until the draft is submitted. Do not proceed into steps 2-8 — the fixes would land while every reply silently disappeared. Tell the user they have an unsubmitted review on the PR, that it must be submitted or discarded before this skill can reply, and stop. Do not submit or discard it yourself; a draft review is unsent human writing.
 
@@ -53,12 +56,12 @@ Before processing, classify each piece of feedback as **new** or **already handl
 
 **PR comments and review bodies**: These have no resolve mechanism, so they reappear on every run. Apply two filters in order:
 
-1. **Actionability**: Skip items that contain no actionable feedback or questions to answer. Examples: review wrapper text ("Here are some automated review suggestions..."), approvals ("this looks great!"), status badges ("Validated"), CI summaries with no follow-up asks. If there's nothing to fix, answer, or decide, it's not actionable -- drop it from the count entirely.
+1. **Actionability**: An item is actionable when it is someone's open request to this PR — something to fix, answer, or decide. This is also what keeps the run from looping on its own output: a reply posted by this run or an earlier one is a record of handling, not a request, so it drops here whether it reports a fix or carries a parked `needs-human` decision — that parked item is already tracked as itself, and re-reading its own write-up as fresh feedback is how the loop would never settle. Who posted an item never decides this, including the account that opened the PR. Examples: review wrapper text ("Here are some automated review suggestions..."), approvals ("this looks great!"), status badges ("Validated"), CI summaries with no follow-up asks. If there's nothing to fix, answer, or decide, it's not actionable -- drop it from the count entirely.
 2. **Already replied**: For actionable items, check the PR conversation for an existing reply that quotes and addresses the feedback. If a reply already exists, skip. If not, it's new.
 
 The distinction is about content, not who posted what. A deferral from a teammate, a previous skill run, or a manual reply all count. Similarly, actionability is about content -- bot feedback that requests a specific code change is actionable; a bot's boilerplate header wrapping those requests is not.
 
-**Silent drop.** Non-actionable items are dropped without narration. Do not announce, list, or count dropped items in conversation, the task list, or the step 9 summary. Review-bot wrappers from CodeRabbit, Codex, Gemini Code Assist, and Copilot (bodies like "Here are some automated review suggestions...") commonly appear here -- recognize them by their boilerplate content, drop silently. The fetch layer pre-filters only blank bodies and messages from the known PR author. All external identities and surfaces, including CI/status bots such as Codecov, rely on this content-aware check so identity reuse or format changes cannot silently hide actionable feedback.
+**Silent drop.** Non-actionable items are dropped without narration. Do not announce, list, or count dropped items in conversation, the task list, or the step 9 summary. Review-bot wrappers from CodeRabbit, Codex, Gemini Code Assist, and Copilot (bodies like "Here are some automated review suggestions...") commonly appear here -- recognize them by their boilerplate content, drop silently. The fetch layer pre-filters only blank bodies. Every identity and surface — the PR author, CI/status bots such as Codecov, review bots — relies on this content-aware check, so identity reuse or format changes cannot silently hide actionable feedback.
 
 If there are no new items across all feedback types, skip steps 3-8 and go straight to step 9.
 

@@ -36,6 +36,14 @@ describe("ce-resolve-pr-feedback scripts paginate GraphQL connections (issue #79
     expect(body).not.toContain('["codecov"]')
   })
 
+  test("get-pr-comments excludes non-thread feedback only for a blank body", () => {
+    // Identity is evidence for the resolver, not a fetch-time exclusion.
+    const body = read("get-pr-comments")
+    expect(body).not.toContain("!= $author.login")
+    expect(body).toContain("pr_author:")
+    expect(body).toContain("viewer:")
+  })
+
   test("get-pr-comments uses --paginate for every top-level connection", () => {
     const body = read("get-pr-comments")
     const paginateCount = (body.match(/gh api graphql --paginate\b/g) ?? []).length
@@ -196,7 +204,7 @@ describe("ce-resolve-pr-feedback scripts paginate GraphQL connections (issue #79
             comments: {
               nodes: [
                 { id: "pc1", author: { login: "reviewer" }, body: "top-level note" },
-                { id: "pc2", author: { login: "author" }, body: "author reply" },
+                { id: "pc2", author: { login: "author" }, body: "please rename check_id to validate_id" },
                 { id: "pc3", author: { login: "bot" }, body: "   " },
               ],
               pageInfo: { hasNextPage: false, endCursor: null },
@@ -267,11 +275,20 @@ fi
       )
 
       expect(result.status, result.stderr).toBe(0)
+      // pc2 is a top-level ask posted by the PR author -- the ordinary way a human
+      // requests a change on an agent-opened PR. It must survive the fetch: excluding
+      // it by identity left Full Mode's judgment rule with no input, and every run
+      // silently dropped the request (#1435 eval). Only a blank body (pc3) is filtered.
       expect(JSON.parse(result.stdout)).toEqual({
         pending_review: "pending-1",
         review_threads: [{ node: unresolved }],
         pr_comments: [
           { id: "pc1", author: { login: "reviewer" }, body: "top-level note" },
+          {
+            id: "pc2",
+            author: { login: "author" },
+            body: "please rename check_id to validate_id",
+          },
         ],
         review_bodies: [
           {
@@ -281,6 +298,8 @@ fi
             state: "COMMENTED",
           },
         ],
+        pr_author: "author",
+        viewer: "resolver",
       })
     } finally {
       rmSync(dir, { recursive: true, force: true })
