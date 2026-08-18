@@ -45,16 +45,17 @@ The skill's final output in pipeline mode is machine-readable (the caller parses
 
 ```json
 {
-  "status": "fixed-and-pushed | diagnosed-no-fix | flaky-infra | needs-human",
+  "status": "fixed-and-pushed | fixed-not-pushed | diagnosed-no-fix | flaky-infra | needs-human",
   "summary": "<one line: what happened>",
   "root_cause": "<causal chain, brief>",
   "changed_files": ["..."],
-  "head_sha": "<sha after push, when fixed-and-pushed>",
+  "head_sha": "<sha of the fix commit, when fixed-and-pushed or fixed-not-pushed>",
   "residuals": [ { "title": "...", "decision_context": "...", "thread": "<url|null>" } ]
 }
 ```
 
-- `fixed-and-pushed` — a convergent fix was applied, tests pass, committed and pushed.
+- `fixed-and-pushed` — a convergent fix was applied, tests pass, committed, and the push succeeded.
+- `fixed-not-pushed` — the same fix is applied and committed locally, but the push did not happen: no remote, no push access, or the caller's envelope excludes pushing. `head_sha` is the local commit; the first residual says why the push did not happen. Never report this as `fixed-and-pushed` (the caller re-snapshots a remote head that has not moved) or as `diagnosed-no-fix` (the fix is applied).
 - `flaky-infra` — a flake or infrastructure failure, not a code defect (the caller may retry).
 - `needs-human` — the failure requires a divergent/product decision; nothing applied; see `residuals`.
 - `diagnosed-no-fix` — root cause found but no safe convergent fix available this run; see `residuals`.
