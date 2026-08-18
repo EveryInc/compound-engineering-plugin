@@ -3808,6 +3808,43 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     expect(wake.downstack_prs).toEqual([7])
   })
 
+  test("downstack probe: a lower-layer head change alone wakes; an unrequested-base-merge residual does not re-wake after re-arm", async () => {
+    const quietUpper = {
+      ...FAILING, merge_state_status: "BLOCKED", review_decision: null,
+      checks: [{ key: "CI/test", name: "test", status: "IN_PROGRESS", conclusion: null, details_url: "u" }],
+      threads: [], head_sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    }
+    const upperFile = fetchFile(dir, "upper2.json", quietUpper)
+    const lowerQuiet = { pr_state: "OPEN", head_sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", threads: [], feedback: [],
+      checks: [{ key: "CI/test", status: "COMPLETED", conclusion: "SUCCESS" }] }
+    const lowerFile = fetchFile(dir, "lower2.json", lowerQuiet)
+    snapshot(state, upperFile, ["--start-invocation"])
+    const { child, result } = startWatch(state, upperFile, ["--downstack-pr", "7", "--downstack-fetch-file", `7=${lowerFile}`, "--interval", "0.2"])
+    await waitForWatchGeneration(state)
+    await Bun.sleep(400)
+    expect(child.exitCode).toBeNull()
+    writeFileSync(lowerFile, JSON.stringify({ ...lowerQuiet, head_sha: "cccccccccccccccccccccccccccccccccccccccc" }))
+    const out = await Promise.race([result, Bun.sleep(4000).then(() => null)])
+    expect(out).not.toBeNull()
+    expect(JSON.parse(out!.stdout.trim().split("\n").pop()!).reason).toBe("downstack-actionable")
+
+    // Residual suppression: an unrequested_base_merge present at arm time is in the baseline.
+    const flagged = { ...quietUpper, checks: [], head_sha: "dddddddddddddddddddddddddddddddddddddddd",
+      base: { host: "github.com", repository: "o/r", ref: "main", oid: "2222222222222222222222222222222222222222",
+        graphql_oid: "2222222222222222222222222222222222222222", identity: "current" },
+      head_parents: ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "2222222222222222222222222222222222222222"] }
+    const s2 = path.join(dir, "ubm-rearm")
+    snapshot(s2, fetchFile(dir, "ubm-r1.json", { ...quietUpper, checks: [] }), ["--start-invocation"])
+    const flaggedFile = fetchFile(dir, "ubm-r2.json", flagged)
+    expect(snapshot(s2, flaggedFile).unrequested_base_merge).not.toBeNull()
+    const w2 = startWatch(s2, flaggedFile, ["--interval", "0.2"])
+    await waitForWatchGeneration(s2)
+    await Bun.sleep(700)
+    expect(w2.child.exitCode).toBeNull()   // did not immediately re-wake on the already-surfaced residual
+    w2.child.kill()
+    await w2.result
+  })
+
   test("unrequested base merge: a claimed DIRTY repair that observed its mutation is not flagged", () => {
     const fixture = currencyFixture({ merge_state_status: "DIRTY", mergeable: "CONFLICTING",
       head_sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

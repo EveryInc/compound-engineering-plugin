@@ -2297,10 +2297,11 @@ def _downstack_sig(args):
         except (OSError, ValueError, SystemExit):
             continue   # a failed lower-layer probe never wakes or blocks; the next poll retries
         head = cur.get("head_sha")
+        sig.add((pr, "head", head))
         for t in cur.get("threads") or []:
-            sig.add((pr, "thread", t.get("thread_id")))
+            sig.add((pr, "thread", t.get("thread_id"), t.get("last_comment_id")))
         for c in cur.get("feedback") or []:
-            sig.add((pr, "comment", c.get("id")))
+            sig.add((pr, "comment", c.get("id"), c.get("edit_id")))
         for c in cur.get("checks") or []:
             if (c.get("status") or "").upper() == "COMPLETED" and (c.get("conclusion") or "").upper() in ("FAILURE", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"):
                 sig.add((pr, "check", head, c.get("key")))
@@ -2423,7 +2424,7 @@ def cmd_watch(args):
                 reason == "blocked-external"
                 and actionable.get("blocked_external_review_moved_this_tick"))
             if (reason in ("needs-human", "blocked-failing", "blocked-external",
-                           "stack-blocked", "base-ref-blocked")
+                           "stack-blocked", "base-ref-blocked", "unrequested-base-merge")
                     and not approval_review_moved and _blocker_sig(actionable) <= armed):
                 reason = None   # already-surfaced residual — keep watching, do not re-wake or terminate
             if reason:
