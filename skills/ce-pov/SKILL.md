@@ -48,7 +48,7 @@ Resolve `<root>` the first time you compose a `<root>/` path; a read of `<root>/
 
 ### Phase 0: Frame and Classify
 
-**Read `references/intake.md` now, before any grounding.** It owns the output mode, the warm-invocation contract, orientation and framing, sizing, and the unbounded-field escape hatch. Settle three things there: the subject, the POV intent (adopt / migrate / compare / is-this-our-problem / Document-take / Approach-set / explainer), and the reversibility tier. State the frame and the tier in one line, let the user override it, and size the run to it. Read `references/boundaries.md` when this skill's fit is in doubt.
+**Read `references/intake.md` now, before any grounding.** It owns the output mode, the warm-invocation contract, orientation and framing, sizing, and the unbounded-field escape hatch. Settle the subject and the POV intent there (adopt / migrate / compare / is-this-our-problem / Document-take / Approach-set / explainer); an intent that routes out finishes at intake, and one that continues settles a reversibility tier. Read `references/boundaries.md` when this skill's fit is in doubt.
 
 ### Phase 1: Ground
 
@@ -58,7 +58,7 @@ Send scouts directly to candidate-specific current evidence, never a generic rep
 
 ### Phase 2: Verify Grounding
 
-**Read `references/method.md` now**, before reasoning about the POV. It owns the Verify and POV steps, the skeptic stance, tiering, and the gate. Apply that gate over the grounded evidence. A failed floor forbids a confident result in any subject shape; that reference names the Blocked result each one returns instead.
+**Read `references/method.md` now**, before reasoning about the POV. It owns the Verify and POV steps, the skeptic stance, tiering, and the gate. Apply that gate over the grounded evidence. A failed floor forbids a confident result in any subject shape; that reference names the failure result each shape returns instead.
 
 ### Phase 3: Point of View
 
