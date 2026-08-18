@@ -6,11 +6,13 @@ argument-hint: "[optional: scope hint — directory, filename, module, or keywor
 
 # Compound Refresh
 
-Audit the learnings under `<root>/solutions/` against the current codebase, apply the maintenance actions the evidence supports, and deliver a complete per-doc report plus committed changes. The report and the corrected document set are the deliverables; the store compounds value only if every doc can be trusted.
+Audit the learnings under `<root>/solutions/` against the current codebase, apply the maintenance actions the evidence supports, and deliver a complete per-doc report plus committed changes. The report and the corrected document set are the deliverables. The store only compounds value if every doc can be trusted.
 
 ## Setup
 
-Run this once before any subagent dispatch and follow the directives it prints, except where one conflicts with this skill's own rules on asking the user questions — those win, whether scoped to a mode or global, and no blocking question is asked. Run the fence exactly as written, as its own command: no piping, filtering, truncating, or batching. Its output opens with `=== skill context` and ends with `CE_CONTEXT_END`; one without the other means truncation, so rerun it verbatim once. That is the only rerun inside this invocation; a later invocation of any skill runs its own.
+Run this once before any subagent dispatch, and follow the directives it prints. Where one of them conflicts with this skill's own rules about asking the user questions, this skill's rules win — that holds whether the rule is scoped to a mode or global — and no blocking question is asked.
+
+Run the fence exactly as written, as its own command: no piping, filtering, truncating, or batching. The output opens with `=== skill context` and ends with `CE_CONTEXT_END`. One of those lines without the other means the output was truncated. Rerun the fence verbatim once. That is the only rerun inside this invocation; a later invocation of any skill runs its own.
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
@@ -24,11 +26,13 @@ fi
 
 ## Mode
 
-**Read `references/modes.md` now** — it reads the mode off the arguments (`mode:non-interactive`, alias `mode:headless`) and owns what each mode may apply unattended, the stale-marking fallback, the question tools, and the `CONCEPTS.md` bootstrap. Two rules hold in both modes: a failed write is recorded as **recommended** and the run continues, and a question is asked through the host's blocking tool — or the numbered-options fallback that reference defines — never silently skipped.
+**Read `references/modes.md` now.** It reads the mode off the arguments and owns what each mode may apply unattended, the stale-marking fallback, the question tools, and the `CONCEPTS.md` bootstrap.
+
+Two rules hold in both modes. A failed write is recorded as **recommended**, and the run continues. And a question is asked through the host's blocking tool, or through the numbered-options fallback that reference defines — never silently skipped.
 
 ## Artifact Root
 
-Resolve `<root>` when you first compose a `<root>/solutions/` path, and pass that resolved `<root>/solutions/` path to any subagent, not the config. Every subagent spawn omits the `mode` parameter, so the user's permission settings apply.
+Resolve `<root>` when you first compose a `<root>/solutions/` path. Pass that resolved path to any subagent, not the config. Every subagent spawn omits the `mode` parameter, so the user's permission settings apply.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**
@@ -40,42 +44,50 @@ Resolve `<root>` when you first compose a `<root>/solutions/` path, and pass tha
 
 ## Scope
 
-Candidates are the `.md` files under `<root>/solutions/`, excluding `README.md` and anything under `_archived/`; a hint that matches nothing never widens the scope. **Read `references/scope.md`** for the narrowing strategy, what each mode does on a miss, the empty-store message, broad-sweep triage order, and the README-row cleanup any action carries.
+Candidates are the `.md` files under `<root>/solutions/`, excluding `README.md` and anything under `_archived/`. A hint that matches nothing never widens the scope. **Read `references/scope.md`** for the narrowing strategy, what each mode does on a miss, the empty-store message, triage order, and the README-row cleanup each action carries.
 
 ## Investigate
 
-**Read `references/investigate.md`** — staleness dimensions, auto-memory rules, subagent roles, category-shape notes. Check each learning against the current codebase, then the set for overlap, supersession, and contradiction; a contradiction misleads actively and outranks individual staleness. For a knowledge-track learning that includes a guidance file the learning names or links (a skill's `SKILL.md`, a runbook, an instruction file): compare only guidance the learning names, never search the guidance layer for one.
+**Read `references/investigate.md`** for the staleness dimensions, auto-memory rules, subagent roles, and category-shape notes.
 
-Every investigation subagent's prompt carries that reference's three **Subagent prompt** clauses verbatim — search tools, auto-memory, and this:
+Check each learning against the current codebase, then check the set for overlap, supersession, and contradiction. A contradiction misleads actively, so it outranks individual staleness.
+
+A knowledge-track learning sometimes points at a guidance file it names or links — a skill's `SKILL.md`, a runbook, an instruction file. Compare only guidance the learning names. Never search the guidance layer for one.
+
+Every investigation subagent's prompt carries that reference's three **Subagent prompt** clauses verbatim. Two are search tools and auto-memory. The third is this:
 
 > If the learning is knowledge-track and names or links a guidance file (a skill's `SKILL.md`, a runbook, a root instruction file), read that file and, when it states a different order or a contradictory rule for the same procedure, return both conflicting quotes plus which side current code follows — or that code witnesses neither. Read only guidance the learning names; do not search for one, and do not edit it.
 
 ## Classify
 
-Every doc gets exactly one outcome — **Keep** (no edit, no breadcrumb), **Update** (solution right, references drifted), **Consolidate** (merge into the canonical doc, delete the subsumed), **Replace** (guidance now misleading; a subagent writes the successor, old deleted), or **Delete** (git history is the archive; no `_archived/`). **Read `references/classify.md` before assigning any of them**: Update/Replace boundary, auto-delete gate and pre-checks, relocation and split rules, the retrieval-value test, unverifiable-is-not-false, pattern docs, and what interactive mode asks.
+Every doc gets exactly one outcome: **Keep**, **Update**, **Consolidate**, **Replace**, or **Delete**. A doc is never archived in place: there is no `_archived/`, since version history is the archive.
 
-Two boundaries hold whatever the evidence says: when code and doc disagree the doc changes, never the code — code review is out of scope — and the refresh reports, but must never edit, a skill, runbook, or instruction file a learning contradicts.
+**Read `references/classify.md` before assigning any of them.** It owns each outcome's meaning, the Update/Replace boundary, the auto-delete gate and its pre-checks, the relocation and split rules, the retrieval-value test, unverifiable-is-not-false, pattern docs, and what interactive mode asks.
+
+Two boundaries hold whatever the evidence says. When code and doc disagree, the doc changes and the code does not — code review is out of scope. And when a learning contradicts guidance, the refresh reports that; it must never edit a skill, runbook, or instruction file.
 
 ## Execute
 
-Read `references/per-action-flows.md` and follow the section matching each doc's classification — one flow per doc. It owns the criteria, relocation and split procedures, the replacement subagent contract (pass `references/schema.yaml`, `references/yaml-schema.md`, `assets/resolution-template.md`; validate with the bundled scripts), and citation cleanup.
+Read `references/per-action-flows.md` and follow the section matching each doc's classification, one flow per doc. It owns the criteria, the relocation and split procedures, the replacement subagent contract, and citation cleanup.
 
 ## Vocabulary Capture
 
-After the per-doc actions, reconcile the domain terms flagged during investigation with `CONCEPTS.md`. **Read `references/concepts-vocabulary.md` — unconditionally**; its qualifying criteria are non-obvious, so a "nothing qualifies" judgment without reading it is a shortcut, not a result. It owns the seed goal, aggregation, scrub, bootstrap preamble, and the bound to the area in scope. Edits apply silently in every mode; the report's `CONCEPTS.md` line records what the scan found, including "scanned, no qualifying terms".
+After the per-doc actions, reconcile the domain terms flagged during investigation with `CONCEPTS.md`. **Read `references/concepts-vocabulary.md` unconditionally.** Its qualifying criteria are non-obvious, so a "nothing qualifies" judgment reached without reading it is a shortcut, not a result.
+
+Edits apply silently in every mode. The report's `CONCEPTS.md` line records what the scan found, including "scanned, no qualifying terms".
 
 ## Report
 
-**Print the full report as markdown — it is the deliverable, not an internal summary**, and in non-interactive mode the sole one: self-contained, never abbreviated, split into **Applied** and **Recommended**. **Read `references/report.md`** for the summary block, per-file detail, and what belongs under Recommended.
+**Print the full report as markdown.** It is the deliverable, not an internal summary, and in non-interactive mode it is the only one. Keep it self-contained and never abbreviated, split into **Applied** and **Recommended**. **Read `references/report.md`** for the summary block, per-file detail, and what belongs under Recommended.
 
 ## Commit
 
-Skip if nothing changed; otherwise stage **only** the files this refresh modified and commit in the repo's convention. **Read `references/commit.md`** for the per-mode branch decision and git-failure fallback.
+Skip this step if nothing changed. Otherwise stage **only** the files this refresh modified, and commit in the repo's convention. **Read `references/commit.md`** for the per-mode branch decision and the git-failure fallback.
 
 ## Discoverability Check
 
-After the report, check that the project's instructions would lead an agent to `<root>/solutions/` before working in a documented area — every time, since the store compounds value only when agents can find it. **Read `references/discoverability.md`**: what the reader must learn, the smallest-addition rule and its tone, the `CONCEPTS.md` variant, consent versus a report line per mode, and folding a late edit into the commit.
+After the report, check that the project's instructions would lead an agent to `<root>/solutions/` before working in a documented area. Do this every time: the store only compounds value when agents can find it. **Read `references/discoverability.md`** for what the reader must learn, the smallest-addition rule and its tone, the `CONCEPTS.md` variant, consent versus a report line per mode, and folding a late edit into the commit.
 
 ## Relationship to ce-compound
 
-`ce-compound` captures a newly solved problem; this skill maintains the store — each doc's accuracy and the set's design — as the codebase evolves. Replace only with real evidence, else stale-mark and point the user at `ce-compound`; consolidate proactively, since every capture adds a doc and redundant docs drift.
+`ce-compound` captures a newly solved problem. This skill maintains the store as the codebase evolves: each doc's accuracy, and the design of the set. Replace only on real evidence; without it, stale-mark the doc and point the user at `ce-compound`. Consolidate proactively, because every capture adds a doc and redundant docs drift.
