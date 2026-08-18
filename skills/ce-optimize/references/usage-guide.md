@@ -125,3 +125,13 @@ Common pattern:
 - Judge mode scores the surviving candidates for actual usefulness.
 
 That hybrid setup is often the best default for ranking, clustering, and prompt work.
+
+## First-run defaults
+
+A first run optimizes for signal and safety, not throughput:
+
+- Start from `example-hard-spec.yaml` when the metric is objective and cheap to measure; use `example-judge-spec.yaml` only when quality genuinely requires semantic judgment.
+- Prefer `execution.mode: serial` with `execution.max_concurrent: 1`.
+- Cap the run with `stopping.max_iterations: 4` and `stopping.max_hours: 1`.
+- Add no new dependencies until the baseline and measurement harness are trusted.
+- For judge mode, start at `sample_size: 10`, `batch_size: 5`, and `max_total_cost_usd: 5`.
