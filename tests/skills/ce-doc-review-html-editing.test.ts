@@ -10,6 +10,7 @@ const SYNTHESIS = read("skills/ce-doc-review/references/synthesis-and-presentati
 const WALKTHROUGH = read("skills/ce-doc-review/references/walkthrough.md")
 const OPEN_QUESTIONS = read("skills/ce-doc-review/references/open-questions-defer.md")
 const REVIEWER_TEMPLATE = read("skills/ce-doc-review/references/subagent-template.md")
+const INTAKE = read("skills/ce-doc-review/references/document-intake.md")
 const PLAN_HANDOFF = read("skills/ce-plan/references/plan-handoff.md")
 const BRAINSTORM_HANDOFF = read("skills/ce-brainstorm/references/handoff.md")
 const PLAN_HTML = read("skills/ce-plan/references/html-rendering.md")
@@ -31,7 +32,9 @@ describe("ce-doc-review HTML editing", () => {
     expect(REVIEWER_TEMPLATE).toMatch(
       /Deferred \/ Open Questions[\s\S]{0,240}Markdown or HTML/i,
     )
-    expect(DOC_REVIEW).toMatch(
+    // The ID-bearing mirror rule moved into the Phase 1 intake reference the body
+    // mandates; the body keeps the native-format rule that governs every fix.
+    expect(INTAKE).toMatch(
       /ID-bearing[\s\S]{0,240}nearest sibling[\s\S]{0,240}anchor[\s\S]{0,120}visible ID/i,
     )
   })
