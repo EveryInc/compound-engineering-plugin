@@ -41,7 +41,7 @@ fi
 
 ## Artifact Root
 
-Artifacts go under `<root>/ideation/`, and learnings are read from `<root>/solutions/`. Resolve `<root>` only when you are about to compose one of those paths — an elsewhere or no-repo run writes to a temp directory and never needs it. Pass a subagent the resolved path, not the config.
+Artifacts go under `<root>/ideation/`, and learnings are read from `<root>/solutions/`. Resolve `<root>` only when you are about to compose one of those paths, and never before the mode is classified — an elsewhere or no-repo run writes to a temp directory and never needs it. Pass a subagent the resolved path, not the config.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**
@@ -57,7 +57,7 @@ When the subject, mode, and format are already clear, resolve this phase in one 
 
 **Output mode is exclusive.** A run produces HTML (`.html`) or markdown (`.md`), never both. A pipeline or `disable-model-invocation` context forces `md`. Otherwise precedence runs from a request in this prompt, through a stated user preference and config (`ideate_output:`), down to the `html` default.
 
-Read `references/output-mode.md` whenever a format is resolved. The read is required. That reference owns each step of the decision, and the 30-day recent-work check: when a relevant recent doc exists, update it in place in its own format rather than writing a duplicate, unless an explicit `output:` this run switches the format.
+Read `references/output-mode.md` whenever a format is resolved. The read is required. It owns each step of the decision, and the 30-day recent-work check: when a relevant recent doc exists, update it in place in its own format rather than writing a duplicate, unless an explicit `output:` this run switches the format.
 
 <!-- ce-config-layers:start -->
 **Resolve ordinary CE yaml keys from the two repo files.**
