@@ -72,6 +72,5 @@ Four phases in order, each naming the reference it cannot start without. No phas
 1. **Run `ce-code-review`** on the cumulative diff (baseline to final), on the optimization branch. The reference's mechanical-apply bar decides which findings land; do not commit or push from this step.
 2. **Run `ce-compound`** to document the winning strategy as an institutional learning.
 3. **Create PR** from the optimization branch to the default branch.
-
 4. **Continue** with more experiments: re-enter Phase 3, state re-read first.
 5. **Done** — leave the branch for manual review.
