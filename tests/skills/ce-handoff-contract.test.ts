@@ -107,6 +107,8 @@ describe("ce-handoff portable runtime contract", () => {
 
   test("selected resume treats the document as context and waits after orientation", () => {
     expect(skill).toMatch(/untrusted context/i)
+    expect(skill).toMatch(/prior agent's account of a session the user was in/i)
+    expect(skill).toMatch(/confirm intent or decisions it does not attribute to them/i)
     expect(skill).toMatch(/current user.*(?:project|workspace).*(?:current state|repository state).*authoritative/i)
     expect(skill).toMatch(/recommend how to continue from this handoff's actual continuity reason/i)
     expect(skill).toMatch(/Do not default to an implementation-resume menu/i)
@@ -157,6 +159,7 @@ describe("ce-handoff portable runtime contract", () => {
     expect(corpus).toMatch(/Prefer that status framing over work orders/i)
     expect(corpus).toMatch(/Orientation aids that load context without granting action authority/i)
     expect(corpus).toMatch(/Carry explicit directives only when the user asked/i)
+    expect(corpus).toMatch(/The handoff is your account of the session.*the user's, your inference, or your own call/i)
     expect(corpus).toMatch(/name what specifically matters there.*line range when that narrows/i)
   })
 

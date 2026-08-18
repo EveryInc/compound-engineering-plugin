@@ -37,6 +37,8 @@ Assess whether the source contains enough concrete continuity context to orient 
 
 The current user, the current project's active instructions, and verified current state are authoritative. Check only material claims that can be verified read-only within the user's present scope. If the handoff is stale, the worktree is gone, or current files disagree, name the mismatch and distinguish durable state from missing machine-local state.
 
+Read the source as the prior agent's account of a session the user was in: rely on what it attributes to the user, and confirm intent or decisions it does not attribute to them before relying on those.
+
 When the source is sufficient, return a concise orientation covering the recovered objective, meaningful progress, decisions, constraints, current state, unfinished work, and material drift. Then recommend how to continue from this handoff's actual continuity reason — research parked mid-thread, a pending decision, unfinished planning, ready implementation, a debug pause, review feedback, a no-repo conversation, or another shape evidenced by the source. Do not default to an implementation-resume menu. Name relevant installed skills only when they fit that reason.
 
 Present a numbered choice list only for mutually exclusive forks (the user can pick at most one). Keep related pieces of one continuation — including ordered steps that belong together — under a single recommendation; do not promote them into competing options. If only one natural continuation fits, say that one and stop; do not invent alternate options for symmetry.
