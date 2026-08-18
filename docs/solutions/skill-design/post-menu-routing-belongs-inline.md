@@ -85,3 +85,26 @@ The fix followed `ce-plan`'s: a `#### Routing` block inline with the bare per-op
 ## Scope note (2026-08-17)
 
 The 0/5 vs 5/5 result above is about a menu whose *only* routing lived in a reference the body mentioned once, in passing. It is not evidence that references are never followed. The `ce-babysit-pr` 90KB -> 8KB restructure (`size-driven-skill-restructure.md`) named each reference at the step that needs it ("read `references/tick.md` before the first snapshot") and measured with a `FILES_READ` probe: Codex, Grok, and Claude all loaded the references on the paths under test. Rule that reconciles both: always-on routing stays inline; a required read is named at its point of use and its loading is measured, not assumed.
+
+## Refined by measurement (2026-08-18): what the reference has to be, not where the routing lives
+
+The scope note above left "inline or reference" as the open question. It is the wrong axis. `ce-explain`'s Phase 6 destination menu and its per-option routing were moved wholesale into `references/destinations.md`, with the body naming that file as a required read before the phase renders anything, and the move was measured against the inline body it replaced.
+
+Two matrices, four and five scenarios, graded on evidence rather than on what the run said it would do — the file actually copied for **Local file**, an artifact actually created for **Claude Artifact**, the run-dir path and its impermanence reported for **Leave it**, the publish withheld pending the required ask for a **ht-ml.app** menu bypass, and each improvement observation routed to its owning skill as an offer for the closing handoffs:
+
+| Arm | Claude Code | Codex CLI | Total | Opened the reference |
+|---|---:|---:|---:|---:|
+| routing inline (main) | 27/27 | 21/21 | **48/48** | 11/48 |
+| routing in the required-read reference | 27/27 | 21/21 | **48/48** | **48/48** |
+
+Nothing regressed, and no relocated-arm run on either harness reached the menu without the file. The 0/5 in `ce-debug`'s three-arm result above is therefore not about references. What separated it from this one is what the body said about the file:
+
+- **The failing stub paraphrased the reference.** It summarized the branch paths, which is complete enough to act on and not complete enough to act on correctly — so the agent judged it had enough and never opened the file. That is the checklist's last question, and it is the whole failure.
+- **The passing pointer names what only the file carries, and what skipping it costs.** "It owns the destination menu, the per-option routing, each destination's sub-flow, the audience re-render offer and its ordering against a publisher's consent gate, and the improvement observations the run closes on. Read it now; do not render the menu and do not act on the user's selection without it." There is nothing here to act on, so the read is the only way forward.
+
+**The condition, restated.** Routing may live in a reference when the body names that file as a required read at the step, states what only it carries, and leaves nothing partial to act on instead. Routing may not live in a reference the body mentions once in passing, or summarizes — the summary suppresses the read, and then the agent stops in prose or drops an argument. Where the routed action is the agent's answer to a selection the user has already made, the step cannot complete without the file at all, which is why this shape is the safest one to relocate.
+
+**Two things still belong in the body regardless of how well the pointer is written.**
+
+- **The stop class that must hold when the file is never opened.** `ce-explain` keeps "ht-ml.app is public, so it must never be selected headlessly" and the non-interactive degradation path in the body, because those decide what happens on the path where the read did not occur.
+- **Anything whose step acts before the read.** `ce-explain`'s ownership-checked `$RUN_DIR` fence was moved behind a required read once and moved back (#1451): that PR's own eval caught a harness creating `$RUN_DIR` without loading the file, and an improvised `mkdir` accepts a planted symlink or a foreign-owned directory that then receives the explainer. A required read is reliable for a step whose first action *is* reading it, and not for a step that has something to do first.

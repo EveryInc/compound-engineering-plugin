@@ -1,6 +1,6 @@
 # Orchestration: asking, dispatching, scratch, and menu shape
 
-Required read before the first blocking question, the first subagent dispatch, or the run-directory creation in Phase 2 — whichever comes first. The skill body carries the phase order, the ordering rules, and the per-option routing.
+Required read before the first blocking question, the first subagent dispatch, or the run-directory creation in Phase 2 — whichever comes first. The skill body carries the phase order and the ordering rules; `references/destinations.md` carries Phase 6's menu and per-option routing.
 
 ## Interaction method
 

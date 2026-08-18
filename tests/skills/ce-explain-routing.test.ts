@@ -17,24 +17,29 @@ const HTML_REFERENCE_PATH = path.join(
 )
 const HTML_REFERENCE_BODY = readFileSync(HTML_REFERENCE_PATH, "utf8")
 
-// Regression guard mirroring tests/skills/ce-plan-handoff-routing.test.ts
-// (issue #714 class): SKILL.md content caches at session start while reference
-// files load on demand, so the bare per-option action for the Phase 6
-// destination ask and the outbound handoffs MUST live inline in SKILL.md —
-// not solely in references/destinations.md. Symptom when this regresses: the
-// agent renders the destination menu, the user picks an option, and the agent
-// stops in prose without firing the action.
+// The menu and its per-option routing live in references/destinations.md, which
+// SKILL.md names as a required read before Phase 6 renders anything. That is the
+// condition #714 turned on: routing may live in a reference the body names as a
+// required read at the step that needs it; it may not live in one the body
+// mentions once in passing. Measured before shipping the move — 4 destination
+// options x 3 trials x Claude Code and Codex, inline vs relocated: 21/21 correct
+// on each arm, and every relocated-arm run opened the reference
+// (docs/solutions/skill-design/post-menu-routing-belongs-inline.md).
+//
+// So these pins guard two things together, and both halves must hold: the body
+// demands the read at the point of use, and the reference carries a firing
+// action for every option. Symptom when this regresses: the agent renders the
+// destination menu, the user picks an option, and the agent stops in prose
+// without firing the action.
 describe("ce-explain destination and handoff routing", () => {
-  const phaseStart = SKILL_BODY.indexOf("### Phase 6")
-
-  test("SKILL.md contains the Phase 6 destination-ask region", () => {
-    expect(
-      phaseStart,
-      "ce-explain SKILL.md no longer contains the '### Phase 6' heading — the test anchor needs updating, or the destination ask was removed.",
-    ).toBeGreaterThan(-1)
+  test("SKILL.md demands the destinations read before Phase 6 renders anything", () => {
+    const phase6 = sliceSection(SKILL_BODY, "### Phase 6")
+    expect(phase6).toMatch(/Required read before you render anything in this phase/i)
+    expect(phase6).toContain("`references/destinations.md`")
+    expect(phase6).toMatch(/do not render the menu and do not act on the user's selection without it/i)
   })
 
-  const phaseRegion = phaseStart > -1 ? SKILL_BODY.slice(phaseStart) : ""
+  const phaseRegion = DESTINATIONS_BODY
 
   test("inline routing exists for every destination option", () => {
     const optionFragments: { name: string; fragment: string }[] = [
@@ -59,7 +64,7 @@ describe("ce-explain destination and handoff routing", () => {
       )
       expect(
         inlineRoutingPattern.test(phaseRegion),
-        `ce-explain SKILL.md Phase 6 is missing inline routing for destination option "${name}". The bare per-option action MUST live in SKILL.md (not solely in references/destinations.md). See docs/solutions/skill-design/post-menu-routing-belongs-inline.md.`,
+        `ce-explain references/destinations.md is missing the per-option action for destination "${name}". Every menu option needs an action to fire, in the file SKILL.md names as the required Phase 6 read. See docs/solutions/skill-design/post-menu-routing-belongs-inline.md.`,
       ).toBe(true)
     }
   })
@@ -71,11 +76,11 @@ describe("ce-explain destination and handoff routing", () => {
       )
       expect(
         bullet,
-        `ce-explain SKILL.md Phase 6 is missing the inline handoff bullet naming ${target}.`,
+        `ce-explain references/destinations.md is missing the handoff bullet naming ${target}.`,
       ).not.toBeNull()
       expect(
         /skill[\s-]?invocation|Skill tool|skill primitive/i.test(bullet![0]),
-        `ce-explain SKILL.md ${target} handoff must name the skill-invocation primitive so the agent fires the invocation rather than announcing a handoff in prose.`,
+        `ce-explain references/destinations.md ${target} handoff must name the skill-invocation primitive so the agent fires the invocation rather than announcing a handoff in prose.`,
       ).toBe(true)
     }
   })
@@ -89,7 +94,7 @@ describe("ce-explain destination and handoff routing", () => {
     const polishBullet = phaseRegion.match(/^- \*\*[^\n]*polish[^\n]*\*\*[^\n]+/im)
     expect(
       polishBullet,
-      "`ce-explain` SKILL.md Phase 6 is missing the inline UI/UX polish handoff bullet.",
+      "`ce-explain` references/destinations.md is missing the UI/UX polish handoff bullet.",
     ).not.toBeNull()
     const line = polishBullet![0]
     const renderingRule = phaseRegion.match(/\*\*User-runnable invocation rendering\.\*\*[^\n]+/i)
@@ -103,11 +108,11 @@ describe("ce-explain destination and handoff routing", () => {
         /active host|Codex/i.test(renderingRule![0]) &&
         /default to `\/ce-polish`[^.]{0,180}dollar-prefixed/i.test(renderingRule![0]) &&
         /oh-my-pi \(`omp`\)[^\n]*\/skill:ce-polish/i.test(renderingRule![0]),
-      "`ce-explain` SKILL.md polish handoff must present observations in chat and render one host-correct user invocation for `ce-polish`.",
+      "`ce-explain` references/destinations.md polish handoff must present observations in chat and render one host-correct user invocation for `ce-polish`.",
     ).toBe(true)
     expect(
       /invoke the `ce-polish` skill/i.test(line),
-      "`ce-explain` SKILL.md polish handoff must NOT instruct invoking `ce-polish` via the skill primitive — it is user-invoked only (disable-model-invocation).",
+      "`ce-explain` references/destinations.md polish handoff must NOT instruct invoking `ce-polish` via the skill primitive — it is user-invoked only (disable-model-invocation).",
     ).toBe(false)
   })
 
@@ -167,9 +172,12 @@ describe("ce-explain destination and handoff routing", () => {
     expect(DESTINATIONS_BODY).toMatch(/ask for explicit confirmation after the warning before any publish/i)
     expect(DESTINATIONS_BODY).toMatch(/initial request itself does not count as confirmation/i)
     expect(DESTINATIONS_BODY).toMatch(/If confirmation cannot be obtained, do not publish; preserve the canonical `\$RUN_DIR\/explainer\.html` and report its local path/i)
-    expect(SKILL_BODY).toMatch(/pre-warning request does not count as confirmation/i)
-    expect(SKILL_BODY).toMatch(/If confirmation cannot be obtained, do not publish; preserve the canonical HTML and report its local `\$RUN_DIR\/explainer\.html` path/i)
-    expect(SKILL_BODY).toMatch(/Publish publicly to ht-ml\.app[^\n]+read and follow the ht-ml\.app sub-flow in `references\/destinations\.md`/i)
+    expect(DESTINATIONS_BODY).toMatch(/pre-warning request does not count as confirmation/i)
+    expect(DESTINATIONS_BODY).toMatch(/If confirmation cannot be obtained, do not publish; preserve the canonical HTML and report its local `\$RUN_DIR\/explainer\.html` path/i)
+    expect(DESTINATIONS_BODY).toMatch(/Publish publicly to ht-ml\.app[^\n]+follow the ht-ml\.app sub-flow below/i)
+    // The stop class that must hold even if this file is never opened stays in
+    // the body: a publish is never headless, whatever the reference says.
+    expect(SKILL_BODY).toMatch(/ht-ml\.app is public, so it must never be selected headlessly/i)
     expect(DESTINATIONS_BODY).toMatch(/ht-ml\.app or general HTML-publishing capability/i)
     expect(DESTINATIONS_BODY).toMatch(/skill-invocation primitive/i)
     expect(DESTINATIONS_BODY).toMatch(/tool, connector, or browser capability directly/i)
@@ -276,11 +284,16 @@ function sliceSection(content: string, startAnchor: string, endAnchor?: string):
 }
 
 describe("ce-explain audience rendering", () => {
-  test("SKILL.md states both the personal default and the on-request adaptation", () => {
-    expect(SKILL_BODY).toMatch(/Default — the user personally/i)
-    expect(SKILL_BODY).toMatch(/On request — rendered for another reader/i)
-    // Depth must not be traded away when the audience changes.
-    expect(SKILL_BODY).toMatch(/adapt voice and orientation, never depth/i)
+  test("the compose-time reference owns the audience rendering, and the body points at it", () => {
+    // The body's own copy of this contract was a paraphrase of what both
+    // rendering references already state in full; it is gone, and Phase 4 names
+    // the owner instead.
+    const phase4 = sliceSection(SKILL_BODY, "### Phase 4", "### Phase 5")
+    expect(phase4).toMatch(/personal by default, adapted for another reader on request, at unchanged depth/i)
+    for (const [label, body] of RENDERING_REFERENCES) {
+      // Depth must not be traded away when the audience changes.
+      expect(body, `${label} lost the unchanged-depth rule`).toMatch(/Same depth/i)
+    }
   })
 
   test("intake owns audience resolution, including the speak-from carve-out", () => {
@@ -331,8 +344,8 @@ describe("ce-explain audience rendering", () => {
   })
 
   test("the audience-mismatch offer precedes the destination's consent gate", () => {
-    const phase6 = sliceSection(SKILL_BODY, "### Phase 6")
-    expect(phase6).toMatch(/\*\*Audience mismatch\.\*\*/i)
+    const phase6 = DESTINATIONS_BODY
+    expect(phase6).toMatch(/## Audience mismatch/i)
     expect(phase6).toMatch(/\*\*This offer comes first\*\*/i)
     expect(phase6).toMatch(/consent must attach to the artifact actually being published/i)
     expect(phase6).toMatch(/never re-render unasked, and never block the send on it/i)
@@ -379,15 +392,16 @@ describe("ce-explain gaps found by behavioral evals", () => {
 
   test("the destination ask and a publisher's consent gate are distinct asks", () => {
     const phase6 = sliceSection(SKILL_BODY, "### Phase 6")
+    const relocated = DESTINATIONS_BODY
     // "Ask once" previously read as forbidding the second confirmation the
     // bypass path requires.
     expect(phase6).toMatch(/that governs the menu itself, not the consent a chosen destination then requires/i)
     // Naming a suppressed publisher takes the bypassed-menu path.
-    expect(phase6).toMatch(/never as though the menu had warned them/i)
+    expect(relocated).toMatch(/never as though the menu had warned them/i)
   })
 
   test("improvement observations wait for a settled destination and cover stale repo docs", () => {
-    const phase6 = sliceSection(SKILL_BODY, "### Phase 6")
+    const phase6 = DESTINATIONS_BODY
     // The gate must name every ask that can be open, not just the destination
     // one: an enumeration missing the audience re-render offer reads as
     // permission to interleave handoffs with it.

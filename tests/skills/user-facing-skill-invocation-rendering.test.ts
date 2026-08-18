@@ -66,7 +66,9 @@ const modelVisibleRendererCases = [
 
 const explicitOnlyRendererCases = [
   {
-    file: "skills/ce-explain/SKILL.md",
+    // The rendering rule travels with the seam that prints the invocation: the
+    // ce-polish handoff now lives in the Phase 6 required-read reference.
+    file: "skills/ce-explain/references/destinations.md",
     defaults: ["/ce-polish"],
     codex: ["$ce-polish"],
     omp: ["/skill:ce-polish"],
