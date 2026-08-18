@@ -111,7 +111,7 @@ Seven more skills through the same procedure, with the cap treated as a ceiling 
 - The same skill restated the Phase 2 causal-chain gate, the fix-choice options, the brainstorm signals, and the issue-of-record rule in `references/investigate.md` (#1449).
 - `ce-setup`'s relocation summary added a blanket "nothing is written without the user's approval" that contradicted a standing promise the body still made (#1445).
 
-**After relocating, diff each reference against the body and delete every gate, condition, or confirmation the body still owns — before the eval, not after.** The eval will not catch it: both copies say the same thing on the day you write them, so the run behaves correctly. What it costs is later, when one copy gets fixed and the other does not.
+**After relocating, diff each reference against the body and delete from the reference every gate, condition, or confirmation the body still owns — before the eval, not after.** The body's copy is the one that stays, because it must fire without a read; the reference names what it supplies to the gate instead of restating it. The eval will not catch it: both copies say the same thing on the day you write them, so the run behaves correctly. What it costs is later, when one copy gets fixed and the other does not.
 
 That is not hypothetical. In #1449 a cross-model eval found a rule that needed a precondition; the precondition went into the body, the stale copy stayed in the reference, and the reference kept a live path to the exact defect the fix had just closed. One rule, one place.
 
