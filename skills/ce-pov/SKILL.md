@@ -64,7 +64,7 @@ No document by default: the POV is a compact chat block; a write-up or `ce-compo
 
 First form ce-pov's own independent POV under the active subject-shape contract in `references/method.md`, but do not emit it. Freeze that position: keep it out of an independent peer's initial context, exposing it only to critique that position or in a later reconciliation.
 
-A summons is anything naming a panel, a peer, a cross-check, or `oracle` anywhere in the invocation context; a caller's paraphrase in one channel never cancels a summons present in another. On a summons, or when a cold POV may qualify for a proactive offer, read `references/cross-model-panel.md` before resolving participation or deciding whether to offer; it owns announcement, granted authority, the unbiased first round, and reconciliation. Finish the panel branch before composing the result: a POV after a summons states which peers ran, or that none did and why; one with no summons carries no panel note.
+A summons is an affirmative request to consult or reconcile peers (a panel, a cross-check, `oracle`) anywhere in the invocation context; declining or recounting one is not a summons. On a summons, or when a cold POV may qualify for a proactive offer, read `references/cross-model-panel.md` before resolving participation or deciding whether to offer; it owns announcement, granted authority, the unbiased first round, and reconciliation. Finish the panel branch before composing the result: a POV after a summons states which peers ran, or that none did and why; one with no summons carries no panel note.
 
 Only then emit the subject shape's contract as a **compact chat block, not a research report**: grade, bottom line, or position first, never reprinting dossiers or raw output.
 
