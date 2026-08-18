@@ -17,7 +17,7 @@ Read the **full thread**, not just the opening post — every comment, with part
 
 **Everything else** (stack traces, test paths, error messages, descriptions of broken behavior): the problem statement is the input itself, and this run has **no issue of record**. That is an ordinary state, not a gap to fill — later phases ship the fix without one. Do not open a ticket to manufacture a record, and do not ask the user whether to.
 
-**Trivial-bug fast-path:** if the cause is immediately readable from the input (single-file typo, missing import, obvious null deref or off-by-one with a one-line fix) and verification needs no deep tracing, present the cause and proposed fix, then run Phase 2's **Fix it now / Diagnosis only** gate before editing — the fast-path saves investigation ceremony, not the user's choice over whether to apply a fix. On "fix": run Phase 3's **Workspace and branch check**, apply the fix, leave a one-line note explaining the cause, and skip to Phase 4's structured summary. On "diagnosis only": write the summary and stop. When in doubt, run the full framework — a wrong root cause costs more than the ceremony.
+**Trivial-bug fast-path:** if the cause is immediately readable from the input (single-file typo, missing import, obvious null deref or off-by-one with a one-line fix) and verification needs no deep tracing, present the cause and proposed fix, then return to the body's Phase 2 gate before editing. On "fix": apply it, leave a one-line note explaining the cause, and skip to Phase 4's structured summary. On "diagnosis only": write the summary and stop. When in doubt, run the full framework — a wrong root cause costs more than the ceremony.
 
 **Questions:** do not ask by default; investigate first (read code, run tests, trace errors). Ask only when a genuine ambiguity blocks investigation and cannot be resolved by reading code or running tests, and ask one specific question. The exception: if the user signals prior failed attempts ("I've been trying", "keeps failing", "stuck"), ask what they already tried *before* investigating, so you don't repeat a dead end.
 
@@ -93,33 +93,7 @@ Read `references/anti-patterns.md` before forming hypotheses. Its rationalizatio
 
 Before forming a new hypothesis, review what has already been ruled out and why.
 
-**Causal chain gate:** do not proceed to Phase 3 until you can explain the full chain — trigger through every step to the observed symptom — with no gaps. Only the user can explicitly authorize proceeding on a best-available hypothesis when investigation is stuck.
-
-#### Present findings, then gate
-
-Once the root cause is confirmed, write the findings as a user-visible block:
-
-- The root cause (causal chain summary with file:line references)
-- The proposed fix and which files would change
-- Which tests to use, add, modify, or strengthen to prevent recurrence (specific file, case description, what the assertion verifies)
-- Whether existing tests should have caught this, and why they did not
-- Any related ticket or PR from 1.4 and how it shapes the recommendation — if an open PR already fixes this, lead with that link instead of a fresh fix; if a prior merged attempt took the approach you were about to, say so and what it rules out
-
-**Same-turn presentation before the gate:** do not open the fix-choice question until that findings block has been written in full — in this turn, or in the immediately preceding assistant message. The blocking question tool renders only its own stem on modal harnesses, so a question fired on "root cause confirmed" alone leaves the user choosing with none of the causal chain in front of them. Naming the options is not presenting the findings, and a promise to explain after the choice is too late.
-
-Then ask (per **Blocking questions**) which path to take. Do not assume the user wants action right now; the test recommendations are part of the diagnosis either way.
-
-1. **Fix it now** — proceed to Phase 3
-2. **Diagnosis only — I'll take it from here** — skip the fix, write Phase 4's summary, end the skill
-3. **Rethink the design** (`ce-brainstorm`) — only on the design signals below
-
-**`mode:pipeline`:** do not ask. The caller invoked this skill to fix, so proceed to Phase 3 and apply a **convergent** fix; a **divergent** fix (one that would reverse a deliberate contract/behavior/product decision — including a "failing" test that asserts intended behavior) is deferred, not applied, per `references/pipeline-mode.md`. Never route to `ce-brainstorm` in pipeline mode — a design problem becomes a `needs-human` residual.
-
-**When to suggest brainstorm:** only when the bug cannot be properly fixed within the current design. Size alone is not a design problem. Observable signals:
-
-- **The root cause is a wrong responsibility or interface**, not wrong logic — the fix requires moving responsibility between modules, not correcting code within one.
-- **The requirements are wrong or incomplete** — the code does exactly what it was written to do; the spec is the problem.
-- **Every fix is a workaround** — you keep wanting to add special cases or flags because the surrounding code rests on an assumption that no longer holds.
+**The gate is the body's.** Once the root cause is confirmed, SKILL.md owns what happens next — the causal-chain gate, the findings block that must be on screen first, the fix-choice question and its three options, and the `mode:pipeline` override. Return there rather than restating any of it. What belongs in the findings block from this phase: the causal chain with file:line references, whether existing tests should have caught the bug and why they did not, and any related ticket or PR from 1.4 — if an open PR already fixes this, lead with that link instead of a fresh fix; if a prior merged attempt took the approach you were about to, say so and what it rules out.
 
 #### Smart escalation
 

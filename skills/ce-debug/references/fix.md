@@ -1,18 +1,8 @@
 # Fix: workspace safety, test-first, and what a failed fix means
 
-Read this before editing any file in Phase 3. The body keeps the two rules that decide whether a fix may start at all — the branch check and the pre-fix scope Phase 4 depends on — and this file carries the rest.
+Read this before editing any file in Phase 3. The branch check and the pre-fix scope record belong to the body, which runs them before sending you here: do not repeat either, and do not ask a second time about a file whose unstaged edits the body already confirmed.
 
-### Phase 3: Fix
-
-*Reminder: one change at a time. If you are changing multiple things, stop.*
-
-If the user chose "Diagnosis only," skip to Phase 4's summary. If they chose "Rethink the design," control has transferred to `ce-brainstorm` and this skill ends.
-
-**Workspace and branch check — before editing files:**
-
-- Check `git status`. If the user has unstaged work in files that need modification, confirm before editing — do not overwrite in-progress changes.
-- If the current branch is the default branch, create a feature branch without asking — derive a name from the bug, run `git checkout -b <name>`, and say which branch you moved to. Detect the default branch by comparing against `main`, `master`, or `git rev-parse --abbrev-ref origin/HEAD` **with its `origin/` prefix stripped** — the raw output is `origin/<name>`, so an unstripped comparison never matches. On any other branch, proceed.
-- **Record the pre-fix scope:** current `HEAD`, whether `git status --short` is clean, and any pre-existing changed files. Then keep a list of **fix-owned files** (the tests and implementation changed for this bug) as you work. Phase 4 uses both to keep simplify/review off unrelated branch work.
+*One change at a time. If you are changing multiple things, stop.*
 
 **Test-first:**
 
