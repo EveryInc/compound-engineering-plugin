@@ -55,7 +55,7 @@ The skill's final output in pipeline mode is machine-readable (the caller parses
 ```
 
 - `fixed-and-pushed` — a convergent fix was applied, tests pass, committed, and the push succeeded.
-- `fixed-not-pushed` — the same fix is applied and committed locally, but the push did not happen: no remote, no push access, or the caller's envelope excludes pushing. `head_sha` is the local commit; the first residual says why the push did not happen. Never report this as `fixed-and-pushed` (the caller re-snapshots a remote head that has not moved) or as `diagnosed-no-fix` (the fix is applied).
+- `fixed-not-pushed` — the same fix is applied and committed locally, but the push did not happen — no remote, no push access, an envelope that excludes pushing, a rejected push. `head_sha` is the local commit; the first residual says why. Never report this as `fixed-and-pushed` (the caller re-snapshots a remote head that has not moved) or as `diagnosed-no-fix` (the fix is applied).
 - `flaky-infra` — a flake or infrastructure failure, not a code defect (the caller may retry).
 - `needs-human` — the failure requires a divergent/product decision; nothing applied; see `residuals`.
 - `diagnosed-no-fix` — root cause found but no safe convergent fix available this run; see `residuals`.
