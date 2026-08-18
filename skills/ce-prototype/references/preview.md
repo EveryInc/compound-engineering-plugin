@@ -47,6 +47,8 @@ echo "$RUN_DIR"
 
 Set `RUN_KEEP="no"` when the user asked that this run not be left in the repo; it sends the run to OS temp without touching the rest of the block.
 
+When the probe shows `.context/compound-engineering/` is not covered by the repo's ignore rules, offer to append that one line to the repo-root `.gitignore`. Append it only if the user agrees, and leave the rest of the file alone.
+
 Three things this block is careful about. The symlink and ownership checks run against both the **root** — the directory sitting in a shared or world-writable location — and the `ce-prototype` directory beneath it, because that one survives between runs: `mkdir -p` follows a symlink that is already there, and `chmod` would then change the link's target rather than anything inside the validated root. Every check is inside the retry loop, so an unsafe in-repo path at either level falls back to OS temp rather than aborting — a hostile or misconfigured `.context` costs the run its durability, not the run itself, and only a temp root that also fails is fatal.
 
 Creating the directory is how it is claimed — never test whether the name is free and then write, which two runs starting together both pass. There is no rejoin: this block runs once per invocation, so a second question never re-derives the run directory and can neither split into a suffixed sibling nor adopt a finished run's directory.
