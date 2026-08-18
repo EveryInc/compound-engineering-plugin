@@ -64,7 +64,7 @@ If there are no new items across all feedback types, skip steps 3-8 and go strai
 
 ## 3. Consolidate & Decide (the legitimacy gate)
 
-This is the gate. Judge every **new** item here, in your own context, before any fix is dispatched. Apply the rubric in [references/evaluation-rubric.md](evaluation-rubric.md) (read it now) across the whole batch at once.
+This is the gate. Judge every **new** item here, in your own context, before any fix is dispatched. Apply the rubric in [references/evaluation-rubric.md](evaluation-rubric.md) (read it now) across the whole batch at once. When the invocation carries a `trajectory`, apply the non-convergence test in [references/pipeline-mode.md](pipeline-mode.md) before dispatching anything — a demonstrated shared root is answered once, at the root, instead of fixing each instance.
 
 Working over the full set lets you do what a per-thread subagent can't:
 - **Dedup reads by file** — read a file once and judge all its threads together.
