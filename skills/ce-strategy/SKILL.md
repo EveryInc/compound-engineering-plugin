@@ -20,6 +20,12 @@ argument-hint: "[optional: section to revisit, e.g. 'metrics' or 'approach']"
 - **Record which metrics matter and where they live**, not what they read today.
 - **Meaning is the contract; the shape belongs to whoever created the doc.** A file in this skill's own house format is maintained in that format, including renaming an earlier version's headings to the current template ones on write. A file in any other shape - hand-written, from another tool - is read by meaning and edited in its own shape and idiom: no restructuring into the template, no uninvited frontmatter or headings. Either way a section carrying an author-approved marker (`<!-- vision: author-approved 2026-07-10 -->`), or a doc the user does not own, is not edited at all - report the conflict, or write a separate file that links to it - and a targeted update preserves every other section's content and place exactly. `references/update-run.md` owns the rest and is a required read before you edit an existing file.
 
+## Asking and routing
+
+Ask one question at a time, through the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (needs the `pi-ask-user` extension). Fall back to numbered options on the host's user-visible chat surface only when no blocking tool exists or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
+
+Any argument this skill was invoked with — present in the current prompt or conversation, from the user or a calling skill — is a focus hint: a section to revisit (`metrics`, `positioning`, `tracks`; older names such as `approach` or `who it's for` map to the current section) or a scope hint. With none, proceed open-ended and let the file state decide the path.
+
 ## Phase 0: Ground and route
 
 Read `references/grounding.md` first - a non-optional load. It owns the file read, the repo model and its two inputs, what to show the user before the first question, and how an invocation argument is read as a focus hint.
@@ -46,7 +52,7 @@ When every section is captured, read `references/strategy-template.md`, fill it 
 
 ## Phase 2: Update run
 
-Read `references/update-run.md` first - a non-optional load, before the summary, the drift check, or any question. It decides how drift candidates are raised, which section is revisited, and what is preserved untouched. Questions and pushback still come from `references/interview.md`, applied as if this were a first run.
+Summarize the file's current state in 3-5 lines, name any section the repo model suggests is stale as a candidate rather than a verdict, re-interview the section the focus hint named or the one the user picks from those candidates, and leave every other section's content and place untouched. Read `references/update-run.md` first - a non-optional load, before the summary, the drift check, or any question. It decides how drift candidates are raised, which section is revisited, and what is preserved untouched. Questions and pushback still come from `references/interview.md`, applied as if this were a first run.
 
 ## Phase 3: Downstream handoff
 
