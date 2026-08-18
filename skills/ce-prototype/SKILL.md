@@ -33,11 +33,11 @@ Default substrate: the web, whatever the product is written in — a native app'
 
 Build under `.context/compound-engineering/ce-prototype/<date>-<slug>/`, so the prototype survives for the implementation that follows. Fall back to `/tmp/compound-engineering-<uid>/ce-prototype/<date>-<slug>/`, where survival is best-effort. `references/build.md` names every case that forces the fallback root.
 
-The `.context` path has to be gitignored first. Probe it from the repo root with `git -C <repo root> check-ignore -q .context/compound-engineering/`; the trailing slash is load-bearing. `references/preview.md` owns what to do when it is not covered.
+The `.context` path has to be gitignored first. Probe it from the repo root with `git -C <repo root> check-ignore -q .context/compound-engineering/`; the trailing slash is load-bearing. When it is not covered, the offer to add that line comes before the root is resolved, or accepting it cannot help this run.
 
-`references/preview.md` owns the resolution. It picks between the two roots, claims the run directory once per run, and prints the path that the start and status/stop calls take. Do not create that directory yourself; that reference owns the claim, and a second claim splits the screens from the capsule.
+`references/preview.md` owns that offer and the resolution that follows it. Do not create the run directory yourself; a second claim splits the screens from the capsule.
 
-Scaling into the existing app as a throwaway overlay is the one path that touches the product tree. Never commit it. When the try ends, restore only the files you changed, never work you did not make. If you cannot undo them cleanly, name the files you left modified rather than handing off a dirty tree. Never delete a kept prototype: throwaway describes the code, not a request to remove it.
+Scale into the existing app as a throwaway overlay when the user asks, or when the question is density or chrome on an existing page — an isolated page hides that. It is the one path that touches the product tree. Never commit it. When the try ends, restore only the files you changed, never work you did not make. If you cannot undo them cleanly, name the files you left modified rather than handing off a dirty tree. Never delete a kept prototype: throwaway describes the code, not a request to remove it.
 
 ## Keep the decisions
 
@@ -54,4 +54,4 @@ When the user applies:
 - If this run has a directly related brainstorm or plan — passed on invoke, passed by the calling skill, or named in this session as the file this prototype is for — load `references/write-back.md` and follow it. Markdown and HTML both. Use `decisions.md` when present. Do not pick a plan because one exists in the repo.
 - If there is no such file or relatedness is unclear: do not mint a plan or a third note. Recap from `decisions.md` when present, carrying the decisions and, when the run left one behind, the prototype path — an overlay run has none, so say that rather than pointing at something you undid. That recap is a complete outcome, not a degraded one.
 
-Then continue. If a calling skill invoked this, return the choices in `decisions.md` and let it continue. Otherwise recommend a next skill and pass this session as the seed. After a write-back that is `ce-plan`, because the plan is now `requirements-only` with its HOW stripped and `ce-work` refuses it until `ce-plan` re-enriches. After a file-free run it is `ce-brainstorm` when product-level questions remain, or `ce-plan` when the session is enough to plan. Print that recommendation per the rendering rule above.
+Then continue. If a calling skill invoked this, return the choices in `decisions.md` and let it continue. Otherwise recommend a next skill and pass this session as the seed. After a write-back, recommend `ce-plan`: the plan is now `requirements-only` with its HOW stripped, and `ce-work` refuses it until `ce-plan` re-enriches. After a file-free run, recommend `ce-brainstorm` when product-level questions remain, or `ce-plan` when the session is enough to plan. Print that recommendation per the rendering rule above.
