@@ -28,11 +28,11 @@ Any argument this skill was invoked with — present in the current prompt or co
 
 ## Phase 0: Ground and route
 
-Read `references/grounding.md` first - a non-optional load. It owns the file read, the repo model and its two inputs, what to show the user before the first question, and how an invocation argument is read as a focus hint.
+Phase 0 produces a repo model and a route, whatever the harness reads. `references/grounding.md` is a non-optional load: it bounds each read and carries the wording of the disagreement question and the focus hint.
 
-Whatever the harness reads, Phase 0 ends the same way. Before the first question, show the user the repo model you built - what you take the product to be, who it seems to serve, and where attention has gone, each with its source named - and invite correction. If it did not supply the product's name, ask for that here; the template's frontmatter and title need it. A repo with no substantive content is a normal path: say so in one line and run the interview ungrounded.
+**The repo model** is your working understanding of what this product is. Read `STRATEGY.md` if it exists. Take what the product is from its stated intent and structure - README, `CONCEPTS.md`, `docs/`, sibling docs such as `PRODUCT.md`, what the code is organized around - and take what is getting attention now from recent commits or PRs. Attention informs only the Tracks question and staleness in an update run; where it disagrees with stated intent, that is a question for the user, never a conclusion. Show the model in chat before the first question: three to five lines on what you take the product to be, who it seems to serve, and where attention has gone, each with its source named. Invite correction; the interview still runs in full. If the model did not supply the product's name, ask for it here - the template's frontmatter and title need it. A repo with no substantive content is a normal path: say so in one line and run the interview ungrounded.
 
-Then announce the path in one line and route by file state: no file -> Phase 1 ("Strategy doc not found - let's write it."); file exists -> Phase 2 ("Found existing strategy - let's review and update.").
+**The route** is announced in one line by file state: no file -> Phase 1 ("Strategy doc not found - let's write it."); file exists -> Phase 2 ("Found existing strategy - let's review and update.").
 
 ## Phase 1: First-run interview
 
