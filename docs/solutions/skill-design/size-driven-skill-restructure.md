@@ -67,7 +67,7 @@ Four cells: `main` and the PR branch, each driven from Claude Code and from Code
 | Verdict synthesized from the peer returns, not narrated | yes / yes | yes / yes |
 | Peer receipt attests the true host | yes / yes | no / no |
 
-Fifteen graded outcomes, identical between the two arms. The two non-passes are the same cell on both arms and are eval-level rather than skill-level — the Codex-driven cells were launched from a Claude Code shell and inherited `CLAUDECODE=1`, so the host attested as Claude no matter which branch was running. The restructure changed nothing about the delegation, which is the claim the fake-boundary eval had asserted without evidence.
+The full checklist had fifteen graded outcomes (dispatch, payload contract, frozen position withheld from round 1, artifact gate, receipt-gated attribution, dissent handling, synthesis, disclosure, read-only, cleanup, and so on); the table shows the five that carry the delegation claim. Every one of the fifteen was identical between the two arms. The two non-passes are the same cell on both arms and are eval-level rather than skill-level — the Codex-driven cells were launched from a Claude Code shell and inherited `CLAUDECODE=1`, so the host attested as Claude no matter which branch was running. The restructure changed nothing about the delegation, which is the claim the fake-boundary eval had asserted without evidence.
 
 **Could not be exercised by a single run, and is recorded as unexercised rather than passing:** the reconciliation rounds that only open when peers disagree (seven of eight peers concurred; the one dissent converged without a second round), the degradation paths for an unavailable or timing-out peer, and any path behind a second panel round.
 
