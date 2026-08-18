@@ -805,7 +805,11 @@ def fetch(pr, repo, light=False):
     mergeable = merge_observation.get("mergeable")
     merge_state_status = merge_observation.get("mergeStateStatus")
     head = v.get("headRefOid")
-    base = fetch_base_ref(owner, name, v.get("baseRefName"), merge_observation, host)
+    if light:
+        base = {"host": host or "github.com", "repository": f"{owner}/{name}",
+                "ref": v.get("baseRefName"), "oid": None, "identity": BASE_REF_PROBE_ERROR}
+    else:
+        base = fetch_base_ref(owner, name, v.get("baseRefName"), merge_observation, host)
     if merge_identity is not None:
         identity_head = merge_identity.get("headRefOid")
         identity_base_ref = merge_identity.get("baseRefName")
@@ -2300,12 +2304,14 @@ def _downstack_targets(args):
 
 
 def _downstack_sig(args):
-    """Stateless attention signature of the lower stack layers — the observations that decide a
-    layer's quiescence: unresolved threads, non-thread feedback (by id, not body), failing checks,
-    a DIRTY/BEHIND merge state, manager staleness, and the head itself. The watcher
-    captures it at arm time and wakes `downstack-actionable` only when it grows, so an already
-    parked or dispatched lower-layer item does not re-wake, but a new review round, a new failing
-    check, or a new head below the active layer does — that is what pulls the walk back down."""
+    """Stateless signature of the lower stack layers built from the same identities the engine
+    uses to decide that a layer has work: the head, each unresolved thread's remote-truth identity
+    (`_thread_identity` — a reply or an edit both change it), each non-thread comment by id (bodies
+    are rewritten by status bots and are not new work), failing checks by the canonical `FAILING`
+    set, the merge state when it demands maintenance, the manager classification tuple, and the PR
+    state. The watcher captures it at arm time and wakes `downstack-actionable` only when it grows,
+    so already-parked or dispatched lower-layer items do not re-wake, but any observation that would
+    make a lower layer non-quiescent does."""
     sig = set()
     for pr, fetch_file in _downstack_targets(args):
         try:
@@ -2318,25 +2324,19 @@ def _downstack_sig(args):
             continue   # a failed lower-layer probe never wakes or blocks; the next poll retries
         head = cur.get("head_sha")
         sig.add((pr, "head", head))
-        # Quiescence-bearing observations, not just events: a lower layer that turns DIRTY/BEHIND
-        # or falls manager-stale has re-opened work even with no new thread or check.
-        status = (cur.get("merge_state_status") or "").upper()
-        if status in ("DIRTY", "BEHIND"):
-            sig.add((pr, "currency", status, head))
-        chain = cur.get("pr_chain") if isinstance(cur.get("pr_chain"), dict) else {}
-        if chain.get("target_needs_rebase") is True:
-            sig.add((pr, "stack", "needs-rebase", head))
+        sig.add((pr, "state", cur.get("pr_state")))
         for t in cur.get("threads") or []:
-            sig.add((pr, "thread", t.get("thread_id"), t.get("last_comment_id")))
+            sig.add((pr, "thread", t.get("thread_id"), _thread_identity(t)))
         for c in cur.get("feedback") or []:
-            # Identity only: status bots rewrite bodies on every push (#1309), so an edit is not
-            # new work below; a new comment id or a new thread reply is.
             sig.add((pr, "comment", c.get("id")))
         for c in cur.get("checks") or []:
             if (c.get("status") or "").upper() == "COMPLETED" and (c.get("conclusion") or "").upper() in FAILING:
                 sig.add((pr, "check", head, c.get("key")))
-        if cur.get("pr_state") in ("MERGED", "CLOSED"):
-            sig.add((pr, "state", cur.get("pr_state")))
+        status = (cur.get("merge_state_status") or "").upper()
+        if status in ("DIRTY", "BEHIND"):
+            sig.add((pr, "currency", status, head))
+        chain = cur.get("pr_chain") if isinstance(cur.get("pr_chain"), dict) else {}
+        sig.add((pr, "manager", chain.get("manager_status"), chain.get("target_needs_rebase")))
     return frozenset(sig)
 
 
