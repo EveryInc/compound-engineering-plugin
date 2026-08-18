@@ -169,8 +169,8 @@ describe("ce-prototype protocol", () => {
       "The floor must state that avenues differ by organizing principle, so a palette or typeface swap is not counted as a second avenue.",
     ).toBe(true)
     expect(
-      /SKILL\.md/.test(CRAFT_FLOOR_BODY),
-      "The avenue rule must cite the wide-run rule in SKILL.md rather than restating it — two independent copies drift.",
+      /references\/scoping\.md/.test(CRAFT_FLOOR_BODY),
+      "The avenue rule must cite the wide-run rule where it lives (references/scoping.md) rather than restating it — two independent copies drift.",
     ).toBe(true)
   })
 
@@ -246,7 +246,12 @@ describe("ce-prototype protocol", () => {
     // file, so nothing but this guard stops them drifting into two entries
     // that both satisfy check-ignore and accumulate as separate lines.
     const IGNORE_ENTRY = ".context/compound-engineering/"
-    const setupBody = readFileSync(path.join(SKILLS_ROOT, "ce-setup", "SKILL.md"), "utf8")
+    // Corpus grep across ce-setup: the offer is a Phase 2 mechanic, which lives in the
+    // reference ce-setup requires before any repo-local write.
+    const setupBody = [
+      readFileSync(path.join(SKILLS_ROOT, "ce-setup", "SKILL.md"), "utf8"),
+      readFileSync(path.join(SKILLS_ROOT, "ce-setup", "references", "repo-fixes.md"), "utf8"),
+    ].join("\n")
     expect(
       setupBody.includes("```text\n" + IGNORE_ENTRY + "\n```"),
       "ce-setup must offer the scratch ignore entry as exactly this literal.",

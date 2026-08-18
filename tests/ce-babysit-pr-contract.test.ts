@@ -44,7 +44,7 @@ const PR_SNAPSHOT = "skills/ce-babysit-pr/scripts/pr-snapshot"
 
 // ce-debug's pipeline-mode structured return. babysit branches on this exact set (Step 2 step 5)
 // and warns "do not invent infra-retry/stale" — so both the vocabulary and the ban are protocol.
-const CEDEBUG_STATUS = ["fixed-and-pushed", "diagnosed-no-fix", "flaky-infra", "needs-human"]
+const CEDEBUG_STATUS = ["fixed-and-pushed", "fixed-not-pushed", "diagnosed-no-fix", "flaky-infra", "needs-human"]
 
 // pr-snapshot's trajectory block (emitted by _update_trajectory). The subset each consumer cites
 // by name is protocol for that consumer: rename a field in the emitter and the citation dangles.

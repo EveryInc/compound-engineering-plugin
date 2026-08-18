@@ -71,3 +71,7 @@ gh pr merge …
 ```
 
 Landing uses `gh stack merge` only (owned by babysit under `posture:stack-land`, or the user).
+
+## Ownership
+
+Step 5 exclusively owns stack submission and the post-submit metadata route below, for PRs created in this run.

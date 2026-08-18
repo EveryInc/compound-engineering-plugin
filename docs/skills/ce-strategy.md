@@ -2,7 +2,7 @@
 
 > Create or maintain `STRATEGY.md`: what the product is, who it is for, how it succeeds, and where the team is investing.
 
-`ce-strategy` is the **upstream anchor**. It writes one short document at the repo root, next to `README.md`. It is not a step in `/ce-ideate` → `/ce-brainstorm` → `/ce-plan` → `/ce-work`. Those skills read `STRATEGY.md` when it exists and weight their suggestions toward the active tracks and the stated approach. `ce-product-pulse` also reads it to seed the metrics it measures.
+`ce-strategy` is the **upstream anchor**. It writes its sections of `STRATEGY.md`, the shared project document at the repo root next to `README.md` — a file other tools and people also write their own sections into, so the skill owns only what its template names and preserves the rest. It is not a step in `/ce-ideate` → `/ce-brainstorm` → `/ce-plan` → `/ce-work`. Those skills read `STRATEGY.md` when it exists and weight their suggestions toward the active tracks and the stated approach. `ce-product-pulse` also reads it to seed the metrics it measures.
 
 The doc is short on purpose. The skill grounds itself in what the repo already says the product is, asks a handful of sharp questions, pushes back on slogans and feature lists, and writes what you actually said.
 
@@ -94,7 +94,7 @@ Before the first question the skill shows a three-to-five-line repo model - what
 
 For each section the skill asks the opening question, then applies that section's pushback rules. Two rounds maximum. If the answer is still weak, it captures what you gave and notes the section is worth another pass next run. Without that step the interview is just transcription.
 
-Required sections, in order: Purpose, Positioning, Users, Key metrics, Tracks, then Boundaries (always written, even if only to say nothing is named yet). Optional: Milestones, Brand - skipped when nothing came up. Unused optional sections are omitted, not left as empty headers. Metrics stay at 3-5. Tracks stay at 2-4.
+Required sections, in the document's order: Purpose, Positioning, Users, Boundaries (always written, even if only to say nothing is named yet), Key metrics, Tracks - the universal sections first, then direction. The interview asks Boundaries after the stress test, since that is where its content comes from. Optional: Milestones, Brand - skipped when nothing came up. Unused optional sections are omitted, not left as empty headers. Metrics stay at 3-5. Tracks stay at 2-4.
 
 On a first run, the filled draft is shown in chat and you get one edit pass before anything is written.
 
@@ -115,7 +115,7 @@ When `STRATEGY.md` is at the repo root:
 - `ce-plan` flags decisions that pull away from the tracks or the stated positioning, or land inside the stated boundaries
 - `ce-product-pulse` seeds product name and key metrics, then wires sources to measure them
 
-The skills work without the file. With it, they have a signal for what kind of work matters right now. `ce-ideate`, `ce-brainstorm`, `ce-plan`, and `ce-dogfood` read by section meaning rather than exact heading, and also pick up `PRODUCT.md` or `VISION.md` written by other tools; `ce-strategy` itself reads those as stated intent when grounding. `ce-product-pulse` is the exception: it reads `STRATEGY.md` only and takes metrics from its `## Key metrics` section by exact heading, so metrics kept elsewhere or under another heading do not reach the pulse.
+The skills work without the file. With it, they have a signal for what kind of work matters right now. `ce-ideate`, `ce-brainstorm`, and `ce-plan` read by section meaning rather than exact heading and fall back to a legacy `PRODUCT.md` or `VISION.md` only for meanings `STRATEGY.md` lacks; `ce-dogfood` reads the persona section (`Users`, or `Who it's for` in older files) and then a legacy sibling; `ce-strategy` itself reads those as stated intent when grounding. `ce-product-pulse` reads `STRATEGY.md` (or, when absent, the first of `VISION.md`, `PRODUCT.md` that exists); it takes metrics from `## Key metrics` when `ce-strategy` wrote it, otherwise from whichever section lists the success measures — following a linked legacy doc when `STRATEGY.md` defers them there — and says when none are on file yet.
 
 The skill does not compute metric values, update the issue tracker, prioritize a backlog, or write requirements or plans.
 
@@ -179,7 +179,7 @@ This skill is always invoked on its own. Nothing in the loop produces `STRATEGY.
 - Targeted update: `/ce-strategy positioning` jumps to that section
 - Open update: `/ce-strategy` (file exists, no argument) asks which section to revisit
 
-The file is meant to be readable in under five minutes.
+The sections this skill writes are meant to be readable in under five minutes; other tools' sections in the shared file are their own.
 
 ---
 
@@ -193,7 +193,7 @@ The file is meant to be readable in under five minutes.
 
 Output: `STRATEGY.md` at the repo root (not under `docs/`). YAML frontmatter has `name` and `last_updated: YYYY-MM-DD`.
 
-Required sections: Purpose, Positioning, Users, Key metrics (3-5), Tracks (2-4), Boundaries. Optional: Milestones (external dates only), Brand. Files written with the older headings are read as-is and renamed in place on the next update. A `STRATEGY.md` in any other shape (hand-written, or from another tool) is read by meaning and updated in its own shape, never restructured into the template.
+Required sections, in order: Purpose, Positioning, Users, Boundaries, Key metrics (3-5), Tracks (2-4). Optional: Milestones (external dates only), Brand. Files written with the older headings are read as-is and renamed in place on the next update. A `STRATEGY.md` in any other shape (hand-written, or from another tool) is read by meaning and updated in its own shape, never restructured into the template.
 
 ---
 

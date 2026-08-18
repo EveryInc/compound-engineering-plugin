@@ -1,0 +1,37 @@
+# Classifying a doc, and deciding when to ask
+
+Assign each doc one outcome:
+
+| Outcome | Meaning | Action |
+|---------|---------|--------|
+| **Keep** | Still accurate and useful | No edit — report it as reviewed. Do not write a review breadcrumb or `last_refreshed` on its own. |
+| **Update** | Solution still correct; references drifted (paths, names, links, snippets, metadata, misfiling) | Fix in place |
+| **Consolidate** | Docs overlap heavily, both correct | Merge unique content into the canonical doc, delete the subsumed one |
+| **Replace** | Guidance is now misleading; a trustworthy successor can be written | Successor via subagent, then delete the old |
+| **Delete** | No longer useful, applicable, or distinct | Delete the file — git history is the archive; there is no `_archived/` |
+
+Judgment rules that are easy to get wrong:
+
+- **Match docs to reality, not the reverse.** When code and doc disagree, the doc is what changes. Never ask whether a code change was "intentional" or amounts to a regression — code review is out of scope.
+- **The Update/Replace boundary:** if you find yourself rewriting the solution section or changing what the doc recommends, that is Replace, not Update. A contradiction between the doc's recommendation and current code is a strong Replace signal, not minor drift — including when a guidance file the learning names states the practice current code follows. When the learning is right and the named guidance file is wrong, the guidance path is the recommended action in that file's report entry (non-interactive: under **Recommended**, beside the discoverability recommendation); the refresh never edits skills, runbooks, or root instruction files. When current code witnesses neither side, ask (interactive) or stale-mark and report the contradiction under **Recommended** (non-interactive).
+- **Age alone is not staleness** — a two-year-old doc that still matches the code is a Keep; use age only as a prompt to inspect harder.
+- **No churn:** never edit just for typos, wording, or cosmetics.
+- **Replace needs real evidence** — from the investigation itself, the conversation, newer docs/PRs, or the user. If you cannot confidently document the current approach, stale-mark and recommend `ce-compound` for the user's next encounter with that area instead of guessing.
+- **Consolidate vs separate — the retrieval-value test:** would a maintainer searching this topic in six months benefit from separate docs (genuinely different sub-problems, different audiences), or do they just create drift risk? Two docs saying the same thing will eventually say different things. Two accurate docs about *different sub-problems* of one feature (e.g., request volume vs response ordering) stay separate even when they cite the same file — shared code is not shared problem. If the subsumed doc adds nothing unique, it's a straight Delete. Deleting the subsumed doc after merging its unique content is part of the Consolidate action itself — it is a safe, unattended-appliable step and does not require the auto-delete gate below.
+- **Unverifiable is not false.** A claim the repo cannot corroborate — a schema or index fact, an operational practice, an environment behavior — is not thereby wrong; repos rarely witness their own operations. Never delete, strip during a merge, or stale-mark content solely because no in-repo artifact confirms it. Act only on contradiction (code demonstrably does otherwise); for unverifiable-but-plausible claims, keep them and note the verification gap in the report. **Split** (one doc holding several independent problems → focused successors) is the inverse and the bar is high: each fragment must have independent retrieval value; length alone is never a reason.
+- **Relocation** (an Update variant): move a doc only when directory and frontmatter category disagree or content unambiguously belongs in a different **existing** category. A mismatch proves something is wrong, not which side — resolve the direction from content before moving, and never relocate on an arguable judgment call. Non-interactive auto-relocation requires all four: (1) frontmatter and directory disagree per the category mapping, (2) content clearly resolves the direction as directory-wrong, (3) the target category directory exists, (4) all inbound citations are in-repo and mechanically rewritable. Otherwise recommend.
+
+A memory-sourced signal never carries an outcome on its own: it corroborates codebase evidence or prompts a deeper look, and in non-interactive mode memory-only drift is a stale-mark, never a Replace or Delete.
+
+**Before any Delete**, two checks:
+
+1. **Is the problem domain still active?** Missing files prove the *implementation* is gone, not the problem. If the app still deals with what the doc addresses (e.g., the auth-token file is gone but sessions are still handled), that is Replace, not Delete. A doc that never referenced in-repo code (developer environment, onboarding, process) can never satisfy "implementation gone" and **never auto-deletes** — stale-mark (non-interactive) or ask (interactive) when its currency is in doubt.
+2. **Inbound links.** Search the repo's markdown (not source code) for the filename slug; read context around matches. **Decorative** citations (see-also pointers, principle already stated inline) permit Delete with mechanical cleanup in the same commit. **Substantive** citations (the citing doc relies on the cited content) signal Replace — or Keep with narrowed scope. Mixed or unclear: stale-mark.
+
+**Auto-delete (no confirmation needed, either mode) only when all three hold:** the implementation once lived in this repo and is gone (or the doc is fully superseded or plainly redundant); the problem domain is gone — or, for a superseded/redundant doc, the surviving canonical doc itself already states the subsumed doc's guidance (topical overlap is not coverage: verify the specific content exists there before deleting); inbound citations are absent or unambiguously decorative. Any condition fails → Replace, Update, Consolidate, stale-mark, or ask.
+
+**Pattern docs** (`<root>/solutions/patterns/`) get the same five outcomes evaluated as *derived* guidance: does the generalized rule still hold given the refreshed learnings beneath it? A pattern with no supporting learnings is itself a stale signal. Base any pattern Replace on the refreshed learning set, not fresh invention.
+
+## Decide (interactive mode only)
+
+Apply unambiguous Keeps, Updates, and Consolidations directly — no confirmation. Ask (per Blocking questions) only when: the action is genuinely ambiguous; a Delete fails the auto-delete gate; the canonical doc in a Consolidate isn't clear-cut; you are about to Replace; or you are about to Split (it writes successors and deletes the original — confirm fragment boundaries like a Replace). Present the file path, 2-4 evidence bullets, and the recommended action; offer only plausible alternatives plus "skip for now". For broad sweeps, work in batches and confirm continuation between them rather than front-loading a full maintenance queue.
