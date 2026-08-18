@@ -29,7 +29,7 @@ Create one immutable handoff at the destination the user requested, or use the m
 2. Inspect only the workspace state needed to explain what exists now. Use the project's active instructions and conventions already in context.
 3. Point to plans, issues, commits, diffs, documentation, and relevant files instead of reproducing their contents.
 4. Redact secrets, credentials, and unrelated personal information. Preserve operational paths only when the next agent needs them.
-5. Write or publish the document using existing capabilities. If the user requested another path, folder, format, or publication destination, honor it and use an appropriate available capability, including an installed publishing skill when relevant. Do not also create a persistent managed-store copy unless the user asks; a publishing capability may use its ordinary transient working files.
+5. Write or publish the document using existing capabilities. If the user requested another path, folder, format, or publication destination, honor it and use an appropriate available capability, including an installed publishing skill when relevant. When the handoff is rendered as HTML, put `<meta name="robots" content="noindex, nofollow">` in its `<head>` — publishers such as ht-ml.app serve unauthenticated URLs, and a handoff names paths, branches, and open work. Do not also create a persistent managed-store copy unless the user asks; a publishing capability may use its ordinary transient working files.
 
 ### Default managed storage
 

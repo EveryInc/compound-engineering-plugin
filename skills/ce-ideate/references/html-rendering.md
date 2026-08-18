@@ -25,6 +25,13 @@ These hold regardless of which skill produced the artifact.
   `<link rel="stylesheet">` to a CDN webfont CSS endpoint (Google Fonts,
   Bunny Fonts, etc.), paired with an offline-readable fallback font stack
   so the doc remains readable if the CDN is unreachable.
+- **`<head>` carries `<meta name="robots" content="noindex, nofollow">`.**
+  Every emitted document includes this tag, with no exception for local-only
+  runs — the artifact is frequently published later to a public HTML host
+  (ht-ml.app and similar), often at an unguessable-but-unauthenticated URL,
+  and the tag is what keeps an unlisted plan or brainstorm out of search
+  indexes. The user may override it by explicit request; never drop it on
+  the agent's own judgment.
 - **All metadata appears as visible text — single source of truth.**
   The artifact's metadata (title, type, date, etc. — exact
   fields per-skill, defined in the section contract) renders as visible
@@ -34,7 +41,10 @@ These hold regardless of which skill produced the artifact.
   `<meta name="created">` / `<meta name="origin">`
   in `<head>` duplicating the same values that appear in the visible
   header. One representation for each value — drift across two copies is
-  the failure this rule prevents.
+  the failure this rule prevents. This bans a `<meta>` that *mirrors a
+  visible value*, not `<meta>` as such: `charset`, `viewport`, and the
+  required `robots` directive above are behavior directives, not a second
+  copy of the header, and stay.
 
   The text-and-attribute redundancy in `<time datetime="2026-05-12">2026-05-12</time>`
   is acceptable because the attribute is a parser hint, not a hidden copy.
@@ -64,7 +74,8 @@ These hold regardless of which skill produced the artifact.
 - **Visible readiness metadata.** If the artifact has `artifact_contract`,
   `artifact_readiness`, `product_contract_source`, or `execution`, render
   those values in the visible header metadata. Do not hide a duplicate copy in
-  JSON, `data-*`, or `<meta>` tags.
+  JSON, `data-*`, or `<meta>` tags. (The `robots` directive is not a duplicate
+  copy — it is required in `<head>` per the hard invariants.)
 
 ## Precedence stack for style preferences
 
@@ -598,6 +609,8 @@ looks identical. Compose so semantic understanding is reachable in source:
 Before returning the artifact, scan it for common slips:
 
 - **Single self-contained file.** No companion `.css` / `.js` / `.svg`.
+- **`<meta name="robots" content="noindex, nofollow">` is present in
+  `<head>`.** Missing it is a publish-safety defect, not a style slip.
 - **No hidden machine-readable metadata copy.** No
   `<script type="application/json">` frontmatter block, no `data-*`
   attributes mirroring visible values, **no `<meta name="created">` /

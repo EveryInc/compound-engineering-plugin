@@ -179,6 +179,18 @@ describe("ce-explain destination and handoff routing", () => {
     expect(DESTINATIONS_BODY).toMatch(/never publish headlessly/i)
   })
 
+  test("explainer HTML carries a robots noindex tag and publishing re-checks it", () => {
+    // ht-ml.app serves a public, unauthenticated URL. The tag is composed in
+    // so it survives whichever destination Phase 6 picks, and the publish
+    // sub-flow re-checks it because compose-time omission is silent.
+    expect(HTML_REFERENCE_BODY).toMatch(
+      /<meta name="robots" content="noindex, nofollow">/i,
+    )
+    expect(DESTINATIONS_BODY).toMatch(
+      /<meta name="robots" content="noindex, nofollow">/i,
+    )
+  })
+
   test("HTML output pins stable metadata and preserves baseline constraints", () => {
     expect(HTML_REFERENCE_BODY).toMatch(/exact field labels `Date`, `Input shape`, and `Subject`/)
     expect(HTML_REFERENCE_BODY).toMatch(/exactly one of `concept`, `diff`, `idea`, or `recap`/)
