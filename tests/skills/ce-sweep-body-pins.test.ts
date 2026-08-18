@@ -59,11 +59,12 @@ describe("ce-sweep relocated invariants stay in the reference Phase 2 loads", ()
   for (const invariant of [
     // 2a
     "STALE-RECLAIMED",
-    "sweep_shared_branch",
+    "Only once your lease is pushed and confirmed do you touch a source.",
     // 2b
     "Personas report facts and never advance cursors.",
     // 2c
-    "sweep_ack_cap",
+    "If the count exceeds `sweep_ack_cap`",
+    "do NOT ack, and flag it prominently in the summary",
     // 2d
     "the engine drops `body`/`quote` before writing",
     // 2e
