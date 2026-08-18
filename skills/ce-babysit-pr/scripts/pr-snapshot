@@ -2282,7 +2282,7 @@ def _downstack_targets(args):
 
 def _downstack_sig(args):
     """Stateless attention signature of the lower stack layers: unresolved threads, non-thread
-    feedback, and failing checks on each layer's current head, plus the head itself. The watcher
+    feedback (by id, not body), and failing checks on each layer's current head, plus the head itself. The watcher
     captures it at arm time and wakes `downstack-actionable` only when it grows, so an already
     parked or dispatched lower-layer item does not re-wake, but a new review round, a new failing
     check, or a new head below the active layer does — that is what pulls the walk back down."""
@@ -2301,7 +2301,9 @@ def _downstack_sig(args):
         for t in cur.get("threads") or []:
             sig.add((pr, "thread", t.get("thread_id"), t.get("last_comment_id")))
         for c in cur.get("feedback") or []:
-            sig.add((pr, "comment", c.get("id"), c.get("edit_id")))
+            # Identity only: status bots rewrite bodies on every push (#1309), so an edit is not
+            # new work below; a new comment id or a new thread reply is.
+            sig.add((pr, "comment", c.get("id")))
         for c in cur.get("checks") or []:
             if (c.get("status") or "").upper() == "COMPLETED" and (c.get("conclusion") or "").upper() in ("FAILURE", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"):
                 sig.add((pr, "check", head, c.get("key")))
