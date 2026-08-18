@@ -6,7 +6,7 @@ Read this file after Phase 2 ideation agents return and the orchestrator has mer
 
 Review every candidate idea critically. Critique runs in two layers — a fresh-context verifier first, then orchestrator arbitration. Fresh-context verification outperforms self-critique: the orchestrator synthesized some of these candidates itself and carries the full generation history, so it is anchored in ways a verifier that never saw the generation is not.
 
-1. **Basis verification (one generation-tier sub-agent — see SKILL.md Model Tiers).** Dispatch a verifier whose payload is only the consolidated grounding summary (including the evidence gists and dossier file paths — it reads dossier files itself as needed) and the merged candidate list — none of the generation history. Prompt it to refute: for each candidate, check that the stated basis actually supports the claimed move, that `direct:` quotes exist where cited (spot-check by reading the file in repo mode), that `external:` prior art is real and relevantly analogous, and that `reasoned:` arguments hold. It returns a per-candidate verdict (sound / weak / refuted) with a one-line reason. Under `go deep` (Phase 0.5), dispatch a second, ceiling-tier critic focused on novelty and feasibility with the same fresh-context payload.
+1. **Basis verification (one generation-tier sub-agent — see the model tiers in `references/grounding.md`).** Dispatch a verifier whose payload is only the consolidated grounding summary (including the evidence gists and dossier file paths — it reads dossier files itself as needed) and the merged candidate list — none of the generation history. Prompt it to refute: for each candidate, check that the stated basis actually supports the claimed move, that `direct:` quotes exist where cited (spot-check by reading the file in repo mode), that `external:` prior art is real and relevantly analogous, and that `reasoned:` arguments hold. It returns a per-candidate verdict (sound / weak / refuted) with a one-line reason. Under `go deep` (Phase 0.5), dispatch a second, ceiling-tier critic focused on novelty and feasibility with the same fresh-context payload.
 
    **Meeting-test in the verifier payload — state the floor explicitly, either way.** By default, also have it judge whether each idea genuinely passes the meeting-test; because the verifier did not write the ideas, that judgment supersedes the generators' self-attestation. **When tactical scope is active (Phase 0.5), tell the verifier the floor is waived** and have it judge basis only. The verifier runs on a fresh context with none of the generation history, so a waiver it is not told about does not reach it — omitting this turns a tactical run's every candidate `weak`.
 
@@ -49,7 +49,7 @@ The ideation artifact is produced **automatically** — persistence is not opt-i
 
 ### 4.1 Write the Deliverable (automatic, both modes)
 
-`OUTPUT_FORMAT` (resolved in SKILL.md Phase 0.0; default `html`) sets the extension. Write the file every run — do not wait for the user to ask.
+`OUTPUT_FORMAT` (resolved per `references/output-mode.md`; default `html`) sets the extension. Write the file every run — do not wait for the user to ask.
 
 1. **Resolve the target directory and extension.**
    - Extension follows `OUTPUT_FORMAT` (`.html` default, `.md` on override).
@@ -61,7 +61,7 @@ The ideation artifact is produced **automatically** — persistence is not opt-i
 4. **Write the document** per those references. `ideation-sections.md` defines the section contract (metadata, Grounding Context, Topic Axes, Ranked Ideas with per-idea fields, Rejection Summary); the rendering reference defines how the resolved format presents it. Content is identical across formats; only presentation differs.
    - **On write failure** (no writable path, permissions): announce the failure and offer a custom path (validate writable; create parent dirs). Never lose the survivors silently.
 
-**Resume:** update the existing file in place, in its existing format (per SKILL.md Phase 0.1 format precedence); carry the prior ideas and rejection summary forward, adding to them rather than overwriting.
+**Resume:** update the existing file in place, in its existing format (per the resume precedence in `references/output-mode.md`); carry the prior ideas and rejection summary forward, adding to them rather than overwriting.
 
 ### 4.2 Present a Concise Summary (not the full deliverable)
 

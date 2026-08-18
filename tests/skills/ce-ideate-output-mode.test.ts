@@ -20,6 +20,10 @@ const IDEATION_SECTIONS_BODY = readFileSync(
   path.join(SKILL_DIR, "references/ideation-sections.md"),
   "utf8",
 )
+const OUTPUT_MODE_BODY = readFileSync(
+  path.join(SKILL_DIR, "references/output-mode.md"),
+  "utf8",
+)
 
 // ce-ideate gains the same exclusive output-mode machinery as ce-plan and
 // ce-brainstorm, but with the default INVERTED to `html` (config key
@@ -31,14 +35,32 @@ const IDEATION_SECTIONS_BODY = readFileSync(
 // lives in post-ideation-workflow.md §4.1, not SKILL.md Phase 0.0; (2) Proof
 // is markdown-only, so the menu's share/iterate slot is format-keyed to
 // "Open in browser" under html.
+// The 8KB restructure moved the format-resolution procedure into
+// references/output-mode.md, a required read named in Phase 0. These
+// assertions follow the procedure there; what SKILL.md still owns is the
+// always-loaded layer -- exclusivity, the precedence order, the pipeline
+// override, and the pointer -- pinned separately below.
 function phase00Region(): string {
-  const start = SKILL_BODY.indexOf("#### 0.0")
-  expect(start, "ce-ideate SKILL.md is missing the Phase 0.0 Output Mode section.").toBeGreaterThan(-1)
-  const end = SKILL_BODY.indexOf("#### 0.1", start)
-  return SKILL_BODY.slice(start, end > start ? end : start + 4500)
+  const start = OUTPUT_MODE_BODY.indexOf("#### 0.0")
+  expect(
+    start,
+    "references/output-mode.md is missing the Phase 0.0 Output Mode section.",
+  ).toBeGreaterThan(-1)
+  const end = OUTPUT_MODE_BODY.indexOf("#### 0.1", start)
+  return OUTPUT_MODE_BODY.slice(start, end > start ? end : start + 4500)
 }
 
 describe("ce-ideate output mode (html default)", () => {
+  test("SKILL.md keeps exclusivity, precedence, and the pipeline override in the window", () => {
+    // These decide the write before any reference is opened, so they stay in
+    // the always-loaded body even though the procedure moved.
+    expect(/exclusive/i.test(SKILL_BODY)).toBe(true)
+    expect(/never both/i.test(SKILL_BODY)).toBe(true)
+    expect(/pipeline|disable-model-invocation/i.test(SKILL_BODY)).toBe(true)
+    expect(/references\/output-mode\.md/.test(SKILL_BODY)).toBe(true)
+    expect(/ideate_output/.test(SKILL_BODY)).toBe(true)
+  })
+
   test("argument-hint advertises output:md (the override of the html default)", () => {
     const frontmatterMatch = SKILL_BODY.match(/^---\n([\s\S]*?)\n---/)
     expect(frontmatterMatch).not.toBeNull()
@@ -137,8 +159,8 @@ describe("ce-ideate output mode (html default)", () => {
   })
 
   test("resume handles both .md and .html and preserves the existing format", () => {
-    const resumeStart = SKILL_BODY.indexOf("#### 0.1")
-    const resumeRegion = SKILL_BODY.slice(resumeStart, resumeStart + 2500)
+    const resumeStart = OUTPUT_MODE_BODY.indexOf("#### 0.1")
+    const resumeRegion = OUTPUT_MODE_BODY.slice(resumeStart, resumeStart + 2500)
     expect(
       /\*\.html|`\*\.html`|\.html/i.test(resumeRegion),
       "Phase 0.1 resume must look for `.html` ideation docs in addition to `.md`.",

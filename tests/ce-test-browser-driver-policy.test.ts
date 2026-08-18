@@ -69,8 +69,11 @@ describe("ce-test-browser browser-driver policy", () => {
       const pipeline = await readRepoFile(
         "skills/ce-test-browser/references/pipeline-orchestration.md",
       )
+      const routeAndReport = await readRepoFile(
+        "skills/ce-test-browser/references/route-and-report.md",
+      )
 
-      for (const content of [body, pipeline]) {
+      for (const content of [body, pipeline, routeAndReport]) {
         expect(content).toContain("scripts/resolve-port.sh")
         expect(content).not.toContain("Preferred dev server port")
       }
