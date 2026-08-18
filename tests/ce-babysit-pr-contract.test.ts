@@ -707,7 +707,7 @@ describe("ce-babysit-pr always-loaded body pins", () => {
     expect(body).toMatch(/`stack-ready` — once a layer has zero actionable backlog \(CI may still run\)[^\n]*lower layers stay probed[^\n]*never merges/)
     expect(body).toMatch(/`stack-land`[^\n]*bottom-most open layer is settled/)
     // stack.md owns the mechanism: quiescence definition, the watcher flag, the wake, the return rule, and the landing gate.
-    expect(stack).toMatch(/quiescent[^|]*zero actionable backlog[^|]*no open `needs-human`[^|]*no open or claimed currency item[^|]*no delegate work in flight/)
+    expect(stack).toMatch(/quiescent[^|]*zero actionable backlog[^|]*no standing residual[^|]*no open `needs-human`[^|]*`blocked-failing`[^|]*no open or claimed currency item[^|]*no delegate work in flight/)
     expect(stack).toContain("--downstack-pr <N>")
     expect(stack).toMatch(/wakes `downstack-actionable`/)
     expect(stack).toMatch(/return to the \*\*lowest\*\* re-opened non-draft layer/)
