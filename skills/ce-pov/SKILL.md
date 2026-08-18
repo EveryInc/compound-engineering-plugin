@@ -58,7 +58,7 @@ Send scouts directly to candidate-specific current evidence, never a generic rep
 
 ### Phase 2: Verify Grounding
 
-**Read `references/method.md` now**, before reasoning about the POV. It owns the Verify and POV steps, the skeptic stance, tiering, and the gate. Apply that gate over the grounded evidence. A failed floor forbids Adopt and Reject; that reference names what is returned instead.
+**Read `references/method.md` now**, before reasoning about the POV. It owns the Verify and POV steps, the skeptic stance, tiering, and the gate. Apply that gate over the grounded evidence. A failed floor forbids a confident result in any subject shape; that reference names the Blocked result each one returns instead.
 
 ### Phase 3: Point of View
 
