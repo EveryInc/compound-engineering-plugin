@@ -16,7 +16,7 @@ allowed-tools:
 
 `ce-product-pulse` queries the product's data sources for a given time window and produces a compact, single-page report covering usage, performance, errors, and followups. The report is saved to `<root>/pulse-reports/` and the key points are surfaced in chat.
 
-**Done:** a report of 30-40 lines exists at `<root>/pulse-reports/YYYY-MM-DD_HH-MM.md`, and its headlines and top followup are in chat.
+**Done:** a report of 30-40 lines exists at `<root>/pulse-reports/YYYY-MM-DD_HH-MM.md`, its headlines and top followup are in chat, and Phase 3 has been reached.
 
 ## Boundaries
 
@@ -64,7 +64,7 @@ This skill writes pulse reports under `<root>/pulse-reports/`. Resolve `<root>` 
 
 Resolve `<repo-root>` with `git rev-parse --show-toplevel`, then apply the ordinary-key rule above to the `pulse_*` keys. Read `references/config.md` whenever a `pulse_*` value has to be interpreted — it is the key schema and nothing else: each key, its allowed values, and its default, with an unset or invalid value taking the documented default rather than being guessed.
 
-**Routing:** every run ends in Phase 2. Run Phase 1 first when `pulse_product_name` is unset after cascade, when the repo root cannot be resolved, or when the argument was `setup`, `reconfigure`, or `edit config`. Otherwise start at Phase 2.
+**Routing:** every run passes through Phase 2 and then Phase 3. Run Phase 1 first when `pulse_product_name` is unset after cascade, when the repo root cannot be resolved, or when the argument was `setup`, `reconfigure`, or `edit config`. Otherwise start at Phase 2.
 
 ## Phase 1: First-run interview
 
