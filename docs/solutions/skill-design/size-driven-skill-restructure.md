@@ -98,6 +98,7 @@ Still not measured: GitHub Enterprise.
 
 ## What did not work / traps
 
+- Compressing sentences to fit. Nine bodies in the 2026-08-18 sweep landed within 35 bytes of the cap by fusing clauses, dropping articles, and packing rules into one sentence; an independent reader flagged dense or meaning-shifted sentences in thirteen of nineteen, and one rewrite inverted a safety guard. A PR that only compressed a shared paragraph across fifteen skills (#1452) was rejected as unreadable. Savings come from relocating a block or deleting redundancy; if the body is still over after plain rewriting, move another block, and land with room to spare.
 - Trusting Grok's "the cap doesn't apply, don't do it" as a stop. It was right about the shipping path and wrong about the goal; the user's call was to proceed. Verify premises, keep the findings.
 - Concatenating *every* body grep into a corpus grep. It passes and deletes the guarantee. Split by load-time.
 - Deleting "Settled != merged", the ask-tool list, the `ce-debug` enum, and "never declare non-convergence yourself" as "obvious". Two of them are contract-pinned; all four have provenance in the file's history.

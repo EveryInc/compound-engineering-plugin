@@ -24,6 +24,10 @@ For cross-model output guidance, include a restraint check that the authored ski
 
 **Read the result honestly.** If old and new prose both succeed on a strong model, that is no regression, not improvement — test the claimed insurance at the layer where it matters (the weaker tier or the other harness). Measure the outcome the skill exists to improve, not proxy volume: routing, state, authority, and completion for an orchestrator; claim support for research; clarification burden and execution errors for planning. For a side-effecting skill, grade intended and suppressed actions first, then use fake boundaries or dry-run contracts before anything live.
 
+## Reader pass for restructures
+
+After a size or placement restructure, have a fresh reader — a subagent that did not author the change, given the new body and the pre-change body — read the always-loaded body once and quote every sentence it had to read twice, plus any rewritten sentence whose meaning drifted from its origin. The author cannot see this: an independent audit of the 2026-08-18 sweep found dense or meaning-shifted sentences in thirteen of nineteen bodies that their authors, three harness evals, and two review bots had all passed. Fix by restating plainly or relocating, never by shortening again.
+
 ## Record
 
 In the PR: scenarios, tiers/hosts, what the pre-change run did, what the post-change run did, and anything the eval surfaced that you did not act on. Authored scenario sets over-represent the happy path; add one scenario from a real failure (a bot finding, a session that went wrong) whenever you have one. Improve from what generalizes across scenarios, not from what fixes one — a skill tuned to its handful of eval cases is overfit.
