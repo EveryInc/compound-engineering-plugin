@@ -105,7 +105,7 @@ The filename settles discovery. The shared file only works if each skill's own i
 | Preserve sections you did not write; keep them true with minimal, disclosed edits; never edit an author-approved-marked section or a doc the user does not own | mark your ratified sections inline; do not touch others' | do not restate strategy sections in Users/Purpose; add only your conditional sections | done |
 | Fill universal sections by meaning (Purpose, Users, Positioning, Principles, Boundaries): merge into what is there, in the author's words; a contradiction is a question for the user | you are the strongest writer for Principles and Boundaries | Users, Purpose, Positioning | Purpose, Positioning, Users, Boundaries; does not write Principles |
 | Formatting rules apply to your own sections only | one-sentence-per-line stays yours | — | — |
-| Readers require no section and no frontmatter | — | `## Platform` parse unchanged | `ce-product-pulse` keeps `## Key metrics` |
+| Readers require no section and no frontmatter | — | `## Platform` parse unchanged | `ce-product-pulse` reads `## Key metrics` when ce-strategy wrote it, else the section listing the success measures, by meaning |
 
 ## Adopting the shared file in your skill — the short version
 

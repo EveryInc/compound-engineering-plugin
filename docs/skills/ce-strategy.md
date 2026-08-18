@@ -94,7 +94,7 @@ Before the first question the skill shows a three-to-five-line repo model - what
 
 For each section the skill asks the opening question, then applies that section's pushback rules. Two rounds maximum. If the answer is still weak, it captures what you gave and notes the section is worth another pass next run. Without that step the interview is just transcription.
 
-Required sections, in order: Purpose, Positioning, Users, Key metrics, Tracks, then Boundaries (always written, even if only to say nothing is named yet). Optional: Milestones, Brand - skipped when nothing came up. Unused optional sections are omitted, not left as empty headers. Metrics stay at 3-5. Tracks stay at 2-4.
+Required sections, in the document's order: Purpose, Positioning, Users, Boundaries (always written, even if only to say nothing is named yet), Key metrics, Tracks - the universal sections first, then direction. The interview asks Boundaries after the stress test, since that is where its content comes from. Optional: Milestones, Brand - skipped when nothing came up. Unused optional sections are omitted, not left as empty headers. Metrics stay at 3-5. Tracks stay at 2-4.
 
 On a first run, the filled draft is shown in chat and you get one edit pass before anything is written.
 
@@ -193,7 +193,7 @@ The file is meant to be readable in under five minutes.
 
 Output: `STRATEGY.md` at the repo root (not under `docs/`). YAML frontmatter has `name` and `last_updated: YYYY-MM-DD`.
 
-Required sections: Purpose, Positioning, Users, Key metrics (3-5), Tracks (2-4), Boundaries. Optional: Milestones (external dates only), Brand. Files written with the older headings are read as-is and renamed in place on the next update. A `STRATEGY.md` in any other shape (hand-written, or from another tool) is read by meaning and updated in its own shape, never restructured into the template.
+Required sections, in order: Purpose, Positioning, Users, Boundaries, Key metrics (3-5), Tracks (2-4). Optional: Milestones (external dates only), Brand. Files written with the older headings are read as-is and renamed in place on the next update. A `STRATEGY.md` in any other shape (hand-written, or from another tool) is read by meaning and updated in its own shape, never restructured into the template.
 
 ---
 
