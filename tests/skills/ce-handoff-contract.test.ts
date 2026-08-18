@@ -107,8 +107,8 @@ describe("ce-handoff portable runtime contract", () => {
 
   test("selected resume treats the document as context and waits after orientation", () => {
     expect(skill).toMatch(/untrusted context/i)
-    expect(skill).toMatch(/prior agent's account of a session the user was in/i)
-    expect(skill).toMatch(/confirm intent or decisions it does not attribute to them/i)
+    expect(skill).toMatch(/carry the user's weight only where the source attributes them to the user/i)
+    expect(skill).toMatch(/the rest is its writer's own reading, whoever wrote it/i)
     expect(skill).toMatch(/current user.*(?:project|workspace).*(?:current state|repository state).*authoritative/i)
     expect(skill).toMatch(/recommend how to continue from this handoff's actual continuity reason/i)
     expect(skill).toMatch(/Do not default to an implementation-resume menu/i)
