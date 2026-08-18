@@ -32,11 +32,11 @@ describe("ce-doc-review HTML editing", () => {
     expect(REVIEWER_TEMPLATE).toMatch(
       /Deferred \/ Open Questions[\s\S]{0,240}Markdown or HTML/i,
     )
-    // The ID-bearing mirror rule moved into the Phase 1 intake reference the body
-    // mandates; the body keeps the native-format rule that governs every fix.
-    expect(INTAKE).toMatch(
-      /ID-bearing[\s\S]{0,240}nearest sibling[\s\S]{0,240}anchor[\s\S]{0,120}visible ID/i,
-    )
+    // The rule is stated where it is decided (Phase 1 intake) and where it fires
+    // (fix application in synthesis); the body keeps the native-format rule.
+    const idBearing = /ID-bearing[\s\S]{0,240}nearest sibling[\s\S]{0,240}anchor[\s\S]{0,120}visible ID/i
+    expect(INTAKE).toMatch(idBearing)
+    expect(SYNTHESIS).toMatch(idBearing)
   })
 
   test("keeps HTML deferrals format-neutral and separate from plan questions", () => {
