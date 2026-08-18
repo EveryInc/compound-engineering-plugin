@@ -10,7 +10,7 @@ Produce a decisive, project-grounded point of view in the subject's own shape: a
 
 ## Setup
 
-Run this once before any subagent dispatch and follow the directives it prints; where one conflicts with this skill's rules on asking questions, those win and no blocking question is asked. Run the fence exactly as written, as its own command — no piping, filtering, truncating, or batching. Its output starts `=== skill context` and ends with `CE_CONTEXT_END`; one without the other means truncation, so rerun once and never otherwise.
+Run this once per invocation, before any subagent dispatch, and follow the directives it prints; where one conflicts with this skill's rules on asking questions, those win and no blocking question is asked. Run the fence exactly as written, as its own command — no piping, filtering, truncating, or batching. Its output starts `=== skill context` and ends with `CE_CONTEXT_END`; one without the other means truncation, so rerun it verbatim once. A later invocation runs its own.
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
