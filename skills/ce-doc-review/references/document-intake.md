@@ -28,3 +28,12 @@ Otherwise decide between the two legacy types on these signals:
 **Tie-breaker:** treat the dominant content shape as authoritative; if shape is genuinely ambiguous, default to `requirements` (the conservative choice — it activates fewer plan-specific feasibility checks). Path location never disambiguates; a legacy `origin: docs/brainstorms/...` field still reads as a `plan` signal.
 
 Pass the result to each persona via the `{document_type}` slot — personas adapt their analysis to it.
+
+## Extract once, here, for the dispatch payload
+
+Personas never re-parse the document for these, so Phase 1 extracts both and hands them down:
+
+- `{origin_path}` — upstream Product Contract provenance: the document's `origin:` frontmatter when present, else `product_contract_source:<value>` when present, else `none`.
+- `{settled_ktds}` — any Key Technical Decision **or Product Contract Key Decision** carrying a `session-settled:` annotation, listed as decision name, class (`user-directed` / `user-approved`), and rejected alternative; else the literal `none`.
+
+An unfilled slot silently disables the provenance-gated technique suppression in product-lens, adversarial, and scope-guardian, so pass both even when the value is `none`.
