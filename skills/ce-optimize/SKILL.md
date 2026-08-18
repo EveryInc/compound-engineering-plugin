@@ -65,7 +65,7 @@ Four phases run in order. Each one names the reference it cannot start without. 
 
 **Phase 3 — Optimization loop.** Select a batch, dispatch experiments, persist each result as it lands (CP-3), evaluate, update state and the digest (CP-4), then check whether to stop. Stop as soon as any one of seven criteria holds: target reached, max iterations, max hours, judge budget exhausted, plateau, a user interrupt, or an empty backlog. `references/loop.md` states each one exactly. Otherwise start the next batch.
 
-**Phase 4 — Wrap-up.** **Read `references/wrap-up.md`** for the deferred hypotheses, the summary, what is preserved, and cleanup. Then present the options below. **Write CP-5 only once the user's choice does not return to Phase 3.** Continue re-enters the loop, and so does approving deferred dependencies. Marking the log final while the run is still going is the bug this prevents.
+**Phase 4 — Wrap-up.** **Read `references/wrap-up.md`** for the deferred hypotheses, the summary, what is preserved, and cleanup. Then present the options below. CP-5 marks the log final. **Write it only after the user picks an option that does not return to Phase 3.** Two options do return: Continue, and approving a deferred dependency. Until the user picks one of the others, the run is still going and the log is not final.
 
 1. **Run `ce-code-review`** on the cumulative diff (baseline to final), on the optimization branch. The reference's mechanical-apply bar decides which findings land; do not commit or push from this step.
 2. **Run `ce-compound`** to document the winning strategy as an institutional learning.
