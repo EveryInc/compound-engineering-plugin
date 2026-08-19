@@ -8,7 +8,7 @@ This engine loads and runs the same on every harness. There is no host gate that
 
 ## Activation resolution (runs on every harness)
 
-**If the calling skill already resolved this at its Phase 0.0** (ce-brainstorm records it as `MODEL_ELEVATION` in `references/output-mode.md`), reuse that result and skip straight to Adapter selection — do not re-resolve. The precedence below is the resolution it performed; it is restated here for callers that reach this reference without a pre-resolved choice.
+**If the calling skill already resolved this at its Phase 0.0** (recorded as `MODEL_ELEVATION`), reuse that result and skip straight to Adapter selection — do not re-resolve. The precedence below is the resolution it performed; it is restated here for callers that reach this reference without a pre-resolved choice.
 
 Resolve a per-skill **model choice** by precedence. The value is a model alias (e.g. `fable`, `opus`), not a boolean. A structured caller carrier is the highest-authority source and is evaluated **first**, so a reading of the prompt can never override it.
 
