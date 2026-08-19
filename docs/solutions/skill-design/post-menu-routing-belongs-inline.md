@@ -102,6 +102,15 @@ Nothing regressed, and no relocated-arm run on either harness reached the menu w
 - **The failing stub paraphrased the reference.** It summarized the branch paths, which is complete enough to act on and not complete enough to act on correctly — so the agent judged it had enough and never opened the file. That is the checklist's last question, and it is the whole failure.
 - **The passing pointer names what only the file carries, and what skipping it costs.** "It owns the destination menu, the per-option routing, each destination's sub-flow, the audience re-render offer and its ordering against a publisher's consent gate, and the improvement observations the run closes on. Read it now; do not render the menu and do not act on the user's selection without it." There is nothing here to act on, so the read is the only way forward.
 
+**The 0/5 does not reproduce once the pointer is written that way.** `ce-debug`'s own Phase 4 handoff was re-measured with its routing relocated into `references/post-fix-handoff.md` — already a required read at that step — and its stub rewritten to name the routing as something only that file carries and to state what skipping it costs, with the fire-the-action imperative kept in the body. Three trials per arm on Claude Code and Codex, graded on whether the run fires `ce-commit-push-pr` with `branding:on`:
+
+| Arm | Claude Code | Codex CLI | Total |
+|---|---:|---:|---:|
+| routing inline | 3/3 | 3/3 | **6/6** |
+| routing in the reference | 3/3 | 2/3 | **5/6** |
+
+Nothing resembling the 0/5, and no run stopped in prose or dropped `branding:on`. The one miss took the local-commit route instead of shipping, which is the safe direction the skill names for an unestablished ship gate, on a scenario that told the run the network was unavailable. `ce-debug` keeps its routing inline anyway: relocating it lands the body at 13,118 CRLF bytes, still far over 8,000, so the move would buy no headroom while spending a measured margin.
+
 **The condition, restated.** Routing may live in a reference when the body names that file as a required read at the step, states what only it carries, and leaves nothing partial to act on instead. Routing may not live in a reference the body mentions once in passing, or summarizes — the summary suppresses the read, and then the agent stops in prose or drops an argument. Where the routed action is the agent's answer to a selection the user has already made, the step cannot complete without the file at all, which is why this shape is the safest one to relocate.
 
 **Two things still belong in the body regardless of how well the pointer is written.**
