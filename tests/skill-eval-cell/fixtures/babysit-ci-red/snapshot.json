@@ -1,0 +1,26 @@
+{
+  "pr": 15,
+  "url": "https://github.com/example/tiny-lib/pull/15",
+  "head_sha": "cccccccccccccccccccccccccccccccccccccccc",
+  "head_ref": "fix/seat-cap",
+  "base_ref": "main",
+  "base_oid": "dddddddddddddddddddddddddddddddddddddddd",
+  "mergeable": "MERGEABLE",
+  "merge_state_status": "UNSTABLE",
+  "branch_currency": null,
+  "branch_currency_blocker": null,
+  "unrequested_base_merge": null,
+  "review_threads": [],
+  "non_thread_comments": [],
+  "failing_checks": [
+    {
+      "name": "test",
+      "sha": "cccccccccccccccccccccccccccccccccccccccc",
+      "conclusion": "FAILURE",
+      "log_tail": "SEAT_CAP: expected 3, got 5"
+    }
+  ],
+  "open_needs_human": 0,
+  "manager_status": null,
+  "note": "CI red on the current head; no review threads; no currency item"
+}

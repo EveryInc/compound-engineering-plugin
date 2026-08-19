@@ -1,0 +1,59 @@
+import { describe, expect, test } from "bun:test"
+import { spawnSync } from "node:child_process"
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
+import { installPathShims } from "./path-shim"
+
+describe("path shims", () => {
+  test("git push is stubbed but git add && git commit still run", () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "ce-path-shim-"))
+    try {
+      spawnSync("git", ["init", "-b", "main"], { cwd: workspace, encoding: "utf8" })
+      spawnSync("git", ["config", "user.name", "CE"], { cwd: workspace, encoding: "utf8" })
+      spawnSync("git", ["config", "user.email", "ce@example.test"], { cwd: workspace, encoding: "utf8" })
+      fs.writeFileSync(path.join(workspace, "keep.txt"), "ok\n")
+      spawnSync("git", ["add", "."], { cwd: workspace, encoding: "utf8" })
+      spawnSync("git", ["commit", "-m", "seed"], { cwd: workspace, encoding: "utf8" })
+      fs.writeFileSync(path.join(workspace, "new.txt"), "fresh\n")
+      const env = {
+        ...process.env,
+        ...installPathShims(workspace, [
+          { bin: "git", subcommand: "push", exitCode: 1, stderr: "fatal: no configured remote" },
+        ]),
+      }
+      const compound = spawnSync(
+        "bash",
+        ["--noprofile", "--norc", "-c", "git add new.txt && git commit -m add-new && git push origin HEAD"],
+        { cwd: workspace, env, encoding: "utf8" },
+      )
+      expect(compound.status).not.toBe(0)
+      expect(compound.stderr).toContain("fatal: no configured remote")
+      const log = spawnSync("git", ["log", "--oneline", "-2"], { cwd: workspace, encoding: "utf8" })
+      expect(log.stdout).toContain("add-new")
+    } finally {
+      fs.rmSync(workspace, { recursive: true, force: true })
+    }
+  })
+
+  test("gh -R owner/repo pr list still hits the pr shim", () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "ce-path-shim-gh-"))
+    try {
+      const env = {
+        ...process.env,
+        ...installPathShims(workspace, [
+          { bin: "gh", subcommand: "pr", exitCode: 1, stderr: "error: GitHub API failed" },
+        ]),
+      }
+      const r = spawnSync("bash", ["--noprofile", "--norc", "-c", "gh -R example/tiny-lib pr list"], {
+        cwd: workspace,
+        env,
+        encoding: "utf8",
+      })
+      expect(r.status).toBe(1)
+      expect(r.stderr).toContain("GitHub API failed")
+    } finally {
+      fs.rmSync(workspace, { recursive: true, force: true })
+    }
+  })
+})

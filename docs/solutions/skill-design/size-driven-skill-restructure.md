@@ -16,6 +16,7 @@ applies_when:
   - Deciding which reference a relocated block belongs in
   - Deciding whether a contract test's pinned phrase must survive a restructure verbatim
   - Sizing the eval for a restructure of a widely used skill
+  - Grading a reusable host-CLI skill-eval cell so pass/fail is unambiguous
 tags:
   - skill-design
   - 8kb-budget
@@ -27,8 +28,9 @@ tags:
   - ce-babysit-pr
   - test-pins
   - eval-breadth
-related_components: ["skills/ce-babysit-pr/SKILL.md", "skills/ce-code-review/references/*", "skills/lfg/references/*", "skills/ce-babysit-pr/references/*", "tests/ce-babysit-pr-contract.test.ts", "tests/codex-skill-prompt-budget.test.ts", ".agents/skills/ce-skill-work/references/edit-skill.md"]
-last_updated: 2026-08-18
+  - eval-grade
+related_components: ["skills/ce-babysit-pr/SKILL.md", "skills/ce-code-review/references/*", "skills/lfg/references/*", "skills/ce-babysit-pr/references/*", "tests/ce-babysit-pr-contract.test.ts", "tests/codex-skill-prompt-budget.test.ts", "tests/skill-eval-cell/catalog.ts", "tests/skill-eval-cell/grade.ts", ".agents/skills/ce-skill-work/references/edit-skill.md", ".agents/skills/ce-skill-work/references/evaluate.md"]
+last_updated: 2026-08-19
 ---
 
 # Restructuring a large skill under a byte cap without losing its invariants
@@ -231,6 +233,13 @@ One scenario is not an eval for a skill people run every day. **Enumerate the sk
 
 **A defect that review finds on a path the matrix skipped joins the matrix before the next push.** `ce-plan`'s author eval listed the deepening path (5.3.3-5.3.7) as unexercised, and both review rounds then found real invariant loss in and around it: the dual approach-altitude gate, the plan-write frontmatter contract missing from the 5.2 stub, and the `settled-decision-invalidated` stop degraded to a pointer. The 60-run independent eval is what finally covered that path.
 
+The matrix rule sizes which paths to run. It does not say how one reusable cell fails. After the sweep, a host-CLI catalog A/B'd the pre-#1433 bodies against `origin/main`. Correct post-sweep decisions graded red because the model explained a forbidden command, wrote allowed scratch, or skipped a procedure file whose gate was still always-loaded.
+
+**A cell's `ok` is a condition on evidence that survives the run.** Forbidden work matches the ACTIONS trailer, not the essay. Workspace files, git status, committed paths, and structured status tokens are the rest. A sentence that recites a forbidden command in order to refuse it is not an action.
+
+**A required-read miss fails the cell only when the always-loaded body makes the decision undefendable without that file.** List the file when the body says the equivalent of "read X now" or "decided by X, not from memory." If the body still states the gate, omit the probe: skipping the file is the correct negative, and extra reads are not a fail. Do not add a must-not-read. When a reference owns a different path, pair the body-owned cell with a complementary cell that requires that file — otherwise omitting the probe drops the extraction measurement.
+
+That replaces the older extraction rule that a body no run follows into a reference has failed regardless of the outcome. A CLEAN-PR refusal that lists only `SKILL.md` is a pass on the decision; the complementary BEHIND cell is what still requires `branch-currency.md`. One row per shipped skill is not coverage: a row whose only grade is "did nothing" cannot fail. The short form lives in `evaluate.md`; the catalog that applies it is `tests/skill-eval-cell/`.
 
 ## What did not work / traps
 
@@ -258,4 +267,4 @@ Live-fixture gotchas: give each harness its own worktree on the PR head branch (
 
 ## Gaps this closed in ce-skill-work
 
-`edit-skill.md` had "runtime placement: an instruction that must fire at a point stays inline" as one clause and nothing about size-driven restructures. It now has a "Restructuring for a size or platform constraint" section: prove the constraint's shipping path, relocate before delete, what the body keeps, tests split by load-time, adversarial cross-model read before splitting, eval the extraction with a `FILES_READ` probe on more than one harness.
+`edit-skill.md` had "runtime placement: an instruction that must fire at a point stays inline" as one clause and nothing about size-driven restructures. It now has a "Restructuring for a size or platform constraint" section: prove the constraint's shipping path, relocate before delete, what the body keeps, tests split by load-time, adversarial cross-model read before splitting, eval the extraction on more than one harness, and grade a required-read miss only when the always-loaded body cannot defend the decision without that file.

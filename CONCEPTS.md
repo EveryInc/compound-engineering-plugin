@@ -102,6 +102,11 @@ A bulk evidence artifact — verbatim quotes with source pointers, gathered by a
 ### Load stub
 The inline remnant left in a Skill when load-bearing content moves to a reference file: a load instruction that names what the reference contains and the failure mode of skipping it, while keeping no detail an agent could improvise from — making the load structurally necessary rather than advisory.
 
+### Skill-eval cell
+One graded scenario that runs a Skill on a real coding-agent host and scores the surviving artifacts of that run — actions taken, files written, required reads the Skill itself declared undefendable — not whether the model's essay mentioned a command or opened a procedure file.
+
+A required-read miss fails the cell only when the always-loaded body makes the decision undefendable without that file. Omitting the probe is the correct negative when the body still states the gate; a complementary cell is what measures extraction on a path the reference actually owns.
+
 ### Detached job
 A delegated worker process launched into its own session so it outlives the shell tool call that started it, with its state — status word, log, identity, and result — kept in a durable job directory the orchestrator polls between turns instead of awaiting in place.
 
