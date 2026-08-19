@@ -100,6 +100,9 @@ export function cellEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEn
   return env
 }
 
+/** Read-only cells must not mutate, delegate, or reach the network. */
+export const CLAUDE_READ_ONLY_DENY = "Bash,Edit,Write,NotebookEdit,Task,Skill,WebFetch,WebSearch"
+
 export function planHost(
   host: Host,
   opts: { cwd: string; prompt: string; promptFile: string; readOnly?: boolean },
@@ -110,8 +113,10 @@ export function planHost(
     notes.push("print mode ends when the model stops calling tools; not a sustained-watch harness")
     const argv = ["claude", "-p", opts.prompt, "--dangerously-skip-permissions", "--output-format", "text"]
     if (opts.readOnly) {
-      argv.push("--allowedTools", "Read,Glob,Grep", "--disallowedTools", "Bash,Edit,Write")
-      notes.push("read-only: Bash/Edit/Write disallowed")
+      // --allowedTools only pre-approves; under --dangerously-skip-permissions every
+      // other tool stays callable, so the boundary has to be drawn by --disallowedTools.
+      argv.push("--allowedTools", "Read,Glob,Grep", "--disallowedTools", CLAUDE_READ_ONLY_DENY)
+      notes.push(`read-only: ${CLAUDE_READ_ONLY_DENY} disallowed`)
     }
     return { host, argv, env, stdin: "null", notes }
   }
@@ -119,19 +124,16 @@ export function planHost(
     notes.push("stdin must be /dev/null or exec blocks on 'Reading additional input from stdin'")
     notes.push("unset CLAUDECODE or a Claude-launched cell attests the wrong host")
     notes.push("transcript is on stderr; stdout is the final message only")
-    const argv = [
-      "codex",
-      "exec",
-      "--dangerously-bypass-approvals-and-sandbox",
-      "--skip-git-repo-check",
-      "-C",
-      opts.cwd,
-      opts.prompt,
-    ]
+    // --sandbox read-only and --dangerously-bypass-approvals-and-sandbox contradict
+    // each other; the bypass flag disables the sandbox the read-only arm depends on.
+    const argv = ["codex", "exec"]
     if (opts.readOnly) {
-      argv.splice(2, 0, "--sandbox", "read-only")
-      notes.push("read-only: --sandbox read-only")
+      argv.push("--sandbox", "read-only")
+      notes.push("read-only: --sandbox read-only, no approvals/sandbox bypass")
+    } else {
+      argv.push("--dangerously-bypass-approvals-and-sandbox")
     }
+    argv.push("--skip-git-repo-check", "-C", opts.cwd, opts.prompt)
     return { host, argv, env, stdin: "null", notes }
   }
   notes.push("progress narration prints to stdout before the answer; grep for trailers, do not treat the whole file as the answer")

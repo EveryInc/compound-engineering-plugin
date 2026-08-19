@@ -87,9 +87,18 @@ describe("skill-eval-cell host plans pin measured gotchas", () => {
     const codex = planHost("codex", { cwd, prompt: "task", promptFile, readOnly: true })
     expect(codex.argv).toContain("--sandbox")
     expect(codex.argv).toContain("read-only")
+    expect(codex.argv).not.toContain("--dangerously-bypass-approvals-and-sandbox")
     const grok = planHost("grok", { cwd, prompt: "task", promptFile, readOnly: true })
     expect(grok.argv).toContain("--deny")
     expect(grok.argv).toContain("Bash")
+  })
+
+  test("claude read-only also denies the tools skip-permissions leaves callable", () => {
+    const plan = planHost("claude", { cwd, prompt: "task", promptFile, readOnly: true })
+    const deny = plan.argv[plan.argv.indexOf("--disallowedTools") + 1]?.split(",") ?? []
+    for (const tool of ["Bash", "Edit", "Write", "NotebookEdit", "Task", "Skill", "WebFetch", "WebSearch"]) {
+      expect(deny).toContain(tool)
+    }
   })
 
   test("wrapPrompt does not tell the model it is an eval", () => {
