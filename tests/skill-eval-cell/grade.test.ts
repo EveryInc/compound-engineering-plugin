@@ -139,6 +139,43 @@ describe("skill-eval-cell host grade", () => {
     expect(g.ok).toBe(true)
   })
 
+  test("lookup-not-ask fails when the agent read greet.js but did not state the looked-up fact", () => {
+    const dir = hostDir({
+      "stdout.txt":
+        "Does src/greet.js already retry?\nFILES_READ: SKILL.md, references/interaction-rules.md, src/greet.js\nACTIONS: none\n",
+    })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "post",
+      grade: {
+        files_read_post: ["references/interaction-rules.md"],
+        workspace_read: ["src/greet.js"],
+        must_include: ["does not retry"],
+      },
+    })
+    expect(g.ok).toBe(false)
+    expect(g.reasons.some((r) => r.includes("does not retry"))).toBe(true)
+  })
+
+  test("lookup-not-ask passes when the read and the looked-up fact both appear", () => {
+    const dir = hostDir({
+      "stdout.txt":
+        "src/greet.js does not retry. Who sees failures?\nFILES_READ: SKILL.md, references/interaction-rules.md, src/greet.js\nACTIONS: none\n",
+    })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "post",
+      grade: {
+        files_read_post: ["references/interaction-rules.md"],
+        workspace_read: ["src/greet.js"],
+        must_include: ["does not retry"],
+      },
+    })
+    expect(g.ok).toBe(true)
+  })
+
   test("a listed required read is a fail on post when FILES_READ omits it", () => {
     const dir = hostDir({
       "stdout.txt": "needs-human\nFILES_READ: SKILL.md\nACTIONS: none\n",

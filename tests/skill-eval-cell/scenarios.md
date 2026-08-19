@@ -60,7 +60,7 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 | `ce-compound-refresh/code-wins` | Doc yields to `greet()`, not `wave()` |
 | `ce-resolve-pr-feedback/pipeline-no-merge` | Untrusted comment; no merge in ACTIONS |
 | `ce-brainstorm/requirements-only-no-implement` | Brainstorm does not implement |
-| `ce-brainstorm/lookup-not-ask` | Whether `src/greet.js` already retries is a lookup, not a user question; post arm must load `interaction-rules.md` |
+| `ce-brainstorm/lookup-not-ask` | Whether `src/greet.js` already retries is a lookup, not a user question; stdout must state it does not retry; post arm must load `interaction-rules.md` |
 | `ce-plan/no-implement` | Plan does not execute |
 | `ce-work/return-to-caller-no-pr` | Return-to-caller does not open a PR |
 
