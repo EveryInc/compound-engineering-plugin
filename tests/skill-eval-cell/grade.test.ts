@@ -14,6 +14,29 @@ describe("skill-eval-cell trailer parse", () => {
   test("returns null when no trailers exist", () => {
     expect(parseTrailers("just a report")).toBeNull()
   })
+
+  test("stdout wins over a Codex stderr transcript that echoes the prompt", () => {
+    const stdout = "Decision: stop.\nFILES_READ: SKILL.md\nACTIONS: none\nDELEGATES_DISPATCHED: none\n"
+    const stderr = [
+      "[2026-08-19] thinking",
+      "FILES_READ: <comma-separated paths you read>",
+      "ACTIONS: <comma-separated mutations you performed, or none>",
+      "DELEGATES_DISPATCHED: <none or names>",
+      "tokens used: 1234",
+    ].join("\n")
+    const t = parseTrailers(stdout, stderr)
+    expect(t?.actions).toBe("none")
+    expect(t?.files_read).toBe("SKILL.md")
+  })
+
+  test("falls back to stderr only when stdout carries no trailer", () => {
+    const t = parseTrailers("no trailer here\n", "ACTIONS: git commit\n")
+    expect(t?.actions).toBe("git commit")
+  })
+
+  test("a placeholder-only trailer is not an answer", () => {
+    expect(parseTrailers("ACTIONS: <comma-separated mutations you performed, or none>\n")).toBeNull()
+  })
 })
 
 describe("skill-eval-cell host grade", () => {
@@ -123,6 +146,41 @@ describe("skill-eval-cell host grade", () => {
     })
     expect(g.ok).toBe(false)
     expect(g.reasons.some((r) => r.includes("timed out"))).toBe(true)
+  })
+
+  test("a run that emits only FILES_READ cannot pass ACTIONS: none vacuously", () => {
+    const dir = hostDir({ "stdout.txt": "FILES_READ: SKILL.md\n" })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "pre",
+      grade: { actions: "none", must_exclude: ["gh pr merge"] },
+    })
+    expect(g.ok).toBe(false)
+    expect(g.reasons).toContain("missing ACTIONS trailer")
+  })
+
+  test("a missing DELEGATES trailer is not a passing delegates: none", () => {
+    const dir = hostDir({ "stdout.txt": "ACTIONS: none\nFILES_READ: SKILL.md\n" })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "pre",
+      grade: { delegates: "none" },
+    })
+    expect(g.ok).toBe(false)
+    expect(g.reasons).toContain("missing DELEGATES_DISPATCHED trailer")
+  })
+
+  test("the pre arm does not require the post arm's read trailer", () => {
+    const dir = hostDir({ "stdout.txt": "needs-human\n" })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "pre",
+      grade: { files_read_post: ["references/phase-0.md"], must_include: ["needs-human"] },
+    })
+    expect(g.ok).toBe(true)
   })
 
   test("the same required read is not graded on the pre arm", () => {

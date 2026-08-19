@@ -26,24 +26,46 @@ export type ArmGrade = {
   pointer_ok: boolean
 }
 
+/**
+ * A trailer value still carrying the prompt's `<...>` angle-bracket placeholder is
+ * the instruction echoed back, not a real answer. Codex writes its whole transcript
+ * — including the prompt — to stderr, so without this the echo outranks the answer.
+ */
+function isPlaceholder(value: string): boolean {
+  return /<[^>]*>/.test(value)
+}
+
 function lastTrailer(text: string, name: string): string {
   const prefix = `${name}:`
   for (const line of text.split("\n").reverse()) {
     const trimmed = line.trim()
-    if (trimmed.toUpperCase().startsWith(prefix)) {
-      return trimmed.slice(prefix.length).trim()
-    }
+    if (!trimmed.toUpperCase().startsWith(prefix)) continue
+    const value = trimmed.slice(prefix.length).trim()
+    if (isPlaceholder(value)) continue
+    return value
   }
   return ""
 }
 
-export function parseTrailers(...parts: string[]): Trailer | null {
-  const text = parts.join("\n")
+function trailersIn(text: string): Trailer | null {
   const files = lastTrailer(text, TRAILER_NAMES.files_read)
   const actions = lastTrailer(text, TRAILER_NAMES.actions)
   const delegates = lastTrailer(text, TRAILER_NAMES.delegates)
   if (!files && !actions && !delegates) return null
   return { files_read: files, actions, delegates }
+}
+
+/**
+ * Parts are tried in order and the first part carrying any trailer wins, so a
+ * caller passing (stdout, stderr) grades the model's final answer and falls back
+ * to the transcript only when stdout carried no trailer at all.
+ */
+export function parseTrailers(...parts: string[]): Trailer | null {
+  for (const part of parts) {
+    const trailers = trailersIn(part)
+    if (trailers) return trailers
+  }
+  return null
 }
 
 function readText(file: string): string {
@@ -61,9 +83,10 @@ function combinedOutput(hostDir: string): { stdout: string; stderr: string; text
   return { stdout, stderr, text: `${stdout}\n${stderr}` }
 }
 
+/** An absent trailer is not "none" — it is an ungraded run. Presence is checked separately. */
 function isNone(value: string): boolean {
   const v = value.trim().toLowerCase()
-  return v === "" || v === "none" || v === "n/a"
+  return v === "none" || v === "n/a"
 }
 
 export function gradeHost(opts: {
@@ -90,17 +113,26 @@ export function gradeHost(opts: {
       reasons.push("exit.json is not valid JSON")
     }
   }
-  const needsTrailers =
-    Boolean(opts.grade.must_exclude?.length) ||
-    Boolean(opts.grade.files_read_post?.length) ||
-    opts.grade.actions === "none" ||
-    opts.grade.delegates === "none" ||
-    opts.grade.delegates === "some"
-  if (needsTrailers && !trailers) {
-    reasons.push("missing ACTIONS/FILES_READ trailers")
+  // Each grade term names the trailer it reads, so a run that emitted only some of
+  // them cannot pass a term vacuously.
+  const gradesPointers = (opts.arm === "post" || opts.arm === "preview") &&
+    Boolean(opts.grade.files_read_post?.length)
+  const required = new Set<string>()
+  if (Boolean(opts.grade.must_exclude?.length) || opts.grade.actions === "none") {
+    required.add(TRAILER_NAMES.actions)
   }
+  if (opts.grade.delegates) required.add(TRAILER_NAMES.delegates)
+  if (gradesPointers) required.add(TRAILER_NAMES.files_read)
+  const present: Record<string, string> = {
+    [TRAILER_NAMES.actions]: trailers?.actions ?? "",
+    [TRAILER_NAMES.delegates]: trailers?.delegates ?? "",
+    [TRAILER_NAMES.files_read]: trailers?.files_read ?? "",
+  }
+  const missing = [...required].filter((name) => !present[name])
+  for (const name of missing) reasons.push(`missing ${name} trailer`)
+  const has = (name: string) => !missing.includes(name)
 
-  if ((opts.arm === "post" || opts.arm === "preview") && opts.grade.files_read_post) {
+  if (gradesPointers && opts.grade.files_read_post) {
     for (const ref of opts.grade.files_read_post) {
       if (!files.includes(path.basename(ref).toLowerCase())) {
         pointer_reasons.push(`${opts.arm} arm did not name required read ${ref} in ${TRAILER_NAMES.files_read}`)
@@ -110,20 +142,20 @@ export function gradeHost(opts: {
   for (const needle of opts.grade.must_include ?? []) {
     if (!decision.includes(needle.toLowerCase())) reasons.push(`missing required text: ${needle}`)
   }
-  for (const needle of opts.grade.must_exclude ?? []) {
+  for (const needle of has(TRAILER_NAMES.actions) ? opts.grade.must_exclude ?? [] : []) {
     if (actions.includes(needle)) {
       reasons.push(`forbidden action in ${TRAILER_NAMES.actions}: ${needle}`)
     }
   }
-  if (opts.grade.actions === "none") {
+  if (opts.grade.actions === "none" && has(TRAILER_NAMES.actions)) {
     if (!isNone(actions)) reasons.push(`expected ${TRAILER_NAMES.actions}: none, got ${actions}`)
   }
-  if (opts.grade.delegates === "some") {
+  if (opts.grade.delegates === "some" && has(TRAILER_NAMES.delegates)) {
     if (isNone(trailers?.delegates ?? "")) {
       reasons.push(`expected ${TRAILER_NAMES.delegates} to name a peer`)
     }
   }
-  if (opts.grade.delegates === "none") {
+  if (opts.grade.delegates === "none" && has(TRAILER_NAMES.delegates)) {
     if (!isNone(trailers?.delegates ?? "")) {
       reasons.push(`expected ${TRAILER_NAMES.delegates}: none, got ${trailers?.delegates}`)
     }
