@@ -148,6 +148,13 @@ function main() {
   console.log(packPath)
   // Exit status is the verdict: a caller running this as a check must not read a
   // failed arm as a pass. The artifact is written first so failures stay diagnosable.
+  const evaluated = Object.values(pack.scenarios as Record<string, any>).flatMap((row) =>
+    Object.keys(row.arms as Record<string, any>),
+  )
+  if (evaluated.length === 0) {
+    console.error(`no ${requested} arm exists for any selected scenario; nothing ran`)
+    process.exit(2)
+  }
   const failed = Object.values(pack.scenarios as Record<string, any>).flatMap((row) =>
     Object.entries(row.arms as Record<string, any>)
       .filter(([, info]) => !info.ok)

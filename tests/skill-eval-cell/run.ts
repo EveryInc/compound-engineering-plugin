@@ -55,14 +55,35 @@ function snapshotWorkspace(hostDir: string, workspace: string, seedSha: string) 
   fs.writeFileSync(path.join(hostDir, "files.txt"), list.stdout)
   // What the run itself committed, across however many commits it made -- not what
   // the seed already tracked, and not merely HEAD's own changeset.
+  // Every commit in the range, not the endpoint diff: a secret committed and then
+  // removed in a follow-up commit is still in history and still pushable.
   const headFiles = seedSha
-    ? git(["diff", "--name-only", seedSha, "HEAD"])
+    ? git(["log", "--name-only", "--pretty=format:", `${seedSha}..HEAD`])
     : git(["ls-tree", "-r", "--name-only", "HEAD"])
   fs.writeFileSync(
     path.join(hostDir, "git-head-files.txt"),
     headFiles.status === 0 ? headFiles.stdout : "",
   )
 }
+
+/** Detached children outlive the parent's own SIGINT/SIGHUP, so the cell kills them itself. */
+const liveHosts = new Set<number>()
+function killGroup(pid: number) {
+  try {
+    process.kill(-pid, "SIGKILL")
+  } catch {
+    // group already gone
+  }
+}
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
+  process.on(signal, () => {
+    for (const pid of liveHosts) killGroup(pid)
+    process.exit(130)
+  })
+}
+process.on("exit", () => {
+  for (const pid of liveHosts) killGroup(pid)
+})
 
 async function runPlan(
   plan: HostPlan,
@@ -80,16 +101,14 @@ async function runPlan(
       stdio: [stdin, "pipe", "pipe"],
       detached: true,
     })
+    if (child.pid) liveHosts.add(child.pid)
     let timedOut = false
     const killTree = () => {
+      if (child.pid) killGroup(child.pid)
       try {
-        if (child.pid) process.kill(-child.pid, "SIGKILL")
+        child.kill("SIGKILL")
       } catch {
-        try {
-          child.kill("SIGKILL")
-        } catch {
-          // already gone
-        }
+        // already gone
       }
     }
     let stdout = ""
@@ -106,11 +125,16 @@ async function runPlan(
       killTree()
       // Resolve on close so the snapshot runs after the tree is gone; the backstop
       // covers a child whose pipes never close.
-      backstop = setTimeout(() => resolve({ exitCode: null, stdout, stderr, timedOut: true }), 5000)
+      backstop = setTimeout(() => {
+        killTree()
+        if (child.pid) liveHosts.delete(child.pid)
+        resolve({ exitCode: null, stdout, stderr, timedOut: true })
+      }, 5000)
     }, timeoutMs)
     child.on("close", (code) => {
       clearTimeout(timer)
       if (backstop) clearTimeout(backstop)
+      if (child.pid) liveHosts.delete(child.pid)
       try {
         fs.closeSync(stdin)
       } catch {
@@ -121,6 +145,7 @@ async function runPlan(
     child.on("error", (err) => {
       clearTimeout(timer)
       if (backstop) clearTimeout(backstop)
+      if (child.pid) liveHosts.delete(child.pid)
       resolve({ exitCode: null, stdout, stderr: `${stderr}\n${String(err)}`, timedOut })
     })
   })
