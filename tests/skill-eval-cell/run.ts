@@ -10,7 +10,7 @@ import { spawn, spawnSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 import { arg, flag } from "./cli"
-import { extractSkill, mintCellDir } from "./extract"
+import { WORKTREE_REF, extractSkill, mintCellDir } from "./extract"
 import { HOSTS, planHost, resolveRunHosts, wrapPrompt, type Host, type HostPlan } from "./hosts"
 import { installPathShims, type PathShim } from "./path-shim"
 
@@ -106,7 +106,7 @@ async function main() {
   const taskFile = arg("--task-file")
   if (!skill) {
     console.error(
-      "usage: bun run test:skill-eval-cell -- --skill <name> --task \"...\" [--task-file p] [--ref HEAD] [--hosts claude,codex,grok] [--fixture dir] [--out dir] [--timeout-secs 600] [--read-only] [--git-init] [--shim-git-push] [--shim-gh-pr]\n       default --hosts is the other two harnesses from this session; missing CLIs warn and continue",
+      "usage: bun run test:skill-eval-cell -- --skill <name> --task \"...\" [--task-file p] [--ref WORKTREE|<git-ref>] [--hosts claude,codex,grok] [--fixture dir] [--out dir] [--timeout-secs 600] [--read-only] [--git-init] [--shim-git-push] [--shim-gh-pr]\n       default --hosts is the other two harnesses from this session; missing CLIs warn and continue",
     )
     process.exit(2)
   }
@@ -116,7 +116,7 @@ async function main() {
     process.exit(2)
   }
 
-  const ref = arg("--ref", "HEAD") ?? "HEAD"
+  const ref = arg("--ref", WORKTREE_REF) ?? WORKTREE_REF
   const timeoutMs = Number(arg("--timeout-secs", "600")) * 1000
   const readOnly = flag("--read-only")
   const resolution = resolveRunHosts({ explicit: parseHosts() })
@@ -191,7 +191,7 @@ async function main() {
         stderr: "error: GitHub API failed (simulated unknown PR state)",
       })
     }
-    if (shims.length > 0) Object.assign(plan.env, installPathShims(hostWorkspace, shims))
+    if (shims.length > 0) Object.assign(plan.env, installPathShims(hostDir, shims))
     fs.writeFileSync(path.join(hostDir, "argv.json"), `${JSON.stringify(plan.argv, null, 2)}\n`)
     fs.writeFileSync(path.join(hostDir, "notes.txt"), `${plan.notes.join("\n")}\n`)
     const result = await runPlan(plan, hostWorkspace, timeoutMs)

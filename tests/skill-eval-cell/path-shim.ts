@@ -16,9 +16,14 @@ function resolveRealBin(bin: string): string {
   return resolved
 }
 
-export function installPathShims(workspace: string, shims: PathShim[]): Record<string, string> {
+/**
+ * `dir` must be outside the workspace the skill under test sees: shims dropped into
+ * the workspace after its seed commit are untracked files the skill reads as its own
+ * dirty tree (and for the gh-pr commit-flow cells, the only dirty files there are).
+ */
+export function installPathShims(dir: string, shims: PathShim[]): Record<string, string> {
   if (shims.length === 0) return {}
-  const binDir = path.join(workspace, ".bin")
+  const binDir = path.join(dir, ".bin")
   fs.mkdirSync(binDir, { recursive: true })
   const byBin = new Map<string, PathShim[]>()
   for (const shim of shims) {

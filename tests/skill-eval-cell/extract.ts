@@ -5,6 +5,13 @@ import path from "node:path"
 
 export const REPO_ROOT = path.resolve(import.meta.dir, "../..")
 
+/**
+ * Ref sentinel for the working tree rather than a commit. `git archive` only ever
+ * sees committed content, so the post arm has to copy the files on disk or an
+ * uncommitted skill edit is silently graded as the last commit.
+ */
+export const WORKTREE_REF = "WORKTREE"
+
 export function extractSkill(opts: {
   skill: string
   ref?: string
@@ -12,9 +19,19 @@ export function extractSkill(opts: {
   repoRoot?: string
 }): { skillDir: string } {
   const repoRoot = opts.repoRoot ?? REPO_ROOT
-  const ref = opts.ref ?? "HEAD"
+  const ref = opts.ref ?? WORKTREE_REF
   const prefix = `skills/${opts.skill}`
   fs.mkdirSync(opts.dest, { recursive: true })
+  if (ref === WORKTREE_REF) {
+    const src = path.join(repoRoot, prefix)
+    if (!fs.existsSync(path.join(src, "SKILL.md"))) {
+      throw new Error(`no working-tree skill at ${src}`)
+    }
+    const skillDir = path.join(opts.dest, prefix)
+    fs.mkdirSync(path.dirname(skillDir), { recursive: true })
+    fs.cpSync(src, skillDir, { recursive: true })
+    return { skillDir }
+  }
   const archive = spawnSync("git", ["archive", ref, prefix], {
     cwd: repoRoot,
     encoding: "buffer",

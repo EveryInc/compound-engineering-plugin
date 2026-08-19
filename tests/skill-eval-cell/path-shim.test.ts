@@ -7,7 +7,9 @@ import { installPathShims } from "./path-shim"
 
 describe("path shims", () => {
   test("git push is stubbed but git add && git commit still run", () => {
-    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "ce-path-shim-"))
+    const cell = fs.mkdtempSync(path.join(os.tmpdir(), "ce-path-shim-"))
+    const workspace = path.join(cell, "workspace")
+    fs.mkdirSync(workspace)
     try {
       spawnSync("git", ["init", "-b", "main"], { cwd: workspace, encoding: "utf8" })
       spawnSync("git", ["config", "user.name", "CE"], { cwd: workspace, encoding: "utf8" })
@@ -18,7 +20,7 @@ describe("path shims", () => {
       fs.writeFileSync(path.join(workspace, "new.txt"), "fresh\n")
       const env = {
         ...process.env,
-        ...installPathShims(workspace, [
+        ...installPathShims(cell, [
           { bin: "git", subcommand: "push", exitCode: 1, stderr: "fatal: no configured remote" },
         ]),
       }
@@ -31,17 +33,23 @@ describe("path shims", () => {
       expect(compound.stderr).toContain("fatal: no configured remote")
       const log = spawnSync("git", ["log", "--oneline", "-2"], { cwd: workspace, encoding: "utf8" })
       expect(log.stdout).toContain("add-new")
+      // The workspace the skill under test sees must not gain harness files.
+      const status = spawnSync("git", ["status", "--porcelain"], { cwd: workspace, encoding: "utf8" })
+      expect(status.stdout.trim()).toBe("")
+      expect(fs.existsSync(path.join(workspace, ".bin"))).toBe(false)
     } finally {
-      fs.rmSync(workspace, { recursive: true, force: true })
+      fs.rmSync(cell, { recursive: true, force: true })
     }
   })
 
-  test("gh -R owner/repo pr list still hits the pr shim", () => {
-    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "ce-path-shim-gh-"))
+  test("gh -R owner/repo pr list still hits the pr shim from another cwd", () => {
+    const cell = fs.mkdtempSync(path.join(os.tmpdir(), "ce-path-shim-gh-"))
+    const workspace = path.join(cell, "workspace")
+    fs.mkdirSync(workspace)
     try {
       const env = {
         ...process.env,
-        ...installPathShims(workspace, [
+        ...installPathShims(cell, [
           { bin: "gh", subcommand: "pr", exitCode: 1, stderr: "error: GitHub API failed" },
         ]),
       }
@@ -52,8 +60,9 @@ describe("path shims", () => {
       })
       expect(r.status).toBe(1)
       expect(r.stderr).toContain("GitHub API failed")
+      expect(fs.existsSync(path.join(workspace, ".bin"))).toBe(false)
     } finally {
-      fs.rmSync(workspace, { recursive: true, force: true })
+      fs.rmSync(cell, { recursive: true, force: true })
     }
   })
 })
