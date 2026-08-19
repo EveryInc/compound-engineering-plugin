@@ -204,3 +204,53 @@ Compound-engineering pipeline artifacts must never be flagged for deletion, remo
 - the legacy `brainstorms/` -- requirements documents created by older ce-brainstorm versions
 
 Matching by the immediate parent covers nested category files while leaving a same-named directory elsewhere — a skill's own `references/personas/` prompt assets, parented by `references` — as ordinary code whose deletion finding stands. A run that never resolved a configured root still protects the `docs`-parented tree; a configured-root artifact seen by such a run is the one honest gap. Discard any such file's cleanup or removal finding during synthesis.
+
+## After Review
+
+After Stage 6, stop. When local apply was explicitly authorized, Stage 5c may already have applied and, on a clean pre-review tree, committed verified fixes. Otherwise the caller or user decides what to apply from the report and artifacts.
+
+### Emit actionable findings summary (default mode only)
+
+After Stage 6 **in default mode**, emit a compact **Actionable Findings** summary for callers:
+
+- List each actionable finding (`gated_auto` or `manual` with `downstream-resolver`) with stable `#`, severity, file:line, title, `autofix_class`, whether `suggested_fix` is present, and `confidence`.
+- Include the resolved run-artifact path when one was written.
+- When the actionable queue is empty, state `Actionable findings: none.` explicitly.
+
+In `mode:agent` do **not** emit this markdown summary — the actionable findings are carried solely by the `actionable_findings` field of the JSON object. Emit nothing after the JSON object, so the response stays a single parseable JSON value.
+
+Do not run post-review triage (no per-finding walk-through, bulk ticket filing, or routing questions). The report and summary are the complete handoff.
+
+### Mode-specific completion
+
+| Mode | After Stage 6 + actionable summary |
+|------|-----------------------------------|
+| **Default** | Markdown tables + Actionable Findings summary. |
+| **`mode:agent`** | JSON object + `review.json` in run artifact dir. |
+
+Do not offer push/PR/create-branch next steps from this skill.
+
+#### Run artifacts
+
+Always write run artifacts under the resolved `<run-dir>`:
+
+- synthesized findings
+- actionable findings list
+- advisory outputs
+- per-agent `{reviewer_name}.json` from Stage 4
+- `adversarial-review-brief.md` when the cross-model route starts — the orchestrator's compact semantic divisions, never a copied diff
+- `report.md` — the rendered markdown report exactly as presented to the user (default mode only), so format and numbering stay auditable after the run
+
+`metadata.json` minimum fields:
+
+```json
+{
+  "run_id": "<run-id>",
+  "branch": "<git branch --show-current at dispatch time>",
+  "head_sha": "<git rev-parse HEAD at dispatch time>",
+  "verdict": "<Ready to merge | Ready with fixes | Not ready>",
+  "completed_at": "<ISO 8601 UTC timestamp>"
+}
+```
+
+Capture `branch` and `head_sha` at dispatch time (no in-skill fixes will land afterward).
