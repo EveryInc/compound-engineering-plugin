@@ -184,6 +184,11 @@ describe("ce-explain destination and handoff routing", () => {
     expect(phase6Body).toMatch(/never headless and never inferred/i)
     expect(phase6Body).toMatch(/a choice of destination rather than that confirmation/i)
     expect(phase6Body).toMatch(/do not run the sequence from this paragraph/i)
+    // A size pass shortened "offered, never auto-fired" to "never fired", which
+    // forbade the acceptance path the reference requires. Pin the condition:
+    // the offer precedes the fire, and acceptance fires it.
+    expect(phase6Body).toMatch(/offered before anything fires/i)
+    expect(phase6Body).toMatch(/once the user accepts one, invoke it through the skill primitive/i)
     expect(phase6Body).toMatch(/do not publish; preserve the canonical HTML and report its local `\$RUN_DIR\/explainer\.html` path/i)
     expect(DESTINATIONS_BODY).toMatch(/ht-ml\.app or general HTML-publishing capability/i)
     expect(DESTINATIONS_BODY).toMatch(/skill-invocation primitive/i)
