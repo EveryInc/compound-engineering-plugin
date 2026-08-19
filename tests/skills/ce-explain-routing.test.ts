@@ -175,9 +175,16 @@ describe("ce-explain destination and handoff routing", () => {
     expect(DESTINATIONS_BODY).toMatch(/pre-warning request does not count as confirmation/i)
     expect(DESTINATIONS_BODY).toMatch(/If confirmation cannot be obtained, do not publish; preserve the canonical HTML and report its local `\$RUN_DIR\/explainer\.html` path/i)
     expect(DESTINATIONS_BODY).toMatch(/Publish publicly to ht-ml\.app[^\n]+follow the ht-ml\.app sub-flow below/i)
-    // The stop class that must hold even if this file is never opened stays in
-    // the body: a publish is never headless, whatever the reference says.
-    expect(SKILL_BODY).toMatch(/ht-ml\.app is public, so it must never be selected headlessly/i)
+    // The stop classes that must hold even if this file is never opened stay in
+    // the body: a publish is never headless or inferred, naming the destination
+    // is not the confirmation, and the body must not read as a runnable publish
+    // sequence — spelling one out there is the paraphrase that suppresses the
+    // read this phase depends on.
+    const phase6Body = sliceSection(SKILL_BODY, "### Phase 6")
+    expect(phase6Body).toMatch(/never headless and never inferred/i)
+    expect(phase6Body).toMatch(/a choice of destination rather than that confirmation/i)
+    expect(phase6Body).toMatch(/do not run the sequence from this paragraph/i)
+    expect(phase6Body).toMatch(/do not publish; preserve the canonical HTML and report its local `\$RUN_DIR\/explainer\.html` path/i)
     expect(DESTINATIONS_BODY).toMatch(/ht-ml\.app or general HTML-publishing capability/i)
     expect(DESTINATIONS_BODY).toMatch(/skill-invocation primitive/i)
     expect(DESTINATIONS_BODY).toMatch(/tool, connector, or browser capability directly/i)
