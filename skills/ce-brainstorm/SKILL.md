@@ -69,7 +69,7 @@ Phases run in this order. Each names the files it cannot run correctly without: 
 
 These rules hold without any read:
 
-**`OUTPUT_FORMAT` is exclusive** — markdown OR HTML, never both — and pipeline mode (LFG, or any `disable-model-invocation` context) forces `md`.
+**`OUTPUT_FORMAT` is exclusive** — markdown OR HTML, never both — and pipeline mode (LFG, or any `disable-model-invocation` context) forces `md`. Pipeline mode forces markdown and skips interactive questions but does **not** disable model elevation — `brainstorm_model` config (and a `brainstorm_model:<alias>` caller carrier) is still honored (see `references/reasoning-elevation.md`).
 
 **On the brainstorm path the artifact contract does not change**: write to `<root>/plans/YYYY-MM-DD-HHMM-<type>-<topic>-plan.<md|html>`, with `HHMM` from local wall-clock time at write; frontmatter carries `artifact_contract: ce-unified-plan/v1`, `artifact_readiness: requirements-only`, and `product_contract_source: ce-brainstorm`; the body is a Goal Capsule plus the Product Contract. Do **not** emit a Goal Launch Block or Reader Index. The non-software route writes none of this.
 

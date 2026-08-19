@@ -2,7 +2,7 @@
 
 ### Phase 2: Explore Approaches
 
-**Model elevation.** Before generating approaches, load `references/reasoning-elevation.md` and follow it. It resolves whether the user chose a model for approach generation — from this run's prompt or the `brainstorm_model` config key — and if so dispatches that one step to the chosen model on any harness, with a read-only verifying handoff and transparent fallback to your session model. When no model is chosen it is a no-op; proceed normally. It runs the same on every harness — do not gate it on the host.
+**Model elevation.** Before generating approaches, load `references/reasoning-elevation.md` and follow it, consuming the `MODEL_ELEVATION` choice already resolved at Phase 0.0 (`references/output-mode.md`) rather than re-resolving. It dispatches approach generation to that model on any harness, with a read-only verifying handoff and transparent fallback to your session model. When `MODEL_ELEVATION` is none it is a no-op; proceed normally. It runs the same on every harness — do not gate it on the host.
 
 If multiple plausible directions remain, propose **2-3 concrete approaches** based on research and conversation. Otherwise state the recommended direction directly.
 

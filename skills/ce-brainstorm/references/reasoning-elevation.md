@@ -8,6 +8,8 @@ This engine loads and runs the same on every harness. There is no host gate that
 
 ## Activation resolution (runs on every harness)
 
+**If the calling skill already resolved this at its Phase 0.0** (ce-brainstorm records it as `MODEL_ELEVATION` in `references/output-mode.md`), reuse that result and skip straight to Adapter selection — do not re-resolve. The precedence below is the resolution it performed; it is restated here for callers that reach this reference without a pre-resolved choice.
+
 Resolve a per-skill **model choice** by precedence. The value is a model alias (e.g. `fable`, `opus`), not a boolean. A structured caller carrier is the highest-authority source and is evaluated **first**, so a reading of the prompt can never override it.
 
 1. **Caller carrier** — an automatic orchestrator may pass an explicit structured carrier `<per-skill-key>:<model-alias>` alongside the invocation (LFG passes `plan_model:<alias>` to ce-plan; the analogous `brainstorm_model:<alias>` to ce-brainstorm). This is structured caller data, not product prose: strip it from the request text and never reason over the feature request to reconstruct it. **When a carrier is present it wins outright — do not also reason over the prompt for model intent (step 2 is skipped).** It is honored on every run, **including pipeline / `disable-model-invocation`**. The alias must match `^[A-Za-z0-9._-]{1,64}$`; a malformed carrier is ignored (treated as absent), not guessed.
