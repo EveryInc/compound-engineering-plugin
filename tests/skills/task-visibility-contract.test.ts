@@ -6,8 +6,16 @@ function readSkill(name: string): string {
   return readFileSync(path.join(process.cwd(), "skills", name, "SKILL.md"), "utf8")
 }
 
+// 2026-08-18: ce-brainstorm's Phase 0.4 task spine moved into
+// references/phase-0.md with the rest of Phase 0 when the body was restructured
+// under the Codex 8000-byte prompt budget. The spine is a user-visible surface
+// contract, not a rule that must fire from the window, and the body names
+// phase-0.md as a required read before Phase 0.1, so it is asserted there.
 const skills = {
-  brainstorm: readSkill("ce-brainstorm"),
+  brainstorm: readFileSync(
+    path.join(process.cwd(), "skills/ce-brainstorm/references/phase-0.md"),
+    "utf8",
+  ),
   plan: readSkill("ce-plan"),
   work: readSkill("ce-work"),
   codeReview: readSkill("ce-code-review"),

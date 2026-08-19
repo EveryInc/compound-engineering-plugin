@@ -2,7 +2,17 @@ import { describe, expect, test } from "bun:test"
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 
-const skillPath = path.join(process.cwd(), "skills/ce-brainstorm/SKILL.md")
+// 2026-08-18: the Core Principles and the Phase 0.3 coherent-work gate moved
+// out of SKILL.md into references/interaction-rules.md and references/phase-0.md
+// when the body was restructured under the Codex 8000-byte prompt budget. Both
+// are artifact/scope invariants rather than window-deciding rules, and the body
+// names each file as a required read before the step that applies it, so they are
+// asserted against the files that now own them.
+const interactionRulesPath = path.join(
+  process.cwd(),
+  "skills/ce-brainstorm/references/interaction-rules.md",
+)
+const phase0Path = path.join(process.cwd(), "skills/ce-brainstorm/references/phase-0.md")
 const sectionsPath = path.join(
   process.cwd(),
   "skills/ce-brainstorm/references/brainstorm-sections.md",
@@ -18,7 +28,7 @@ const htmlRenderingPath = path.join(
 
 describe("ce-brainstorm integration scope check", () => {
   test("treats named sources as coverage before splitting implementation work", async () => {
-    const skill = await readFile(skillPath, "utf8")
+    const skill = await readFile(interactionRulesPath, "utf8")
     const corePrinciplesStart = skill.indexOf("## Core Principles")
     const interactionRulesStart = skill.indexOf("## Interaction Rules")
     const corePrinciples = skill.slice(corePrinciplesStart, interactionRulesStart)
@@ -38,13 +48,11 @@ describe("ce-brainstorm integration scope check", () => {
   })
 
   test("narrows multi-outcome requests to one coherent work unit without creating a parent roadmap", async () => {
-    const skill = await readFile(skillPath, "utf8")
+    const skill = await readFile(phase0Path, "utf8")
     const phase03Start = skill.indexOf("#### 0.3 Assess Scope")
-    const phase1Start = skill.indexOf("### Phase 1: Understand the Idea")
-    const phase03 = skill.slice(phase03Start, phase1Start)
+    const phase03 = skill.slice(phase03Start)
 
     expect(phase03Start).toBeGreaterThanOrEqual(0)
-    expect(phase1Start).toBeGreaterThan(phase03Start)
     expect(phase03).toContain("Coherent-work gate")
     expect(phase03).toContain("more than one independently plannable product outcome")
     expect(phase03).toContain("Ask which one area this brainstorm should own")

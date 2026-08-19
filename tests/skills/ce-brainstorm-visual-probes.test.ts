@@ -13,16 +13,34 @@ const VISUAL_PROBES_PATH = path.join(
   "skills/ce-brainstorm/references/visual-probes.md",
 )
 
+// 2026-08-18: the phase prose moved out of SKILL.md into per-phase references
+// when the body was restructured under the Codex 8000-byte prompt budget. The
+// tripwire, the Phase 1.3 gate, and Interaction Rule 7 are still asserted in
+// full -- against the file that now owns each of them, which the body names as
+// a required read at the point the rule fires.
+const INTERACTION_RULES = readFileSync(
+  path.join(process.cwd(), "skills/ce-brainstorm/references/interaction-rules.md"),
+  "utf8",
+)
+const PHASE_0 = readFileSync(
+  path.join(process.cwd(), "skills/ce-brainstorm/references/phase-0.md"),
+  "utf8",
+)
+const DIALOGUE = readFileSync(
+  path.join(process.cwd(), "skills/ce-brainstorm/references/dialogue.md"),
+  "utf8",
+)
+
 describe("ce-brainstorm visual probes", () => {
-  test("SKILL.md routes visual decisions through the visual-probes reference", () => {
+  test("Phase 1.3 routes visual decisions through the visual-probes reference", () => {
     expect(
       existsSync(VISUAL_PROBES_PATH),
       "ce-brainstorm must ship a visual-probes reference for the display-only visual feedback contract.",
     ).toBe(true)
 
-    const phase13Start = SKILL_BODY.indexOf("#### 1.3 Collaborative Dialogue")
+    const phase13Start = DIALOGUE.indexOf("#### 1.3 Collaborative Dialogue")
     expect(phase13Start).toBeGreaterThan(-1)
-    const phase13Region = SKILL_BODY.slice(phase13Start, phase13Start + 2500)
+    const phase13Region = DIALOGUE.slice(phase13Start, phase13Start + 2500)
 
     expect(
       /visual-probes\.md/i.test(phase13Region),
@@ -35,11 +53,13 @@ describe("ce-brainstorm visual probes", () => {
   })
 
   test("Interaction Rules offer ce-prototype on unravel cost, not a phase gate", () => {
-    const rulesStart = SKILL_BODY.indexOf("## Interaction Rules")
-    const rulesEnd = SKILL_BODY.indexOf("## Artifact Root")
+    const rulesStart = INTERACTION_RULES.indexOf("## Interaction Rules")
     expect(rulesStart).toBeGreaterThan(-1)
-    expect(rulesEnd).toBeGreaterThan(rulesStart)
-    const rules = SKILL_BODY.slice(rulesStart, rulesEnd)
+    const rules = INTERACTION_RULES.slice(rulesStart)
+
+    // The body must still send every run into that file before the first
+    // question, or the rule above is unreachable.
+    expect(SKILL_BODY).toContain("references/interaction-rules.md")
 
     expect(rules).toContain("ce-prototype")
     expect(
@@ -67,13 +87,14 @@ describe("ce-brainstorm visual probes", () => {
     expect(rules).not.toMatch(/Phase 1\.3 `ce-prototype`/)
   })
 
-  test("SKILL.md exposes visual tripwires before the visual-probes reference is loaded", () => {
-    const scopeStart = SKILL_BODY.indexOf("#### 0.3 Assess Scope")
-    const dialogueStart = SKILL_BODY.indexOf("#### 1.3 Collaborative Dialogue")
+  test("the phase references expose visual tripwires before visual-probes.md is loaded", () => {
+    const scopeStart = PHASE_0.indexOf("#### 0.3 Assess Scope")
+    const dialogueStart = DIALOGUE.indexOf("#### 1.3 Collaborative Dialogue")
     expect(scopeStart).toBeGreaterThan(-1)
     expect(dialogueStart).toBeGreaterThan(-1)
 
-    const liveRoutingRegion = SKILL_BODY.slice(scopeStart, dialogueStart + 3000)
+    const liveRoutingRegion =
+      PHASE_0.slice(scopeStart) + DIALOGUE.slice(dialogueStart, dialogueStart + 3000)
 
     expect(
       /drawing|canvas|visual editor|UI layout|interaction state/i.test(liveRoutingRegion),
