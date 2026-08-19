@@ -69,6 +69,23 @@ describe("skill-eval-cell catalog", () => {
     expect(bad).toEqual([])
   })
 
+  test("workspace_read paths exist in the scenario fixture", () => {
+    const missing: string[] = []
+    for (const s of SCENARIOS) {
+      if (!s.grade.workspace_read?.length) continue
+      if (!s.fixture) {
+        missing.push(`${s.id}: workspace_read without a fixture`)
+        continue
+      }
+      for (const rel of s.grade.workspace_read) {
+        if (!fs.existsSync(path.join(REPO_ROOT, s.fixture, rel))) {
+          missing.push(`${s.id}: ${rel} missing under ${s.fixture}`)
+        }
+      }
+    }
+    expect(missing).toEqual([])
+  })
+
   test("files_read_post pointers exist on the arm that grades them", () => {
     const missing: string[] = []
     for (const s of SCENARIOS) {
@@ -91,6 +108,7 @@ describe("skill-eval-cell catalog", () => {
     expect(listed).toEqual(
       [
         "ce-babysit-pr/behind-reads-branch-currency:references/branch-currency.md",
+        "ce-brainstorm/lookup-not-ask:references/interaction-rules.md",
         "ce-brainstorm/verdict-routes-to-pov:references/phase-0.md",
         "ce-brainstorm/write-plan-reads-plan-write:references/plan-write.md",
         "ce-commit-push-pr/description-only-no-commit:references/pr-description-writing.md",
@@ -119,7 +137,11 @@ describe("skill-eval-cell catalog", () => {
     // can never fail. Something that observes the stated decision has to be present.
     const vacuous = SCENARIOS.filter((s) => {
       if (!s.read_only || !s.grade.must_exclude?.length) return false
-      return !s.grade.must_include?.length && !s.grade.files_read_post?.length
+      return (
+        !s.grade.must_include?.length &&
+        !s.grade.files_read_post?.length &&
+        !s.grade.workspace_read?.length
+      )
     }).map((s) => s.id)
     expect(vacuous).toEqual([])
   })

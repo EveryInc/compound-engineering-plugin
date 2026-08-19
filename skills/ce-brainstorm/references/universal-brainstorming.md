@@ -1,6 +1,6 @@
 # Universal Brainstorming Facilitator
 
-This file is loaded when ce-brainstorm detects a non-software task (Phase 0). It replaces the software-specific brainstorming phases (Phases 0.2 through 4) with facilitation principles for any domain. The Core Principles and **Interaction Rules** in `ce-brainstorm/references/interaction-rules.md` still apply unchanged — including one-question-per-turn and the default to the platform's blocking question tool. This file extends those rules with universal-domain facilitation guidance; it does not relax them.
+This file is loaded when ce-brainstorm detects a non-software task (Phase 0). It replaces the software-specific brainstorming phases (Phases 0.2 through 4) with facilitation principles for any domain. The Core Principles and **Interaction Rules** in `ce-brainstorm/references/interaction-rules.md` still apply unchanged — including one-question-per-turn, asking only decisions the environment cannot settle, and the default to the platform's blocking question tool. This file extends those rules with universal-domain facilitation guidance; it does not relax them.
 
 This route is intentionally outside the software unified-plan artifact contract.
 Do not write `artifact_contract: ce-unified-plan/v1`,
@@ -20,7 +20,7 @@ Be a thinking partner, not an answer machine. The user came here because they're
 
 ## Asking questions
 
-"Thinking partner" framing does not mean "conversational prose." The parent skill's Interaction Rules apply in full: one question per turn, and default to the platform's blocking question tool (with its free-text fallback) even for opening and elicitation.
+"Thinking partner" framing does not mean "conversational prose." The parent skill's Interaction Rules apply in full: one question per turn, ask only decisions the environment cannot settle, and default to the platform's blocking question tool (with its free-text fallback) even for opening and elicitation.
 
 "What's prompting this?", "what matters most here?", and "what have you ruled out?" feel open-ended and conversational, but that's not a reason to skip the tool. The free-text option preserves flexibility while a well-crafted option set teaches the user the dimensions they might not have separated. Pick-plus-optional-note is lower activation energy than composing prose from scratch — especially for emotional or values-laden topics where prose can feel like an essay prompt.
 

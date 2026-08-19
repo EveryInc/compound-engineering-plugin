@@ -90,6 +90,15 @@ function isNone(value: string): boolean {
   return v === "none" || v === "n/a"
 }
 
+function normalizeTrailerPath(p: string): string {
+  return p.trim().replaceAll("\\", "/").replace(/^\.\//, "")
+}
+
+function trailerNames(filesRead: string[], required: string): boolean {
+  const want = normalizeTrailerPath(required.toLowerCase())
+  return filesRead.some((entry) => entry === want || entry.endsWith(`/${want}`))
+}
+
 export function gradeHost(opts: {
   host: Host
   hostDir: string
@@ -118,6 +127,7 @@ export function gradeHost(opts: {
   // them cannot pass a term vacuously.
   const gradesPointers = (opts.arm === "post" || opts.arm === "preview") &&
     Boolean(opts.grade.files_read_post?.length)
+  const gradesWorkspaceRead = Boolean(opts.grade.workspace_read?.length)
   const hasActions = Boolean(trailers?.actions)
   const hasDelegates = Boolean(trailers?.delegates)
   const gradesActions = Boolean(opts.grade.must_exclude?.length) || opts.grade.actions === "none"
@@ -125,7 +135,7 @@ export function gradeHost(opts: {
   if (opts.grade.delegates && !hasDelegates) {
     reasons.push(`missing ${TRAILER_NAMES.delegates} trailer`)
   }
-  if (gradesPointers && !trailers?.files_read) {
+  if ((gradesPointers || gradesWorkspaceRead) && !trailers?.files_read) {
     reasons.push(`missing ${TRAILER_NAMES.files_read} trailer`)
   }
 
@@ -133,13 +143,19 @@ export function gradeHost(opts: {
   // otherwise be satisfied by any docs/method.md the run happened to read.
   const filesRead = files
     .split(",")
-    .map((entry) => entry.trim().replaceAll("\\", "/").replace(/^\.\//, ""))
+    .map((entry) => normalizeTrailerPath(entry))
     .filter(Boolean)
   if (gradesPointers && opts.grade.files_read_post) {
     for (const ref of opts.grade.files_read_post) {
-      const want = ref.toLowerCase().replaceAll("\\", "/")
-      if (!filesRead.some((entry) => entry === want || entry.endsWith(`/${want}`))) {
+      if (!trailerNames(filesRead, ref)) {
         pointer_reasons.push(`${opts.arm} arm did not name required read ${ref} in ${TRAILER_NAMES.files_read}`)
+      }
+    }
+  }
+  if (gradesWorkspaceRead && opts.grade.workspace_read) {
+    for (const rel of opts.grade.workspace_read) {
+      if (!trailerNames(filesRead, rel)) {
+        reasons.push(`did not name workspace read ${rel} in ${TRAILER_NAMES.files_read}`)
       }
     }
   }

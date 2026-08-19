@@ -95,6 +95,8 @@ A typical "let's brainstorm" with an AI has shape problems too. It asks five que
 `ce-brainstorm` runs a structured conversation that can end in a durable artifact:
 
 - One question per turn, defaulting to the platform's blocking question tool
+- Facts the environment can answer are looked up, not asked; a running lookup does not stall independent questions
+- User terms or system-behavior claims that conflict with existing `CONCEPTS.md` or verified code are challenged when they would change a product decision
 - Ceremony matched to the work: Lightweight, Standard, Deep, or Deep-product
 - Named gap lenses on premises before approaches are generated
 - An opt-in blindspot pass when you do not know the territory well enough to weigh options
@@ -114,7 +116,7 @@ A typical "let's brainstorm" with an AI has shape problems too. It asks five que
 
 ### 1. One question at a time
 
-Stacking several questions in one message produces diluted answers. `ce-brainstorm` asks one question per turn and defaults to the platform's blocking question tool with single-select options when natural choices exist. Free-text is always available.
+Stacking several questions in one message produces diluted answers. `ce-brainstorm` asks one question per turn and defaults to the platform's blocking question tool with single-select options when natural choices exist. Free-text is always available. It also asks only decisions: if the repo, the grounding dossier, or another reachable source can settle the answer, it looks that up instead of putting it to you. A lookup in flight does not stall questions that do not depend on it. When your wording conflicts with existing `CONCEPTS.md` or with verified code in a way that would change a product decision, it surfaces that conflict before treating the wording as settled. It does not create `CONCEPTS.md`; glossary writes still land after the plan.
 
 ### 2. Ceremony scales with the work
 

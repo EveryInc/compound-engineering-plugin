@@ -105,6 +105,40 @@ describe("skill-eval-cell host grade", () => {
     expect(fail.ok).toBe(false)
   })
 
+  test("workspace_read fails when FILES_READ omits the fixture file", () => {
+    const dir = hostDir({
+      "stdout.txt": "What should retry cover?\nFILES_READ: SKILL.md, references/interaction-rules.md\nACTIONS: none\n",
+    })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "post",
+      grade: {
+        files_read_post: ["references/interaction-rules.md"],
+        workspace_read: ["src/greet.js"],
+      },
+    })
+    expect(g.ok).toBe(false)
+    expect(g.reasons.some((r) => r.includes("src/greet.js"))).toBe(true)
+  })
+
+  test("workspace_read passes when FILES_READ names the fixture file", () => {
+    const dir = hostDir({
+      "stdout.txt":
+        "What should retry cover?\nFILES_READ: SKILL.md, references/interaction-rules.md, src/greet.js\nACTIONS: none\n",
+    })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "post",
+      grade: {
+        files_read_post: ["references/interaction-rules.md"],
+        workspace_read: ["src/greet.js"],
+      },
+    })
+    expect(g.ok).toBe(true)
+  })
+
   test("a listed required read is a fail on post when FILES_READ omits it", () => {
     const dir = hostDir({
       "stdout.txt": "needs-human\nFILES_READ: SKILL.md\nACTIONS: none\n",
