@@ -9,7 +9,7 @@ import {
   WAVE1,
   scenarioHasDecisionGrade,
 } from "./catalog"
-import { REPO_ROOT } from "./extract"
+import { REPO_ROOT, WORKTREE_REF } from "./extract"
 
 const skillsDir = path.join(REPO_ROOT, "skills")
 
@@ -21,6 +21,7 @@ function shippedSkills(): string[] {
 }
 
 function gitPathExists(ref: string, gitPath: string): boolean {
+  if (ref === WORKTREE_REF) return fs.existsSync(path.join(REPO_ROOT, gitPath))
   return spawnSync("git", ["cat-file", "-e", `${ref}:${gitPath}`], { cwd: REPO_ROOT }).status === 0
 }
 
@@ -107,6 +108,20 @@ describe("skill-eval-cell catalog", () => {
 
   test("the 8KB sweep has no in-progress skills left", () => {
     expect(SCENARIOS.filter((s) => s.cohort === "in-progress").map((s) => s.id)).toEqual([])
+  })
+
+  test("the post arm resolves the working tree, not a commit", () => {
+    expect(POST_SWEEP_REF).toBe(WORKTREE_REF)
+  })
+
+  test("a read-only restraint row also carries a positive probe", () => {
+    // Under read_only the forbidden mutation is impossible, so must_exclude alone
+    // can never fail. Something that observes the stated decision has to be present.
+    const vacuous = SCENARIOS.filter((s) => {
+      if (!s.read_only || !s.grade.must_exclude?.length) return false
+      return !s.grade.must_include?.length && !s.grade.files_read_post?.length
+    }).map((s) => s.id)
+    expect(vacuous).toEqual([])
   })
 
   test("preview refs are only on in-progress skills and resolve when set", () => {

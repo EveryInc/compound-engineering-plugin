@@ -15,15 +15,15 @@ bun run test:skill-eval-cell -- \
   --task "mode:pipeline the seat cap test is failing. Run node tests/seat-cap.check.js."
 ```
 
-`--read-only` maps to the sweep's fake-boundary flags (no Bash/Edit/Write).
+`--read-only` enforces the fake boundary, it does not merely suggest it: Codex drops `--dangerously-bypass-approvals-and-sandbox` and runs `--sandbox read-only` (the two contradict each other), and Claude pairs `--allowedTools Read,Glob,Grep` with a `--disallowedTools` list that also names `Task,Skill,WebFetch,WebSearch,NotebookEdit` — under `--dangerously-skip-permissions` those stay callable, so allow-listing alone leaves the boundary open.
 
-Prints a `summary.json` path. Each host gets its own workspace copy plus stdout/stderr, git status/log, and a file list. Grade those; Grok narrates before the answer (grep `FILES_READ:`). Codex transcript is stderr, final message is stdout. `claude -p` is one-tick only.
+Prints a `summary.json` path. Each host gets its own workspace copy plus stdout/stderr, git status/log, and a file list. PATH shims live beside that workspace, never inside it, so the skill under test never sees harness files as its own dirty tree. Grade those; Grok narrates before the answer (grep `FILES_READ:`). Codex transcript is stderr, final message is stdout. `claude -p` is one-tick only.
 
 Gotchas baked in (see `docs/solutions/skill-design/size-driven-skill-restructure.md`): Codex stdin `/dev/null`, `CLAUDECODE` unset, `NO_COLOR=1`.
 
 ## Sweep A/B pack
 
-Cases live in `catalog.ts`, authored from the skill bodies **before** the 8KB merges (`PRE_SWEEP_REF` = parent of #1433). The same prompt runs against that ref, then against `HEAD` (the tree under test). See `scenarios.md` for the inventory.
+Cases live in `catalog.ts`, authored from the skill bodies **before** the 8KB merges (`PRE_SWEEP_REF` = parent of #1433). The same prompt runs against that ref, then against the **working tree** (`POST_SWEEP_REF` = the `WORKTREE` sentinel, the default `--ref`). `git archive` only ever sees committed content, so the post arm copies `skills/<name>` off disk — that is what lets you grade a skill edit before committing it. Pass a real git ref to `--ref` for a committed arm. See `scenarios.md` for the inventory.
 
 ```bash
 bun run test:skill-eval-pack -- --list

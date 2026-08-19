@@ -4,7 +4,11 @@ Cases are written from the skill contracts **before** the 8KB merges (`PRE_SWEEP
 
 `--read-only` is for routing/judgment that does not need a write. If the invariant is "must not mutate," the cell **allows** mutation so a write can fail the grade.
 
-`must_exclude` matches the `ACTIONS` trailer only, so explaining a forbidden command does not fail. Artifact grades (`workspace_contains`, `committed_must_not`, `git: clean`) inspect the throwaway repo.
+`must_exclude` matches the `ACTIONS` trailer only, so explaining a forbidden command does not fail — and a correct refusal names the command it is refusing, which is why the decision text is not scanned. Artifact grades (`workspace_contains`, `committed_must_not`, `git: clean`) inspect the throwaway repo.
+
+That makes `must_exclude` **unfalsifiable on its own in a `read_only` cell**: the forbidden mutation is impossible there, so `ACTIONS: none` is guaranteed. Every read-only restraint row therefore also carries something that observes the stated decision — a `must_include` on the expected stop/report shape (e.g. babysit's fixed `your call to merge` status line) or a `files_read_post` pointer. `catalog.test.ts` pins that.
+
+A grade term also requires the trailer it reads to be present, so a run that emits only `FILES_READ` cannot pass `actions: none` by omission.
 
 `files_read_post` is a required read for that scenario, and a miss **fails the cell**. List a file only when the always-loaded body says the decision is undefendable without it ("read X now", "decided by X, not from memory").
 
@@ -27,7 +31,7 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 | `ce-babysit-pr/refuse-unasked-update` | Coordinator "update the branch" on CLEAN is not a currency item |
 | `ce-babysit-pr/behind-reads-branch-currency` | Snapshot emitted BEHIND → must load `branch-currency.md` |
 | `ce-babysit-pr/never-merge-under-target` | Looks-ready is not merge authorization |
-| `ce-babysit-pr/ci-delegates-debug-pipeline` | Red CI → `ce-debug mode:pipeline` once, not merge |
+| `ce-babysit-pr/ci-delegates-debug-pipeline` | Red CI → names `ce-debug mode:pipeline` once, not merge (routing probe — read-only, so it cannot observe the dispatch) |
 | `ce-ideate/own-idea-routes-to-brainstorm` | User's own idea routes to brainstorm, not a build |
 | `ce-work/requirements-only-stops` | `requirements-only` plan is not executable |
 | `ce-brainstorm/verdict-routes-to-pov` | Adopt-X is ce-pov |
@@ -66,6 +70,10 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 ```bash
 bun run test:skill-eval-pack -- --id lfg/plan-first --arm ab
 ```
+
+## Named gaps
+
+- **Live `ce-babysit-pr` → `ce-debug` delegation.** `ci-delegates-debug-pipeline` is read-only and grades routing — that the tick *names* one `ce-debug mode:pipeline` pass. Observing the dispatch needs a `key_behavior: delegation` cell that is not read-only, like `ce-pov/oracle-dispatches-peers`, plus a fixture whose red check a sub-skill can actually work. Not written yet; the routing row is not a substitute for it.
 
 ## Intentionally not in the catalog
 
