@@ -65,6 +65,11 @@ const docReviewDispatch = readRepoFile("skills/ce-doc-review/references/dispatch
 // Document classification signals moved into the Phase 1 intake reference.
 const docReviewIntake = readRepoFile("skills/ce-doc-review/references/document-intake.md")
 const codeReview = readRepoFile("skills/ce-code-review/SKILL.md")
+// Plan discovery, readiness classification, and requirement extraction moved into the
+// reference the body's spine mandates before reviewer selection.
+const codeReviewIntent = readRepoFile(
+  "skills/ce-code-review/references/intent-and-plan.md",
+)
 const codeReviewFinish = readRepoFile(
   "skills/ce-code-review/references/finish-review.md",
 )
@@ -372,10 +377,10 @@ describe("unified plan artifact contract", () => {
     expect(docReviewTemplate).toContain("product_contract_source:ce-brainstorm")
     expect(docReviewTemplate).toContain("product_contract_source:ce-plan-bootstrap")
 
-    expect(codeReview).toContain("<root>/plans/*.{md,html}")
-    expect(codeReview).toContain("Product Contract` -> `### Requirements")
-    expect(codeReview).toContain("readiness before checking completeness")
-    expect(codeReview).toContain("must not trigger implementation-unit completeness findings")
+    expect(codeReviewIntent).toContain("<root>/plans/*.{md,html}")
+    expect(codeReviewIntent).toContain("Product Contract` -> `### Requirements")
+    expect(codeReviewIntent).toContain("readiness before checking completeness")
+    expect(codeReviewIntent).toContain("must not trigger implementation-unit completeness findings")
 
     expect(proof).toContain("Only publish markdown")
     expect(proof).toContain("requirements-only")
@@ -463,9 +468,9 @@ describe("unified plan artifact contract", () => {
   test("ce-code-review discovery/extraction covers HTML and Product Contract requirements", () => {
     // Codex #972 P2: discovery must scan .html and extraction must read
     // Product Contract > Requirements, matching the completeness contract.
-    expect(codeReview).toContain("<root>/plans/*.{md,html}")
-    expect(codeReview).toMatch(/unified `Product Contract` -> `### Requirements`/)
-    expect(codeReview).toMatch(/requirements-only artifact[\s\S]{0,80}product intent only/i)
+    expect(codeReviewIntent).toContain("<root>/plans/*.{md,html}")
+    expect(codeReviewIntent).toMatch(/unified `Product Contract` -> `### Requirements`/)
+    expect(codeReviewIntent).toMatch(/requirements-only artifact[\s\S]{0,80}product intent only/i)
   })
 
   test("ce-plan 5.1.5 synthesis gate fires for unified-plan sources, not only legacy docs", () => {

@@ -359,13 +359,23 @@ describe("cross-model execution receipt seam parity (ce-work <-> lfg)", () => {
 })
 
 describe("ce-debug regression test selection", () => {
+  // Added by #1054 to stop agents defaulting to a brand-new test file. The four homes are
+  // the mechanic of Phase 3's test-first step, and `references/fix.md` is a required read
+  // before any file is edited, so they are pinned across the corpus rather than verbatim
+  // in the always-loaded body. What must decide from the window without a read is the
+  // condition -- start from the tests that exist -- plus the confirmed-defect precondition
+  // that keeps the divergent case out; those two stay pinned in the body.
   test("inspects and updates existing tests instead of always adding new tests", async () => {
-    const content = await readRepoFile("skills/ce-debug/SKILL.md")
+    const body = await readRepoFile("skills/ce-debug/SKILL.md")
+    const fix = await readRepoFile("skills/ce-debug/references/fix.md")
+    const corpus = [body, fix].join("\n")
 
-    expect(content).toContain("inspect existing tests before adding coverage")
-    expect(content).toContain("update an existing test when it owns the contract")
-    expect(content).toContain("strengthen an over-mocked test")
-    expect(content).toContain("add a new minimal isolated test only when no existing test is the right home")
+    expect(body).toMatch(/start from the tests that exist rather than from a new file/i)
+    expect(body).toMatch(/confirmed defect/i)
+    expect(corpus).toContain("inspect existing tests before adding coverage")
+    expect(corpus).toContain("update an existing test when it owns the contract")
+    expect(corpus).toContain("strengthen an over-mocked test")
+    expect(corpus).toContain("add a new minimal isolated test only when no existing test is the right home")
   })
 
   // Observed drift: agents fired the Phase 2 fix-choice question on "root cause
