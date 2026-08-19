@@ -4,14 +4,7 @@ Use this path when the input is a short recording (under ~60 seconds), the user 
 
 ## Workflow
 
-1. Run the analyzer to a temp directory so nothing pollutes the repo (`SKILL_DIR` is the directory containing the `ce-riffrec-feedback-analysis` SKILL.md; set it in the same command — shell state does not persist between Bash calls):
-
-   ```bash
-   SKILL_DIR="<absolute path of the directory containing the ce-riffrec-feedback-analysis SKILL.md>";
-   python "$SKILL_DIR/scripts/analyze_riffrec_zip.py" /path/to/input --output-dir "$(mktemp -d "${TMPDIR:-/tmp}/riffrec-quick-XXXXXX")"
-   ```
-
-   Capture the printed output directory; later steps read from it.
+1. Create `OUTPUT_DIR` with `mktemp -d "${TMPDIR:-/tmp}/riffrec-quick-XXXXXX"`, set `INPUT_PATH` to the supplied capture, and use the invocation in `references/analyzer.md`. Capture the analyzer's printed output directory; later steps read from it.
 
 2. Read only `analysis.md` from the temp output. Skip `problem-analysis.md`, `review-prompt.md`, `requirements-kickoff.md`, and `source-materials.md` — they are designed for the extensive path.
 

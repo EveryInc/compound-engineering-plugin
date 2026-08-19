@@ -20,7 +20,7 @@ The `dev` script in `package.json` typically wraps `vite` directly. Prefer the p
 
 Default: `5173`. Vite respects `--port <n>` and the `VITE_PORT` env var. The cascade in `references/dev-server-detection.md` picks up `--port` from `package.json` scripts and `PORT` from `.env*`.
 
-Vite's `--strictPort` flag causes the dev server to fail rather than increment to the next available port when the requested port is in use. Polish's kill-by-port step will reclaim the port before starting, so `strictPort` is not a problem in practice — but users who disable port reclamation and run multiple Vite instances will see the port auto-increment unless `strictPort: true` is set in `vite.config.ts`.
+Vite's `--strictPort` flag causes the dev server to fail rather than increment to the next available port when the requested port is in use. Without it, an occupied port may move the server away from the URL polish probes; treat that reachability failure as a start-configuration decision for the user.
 
 ## Host binding
 

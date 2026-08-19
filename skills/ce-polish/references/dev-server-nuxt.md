@@ -54,5 +54,5 @@ Substitute the resolved package manager (`npm` / `pnpm` / `yarn` / `bun`) and po
 ## Common gotchas
 
 - **Nitro server engine:** Nitro (Nuxt's server engine) adds its own dev server behind Nuxt's; polish only cares about the Nuxt port. Do not probe the Nitro internal port separately.
-- **Port auto-increment:** Nuxt auto-increments the port if 3000 is already taken (unlike Next.js which errors). Polish's kill-by-port step handles this by reclaiming the port before starting, so the auto-increment behavior does not cause issues in practice.
+- **Port auto-increment:** Nuxt may move to another port when 3000 is occupied. If the resolved URL does not answer, use the server log to let the user correct the start configuration.
 - **Nuxt 3 vs Nuxt 2:** Nuxt 3 uses `nuxt.config.ts`, Nuxt 2 uses `nuxt.config.js` -- both are detected by the signature check. The dev-server command and port defaults are the same across both versions.

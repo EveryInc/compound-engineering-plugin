@@ -17,6 +17,7 @@ applies_when:
   - Deciding whether a contract test's pinned phrase must survive a restructure verbatim
   - Sizing the eval for a restructure of a widely used skill
   - Grading a reusable host-CLI skill-eval cell so pass/fail is unambiguous
+  - Finishing a refactor sweep when the remaining skills are already below the byte cap
 tags:
   - skill-design
   - 8kb-budget
@@ -29,7 +30,7 @@ tags:
   - test-pins
   - eval-breadth
   - eval-grade
-related_components: ["skills/ce-babysit-pr/SKILL.md", "skills/ce-code-review/references/*", "skills/lfg/references/*", "skills/ce-babysit-pr/references/*", "tests/ce-babysit-pr-contract.test.ts", "tests/codex-skill-prompt-budget.test.ts", "tests/skill-eval-cell/catalog.ts", "tests/skill-eval-cell/grade.ts", ".agents/skills/ce-skill-work/references/edit-skill.md", ".agents/skills/ce-skill-work/references/evaluate.md"]
+related_components: ["skills/ce-babysit-pr/SKILL.md", "skills/ce-code-review/references/*", "skills/lfg/references/*", "skills/ce-babysit-pr/references/*", "skills/ce-test-xcode/*", "skills/ce-polish/*", "skills/ce-riffrec-feedback-analysis/*", "tests/ce-babysit-pr-contract.test.ts", "tests/codex-skill-prompt-budget.test.ts", "tests/skill-eval-cell/catalog.ts", "tests/skill-eval-cell/grade.ts", ".agents/skills/ce-skill-work/references/edit-skill.md", ".agents/skills/ce-skill-work/references/evaluate.md"]
 last_updated: 2026-08-19
 ---
 
@@ -240,6 +241,28 @@ The matrix rule sizes which paths to run. It does not say how one reusable cell 
 **A required-read miss fails the cell only when the always-loaded body makes the decision undefendable without that file.** List the file when the body says the equivalent of "read X now" or "decided by X, not from memory." If the body still states the gate, omit the probe: skipping the file is the correct negative, and extra reads are not a fail. Do not add a must-not-read. When a reference owns a different path, pair the body-owned cell with a complementary cell that requires that file — otherwise omitting the probe drops the extraction measurement.
 
 That replaces the older extraction rule that a body no run follows into a reference has failed regardless of the outcome. A CLEAN-PR refusal that lists only `SKILL.md` is a pass on the decision; the complementary BEHIND cell is what still requires `branch-currency.md`. One row per shipped skill is not coverage: a row whose only grade is "did nothing" cannot fail. The short form lives in `evaluate.md`; the catalog that applies it is `tests/skill-eval-cell/`.
+
+## The below-cap endgame (`ce-test-xcode`, `ce-polish`, and `ce-riffrec-feedback-analysis`; 2026-08-19)
+
+The last three skills in the inventory were already below 8KB, so none was an `OVER_BUDGET` outage. They still charged every body byte on every invocation, and they represented three different endgame shapes. A uniform "make each one smaller" pass would have been the wrong operation.
+
+| Shape | Skill | Body before -> after | Correct move |
+|---|---|---:|---|
+| Procedure with no references | `ce-test-xcode` | 6,532 -> 1,643 bytes | Keep outcome, done, mutation boundary, and two required-read pointers inline; split setup/build from test/report |
+| Compact body sitting above mature references | `ce-polish` | 4,834 -> 1,825 bytes | Add one startup owner reference, keep the user-driven loop inline, and route local commit mechanics to `ce-commit` |
+| Router already near its floor | `ce-riffrec-feedback-analysis` | 3,468 -> 2,785 bytes | Keep the route table and privacy boundary; extract only the duplicated analyzer invocation into one canonical reference |
+
+**Classify the remainder before shrinking it.** Git history identified which skills had already received a focused pass, but history alone did not decide the work. The current body and its consumers decided whether the laggard needed a full extraction, one owning reference, or only a standards audit. Line count alone would have over-rewritten Riffrec and under-read Polish's references.
+
+**Audit the frontmatter description as its own always-loaded block.** A restructure is incomplete when the body reflects the new outcome but the description still advertises the old procedure or hides a distinct route inside an input catalog. For a model-invoked skill, restate the activation contract and evaluate every genuinely distinct positive branch; for a manual-only skill, keep the catalog-facing description aligned with the outcome even though automatic activation is disabled. Pin the description's shape separately from body/reference extraction so a green execution cell cannot conceal a stale context pointer.
+
+**Read the public skill doc before changing behavior.** `ce-polish`'s body said "commit the fixes" while its chain-position prose said shipping remains separate. Those statements are compatible: the documented artifact is a local commit, while push and PR creation are separate. The refactor preserved that behavior and moved only the commit mechanism to its owning skill. A size pass that read the body alone could have silently removed a user-visible contract.
+
+**Delete references that lose their caller.** Moving Polish's browser handoff to a capability-first condition made the old IDE environment-variable table both stale and unreachable. Leaving it in the package would preserve apparent authority with no load path. After every extraction, trace each reference from an always-loaded pointer or another required read; an unreferenced file stays only when an independent consumer or provenance requires it.
+
+**A green baseline is not proof of improvement.** All five pre-change Claude/Codex cells passed. The claim for this endgame is lower always-loaded cost, clearer ownership, and preserved behavior. The post arm must therefore prove required-read following and no regression; it must not be reported as fixing behavior the baseline already got right.
+
+**The independent reader still finds what the eval matrix does not ask.** In this pass it caught a lost empty-scheme default, launch-script sentinel and monorepo output grammars compressed into one happy path, and shell metasyntax presented as a runnable analyzer command. Those were contract defects even though the five baseline cells were green. Correct the condition at its owning layer, then add the smallest deterministic guard or scenario that would fail on the discovered shape; do not turn each example into another procedural case.
 
 ## What did not work / traps
 

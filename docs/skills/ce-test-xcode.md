@@ -60,7 +60,7 @@ A gated flow on top of [XcodeBuildMCP](https://github.com/getsentry/xcodebuildmc
 - Build, install, launch, start log capture
 - Per screen: screenshot, log check, pass or fail
 - Pause for device-only flows (and for SwiftUI inline links)
-- On failure, ask fix-now (debug, rebuild, retest) or skip
+- On failure, ask investigate-now (`ce-debug`, then rebuild and retest any accepted fix) or skip
 - Print a summary you can paste into a PR
 - Stop log capture; optionally shut down the simulator
 
@@ -100,9 +100,9 @@ You do the action on the simulator, then yes (continue) or no (describe the issu
 
 Simulated taps do not fire gesture recognizers on SwiftUI `Text` with inline links. The tap looks successful. If the target URL is known, `xcrun simctl openurl <device> <URL>` is the fallback.
 
-### Fix now or skip
+### Investigate now or skip
 
-A failed screen gets a screenshot, logs, and repro steps. You choose: investigate, patch, rebuild, retest; or log Skip and continue. First failure does not abort the run.
+A failed screen gets a screenshot, logs, and repro steps. You choose: hand the evidence to `ce-debug`, rebuild, and retest; or log Skip and continue. First failure does not abort the run.
 
 ### Summary shape
 
@@ -125,7 +125,7 @@ MCP is up. Discovery finds the project. Three schemes; no argument, so last-used
 
 Launch and Home pass. Profile sits behind Sign in with Apple. It asks you to complete that on the simulator; you do, then say yes. Settings crashes on the Privacy row. It captures the crash, asks fix-now or skip.
 
-You pick fix-now. It finds a missing nil check, you accept the patch, it rebuilds, reinstalls, retests Settings. Pass.
+You pick investigate-now. `ce-debug` finds a missing nil check, you accept the patch, and control returns to rebuild, reinstall, and retest Settings. Pass.
 
 Summary: 4 screens, 0 leftover console errors, 1 human verification, 1 fix during the run, PASS. Logs stop. Simulator shutdown is optional.
 

@@ -4,14 +4,7 @@ Use this path when the input is a longer recording (over ~60 seconds), contains 
 
 ## Workflow
 
-1. Run the analyzer (`SKILL_DIR` is the directory containing the `ce-riffrec-feedback-analysis` SKILL.md; set it in the same command — shell state does not persist between Bash calls):
-
-   ```bash
-   SKILL_DIR="<absolute path of the directory containing the ce-riffrec-feedback-analysis SKILL.md>";
-   python "$SKILL_DIR/scripts/analyze_riffrec_zip.py" /path/to/input
-   ```
-
-   Use `--output-dir <dir>` when the artifact should live somewhere specific. In a repo with `docs/brainstorms/`, the default output goes under `docs/brainstorms/riffrec-feedback/` as an evidence/kickoff-artifact exception, not as the durable brainstorm output convention.
+1. Set `INPUT_PATH` to the supplied capture and use the invocation in `references/analyzer.md`. Set `OUTPUT_DIR` when the user supplied a destination; otherwise leave it empty so the analyzer owns its default. In a repo with `docs/brainstorms/`, that default goes under `docs/brainstorms/riffrec-feedback/` as an evidence/kickoff-artifact exception, not as the durable brainstorm output convention.
 
 2. Read the generated `analysis.md`, `problem-analysis.md`, `review-prompt.md`, and `requirements-kickoff.md`.
 
@@ -38,22 +31,7 @@ Use this path when the input is a longer recording (over ~60 seconds), contains 
 
 8. Add source mapping to the brainstorm material as suspected implementation surfaces, not as proven root cause unless the code clearly proves it. Include confidence levels and short evidence notes explaining why each file or component is relevant.
 
-9. Always continue into brainstorm. Once `analysis.md`, `problem-analysis.md`, `source-materials.md`, and `requirements-kickoff.md` exist, say "Analysis complete. Ready to brainstorm the findings." Then immediately load the `ce-brainstorm` skill with the generated `requirements-kickoff.md`, unless the user explicitly asked only to extract or analyze artifacts.
-
-10. In brainstorm, first ask the user to confirm the captured requirements: "Did this capture the requirements correctly, and what is missing, wrong, or grouped badly?" Do not move to planning until brainstorm has confirmed or corrected the requirements.
-
-## Automatic handoff
-
-Do not end the workflow after extraction in normal use. The intended sequence is:
-
-1. Run the analyzer.
-2. Read `source-materials.md` so brainstorm has direct links to raw feedback, transcript, frames, and analysis artifacts.
-3. Inspect or refine `problem-analysis.md` when the evidence needs human-visible interpretation.
-4. Load the `ce-brainstorm` skill with `requirements-kickoff.md`.
-5. Ask the user to confirm, correct, or regroup the captured requirements.
-6. Let `ce-brainstorm` produce the durable requirements-only unified plan.
-
-Only stop after step 1 or 2 when the user asks specifically for raw artifacts, transcript, screenshots, or analysis without brainstorming.
+9. Unless the user explicitly asked only to extract or analyze artifacts, announce that analysis is complete and invoke `ce-brainstorm` with `requirements-kickoff.md` plus `source-materials.md` as its evidence manifest. The callee owns requirements confirmation and the durable requirements-only unified plan.
 
 ## Capture scale
 
