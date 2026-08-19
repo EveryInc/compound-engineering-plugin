@@ -58,7 +58,7 @@ Five phases in order: **0 Triage -> 1 Investigate -> 2 Root Cause -> 3 Fix -> 4 
 
 **The trivial-bug fast-path** (cause readable from the input, one-line fix, no deep tracing) still runs Phase 2's fix-choice gate before editing: it saves investigation ceremony, not the user's choice over whether to apply a fix.
 
-**Choosing the regression test.** The regression test for a *confirmed defect* belongs wherever existing coverage already owns that behavior, so Phase 2's recommendation and Phase 3's test-first step both start from the tests that exist rather than from a new file. `references/fix.md` carries the four homes to choose between and the naming rule. A test that fails because the change deliberately reverses the behavior it asserts does not have a wrong expectation — that is the divergent case below, deferred rather than updated.
+**Choosing the regression test.** The regression test for a *confirmed defect* belongs wherever existing coverage already owns that behavior: start from the tests that exist rather than from a new file. Read `references/fix.md` for the homes and the naming rule before writing Phase 2's recommendation, not only before Phase 3's edits. A test that fails because the change deliberately reverses the behavior it asserts does not have a wrong expectation — that is the divergent case below, deferred rather than updated.
 
 ### Phase 2 gate: present, then ask
 
