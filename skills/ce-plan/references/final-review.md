@@ -126,4 +126,4 @@ If the plan already appears sufficiently grounded and neither the thin-grounding
 
 ##### 5.3.3–5.3.7 Deepening Execution
 
-When deepening is warranted, read `references/deepening-workflow.md` for confidence scoring checklists, section-to-agent dispatch mapping, execution mode selection, research execution, interactive finding review, and plan synthesis instructions. Execute steps 5.3.3 through 5.3.7 from that file, then return to SKILL.md's 5.3.8, which loads `references/plan-handoff.md` and runs 5.3.8 -> 5.3.9 -> 5.4 in sequence. Deepening never ends the run: document review and the Phase 5.4 handoff still follow it.
+When deepening is warranted, read `references/deepening-workflow.md` for confidence scoring checklists, section-to-agent dispatch mapping, execution mode selection, research execution, interactive finding review, and plan synthesis instructions. Execute steps 5.3.3 through 5.3.7 from that file, then hand control back to SKILL.md at 5.3.8. Deepening is not a terminal state — the run always continues to the handoff, and `deepening-workflow.md` owns which step it re-enters at, including its interactive no-accepted-findings path straight to 5.4.
