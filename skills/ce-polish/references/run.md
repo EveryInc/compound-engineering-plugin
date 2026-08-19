@@ -19,7 +19,7 @@ SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
 bash "$SKILL_DIR/scripts/read-launch-json.sh"
 ```
 
-Continue from launch configuration only when the output resolves to exactly one configuration with a non-empty `runtimeExecutable` and numeric `port`; `runtimeArgs`, `cwd`, and `env` are optional. When declarations exist but selection is multiple or unmatched, stay in disambiguation: show the declared names, ask the user to choose, and rerun with that name. Only an absent, malformed, missing, or unusable declared configuration falls through to project detection. A nonzero operational failure blocks startup and must be reported.
+Treat the selected launch command and its port as independent facts. A configuration with a usable, non-empty `runtimeExecutable` supplies the command plus its optional `runtimeArgs`, `cwd`, and `env`. Use its numeric `port` when declared; otherwise resolve only the port for that working directory or project root through the existing classifier and port resolver. Port resolution never replaces a valid selected launch command. When declarations exist but selection is multiple or unmatched, stay in disambiguation: show the declared names, ask the user to choose, and rerun with that name. When no selected configuration supplies a usable command, fall through to project detection. A nonzero operational failure blocks startup and must be reported.
 
 For project detection, resolve the classifier output to exactly one supported base type and project root:
 

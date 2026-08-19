@@ -2,7 +2,7 @@
 
 > Start the dev server, open the feature in a browser, and iterate together. You say what feels off; fixes land on the running page.
 
-`ce-polish` is on-demand **live UX polish** for a feature that already works. It starts the project's dev server (from `.claude/launch.json` if present, otherwise by detecting the framework), hands the URL to your IDE's browser when it can, and then waits. You use the page and name what is off. The change lands, hot-reload updates the page, and you keep going until you are done.
+`ce-polish` is on-demand **live UX polish** for a feature that already works. It starts the project's dev server (from `.claude/launch.json` if present, otherwise by detecting the framework), opens the URL through the active harness when it can, and then waits. You use the page and name what is off. The change lands, hot-reload updates the page, and you keep going until you are done.
 
 It is not `ce-prototype` (decide how something should feel before it exists), not `ce-simplify-code` (trim recently changed code), and not `ce-dogfood` or `ce-test-browser` (autonomous QA or a test pass). Polish is a conversation with a running app.
 
@@ -26,13 +26,13 @@ Manual invocation only. The model will not start this on its own, because it sta
 Arguments only pick which branch to sit on. The loop after that is always the same: running server, open page, you talk, it edits.
 
 ```text
-# Current branch (refuses main/master). Starts the server, opens the URL, waits
+# Current feature branch. Refuses the default branch or a detached checkout
 /ce-polish
 
-# Check out PR 1234 (looks for an existing worktree first), then polish
+# Use PR 1234's existing worktree or a safe harness checkout, then polish
 /ce-polish 1234
 
-# Check out a named feature branch, then polish
+# Use a named feature branch through the same safe checkout path
 /ce-polish feat/notification-settings
 ```
 
@@ -54,11 +54,11 @@ Late-stage feel is a poor fit for the other skills:
 
 `ce-polish` does the plumbing, then stays in a short loop:
 
-- Phase 0 gets onto the right branch (PR, named branch, or current) and checks you are not on `main`/`master`
+- Phase 0 resolves a safe feature-branch workspace. It stays in the current checkout for an empty invocation. For a requested PR or branch, it uses an existing worktree first, then the active harness's checkout capability only when no other worktree owns the target. It refuses the repository's default branch or a detached checkout.
 - Phase 1 starts the server in the background and opens the URL
 - Phase 2 is conversation: you describe a fix, it edits, hot-reload shows the result
 
-When you ask it to check something, it screenshots or inspects the page with `agent-browser` if installed, otherwise with whatever the host exposes. When you say you are done, it commits and stops.
+When you ask it to check something, it uses a browser inspection capability exposed by the active harness. If none is available, it asks you to describe what you see. When you say you are done, it commits and stops.
 
 ---
 
@@ -70,9 +70,9 @@ It reads `.claude/launch.json` when that file exists. Otherwise it classifies th
 
 The server runs in the background with output in a temp log. It probes `http://localhost:<port>` for up to 30 seconds. If nothing answers, it shows the last 20 log lines and asks what to do.
 
-### IDE handoff, then a printed URL if that fails
+### Browser handoff, then a printed URL if unavailable
 
-It probes the host (Claude Code, Cursor, VS Code) and uses that environment's browser handoff. Outside those, or if the probe is inconclusive, it prints the URL. The server is already up either way.
+It uses the browser-opening capability exposed by the active harness. If the harness has none or opening fails, it prints the URL. The server is already up either way.
 
 ### Conversation, not a checklist
 
@@ -84,7 +84,7 @@ There is no scoring rubric. You name what is wrong; it changes that. A fixed che
 
 The notification settings page works. Spacing is tight, the off toggle is easy to miss, and the empty-state copy is dry. You run `/ce-polish` on the feature branch.
 
-No `.claude/launch.json`. It detects Next.js, resolves `pnpm`, starts `pnpm dev` on port 3000, waits until the port answers, and opens the URL in the IDE browser.
+No `.claude/launch.json`. It detects Next.js, resolves `pnpm`, starts `pnpm dev` on port 3000, waits until the port answers, and opens the URL through the active harness or prints it.
 
 You go to `/settings/notifications`. "The toggle rows are too tight." It edits the component; hot-reload updates. "The off state needs to look more off." Another edit. "This empty-state copy is sterile." It rewrites the copy.
 
@@ -124,9 +124,11 @@ Nothing in the core loop calls this. `ce-explain` may tell you to run it; you st
 
 ## Use Standalone
 
-- **Current branch:** `/ce-polish`
-- **A PR:** `/ce-polish 1234` (checks it out; probes worktrees first)
+- **Current feature branch:** `/ce-polish`
+- **A PR:** `/ce-polish 1234`
 - **A branch:** `/ce-polish feat/notification-settings`
+
+For a requested PR or branch, the skill enters its existing worktree when the harness can. It uses the harness's checkout capability only when no other worktree owns the target. Every form stops on the repository's default branch, a detached checkout, or a requested branch that cannot be reached without moving user changes or creating another worktree behind the harness.
 
 Add `.claude/launch.json` when detection is wrong or you are tired of answering how to start.
 
@@ -136,11 +138,11 @@ Add `.claude/launch.json` when detection is wrong or you are tired of answering 
 
 | Argument | Effect |
 |----------|--------|
-| _(empty)_ | Current branch. Refuses `main`/`master`. Starts the server and waits for you |
-| `<PR number>` | Checks out that PR (existing worktree first), then the same loop |
-| `<branch name>` | Checks out that branch, then the same loop |
+| _(empty)_ | Current checkout. Refuses the default branch or detached state. Starts the server and waits for you |
+| `<PR number>` | Uses the PR branch under the worktree and harness-checkout constraints above, then runs the same loop |
+| `<branch name>` | Uses the named branch under the same constraints, then runs the same loop |
 
-Required: a startable local dev server. `agent-browser` is optional; without it, Phase 2 is still conversation plus whatever browser tools the host already has.
+Required: a startable local dev server. Browser opening and inspection use capabilities exposed by the active harness; when opening is unavailable, the skill prints the URL, and when inspection is unavailable, you describe what you see.
 
 ---
 
@@ -152,11 +154,11 @@ It starts a server and runs the checked-out branch. That should be a choice you 
 **What if my framework is not detected?**
 It asks how to start. Put the answer in `.claude/launch.json` if you want the next run to skip the question.
 
-**Does it work without `agent-browser`?**
-Yes. You still browse and describe fixes; hot-reload still applies. Install `agent-browser` if you want it to screenshot or inspect without you narrating the DOM.
+**Does it work without browser automation?**
+Yes. It prints the URL when the active harness cannot open the browser, and you can describe what you see when the harness cannot inspect the page. Hot reload still applies.
 
 **What about Cursor, VS Code, or a plain terminal?**
-It tries the host's browser handoff, then prints the URL. Framework detection and server start do not depend on the IDE.
+It uses whatever browser-opening capability the active harness exposes, then prints the URL if none is available or the handoff fails. Framework detection and server start do not depend on the browser handoff.
 
 **Why no PR at the end?**
 Polish is often more than one sitting. A PR every time would pile up. Commit-and-PR is `/ce-commit-push-pr`.
