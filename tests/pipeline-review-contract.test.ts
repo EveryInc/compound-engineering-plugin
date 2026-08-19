@@ -967,13 +967,15 @@ describe("ce-compound vocabulary is corpus-first, not Rails-specific (issue #126
     expect(schema).toMatch(/validation_rules:[\s\S]*existing docs/)
   })
 
-  test("SKILL.md tells the classifier to sample existing docs before falling back to schema defaults", async () => {
-    const content = await readRepoFile("skills/ce-compound/SKILL.md")
-    const contextAnalyzer = sliceSection(content, "#### 1. **Context Analyzer**", "#### 2. **Solution Extractor**")
+  test("the classifier samples existing docs before falling back to schema defaults", async () => {
+    // Both classification paths moved into the references the body names at
+    // their step; the corpus-first rule is asserted where each one now lives.
+    const research = await readRepoFile("skills/ce-compound/references/research.md")
+    const contextAnalyzer = sliceSection(research, "#### 1. **Context Analyzer**", "#### 2. **Solution Extractor**")
     expect(contextAnalyzer).toMatch(/existing docs .*<root>\/solutions\//)
     expect(contextAnalyzer).toMatch(/directory/)
     // lightweight mode classifies inline and must carry the same rule
-    const lightweight = content.slice(content.indexOf("### Lightweight Mode"))
+    const lightweight = await readRepoFile("skills/ce-compound/references/lightweight.md")
     expect(lightweight).toMatch(/existing docs/)
   })
 
@@ -997,8 +999,10 @@ describe("ce-compound Phase 1 artifact contract", () => {
   // collapsed the return to an executive summary. The fix mirrors ce-code-review's
   // proven /tmp run-artifact pattern: subagents write full output to disk and the
   // orchestrator Reads it back with the inline return as a fallback.
+  // Phase 1 and Phase 2 moved into references/research.md and references/assembly.md;
+  // the #956 artifact contract is asserted in the files that now own it.
   test("generates a run id and run dir before dispatching Phase 1 subagents", async () => {
-    const content = await readRepoFile("skills/ce-compound/SKILL.md")
+    const content = await readRepoFile("skills/ce-compound/references/research.md")
 
     // A run identifier scopes the per-subagent artifact files
     expect(content).toContain("RUN_ID")
@@ -1009,12 +1013,9 @@ describe("ce-compound Phase 1 artifact contract", () => {
   })
 
   test("Phase 1 subagents write full output to the run-artifact path", async () => {
-    const content = await readRepoFile("skills/ce-compound/SKILL.md")
+    const content = await readRepoFile("skills/ce-compound/references/research.md")
 
-    const phase1 = content.slice(
-      content.indexOf("### Phase 1: Research"),
-      content.indexOf("### Phase 2: Assembly & Write"),
-    )
+    const phase1 = content.slice(content.indexOf("### Phase 1: Research"))
 
     // Subagents are instructed to write their full structured output to the run dir
     expect(phase1).toContain("{run_dir}")
@@ -1027,7 +1028,7 @@ describe("ce-compound Phase 1 artifact contract", () => {
   })
 
   test("Phase 2 assembly reads artifacts with inline-return fallback", async () => {
-    const content = await readRepoFile("skills/ce-compound/SKILL.md")
+    const content = await readRepoFile("skills/ce-compound/references/assembly.md")
 
     const phase2 = content.slice(
       content.indexOf("### Phase 2: Assembly & Write"),
@@ -1041,7 +1042,8 @@ describe("ce-compound Phase 1 artifact contract", () => {
   })
 
   test("no longer imposes an absolute no-write rule on Phase 1 subagents", async () => {
-    const content = await readRepoFile("skills/ce-compound/SKILL.md")
+    const content = (await readRepoFile("skills/ce-compound/SKILL.md")) +
+      (await readRepoFile("skills/ce-compound/references/research.md"))
 
     // The brittle absolute prohibition is gone — only product-file writes are reserved
     // to the orchestrator; scratch artifacts under /tmp are now expected.
