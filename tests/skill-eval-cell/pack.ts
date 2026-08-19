@@ -59,6 +59,7 @@ function runCell(scenario: Scenario, arm: EvalArm, out: string, hosts?: string) 
   ]
   if (scenario.read_only) argv.push("--read-only")
   if (scenario.git_init) argv.push("--git-init")
+  if (scenario.git_untracked?.length) argv.push("--git-untracked", scenario.git_untracked.join(","))
   if (scenario.shim_git_push) argv.push("--shim-git-push")
   if (scenario.shim_gh_pr) argv.push("--shim-gh-pr")
   if (scenario.fixture) argv.push("--fixture", path.join(REPO_ROOT, scenario.fixture))

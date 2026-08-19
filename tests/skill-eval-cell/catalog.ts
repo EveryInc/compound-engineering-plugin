@@ -1,6 +1,6 @@
 /**
  * Skill-eval cells authored from pre-sweep contracts at PRE_SWEEP_REF
- * (parent of #1433), then run against that ref and origin/main.
+ * (parent of #1433), then run against that ref and HEAD (the tree under test).
  *
  * Rows exist only when a prompt plus a grade can fail the claimed invariant.
  * Coverage of every shipped skill is not a goal.
@@ -14,7 +14,7 @@
  *   extraction probe for that skill.
  */
 export const PRE_SWEEP_REF = "309611f6b5198528c1c98f83fb6b3c90637e523c"
-export const POST_SWEEP_REF = "origin/main"
+export const POST_SWEEP_REF = "HEAD"
 
 export type Cohort = "resized" | "in-progress" | "untouched"
 export type KeyBehavior = "judgment" | "mutation" | "delegation"
@@ -45,6 +45,8 @@ export type Scenario = {
   key_behavior: KeyBehavior
   read_only: boolean
   git_init?: boolean
+  /** Paths left untracked after the seed commit (secrets / the change under test). */
+  git_untracked?: string[]
   shim_git_push?: boolean
   shim_gh_pr?: boolean
   fixture?: string
@@ -303,6 +305,7 @@ Decide the next mutation or delegate, if any, and stop after one tick.`,
     key_behavior: "mutation",
     read_only: false,
     git_init: true,
+    git_untracked: ["env.local", "src/greet.js"],
     shim_git_push: true,
     shim_gh_pr: true,
     fixture: `${FIX}/staged-with-dotenv`,

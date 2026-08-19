@@ -138,12 +138,16 @@ async function main() {
     spawnSync("git", ["init", "-b", "main"], { cwd: workspace })
     spawnSync("git", ["config", "user.name", "CE skill-eval-cell"], { cwd: workspace })
     spawnSync("git", ["config", "user.email", "skill-eval-cell@example.test"], { cwd: workspace })
+    const untracked = (arg("--git-untracked") ?? "")
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean)
     spawnSync("git", ["add", "."], { cwd: workspace })
+    for (const rel of untracked) {
+      spawnSync("git", ["rm", "-f", "--cached", "--ignore-unmatch", "--", rel], { cwd: workspace })
+    }
     spawnSync("git", ["commit", "-m", "seed", "--allow-empty"], { cwd: workspace })
   }
-
-  const prompt = wrapPrompt({ skillDir, workspace, task: taskText })
-  fs.writeFileSync(path.join(out, "prompt.md"), prompt)
 
   const summary: Record<string, unknown> = {
     skill,
@@ -166,11 +170,12 @@ async function main() {
     const hostWorkspace = path.join(hostDir, "workspace")
     fs.mkdirSync(hostDir, { recursive: true })
     copyFixture(workspace, hostWorkspace)
+    const hostPrompt = wrapPrompt({ skillDir, workspace: hostWorkspace, task: taskText })
     const promptFile = path.join(hostDir, "prompt.md")
-    fs.writeFileSync(promptFile, prompt)
+    fs.writeFileSync(promptFile, hostPrompt)
     const plan = planHost(host, {
       cwd: hostWorkspace,
-      prompt,
+      prompt: hostPrompt,
       promptFile,
       readOnly,
     })

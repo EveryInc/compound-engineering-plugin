@@ -1,6 +1,6 @@
 # Skill-eval scenarios
 
-Cases are written from the skill contracts **before** the 8KB merges (`PRE_SWEEP_REF` = parent of #1433), then run against those bodies and against `origin/main`. A row exists only when the prompt plus the grade can fail the claimed invariant. Covering every shipped skill is not a goal.
+Cases are written from the skill contracts **before** the 8KB merges (`PRE_SWEEP_REF` = parent of #1433), then run against those bodies and against `HEAD` (the tree under test). A row exists only when the prompt plus the grade can fail the claimed invariant. Covering every shipped skill is not a goal.
 
 `--read-only` is for routing/judgment that does not need a write. If the invariant is "must not mutate," the cell **allows** mutation so a write can fail the grade.
 

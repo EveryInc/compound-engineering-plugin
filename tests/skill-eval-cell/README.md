@@ -23,7 +23,7 @@ Gotchas baked in (see `docs/solutions/skill-design/size-driven-skill-restructure
 
 ## Sweep A/B pack
 
-Cases live in `catalog.ts`, authored from the skill bodies **before** the 8KB merges (`PRE_SWEEP_REF` = parent of #1433). The same prompt runs against that ref, then against `origin/main`. See `scenarios.md` for the inventory.
+Cases live in `catalog.ts`, authored from the skill bodies **before** the 8KB merges (`PRE_SWEEP_REF` = parent of #1433). The same prompt runs against that ref, then against `HEAD` (the tree under test). See `scenarios.md` for the inventory.
 
 ```bash
 bun run test:skill-eval-pack -- --list

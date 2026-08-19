@@ -72,14 +72,33 @@ export function gradeHost(opts: {
   grade: Grade
   arm: EvalArm
 }): HostGrade {
-  const { stdout, stderr, text } = combinedOutput(opts.hostDir)
+  const { stdout, stderr } = combinedOutput(opts.hostDir)
   const trailers = parseTrailers(stdout, stderr)
   const reasons: string[] = []
   const pointer_reasons: string[] = []
-  const lower = text.toLowerCase()
+  const decision = stdout.toLowerCase()
   const files = (trailers?.files_read ?? "").toLowerCase()
   const actions = trailers?.actions ?? ""
   const workspace = path.join(opts.hostDir, "workspace")
+  const exitRaw = readText(path.join(opts.hostDir, "exit.json"))
+  if (exitRaw) {
+    try {
+      const exit = JSON.parse(exitRaw) as { exitCode: number | null; timedOut?: boolean }
+      if (exit.timedOut) reasons.push("host timed out")
+      else if (exit.exitCode !== 0) reasons.push(`host exit ${exit.exitCode}`)
+    } catch {
+      reasons.push("exit.json is not valid JSON")
+    }
+  }
+  const needsTrailers =
+    Boolean(opts.grade.must_exclude?.length) ||
+    Boolean(opts.grade.files_read_post?.length) ||
+    opts.grade.actions === "none" ||
+    opts.grade.delegates === "none" ||
+    opts.grade.delegates === "some"
+  if (needsTrailers && !trailers) {
+    reasons.push("missing ACTIONS/FILES_READ trailers")
+  }
 
   if ((opts.arm === "post" || opts.arm === "preview") && opts.grade.files_read_post) {
     for (const ref of opts.grade.files_read_post) {
@@ -89,7 +108,7 @@ export function gradeHost(opts: {
     }
   }
   for (const needle of opts.grade.must_include ?? []) {
-    if (!lower.includes(needle.toLowerCase())) reasons.push(`missing required text: ${needle}`)
+    if (!decision.includes(needle.toLowerCase())) reasons.push(`missing required text: ${needle}`)
   }
   for (const needle of opts.grade.must_exclude ?? []) {
     if (actions.includes(needle)) {
@@ -111,7 +130,7 @@ export function gradeHost(opts: {
   }
   if (opts.grade.structured_status) {
     const re = new RegExp(`"status"\\s*:\\s*"${opts.grade.structured_status}"`)
-    if (!re.test(text)) reasons.push(`missing structured status ${opts.grade.structured_status}`)
+    if (!re.test(stdout)) reasons.push(`missing structured status ${opts.grade.structured_status}`)
   }
   const statusLines = opts.grade.git || opts.grade.committed_must_not
     ? readText(path.join(opts.hostDir, "git-status.txt")).split("\n")

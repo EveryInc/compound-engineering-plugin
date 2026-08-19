@@ -96,6 +96,35 @@ describe("skill-eval-cell host grade", () => {
     expect(g.reasons.some((r) => r.includes("phase-0.md"))).toBe(true)
   })
 
+  test("must_include ignores skill text that only appears on stderr", () => {
+    const dir = hostDir({
+      "stdout.txt": "ACTIONS: none\nFILES_READ: SKILL.md\n",
+      "stderr.txt": "Read skills/ce-debug/SKILL.md\nneeds-human is a status\n",
+    })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "pre",
+      grade: { must_include: ["needs-human"] },
+    })
+    expect(g.ok).toBe(false)
+  })
+
+  test("a timed-out host fails even with a clean ACTIONS trailer", () => {
+    const dir = hostDir({
+      "stdout.txt": "ACTIONS: none\nFILES_READ: SKILL.md\n",
+      "exit.json": JSON.stringify({ exitCode: null, timedOut: true }),
+    })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "pre",
+      grade: { actions: "none" },
+    })
+    expect(g.ok).toBe(false)
+    expect(g.reasons.some((r) => r.includes("timed out"))).toBe(true)
+  })
+
   test("the same required read is not graded on the pre arm", () => {
     const dir = hostDir({
       "stdout.txt": "needs-human\nFILES_READ: SKILL.md\nACTIONS: none\n",
