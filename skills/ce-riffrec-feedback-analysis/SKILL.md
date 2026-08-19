@@ -1,6 +1,6 @@
 ---
 name: ce-riffrec-feedback-analysis
-description: Analyze Riffrec feedback captures from bundles or standalone recordings. Use when the input is a Riffrec capture, a screen or voice recording, or a capture/share request.
+description: Analyze Riffrec feedback captures from bundles or standalone recordings. Use when the input is a `riffrec-*.zip`, an unpacked Riffrec bundle (`session.json`, `events.json`, `recording.webm`, `voice.webm`), a screen or voice recording, or a capture/share request.
 ---
 
 # Riffrec Feedback Analysis
