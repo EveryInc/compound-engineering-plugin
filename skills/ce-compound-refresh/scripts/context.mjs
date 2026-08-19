@@ -3,6 +3,8 @@
 // disabling the subagents a skill's flows depend on. Emitted every run because
 // tool-result content in the working turn outranks a system-prompt default.
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 function git(...args) {
   try {
@@ -12,13 +14,65 @@ function git(...args) {
   }
 }
 
+// Model/engine config keys are a deliberate, sometimes paid, user choice about
+// which model does the reasoning-heavy work. Surfacing them here — at the top of
+// every run, in the authoritative context block — makes silently ignoring them
+// essentially impossible. Scalar keys only; a minimal reader avoids a YAML dep.
+const CE_MODEL_KEYS = [
+  'plan_model',
+  'brainstorm_model',
+  'cross_model_review_mode',
+  'cross_model_peer',
+  'cross_model_model',
+  'cross_model_effort',
+  'work_engine_mode',
+];
+
+// Minimal active-scalar reader: skip #-commented lines, return the first active
+// value for `key`, strip a surrounding quote pair. Not a YAML parser — the keys
+// in play are flat scalars, and a parser dependency on every skill run is not
+// justified.
+function readActiveScalar(file, key) {
+  let text;
+  try { text = readFileSync(file, 'utf8'); } catch { return undefined; }
+  for (const raw of text.split('\n')) {
+    const line = raw.trimStart();
+    if (line.startsWith('#')) continue;                 // commented -> not active
+    const m = line.match(new RegExp(`^${key}:\\s*([^#\\n]+)`));
+    if (m) return m[1].trim().replace(/^["']|["']$/g, '') || undefined;
+  }
+  return undefined;
+}
+
+// Ordinary-key rule: config.local.yaml then config.yaml, first active value wins.
+// Silent when nothing resolves, so repos that configure nothing add no noise.
+function resolvedCeConfig() {
+  const root = git('rev-parse', '--show-toplevel');
+  if (!root) return null;
+  const files = [
+    join(root, '.compound-engineering/config.local.yaml'),   // local overrides repo
+    join(root, '.compound-engineering/config.yaml'),
+  ];
+  const out = [];
+  for (const key of CE_MODEL_KEYS) {
+    for (const f of files) {
+      const v = readActiveScalar(f, key);
+      if (v) { out.push(`${key}=${v}`); break; }
+    }
+  }
+  return out.length ? 'RESOLVED_CE_CONFIG: ' + out.join(' ') : null;
+}
+
 function buildResolvedContext() {
-  return [
+  const lines = [
     'RESOLVED_CONTEXT:',
     `cwd: ${process.cwd()}`,
     `branch: ${git('rev-parse', '--abbrev-ref', 'HEAD') || '(not a git repository)'}`,
     `head: ${git('rev-parse', '--short', 'HEAD') || '(none)'}`,
-  ].join('\n');
+  ];
+  const ceConfig = resolvedCeConfig();
+  if (ceConfig) lines.push(ceConfig);
+  return lines.join('\n');
 }
 
 // Substitution stays allowed on a failed dispatch, not only on an empty tool
