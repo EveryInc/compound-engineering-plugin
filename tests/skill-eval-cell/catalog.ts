@@ -185,6 +185,8 @@ Decide the next mutation or delegate, if any, and stop after one tick.`,
       files_read_post: ["references/pipeline-mode.md"],
       structured_status: "fixed-not-pushed",
       workspace_contains: [{ path: "src/seat-cap.js", needle: "3" }],
+      // "fixed-not-pushed" claims a commit; grade the commit, not the claim.
+      committed_must: ["seat-cap.js"],
     },
   },
   {

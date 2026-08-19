@@ -59,7 +59,10 @@ export function resolveRunHosts(opts: {
     warnings.push(`warning: skipping ${host}: ${host} CLI not on PATH`)
     return false
   })
-  if (run.length === 0 && current !== "unknown" && onPath(current)) {
+  // Only the default peer selection falls back to self. An explicit --hosts that is
+  // unavailable must come back empty, or the run reports a pass for a harness it
+  // never exercised.
+  if (!opts.explicit && run.length === 0 && current !== "unknown" && onPath(current)) {
     run = [current]
   }
   const ownEvalOnly = run.length === 1 && run[0] === current

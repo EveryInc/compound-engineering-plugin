@@ -80,6 +80,16 @@ describe("skill-eval-cell host plans pin measured gotchas", () => {
     expect(own.warnings.some((line) => line.includes("own-eval only"))).toBe(true)
   })
 
+  test("an explicit --hosts that is unavailable does not fall back to self", () => {
+    const explicit = resolveRunHosts({
+      explicit: ["claude"],
+      env: { CODEX_SESSION_ID: "x" },
+      onPath: (host) => host === "codex",
+    })
+    expect(explicit.run).toEqual([])
+    expect(explicit.ownEvalOnly).toBe(false)
+  })
+
   test("read-only maps to each host's measured flags", () => {
     const claude = planHost("claude", { cwd, prompt: "task", promptFile, readOnly: true })
     expect(claude.argv).toContain("--allowedTools")

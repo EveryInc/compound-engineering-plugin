@@ -53,7 +53,9 @@ function snapshotWorkspace(hostDir: string, workspace: string) {
     encoding: "utf8",
   })
   fs.writeFileSync(path.join(hostDir, "files.txt"), list.stdout)
-  const headFiles = git(["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"])
+  // Everything tracked at HEAD, not just HEAD's own changeset: a later commit or an
+  // amend would otherwise drop a file the run really did commit.
+  const headFiles = git(["ls-tree", "-r", "--name-only", "HEAD"])
   fs.writeFileSync(
     path.join(hostDir, "git-head-files.txt"),
     headFiles.status === 0 ? headFiles.stdout : "",

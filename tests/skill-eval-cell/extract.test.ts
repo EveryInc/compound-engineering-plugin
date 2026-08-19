@@ -48,3 +48,22 @@ test("the WORKTREE ref picks up an edit that is not committed yet", () => {
   expect(fs.readFileSync(path.join(tree.skillDir, "SKILL.md"), "utf8")).toContain("uncommitted edit")
   expect(tree.skillDir.endsWith(path.join("skills", "x"))).toBe(true)
 })
+
+test("reusing a dest drops a reference that was deleted from the working tree", () => {
+  const repo = mintCellDir()
+  cells.push(repo)
+  const skillDir = path.join(repo, "skills", "x", "references")
+  fs.mkdirSync(skillDir, { recursive: true })
+  fs.writeFileSync(path.join(repo, "skills", "x", "SKILL.md"), "body\n")
+  fs.writeFileSync(path.join(skillDir, "gone.md"), "stale\n")
+
+  const dest = mintCellDir()
+  cells.push(dest)
+  const first = extractSkill({ skill: "x", ref: WORKTREE_REF, dest, repoRoot: repo })
+  expect(fs.existsSync(path.join(first.skillDir, "references/gone.md"))).toBe(true)
+
+  fs.rmSync(path.join(skillDir, "gone.md"))
+  const second = extractSkill({ skill: "x", ref: WORKTREE_REF, dest, repoRoot: repo })
+  expect(fs.existsSync(path.join(second.skillDir, "references/gone.md"))).toBe(false)
+  expect(fs.existsSync(path.join(second.skillDir, "SKILL.md"))).toBe(true)
+})

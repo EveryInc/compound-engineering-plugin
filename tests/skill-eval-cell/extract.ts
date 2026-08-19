@@ -29,6 +29,9 @@ export function extractSkill(opts: {
     }
     const skillDir = path.join(opts.dest, prefix)
     fs.mkdirSync(path.dirname(skillDir), { recursive: true })
+    // Copying over a reused --out would leave a reference deleted from the working
+    // tree still readable, so the agent could pass against content that is gone.
+    fs.rmSync(skillDir, { recursive: true, force: true })
     fs.cpSync(src, skillDir, { recursive: true })
     return { skillDir }
   }
