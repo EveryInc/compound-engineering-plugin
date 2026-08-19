@@ -35,7 +35,7 @@ function copyFixture(src: string, dest: string) {
   fs.cpSync(src, dest, { recursive: true })
 }
 
-function snapshotWorkspace(hostDir: string, workspace: string) {
+function snapshotWorkspace(hostDir: string, workspace: string, seedSha: string) {
   const git = (args: string[]) =>
     spawnSync("git", args, { cwd: workspace, encoding: "utf8" })
   const status = git(["status", "--porcelain"])
@@ -53,9 +53,11 @@ function snapshotWorkspace(hostDir: string, workspace: string) {
     encoding: "utf8",
   })
   fs.writeFileSync(path.join(hostDir, "files.txt"), list.stdout)
-  // Everything tracked at HEAD, not just HEAD's own changeset: a later commit or an
-  // amend would otherwise drop a file the run really did commit.
-  const headFiles = git(["ls-tree", "-r", "--name-only", "HEAD"])
+  // What the run itself committed, across however many commits it made -- not what
+  // the seed already tracked, and not merely HEAD's own changeset.
+  const headFiles = seedSha
+    ? git(["diff", "--name-only", seedSha, "HEAD"])
+    : git(["ls-tree", "-r", "--name-only", "HEAD"])
   fs.writeFileSync(
     path.join(hostDir, "git-head-files.txt"),
     headFiles.status === 0 ? headFiles.stdout : "",
@@ -133,6 +135,10 @@ async function main() {
   fs.mkdirSync(out, { recursive: true })
   const { skillDir } = extractSkill({ skill, ref, dest: path.join(out, "extract") })
   const workspace = path.join(out, "workspace")
+  // A reused --out otherwise keeps the previous run's files, commits, and mutations,
+  // and --git-init skips reseeding because the old .git is still there.
+  fs.rmSync(workspace, { recursive: true, force: true })
+  fs.rmSync(path.join(out, "hosts"), { recursive: true, force: true })
   const fixture = arg("--fixture")
   if (fixture) copyFixture(fixture, workspace)
   else fs.mkdirSync(workspace, { recursive: true })
@@ -150,6 +156,8 @@ async function main() {
     }
     spawnSync("git", ["commit", "-m", "seed", "--allow-empty"], { cwd: workspace })
   }
+  const seedRev = spawnSync("git", ["rev-parse", "HEAD"], { cwd: workspace, encoding: "utf8" })
+  const seedSha = seedRev.status === 0 ? seedRev.stdout.trim() : ""
 
   const summary: Record<string, unknown> = {
     skill,
@@ -164,6 +172,7 @@ async function main() {
     own_eval_only: resolution.ownEvalOnly,
     warnings: resolution.warnings,
     read_only: readOnly,
+    seed_sha: seedSha,
     cells: {},
   }
 
@@ -203,7 +212,7 @@ async function main() {
       path.join(hostDir, "exit.json"),
       `${JSON.stringify({ exitCode: result.exitCode, timedOut: result.timedOut }, null, 2)}\n`,
     )
-    snapshotWorkspace(hostDir, hostWorkspace)
+    snapshotWorkspace(hostDir, hostWorkspace, seedSha)
     ;(summary.cells as Record<string, unknown>)[host] = {
       exitCode: result.exitCode,
       timedOut: result.timedOut,

@@ -43,6 +43,9 @@ export function extractSkill(opts: {
   if (archive.status !== 0) {
     throw new Error(`git archive ${ref} ${prefix} failed:\n${archive.stderr.toString()}`)
   }
+  // Same reason as the working-tree branch: untarring over a previous extraction of
+  // a different ref leaves files that ref deleted still visible to the agent.
+  fs.rmSync(path.join(opts.dest, prefix), { recursive: true, force: true })
   const tar = spawnSync("tar", ["-x", "-C", opts.dest], {
     cwd: repoRoot,
     input: archive.stdout,

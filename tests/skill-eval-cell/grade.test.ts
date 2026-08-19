@@ -119,6 +119,31 @@ describe("skill-eval-cell host grade", () => {
     expect(g.reasons.some((r) => r.includes("phase-0.md"))).toBe(true)
   })
 
+  test("a required read matches the full path, not a shared basename", () => {
+    const decoy = hostDir({
+      "stdout.txt": "ok\nFILES_READ: docs/method.md\nACTIONS: none\n",
+    })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: decoy,
+      arm: "post",
+      grade: { files_read_post: ["references/method.md"] },
+    })
+    expect(g.ok).toBe(false)
+
+    const real = hostDir({
+      "stdout.txt":
+        "ok\nFILES_READ: /tmp/cell/skills/ce-pov/references/method.md, SKILL.md\nACTIONS: none\n",
+    })
+    const pass = gradeHost({
+      host: "claude",
+      hostDir: real,
+      arm: "post",
+      grade: { files_read_post: ["references/method.md"] },
+    })
+    expect(pass.ok).toBe(true)
+  })
+
   test("must_include ignores skill text that only appears on stderr", () => {
     const dir = hostDir({
       "stdout.txt": "ACTIONS: none\nFILES_READ: SKILL.md\n",

@@ -129,9 +129,16 @@ export function gradeHost(opts: {
     reasons.push(`missing ${TRAILER_NAMES.files_read} trailer`)
   }
 
+  // Match the required path, not its basename: a common name like method.md would
+  // otherwise be satisfied by any docs/method.md the run happened to read.
+  const filesRead = files
+    .split(",")
+    .map((entry) => entry.trim().replaceAll("\\", "/").replace(/^\.\//, ""))
+    .filter(Boolean)
   if (gradesPointers && opts.grade.files_read_post) {
     for (const ref of opts.grade.files_read_post) {
-      if (!files.includes(path.basename(ref).toLowerCase())) {
+      const want = ref.toLowerCase().replaceAll("\\", "/")
+      if (!filesRead.some((entry) => entry === want || entry.endsWith(`/${want}`))) {
         pointer_reasons.push(`${opts.arm} arm did not name required read ${ref} in ${TRAILER_NAMES.files_read}`)
       }
     }

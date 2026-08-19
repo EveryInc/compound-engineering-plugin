@@ -223,6 +223,9 @@ Decide the next mutation or delegate, if any, and stop after one tick.`,
     grade: {
       must_include: ["Fix it now"],
       git: "clean",
+      // git: clean only proves nothing is left unstaged; committing the fix before
+      // asking would otherwise leave a clean tree and pass.
+      committed_must_not: ["seat-cap.js"],
     },
   },
   {
