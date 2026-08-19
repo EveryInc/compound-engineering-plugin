@@ -45,10 +45,27 @@ const modelVisibleRendererCases = [
     unnecessaryOmp: ["/skill:ce-handoff resume <source>"],
   },
   {
-    file: "skills/ce-compound/SKILL.md",
-    defaults: ["/ce-compound-refresh <scope>", "/ce-compound"],
-    codex: ["$ce-compound-refresh <scope>", "$ce-compound"],
-    unnecessaryOmp: ["/skill:ce-compound-refresh <scope>", "/skill:ce-compound"],
+    // Both ce-compound seams moved out of the body with the steps that print
+    // them: the refresh recommendation into the refresh reference, the retry
+    // line into lightweight's completion block. The rule follows its seam.
+    file: "skills/ce-compound/references/refresh-and-discoverability.md",
+    defaults: ["/ce-compound-refresh <scope>"],
+    codex: ["$ce-compound-refresh <scope>"],
+    unnecessaryOmp: ["/skill:ce-compound-refresh <scope>"],
+  },
+  {
+    // report.md is loaded on its own and independently prints the refresh
+    // invocation in both terminal templates, so it carries its own rule.
+    file: "skills/ce-compound/references/report.md",
+    defaults: ["/ce-compound-refresh <scope>"],
+    codex: ["$ce-compound-refresh <scope>"],
+    unnecessaryOmp: ["/skill:ce-compound-refresh <scope>"],
+  },
+  {
+    file: "skills/ce-compound/references/lightweight.md",
+    defaults: ["/ce-compound"],
+    codex: ["$ce-compound"],
+    unnecessaryOmp: ["/skill:ce-compound"],
   },
   {
     file: "skills/ce-plan/references/universal-planning.md",
@@ -161,7 +178,8 @@ describe("user-facing skill invocation rendering", () => {
     expect(verdictRouting).toContain("want a `ce-pov` verdict")
     expect(verdictRouting).not.toContain("tell the user to type `/ce-pov`")
 
-    const work = readRepoFile("skills/ce-work/SKILL.md")
+    // ce-work's bare-prompt complexity routing lives in the reference Phase 0 mandates.
+    const work = readRepoFile("skills/ce-work/references/work-intake.md")
     expect(work).toContain("benefit from `ce-brainstorm` or `ce-plan`")
 
     const debug = readRepoFile("skills/ce-debug/SKILL.md")

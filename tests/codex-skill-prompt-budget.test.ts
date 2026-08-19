@@ -28,7 +28,6 @@ const AGENT_PLUGINS_SCHEMA_PREFIX = "https://agent-plugins.org/schemas/"
  * for the procedure that took ce-babysit-pr off it.
  */
 const OVER_BUDGET = new Set([
-  "ce-compound",
   "ce-debug",
   "ce-explain",
   "ce-plan",

@@ -102,26 +102,26 @@ describe("ce-compound YAML safety rule presence", () => {
     })
   }
 
-  test("ce-compound/SKILL.md points at YAML Safety Rules in both frontmatter-writing spots", async () => {
-    const raw = await readFile(
-      path.join(PLUGIN_ROOT, "ce-compound", "SKILL.md"),
-      "utf8",
-    )
-    // Match the distinctive write-path pointer phrase, not generic yaml-schema.md
-    // references (which also appear in the support-files list and inputs section).
-    // Both Full-mode Phase 2 step 5 and Lightweight mode step 3 must carry the
-    // pointer so dropping either one is caught.
-    const pointer = /YAML[- ]safety\s+quoting\s+rule\s+for\s+array\s+items/gi
-    const pointerMatches = raw.match(pointer) ?? []
-    expect(pointerMatches.length).toBeGreaterThanOrEqual(2)
-
-    // Each pointer must sit in the frontmatter-write step (step 5 of Full mode,
-    // step 3 of Lightweight mode), not drift to an unrelated location. Both
-    // steps carry the "YAML frontmatter" phrase adjacent to the pointer.
-    const frontmatterAdjacent = raw.match(
-      /YAML\s+frontmatter[\s\S]{0,400}?YAML[- ]safety\s+quoting\s+rule\s+for\s+array\s+items/gi,
-    ) ?? []
-    expect(frontmatterAdjacent.length).toBeGreaterThanOrEqual(2)
+  test("ce-compound points at YAML Safety Rules in both frontmatter-writing spots", async () => {
+    // Issue #606. Both write paths moved into the references the body names at
+    // their step — Full mode's assembly and Lightweight's single pass — so the
+    // pointer is asserted in each file that now owns a frontmatter write.
+    const files = [
+      path.join(PLUGIN_ROOT, "ce-compound", "references", "assembly.md"),
+      path.join(PLUGIN_ROOT, "ce-compound", "references", "lightweight.md"),
+    ]
+    for (const file of files) {
+      const raw = await readFile(file, "utf8")
+      // Match the distinctive write-path pointer phrase, not generic yaml-schema.md
+      // references (which also appear in inputs and support-file lists).
+      expect(raw, `${file} lost the YAML-safety pointer`).toMatch(
+        /YAML[- ]safety\s+quoting\s+rule\s+for\s+array\s+items/i,
+      )
+      // The pointer must sit in the frontmatter-write step, not drift elsewhere.
+      expect(raw, `${file} moved the pointer off the frontmatter step`).toMatch(
+        /YAML\s+frontmatter[\s\S]{0,400}?YAML[- ]safety\s+quoting\s+rule\s+for\s+array\s+items/i,
+      )
+    }
   })
 
   test("ce-compound-refresh per-action-flows reference points at YAML-safety rules in the Replace flow", async () => {

@@ -31,6 +31,11 @@ const universalBrainstorming = readRepoFile(
   "skills/ce-brainstorm/references/universal-brainstorming.md",
 )
 const ceWork = readRepoFile("skills/ce-work/SKILL.md")
+// Plan-reading strategy and worker packaging are loaded from the references the body
+// mandates at Phase 1; the plan-artifact invariants they carry are asserted over the
+// whole ce-work unit rather than the always-loaded window.
+const ceWorkIntake = readRepoFile("skills/ce-work/references/work-intake.md")
+const ceWorkStrategy = readRepoFile("skills/ce-work/references/execution-strategy.md")
 const ceWorkDocs = readRepoFile("docs/skills/ce-work.md")
 const ceWorkEngines = readRepoFile(
   "skills/ce-work/references/execution-engines.md",
@@ -224,8 +229,8 @@ describe("unified plan artifact contract", () => {
     expect(ceWork).toContain("classify `artifact_readiness` before reading the body")
     expect(ceWork).toContain("requirements-only` -> stop")
     expect(ceWork).toContain("Any other readiness value")
-    expect(ceWork).toContain("Build a section map")
-    expect(ceWork).toContain("Do not send \"read the whole plan\"")
+    expect(ceWorkIntake).toContain("Build a section map")
+    expect(ceWorkStrategy).toContain("Do not send \"read the whole plan\"")
     expect(ceWork).toContain("mode:return-to-caller <plan-path>")
     expect(ceWork).toContain("standalone_shipping_skipped: true")
     expect(ceWork).not.toContain("artifact_readiness: approach-plan")
@@ -421,9 +426,9 @@ describe("unified plan artifact contract", () => {
     // Size-aware: a short plan can be read in full.
     expect(planSections).toMatch(/can just be read in full/i)
     // ce-work carries the same discipline, markdown + HTML, size-aware.
-    expect(ceWork).toContain("do **not** read the whole document first")
-    expect(ceWork).toMatch(/can be read in full/i)
-    expect(ceWork).toMatch(/in \*\*HTML\*\* scan the/i)
+    expect(ceWorkIntake).toContain("do **not** read the whole document first")
+    expect(ceWorkIntake).toMatch(/can be read in full/i)
+    expect(ceWorkIntake).toMatch(/in \*\*HTML\*\* scan the/i)
   })
 
   test("Verification Contract requires repo-specific commands, not generic run tests", () => {
@@ -591,7 +596,7 @@ describe("unified plan artifact contract", () => {
     expect(ceWork).toContain("Choose Execution Engine")
     expect(ceWork).toContain("references/execution-engines.md")
     expect(ceWork).toContain("dynamic-workflow")
-    expect(ceWork).toMatch(/prompt-emission only|never invoked from inside this skill/i)
+    expect(ceWorkEngines).toMatch(/prompt-emission only|never invoked from inside this skill/i)
 
     expect(ceWorkEngines).toContain("Probe host capability")
     expect(ceWorkEngines).toContain("/goal Implement <plan-path>")
@@ -799,7 +804,7 @@ describe("cross-layer ownership contract", () => {
   })
 
   test("ce-work packets reverse-resolve Product Key Decisions so settlement labels survive bounded reads", () => {
-    expect(ceWork).toContain("`Governs R…` links name the unit's cited R-IDs")
+    expect(ceWorkStrategy).toContain("`Governs R…` links name the unit's cited R-IDs")
     expect(ceWork).toContain("A KTD or Product Contract Key Decision carrying")
   })
 
