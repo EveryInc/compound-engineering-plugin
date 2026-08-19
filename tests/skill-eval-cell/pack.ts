@@ -146,6 +146,17 @@ function main() {
   const packPath = path.join(root, "pack.json")
   fs.writeFileSync(packPath, `${JSON.stringify(pack, null, 2)}\n`)
   console.log(packPath)
+  // Exit status is the verdict: a caller running this as a check must not read a
+  // failed arm as a pass. The artifact is written first so failures stay diagnosable.
+  const failed = Object.values(pack.scenarios as Record<string, any>).flatMap((row) =>
+    Object.entries(row.arms as Record<string, any>)
+      .filter(([, info]) => !info.ok)
+      .map(([arm]) => `${row.id} ${arm}`),
+  )
+  if (failed.length > 0) {
+    console.error(`failed: ${failed.join(", ")}`)
+    process.exit(1)
+  }
 }
 
 main()

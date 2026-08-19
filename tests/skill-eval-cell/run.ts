@@ -71,11 +71,27 @@ async function runPlan(
 ): Promise<{ exitCode: number | null; stdout: string; stderr: string; timedOut: boolean }> {
   return new Promise((resolve) => {
     const stdin = fs.openSync("/dev/null", "r")
+    // detached makes the child a process-group leader so a timeout can take down
+    // everything it spawned -- a host CLI's own subagents and detached peer jobs
+    // would otherwise keep running, billing, and writing after the cell reported.
     const child = spawn(plan.argv[0], plan.argv.slice(1), {
       cwd,
       env: plan.env,
       stdio: [stdin, "pipe", "pipe"],
+      detached: true,
     })
+    let timedOut = false
+    const killTree = () => {
+      try {
+        if (child.pid) process.kill(-child.pid, "SIGKILL")
+      } catch {
+        try {
+          child.kill("SIGKILL")
+        } catch {
+          // already gone
+        }
+      }
+    }
     let stdout = ""
     let stderr = ""
     child.stdout.on("data", (c) => {
@@ -84,22 +100,28 @@ async function runPlan(
     child.stderr.on("data", (c) => {
       stderr += c.toString()
     })
+    let backstop: ReturnType<typeof setTimeout> | undefined
     const timer = setTimeout(() => {
-      child.kill("SIGKILL")
-      resolve({ exitCode: null, stdout, stderr, timedOut: true })
+      timedOut = true
+      killTree()
+      // Resolve on close so the snapshot runs after the tree is gone; the backstop
+      // covers a child whose pipes never close.
+      backstop = setTimeout(() => resolve({ exitCode: null, stdout, stderr, timedOut: true }), 5000)
     }, timeoutMs)
     child.on("close", (code) => {
       clearTimeout(timer)
+      if (backstop) clearTimeout(backstop)
       try {
         fs.closeSync(stdin)
       } catch {
         // already closed
       }
-      resolve({ exitCode: code, stdout, stderr, timedOut: false })
+      resolve({ exitCode: timedOut ? null : code, stdout, stderr, timedOut })
     })
     child.on("error", (err) => {
       clearTimeout(timer)
-      resolve({ exitCode: null, stdout, stderr: `${stderr}\n${String(err)}`, timedOut: false })
+      if (backstop) clearTimeout(backstop)
+      resolve({ exitCode: null, stdout, stderr: `${stderr}\n${String(err)}`, timedOut })
     })
   })
 }

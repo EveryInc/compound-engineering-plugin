@@ -32,4 +32,4 @@ bun run test:skill-eval-pack -- --id ce-babysit-pr/refuse-unasked-update --arm a
 bun run test:skill-eval-pack -- --id lfg/plan-first --arm ab
 ```
 
-`--arm ab` is pre+post for every catalog skill (the 8KB sweep is fully merged). `--wave1` is the cheap read-only decision set, not every scenario. Live mutation and oracle dispatch are separate ids. `ok` is the only verdict: a listed `files_read_post` miss fails the cell; unlisted references are not graded. Not in default `bun test`.
+`--arm ab` is pre+post for every catalog skill (the 8KB sweep is fully merged). `--wave1` is the cheap read-only decision set, not every scenario. Live mutation and oracle dispatch are separate ids. The pack exits non-zero when any arm failed, after writing `pack.json`, so it can be used as a check. `ok` is the only verdict: a listed `files_read_post` miss fails the cell; unlisted references are not graded. Not in default `bun test`.
