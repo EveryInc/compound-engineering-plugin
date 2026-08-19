@@ -20,9 +20,12 @@ test("repo research runs Phase 0 only when in scope", () => {
   }
 })
 
+// Phase 1 moved out of ce-plan's body into the reference the body names as a
+// required read before any research dispatch (#1412 restructure), so this pin
+// follows the collection list rather than the file it used to live in.
 test("ce-plan collects versions only when materially relevant", () => {
   const skill = readFileSync(
-    path.join(process.cwd(), "skills", "ce-plan", "SKILL.md"),
+    path.join(process.cwd(), "skills", "ce-plan", "references/research.md"),
     "utf8",
   )
   expect(skill).not.toContain("- Technology stack and versions")

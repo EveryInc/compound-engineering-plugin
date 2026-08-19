@@ -203,7 +203,9 @@ describe("ce-brainstorm review contract", () => {
 
 describe("ce-plan testing contract", () => {
   test("flags blank test scenarios on feature-bearing units as incomplete", async () => {
-    const content = await readRepoFile("skills/ce-plan/SKILL.md")
+    // Phase 5.1's review checklist moved into the reference ce-plan's body names
+    // as a required read before the plan is written (#1412 restructure).
+    const content = await readRepoFile("skills/ce-plan/references/final-review.md")
 
     // Phase 5.1 review checklist addresses blank test scenarios
     expect(content).toContain("blank or missing test scenarios")
@@ -214,7 +216,13 @@ describe("ce-plan testing contract", () => {
   })
 
   test("keeps execution direction natural-language instead of enum-based", async () => {
-    const content = await readRepoFile("skills/ce-plan/SKILL.md")
+    // The core principle and the per-unit Execution note field moved into the
+    // references ce-plan's body names as required reads (#1412 restructure);
+    // the rule is pinned across both so it cannot be dropped in either.
+    const content =
+      (await readRepoFile("skills/ce-plan/references/intake.md")) +
+      (await readRepoFile("skills/ce-plan/references/research.md")) +
+      (await readRepoFile("skills/ce-plan/references/structure.md"))
 
     expect(content).toContain("natural-language signal")
     expect(content).toContain("Do not encode it as a finite enum")
