@@ -6,7 +6,7 @@ Read this before editing any file in Phase 3. The branch check and the pre-fix s
 
 **Test-first:**
 
-1. Choose the regression test's home per the body's **Choosing the regression test** rule, whose precondition — a confirmed defect, never a test the change deliberately reverses — decides whether an existing test may be updated at all.
+1. Choose the regression test's home. Follow the active project instructions and any applicable subdirectory-scoped instructions, and always inspect existing tests before adding coverage. Use an existing failing test when it already captures the bug, update an existing test when it owns the contract but has the wrong expectation, strengthen an over-mocked test that should have caught the bug, or add a new minimal isolated test only when no existing test is the right home. It must fail on the current bug and pass once the corrected behavior lands; name it so the failure message explains the bug. The body's precondition decides whether an existing test may be updated at all: a confirmed defect, never a test whose expectation the change deliberately reverses.
 2. Verify that test fails for the right reason — the root cause, not unrelated setup.
 3. Implement the **minimal** fix: the root cause and nothing else. No drive-by refactors, formatting, or unrelated cleanup — those are separate commits.
 4. Verify the test passes, then run the broader suite for regressions.

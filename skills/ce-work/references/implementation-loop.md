@@ -71,3 +71,90 @@ Guardrails for execution evidence:
 **When to skip:** Leaf-node changes with no callbacks, no state persistence, no parallel interfaces. If the change is purely additive (new helper method, new view partial), the check takes 10 seconds and the answer is "nothing fires, skip."
 
 **When this matters most:** Any change that touches models with callbacks, error handling with fallback/retry, or functionality exposed through multiple interfaces.
+
+2. **Incremental Commits**
+
+After completing each task, evaluate whether to create an incremental commit:
+
+| Commit when... | Don't commit when... |
+|----------------|---------------------|
+| Logical unit complete (model, service, component) | Small part of a larger unit |
+| Tests pass + meaningful progress | Tests failing |
+| About to switch contexts (backend → frontend) | Purely scaffolding with no behavior |
+| About to attempt risky/uncertain changes | Would need a "WIP" commit message |
+
+**Heuristic:** "Can I write a commit message that describes a complete, valuable change? If yes, commit. If the message would be 'WIP' or 'partial X', wait."
+
+If the plan has Implementation Units, use them as a starting guide for commit boundaries — but adapt based on what you find during implementation. A unit might need multiple commits if it's larger than expected, or small related units might land together. Use each unit's Goal to inform the commit message.
+
+**Commit workflow:**
+```bash
+# 1. Verify tests pass (use project's test command)
+# Examples: bin/rails test, npm test, pytest, go test, etc.
+
+# 2. Stage only files related to this logical unit (not `git add .`)
+git add <files related to this logical unit>
+
+# 3. Commit with conventional message, limited to those same paths
+git commit -m "feat(scope): description of this unit" -- <files related to this logical unit>
+```
+
+**Handling merge conflicts:** If conflicts arise during rebasing or merging, resolve them immediately. Incremental commits make conflict resolution easier since each commit is small and focused.
+
+**Note:** Incremental commits use clean conventional messages without attribution footers. The final Phase 4 handoff passes `branding:on` so `ce-commit-push-pr` can add generic Compound Engineering branding to the PR.
+
+**Parallel subagent mode:** commit ownership follows the isolation mode chosen at dispatch — see `references/execution-strategy.md`.
+
+3. **Follow Existing Patterns**
+
+- The plan should reference similar code - read those files first
+- Match naming conventions exactly
+- Reuse existing components where possible
+- Follow the project's coding standards already in your context
+- When in doubt, grep for similar implementations
+
+4. **Test Continuously**
+
+- Run relevant tests after each significant change
+- Don't wait until the end to test
+- Fix failures immediately
+- Add new tests for new behavior, update tests for changed behavior, remove tests for deleted behavior
+- **Unit tests with mocks prove logic in isolation. Integration tests with real objects prove the layers work together.** If your change touches callbacks, middleware, or error handling — you need both.
+
+5. **Simplify as You Go**
+
+After completing a cluster of related implementation units (or every 2-3 units), review recently changed files for simplification opportunities — consolidate duplicated patterns, extract shared helpers, and improve code reuse and efficiency. This is especially valuable when using subagents, since each agent works with isolated context and can't see patterns emerging across units.
+
+Don't simplify after every single unit — early patterns may look duplicated but diverge intentionally in later units. Wait for a natural phase boundary or when you notice accumulated complexity.
+
+If **`ce-simplify-code`** is available, invoke it at phase boundaries (especially before Phase 3 when the accumulated cluster has >=30 substantive changed code lines — count human-authored code, not total diff lines, so a mostly test-fixture/config/generated/mechanical cluster does not trip the gate). Otherwise, review the changed files yourself for reuse and consolidation opportunities.
+
+When the plan carries `session-settled:`-labeled KTDs or Key Decisions, pass the plan path as structure-pin context, not as the simplification scope, with the one-line constraint that labeled entries are structure pins the simplification must preserve (e.g., deliberate duplication stays duplicated).
+
+6. **Figma Design Sync** (if applicable)
+
+For UI work with Figma designs:
+
+- Implement components following design specs
+- Read `references/agents/figma-design-sync.md` and dispatch a generic subagent seeded with that local prompt to compare implementation against the Figma design. Do not dispatch a standalone agent by type/name.
+- Fix visual differences identified
+- Repeat until implementation matches design
+
+7. **Frontend Design Guidance** (if applicable)
+
+For UI tasks without a Figma design -- where the implementation touches view, template, component, layout, or page files, creates user-visible routes, or the plan contains explicit UI/frontend/design language:
+
+- Apply the frontend guidance embedded in this skill and the active repo instructions: preserve existing design-system conventions, use real UI controls and states, keep layouts responsive, and verify text does not overflow or overlap.
+- When browser tooling is available, inspect the changed UI at desktop and mobile widths before final validation. If no browser access is available, do a code-level responsive/layout review and record that browser verification was unavailable.
+- Phase 4's screenshot capture still applies when the change is user-visible.
+
+8. **Track Progress**
+- Keep the task list updated as you complete tasks
+- Note any blockers or unexpected discoveries
+- Create new tasks if scope expands
+- Keep user informed of major milestones
+- When the plan defines U-IDs for Implementation Units, or the plan or origin document carries stable R-IDs (and optionally A/F/AE IDs), reference them in blockers, deferred-work notes, task summaries, and final verification — not routine status updates. U-IDs anchor units across plan edits; R/A/F/AE anchor product intent across the brainstorm-plan handoff. Use the IDs the plan supplies and do not invent ones it does not. This preserves traceability without burying signal under noise.
+
+## Settled decisions during implementation
+
+A KTD or Product Contract Key Decision carrying a `session-settled:` annotation (classes `user-directed` / `user-approved`) records a decision the user already made — it is not yours to improve. A product decision's label arrives through the Key Decision whose `Governs R…` links name your unit's Rs, not through a KTD. This scopes to labeled entries only: details the plan leaves open remain your judgment, and a real defect discovered inside a settled approach is still surfaced at full strength — the label never suppresses defect evidence. If implementation reveals a labeled decision is invalidating-grade unworkable (infeasible, wrong-thing, destructive), that is a genuine blocker: surface it rather than silently working around or "fixing" the decision.

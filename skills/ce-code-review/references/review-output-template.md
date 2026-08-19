@@ -1,6 +1,6 @@
 # Code Review Output Template
 
-This is the **canonical skeleton** for *which sections appear and in what order* — copy the section structure; the example below shows one good rendering, not the only permitted layout. Shape each finding for the reader's next action per *Presentation direction* in SKILL.md Stage 6 (what & where / why it matters / what response it needs / how sure; let the shape serve the finding type). Findings are grouped by severity, not by reviewer.
+This is the **canonical skeleton** for *which sections appear and in what order* — copy the section structure; the example below shows one good rendering, not the only permitted layout. Shape each finding for the reader's next action per *Presentation direction* in `references/finish-review.md` (Stage 6) (what & where / why it matters / what response it needs / how sure; let the shape serve the finding type). Findings are grouped by severity, not by reviewer.
 
 **Hard constraints (non-negotiable; the rest is judgment):** ASCII-safe only — no box-drawing or per-item horizontal-rule separators (`────`), no Unicode arrows or middot; use `->`. Don't paste file contents or re-print the diff — cite `file:line`. Stable `#` numbering, reused wherever a finding reappears. The Verdict and Actionable list are present, last, and self-sufficient.
 
@@ -133,7 +133,7 @@ This fails because of the **box-drawing `────` separators between items*
 
 ## Formatting Rules
 
-- **ASCII-safe only** -- never box-drawing characters or per-item horizontal-rule separators (`────`) between entries (the report-level `---` before the verdict is still required), no Unicode arrows or middot; use `->`. Tables are a good default but not mandatory -- let the shape serve the finding type (SKILL.md Stage 6); stay consistent within a section
+- **ASCII-safe only** -- never box-drawing characters or per-item horizontal-rule separators (`────`) between entries (the report-level `---` before the verdict is still required), no Unicode arrows or middot; use `->`. Tables are a good default but not mandatory -- let the shape serve the finding type (`references/finish-review.md`, Stage 6); stay consistent within a section
 - **Escape literal `|` in table cells** -- any `|` inside a finding title, issue description, code snippet, regex pattern, or delimited-string example must be written as `\|`. Unescaped pipes are parsed as column separators and corrupt the row's `Reviewer` and `Confidence` columns (and `Route` in the Actionable Findings table). Applies especially to cache-key delimiter examples, regex alternations, and logical-OR operators quoted inside findings.
 - **Severity-grouped sections** -- `### P0 -- Critical`, `### P1 -- High`, `### P2 -- Moderate`, `### P3 -- Low`. Omit empty severity levels.
 - **Stable sequential finding numbers** -- assign finding numbers once after sorting, continue them across severity sections, and reuse those same numbers when findings are repeated in Actionable Findings. Do not restart at `1` for each severity or route bucket.
@@ -160,7 +160,7 @@ This fails because of the **box-drawing `────` separators between items*
 
 When `mode:agent` is active, **do not** emit the markdown table report above. Emit **one parseable JSON object** as the primary response and write the same payload to `review.json` under the resolved `<run-dir>`.
 
-The contract is defined in SKILL.md under **`### JSON output format (`mode:agent` only)`**. Minimum fields: `status`, `verdict`, `scope`, `intent`, `reviewers`, `findings`, `actionable_findings`, `artifact_path`, `run_id`.
+The contract is defined in `references/finish-review.md` under **`### JSON output format (`mode:agent` only)`**. Minimum fields: `status`, `verdict`, `scope`, `intent`, `reviewers`, `findings`, `actionable_findings`, `artifact_path`, `run_id`.
 
 Key differences from the human-facing markdown format:
 

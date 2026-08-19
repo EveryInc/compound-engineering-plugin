@@ -6,8 +6,16 @@ function readSkill(name: string): string {
   return readFileSync(path.join(process.cwd(), "skills", name, "SKILL.md"), "utf8")
 }
 
+// 2026-08-18: ce-brainstorm's Phase 0.4 task spine moved into
+// references/phase-0.md with the rest of Phase 0 when the body was restructured
+// under the Codex 8000-byte prompt budget. The spine is a user-visible surface
+// contract, not a rule that must fire from the window, and the body names
+// phase-0.md as a required read before Phase 0.1, so it is asserted there.
 const skills = {
-  brainstorm: readSkill("ce-brainstorm"),
+  brainstorm: readFileSync(
+    path.join(process.cwd(), "skills/ce-brainstorm/references/phase-0.md"),
+    "utf8",
+  ),
   plan: readSkill("ce-plan"),
   work: readSkill("ce-work"),
   codeReview: readSkill("ce-code-review"),
@@ -35,14 +43,25 @@ describe("task visibility contract", () => {
   })
 
   test("ce-work uses goal-first unit names without redundant ordinal counts", () => {
-    expect(skills.work).toContain("Add parser coverage (U3)")
-    expect(skills.work).toMatch(/Never use a bare U-ID or lead with the identifier/)
-    expect(skills.work).toMatch(/full unit list is visible.*do not repeat ordinal counts/s)
+    // Task derivation and naming live in the reference ce-work's Phase 1 step 3 mandates.
+    const intake = readFileSync(
+      path.join(process.cwd(), "skills/ce-work/references/work-intake.md"),
+      "utf8",
+    )
+    expect(intake).toContain("Add parser coverage (U3)")
+    expect(intake).toMatch(/Never use a bare U-ID or lead with the identifier/)
+    expect(intake).toMatch(/full unit list is visible.*do not repeat ordinal counts/s)
   })
 
+  // The peer-task rule lives at the routing boundary that starts the peer, which is the
+  // reference ce-code-review's spine mandates before any dispatch.
   test("code review surfaces only a cross-model pass that actually started", () => {
-    expect(skills.codeReview).toMatch(/job ID is returned.*distinct task.*cross-model adversarial review/s)
-    expect(skills.codeReview).toMatch(/Never create this task before a peer starts/)
+    const route = readFileSync(
+      path.join(process.cwd(), "skills", "ce-code-review", "references", "select-and-route.md"),
+      "utf8",
+    )
+    expect(route).toMatch(/job ID is returned.*distinct task.*cross-model adversarial review/s)
+    expect(route).toMatch(/Never create this task before a peer starts/)
   })
 
   test("lfg yields task-surface ownership to child skills and refreshes on return", () => {

@@ -21,7 +21,22 @@ const brainstormSections = readRepoFile(
   "skills/ce-brainstorm/references/brainstorm-sections.md",
 )
 const planSkill = readRepoFile("skills/ce-plan/SKILL.md")
+/**
+ * Phase blocks that used to sit in ce-plan's body now live in the references the
+ * body names as required reads at their point of use (#1412 restructure). Rules
+ * that must fire from the always-loaded window keep a `planSkill` pin below;
+ * invariants of the produced artifact are pinned against the corpus instead, so
+ * the guarantee follows the text rather than being deleted with it.
+ */
+const planIntake = readRepoFile("skills/ce-plan/references/intake.md")
+const planStructure = readRepoFile("skills/ce-plan/references/structure.md")
+const planFinalReview = readRepoFile("skills/ce-plan/references/final-review.md")
+const planResume = readRepoFile("skills/ce-plan/references/resume.md")
+const planCorpus =
+  planSkill + planIntake + planStructure + planFinalReview + planResume
 const brainstormSkill = readRepoFile("skills/ce-brainstorm/SKILL.md")
+const brainstormPhase0 = readRepoFile("skills/ce-brainstorm/references/phase-0.md")
+const brainstormPlanWrite = readRepoFile("skills/ce-brainstorm/references/plan-write.md")
 const brainstormHandoff = readRepoFile(
   "skills/ce-brainstorm/references/handoff.md",
 )
@@ -29,6 +44,11 @@ const universalBrainstorming = readRepoFile(
   "skills/ce-brainstorm/references/universal-brainstorming.md",
 )
 const ceWork = readRepoFile("skills/ce-work/SKILL.md")
+// Plan-reading strategy and worker packaging are loaded from the references the body
+// mandates at Phase 1; the plan-artifact invariants they carry are asserted over the
+// whole ce-work unit rather than the always-loaded window.
+const ceWorkIntake = readRepoFile("skills/ce-work/references/work-intake.md")
+const ceWorkStrategy = readRepoFile("skills/ce-work/references/execution-strategy.md")
 const ceWorkDocs = readRepoFile("docs/skills/ce-work.md")
 const ceWorkEngines = readRepoFile(
   "skills/ce-work/references/execution-engines.md",
@@ -74,6 +94,11 @@ const docReviewDispatch = readRepoFile("skills/ce-doc-review/references/dispatch
 // Document classification signals moved into the Phase 1 intake reference.
 const docReviewIntake = readRepoFile("skills/ce-doc-review/references/document-intake.md")
 const codeReview = readRepoFile("skills/ce-code-review/SKILL.md")
+// Plan discovery, readiness classification, and requirement extraction moved into the
+// reference the body's spine mandates before reviewer selection.
+const codeReviewIntent = readRepoFile(
+  "skills/ce-code-review/references/intent-and-plan.md",
+)
 const codeReviewFinish = readRepoFile(
   "skills/ce-code-review/references/finish-review.md",
 )
@@ -135,8 +160,14 @@ describe("unified plan artifact contract", () => {
     expect(brainstormSkill).toContain("artifact_readiness: requirements-only")
     expect(brainstormSkill).toContain("product_contract_source: ce-brainstorm")
     expect(brainstormSkill).toContain("Do **not** emit a Goal Launch Block or Reader Index")
-    expect(brainstormSkill).toContain("new `ce-brainstorm` outputs do not write there")
-    expect(brainstormSkill).toContain("non-software route does **not** write `artifact_contract: ce-unified-plan/v1`")
+    // 2026-08-18: the legacy-path rule (Phase 0.1) and the non-software carve-out
+    // (Phase 0.1b) moved into references/phase-0.md with the rest of Phase 0 when
+    // the body was restructured under the Codex 8000-byte prompt budget. Both are
+    // artifact-content invariants, so they are asserted against the file that owns
+    // them; the frontmatter fields and the path shape above stay pinned to the body
+    // because they are the cross-skill contract ce-plan enriches.
+    expect(brainstormPhase0).toContain("new `ce-brainstorm` outputs do not write there")
+    expect(brainstormPhase0).toContain("non-software route does **not** write `artifact_contract: ce-unified-plan/v1`")
 
     expect(universalBrainstorming).toContain("outside the software unified-plan artifact contract")
     expect(universalBrainstorming).toContain("Do not write `artifact_contract: ce-unified-plan/v1`")
@@ -144,15 +175,15 @@ describe("unified plan artifact contract", () => {
   })
 
   test("plan filenames use a local wall-clock time instead of daily sequences", () => {
-    expect(planSkill).toContain("<root>/plans/YYYY-MM-DD-HHMM-<type>-<descriptive-name>-plan.md")
-    expect(planSkill).toContain("do not scan for or allocate a daily sequence number")
-    expect(planSkill).toContain("local wall-clock time at write")
-    expect(planSkill).toContain("Reserve the candidate path atomically")
-    expect(planSkill).toContain("preserve the existing artifact basename")
-    expect(planSkill).not.toContain("YYYY-MM-DD-NNN")
+    expect(planCorpus).toContain("<root>/plans/YYYY-MM-DD-HHMM-<type>-<descriptive-name>-plan.md")
+    expect(planCorpus).toContain("do not scan for or allocate a daily sequence number")
+    expect(planCorpus).toContain("local wall-clock time at write")
+    expect(planCorpus).toContain("Reserve the candidate path atomically")
+    expect(planCorpus).toContain("preserve the existing artifact basename")
+    expect(planCorpus).not.toContain("YYYY-MM-DD-NNN")
     // The hyphenated prefix keeps new artifacts sorting interleaved with legacy
     // `YYYY-MM-DD-NNN` files; a hyphen-free prefix sorts them into a separate block.
-    expect(planSkill).not.toContain("YYYYMMDDTHHMMSSZ")
+    expect(planCorpus).not.toContain("YYYYMMDDTHHMMSSZ")
   })
 
   test("brainstorm handoff passes the unified plan path to ce-plan", () => {
@@ -204,24 +235,24 @@ describe("unified plan artifact contract", () => {
   })
 
   test("ce-plan enriches unified plans in place and preserves legacy inputs", () => {
-    expect(planSkill).toContain("requirements-only unified plan")
-    expect(planSkill).toContain("enriches that same artifact")
-    expect(planSkill).toContain("this run enriches that same file in place")
-    expect(planSkill).toContain("Search `docs/brainstorms/`")
-    expect(planSkill).toContain("create a new unified plan in `<root>/plans/`")
-    expect(planSkill).toContain("product_contract_source: ce-plan-bootstrap")
+    expect(planCorpus).toContain("requirements-only unified plan")
+    expect(planCorpus).toContain("enriches that same artifact")
+    expect(planCorpus).toContain("this run enriches that same file in place")
+    expect(planCorpus).toContain("Search `docs/brainstorms/`")
+    expect(planCorpus).toContain("create a new unified plan in `<root>/plans/`")
+    expect(planCorpus).toContain("product_contract_source: ce-plan-bootstrap")
     expect(planSkill).toContain("artifact_readiness: implementation-ready")
-    expect(planSkill).toContain("Definition of Done")
+    expect(planCorpus).toContain("Definition of Done")
     // The launch prompt is generated at handoff, never written into the doc.
-    expect(planSkill).toContain("Do not write a launch prompt into the doc")
+    expect(planCorpus).toContain("Do not write a launch prompt into the doc")
   })
 
   test("ce-work is readiness-aware before execution", () => {
     expect(ceWork).toContain("classify `artifact_readiness` before reading the body")
     expect(ceWork).toContain("requirements-only` -> stop")
     expect(ceWork).toContain("Any other readiness value")
-    expect(ceWork).toContain("Build a section map")
-    expect(ceWork).toContain("Do not send \"read the whole plan\"")
+    expect(ceWorkIntake).toContain("Build a section map")
+    expect(ceWorkStrategy).toContain("Do not send \"read the whole plan\"")
     expect(ceWork).toContain("mode:return-to-caller <plan-path>")
     expect(ceWork).toContain("standalone_shipping_skipped: true")
     expect(ceWork).not.toContain("artifact_readiness: approach-plan")
@@ -383,10 +414,10 @@ describe("unified plan artifact contract", () => {
     expect(docReviewTemplate).toContain("product_contract_source:ce-brainstorm")
     expect(docReviewTemplate).toContain("product_contract_source:ce-plan-bootstrap")
 
-    expect(codeReview).toContain("<root>/plans/*.{md,html}")
-    expect(codeReview).toContain("Product Contract` -> `### Requirements")
-    expect(codeReview).toContain("readiness before checking completeness")
-    expect(codeReview).toContain("must not trigger implementation-unit completeness findings")
+    expect(codeReviewIntent).toContain("<root>/plans/*.{md,html}")
+    expect(codeReviewIntent).toContain("Product Contract` -> `### Requirements")
+    expect(codeReviewIntent).toContain("readiness before checking completeness")
+    expect(codeReviewIntent).toContain("must not trigger implementation-unit completeness findings")
 
     expect(proof).toContain("Only publish markdown")
     expect(proof).toContain("requirements-only")
@@ -419,9 +450,9 @@ describe("unified plan artifact contract", () => {
     // Size-aware: a short plan can be read in full.
     expect(planSections).toMatch(/can just be read in full/i)
     // ce-work carries the same discipline, markdown + HTML, size-aware.
-    expect(ceWork).toContain("do **not** read the whole document first")
-    expect(ceWork).toMatch(/can be read in full/i)
-    expect(ceWork).toMatch(/in \*\*HTML\*\* scan the/i)
+    expect(ceWorkIntake).toContain("do **not** read the whole document first")
+    expect(ceWorkIntake).toMatch(/can be read in full/i)
+    expect(ceWorkIntake).toMatch(/in \*\*HTML\*\* scan the/i)
   })
 
   test("Verification Contract requires repo-specific commands, not generic run tests", () => {
@@ -444,8 +475,8 @@ describe("unified plan artifact contract", () => {
 
   test("conversion/pipeline override keeps one canonical discovery target", () => {
     // Same-basename .md/.html siblings must not become competing latest plans.
-    expect(planSkill).toContain("new canonical path")
-    expect(planSkill).toMatch(/report old path and new canonical path/i)
+    expect(planCorpus).toContain("new canonical path")
+    expect(planCorpus).toMatch(/report old path and new canonical path/i)
     expect(planSkill).toContain("the local plan file stays canonical")
   })
 
@@ -474,17 +505,17 @@ describe("unified plan artifact contract", () => {
   test("ce-code-review discovery/extraction covers HTML and Product Contract requirements", () => {
     // Codex #972 P2: discovery must scan .html and extraction must read
     // Product Contract > Requirements, matching the completeness contract.
-    expect(codeReview).toContain("<root>/plans/*.{md,html}")
-    expect(codeReview).toMatch(/unified `Product Contract` -> `### Requirements`/)
-    expect(codeReview).toMatch(/requirements-only artifact[\s\S]{0,80}product intent only/i)
+    expect(codeReviewIntent).toContain("<root>/plans/*.{md,html}")
+    expect(codeReviewIntent).toMatch(/unified `Product Contract` -> `### Requirements`/)
+    expect(codeReviewIntent).toMatch(/requirements-only artifact[\s\S]{0,80}product intent only/i)
   })
 
   test("ce-plan 5.1.5 synthesis gate fires for unified-plan sources, not only legacy docs", () => {
     // Codex #972 P2: new ce-brainstorm -> ce-plan <unified-plan> enrichment
     // must still get the plan-time scoping-synthesis checkpoint.
-    expect(planSkill).toMatch(/whenever Phase 0\.2 resolved an upstream Product Contract source/i)
-    expect(planSkill).toMatch(/enrichment flow is brainstorm-sourced and MUST fire this gate/i)
-    expect(planSkill).toMatch(/Skip Phase 0\.7 only in solo invocation|Skip Phase 5\.1\.5 only in solo invocation/i)
+    expect(planCorpus).toMatch(/whenever Phase 0\.2 resolved an upstream Product Contract source/i)
+    expect(planCorpus).toMatch(/enrichment flow is brainstorm-sourced and MUST fire this gate/i)
+    expect(planCorpus).toMatch(/Skip Phase 0\.7 only in solo invocation|Skip Phase 5\.1\.5 only in solo invocation/i)
   })
 
   test("evaluator-complete launch prompt lives in the engine template, not the doc", () => {
@@ -532,8 +563,8 @@ describe("unified plan artifact contract", () => {
     // re-enrich (ce-plan) or stop (ce-work) even though the sibling is ready.
     // Both must skip a requirements-only artifact that has an implementation-ready
     // same-basename sibling.
-    expect(planSkill).toMatch(/Skip a superseded sibling/i)
-    expect(planSkill).toMatch(/same-basename.*other format|<basename>\.md.*<basename>\.html/i)
+    expect(planCorpus).toMatch(/Skip a superseded sibling/i)
+    expect(planCorpus).toMatch(/same-basename.*other format|<basename>\.md.*<basename>\.html/i)
     expect(ceWork).toMatch(/Superseded sibling/i)
     expect(ceWork).toMatch(/select the implementation-ready sibling and execute it rather than stopping/i)
   })
@@ -550,8 +581,8 @@ describe("unified plan artifact contract", () => {
   })
 
   test("ce-plan records a Product Contract preservation note on in-place enrichment", () => {
-    expect(planSkill).toContain("Product Contract preservation")
-    expect(planSkill).toMatch(/Product Contract unchanged|changed: .*R-IDs/)
+    expect(planCorpus).toContain("Product Contract preservation")
+    expect(planCorpus).toMatch(/Product Contract unchanged|changed: .*R-IDs/)
   })
 
   test("execution engines define a Codex lane, progress-visibility, and compaction recovery", () => {
@@ -572,14 +603,21 @@ describe("unified plan artifact contract", () => {
 
   test("post-plan menu offers /goal prompt as a mutually-exclusive executor", () => {
     const planHandoff = readRepoFile("skills/ce-plan/references/plan-handoff.md")
+    // Both copies keep the option and the tail-ownership guard: the guard decides
+    // whether a second executor runs, and the body renders the menu.
     for (const doc of [planSkill, planHandoff]) {
       expect(doc).toContain("Run it as a `/goal`")
       // The /goal option must not also run ce-work (tail-ownership guard).
       expect(doc).toMatch(/`ce-work` does \*{0,2}not\*{0,2} also run/i)
-      // On a callable-goal-tool host the skill starts it directly and never calls update_goal.
       expect(doc).toContain("create_goal")
-      expect(doc).toMatch(/do not call `update_goal`|the goal session marks its own completion/i)
     }
+    // The update_goal rule is a mechanic of starting the goal, and plan-handoff.md
+    // owns the objective and the start. It arrived with the goal lane in #972 with no
+    // recorded incident behind the duplicate body copy, and the body STOP-loads that
+    // reference before the menu renders — so pin the rule in its owner, and pin the
+    // body to defer rather than re-derive it.
+    expect(planHandoff).toMatch(/do not call `update_goal`|the goal session marks its own completion/i)
+    expect(planSkill).toMatch(/take the objective from there rather than composing one here/i)
     // No authoring-file meta-references leak into runtime menu content.
     expect(planHandoff).not.toContain("Per the AGENTS.md")
     expect(planSkill).not.toContain("per the AGENTS.md narrow exception")
@@ -589,7 +627,7 @@ describe("unified plan artifact contract", () => {
     expect(ceWork).toContain("Choose Execution Engine")
     expect(ceWork).toContain("references/execution-engines.md")
     expect(ceWork).toContain("dynamic-workflow")
-    expect(ceWork).toMatch(/prompt-emission only|never invoked from inside this skill/i)
+    expect(ceWorkEngines).toMatch(/prompt-emission only|never invoked from inside this skill/i)
 
     expect(ceWorkEngines).toContain("Probe host capability")
     expect(ceWorkEngines).toContain("/goal Implement <plan-path>")
@@ -619,19 +657,21 @@ describe("session-settled decision contract", () => {
   })
 
   test("ce-plan loads settled-decisions.md, keeps the stem live in Phase 2, and emits the pipeline blocked token", () => {
-    expect(planSkill).toContain("Read `references/settled-decisions.md`")
+    expect(planCorpus).toContain("Read `references/settled-decisions.md`")
     const phase2 = sliceSection(
-      planSkill,
+      planStructure,
       "### Phase 2: Resolve Planning Questions",
       "### Phase 3:",
     )
     expect(phase2).toContain("session-settled:")
-    expect(planSkill).toContain("settled-decision-invalidated")
+    expect(planCorpus).toContain("settled-decision-invalidated")
   })
 
   test("ce-brainstorm loads settled-decisions.md and annotates Key Decisions with the stem", () => {
     expect(brainstormSkill).toContain("Read `references/settled-decisions.md`")
-    expect(brainstormSkill).toContain(
+    // The Phase 3 rendering rule moved into references/plan-write.md with the rest
+    // of Phase 3; the body still carries the load instruction above.
+    expect(brainstormPlanWrite).toContain(
       "Key Decisions section carrying their `session-settled:` annotation",
     )
   })
@@ -782,38 +822,39 @@ describe("cross-layer ownership contract", () => {
   })
 
   test("ce-plan preservation protects meaning + IDs and sanctions restructuring with its own note class", () => {
-    expect(planSkill).toContain("Meaning-preserving restructuring is sanctioned")
-    expect(planSkill).toContain("restructured, no scope change")
-    expect(planSkill).toContain(
+    expect(planCorpus).toContain("Meaning-preserving restructuring is sanctioned")
+    expect(planCorpus).toContain("restructured, no scope change")
+    expect(planCorpus).toContain(
       "Preserve Product Contract meaning and stable IDs under Phase 0.3 step 3",
     )
-    expect(planSkill).not.toContain("Preserve Product Contract IDs and content")
-    expect(planSkill).toContain(
+    expect(planCorpus).not.toContain("Preserve Product Contract IDs and content")
+    expect(planCorpus).toContain(
       "re-point every affected `Governs R…`, `Covers R…`, and inline `per R…` citation",
     )
-    expect(planSkill).toContain(
+    expect(planCorpus).toContain(
       "no pre-restructure catch-all link silently excludes a split-out requirement",
     )
-    expect(planSkill).toContain("do **not** mirror it into a KTD")
+    expect(planCorpus).toContain("do **not** mirror it into a KTD")
     // Unit Approach owns only unit-local content.
-    expect(planSkill).toContain("Unit-local content only")
+    expect(planCorpus).toContain("Unit-local content only")
     // Settlement channel: KTD<N> for planning decisions, governed Rs for product decisions.
-    expect(planSkill).toContain("reverse-resolved through its `Governs R…` links")
+    expect(planCorpus).toContain("reverse-resolved through its `Governs R…` links")
   })
 
   test("ce-work packets reverse-resolve Product Key Decisions so settlement labels survive bounded reads", () => {
-    expect(ceWork).toContain("`Governs R…` links name the unit's cited R-IDs")
+    expect(ceWorkStrategy).toContain("`Governs R…` links name the unit's cited R-IDs")
     expect(ceWork).toContain("A KTD or Product Contract Key Decision carrying")
   })
 
   test("every executor handoff reverse-resolves labeled Product Contract Key Decisions", () => {
     const planHandoff = readRepoFile("skills/ce-plan/references/plan-handoff.md")
+    // The invariant is #1234's: an objective or unit packet handed to an executor must
+    // reverse-resolve the labeled Key Decisions rather than copy requirements across
+    // layers. It belongs to whoever composes that text. ce-plan's SKILL.md menu bullet
+    // no longer composes an objective — it defers to plan-handoff.md, which the body
+    // STOP-loads before the menu renders — so the pin follows the composition, and the
+    // body is pinned to defer (see the /goal menu test above).
     const handoffs = [
-      sliceSection(
-        planSkill,
-        "- **Run it as a `/goal`**",
-        "- **Decide on the review's open items**",
-      ),
       sliceSection(
         planHandoff,
         "- **Run it as a `/goal`**",
@@ -1029,7 +1070,7 @@ describe("Product Contract section catalog and routing destinations", () => {
 
   test("ce-plan's bootstrap carries an exit condition with both escapes", () => {
     const bootstrap = sliceSection(
-      planSkill,
+      planIntake,
       "The planning bootstrap should establish:",
       "#### 0.5",
     )
@@ -1052,11 +1093,11 @@ describe("Product Contract section catalog and routing destinations", () => {
     // once and be exclusive — an overlapping definition let the same p95 target
     // belong to either section.
     expect(
-      /Success Metrics.*`### Success Criteria`/s.test(planSkill),
+      /Success Metrics.*`### Success Criteria`/s.test(planStructure),
       "ce-plan names both `Success Metrics` (deep-plan extension) and `Success Criteria` (Product Contract subsection); the relationship must be stated once so a future author does not merge them.",
     ).toBe(true)
     expect(
-      /never appears here as well|only what Success Criteria does not already state/.test(planSkill),
+      /never appears here as well|only what Success Criteria does not already state/.test(planStructure),
       "The Success Metrics definition must claim an exclusive boundary, or a product-outcome threshold lands in both sections.",
     ).toBe(true)
   })
@@ -1084,7 +1125,7 @@ describe("Goal Capsule objective is outcome-shaped (issue #1423)", () => {
   })
 
   test("bootstrap exit requires an outcome-shaped problem frame", () => {
-    const exit = sliceSection(planSkill, "**Exit condition:** Exit the bootstrap", "\n\n")
+    const exit = sliceSection(planIntake, "**Exit condition:** Exit the bootstrap", "\n\n")
     expect(exit).toMatch(/Means/)
   })
 

@@ -6,6 +6,15 @@ async function readRepoFile(relativePath: string): Promise<string> {
   return readFile(path.join(process.cwd(), relativePath), "utf8")
 }
 
+// Phase 1 step 4's scheduling, dispatch, and integration protocol was relocated to
+// references/execution-strategy.md, which the body names as a required read before any
+// worker is dispatched. Those rules fire at that step rather than from the window, so
+// they are pinned in the file that now owns them; the body keeps the route-resolution
+// gate, the cross-model lock, and the isolation and commit boundaries.
+async function readStrategy(): Promise<string> {
+  return readRepoFile("skills/ce-work/references/execution-strategy.md")
+}
+
 async function readImplementationContract(): Promise<string> {
   const skill = await readRepoFile("skills/ce-work/SKILL.md")
   const implementationLoop = await readRepoFile("skills/ce-work/references/implementation-loop.md").catch(() => "")
@@ -73,15 +82,15 @@ describe("ce-work native characterization", () => {
     expect(engineGate).toContain("inline/subagent")
     expect(engineGate).toContain("goal-mode")
     expect(engineGate).toContain("dynamic-workflow")
-    expect(engineGate).toMatch(/\*\*Inline\*\* \| Trivial work/)
+    expect(await readStrategy()).toMatch(/\*\*Inline\*\* \| Trivial work/)
     expect(engineGate).toContain("ordinary native workers")
     expect(engineGate).toContain("never run `git worktree add` yourself")
     expect(engineGate).toContain("external cross-model controller")
   })
 
   test("bounds worker scope while leaving canonical verification and commits with the orchestrator", async () => {
-    const skill = await readRepoFile("skills/ce-work/SKILL.md")
-    const dispatch = sliceSection(skill, "**Native dispatch (inline/subagent engines only)**", "### Phase 2: Execute")
+    const strategy = await readStrategy()
+    const dispatch = strategy.slice(strategy.indexOf("**Native dispatch (inline/subagent engines only)**"))
 
     expect(dispatch).toContain("**bounded unit packet**")
     expect(dispatch).toContain("A downstream worker may narrow that unit and authority, never broaden either")
@@ -92,8 +101,8 @@ describe("ce-work native characterization", () => {
   })
 
   test("uses a fresh single-use context for each dispatched native worker while preserving inline execution", async () => {
-    const skill = await readRepoFile("skills/ce-work/SKILL.md")
-    const dispatch = sliceSection(skill, "**Native dispatch (inline/subagent engines only)**", "### Phase 2: Execute")
+    const strategy = await readStrategy()
+    const dispatch = strategy.slice(strategy.indexOf("**Native dispatch (inline/subagent engines only)**"))
 
     expect(dispatch).toContain("**Fresh worker invariant (native subagent dispatch only):**")
     expect(dispatch).toContain("When dispatching an implementation unit to a native subagent worker, create a new worker context")
@@ -112,12 +121,15 @@ describe("ce-work native characterization", () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
     const engineGate = sliceSection(skill, "4. **Choose Execution Engine, then Strategy**", "### Phase 2: Execute")
 
-    expect(engineGate).toContain("**Native dispatch (inline/subagent engines only)**")
-    expect(engineGate).toContain("must not re-enter this ordinary subagent dispatch")
+    const strategy = await readStrategy()
+
+    // The post-init lock is a stop class: it must fire from the window, so it stays in the body.
     expect(engineGate).toContain("**A successful controller `init` locks that unit to the selected cross-model engine.**")
     expect(engineGate).toContain("Never reclassify it as trivial, abandon it for speed, or implement it natively")
-    expect(engineGate).toContain("**After each serial inline/subagent unit:**")
-    expect(engineGate).toContain("**After a parallel inline/subagent batch")
+    expect(strategy).toContain("**Native dispatch (inline/subagent engines only)**")
+    expect(strategy).toContain("must not re-enter this ordinary subagent dispatch")
+    expect(strategy).toContain("**After each serial inline/subagent unit:**")
+    expect(strategy).toContain("**After a parallel inline/subagent batch")
   })
 
   test("preserves standalone shipping and return-to-caller tail ownership", async () => {
@@ -484,7 +496,7 @@ describe("ce-work cross-model engine contract", () => {
   test("separates scheduling from engine/workspace selection and declines unsafe waves", async () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
     const loop = await readRepoFile("skills/ce-work/references/implementation-loop.md")
-    const gate = sliceSection(skill, "**Parallel Safety Check**", "**Native dispatch (inline/subagent engines only)**")
+    const gate = sliceSection(await readStrategy(), "**Parallel Safety Check**", "**Native dispatch (inline/subagent engines only)**")
 
     expect(gate).toContain("separate from engine and workspace selection")
     expect(gate).toContain("decline parallelism")
@@ -603,7 +615,9 @@ describe("ce-work implementation evidence characterization", () => {
     const phase2 = sliceSection(skill, "### Phase 2: Execute", "### Phase 3-4: Quality Check and Finishing Work")
 
     expect(phase2).toContain("you must read `references/implementation-loop.md`")
-    expect(phase2.indexOf("references/implementation-loop.md")).toBeLessThan(phase2.indexOf("2. **Incremental Commits**"))
+    // Incremental commits moved into the loop reference the body mandates at this gate.
+    expect(implementationLoop).toContain("2. **Incremental Commits**")
+    expect(phase2).not.toContain("2. **Incremental Commits**")
     expect(skill).not.toContain("1. **Task Execution Loop**")
     expect(skill).not.toContain("**Evidence Strategy** — Test discovery decides where proof belongs")
     expect(implementationLoop).toContain("1. **Task Execution Loop**")

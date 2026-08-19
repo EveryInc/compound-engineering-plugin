@@ -12,7 +12,7 @@ Use this reference only when the next question has a specific visual decision:
 - state shape: "Which empty/loading/error state communicates the right thing?"
 - diagram shape: "Which relationship or system boundary is clearer?"
 
-Do not use a visual probe for product goals, scope boundaries, success criteria, evidence probes, tradeoff prose, or technical decisions that are easier to discuss in chat. A decision that meets Interaction Rule 7 in the skill body — which owns that test — belongs to `ce-prototype`, not to a visual probe.
+Do not use a visual probe for product goals, scope boundaries, success criteria, evidence probes, tradeoff prose, or technical decisions that are easier to discuss in chat. A decision that meets Interaction Rule 7 in `references/interaction-rules.md` — which owns that test — belongs to `ce-prototype`, not to a visual probe.
 
 **Classifying a wide decision.** Per-avenue classification applies only once the avenues have been named. An undecomposed decision is classified once, on its dominant dimension. When any named avenue meets Rule 7, the whole decision goes to `ce-prototype` — the sketchable avenues ride along there as thin variants rather than splitting one decision across two tiers.
 

@@ -203,7 +203,9 @@ describe("ce-brainstorm review contract", () => {
 
 describe("ce-plan testing contract", () => {
   test("flags blank test scenarios on feature-bearing units as incomplete", async () => {
-    const content = await readRepoFile("skills/ce-plan/SKILL.md")
+    // Phase 5.1's review checklist moved into the reference ce-plan's body names
+    // as a required read before the plan is written (#1412 restructure).
+    const content = await readRepoFile("skills/ce-plan/references/final-review.md")
 
     // Phase 5.1 review checklist addresses blank test scenarios
     expect(content).toContain("blank or missing test scenarios")
@@ -214,7 +216,13 @@ describe("ce-plan testing contract", () => {
   })
 
   test("keeps execution direction natural-language instead of enum-based", async () => {
-    const content = await readRepoFile("skills/ce-plan/SKILL.md")
+    // The core principle and the per-unit Execution note field moved into the
+    // references ce-plan's body names as required reads (#1412 restructure);
+    // the rule is pinned across both so it cannot be dropped in either.
+    const content =
+      (await readRepoFile("skills/ce-plan/references/intake.md")) +
+      (await readRepoFile("skills/ce-plan/references/research.md")) +
+      (await readRepoFile("skills/ce-plan/references/structure.md"))
 
     expect(content).toContain("natural-language signal")
     expect(content).toContain("Do not encode it as a finite enum")
@@ -342,13 +350,23 @@ describe("cross-model execution receipt seam parity (ce-work <-> lfg)", () => {
 })
 
 describe("ce-debug regression test selection", () => {
+  // Added by #1054 to stop agents defaulting to a brand-new test file. The four homes are
+  // the mechanic of Phase 3's test-first step, and `references/fix.md` is a required read
+  // before any file is edited, so they are pinned across the corpus rather than verbatim
+  // in the always-loaded body. What must decide from the window without a read is the
+  // condition -- start from the tests that exist -- plus the confirmed-defect precondition
+  // that keeps the divergent case out; those two stay pinned in the body.
   test("inspects and updates existing tests instead of always adding new tests", async () => {
-    const content = await readRepoFile("skills/ce-debug/SKILL.md")
+    const body = await readRepoFile("skills/ce-debug/SKILL.md")
+    const fix = await readRepoFile("skills/ce-debug/references/fix.md")
+    const corpus = [body, fix].join("\n")
 
-    expect(content).toContain("inspect existing tests before adding coverage")
-    expect(content).toContain("update an existing test when it owns the contract")
-    expect(content).toContain("strengthen an over-mocked test")
-    expect(content).toContain("add a new minimal isolated test only when no existing test is the right home")
+    expect(body).toMatch(/start from the tests that exist rather than from a new file/i)
+    expect(body).toMatch(/confirmed defect/i)
+    expect(corpus).toContain("inspect existing tests before adding coverage")
+    expect(corpus).toContain("update an existing test when it owns the contract")
+    expect(corpus).toContain("strengthen an over-mocked test")
+    expect(corpus).toContain("add a new minimal isolated test only when no existing test is the right home")
   })
 
   // Observed drift: agents fired the Phase 2 fix-choice question on "root cause
@@ -950,13 +968,15 @@ describe("ce-compound vocabulary is corpus-first, not Rails-specific (issue #126
     expect(schema).toMatch(/validation_rules:[\s\S]*existing docs/)
   })
 
-  test("SKILL.md tells the classifier to sample existing docs before falling back to schema defaults", async () => {
-    const content = await readRepoFile("skills/ce-compound/SKILL.md")
-    const contextAnalyzer = sliceSection(content, "#### 1. **Context Analyzer**", "#### 2. **Solution Extractor**")
+  test("the classifier samples existing docs before falling back to schema defaults", async () => {
+    // Both classification paths moved into the references the body names at
+    // their step; the corpus-first rule is asserted where each one now lives.
+    const research = await readRepoFile("skills/ce-compound/references/research.md")
+    const contextAnalyzer = sliceSection(research, "#### 1. **Context Analyzer**", "#### 2. **Solution Extractor**")
     expect(contextAnalyzer).toMatch(/existing docs .*<root>\/solutions\//)
     expect(contextAnalyzer).toMatch(/directory/)
     // lightweight mode classifies inline and must carry the same rule
-    const lightweight = content.slice(content.indexOf("### Lightweight Mode"))
+    const lightweight = await readRepoFile("skills/ce-compound/references/lightweight.md")
     expect(lightweight).toMatch(/existing docs/)
   })
 
@@ -980,8 +1000,10 @@ describe("ce-compound Phase 1 artifact contract", () => {
   // collapsed the return to an executive summary. The fix mirrors ce-code-review's
   // proven /tmp run-artifact pattern: subagents write full output to disk and the
   // orchestrator Reads it back with the inline return as a fallback.
+  // Phase 1 and Phase 2 moved into references/research.md and references/assembly.md;
+  // the #956 artifact contract is asserted in the files that now own it.
   test("generates a run id and run dir before dispatching Phase 1 subagents", async () => {
-    const content = await readRepoFile("skills/ce-compound/SKILL.md")
+    const content = await readRepoFile("skills/ce-compound/references/research.md")
 
     // A run identifier scopes the per-subagent artifact files
     expect(content).toContain("RUN_ID")
@@ -992,12 +1014,9 @@ describe("ce-compound Phase 1 artifact contract", () => {
   })
 
   test("Phase 1 subagents write full output to the run-artifact path", async () => {
-    const content = await readRepoFile("skills/ce-compound/SKILL.md")
+    const content = await readRepoFile("skills/ce-compound/references/research.md")
 
-    const phase1 = content.slice(
-      content.indexOf("### Phase 1: Research"),
-      content.indexOf("### Phase 2: Assembly & Write"),
-    )
+    const phase1 = content.slice(content.indexOf("### Phase 1: Research"))
 
     // Subagents are instructed to write their full structured output to the run dir
     expect(phase1).toContain("{run_dir}")
@@ -1010,7 +1029,7 @@ describe("ce-compound Phase 1 artifact contract", () => {
   })
 
   test("Phase 2 assembly reads artifacts with inline-return fallback", async () => {
-    const content = await readRepoFile("skills/ce-compound/SKILL.md")
+    const content = await readRepoFile("skills/ce-compound/references/assembly.md")
 
     const phase2 = content.slice(
       content.indexOf("### Phase 2: Assembly & Write"),
@@ -1024,7 +1043,8 @@ describe("ce-compound Phase 1 artifact contract", () => {
   })
 
   test("no longer imposes an absolute no-write rule on Phase 1 subagents", async () => {
-    const content = await readRepoFile("skills/ce-compound/SKILL.md")
+    const content = (await readRepoFile("skills/ce-compound/SKILL.md")) +
+      (await readRepoFile("skills/ce-compound/references/research.md"))
 
     // The brittle absolute prohibition is gone — only product-file writes are reserved
     // to the orchestrator; scratch artifacts under /tmp are now expected.
