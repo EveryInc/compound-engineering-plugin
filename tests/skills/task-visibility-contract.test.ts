@@ -15,6 +15,13 @@ const skills = {
   lfg: readSkill("lfg"),
 }
 
+// LFG's task-surface handoff rules moved into the required-read reference its
+// body names; the body keeps the pointer and the capability trigger.
+const lfgTaskVisibility = readFileSync(
+  path.join(process.cwd(), "skills", "lfg", "references", "task-visibility.md"),
+  "utf8",
+)
+
 describe("task visibility contract", () => {
   test("material workflow skills own a portable task surface", () => {
     for (const skill of Object.values(skills)) {
@@ -39,7 +46,8 @@ describe("task visibility contract", () => {
   })
 
   test("lfg yields task-surface ownership to child skills and refreshes on return", () => {
-    expect(skills.lfg).toMatch(/replace or clear LFG's view.*only the child skill's task surface is visible/)
-    expect(skills.lfg).toMatch(/after it returns, recreate or refresh LFG's remaining pipeline work/)
+    expect(skills.lfg).toContain("references/task-visibility.md")
+    expect(lfgTaskVisibility).toMatch(/replace or clear LFG's view.*only the child skill's task surface is visible/)
+    expect(lfgTaskVisibility).toMatch(/after it returns, recreate or refresh LFG's remaining pipeline work/)
   })
 })

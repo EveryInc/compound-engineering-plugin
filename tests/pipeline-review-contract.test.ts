@@ -273,13 +273,9 @@ describe("verification_evidence seam parity (ce-work <-> lfg)", () => {
   })
 
   test("lfg step-2 gate names every evidence fact ce-work documents", async () => {
-    const lfg = await readRepoFile("skills/lfg/SKILL.md")
-    // Scope to the step-2 gate block, between invoking ce-work and step 3.
-    const gate = sliceSection(
-      lfg,
-      "2. Invoke the `ce-work` skill with `mode:return-to-caller",
-      "3. Invoke the `ce-simplify-code`"
-    )
+    // The gate's field-level contract lives in the reference lfg's step 2 names as a
+    // required read before accepting a return; the body keeps the stop classes.
+    const gate = await readRepoFile("skills/lfg/references/work-return.md")
 
     for (const { fact, lfg: phrase } of EVIDENCE_FACTS) {
       expect(gate, `lfg gate must require ${fact} ("${phrase}")`).toContain(phrase)
@@ -291,12 +287,7 @@ describe("verification_evidence seam parity (ce-work <-> lfg)", () => {
   })
 
   test("lfg retries ce-work exactly once for evidence, then blocks rather than ships", async () => {
-    const lfg = await readRepoFile("skills/lfg/SKILL.md")
-    const gate = sliceSection(
-      lfg,
-      "2. Invoke the `ce-work` skill with `mode:return-to-caller",
-      "3. Invoke the `ce-simplify-code`"
-    )
+    const gate = await readRepoFile("skills/lfg/references/work-return.md")
 
     // One-shot recovery on the same plan and engine binding, with the returned durable run id.
     expect(gate).toContain("invoke `ce-work` one more time in recovery mode")
@@ -329,13 +320,8 @@ describe("cross-model execution receipt seam parity (ce-work <-> lfg)", () => {
 
   test("lfg requires every route receipt exposed by ce-work", async () => {
     const ceWork = await readRepoFile("skills/ce-work/SKILL.md")
-    const lfg = await readRepoFile("skills/lfg/SKILL.md")
     const returned = sliceSection(ceWork, "## Return-to-Caller Mode", "Engine selection (")
-    const gate = sliceSection(
-      lfg,
-      "2. Invoke the `ce-work` skill with `mode:return-to-caller",
-      "3. Invoke the `ce-simplify-code`",
-    )
+    const gate = await readRepoFile("skills/lfg/references/work-return.md")
 
     for (const field of ROUTE_RECEIPT_FIELDS) {
       expect(returned, `ce-work must return ${field}`).toContain(`\`${field}\``)
@@ -344,12 +330,9 @@ describe("cross-model execution receipt seam parity (ce-work <-> lfg)", () => {
   })
 
   test("lfg keeps the binding out of plan and review inputs", async () => {
-    const lfg = await readRepoFile("skills/lfg/SKILL.md")
-    const carrier = sliceSection(
-      lfg,
-      "## Per-stage routing carriers",
-      "1. Invoke the `ce-plan` skill",
-    )
+    // Carrier grammar and sanitization live in the reference lfg's routing section
+    // names as a required read before step 1.
+    const carrier = await readRepoFile("skills/lfg/references/stage-routing.md")
     expect(carrier).toContain("Remove every routing directive")
     expect(carrier).toContain("Never pass")
     expect(carrier).toContain("`ce-plan`")
@@ -1066,21 +1049,25 @@ describe("concept-teaching seam parity (ce-commit-push-pr <-> lfg)", () => {
     // Both ends name the same trailer format (ce-commit-push-pr prints it from the
     // apply reference its Step 5 mandates).
     expect(skill).toContain("New concepts:")
-    expect(lfg).toContain("New concepts:")
+    // The trailer is consumed in the shipping tail lfg's step 8 reads first.
+    expect(await readRepoFile("skills/lfg/references/shipping-tail.md")).toContain("New concepts:")
 
     // The callsite passes the mode explicitly rather than relying on defaults
-    expect(lfg).toContain("Invoke the `ce-commit-push-pr` skill with `mode:pipeline branding:on`.")
+    expect(lfg).toContain("invoke the `ce-commit-push-pr` skill with `mode:pipeline branding:on`.")
 
-    // The pre-DONE report names the concept and renders each user-runnable
-    // handoff for the active host rather than hardcoding one harness's syntax.
-    expect(lfg).toContain("New concept introduced:")
-    expect(lfg).toContain("run <rendered ce-explain invocation> to go deeper")
-    expect(lfg).toContain("run <rendered ce-babysit-pr invocation> to watch it through review to merge")
+    // The pre-DONE report names the concept and renders each user-runnable handoff
+    // for the active host rather than hardcoding one harness's syntax. That report
+    // moved into the reference lfg's step 10 names as a required read before it
+    // prints anything, so the rendering contract is asserted there.
+    const closeOut = await readRepoFile("skills/lfg/references/shipping-tail.md")
+    expect(closeOut).toContain("New concept introduced:")
+    expect(closeOut).toContain("run <rendered ce-explain invocation> to go deeper")
+    expect(closeOut).toContain("run <rendered ce-babysit-pr invocation> to watch it through review to merge")
     for (const target of ["ce-explain <name>", "ce-babysit-pr <pr-url>"]) {
-      expect(lfg).toContain(`$${target}`)
-      expect(lfg).toContain(`/${target}`)
+      expect(closeOut).toContain(`$${target}`)
+      expect(closeOut).toContain(`/${target}`)
     }
-    expect(lfg).toMatch(/default to `\/ce-explain <name>`[\s\S]{0,360}Codex[\s\S]{0,220}output one form only/i)
+    expect(closeOut).toMatch(/default to `\/ce-explain <name>`[\s\S]{0,360}Codex[\s\S]{0,220}output one form only/i)
 
     // The callee documents the mode the caller passes
     expect(skill).toContain("mode:pipeline")

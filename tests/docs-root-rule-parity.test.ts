@@ -15,6 +15,17 @@ const FIXTURE = path.join(REPO_ROOT, "tests", "fixtures", "docs-root-rule.md")
 // The block is delimited by <!-- ce-docs-root:start --> / <!-- ce-docs-root:end -->
 // so the literal-path guard (docs-root-literals) can allowlist its default
 // clauses and this test can locate it precisely.
+//
+// The block lives in the consumer's SKILL.md unless that skill relocated it to a
+// reference it requires before composing any <root>/ path. CONSUMER_FILES records
+// the exception and the step that guarantees the read; the parity requirement is
+// unchanged, only the file it is asserted against.
+const CONSUMER_FILES: Record<string, string> = {
+  // lfg composes one <root>/ path, in step 1's gate, and step 1's first action is
+  // reading this reference. Codex injects only the first 8000 bytes of a SKILL.md,
+  // so a body copy is the less reliable of the two homes.
+  lfg: "references/plan-brief.md",
+}
 const CONSUMER_SKILLS = [
   "ce-setup",
   "ce-compound",
@@ -62,10 +73,10 @@ describe("docs-root rule shared-asset parity", () => {
   test("every consumer skill contains the canonical block verbatim", async () => {
     const block = await canonicalBlock()
     for (const skill of CONSUMER_SKILLS) {
-      const p = path.join(PLUGIN_ROOT, skill, "SKILL.md")
+      const p = path.join(PLUGIN_ROOT, skill, CONSUMER_FILES[skill] ?? "SKILL.md")
       await access(p) // fails the test if a consumer is missing the file
       const content = await readFile(p, "utf8")
-      expect(content, `${skill}/SKILL.md is missing the docs-root block`).toContain(block)
+      expect(content, `${skill}/${CONSUMER_FILES[skill] ?? "SKILL.md"} is missing the docs-root block`).toContain(block)
     }
   })
 

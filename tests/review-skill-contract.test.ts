@@ -910,6 +910,11 @@ describe("ce-code-review contract", () => {
 
   test("lfg autonomously handles residuals via non-interactive tracker-defer and a committed record file (never the PR body)", async () => {
     const lfg = await readRepoFile("skills/lfg/SKILL.md")
+    // Steps 3-6 are owned by the reference lfg's step 3 names as a required read;
+    // the body keeps each step's gate and the DONE-durability rule. Assertions on
+    // relocated mechanics read the reference, not the body.
+    const followupRef = await readRepoFile("skills/lfg/references/review-followup.md")
+    const shippingTail = await readRepoFile("skills/lfg/references/shipping-tail.md")
     await expect(readRepoFile("skills/lfg/references/tracker-defer.md")).resolves.toContain(
       "Non-interactive mode",
     )
@@ -925,35 +930,40 @@ describe("ce-code-review contract", () => {
     expect(lfg).toContain("Autonomous residual handoff")
     expect(lfg).toMatch(/Do not prompt the user/)
 
-    // tracker-defer is invoked in non-interactive mode.
-    expect(lfg).toContain("references/tracker-defer.md")
+    // tracker-defer is invoked in non-interactive mode, from the step-6 procedure
+    // in the reference lfg's step 3 requires.
+    expect(followupRef).toContain("references/tracker-defer.md")
+    expect(followupRef).toContain("**non-interactive mode**")
     expect(lfg).not.toContain("skills/ce-code-review/references/tracker-defer.md")
 
-    // Structured return buckets drive the residual record file.
-    expect(lfg).toMatch(/filed/)
-    expect(lfg).toMatch(/failed/)
-    expect(lfg).toMatch(/no_sink/)
+    // Structured return buckets drive the residual record.
+    expect(followupRef).toMatch(/filed/)
+    expect(followupRef).toMatch(/failed/)
+    expect(followupRef).toMatch(/no_sink/)
 
     // Residuals are recorded via tracker tickets + a committed record file,
     // NEVER the PR body (which would duplicate GitHub's own tracking and go
     // stale as items resolve). The old `gh pr edit`-into-body path is retired.
     expect(lfg).toContain("never the PR body")
     expect(lfg).not.toContain("gh pr edit PR_NUMBER --body-file BODY_FILE")
-    expect(lfg).toContain("## Residual Review Findings")
+    expect(followupRef).toContain("## Residual Review Findings")
     // ...and not a committed record file either. Residuals ride the same run-report
     // comment `ce-babysit-pr` already uses for unfixable CI, so nothing is committed to
     // carry them and the DONE gate no longer waits on a file write plus a push.
     expect(lfg).toContain("run-report comment")
     expect(lfg).not.toContain("residual-review-findings")
+    expect(followupRef).toContain("run-report comment")
+    expect(followupRef).not.toContain("residual-review-findings")
     expect(lfg).toContain("Do not output DONE until the residuals are durable")
 
     // Step 9 delegates CI to ce-babysit-pr pipeline mode; the hand-rolled
     // CI-watch loop is retired.
     expect(lfg).toContain("ce-babysit-pr mode:pipeline")
-    expect(lfg).toMatch(/Stack handoff from step 8/i)
-    expect(lfg).toMatch(/never treat "started" as DONE/i)
-    expect(lfg).toMatch(/bottom open non-draft[\s\S]{0,120}posture:stack-ready[\s\S]{0,80}posture:stack-land/i)
+    expect(shippingTail).toMatch(/[Ss]tack handoff from step 8/)
+    expect(shippingTail).toMatch(/never treat "started" as DONE/i)
+    expect(shippingTail).toMatch(/bottom open non-draft[\s\S]{0,120}posture:stack-ready[\s\S]{0,80}posture:stack-land/i)
     expect(lfg).not.toContain("gh pr checks --watch")
+    expect(shippingTail).not.toContain("gh pr checks --watch")
 
     // Shipping precondition: a remote-less repo (e.g. a sandbox/throwaway checkout)
     // finishes locally instead of deadlocking on an impossible push.

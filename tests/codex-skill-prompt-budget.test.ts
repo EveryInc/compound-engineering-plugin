@@ -35,7 +35,6 @@ const OVER_BUDGET = new Set([
   "ce-explain",
   "ce-plan",
   "ce-work",
-  "lfg",
 ])
 
 const repoRoot = path.join(import.meta.dir, "..")

@@ -55,6 +55,15 @@ const lfg = readRepoFile("skills/lfg/SKILL.md")
 const lfgNextWorkHandoff = readRepoFile(
   "skills/lfg/references/next-work-handoff.md",
 )
+// lfg's body is the pipeline spine: each step's invocation string, its stop
+// classes, and a required-read pointer. The step-scoped mechanics live in the
+// reference each step names, so those invariants are asserted against the file
+// that now owns them.
+const lfgStageRouting = readRepoFile("skills/lfg/references/stage-routing.md")
+const lfgPlanBrief = readRepoFile("skills/lfg/references/plan-brief.md")
+const lfgWorkReturn = readRepoFile("skills/lfg/references/work-return.md")
+const lfgReviewFollowup = readRepoFile("skills/lfg/references/review-followup.md")
+const lfgCloseOut = readRepoFile("skills/lfg/references/shipping-tail.md")
 const docReview = readRepoFile("skills/ce-doc-review/SKILL.md")
 const docReviewTemplate = readRepoFile(
   "skills/ce-doc-review/references/subagent-template.md",
@@ -219,31 +228,40 @@ describe("unified plan artifact contract", () => {
   })
 
   test("lfg delegates implementation to ce-work return-to-caller mode", () => {
-    expect(lfg).toContain("artifact_readiness: implementation-ready")
-    expect(lfg).toContain("execution: code")
-    expect(lfg).toContain("any unrecognized readiness value")
+    // The dispatch strings and the /goal boundary fire from the body; the readiness
+    // values are applied by step 1's gate, whose first action is reading plan-brief.
+    expect(lfgPlanBrief).toContain("artifact_readiness: implementation-ready")
+    expect(lfgPlanBrief).toContain("execution: code")
+    expect(lfgPlanBrief).toContain("any unrecognized readiness value")
+    expect(lfg).toContain("readiness check in `references/plan-brief.md`")
     expect(lfg).toContain("LFG never launches `/goal` directly")
     expect(lfg).toContain("mode:return-to-caller <plan-path-from-step-1>")
-    expect(lfg).toContain("standalone_shipping_skipped: true")
-    expect(lfg).toContain("verification_evidence")
-    expect(lfg).toContain("Do NOT decide the test strategy inside LFG")
-    expect(lfg).toContain("invoke `ce-work` one more time in recovery mode")
-    expect(lfg).toContain("implementation_run:<safe-id>")
-    expect(lfg).toContain("When `actual_route` is `native` and `run_id` is `null`")
-    expect(lfg).toContain("repeat the original ce-work invocation once without an `implementation_run:` carrier")
-    expect(lfg).toContain("A non-native return without a safe run id remains blocked")
-    expect(lfg).toContain("stop as blocked and report the missing fields")
     expect(lfg).toContain("ce-code-review` skill with `mode:agent plan:<plan-path-from-step-1>`")
-    expect(lfg).not.toContain("artifact_readiness: approach-plan")
+    expect(lfgPlanBrief).not.toContain("artifact_readiness: approach-plan")
+
+    // The return contract itself is owned by the reference step 2 requires before
+    // accepting a return.
+    expect(lfgWorkReturn).toContain("standalone_shipping_skipped: true")
+    expect(lfgWorkReturn).toContain("verification_evidence")
+    expect(lfgWorkReturn).toContain("Do NOT decide the test strategy inside LFG")
+    expect(lfgWorkReturn).toContain("invoke `ce-work` one more time in recovery mode")
+    expect(lfgWorkReturn).toContain("implementation_run:<safe-id>")
+    expect(lfgWorkReturn).toContain("When `actual_route` is `native` and `run_id` is `null`")
+    expect(lfgWorkReturn).toContain("repeat the original ce-work invocation once without an `implementation_run:` carrier")
+    expect(lfgWorkReturn).toContain("A non-native return without a safe run id remains blocked")
+    expect(lfgWorkReturn).toContain("stop as blocked and report the missing fields")
   })
 
   test("lfg offers an opt-in fresh-session handoff for separately planned future work", () => {
-    expect(lfg).toContain("semantic role `work-relationships`")
-    expect(lfg).toContain("cautious legacy semantic fallback")
-    expect(lfg).toContain("references/next-work-handoff.md")
-    expect(lfg).toMatch(/older unmarked Product Contract.*area this plan owns.*future separately planned areas/s)
-    expect(lfg).toContain("Do not match an exact visible heading")
-    expect(lfg).toMatch(/do not .*invoke `ce-handoff` before the user explicitly accepts/i)
+    // The closeout that gates the offer moved into the reference step 10 requires
+    // before it prints anything.
+    expect(lfg).toContain("references/shipping-tail.md")
+    expect(lfgCloseOut).toContain("semantic role `work-relationships`")
+    expect(lfgCloseOut).toContain("cautious legacy semantic fallback")
+    expect(lfgCloseOut).toContain("references/next-work-handoff.md")
+    expect(lfgCloseOut).toMatch(/older unmarked Product Contract.*area this plan owns.*future separately planned areas/s)
+    expect(lfgCloseOut).toContain("Do not match an exact visible heading")
+    expect(lfgCloseOut).toMatch(/do not .*invoke `ce-handoff` before the user explicitly accepts/i)
 
     expect(lfgNextWorkHandoff).toContain("<!-- ce-section: work-relationships -->")
     expect(lfgNextWorkHandoff).toContain('data-ce-section="work-relationships"')
@@ -276,10 +294,9 @@ describe("unified plan artifact contract", () => {
   })
 
   test("lfg carries per-stage routing carriers at each stage seam", () => {
-    const carrier = sliceSection(
-      lfg,
-      "## Per-stage routing carriers",
-      "1. Invoke the `ce-plan` skill",
+    const carrier = lfgStageRouting
+    expect(sliceSection(lfg, "## Per-stage routing carriers", "1. Invoke the `ce-plan` skill")).toContain(
+      "semantic intent",
     )
     expect(carrier).toContain("semantic intent")
     expect(carrier).toContain("not keyword or prompt-token matching")
@@ -308,36 +325,30 @@ describe("unified plan artifact contract", () => {
     expect(carrier).toMatch(/disable-model-invocation.*headless run, never ask/is)
     expect(carrier).toContain("default path is mandatory")
 
-    // Step 1 threads the plan_model carrier to ce-plan beside the sanitized request.
-    const step1 = sliceSection(
-      lfg,
-      "1. Invoke the `ce-plan` skill",
-      "2. Invoke the `ce-work` skill",
+    // Step 1 threads the plan_model carrier to ce-plan beside the sanitized request;
+    // the body names the carrier at the seam and the reference owns its exact form.
+    expect(sliceSection(lfg, "1. Invoke the `ce-plan` skill", "2. **Read `references/work-return.md` first**")).toContain(
+      "`plan_model:<alias>` carrier",
     )
-    expect(step1).toContain("prefix the invocation with its `plan_model:<alias>` carrier")
+    const step1 = carrier
+    expect(step1).toContain("prefix the `ce-plan` invocation with its `plan_model:<alias>` carrier")
     expect(step1).toMatch(/never woven into it/i)
 
-    const step2 = sliceSection(
-      lfg,
-      "2. Invoke the `ce-work` skill",
-      "3. Invoke the `ce-simplify-code` skill",
-    )
+    const step2 = carrier
     expect(step2).toContain("mode:return-to-caller implementation_engine:<compact-json> <plan-path-from-step-1>")
     expect(step2).toContain("mode:return-to-caller implementation_engine:<compact-json> implementation_run:<safe-id> <plan-path-from-step-1>")
     expect(step2).toContain('implementation_engine:{"mode":"prefer","target":"codex","model":null,"source":"lfg-current-turn"}')
     expect(step2).toContain("portable string envelope")
     expect(step2).toContain("standing per-checkout configuration")
     expect(carrier).toContain("Do not construct a carrier from standing configuration")
-    expect(step2).toContain("same `implementation_engine:<compact-json>` carrier")
-    expect(step2).toContain("same `run_id`")
+    expect(lfgWorkReturn).toContain("same `implementation_engine:<compact-json>` carrier")
+    expect(lfgWorkReturn).toContain("same `run_id`")
   })
 
   test("lfg's route-aware return gate preserves its shipping tail", () => {
-    const step2 = sliceSection(
-      lfg,
-      "2. Invoke the `ce-work` skill",
-      "3. Invoke the `ce-simplify-code` skill",
-    )
+    // Receipt fields belong to the reference; the prefer/require stop classes stay
+    // in the body, where they fire whether or not the reference was opened.
+    const step2 = lfgWorkReturn + sliceSection(lfg, "2. **Read `references/work-return.md` first**", "3. **Read `references/review-followup.md` now**")
     for (const field of [
       "implementation_engine_binding",
       "requested_route",
@@ -626,11 +637,14 @@ describe("session-settled decision contract", () => {
   })
 
   test("lfg brief carries the four required fields, recognizes the blocked token, and retries the brief verbatim", () => {
-    const step1 = sliceSection(
+    // The brief's shape is owned by the reference step 1 requires before invoking
+    // ce-plan; the blocked-token stop and the verbatim retry stay in the body.
+    const bodyStep1 = sliceSection(
       lfg,
       "1. Invoke the `ce-plan` skill",
-      "2. Invoke the `ce-work` skill",
+      "2. **Read `references/work-return.md` first**",
     )
+    const step1 = lfgPlanBrief
     for (const field of [
       "the decision",
       "provenance class",
@@ -640,8 +654,8 @@ describe("session-settled decision contract", () => {
       expect(step1).toContain(field)
     }
     expect(step1).toContain("`user-directed`")
-    expect(step1).toContain("settled-decision-invalidated")
-    expect(step1).toContain("reuses the composed brief verbatim")
+    expect(bodyStep1).toContain("settled-decision-invalidated")
+    expect(bodyStep1).toContain("reusing the composed brief verbatim")
   })
 
   test("lfg threads settled_conflict findings through both step 4 and step 6", () => {
@@ -651,12 +665,16 @@ describe("session-settled decision contract", () => {
       "5. **Apply and persist review fixes**",
     )
     expect(step4).toContain("`settled_conflict`")
+    expect(lfgReviewFollowup).toContain("`settled_conflict`")
+    // Step 6's second trigger travels with the step-6 procedure in the reference
+    // lfg reads at step 3; the body keeps the step and its no-prompt rule.
     const step6 = sliceSection(
       lfg,
       "6. **Autonomous residual handoff**",
       "7. Invoke the `ce-test-browser` skill",
     )
-    expect(step6).toContain("`settled_conflict`")
+    expect(step6).toContain("references/review-followup.md")
+    expect(lfgReviewFollowup).toMatch(/Two further triggers[\s\S]{0,300}`settled_conflict`/)
   })
 
   test("ce-work envelope reports settled conflicts; shipping tail treats invalidation as a blocker", () => {

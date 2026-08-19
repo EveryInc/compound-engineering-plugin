@@ -226,7 +226,9 @@ describe("ce-work cross-model engine contract", () => {
   })
 
   test("preserves ordered LFG intent without truncating the scalar carrier", async () => {
-    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+    // The ordered-fallback rule lives in the reference lfg names as a required read
+    // before step 1 whenever a routing directive exists.
+    const lfg = await readRepoFile("skills/lfg/references/stage-routing.md")
 
     expect(lfg).toContain("ordered fallback list")
     expect(lfg).toContain("do not truncate it to the scalar carrier")

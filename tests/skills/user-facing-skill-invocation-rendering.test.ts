@@ -8,7 +8,9 @@ function readRepoFile(relativePath: string): string {
 
 const modelVisibleRendererCases = [
   {
-    file: "skills/lfg/SKILL.md",
+    // The pre-DONE handoff lines that print these invocations moved into lfg's
+    // close-out reference.
+    file: "skills/lfg/references/shipping-tail.md",
     defaults: ["/ce-explain <name>", "/ce-babysit-pr <pr-url>"],
     codex: ["$ce-explain <name>", "$ce-babysit-pr <pr-url>"],
     unnecessaryOmp: ["/skill:ce-explain <name>", "/skill:ce-babysit-pr <pr-url>"],
