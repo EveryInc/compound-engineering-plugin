@@ -54,6 +54,14 @@ const modelVisibleRendererCases = [
     unnecessaryOmp: ["/skill:ce-compound-refresh <scope>"],
   },
   {
+    // report.md is loaded on its own and independently prints the refresh
+    // invocation in both terminal templates, so it carries its own rule.
+    file: "skills/ce-compound/references/report.md",
+    defaults: ["/ce-compound-refresh <scope>"],
+    codex: ["$ce-compound-refresh <scope>"],
+    unnecessaryOmp: ["/skill:ce-compound-refresh <scope>"],
+  },
+  {
     file: "skills/ce-compound/references/lightweight.md",
     defaults: ["/ce-compound"],
     codex: ["$ce-compound"],

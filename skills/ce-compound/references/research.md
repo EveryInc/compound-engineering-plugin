@@ -55,9 +55,9 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
 
 **Return the full output inline whenever the artifact write did not succeed.** This covers both cases where the orchestrator's Phase 2 inline fallback would otherwise have nothing to read: (a) `{run_id}` is empty or did not resolve (non-Claude-Code platforms where the pre-resolution failed), so there is no path to write to; and (b) `{run_id}` resolved but the write itself failed — tool permission denied, absolute-path writes unavailable, disk error, or the post-write existence check came back empty. In either case the subagent must return its complete structured output inline instead of a path, because the path would point at a file that does not exist. Return only the bare path when — and only when — the write is confirmed on disk. The artifact pattern is a reliability improvement, not a hard requirement; the orchestrator handles a missing artifact in Phase 2 by using the inline return.
 
-**Dispatch order:**
-- Launch `Context Analyzer`, `Solution Extractor`, and `Related Docs Finder` in parallel (background)
-- **Then** run the internal session-history flow in `references/session-history.md`. It is synchronous from this orchestrator's main-context turn, but the already-dispatched background subagents keep running in parallel underneath, so the wall-clock cost is `max(session-history, slowest background subagent)` rather than their sum.
+**Dispatch.** Launch `Context Analyzer`, `Solution Extractor`, and `Related Docs Finder` in parallel, in the background, and do not wait on them here. They keep running underneath the session-history step the body starts next, so the two overlap and the wall-clock cost is `max(session-history, slowest background subagent)` rather than their sum.
+
+**Every subagent gets its contracts inline.** A fresh subagent resolves a relative path against the user's project, not this skill, so a task prompt that names `references/schema.yaml` or `references/yaml-schema.md` hands it a path that does not exist. Paste the contents of every skill-local file a subagent's task depends on into that task prompt.
 
 <parallel_tasks>
 
