@@ -2,6 +2,9 @@ import fs from "node:fs"
 import path from "node:path"
 import { resolveOnPath } from "./hosts"
 
+/** Every shimmed call is appended here, so an attempt is observable even when it failed. */
+export const SHIM_LOG = "shim-invocations.log"
+
 export type PathShim = {
   bin: string
   subcommand: string
@@ -43,6 +46,7 @@ export function installPathShims(dir: string, shims: PathShim[]): Record<string,
     const script = `#!/bin/sh
 REAL=${JSON.stringify(real)}
 DIR=$(dirname "$0")
+LOG="$DIR/${SHIM_LOG}"
 cmd=""
 skip=0
 for arg in "$@"; do
@@ -58,6 +62,7 @@ case "$cmd" in
 ${subcommands
   .map(
     (sub) => `  ${sub})
+    echo "${bin} $*" >> "$LOG"
     [ -s "$DIR/${bin}.${sub}.stdout" ] && cat "$DIR/${bin}.${sub}.stdout"
     [ -s "$DIR/${bin}.${sub}.stderr" ] && cat "$DIR/${bin}.${sub}.stderr" >&2
     exit "$(cat "$DIR/${bin}.${sub}.exit")"

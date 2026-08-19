@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { installPathShims } from "./path-shim"
+import { SHIM_LOG, installPathShims } from "./path-shim"
 
 describe("path shims", () => {
   test("git push is stubbed but git add && git commit still run", () => {
@@ -61,6 +61,9 @@ describe("path shims", () => {
       expect(r.status).toBe(1)
       expect(r.stderr).toContain("GitHub API failed")
       expect(fs.existsSync(path.join(workspace, ".bin"))).toBe(false)
+      // The attempt survives the failed call, so a forbidden command stays observable.
+      const log = fs.readFileSync(path.join(cell, ".bin", SHIM_LOG), "utf8")
+      expect(log).toContain("gh -R example/tiny-lib pr list")
     } finally {
       fs.rmSync(cell, { recursive: true, force: true })
     }

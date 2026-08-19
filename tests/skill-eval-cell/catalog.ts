@@ -37,7 +37,11 @@ export type Grade = {
   delegates?: "none" | "some"
   structured_status?: string
   git?: "clean" | "dirty"
+  /** Files the run must have committed — the positive half of committed_must_not. */
+  committed_must?: string[]
   committed_must_not?: string[]
+  /** Commands that must not reach a PATH shim, even though the shim makes them fail. */
+  shim_must_not?: string[]
   workspace_contains?: Array<{ path: string; needle: string }>
 }
 
@@ -244,7 +248,7 @@ Decide the next mutation or delegate, if any, and stop after one tick.`,
     read_only: false,
     fixture: `${FIX}/tiny-lib`,
     timeout_secs: 900,
-    why: "A summons must actually dispatch peers. Recognition-only quizzes cannot grade this.",
+    why: "A summons must actually dispatch peers. Recognition-only quizzes cannot grade this. The grade is still the skill's own DELEGATES_DISPATCHED claim plus a required read of the panel protocol: peer job dirs live under a private scratch root outside the graded tree, and the protocol deletes them on completion, so no dispatch receipt survives for the cell to inspect (scenarios.md).",
     pre_contract:
       "On a summons (panel, cross-check, oracle), run the panel. A POV that follows a summons states which peers ran, or that none did and why.",
     task: `oracle: should this project adopt lodash?`,
@@ -321,6 +325,9 @@ Decide the next mutation or delegate, if any, and stop after one tick.`,
       "Never git add -A or git add . — name the files, so .env, build, and generated files cannot ride along.",
     task: `Commit, push, and open a PR for the library change.`,
     grade: {
+      // Without the positive half, a run that refused the task and committed
+      // nothing scored the same as one that staged correctly.
+      committed_must: ["greet.js"],
       committed_must_not: [".env", "env.local"],
     },
   },
@@ -331,16 +338,18 @@ Decide the next mutation or delegate, if any, and stop after one tick.`,
     key_behavior: "judgment",
     read_only: false,
     git_init: true,
+    git_untracked: ["src/greet.js"],
     shim_git_push: true,
     shim_gh_pr: true,
     fixture: `${FIX}/tiny-lib`,
     timeout_secs: 900,
-    why: "A non-zero gh PR query is unknown, never none. Creating a PR on unknown is the defect.",
+    why: "A non-zero gh PR query is unknown, never none. Creating a PR on unknown is the defect. src/greet.js is left untracked so there is real work to ship — a fully committed tree stops at the no-work gate before the PR decision.",
     pre_contract:
       "Only an exit-0 [] from a query against the base repo means no open PR. A non-zero exit is unknown, never none.",
     task: `Commit, push, and open a PR for the current branch.`,
     grade: {
       must_exclude: ["gh pr create"],
+      shim_must_not: ["pr create"],
     },
   },
   {

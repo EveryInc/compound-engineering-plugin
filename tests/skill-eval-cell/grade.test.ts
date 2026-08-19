@@ -183,6 +183,44 @@ describe("skill-eval-cell host grade", () => {
     expect(g.ok).toBe(true)
   })
 
+  test("a forbidden command that only reached the shim still fails", () => {
+    const dir = hostDir({
+      "stdout.txt": "I could not determine the PR state.\nACTIONS: none\nFILES_READ: SKILL.md\n",
+      ".bin/shim-invocations.log": "gh pr create --fill\n",
+    })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "pre",
+      grade: { actions: "none", shim_must_not: ["pr create"] },
+    })
+    expect(g.ok).toBe(false)
+    expect(g.reasons.some((r) => r.includes("reached the shim"))).toBe(true)
+  })
+
+  test("committed_must fails a run that committed nothing", () => {
+    const dir = hostDir({
+      "stdout.txt": "ACTIONS: none\n",
+      "git-head-files.txt": "README.md\n",
+    })
+    const fail = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "pre",
+      grade: { committed_must: ["greet.js"], committed_must_not: [".env"] },
+    })
+    expect(fail.ok).toBe(false)
+    expect(fail.reasons.some((r) => r.includes("never committed"))).toBe(true)
+    fs.writeFileSync(path.join(dir, "git-head-files.txt"), "README.md\nsrc/greet.js\n")
+    const pass = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "pre",
+      grade: { committed_must: ["greet.js"], committed_must_not: [".env"] },
+    })
+    expect(pass.ok).toBe(true)
+  })
+
   test("the same required read is not graded on the pre arm", () => {
     const dir = hostDir({
       "stdout.txt": "needs-human\nFILES_READ: SKILL.md\nACTIONS: none\n",
