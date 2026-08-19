@@ -81,4 +81,4 @@ Run these in order. Each reference is a required read at the step that names it.
 5. **Optional enhancement** — read `references/enhancement.md`. Interactive only.
 6. **Report** — read `references/report.md` for the shape your mode owes, then end the turn.
 
-**Lightweight Mode** replaces steps 1-5 with a single pass; read `references/lightweight.md`. It still reports through step 6.
+**Lightweight Mode** replaces steps 1-6 with a single pass; read `references/lightweight.md`, which owns its own completion output for both modes.
