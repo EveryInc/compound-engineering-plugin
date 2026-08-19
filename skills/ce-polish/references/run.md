@@ -48,12 +48,16 @@ Startup may proceed only after command, working directory, and port are resolved
 
 ## Start and hand off
 
-Before launch, resolve any process already serving the chosen port. Reuse it only when evidence identifies it as the intended project server; otherwise ask the user whether to stop it, choose another port, or stop this run. Never kill or launch past an unresolved collision.
+Inspect the chosen port and select exactly one intended server instance before handoff. Reuse a process already serving that port only when evidence identifies it as the intended project server. Only when no intended instance is selected may the resolved command be launched in the background with the project's working directory and environment; that process becomes the selected instance. Keep its process or session handle, and write its output under a directory created with `mktemp -d "${TMPDIR:-/tmp}/ce-polish-XXXXXX"`.
 
-Start the resolved command with the project's working directory and environment in the background. Keep its process/session handle and write output under a directory created with `mktemp -d "${TMPDIR:-/tmp}/ce-polish-XXXXXX"`. Probe the actual URL bound by that launched process for up to 30 seconds; a response from some other process is not success.
+An occupied port that cannot be attributed to the intended project server remains an unresolved collision. Ask the user whether to stop that process, choose another port, or stop this run; never kill it or launch past it.
+
+Attribute reachability to the selected instance by probing its actual URL for up to 30 seconds. A response from another process is not success.
 
 - **Reachable:** use the browser-opening capability already exposed by the active harness. If it has none or the handoff fails, print the URL; browser handoff is a convenience, not a gate.
-- **Not reachable:** show the last 20 log lines and ask whether to correct the start configuration or stop. Do not continue into the polish loop against a page that never came up.
+- **Not reachable:** show diagnostics derived from the selected instance. Include the last 20 log lines only when this run launched it and owns those logs. Ask whether to correct the start configuration or stop.
+
+Do not continue into the polish loop unless reachability is attributed to the selected instance.
 
 Tell the user:
 

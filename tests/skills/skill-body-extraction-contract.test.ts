@@ -36,7 +36,12 @@ describe("remaining skill body extractions", () => {
     expect(run).toContain("scripts/read-launch-json.sh")
     expect(run).toContain("scripts/resolve-port.sh")
     expect(run).toContain("command, working directory, and port are resolved")
-    expect(run).toContain("a response from some other process is not success")
+    const handoff = run.slice(run.indexOf("## Start and hand off"))
+    expect(handoff).toMatch(/select exactly one intended server instance/i)
+    expect(handoff).toMatch(/only when no intended instance is selected may .* be launched/i)
+    expect(handoff).toMatch(/attribute reachability to the selected instance/i)
+    expect(handoff).toMatch(/last 20 log lines only when this run launched it/i)
+    expect(handoff).toMatch(/do not continue into the polish loop unless reachability is attributed/i)
     expect(run).toContain("active harness")
   })
 
