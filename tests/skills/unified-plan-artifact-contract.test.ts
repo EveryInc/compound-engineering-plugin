@@ -584,14 +584,21 @@ describe("unified plan artifact contract", () => {
 
   test("post-plan menu offers /goal prompt as a mutually-exclusive executor", () => {
     const planHandoff = readRepoFile("skills/ce-plan/references/plan-handoff.md")
+    // Both copies keep the option and the tail-ownership guard: the guard decides
+    // whether a second executor runs, and the body renders the menu.
     for (const doc of [planSkill, planHandoff]) {
       expect(doc).toContain("Run it as a `/goal`")
       // The /goal option must not also run ce-work (tail-ownership guard).
       expect(doc).toMatch(/`ce-work` does \*{0,2}not\*{0,2} also run/i)
-      // On a callable-goal-tool host the skill starts it directly and never calls update_goal.
       expect(doc).toContain("create_goal")
-      expect(doc).toMatch(/do not call `update_goal`|the goal session marks its own completion/i)
     }
+    // The update_goal rule is a mechanic of starting the goal, and plan-handoff.md
+    // owns the objective and the start. It arrived with the goal lane in #972 with no
+    // recorded incident behind the duplicate body copy, and the body STOP-loads that
+    // reference before the menu renders — so pin the rule in its owner, and pin the
+    // body to defer rather than re-derive it.
+    expect(planHandoff).toMatch(/do not call `update_goal`|the goal session marks its own completion/i)
+    expect(planSkill).toMatch(/take the objective from there rather than composing one here/i)
     // No authoring-file meta-references leak into runtime menu content.
     expect(planHandoff).not.toContain("Per the AGENTS.md")
     expect(planSkill).not.toContain("per the AGENTS.md narrow exception")
@@ -813,12 +820,13 @@ describe("cross-layer ownership contract", () => {
 
   test("every executor handoff reverse-resolves labeled Product Contract Key Decisions", () => {
     const planHandoff = readRepoFile("skills/ce-plan/references/plan-handoff.md")
+    // The invariant is #1234's: an objective or unit packet handed to an executor must
+    // reverse-resolve the labeled Key Decisions rather than copy requirements across
+    // layers. It belongs to whoever composes that text. ce-plan's SKILL.md menu bullet
+    // no longer composes an objective — it defers to plan-handoff.md, which the body
+    // STOP-loads before the menu renders — so the pin follows the composition, and the
+    // body is pinned to defer (see the /goal menu test above).
     const handoffs = [
-      sliceSection(
-        planSkill,
-        "- **Run it as a `/goal`**",
-        "- **Decide on the review's open items**",
-      ),
       sliceSection(
         planHandoff,
         "- **Run it as a `/goal`**",

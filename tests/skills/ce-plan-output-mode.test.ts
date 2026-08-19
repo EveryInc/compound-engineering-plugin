@@ -143,9 +143,16 @@ describe("ce-plan output:html mode", () => {
       /active.*non-commented|non-commented.*key|lines starting with `#`.*comments|ignore commented/i.test(phaseRegion),
       "Phase 0.0 config matching must require an ACTIVE (non-commented) `plan_output:` key, not a raw-text 'contains' match. Without this, the shipped config template's commented examples would silently force HTML mode.",
     ).toBe(true)
+    // The rationale-citation pin that used to sit here required the always-loaded
+    // body to spell out the shipped template's `# plan_output: html` example. The
+    // invariant it was protecting is the active-key rule asserted just above, which
+    // the shared ce-config-layers block a few lines below Phase 0.0 also states
+    // ("Win with the first active (non-commented) value"). Pin the condition, not
+    // the worked example: the body must say a commented template line is not a
+    // setting, in whatever words.
     expect(
-      /# plan_output: html|commented examples|shipped config template/i.test(phaseRegion),
-      "Phase 0.0 must cite the specific failure mode (the shipped template's commented `# plan_output: html` example) so the rationale survives future edits.",
+      /commented|not settings|not a setting/i.test(phaseRegion),
+      "Phase 0.0 must say that a commented `plan_output:` line is not an active setting — otherwise the shipped template's examples silently force HTML mode.",
     ).toBe(true)
     expect(
       /ordinary-key|next layer|config\.local\.yaml then `config\.yaml`/i.test(phaseRegion),
