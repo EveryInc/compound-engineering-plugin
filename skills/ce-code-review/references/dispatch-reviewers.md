@@ -54,6 +54,8 @@ If the platform has no parallel sub-agent primitive at all, run the reviewers se
 
 Before assembling any spawn prompt, read these three files from this skill's directory now — they define the dispatch shape and the JSON contract every subagent needs, and you cannot construct a valid spawn without them: `references/subagent-template.md`, `references/diff-scope.md`, and `references/findings-schema.json`. Read them and all selected persona prompt assets in one parallel read-tool wave rather than one turn per file.
 
+A persona prompt that names `<root>` — `learnings-researcher` searching `<root>/solutions/`, `project-standards-reviewer` — cannot resolve it: the subagent never ran the artifact-root block. Substitute the root this run resolved into every such prompt before dispatch, so the child searches a real directory instead of a literal `<root>`.
+
 For each selected reviewer, and only for those, read the corresponding local prompt asset from `references/personas/<reviewer-name>.md` and spawn a generic subagent using the subagent template. Do not use `subagent_type`, typed `Agent` names, or platform-level CE agent registration. Each persona subagent receives:
 
 1. Their persona file content (identity, failure modes, calibration, suppress conditions)
