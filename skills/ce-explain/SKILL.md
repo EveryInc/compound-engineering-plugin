@@ -50,19 +50,7 @@ Read `references/intake.md` now and classify the request into one of the four in
 
 ### Phase 2: Ground
 
-Create the run directory first — every run gets one, before any artifact exists. It holds the explainer and the recap evidence, so run this block as written rather than improvising a `mkdir`: the checks it makes refuse a scratch root you do not own or one reached through a symlink.
-
-```bash
-SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
-[ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") 2>/dev/null && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && [ -w "$SCRATCH_ROOT" ] || SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)";
-if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
-(umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
-if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
-chmod 700 "$SCRATCH_ROOT" || exit 1;
-RUN_DIR="$SCRATCH_ROOT/ce-explain/$(date +%Y%m%d)-$(openssl rand -hex 3)";
-(umask 077; mkdir -p "$RUN_DIR") || exit 1; chmod 700 "$RUN_DIR" || exit 1;
-echo "$RUN_DIR";
-```
+Create the run directory first — every run gets one, before any artifact exists. It holds the explainer and the recap evidence. Run the block in `references/orchestration.md` verbatim rather than improvising a `mkdir`: the checks it makes refuse a scratch root you do not own or one reached through a symlink, and the body's opening pointer already required that file to be read before any run directory is created.
 
 Then match grounding to the input shape per `references/orchestration.md`'s grounding section, which also owns the empty-window and unreachable-web paths. Two rules govern what reaches the user while you gather, so they hold here:
 
