@@ -1053,7 +1053,7 @@ describe("concept-teaching seam parity (ce-commit-push-pr <-> lfg)", () => {
     expect(await readRepoFile("skills/lfg/references/shipping-tail.md")).toContain("New concepts:")
 
     // The callsite passes the mode explicitly rather than relying on defaults
-    expect(lfg).toContain("invoke the `ce-commit-push-pr` skill with `mode:pipeline branding:on`.")
+    expect(lfg).toContain("invoke the `ce-commit-push-pr` skill with `mode:pipeline branding:on`")
 
     // The pre-DONE report names the concept and renders each user-runnable handoff
     // for the active host rather than hardcoding one harness's syntax. That report

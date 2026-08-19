@@ -4,29 +4,27 @@ description: "Run the full autonomous shipping pipeline end-to-end, hands-off wi
 argument-hint: "[feature description; optionally assign planning and/or implementation to a model or harness]"
 ---
 
-CRITICAL: You MUST execute every step below IN ORDER. Do NOT skip any required step. Do NOT jump ahead to coding or implementation. The plan phase (step 1) MUST be completed and verified BEFORE any work begins.
+CRITICAL: You MUST execute every step below IN ORDER. Do NOT jump ahead to coding or implementation. The plan phase (step 1) MUST be completed and verified BEFORE any work begins.
 
 LFG runs hands-off, from schedulers, loops, and nested orchestrators with no user to answer, so no step stops to ask. The one exception is the upfront routing question `references/stage-routing.md` defines.
 
 Resolve every skill named below against the host's available-skills list and invoke that exact entry; some hosts namespace it (`compound-engineering:ce-plan`), and a short-form guess that is not in the list fails.
 
-Read `references/task-visibility.md` before step 1 for the stage-level view this pipeline publishes through the platform's task-tracking capability and hands to each child skill.
+Read `references/task-visibility.md` before step 1: it owns the stage-level view this pipeline publishes through the platform's task-tracking capability and hands to each child skill.
 
 ## Per-stage routing carriers
 
 Before step 1, interpret whether the invoking conversation expresses semantic intent to assign a pipeline stage — planning or implementation — to a specific model or harness. This is judgment, not keyword or prompt-token matching: a plain mention of a model or harness in feature content, quoted material, comparison text, or a filename is not an assignment.
 
-**When one exists, read `references/stage-routing.md` before step 1.** Only that file carries which stages are routable, how scope and requirement strength resolve, the `implementation_engine` grammar, the ordered-fallback case, the sanitization that keeps routing out of planning and review product input, and the carrier strings for both seams. An improvised carrier drops the user's instruction or feeds routing into the plan as product content.
+**When one exists, read `references/stage-routing.md` before step 1.** Only that file carries which stages are routable, how scope and requirement strength resolve, the `implementation_engine` grammar, the ordered-fallback case, the sanitization that keeps routing out of planning and review inputs, and the carrier strings for both seams. An improvised carrier drops the user's instruction or contaminates the plan with routing.
 
-1. Invoke the `ce-plan` skill with the sanitized feature request — or the arguments you were invoked with, unchanged, when no routing directive was present — prefixed with the `plan_model:<alias>` carrier when a planning-stage directive resolved.
-
-   **Read `references/plan-brief.md` first.** Only it carries the rule that resolves the artifact root `<root>` this step's gate reads, the settled-decisions brief to compose from the invoking conversation and pass alongside those arguments — its required fields, demotion rule, topical scope bar, and skip-entirely case — and the readiness values the gate applies.
+1. **Read `references/plan-brief.md` first**, then invoke the `ce-plan` skill with the sanitized feature request — or the arguments you were invoked with, unchanged, when no routing directive was present — prefixed with the `plan_model:<alias>` carrier when a planning-stage directive resolved, and with the settled-decisions brief that file specifies. Only it carries the artifact-root rule this step's gate reads, the brief's required fields, demotion rule, topical scope bar, and skip-entirely case, and the readiness values the gate applies.
 
    GATE: STOP. Stop the pipeline and tell the user why when `ce-plan` reports the task is non-software (LFG requires software tasks), when it returns a blocked report containing `settled-decision-invalidated` (never retried), or when the plan it wrote fails the readiness check in `references/plan-brief.md`. No plan file in `<root>/plans/` means invoke `ce-plan` again with those same arguments, reusing the composed brief verbatim; never proceed to step 2 without a written plan.
 
    **Record the plan file path** — it is passed to ce-work in step 2 and ce-code-review in step 4. LFG never launches `/goal` directly; `ce-work` owns any goal-mode or dynamic-workflow engine choice and returns control to LFG afterward.
 
-2. **Read `references/work-return.md` first**, then invoke the `ce-work` skill with `mode:return-to-caller <plan-path-from-step-1>`, or with the carrier form from `references/stage-routing.md` when a routing carrier resolved. Only it carries what each return status means here, the receipt fields a `status: complete` return must contain, the verification-evidence contract, how `settled_decision_conflicts` route, and the one recovery invocation. Accepting a return without it ships work that nothing protected.
+2. **Read `references/work-return.md` first**, then invoke the `ce-work` skill with `mode:return-to-caller <plan-path-from-step-1>`, or with the carrier form from `references/stage-routing.md` when a routing carrier resolved. Only it carries what each return status means, the receipt fields a `status: complete` return must contain, the verification-evidence contract, how `settled_decision_conflicts` route, and the one recovery invocation. Accepting a return without it ships work that nothing protected.
 
    GATE: STOP. Read the structured return before continuing; `status: blocked` and `status: failed` both stop the pipeline, and the route rules in that file decide every other case.
 
@@ -34,7 +32,7 @@ Before step 1, interpret whether the invoking conversation expresses semantic in
 
 4. Invoke the `ce-code-review` skill with `mode:agent plan:<plan-path-from-step-1>`.
 
-   GATE: STOP. An invalidating `settled_conflict`-stamped finding stops the pipeline as blocked, with the finding reported, before the shipping precondition.
+   GATE: STOP. A `settled_conflict`-stamped finding whose evidence is invalidating — the settled decision cannot work: infeasible, wrong-thing, or destructive — stops the pipeline as blocked, with the finding reported, before the shipping precondition.
 
 **Shipping precondition (steps 5–9).** Run `git remote` once before the shipping steps. No remote means shipping is local-only: make every commit the steps below call for, but **skip every push, PR create/edit, and CI-watch action**, including step 9 in full. That is terminal, not an error.
 
@@ -42,20 +40,20 @@ Before step 1, interpret whether the invoking conversation expresses semantic in
 
    Execute the apply step of `references/review-followup.md`. Do not proceed to the residual handoff, run browser tests, or output DONE while eligible review fixes remain only in the working tree uncommitted.
 
-6. **Autonomous residual handoff** (only when step 4 reported one or more actionable `downstream-resolver` findings not applied in step 5; skip when it reported `Actionable findings: none.`)
+6. **Autonomous residual handoff** (only when step 4 reported actionable `downstream-resolver` findings not applied in step 5; skip when it reported `Actionable findings: none.`)
 
    Do not prompt the user. `references/review-followup.md` names the two further triggers that also require this step, both outside the apply path.
 
-   **Durable record — tracker tickets plus one run-report comment on the PR, never the PR body.** Do not output DONE until the residuals are durable: tracker tickets filed, and — when a PR exists — the run-report comment posted. Never block DONE on tracker filing failures once the comment is posted.
+   **Durable record — never the PR body.** Do not output DONE until the residuals are durable: tracker tickets filed, and — when a PR exists — one run-report comment on the PR posted. Never block DONE on tracker filing failures once the comment is posted.
 
 7. Invoke the `ce-test-browser` skill with `mode:pipeline`.
 
-8. Ship: the goal is the remaining work committed, pushed, and in an open PR whose URL you hold. **Read `references/shipping-tail.md` first** — it governs steps 8 through 10 — then invoke the `ce-commit-push-pr` skill with `mode:pipeline branding:on`. Only it carries when a project-defined shipping process supersedes that default and the blocked stop when it falls short, what LFG threads into the invocation, the `New concepts:` trailer and ticket back-fill, the no-remote substitution, and step 9's stack handoff. Invoking without it overrides a project's own shipping process and, with no remote, drives a push that cannot succeed.
+8. Ship: the goal is the remaining work committed, pushed, and in an open PR whose URL you hold. **Read `references/shipping-tail.md` first** — it governs steps 8 through 10 — then invoke the `ce-commit-push-pr` skill with `mode:pipeline branding:on` unless that file routes this run elsewhere. Only it carries when a project-defined process supersedes that default and the blocked stop when it falls short, what LFG threads into it, the `New concepts:` trailer and ticket back-fill, the no-remote substitution, and step 9's stack handoff. Invoking without it overrides a project's shipping process and, with no remote, drives an impossible push.
 
 9. **Watch the PR to CI-decided via `ce-babysit-pr`** (only when an open PR exists for the current branch)
 
-   Detect the PR with `gh pr view --json number,url,state`; if none exists or `gh` is unavailable, skip to step 10. Otherwise invoke **`ce-babysit-pr mode:pipeline <pr-url>`** and follow `references/shipping-tail.md` for the stack-handoff case and the returned `{ status, fixes_applied, residuals }`. Do not reimplement CI-watching here.
+   Detect the PR with `gh pr view --json number,url,state`; if none exists or `gh` is unavailable, skip to step 10. When step 8 already handed off a stack babysit, `references/shipping-tail.md` decides this step — never start a second bare pipeline babysit on the current-branch URL. Otherwise invoke **`ce-babysit-pr mode:pipeline <pr-url>`**, and follow that same file for the returned `{ status, fixes_applied, residuals }`. Do not reimplement CI-watching here.
 
-10. Output `<promise>DONE</promise>` when complete, after the close-out `references/shipping-tail.md` specifies: the two user-runnable handoff lines and their per-host rendering, the `New concepts:` echo, and the gate on the optional next-work offer.
+10. Output `<promise>DONE</promise>` when complete, after the close-out in `references/shipping-tail.md`, which owns the two user-runnable handoff lines, their per-host rendering, and the next-work offer gate.
 
 Start with step 1 now. Remember: plan FIRST, then work. Never skip the plan.

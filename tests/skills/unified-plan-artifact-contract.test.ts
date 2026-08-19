@@ -295,7 +295,7 @@ describe("unified plan artifact contract", () => {
 
   test("lfg carries per-stage routing carriers at each stage seam", () => {
     const carrier = lfgStageRouting
-    expect(sliceSection(lfg, "## Per-stage routing carriers", "1. Invoke the `ce-plan` skill")).toContain(
+    expect(sliceSection(lfg, "## Per-stage routing carriers", "1. **Read `references/plan-brief.md` first**")).toContain(
       "semantic intent",
     )
     expect(carrier).toContain("semantic intent")
@@ -327,7 +327,7 @@ describe("unified plan artifact contract", () => {
 
     // Step 1 threads the plan_model carrier to ce-plan beside the sanitized request;
     // the body names the carrier at the seam and the reference owns its exact form.
-    expect(sliceSection(lfg, "1. Invoke the `ce-plan` skill", "2. **Read `references/work-return.md` first**")).toContain(
+    expect(sliceSection(lfg, "1. **Read `references/plan-brief.md` first**", "2. **Read `references/work-return.md` first**")).toContain(
       "`plan_model:<alias>` carrier",
     )
     const step1 = carrier
@@ -641,7 +641,7 @@ describe("session-settled decision contract", () => {
     // ce-plan; the blocked-token stop and the verbatim retry stay in the body.
     const bodyStep1 = sliceSection(
       lfg,
-      "1. Invoke the `ce-plan` skill",
+      "1. **Read `references/plan-brief.md` first**",
       "2. **Read `references/work-return.md` first**",
     )
     const step1 = lfgPlanBrief
