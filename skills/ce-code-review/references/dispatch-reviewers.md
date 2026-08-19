@@ -39,6 +39,8 @@ Use the run ID and absolute run dir already created at the Stage 3d routing boun
 
 Omit the `mode` parameter when dispatching sub-agents so the user's configured permission settings apply. Do not pass `mode: "auto"`.
 
+**Resolve `<root>` in any prompt asset before it leaves this stage.** A subagent never runs the artifact-root block, so a `<root>` placeholder still in the text it receives is a literal path it will search and find nothing at. Whenever you read a prompt asset here — by any of the dispatch routes below — substitute the artifact root this run resolved into every `<root>` it contains.
+
 **Model override at dispatch time — this is a correctness guarantee, not cosmetics.** Omitting the override on a top-tier parent session (e.g. Opus) silently runs that reviewer at the expensive tier — the regression this prevents. The tier is a deterministic function of the persona, so as you select reviewers in Stage 3, **record each reviewer's tier in an internal working list** — that list is your external memory (the role the old printed `[session model]`/`[mid-tier]` labels served) and it must exist and be honored even though it is no longer rendered in the user-facing announce:
 
 - **Session model** (no override; inherits the session model) — `correctness-reviewer`, `security-reviewer`, and `adversarial-reviewer` only.
@@ -53,8 +55,6 @@ This foreground batch is **not** the forbidden pattern. What is banned is turnin
 If the platform has no parallel sub-agent primitive at all, run the reviewers sequentially; stages, output format, and the merge pipeline are unchanged. Treat active-agent/thread/concurrency-limit spawn errors as backpressure, not reviewer failure: a slot the host rejects for capacity stays queued and is retried in a later batch as active reviewers free capacity — a requested batch larger than the host cap clamps down to what the host accepts, dropping no reviewer. If the first dispatch itself repeatedly reports zero capacity, proceed with a user-visible degraded/no-subagent review path instead of waiting forever. Do not shrink the roster, ask the user, or record a reviewer as failed for capacity backpressure. Record a reviewer as failed only after a successful dispatch fails, or when dispatch fails for a non-capacity reason that survives correcting the invocation.
 
 Before assembling any spawn prompt, read these three files from this skill's directory now — they define the dispatch shape and the JSON contract every subagent needs, and you cannot construct a valid spawn without them: `references/subagent-template.md`, `references/diff-scope.md`, and `references/findings-schema.json`. Read them and all selected persona prompt assets in one parallel read-tool wave rather than one turn per file.
-
-A persona prompt that names `<root>` — `learnings-researcher` searching `<root>/solutions/`, `project-standards-reviewer` — cannot resolve it: the subagent never ran the artifact-root block. Substitute the root this run resolved into every such prompt before dispatch, so the child searches a real directory instead of a literal `<root>`.
 
 For each selected reviewer, and only for those, read the corresponding local prompt asset from `references/personas/<reviewer-name>.md` and spawn a generic subagent using the subagent template. Do not use `subagent_type`, typed `Agent` names, or platform-level CE agent registration. Each persona subagent receives:
 
