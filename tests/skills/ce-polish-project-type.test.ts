@@ -275,6 +275,28 @@ describe("detect-project-type.sh — monorepo probe", () => {
 // ── Regressions ─────────────────────────────────────────────────────────────
 
 describe("detect-project-type.sh — regressions", () => {
+  test("an explicit project root scopes classification within a multi-framework repo", async () => {
+    const repo = await initRepo()
+    await touch(path.join(repo, "next.config.mjs"), "export default {}\n")
+    await touch(path.join(repo, "apps", "web", "vite.config.ts"), "export default {}\n")
+
+    const result = await runCommand(["bash", detectProjectType, "apps/web"], repo)
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout.trim()).toBe("vite")
+  })
+
+  test("rejects an explicit project root outside the repository", async () => {
+    const repo = await initRepo()
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "ce-polish-outside-"))
+    await touch(path.join(outside, "vite.config.ts"), "export default {}\n")
+
+    const result = await runCommand(["bash", detectProjectType, outside], repo)
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain("path must stay inside repo root")
+  })
+
   test("bin/dev + Gemfile at root -> 'rails'", async () => {
     const repo = await initRepo()
     await touch(path.join(repo, "bin", "dev"), "#!/usr/bin/env bash\n")

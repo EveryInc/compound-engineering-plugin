@@ -7,7 +7,7 @@ Set `SKILL_DIR` to the absolute directory containing the loaded `ce-riffrec-feed
 ```bash
 SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
 INPUT_PATH="<absolute input path>";
-OUTPUT_DIR="";
+OUTPUT_DIR="${OUTPUT_DIR:-}";
 PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
 ANALYZER_ARGS=("$INPUT_PATH"); [ -z "$OUTPUT_DIR" ] || ANALYZER_ARGS+=(--output-dir "$OUTPUT_DIR");
 "$PY" "$SKILL_DIR/scripts/analyze_riffrec_zip.py" "${ANALYZER_ARGS[@]}"

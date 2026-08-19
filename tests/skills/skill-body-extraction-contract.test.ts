@@ -53,7 +53,7 @@ describe("remaining skill body extractions", () => {
     expect(body).toContain("unless the user explicitly asked only to extract or analyze artifacts")
     expect(analyzer).toContain("for c in python3 python py")
     expect(analyzer).toContain('"$PY" "$SKILL_DIR/scripts/analyze_riffrec_zip.py"')
-    expect(analyzer).toContain('OUTPUT_DIR=""')
+    expect(analyzer).toContain('OUTPUT_DIR="${OUTPUT_DIR:-}"')
     expect(analyzer).toContain('[ -z "$OUTPUT_DIR" ]')
     expect(analyzer).not.toContain("<input>")
     expect(quick).not.toMatch(/\bpython3?\b/)

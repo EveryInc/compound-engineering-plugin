@@ -19,16 +19,16 @@ SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
 bash "$SKILL_DIR/scripts/read-launch-json.sh"
 ```
 
-Treat the selected launch command and its port as independent facts. A configuration with a usable, non-empty `runtimeExecutable` supplies the command plus its optional `runtimeArgs`, `cwd`, and `env`. Use its numeric `port` when declared; otherwise resolve only the port for that working directory or project root through the existing classifier and port resolver. Port resolution never replaces a valid selected launch command. When declarations exist but selection is multiple or unmatched, stay in disambiguation: show the declared names, ask the user to choose, and rerun with that name. When no selected configuration supplies a usable command, fall through to project detection. A nonzero operational failure blocks startup and must be reported.
+Resolve launch configuration to one startup tuple: command, working directory, environment, and port. A selected configuration with a usable, non-empty `runtimeExecutable` owns the command and optional `runtimeArgs` and `env`; its `cwd` selects the working directory, defaulting to the repository root. A numeric declared `port` completes the tuple. Without one, classify that working directory and resolve its port from the single supported type, without replacing the selected command. Ambiguous declarations remain in disambiguation: show their names, ask the user to choose, and rerun with that name. Fall through to project detection only when no selected configuration supplies a usable command. Any operational failure or unresolved tuple fact blocks startup and must be reported.
 
-For project detection, resolve the classifier output to exactly one supported base type and project root:
+Classify the relevant project root: the selected launch working directory when its port is absent, otherwise the repository root for project detection. Omit the path argument for the repository root:
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
-bash "$SKILL_DIR/scripts/detect-project-type.sh"
+bash "$SKILL_DIR/scripts/detect-project-type.sh" "<project-root>"
 ```
 
-`<type>` means the repository root; `<type>@<relative-dir>` means that directory under the repository root. Ask the user to choose when the output is `multiple` or `multiple:...`.
+`<type>` means the classification root; `<type>@<relative-dir>` means that directory under the classification root. Ask the user to choose when the output is `multiple` or `multiple:...`.
 
 For a supported pair, read `references/dev-server-<base-type>.md`. For package-manager projects, resolve the executable in that project root rather than guessing:
 

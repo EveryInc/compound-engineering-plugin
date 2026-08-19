@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 #
-# detect-project-type.sh — inspect signature files at the repo root (and, if
+# detect-project-type.sh — inspect signature files at a project root (and, if
 # no root match is found, probe shallow subdirectories) to emit a project-type
 # identifier on stdout.
 #
 # Usage:
-#   detect-project-type.sh
+#   detect-project-type.sh [path]
+#
+# Arguments:
+#   path (optional) — project root to inspect. Relative paths resolve from the
+#                     repository root. Defaults to the repository root. The
+#                     resolved path must remain inside the repository.
 #
 # Output grammar (one line on stdout):
 #
@@ -47,7 +52,36 @@ if [ -z "$REPO_ROOT" ]; then
   exit 1
 fi
 
-cd "$REPO_ROOT" || { echo "ERROR: cannot cd to repo root" >&2; exit 1; }
+REPO_ROOT=$(cd "$REPO_ROOT" 2>/dev/null && pwd -P)
+if [ -z "$REPO_ROOT" ]; then
+  echo "ERROR: cannot resolve repo root" >&2
+  exit 1
+fi
+
+PROJECT_ROOT="${1:-$REPO_ROOT}"
+case "$PROJECT_ROOT" in
+  /*) ;;
+  *) PROJECT_ROOT="$REPO_ROOT/$PROJECT_ROOT" ;;
+esac
+
+if [ ! -d "$PROJECT_ROOT" ]; then
+  echo "ERROR: path does not exist: $PROJECT_ROOT" >&2
+  exit 1
+fi
+
+if ! PROJECT_ROOT=$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -P); then
+  echo "ERROR: cannot resolve project root" >&2
+  exit 1
+fi
+case "$PROJECT_ROOT" in
+  "$REPO_ROOT"|"$REPO_ROOT"/*) ;;
+  *)
+    echo "ERROR: path must stay inside repo root: $PROJECT_ROOT" >&2
+    exit 1
+    ;;
+esac
+
+cd "$PROJECT_ROOT" || { echo "ERROR: cannot cd to project root" >&2; exit 1; }
 
 MATCHES=()
 
