@@ -615,6 +615,7 @@ describe("ce-work implementation evidence characterization", () => {
       "Mark task as in-progress",
       "Choose the evidence strategy for this task before changing behavior",
       "verify the expected failure or baseline capture before changing production code",
+      "A test written or changed as proof is not evidence until it meets Proof quality",
       "Implement following existing conventions",
       "Run System-Wide Test Check",
       "Run tests after changes",
@@ -634,7 +635,32 @@ describe("ce-work implementation evidence characterization", () => {
     expect(contract).toContain("Guardrails for execution evidence:")
     expect(contract).toContain("**Test Discovery**")
     expect(contract).toContain("**Evidence Strategy**")
+    expect(contract).toContain("**Proof quality**")
     expect(contract).toContain("**Test Scenario Completeness**")
     expect(contract).toContain("**System-Wide Test Check**")
+  })
+
+  test("keeps proof quality at the implementation-loop owner and on both worker packets", async () => {
+    const skill = await readRepoFile("skills/ce-work/SKILL.md")
+    const implementationLoop = await readRepoFile("skills/ce-work/references/implementation-loop.md")
+    const crossModel = await readRepoFile("skills/ce-work/references/cross-model-execution.md")
+    const workerPacket = sliceSection(skill, "Give each native worker:", "**Shared-workspace constraints**")
+    const tokens = [
+      "public seam",
+      "independent source of truth",
+      "boundaries this codebase does not control",
+      "one behavior slice",
+    ]
+
+    expect(implementationLoop).toContain("**Proof quality**")
+    expect(implementationLoop.indexOf("**Evidence Strategy**")).toBeLessThan(implementationLoop.indexOf("**Proof quality**"))
+    expect(implementationLoop.indexOf("**Proof quality**")).toBeLessThan(implementationLoop.indexOf("**Test Scenario Completeness**"))
+    expect(skill).not.toContain("**Proof quality** — Red-then-green is evidence only")
+
+    for (const token of tokens) {
+      expect(implementationLoop, `implementation-loop must state ${token}`).toContain(token)
+      expect(workerPacket, `native worker packet must state ${token}`).toContain(token)
+      expect(crossModel, `cross-model packet must state ${token}`).toContain(token)
+    }
   })
 })

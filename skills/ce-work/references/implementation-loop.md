@@ -16,6 +16,7 @@ while (tasks remain):
   - Choose the evidence strategy for this task before changing behavior: use an existing failing test, update or strengthen an existing test, add a new failing test, add characterization coverage, or record a deliberate no-test exception with replacement verification
   - For behavior-bearing changes, default to test-first or characterization-first when the current code and test surface make that practical, even if the plan has no `Execution note`
   - When the evidence strategy calls for pre-implementation proof, create/update/strengthen the test or characterization coverage now and verify the expected failure or baseline capture before changing production code
+  - A test written or changed as proof is not evidence until it meets Proof quality below
   - Implement following existing conventions
   - Add, update, or remove any remaining tests needed to match implementation changes (see Test Discovery below)
   - Run System-Wide Test Check (see below)
@@ -35,6 +36,7 @@ Guardrails for execution evidence:
 - Do not skip verifying that a new or changed test fails for the expected reason before implementing the fix or feature
 - Do not over-implement beyond the current behavior slice when working proof-first
 - Do not add a duplicate regression test when an existing test is the right home; update or strengthen that test instead, then observe the failure before changing code
+- Do not treat a red-green cycle as complete when the proof fails Proof quality
 - Skip proof-first discipline for trivial renames, pure configuration, pure styling, generated artifacts, and manual-only surfaces, but record the reason and replacement verification while continuing execution
 
 **Test Discovery** — Before implementing changes to a file, find its existing test files (search for test/spec files that import, reference, or share naming patterns with the implementation file). When a plan specifies test scenarios or test files, start there, then check for additional test coverage the plan may not have enumerated. Changes to implementation files should be accompanied by corresponding test updates — new tests for new behavior, modified tests for changed behavior, removed or updated tests for deleted behavior.
@@ -48,6 +50,16 @@ Guardrails for execution evidence:
 | Existing test is over-mocked or misses the real chain | Strengthen/refactor it narrowly, then verify it fails for the right reason |
 | No existing test covers the behavior | Add the smallest focused failing test or characterization test that proves the behavior slice |
 | Testing is inappropriate for the task | Record the no-test exception and replacement verification before marking the task complete |
+
+**Proof quality** — Red-then-green is evidence only when the test would fail if the behavior were absent or inverted, and would still pass after a behavior-preserving refactor of internals.
+
+Observe the unit at the **public seam** its test scenarios (or the discovered contract) already name. If none is named, use the smallest public interface a caller would use. Do not test private helpers, internal collaborators, or a side channel when that public interface can answer. The unit's scenarios and existing test homes *are* the seam list — do not open a seam-confirmation question; if they conflict with the code, prefer the public interface callers already use.
+
+Expected values come from an **independent source of truth** (a known literal, a worked example, the spec/scenario, or a captured characterization baseline), not from recomputing the implementation.
+
+Mock only at **boundaries this codebase does not control**. Strengthening an over-mocked existing test is Evidence Strategy; a new test that mocks internal collaborators is not the chain proof System-Wide Test Check requires.
+
+Each red-green cycle proves **one behavior slice**. A bulk test list written before any implementation is not proof-first.
 
 **Test Scenario Completeness** — Before writing tests for a feature-bearing unit, check whether the plan's `Test scenarios` cover all categories that apply to this unit. If a category is missing or scenarios are vague (e.g., "validates correctly" without naming inputs and expected outcomes), supplement from the unit's own context before writing tests:
 
