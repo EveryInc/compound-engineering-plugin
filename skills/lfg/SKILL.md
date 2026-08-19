@@ -40,11 +40,11 @@ Before step 1, interpret whether the invoking conversation expresses semantic in
 
    Execute the apply step of `references/review-followup.md`. Do not proceed to the residual handoff, run browser tests, or output DONE while eligible review fixes remain only in the working tree uncommitted.
 
-6. **Autonomous residual handoff** (only when step 4 reported actionable `downstream-resolver` findings not applied in step 5; skip when it reported `Actionable findings: none.`)
+6. **Autonomous residual handoff** — run it whenever anything divergent is left to make durable: an actionable `downstream-resolver` finding step 5 did not apply, a `settled_conflict` stamp from step 4, or a proceeded-and-flagged `settled_decision_conflicts` entry from step 2. Skip only when none of the three exists — `Actionable findings: none.` does not decide it alone.
 
-   Do not prompt the user. `references/review-followup.md` names the two further triggers that also require this step, both outside the apply path.
+   Do not prompt the user.
 
-   **Durable record — never the PR body.** Do not output DONE until the residuals are durable: tracker tickets filed, and — when a PR exists — one run-report comment on the PR posted. Never block DONE on tracker filing failures once the comment is posted.
+   **Durable record — never the PR body.** Do not output DONE until the residuals are durable: tracker tickets filed, and one run-report comment posted when a PR exists. Never block DONE on tracker filing failures once the comment is posted.
 
 7. Invoke the `ce-test-browser` skill with `mode:pipeline`.
 

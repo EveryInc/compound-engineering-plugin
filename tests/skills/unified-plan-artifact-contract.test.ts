@@ -713,7 +713,11 @@ describe("session-settled decision contract", () => {
       "6. **Autonomous residual handoff**",
       "7. Invoke the `ce-test-browser` skill",
     )
-    expect(step6).toContain("references/review-followup.md")
+    // The step-6 trigger set is back in the body: the skip must not fire on
+    // "Actionable findings: none." while a divergent entry is still undurable.
+    expect(step6).toContain("`settled_conflict`")
+    expect(step6).toContain("`settled_decision_conflicts`")
+    expect(step6).toMatch(/Skip only when none of the three exists/)
     expect(lfgReviewFollowup).toMatch(/Two further triggers[\s\S]{0,300}`settled_conflict`/)
   })
 
