@@ -1,6 +1,6 @@
 ---
 name: ce-babysit-pr
-description: "Babysits an open GitHub PR until merge-ready, continuously reacting to review comments, CI failures, and snapshot-flagged branch-currency items. Use when asked to babysit, watch, monitor, or keep an eye on a PR over time — not for one-shot comment resolution or one CI failure. GitHub (incl. Enterprise) only."
+description: "Babysits an open GitHub PR until merge-ready. Use when asked to watch a PR over time — not for one-shot comment resolution or one CI failure. GitHub (incl. Enterprise) only."
 argument-hint: "[PR number|URL|blank=current branch] [watch|checkpoint] [duration] [posture:target|stack-ready|stack-land]"
 ---
 

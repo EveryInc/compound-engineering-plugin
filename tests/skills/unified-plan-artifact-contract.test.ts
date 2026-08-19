@@ -492,7 +492,9 @@ describe("unified plan artifact contract", () => {
   })
 
   test("ce-work surfaces its caller-owned mode in discovery metadata and public docs", () => {
-    expect(ceWork).toMatch(/description:.*outer orchestrators pass `mode:return-to-caller \[implementation_engine:<compact-json>\] \[implementation_run:<safe-id>\] <plan path>`/i)
+    // Description states the orchestrator-only branch; the flag grammar lives in
+    // argument-hint and the body so the always-on catalog is not a procedure dump.
+    expect(ceWork).toMatch(/description:.*outer orchestrator needs implementation and local verification only, without the shipping tail/i)
     expect(ceWork).toMatch(/argument-hint:.*mode:return-to-caller \[implementation_engine:<compact-json>\] \[implementation_run:<safe-id>\] <plan path> for outer orchestrators/i)
     expect(ceWorkDocs).toContain("## Use Beneath an Outer Orchestrator")
     expect(ceWorkDocs).toContain("standalone_shipping_skipped: true")

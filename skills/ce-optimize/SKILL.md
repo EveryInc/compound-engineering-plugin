@@ -1,6 +1,6 @@
 ---
 name: ce-optimize
-description: "Run metric-driven optimization loops. Use when improving measurable outcomes such as search relevance, clustering quality, build performance, prompt quality, or scored behavior through experiments."
+description: "Run metric-driven optimization loops. Use when improving a measurable outcome through experiments."
 argument-hint: "[path to optimization spec YAML, or describe the optimization goal]"
 ---
 

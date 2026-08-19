@@ -1,6 +1,6 @@
 ---
 name: ce-compound
-description: Document a recently solved problem as a durable repo learning, or capture project vocabulary in CONCEPTS.md. Use when capturing a learning after work.
+description: Document a recently solved problem as a durable repo learning. Use when capturing a learning after work.
 argument-hint: "[optional: brief context] [mode:non-interactive] [depth:lightweight|full]"
 ---
 

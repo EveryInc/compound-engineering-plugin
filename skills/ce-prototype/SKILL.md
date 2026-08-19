@@ -1,6 +1,6 @@
 ---
 name: ce-prototype
-description: Build a throwaway prototype to answer how something should work, feel, or read — an interface, a flow, a state model, a visual direction. Use when committing the wrong answer would be expensive to unravel and a cheap sketch cannot settle it, whether the user settles it by driving the artifact or by seeing it at real finish — one question, or the next related question after that. Not a rough visual probe during brainstorming, not for deciding what to build, not polishing a feature that already works, not implementing the real thing.
+description: Build a throwaway prototype to answer how something should work, feel, or read. Use when committing the wrong answer would be expensive to unravel and a cheap sketch cannot settle it. Not a rough visual probe during brainstorming, not for deciding what to build, not polishing a feature that already works, not implementing the real thing.
 argument-hint: "[prompt, brainstorm path, or plan path]"
 ---
 

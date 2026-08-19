@@ -1,6 +1,6 @@
 ---
 name: ce-resolve-pr-feedback
-description: Resolve PR review feedback. Use when addressing review comments, resolving review threads, or fixing code-review feedback.
+description: Resolve PR review feedback. Use when addressing feedback already left on a PR. Not for reviewing the code before feedback exists; that is ce-code-review.
 argument-hint: "[PR number, comment URL, or blank for current branch's PR]"
 allowed-tools: Bash(gh *), Bash(git *), Read
 ---

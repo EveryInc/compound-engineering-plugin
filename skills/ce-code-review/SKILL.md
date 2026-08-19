@@ -1,6 +1,6 @@
 ---
 name: ce-code-review
-description: "Structured code review for bugs, regressions, tests, and standards. Use before PRs or when asked for review; report-only by default, with explicit local apply available for user-directed fix workflows."
+description: "Structured code review for bugs, regressions, tests, and standards. Use before PRs or when asked to review code. Use when the user asks to apply this review's findings locally. Not for resolving feedback already left on a PR; that is ce-resolve-pr-feedback."
 argument-hint: "[mode:agent] [apply:local] [blank to review current branch, or provide PR link]"
 ---
 
