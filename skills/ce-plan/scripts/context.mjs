@@ -44,8 +44,13 @@ function readActiveScalar(file, key) {
   return undefined;
 }
 
-// Ordinary-key rule: config.local.yaml then config.yaml, first active value wins.
-// Silent when nothing resolves, so repos that configure nothing add no noise.
+// Surfaces the first active value: config.local.yaml then config.yaml (local
+// overrides repo). Presence-based, not validity-aware — an invalid local value
+// is shown as-is rather than falling through, because per-key valid sets live in
+// each consumer (and model-alias keys have no closed set to check here). Each
+// skill still applies its own ordinary-key validity rule; this line reports what
+// the config files hold. Silent when nothing resolves, so a repo that configures
+// nothing adds no noise.
 function resolvedCeConfig() {
   const root = git('rev-parse', '--show-toplevel');
   if (!root) return null;
