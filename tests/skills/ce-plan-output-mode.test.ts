@@ -151,7 +151,9 @@ describe("ce-plan output:html mode", () => {
     // the worked example: the body must say a commented template line is not a
     // setting, in whatever words.
     expect(
-      /commented|not settings|not a setting/i.test(phaseRegion),
+      /(commented|template)[^.\n]{0,80}(are not settings|is not a setting|not an active setting)|(not settings|not an? (active )?setting)[^.\n]{0,80}(commented|template)/i.test(
+        phaseRegion,
+      ),
       "Phase 0.0 must say that a commented `plan_output:` line is not an active setting — otherwise the shipped template's examples silently force HTML mode.",
     ).toBe(true)
     expect(
