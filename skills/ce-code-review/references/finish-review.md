@@ -1,5 +1,7 @@
 ### Stage 5: Merge findings
 
+Read `references/action-class-rubric.md` before routing any finding: it owns the severity scale and the action-routing rules synthesis applies, including that synthesis owns the final route.
+
 Convert multiple reviewer compact JSON returns into one deduplicated, confidence-gated finding set. Use `scripts/findings-mechanics.py` from this skill's directory for schema/value validation, exact-fingerprint deduplication, conservative route merging, quote/confidence gates, deterministic sorting, and stable numbering. These are mechanics, not model judgment.
 
 Write the compact reviewer returns as a JSON array, then run the command below exactly. Do not inspect the helper source or run its `--help`; its contract is this reference and its JSON output.
@@ -92,9 +94,9 @@ If this self-review changes files, rerun the affected tests or lint for those fo
 
 Assemble the final report. **Default:** human-readable markdown. **`mode:agent`:** skip markdown and emit JSON (see ### JSON output format) — the structured fields are how a downstream agent consumes the review. Put `---` before the verdict in markdown mode.
 
-**Report completion gate:** do not finish until stable `#` identifiers appear on every primary finding and the report contains `### Actionable Findings`, `### Coverage`, and `### Verdict` (or their exact JSON fields in `mode:agent`). Coverage must name the cross-model outcome and validator shortcut/batch outcome. The Actionable section must include every `downstream-resolver` finding; never silently replace it with a count.
+**Report completion gate:** do not finish until stable `#` identifiers appear on every primary finding, the report contains `### Actionable Findings`, `### Coverage`, and `### Verdict` (or their exact JSON fields in `mode:agent`), and the run artifacts named at the end of this reference are on disk — `report.md` in default mode, `review.json` in `mode:agent`, and `metadata.json` in both. Coverage must name the cross-model outcome and validator shortcut/batch outcome. The Actionable section must include every `downstream-resolver` finding; never silently replace it with a count.
 
-**Before writing, load `references/review-output-template.md` and mirror its section skeleton** — that file is the canonical skeleton for *which sections appear and in what order*; its example shows one good rendering, not the only permitted layout. The direction below is the always-loaded fallback so it survives a long session even if the template was not reloaded.
+**Before writing, load `references/review-output-template.md` and mirror its section skeleton** — that file is the canonical skeleton for *which sections appear and in what order*; its example shows one good rendering, not the only permitted layout. The direction below is the in-place fallback, so it still governs if the template was not reloaded in a long session.
 
 **Presentation direction — optimize for the reader's next action (goal + considerations, not a fixed layout).** The report is *acted on*: by a human deciding what to fix and whether to merge, or by a downstream agent applying fixes. Shape it so that action is fast and well-founded.
 
@@ -190,5 +192,65 @@ Before delivering the review, verify:
 2. **No false positives from skimming.** For each finding, verify the surrounding code was actually read. Check that the "bug" isn't handled elsewhere in the same function, that the "unused import" isn't used in a type annotation, that the "missing null check" isn't guarded by the caller.
 3. **Severity is calibrated.** A style nit is never P0. A SQL injection is never P3. Re-check every severity assignment.
 4. **Line numbers are accurate.** Verify each cited line number against the file content. A finding pointing to the wrong line is worse than no finding.
-5. **Protected artifacts are respected.** Discard any finding that recommends deleting or gitignoring a CE pipeline artifact, per the Protected Artifacts rule in SKILL.md: any file under a `plans/`, `solutions/`, or legacy `brainstorms/` directory whose immediate parent is the artifact root (a directory named `docs`, or the configured `docs_root` when resolved). Categories nest (`solutions/<category>/`); a `references/personas/` skill asset, parented by `references`, is not a protected artifact.
+5. **Protected artifacts are respected.** Discard any finding that recommends deleting or gitignoring a CE pipeline artifact, per the Protected Artifacts rule at the end of this reference: any file under a `plans/`, `solutions/`, or legacy `brainstorms/` directory whose immediate parent is the artifact root (a directory named `docs`, or the configured `docs_root` when resolved). Categories nest (`solutions/<category>/`); a `references/personas/` skill asset, parented by `references`, is not a protected artifact.
 6. **Findings don't duplicate linter output.** Don't flag things the project's linter/formatter would catch (missing semicolons, wrong indentation). Focus on semantic issues.
+
+## Protected Artifacts
+
+Compound-engineering pipeline artifacts must never be flagged for deletion, removal, or gitignore by any reviewer. A protected artifact is any file **under** a `plans/`, `solutions/`, or legacy `brainstorms/` directory **whose immediate parent is the artifact root** — a directory named `docs` (the default, and where unmigrated legacy artifacts stay even after a project sets `docs_root`) or the configured `docs_root` when this run resolved it:
+
+- `plans/` under the artifact root -- unified plan artifacts created by ce-brainstorm or ce-plan (decision artifacts; execution progress is derived from git, not stored in plan bodies)
+- `solutions/` under the artifact root -- solution documents created during the pipeline (categories nest, e.g. `solutions/<category>/foo.md`)
+- the legacy `brainstorms/` -- requirements documents created by older ce-brainstorm versions
+
+Matching by the immediate parent covers nested category files while leaving a same-named directory elsewhere — a skill's own `references/personas/` prompt assets, parented by `references` — as ordinary code whose deletion finding stands. A run that never resolved a configured root still protects the `docs`-parented tree; a configured-root artifact seen by such a run is the one honest gap. Discard any such file's cleanup or removal finding during synthesis.
+
+## After Review
+
+After Stage 6, stop. When local apply was explicitly authorized, Stage 5c may already have applied and, on a clean pre-review tree, committed verified fixes. Otherwise the caller or user decides what to apply from the report and artifacts.
+
+### Emit actionable findings summary (default mode only)
+
+After Stage 6 **in default mode**, emit a compact **Actionable Findings** summary for callers:
+
+- List each actionable finding (`gated_auto` or `manual` with `downstream-resolver`) with stable `#`, severity, file:line, title, `autofix_class`, whether `suggested_fix` is present, and `confidence`.
+- Include the resolved run-artifact path when one was written.
+- When the actionable queue is empty, state `Actionable findings: none.` explicitly.
+
+In `mode:agent` do **not** emit this markdown summary — the actionable findings are carried solely by the `actionable_findings` field of the JSON object. Emit nothing after the JSON object, so the response stays a single parseable JSON value.
+
+Do not run post-review triage (no per-finding walk-through, bulk ticket filing, or routing questions). The report and summary are the complete handoff.
+
+### Mode-specific completion
+
+| Mode | After Stage 6 + actionable summary |
+|------|-----------------------------------|
+| **Default** | Markdown tables + Actionable Findings summary. |
+| **`mode:agent`** | JSON object + `review.json` in run artifact dir. |
+
+Do not offer push/PR/create-branch next steps from this skill.
+
+#### Run artifacts
+
+Always write run artifacts under the resolved `<run-dir>`:
+
+- synthesized findings
+- actionable findings list
+- advisory outputs
+- per-agent `{reviewer_name}.json` from Stage 4
+- `adversarial-review-brief.md` when the cross-model route starts — the orchestrator's compact semantic divisions, never a copied diff
+- `report.md` — the rendered markdown report exactly as presented to the user (default mode only), so format and numbering stay auditable after the run
+
+`metadata.json` minimum fields:
+
+```json
+{
+  "run_id": "<run-id>",
+  "branch": "<git branch --show-current at dispatch time>",
+  "head_sha": "<git rev-parse HEAD at dispatch time>",
+  "verdict": "<Ready to merge | Ready with fixes | Not ready>",
+  "completed_at": "<ISO 8601 UTC timestamp>"
+}
+```
+
+Capture `branch` and `head_sha` at dispatch time (no in-skill fixes will land afterward).

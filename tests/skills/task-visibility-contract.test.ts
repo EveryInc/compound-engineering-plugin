@@ -41,9 +41,15 @@ describe("task visibility contract", () => {
     expect(skills.work).toMatch(/full unit list is visible.*do not repeat ordinal counts/s)
   })
 
+  // The peer-task rule lives at the routing boundary that starts the peer, which is the
+  // reference ce-code-review's spine mandates before any dispatch.
   test("code review surfaces only a cross-model pass that actually started", () => {
-    expect(skills.codeReview).toMatch(/job ID is returned.*distinct task.*cross-model adversarial review/s)
-    expect(skills.codeReview).toMatch(/Never create this task before a peer starts/)
+    const route = readFileSync(
+      path.join(process.cwd(), "skills", "ce-code-review", "references", "select-and-route.md"),
+      "utf8",
+    )
+    expect(route).toMatch(/job ID is returned.*distinct task.*cross-model adversarial review/s)
+    expect(route).toMatch(/Never create this task before a peer starts/)
   })
 
   test("lfg yields task-surface ownership to child skills and refreshes on return", () => {
