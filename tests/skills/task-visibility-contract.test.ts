@@ -28,9 +28,14 @@ describe("task visibility contract", () => {
   })
 
   test("ce-work uses goal-first unit names without redundant ordinal counts", () => {
-    expect(skills.work).toContain("Add parser coverage (U3)")
-    expect(skills.work).toMatch(/Never use a bare U-ID or lead with the identifier/)
-    expect(skills.work).toMatch(/full unit list is visible.*do not repeat ordinal counts/s)
+    // Task derivation and naming live in the reference ce-work's Phase 1 step 3 mandates.
+    const intake = readFileSync(
+      path.join(process.cwd(), "skills/ce-work/references/work-intake.md"),
+      "utf8",
+    )
+    expect(intake).toContain("Add parser coverage (U3)")
+    expect(intake).toMatch(/Never use a bare U-ID or lead with the identifier/)
+    expect(intake).toMatch(/full unit list is visible.*do not repeat ordinal counts/s)
   })
 
   test("code review surfaces only a cross-model pass that actually started", () => {

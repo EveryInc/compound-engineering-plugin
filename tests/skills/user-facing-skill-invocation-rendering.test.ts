@@ -159,7 +159,8 @@ describe("user-facing skill invocation rendering", () => {
     expect(verdictRouting).toContain("want a `ce-pov` verdict")
     expect(verdictRouting).not.toContain("tell the user to type `/ce-pov`")
 
-    const work = readRepoFile("skills/ce-work/SKILL.md")
+    // ce-work's bare-prompt complexity routing lives in the reference Phase 0 mandates.
+    const work = readRepoFile("skills/ce-work/references/work-intake.md")
     expect(work).toContain("benefit from `ce-brainstorm` or `ce-plan`")
 
     const debug = readRepoFile("skills/ce-debug/SKILL.md")
