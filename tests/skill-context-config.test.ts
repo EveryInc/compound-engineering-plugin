@@ -89,4 +89,23 @@ describe("context.mjs resolved CE config surface", () => {
     const out = runIn(makeRepo({ ".compound-engineering/config.yaml": 'plan_model: "fable"\n' }))
     expect(ceConfigLine(out)).toBe("RESOLVED_CE_CONFIG: plan_model=fable")
   })
+
+  test("an inline trailing comment is stripped from the value", () => {
+    // The [^#\n]+ capture must stop at an inline '#'; a regression that dropped
+    // '#' from the exclusion would leak the comment and pass every other case.
+    const out = runIn(makeRepo({ ".compound-engineering/config.yaml": "plan_model: fable # note\n" }))
+    expect(ceConfigLine(out)).toBe("RESOLVED_CE_CONFIG: plan_model=fable")
+  })
+
+  test("an explicitly-empty value is treated as unset (not surfaced)", () => {
+    const out = runIn(makeRepo({ ".compound-engineering/config.yaml": 'plan_model: ""\n' }))
+    expect(ceConfigLine(out)).toBeUndefined()
+  })
+
+  test("a CRLF line ending does not leak into the value", () => {
+    // trim() must run before the closing-quote strip, or a Windows checkout's
+    // trailing \r survives inside a quoted value.
+    const out = runIn(makeRepo({ ".compound-engineering/config.yaml": 'plan_model: "fable"\r\n' }))
+    expect(ceConfigLine(out)).toBe("RESOLVED_CE_CONFIG: plan_model=fable")
+  })
 })
