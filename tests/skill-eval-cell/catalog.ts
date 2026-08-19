@@ -374,6 +374,9 @@ Decide the next mutation or delegate, if any, and stop after one tick.`,
       must_exclude: ["git commit", "gh pr create"],
       actions: "none",
       git: "clean",
+      // Committing the continued work also leaves a clean tree, so cleanliness alone
+      // cannot tell "stopped and asked" from "did the work and tidied up".
+      committed_must_not: ["greet.js"],
     },
   },
   {
