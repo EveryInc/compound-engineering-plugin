@@ -783,8 +783,8 @@ def fetch(pr, repo, light=False):
 
     checks = []
     for c in v.get("statusCheckRollup") or []:
-        # CheckRun entries carry name/status/conclusion/workflowName/detailsUrl.
-        # StatusContext (legacy commit statuses) carry context/state/targetUrl.
+        # CheckRun entries carry startedAt/completedAt; StatusContext (legacy commit statuses)
+        # carry createdAt. Preserve the provider's real creation identity for rerun reconciliation.
         if c.get("__typename") == "StatusContext":
             name = c.get("context") or "status"
             state = (c.get("state") or "").upper()
@@ -793,8 +793,9 @@ def fetch(pr, repo, light=False):
                 "status": "COMPLETED" if state in ("SUCCESS", "FAILURE", "ERROR") else "IN_PROGRESS",
                 "conclusion": {"ERROR": "FAILURE"}.get(state, state) or None,
                 "details_url": c.get("targetUrl"),
-                "started_at": c.get("startedAt"),
-                "completed_at": c.get("completedAt"),
+                "created_at": c.get("createdAt"),
+                "started_at": None,
+                "completed_at": None,
             })
         else:
             wf = c.get("workflowName")
@@ -804,6 +805,7 @@ def fetch(pr, repo, light=False):
                 "status": (c.get("status") or "").upper() or "IN_PROGRESS",
                 "conclusion": (c.get("conclusion") or None) and c["conclusion"].upper(),
                 "details_url": c.get("detailsUrl"),
+                "created_at": None,
                 "started_at": c.get("startedAt"),
                 "completed_at": c.get("completedAt"),
             })
@@ -1613,6 +1615,7 @@ def _check_observation_identity(check):
     return {
         "conclusion": check.get("conclusion"),
         "details_url": check.get("details_url"),
+        "created_at": check.get("created_at"),
         "started_at": check.get("started_at"),
         "completed_at": check.get("completed_at"),
     }
@@ -1813,6 +1816,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
             "name": c["name"], "status": c["status"],
             "conclusion": c["conclusion"], "head_sha": head,
             "details_url": c.get("details_url"),
+            "created_at": c.get("created_at"),
             "started_at": c.get("started_at"),
             "completed_at": c.get("completed_at"),
         }

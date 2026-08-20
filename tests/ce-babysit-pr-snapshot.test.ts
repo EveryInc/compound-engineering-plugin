@@ -1575,6 +1575,50 @@ print(json.dumps({"current": current, "same_head_mixed_case": same_head_mixed_ca
     expect(result.probe_error.host_branch_update_capability).toBe("unknown")
   })
 
+  test("live fetch preserves a legacy StatusContext creation identity", () => {
+    const python = `
+import json
+from importlib.machinery import SourceFileLoader
+m = SourceFileLoader("prs_status", ${JSON.stringify(SCRIPT)}).load_module()
+class Result: pass
+def checked(cmd, label):
+    result = Result()
+    result.returncode = 0
+    result.stderr = ""
+    result.stdout = json.dumps({
+        "state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
+        "reviewDecision": None, "headRefOid": "a" * 40, "baseRefOid": "b" * 40,
+        "baseRefName": "main", "headRefName": "feature", "number": 7,
+        "url": "https://github.com/o/r/pull/7", "author": {"login": "author"},
+        "comments": [], "reviews": [],
+        "statusCheckRollup": [{"__typename": "StatusContext", "context": "legacy-ci",
+            "state": "FAILURE", "targetUrl": "https://ci.example.test/build",
+            "createdAt": "2026-08-20T04:00:00Z", "description": "failed"}]})
+    return result
+m._run_checked = checked
+m.fetch_pr_merge_identity = lambda *args: None
+m.fetch_base_ref = lambda *args: {"identity": "current", "oid": "b" * 40}
+m.fetch_eyes_reactors = lambda *args: []
+m.fetch_threads = lambda *args: []
+m.fetch_awaiting_approval = lambda *args: 0
+m.fetch_pr_chain = lambda *args: {"manager_status": "absent", "relationship_status": "independent",
+                                  "default_branch": "main", "parent_prs": [], "dependent_prs": []}
+print(json.dumps(m.fetch(7, "o/r")["checks"][0]))
+`
+    const r = spawnSync("python3", ["-c", python], { encoding: "utf8" })
+    expect(r.status, r.stderr).toBe(0)
+    expect(JSON.parse(r.stdout)).toEqual({
+      key: "legacy-ci",
+      name: "legacy-ci",
+      status: "COMPLETED",
+      conclusion: "FAILURE",
+      details_url: "https://ci.example.test/build",
+      created_at: "2026-08-20T04:00:00Z",
+      started_at: null,
+      completed_at: null,
+    })
+  })
+
   test("base-ref freshness blocks readiness, resets quiet on current-to-stale, and fails closed on probe error", () => {
     const clean = {
       ...FAILING,
@@ -2092,6 +2136,30 @@ print(json.dumps({
     const reopenedState = JSON.parse(readFileSync(path.join(sd, "state.json"), "utf8"))
     expect(reopenedState.ci_dispatched.s1 ?? []).not.toContain("CI/test")
     expect(reopenedState.needs_human_check_observations).toEqual({})
+  })
+
+  test("a new legacy status creation on the same head reopens investigation", () => {
+    const sd = path.join(dir, "ci-needs-human-legacy-status")
+    const legacyFailure = (created_at: string) => ({
+      ...FAILING,
+      threads: [],
+      checks: [{
+        key: "legacy-ci", name: "legacy-ci", status: "COMPLETED", conclusion: "FAILURE",
+        details_url: "https://ci.example.test/build", created_at,
+        started_at: null, completed_at: null,
+      }],
+    })
+    const firstFetch = fetchFile(dir, "ci-needs-human-legacy-1.json", legacyFailure("t1"))
+    snapshot(sd, firstFetch)
+    const residual = residualFile(dir, "ci-legacy-residual.json", "legacy-ci", "check")
+    mark(sd, ["--disposition", "needs-human", "--residual-file", residual.path])
+
+    expect(snapshot(sd, firstFetch).needs_human_residuals).toEqual([residual.value])
+
+    const reopened = snapshot(sd, fetchFile(
+      dir, "ci-needs-human-legacy-2.json", legacyFailure("t2")))
+    expect(reopened.needs_human_residuals).toEqual([])
+    expect(reopened.actionable.ci.map((item: any) => item.key)).toEqual(["legacy-ci"])
   })
 
   test("mixed grouped invalidation reopens review and CI in the same snapshot", () => {
