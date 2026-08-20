@@ -1396,6 +1396,20 @@ describe("cross-model peer skip legibility", () => {
     })
   }
 
+  for (const reference of authScopeRefs) {
+    test(`${reference} distinguishes a denied pre-start grant from a started peer failure`, async () => {
+      const src = (await readRepoFile(reference)).replace(/\s+/g, " ")
+      expect(src).toContain("CODEX_SANDBOX_NETWORK_DISABLED")
+      expect(src).toContain("unsetting it does not change the sandbox policy")
+      expect(src).toContain("DNS or authentication failure alone is not proof")
+      expect(src).toContain('"sandbox_permissions": "require_escalated"')
+      expect(src).toContain("detached worker inherits that launch context for its lifetime")
+      expect(src).toContain("If the grant is denied or unavailable, do not execute `start`")
+      expect(src).toContain("After `start` returns a job id")
+      expect(src).toContain("keep `status`, `wait`, `result`, and `reap` sandboxed")
+    })
+  }
+
   for (const reference of routeTokenPairs.map((p) => p.reference)) {
     test(`${reference} keeps Cursor harness identity separate from serving family`, async () => {
       const src = await readRepoFile(reference)

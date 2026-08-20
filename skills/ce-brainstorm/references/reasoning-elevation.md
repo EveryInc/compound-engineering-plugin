@@ -49,6 +49,17 @@ Re-narration is forbidden: the main model's default tendency is to compress, and
 
 Never hold a tool call open for the model's runtime — some harnesses kill long tool calls, silently vanishing the run. Use the bundled detached-job runner.
 
+**Host command-sandbox boundary.** The detached worker inherits the permission context of the `start` call that launches it. Before executing that exact call, treat `CODEX_SANDBOX_NETWORK_DISABLED` as a positive signal that the current Codex command sandbox cannot reach the provider; unsetting it does not change the sandbox policy. A DNS or authentication failure alone is not proof of that condition. Use the narrowest host permission that restores the fixed route's provider connection. When Codex exposes only full command escalation, attach this request to the exact `peer-job-runner.py start ...` tool call after the existing egress disclosure:
+
+```json
+{
+  "sandbox_permissions": "require_escalated",
+  "justification": "Allow the disclosed read-only reasoning-elevation request to reach Anthropic."
+}
+```
+
+Disclose that this is not launcher-only isolation: the detached worker inherits that launch context for its lifetime, so the worker's declared read-only/tool restrictions — not the Codex command sandbox — bound the elevated call while the handoff material egresses. If the grant is denied or unavailable, do not execute `start`; create no job and run the step inline on the session model under the ordinary unavailable-route transparency rule. After `start` returns a job id, any network, authentication, or provider failure is a started-job outcome and follows Recovery below; keep `status`, `wait`, `result`, and `reap` sandboxed because they need no provider connection.
+
 1. **Write the prompt-file into the private handoff directory.** Put the prompt-file *and* every evidence scratch file in the one `mktemp -d "${TMPDIR:-/tmp}/ce-elevation-XXXXXX"` directory from "Read-only posture and brief handoff" above — the worker grants read access to the prompt-file's own parent directory, so co-locating them is what makes the evidence readable while keeping the rest of the temp root private. Build the prompt-file as the elevated model's brief: the instruction to interpret findings and author the plan (or generate approaches), plus the **absolute paths** of those co-located scratch files — the evidence files told to the model as untrusted data to Read and interpret (R20), and the project-conventions file as constraints the output must honor. The scratch files are referenced by path inside this one prompt-file, not passed as extra worker args.
 
 2. **Start the detached job**, anchoring the bundled scripts to this skill's directory. The Bash tool's CWD is the user's project, not the skill dir, so a bare `scripts/…` path resolves in the wrong place and the run silently never starts — set `SKILL_DIR` inline in the same command and pass `start` with its required flags (`--skill`, `--run-id`, then `--` before the worker argv):

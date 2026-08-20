@@ -491,6 +491,12 @@ describe("ce-work cross-model engine contract", () => {
     expect(protocol).toContain("a fresh `attempt_id`")
     expect(protocol).toContain("block selection")
     expect(protocol).toContain("Do not dispatch a new third run")
+    expect(protocol).toContain("record-dispatch-unavailable")
+    expect(protocol).toContain("approval-denied")
+    expect(protocol).toContain("approval-unavailable")
+    expect(protocol).toContain("If the grant is denied or unavailable, do not execute `start`")
+    expect(protocol).toContain("After `start` returns a job id")
+    expect(protocol).toContain("keep `status`, `wait`, `result`, and `reap` sandboxed")
   })
 
   test("separates scheduling from engine/workspace selection and declines unsafe waves", async () => {

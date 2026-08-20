@@ -348,6 +348,8 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
 
   test("claude: dontAsk + deny mutators/Bash/Task/MCP/web/Skill + effort high; Read NOT denied", () => {
     const cmd = emitAdapter("claude")
+    expect(cmd).toContain("--safe-mode")
+    expect(cmd).toContain("--disable-slash-commands")
     expect(cmd).toContain("--permission-mode dontAsk")
     expect(cmd).toContain("--disallowedTools")
     expect(cmd).toContain("Edit")

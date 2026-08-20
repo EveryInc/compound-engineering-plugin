@@ -168,6 +168,77 @@ describe("ce-work unit workspace controller: run discovery and native fallback",
     expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("UNREADABLE")
   })
 
+  test("records a denied host permission before start and authorizes native fallback without inventing a job", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-start-denied"
+    const unitId = "U"
+    init(runs, runId, f)
+    ctl(
+      runs, "prepare", "--run-id", runId, "--unit-id", unitId,
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+
+    expect(ctl(
+      runs, "claim-fallback", "--run-id", runId, "--unit-id", unitId,
+      "--caller-mode", "headless",
+    ).word).toBe("REFUSED")
+
+    const denied = ctl(
+      runs, "record-dispatch-unavailable", "--run-id", runId, "--unit-id", unitId,
+      "--attempt-id", "attempt-1", "--reason", "approval-denied",
+    )
+    expect(denied).toMatchObject({
+      word: "DISPATCH_UNAVAILABLE",
+      body: {
+        unit_id: unitId,
+        attempt_id: "attempt-1",
+        reason: "host-approval-denied-before-start",
+        resumed: false,
+      },
+    })
+    expect(ctl(
+      runs, "record-dispatch-unavailable", "--run-id", runId, "--unit-id", unitId,
+      "--attempt-id", "attempt-1", "--reason", "approval-denied",
+    ).body.resumed).toBe(true)
+
+    const status = ctl(runs, "status", "--run-id", runId, "--unit-id", unitId).body.unit
+    expect(status).toMatchObject({
+      state: "queued",
+      attempts: [{
+        job_id: null,
+        process_state: "never-started",
+        dispatch_unavailable_receipt: {
+          reason: "host-approval-denied-before-start",
+        },
+        fallback: {
+          eligible: true,
+          reason: "host-approval-denied-before-start",
+          claimed: null,
+        },
+      }],
+    })
+
+    const fakeJob = fakeRunningJob(runs, runId, unitId, "packet", "job-after-denial")
+    expect(ctl(
+      runs, "record-job", "--run-id", runId, "--unit-id", unitId,
+      "--attempt-id", "attempt-1", "--job-id", fakeJob,
+    ).word).toBe("REFUSED")
+    expect(ctl(runs, "resume", "--run-id", runId).body.actions).toContainEqual({
+      unit_id: unitId,
+      action: "dispatch-unavailable-retained",
+      reason: "host-approval-denied-before-start",
+    })
+
+    expect(ctl(
+      runs, "claim-fallback", "--run-id", runId, "--unit-id", unitId,
+      "--caller-mode", "headless",
+    )).toMatchObject({
+      word: "FALLBACK_AUTHORIZED",
+      body: { start_native: true, reason: "host-approval-denied-before-start" },
+    })
+  })
+
   test("keeps oversized runner activity logs authoritative for failed-job recovery", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")

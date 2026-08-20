@@ -230,7 +230,7 @@ adapter_argv() {
       # pass is in-tree by design.
       # stream-json + --verbose: PEERLOG grows mid-run so run_timeout_cmd idle
       # detection works; --json-schema still composes (#1270 measurement).
-      printf '%s\0' claude -p --model "$(route_model claude)" --effort "$(route_effort claude)" --permission-mode dontAsk
+      printf '%s\0' claude -p --safe-mode --disable-slash-commands --model "$(route_model claude)" --effort "$(route_effort claude)" --permission-mode dontAsk
       [ -z "${LARGE_DIFF_CONTEXT_DIR:-}" ] || printf '%s\0' --add-dir "$LARGE_DIFF_CONTEXT_DIR"
       printf '%s\0' --disallowedTools Edit Write NotebookEdit Bash Task WebFetch WebSearch Skill 'mcp__*' \
         --max-turns "$PEER_MAX_TURNS" --no-session-persistence --json-schema "$SCHEMA_REF" \

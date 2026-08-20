@@ -9,7 +9,14 @@ import os
 import sys
 
 from unit_workspace_state import Operational, TrustFailure, cmd_checkpoint_plan, cmd_init
-from unit_workspace_jobs import cmd_authorize_dispatch, cmd_prepare, cmd_record_job, cmd_sync_job, cmd_terminalize
+from unit_workspace_jobs import (
+    cmd_authorize_dispatch,
+    cmd_prepare,
+    cmd_record_dispatch_unavailable,
+    cmd_record_job,
+    cmd_sync_job,
+    cmd_terminalize,
+)
 from unit_workspace_integration import (
     cmd_integration_acquire,
     cmd_integration_release,
@@ -58,6 +65,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--unit-id", required=True)
     p.add_argument("--attempt-id", required=True)
     p.add_argument("--job-id", required=True)
+
+    p = sub.add_parser("record-dispatch-unavailable")
+    p.add_argument("--run-id", required=True)
+    p.add_argument("--unit-id", required=True)
+    p.add_argument("--attempt-id", required=True)
+    p.add_argument("--reason", choices=("approval-denied", "approval-unavailable"), required=True)
 
     p = sub.add_parser("authorize-dispatch")
     p.add_argument("--run-id", required=True)
@@ -169,6 +182,7 @@ COMMANDS = {
     "init": cmd_init,
     "checkpoint-plan": cmd_checkpoint_plan,
     "prepare": cmd_prepare,
+    "record-dispatch-unavailable": cmd_record_dispatch_unavailable,
     "authorize-dispatch": cmd_authorize_dispatch,
     "record-job": cmd_record_job,
     "sync-job": cmd_sync_job,

@@ -424,7 +424,14 @@ def cmd_resume(args) -> tuple[str, dict]:
             state = unit["state"]
             attempt = find_attempt(unit)
             lock = doc.get("integration_lock")
-        if state == "queued" and not attempt.get("job_id"):
+        if state == "queued" and not attempt.get("job_id") and attempt.get("dispatch_unavailable_receipt") is not None:
+            receipt = validate_dispatch_unavailable_receipt(attempt)
+            actions.append({
+                "unit_id": uid,
+                "action": "dispatch-unavailable-retained",
+                "reason": receipt["reason"],
+            })
+        elif state == "queued" and not attempt.get("job_id"):
             matches = matching_runner_jobs(run_id, unit)
             if len(matches) > 1:
                 raise Operational("AMBIGUOUS", f"multiple runner jobs match queued unit {uid}")
@@ -547,6 +554,16 @@ def fallback_basis(doc: dict, unit: dict) -> tuple[str, dict]:
         raise Operational("REFUSED", "pinned worker transport must be reconciled rather than bypassed by fallback")
     attempt = find_attempt(unit)
     process_state = attempt.get("process_state")
+    if process_state == "never-started" and attempt.get("dispatch_unavailable_receipt") is not None:
+        receipt = validate_dispatch_unavailable_receipt(attempt)
+        snap = semantic_snapshot(doc["repository"]["toplevel"])
+        allowed_heads = set(unit.get("wave", {}).get("allowed_heads", []))
+        if (
+            snap["head"] not in allowed_heads
+            and not dependency_advanced_head(doc, unit, snap["head"])
+        ) or not snap["status_empty"] or snap["index_tree"] != snap["head_tree"]:
+            raise Operational("BLOCKED", "canonical checkout diverged or is dirty; native fallback is not safe")
+        return receipt["reason"], attempt
     if process_state == "done" and attempt.get("terminal_validation_failure"):
         validate_terminal_validation_failure(doc["run_id"], unit, attempt)
         snap = semantic_snapshot(doc["repository"]["toplevel"])

@@ -267,6 +267,33 @@ execution rather than presence.
 PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
 ```
 
+**Host command-sandbox boundary.** The detached worker inherits the permission
+context of the `start` call that launches it. Before executing that exact call,
+treat `CODEX_SANDBOX_NETWORK_DISABLED` as a positive signal that the current
+Codex command sandbox cannot reach the provider; unsetting it does not change
+the sandbox policy. A DNS or authentication failure alone is not proof of that
+condition. Use the narrowest host permission that restores the fixed route's
+provider connection. When Codex exposes only full command escalation, attach
+this request to the exact `peer-job-runner.py start ...` tool call after the
+existing egress disclosure:
+
+```json
+{
+  "sandbox_permissions": "require_escalated",
+  "justification": "Allow the disclosed read-only cross-model panel request to reach the fixed external provider."
+}
+```
+
+Disclose that this is not launcher-only isolation: the detached worker inherits
+that launch context for its lifetime, so the adapter's declared read-only/tool
+restrictions — not the Codex command sandbox — bound the peer while the subject
+egresses. If the grant is denied or unavailable, do not execute `start`; create
+no peer job, drop that voice, and continue with the surviving panel. After
+`start` returns a job id, any network, authentication, or provider failure is a
+started-job outcome and follows the ordinary terminal/recovery rules; keep
+`status`, `wait`, `result`, and `reap` sandboxed because they need no provider
+connection.
+
 Start one job per peer with the command below, filling every `<...>` slot. Set
 `SKILL_DIR` to the absolute directory of **this** skill's `SKILL.md`; the Bash
 tool's CWD is the user's project on every host, not the skill directory.
