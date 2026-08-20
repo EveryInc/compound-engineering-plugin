@@ -520,8 +520,8 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
       readBabysit(),
       readRepoFile(WATCH_LOOP),
     ])
-    const pipelineStart = babysit.indexOf("2. **Bounded stop, not merge-ready.**")
-    const pipelineEnd = babysit.indexOf("3. **Native residual surfacing", pipelineStart)
+    const pipelineStart = babysit.indexOf("3. **Bounded stop, derived from that set.**")
+    const pipelineEnd = babysit.indexOf("## Pipeline stop", pipelineStart)
     const pipelineDelta = babysit.slice(pipelineStart, pipelineEnd)
 
     for (const text of [babysit, watchLoop]) {
@@ -530,15 +530,16 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     }
     expect(pipelineStart).toBeGreaterThan(-1)
     expect(pipelineEnd).toBeGreaterThan(pipelineStart)
-    expect(pipelineDelta).toMatch(/`all_checks_ok`[\s\S]{0,260}`mergeability_certain`[\s\S]{0,160}`merge_state_status == "CLEAN"`[\s\S]{0,260}`stack_blocker`[\s\S]{0,160}`branch_currency_blocker`[^.]{0,80}(null|clear)/i)
+    expect(babysit).toMatch(/`all_checks_ok`[\s\S]{0,260}`mergeability_certain`[\s\S]{0,160}`merge_state_status == "CLEAN"`[\s\S]{0,260}`stack_blocker`[\s\S]{0,160}`branch_currency_blocker`[^.]{0,80}(null|clear)/i)
     expect(pipelineDelta).toMatch(/open\/claimed\/parked current currency item[^.]{0,240}residual/i)
   })
 
   test("needs-human cannot become a successful handoff before its decision payload reaches the coordinator", async () => {
-    const [resolverRubric, resolverPipeline, babysitPipeline, babysitWatch, babysitTick, babysitReport, commitPush, lfg] =
+    const [resolverRubric, resolverPipeline, debugPipeline, babysitPipeline, babysitWatch, babysitTick, babysitReport, commitPush, lfg] =
       await Promise.all([
         readRepoFile(CERESOLVE_RUBRIC),
         readRepoFile(CERESOLVE_PIPELINE),
+        readRepoFile(CEDEBUG_PIPELINE),
         readRepoFile("skills/ce-babysit-pr/references/pipeline.md"),
         readRepoFile(WATCH_LOOP),
         readRepoFile("skills/ce-babysit-pr/references/tick.md"),
@@ -556,20 +557,24 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(resolverPipeline).toMatch(/leave[^.]{0,100}(thread|threads)[^.]{0,100}open/i)
     expect(resolverRubric).toContain("sources:")
     expect(resolverPipeline).toMatch(/sources[^.]{0,180}(every|all)[^.]{0,180}(thread|comment|review)/i)
+    expect(debugPipeline).toContain('"kind": "check"')
+    expect(debugPipeline).toContain('"type": "needs-human"')
 
-    expect(babysitPipeline).toMatch(/success only when[^.]{0,500}`open_needs_human == 0`/i)
-    expect(babysitWatch).toMatch(/success only when[^.]{0,500}`open_needs_human == 0`/i)
+    expect(babysitPipeline).toMatch(/success only when[^.]{0,500}`needs_human_residuals`[^.]{0,120}empty/i)
+    expect(babysitWatch).toMatch(/success only when[^.]{0,500}`needs_human_residuals`[^.]{0,120}empty/i)
     expect(babysitPipeline).toContain('status: "needs-human"')
     expect(babysitPipeline).toMatch(/residual[^.]{0,120}unchanged/i)
     for (const text of [babysitPipeline, babysitWatch]) {
-      expect(text).toMatch(/`open_needs_human > 0`[\s\S]{0,320}no autonomous work remains[\s\S]{0,240}status: "needs-human"/i)
-      expect(text).toMatch(/without waiting[^.]{0,160}(human|budget)/i)
+      expect(text).toMatch(/(non-empty|not empty)[^.]{0,80}(canonical )?(set|`needs_human_residuals`)[^.]{0,240}no autonomous work(?: remains)?[^.]{0,240}status: "needs-human"|(canonical )?(set|`needs_human_residuals`)[^.]{0,180}(non-empty|not empty)[^.]{0,240}no autonomous work(?: remains)?[^.]{0,240}status: "needs-human"/i)
+      expect(text).toMatch(/(?:without|never) wait(?:ing)?[^.]{0,160}(human|budget)/i)
     }
     expect(babysitTick).toMatch(/immediately[^.]{0,180}`## Needs your decision`/i)
-    expect(babysitTick).toMatch(/residual[^.]{0,120}unchanged/i)
+    expect(babysitTick).toMatch(/preserve it unchanged/i)
     expect(babysitTick).toContain("--residual-file")
     expect(babysitTick).toContain("needs_human_residuals")
     expect(babysitWatch).toContain("needs_human_residuals")
+    expect(babysitWatch).toMatch(/reopening one source[^.]{0,180}(invalidates|reopens)[^.]{0,180}(every|all)/i)
+    expect(babysitWatch).toMatch(/legacy parked records[^.]{0,180}re-actionized/i)
     expect(babysitReport).toContain("## Needs your decision")
     for (const field of NEEDS_HUMAN_RESIDUAL_FIELDS) {
       expect(babysitReport, `babysit report must render '${field}'`).toContain(field)
@@ -580,6 +585,8 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
       expect(consumer, `${name} must preserve the typed residual`).toMatch(/needs-human[^.]{0,240}unchanged/i)
       expect(consumer, `${name} must gate success/DONE on propagation`).toMatch(/before[^.]{0,240}(success|DONE)/i)
     }
+    expect(lfg).toMatch(/common result gate/i)
+    expect(lfg).toMatch(/whichever handoff produced the result/i)
   })
 
   test("merge identity distinguishes historical base metadata from current-base readiness and branch currency", async () => {

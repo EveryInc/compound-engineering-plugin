@@ -60,6 +60,7 @@ FAILING = {"FAILURE", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAIL
 DISPOSITION_OPEN = "open"
 DISPOSITION_NEEDS_HUMAN = "needs-human"
 DISPOSITION_DISPATCHED = "dispatched"
+NEEDS_HUMAN_SOURCE_KINDS = {"thread", "comment", "review", "check"}
 CURRENCY_CLAIMED = "claimed"
 CURRENCY_CONFIRMED = "confirmed"
 CURRENCY_OUTCOME_MUTATION_OBSERVED = "mutation-observed"
@@ -1511,6 +1512,148 @@ def _apply_dispositions(items, id_key, prior, identity_fn=None,
     return persisted, actionable, needs_human
 
 
+def _needs_human_residual_error(residual):
+    """Return why a residual is malformed, or None when the full contract holds."""
+    if not isinstance(residual, dict) or residual.get("type") != "needs-human":
+        return "must be one typed needs-human object"
+    sources = residual.get("sources")
+    if not isinstance(sources, list) or not sources:
+        return "sources must be a non-empty list"
+    seen_sources = set()
+    for source in sources:
+        if not isinstance(source, dict):
+            return "every source must be an object"
+        source_id, kind = source.get("id"), source.get("kind")
+        if not isinstance(source_id, str) or not source_id.strip():
+            return "every source id must be a non-empty string"
+        if kind not in NEEDS_HUMAN_SOURCE_KINDS:
+            return "every source kind must be thread, comment, review, or check"
+        identity = (kind, source_id)
+        if identity in seen_sources:
+            return "sources must be unique"
+        seen_sources.add(identity)
+
+    context = residual.get("decision_context")
+    if not isinstance(context, dict):
+        return "decision_context must be an object"
+    for field in ("quoted_feedback", "investigation", "decision_reason"):
+        if not isinstance(context.get(field), str) or not context[field].strip():
+            return f"decision_context.{field} must be a non-empty string"
+    options = context.get("options")
+    if not isinstance(options, list) or not options:
+        return "decision_context.options must be a non-empty list"
+    for option in options:
+        if not isinstance(option, dict):
+            return "every decision_context option must be an object"
+        for field in ("option", "tradeoff"):
+            if not isinstance(option.get(field), str) or not option[field].strip():
+                return f"every decision_context option.{field} must be a non-empty string"
+    if "recommendation" not in context:
+        return "decision_context.recommendation is required"
+    recommendation = context.get("recommendation")
+    if recommendation is not None and (
+            not isinstance(recommendation, str) or not recommendation.strip()):
+        return "decision_context.recommendation must be null or a non-empty string"
+
+    thread_urls = residual.get("thread_urls")
+    if not isinstance(thread_urls, list) or any(
+            not isinstance(url, str) or not url.strip() for url in thread_urls):
+        return "thread_urls must be a list of non-empty strings"
+    thread_sources = sum(source["kind"] == "thread" for source in sources)
+    if len(set(thread_urls)) != len(thread_urls) or len(thread_urls) < thread_sources:
+        return "thread_urls must contain a unique URL for every thread source"
+    return None
+
+
+def _residual_identity(residual):
+    return json.dumps(residual, sort_keys=True, separators=(",", ":"))
+
+
+def _source_identity(source):
+    return source.get("kind"), source.get("id")
+
+
+def _reopen_residual_sources(residual, threads, feedback, checks, dispatched):
+    """Invalidate a grouped decision as one unit and re-actionize surviving sources."""
+    for source in residual.get("sources") or []:
+        kind, source_id = _source_identity(source)
+        if kind == "thread":
+            record = threads.get(source_id)
+        elif kind in ("comment", "review"):
+            record = feedback.get(source_id)
+        else:
+            record = None
+        if record is not None and record.get("disposition") == DISPOSITION_NEEDS_HUMAN:
+            record["disposition"] = DISPOSITION_OPEN
+            record.pop("acted_identity", None)
+            record.pop("needs_human_residual", None)
+        if kind == "check" and source_id in checks:
+            dispatched.discard(source_id)
+
+
+def _reconcile_needs_human_residuals(state, threads, feedback, checks, head, head_changed):
+    """Migrate and reconcile the one durable set against all of its source streams."""
+    candidates = list(state.get("needs_human_residuals") or [])
+    # One-release migration from the per-record copies written by 6664189dd.
+    candidates.extend(
+        record.get("needs_human_residual")
+        for record in list(threads.values()) + list(feedback.values())
+        if isinstance(record.get("needs_human_residual"), dict)
+    )
+    dispatched = set(state.get("ci_dispatched", {}).get(head, []))
+    kept, seen, covered = [], set(), set()
+    for residual in candidates:
+        identity = _residual_identity(residual) if isinstance(residual, dict) else None
+        if identity in seen:
+            continue
+        if identity is not None:
+            seen.add(identity)
+        if _needs_human_residual_error(residual):
+            if isinstance(residual, dict):
+                _reopen_residual_sources(residual, threads, feedback, checks, dispatched)
+            continue
+
+        source_states = []
+        for source in residual["sources"]:
+            kind, source_id = _source_identity(source)
+            if kind == "thread":
+                record = threads.get(source_id)
+                source_states.append(
+                    record is not None and record.get("disposition") == DISPOSITION_NEEDS_HUMAN)
+            elif kind in ("comment", "review"):
+                record = feedback.get(source_id)
+                source_states.append(
+                    record is not None and record.get("kind") == kind
+                    and record.get("disposition") == DISPOSITION_NEEDS_HUMAN)
+            else:
+                check = checks.get(source_id)
+                source_states.append(
+                    not head_changed and check is not None
+                    and check.get("conclusion") in FAILING and source_id in dispatched)
+        if not all(source_states):
+            _reopen_residual_sources(residual, threads, feedback, checks, dispatched)
+            continue
+        kept.append(residual)
+        covered.update(_source_identity(source) for source in residual["sources"])
+
+    # A legacy parked item without a complete residual cannot remain silently parked.
+    for source_kind, records in (("thread", threads), ("comment", feedback)):
+        for source_id, record in records.items():
+            if record.get("disposition") != DISPOSITION_NEEDS_HUMAN:
+                record.pop("needs_human_residual", None)
+                continue
+            actual_kind = source_kind if source_kind == "thread" else record.get("kind", "comment")
+            if (actual_kind, source_id) not in covered:
+                record["disposition"] = DISPOSITION_OPEN
+                record.pop("acted_identity", None)
+            record.pop("needs_human_residual", None)
+
+    if head is not None:
+        state.setdefault("ci_dispatched", {})[head] = sorted(dispatched)
+    state["needs_human_residuals"] = kept
+    return kept
+
+
 def diff(state, cur, now=None, advance_trajectory=True):
     """Pure: given prior state + current snapshot, compute the actionable set
     and the persisted observed state. `now` is injectable for tests."""
@@ -1618,15 +1761,24 @@ def diff(state, cur, now=None, advance_trajectory=True):
     #     review threads or brand-new comments (new ids), both still actionable; edit_id also
     #     feeds external_review_moved below, so a dispatched item's edit wakes/extends the settle
     #     clock without re-actionizing it.
-    # Either stream's open needs-human items feed open_needs_human so the merge-ready gate
-    # refuses to call the PR ready while a human decision is still pending.
-    new_threads, actionable_threads, human_threads = _apply_dispositions(
+    # Stream dispositions identify source state; the reconciled canonical set below owns the
+    # decision count and payload across both review streams and CI.
+    new_threads, actionable_threads, _ = _apply_dispositions(
         cur["threads"], "thread_id", prior_threads,
         identity_fn=lambda t: [t.get("last_comment_id"), t.get("last_comment_at")])
-    new_feedback, actionable_feedback, human_feedback = _apply_dispositions(
+    new_feedback, actionable_feedback, _ = _apply_dispositions(
         cur.get("feedback") or [], "id", prior_feedback,
         identity_fn=lambda c: [c.get("edit_id")],
         reactivate_dispositions=(DISPOSITION_NEEDS_HUMAN,))
+    needs_human_residuals = _reconcile_needs_human_residuals(
+        state, new_threads, new_feedback, new_checks, head, head_changed)
+    # Reconciliation can re-open a legacy or grouped source after the stream-level pass above.
+    actionable_threads = [
+        record for record in new_threads.values()
+        if record.get("disposition") == DISPOSITION_OPEN]
+    actionable_feedback = [
+        record for record in new_feedback.values()
+        if record.get("disposition") == DISPOSITION_OPEN]
     current_thread_activity = {
         item.get("thread_id"): _thread_identity(item)
         for item in cur["threads"] if item.get("thread_id")
@@ -1647,22 +1799,11 @@ def diff(state, cur, now=None, advance_trajectory=True):
         or cur.get("review_decision") != prior_review_decision
         or signal_changed
     )
-    open_needs_human = human_threads + human_feedback
-    # Identities of the currently-parked needs-human items, so the watch can tell an already-
-    # surfaced residual (do not re-wake) from a newly-arrived one (wake) — a parked human decision
-    # must not busy-wake the loop or terminate it.
-    needs_human_ids = sorted(
-        [k for k, r in new_threads.items() if r.get("disposition") == DISPOSITION_NEEDS_HUMAN]
-        + [k for k, r in new_feedback.items() if r.get("disposition") == DISPOSITION_NEEDS_HUMAN])
-    needs_human_residuals, seen_residuals = [], set()
-    for record in list(new_threads.values()) + list(new_feedback.values()):
-        residual = record.get("needs_human_residual")
-        if not isinstance(residual, dict):
-            continue
-        identity = json.dumps(residual, sort_keys=True, separators=(",", ":"))
-        if identity not in seen_residuals:
-            seen_residuals.add(identity)
-            needs_human_residuals.append(residual)
+    open_needs_human = len(needs_human_residuals)
+    # Compatibility view for consumers that display source identities. The canonical set above,
+    # not this flattened list, owns persistence and stop behavior.
+    needs_human_ids = sorted({
+        source["id"] for residual in needs_human_residuals for source in residual["sources"]})
 
     state["head_sha"] = head or state.get("head_sha")
     state["checks"] = new_checks
@@ -1828,9 +1969,13 @@ def _change_sig(state):
     # clock (review activity happened) even though it no longer reopens the item (#1309).
     feedback = {fid: (v.get("disposition"), v.get("edit_id"))
                 for fid, v in state.get("feedback", {}).items()}
+    needs_human_residuals = sorted(
+        _residual_identity(item) for item in state.get("needs_human_residuals", [])
+        if isinstance(item, dict))
     currency = _load_branch_currency_state(state)
     current_currency = currency.get("items", {}).get(currency.get("current_key")) or {}
-    return (checks, threads, feedback, state.get("review_decision"), state.get("mergeable"),
+    return (checks, threads, feedback, needs_human_residuals,
+            state.get("review_decision"), state.get("mergeable"),
             state.get("merge_state_status"), state.get("review_in_progress"),
             state.get("review_signal_count"),
             tuple(state.get("review_signal_identities") or []),
@@ -2675,23 +2820,59 @@ def _mark_branch_currency(args, state, now):
     state["last_action"] = f"{disposition} currency {key}"
 
 
-def _load_needs_human_residual(path, item_id, is_thread):
+def _load_needs_human_residual(path, item_id, expected_kind):
     if not path:
-        raise SystemExit("needs-human thread/comment marks require --residual-file")
+        raise SystemExit("needs-human marks require --residual-file")
     try:
         with open(path, encoding="utf-8") as f:
             residual = json.load(f)
     except (OSError, json.JSONDecodeError) as exc:
         raise SystemExit(f"cannot read --residual-file: {exc}")
-    if not isinstance(residual, dict) or residual.get("type") != "needs-human":
-        raise SystemExit("--residual-file must contain one typed needs-human object")
-    expected_kinds = {"thread"} if is_thread else {"comment", "review"}
-    sources = residual.get("sources")
-    if not isinstance(sources, list) or not any(
-            isinstance(source, dict) and source.get("id") == item_id
-            and source.get("kind") in expected_kinds for source in sources):
+    error = _needs_human_residual_error(residual)
+    if error:
+        raise SystemExit(f"invalid --residual-file: {error}")
+    if not any(source["id"] == item_id and source["kind"] == expected_kind
+               for source in residual["sources"]):
         raise SystemExit("--residual-file sources must include the marked item ID and kind")
     return residual
+
+
+def _store_needs_human_residual(state, residual):
+    residuals = state.setdefault("needs_human_residuals", [])
+    identity = _residual_identity(residual)
+    if not any(isinstance(item, dict) and _residual_identity(item) == identity
+               for item in residuals):
+        residuals.append(residual)
+
+
+def _invalidate_needs_human_source(state, item_id, kind):
+    residuals = state.get("needs_human_residuals") or []
+    kept = []
+    for residual in residuals:
+        if not isinstance(residual, dict) or not any(
+                source.get("id") == item_id and source.get("kind") == kind
+                for source in residual.get("sources") or [] if isinstance(source, dict)):
+            kept.append(residual)
+            continue
+        # Group ownership is atomic: reopening one source reopens every surviving sibling.
+        for source in residual.get("sources") or []:
+            source_kind, source_id = _source_identity(source)
+            if source_kind == "thread":
+                record = state.get("threads", {}).get(source_id)
+            elif source_kind in ("comment", "review"):
+                record = state.get("feedback", {}).get(source_id)
+            else:
+                record = None
+            if record is not None and record.get("disposition") == DISPOSITION_NEEDS_HUMAN:
+                record["disposition"] = DISPOSITION_OPEN
+                record.pop("acted_identity", None)
+                record.pop("needs_human_residual", None)
+            if source_kind == "check":
+                head = state.get("head_sha")
+                dispatched = state.get("ci_dispatched", {}).get(head, [])
+                state.setdefault("ci_dispatched", {})[head] = [
+                    key for key in dispatched if key != source_id]
+    state["needs_human_residuals"] = kept
 
 
 def cmd_mark(args):
@@ -2716,24 +2897,36 @@ def cmd_mark(args):
             if not head:
                 raise SystemExit("mark --check requires a prior snapshot (state has no head_sha)")
             state.setdefault("ci_dispatched", {}).setdefault(head, [])
-            if args.check not in state["ci_dispatched"][head]:
-                state["ci_dispatched"][head].append(args.check)
-            state["last_action"] = f"dispatched check {args.check}"
+            if args.disposition == DISPOSITION_OPEN:
+                _invalidate_needs_human_source(state, args.check, "check")
+                state["ci_dispatched"][head] = [
+                    key for key in state["ci_dispatched"][head] if key != args.check]
+            else:
+                if args.check not in state["ci_dispatched"][head]:
+                    state["ci_dispatched"][head].append(args.check)
+                if args.disposition == DISPOSITION_NEEDS_HUMAN:
+                    residual = _load_needs_human_residual(
+                        args.residual_file, args.check, "check")
+                    _store_needs_human_residual(state, residual)
+            state["last_action"] = f"{args.disposition} check {args.check}"
         elif args.thread or args.comment:
             item_id = args.thread or args.comment
             collection, id_field, label = (
                 ("threads", "thread_id", "thread") if args.thread else ("feedback", "id", "comment"))
             entry = state.setdefault(collection, {}).setdefault(item_id, {id_field: item_id})
+            kind = "thread" if args.thread else entry.get("kind", "comment")
             entry["disposition"] = args.disposition
             if args.disposition == DISPOSITION_OPEN:
+                _invalidate_needs_human_source(state, item_id, kind)
                 entry.pop("acted_identity", None)   # reopened -> next dispatch/park re-baselines
                 entry.pop("needs_human_residual", None)
             elif args.disposition in (DISPOSITION_DISPATCHED, DISPOSITION_NEEDS_HUMAN):
                 if args.disposition == DISPOSITION_NEEDS_HUMAN:
-                    entry["needs_human_residual"] = _load_needs_human_residual(
-                        args.residual_file, item_id, bool(args.thread))
+                    residual = _load_needs_human_residual(
+                        args.residual_file, item_id, kind)
+                    _store_needs_human_residual(state, residual)
                 else:
-                    entry.pop("needs_human_residual", None)
+                    _invalidate_needs_human_source(state, item_id, kind)
                 if args.thread:
                     # our reply moved the thread's last comment, so re-read it now as the baseline.
                     ident = _mark_thread_baseline(item_id, args, state)

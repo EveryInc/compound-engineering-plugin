@@ -20,7 +20,7 @@ function fetchFile(dir: string, name: string, obj: unknown): string {
   return p
 }
 
-function residualFile(dir: string, name: string, sourceId: string, kind: "thread" | "comment" | "review"): { path: string; value: any } {
+function residualFile(dir: string, name: string, sourceId: string, kind: "thread" | "comment" | "review" | "check"): { path: string; value: any } {
   const value = {
     type: "needs-human",
     sources: [{ id: sourceId, kind }],
@@ -84,12 +84,15 @@ function mark(stateDir: string, args: string[]): void {
     : ["--fetch-file", fetchFile(path.dirname(stateDir), "mark-empty.json", { threads: [] })]
   const needsResidual = args.includes("--disposition")
     && args[args.indexOf("--disposition") + 1] === "needs-human"
-    && (args.includes("--thread") || args.includes("--comment"))
+    && (args.includes("--thread") || args.includes("--comment") || args.includes("--check"))
     && !args.includes("--residual-file")
-  const sourceId = args.includes("--thread")
-    ? args[args.indexOf("--thread") + 1]!
-    : args[args.indexOf("--comment") + 1]!
-  const kind = args.includes("--thread") ? "thread" : sourceId.startsWith("PRR_") ? "review" : "comment"
+  const sourceId = args.includes("--thread") ? args[args.indexOf("--thread") + 1]!
+    : args.includes("--comment") ? args[args.indexOf("--comment") + 1]!
+    : args.includes("--check") ? args[args.indexOf("--check") + 1]!
+    : ""
+  const kind = args.includes("--thread") ? "thread"
+    : args.includes("--check") ? "check"
+    : sourceId.startsWith("PRR_") ? "review" : "comment"
   const residualArgs = needsResidual
     ? ["--residual-file", residualFile(path.dirname(stateDir), `residual-${sourceId}.json`, sourceId, kind).path]
     : []
@@ -1704,6 +1707,77 @@ print(json.dumps({
     expect(resumed.needs_human_residuals).toEqual([residual.value])
   })
 
+  test("legacy parked items without a complete residual are re-actionized", () => {
+    const sd = path.join(dir, "legacy-needs-human")
+    const fetch = fetchFile(dir, "legacy-needs-human.json", FAILING)
+    snapshot(sd, fetch)
+    const statePath = path.join(sd, "state.json")
+    const legacy = JSON.parse(readFileSync(statePath, "utf8"))
+    legacy.threads.T1.disposition = "needs-human"
+    delete legacy.threads.T1.needs_human_residual
+    delete legacy.needs_human_residuals
+    writeFileSync(statePath, JSON.stringify(legacy))
+
+    const migrated = snapshot(sd, fetch)
+    expect(migrated.needs_human_residuals).toEqual([])
+    expect(migrated.open_needs_human).toBe(0)
+    expect(migrated.counts.threads).toBe(1)
+  })
+
+  test("a grouped residual invalidates atomically when any source reopens", () => {
+    const sd = path.join(dir, "grouped-needs-human")
+    const feedback = {
+      ...FAILING,
+      checks: [],
+      threads: [
+        { thread_id: "T1", last_comment_id: "C1", last_comment_at: "t1" },
+        { thread_id: "T2", last_comment_id: "D1", last_comment_at: "t1" },
+      ],
+    }
+    snapshot(sd, fetchFile(dir, "grouped-1.json", feedback))
+    const grouped = {
+      ...residualFile(dir, "unused.json", "T1", "thread").value,
+      sources: [{ id: "T1", kind: "thread" }, { id: "T2", kind: "thread" }],
+      thread_urls: ["https://example.test/thread/T1", "https://example.test/thread/T2"],
+    }
+    const groupedPath = fetchFile(dir, "grouped-residual.json", grouped)
+    mark(sd, ["--thread", "T1", "--disposition", "needs-human", "--residual-file", groupedPath])
+    mark(sd, ["--thread", "T2", "--disposition", "needs-human", "--residual-file", groupedPath])
+    expect(snapshot(sd, fetchFile(dir, "grouped-2.json", feedback)).needs_human_residuals).toEqual([grouped])
+
+    const answered = {
+      ...feedback,
+      threads: [
+        { thread_id: "T1", last_comment_id: "C2", last_comment_at: "t2" },
+        { thread_id: "T2", last_comment_id: "D1", last_comment_at: "t1" },
+      ],
+    }
+    const reopened = snapshot(sd, fetchFile(dir, "grouped-3.json", answered))
+    expect(reopened.needs_human_residuals).toEqual([])
+    expect(reopened.open_needs_human).toBe(0)
+    expect(reopened.actionable.threads.map((item: any) => item.thread_id).sort()).toEqual(["T1", "T2"])
+  })
+
+  test("CI needs-human decisions live in the same canonical residual set", () => {
+    const sd = path.join(dir, "ci-needs-human")
+    const fetch = fetchFile(dir, "ci-needs-human-1.json", { ...FAILING, threads: [] })
+    snapshot(sd, fetch)
+    const residual = residualFile(dir, "ci-residual.json", "CI/test", "check")
+    mark(sd, ["--check", "CI/test", "--disposition", "needs-human", "--residual-file", residual.path])
+
+    const parked = snapshot(sd, fetch)
+    expect(parked.needs_human_residuals).toEqual([residual.value])
+    expect(parked.open_needs_human).toBe(1)
+    expect(parked.counts.ci).toBe(0)
+
+    const moved = snapshot(sd, fetchFile(dir, "ci-needs-human-2.json", {
+      ...FAILING, head_sha: "s2", threads: [],
+    }))
+    expect(moved.needs_human_residuals).toEqual([])
+    expect(moved.open_needs_human).toBe(0)
+    expect(moved.counts.ci).toBe(1)
+  })
+
   test("needs-human marks fail closed without the typed residual payload", () => {
     const sd = path.join(dir, "missing-needs-human-residual")
     const fetch = fetchFile(dir, "missing-residual.json", FAILING)
@@ -1713,6 +1787,27 @@ print(json.dumps({
       "--fetch-file", fetch], { encoding: "utf8" })
     expect(r.status).not.toBe(0)
     expect(r.stderr).toMatch(/residual-file/i)
+  })
+
+  test("needs-human marks validate the complete residual schema", () => {
+    const sd = path.join(dir, "malformed-needs-human-residual")
+    const fetch = fetchFile(dir, "malformed-residual.json", FAILING)
+    snapshot(sd, fetch)
+    const valid = residualFile(dir, "valid-residual.json", "T1", "thread").value
+    const malformed = [
+      { ...valid, decision_context: undefined },
+      { ...valid, decision_context: { ...valid.decision_context, options: [] } },
+      { ...valid, decision_context: { ...valid.decision_context, recommendation: undefined } },
+      { ...valid, thread_urls: [] },
+    ]
+    for (const [index, value] of malformed.entries()) {
+      const residualPath = fetchFile(dir, `malformed-${index}.json`, value)
+      const r = spawnSync("python3", [SCRIPT, "mark", "--state-dir", sd,
+        ...persistedInvocationArgs(sd), "--thread", "T1", "--disposition", "needs-human",
+        "--residual-file", residualPath, "--fetch-file", fetch], { encoding: "utf8" })
+      expect(r.status).not.toBe(0)
+      expect(r.stderr).toMatch(/invalid --residual-file/i)
+    }
   })
 
   test("mark --check silences it; a new head SHA re-actionizes", () => {

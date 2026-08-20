@@ -26,11 +26,15 @@ If step 8's `ce-commit-push-pr` completed a stack-mode submit and handed off `ce
 - Record the bottom PR URL and posture for step 10's user-facing resume line.
 - Collect `{ status, fixes_applied, residuals }` and proceed to step 10.
 
-## Step 9 — the default babysit and its result
+## Step 9 — the default babysit
 
 Otherwise invoke `ce-babysit-pr mode:pipeline <pr-url>` on the current open PR. It runs the bounded pipeline loop: watches CI, repairs real (convergent) failures via `ce-debug mode:pipeline` — never weakening, skipping, or mocking an assertion — resolves any review comments that arrived via `ce-resolve-pr-feedback mode:pipeline`, and stops when CI is decided or its budget (default 3 fix rounds) is hit. This replaces LFG's former hand-rolled CI loop; do not reimplement CI-watching here. Invoke it unconditionally whenever an open PR exists **and** step 8 did not already hand off stack babysit — a run whose CI looks likely-clean is not a reason to skip babysit and poll `gh pr checks` yourself. Green CI at one instant is not this step's goal: babysit also resolves review comments across the PR's life, so a passing check while advisory checks (e.g. Bugbot) are still pending or comments are unhandled is not "done" and never substitutes for the invocation.
 
-Collect its structured result (`{ status, fixes_applied, residuals }`). It surfaces unfixable CI as a **run-report comment on the PR** and returns residuals — do **NOT** write a `## CI Failures Unresolved` PR-body section. A `needs-human` residual is deferred, not applied. Before DONE, render every typed `needs-human` residual unchanged under `## Needs your decision`, including its quoted feedback, investigation, decision reason, options and tradeoffs, recommendation if any, and every open-thread link. DONE may follow only after that payload is visible to the top-level coordinator; a generic residual count or PR link is not propagation.
+Collect its structured result (`{ status, fixes_applied, residuals }`).
+
+## Step 9 — common result gate
+
+Whichever handoff produced the result, preserve its canonical typed `needs-human` residual set unchanged. Before DONE, render the complete set under `## Needs your decision`, including each residual's quoted feedback, investigation, decision reason, options and tradeoffs, recommendation if any, and every open-thread link. A non-empty set is a decision handoff, never successful completion; a generic count or PR link is not propagation. Unfixable CI still belongs in the babysitter's run-report comment, never a PR-body section.
 
 ## Step 10 — close out
 
