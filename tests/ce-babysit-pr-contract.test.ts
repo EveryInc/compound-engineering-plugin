@@ -559,6 +559,10 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(babysitWatch).toMatch(/success only when[^.]{0,500}`open_needs_human == 0`/i)
     expect(babysitPipeline).toContain('status: "needs-human"')
     expect(babysitPipeline).toMatch(/residual[^.]{0,120}unchanged/i)
+    for (const text of [babysitPipeline, babysitWatch]) {
+      expect(text).toMatch(/`open_needs_human > 0`[\s\S]{0,320}no autonomous work remains[\s\S]{0,240}status: "needs-human"/i)
+      expect(text).toMatch(/without waiting[^.]{0,160}(human|budget)/i)
+    }
     expect(babysitTick).toMatch(/immediately[^.]{0,180}`## Needs your decision`/i)
     expect(babysitTick).toMatch(/residual[^.]{0,120}unchanged/i)
     expect(babysitReport).toContain("## Needs your decision")
