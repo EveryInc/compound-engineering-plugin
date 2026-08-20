@@ -3128,6 +3128,9 @@ def cmd_mark(args):
     now = _now()
     with locked_state(args.state_dir, args.pr, args.repo, now) as box:
         _apply_invocation(box, args, now)
+        if (args.check or args.thread or args.comment) and args.residual_file \
+                and args.disposition != DISPOSITION_NEEDS_HUMAN:
+            raise SystemExit("--residual-file requires --disposition needs-human for source marks")
         state = box["state"]
         # An agent-driven mark is activity: bump the heartbeat (no accumulation) so a long tick
         # that only marks — never snapshots — still never has its active time refunded as dead time.

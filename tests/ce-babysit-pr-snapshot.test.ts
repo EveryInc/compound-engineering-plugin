@@ -1575,6 +1575,29 @@ print(json.dumps({"current": current, "same_head_mixed_case": same_head_mixed_ca
     expect(result.probe_error.host_branch_update_capability).toBe("unknown")
   })
 
+  test("source marks reject a residual payload unless the disposition is needs-human", () => {
+    const fetch = fetchFile(dir, "residual-dispatched.json", { ...FAILING, threads: [] })
+    snapshot(state, fetch)
+    const statePath = path.join(state, "state.json")
+    const before = readFileSync(statePath, "utf8")
+    const cases = [
+      { flag: "--check", id: "CI/test", kind: "check" as const },
+      { flag: "--thread", id: "T1", kind: "thread" as const },
+      { flag: "--comment", id: "I1", kind: "comment" as const },
+    ]
+
+    for (const item of cases) {
+      const residual = residualFile(
+        dir, `rejected-${item.kind}.json`, item.id, item.kind)
+      const result = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
+        ...persistedInvocationArgs(state), item.flag, item.id,
+        "--residual-file", residual.path], { encoding: "utf8" })
+      expect(result.status).not.toBe(0)
+      expect(result.stderr).toContain("--residual-file requires --disposition needs-human")
+      expect(readFileSync(statePath, "utf8")).toBe(before)
+    }
+  })
+
   test("live fetch preserves a legacy StatusContext creation identity", () => {
     const python = `
 import json
