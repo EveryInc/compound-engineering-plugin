@@ -1724,7 +1724,7 @@ print(json.dumps({
     expect(migrated.counts.threads).toBe(1)
   })
 
-  test("a grouped residual invalidates atomically when any source reopens", () => {
+  test("one residual mark parks a complete group before any snapshot can observe partial state", () => {
     const sd = path.join(dir, "grouped-needs-human")
     const feedback = {
       ...FAILING,
@@ -1741,9 +1741,18 @@ print(json.dumps({
       thread_urls: ["https://example.test/thread/T1", "https://example.test/thread/T2"],
     }
     const groupedPath = fetchFile(dir, "grouped-residual.json", grouped)
-    mark(sd, ["--thread", "T1", "--disposition", "needs-human", "--residual-file", groupedPath])
-    mark(sd, ["--thread", "T2", "--disposition", "needs-human", "--residual-file", groupedPath])
-    expect(snapshot(sd, fetchFile(dir, "grouped-2.json", feedback)).needs_human_residuals).toEqual([grouped])
+    mark(sd, ["--disposition", "needs-human", "--residual-file", groupedPath])
+    const parked = snapshot(sd, fetchFile(dir, "grouped-2.json", feedback))
+    expect(parked.needs_human_residuals).toEqual([grouped])
+    expect(parked.actionable.threads).toEqual([])
+    const parkedState = JSON.parse(readFileSync(path.join(sd, "state.json"), "utf8"))
+    expect(parkedState.threads.T1.disposition).toBe("needs-human")
+    expect(parkedState.threads.T2.disposition).toBe("needs-human")
+
+    // A repeated exact persistence is idempotent rather than re-baselining the group.
+    mark(sd, ["--disposition", "needs-human", "--residual-file", groupedPath])
+    expect(snapshot(sd, fetchFile(dir, "grouped-idempotent.json", feedback)).needs_human_residuals)
+      .toEqual([grouped])
 
     const answered = {
       ...feedback,
@@ -1758,24 +1767,59 @@ print(json.dumps({
     expect(reopened.actionable.threads.map((item: any) => item.thread_id).sort()).toEqual(["T1", "T2"])
   })
 
-  test("CI needs-human decisions live in the same canonical residual set", () => {
+  test("a missing check invalidates its residual and cannot leave same-head dispatch behind", () => {
     const sd = path.join(dir, "ci-needs-human")
     const fetch = fetchFile(dir, "ci-needs-human-1.json", { ...FAILING, threads: [] })
     snapshot(sd, fetch)
     const residual = residualFile(dir, "ci-residual.json", "CI/test", "check")
-    mark(sd, ["--check", "CI/test", "--disposition", "needs-human", "--residual-file", residual.path])
+    mark(sd, ["--disposition", "needs-human", "--residual-file", residual.path])
 
     const parked = snapshot(sd, fetch)
     expect(parked.needs_human_residuals).toEqual([residual.value])
     expect(parked.open_needs_human).toBe(1)
     expect(parked.counts.ci).toBe(0)
 
-    const moved = snapshot(sd, fetchFile(dir, "ci-needs-human-2.json", {
-      ...FAILING, head_sha: "s2", threads: [],
+    const missing = snapshot(sd, fetchFile(dir, "ci-needs-human-missing.json", {
+      ...FAILING, checks: [], threads: [],
     }))
-    expect(moved.needs_human_residuals).toEqual([])
-    expect(moved.open_needs_human).toBe(0)
-    expect(moved.counts.ci).toBe(1)
+    expect(missing.needs_human_residuals).toEqual([])
+    expect(missing.open_needs_human).toBe(0)
+    const missingState = JSON.parse(readFileSync(path.join(sd, "state.json"), "utf8"))
+    expect(missingState.ci_dispatched.s1 ?? []).not.toContain("CI/test")
+
+    const reappeared = snapshot(sd, fetchFile(dir, "ci-needs-human-reappeared.json", {
+      ...FAILING, threads: [],
+    }))
+    expect(reappeared.counts.ci).toBe(1)
+    expect(reappeared.actionable.ci.map((item: any) => item.key)).toEqual(["CI/test"])
+  })
+
+  test("mixed grouped invalidation reopens review and CI in the same snapshot", () => {
+    const sd = path.join(dir, "mixed-needs-human")
+    const feedback = {
+      ...FAILING,
+      threads: [{ thread_id: "T1", last_comment_id: "C1", last_comment_at: "t1" }],
+    }
+    snapshot(sd, fetchFile(dir, "mixed-1.json", feedback))
+    const grouped = {
+      ...residualFile(dir, "mixed-unused.json", "T1", "thread").value,
+      sources: [{ id: "T1", kind: "thread" }, { id: "CI/test", kind: "check" }],
+    }
+    const groupedPath = fetchFile(dir, "mixed-residual.json", grouped)
+    mark(sd, ["--disposition", "needs-human", "--residual-file", groupedPath])
+    const parked = snapshot(sd, fetchFile(dir, "mixed-2.json", feedback))
+    expect(parked.needs_human_residuals).toEqual([grouped])
+    expect(parked.counts.threads).toBe(0)
+    expect(parked.counts.ci).toBe(0)
+
+    const answered = {
+      ...feedback,
+      threads: [{ thread_id: "T1", last_comment_id: "C2", last_comment_at: "t2" }],
+    }
+    const reopened = snapshot(sd, fetchFile(dir, "mixed-3.json", answered))
+    expect(reopened.needs_human_residuals).toEqual([])
+    expect(reopened.actionable.threads.map((item: any) => item.thread_id)).toEqual(["T1"])
+    expect(reopened.actionable.ci.map((item: any) => item.key)).toEqual(["CI/test"])
   })
 
   test("needs-human marks fail closed without the typed residual payload", () => {

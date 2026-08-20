@@ -17,8 +17,9 @@ Subcommands:
            observed state atomically, emit the actionable set as JSON.
   mark     --state-dir DIR --invocation-id ID --session-started-at TIME
            --invocation-budget-seconds N (--thread ID --disposition needs-human|dispatched
-           | --comment ID --disposition needs-human|dispatched | --check KEY)
-           Needs-human thread/comment marks also require --residual-file FILE.
+           | --comment ID --disposition needs-human|dispatched | --check KEY
+           | --disposition needs-human --residual-file FILE)
+           A residual-only needs-human mark atomically parks every source in FILE.
            Record that the agent acted on an item. A `dispatched` thread is
            re-emitted when a later reviewer comment moves its last-comment
            identity past the one we acted on (our own reply does not
@@ -1587,7 +1588,7 @@ def _reopen_residual_sources(residual, threads, feedback, checks, dispatched):
             record["disposition"] = DISPOSITION_OPEN
             record.pop("acted_identity", None)
             record.pop("needs_human_residual", None)
-        if kind == "check" and source_id in checks:
+        if kind == "check":
             dispatched.discard(source_id)
 
 
@@ -1651,7 +1652,7 @@ def _reconcile_needs_human_residuals(state, threads, feedback, checks, head, hea
     if head is not None:
         state.setdefault("ci_dispatched", {})[head] = sorted(dispatched)
     state["needs_human_residuals"] = kept
-    return kept
+    return kept, dispatched
 
 
 def diff(state, cur, now=None, advance_trajectory=True):
@@ -1716,9 +1717,8 @@ def diff(state, cur, now=None, advance_trajectory=True):
     # `checks_terminal` = every check has finished (none IN_PROGRESS/QUEUED).
     # Duplicate check keys (same workflow/name) are disambiguated with a #n suffix
     # so one never shadows another and silently drops a failing check. ---
-    dispatched = set(state.get("ci_dispatched", {}).get(head, []))
     new_checks = {}
-    actionable_ci = []
+    failing_check_items = {}
     has_failing = False
     checks_terminal = True
     seen_keys = {}
@@ -1735,9 +1735,10 @@ def diff(state, cur, now=None, advance_trajectory=True):
             checks_terminal = False
         if c["conclusion"] in FAILING:
             has_failing = True
-            if key not in dispatched:
-                actionable_ci.append({"key": key, "name": c["name"],
-                                      "conclusion": c["conclusion"], "details_url": c["details_url"]})
+            failing_check_items[key] = {
+                "key": key, "name": c["name"], "conclusion": c["conclusion"],
+                "details_url": c["details_url"],
+            }
 
     # Both review streams share claim->act->confirm dedup (see _apply_dispositions), differing
     # in how an item leaves the fetch and whether new activity re-opens it:
@@ -1763,22 +1764,25 @@ def diff(state, cur, now=None, advance_trajectory=True):
     #     clock without re-actionizing it.
     # Stream dispositions identify source state; the reconciled canonical set below owns the
     # decision count and payload across both review streams and CI.
-    new_threads, actionable_threads, _ = _apply_dispositions(
+    new_threads, _, _ = _apply_dispositions(
         cur["threads"], "thread_id", prior_threads,
         identity_fn=lambda t: [t.get("last_comment_id"), t.get("last_comment_at")])
-    new_feedback, actionable_feedback, _ = _apply_dispositions(
+    new_feedback, _, _ = _apply_dispositions(
         cur.get("feedback") or [], "id", prior_feedback,
         identity_fn=lambda c: [c.get("edit_id")],
         reactivate_dispositions=(DISPOSITION_NEEDS_HUMAN,))
-    needs_human_residuals = _reconcile_needs_human_residuals(
+    needs_human_residuals, dispatched = _reconcile_needs_human_residuals(
         state, new_threads, new_feedback, new_checks, head, head_changed)
-    # Reconciliation can re-open a legacy or grouped source after the stream-level pass above.
+    # Every attention stream is derived from the same post-reconciliation state.
     actionable_threads = [
         record for record in new_threads.values()
         if record.get("disposition") == DISPOSITION_OPEN]
     actionable_feedback = [
         record for record in new_feedback.values()
         if record.get("disposition") == DISPOSITION_OPEN]
+    actionable_ci = [
+        item for key, item in failing_check_items.items()
+        if key not in dispatched]
     current_thread_activity = {
         item.get("thread_id"): _thread_identity(item)
         for item in cur["threads"] if item.get("thread_id")
@@ -2668,24 +2672,29 @@ def cmd_watch(args):
         signal.signal(signal.SIGTERM, signal.SIG_IGN if superseded else prior_sigterm)
 
 
-def _mark_thread_baseline(item_id, args, state):
-    """Best-effort current last-comment identity of a thread, captured at mark time so our just-posted
-    reply becomes the acted baseline directly. Without this the baseline is adopted lazily on the next
-    snapshot, so a reviewer reply that races in between the reply and that snapshot would be adopted as
-    the baseline and silently swallowed instead of reactivating the thread. A fetch hiccup falls back
-    to the lazy baseline (acted_identity stays unset)."""
+def _mark_thread_baselines(item_ids, args, state):
+    """Best-effort current identities for every thread covered by one atomic mark."""
+    wanted = set(item_ids)
+    if not wanted:
+        return {}
     try:
         if getattr(args, "fetch_file", None):
-            threads = json.load(open(args.fetch_file)).get("threads", [])
+            with open(args.fetch_file) as f:
+                threads = json.load(f).get("threads", [])
         else:
             owner, name, host = _resolve_repo_ref(args.repo, (state.get("pr") or {}).get("url"))
             threads = fetch_threads(args.pr, owner, name, host)
-        for t in threads:
-            if t.get("thread_id") == item_id:
-                return [t.get("last_comment_id"), t.get("last_comment_at")]
     except (SystemExit, Exception):  # SystemExit (from _run_checked) is not an Exception subclass
-        pass
-    return None
+        return {}
+    return {
+        thread.get("thread_id"): [thread.get("last_comment_id"), thread.get("last_comment_at")]
+        for thread in threads if thread.get("thread_id") in wanted
+    }
+
+
+def _mark_thread_baseline(item_id, args, state):
+    """Compatibility wrapper for an ordinary single-thread dispatched mark."""
+    return _mark_thread_baselines([item_id], args, state).get(item_id)
 
 
 def _mark_branch_currency(args, state, now):
@@ -2820,7 +2829,7 @@ def _mark_branch_currency(args, state, now):
     state["last_action"] = f"{disposition} currency {key}"
 
 
-def _load_needs_human_residual(path, item_id, expected_kind):
+def _load_needs_human_residual(path, item_id=None, expected_kind=None):
     if not path:
         raise SystemExit("needs-human marks require --residual-file")
     try:
@@ -2831,18 +2840,72 @@ def _load_needs_human_residual(path, item_id, expected_kind):
     error = _needs_human_residual_error(residual)
     if error:
         raise SystemExit(f"invalid --residual-file: {error}")
-    if not any(source["id"] == item_id and source["kind"] == expected_kind
-               for source in residual["sources"]):
+    if item_id is not None and not any(
+            source["id"] == item_id and source["kind"] == expected_kind
+            for source in residual["sources"]):
         raise SystemExit("--residual-file sources must include the marked item ID and kind")
     return residual
 
 
-def _store_needs_human_residual(state, residual):
+def _park_needs_human_residual(state, residual, args):
+    """Validate, park every covered source, then publish one exact canonical object."""
     residuals = state.setdefault("needs_human_residuals", [])
     identity = _residual_identity(residual)
     if not any(isinstance(item, dict) and _residual_identity(item) == identity
                for item in residuals):
-        residuals.append(residual)
+        covered = {
+            _source_identity(source)
+            for item in residuals if isinstance(item, dict)
+            for source in item.get("sources") or [] if isinstance(source, dict)
+        }
+        overlap = covered.intersection(
+            _source_identity(source) for source in residual["sources"])
+        if overlap:
+            raise SystemExit("needs-human source already belongs to another residual")
+    else:
+        return
+
+    threads = state.get("threads", {})
+    feedback = state.get("feedback", {})
+    checks = state.get("checks", {})
+    head = state.get("head_sha")
+    for source in residual["sources"]:
+        kind, source_id = _source_identity(source)
+        if kind == "thread":
+            valid = source_id in threads
+        elif kind in ("comment", "review"):
+            valid = source_id in feedback and feedback[source_id].get("kind") == kind
+        else:
+            check = checks.get(source_id)
+            valid = (head is not None and check is not None
+                     and check.get("head_sha") == head and check.get("conclusion") in FAILING)
+        if not valid:
+            raise SystemExit(f"needs-human source is not current actionable state: {kind} {source_id}")
+
+    thread_ids = [
+        source["id"] for source in residual["sources"] if source["kind"] == "thread"]
+    thread_baselines = _mark_thread_baselines(thread_ids, args, state)
+    for source in residual["sources"]:
+        kind, source_id = _source_identity(source)
+        if kind == "thread":
+            record = threads[source_id]
+            baseline = thread_baselines.get(source_id)
+        elif kind in ("comment", "review"):
+            record = feedback[source_id]
+            baseline = [record.get("edit_id")] if record.get("edit_id") else None
+            if args.comment == source_id and args.acted_edit_id:
+                baseline = [args.acted_edit_id]
+        else:
+            state.setdefault("ci_dispatched", {}).setdefault(head, [])
+            if source_id not in state["ci_dispatched"][head]:
+                state["ci_dispatched"][head].append(source_id)
+            continue
+        record["disposition"] = DISPOSITION_NEEDS_HUMAN
+        if baseline is not None:
+            record["acted_identity"] = baseline
+
+    # Publication is last: readers see either the pre-mark state or the complete parked group.
+    residuals.append(residual)
 
 
 def _invalidate_needs_human_source(state, item_id, kind):
@@ -2892,6 +2955,12 @@ def cmd_mark(args):
             if not args.currency_key or actions != 1:
                 raise SystemExit("currency marks require --currency-key and exactly one currency action")
             _mark_branch_currency(args, state, now)
+        elif args.residual_file and not (args.check or args.thread or args.comment):
+            if args.disposition != DISPOSITION_NEEDS_HUMAN:
+                raise SystemExit("a residual-only mark requires --disposition needs-human")
+            residual = _load_needs_human_residual(args.residual_file)
+            _park_needs_human_residual(state, residual, args)
+            state["last_action"] = "needs-human residual"
         elif args.check:
             head = state.get("head_sha")
             if not head:
@@ -2907,7 +2976,7 @@ def cmd_mark(args):
                 if args.disposition == DISPOSITION_NEEDS_HUMAN:
                     residual = _load_needs_human_residual(
                         args.residual_file, args.check, "check")
-                    _store_needs_human_residual(state, residual)
+                    _park_needs_human_residual(state, residual, args)
             state["last_action"] = f"{args.disposition} check {args.check}"
         elif args.thread or args.comment:
             item_id = args.thread or args.comment
@@ -2924,10 +2993,10 @@ def cmd_mark(args):
                 if args.disposition == DISPOSITION_NEEDS_HUMAN:
                     residual = _load_needs_human_residual(
                         args.residual_file, item_id, kind)
-                    _store_needs_human_residual(state, residual)
+                    _park_needs_human_residual(state, residual, args)
                 else:
                     _invalidate_needs_human_source(state, item_id, kind)
-                if args.thread:
+                if args.thread and args.disposition != DISPOSITION_NEEDS_HUMAN:
                     # our reply moved the thread's last comment, so re-read it now as the baseline.
                     ident = _mark_thread_baseline(item_id, args, state)
                     if ident is not None:
