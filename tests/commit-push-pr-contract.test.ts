@@ -227,6 +227,10 @@ describe("ce-commit-push-pr contract", () => {
     expect(content).toMatch(/fork PRs are drivable/i)
     expect(content).toMatch(/reads state on the \*\*base\*\* repo/i)
     expect(content).toMatch(/pushes fixes to the \*\*head\*\* repo/i)
+    // Opting out disables new monitoring, not an already-returned human decision gate.
+    expect(content).toMatch(/`babysit:off`[^.]{0,240}(does not|must not)[^.]{0,160}(suppress|hide)/i)
+    expect(content).toContain("## Needs your decision")
+    expect(content).toMatch(/needs-human[^.]{0,240}unchanged/i)
   })
 
   test("config template and example keep branding out of ambient configuration", async () => {

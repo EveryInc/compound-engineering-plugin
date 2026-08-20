@@ -40,7 +40,20 @@ async function readBabysit(): Promise<string> {
 const CEDEBUG_PIPELINE = "skills/ce-debug/references/pipeline-mode.md"
 const CERESOLVE = "skills/ce-resolve-pr-feedback/SKILL.md"
 const CERESOLVE_FULL_MODE = "skills/ce-resolve-pr-feedback/references/full-mode.md"
+const CERESOLVE_PIPELINE = "skills/ce-resolve-pr-feedback/references/pipeline-mode.md"
+const CERESOLVE_RUBRIC = "skills/ce-resolve-pr-feedback/references/evaluation-rubric.md"
+const COMMIT_PUSH_HANDOFF = "skills/ce-commit-push-pr/references/apply-and-handoff.md"
+const LFG_SHIPPING_TAIL = "skills/lfg/references/shipping-tail.md"
 const PR_SNAPSHOT = "skills/ce-babysit-pr/scripts/pr-snapshot"
+
+const NEEDS_HUMAN_RESIDUAL_FIELDS = [
+  "quoted_feedback",
+  "investigation",
+  "decision_reason",
+  "options",
+  "recommendation",
+  "thread_urls",
+]
 
 // ce-debug's pipeline-mode structured return. babysit branches on this exact set (Step 2 step 5)
 // and warns "do not invent infra-retry/stale" — so both the vocabulary and the ban are protocol.
@@ -519,6 +532,45 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(pipelineEnd).toBeGreaterThan(pipelineStart)
     expect(pipelineDelta).toMatch(/`all_checks_ok`[\s\S]{0,260}`mergeability_certain`[\s\S]{0,160}`merge_state_status == "CLEAN"`[\s\S]{0,260}`stack_blocker`[\s\S]{0,160}`branch_currency_blocker`[^.]{0,80}(null|clear)/i)
     expect(pipelineDelta).toMatch(/open\/claimed\/parked current currency item[^.]{0,240}residual/i)
+  })
+
+  test("needs-human cannot become a successful handoff before its decision payload reaches the coordinator", async () => {
+    const [resolverRubric, resolverPipeline, babysitPipeline, babysitWatch, babysitTick, babysitReport, commitPush, lfg] =
+      await Promise.all([
+        readRepoFile(CERESOLVE_RUBRIC),
+        readRepoFile(CERESOLVE_PIPELINE),
+        readRepoFile("skills/ce-babysit-pr/references/pipeline.md"),
+        readRepoFile(WATCH_LOOP),
+        readRepoFile("skills/ce-babysit-pr/references/tick.md"),
+        readRepoFile("skills/ce-babysit-pr/references/report.md"),
+        readRepoFile(COMMIT_PUSH_HANDOFF),
+        readRepoFile(LFG_SHIPPING_TAIL),
+      ])
+
+    expect(resolverRubric).toContain('type: "needs-human"')
+    for (const field of NEEDS_HUMAN_RESIDUAL_FIELDS) {
+      expect(resolverRubric, `resolver schema must define '${field}'`).toContain(field)
+      expect(resolverPipeline, `resolver pipeline must return '${field}'`).toContain(field)
+    }
+    expect(resolverPipeline).toMatch(/thread_urls[^.]{0,180}(every|all)[^.]{0,120}(open|still-open)/i)
+    expect(resolverPipeline).toMatch(/leave[^.]{0,100}(thread|threads)[^.]{0,100}open/i)
+
+    expect(babysitPipeline).toMatch(/success only when[^.]{0,500}`open_needs_human == 0`/i)
+    expect(babysitWatch).toMatch(/success only when[^.]{0,500}`open_needs_human == 0`/i)
+    expect(babysitPipeline).toContain('status: "needs-human"')
+    expect(babysitPipeline).toMatch(/residual[^.]{0,120}unchanged/i)
+    expect(babysitTick).toMatch(/immediately[^.]{0,180}`## Needs your decision`/i)
+    expect(babysitTick).toMatch(/residual[^.]{0,120}unchanged/i)
+    expect(babysitReport).toContain("## Needs your decision")
+    for (const field of NEEDS_HUMAN_RESIDUAL_FIELDS) {
+      expect(babysitReport, `babysit report must render '${field}'`).toContain(field)
+    }
+
+    for (const [name, consumer] of [["ce-commit-push-pr", commitPush], ["lfg", lfg]] as const) {
+      expect(consumer, `${name} must render the decision gate`).toContain("## Needs your decision")
+      expect(consumer, `${name} must preserve the typed residual`).toMatch(/needs-human[^.]{0,240}unchanged/i)
+      expect(consumer, `${name} must gate success/DONE on propagation`).toMatch(/before[^.]{0,240}(success|DONE)/i)
+    }
   })
 
   test("merge identity distinguishes historical base metadata from current-base readiness and branch currency", async () => {

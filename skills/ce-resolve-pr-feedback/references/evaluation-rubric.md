@@ -103,21 +103,20 @@ For `needs-human`, the **reply_text** posted to the thread sounds natural -- it'
 [Natural acknowledgment, e.g., "Good question -- this is a tradeoff between X and Y. Going to think through this before making a call." or "Need to align with the team on this one -- [brief why]."]
 ```
 
-The **decision_context** (presented to the user in ordinary runs; under `mode:pipeline` it is posted on the thread as the reply instead — see [pipeline-mode.md](pipeline-mode.md)) is where the depth goes:
-```markdown
-## What the reviewer said
-[Quoted feedback -- the specific ask or concern]
+The durable result is a typed residual. Compose it once at this boundary; callers may render it, but must not summarize away or rewrite its decision payload:
 
-## What I found
-[What you investigated and discovered. Reference specific files, lines, and code.]
-
-## Why this needs your decision
-[The specific ambiguity. Not "this is complex" -- what exactly are the competing concerns?]
-
-## Options
-(a) [First option] -- [tradeoff: what you gain, what you lose or risk]
-(b) [Second option] -- [tradeoff]
-
-## My lean
-[A recommendation and why, or what additional context would tip the decision.]
+```yaml
+type: "needs-human"
+decision_context:
+  quoted_feedback: "The specific ask or concern, quoted from the reviewer."
+  investigation: "What was inspected and found, with concrete code locations."
+  decision_reason: "The exact ambiguity or risk that makes autonomous action unsafe."
+  options:
+    - option: "A concrete choice"
+      tradeoff: "What it gains and what it loses or risks"
+  recommendation: "A lean and why, or null when the evidence supports no lean."
+thread_urls:
+  - "A URL for every still-open review thread covered by this residual"
 ```
+
+`thread_urls` is non-empty for review-thread feedback and includes every still-open thread the residual covers. In an ordinary run, render these fields as a user-facing decision section. Under `mode:pipeline`, also return this same object to the caller; [pipeline-mode.md](pipeline-mode.md) owns that transport.

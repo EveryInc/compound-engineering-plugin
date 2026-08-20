@@ -6,9 +6,11 @@ Read this when the invocation carries `mode:pipeline` — set by an orchestrator
 
 For any reason. The run is unattended; a blocking question stalls the caller's loop instead of the user's attention.
 
-## 2. The open thread is the ledger
+## 2. Preserve the typed decision residual
 
-No interactive summary persists, so put each `needs-human` item's `decision_context` **on its thread as the reply** (condensed — what it is, why it needs a call, options, your lean), then leave the thread open. That is the durable, correctly-located record — the open thread is the ledger, GitHub already surfaces it, so **never** write a PR-body residual section. Reply only to carry that analysis, never merely to note a thread is open. Return the `needs-human` items as structured residuals for the caller.
+No interactive summary persists, so put each `needs-human` item's `decision_context` **on its thread as the reply** (condensed — what it is, why it needs a call, options, your lean), then leave every covered thread open. That is the durable, correctly-located record; never resolve a `needs-human` thread and never write a PR-body residual section. Reply only to carry that analysis, never merely to note a thread is open.
+
+Return the exact typed residual defined by the rubric: `type: "needs-human"`, `decision_context.quoted_feedback`, `decision_context.investigation`, `decision_context.decision_reason`, `decision_context.options`, `decision_context.recommendation`, and `thread_urls`. `thread_urls` must include every still-open thread covered by the residual. Return that object unchanged to the caller; a successful reply is not a successful handoff unless the decision payload remains available to the top-level coordinator.
 
 ## 3. Non-convergence (wrong-approach cluster / treadmill)
 
