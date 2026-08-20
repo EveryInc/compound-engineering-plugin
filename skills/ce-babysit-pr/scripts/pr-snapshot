@@ -1026,11 +1026,8 @@ def _load_branch_currency_state(state):
     return currency
 
 
-def _open_currency_item(currency, item):
-    """Re-actionize one current currency source without leaving route-specific decision state."""
-    old_fingerprint = item.pop("semantic_conflict_fingerprint", None)
-    if old_fingerprint:
-        currency.setdefault("semantic_parks", {}).pop(old_fingerprint, None)
+def _reactivate_currency_item(currency, item):
+    """Re-actionize one source while retaining semantic evidence for the next inspection."""
     item["disposition"] = DISPOSITION_OPEN
     item.pop("claimed_invocation_id", None)
     item.pop("confirmed_invocation_id", None)
@@ -1226,9 +1223,11 @@ def _detect_unrequested_base_merge(state, cur, head, head_changed, now):
 def _apply_branch_currency(state, cur, head, head_changed, now):
     currency = _load_branch_currency_state(state)
     carried_claims = _claimed_currency_items(currency)
+    carried_semantic_parks = dict(currency.get("semantic_parks") or {})
     if head_changed or (currency.get("head_sha") not in (None, head)):
         currency = _empty_branch_currency_state()
         currency["items"] = dict(carried_claims)
+        currency["semantic_parks"] = carried_semantic_parks
         state["branch_currency_state"] = currency
     currency["head_sha"] = head
 
@@ -1614,7 +1613,7 @@ def _reopen_residual_sources(state, residual, threads, feedback, checks, dispatc
             if currency.get("current_key") == source_id:
                 current = currency.get("items", {}).get(source_id)
                 if isinstance(current, dict) and current.get("disposition") == DISPOSITION_NEEDS_HUMAN:
-                    _open_currency_item(currency, current)
+                    _reactivate_currency_item(currency, current)
 
 
 def _reconcile_needs_human_residuals(state, threads, feedback, checks, head, head_changed):
@@ -1688,7 +1687,7 @@ def _reconcile_needs_human_residuals(state, threads, feedback, checks, head, hea
     if (isinstance(current, dict)
             and current.get("disposition") == DISPOSITION_NEEDS_HUMAN
             and ("currency", current_key) not in covered):
-        _open_currency_item(currency, current)
+        _reactivate_currency_item(currency, current)
 
     if head is not None:
         state.setdefault("ci_dispatched", {})[head] = sorted(dispatched)
@@ -2799,6 +2798,7 @@ def _mark_branch_currency(args, state, now):
             item["inspection_required"] = False
             item["inspection_result"] = "changed"
             item["recovery_state"] = "semantic-changed"
+            item.pop("semantic_conflict_fingerprint", None)
             # The preview describes the current conflict set for this head. Once it differs, the
             # carried fingerprints are no longer standing residuals and must not tax every later
             # base generation with inspection of stale evidence.
@@ -2857,7 +2857,7 @@ def _mark_branch_currency(args, state, now):
                 "observation_key": key,
             }
     elif disposition == DISPOSITION_OPEN:
-        _open_currency_item(currency, item)
+        _reactivate_currency_item(currency, item)
     else:
         item["parked_semantic_fingerprints"] = sorted(currency.get("semantic_parks") or {})
     state["last_action"] = f"{disposition} currency {key}"
@@ -2997,7 +2997,7 @@ def _invalidate_needs_human_source(state, item_id, kind):
                 if currency.get("current_key") == source_id:
                     current = currency.get("items", {}).get(source_id)
                     if isinstance(current, dict):
-                        _open_currency_item(currency, current)
+                        _reactivate_currency_item(currency, current)
     state["needs_human_residuals"] = kept
 
 

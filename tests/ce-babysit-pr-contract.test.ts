@@ -560,7 +560,10 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(resolverRubric).toMatch(/kind: "[^"]*currency[^"]*"/i)
     expect(resolverPipeline).toMatch(/sources[^.]{0,180}(every|all)[^.]{0,180}(thread|comment|review)/i)
     expect(debugPipeline).toContain('"kind": "check"')
+    expect(debugPipeline).toContain('"kind": "thread"')
     expect(debugPipeline).toContain('"type": "needs-human"')
+    expect(debugPipeline).toMatch(/sources[^.]{0,240}every item[^.]{0,240}owns/i)
+    expect(debugPipeline).toMatch(/thread_urls[^.]{0,180}every owned open thread/i)
 
     expect(babysitPipeline).toMatch(/success only when[^.]{0,500}`needs_human_residuals`[^.]{0,120}empty/i)
     expect(babysitWatch).toMatch(/success only when[^.]{0,500}`needs_human_residuals`[^.]{0,120}empty/i)

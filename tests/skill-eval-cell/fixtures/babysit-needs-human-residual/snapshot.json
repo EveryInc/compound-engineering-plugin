@@ -1,0 +1,34 @@
+{
+  "pr_state": "OPEN",
+  "url": "https://github.com/example/tiny-lib/pull/21",
+  "head_sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "mergeable": "MERGEABLE",
+  "merge_state_status": "CLEAN",
+  "mergeability_certain": true,
+  "checks_terminal": true,
+  "all_checks_ok": true,
+  "base_ref_blocker": null,
+  "stack_blocker": null,
+  "branch_currency_blocker": null,
+  "unrequested_base_merge": null,
+  "actionable": { "threads": [], "ci": [], "comments": [] },
+  "counts": { "threads": 0, "ci": 0, "comments": 0, "needs_human": 1 },
+  "open_needs_human": 1,
+  "needs_human_residuals": [
+    {
+      "type": "needs-human",
+      "sources": [{ "id": "PRRT_decision_42", "kind": "thread" }],
+      "decision_context": {
+        "quoted_feedback": "Changing the cache key may invalidate persisted sessions.",
+        "investigation": "Both keys are externally visible and no migration contract exists.",
+        "decision_reason": "Choosing either behavior changes the compatibility promise.",
+        "options": [
+          { "option": "Keep the current key", "tradeoff": "Preserves sessions but leaves the naming mismatch." },
+          { "option": "Adopt the new key", "tradeoff": "Improves naming but requires a migration policy." }
+        ],
+        "recommendation": "Keep the current key until migration is specified."
+      },
+      "thread_urls": ["https://github.com/example/tiny-lib/pull/21#discussion_r4242"]
+    }
+  ]
+}

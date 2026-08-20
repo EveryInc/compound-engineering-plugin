@@ -37,7 +37,7 @@ Never write a PR-body section. Never block. Surface it so the human sees it afte
 - If it maps to an **open review thread**, leave that thread open (and attach the `decision_context` as a reply when a thread reply is in scope).
 - Otherwise, **return it in the `residuals` list** for the caller to place in its single run-report comment. For a bare `ce-debug` invocation with no orchestrator and no PR, file it as a ticket in the project's tracker (detected in Phase 1.4) with enough background to action it standalone; when no tracker is reachable, return it in the structured result and say plainly that nothing else recorded it.
 
-Return each decision in the shared typed residual contract. Its `sources` enumerate the failing check keys the decision covers with `kind: "check"`; `decision_context` contains the quoted failure, investigation, decision reason, options with tradeoffs, and nullable recommendation; `thread_urls` is empty unless the decision also owns an open review thread. The caller persists and invalidates the complete source set as one unit, so never split or summarize the payload by check.
+Return each decision in the shared typed residual contract. Its `sources` enumerate every item the decision owns: each failing check key with `kind: "check"`, plus the stable ID and kind of every open review thread, comment, or review body represented by the same decision. `decision_context` contains the quoted failure, investigation, decision reason, options with tradeoffs, and nullable recommendation. `thread_urls` includes every owned open thread and is empty only when no source is a thread. The caller persists and invalidates the complete source set as one unit, so never split, omit, or summarize source ownership.
 
 ## Structured return
 
@@ -53,7 +53,10 @@ The skill's final output in pipeline mode is machine-readable (the caller parses
   "residuals": [
     {
       "type": "needs-human",
-      "sources": [ { "id": "<failing-check-key>", "kind": "check" } ],
+      "sources": [
+        { "id": "<failing-check-key>", "kind": "check" },
+        { "id": "<owned-open-thread-id, when any>", "kind": "thread" }
+      ],
       "decision_context": {
         "quoted_feedback": "<the failure or constraint in tension>",
         "investigation": "<what was inspected and found>",
@@ -61,7 +64,7 @@ The skill's final output in pipeline mode is machine-readable (the caller parses
         "options": [ { "option": "<choice>", "tradeoff": "<gain and loss>" } ],
         "recommendation": "<lean and why, or null>"
       },
-      "thread_urls": []
+      "thread_urls": ["<URL for every owned open thread, or empty when none>"]
     }
   ]
 }

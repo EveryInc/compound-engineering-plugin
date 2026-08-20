@@ -1207,7 +1207,34 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(snapshot(state, fetchFile(dir, "currency-park-reopened.json", currencyFixture({
       mergeable: "CONFLICTING",
       merge_state_status: "DIRTY",
-    }))).branch_currency.disposition).toBe("open")
+    }))).branch_currency).toMatchObject({
+      disposition: "open",
+      attention: "inspect",
+      parked_semantic_fingerprints: ["conflict-v1"],
+    })
+  }, 15000)
+
+  test("branch currency: a changed observation invalidates the typed residual but retains semantic evidence for inspection", () => {
+    const dirty = currencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
+    const original = snapshot(state, fetchFile(dir, "currency-residual-head-1.json", dirty))
+    markCurrency(state, original.branch_currency.key, "claimed")
+    markCurrency(state, original.branch_currency.key, "needs-human", "conflict-v1")
+    expect(snapshot(state, fetchFile(dir, "currency-residual-head-parked.json", dirty))
+      .needs_human_residuals).toHaveLength(1)
+
+    const moved = snapshot(state, fetchFile(dir, "currency-residual-head-2.json", currencyFixture({
+      head_sha: "s2",
+      mergeable: "CONFLICTING",
+      merge_state_status: "DIRTY",
+    })))
+    expect(moved.needs_human_residuals).toEqual([])
+    expect(moved.open_needs_human).toBe(0)
+    expect(moved.branch_currency).toMatchObject({
+      disposition: "open",
+      attention: "inspect",
+      parked_semantic_fingerprints: ["conflict-v1"],
+    })
+    expect(moved.branch_currency.key).not.toBe(original.branch_currency.key)
   }, 15000)
 
   test("branch currency: base-only movement retains the semantic park for later inspection", () => {
