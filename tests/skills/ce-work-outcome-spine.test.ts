@@ -606,6 +606,8 @@ describe("ce-work cross-model engine contract", () => {
     expect(skill).toContain("from this skill's loaded `SKILL.md` directory")
     expect(skill).toContain("never glob the target repository")
     expect(skill).toContain("continuing natively")
+    expect(evalPack).toContain("If that path is unavailable, block before any implementation write")
+    expect(evalPack).not.toContain("If that path is unavailable, disclose the unavailable route")
   })
 })
 
