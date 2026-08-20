@@ -59,5 +59,7 @@ describe("peer-job-runner shared-asset parity", () => {
     expect(kernels[0]).toContain('while kill -0 "$parent_pid" 2>/dev/null')
     expect(kernels[0]).toContain("trap 'kill \"${sleeper:-}\" 2>/dev/null || true; exit 0' TERM INT")
     expect(kernels[0]).toContain('wait "$sleeper" 2>/dev/null || exit 0')
+    expect(kernels[0]).toContain('kill -USR1 "$parent_pid"')
+    expect(kernels[0]).toContain('while [ "$_HEARTBEAT_READY" != 1 ]')
   })
 })

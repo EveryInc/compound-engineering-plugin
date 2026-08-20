@@ -629,8 +629,11 @@ start_heartbeat() {
   # Floor to 1s: a non-numeric or 0 value would make `sleep` return instantly and
   # spin the loop, flooding out.log into the runner's byte cap.
   case "$every" in ''|*[!0-9]*) every=60 ;; esac; [ "$every" -lt 1 ] && every=1
+  _HEARTBEAT_READY=0
+  trap '_HEARTBEAT_READY=1' USR1
   ( local t0 n sleeper=""
     trap 'kill "${sleeper:-}" 2>/dev/null || true; exit 0' TERM INT
+    kill -USR1 "$parent_pid"
     t0="$(date +%s)"
     while kill -0 "$parent_pid" 2>/dev/null; do
       sleep "$every" & sleeper=$!
@@ -640,6 +643,8 @@ start_heartbeat() {
       n="$(date +%s)"; log "peer alive ($(( n - t0 ))s elapsed)"
     done ) &
   _HEARTBEAT_PID=$!
+  while [ "$_HEARTBEAT_READY" != 1 ] && kill -0 "$_HEARTBEAT_PID" 2>/dev/null; do sleep 0.01 || true; done
+  trap - USR1
 }
 stop_heartbeat() {
   if [ -n "$_HEARTBEAT_PID" ]; then
