@@ -1344,6 +1344,9 @@ describe("cross-model peer skip legibility", () => {
     const dispatch = await readRepoFile(
       "skills/ce-code-review/references/dispatch-reviewers.md",
     )
+    const routing = await readRepoFile(
+      "skills/ce-code-review/references/select-and-route.md",
+    )
     const reference = await readRepoFile(
       "skills/ce-code-review/references/cross-model-review.md",
     )
@@ -1359,6 +1362,13 @@ describe("cross-model peer skip legibility", () => {
     expect(reference).toMatch(
       /Otherwise \(explicit recipient, or no other eligible peer\)/i,
     )
+    expect(reference).toMatch(/Any authentication-shaped failure: the peer did not review/i)
+    expect(reference).toContain("Attribution changes the explanation, not coverage")
+    expect(reference).toMatch(/Did-not-run fallback.*first no-review outcome/i)
+    expect(dispatch).toMatch(/owning fold-in rules/i)
+    expect(routing).toMatch(/owning fold-in rules/i)
+    expect(dispatch).not.toMatch(/execution-context auth/i)
+    expect(routing).not.toMatch(/execution-context auth/i)
   })
 
   test("code review exclusivity pointers allow in-process restore after a failed same-route rate-limit retry", async () => {
