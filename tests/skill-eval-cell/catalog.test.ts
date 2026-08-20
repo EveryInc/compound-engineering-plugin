@@ -145,6 +145,16 @@ describe("skill-eval-cell catalog", () => {
     expect(SCENARIOS.filter((s) => s.cohort === "in-progress").map((s) => s.id)).toEqual([])
   })
 
+  test("feature-only decision rows are explicitly post-only", () => {
+    expect(SCENARIOS.filter((s) => s.post_only).map((s) => s.id).sort()).toEqual([
+      "ce-babysit-pr/answered-semantic-park-reopens-exact-item",
+      "ce-babysit-pr/pipeline-returns-canonical-human-decision",
+      "ce-commit-push-pr/babysit-off-preserves-human-decision",
+      "ce-debug/pipeline-divergent-defer",
+      "ce-resolve-pr-feedback/pipeline-returns-complete-human-decision",
+    ])
+  })
+
   test("the post arm resolves the working tree, not a commit", () => {
     expect(POST_SWEEP_REF).toBe(WORKTREE_REF)
   })
