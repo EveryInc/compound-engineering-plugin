@@ -669,6 +669,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
       expect(text).toMatch(/claimed[^.]{0,180}reconciliation-only/i)
       expect(text).toMatch(/exactly one retry[^.]{0,260}(proven|conclusive)[^.]{0,180}no[- ]mutation[^.]{0,180}backoff/i)
       expect(text).toMatch(/ambiguous[^.]{0,220}never[^.]{0,160}(retry|resubmit)/i)
+      expect(text).toMatch(/terminal currency result[^.]{0,160}no safe autonomous continuation[^.]{0,220}`--residual-file`/i)
     }
     expect(babysit).toMatch(/stale invocation[^.]{0,220}(reject|invalidate)/i)
     expect(babysit).toMatch(/SKILL_DIR=[^\n]+;[^\n]+STATE_DIR=[^\n]+;[^\n]+RUN_INVOCATION_ID=[^\n]+;[^\n]+RUN_STARTED_AT=[^\n]+;[^\n]+RUN_BUDGET_SECONDS=[^\n]+;\n\s*PY=[\s\S]*?"\$PY"[^\n]+--currency-disposition claimed/i)
@@ -728,7 +729,6 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
       expect(text).toContain("--answer-file")
       expect(text).not.toContain("--currency-answered-fingerprint")
       expect(text).not.toContain("--currency-answer-file")
-      expect(text).toMatch(/(unchanged semantic inspection|unchanged inspection)[\s\S]{0,300}`--residual-file`/i)
       expect(text).toMatch(/unchanged[^.]{0,160}(park|needs-human)[^.]{0,160}(changed|different)[^.]{0,180}(reopen|retire)/i)
       expect(text).toMatch(/manual dependenc/i)
       expect(text).toContain("target-local")
