@@ -53,7 +53,7 @@ On oh-my-pi the invocation is `/skill:ce-setup`. On Codex it is `$ce-setup` when
 Compound Engineering has two different setup surfaces:
 
 - **Repo-local state** that should stay consistent and safe: the committed config example, the repo `config.yaml`, gitignore coverage if a `config.local.yaml` override exists, and (optionally) gitignore coverage for `.context/compound-engineering/` scratch.
-- **Optional external tools** used by specific workflows: `agent-browser` for browser testing and polish, `gh` for GitHub, `jq` for shell JSON, `ast-grep` for structural search, `ffmpeg` for Riffrec media analysis.
+- **Optional external tools** used by specific workflows: `agent-browser` for browser testing and dogfood QA, `gh` for GitHub, `jq` for shell JSON, `ast-grep` for structural search, `ffmpeg` for Riffrec media analysis.
 
 A missing optional tool is not a broken plugin. Treating those as one install step forces a dependency footprint most workflows never use.
 
@@ -94,7 +94,7 @@ The health report includes the resolved artifact root (`docs/` by default, or a 
 
 | Tool | Capability |
 |------|------------|
-| `agent-browser` | Browser testing, dogfood QA, and visual polish inspection |
+| `agent-browser` | browser testing and dogfood QA |
 | `gh` | GitHub PR, issue, and review workflows |
 | `jq` | JSON inspection in shell-based workflows |
 | `ast-grep` | Syntax-aware structural code search |
@@ -114,7 +114,7 @@ The health check reports something like:
 
 ```text
 Optional capabilities  3/5
-  🟢  agent-browser -- browser testing, dogfood QA, and visual polish inspection
+  🟢  agent-browser -- browser testing and dogfood QA
   🟢  gh -- GitHub PR, issue, and review workflows
   🟡  ast-grep -- unavailable: syntax-aware structural code search
        brew install -q ast-grep

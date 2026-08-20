@@ -57,6 +57,27 @@ describe("ce-setup check-health", () => {
     expect(script).not.toMatch(/<<<\s/)
   })
 
+  test("advertises agent-browser only for its current consumers", async () => {
+    const [script, setupDocs, polishSkill, polishRun, polishDocs] = await Promise.all([
+      readFile(checkHealthScript, "utf8"),
+      readFile(path.join(repoRoot, "docs", "skills", "ce-setup.md"), "utf8"),
+      readFile(path.join(repoRoot, "skills", "ce-polish", "SKILL.md"), "utf8"),
+      readFile(path.join(repoRoot, "skills", "ce-polish", "references", "run.md"), "utf8"),
+      readFile(path.join(repoRoot, "docs", "skills", "ce-polish.md"), "utf8"),
+    ])
+
+    const capability = "browser testing and dogfood QA"
+    expect(script).toContain(capability)
+    expect(setupDocs).toContain(capability)
+    expect(setupDocs).toContain("/ce-test-browser")
+    expect(setupDocs).toContain("/ce-dogfood")
+    expect(script).not.toMatch(/agent-browser[^\n]*polish/i)
+    expect(setupDocs).not.toMatch(/agent-browser[^\n]*polish/i)
+    for (const polishSurface of [polishSkill, polishRun, polishDocs]) {
+      expect(polishSurface).not.toContain("agent-browser")
+    }
+  })
+
   test("keeps the committed example identical to the bundled template", async () => {
     const [template, example] = await Promise.all([
       readFile(configTemplate, "utf8"),

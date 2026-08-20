@@ -10,7 +10,7 @@ set -o pipefail
 # Format: name|install_cmd|url|capability
 
 deps=(
-  "agent-browser|CI=true npm install -g agent-browser --no-audit --no-fund --loglevel=error && agent-browser install|https://github.com/vercel-labs/agent-browser|browser testing, dogfood QA, and visual polish inspection"
+  "agent-browser|CI=true npm install -g agent-browser --no-audit --no-fund --loglevel=error && agent-browser install|https://github.com/vercel-labs/agent-browser|browser testing and dogfood QA"
   "gh|NONINTERACTIVE=1 HOMEBREW_NO_AUTO_UPDATE=1 brew install -q gh|https://cli.github.com|GitHub PR, issue, and review workflows"
   "jq|NONINTERACTIVE=1 HOMEBREW_NO_AUTO_UPDATE=1 brew install -q jq|https://jqlang.github.io/jq/|JSON inspection in shell-based workflows"
   "ast-grep|NONINTERACTIVE=1 HOMEBREW_NO_AUTO_UPDATE=1 brew install -q ast-grep|https://ast-grep.github.io|syntax-aware structural code search"
