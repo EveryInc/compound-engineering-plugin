@@ -16,7 +16,16 @@ const EXPIRING_TEST_INVOCATION = ["--start-invocation", "--invocation-budget-sec
 
 function fetchFile(dir: string, name: string, obj: unknown): string {
   const p = path.join(dir, name)
-  writeFileSync(p, JSON.stringify(obj))
+  const fixture = obj && typeof obj === "object" && !Array.isArray(obj)
+    ? { ...(obj as Record<string, unknown>) }
+    : obj
+  if (fixture && typeof fixture === "object" && Array.isArray(fixture.threads)) {
+    fixture.threads = fixture.threads.map((thread: any) => ({
+      ...thread,
+      url: thread.url ?? `https://example.test/thread/${thread.thread_id}`,
+    }))
+  }
+  writeFileSync(p, JSON.stringify(fixture))
   return p
 }
 
@@ -2707,6 +2716,21 @@ print(json.dumps({
       expect(r.status).not.toBe(0)
       expect(r.stderr).toMatch(/invalid --residual-file/i)
     }
+  })
+
+  test("a decision mark binds every thread URL to its authoritative source", () => {
+    const sd = path.join(dir, "wrong-thread-url")
+    const fetch = fetchFile(dir, "wrong-thread-url.json", FAILING)
+    snapshot(sd, fetch)
+    const residual = residualFile(dir, "wrong-thread-url-residual.json", "T1", "thread").value
+    residual.thread_urls = ["https://example.test/thread/T2"]
+    const rejected = spawnSync("python3", [SCRIPT, "mark", "--state-dir", sd,
+      ...persistedInvocationArgs(sd), "--thread", "T1", "--disposition", "needs-human",
+      "--residual-file", fetchFile(dir, "wrong-thread-url-payload.json", residual),
+      "--fetch-file", fetch], { encoding: "utf8" })
+    expect(rejected.status).not.toBe(0)
+    expect(rejected.stderr).toMatch(/thread_urls must match the authoritative URL/)
+    expect(JSON.parse(readFileSync(path.join(sd, "state.json"), "utf8")).human_decisions).toEqual([])
   })
 
   test("mark --check silences it; a new head SHA re-actionizes", () => {

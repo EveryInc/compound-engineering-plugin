@@ -952,6 +952,7 @@ query($owner:String!,$repo:String!,$pr:Int!,$cursor:String){
   repository(owner:$owner,name:$repo){ pullRequest(number:$pr){
     reviewThreads(first:100,after:$cursor){
       nodes{ id isResolved path line
+        root: comments(first:1){ nodes{ url } }
         comments(last:100){ nodes{ id createdAt lastEditedAt } } }
       pageInfo{ hasNextPage endCursor } } } } }"""
     out = []
@@ -974,10 +975,12 @@ query($owner:String!,$repo:String!,$pr:Int!,$cursor:String){
             # Bounded to the last 100 comments (see the query): review threads are ~never that long; an
             # edit to a comment outside that window would be missed (acceptable vs paginating per thread).
             edit_at = max((c.get("lastEditedAt") or c.get("createdAt") or "" for c in cs), default="")
+            root = (n.get("root") or {}).get("nodes") or []
             out.append({
                 "thread_id": n["id"],
                 "last_comment_id": last.get("id"),
                 "last_comment_at": edit_at or last.get("lastEditedAt") or last.get("createdAt"),
+                "url": root[0].get("url") if root else None,
                 "path": n.get("path"),
                 "line": n.get("line"),
             })
@@ -2993,8 +2996,8 @@ def cmd_watch(args):
         signal.signal(signal.SIGTERM, signal.SIG_IGN if superseded else prior_sigterm)
 
 
-def _mark_thread_baselines(item_ids, args, state):
-    """Best-effort current identities for every thread covered by one atomic mark."""
+def _mark_thread_records(item_ids, args, state):
+    """Best-effort current records for every thread covered by one atomic mark."""
     wanted = set(item_ids)
     if not wanted:
         return {}
@@ -3008,8 +3011,16 @@ def _mark_thread_baselines(item_ids, args, state):
     except (SystemExit, Exception):  # SystemExit (from _run_checked) is not an Exception subclass
         return {}
     return {
-        thread.get("thread_id"): [thread.get("last_comment_id"), thread.get("last_comment_at")]
+        thread.get("thread_id"): thread
         for thread in threads if thread.get("thread_id") in wanted
+    }
+
+
+def _mark_thread_baselines(item_ids, args, state):
+    """Best-effort current identities for every thread covered by one atomic mark."""
+    return {
+        thread_id: [thread.get("last_comment_id"), thread.get("last_comment_at")]
+        for thread_id, thread in _mark_thread_records(item_ids, args, state).items()
     }
 
 
@@ -3211,12 +3222,23 @@ def _park_human_decision(state, residual, args, now):
 
     thread_ids = [
         source["id"] for source in residual["sources"] if source["kind"] == "thread"]
-    thread_baselines = _mark_thread_baselines(thread_ids, args, state)
+    thread_records = _mark_thread_records(thread_ids, args, state)
+    thread_baselines = {
+        thread_id: [thread.get("last_comment_id"), thread.get("last_comment_at")]
+        for thread_id, thread in thread_records.items()
+    }
     missing_thread_baselines = sorted(set(thread_ids) - set(thread_baselines))
     if missing_thread_baselines:
         raise SystemExit(
             "cannot freeze the post-reply thread observation: "
             + ", ".join(missing_thread_baselines))
+    authoritative_thread_urls = {
+        thread_id: thread.get("url") for thread_id, thread in thread_records.items()
+    }
+    if (any(not isinstance(url, str) or not url.strip()
+            for url in authoritative_thread_urls.values())
+            or set(residual["thread_urls"]) != set(authoritative_thread_urls.values())):
+        raise SystemExit("thread_urls must match the authoritative URL of every thread source")
     sources = []
     for source in residual["sources"]:
         kind, source_id = _source_identity(source)
