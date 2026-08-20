@@ -172,6 +172,38 @@ def promote_raw_snapshot(staging_dir: Path, raw_dir: Path) -> None:
         shutil.rmtree(previous_dir, ignore_errors=True)
 
 
+def validate_frames_destination(frames_dir: Path) -> None:
+    if frames_dir.is_symlink():
+        raise SourceInputError(f"Frames output directory must not be a symlink: {frames_dir}")
+    if frames_dir.exists() and not frames_dir.is_dir():
+        raise SourceInputError(f"Frames output path must be a directory: {frames_dir}")
+    if not frames_dir.exists():
+        return
+    for existing in frames_dir.rglob("*"):
+        if existing.is_symlink():
+            raise SourceInputError(f"Frames output contains a symlink and cannot be replaced safely: {existing}")
+
+
+def promote_frames_snapshot(staging_dir: Path, frames_dir: Path) -> None:
+    validate_frames_destination(frames_dir)
+    previous_dir = frames_dir.parent / staging_dir.name.replace(".staging-", ".previous-", 1)
+    if previous_dir.exists() or previous_dir.is_symlink():
+        raise SourceInputError(f"Temporary frames snapshot path already exists: {previous_dir}")
+
+    had_previous = frames_dir.exists()
+    if had_previous:
+        os.replace(frames_dir, previous_dir)
+    try:
+        os.replace(staging_dir, frames_dir)
+    except BaseException:
+        if had_previous:
+            os.replace(previous_dir, frames_dir)
+        raise
+
+    if had_previous:
+        shutil.rmtree(previous_dir, ignore_errors=True)
+
+
 def default_output_dir(source_path: Path) -> Path:
     cwd = Path.cwd()
     stem = slugify(source_path.stem)
@@ -621,41 +653,49 @@ def select_moments(
 
 
 def extract_frames(recording_path: Path | None, frames_dir: Path, moments: list[dict[str, Any]]) -> None:
-    frames_dir.mkdir(parents=True, exist_ok=True)
-    if not recording_path or not recording_path.exists():
-        for moment in moments:
-            moment["screenshot"] = None
-            moment["screenshot_status"] = "no video source"
-        return
-    if not shutil.which("ffmpeg"):
-        for moment in moments:
-            moment["screenshot"] = None
-            moment["screenshot_status"] = "ffmpeg not installed"
-        return
-
-    for moment in moments:
-        safe_reason = slugify(moment["reason"])[:48]
-        frame_path = frames_dir / f"{moment['id'].lower()}-{moment['t']:.2f}s-{safe_reason}.png"
-        command = [
-            "ffmpeg",
-            "-y",
-            "-ss",
-            f"{max(0.0, float(moment['t'])):.3f}",
-            "-i",
-            str(recording_path),
-            "-frames:v",
-            "1",
-            "-q:v",
-            "2",
-            str(frame_path),
-        ]
-        result = subprocess.run(command, capture_output=True, text=True, timeout=60)
-        if result.returncode == 0 and frame_path.exists():
-            moment["screenshot"] = str(frame_path)
-            moment["screenshot_status"] = "ok"
+    frames_dir.parent.mkdir(parents=True, exist_ok=True)
+    validate_frames_destination(frames_dir)
+    staging_dir = Path(
+        tempfile.mkdtemp(prefix=f".{frames_dir.name}.staging-", dir=frames_dir.parent)
+    )
+    try:
+        if not recording_path or not recording_path.exists():
+            for moment in moments:
+                moment["screenshot"] = None
+                moment["screenshot_status"] = "no video source"
+        elif not shutil.which("ffmpeg"):
+            for moment in moments:
+                moment["screenshot"] = None
+                moment["screenshot_status"] = "ffmpeg not installed"
         else:
-            moment["screenshot"] = None
-            moment["screenshot_status"] = compact_text(result.stderr or result.stdout, 300)
+            for moment in moments:
+                safe_reason = slugify(moment["reason"])[:48]
+                frame_path = staging_dir / f"{moment['id'].lower()}-{moment['t']:.2f}s-{safe_reason}.png"
+                command = [
+                    "ffmpeg",
+                    "-y",
+                    "-ss",
+                    f"{max(0.0, float(moment['t'])):.3f}",
+                    "-i",
+                    str(recording_path),
+                    "-frames:v",
+                    "1",
+                    "-q:v",
+                    "2",
+                    str(frame_path),
+                ]
+                result = subprocess.run(command, capture_output=True, text=True, timeout=60)
+                if result.returncode == 0 and frame_path.exists():
+                    moment["screenshot"] = str(frames_dir / frame_path.name)
+                    moment["screenshot_status"] = "ok"
+                else:
+                    moment["screenshot"] = None
+                    moment["screenshot_status"] = compact_text(result.stderr or result.stdout, 300)
+        promote_frames_snapshot(staging_dir, frames_dir)
+    except BaseException:
+        if staging_dir.exists() and not staging_dir.is_symlink():
+            shutil.rmtree(staging_dir, ignore_errors=True)
+        raise
 
 
 def event_counts(events: list[dict[str, Any]]) -> dict[str, int]:
@@ -1165,6 +1205,11 @@ def main() -> int:
     raw_dir = output_dir / "raw"
     frames_dir = output_dir / "frames"
     try:
+        validate_frames_destination(frames_dir)
+    except SourceInputError as exc:
+        print(f"Invalid output: {exc}", file=sys.stderr)
+        return 2
+    try:
         source = prepare_source(source_path, raw_dir, source_kind)
     except SourceInputError as exc:
         print(f"Invalid source: {exc}", file=sys.stderr)
@@ -1195,7 +1240,11 @@ def main() -> int:
             {"id": f"M{index}", "t": timestamp, "reason": "representative video frame", "events": []}
             for index, timestamp in enumerate(fallback_times[: args.max_moments], start=1)
         ]
-    extract_frames(source["recording_path"], frames_dir, moments)
+    try:
+        extract_frames(source["recording_path"], frames_dir, moments)
+    except SourceInputError as exc:
+        print(f"Invalid output: {exc}", file=sys.stderr)
+        return 2
     findings = summarize_candidate_findings(moments, transcript.get("text", ""))
 
     topic = slugify(args.topic or source_path.stem)

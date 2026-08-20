@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -96,6 +97,84 @@ describe("analyze_riffrec_zip unpacked capture input", () => {
     expect(rerunAnalysis.event_counts).toEqual({ click: 1 })
   })
 
+  test.skipIf(process.platform === "win32")(
+    "replaces frame evidence for no-ffmpeg and no-video reruns",
+    () => {
+      const tmp = mkdtempSync(path.join(tmpdir(), "ce-riffrec-frame-snapshot-"))
+      const capture = makeUnpackedCapture(tmp)
+      const output = path.join(tmp, "analysis-output")
+      const fakeBin = path.join(tmp, "bin")
+      const fakeFfmpeg = path.join(fakeBin, "ffmpeg")
+      mkdirSync(fakeBin)
+      writeFileSync(
+        fakeFfmpeg,
+        '#!/bin/sh\nfor arg in "$@"; do output="$arg"; done\nprintf frame > "$output"\n',
+      )
+      chmodSync(fakeFfmpeg, 0o755)
+      const python = spawnSync("python3", ["-c", "import sys; print(sys.executable)"], {
+        encoding: "utf8",
+      }).stdout.trim()
+      expect(python).not.toBe("")
+      const env = { ...process.env, PATH: fakeBin }
+
+      const initialRun = spawnSync(
+        python,
+        [CANONICAL_SCRIPT, capture, "--output-dir", output, "--no-transcribe", "--max-moments", "1"],
+        { encoding: "utf8", cwd: tmp, env },
+      )
+
+      expect(initialRun.status).toBe(0)
+      expect(initialRun.stderr).toBe("")
+      const initialFrames = readdirSync(path.join(output, "frames"))
+      expect(initialFrames).toHaveLength(1)
+      const staleFrame = initialFrames[0]
+      expect(staleFrame.endsWith(".png")).toBe(true)
+      expect(readFileSync(path.join(output, "source-materials.md"), "utf8")).toContain(staleFrame)
+
+      const disabledFfmpeg = `${fakeFfmpeg}.disabled`
+      renameSync(fakeFfmpeg, disabledFfmpeg)
+      const noFfmpegRun = spawnSync(
+        python,
+        [CANONICAL_SCRIPT, capture, "--output-dir", output, "--no-transcribe", "--max-moments", "1"],
+        { encoding: "utf8", cwd: tmp, env },
+      )
+
+      expect(noFfmpegRun.status).toBe(0)
+      expect(noFfmpegRun.stderr).toBe("")
+      expect(readdirSync(path.join(output, "frames"))).toEqual([])
+      expect(existsSync(path.join(output, "frames", staleFrame))).toBe(false)
+      const noFfmpegManifest = readFileSync(path.join(output, "source-materials.md"), "utf8")
+      expect(noFfmpegManifest).not.toContain(staleFrame)
+      expect(noFfmpegManifest).not.toContain("All frame files:")
+
+      renameSync(disabledFfmpeg, fakeFfmpeg)
+      const repopulateRun = spawnSync(
+        python,
+        [CANONICAL_SCRIPT, capture, "--output-dir", output, "--no-transcribe", "--max-moments", "1"],
+        { encoding: "utf8", cwd: tmp, env },
+      )
+      expect(repopulateRun.status).toBe(0)
+      const repopulatedFrames = readdirSync(path.join(output, "frames"))
+      expect(repopulatedFrames).toHaveLength(1)
+
+      unlinkSync(path.join(capture, "recording.webm"))
+      const noVideoRun = spawnSync(
+        python,
+        [CANONICAL_SCRIPT, capture, "--output-dir", output, "--no-transcribe", "--max-moments", "1"],
+        { encoding: "utf8", cwd: tmp, env },
+      )
+
+      expect(noVideoRun.status).toBe(0)
+      expect(noVideoRun.stderr).toBe("")
+      expect(readdirSync(path.join(output, "frames"))).toEqual([])
+      const noVideoManifest = readFileSync(path.join(output, "source-materials.md"), "utf8")
+      expect(noVideoManifest).not.toContain(repopulatedFrames[0])
+      expect(noVideoManifest).not.toContain("All frame files:")
+      expect(readdirSync(output).some((entry) => entry.startsWith(".frames.staging-"))).toBe(false)
+      expect(readdirSync(output).some((entry) => entry.startsWith(".frames.previous-"))).toBe(false)
+    },
+  )
+
   test("reports the required capture markers for an unsupported directory", () => {
     const tmp = mkdtempSync(path.join(tmpdir(), "ce-riffrec-unsupported-"))
     const capture = path.join(tmp, "not-a-capture")
@@ -165,6 +244,27 @@ describe("analyze_riffrec_zip unpacked capture input", () => {
     expect(run.stderr).toContain("Raw output directory must not be a symlink")
     expect(readdirSync(outside)).toEqual([])
     expect(readdirSync(output).some((entry) => entry.startsWith(".raw.staging-"))).toBe(false)
+  })
+
+  test.skipIf(process.platform === "win32")("rejects a symlinked frames destination", () => {
+    const tmp = mkdtempSync(path.join(tmpdir(), "ce-riffrec-frames-symlink-"))
+    const capture = makeUnpackedCapture(tmp)
+    const output = path.join(tmp, "analysis-output")
+    const outside = path.join(tmp, "outside-frames")
+    mkdirSync(output)
+    mkdirSync(outside)
+    symlinkSync(outside, path.join(output, "frames"))
+
+    const run = spawnSync(
+      "python3",
+      [CANONICAL_SCRIPT, capture, "--output-dir", output, "--no-transcribe"],
+      { encoding: "utf8", cwd: tmp },
+    )
+
+    expect(run.status).toBe(2)
+    expect(run.stderr).toContain("Frames output directory must not be a symlink")
+    expect(readdirSync(outside)).toEqual([])
+    expect(existsSync(path.join(output, "raw"))).toBe(false)
   })
 
   test("rejects output nested inside the source capture", () => {
