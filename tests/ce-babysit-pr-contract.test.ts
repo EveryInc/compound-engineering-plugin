@@ -535,7 +535,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
   })
 
   test("needs-human cannot become a successful handoff before its decision payload reaches the coordinator", async () => {
-    const [resolverRubric, resolverPipeline, debugPipeline, babysitPipeline, babysitWatch, babysitTick, babysitReport, commitPush, lfg] =
+    const [resolverRubric, resolverPipeline, debugPipeline, babysitPipeline, babysitWatch, babysitTick, babysitSettle, babysitReport, commitPush, lfg] =
       await Promise.all([
         readRepoFile(CERESOLVE_RUBRIC),
         readRepoFile(CERESOLVE_PIPELINE),
@@ -543,6 +543,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
         readRepoFile("skills/ce-babysit-pr/references/pipeline.md"),
         readRepoFile(WATCH_LOOP),
         readRepoFile("skills/ce-babysit-pr/references/tick.md"),
+        readRepoFile("skills/ce-babysit-pr/references/settle.md"),
         readRepoFile("skills/ce-babysit-pr/references/report.md"),
         readRepoFile(COMMIT_PUSH_HANDOFF),
         readRepoFile(LFG_SHIPPING_TAIL),
@@ -556,6 +557,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(resolverPipeline).toMatch(/thread_urls[^.]{0,180}(every|all)[^.]{0,120}(open|still-open)/i)
     expect(resolverPipeline).toMatch(/leave[^.]{0,100}(thread|threads)[^.]{0,100}open/i)
     expect(resolverRubric).toContain("sources:")
+    expect(resolverRubric).toMatch(/kind: "[^"]*currency[^"]*"/i)
     expect(resolverPipeline).toMatch(/sources[^.]{0,180}(every|all)[^.]{0,180}(thread|comment|review)/i)
     expect(debugPipeline).toContain('"kind": "check"')
     expect(debugPipeline).toContain('"type": "needs-human"')
@@ -572,9 +574,15 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(babysitTick).toMatch(/preserve it unchanged/i)
     expect(babysitTick).toContain("--residual-file")
     expect(babysitTick).toContain("needs_human_residuals")
+    expect(babysitTick).toMatch(/never add a route-specific `needs-human` mark/i)
     expect(babysitWatch).toContain("needs_human_residuals")
     expect(babysitWatch).toMatch(/reopening one source[^.]{0,180}(invalidates|reopens)[^.]{0,180}(every|all)/i)
     expect(babysitWatch).toMatch(/legacy parked records[^.]{0,180}re-actionized/i)
+    expect(babysitWatch).toMatch(/interactive continuous mode[^.]{0,240}standing residual[^.]{0,240}watch continues/i)
+    expect(babysitWatch).not.toMatch(/record each with `mark[^`]*--disposition needs-human`/i)
+    expect(babysitSettle).toMatch(/shared atomic mark/i)
+    expect(babysitSettle).not.toMatch(/`--disposition needs-human`/i)
+    expect(babysitWatch).toMatch(/kind: "currency"/i)
     expect(babysitReport).toContain("## Needs your decision")
     for (const field of NEEDS_HUMAN_RESIDUAL_FIELDS) {
       expect(babysitReport, `babysit report must render '${field}'`).toContain(field)

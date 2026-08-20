@@ -20,7 +20,7 @@ function fetchFile(dir: string, name: string, obj: unknown): string {
   return p
 }
 
-function residualFile(dir: string, name: string, sourceId: string, kind: "thread" | "comment" | "review" | "check"): { path: string; value: any } {
+function residualFile(dir: string, name: string, sourceId: string, kind: "thread" | "comment" | "review" | "check" | "currency"): { path: string; value: any } {
   const value = {
     type: "needs-human",
     sources: [{ id: sourceId, kind }],
@@ -104,15 +104,23 @@ function mark(stateDir: string, args: string[]): void {
 function markCurrency(stateDir: string, key: string, disposition: string, fingerprint?: string): void {
   const args = ["--currency-key", key, "--currency-disposition", disposition]
   if (fingerprint) args.push("--semantic-conflict-fingerprint", fingerprint)
+  if (disposition === "needs-human") {
+    args.push("--residual-file", residualFile(path.dirname(stateDir), `currency-${key}.json`, key, "currency").path)
+  }
   mark(stateDir, args)
 }
 
 function markCurrencyOutcome(stateDir: string, key: string, outcome: string): void {
-  mark(stateDir, ["--currency-key", key, "--currency-outcome", outcome])
+  const args = ["--currency-key", key, "--currency-outcome", outcome]
+  if (outcome === "proven-no-mutation") {
+    args.push("--residual-file", residualFile(path.dirname(stateDir), `currency-outcome-${key}.json`, key, "currency").path)
+  }
+  mark(stateDir, args)
 }
 
 function markCurrencyInspection(stateDir: string, key: string, fingerprint: string): void {
-  mark(stateDir, ["--currency-key", key, "--currency-inspected-fingerprint", fingerprint])
+  mark(stateDir, ["--currency-key", key, "--currency-inspected-fingerprint", fingerprint,
+    "--residual-file", residualFile(path.dirname(stateDir), `currency-inspection-${key}.json`, key, "currency").path])
 }
 
 function watch(stateDir: string, fetch: string, extra: string[] = []): any {
@@ -727,6 +735,81 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       })
       expect(wakeReason(enabled)).toBe("branch-currency")
     }
+  }, 15000)
+
+  test("branch currency decisions use the canonical typed residual and re-actionize as one source", () => {
+    const currencyState = path.join(dir, "currency-canonical-residual")
+    const unavailable = fetchFile(dir, "currency-canonical-off.json", quietCurrencyFixture({
+      host_branch_update_capability: false,
+    }))
+    const observed = snapshot(currencyState, unavailable)
+    const residual = residualFile(
+      dir, "currency-canonical-residual.json", observed.branch_currency.key, "currency")
+
+    mark(currencyState, ["--disposition", "needs-human", "--residual-file", residual.path])
+    const parked = snapshot(currencyState, unavailable)
+    expect(parked.needs_human_residuals).toEqual([residual.value])
+    expect(parked.open_needs_human).toBe(1)
+    expect(parked.branch_currency.disposition).toBe("needs-human")
+    expect(wakeReason(parked)).toBe("needs-human")
+
+    const enabled = snapshot(currencyState, fetchFile(dir, "currency-canonical-on.json", quietCurrencyFixture({
+      host_branch_update_capability: true,
+    })))
+    expect(enabled.needs_human_residuals).toEqual([])
+    expect(enabled.open_needs_human).toBe(0)
+    expect(enabled.branch_currency).toMatchObject({ disposition: "open", attention: "claim" })
+  }, 15000)
+
+  test("branch currency cannot enter needs-human without a complete typed residual", () => {
+    const currencyState = path.join(dir, "currency-residual-required")
+    const fetch = fetchFile(dir, "currency-residual-required.json", quietCurrencyFixture({
+      host_branch_update_capability: false,
+    }))
+    const observed = snapshot(currencyState, fetch)
+    const result = spawnSync("python3", [SCRIPT, "mark", "--state-dir", currencyState,
+      ...persistedInvocationArgs(currencyState), "--currency-key", observed.branch_currency.key,
+      "--currency-disposition", "needs-human"], { encoding: "utf8" })
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toMatch(/residual-file/)
+    expect(snapshot(currencyState, fetch).branch_currency.disposition).toBe("open")
+  }, 15000)
+
+  test("a completed branch-currency source cannot be republished as a human decision", () => {
+    const currencyState = path.join(dir, "currency-completed-residual")
+    const fetch = fetchFile(dir, "currency-completed-residual.json", quietCurrencyFixture())
+    const observed = snapshot(currencyState, fetch)
+    markCurrency(currencyState, observed.branch_currency.key, "claimed")
+    markCurrency(currencyState, observed.branch_currency.key, "confirmed")
+    const residual = residualFile(
+      dir, "currency-completed-residual-payload.json", observed.branch_currency.key, "currency")
+
+    const result = spawnSync("python3", [SCRIPT, "mark", "--state-dir", currencyState,
+      ...persistedInvocationArgs(currencyState), "--disposition", "needs-human",
+      "--residual-file", residual.path], { encoding: "utf8" })
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toMatch(/not current actionable state/)
+    expect(snapshot(currencyState, fetch).needs_human_residuals).toEqual([])
+  }, 15000)
+
+  test("dispatch cannot erase a source covered by a canonical decision residual", () => {
+    const decisionState = path.join(dir, "covered-dispatch")
+    const fetch = fetchFile(dir, "covered-dispatch.json", {
+      ...FAILING,
+      checks: [],
+      threads: [],
+      feedback: [{ id: "IC_decision", kind: "comment", author: "reviewer", edit_id: "v1" }],
+    })
+    snapshot(decisionState, fetch)
+    const residual = residualFile(dir, "covered-dispatch-residual.json", "IC_decision", "comment")
+    mark(decisionState, ["--disposition", "needs-human", "--residual-file", residual.path])
+
+    const dispatched = spawnSync("python3", [SCRIPT, "mark", "--state-dir", decisionState,
+      ...persistedInvocationArgs(decisionState), "--comment", "IC_decision",
+      "--disposition", "dispatched"], { encoding: "utf8" })
+    expect(dispatched.status).not.toBe(0)
+    expect(dispatched.stderr).toMatch(/reopen the grouped residual first/)
+    expect(snapshot(decisionState, fetch).needs_human_residuals).toEqual([residual.value])
   }, 15000)
 
   test("branch currency: standing confirmed and needs-human residuals stay quiet, and max-runtime outranks new work", () => {

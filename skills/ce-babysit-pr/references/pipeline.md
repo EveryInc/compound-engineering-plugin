@@ -1,7 +1,5 @@
 # Pipeline mode (`mode:pipeline`)
 
-### Pipeline mode (`mode:pipeline`)
-
 Same tick engine, with one residual contract across every delegate and route:
 
 1. **Delegates run non-interactively.** Invoke `ce-resolve-pr-feedback mode:pipeline` for comments and `ce-debug mode:pipeline` for CI; collect their structured results. Never ask the user anything.

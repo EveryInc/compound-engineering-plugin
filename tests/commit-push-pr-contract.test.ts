@@ -214,7 +214,7 @@ describe("ce-commit-push-pr contract", () => {
 
     // Default-on: completion gate, announce, transfer ownership, never ask yes/no.
     expect(content).toMatch(/completion gate/i)
-    expect(content).toMatch(/Auto-hand off by default/i)
+    expect(content).toMatch(/automatic handoff/i)
     expect(content).toMatch(/never ask yes\/no/i)
     // Off is the explicit choice: per-run token + standing config opt-out.
     expect(content).toContain("babysit:off")
@@ -336,7 +336,7 @@ describe("PR concept teaching contract", () => {
       "skills/ce-commit-push-pr/references/apply-and-handoff.md",
     )
 
-    const handoff = content.match(/\*\*Babysit handoff — default on; completion gate\.\*\*[\s\S]+?(?=\n\n)/)?.[0]
+    const handoff = content.match(/\*\*Babysit handoff — default on; completion gate\.\*\*[\s\S]+?(?=\n\nA draft-only stack submit)/)?.[0]
     expect(handoff).toBeDefined()
     // Completion gate: PR URL alone is not done; ce-babysit-pr must own follow-on.
     expect(handoff).toMatch(/not done.+until `ce-babysit-pr` owns/is)

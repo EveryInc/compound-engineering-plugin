@@ -109,7 +109,7 @@ The durable result is a typed residual. Compose it once at this boundary; caller
 type: "needs-human"
 sources:
   - id: "Stable thread, top-level comment, or review-body ID from the fetched feedback"
-    kind: "thread | comment | review | check"
+    kind: "thread | comment | review | check | currency"
 decision_context:
   quoted_feedback: "The specific ask or concern, quoted from the reviewer."
   investigation: "What was inspected and found, with concrete code locations."
@@ -122,4 +122,4 @@ thread_urls:
   - "A URL for every still-open review thread covered by this residual"
 ```
 
-`sources` includes every item the residual covers, using stable IDs so callers can reconcile the complete set as one unit. This resolver emits `thread`, `comment`, and `review`; the shared pipeline contract reserves `check` for CI producers. `thread_urls` is non-empty for review-thread feedback and includes every still-open thread the residual covers; it may be empty when no source is a review thread. In an ordinary run, render these fields as a user-facing decision section. Under `mode:pipeline`, also return this same object to the caller; [pipeline-mode.md](pipeline-mode.md) owns that transport.
+`sources` includes every item the residual covers, using stable IDs so callers can reconcile the complete set as one unit. This resolver emits `thread`, `comment`, and `review`; the shared pipeline contract reserves `check` for CI producers and `currency` for the babysitter's exact branch-currency observation key. `thread_urls` is non-empty for review-thread feedback and includes every still-open thread the residual covers; it may be empty when no source is a review thread. In an ordinary run, render these fields as a user-facing decision section. Under `mode:pipeline`, also return this same object to the caller; [pipeline-mode.md](pipeline-mode.md) owns that transport.
