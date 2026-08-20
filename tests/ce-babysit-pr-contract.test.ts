@@ -484,9 +484,10 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
   })
 
   test("mark writes are fenced by the active invocation tuple", async () => {
-    const [babysit, watchLoop, script] = await Promise.all([
+    const [babysit, watchLoop, tick, script] = await Promise.all([
       readBabysit(),
       readRepoFile("skills/ce-babysit-pr/references/watch-loop.md"),
+      readRepoFile("skills/ce-babysit-pr/references/tick.md"),
       readRepoFile(PR_SNAPSHOT),
     ])
     for (const text of [babysit, watchLoop]) {
@@ -494,6 +495,31 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     }
     expect(script).toMatch(/m\.add_argument\("--invocation-id", required=True/)
     expect(script).toMatch(/def cmd_mark\(args\):[\s\S]{0,180}_apply_invocation\(box, args, now\)/)
+
+    const answerStart = tick.indexOf("When the user answers")
+    const answerEnd = tick.indexOf("The next snapshot", answerStart)
+    const answerBlock = tick.slice(answerStart, answerEnd)
+    const command = answerBlock.indexOf('"$PY" "$SKILL_DIR/scripts/pr-snapshot" mark')
+    expect(answerStart).toBeGreaterThan(-1)
+    expect(answerEnd).toBeGreaterThan(answerStart)
+    expect(command).toBeGreaterThan(-1)
+    for (const assignment of [
+      'SKILL_DIR="',
+      'SCRATCH_ROOT="',
+      'STATE_DIR="',
+      'RUN_INVOCATION_ID="',
+      'RUN_STARTED_AT="',
+      'RUN_BUDGET_SECONDS="',
+      'PY="',
+    ]) {
+      const initializedAt = answerBlock.indexOf(assignment)
+      expect(initializedAt, `${assignment} must be initialized in the answer recipe`).toBeGreaterThan(-1)
+      expect(initializedAt, `${assignment} must be initialized before the answer mark`).toBeLessThan(command)
+    }
+    expect(answerBlock).toContain('/tmp/compound-engineering-$(id -u)')
+    expect(answerBlock).toContain('${TMPDIR:-/tmp}/compound-engineering-$(id -u)')
+    expect(answerBlock).toContain('ce-babysit-pr/<host>-<owner>-<repo>-<N>')
+    expect(answerBlock).toContain("for c in python3 python py")
   })
 
   test("blocked approval drains review automatically before a bounded handback", async () => {

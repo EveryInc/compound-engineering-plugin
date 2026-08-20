@@ -68,6 +68,8 @@ Passing `--pr`/`--repo` on the shared residual mark is load-bearing: `mark` re-r
 When the user answers, map their response to the displayed `decision_id`, preserve the exact response in a file, and record the shared answer transition before acting on it. The answer is consumed only when this mark succeeds; when the current envelope is read-only, return this exact mark as the sole pending transition rather than describing an in-memory move:
 
 ```bash
+SKILL_DIR="<absolute path of this skill's directory>"; SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)"; [ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") 2>/dev/null && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && [ -w "$SCRATCH_ROOT" ] || SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)"; [ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && chmod 700 "$SCRATCH_ROOT" || { echo "unsafe scratch root: $SCRATCH_ROOT" >&2; exit 1; }; STATE_DIR="$SCRATCH_ROOT/ce-babysit-pr/<host>-<owner>-<repo>-<N>"; (umask 077; mkdir -p "$STATE_DIR") || exit 1; chmod 700 "$STATE_DIR" || exit 1; RUN_INVOCATION_ID="<invocation_id>"; RUN_STARTED_AT="<invocation_started_at>"; RUN_BUDGET_SECONDS="<invocation_budget_seconds>";
+PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
 "$PY" "$SKILL_DIR/scripts/pr-snapshot" mark --state-dir "$STATE_DIR" --invocation-id "$RUN_INVOCATION_ID" --session-started-at "$RUN_STARTED_AT" --invocation-budget-seconds "$RUN_BUDGET_SECONDS" --answer-decision <decision_id> --answer-file <path-containing-the-exact-human-response>
 ```
 
