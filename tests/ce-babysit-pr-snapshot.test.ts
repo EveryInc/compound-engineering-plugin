@@ -1564,6 +1564,40 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(repark.stderr).toMatch(/already have a recorded human answer/)
   }, 15000)
 
+  test("a decision answer rejects every source and currency action modifier atomically", () => {
+    const dirty = currencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
+    const observed = snapshot(state, fetchFile(dir, "answer-action-exclusive.json", dirty))
+    markCurrency(state, observed.branch_currency.key, "needs-human", "conflict-v1")
+    const parked = snapshot(state, fetchFile(dir, "answer-action-exclusive-parked.json", dirty))
+    const decisionId = parked.human_decisions[0].decision_id
+    const answerPath = fetchFile(dir, "answer-action-exclusive.txt", "Option 2")
+    const residualPath = residualFile(
+      dir, "answer-action-exclusive-residual.json", observed.branch_currency.key, "currency").path
+    const modifiers = [
+      ["--check", "CI/test"],
+      ["--thread", "thread-1"],
+      ["--comment", "comment-1"],
+      ["--residual-file", residualPath],
+      ["--acted-edit-id", "edit-1"],
+      ["--currency-key", observed.branch_currency.key],
+      ["--currency-disposition", "open"],
+      ["--semantic-conflict-fingerprint", "conflict-v1"],
+      ["--currency-outcome", "ambiguous"],
+      ["--currency-inspected-fingerprint", "conflict-v1"],
+      ["--disposition", "open"],
+    ]
+
+    for (const modifier of modifiers) {
+      const before = readFileSync(path.join(state, "state.json"), "utf8")
+      const rejected = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
+        ...persistedInvocationArgs(state), "--answer-decision", decisionId,
+        "--answer-file", answerPath, ...modifier], { encoding: "utf8" })
+      expect(rejected.status, modifier.join(" ")).not.toBe(0)
+      expect(rejected.stderr).toMatch(/answer marks cannot be combined with source actions/)
+      expect(readFileSync(path.join(state, "state.json"), "utf8")).toBe(before)
+    }
+  }, 15000)
+
   test("branch currency: dependents do not block a normal-base root, but managed, open-parent, and uncertain routes do", () => {
     const dependentRoot = snapshot(path.join(dir, "currency-dependent-root"), fetchFile(dir, "currency-dependent-root.json", currencyFixture({
       pr_chain: {

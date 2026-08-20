@@ -3303,8 +3303,19 @@ def cmd_mark(args):
         if args.answer_decision or args.answer_file:
             if not args.answer_decision or not args.answer_file:
                 raise SystemExit("answer marks require --answer-decision and --answer-file")
-            if (args.currency_key or args.check or args.thread or args.comment
-                    or args.residual_file):
+            if any((
+                    args.check,
+                    args.thread,
+                    args.comment,
+                    args.residual_file,
+                    args.acted_edit_id,
+                    args.currency_key,
+                    args.currency_disposition,
+                    args.semantic_conflict_fingerprint,
+                    args.currency_outcome,
+                    args.currency_inspected_fingerprint,
+                    args.disposition != DISPOSITION_DISPATCHED,
+            )):
                 raise SystemExit("answer marks cannot be combined with source actions")
             marked = _answer_human_decision(
                 state, args.answer_decision, args.answer_file, now)
