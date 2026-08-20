@@ -23,7 +23,7 @@ If the session model already **is** the resolved model, elevation is moot: skip 
 When elevation is active, resolve an adapter in this fixed order and use the first that serves the requested model:
 
 1. **Native in-harness dispatch.** Attempt the platform subagent primitive with a per-agent model override (e.g. `model: "fable"` on the Claude Code `Agent`/`Task` tool). Capability is proven by attempt, not self-assessment — a harness that can serve the model natively does; one that cannot fails the attempt and falls through. **Receipt rule (R6):** a native run whose serving-side receipt names a *different* model family than requested falls through to the next adapter; a run with *no* receipt proceeds and is recorded as unverified (it does NOT fall through).
-2. **Claude CLI.** Run the bundled `scripts/elevation-dispatch.sh` worker as a detached job (see Off-host dispatch). Available only when `claude` is on PATH and authenticated — probe with `claude auth status` (exits 0 if logged in, 1 if not); prefer this over parsing stderr.
+2. **Claude CLI.** Run the bundled `scripts/elevation-dispatch.sh` worker as a detached job (see Off-host dispatch). Available when `claude` is on PATH. Do not preflight authentication in the host command context: the detached worker's provider-capable call is authoritative, and an authentication failure there follows Recovery.
 3. **Inline on the session model.** The always-available fallback.
 
 Elevation is never a correctness dependency: every adapter failure degrades to the next, and inline always completes the run.

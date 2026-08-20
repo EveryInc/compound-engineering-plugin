@@ -39,6 +39,14 @@ describe("reasoning-elevation engine parity", () => {
     expect(compact).toContain("keep `status`, `wait`, `result`, and `reap` sandboxed")
   })
 
+  test("defers authentication proof to the provider-capable dispatch context", async () => {
+    const src = await readFile(path.join(PLUGIN_ROOT, CONSUMER_SKILLS[0], ELEVATION_ASSET), "utf8")
+
+    expect(src).not.toContain("claude auth status")
+    expect(src).toContain("the detached worker's provider-capable call is authoritative")
+    expect(src).toContain("an authentication failure there follows Recovery")
+  })
+
   // Narrow guard: the legacy "fable" token must not return to an always-loaded
   // SKILL.md. Model choice now arrives from config or the prompt at runtime, so a
   // hardcoded model name in a SKILL.md hook is a regression — the engine and its
