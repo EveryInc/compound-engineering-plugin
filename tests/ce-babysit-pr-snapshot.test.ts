@@ -2446,31 +2446,77 @@ print(json.dumps({
     expect(readState(sd).human_decisions).toEqual([])
   })
 
-  test("a complete legacy currency answer migrates into the generic answered set", () => {
+  test("a legacy currency answer never claims current grouped sibling evidence", () => {
     const sd = path.join(dir, "legacy-currency-answer")
-    const fetch = fetchFile(dir, "legacy-currency-answer.json",
-      currencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" }))
-    const observed = snapshot(sd, fetch)
-    const residual = residualFile(
-      dir, "legacy-currency-answer-residual.json", observed.branch_currency.key, "currency")
+    const fixture = quietCurrencyFixture({
+      checks: [{ key: "CI/test", name: "test", status: "COMPLETED", conclusion: "FAILURE", details_url: "old" }],
+      threads: [{ thread_id: "T1", last_comment_id: "C1", last_comment_at: "t1" }],
+    })
+    const first = fetchFile(dir, "legacy-currency-answer-1.json", fixture)
+    const observed = snapshot(sd, first)
+    const residual = {
+      ...residualFile(
+        dir, "legacy-currency-answer-unused.json", observed.branch_currency.key, "currency").value,
+      sources: [
+        { id: observed.branch_currency.key, kind: "currency" },
+        { id: "T1", kind: "thread" },
+        { id: "CI/test", kind: "check" },
+      ],
+      thread_urls: ["https://example.test/thread/T1"],
+    }
     const legacy = readState(sd)
     delete legacy.human_decisions
     delete legacy.answered_human_decisions
+    legacy.branch_currency_state.items[observed.branch_currency.key].mutation_requires_answer = true
     legacy.branch_currency_state.items[observed.branch_currency.key].answered_decision = {
       answer: "Option 2: keep the current source.",
-      residual: residual.value,
+      residual,
       recorded_at: "2026-01-01T00:00:00Z",
     }
+    legacy.threads.T1.disposition = "needs-human"
+    legacy.threads.T1.acted_identity = ["C1", "t1"]
+    legacy.ci_dispatched.s1 = ["CI/test"]
     writeFileSync(path.join(sd, "state.json"), JSON.stringify(legacy))
 
-    const migrated = snapshot(sd, fetch)
+    const moved = fetchFile(dir, "legacy-currency-answer-2.json", {
+      ...fixture,
+      checks: [{ key: "CI/test", name: "test", status: "COMPLETED", conclusion: "FAILURE", details_url: "new" }],
+      threads: [{ thread_id: "T1", last_comment_id: "C2", last_comment_at: "t2" }],
+    })
+    const migrated = snapshot(sd, moved)
     expect(migrated.answered_human_decisions).toHaveLength(1)
     expect(migrated.answered_human_decisions[0]).toMatchObject({
       answer: "Option 2: keep the current source.",
-      residual: residual.value,
+      residual,
     })
+    expect(migrated.answered_human_decisions[0].sources).toEqual([
+      expect.objectContaining({ kind: "currency", id: observed.branch_currency.key }),
+    ])
+    expect(migrated.actionable.threads.map((item: any) => item.thread_id)).toEqual(["T1"])
+    expect(migrated.actionable.ci.map((item: any) => item.key)).toEqual(["CI/test"])
     expect(readState(sd).branch_currency_state.items[observed.branch_currency.key]
       .answered_decision).toBeUndefined()
+
+    const authorized = snapshot(sd, moved)
+    expect(authorized.branch_currency).toMatchObject({
+      attention: "claim",
+      mutation_requires_answer: true,
+    })
+    const siblings = {
+      ...residual,
+      sources: [{ id: "T1", kind: "thread" }, { id: "CI/test", kind: "check" }],
+    }
+    mark(sd, ["--disposition", "needs-human", "--residual-file",
+      fetchFile(dir, "legacy-currency-answer-siblings.json", siblings), "--fetch-file", moved])
+    expect(snapshot(sd, moved).needs_human_residuals).toEqual([siblings])
+
+    markCurrency(sd, authorized.branch_currency.key, "claimed")
+    const consumed = snapshot(sd, moved)
+    expect(consumed.branch_currency).toMatchObject({
+      disposition: "claimed",
+      mutation_requires_answer: false,
+    })
+    expect(consumed.answered_human_decisions).toEqual([])
   })
 
   test("needs-human marks fail closed without the typed residual payload", () => {

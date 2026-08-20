@@ -1757,27 +1757,25 @@ def _legacy_decision_records(state, threads, feedback, checks, now):
 
 
 def _legacy_answered_decision_records(state, threads, feedback, checks):
-    """Preserve complete legacy currency answers; incomplete records fail open."""
+    """Preserve only the exact source evidence carried by a legacy answer owner."""
     records, seen = [], set()
     currency = _load_branch_currency_state(state)
-    for item in currency.get("items", {}).values():
+    for source_id, item in currency.get("items", {}).items():
         answered = item.get("answered_decision")
         if not isinstance(answered, dict):
             continue
         residual, answer = answered.get("residual"), answered.get("answer")
+        _retire_legacy_check_suppression(state, residual)
         if _needs_human_residual_error(residual) or not isinstance(answer, str) or not answer.strip():
             continue
-        sources = []
-        for source in residual["sources"]:
-            kind, source_id = _source_identity(source)
-            observation = _current_source_observation(
-                state, kind, source_id, threads, feedback, checks)
-            if observation is None:
-                sources = []
-                break
-            sources.append({"kind": kind, "id": source_id, "observation": observation})
-        if not sources:
+        owns_residual = any(
+            _source_identity(source) == ("currency", source_id)
+            for source in residual["sources"])
+        observation = _current_source_observation(
+            state, "currency", source_id, threads, feedback, checks)
+        if not owns_residual or observation is None:
             continue
+        sources = [{"kind": "currency", "id": source_id, "observation": observation}]
         record = {
             **_decision_record(residual, sources, answered.get("recorded_at")),
             "answer": answer.strip(),
