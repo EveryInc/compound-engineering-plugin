@@ -439,6 +439,14 @@ def cmd_resume(args) -> tuple[str, dict]:
                 with locked_manifest(run_id, write=True) as current:
                     current_unit = current["units"][uid]
                     current_attempt = find_attempt(current_unit)
+                    if current_attempt.get("dispatch_unavailable_receipt") is not None:
+                        receipt = validate_dispatch_unavailable_receipt(current_attempt)
+                        actions.append({
+                            "unit_id": uid,
+                            "action": "dispatch-unavailable-retained",
+                            "reason": receipt["reason"],
+                        })
+                        continue
                     if current_attempt.get("job_id") not in (None, matches[0]):
                         raise Operational("AMBIGUOUS", "attempt was concurrently bound")
                     current_attempt["job_id"] = matches[0]

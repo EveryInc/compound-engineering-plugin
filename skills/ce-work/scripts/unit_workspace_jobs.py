@@ -962,6 +962,9 @@ def cmd_record_job(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id, write=True) as doc:
         unit = doc["units"][args.unit_id]
         attempt = find_attempt(unit, args.attempt_id)
+        if attempt.get("dispatch_unavailable_receipt") is not None:
+            validate_dispatch_unavailable_receipt(attempt)
+            raise Operational("REFUSED", "dispatch was already recorded unavailable before start")
         bound_job = attempt.get("job_id")
         if bound_job == args.job_id:
             return "AUTHORING", {
