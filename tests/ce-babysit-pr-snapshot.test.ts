@@ -688,7 +688,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       mutation_requires_answer: false,
     })
     expect(ambiguousConsumed.answered_human_decisions).toEqual([])
-  }, 20000)
+  })
 
   test("branch currency: grouped invalidation cannot turn decision-bound evidence into mutation authority", () => {
     const sd = path.join(dir, "currency-grouped-invalidation")
