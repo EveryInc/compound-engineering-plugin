@@ -151,6 +151,7 @@ Decide the next state transition, if any, and stop after one tick.`,
       workspace_read: ["snapshot.json"],
       must_include: [
         "--currency-answered-fingerprint",
+        "--currency-answer-file",
         "dirty-main-bbbbbbbb",
         "generated-fixture-v1",
       ],

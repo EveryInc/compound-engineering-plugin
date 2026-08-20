@@ -124,7 +124,10 @@ function markCurrencyInspection(stateDir: string, key: string, fingerprint: stri
 }
 
 function markCurrencyAnswered(stateDir: string, key: string, fingerprint: string): void {
-  mark(stateDir, ["--currency-key", key, "--currency-answered-fingerprint", fingerprint])
+  const answerPath = path.join(path.dirname(stateDir), `currency-answer-${key}.md`)
+  writeFileSync(answerPath, "Option 2: regenerate the fixture from current source.\n")
+  mark(stateDir, ["--currency-key", key, "--currency-answered-fingerprint", fingerprint,
+    "--currency-answer-file", answerPath])
 }
 
 function watch(stateDir: string, fetch: string, extra: string[] = []): any {
@@ -604,6 +607,33 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       retry_count: 1,
       recovery_state: "retry-exhausted",
     })
+
+    const groupedState = readState(state)
+    groupedState.needs_human_residuals[0].sources.push({ id: "T1", kind: "thread" })
+    groupedState.needs_human_residuals[0].thread_urls.push("https://example.test/thread/T1")
+    groupedState.threads.T1 = {
+      thread_id: "T1", last_comment_id: "C1", last_comment_at: "t1",
+      disposition: "needs-human", acted_identity: ["C1", "t1"],
+    }
+    writeFileSync(path.join(state, "state.json"), JSON.stringify(groupedState))
+    const reviewMoved = snapshot(state, fetchFile(dir, "currency-group-review-moved.json", {
+      ...quietCurrencyFixture(),
+      threads: [{ thread_id: "T1", last_comment_id: "C2", last_comment_at: "t2" }],
+    }))
+    expect(reviewMoved.needs_human_residuals).toEqual([])
+    expect(reviewMoved.branch_currency).toMatchObject({
+      disposition: "open",
+      attention: "decide",
+      retry_count: 1,
+      mutation_consumed: false,
+      recovery_state: "retry-exhausted",
+      requires_decision: true,
+    })
+    const unsafeReplay = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
+      ...persistedInvocationArgs(state), "--currency-key", reviewMoved.branch_currency.key,
+      "--currency-disposition", "claimed"], { encoding: "utf8" })
+    expect(unsafeReplay.status).not.toBe(0)
+    expect(unsafeReplay.stderr).toMatch(/new canonical decision or explicit answer/)
 
     const ambiguousState = path.join(dir, "currency-ambiguous")
     const ambiguous = snapshot(ambiguousState, fetch)
@@ -1259,6 +1289,12 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(snapshot(state, fetchFile(dir, "currency-answer-still-parked.json", dirty))
       .branch_currency.disposition).toBe("needs-human")
 
+    const missingAnswerPayload = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
+      ...persistedInvocationArgs(state), "--currency-key", observed.branch_currency.key,
+      "--currency-answered-fingerprint", "conflict-v1"], { encoding: "utf8" })
+    expect(missingAnswerPayload.status).not.toBe(0)
+    expect(missingAnswerPayload.stderr).toMatch(/currency-answer-file/)
+
     markCurrencyAnswered(state, observed.branch_currency.key, "conflict-v1")
     const resumed = snapshot(state, fetchFile(dir, "currency-answer-resumed.json", dirty))
     expect(resumed.needs_human_residuals).toEqual([])
@@ -1268,8 +1304,13 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       attention: "claim",
       recovery_state: "decision-answered",
       parked_semantic_fingerprints: ["unrelated-v1"],
+      answered_decision: {
+        fingerprint: "conflict-v1",
+        answer: "Option 2: regenerate the fixture from current source.",
+      },
     })
-    expect(readState(state).branch_currency_state.semantic_parks).toEqual({
+    const answeredState = readState(state)
+    expect(answeredState.branch_currency_state.semantic_parks).toEqual({
       "unrelated-v1": {
         head_sha: "older-head",
         status: "DIRTY",
@@ -1277,6 +1318,15 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
         observation_key: "older-dirty-observation",
       },
     })
+    expect(answeredState.branch_currency_state.items[observed.branch_currency.key]
+      .answered_decision.residual.decision_context.options).toHaveLength(1)
+
+    markCurrency(state, observed.branch_currency.key, "claimed")
+    expect(readState(state).branch_currency_state.items[observed.branch_currency.key]
+      .answered_decision.answer).toContain("Option 2")
+    markCurrency(state, observed.branch_currency.key, "confirmed")
+    expect(readState(state).branch_currency_state.items[observed.branch_currency.key]
+      .answered_decision).toBeUndefined()
   }, 15000)
 
   test("branch currency: a changed observation invalidates the typed residual but retains semantic evidence for inspection", () => {
@@ -2051,6 +2101,9 @@ print(json.dumps({
       { ...valid, decision_context: { ...valid.decision_context, options: [] } },
       { ...valid, decision_context: { ...valid.decision_context, recommendation: undefined } },
       { ...valid, thread_urls: [] },
+      { ...valid, sources: [{ id: "CI/test", kind: "check" }],
+        thread_urls: ["https://example.test/thread/T1"] },
+      { ...valid, sources: [{ id: "T1", kind: "thread" }, { id: "T2", kind: "thread" }] },
     ]
     for (const [index, value] of malformed.entries()) {
       const residualPath = fetchFile(dir, `malformed-${index}.json`, value)

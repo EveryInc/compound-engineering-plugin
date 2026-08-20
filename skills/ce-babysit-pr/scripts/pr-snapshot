@@ -71,6 +71,7 @@ CURRENCY_OUTCOME_AMBIGUOUS = "ambiguous"
 CURRENCY_ATTENTION_CLAIM = "claim"
 CURRENCY_ATTENTION_INSPECT = "inspect"
 CURRENCY_ATTENTION_RECONCILE = "reconcile"
+CURRENCY_ATTENTION_DECIDE = "decide"
 
 MANAGER_CONFIRMED = "confirmed"
 MANAGER_ABSENT = "absent"
@@ -1031,18 +1032,17 @@ def _load_branch_currency_state(state):
     return currency
 
 
-def _reactivate_currency_item(currency, item):
-    """Re-actionize one source while retaining semantic evidence for the next inspection."""
+def _reactivate_currency_item(currency, item, decision_invalidated=False):
+    """Re-actionize one source without erasing attempt or mutation history."""
     item["disposition"] = DISPOSITION_OPEN
     item.pop("claimed_invocation_id", None)
     item.pop("confirmed_invocation_id", None)
     item.pop("reconciled_invocation_id", None)
     item.pop("inspected_semantic_conflict_fingerprint", None)
     item.pop("inspection_result", None)
-    item["retry_count"] = 0
-    item["mutation_consumed"] = False
-    item.pop("retry_not_before", None)
-    item.pop("recovery_state", None)
+    item["requires_decision"] = bool(decision_invalidated)
+    if decision_invalidated:
+        item.pop("answered_decision", None)
     item["parked_semantic_fingerprints"] = sorted(currency.get("semantic_parks") or {})
 
 
@@ -1291,7 +1291,9 @@ def _apply_branch_currency(state, cur, head, head_changed, now):
             except (ValueError, TypeError):
                 retry_wait_seconds = 0
         item["retry_wait_seconds"] = retry_wait_seconds
-        if inspection_required:
+        if item.get("requires_decision"):
+            item["attention"] = CURRENCY_ATTENTION_DECIDE
+        elif inspection_required:
             item["attention"] = CURRENCY_ATTENTION_INSPECT
         elif retry_wait_seconds > 0:
             item["attention"] = None
@@ -1584,8 +1586,8 @@ def _needs_human_residual_error(residual):
             not isinstance(url, str) or not url.strip() for url in thread_urls):
         return "thread_urls must be a list of non-empty strings"
     thread_sources = sum(source["kind"] == "thread" for source in sources)
-    if len(set(thread_urls)) != len(thread_urls) or len(thread_urls) < thread_sources:
-        return "thread_urls must contain a unique URL for every thread source"
+    if len(set(thread_urls)) != len(thread_urls) or len(thread_urls) != thread_sources:
+        return "thread_urls must contain exactly one unique URL for every thread source"
     return None
 
 
@@ -1630,7 +1632,7 @@ def _reopen_residual_sources(state, residual, threads, feedback, checks, dispatc
             if currency.get("current_key") == source_id:
                 current = currency.get("items", {}).get(source_id)
                 if isinstance(current, dict) and current.get("disposition") == DISPOSITION_NEEDS_HUMAN:
-                    _reactivate_currency_item(currency, current)
+                    _reactivate_currency_item(currency, current, decision_invalidated=True)
 
 
 def _reconcile_needs_human_residuals(state, threads, feedback, checks, head, head_changed):
@@ -1709,7 +1711,7 @@ def _reconcile_needs_human_residuals(state, threads, feedback, checks, head, hea
     if (isinstance(current, dict)
             and current.get("disposition") == DISPOSITION_NEEDS_HUMAN
             and ("currency", current_key) not in covered):
-        _reactivate_currency_item(currency, current)
+        _reactivate_currency_item(currency, current, decision_invalidated=True)
 
     if head is not None:
         state.setdefault("ci_dispatched", {})[head] = sorted(dispatched)
@@ -2327,7 +2329,8 @@ def _wake_reason(a, settle_seconds):
     # for reconciliation; confirmed and parked residuals remain quiet.
     if branch_currency.get("attention") in (CURRENCY_ATTENTION_CLAIM,
                                              CURRENCY_ATTENTION_INSPECT,
-                                             CURRENCY_ATTENTION_RECONCILE):
+                                             CURRENCY_ATTENTION_RECONCILE,
+                                             CURRENCY_ATTENTION_DECIDE):
         return "branch-currency"
     if a.get("blocked_external"):
         return "blocked-external"
@@ -2796,9 +2799,19 @@ def _mark_branch_currency(args, state, now):
         if (item.get("semantic_conflict_fingerprint") != answered_fingerprint
                 or answered_fingerprint not in parks):
             raise SystemExit("answered currency decisions require the exact parked fingerprint")
+        answer = _load_currency_answer(args.currency_answer_file)
+        residual = _needs_human_residual_for_source(state, key, "currency")
+        if residual is None:
+            raise SystemExit("answered currency decisions require their canonical decision payload")
         parks.pop(answered_fingerprint)
         item.pop("semantic_conflict_fingerprint", None)
         _reactivate_currency_item(currency, item)
+        item["answered_decision"] = {
+            "fingerprint": answered_fingerprint,
+            "answer": answer,
+            "residual": json.loads(json.dumps(residual)),
+            "recorded_at": _iso(now),
+        }
         item["inspection_result"] = "answered"
         item["recovery_state"] = "decision-answered"
         state["last_action"] = f"answered currency {key}"
@@ -2871,6 +2884,9 @@ def _mark_branch_currency(args, state, now):
     if (prior == DISPOSITION_OPEN and disposition == CURRENCY_CLAIMED
             and item.get("inspection_required")):
         raise SystemExit("currency claim requires semantic-fingerprint inspection first")
+    if (prior == DISPOSITION_OPEN and disposition == CURRENCY_CLAIMED
+            and item.get("requires_decision")):
+        raise SystemExit("currency claim requires a new canonical decision or explicit answer")
     if prior == DISPOSITION_OPEN and disposition == CURRENCY_CLAIMED:
         retry_not_before = item.get("retry_not_before")
         if retry_not_before:
@@ -2898,6 +2914,7 @@ def _mark_branch_currency(args, state, now):
             item.pop("reconciled_invocation_id", None)
     elif disposition == CURRENCY_CONFIRMED:
         item["confirmed_invocation_id"] = state.get("invocation_id")
+        item.pop("answered_decision", None)
     elif disposition == DISPOSITION_NEEDS_HUMAN:
         fingerprint = args.semantic_conflict_fingerprint
         if fingerprint:
@@ -2931,6 +2948,19 @@ def _load_needs_human_residual(path, item_id=None, expected_kind=None):
             for source in residual["sources"]):
         raise SystemExit("--residual-file sources must include the marked item ID and kind")
     return residual
+
+
+def _load_currency_answer(path):
+    if not path:
+        raise SystemExit("answered currency decisions require --currency-answer-file")
+    try:
+        with open(path, encoding="utf-8") as f:
+            answer = f.read().strip()
+    except OSError as exc:
+        raise SystemExit(f"cannot read --currency-answer-file: {exc}")
+    if not answer:
+        raise SystemExit("--currency-answer-file must contain the human's answer")
+    return answer
 
 
 def _park_needs_human_residual(state, residual, args):
@@ -3054,7 +3084,7 @@ def _invalidate_needs_human_source(state, item_id, kind):
                     current = currency.get("items", {}).get(source_id)
                     if (isinstance(current, dict)
                             and current.get("disposition") == DISPOSITION_NEEDS_HUMAN):
-                        _reactivate_currency_item(currency, current)
+                        _reactivate_currency_item(currency, current, decision_invalidated=True)
     state["needs_human_residuals"] = kept
 
 
@@ -3066,6 +3096,15 @@ def _needs_human_source_is_covered(state, item_id, kind):
         for source in residual.get("sources") or []
         if isinstance(source, dict)
     )
+
+
+def _needs_human_residual_for_source(state, item_id, kind):
+    return next((
+        residual for residual in state.get("needs_human_residuals") or []
+        if isinstance(residual, dict) and any(
+            source.get("id") == item_id and source.get("kind") == kind
+            for source in residual.get("sources") or [] if isinstance(source, dict))
+    ), None)
 
 
 def cmd_mark(args):
@@ -3084,6 +3123,8 @@ def cmd_mark(args):
                 args.currency_inspected_fingerprint, args.currency_answered_fingerprint))
             if not args.currency_key or actions != 1:
                 raise SystemExit("currency marks require --currency-key and exactly one currency action")
+            if args.currency_answer_file and not args.currency_answered_fingerprint:
+                raise SystemExit("--currency-answer-file requires --currency-answered-fingerprint")
             _mark_branch_currency(args, state, now)
             currency = _load_branch_currency_state(state)
             current = currency.get("items", {}).get(args.currency_key)
@@ -3238,6 +3279,8 @@ def main():
     m.add_argument("--currency-inspected-fingerprint", default=None)
     m.add_argument("--currency-answered-fingerprint", default=None,
                    help="exact parked semantic decision that the user answered")
+    m.add_argument("--currency-answer-file", default=None,
+                   help="file containing the human answer to preserve until confirmation")
     m.set_defaults(func=cmd_mark)
 
     w = sub.add_parser("watch")
