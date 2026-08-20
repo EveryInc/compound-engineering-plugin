@@ -1329,6 +1329,48 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       .answered_decision).toBeUndefined()
   }, 15000)
 
+  test("branch currency: a thread answer preserves its grouped decision until the consuming mark", () => {
+    const dirty = currencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
+    const observed = snapshot(state, fetchFile(dir, "currency-thread-answer-1.json", dirty))
+    markCurrency(state, observed.branch_currency.key, "claimed")
+    markCurrency(state, observed.branch_currency.key, "needs-human", "conflict-v1")
+
+    const grouped = readState(state)
+    grouped.needs_human_residuals[0].sources.push({ id: "T1", kind: "thread" })
+    grouped.needs_human_residuals[0].thread_urls.push("https://example.test/thread/T1")
+    grouped.threads.T1.disposition = "needs-human"
+    grouped.threads.T1.acted_identity = ["C1", "t1"]
+    writeFileSync(path.join(state, "state.json"), JSON.stringify(grouped))
+
+    const answeredThread = {
+      ...dirty,
+      threads: [{ thread_id: "T1", last_comment_id: "C2", last_comment_at: "t2" }],
+    }
+    const reopened = snapshot(state, fetchFile(dir, "currency-thread-answer-2.json", answeredThread))
+    expect(reopened.needs_human_residuals).toEqual([])
+    expect(reopened.actionable.threads.map((item: any) => item.thread_id)).toEqual(["T1"])
+    expect(reopened.branch_currency).toMatchObject({
+      disposition: "open",
+      attention: "decide",
+      requires_decision: true,
+      pending_decision: {
+        fingerprint: "conflict-v1",
+        residual: { decision_context: { quoted_feedback: "Choose the intended behavior." } },
+      },
+    })
+
+    markCurrencyAnswered(state, observed.branch_currency.key, "conflict-v1")
+    const consumed = snapshot(state, fetchFile(dir, "currency-thread-answer-3.json", answeredThread))
+    expect(consumed.needs_human_residuals).toEqual([])
+    expect(consumed.branch_currency).toMatchObject({
+      disposition: "open",
+      attention: "claim",
+      recovery_state: "decision-answered",
+      answered_decision: { fingerprint: "conflict-v1" },
+    })
+    expect(consumed.branch_currency.pending_decision).toBeUndefined()
+  }, 15000)
+
   test("branch currency: a changed observation invalidates the typed residual but retains semantic evidence for inspection", () => {
     const dirty = currencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
     const original = snapshot(state, fetchFile(dir, "currency-residual-head-1.json", dirty))

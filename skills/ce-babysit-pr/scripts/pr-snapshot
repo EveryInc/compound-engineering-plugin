@@ -1032,7 +1032,7 @@ def _load_branch_currency_state(state):
     return currency
 
 
-def _reactivate_currency_item(currency, item, decision_invalidated=False):
+def _reactivate_currency_item(currency, item, decision_invalidated=False, pending_residual=None):
     """Re-actionize one source without erasing attempt or mutation history."""
     item["disposition"] = DISPOSITION_OPEN
     item.pop("claimed_invocation_id", None)
@@ -1043,6 +1043,14 @@ def _reactivate_currency_item(currency, item, decision_invalidated=False):
     item["requires_decision"] = bool(decision_invalidated)
     if decision_invalidated:
         item.pop("answered_decision", None)
+        fingerprint = item.get("semantic_conflict_fingerprint")
+        if fingerprint and isinstance(pending_residual, dict):
+            item["pending_decision"] = {
+                "fingerprint": fingerprint,
+                "residual": json.loads(json.dumps(pending_residual)),
+            }
+        else:
+            item.pop("pending_decision", None)
     item["parked_semantic_fingerprints"] = sorted(currency.get("semantic_parks") or {})
 
 
@@ -1632,7 +1640,8 @@ def _reopen_residual_sources(state, residual, threads, feedback, checks, dispatc
             if currency.get("current_key") == source_id:
                 current = currency.get("items", {}).get(source_id)
                 if isinstance(current, dict) and current.get("disposition") == DISPOSITION_NEEDS_HUMAN:
-                    _reactivate_currency_item(currency, current, decision_invalidated=True)
+                    _reactivate_currency_item(
+                        currency, current, decision_invalidated=True, pending_residual=residual)
 
 
 def _reconcile_needs_human_residuals(state, threads, feedback, checks, head, head_changed):
@@ -2792,19 +2801,22 @@ def _mark_branch_currency(args, state, now):
 
     if answered_fingerprint:
         parks = currency.get("semantic_parks") or {}
-        if prior != DISPOSITION_NEEDS_HUMAN:
-            raise SystemExit("answered currency decisions require a needs-human observation")
-        if not _needs_human_source_is_covered(state, key, "currency"):
-            raise SystemExit("answered currency decisions require a canonical residual")
+        residual = _needs_human_residual_for_source(state, key, "currency")
+        pending = item.get("pending_decision")
+        if residual is None and (prior == DISPOSITION_OPEN and item.get("requires_decision")
+                                 and isinstance(pending, dict)
+                                 and pending.get("fingerprint") == answered_fingerprint
+                                 and isinstance(pending.get("residual"), dict)):
+            residual = pending["residual"]
+        if residual is None or prior not in (DISPOSITION_NEEDS_HUMAN, DISPOSITION_OPEN):
+            raise SystemExit("answered currency decisions require the current durable decision payload")
         if (item.get("semantic_conflict_fingerprint") != answered_fingerprint
                 or answered_fingerprint not in parks):
             raise SystemExit("answered currency decisions require the exact parked fingerprint")
         answer = _load_currency_answer(args.currency_answer_file)
-        residual = _needs_human_residual_for_source(state, key, "currency")
-        if residual is None:
-            raise SystemExit("answered currency decisions require their canonical decision payload")
         parks.pop(answered_fingerprint)
         item.pop("semantic_conflict_fingerprint", None)
+        item.pop("pending_decision", None)
         _reactivate_currency_item(currency, item)
         item["answered_decision"] = {
             "fingerprint": answered_fingerprint,
@@ -3084,7 +3096,8 @@ def _invalidate_needs_human_source(state, item_id, kind):
                     current = currency.get("items", {}).get(source_id)
                     if (isinstance(current, dict)
                             and current.get("disposition") == DISPOSITION_NEEDS_HUMAN):
-                        _reactivate_currency_item(currency, current, decision_invalidated=True)
+                        _reactivate_currency_item(
+                            currency, current, decision_invalidated=True, pending_residual=residual)
     state["needs_human_residuals"] = kept
 
 

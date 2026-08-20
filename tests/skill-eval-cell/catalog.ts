@@ -138,9 +138,9 @@ Decide the next mutation, if any, and stop after one tick.`,
     key_behavior: "judgment",
     read_only: true,
     fixture: `${FIX}/babysit-answered-semantic-park`,
-    why: "A user answer must consume the exact parked semantic decision instead of repeating inspection or clearing unrelated parks.",
+    why: "A thread answer observed by snapshot must consume the exact pending semantic decision instead of losing its payload, repeating inspection, or clearing unrelated parks.",
     pre_contract:
-      "A human answer reopens only the matching current currency observation through its exact key and parked fingerprint; unrelated parks and unanswered decisions remain parked.",
+      "A human answer consumes the pending decision on only the matching current currency observation through its exact key and parked fingerprint; unrelated parks and unanswered decisions remain parked.",
     task: `Babysit PR #23. I choose option 2 for the generated-fixture conflict: regenerate the fixture from the current source.
 
 The latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.
