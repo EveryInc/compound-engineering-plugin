@@ -52,16 +52,16 @@ Inspect the chosen port and select exactly one intended server instance before h
 
 An occupied port that cannot be attributed to the intended project server remains an unresolved collision. Ask the user whether to stop that process, choose another port, or stop this run; never kill it or launch past it.
 
-Attribute reachability to the selected instance by probing its actual URL for up to 30 seconds. A response from another process is not success.
+Resolve the selected instance's actual URL before handoff. The resolved port seeds `http://localhost:<port>` as the default candidate, but server output or a user correction replaces that candidate when it identifies a different URL. Attribute successful reachability at the resolved actual URL to the selected instance by probing for up to 30 seconds; a response from another process is not success.
 
-- **Reachable:** use the browser-opening capability already exposed by the active harness. If it has none or the handoff fails, print the URL; browser handoff is a convenience, not a gate.
-- **Not reachable:** show diagnostics derived from the selected instance. Include the last 20 log lines only when this run launched it and owns those logs. Ask whether to correct the start configuration or stop.
+- **Reachable:** use the browser-opening capability already exposed by the active harness with the verified actual URL. If it has none or the handoff fails, print that URL; browser handoff is a convenience, not a gate.
+- **Not reachable:** show diagnostics derived from the selected instance. Include the last 20 log lines only when this run launched it and owns those logs. Ask whether to correct the server URL or start configuration, or stop.
 
 Do not continue into the polish loop unless reachability is attributed to the selected instance.
 
 Tell the user:
 
 ```text
-Dev server running on http://localhost:<port>
+Dev server running on <verified-actual-url>
 Browse the feature and tell me what could be better.
 ```

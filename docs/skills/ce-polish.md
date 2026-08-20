@@ -55,7 +55,7 @@ Late-stage feel is a poor fit for the other skills:
 `ce-polish` does the plumbing, then stays in a short loop:
 
 - Phase 0 resolves a safe feature-branch workspace. It stays in the current checkout for an empty invocation. For a requested PR or branch, it uses an existing worktree first, then the active harness's checkout capability only when no other worktree owns the target. It refuses the repository's default branch or a detached checkout.
-- Phase 1 starts the server in the background and opens the URL
+- Phase 1 selects the intended server, reusing an attributed instance or starting one in the background, then verifies and opens its actual URL
 - Phase 2 is conversation: you describe a fix, it edits, hot-reload shows the result
 
 When you ask it to check something, it uses a browser inspection capability exposed by the active harness. If none is available, it asks you to describe what you see. When you say you are done, it commits and stops.
@@ -68,11 +68,11 @@ When you ask it to check something, it uses a browser inspection capability expo
 
 It reads `.claude/launch.json` when that file exists. Otherwise it classifies the project (Rails, Next.js, Vite, Nuxt, Astro, Remix, SvelteKit, or Procfile) and uses that type's start command, package manager, and port. Unknown projects get one question: how do you start this?
 
-The server runs in the background with output in a temp log. It probes `http://localhost:<port>` for up to 30 seconds. If nothing answers, it shows the last 20 log lines and asks what to do.
+Polish selects exactly one intended server instance. It reuses a process already serving the chosen port only when evidence identifies it as the intended project server; otherwise it starts the resolved command in the background with output in a temp log. The resolved port provides a default `http://localhost:<port>` candidate, but server output or your correction can identify a different actual URL. It probes that URL for up to 30 seconds and continues only when the response is attributed to the selected server. If the server does not answer, it shows diagnostics and includes the last 20 log lines only when it launched that server, then asks what to do.
 
 ### Browser handoff, then a printed URL if unavailable
 
-It uses the browser-opening capability exposed by the active harness. If the harness has none or opening fails, it prints the URL. The server is already up either way.
+It uses the browser-opening capability exposed by the active harness with the verified actual URL. If the harness has none or opening fails, it prints that URL. The server is already up either way.
 
 ### Conversation, not a checklist
 
@@ -84,7 +84,7 @@ There is no scoring rubric. You name what is wrong; it changes that. A fixed che
 
 The notification settings page works. Spacing is tight, the off toggle is easy to miss, and the empty-state copy is dry. You run `/ce-polish` on the feature branch.
 
-No `.claude/launch.json`. It detects Next.js, resolves `pnpm`, starts `pnpm dev` on port 3000, waits until the port answers, and opens the URL through the active harness or prints it.
+No `.claude/launch.json`. It detects Next.js, resolves `pnpm`, starts `pnpm dev` on port 3000, verifies the server's actual URL, and opens that URL through the active harness or prints it.
 
 You go to `/settings/notifications`. "The toggle rows are too tight." It edits the component; hot-reload updates. "The off state needs to look more off." Another edit. "This empty-state copy is sterile." It rewrites the copy.
 

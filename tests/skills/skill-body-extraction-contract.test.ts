@@ -3,8 +3,10 @@ import fs from "node:fs"
 import path from "node:path"
 
 const ROOT = path.join(import.meta.dir, "..", "..", "skills")
+const DOCS_ROOT = path.join(import.meta.dir, "..", "..", "docs", "skills")
 const read = (skill: string, rel = "SKILL.md") =>
   fs.readFileSync(path.join(ROOT, skill, rel), "utf8")
+const readDocs = (skill: string) => fs.readFileSync(path.join(DOCS_ROOT, `${skill}.md`), "utf8")
 
 describe("remaining skill body extractions", () => {
   test("ce-test-xcode keeps completion and routing inline while references own procedure", () => {
@@ -27,6 +29,9 @@ describe("remaining skill body extractions", () => {
   test("ce-polish loads startup mechanics and routes local commit ownership", () => {
     const body = read("ce-polish")
     const run = read("ce-polish", "references/run.md")
+    const rails = read("ce-polish", "references/dev-server-rails.md")
+    const launchSchema = read("ce-polish", "references/launch-json-schema.md")
+    const docs = readDocs("ce-polish")
 
     expect(body).toMatch(/^description: "Polish .* Use when /m)
     expect(body).toContain("**Done:**")
@@ -39,9 +44,21 @@ describe("remaining skill body extractions", () => {
     const handoff = run.slice(run.indexOf("## Start and hand off"))
     expect(handoff).toMatch(/select exactly one intended server instance/i)
     expect(handoff).toMatch(/only when no intended instance is selected may .* be launched/i)
-    expect(handoff).toMatch(/attribute reachability to the selected instance/i)
+    expect(handoff).toMatch(/resolve the selected instance's actual URL/i)
+    expect(handoff).toMatch(/http:\/\/localhost:<port>.*default candidate/i)
+    expect(handoff).toMatch(/server output or a user correction replaces that candidate/i)
+    expect(handoff).toMatch(/attribute successful reachability .* resolved actual URL .* selected instance/i)
+    expect(handoff).toMatch(/browser-opening capability .* verified actual URL/i)
+    expect(handoff).toContain("Dev server running on <verified-actual-url>")
     expect(handoff).toMatch(/last 20 log lines only when this run launched it/i)
+    expect(handoff).toMatch(/correct the server URL or start configuration, or stop/i)
     expect(handoff).toMatch(/do not continue into the polish loop unless reachability is attributed/i)
+    expect(rails).toMatch(/https:\/\/.*replaces the default HTTP candidate/i)
+    expect(launchSchema).toMatch(/\| `port` \| no \|/)
+    expect(launchSchema).toMatch(/schema does not lock the URL scheme/i)
+    expect(docs).toMatch(/default `http:\/\/localhost:<port>` candidate/i)
+    expect(docs).toMatch(/server output or your correction can identify a different actual URL/i)
+    expect(docs).toMatch(/verified actual URL/i)
     expect(run).toContain("active harness")
   })
 
