@@ -792,6 +792,8 @@ def fetch(pr, repo, light=False):
                 "status": "COMPLETED" if state in ("SUCCESS", "FAILURE", "ERROR") else "IN_PROGRESS",
                 "conclusion": {"ERROR": "FAILURE"}.get(state, state) or None,
                 "details_url": c.get("targetUrl"),
+                "started_at": c.get("startedAt"),
+                "completed_at": c.get("completedAt"),
             })
         else:
             wf = c.get("workflowName")
@@ -801,6 +803,8 @@ def fetch(pr, repo, light=False):
                 "status": (c.get("status") or "").upper() or "IN_PROGRESS",
                 "conclusion": (c.get("conclusion") or None) and c["conclusion"].upper(),
                 "details_url": c.get("detailsUrl"),
+                "started_at": c.get("startedAt"),
+                "completed_at": c.get("completedAt"),
             })
 
     owner, name, host = _resolve_repo_ref(repo, v.get("url"))
@@ -990,6 +994,7 @@ def _empty_state(pr, repo, url, now):
         "last_activity_at": created_at, "dead_time_seconds": 0.0,
         "invocation_backstop_seconds": DEFAULT_INVOCATION_BACKSTOP_SECONDS,
         "checks": {}, "threads": {}, "ci_dispatched": {}, "needs_human_residuals": [],
+        "needs_human_check_observations": {},
         "review_decision": None, "mergeable": None, "merge_state_status": None,
         "review_in_progress": False, "review_signal_count": 0, "review_signal_identities": [],
         "review_signal_seen_on_head": False,
@@ -1592,6 +1597,17 @@ def _source_identity(source):
     return source.get("kind"), source.get("id")
 
 
+def _check_observation_identity(check):
+    if not isinstance(check, dict):
+        return None
+    return {
+        "conclusion": check.get("conclusion"),
+        "details_url": check.get("details_url"),
+        "started_at": check.get("started_at"),
+        "completed_at": check.get("completed_at"),
+    }
+
+
 def _reopen_residual_sources(state, residual, threads, feedback, checks, dispatched):
     """Invalidate a grouped decision as one unit and re-actionize surviving sources."""
     for source in residual.get("sources") or []:
@@ -1608,6 +1624,7 @@ def _reopen_residual_sources(state, residual, threads, feedback, checks, dispatc
             record.pop("needs_human_residual", None)
         if kind == "check":
             dispatched.discard(source_id)
+            state.setdefault("needs_human_check_observations", {}).pop(source_id, None)
         elif kind == "currency":
             currency = _load_branch_currency_state(state)
             if currency.get("current_key") == source_id:
@@ -1626,6 +1643,10 @@ def _reconcile_needs_human_residuals(state, threads, feedback, checks, head, hea
         if isinstance(record.get("needs_human_residual"), dict)
     )
     dispatched = set(state.get("ci_dispatched", {}).get(head, []))
+    check_observations = state.get("needs_human_check_observations")
+    if not isinstance(check_observations, dict):
+        check_observations = {}
+        state["needs_human_check_observations"] = check_observations
     kept, seen, covered = [], set(), set()
     for residual in candidates:
         identity = _residual_identity(residual) if isinstance(residual, dict) else None
@@ -1655,7 +1676,8 @@ def _reconcile_needs_human_residuals(state, threads, feedback, checks, head, hea
                 if kind == "check":
                     source_states.append(
                         not head_changed and check is not None
-                        and check.get("conclusion") in FAILING and source_id in dispatched)
+                        and check.get("conclusion") in FAILING and source_id in dispatched
+                        and check_observations.get(source_id) == _check_observation_identity(check))
                 else:
                     currency = _load_branch_currency_state(state)
                     current = currency.get("items", {}).get(source_id)
@@ -1691,6 +1713,13 @@ def _reconcile_needs_human_residuals(state, threads, feedback, checks, head, hea
 
     if head is not None:
         state.setdefault("ci_dispatched", {})[head] = sorted(dispatched)
+    covered_checks = {
+        source_id for kind, source_id in covered if kind == "check"
+    }
+    state["needs_human_check_observations"] = {
+        source_id: observation for source_id, observation in check_observations.items()
+        if source_id in covered_checks
+    }
     state["needs_human_residuals"] = kept
     return kept, dispatched
 
@@ -1769,8 +1798,13 @@ def diff(state, cur, now=None, advance_trajectory=True):
             key = f"{key}#{seen_keys[key]}"
         else:
             seen_keys[key] = 0
-        new_checks[key] = {"name": c["name"], "status": c["status"],
-                           "conclusion": c["conclusion"], "head_sha": head}
+        new_checks[key] = {
+            "name": c["name"], "status": c["status"],
+            "conclusion": c["conclusion"], "head_sha": head,
+            "details_url": c.get("details_url"),
+            "started_at": c.get("started_at"),
+            "completed_at": c.get("completed_at"),
+        }
         if c["status"] != "COMPLETED":
             checks_terminal = False
         if c["conclusion"] in FAILING:
@@ -2955,9 +2989,12 @@ def _park_needs_human_residual(state, residual, args):
             if args.comment == source_id and args.acted_edit_id:
                 baseline = [args.acted_edit_id]
         elif kind == "check":
+            check = checks[source_id]
             state.setdefault("ci_dispatched", {}).setdefault(head, [])
             if source_id not in state["ci_dispatched"][head]:
                 state["ci_dispatched"][head].append(source_id)
+            state.setdefault("needs_human_check_observations", {})[source_id] = (
+                _check_observation_identity(check))
             continue
         else:
             currency = _load_branch_currency_state(state)
@@ -3010,6 +3047,7 @@ def _invalidate_needs_human_source(state, item_id, kind):
                 dispatched = state.get("ci_dispatched", {}).get(head, [])
                 state.setdefault("ci_dispatched", {})[head] = [
                     key for key in dispatched if key != source_id]
+                state.setdefault("needs_human_check_observations", {}).pop(source_id, None)
             elif source_kind == "currency":
                 currency = _load_branch_currency_state(state)
                 if currency.get("current_key") == source_id:

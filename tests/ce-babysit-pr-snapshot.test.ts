@@ -1969,6 +1969,39 @@ print(json.dumps({
     expect(reappeared.actionable.ci.map((item: any) => item.key)).toEqual(["CI/test"])
   })
 
+  test("a changed same-head check run invalidates its residual and reopens investigation", () => {
+    const sd = path.join(dir, "ci-needs-human-rerun")
+    const firstFailure = {
+      ...FAILING,
+      threads: [],
+      checks: [{
+        key: "CI/test", name: "test", status: "COMPLETED", conclusion: "FAILURE",
+        details_url: "https://example.test/runs/1", started_at: "t1", completed_at: "t2",
+      }],
+    }
+    const firstFetch = fetchFile(dir, "ci-needs-human-rerun-1.json", firstFailure)
+    snapshot(sd, firstFetch)
+    const residual = residualFile(dir, "ci-rerun-residual.json", "CI/test", "check")
+    mark(sd, ["--disposition", "needs-human", "--residual-file", residual.path])
+
+    expect(snapshot(sd, firstFetch).needs_human_residuals).toEqual([residual.value])
+
+    const rerunFailure = {
+      ...firstFailure,
+      checks: [{
+        key: "CI/test", name: "test", status: "COMPLETED", conclusion: "TIMED_OUT",
+        details_url: "https://example.test/runs/2", started_at: "t3", completed_at: "t4",
+      }],
+    }
+    const reopened = snapshot(sd, fetchFile(dir, "ci-needs-human-rerun-2.json", rerunFailure))
+    expect(reopened.needs_human_residuals).toEqual([])
+    expect(reopened.open_needs_human).toBe(0)
+    expect(reopened.actionable.ci.map((item: any) => item.key)).toEqual(["CI/test"])
+    const reopenedState = JSON.parse(readFileSync(path.join(sd, "state.json"), "utf8"))
+    expect(reopenedState.ci_dispatched.s1 ?? []).not.toContain("CI/test")
+    expect(reopenedState.needs_human_check_observations).toEqual({})
+  })
+
   test("mixed grouped invalidation reopens review and CI in the same snapshot", () => {
     const sd = path.join(dir, "mixed-needs-human")
     const feedback = {
