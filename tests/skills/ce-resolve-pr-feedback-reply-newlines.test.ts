@@ -78,7 +78,9 @@ describe("ce-resolve-pr-feedback reply bodies keep real newlines", () => {
       FULL_MODE.indexOf("scripts/resolve-pr-thread"),
     )
     expect(verifySection).toContain("pulls/comments/REPLY_COMMENT_ID")
-    expect(verifySection).toContain("pull_request_review_id")
+    expect(verifySection).toContain("--jq .body")
+    expect(verifySection).toContain("--jq '.pull_request_review_id // empty'")
+    expect(verifySection).not.toContain("--jq '{body, pull_request_review_id}'")
     expect(verifySection).toContain("reviews/REVIEW_ID --jq .state")
     expect(verifySection).toContain(".pending_review // empty")
     expect(verifySection).toMatch(/`\\n\\n`/)

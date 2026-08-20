@@ -193,9 +193,10 @@ The helper exits nonzero if a pending review is visible after the POST. Stop wit
 
 2. **Verify the REST-created reply is visible and submitted** before resolving. Take its numeric ID from the returned URL fragment (`#discussion_r2589700` → `2589700`) and read back what GitHub stored:
 ```bash
-GH_HOST=<derived-host> GH_REPO=OWNER/REPO gh api repos/{owner}/{repo}/pulls/comments/REPLY_COMMENT_ID --jq '{body, pull_request_review_id}'
+GH_HOST=<derived-host> GH_REPO=OWNER/REPO gh api repos/{owner}/{repo}/pulls/comments/REPLY_COMMENT_ID --jq .body
+GH_HOST=<derived-host> GH_REPO=OWNER/REPO gh api repos/{owner}/{repo}/pulls/comments/REPLY_COMMENT_ID --jq '.pull_request_review_id // empty'
 ```
-The body must show real line breaks. If instead it shows `\n` (or `\n\n`) as literal backslash-n characters inside one line, the body was posted escaped: **do not resolve the thread**. Fix it first by rewriting the body through a heredoc, then re-verify:
+The first command prints the decoded body, which must show real line breaks. If instead it shows `\n` (or `\n\n`) as literal backslash-n characters inside one line, the body was posted escaped: **do not resolve the thread**. Fix it first by rewriting the body through a heredoc, then re-verify:
 ```bash
 GH_HOST=<derived-host> GH_REPO=OWNER/REPO gh api --method PATCH repos/{owner}/{repo}/pulls/comments/REPLY_COMMENT_ID -f body="$(cat <<'EOF'
 > the specific sentence being addressed from the reviewer's comment
@@ -204,7 +205,7 @@ Fixed in abc1234 — the lookup now null-checks before dereferencing.
 EOF
 )"
 ```
-If `pull_request_review_id` is non-null, fetch that review and require a state other than `PENDING`; a pending state means the reply is not submitted, regardless of the successful POST response:
+If the second command prints a review ID, fetch that review and require a state other than `PENDING`; a pending state means the reply is not submitted, regardless of the successful POST response:
 ```bash
 GH_HOST=<derived-host> GH_REPO=OWNER/REPO gh api repos/{owner}/{repo}/pulls/PR_NUMBER/reviews/REVIEW_ID --jq .state
 ```
