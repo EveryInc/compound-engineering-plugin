@@ -125,7 +125,7 @@ You finished a profile-edit screen. You run `/ce-test-xcode`.
 
 MCP is up. Discovery finds the project. Three schemes; no argument, so last-used. It boots iPhone 15 Pro, builds, installs, launches, starts logs.
 
-Launch and Home pass. Profile sits behind Sign in with Apple. It asks you to complete that on the simulator; you do, then say yes. Settings crashes on the Privacy row. It captures the crash, asks fix-now or skip.
+Launch and Home pass. Profile sits behind Sign in with Apple. It asks you to complete that on the simulator; you do, then say yes. Settings crashes on the Privacy row. It captures the crash, then asks whether to investigate now or continue.
 
 You pick investigate-now. `ce-debug` finds a missing nil check, you accept the patch, and control returns to rebuild, reinstall, and retest Settings. Pass.
 

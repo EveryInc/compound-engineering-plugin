@@ -39,6 +39,8 @@ describe("remaining skill body extractions", () => {
     expect(docs).toMatch(/choice does not change the observed Fail/i)
     expect(docs).toMatch(/Without completed retest evidence, preserve Fail/i)
     expect(docs).toMatch(/Skip is only for a check with no completed outcome/i)
+    expect(docs).toMatch(/asks whether to investigate now or continue/i)
+    expect(docs).not.toMatch(/asks fix-now or skip/i)
   })
 
   test("ce-polish loads startup mechanics and routes local commit ownership", () => {

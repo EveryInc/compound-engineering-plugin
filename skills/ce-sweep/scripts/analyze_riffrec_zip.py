@@ -1195,6 +1195,12 @@ def main() -> int:
         return 2
 
     output_dir = (args.output_dir or default_output_dir(source_path)).expanduser().resolve()
+    if source_path == output_dir or source_path.is_relative_to(output_dir):
+        print(
+            f"Invalid output directory: source {source_path} must be outside the analyzer output directory {output_dir}.",
+            file=sys.stderr,
+        )
+        return 2
     if source_path.is_dir() and (output_dir == source_path or output_dir.is_relative_to(source_path)):
         print(
             f"Invalid output directory: {output_dir} must be outside the unpacked capture directory {source_path}.",

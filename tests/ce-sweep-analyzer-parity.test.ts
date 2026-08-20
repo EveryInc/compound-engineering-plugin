@@ -267,6 +267,50 @@ describe("analyze_riffrec_zip unpacked capture input", () => {
     expect(existsSync(path.join(output, "raw"))).toBe(false)
   })
 
+  test("rejects a source inside the owned output tree before replacing evidence", () => {
+    const tmp = mkdtempSync(path.join(tmpdir(), "ce-riffrec-source-in-output-"))
+    const output = path.join(tmp, "analysis-output")
+    const source = path.join(output, "frames", "feedback.md")
+    mkdirSync(path.dirname(source), { recursive: true })
+    writeFileSync(source, "source must survive\n")
+
+    const run = spawnSync(
+      "python3",
+      [CANONICAL_SCRIPT, source, "--output-dir", output, "--no-transcribe"],
+      { encoding: "utf8", cwd: tmp },
+    )
+
+    expect(run.status).toBe(2)
+    expect(run.stderr).toContain("must be outside the analyzer output directory")
+    expect(readFileSync(source, "utf8")).toBe("source must survive\n")
+    expect(existsSync(path.join(output, "raw"))).toBe(false)
+  })
+
+  test.skipIf(process.platform === "win32")(
+    "rejects a source symlink inside the owned output tree before replacing evidence",
+    () => {
+      const tmp = mkdtempSync(path.join(tmpdir(), "ce-riffrec-source-link-in-output-"))
+      const output = path.join(tmp, "analysis-output")
+      const source = path.join(tmp, "feedback.md")
+      const sourceLink = path.join(output, "frames", "feedback.md")
+      writeFileSync(source, "source target must survive\n")
+      mkdirSync(path.dirname(sourceLink), { recursive: true })
+      symlinkSync(source, sourceLink)
+
+      const run = spawnSync(
+        "python3",
+        [CANONICAL_SCRIPT, sourceLink, "--output-dir", output, "--no-transcribe"],
+        { encoding: "utf8", cwd: tmp },
+      )
+
+      expect(run.status).toBe(2)
+      expect(run.stderr).toContain("Frames output contains a symlink")
+      expect(existsSync(sourceLink)).toBe(true)
+      expect(readFileSync(source, "utf8")).toBe("source target must survive\n")
+      expect(existsSync(path.join(output, "raw"))).toBe(false)
+    },
+  )
+
   test("rejects output nested inside the source capture", () => {
     const tmp = mkdtempSync(path.join(tmpdir(), "ce-riffrec-recursive-output-"))
     const capture = makeUnpackedCapture(tmp)
