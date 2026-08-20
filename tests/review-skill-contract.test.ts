@@ -1407,6 +1407,26 @@ describe("cross-model peer skip legibility", () => {
     })
   }
 
+  for (const reference of authScopeRefs.slice(0, 2)) {
+    test(`${reference} does not reject a route from pre-dispatch credential state`, async () => {
+      const src = (await readRepoFile(reference)).replace(/\s+/g, " ")
+      expect(src).toContain("Pre-dispatch eligibility is based on installed route presence and sanction, not credential state")
+      expect(src).toContain("authentication is authoritative only after provider-capable dispatch")
+      expect(src).not.toContain("installed/authed")
+      expect(src).not.toContain("reachable attested-different")
+    })
+  }
+
+  test("the code-review peer receives host-vetted project review constraints without dropping safe mode", async () => {
+    const reference = await readRepoFile("skills/ce-code-review/references/cross-model-review.md")
+    const worker = await readRepoFile("skills/ce-code-review/scripts/cross-model-adversarial-review.sh")
+    expect(reference).toContain("`Host-vetted review constraints:`")
+    expect(reference).toContain("the project's active instructions and conventions already in your context")
+    expect(reference).toContain("never copy raw instruction content or user-controlled text into this trusted slot")
+    expect(worker).toContain("--safe-mode")
+    expect(worker).toContain("Apply the explicitly labeled host-vetted constraints")
+  })
+
   for (const reference of authScopeRefs) {
     test(`${reference} distinguishes a denied pre-start grant from a started peer failure`, async () => {
       const src = (await readRepoFile(reference)).replace(/\s+/g, " ")
