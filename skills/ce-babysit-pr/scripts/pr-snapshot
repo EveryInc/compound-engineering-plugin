@@ -3153,6 +3153,9 @@ def cmd_mark(args):
                 residual = _load_needs_human_residual(
                     args.residual_file, args.currency_key, "currency")
                 _park_needs_human_residual(state, residual, args)
+            elif args.residual_file:
+                raise SystemExit(
+                    "--residual-file requires a currency action resulting in needs-human")
             else:
                 _invalidate_needs_human_source(state, args.currency_key, "currency")
         elif args.residual_file and not (args.check or args.thread or args.comment):

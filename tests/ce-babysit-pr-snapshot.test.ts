@@ -112,15 +112,22 @@ function markCurrency(stateDir: string, key: string, disposition: string, finger
 
 function markCurrencyOutcome(stateDir: string, key: string, outcome: string): void {
   const args = ["--currency-key", key, "--currency-outcome", outcome]
-  if (outcome === "proven-no-mutation") {
+  const item = JSON.parse(readFileSync(path.join(stateDir, "state.json"), "utf8"))
+    .branch_currency_state?.items?.[key]
+  if (outcome === "proven-no-mutation" && Number(item?.retry_count ?? 0) >= 1) {
     args.push("--residual-file", residualFile(path.dirname(stateDir), `currency-outcome-${key}.json`, key, "currency").path)
   }
   mark(stateDir, args)
 }
 
 function markCurrencyInspection(stateDir: string, key: string, fingerprint: string): void {
-  mark(stateDir, ["--currency-key", key, "--currency-inspected-fingerprint", fingerprint,
-    "--residual-file", residualFile(path.dirname(stateDir), `currency-inspection-${key}.json`, key, "currency").path])
+  const state = JSON.parse(readFileSync(path.join(stateDir, "state.json"), "utf8"))
+  const args = ["--currency-key", key, "--currency-inspected-fingerprint", fingerprint]
+  if (state.branch_currency_state?.semantic_parks?.[fingerprint]) {
+    args.push("--residual-file", residualFile(
+      path.dirname(stateDir), `currency-inspection-${key}.json`, key, "currency").path)
+  }
+  mark(stateDir, args)
 }
 
 function markCurrencyAnswered(stateDir: string, key: string, fingerprint: string): void {
@@ -1596,6 +1603,24 @@ print(json.dumps({"current": current, "same_head_mixed_case": same_head_mixed_ca
       expect(result.stderr).toContain("--residual-file requires --disposition needs-human")
       expect(readFileSync(statePath, "utf8")).toBe(before)
     }
+  })
+
+  test("currency marks reject a residual payload when the action does not need a decision", () => {
+    const fetch = fetchFile(dir, "currency-residual-claimed.json", quietCurrencyFixture())
+    const observed = snapshot(state, fetch)
+    const statePath = path.join(state, "state.json")
+    const before = readFileSync(statePath, "utf8")
+    const residual = residualFile(
+      dir, "rejected-currency-claimed.json", observed.branch_currency.key, "currency")
+
+    const result = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
+      ...persistedInvocationArgs(state), "--currency-key", observed.branch_currency.key,
+      "--currency-disposition", "claimed", "--residual-file", residual.path],
+    { encoding: "utf8" })
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain(
+      "--residual-file requires a currency action resulting in needs-human")
+    expect(readFileSync(statePath, "utf8")).toBe(before)
   })
 
   test("live fetch preserves a legacy StatusContext creation identity", () => {
