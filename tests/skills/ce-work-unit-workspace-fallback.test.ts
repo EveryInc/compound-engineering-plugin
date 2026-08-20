@@ -1,5 +1,4 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test"
-import { spawnSync } from "node:child_process"
 import {
   chmodSync,
   existsSync,
@@ -44,31 +43,6 @@ import {
 setDefaultTimeout(30_000)
 
 registerWorkspaceCleanup()
-
-const DISPATCH_RECEIPT_RACE = path.join(__dirname, "../fixtures/ce-work-dispatch-receipt-race.py")
-
-function ctlWithDispatchReceiptRace(
-  runsRoot: string,
-  mode: "record-job" | "resume",
-  runId: string,
-  unitId: string,
-  jobId: string,
-) {
-  const result = spawnSync(
-    "python3",
-    [DISPATCH_RECEIPT_RACE, path.dirname(SCRIPT), mode, runId, unitId, jobId],
-    {
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        CE_WORK_RUNS_ROOT: runsRoot,
-        CE_PEER_JOBS_ROOT: path.dirname(runsRoot),
-      },
-    },
-  )
-  if (result.status !== 0) throw new Error(result.stderr || result.stdout)
-  return JSON.parse(result.stdout)
-}
 
 describe("ce-work unit workspace controller: run discovery and native fallback", () => {
   test("lists matching unfinished runs rather than guessing and fails closed on unsafe candidates", () => {
@@ -192,136 +166,6 @@ describe("ce-work unit workspace controller: run discovery and native fallback",
     manifest.units.U.attempts[0].fallback.completed.snapshot.status_empty = false
     writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`)
     expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("UNREADABLE")
-  })
-
-  test("records a denied host permission before start and authorizes native fallback without inventing a job", () => {
-    const f = makeRepo()
-    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
-    const runId = "run-start-denied"
-    const unitId = "U"
-    init(runs, runId, f)
-    ctl(
-      runs, "prepare", "--run-id", runId, "--unit-id", unitId,
-      "--base", f.base, "--packet", packetFile("packet"),
-    )
-
-    expect(ctl(
-      runs, "claim-fallback", "--run-id", runId, "--unit-id", unitId,
-      "--caller-mode", "headless",
-    ).word).toBe("REFUSED")
-
-    const denied = ctl(
-      runs, "record-dispatch-unavailable", "--run-id", runId, "--unit-id", unitId,
-      "--attempt-id", "attempt-1", "--reason", "approval-denied",
-    )
-    expect(denied).toMatchObject({
-      word: "DISPATCH_UNAVAILABLE",
-      body: {
-        unit_id: unitId,
-        attempt_id: "attempt-1",
-        reason: "host-approval-denied-before-start",
-        resumed: false,
-      },
-    })
-    expect(ctl(
-      runs, "record-dispatch-unavailable", "--run-id", runId, "--unit-id", unitId,
-      "--attempt-id", "attempt-1", "--reason", "approval-denied",
-    ).body.resumed).toBe(true)
-
-    const status = ctl(runs, "status", "--run-id", runId, "--unit-id", unitId).body.unit
-    expect(status).toMatchObject({
-      state: "queued",
-      attempts: [{
-        job_id: null,
-        process_state: "never-started",
-        dispatch_unavailable_receipt: {
-          reason: "host-approval-denied-before-start",
-        },
-        fallback: {
-          eligible: true,
-          reason: "host-approval-denied-before-start",
-          claimed: null,
-        },
-      }],
-    })
-
-    const fakeJob = fakeRunningJob(runs, runId, unitId, "packet", "job-after-denial")
-    expect(ctl(
-      runs, "record-job", "--run-id", runId, "--unit-id", unitId,
-      "--attempt-id", "attempt-1", "--job-id", fakeJob,
-    ).word).toBe("REFUSED")
-    expect(ctl(runs, "resume", "--run-id", runId).body.actions).toContainEqual({
-      unit_id: unitId,
-      action: "dispatch-unavailable-retained",
-      reason: "host-approval-denied-before-start",
-    })
-
-    expect(ctl(
-      runs, "claim-fallback", "--run-id", runId, "--unit-id", unitId,
-      "--caller-mode", "headless",
-    )).toMatchObject({
-      word: "FALLBACK_AUTHORIZED",
-      body: { start_native: true, reason: "host-approval-denied-before-start" },
-    })
-  })
-
-  test("record-job preserves a dispatch denial that lands before its write lock", () => {
-    const f = makeRepo()
-    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
-    const runId = "run-record-job-denial-race"
-    init(runs, runId, f)
-    ctl(
-      runs, "prepare", "--run-id", runId, "--unit-id", "U",
-      "--base", f.base, "--packet", packetFile("packet"),
-    )
-    const job = fakeRunningJob(runs, runId, "U", "packet", "job-denial-race")
-
-    const raced = ctlWithDispatchReceiptRace(runs, "record-job", runId, "U", job)
-
-    expect(raced).toMatchObject({
-      word: "REFUSED",
-      race_fired: true,
-      unit_state: "queued",
-      attempt: {
-        job_id: null,
-        dispatch_unavailable_receipt: { reason: "host-approval-denied-before-start" },
-      },
-    })
-    expect(raced.events).toContain("dispatch-unavailable-before-start")
-    expect(raced.events).not.toContain("job-bound")
-  })
-
-  test("resume retains a dispatch denial that lands before queued-job adoption", () => {
-    const f = makeRepo()
-    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
-    const runId = "run-resume-denial-race"
-    init(runs, runId, f)
-    ctl(
-      runs, "prepare", "--run-id", runId, "--unit-id", "U",
-      "--base", f.base, "--packet", packetFile("packet"),
-    )
-    const job = fakeRunningJob(runs, runId, "U", "packet", "job-adoption-race")
-
-    const raced = ctlWithDispatchReceiptRace(runs, "resume", runId, "U", job)
-
-    expect(raced).toMatchObject({
-      word: "RESUMED",
-      race_fired: true,
-      unit_state: "queued",
-      attempt: {
-        job_id: null,
-        dispatch_unavailable_receipt: { reason: "host-approval-denied-before-start" },
-      },
-      body: {
-        actions: [{
-          unit_id: "U",
-          action: "dispatch-unavailable-retained",
-          reason: "host-approval-denied-before-start",
-        }],
-      },
-    })
-    expect(raced.events).toContain("dispatch-unavailable-before-start")
-    expect(raced.events).not.toContain("job-adopted")
   })
 
   test("keeps oversized runner activity logs authoritative for failed-job recovery", () => {

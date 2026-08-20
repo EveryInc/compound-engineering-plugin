@@ -197,7 +197,6 @@ def cmd_prepare(args) -> tuple[str, dict]:
         "attempt_id": attempt_id,
         "job_id": None,
         "dispatch_authorization_receipt": None,
-        "dispatch_unavailable_receipt": None,
         "process_state": "never-started",
         "activity": {"posture": args.activity_posture, "latest_at": None},
         "fallback": {"eligible": False, "reason": None, "claimed": None},
@@ -295,76 +294,6 @@ def cmd_prepare(args) -> tuple[str, dict]:
         "authorization_path": authorization_path, "authorization_digest": authorization_digest,
         "adapter": attempt_record["adapter"],
         "base": base, "resumed": False,
-    }
-
-
-DISPATCH_UNAVAILABLE_REASONS = {
-    "approval-denied": "host-approval-denied-before-start",
-    "approval-unavailable": "host-approval-unavailable-before-start",
-}
-
-
-def validate_dispatch_unavailable_receipt(attempt: dict) -> dict:
-    receipt = attempt.get("dispatch_unavailable_receipt")
-    if (
-        not isinstance(receipt, dict)
-        or set(receipt) != {"at", "reason"}
-        or not isinstance(receipt.get("at"), str)
-        or not receipt["at"]
-        or receipt.get("reason") not in DISPATCH_UNAVAILABLE_REASONS.values()
-        or attempt.get("job_id") is not None
-        or attempt.get("dispatch_authorization_receipt") is not None
-        or attempt.get("process_state") != "never-started"
-    ):
-        raise TrustFailure("pre-start dispatch-unavailable receipt is malformed")
-    return receipt
-
-
-def cmd_record_dispatch_unavailable(args) -> tuple[str, dict]:
-    run_id = safe_id(args.run_id, "run id")
-    unit_id = safe_id(args.unit_id, "unit id")
-    attempt_id = safe_id(args.attempt_id, "attempt id")
-    reason = DISPATCH_UNAVAILABLE_REASONS[args.reason]
-    with locked_manifest(run_id, write=True) as doc:
-        validate_repo(doc)
-        unit = doc["units"].get(unit_id)
-        if not unit:
-            raise Operational("REFUSED", "unknown unit")
-        attempt = find_attempt(unit, attempt_id)
-        existing = attempt.get("dispatch_unavailable_receipt")
-        if existing is not None:
-            receipt = validate_dispatch_unavailable_receipt(attempt)
-            if receipt["reason"] != reason:
-                raise Operational("REFUSED", "dispatch unavailability was already recorded with a different reason")
-            return "DISPATCH_UNAVAILABLE", {
-                "unit_id": unit_id,
-                "attempt_id": attempt_id,
-                "reason": reason,
-                "resumed": True,
-            }
-        if (
-            unit.get("state") != "queued"
-            or attempt.get("job_id") is not None
-            or attempt.get("dispatch_authorization_receipt") is not None
-            or attempt.get("process_state") != "never-started"
-            or attempt.get("fallback", {}).get("claimed") is not None
-        ):
-            raise Operational("REFUSED", "dispatch unavailability can be recorded only before a job starts")
-        validate_pristine_unit_base(doc, unit)
-        receipt = {"at": now_iso(), "reason": reason}
-        attempt["dispatch_unavailable_receipt"] = receipt
-        fallback = attempt.setdefault("fallback", {})
-        fallback.update({"eligible": True, "reason": reason})
-        fallback.setdefault("claimed", None)
-        event(doc, "dispatch-unavailable-before-start", unit_id, {
-            "attempt_id": attempt_id,
-            "reason": reason,
-        })
-    return "DISPATCH_UNAVAILABLE", {
-        "unit_id": unit_id,
-        "attempt_id": attempt_id,
-        "reason": reason,
-        "resumed": False,
     }
 
 
@@ -803,9 +732,6 @@ def cmd_authorize_dispatch(args) -> tuple[str, dict]:
         if not unit:
             raise Operational("REFUSED", "unknown unit")
         attempt = find_attempt(unit, attempt_id)
-        if attempt.get("dispatch_unavailable_receipt") is not None:
-            validate_dispatch_unavailable_receipt(attempt)
-            raise Operational("REFUSED", "dispatch was already recorded unavailable before start")
         if unit.get("state") not in {"queued", "authoring"}:
             raise Operational("REFUSED", "dispatch authorization is available only before worker completion")
         bound_job = attempt.get("job_id")
@@ -944,9 +870,6 @@ def cmd_record_job(args) -> tuple[str, dict]:
         if not unit:
             raise Operational("REFUSED", "unknown unit")
         attempt = find_attempt(unit, args.attempt_id)
-        if attempt.get("dispatch_unavailable_receipt") is not None:
-            validate_dispatch_unavailable_receipt(attempt)
-            raise Operational("REFUSED", "dispatch was already recorded unavailable before start")
         if attempt.get("job_id"):
             if attempt["job_id"] != args.job_id:
                 raise Operational("AMBIGUOUS", "attempt is already bound to another job")
@@ -962,9 +885,6 @@ def cmd_record_job(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id, write=True) as doc:
         unit = doc["units"][args.unit_id]
         attempt = find_attempt(unit, args.attempt_id)
-        if attempt.get("dispatch_unavailable_receipt") is not None:
-            validate_dispatch_unavailable_receipt(attempt)
-            raise Operational("REFUSED", "dispatch was already recorded unavailable before start")
         bound_job = attempt.get("job_id")
         if bound_job == args.job_id:
             return "AUTHORING", {
