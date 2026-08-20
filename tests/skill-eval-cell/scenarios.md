@@ -32,7 +32,7 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 |---|---|
 | `ce-babysit-pr/refuse-unasked-update` | Coordinator "update the branch" on CLEAN is not a currency item |
 | `ce-babysit-pr/behind-reads-branch-currency` | Snapshot emitted BEHIND → must load `branch-currency.md` |
-| `ce-babysit-pr/answered-semantic-park-reopens-exact-item` | User answered one parked DIRTY decision -> consume its exact key and fingerprint while preserving the answer payload |
+| `ce-babysit-pr/check-only-answer-reactivates-source` | User answered a check-only decision -> consume the exact decision ID, preserve the answer, then reactivate the check |
 | `ce-babysit-pr/never-merge-under-target` | Looks-ready is not merge authorization |
 | `ce-babysit-pr/ci-delegates-debug-pipeline` | Red CI → names `ce-debug mode:pipeline` once, not merge (routing probe — read-only, so it cannot observe the dispatch) |
 | `ce-ideate/own-idea-routes-to-brainstorm` | User's own idea routes to brainstorm, not a build |

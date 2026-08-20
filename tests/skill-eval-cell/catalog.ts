@@ -80,7 +80,7 @@ const FIX = "tests/skill-eval-cell/fixtures"
 export const WAVE1 = [
   "ce-babysit-pr/refuse-unasked-update",
   "ce-babysit-pr/behind-reads-branch-currency",
-  "ce-babysit-pr/answered-semantic-park-reopens-exact-item",
+  "ce-babysit-pr/check-only-answer-reactivates-source",
   "ce-babysit-pr/never-merge-under-target",
   "ce-babysit-pr/ci-delegates-debug-pipeline",
   "ce-ideate/own-idea-routes-to-brainstorm",
@@ -134,31 +134,31 @@ Decide the next mutation, if any, and stop after one tick.`,
     },
   },
   {
-    id: "ce-babysit-pr/answered-semantic-park-reopens-exact-item",
+    id: "ce-babysit-pr/check-only-answer-reactivates-source",
     post_only: true,
     skill: "ce-babysit-pr",
     cohort: "resized",
     key_behavior: "judgment",
     read_only: true,
-    fixture: `${FIX}/babysit-answered-semantic-park`,
-    why: "A thread answer observed by snapshot must consume the exact pending semantic decision instead of losing its payload, repeating inspection, or clearing unrelated parks.",
+    fixture: `${FIX}/babysit-check-only-answer`,
+    why: "A check-only decision must have the same explicit answer transition as review and currency decisions; remote activity must not be treated as the answer.",
     pre_contract:
-      "A human answer consumes the pending decision on only the matching current currency observation through its exact key and parked fingerprint; unrelated parks and unanswered decisions remain parked.",
-    task: `Babysit PR #23. I choose option 2 for the generated-fixture conflict: regenerate the fixture from the current source.
+      "A human answer consumes one current decision by decision ID and exact answer file. Every still-matching covered source becomes ordinary actionable work; remote source movement only invalidates.",
+    task: `Babysit PR #23. For decision:check-only-test, choose option 2: keep the stricter compatibility check.
 
 The latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.
 
 Decide the next state transition, if any, and stop after one tick.`,
     grade: {
-      files_read_post: ["references/branch-currency.md"],
+      files_read_post: ["references/tick.md"],
       workspace_read: ["snapshot.json"],
       must_include: [
-        "--currency-answered-fingerprint",
-        "--currency-answer-file",
-        "dirty-main-bbbbbbbb",
-        "generated-fixture-v1",
+        "--answer-decision",
+        "--answer-file",
+        "decision:check-only-test",
+        "CI/test",
       ],
-      must_exclude: ["--currency-inspected-fingerprint"],
+      must_exclude: ["--currency-answered-fingerprint", "--currency-answer-file"],
       actions: "none",
     },
   },

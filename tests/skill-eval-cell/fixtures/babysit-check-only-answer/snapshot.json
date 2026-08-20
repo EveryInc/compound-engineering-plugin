@@ -1,0 +1,56 @@
+{
+  "pr": 23,
+  "url": "https://github.com/example/tiny-lib/pull/23",
+  "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "head_ref": "fix/compatibility-check",
+  "base_ref": "main",
+  "base_oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "mergeable": "MERGEABLE",
+  "merge_state_status": "UNSTABLE",
+  "branch_currency": null,
+  "human_decisions": [
+    {
+      "decision_id": "decision:check-only-test",
+      "residual": {
+        "type": "needs-human",
+        "sources": [
+          { "id": "CI/test", "kind": "check" }
+        ],
+        "decision_context": {
+          "quoted_feedback": "Should this compatibility check remain strict or accept the legacy format?",
+          "investigation": "Both formats are supported by different downstream consumers.",
+          "decision_reason": "Changing the accepted format is a product compatibility decision.",
+          "options": [
+            { "option": "Accept legacy", "tradeoff": "Preserves older consumers but weakens the contract." },
+            { "option": "Keep strict", "tradeoff": "Protects the current contract but requires legacy consumers to migrate." }
+          ],
+          "recommendation": "Keep the stricter compatibility check."
+        },
+        "thread_urls": []
+      }
+    }
+  ],
+  "branch_currency_blocker": null,
+  "needs_human_residuals": [
+    {
+      "type": "needs-human",
+      "sources": [{ "id": "CI/test", "kind": "check" }],
+      "decision_context": {
+        "quoted_feedback": "Should this compatibility check remain strict or accept the legacy format?",
+        "investigation": "Both formats are supported by different downstream consumers.",
+        "decision_reason": "Changing the accepted format is a product compatibility decision.",
+        "options": [
+          { "option": "Accept legacy", "tradeoff": "Preserves older consumers but weakens the contract." },
+          { "option": "Keep strict", "tradeoff": "Protects the current contract but requires legacy consumers to migrate." }
+        ],
+        "recommendation": "Keep the stricter compatibility check."
+      },
+      "thread_urls": []
+    }
+  ],
+  "open_needs_human": 1,
+  "review_threads": [],
+  "non_thread_comments": [],
+  "failing_checks": [],
+  "manager_status": null
+}

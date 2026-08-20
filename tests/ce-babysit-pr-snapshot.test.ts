@@ -77,11 +77,16 @@ function currentInvocationArgs(stateDir: string, fetch: string): string[] {
 }
 
 function mark(stateDir: string, args: string[]): void {
-  // Default the at-mark baseline fetch to empty threads (-> lazy first-observation baseline, no gh
-  // call); a test exercising at-mark capture passes its own --fetch-file, which we don't override.
+  // Model a successful at-mark refetch from the last observed state unless the test supplies an
+  // explicit post-action fetch. Decision marks fail closed when any covered thread is absent.
+  const persisted = existsSync(path.join(stateDir, "state.json"))
+    ? JSON.parse(readFileSync(path.join(stateDir, "state.json"), "utf8"))
+    : {}
   const extra = args.includes("--fetch-file")
     ? []
-    : ["--fetch-file", fetchFile(path.dirname(stateDir), "mark-empty.json", { threads: [] })]
+    : ["--fetch-file", fetchFile(path.dirname(stateDir), "mark-current.json", {
+      threads: Object.values(persisted.threads ?? {}),
+    })]
   const needsResidual = args.includes("--disposition")
     && args[args.indexOf("--disposition") + 1] === "needs-human"
     && (args.includes("--thread") || args.includes("--comment") || args.includes("--check"))
@@ -102,11 +107,14 @@ function mark(stateDir: string, args: string[]): void {
 }
 
 function markCurrency(stateDir: string, key: string, disposition: string, fingerprint?: string): void {
-  const args = ["--currency-key", key, "--currency-disposition", disposition]
-  if (fingerprint) args.push("--semantic-conflict-fingerprint", fingerprint)
   if (disposition === "needs-human") {
-    args.push("--residual-file", residualFile(path.dirname(stateDir), `currency-${key}.json`, key, "currency").path)
+    const args = ["--disposition", "needs-human", "--residual-file",
+      residualFile(path.dirname(stateDir), `currency-${key}.json`, key, "currency").path]
+    if (fingerprint) args.push("--semantic-conflict-fingerprint", fingerprint)
+    mark(stateDir, args)
+    return
   }
+  const args = ["--currency-key", key, "--currency-disposition", disposition]
   mark(stateDir, args)
 }
 
@@ -130,11 +138,17 @@ function markCurrencyInspection(stateDir: string, key: string, fingerprint: stri
   mark(stateDir, args)
 }
 
-function markCurrencyAnswered(stateDir: string, key: string, fingerprint: string): void {
-  const answerPath = path.join(path.dirname(stateDir), `currency-answer-${key}.md`)
+function markDecisionAnswered(stateDir: string, decisionId?: string): void {
+  const current = JSON.parse(readFileSync(path.join(stateDir, "state.json"), "utf8"))
+    .human_decisions?.[0]?.id
+  const answerPath = path.join(path.dirname(stateDir), "human-answer.md")
   writeFileSync(answerPath, "Option 2: regenerate the fixture from current source.\n")
-  mark(stateDir, ["--currency-key", key, "--currency-answered-fingerprint", fingerprint,
-    "--currency-answer-file", answerPath])
+  mark(stateDir, ["--answer-decision", decisionId ?? current, "--answer-file", answerPath])
+}
+
+function expectCurrentDecision(actual: any[], residual: any): void {
+  expect(actual).toHaveLength(1)
+  expect(actual[0]).toEqual(residual)
 }
 
 function watch(stateDir: string, fetch: string, extra: string[] = []): any {
@@ -609,38 +623,18 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     markCurrencyOutcome(state, retry.branch_currency.key, "proven-no-mutation")
     const exhausted = snapshot(state, fetch)
     expect(exhausted.branch_currency).toMatchObject({
-      disposition: "needs-human",
+      disposition: "open",
       attention: null,
       retry_count: 1,
       recovery_state: "retry-exhausted",
     })
-
-    const groupedState = readState(state)
-    groupedState.needs_human_residuals[0].sources.push({ id: "T1", kind: "thread" })
-    groupedState.needs_human_residuals[0].thread_urls.push("https://example.test/thread/T1")
-    groupedState.threads.T1 = {
-      thread_id: "T1", last_comment_id: "C1", last_comment_at: "t1",
-      disposition: "needs-human", acted_identity: ["C1", "t1"],
-    }
-    writeFileSync(path.join(state, "state.json"), JSON.stringify(groupedState))
-    const reviewMoved = snapshot(state, fetchFile(dir, "currency-group-review-moved.json", {
-      ...quietCurrencyFixture(),
-      threads: [{ thread_id: "T1", last_comment_id: "C2", last_comment_at: "t2" }],
-    }))
-    expect(reviewMoved.needs_human_residuals).toEqual([])
-    expect(reviewMoved.branch_currency).toMatchObject({
-      disposition: "open",
-      attention: "decide",
-      retry_count: 1,
-      mutation_consumed: false,
-      recovery_state: "retry-exhausted",
-      requires_decision: true,
-    })
+    expectCurrentDecision(exhausted.needs_human_residuals,
+      residualFile(dir, "currency-exhausted-expected.json", retry.branch_currency.key, "currency").value)
     const unsafeReplay = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
-      ...persistedInvocationArgs(state), "--currency-key", reviewMoved.branch_currency.key,
+      ...persistedInvocationArgs(state), "--currency-key", exhausted.branch_currency.key,
       "--currency-disposition", "claimed"], { encoding: "utf8" })
     expect(unsafeReplay.status).not.toBe(0)
-    expect(unsafeReplay.stderr).toMatch(/new canonical decision or explicit answer/)
+    expect(unsafeReplay.stderr).toMatch(/current human decision to be answered/)
 
     const ambiguousState = path.join(dir, "currency-ambiguous")
     const ambiguous = snapshot(ambiguousState, fetch)
@@ -769,10 +763,9 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       }))
       const observed = snapshot(capabilityState, unavailable)
       markCurrency(capabilityState, observed.branch_currency.key, "needs-human")
-      expect(snapshot(capabilityState, unavailable).branch_currency).toMatchObject({
-        disposition: "needs-human",
-        attention: null,
-      })
+      const parked = snapshot(capabilityState, unavailable)
+      expect(parked.branch_currency).toMatchObject({ disposition: "open", attention: null })
+      expect(parked.open_needs_human).toBe(1)
 
       const enabled = snapshot(capabilityState, fetchFile(dir, `currency-capability-${capability}-on.json`, quietCurrencyFixture({
         host_branch_update_capability: true,
@@ -798,9 +791,9 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
 
     mark(currencyState, ["--disposition", "needs-human", "--residual-file", residual.path])
     const parked = snapshot(currencyState, unavailable)
-    expect(parked.needs_human_residuals).toEqual([residual.value])
+    expectCurrentDecision(parked.needs_human_residuals, residual.value)
     expect(parked.open_needs_human).toBe(1)
-    expect(parked.branch_currency.disposition).toBe("needs-human")
+    expect(parked.branch_currency.disposition).toBe("open")
     expect(wakeReason(parked)).toBe("needs-human")
 
     const enabled = snapshot(currencyState, fetchFile(dir, "currency-canonical-on.json", quietCurrencyFixture({
@@ -811,15 +804,15 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(enabled.branch_currency).toMatchObject({ disposition: "open", attention: "claim" })
   }, 15000)
 
-  test("branch currency cannot enter needs-human without a complete typed residual", () => {
+  test("branch currency cannot create a human decision without a complete typed residual", () => {
     const currencyState = path.join(dir, "currency-residual-required")
     const fetch = fetchFile(dir, "currency-residual-required.json", quietCurrencyFixture({
       host_branch_update_capability: false,
     }))
     const observed = snapshot(currencyState, fetch)
     const result = spawnSync("python3", [SCRIPT, "mark", "--state-dir", currencyState,
-      ...persistedInvocationArgs(currencyState), "--currency-key", observed.branch_currency.key,
-      "--currency-disposition", "needs-human"], { encoding: "utf8" })
+      ...persistedInvocationArgs(currencyState), "--disposition", "needs-human"],
+    { encoding: "utf8" })
     expect(result.status).not.toBe(0)
     expect(result.stderr).toMatch(/residual-file/)
     expect(snapshot(currencyState, fetch).branch_currency.disposition).toBe("open")
@@ -858,8 +851,8 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       ...persistedInvocationArgs(decisionState), "--comment", "IC_decision",
       "--disposition", "dispatched"], { encoding: "utf8" })
     expect(dispatched.status).not.toBe(0)
-    expect(dispatched.stderr).toMatch(/reopen the grouped residual first/)
-    expect(snapshot(decisionState, fetch).needs_human_residuals).toEqual([residual.value])
+    expect(dispatched.stderr).toMatch(/current human decision/)
+    expectCurrentDecision(snapshot(decisionState, fetch).needs_human_residuals, residual.value)
   }, 15000)
 
   test("branch currency: standing confirmed and needs-human residuals stay quiet, and max-runtime outranks new work", () => {
@@ -867,9 +860,12 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     for (const disposition of ["confirmed", "needs-human"]) {
       const residualState = path.join(dir, `currency-standing-${disposition}`)
       const observed = snapshot(residualState, fetch)
-      markCurrency(residualState, observed.branch_currency.key, "claimed")
-      markCurrency(residualState, observed.branch_currency.key, disposition,
-        disposition === "needs-human" ? "semantic-v1" : undefined)
+      if (disposition === "confirmed") {
+        markCurrency(residualState, observed.branch_currency.key, "claimed")
+        markCurrency(residualState, observed.branch_currency.key, disposition)
+      } else {
+        markCurrency(residualState, observed.branch_currency.key, disposition, "semantic-v1")
+      }
       const residualPath = path.join(residualState, "state.json")
       const expiredResidual = JSON.parse(readFileSync(residualPath, "utf8"))
       expiredResidual.started_at = "2000-01-01T00:00:00Z"
@@ -1108,7 +1104,6 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
   test("branch currency: a carried semantic park wakes only for inspection and unchanged evidence stays parked", () => {
     const dirty = quietCurrencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
     const original = snapshot(state, fetchFile(dir, "currency-inspect-1.json", dirty))
-    markCurrency(state, original.branch_currency.key, "claimed")
     markCurrency(state, original.branch_currency.key, "needs-human", "conflict-v1")
 
     const moved = snapshot(state, fetchFile(dir, "currency-inspect-2.json", quietCurrencyFixture({
@@ -1141,7 +1136,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       merge_state_status: "DIRTY",
       base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-2" },
     }))).branch_currency).toMatchObject({
-      disposition: "needs-human",
+      disposition: "open",
       attention: null,
       recovery_state: "semantic-unchanged",
     })
@@ -1236,155 +1231,20 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(persisted.branch_currency_state.current_key).toBeNull()
   }, 20000)
 
-  test("branch currency: invocation-fenced transitions preserve an unchanged semantic park", () => {
-    const observed = snapshot(state, fetchFile(dir, "currency-park.json", currencyFixture({
-      mergeable: "CONFLICTING",
-      merge_state_status: "DIRTY",
-    })))
-    markCurrency(state, observed.branch_currency.key, "claimed")
-    markCurrency(state, observed.branch_currency.key, "needs-human", "conflict-v1")
-    const parked = snapshot(state, fetchFile(dir, "currency-park-again.json", currencyFixture({
-      mergeable: "CONFLICTING",
-      merge_state_status: "DIRTY",
-    })))
-    expect(parked.branch_currency).toMatchObject({
-      key: observed.branch_currency.key,
-      disposition: "needs-human",
-      semantic_conflict_fingerprint: "conflict-v1",
-    })
+  test("branch currency: a decision is invocation-fenced and changed observations invalidate it", () => {
+    const dirty = currencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
+    const original = snapshot(state, fetchFile(dir, "currency-residual-head-1.json", dirty))
+    markCurrency(state, original.branch_currency.key, "needs-human", "conflict-v1")
+    const parked = snapshot(state, fetchFile(dir, "currency-residual-head-parked.json", dirty))
+    expect(parked.needs_human_residuals).toHaveLength(1)
+    expect(parked.branch_currency).toMatchObject({ disposition: "open", attention: null })
 
     const stale = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
       "--invocation-id", "stale", "--session-started-at", parked.invocation_started_at,
       "--invocation-budget-seconds", String(parked.invocation_budget_seconds),
-      "--currency-key", observed.branch_currency.key, "--currency-disposition", "open"],
+      "--currency-key", original.branch_currency.key, "--currency-disposition", "open"],
     { encoding: "utf8" })
     expect(stale.status).not.toBe(0)
-    const stillParked = snapshot(state, fetchFile(dir, "currency-park-still.json", currencyFixture({
-      mergeable: "CONFLICTING",
-      merge_state_status: "DIRTY",
-    })))
-    expect(stillParked.branch_currency.disposition).toBe("needs-human")
-    markCurrency(state, stillParked.branch_currency.key, "open")
-    expect(snapshot(state, fetchFile(dir, "currency-park-reopened.json", currencyFixture({
-      mergeable: "CONFLICTING",
-      merge_state_status: "DIRTY",
-    }))).branch_currency).toMatchObject({
-      disposition: "open",
-      attention: "inspect",
-      parked_semantic_fingerprints: ["conflict-v1"],
-    })
-  }, 15000)
-
-  test("branch currency: a human answer consumes only the matching semantic decision", () => {
-    const dirty = currencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
-    const observed = snapshot(state, fetchFile(dir, "currency-answer.json", dirty))
-    markCurrency(state, observed.branch_currency.key, "claimed")
-    markCurrency(state, observed.branch_currency.key, "needs-human", "conflict-v1")
-    const withUnrelatedPark = readState(state)
-    withUnrelatedPark.branch_currency_state.semantic_parks["unrelated-v1"] = {
-      head_sha: "older-head",
-      status: "DIRTY",
-      route: "normal-base",
-      observation_key: "older-dirty-observation",
-    }
-    writeFileSync(path.join(state, "state.json"), JSON.stringify(withUnrelatedPark))
-
-    const wrongAnswer = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
-      ...persistedInvocationArgs(state), "--currency-key", observed.branch_currency.key,
-      "--currency-answered-fingerprint", "conflict-v2"], { encoding: "utf8" })
-    expect(wrongAnswer.status).not.toBe(0)
-    expect(snapshot(state, fetchFile(dir, "currency-answer-still-parked.json", dirty))
-      .branch_currency.disposition).toBe("needs-human")
-
-    const missingAnswerPayload = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
-      ...persistedInvocationArgs(state), "--currency-key", observed.branch_currency.key,
-      "--currency-answered-fingerprint", "conflict-v1"], { encoding: "utf8" })
-    expect(missingAnswerPayload.status).not.toBe(0)
-    expect(missingAnswerPayload.stderr).toMatch(/currency-answer-file/)
-
-    markCurrencyAnswered(state, observed.branch_currency.key, "conflict-v1")
-    const resumed = snapshot(state, fetchFile(dir, "currency-answer-resumed.json", dirty))
-    expect(resumed.needs_human_residuals).toEqual([])
-    expect(resumed.open_needs_human).toBe(0)
-    expect(resumed.branch_currency).toMatchObject({
-      disposition: "open",
-      attention: "claim",
-      recovery_state: "decision-answered",
-      parked_semantic_fingerprints: ["unrelated-v1"],
-      answered_decision: {
-        fingerprint: "conflict-v1",
-        answer: "Option 2: regenerate the fixture from current source.",
-      },
-    })
-    const answeredState = readState(state)
-    expect(answeredState.branch_currency_state.semantic_parks).toEqual({
-      "unrelated-v1": {
-        head_sha: "older-head",
-        status: "DIRTY",
-        route: "normal-base",
-        observation_key: "older-dirty-observation",
-      },
-    })
-    expect(answeredState.branch_currency_state.items[observed.branch_currency.key]
-      .answered_decision.residual.decision_context.options).toHaveLength(1)
-
-    markCurrency(state, observed.branch_currency.key, "claimed")
-    expect(readState(state).branch_currency_state.items[observed.branch_currency.key]
-      .answered_decision.answer).toContain("Option 2")
-    markCurrency(state, observed.branch_currency.key, "confirmed")
-    expect(readState(state).branch_currency_state.items[observed.branch_currency.key]
-      .answered_decision).toBeUndefined()
-  }, 15000)
-
-  test("branch currency: a thread answer preserves its grouped decision until the consuming mark", () => {
-    const dirty = currencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
-    const observed = snapshot(state, fetchFile(dir, "currency-thread-answer-1.json", dirty))
-    markCurrency(state, observed.branch_currency.key, "claimed")
-    markCurrency(state, observed.branch_currency.key, "needs-human", "conflict-v1")
-
-    const grouped = readState(state)
-    grouped.needs_human_residuals[0].sources.push({ id: "T1", kind: "thread" })
-    grouped.needs_human_residuals[0].thread_urls.push("https://example.test/thread/T1")
-    grouped.threads.T1.disposition = "needs-human"
-    grouped.threads.T1.acted_identity = ["C1", "t1"]
-    writeFileSync(path.join(state, "state.json"), JSON.stringify(grouped))
-
-    const answeredThread = {
-      ...dirty,
-      threads: [{ thread_id: "T1", last_comment_id: "C2", last_comment_at: "t2" }],
-    }
-    const reopened = snapshot(state, fetchFile(dir, "currency-thread-answer-2.json", answeredThread))
-    expect(reopened.needs_human_residuals).toEqual([])
-    expect(reopened.actionable.threads.map((item: any) => item.thread_id)).toEqual(["T1"])
-    expect(reopened.branch_currency).toMatchObject({
-      disposition: "open",
-      attention: "decide",
-      requires_decision: true,
-      pending_decision: {
-        fingerprint: "conflict-v1",
-        residual: { decision_context: { quoted_feedback: "Choose the intended behavior." } },
-      },
-    })
-
-    markCurrencyAnswered(state, observed.branch_currency.key, "conflict-v1")
-    const consumed = snapshot(state, fetchFile(dir, "currency-thread-answer-3.json", answeredThread))
-    expect(consumed.needs_human_residuals).toEqual([])
-    expect(consumed.branch_currency).toMatchObject({
-      disposition: "open",
-      attention: "claim",
-      recovery_state: "decision-answered",
-      answered_decision: { fingerprint: "conflict-v1" },
-    })
-    expect(consumed.branch_currency.pending_decision).toBeUndefined()
-  }, 15000)
-
-  test("branch currency: a changed observation invalidates the typed residual but retains semantic evidence for inspection", () => {
-    const dirty = currencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
-    const original = snapshot(state, fetchFile(dir, "currency-residual-head-1.json", dirty))
-    markCurrency(state, original.branch_currency.key, "claimed")
-    markCurrency(state, original.branch_currency.key, "needs-human", "conflict-v1")
-    expect(snapshot(state, fetchFile(dir, "currency-residual-head-parked.json", dirty))
-      .needs_human_residuals).toHaveLength(1)
 
     const moved = snapshot(state, fetchFile(dir, "currency-residual-head-2.json", currencyFixture({
       head_sha: "s2",
@@ -1401,52 +1261,35 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(moved.branch_currency.key).not.toBe(original.branch_currency.key)
   }, 15000)
 
-  test("branch currency: base-only movement retains the semantic park for later inspection", () => {
+  test("a generic answer consumes a currency decision and prevents exact re-parking", () => {
     const dirty = currencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
-    const parkedObservation = snapshot(state, fetchFile(dir, "currency-park-base-1.json", dirty))
-    markCurrency(state, parkedObservation.branch_currency.key, "claimed")
-    markCurrency(state, parkedObservation.branch_currency.key, "needs-human", "conflict-v1")
+    const observed = snapshot(state, fetchFile(dir, "currency-answer.json", dirty))
+    markCurrency(state, observed.branch_currency.key, "needs-human", "conflict-v1")
+    const parked = snapshot(state, fetchFile(dir, "currency-answer-parked.json", dirty))
+    const decisionId = parked.human_decisions[0].decision_id
 
-    const moved = snapshot(state, fetchFile(dir, "currency-park-base-2.json", currencyFixture({
-      mergeable: "CONFLICTING",
-      merge_state_status: "DIRTY",
-      base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-2" },
-    })))
-    expect(moved.branch_currency.key).not.toBe(parkedObservation.branch_currency.key)
-    expect(moved.branch_currency.disposition).toBe("open")
-    expect(moved.branch_currency.parked_semantic_fingerprints).toEqual(["conflict-v1"])
+    const wrong = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
+      ...persistedInvocationArgs(state), "--answer-decision", "decision:wrong",
+      "--answer-file", fetchFile(dir, "wrong-answer.txt", "Option 2")], { encoding: "utf8" })
+    expect(wrong.status).not.toBe(0)
 
-    const persisted = JSON.parse(readFileSync(path.join(state, "state.json"), "utf8"))
-    expect(persisted.branch_currency_state.semantic_parks["conflict-v1"]).toMatchObject({
-      head_sha: "s1",
-      status: "DIRTY",
-      route: "normal-base",
-      observation_key: parkedObservation.branch_currency.key,
+    markDecisionAnswered(state, decisionId)
+    const resumed = snapshot(state, fetchFile(dir, "currency-answer-resumed.json", dirty))
+    expect(resumed.needs_human_residuals).toEqual([])
+    expect(resumed.answered_human_decisions).toHaveLength(1)
+    expect(resumed.answered_human_decisions[0]).toMatchObject({
+      id: decisionId,
+      answer: "Option 2: regenerate the fixture from current source.",
     })
-    expect(persisted.branch_currency_state.semantic_parks["conflict-v1"]).not.toHaveProperty("base_oid")
-    expect(persisted.branch_currency_state.items[parkedObservation.branch_currency.key].disposition).toBe("needs-human")
-  }, 15000)
+    expect(resumed.branch_currency).toMatchObject({ disposition: "open", attention: "claim" })
 
-  test("branch currency: a carried DIRTY semantic park does not divert a later BEHIND update into inspection", () => {
-    const dirty = currencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
-    const parkedObservation = snapshot(state, fetchFile(dir, "currency-dirty-to-behind-1.json", dirty))
-    markCurrency(state, parkedObservation.branch_currency.key, "claimed")
-    markCurrency(state, parkedObservation.branch_currency.key, "needs-human", "conflict-v1")
-
-    const behind = snapshot(state, fetchFile(dir, "currency-dirty-to-behind-2.json", currencyFixture({
-      base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-2" },
-    })))
-    expect(behind.branch_currency).toMatchObject({
-      status: "BEHIND",
-      disposition: "open",
-      attention: "claim",
-      inspection_required: false,
-      parked_semantic_fingerprints: ["conflict-v1"],
-    })
-
-    markCurrency(state, behind.branch_currency.key, "claimed")
-    const persisted = JSON.parse(readFileSync(path.join(state, "state.json"), "utf8"))
-    expect(persisted.branch_currency_state.semantic_parks).toHaveProperty("conflict-v1")
+    const residual = residualFile(dir, "currency-repark.json", observed.branch_currency.key, "currency")
+    const repark = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
+      ...persistedInvocationArgs(state), "--disposition", "needs-human",
+      "--residual-file", residual.path, "--semantic-conflict-fingerprint", "conflict-v1"],
+    { encoding: "utf8" })
+    expect(repark.status).not.toBe(0)
+    expect(repark.stderr).toMatch(/already have a recorded human answer/)
   }, 15000)
 
   test("branch currency: dependents do not block a normal-base root, but managed, open-parent, and uncertain routes do", () => {
@@ -1619,7 +1462,7 @@ print(json.dumps({"current": current, "same_head_mixed_case": same_head_mixed_ca
     { encoding: "utf8" })
     expect(result.status).not.toBe(0)
     expect(result.stderr).toContain(
-      "--residual-file requires a currency action resulting in needs-human")
+      "--residual-file requires a currency outcome that needs a human decision")
     expect(readFileSync(statePath, "utf8")).toBe(before)
   })
 
@@ -2046,10 +1889,11 @@ print(json.dumps({
 
   test("needs-human thread: silenced despite the resolver's own reply moving identity, but stays visible via open_needs_human", () => {
     snapshot(state, fetchFile(dir, "a.json", FAILING))
-    mark(state, ["--thread", "T1", "--disposition", "needs-human"])
     // The resolver posts decision_context, moving the thread's last-comment identity.
     const replied = { ...FAILING, threads: [{ thread_id: "T1", last_comment_id: "C2", last_comment_at: "t2" }] }
-    const d = snapshot(state, fetchFile(dir, "b.json", replied))
+    const repliedFetch = fetchFile(dir, "b.json", replied)
+    mark(state, ["--thread", "T1", "--disposition", "needs-human", "--fetch-file", repliedFetch])
+    const d = snapshot(state, repliedFetch)
     expect(d.counts.threads).toBe(0) // no re-actionize (the P1 fix)
     expect(d.open_needs_human).toBe(1) // still blocks merge-ready
   })
@@ -2058,12 +1902,14 @@ print(json.dumps({
     const sd = path.join(dir, "durable-needs-human")
     snapshot(sd, fetchFile(dir, "durable-1.json", FAILING))
     const residual = residualFile(dir, "durable-residual.json", "T1", "thread")
-    mark(sd, ["--thread", "T1", "--disposition", "needs-human", "--residual-file", residual.path])
-
     const replied = { ...FAILING, threads: [{ thread_id: "T1", last_comment_id: "C2", last_comment_at: "t2" }] }
-    expect(snapshot(sd, fetchFile(dir, "durable-2.json", replied)).needs_human_residuals).toEqual([residual.value])
+    const repliedFetch = fetchFile(dir, "durable-2.json", replied)
+    mark(sd, ["--thread", "T1", "--disposition", "needs-human",
+      "--residual-file", residual.path, "--fetch-file", repliedFetch])
+    expectCurrentDecision(
+      snapshot(sd, repliedFetch).needs_human_residuals, residual.value)
     const resumed = snapshot(sd, fetchFile(dir, "durable-3.json", replied), ["--start-invocation"])
-    expect(resumed.needs_human_residuals).toEqual([residual.value])
+    expectCurrentDecision(resumed.needs_human_residuals, residual.value)
   })
 
   test("legacy parked items without a complete residual are re-actionized", () => {
@@ -2102,11 +1948,11 @@ print(json.dumps({
     const groupedPath = fetchFile(dir, "grouped-residual.json", grouped)
     mark(sd, ["--disposition", "needs-human", "--residual-file", groupedPath])
     const parked = snapshot(sd, fetchFile(dir, "grouped-2.json", feedback))
-    expect(parked.needs_human_residuals).toEqual([grouped])
+    expectCurrentDecision(parked.needs_human_residuals, grouped)
     expect(parked.actionable.threads).toEqual([])
     const parkedState = JSON.parse(readFileSync(path.join(sd, "state.json"), "utf8"))
-    expect(parkedState.threads.T1.disposition).toBe("needs-human")
-    expect(parkedState.threads.T2.disposition).toBe("needs-human")
+    expect(parkedState.threads.T1.disposition).toBe("open")
+    expect(parkedState.threads.T2.disposition).toBe("open")
 
     // A repeated exact persistence is idempotent rather than re-baselining the group.
     mark(sd, ["--disposition", "needs-human", "--residual-file", groupedPath])
@@ -2134,7 +1980,7 @@ print(json.dumps({
     mark(sd, ["--disposition", "needs-human", "--residual-file", residual.path])
 
     const parked = snapshot(sd, fetch)
-    expect(parked.needs_human_residuals).toEqual([residual.value])
+    expectCurrentDecision(parked.needs_human_residuals, residual.value)
     expect(parked.open_needs_human).toBe(1)
     expect(parked.counts.ci).toBe(0)
 
@@ -2168,7 +2014,7 @@ print(json.dumps({
     const residual = residualFile(dir, "ci-rerun-residual.json", "CI/test", "check")
     mark(sd, ["--disposition", "needs-human", "--residual-file", residual.path])
 
-    expect(snapshot(sd, firstFetch).needs_human_residuals).toEqual([residual.value])
+    expectCurrentDecision(snapshot(sd, firstFetch).needs_human_residuals, residual.value)
 
     const rerunFailure = {
       ...firstFailure,
@@ -2183,7 +2029,7 @@ print(json.dumps({
     expect(reopened.actionable.ci.map((item: any) => item.key)).toEqual(["CI/test"])
     const reopenedState = JSON.parse(readFileSync(path.join(sd, "state.json"), "utf8"))
     expect(reopenedState.ci_dispatched.s1 ?? []).not.toContain("CI/test")
-    expect(reopenedState.needs_human_check_observations).toEqual({})
+    expect(reopenedState.needs_human_check_observations).toBeUndefined()
   })
 
   test("a new legacy status creation on the same head reopens investigation", () => {
@@ -2202,7 +2048,7 @@ print(json.dumps({
     const residual = residualFile(dir, "ci-legacy-residual.json", "legacy-ci", "check")
     mark(sd, ["--disposition", "needs-human", "--residual-file", residual.path])
 
-    expect(snapshot(sd, firstFetch).needs_human_residuals).toEqual([residual.value])
+    expectCurrentDecision(snapshot(sd, firstFetch).needs_human_residuals, residual.value)
 
     const reopened = snapshot(sd, fetchFile(
       dir, "ci-needs-human-legacy-2.json", legacyFailure("t2")))
@@ -2224,7 +2070,7 @@ print(json.dumps({
     const groupedPath = fetchFile(dir, "mixed-residual.json", grouped)
     mark(sd, ["--disposition", "needs-human", "--residual-file", groupedPath])
     const parked = snapshot(sd, fetchFile(dir, "mixed-2.json", feedback))
-    expect(parked.needs_human_residuals).toEqual([grouped])
+    expectCurrentDecision(parked.needs_human_residuals, grouped)
     expect(parked.counts.threads).toBe(0)
     expect(parked.counts.ci).toBe(0)
 
@@ -2236,6 +2082,133 @@ print(json.dumps({
     expect(reopened.needs_human_residuals).toEqual([])
     expect(reopened.actionable.threads.map((item: any) => item.thread_id)).toEqual(["T1"])
     expect(reopened.actionable.ci.map((item: any) => item.key)).toEqual(["CI/test"])
+  })
+
+  test("a check-only human answer reactivates the exact source and clears after consumption", () => {
+    const sd = path.join(dir, "check-only-answer")
+    const fetch = fetchFile(dir, "check-only-answer.json", { ...FAILING, threads: [] })
+    snapshot(sd, fetch)
+    const residual = residualFile(dir, "check-only-answer-residual.json", "CI/test", "check")
+    mark(sd, ["--disposition", "needs-human", "--residual-file", residual.path])
+    const parked = snapshot(sd, fetch)
+    expectCurrentDecision(parked.needs_human_residuals, residual.value)
+    const decisionId = parked.human_decisions[0].decision_id
+
+    markDecisionAnswered(sd, decisionId)
+    const answered = snapshot(sd, fetch)
+    expect(answered.needs_human_residuals).toEqual([])
+    expect(answered.actionable.ci.map((item: any) => item.key)).toEqual(["CI/test"])
+    expect(answered.answered_human_decisions).toHaveLength(1)
+
+    mark(sd, ["--check", "CI/test", "--disposition", "dispatched"])
+    const consumed = snapshot(sd, fetch)
+    expect(consumed.actionable.ci).toEqual([])
+    expect(consumed.answered_human_decisions).toEqual([])
+  })
+
+  test("one answer reactivates every source in a mixed decision atomically", () => {
+    const sd = path.join(dir, "mixed-answer")
+    const fixture = {
+      ...FAILING,
+      threads: [{ thread_id: "T1", last_comment_id: "C1", last_comment_at: "t1" }],
+    }
+    const fetch = fetchFile(dir, "mixed-answer.json", fixture)
+    snapshot(sd, fetch)
+    const residual = {
+      ...residualFile(dir, "mixed-answer-unused.json", "T1", "thread").value,
+      sources: [{ id: "T1", kind: "thread" }, { id: "CI/test", kind: "check" }],
+    }
+    const residualPath = fetchFile(dir, "mixed-answer-residual.json", residual)
+    mark(sd, ["--disposition", "needs-human", "--residual-file", residualPath,
+      "--fetch-file", fetch])
+    const parked = snapshot(sd, fetch)
+    expectCurrentDecision(parked.needs_human_residuals, residual)
+    const decisionId = parked.human_decisions[0].decision_id
+
+    markDecisionAnswered(sd, decisionId)
+    const answered = snapshot(sd, fetch)
+    expect(answered.actionable.threads.map((item: any) => item.thread_id)).toEqual(["T1"])
+    expect(answered.actionable.ci.map((item: any) => item.key)).toEqual(["CI/test"])
+    expect(answered.open_needs_human).toBe(0)
+  })
+
+  test("one answered source prevents a mixed residual from re-parking its unchanged evidence", () => {
+    const sd = path.join(dir, "mixed-answer-repark")
+    const fixture = (commentId: string) => ({
+      ...FAILING,
+      threads: [{ thread_id: "T1", last_comment_id: commentId, last_comment_at: commentId }],
+    })
+    const first = fetchFile(dir, "mixed-answer-repark-1.json", fixture("C1"))
+    snapshot(sd, first)
+    const original = {
+      ...residualFile(dir, "mixed-answer-repark-unused.json", "T1", "thread").value,
+      sources: [{ id: "T1", kind: "thread" }, { id: "CI/test", kind: "check" }],
+    }
+    const originalPath = fetchFile(dir, "mixed-answer-repark-original.json", original)
+    mark(sd, ["--disposition", "needs-human", "--residual-file", originalPath,
+      "--fetch-file", first])
+    const parked = snapshot(sd, first)
+    markDecisionAnswered(sd, parked.human_decisions[0].decision_id)
+
+    const moved = fetchFile(dir, "mixed-answer-repark-2.json", fixture("C2"))
+    const actionable = snapshot(sd, moved)
+    expect(actionable.answered_human_decisions).toHaveLength(1)
+    const repeated = {
+      ...original,
+      decision_context: { ...original.decision_context, investigation: "Inspected the new reply." },
+    }
+    const repeatedPath = fetchFile(dir, "mixed-answer-repark-repeated.json", repeated)
+    const result = spawnSync("python3", [SCRIPT, "mark", "--state-dir", sd,
+      ...persistedInvocationArgs(sd), "--disposition", "needs-human",
+      "--residual-file", repeatedPath, "--fetch-file", moved], { encoding: "utf8" })
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("source observations already have a recorded human answer")
+    expect(readState(sd).human_decisions).toEqual([])
+  })
+
+  test("a thread decision fails closed when its post-reply observation cannot be fetched", () => {
+    const sd = path.join(dir, "missing-post-reply-baseline")
+    const first = fetchFile(dir, "missing-post-reply-baseline-1.json", {
+      ...FAILING,
+      checks: [],
+      threads: [{ thread_id: "T1", last_comment_id: "C1", last_comment_at: "t1" }],
+    })
+    snapshot(sd, first)
+    const residual = residualFile(dir, "missing-post-reply-baseline-residual.json", "T1", "thread")
+    const empty = fetchFile(dir, "missing-post-reply-baseline-empty.json", { threads: [] })
+    const result = spawnSync("python3", [SCRIPT, "mark", "--state-dir", sd,
+      ...persistedInvocationArgs(sd), "--disposition", "needs-human",
+      "--residual-file", residual.path, "--fetch-file", empty], { encoding: "utf8" })
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain("cannot freeze the post-reply thread observation: T1")
+    expect(readState(sd).human_decisions).toEqual([])
+  })
+
+  test("a complete legacy currency answer migrates into the generic answered set", () => {
+    const sd = path.join(dir, "legacy-currency-answer")
+    const fetch = fetchFile(dir, "legacy-currency-answer.json",
+      currencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" }))
+    const observed = snapshot(sd, fetch)
+    const residual = residualFile(
+      dir, "legacy-currency-answer-residual.json", observed.branch_currency.key, "currency")
+    const legacy = readState(sd)
+    delete legacy.human_decisions
+    delete legacy.answered_human_decisions
+    legacy.branch_currency_state.items[observed.branch_currency.key].answered_decision = {
+      answer: "Option 2: keep the current source.",
+      residual: residual.value,
+      recorded_at: "2026-01-01T00:00:00Z",
+    }
+    writeFileSync(path.join(sd, "state.json"), JSON.stringify(legacy))
+
+    const migrated = snapshot(sd, fetch)
+    expect(migrated.answered_human_decisions).toHaveLength(1)
+    expect(migrated.answered_human_decisions[0]).toMatchObject({
+      answer: "Option 2: keep the current source.",
+      residual: residual.value,
+    })
+    expect(readState(sd).branch_currency_state.items[observed.branch_currency.key]
+      .answered_decision).toBeUndefined()
   })
 
   test("needs-human marks fail closed without the typed residual payload", () => {
@@ -2613,21 +2586,22 @@ print(json.dumps({
     expect(snapshot(sd, fetchFile(dir, "r4.json", thr("C2"))).counts.threads).toBe(1)
   })
 
-  test("a needs-human thread reactivates when a human answers it (a later reply past the baseline), not on our own decision_context reply", () => {
+  test("thread activity invalidates a decision but is never recorded as the human answer", () => {
     const sd = path.join(dir, "nhreact")
     const thr = (cid: string) => ({
       ...FAILING, checks: [], threads: [{ thread_id: "T1", last_comment_id: cid, last_comment_at: cid }],
     })
     snapshot(sd, fetchFile(dir, "nh1.json", thr("C1")))
-    mark(sd, ["--thread", "T1", "--disposition", "needs-human"])
-    // first observation after our decision_context reply (C2) -> adopt as baseline, stays parked
-    const d1 = snapshot(sd, fetchFile(dir, "nh2.json", thr("C2")))
+    const replied = fetchFile(dir, "nh2.json", thr("C2"))
+    mark(sd, ["--thread", "T1", "--disposition", "needs-human", "--fetch-file", replied])
+    const d1 = snapshot(sd, replied)
     expect(d1.counts.threads).toBe(0)
     expect(d1.open_needs_human).toBe(1) // still parked, blocks merge-ready
-    // a human replies past the baseline (C3) -> reactivated to actionable, no longer parked
+    // Remote activity changes the question's evidence; it does not guess that this was the answer.
     const d2 = snapshot(sd, fetchFile(dir, "nh3.json", thr("C3")))
-    expect(d2.counts.threads).toBe(1) // reopened -> the loop reprocesses with the human's input
+    expect(d2.counts.threads).toBe(1)
     expect(d2.open_needs_human).toBe(0)
+    expect(d2.answered_human_decisions).toEqual([])
   })
 
   test("blocked_external waits for other running checks — does not fire while a check is still IN_PROGRESS", () => {
@@ -2999,7 +2973,7 @@ m.cmd_snapshot(args)
     expect(d.open_needs_human).toBe(0)
   })
 
-  test("mark --comment needs-human with --acted-edit-id captures the baseline at mark time (closes the answered-by-edit race)", () => {
+  test("mark --comment needs-human with --acted-edit-id captures the exact observation at mark time", () => {
     const sd = path.join(dir, "cmark")
     const fb = (edit: string) => ({
       ...FAILING, merge_state_status: "CLEAN", review_decision: "APPROVED", checks: [], threads: [],
@@ -3017,7 +2991,7 @@ m.cmd_snapshot(args)
     expect(snapshot(sd, fetchFile(dir, "cm3.json", fb("h3"))).counts.comments).toBe(0)
   })
 
-  test("a needs-human comment reactivates when a human answers by editing it (lazy baseline), while parked it blocks merge-ready", () => {
+  test("a covered comment edit invalidates the decision without recording an answer", () => {
     const sd = path.join(dir, "nhedit")
     const fb = (edit: string) => ({
       ...FAILING, merge_state_status: "CLEAN", review_decision: "APPROVED", checks: [], threads: [],
@@ -3028,10 +3002,10 @@ m.cmd_snapshot(args)
     const parked = snapshot(sd, fetchFile(dir, "nh2.json", fb("q1")))
     expect(parked.counts.comments).toBe(0)
     expect(parked.open_needs_human).toBe(1) // parked -> blocks merge-ready
-    // the human answers by editing the same comment -> reactivated and actionable again
-    const answered = snapshot(sd, fetchFile(dir, "nh3.json", fb("q2")))
-    expect(answered.counts.comments).toBe(1)
-    expect(answered.open_needs_human).toBe(0)
+    const changed = snapshot(sd, fetchFile(dir, "nh3.json", fb("q2")))
+    expect(changed.counts.comments).toBe(1)
+    expect(changed.open_needs_human).toBe(0)
+    expect(changed.answered_human_decisions).toEqual([])
   })
 
   test("a dispatched thread reactivates when an EARLIER comment is edited (same last_comment_id, bumped last_comment_at)", () => {

@@ -111,7 +111,7 @@ describe("skill-eval-cell catalog", () => {
     ).sort()
     expect(listed).toEqual(
       [
-        "ce-babysit-pr/answered-semantic-park-reopens-exact-item:references/branch-currency.md",
+        "ce-babysit-pr/check-only-answer-reactivates-source:references/tick.md",
         "ce-babysit-pr/behind-reads-branch-currency:references/branch-currency.md",
         "ce-babysit-pr/pipeline-returns-canonical-human-decision:references/pipeline.md",
         "ce-babysit-pr/pipeline-returns-canonical-human-decision:references/report.md",
@@ -147,7 +147,7 @@ describe("skill-eval-cell catalog", () => {
 
   test("feature-only decision rows are explicitly post-only", () => {
     expect(SCENARIOS.filter((s) => s.post_only).map((s) => s.id).sort()).toEqual([
-      "ce-babysit-pr/answered-semantic-park-reopens-exact-item",
+      "ce-babysit-pr/check-only-answer-reactivates-source",
       "ce-babysit-pr/pipeline-returns-canonical-human-decision",
       "ce-commit-push-pr/babysit-off-preserves-human-decision",
       "ce-debug/pipeline-divergent-defer",
