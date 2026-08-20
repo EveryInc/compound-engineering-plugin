@@ -122,7 +122,8 @@ function markCurrencyOutcome(stateDir: string, key: string, outcome: string): vo
   const args = ["--currency-key", key, "--currency-outcome", outcome]
   const item = JSON.parse(readFileSync(path.join(stateDir, "state.json"), "utf8"))
     .branch_currency_state?.items?.[key]
-  if (outcome === "proven-no-mutation" && Number(item?.retry_count ?? 0) >= 1) {
+  if (outcome === "ambiguous"
+      || (outcome === "proven-no-mutation" && Number(item?.retry_count ?? 0) >= 1)) {
     args.push("--residual-file", residualFile(path.dirname(stateDir), `currency-outcome-${key}.json`, key, "currency").path)
   }
   mark(stateDir, args)
@@ -649,19 +650,27 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     const ambiguousState = path.join(dir, "currency-ambiguous")
     const ambiguous = snapshot(ambiguousState, fetch)
     markCurrency(ambiguousState, ambiguous.branch_currency.key, "claimed")
+    const missingAmbiguousResidual = spawnSync("python3", [SCRIPT, "mark", "--state-dir", ambiguousState,
+      ...persistedInvocationArgs(ambiguousState), "--currency-key", ambiguous.branch_currency.key,
+      "--currency-outcome", "ambiguous"], { encoding: "utf8" })
+    expect(missingAmbiguousResidual.status).not.toBe(0)
+    expect(missingAmbiguousResidual.stderr).toMatch(/residual-file/)
+    expect(snapshot(ambiguousState, fetch)).toMatchObject({
+      needs_human_residuals: [],
+      branch_currency: { recovery_state: "claimed" },
+    })
+
     markCurrencyOutcome(ambiguousState, ambiguous.branch_currency.key, "ambiguous")
-    expect(snapshot(ambiguousState, fetch).branch_currency).toMatchObject({
+    const ambiguousParked = snapshot(ambiguousState, fetch)
+    expect(ambiguousParked.branch_currency).toMatchObject({
       disposition: "claimed",
       attention: null,
       recovery_state: "ambiguous",
       mutation_consumed: false,
+      mutation_requires_answer: true,
     })
-    const ambiguousResume = snapshot(ambiguousState, fetch, ["--start-invocation",
-      "--invocation-budget-seconds", ORDINARY_TEST_BUDGET_SECONDS])
-    expect(ambiguousResume.branch_currency.attention).toBe("reconcile")
-    markCurrency(ambiguousState, ambiguous.branch_currency.key, "claimed")
-    const persisted = JSON.parse(readFileSync(path.join(ambiguousState, "state.json"), "utf8"))
-    expect(persisted.branch_currency_state.items[ambiguous.branch_currency.key].recovery_state).toBe("ambiguous")
+    expectCurrentDecision(ambiguousParked.needs_human_residuals,
+      residualFile(dir, "currency-ambiguous-expected.json", ambiguous.branch_currency.key, "currency").value)
   }, 20000)
 
   test("branch currency: grouped invalidation cannot turn decision-bound evidence into mutation authority", () => {
@@ -823,21 +832,27 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     markCurrency(state, observed.branch_currency.key, "claimed")
     markCurrencyOutcome(state, observed.branch_currency.key, "ambiguous")
 
-    expect(snapshot(state, behind).branch_currency.attention).toBeNull()
+    const parked = snapshot(state, behind)
+    expect(parked.branch_currency.attention).toBeNull()
+    const decisionId = parked.human_decisions[0].decision_id
 
-    const moved = snapshot(state, fetchFile(dir, "currency-async-ambiguous-clean.json", quietCurrencyFixture({
+    const movedFetch = fetchFile(dir, "currency-async-ambiguous-clean.json", quietCurrencyFixture({
       head_sha: "s2",
       mergeable: "MERGEABLE",
       merge_state_status: "CLEAN",
-    })))
-    expect(moved.branch_currency).toMatchObject({
+    }))
+    expect(snapshot(state, movedFetch).branch_currency.attention).toBeNull()
+
+    markDecisionAnswered(state, decisionId)
+    const answered = snapshot(state, movedFetch)
+    expect(answered.branch_currency).toMatchObject({
       key: observed.branch_currency.key,
       disposition: "claimed",
       attention: "reconcile",
       recovery_state: "ambiguous",
       reconciliation_only: true,
     })
-    expect(wakeReason(moved)).toBe("branch-currency")
+    expect(wakeReason(answered)).toBe("branch-currency")
   }, 15000)
 
   test("branch currency: a BEHIND capability park reopens when the same observation becomes updateable", () => {

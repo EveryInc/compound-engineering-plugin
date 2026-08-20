@@ -2952,8 +2952,8 @@ def _mark_branch_currency(args, state, now):
                 item["disposition"] = DISPOSITION_OPEN
                 item["recovery_state"] = "retry-exhausted"
         state["last_action"] = f"{outcome} currency {key}"
-        return outcome == CURRENCY_OUTCOME_PROVEN_NO_MUTATION and item.get(
-            "recovery_state") == "retry-exhausted"
+        return item.get("recovery_state") in (
+            CURRENCY_OUTCOME_AMBIGUOUS, "retry-exhausted")
 
     if inspected_fingerprint:
         if prior != DISPOSITION_OPEN:
