@@ -307,6 +307,9 @@ describe("ce-pov cross-model panel contract", () => {
 
     expect(panel).toContain("host-provided markers and serving evidence")
     expect(panel).toContain("automatic discovery excludes")
+    expect(panel).not.toContain("non-egressing authentication or capability probe")
+    expect(panel).toContain("Do not preflight authentication there")
+    expect(panel).toContain("provider-capable worker attempt owns authentication truth")
     expect(panel).toContain("rather than guessing")
     expect(panel).toContain("ownership-checked `result`")
     expect(panel).toContain("`peer skip evidence`")

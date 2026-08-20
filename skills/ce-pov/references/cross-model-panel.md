@@ -166,11 +166,12 @@ fail-closes on anything else (including route-shaped guesses like `codex-cli`):
 | `cursor` | `cursor` |
 | `composer` | `composer` |
 
-Binary presence proves only that a route is a candidate. Use an available
-non-egressing authentication or capability probe when the harness exposes one,
-and do not call a route usable until it returns a valid artifact. Classify a
-failed run from its structured diagnostics rather than guessing from a generic
-terminal state.
+Binary presence proves only that a route is a candidate. Pre-dispatch capability
+evidence may refine the fixed route only when the current host context makes that
+evidence authoritative. Do not preflight authentication there: the
+provider-capable worker attempt owns authentication truth, and a valid artifact
+is the usability proof. Classify a failed run from its structured diagnostics
+rather than guessing from a generic terminal state.
 
 The dispatched worker runs only the fixed route. It must return failure to the
 host rather than automatically hopping to another provider or intermediary. If
