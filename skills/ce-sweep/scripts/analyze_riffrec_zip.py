@@ -2,9 +2,10 @@
 """
 Analyze a product feedback source.
 
-Supported sources: Riffrec zip, standalone video, standalone audio, and
-meeting notes text/markdown. The script extracts transcript, high-signal
-video frames when available, and CE-friendly markdown artifacts.
+Supported sources: Riffrec zip or unpacked capture directory, standalone
+video, standalone audio, and meeting notes text/markdown. The script extracts
+transcript, high-signal video frames when available, and CE-friendly markdown
+artifacts.
 """
 
 from __future__ import annotations
@@ -50,11 +51,20 @@ NOISY_NETWORK_PATTERNS = (
 VIDEO_EXTENSIONS = {".webm", ".mp4", ".mov", ".m4v", ".mkv", ".avi"}
 AUDIO_EXTENSIONS = {".webm", ".mp3", ".mp4", ".mpeg", ".mpga", ".m4a", ".wav", ".ogg", ".flac"}
 NOTES_EXTENSIONS = {".txt", ".md", ".markdown", ".text"}
+RIFFREC_DIRECTORY_MARKERS = {"session.json", "events.json"}
+
+
+class SourceInputError(ValueError):
+    pass
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Analyze a product feedback source")
-    parser.add_argument("source_path", type=Path, help="Path to a Riffrec zip, video, audio, or meeting notes file")
+    parser.add_argument(
+        "source_path",
+        type=Path,
+        help="Path to a Riffrec zip or unpacked capture directory, video, audio, or meeting notes file",
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -102,15 +112,61 @@ def safe_extract(zip_path: Path, dest: Path) -> None:
                     shutil.copyfileobj(source, target)
 
 
-def default_output_dir(zip_path: Path) -> Path:
+def safe_copy_capture_directory(source_dir: Path, dest: Path) -> None:
+    source_root = source_dir.resolve()
+    if dest.is_symlink():
+        raise SourceInputError(f"Raw output directory must not be a symlink: {dest}")
+
+    dest.mkdir(parents=True, exist_ok=True)
+    dest_root = dest.resolve()
+
+    for existing in dest.rglob("*"):
+        if existing.is_symlink():
+            raise SourceInputError(f"Raw output contains a symlink and cannot be updated safely: {existing}")
+
+    entries = sorted(source_dir.rglob("*"), key=lambda path: str(path.relative_to(source_dir)))
+    for entry in entries:
+        if entry.is_symlink():
+            raise SourceInputError(f"Unpacked Riffrec capture contains a symlink: {entry}")
+        resolved = entry.resolve()
+        if not resolved.is_relative_to(source_root):
+            raise SourceInputError(f"Unpacked Riffrec capture entry escapes its source directory: {entry}")
+        if not entry.is_dir() and not entry.is_file():
+            raise SourceInputError(f"Unpacked Riffrec capture contains an unsupported entry type: {entry}")
+
+    for entry in entries:
+        relative = entry.relative_to(source_dir)
+        target = dest / relative
+        if not target.resolve().is_relative_to(dest_root):
+            raise SourceInputError(f"Unsafe unpacked Riffrec capture path: {relative}")
+        if entry.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(entry, target)
+
+
+def default_output_dir(source_path: Path) -> Path:
     cwd = Path.cwd()
-    stem = slugify(zip_path.stem)
+    stem = slugify(source_path.stem)
     if (cwd / "docs" / "brainstorms").is_dir():
         return cwd / "docs" / "brainstorms" / "riffrec-feedback" / stem
     return cwd / "riffrec-feedback" / stem
 
 
 def classify_source(source_path: Path) -> str:
+    if source_path.is_dir():
+        missing = sorted(marker for marker in RIFFREC_DIRECTORY_MARKERS if not (source_path / marker).is_file())
+        if missing:
+            expected = ", ".join(sorted(RIFFREC_DIRECTORY_MARKERS))
+            missing_text = ", ".join(missing)
+            raise SourceInputError(
+                f"Unsupported source directory: {source_path}. "
+                f"An unpacked Riffrec capture must contain {expected}; missing {missing_text}."
+            )
+        return "riffrec_directory"
+    if not source_path.is_file():
+        raise SourceInputError(f"Unsupported source path type: {source_path}")
     if zipfile.is_zipfile(source_path):
         return "riffrec_zip"
     suffix = source_path.suffix.lower()
@@ -174,12 +230,15 @@ def read_notes(path: Path) -> dict[str, Any]:
     return {"status": "ok", "text": text.strip(), "source": "meeting_notes"}
 
 
-def prepare_source(source_path: Path, raw_dir: Path) -> dict[str, Any]:
+def prepare_source(source_path: Path, raw_dir: Path, source_kind: str | None = None) -> dict[str, Any]:
     raw_dir.mkdir(parents=True, exist_ok=True)
-    source_kind = classify_source(source_path)
+    source_kind = source_kind or classify_source(source_path)
 
-    if source_kind == "riffrec_zip":
-        safe_extract(source_path, raw_dir)
+    if source_kind in {"riffrec_zip", "riffrec_directory"}:
+        if source_kind == "riffrec_zip":
+            safe_extract(source_path, raw_dir)
+        else:
+            safe_copy_capture_directory(source_path, raw_dir)
         session = read_json(raw_dir / "session.json", {})
         events_payload = read_json(raw_dir / "events.json", {})
         events = events_payload.get("events", events_payload if isinstance(events_payload, list) else [])
@@ -736,7 +795,7 @@ def write_requirements_kickoff(
         "## Key Flows",
         "",
         "- F1. Evidence-backed feedback triage",
-        "  - **Trigger:** A feedback zip, video, audio file, or meeting notes file is available.",
+        "  - **Trigger:** A feedback bundle, video, audio file, or meeting notes file is available.",
         "  - **Actors:** A1, A2, A3",
         "  - **Steps:** Extract or copy the source, transcribe media or read notes, select high-signal moments when video exists, inspect screenshots when available, confirm problems, and write requirements with supporting evidence.",
         "  - **Outcome:** Confirmed product problems are represented as requirements with transcript support and screenshot support when visual evidence exists.",
@@ -1035,11 +1094,27 @@ def main() -> int:
         print(f"Source file not found: {source_path}", file=sys.stderr)
         return 1
 
+    try:
+        source_kind = classify_source(source_path)
+    except SourceInputError as exc:
+        print(f"Invalid source: {exc}", file=sys.stderr)
+        return 2
+
     output_dir = (args.output_dir or default_output_dir(source_path)).expanduser().resolve()
+    if source_path.is_dir() and (output_dir == source_path or output_dir.is_relative_to(source_path)):
+        print(
+            f"Invalid output directory: {output_dir} must be outside the unpacked capture directory {source_path}.",
+            file=sys.stderr,
+        )
+        return 2
     output_dir.mkdir(parents=True, exist_ok=True)
     raw_dir = output_dir / "raw"
     frames_dir = output_dir / "frames"
-    source = prepare_source(source_path, raw_dir)
+    try:
+        source = prepare_source(source_path, raw_dir, source_kind)
+    except SourceInputError as exc:
+        print(f"Invalid source: {exc}", file=sys.stderr)
+        return 2
     source_kind = source["source_kind"]
     session = source["session"]
     events = source["events"]

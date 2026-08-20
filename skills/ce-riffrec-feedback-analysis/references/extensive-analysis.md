@@ -78,7 +78,7 @@ The analyzer writes:
 - `requirements-kickoff.md`: a CE-friendly requirements starter with Problem Frame, Actors, Key Flows, R-IDs, Acceptance Examples, Success Criteria, Scope Boundaries, Questions, and Next Steps.
 - `analysis.json`: structured session, event, transcript, moment, and artifact metadata.
 - `frames/`: extracted PNG screenshots for selected moments. Local-only by default.
-- `raw/`: extracted zip contents and copied source media. Local-only by default.
+- `raw/`: normalized capture contents and copied standalone media. Local-only by default.
 
 Long media is transcribed in chunks when a single transcription request is too large. Chunk transcripts include timestamp prefixes so the review pass can still connect discussion points to approximate video regions.
 

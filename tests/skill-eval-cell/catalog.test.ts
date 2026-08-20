@@ -116,7 +116,6 @@ describe("skill-eval-cell catalog", () => {
         "ce-debug/pipeline-divergent-defer:references/pipeline-mode.md",
         "ce-handoff/resume-asks-does-not-act:references/resume.md",
         "ce-ideate/unidentified-subject-reads-scope-gates:references/scope-gates.md",
-        "ce-polish/https-server-uses-actual-url:references/dev-server-rails.md",
         "ce-polish/https-server-uses-actual-url:references/run.md",
         "ce-polish/start-server-reads-run:references/run.md",
         "ce-pov/oracle-dispatches-peers:references/cross-model-panel.md",

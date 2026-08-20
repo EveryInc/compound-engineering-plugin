@@ -2,11 +2,11 @@
 
 > Turn a [Riffrec](https://github.com/kieranklaassen/riffrec) capture (or a video, audio clip, or meeting notes) into structured product feedback.
 
-`ce-riffrec-feedback-analysis` is the **consumption** skill for Riffrec recordings. Riffrec is a separate capture tool. It records synchronized screen, voice, and events and emits a `riffrec-*.zip`. This skill analyzes that zip, or a standalone video, audio file, or notes file, and routes to setup, a quick bug report, or extensive analysis.
+`ce-riffrec-feedback-analysis` is the **consumption** skill for Riffrec recordings. Riffrec is a separate capture tool. It records synchronized screen, voice, and events and emits a `riffrec-*.zip`. This skill analyzes a Riffrec capture bundle, zipped or unpacked, or a standalone video, audio file, or notes file, and routes to setup, a quick bug report, or extensive analysis.
 
 Use it for those recordings. Short text feedback can go straight into `/ce-brainstorm`. A debug session is `/ce-debug`. Bare transcription, with no structure, is a transcription tool.
 
-The skill also activates when an unpacked Riffrec set appears (`session.json`, `events.json`, `recording.webm`, `voice.webm`). The analyzer itself wants a zip, or one standalone media or notes file. If you still have the zip, pass that.
+The skill also activates when an unpacked Riffrec capture appears (`session.json`, `events.json`, `recording.webm`, `voice.webm`). Pass the capture directory itself so the analyzer preserves its synchronized metadata and media.
 
 ---
 
@@ -44,7 +44,7 @@ Length and wording pick the path. You do not pass a flag.
 /ce-riffrec-feedback-analysis how do I install and use Riffrec?
 ```
 
-A zip with no extra wording is inspected first (duration, event count). If that is still unclear, the skill asks before doing the heavy work.
+A Riffrec bundle with no extra wording is inspected first (duration, event count). If that is still unclear, the skill asks before doing the heavy work.
 
 ---
 
@@ -83,7 +83,7 @@ A short single-issue clip should not pay for a requirements package. A multi-iss
 
 ### One intake, several file shapes
 
-Non-setup runs share one analyzer. Accepted files: a Riffrec `.zip`; `.mp4` / `.mov` / `.webm` video; `.m4a` / `.mp3` / `.wav` audio; a meeting-notes `.md`. A Riffrec zip is richer because events and timestamps come along. A video or voice memo still goes through the same router.
+Non-setup runs share one analyzer. Accepted inputs: a Riffrec `.zip` or unpacked capture directory; `.mp4` / `.mov` / `.webm` video; `.m4a` / `.mp3` / `.wav` audio; a meeting-notes `.md`. A Riffrec bundle is richer because events and timestamps come along. A video or voice memo still goes through the same router.
 
 In a repo that has `docs/brainstorms/`, extensive output defaults to `docs/brainstorms/riffrec-feedback/` as kickoff evidence. The durable plan still comes from `ce-brainstorm` under `docs/plans/`. The quick path writes to a temp directory so a one-issue report does not land in that tree.
 
@@ -111,7 +111,7 @@ The skill then loads `/ce-brainstorm` on that analysis. Brainstorm asks whether 
 
 Use `ce-riffrec-feedback-analysis` when:
 
-- A `riffrec-*.zip` arrives and you want to act on it
+- A Riffrec capture bundle arrives and you want to act on it
 - Someone shares a video, audio clip, or meeting notes as product feedback
 - You need the Riffrec install and capture steps
 - A long walkthrough needs to become structured input for `/ce-brainstorm`
@@ -143,7 +143,7 @@ Extensive analysis is supposed to become a plan. Quick is done when the report i
 
 Most invocations are a file path plus optional intent ("just transcribe", "do not brainstorm", "how do I install").
 
-If you already unzipped a capture, pass the zip if you still have it. Passing `recording.webm` alone works as video and drops the synchronized event log.
+If you already unzipped a capture, pass its directory to preserve the synchronized metadata. Passing `recording.webm` alone still works as standalone video, but drops the event log and other capture context.
 
 ---
 
@@ -152,6 +152,7 @@ If you already unzipped a capture, pass the zip if you still have it. Passing `r
 | Argument | Effect |
 |----------|--------|
 | `<riffrec-*.zip>` | Analyze the bundle. Duration and events pick quick vs extensive |
+| `<unpacked-capture-directory>` | Analyze `session.json`, `events.json`, and the capture media together |
 | `<video / audio / notes>` | Same router (`.mp4` `.mov` `.webm` / `.m4a` `.mp3` `.wav` / `.md`) |
 | "quick", "small", "just transcribe" | Force the quick path: one bug report in chat |
 | "extract only" / "analyze, do not brainstorm" | Extensive artifacts, no `/ce-brainstorm` handoff |
@@ -169,7 +170,7 @@ The output format the extensive path writes for brainstorm is `references/compou
 A separate capture tool ([github.com/kieranklaassen/riffrec](https://github.com/kieranklaassen/riffrec)). Screen, microphone, console, network, and DOM events into one `riffrec-*.zip`. This skill does not record. It consumes recordings.
 
 **Do I have to use Riffrec?**
-No. Video, audio, and markdown notes take the same paths. The zip is richer because events and timestamps travel with it.
+No. Video, audio, and markdown notes take the same paths. A Riffrec bundle, zipped or unpacked, is richer because events and timestamps travel with it.
 
 **Why does extensive analysis continue into `/ce-brainstorm`?**
 The recording is evidence. Without brainstorm, the analysis sits on disk and nobody decides what to build. Ask for extract-only if you want the files and not the handoff.

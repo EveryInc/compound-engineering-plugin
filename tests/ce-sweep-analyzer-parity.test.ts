@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
-import { mkdtempSync, existsSync, readFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs"
 import { access } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -14,6 +14,99 @@ const CANONICAL_SCRIPT = path.join(
   PLUGIN_ROOT,
   "ce-riffrec-feedback-analysis/scripts/analyze_riffrec_zip.py",
 )
+
+const makeUnpackedCapture = (root: string) => {
+  const capture = path.join(root, "riffrec-capture")
+  mkdirSync(capture)
+  writeFileSync(
+    path.join(capture, "session.json"),
+    JSON.stringify({ url: "https://example.test/checkout", duration_seconds: 12 }),
+  )
+  writeFileSync(
+    path.join(capture, "events.json"),
+    JSON.stringify({ events: [{ type: "navigation", t: 3, url: "https://example.test/checkout" }] }),
+  )
+  writeFileSync(path.join(capture, "recording.webm"), "recording-bytes")
+  writeFileSync(path.join(capture, "voice.webm"), "voice-bytes")
+  return capture
+}
+
+describe("analyze_riffrec_zip unpacked capture input", () => {
+  test("normalizes a capture directory and analyzes its synchronized metadata", () => {
+    const tmp = mkdtempSync(path.join(tmpdir(), "ce-riffrec-unpacked-"))
+    const capture = makeUnpackedCapture(tmp)
+    const output = path.join(tmp, "analysis-output")
+    const run = spawnSync(
+      "python3",
+      [CANONICAL_SCRIPT, capture, "--output-dir", output, "--no-transcribe", "--max-moments", "0"],
+      { encoding: "utf8", cwd: tmp },
+    )
+
+    expect(run.status).toBe(0)
+    expect(run.stderr).toBe("")
+    const analysis = JSON.parse(readFileSync(path.join(output, "analysis.json"), "utf8"))
+    expect(analysis.source_kind).toBe("riffrec_directory")
+    expect(analysis.event_counts).toEqual({ navigation: 1 })
+    expect(readFileSync(path.join(output, "raw", "session.json"), "utf8")).toBe(
+      readFileSync(path.join(capture, "session.json"), "utf8"),
+    )
+    expect(readFileSync(path.join(output, "raw", "events.json"), "utf8")).toBe(
+      readFileSync(path.join(capture, "events.json"), "utf8"),
+    )
+    expect(readFileSync(path.join(output, "raw", "recording.webm"), "utf8")).toBe("recording-bytes")
+    expect(readFileSync(path.join(output, "analysis.md"), "utf8")).toContain(
+      "- Source kind: `riffrec_directory`",
+    )
+  })
+
+  test("reports the required capture markers for an unsupported directory", () => {
+    const tmp = mkdtempSync(path.join(tmpdir(), "ce-riffrec-unsupported-"))
+    const capture = path.join(tmp, "not-a-capture")
+    mkdirSync(capture)
+    const run = spawnSync("python3", [CANONICAL_SCRIPT, capture, "--no-transcribe"], {
+      encoding: "utf8",
+      cwd: tmp,
+    })
+
+    expect(run.status).toBe(2)
+    expect(run.stderr).toContain("Unsupported source directory")
+    expect(run.stderr).toContain("events.json, session.json")
+    expect(run.stderr).not.toContain("IsADirectoryError")
+  })
+
+  test.skipIf(process.platform === "win32")("rejects symlinks inside an unpacked capture", () => {
+    const tmp = mkdtempSync(path.join(tmpdir(), "ce-riffrec-symlink-"))
+    const capture = makeUnpackedCapture(tmp)
+    const outside = path.join(tmp, "outside.txt")
+    writeFileSync(outside, "must-not-copy")
+    symlinkSync(outside, path.join(capture, "outside-link"))
+    const output = path.join(tmp, "analysis-output")
+    const run = spawnSync(
+      "python3",
+      [CANONICAL_SCRIPT, capture, "--output-dir", output, "--no-transcribe"],
+      { encoding: "utf8", cwd: tmp },
+    )
+
+    expect(run.status).toBe(2)
+    expect(run.stderr).toContain("contains a symlink")
+    expect(existsSync(path.join(output, "raw", "outside-link"))).toBe(false)
+  })
+
+  test("rejects output nested inside the source capture", () => {
+    const tmp = mkdtempSync(path.join(tmpdir(), "ce-riffrec-recursive-output-"))
+    const capture = makeUnpackedCapture(tmp)
+    const output = path.join(capture, "analysis-output")
+    const run = spawnSync(
+      "python3",
+      [CANONICAL_SCRIPT, capture, "--output-dir", output, "--no-transcribe"],
+      { encoding: "utf8", cwd: tmp },
+    )
+
+    expect(run.status).toBe(2)
+    expect(run.stderr).toContain("must be outside the unpacked capture directory")
+    expect(existsSync(output)).toBe(false)
+  })
+})
 
 // Drives safe_extract(zip, dest=<tmp>/raw) against a zip whose only member is
 // named `../rawX/evil.txt`. That member resolves to a SIBLING of dest
