@@ -1588,13 +1588,16 @@ def _check_observation_identity(check):
 def _currency_source_observation(item):
     if not isinstance(item, dict):
         return None
-    return {
+    observation = {
         "key": item.get("key"),
         "status": item.get("status"),
-        "host_branch_update_capability": item.get("host_branch_update_capability"),
         "semantic_conflict_fingerprint": item.get("semantic_conflict_fingerprint"),
         "recovery_state": item.get("recovery_state"),
     }
+    if item.get("status") == "BEHIND" and item.get("recovery_state") is None:
+        observation["host_branch_update_capability"] = item.get(
+            "host_branch_update_capability")
+    return observation
 
 
 def _current_source_observation(state, kind, source_id, threads, feedback, checks):

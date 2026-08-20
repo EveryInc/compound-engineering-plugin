@@ -630,6 +630,16 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     })
     expectCurrentDecision(exhausted.needs_human_residuals,
       residualFile(dir, "currency-exhausted-expected.json", retry.branch_currency.key, "currency").value)
+    const exhaustedAfterCapabilityDrift = snapshot(state, fetchFile(
+      dir, "currency-exhausted-capability-drift.json", quietCurrencyFixture({
+        host_branch_update_capability: false,
+      })))
+    expect(exhaustedAfterCapabilityDrift.branch_currency).toMatchObject({
+      recovery_state: "retry-exhausted",
+      attention: null,
+    })
+    expectCurrentDecision(exhaustedAfterCapabilityDrift.needs_human_residuals,
+      residualFile(dir, "currency-exhausted-drift-expected.json", retry.branch_currency.key, "currency").value)
     const unsafeReplay = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
       ...persistedInvocationArgs(state), "--currency-key", exhausted.branch_currency.key,
       "--currency-disposition", "claimed"], { encoding: "utf8" })
@@ -1131,15 +1141,29 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     }))).branch_currency).toMatchObject({ disposition: "open", attention: "inspect" })
 
     markCurrencyInspection(state, moved.branch_currency.key, "conflict-v1")
-    expect(snapshot(state, fetchFile(dir, "currency-inspect-same.json", quietCurrencyFixture({
+    const unchanged = snapshot(state, fetchFile(dir, "currency-inspect-same.json", quietCurrencyFixture({
       mergeable: "CONFLICTING",
       merge_state_status: "DIRTY",
       base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-2" },
-    }))).branch_currency).toMatchObject({
+    })))
+    expect(unchanged.branch_currency).toMatchObject({
       disposition: "open",
       attention: null,
       recovery_state: "semantic-unchanged",
     })
+    const unchangedAfterCapabilityDrift = snapshot(state, fetchFile(
+      dir, "currency-inspect-capability-drift.json", quietCurrencyFixture({
+        mergeable: "CONFLICTING",
+        merge_state_status: "DIRTY",
+        host_branch_update_capability: false,
+        base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-2" },
+      })))
+    expect(unchangedAfterCapabilityDrift.branch_currency).toMatchObject({
+      disposition: "open",
+      attention: null,
+      recovery_state: "semantic-unchanged",
+    })
+    expect(unchangedAfterCapabilityDrift.open_needs_human).toBe(1)
 
     const changed = snapshot(state, fetchFile(dir, "currency-inspect-3.json", quietCurrencyFixture({
       mergeable: "CONFLICTING",
