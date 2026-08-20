@@ -796,6 +796,8 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(step4).toContain("A run recap at every true stop")
     expect(step4).toMatch(/never from conversation memory alone/)
     expect(step4).toContain("remote record")
+    expect(step4).toMatch(/`ACTIONS` trailer[^.]{0,160}only mutations actually performed or observed this tick/i)
+    expect(step4).toMatch(/planned, next, or pending transitions[^.]{0,160}never count as actions/i)
   })
 })
 
