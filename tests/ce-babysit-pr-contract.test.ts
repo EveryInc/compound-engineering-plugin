@@ -520,6 +520,11 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(answerBlock).toContain('${TMPDIR:-/tmp}/compound-engineering-$(id -u)')
     expect(answerBlock).toContain('ce-babysit-pr/<host>-<owner>-<repo>-<N>')
     expect(answerBlock).toContain("for c in python3 python py")
+    expect(answerBlock).toMatch(/read-only prohibits executing[^.]+not rendering/i)
+    expect(answerBlock).toMatch(/complete a read-only envelope[^.]+return the literal command[^.]+sole pending transition/i)
+    expect(answerBlock).toMatch(/exact known values[^.]+explicit placeholders[^.]+invocation metadata[^.]+answer-file path/i)
+    expect(answerBlock).toMatch(/literal `--answer-decision` and `--answer-file` flags/i)
+    expect(answerBlock).toMatch(/prose paraphrase[^.]+in-memory state move[^.]+incomplete/i)
   })
 
   test("blocked approval drains review automatically before a bounded handback", async () => {
