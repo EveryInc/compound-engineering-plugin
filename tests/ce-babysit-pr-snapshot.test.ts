@@ -671,6 +671,23 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     })
     expectCurrentDecision(ambiguousParked.needs_human_residuals,
       residualFile(dir, "currency-ambiguous-expected.json", ambiguous.branch_currency.key, "currency").value)
+
+    markDecisionAnswered(ambiguousState, ambiguousParked.human_decisions[0].decision_id)
+    const ambiguousAnswered = snapshot(ambiguousState, fetch)
+    expect(ambiguousAnswered.branch_currency).toMatchObject({
+      disposition: "open",
+      attention: "claim",
+      recovery_state: "ambiguous",
+      mutation_requires_answer: true,
+    })
+    markCurrency(ambiguousState, ambiguous.branch_currency.key, "claimed")
+    const ambiguousConsumed = snapshot(ambiguousState, fetch)
+    expect(ambiguousConsumed.branch_currency).toMatchObject({
+      disposition: "claimed",
+      attention: null,
+      mutation_requires_answer: false,
+    })
+    expect(ambiguousConsumed.answered_human_decisions).toEqual([])
   }, 20000)
 
   test("branch currency: grouped invalidation cannot turn decision-bound evidence into mutation authority", () => {
@@ -826,7 +843,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(wakeReason({ ...confirmed, quiet_seconds: 0 }, 300)).toBeNull()
   }, 15000)
 
-  test("branch currency: async evidence movement also re-wakes an ambiguous same-invocation claim", () => {
+  test("branch currency: answering ambiguity re-evaluates moved evidence without reviving the claim", () => {
     const behind = fetchFile(dir, "currency-async-ambiguous-behind.json", quietCurrencyFixture())
     const observed = snapshot(state, behind)
     markCurrency(state, observed.branch_currency.key, "claimed")
@@ -845,14 +862,9 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
 
     markDecisionAnswered(state, decisionId)
     const answered = snapshot(state, movedFetch)
-    expect(answered.branch_currency).toMatchObject({
-      key: observed.branch_currency.key,
-      disposition: "claimed",
-      attention: "reconcile",
-      recovery_state: "ambiguous",
-      reconciliation_only: true,
-    })
-    expect(wakeReason(answered)).toBe("branch-currency")
+    expect(answered.branch_currency).toBeNull()
+    expect(answered.branch_currency_blocker).toBeNull()
+    expect(answered.answered_human_decisions).toEqual([])
   }, 15000)
 
   test("branch currency: a BEHIND capability park reopens when the same observation becomes updateable", () => {
@@ -2312,8 +2324,12 @@ print(json.dumps({
     const parked = snapshot(sd, fetch)
     expectCurrentDecision(parked.needs_human_residuals, residual)
     const decisionId = parked.human_decisions[0].decision_id
+    const ordinaryBeforeAnswer = readState(sd)
 
     markDecisionAnswered(sd, decisionId)
+    const ordinaryAfterAnswer = readState(sd)
+    expect(ordinaryAfterAnswer.threads.T1).toEqual(ordinaryBeforeAnswer.threads.T1)
+    expect(ordinaryAfterAnswer.ci_dispatched).toEqual(ordinaryBeforeAnswer.ci_dispatched)
     const answered = snapshot(sd, fetch)
     expect(answered.actionable.threads.map((item: any) => item.thread_id)).toEqual(["T1"])
     expect(answered.actionable.ci.map((item: any) => item.key)).toEqual(["CI/test"])

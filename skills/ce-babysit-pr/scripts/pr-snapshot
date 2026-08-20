@@ -3157,6 +3157,23 @@ def _needs_human_source_is_covered(state, item_id, kind):
     )
 
 
+def _reactivate_answered_sources(state, decision):
+    threads = state.get("threads", {})
+    feedback = state.get("feedback", {})
+    checks = state.get("checks", {})
+    for source in decision.get("sources") or []:
+        kind, source_id = source.get("kind"), source.get("id")
+        current = _current_source_observation(
+            state, kind, source_id, threads, feedback, checks)
+        if current != source.get("observation") or kind != "currency":
+            continue
+        # Review and CI sources retain ordinary open state; currency has an explicit claim to clear.
+        currency = _load_branch_currency_state(state)
+        item = currency.get("items", {}).get(source_id)
+        if isinstance(item, dict):
+            _reactivate_currency_item(currency, item)
+
+
 def _answer_human_decision(state, decision_id, answer_file, now):
     answer = _load_human_answer(answer_file)
     current = next((
@@ -3175,6 +3192,7 @@ def _answer_human_decision(state, decision_id, answer_file, now):
         decision for decision in state.get("human_decisions") or []
         if not isinstance(decision, dict) or decision.get("id") != decision_id
     ]
+    _reactivate_answered_sources(state, current)
     answered = {**json.loads(json.dumps(current)), "answer": answer, "answered_at": _iso(now)}
     state.setdefault("answered_human_decisions", []).append(answered)
     state["last_action"] = f"answered human decision {decision_id}"
