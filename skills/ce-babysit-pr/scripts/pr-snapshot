@@ -1648,6 +1648,30 @@ def _decision_record(residual, sources, created_at=None):
     }
 
 
+def _install_human_decisions(state, decisions):
+    """Install canonical decisions while retaining currency mutation safety independently."""
+    currency = _load_branch_currency_state(state)
+    items = currency.get("items", {})
+    for decision in decisions:
+        if not isinstance(decision, dict):
+            continue
+        sources = decision.get("sources")
+        if not isinstance(sources, list):
+            continue
+        for source in sources:
+            if not isinstance(source, dict) or source.get("kind") != "currency":
+                continue
+            item = items.get(source.get("id"))
+            if isinstance(item, dict):
+                item["mutation_requires_answer"] = True
+            observation = source.get("observation")
+            if isinstance(observation, dict):
+                observation["mutation_requires_answer"] = True
+        if isinstance(decision.get("residual"), dict):
+            decision["id"] = _decision_id(decision["residual"], sources)
+    state["human_decisions"] = decisions
+
+
 def _decision_source_matches(source, kind, source_id, observation):
     return (isinstance(source, dict) and source.get("kind") == kind
             and source.get("id") == source_id and source.get("observation") == observation)
@@ -1828,7 +1852,7 @@ def _replace_human_decisions(
         decision for decision in previous
         if (_human_decision_identity(decision) not in kept_identities)
     ]
-    state["human_decisions"] = kept
+    _install_human_decisions(state, kept)
 
     threads = threads if isinstance(threads, dict) else state.get("threads", {})
     feedback = feedback if isinstance(feedback, dict) else state.get("feedback", {})
@@ -1858,6 +1882,7 @@ def _reconcile_human_decisions(state, threads, feedback, checks, now):
         current = _legacy_decision_records(state, threads, feedback, checks, now)
     elif not current and state.get("needs_human_residuals"):
         current = _legacy_decision_records(state, threads, feedback, checks, now)
+    _install_human_decisions(state, current)
     answered = state.get("answered_human_decisions")
     if not isinstance(answered, list):
         answered = _legacy_answered_decision_records(
@@ -3120,6 +3145,7 @@ def _park_human_decision(state, residual, args, now):
         and _residual_identity(decision.get("residual")) == _residual_identity(residual)
     ), None)
     if existing is not None:
+        _install_human_decisions(state, decisions)
         return existing
     covered = {
         (source.get("kind"), source.get("id"))
@@ -3180,6 +3206,7 @@ def _park_human_decision(state, residual, args, now):
     if any(item.get("id") == decision["id"] for item in decisions if isinstance(item, dict)):
         return decision
     decisions.append(decision)
+    _install_human_decisions(state, decisions)
     return decision
 
 
@@ -3260,8 +3287,6 @@ def cmd_mark(args):
                 raise SystemExit("currency marks require --currency-key and exactly one currency action")
             decision_required = _mark_branch_currency(args, state, now)
             if decision_required:
-                currency_item = _load_branch_currency_state(state)["items"][args.currency_key]
-                currency_item["mutation_requires_answer"] = True
                 residual = _load_needs_human_residual(
                     args.residual_file, args.currency_key, "currency")
                 marked = _park_human_decision(state, residual, args, now)

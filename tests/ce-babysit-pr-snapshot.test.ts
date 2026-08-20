@@ -925,7 +925,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(answered.answered_human_decisions).toEqual([])
   }, 15000)
 
-  test("branch currency: a BEHIND capability park reopens when the same observation becomes updateable", () => {
+  test("branch currency: a BEHIND capability decision retains its answer gate when evidence moves", () => {
     for (const capability of [false, "unknown"] as const) {
       const capabilityState = path.join(dir, `currency-capability-${capability}`)
       const unavailable = fetchFile(dir, `currency-capability-${capability}-off.json`, quietCurrencyFixture({
@@ -943,10 +943,16 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       expect(enabled.branch_currency).toMatchObject({
         key: observed.branch_currency.key,
         disposition: "open",
-        attention: "claim",
+        attention: "decide",
         host_branch_update_capability: true,
+        mutation_requires_answer: true,
       })
       expect(wakeReason(enabled)).toBe("branch-currency")
+      const unsafeClaim = spawnSync("python3", [SCRIPT, "mark", "--state-dir", capabilityState,
+        ...persistedInvocationArgs(capabilityState), "--currency-key", enabled.branch_currency.key,
+        "--currency-disposition", "claimed"], { encoding: "utf8" })
+      expect(unsafeClaim.status).not.toBe(0)
+      expect(unsafeClaim.stderr).toMatch(/exact human answer/)
     }
   }, 15000)
 
@@ -964,6 +970,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expectCurrentDecision(parked.needs_human_residuals, residual.value)
     expect(parked.open_needs_human).toBe(1)
     expect(parked.branch_currency.disposition).toBe("open")
+    expect(parked.branch_currency.mutation_requires_answer).toBe(true)
     expect(wakeReason(parked)).toBe("needs-human")
 
     const enabled = snapshot(currencyState, fetchFile(dir, "currency-canonical-on.json", quietCurrencyFixture({
@@ -971,8 +978,88 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     })))
     expect(enabled.needs_human_residuals).toEqual([])
     expect(enabled.open_needs_human).toBe(0)
-    expect(enabled.branch_currency).toMatchObject({ disposition: "open", attention: "claim" })
+    expect(enabled.branch_currency).toMatchObject({
+      disposition: "open",
+      attention: "decide",
+      mutation_requires_answer: true,
+    })
   }, 15000)
+
+  test("branch currency: grouped capability decisions cannot turn sibling activity into mutation authority", () => {
+    const decisionState = path.join(dir, "currency-capability-grouped")
+    const fixture = quietCurrencyFixture({
+      host_branch_update_capability: "unknown",
+      threads: [{ thread_id: "T1", last_comment_id: "C1", last_comment_at: "t1" }],
+    })
+    const first = fetchFile(dir, "currency-capability-grouped-1.json", fixture)
+    const observed = snapshot(decisionState, first)
+    const grouped = {
+      ...residualFile(
+        dir, "currency-capability-grouped-unused.json",
+        observed.branch_currency.key, "currency").value,
+      sources: [
+        { id: observed.branch_currency.key, kind: "currency" },
+        { id: "T1", kind: "thread" },
+      ],
+      thread_urls: ["https://example.test/thread/T1"],
+    }
+    mark(decisionState, ["--disposition", "needs-human", "--residual-file",
+      fetchFile(dir, "currency-capability-grouped-residual.json", grouped),
+      "--fetch-file", first])
+
+    const statePath = path.join(decisionState, "state.json")
+    const preOwnerState = JSON.parse(readFileSync(statePath, "utf8"))
+    preOwnerState.branch_currency_state.items[observed.branch_currency.key]
+      .mutation_requires_answer = false
+    const currencySource = preOwnerState.human_decisions[0].sources.find(
+      (source: any) => source.kind === "currency")
+    currencySource.observation.mutation_requires_answer = false
+    preOwnerState.human_decisions[0].id = "decision:pre-shared-owner"
+    writeFileSync(statePath, JSON.stringify(preOwnerState))
+
+    const parked = snapshot(decisionState, first)
+    expectCurrentDecision(parked.needs_human_residuals, grouped)
+    expect(parked.branch_currency).toMatchObject({
+      host_branch_update_capability: "unknown",
+      mutation_requires_answer: true,
+      attention: null,
+    })
+
+    const moved = fetchFile(dir, "currency-capability-grouped-2.json", {
+      ...fixture,
+      threads: [{ thread_id: "T1", last_comment_id: "C2", last_comment_at: "t2" }],
+    })
+    const reopened = snapshot(decisionState, moved)
+    expect(reopened.needs_human_residuals).toEqual([])
+    expect(reopened.actionable.threads.map((item: any) => item.thread_id)).toEqual(["T1"])
+    expect(reopened.branch_currency).toMatchObject({
+      host_branch_update_capability: "unknown",
+      mutation_requires_answer: true,
+      attention: "decide",
+    })
+    const unsafeClaim = spawnSync("python3", [SCRIPT, "mark", "--state-dir", decisionState,
+      ...persistedInvocationArgs(decisionState), "--currency-key", reopened.branch_currency.key,
+      "--currency-disposition", "claimed"], { encoding: "utf8" })
+    expect(unsafeClaim.status).not.toBe(0)
+    expect(unsafeClaim.stderr).toMatch(/exact human answer/)
+
+    const currencyOnly = residualFile(
+      dir, "currency-capability-grouped-reopened.json", reopened.branch_currency.key, "currency")
+    mark(decisionState, ["--disposition", "needs-human", "--residual-file", currencyOnly.path])
+    const reparked = snapshot(decisionState, moved)
+    markDecisionAnswered(decisionState, reparked.human_decisions[0].decision_id)
+    const answered = snapshot(decisionState, moved)
+    expect(answered.branch_currency).toMatchObject({
+      mutation_requires_answer: true,
+      attention: "claim",
+    })
+    markCurrency(decisionState, answered.branch_currency.key, "claimed")
+    expect(snapshot(decisionState, moved).branch_currency).toMatchObject({
+      disposition: "claimed",
+      mutation_requires_answer: false,
+      attention: null,
+    })
+  }, 20000)
 
   test("branch currency cannot create a human decision without a complete typed residual", () => {
     const currencyState = path.join(dir, "currency-residual-required")
