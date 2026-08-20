@@ -1,6 +1,16 @@
 import { describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs"
 import { access } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -57,6 +67,33 @@ describe("analyze_riffrec_zip unpacked capture input", () => {
     expect(readFileSync(path.join(output, "analysis.md"), "utf8")).toContain(
       "- Source kind: `riffrec_directory`",
     )
+
+    renameSync(
+      path.join(capture, "recording.webm"),
+      path.join(capture, "renamed-recording.webm"),
+    )
+    unlinkSync(path.join(capture, "voice.webm"))
+    writeFileSync(
+      path.join(capture, "events.json"),
+      JSON.stringify({ events: [{ type: "click", t: 6, element: { id: "checkout" } }] }),
+    )
+
+    const rerun = spawnSync(
+      "python3",
+      [CANONICAL_SCRIPT, capture, "--output-dir", output, "--no-transcribe", "--max-moments", "0"],
+      { encoding: "utf8", cwd: tmp },
+    )
+
+    expect(rerun.status).toBe(0)
+    expect(rerun.stderr).toBe("")
+    expect(readdirSync(path.join(output, "raw")).sort()).toEqual(readdirSync(capture).sort())
+    expect(existsSync(path.join(output, "raw", "recording.webm"))).toBe(false)
+    expect(existsSync(path.join(output, "raw", "voice.webm"))).toBe(false)
+    expect(readFileSync(path.join(output, "raw", "renamed-recording.webm"), "utf8")).toBe(
+      "recording-bytes",
+    )
+    const rerunAnalysis = JSON.parse(readFileSync(path.join(output, "analysis.json"), "utf8"))
+    expect(rerunAnalysis.event_counts).toEqual({ click: 1 })
   })
 
   test("reports the required capture markers for an unsupported directory", () => {
@@ -77,10 +114,24 @@ describe("analyze_riffrec_zip unpacked capture input", () => {
   test.skipIf(process.platform === "win32")("rejects symlinks inside an unpacked capture", () => {
     const tmp = mkdtempSync(path.join(tmpdir(), "ce-riffrec-symlink-"))
     const capture = makeUnpackedCapture(tmp)
+    const output = path.join(tmp, "analysis-output")
+    const initialRun = spawnSync(
+      "python3",
+      [CANONICAL_SCRIPT, capture, "--output-dir", output, "--no-transcribe", "--max-moments", "0"],
+      { encoding: "utf8", cwd: tmp },
+    )
+
+    expect(initialRun.status).toBe(0)
+    const completedSession = readFileSync(path.join(output, "raw", "session.json"), "utf8")
+    const completedRawEntries = readdirSync(path.join(output, "raw")).sort()
+
     const outside = path.join(tmp, "outside.txt")
     writeFileSync(outside, "must-not-copy")
     symlinkSync(outside, path.join(capture, "outside-link"))
-    const output = path.join(tmp, "analysis-output")
+    writeFileSync(
+      path.join(capture, "session.json"),
+      JSON.stringify({ url: "https://example.test/mutated", duration_seconds: 99 }),
+    )
     const run = spawnSync(
       "python3",
       [CANONICAL_SCRIPT, capture, "--output-dir", output, "--no-transcribe"],
@@ -90,6 +141,30 @@ describe("analyze_riffrec_zip unpacked capture input", () => {
     expect(run.status).toBe(2)
     expect(run.stderr).toContain("contains a symlink")
     expect(existsSync(path.join(output, "raw", "outside-link"))).toBe(false)
+    expect(readFileSync(path.join(output, "raw", "session.json"), "utf8")).toBe(completedSession)
+    expect(readdirSync(path.join(output, "raw")).sort()).toEqual(completedRawEntries)
+    expect(readdirSync(output).some((entry) => entry.startsWith(".raw.staging-"))).toBe(false)
+  })
+
+  test.skipIf(process.platform === "win32")("rejects a symlinked raw destination", () => {
+    const tmp = mkdtempSync(path.join(tmpdir(), "ce-riffrec-raw-symlink-"))
+    const capture = makeUnpackedCapture(tmp)
+    const output = path.join(tmp, "analysis-output")
+    const outside = path.join(tmp, "outside-raw")
+    mkdirSync(output)
+    mkdirSync(outside)
+    symlinkSync(outside, path.join(output, "raw"))
+
+    const run = spawnSync(
+      "python3",
+      [CANONICAL_SCRIPT, capture, "--output-dir", output, "--no-transcribe"],
+      { encoding: "utf8", cwd: tmp },
+    )
+
+    expect(run.status).toBe(2)
+    expect(run.stderr).toContain("Raw output directory must not be a symlink")
+    expect(readdirSync(outside)).toEqual([])
+    expect(readdirSync(output).some((entry) => entry.startsWith(".raw.staging-"))).toBe(false)
   })
 
   test("rejects output nested inside the source capture", () => {

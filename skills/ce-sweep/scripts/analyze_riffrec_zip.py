@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import zipfile
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -114,15 +115,8 @@ def safe_extract(zip_path: Path, dest: Path) -> None:
 
 def safe_copy_capture_directory(source_dir: Path, dest: Path) -> None:
     source_root = source_dir.resolve()
-    if dest.is_symlink():
-        raise SourceInputError(f"Raw output directory must not be a symlink: {dest}")
-
     dest.mkdir(parents=True, exist_ok=True)
     dest_root = dest.resolve()
-
-    for existing in dest.rglob("*"):
-        if existing.is_symlink():
-            raise SourceInputError(f"Raw output contains a symlink and cannot be updated safely: {existing}")
 
     entries = sorted(source_dir.rglob("*"), key=lambda path: str(path.relative_to(source_dir)))
     for entry in entries:
@@ -144,6 +138,38 @@ def safe_copy_capture_directory(source_dir: Path, dest: Path) -> None:
         else:
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(entry, target)
+
+
+def validate_raw_destination(raw_dir: Path) -> None:
+    if raw_dir.is_symlink():
+        raise SourceInputError(f"Raw output directory must not be a symlink: {raw_dir}")
+    if raw_dir.exists() and not raw_dir.is_dir():
+        raise SourceInputError(f"Raw output path must be a directory: {raw_dir}")
+    if not raw_dir.exists():
+        return
+    for existing in raw_dir.rglob("*"):
+        if existing.is_symlink():
+            raise SourceInputError(f"Raw output contains a symlink and cannot be replaced safely: {existing}")
+
+
+def promote_raw_snapshot(staging_dir: Path, raw_dir: Path) -> None:
+    validate_raw_destination(raw_dir)
+    previous_dir = raw_dir.parent / staging_dir.name.replace(".staging-", ".previous-", 1)
+    if previous_dir.exists() or previous_dir.is_symlink():
+        raise SourceInputError(f"Temporary raw snapshot path already exists: {previous_dir}")
+
+    had_previous = raw_dir.exists()
+    if had_previous:
+        os.replace(raw_dir, previous_dir)
+    try:
+        os.replace(staging_dir, raw_dir)
+    except BaseException:
+        if had_previous:
+            os.replace(previous_dir, raw_dir)
+        raise
+
+    if had_previous:
+        shutil.rmtree(previous_dir, ignore_errors=True)
 
 
 def default_output_dir(source_path: Path) -> Path:
@@ -230,17 +256,24 @@ def read_notes(path: Path) -> dict[str, Any]:
     return {"status": "ok", "text": text.strip(), "source": "meeting_notes"}
 
 
-def prepare_source(source_path: Path, raw_dir: Path, source_kind: str | None = None) -> dict[str, Any]:
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    source_kind = source_kind or classify_source(source_path)
+def populate_source_snapshot(source_path: Path, snapshot_dir: Path, source_kind: str) -> dict[str, Any]:
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
 
     if source_kind in {"riffrec_zip", "riffrec_directory"}:
         if source_kind == "riffrec_zip":
-            safe_extract(source_path, raw_dir)
+            safe_extract(source_path, snapshot_dir)
         else:
-            safe_copy_capture_directory(source_path, raw_dir)
-        session = read_json(raw_dir / "session.json", {})
-        events_payload = read_json(raw_dir / "events.json", {})
+            safe_copy_capture_directory(source_path, snapshot_dir)
+            missing = sorted(
+                marker for marker in RIFFREC_DIRECTORY_MARKERS if not (snapshot_dir / marker).is_file()
+            )
+            if missing:
+                missing_text = ", ".join(missing)
+                raise SourceInputError(
+                    f"Unpacked Riffrec capture changed during normalization; missing {missing_text}."
+                )
+        session = read_json(snapshot_dir / "session.json", {})
+        events_payload = read_json(snapshot_dir / "events.json", {})
         events = events_payload.get("events", events_payload if isinstance(events_payload, list) else [])
         if not isinstance(events, list):
             events = []
@@ -253,12 +286,12 @@ def prepare_source(source_path: Path, raw_dir: Path, source_kind: str | None = N
             "session": session,
             "events": events,
             "duration": duration,
-            "recording_path": raw_dir / "recording.webm",
-            "transcription_path": raw_dir / "voice.webm",
+            "recording_path": snapshot_dir / "recording.webm",
+            "transcription_path": snapshot_dir / "voice.webm",
             "notes_transcript": None,
         }
 
-    copied_path = raw_dir / source_path.name
+    copied_path = snapshot_dir / source_path.name
     if source_path.resolve() != copied_path.resolve():
         shutil.copy2(source_path, copied_path)
 
@@ -295,6 +328,27 @@ def prepare_source(source_path: Path, raw_dir: Path, source_kind: str | None = N
         "transcription_path": transcription_path,
         "notes_transcript": None,
     }
+
+
+def prepare_source(source_path: Path, raw_dir: Path, source_kind: str | None = None) -> dict[str, Any]:
+    source_kind = source_kind or classify_source(source_path)
+    raw_dir.parent.mkdir(parents=True, exist_ok=True)
+    staging_dir = Path(
+        tempfile.mkdtemp(prefix=f".{raw_dir.name}.staging-", dir=raw_dir.parent)
+    )
+    try:
+        source = populate_source_snapshot(source_path, staging_dir, source_kind)
+        promote_raw_snapshot(staging_dir, raw_dir)
+    except BaseException:
+        if staging_dir.exists() and not staging_dir.is_symlink():
+            shutil.rmtree(staging_dir, ignore_errors=True)
+        raise
+
+    for key in ("recording_path", "transcription_path"):
+        staged_path = source[key]
+        if staged_path is not None:
+            source[key] = raw_dir / staged_path.relative_to(staging_dir)
+    return source
 
 
 def repo_relative(path: Path, base: Path) -> str:
