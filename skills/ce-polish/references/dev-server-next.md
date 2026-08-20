@@ -1,6 +1,6 @@
 # Next.js dev-server recipe (auto-detect fallback)
 
-Loaded when `detect-project-type.sh` returns `next` and there is no `.claude/launch.json` to consult.
+Loaded when `detect-project-type.sh` returns `next` and the startup tuple still lacks a command.
 
 ## Signature
 

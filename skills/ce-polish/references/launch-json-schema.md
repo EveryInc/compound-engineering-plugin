@@ -27,13 +27,13 @@ Polish reads `.claude/launch.json` at the repo root to resolve the dev-server st
 | `name` | yes (when multiple configurations) | Used to disambiguate when the array has more than one entry. Polish asks the user to pick by `name`. |
 | `runtimeExecutable` | yes | The binary polish spawns (e.g., `bin/dev`, `npm`, `overmind`, `bun`). |
 | `runtimeArgs` | no | Array of arguments passed to `runtimeExecutable`. Default: empty array. |
-| `port` | no | The dev-server port. When omitted, polish resolves it from the selected project type. The port seeds `http://localhost:<port>` as the default endpoint candidate; server evidence or a user correction may replace that candidate, so the schema does not lock the URL scheme. |
+| `port` | no | The dev-server port. A numeric value completes the tuple's port fact; when the command, working directory, and environment are also usable, no project detection or resolver runs. When omitted, polish resolves only the missing port from the selected project type. The port seeds `http://localhost:<port>` as the default endpoint candidate; server evidence or a user correction may replace that candidate, so the schema does not lock the URL scheme. |
 | `cwd` | no | Repo-relative working directory for the dev server. Default: repo root. Useful for monorepos (`apps/web`, `packages/frontend`). |
 | `env` | no | Additional environment variables for the dev-server process. Default: inherit polish's environment. |
 
 ## Stub template (written on first run when user accepts)
 
-When polish auto-detects a project type and the user confirms "Save this as `.claude/launch.json`?", polish writes a minimal stub derived from the detected type. These templates intentionally hard-code common defaults — users can edit them later.
+When auto-detection completes a missing tuple fact and the user confirms "Save this as `.claude/launch.json`?", polish writes the completed tuple. Preserve facts from a selected configuration and add only what was resolved; use the recipe templates below when auto-detection supplied the command. These templates intentionally hard-code common defaults — users can edit them later.
 
 ### Rails stub
 

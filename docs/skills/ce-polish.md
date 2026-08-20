@@ -2,7 +2,7 @@
 
 > Start the dev server, open the feature in a browser, and iterate together. You say what feels off; fixes land on the running page.
 
-`ce-polish` is on-demand **live UX polish** for a feature that already works. It starts the project's dev server (from `.claude/launch.json` if present, otherwise by detecting the framework), opens the URL through the active harness when it can, and then waits. You use the page and name what is off. The change lands, hot-reload updates the page, and you keep going until you are done.
+`ce-polish` is on-demand **live UX polish** for a feature that already works. It starts the project's dev server from a complete `.claude/launch.json` configuration or fills only the missing startup facts through framework detection, opens the URL through the active harness when it can, and then waits. You use the page and name what is off. The change lands, hot-reload updates the page, and you keep going until you are done.
 
 It is not `ce-prototype` (decide how something should feel before it exists), not `ce-simplify-code` (trim recently changed code), and not `ce-dogfood` or `ce-test-browser` (autonomous QA or a test pass). Polish is a conversation with a running app.
 
@@ -36,7 +36,7 @@ Arguments only pick which branch to sit on. The loop after that is always the sa
 /ce-polish feat/notification-settings
 ```
 
-If the project type is unknown, it asks how to start. A `.claude/launch.json` at the repo root skips detection next time.
+If the project type is unknown, it asks how to start. A `.claude/launch.json` configuration with a usable command, working directory, environment, and numeric port skips detection next time.
 
 ---
 
@@ -66,7 +66,7 @@ When you ask it to check something, it uses a browser inspection capability expo
 
 ### Dev-server start without a setup lecture
 
-It reads `.claude/launch.json` when that file exists. Otherwise it classifies the project (Rails, Next.js, Vite, Nuxt, Astro, Remix, SvelteKit, or Procfile) and uses that type's start command, package manager, and port. Unknown projects get one question: how do you start this?
+It first resolves a startup tuple: command, working directory, environment, and port. A selected `.claude/launch.json` configuration that supplies a usable tuple goes straight to startup. When a fact is missing, only the mechanism that can supply it runs: a selected command, working directory, and environment remain unchanged while classification and the port resolver supply a missing port; when the command is missing, classification, a start recipe, and package-manager resolution supply it. Unknown projects get one question for the facts that cannot be derived.
 
 Polish selects exactly one intended server instance. It reuses a process already serving the chosen port only when evidence identifies it as the intended project server; otherwise it starts the resolved command in the background with output in a temp log. The resolved port provides a default `http://localhost:<port>` candidate, but server output or your correction can identify a different actual URL. It probes that URL for up to 30 seconds and continues only when the response is attributed to the selected server. If the server does not answer, it shows diagnostics and includes the last 20 log lines only when it launched that server, then asks what to do.
 
@@ -152,7 +152,7 @@ Required: a startable local dev server. Browser opening and inspection use capab
 It starts a server and runs the checked-out branch. That should be a choice you type, not something the model starts because you mentioned a page.
 
 **What if my framework is not detected?**
-It asks how to start. Put the answer in `.claude/launch.json` if you want the next run to skip the question.
+It asks how to start. Put a complete startup tuple in `.claude/launch.json` if you want the next run to skip detection.
 
 **Does it work without browser automation?**
 Yes. It prints the URL when the active harness cannot open the browser, and you can describe what you see when the harness cannot inspect the page. Hot reload still applies.

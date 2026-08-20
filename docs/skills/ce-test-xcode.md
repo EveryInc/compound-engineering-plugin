@@ -60,7 +60,7 @@ A gated flow on top of [XcodeBuildMCP](https://github.com/getsentry/xcodebuildmc
 - Build, install, launch, start log capture
 - Per screen: screenshot, log check, pass or fail
 - Pause for device-only flows (and for SwiftUI inline links)
-- On failure, ask investigate-now (`ce-debug`, then rebuild and retest any accepted fix) or skip
+- On failure, ask investigate-now (`ce-debug`, then rebuild and retest any accepted fix) or continue the remaining checks
 - Print a summary you can paste into a PR
 - Stop log capture; optionally shut down the simulator
 
@@ -100,9 +100,9 @@ You do the action on the simulator, then yes (continue) or no (describe the issu
 
 Simulated taps do not fire gesture recognizers on SwiftUI `Text` with inline links. The tap looks successful. If the target URL is known, `xcrun simctl openurl <device> <URL>` is the fallback.
 
-### Investigate now or skip
+### Investigate now or continue
 
-A failed screen gets a screenshot, logs, and repro steps. You choose: hand the evidence to `ce-debug`, rebuild, and retest; or log Skip and continue. First failure does not abort the run.
+A failed screen gets a screenshot, logs, and repro steps. You choose whether to hand the evidence to `ce-debug` or continue the remaining checks without investigation. That choice does not change the observed Fail. After an applied fix, rebuild and retest, then update status from the completed retest evidence. Without completed retest evidence, preserve Fail.
 
 ### Summary shape
 
@@ -112,6 +112,8 @@ A failed screen gets a screenshot, logs, and repro steps. You choose: hand the e
 - Console errors
 - Human verifications
 - Overall PASS / FAIL / PARTIAL
+
+Statuses follow evidence. Pass requires a completed passing check. Fail records observed failing evidence until a completed retest replaces it. Skip is only for a check with no completed outcome. Any remaining Fail makes the overall result FAIL. With no Fail, an unanswered or otherwise incomplete scoped check makes it PARTIAL; otherwise it is PASS.
 
 A failed build never proceeds to install or launch.
 

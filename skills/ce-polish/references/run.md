@@ -19,32 +19,32 @@ SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
 bash "$SKILL_DIR/scripts/read-launch-json.sh"
 ```
 
-Resolve launch configuration to one startup tuple: command, working directory, environment, and port. A selected configuration with a usable, non-empty `runtimeExecutable` owns the command and optional `runtimeArgs` and `env`; its `cwd` selects the working directory, defaulting to the repository root. A numeric declared `port` completes the tuple. Without one, classify that working directory and resolve its port from the single supported type, without replacing the selected command. Ambiguous declarations remain in disambiguation: show their names, ask the user to choose, and rerun with that name. Fall through to project detection only when no selected configuration supplies a usable command. Any operational failure or unresolved tuple fact blocks startup and must be reported.
+Resolve one startup tuple: command, working directory, environment, and port. A selected launch configuration supplies every usable fact it declares: `runtimeExecutable` plus optional `runtimeArgs` form the command, `cwd` defaults to the repository root, `env` augments the inherited environment, and `port` must be numeric. Preserve those facts while resolving only what remains unknown. When all four facts are usable, the tuple is complete: skip classification, recipe loading, package-manager resolution, and port resolution, then continue to startup. Ambiguous declarations remain in disambiguation: show their names, ask the user to choose, and rerun with that name. Any operational failure or unresolved tuple fact blocks startup and must be reported.
 
-Classify the relevant project root: the selected launch working directory when its port is absent, otherwise the repository root for project detection. Omit the path argument for the repository root:
+Run project classification only when an unresolved command or port requires a project type. Classify the selected working directory when a launch configuration supplied one; otherwise classify the repository root. Omit the path argument for the repository root:
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
 bash "$SKILL_DIR/scripts/detect-project-type.sh" "<project-root>"
 ```
 
-`<type>` means the classification root; `<type>@<relative-dir>` means that directory under the classification root. Ask the user to choose when the output is `multiple` or `multiple:...`.
+`<type>` means the classification root; `<type>@<relative-dir>` means that directory under the classification root. Ask the user to choose when the output is `multiple` or `multiple:...`. For `unknown`, ask only for the unresolved tuple facts and do not guess.
 
-For a supported pair, read `references/dev-server-<base-type>.md`. For package-manager projects, resolve the executable in that project root rather than guessing:
+Read `references/dev-server-<base-type>.md` only when the command remains unresolved after a supported classification. If that recipe requires a package-manager executable to complete the command, resolve it in the classified project root rather than guessing:
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
 bash "$SKILL_DIR/scripts/resolve-package-manager.sh" "<project-root>"
 ```
 
-Resolve the port with the detected type:
+Run the port resolver only while the port remains unresolved, using the detected type without replacing a selected command, working directory, or environment:
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
 bash "$SKILL_DIR/scripts/resolve-port.sh" "<project-root>" --type <base-type>
 ```
 
-Startup may proceed only after command, working directory, and port are resolved. A supported classifier pair supplies them through its recipe and resolvers. For `unknown`, ask the user for those non-derivable facts and skip type-specific routing. If a resolver fails operationally or a required fact remains unknown, report that blocker; do not substitute a plausible value. After resolving a supported pair, offer once to save the command as `.claude/launch.json`; write it only when the user accepts, after reading `references/launch-json-schema.md` and the selected recipe.
+Startup may proceed only when the tuple has a usable command, working directory, environment, and numeric port. If a classifier, recipe, or resolver fails operationally or leaves its required fact unknown, report that blocker; do not substitute a plausible value. After supported auto-detection supplies a missing fact, offer once to save the completed tuple as `.claude/launch.json`; write it only when the user accepts, after reading `references/launch-json-schema.md` and any recipe used.
 
 ## Start and hand off
 

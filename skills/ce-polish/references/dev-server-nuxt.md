@@ -1,6 +1,6 @@
 # Nuxt dev-server recipe (auto-detect fallback)
 
-Loaded when `detect-project-type.sh` returns `nuxt` and there is no `.claude/launch.json` to consult.
+Loaded when `detect-project-type.sh` returns `nuxt` and the startup tuple still lacks a command.
 
 ## Signature
 

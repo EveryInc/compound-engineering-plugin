@@ -2,7 +2,7 @@
 
 Port resolution runs via `scripts/resolve-port.sh`. This document explains the probe order, framework defaults, and the script's intentional parsing choices.
 
-This cascade runs **only when** `.claude/launch.json` is absent or has no `port` field for the resolved configuration. When `launch.json` specifies a port, use it verbatim and skip this cascade entirely.
+This cascade runs only while the startup tuple's port remains unresolved. A numeric port from the selected launch configuration completes that fact and skips this cascade. When the cascade is needed, it supplies only the port; it never replaces a selected command, working directory, or environment.
 
 ## Priority order
 
