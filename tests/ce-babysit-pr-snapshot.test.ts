@@ -664,6 +664,81 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(persisted.branch_currency_state.items[ambiguous.branch_currency.key].recovery_state).toBe("ambiguous")
   }, 20000)
 
+  test("branch currency: grouped invalidation cannot turn decision-bound evidence into mutation authority", () => {
+    const sd = path.join(dir, "currency-grouped-invalidation")
+    const fixture = quietCurrencyFixture({
+      threads: [{ thread_id: "T1", last_comment_id: "C1", last_comment_at: "t1" }],
+    })
+    const fetch = fetchFile(dir, "currency-grouped-1.json", fixture)
+    const first = snapshot(sd, fetch)
+    markCurrency(sd, first.branch_currency.key, "claimed")
+    const resumed = snapshot(sd, fetch, ["--start-invocation",
+      "--invocation-budget-seconds", ORDINARY_TEST_BUDGET_SECONDS])
+    markCurrencyOutcome(sd, resumed.branch_currency.key, "proven-no-mutation")
+
+    const statePath = path.join(sd, "state.json")
+    const afterBackoff = JSON.parse(readFileSync(statePath, "utf8"))
+    afterBackoff.branch_currency_state.items[first.branch_currency.key].retry_not_before = "2000-01-01T00:00:00Z"
+    writeFileSync(statePath, JSON.stringify(afterBackoff))
+    const retry = snapshot(sd, fetch)
+    markCurrency(sd, retry.branch_currency.key, "claimed")
+
+    const grouped = {
+      ...residualFile(dir, "currency-grouped-unused.json", retry.branch_currency.key, "currency").value,
+      sources: [
+        { id: retry.branch_currency.key, kind: "currency" },
+        { id: "T1", kind: "thread" },
+      ],
+      thread_urls: ["https://example.test/thread/T1"],
+    }
+    const groupedPath = fetchFile(dir, "currency-grouped-residual.json", grouped)
+    mark(sd, ["--currency-key", retry.branch_currency.key,
+      "--currency-outcome", "proven-no-mutation", "--residual-file", groupedPath])
+    const parked = snapshot(sd, fetch)
+    expectCurrentDecision(parked.needs_human_residuals, grouped)
+    expect(parked.branch_currency).toMatchObject({
+      recovery_state: "retry-exhausted",
+      mutation_requires_answer: true,
+      attention: null,
+    })
+
+    const changedFetch = fetchFile(dir, "currency-grouped-2.json", {
+      ...fixture,
+      threads: [{ thread_id: "T1", last_comment_id: "C2", last_comment_at: "t2" }],
+    })
+    const reopened = snapshot(sd, changedFetch)
+    expect(reopened.needs_human_residuals).toEqual([])
+    expect(reopened.actionable.threads.map((item: any) => item.thread_id)).toEqual(["T1"])
+    expect(reopened.branch_currency).toMatchObject({
+      recovery_state: "retry-exhausted",
+      mutation_requires_answer: true,
+      attention: "decide",
+    })
+    expect(wakeReason({ ...reopened, counts: { ...reopened.counts, threads: 0 } }))
+      .toBe("branch-currency")
+
+    const unsafeClaim = spawnSync("python3", [SCRIPT, "mark", "--state-dir", sd,
+      ...persistedInvocationArgs(sd), "--currency-key", reopened.branch_currency.key,
+      "--currency-disposition", "claimed"], { encoding: "utf8" })
+    expect(unsafeClaim.status).not.toBe(0)
+    expect(unsafeClaim.stderr).toMatch(/exact human answer/)
+
+    const currencyOnly = residualFile(
+      dir, "currency-grouped-reopened.json", reopened.branch_currency.key, "currency")
+    mark(sd, ["--disposition", "needs-human", "--residual-file", currencyOnly.path])
+    const reparked = snapshot(sd, changedFetch)
+    markDecisionAnswered(sd, reparked.human_decisions[0].decision_id)
+    const answered = snapshot(sd, changedFetch)
+    expect(answered.branch_currency).toMatchObject({
+      mutation_requires_answer: true,
+      attention: "claim",
+    })
+
+    markCurrency(sd, answered.branch_currency.key, "claimed")
+    expect(JSON.parse(readFileSync(statePath, "utf8"))
+      .branch_currency_state.items[answered.branch_currency.key].mutation_requires_answer).toBe(false)
+  }, 30000)
+
   test("branch currency: mutation observation consumes the attempt and remains reconciliation-only", () => {
     const fetch = fetchFile(dir, "currency-consumed.json", quietCurrencyFixture())
     const observed = snapshot(state, fetch)
@@ -1150,6 +1225,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       disposition: "open",
       attention: null,
       recovery_state: "semantic-unchanged",
+      mutation_requires_answer: true,
     })
     const unchangedAfterCapabilityDrift = snapshot(state, fetchFile(
       dir, "currency-inspect-capability-drift.json", quietCurrencyFixture({

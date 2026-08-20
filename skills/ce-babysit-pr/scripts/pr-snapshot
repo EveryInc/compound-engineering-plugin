@@ -69,6 +69,7 @@ CURRENCY_OUTCOME_MUTATION_OBSERVED = "mutation-observed"
 CURRENCY_OUTCOME_PROVEN_NO_MUTATION = "proven-no-mutation"
 CURRENCY_OUTCOME_AMBIGUOUS = "ambiguous"
 CURRENCY_ATTENTION_CLAIM = "claim"
+CURRENCY_ATTENTION_DECIDE = "decide"
 CURRENCY_ATTENTION_INSPECT = "inspect"
 CURRENCY_ATTENTION_RECONCILE = "reconcile"
 
@@ -1027,6 +1028,9 @@ def _load_branch_currency_state(state):
         currency.setdefault(key, value)
     if not isinstance(currency.get("items"), dict):
         currency["items"] = {}
+    for item in currency["items"].values():
+        if isinstance(item, dict) and item.get("requires_decision"):
+            item.setdefault("mutation_requires_answer", True)
     if not isinstance(currency.get("semantic_parks"), dict):
         currency["semantic_parks"] = {}
     state["branch_currency_state"] = currency
@@ -1265,8 +1269,10 @@ def _apply_branch_currency(state, cur, head, head_changed, now):
     item["parked_semantic_fingerprints"] = sorted(parks)
     item.setdefault("retry_count", 0)
     item.setdefault("mutation_consumed", False)
+    item.setdefault("mutation_requires_answer", False)
     disposition = item.get("disposition", DISPOSITION_OPEN)
     if disposition == DISPOSITION_OPEN:
+        answer_required = _currency_mutation_requires_answer(state, key, item)
         inspection_required = (item.get("status") == "DIRTY"
                                and bool(parks)
                                and item.get("inspection_result") != "changed"
@@ -1282,7 +1288,9 @@ def _apply_branch_currency(state, cur, head, head_changed, now):
             except (ValueError, TypeError):
                 retry_wait_seconds = 0
         item["retry_wait_seconds"] = retry_wait_seconds
-        if inspection_required:
+        if answer_required:
+            item["attention"] = CURRENCY_ATTENTION_DECIDE
+        elif inspection_required:
             item["attention"] = CURRENCY_ATTENTION_INSPECT
         elif retry_wait_seconds > 0:
             item["attention"] = None
@@ -1594,6 +1602,7 @@ def _currency_source_observation(item):
         "status": item.get("status"),
         "semantic_conflict_fingerprint": item.get("semantic_conflict_fingerprint"),
         "recovery_state": item.get("recovery_state"),
+        "mutation_requires_answer": bool(item.get("mutation_requires_answer", False)),
     }
     if item.get("status") == "BEHIND" and item.get("recovery_state") is None:
         observation["host_branch_update_capability"] = item.get(
@@ -1651,6 +1660,13 @@ def _answered_human_source_matches(state, kind, source_id, observation):
         if isinstance(decision, dict)
         for source in decision.get("sources") or []
     )
+
+
+def _currency_mutation_requires_answer(state, source_id, item):
+    observation = _currency_source_observation(item)
+    return (bool(item.get("mutation_requires_answer"))
+            and not _answered_human_source_matches(
+                state, "currency", source_id, observation))
 
 
 def _source_is_actionable(state, kind, source_id, threads, feedback, checks):
@@ -2449,6 +2465,7 @@ def _wake_reason(a, settle_seconds):
     # delay a BEHIND update that will invalidate that work anyway. Claimed observations wake only
     # for reconciliation; confirmed and parked residuals remain quiet.
     if branch_currency.get("attention") in (CURRENCY_ATTENTION_CLAIM,
+                                             CURRENCY_ATTENTION_DECIDE,
                                              CURRENCY_ATTENTION_INSPECT,
                                              CURRENCY_ATTENTION_RECONCILE):
         return "branch-currency"
@@ -2977,6 +2994,9 @@ def _mark_branch_currency(args, state, now):
     if (prior == DISPOSITION_OPEN and disposition == CURRENCY_CLAIMED
             and _needs_human_source_is_covered(state, key, "currency")):
         raise SystemExit("currency claim requires the current human decision to be answered")
+    if (prior == DISPOSITION_OPEN and disposition == CURRENCY_CLAIMED
+            and _currency_mutation_requires_answer(state, key, item)):
+        raise SystemExit("currency claim requires an exact human answer")
     if prior == DISPOSITION_OPEN and disposition == CURRENCY_CLAIMED:
         retry_not_before = item.get("retry_not_before")
         if retry_not_before:
@@ -2996,6 +3016,7 @@ def _mark_branch_currency(args, state, now):
         # A repeated claim is deliberately idempotent. It cannot transfer or renew an existing
         # claim; a later invocation must reconcile it and record an explicit outcome.
         if prior == DISPOSITION_OPEN:
+            item["mutation_requires_answer"] = False
             item["claimed_invocation_id"] = state.get("invocation_id")
             item["claimed_at"] = _iso(now)
             item["attempt_number"] = int(item.get("retry_count", 0)) + 1
@@ -3193,6 +3214,8 @@ def cmd_mark(args):
                 raise SystemExit("currency marks require --currency-key and exactly one currency action")
             decision_required = _mark_branch_currency(args, state, now)
             if decision_required:
+                currency_item = _load_branch_currency_state(state)["items"][args.currency_key]
+                currency_item["mutation_requires_answer"] = True
                 residual = _load_needs_human_residual(
                     args.residual_file, args.currency_key, "currency")
                 marked = _park_human_decision(state, residual, args, now)
