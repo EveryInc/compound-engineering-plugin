@@ -2751,6 +2751,23 @@ def _mark_branch_currency(args, state, now):
     prior = item.get("disposition", DISPOSITION_OPEN)
     outcome = args.currency_outcome
     inspected_fingerprint = args.currency_inspected_fingerprint
+    answered_fingerprint = args.currency_answered_fingerprint
+
+    if answered_fingerprint:
+        parks = currency.get("semantic_parks") or {}
+        if prior != DISPOSITION_NEEDS_HUMAN:
+            raise SystemExit("answered currency decisions require a needs-human observation")
+        if not _needs_human_source_is_covered(state, key, "currency"):
+            raise SystemExit("answered currency decisions require a canonical residual")
+        if (item.get("semantic_conflict_fingerprint") != answered_fingerprint
+                or answered_fingerprint not in parks):
+            raise SystemExit("answered currency decisions require the exact parked fingerprint")
+        parks.pop(answered_fingerprint)
+        item.pop("semantic_conflict_fingerprint", None)
+        _reactivate_currency_item(currency, item)
+        item["recovery_state"] = "decision-answered"
+        state["last_action"] = f"answered currency {key}"
+        return
 
     if outcome:
         if prior != CURRENCY_CLAIMED:
@@ -2996,7 +3013,8 @@ def _invalidate_needs_human_source(state, item_id, kind):
                 currency = _load_branch_currency_state(state)
                 if currency.get("current_key") == source_id:
                     current = currency.get("items", {}).get(source_id)
-                    if isinstance(current, dict):
+                    if (isinstance(current, dict)
+                            and current.get("disposition") == DISPOSITION_NEEDS_HUMAN):
                         _reactivate_currency_item(currency, current)
     state["needs_human_residuals"] = kept
 
@@ -3021,10 +3039,10 @@ def cmd_mark(args):
         if state.get("started_at"):
             _advance_activity(state, now, accumulate=False)
         if (args.currency_key or args.currency_disposition or args.currency_outcome
-                or args.currency_inspected_fingerprint):
+                or args.currency_inspected_fingerprint or args.currency_answered_fingerprint):
             actions = sum(bool(value) for value in (
                 args.currency_disposition, args.currency_outcome,
-                args.currency_inspected_fingerprint))
+                args.currency_inspected_fingerprint, args.currency_answered_fingerprint))
             if not args.currency_key or actions != 1:
                 raise SystemExit("currency marks require --currency-key and exactly one currency action")
             _mark_branch_currency(args, state, now)
@@ -3179,6 +3197,8 @@ def main():
                             CURRENCY_OUTCOME_PROVEN_NO_MUTATION,
                             CURRENCY_OUTCOME_AMBIGUOUS], default=None)
     m.add_argument("--currency-inspected-fingerprint", default=None)
+    m.add_argument("--currency-answered-fingerprint", default=None,
+                   help="exact parked semantic decision that the user answered")
     m.set_defaults(func=cmd_mark)
 
     w = sub.add_parser("watch")

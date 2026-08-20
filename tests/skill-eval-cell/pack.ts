@@ -23,7 +23,7 @@ import { gradeArm, type EvalArm } from "./grade"
 type Arm = EvalArm | "ab"
 
 function resolveArmRef(scenario: Scenario, arm: EvalArm): string | null {
-  if (arm === "pre") return scenario.pre_ref ?? PRE_SWEEP_REF
+  if (arm === "pre") return PRE_SWEEP_REF
   if (arm === "post") return POST_SWEEP_REF
   if (arm === "preview") return scenario.preview_ref ?? null
   return null

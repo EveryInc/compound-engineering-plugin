@@ -1,0 +1,51 @@
+{
+  "pr": 23,
+  "url": "https://github.com/example/tiny-lib/pull/23",
+  "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "head_ref": "fix/generated-fixture",
+  "base_ref": "main",
+  "base_oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "mergeable": "CONFLICTING",
+  "merge_state_status": "DIRTY",
+  "branch_currency": {
+    "disposition": "needs-human",
+    "attention": null,
+    "route": "normal-base",
+    "host": "github.com",
+    "base_repository": "example/tiny-lib",
+    "base_ref": "main",
+    "base_oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "status": "DIRTY",
+    "key": "dirty-main-bbbbbbbb",
+    "semantic_conflict_fingerprint": "generated-fixture-v1",
+    "parked_semantic_fingerprints": ["generated-fixture-v1", "unrelated-doc-v1"]
+  },
+  "branch_currency_blocker": {
+    "key": "dirty-main-bbbbbbbb",
+    "disposition": "needs-human",
+    "recovery_state": "semantic-decision"
+  },
+  "needs_human_residuals": [
+    {
+      "type": "needs-human",
+      "sources": [{ "id": "dirty-main-bbbbbbbb", "kind": "currency" }],
+      "decision_context": {
+        "quoted_feedback": "The generated fixture and its source disagree after the base update.",
+        "investigation": "Both keeping the checked-in fixture and regenerating it are valid product choices.",
+        "decision_reason": "The repository does not identify which artifact is authoritative.",
+        "options": [
+          { "option": "Keep the checked-in fixture", "tradeoff": "Preserves the reviewed artifact but leaves it different from current source." },
+          { "option": "Regenerate from current source", "tradeoff": "Makes source authoritative and changes the checked-in fixture." }
+        ],
+        "recommendation": "Regenerate from current source if generated artifacts are expected to be reproducible."
+      },
+      "thread_urls": []
+    }
+  ],
+  "open_needs_human": 1,
+  "review_threads": [],
+  "non_thread_comments": [],
+  "failing_checks": [],
+  "manager_status": null
+}

@@ -689,6 +689,8 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     const [babysit, watchLoop] = await Promise.all([readBabysit(), readRepoFile(WATCH_LOOP)])
     for (const text of [babysit, watchLoop]) {
       expect(text).toMatch(/parked_semantic_fingerprints[\s\S]{0,500}--currency-inspected-fingerprint/i)
+      expect(text).toContain("--currency-answered-fingerprint")
+      expect(text).toMatch(/Every mark whose result is `needs-human`[\s\S]{0,300}`--residual-file`/i)
       expect(text).toMatch(/unchanged[^.]{0,160}(park|needs-human)[^.]{0,160}(changed|different)[^.]{0,180}(reopen|retire)/i)
       expect(text).toMatch(/manual dependenc/i)
       expect(text).toContain("target-local")

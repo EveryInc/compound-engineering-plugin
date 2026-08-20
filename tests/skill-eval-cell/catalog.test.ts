@@ -52,9 +52,8 @@ describe("skill-eval-cell catalog", () => {
   test("every scenario skill exists at PRE_SWEEP_REF and POST_SWEEP_REF", () => {
     const missing: string[] = []
     for (const scenario of SCENARIOS) {
-      const preRef = scenario.pre_ref ?? PRE_SWEEP_REF
-      if (!gitShowExists(preRef, scenario.skill)) {
-        missing.push(`${scenario.skill} missing at ${preRef}`)
+      if (!gitShowExists(PRE_SWEEP_REF, scenario.skill)) {
+        missing.push(`${scenario.skill} missing at ${PRE_SWEEP_REF}`)
       }
       if (!gitShowExists(POST_SWEEP_REF, scenario.skill)) {
         missing.push(`${scenario.skill} missing at ${POST_SWEEP_REF}`)
@@ -112,6 +111,7 @@ describe("skill-eval-cell catalog", () => {
     ).sort()
     expect(listed).toEqual(
       [
+        "ce-babysit-pr/answered-semantic-park-reopens-exact-item:references/branch-currency.md",
         "ce-babysit-pr/behind-reads-branch-currency:references/branch-currency.md",
         "ce-babysit-pr/pipeline-returns-canonical-human-decision:references/pipeline.md",
         "ce-babysit-pr/pipeline-returns-canonical-human-decision:references/report.md",
@@ -176,22 +176,6 @@ describe("skill-eval-cell catalog", () => {
         resolved.set(s.preview_ref, ok)
       }
       if (!ok) bad.push(`${s.id}: preview_ref ${s.preview_ref} does not resolve`)
-    }
-    expect(bad).toEqual([])
-  })
-
-  test("scenario-specific pre refs resolve and are only used for A/B rows", () => {
-    const bad: string[] = []
-    const resolved = new Map<string, boolean>()
-    for (const s of SCENARIOS) {
-      if (!s.pre_ref) continue
-      if (s.cohort !== "resized") bad.push(`${s.id}: pre_ref on ${s.cohort}`)
-      let ok = resolved.get(s.pre_ref)
-      if (ok === undefined) {
-        ok = spawnSync("git", ["rev-parse", "--verify", s.pre_ref], { cwd: REPO_ROOT }).status === 0
-        resolved.set(s.pre_ref, ok)
-      }
-      if (!ok) bad.push(`${s.id}: pre_ref ${s.pre_ref} does not resolve`)
     }
     expect(bad).toEqual([])
   })

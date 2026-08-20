@@ -1,6 +1,6 @@
 # Skill-eval scenarios
 
-Cases are written from the contract before the behavior under test, then run against that body and `HEAD` (the tree under test). Most rows share the 8KB-sweep baseline (`PRE_SWEEP_REF` = parent of #1433); a newer regression may set a scenario-specific `pre_ref` to its actual pre-change commit. A row exists only when the prompt plus the grade can fail the claimed invariant. Covering every shipped skill is not a goal.
+Cases run against one durable repository baseline (`PRE_SWEEP_REF` = parent of #1433) and `HEAD` (the tree under test). Branch-local commit IDs are not catalog baselines: stack rebases make them unreachable in fresh CI checkouts. A row exists only when the prompt plus the grade can fail the claimed invariant. Covering every shipped skill is not a goal.
 
 `--read-only` is for routing/judgment that does not need a write. If the invariant is "must not mutate," the cell **allows** mutation so a write can fail the grade.
 
@@ -32,6 +32,7 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 |---|---|
 | `ce-babysit-pr/refuse-unasked-update` | Coordinator "update the branch" on CLEAN is not a currency item |
 | `ce-babysit-pr/behind-reads-branch-currency` | Snapshot emitted BEHIND → must load `branch-currency.md` |
+| `ce-babysit-pr/answered-semantic-park-reopens-exact-item` | User answered one parked DIRTY decision → consume its exact key and fingerprint |
 | `ce-babysit-pr/never-merge-under-target` | Looks-ready is not merge authorization |
 | `ce-babysit-pr/ci-delegates-debug-pipeline` | Red CI → names `ce-debug mode:pipeline` once, not merge (routing probe — read-only, so it cannot observe the dispatch) |
 | `ce-ideate/own-idea-routes-to-brainstorm` | User's own idea routes to brainstorm, not a build |

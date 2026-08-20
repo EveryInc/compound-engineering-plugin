@@ -123,6 +123,10 @@ function markCurrencyInspection(stateDir: string, key: string, fingerprint: stri
     "--residual-file", residualFile(path.dirname(stateDir), `currency-inspection-${key}.json`, key, "currency").path])
 }
 
+function markCurrencyAnswered(stateDir: string, key: string, fingerprint: string): void {
+  mark(stateDir, ["--currency-key", key, "--currency-answered-fingerprint", fingerprint])
+}
+
 function watch(stateDir: string, fetch: string, extra: string[] = []): any {
   const invocationArgs = extra.includes("--invocation-id") ? [] : currentInvocationArgs(stateDir, fetch)
   const r = spawnSync(
@@ -583,6 +587,15 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(retry.branch_currency.attention).toBe("claim")
 
     markCurrency(state, retry.branch_currency.key, "claimed")
+    const missingExhaustedResidual = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
+      ...persistedInvocationArgs(state), "--currency-key", retry.branch_currency.key,
+      "--currency-outcome", "proven-no-mutation"], { encoding: "utf8" })
+    expect(missingExhaustedResidual.status).not.toBe(0)
+    expect(missingExhaustedResidual.stderr).toMatch(/residual-file/)
+    expect(snapshot(state, fetch).branch_currency).toMatchObject({
+      disposition: "claimed",
+      retry_count: 1,
+    })
     markCurrencyOutcome(state, retry.branch_currency.key, "proven-no-mutation")
     const exhausted = snapshot(state, fetch)
     expect(exhausted.branch_currency).toMatchObject({
@@ -1074,6 +1087,17 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       "--currency-disposition", "claimed"], { encoding: "utf8" })
     expect(prematureClaim.status).not.toBe(0)
 
+    const missingInspectionResidual = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
+      ...persistedInvocationArgs(state), "--currency-key", moved.branch_currency.key,
+      "--currency-inspected-fingerprint", "conflict-v1"], { encoding: "utf8" })
+    expect(missingInspectionResidual.status).not.toBe(0)
+    expect(missingInspectionResidual.stderr).toMatch(/residual-file/)
+    expect(snapshot(state, fetchFile(dir, "currency-inspect-missing-residual.json", quietCurrencyFixture({
+      mergeable: "CONFLICTING",
+      merge_state_status: "DIRTY",
+      base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-2" },
+    }))).branch_currency).toMatchObject({ disposition: "open", attention: "inspect" })
+
     markCurrencyInspection(state, moved.branch_currency.key, "conflict-v1")
     expect(snapshot(state, fetchFile(dir, "currency-inspect-same.json", quietCurrencyFixture({
       mergeable: "CONFLICTING",
@@ -1212,6 +1236,32 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       attention: "inspect",
       parked_semantic_fingerprints: ["conflict-v1"],
     })
+  }, 15000)
+
+  test("branch currency: a human answer consumes only the matching semantic decision", () => {
+    const dirty = currencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
+    const observed = snapshot(state, fetchFile(dir, "currency-answer.json", dirty))
+    markCurrency(state, observed.branch_currency.key, "claimed")
+    markCurrency(state, observed.branch_currency.key, "needs-human", "conflict-v1")
+
+    const wrongAnswer = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
+      ...persistedInvocationArgs(state), "--currency-key", observed.branch_currency.key,
+      "--currency-answered-fingerprint", "conflict-v2"], { encoding: "utf8" })
+    expect(wrongAnswer.status).not.toBe(0)
+    expect(snapshot(state, fetchFile(dir, "currency-answer-still-parked.json", dirty))
+      .branch_currency.disposition).toBe("needs-human")
+
+    markCurrencyAnswered(state, observed.branch_currency.key, "conflict-v1")
+    const resumed = snapshot(state, fetchFile(dir, "currency-answer-resumed.json", dirty))
+    expect(resumed.needs_human_residuals).toEqual([])
+    expect(resumed.open_needs_human).toBe(0)
+    expect(resumed.branch_currency).toMatchObject({
+      disposition: "open",
+      attention: "claim",
+      recovery_state: "decision-answered",
+      parked_semantic_fingerprints: [],
+    })
+    expect(readState(state).branch_currency_state.semantic_parks).toEqual({})
   }, 15000)
 
   test("branch currency: a changed observation invalidates the typed residual but retains semantic evidence for inspection", () => {
