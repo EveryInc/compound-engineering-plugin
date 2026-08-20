@@ -7,6 +7,7 @@ import { extractBashBlocks } from "./fenced-blocks"
 
 const SKILL_DIR = path.join(import.meta.dir, "..", "..", "skills", "ce-resolve-pr-feedback")
 const FULL_MODE = readFileSync(path.join(SKILL_DIR, "references", "full-mode.md"), "utf8")
+const TARGETED_MODE = readFileSync(path.join(SKILL_DIR, "references", "targeted-mode.md"), "utf8")
 const REPLY_SCRIPT = path.join(SKILL_DIR, "scripts", "reply-to-pr-thread")
 
 const blocks = extractBashBlocks(FULL_MODE).map((b) => b.body)
@@ -91,7 +92,9 @@ describe("ce-resolve-pr-feedback reply bodies keep real newlines", () => {
     expect(FULL_MODE).toMatch(/visible, submitted substantive reply[^.]+authoritative thread resolution/i)
     expect(FULL_MODE).toMatch(/resolution-pending[\s\S]{0,220}do not repost[^;]+reapply/i)
     expect(FULL_MODE).toMatch(/only resolution-pending[^.]+skip steps 3-6[^.]+step 7/i)
-    expect(FULL_MODE).toMatch(/verify the existing reply[^.]+re-fetch pending-review state[^.]+resolve without reposting or reapplying/i)
+    expect(FULL_MODE).toMatch(/resolution-pending[^.]+skips only step 1[^.]+runs steps 2-4/i)
+    expect(FULL_MODE).toMatch(/do not judge, fix, or post again/i)
+    expect(TARGETED_MODE).toMatch(/completion check before judgment[\s\S]{0,260}complete the missing resolution without posting again/i)
   })
 
   test("top-level PR comment replies also use a heredoc body", () => {

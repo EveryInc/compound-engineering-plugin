@@ -165,7 +165,7 @@ git push
 
 ## 7. Reply and Resolve
 
-After the push succeeds, post replies and resolve where applicable. The done condition for an ordinary review thread is one visible, submitted substantive reply plus authoritative resolution; never repeat a satisfied half of that condition. Post for every newly handled item: fix-list items use the fixer's `reply_text`; reply-list and human-list items use the reply text you composed in step 3. For resolution-pending threads, verify the existing reply is visible and submitted, re-fetch pending-review state, then resolve without reposting or reapplying. A **class item** carries multiple covered feedback IDs (`feedback_ids`/`feedback_types` from its fixer) — reply to and resolve *every* one, posting the shared `reply_text` on each thread, not just the first; a covered thread left unresolved re-actionizes in the next babysit loop. The mechanism depends on the feedback type.
+After the push succeeds, post replies and resolve where applicable. The done condition for an ordinary review thread is one visible, submitted substantive reply plus authoritative resolution; satisfy each condition independently and never repeat a satisfied half. Post for every newly handled item: fix-list items use the fixer's `reply_text`; reply-list and human-list items use the reply text you composed in step 3. A **class item** carries multiple covered feedback IDs (`feedback_ids`/`feedback_types` from its fixer) — reply to and resolve *every* one, posting the shared `reply_text` on each thread, not just the first; a covered thread left unresolved re-actionizes in the next babysit loop. The mechanism depends on the feedback type.
 
 ### Reply format
 
@@ -174,6 +174,8 @@ All replies quote the relevant part of the original feedback for continuity — 
 For `needs-human` verdicts, post the natural-sounding reply but do NOT resolve the thread. Leave it open for human input.
 
 ### Review threads
+
+For every calling mode, select the first unsatisfied completion condition before acting. A thread with no visible submitted substantive reply runs steps 0-4. A `resolution-pending` thread skips only step 1, uses its existing reply IDs for step 2, and runs steps 2-4; do not judge, fix, or post again. A `needs-human` thread stops after its visible submitted reply and remains unresolved.
 
 0. **Verify the thread ID** before replying. GitHub Enterprise can return inconsistent node IDs for the same thread depending on the query path. Always confirm the ID from `get-pr-comments` resolves to the correct thread using [scripts/get-thread-for-comment](../scripts/get-thread-for-comment) with the comment's numeric URL ID. Extract the numeric comment ID from the comment URL (e.g. `discussion_r2589700` → `2589700`) for the `gh api` call; if the bundled script is missing, use `gh api` to inspect the review thread instead:
 ```bash

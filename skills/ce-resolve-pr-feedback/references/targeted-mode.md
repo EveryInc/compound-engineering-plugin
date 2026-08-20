@@ -35,6 +35,8 @@ If this prints anything, stop. Tell the user they have an unsubmitted review on 
 
 ## 2. Judge, Fix, Reply, Resolve
 
+Apply Full Mode step 7's independent reply/resolution completion check before judgment. When the target is already `resolution-pending`, that shared step owns the only remaining work; skip judgment, fixing, validation, and commit, then complete the missing resolution without posting again.
+
 **Judge first (the gate).** Apply the rubric in `references/evaluation-rubric.md` to this one thread, in your own context. Account for `isOutdated` and the location fields (`line`, `originalLine`, `startLine`, `originalStartLine`) -- targeted threads can be outdated too and need the same relocation handling. The cross-item reasoning in the rubric is a no-op for a single thread, but the read-depth and divert logic apply in full: deep-read (callers, invariants, `git blame`/PR rationale for author intent) before accepting a contestable finding or overriding code that looks deliberate. This is the legitimacy check — don't fix on the reviewer's authority alone.
 
 **Then act on the verdict:**
