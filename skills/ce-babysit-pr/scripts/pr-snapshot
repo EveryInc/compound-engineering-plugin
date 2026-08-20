@@ -1808,6 +1808,51 @@ def _normalize_legacy_source_state(state, threads, feedback):
     state.pop("needs_human_check_observations", None)
 
 
+def _human_decision_identity(decision):
+    if not isinstance(decision, dict):
+        return None
+    residual, sources = decision.get("residual"), decision.get("sources")
+    if not isinstance(residual, dict) or not isinstance(sources, list):
+        return None
+    return _decision_id(residual, sources)
+
+
+def _replace_human_decisions(
+        state, kept, previous=None, threads=None, feedback=None, checks=None):
+    """Replace canonical decisions and reactivate exact surviving source evidence."""
+    previous = previous if isinstance(previous, list) else state.get("human_decisions")
+    previous = previous if isinstance(previous, list) else []
+    kept_identities = {
+        identity for decision in kept
+        if (identity := _human_decision_identity(decision)) is not None
+    }
+    removed = [
+        decision for decision in previous
+        if (_human_decision_identity(decision) not in kept_identities)
+    ]
+    state["human_decisions"] = kept
+
+    threads = threads if isinstance(threads, dict) else state.get("threads", {})
+    feedback = feedback if isinstance(feedback, dict) else state.get("feedback", {})
+    checks = checks if isinstance(checks, dict) else state.get("checks", {})
+    for decision in removed:
+        if not isinstance(decision, dict):
+            continue
+        for source in decision.get("sources") or []:
+            if not isinstance(source, dict):
+                continue
+            kind, source_id = source.get("kind"), source.get("id")
+            current = _current_source_observation(
+                state, kind, source_id, threads, feedback, checks)
+            if current != source.get("observation") or kind != "currency":
+                continue
+            # Review and CI retain ordinary open state; currency has an explicit claim to clear.
+            currency = _load_branch_currency_state(state)
+            item = currency.get("items", {}).get(source_id)
+            if isinstance(item, dict):
+                _reactivate_currency_item(currency, item)
+
+
 def _reconcile_human_decisions(state, threads, feedback, checks, now):
     """Let canonical decisions alone suppress exact evidence; activity is never an answer."""
     current = state.get("human_decisions")
@@ -1847,6 +1892,8 @@ def _reconcile_human_decisions(state, threads, feedback, checks, now):
         seen.add(normalized["id"])
         kept.append(normalized)
 
+    _replace_human_decisions(
+        state, kept, current, threads=threads, feedback=feedback, checks=checks)
     kept_answers = []
     for decision in answered:
         if not isinstance(decision, dict) or not isinstance(decision.get("answer"), str):
@@ -1862,7 +1909,6 @@ def _reconcile_human_decisions(state, threads, feedback, checks, now):
         if matching_actionable:
             kept_answers.append(decision)
 
-    state["human_decisions"] = kept
     state["answered_human_decisions"] = kept_answers
     covered = {
         (source["kind"], source["id"])
@@ -3140,11 +3186,12 @@ def _park_human_decision(state, residual, args, now):
 
 
 def _invalidate_human_source(state, item_id, kind):
-    state["human_decisions"] = [
+    kept = [
         decision for decision in state.get("human_decisions") or []
         if not any(source.get("id") == item_id and source.get("kind") == kind
                    for source in decision.get("sources") or [] if isinstance(source, dict))
     ]
+    _replace_human_decisions(state, kept)
 
 
 def _needs_human_source_is_covered(state, item_id, kind):
@@ -3155,23 +3202,6 @@ def _needs_human_source_is_covered(state, item_id, kind):
         for source in decision.get("sources") or []
         if isinstance(source, dict)
     )
-
-
-def _reactivate_answered_sources(state, decision):
-    threads = state.get("threads", {})
-    feedback = state.get("feedback", {})
-    checks = state.get("checks", {})
-    for source in decision.get("sources") or []:
-        kind, source_id = source.get("kind"), source.get("id")
-        current = _current_source_observation(
-            state, kind, source_id, threads, feedback, checks)
-        if current != source.get("observation") or kind != "currency":
-            continue
-        # Review and CI sources retain ordinary open state; currency has an explicit claim to clear.
-        currency = _load_branch_currency_state(state)
-        item = currency.get("items", {}).get(source_id)
-        if isinstance(item, dict):
-            _reactivate_currency_item(currency, item)
 
 
 def _answer_human_decision(state, decision_id, answer_file, now):
@@ -3188,11 +3218,11 @@ def _answer_human_decision(state, decision_id, answer_file, now):
         if existing and existing.get("answer") == answer:
             return existing
         raise SystemExit("--answer-decision must name an exact current decision ID")
-    state["human_decisions"] = [
+    kept = [
         decision for decision in state.get("human_decisions") or []
         if not isinstance(decision, dict) or decision.get("id") != decision_id
     ]
-    _reactivate_answered_sources(state, current)
+    _replace_human_decisions(state, kept)
     answered = {**json.loads(json.dumps(current)), "answer": answer, "answered_at": _iso(now)}
     state.setdefault("answered_human_decisions", []).append(answered)
     state["last_action"] = f"answered human decision {decision_id}"

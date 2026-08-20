@@ -765,6 +765,64 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       .branch_currency_state.items[answered.branch_currency.key].mutation_requires_answer).toBe(false)
   }, 30000)
 
+  test("branch currency: every grouped decision removal reactivates exact claimed evidence", () => {
+    const parkGroupedAmbiguous = (label: string) => {
+      const sd = path.join(dir, `currency-grouped-${label}`)
+      const fixture = quietCurrencyFixture({
+        threads: [{ thread_id: "T1", last_comment_id: "C1", last_comment_at: "t1" }],
+      })
+      const fetch = fetchFile(dir, `currency-grouped-${label}-1.json`, fixture)
+      const observed = snapshot(sd, fetch)
+      markCurrency(sd, observed.branch_currency.key, "claimed")
+      const grouped = {
+        ...residualFile(
+          dir, `currency-grouped-${label}-unused.json`, observed.branch_currency.key, "currency").value,
+        sources: [
+          { id: observed.branch_currency.key, kind: "currency" },
+          { id: "T1", kind: "thread" },
+        ],
+        thread_urls: ["https://example.test/thread/T1"],
+      }
+      mark(sd, ["--currency-key", observed.branch_currency.key,
+        "--currency-outcome", "ambiguous", "--residual-file",
+        fetchFile(dir, `currency-grouped-${label}-residual.json`, grouped)])
+      const parked = snapshot(sd, fetch)
+      expect(parked.branch_currency).toMatchObject({
+        disposition: "claimed",
+        recovery_state: "ambiguous",
+        mutation_requires_answer: true,
+        attention: null,
+      })
+      return { sd, fixture, fetch, key: observed.branch_currency.key }
+    }
+
+    for (const route of ["explicit", "reconciled"] as const) {
+      const current = parkGroupedAmbiguous(route)
+      const nextFetch = route === "explicit" ? current.fetch : fetchFile(
+        dir, "currency-grouped-reconciled-2.json", {
+          ...current.fixture,
+          threads: [{ thread_id: "T1", last_comment_id: "C2", last_comment_at: "t2" }],
+        })
+      if (route === "explicit") {
+        mark(current.sd, ["--thread", "T1", "--disposition", "open"])
+      }
+      const reopened = snapshot(current.sd, nextFetch)
+      expect(reopened.needs_human_residuals).toEqual([])
+      expect(reopened.actionable.threads.map((item: any) => item.thread_id)).toEqual(["T1"])
+      expect(reopened.branch_currency).toMatchObject({
+        disposition: "open",
+        recovery_state: "ambiguous",
+        mutation_requires_answer: true,
+        attention: "decide",
+      })
+      const unsafeClaim = spawnSync("python3", [SCRIPT, "mark", "--state-dir", current.sd,
+        ...persistedInvocationArgs(current.sd), "--currency-key", current.key,
+        "--currency-disposition", "claimed"], { encoding: "utf8" })
+      expect(unsafeClaim.status).not.toBe(0)
+      expect(unsafeClaim.stderr).toMatch(/exact human answer/)
+    }
+  }, 30000)
+
   test("branch currency: mutation observation consumes the attempt and remains reconciliation-only", () => {
     const fetch = fetchFile(dir, "currency-consumed.json", quietCurrencyFixture())
     const observed = snapshot(state, fetch)
