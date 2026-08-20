@@ -631,26 +631,25 @@ compose_large_diff_instruction() {
 # cross-model-adversarial-review.sh and cross-model-doc-review.sh (kernel parity).
 _HEARTBEAT_PID=""
 start_heartbeat() {
-  local every="${CROSS_MODEL_HEARTBEAT_SECS:-60}" parent_pid="$$" prev
+  local every="${CROSS_MODEL_HEARTBEAT_SECS:-60}" parent_pid="$$"
   # Floor to 1s: a non-numeric or 0 value would make `sleep` return instantly and
   # spin the loop, flooding out.log into the runner's byte cap.
   case "$every" in ''|*[!0-9]*) every=60 ;; esac; [ "$every" -lt 1 ] && every=1
-  # Give the heartbeat its own process group so teardown also interrupts the
-  # current sleep; killing only the shell can leave wait blocked for the full interval.
-  case "$-" in *m*) prev=1;; *) prev=0;; esac
-  set -m
-  ( local t0 n; t0="$(date +%s)"
+  ( local t0 n sleeper=""
+    trap 'kill "${sleeper:-}" 2>/dev/null || true; exit 0' TERM INT
+    t0="$(date +%s)"
     while kill -0 "$parent_pid" 2>/dev/null; do
-      sleep "$every"
+      sleep "$every" & sleeper=$!
+      wait "$sleeper" 2>/dev/null || exit 0
+      sleeper=""
       kill -0 "$parent_pid" 2>/dev/null || break
       n="$(date +%s)"; log "peer alive ($(( n - t0 ))s elapsed)"
     done ) &
   _HEARTBEAT_PID=$!
-  [ "$prev" = 0 ] && set +m
 }
 stop_heartbeat() {
   if [ -n "$_HEARTBEAT_PID" ]; then
-    kill -TERM -- -"$_HEARTBEAT_PID" 2>/dev/null || kill "$_HEARTBEAT_PID" 2>/dev/null || true
+    kill "$_HEARTBEAT_PID" 2>/dev/null || true
     wait "$_HEARTBEAT_PID" 2>/dev/null || true
   fi
   _HEARTBEAT_PID=""
