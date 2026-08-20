@@ -1714,6 +1714,34 @@ def _source_is_actionable(state, kind, source_id, threads, feedback, checks):
     return False
 
 
+def _source_can_enter_human_decision(state, kind, source_id, threads, feedback, checks):
+    """Accept exact current evidence even when ordinary dispatch already suppresses it."""
+    if _current_source_observation(state, kind, source_id, threads, feedback, checks) is None:
+        return False
+    if kind != "currency":
+        return True
+    currency = _load_branch_currency_state(state)
+    record = currency.get("items", {}).get(source_id)
+    return (currency.get("current_key") == source_id and isinstance(record, dict)
+            and record.get("disposition") in (DISPOSITION_OPEN, CURRENCY_CLAIMED))
+
+
+def _release_ordinary_suppression_for_decision(state, sources, threads, feedback):
+    """Make canonical decision coverage the sole suppression owner for review and CI."""
+    head = state.get("head_sha")
+    dispatched_checks = state.get("ci_dispatched", {}).get(head)
+    for source in sources:
+        kind, source_id = source.get("kind"), source.get("id")
+        record = (threads.get(source_id) if kind == "thread"
+                  else feedback.get(source_id) if kind in ("comment", "review") else None)
+        if isinstance(record, dict):
+            record["disposition"] = DISPOSITION_OPEN
+            record.pop("acted_identity", None)
+        elif kind == "check" and isinstance(dispatched_checks, list):
+            state["ci_dispatched"][head] = [
+                key for key in state["ci_dispatched"][head] if key != source_id]
+
+
 def _migrate_legacy_check_observation(state, source_id, legacy_observations, checks):
     legacy = legacy_observations.get(source_id)
     current = _current_source_observation(state, "check", source_id, {}, {}, checks)
@@ -3158,8 +3186,9 @@ def _park_human_decision(state, residual, args, now):
 
     for source in residual["sources"]:
         kind, source_id = _source_identity(source)
-        if not _source_is_actionable(state, kind, source_id, threads, feedback, checks):
-            raise SystemExit(f"needs-human source is not current actionable state: {kind} {source_id}")
+        if not _source_can_enter_human_decision(
+                state, kind, source_id, threads, feedback, checks):
+            raise SystemExit(f"needs-human source is not current decision evidence: {kind} {source_id}")
         if kind == "currency" and args.semantic_conflict_fingerprint:
             currency = _load_branch_currency_state(state)
             item = currency["items"][source_id]
@@ -3202,6 +3231,7 @@ def _park_human_decision(state, residual, args, now):
                 state, source["kind"], source["id"], source["observation"])
             for source in sources):
         raise SystemExit("source observations already have a recorded human answer")
+    _release_ordinary_suppression_for_decision(state, sources, threads, feedback)
     decision = _decision_record(residual, sources, _iso(now))
     if any(item.get("id") == decision["id"] for item in decisions if isinstance(item, dict)):
         return decision

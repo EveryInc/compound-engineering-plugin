@@ -1088,7 +1088,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       ...persistedInvocationArgs(currencyState), "--disposition", "needs-human",
       "--residual-file", residual.path], { encoding: "utf8" })
     expect(result.status).not.toBe(0)
-    expect(result.stderr).toMatch(/not current actionable state/)
+    expect(result.stderr).toMatch(/not current decision evidence/)
     expect(snapshot(currencyState, fetch).needs_human_residuals).toEqual([])
   }, 15000)
 
@@ -2427,6 +2427,38 @@ print(json.dumps({
     expect(reopened.needs_human_residuals).toEqual([])
     expect(reopened.actionable.threads.map((item: any) => item.thread_id)).toEqual(["T1"])
     expect(reopened.actionable.ci.map((item: any) => item.key)).toEqual(["CI/test"])
+  })
+
+  test("a decision atomically replaces ordinary dispatch as the suppression owner", () => {
+    const sd = path.join(dir, "decision-after-dispatch")
+    const fixture = {
+      ...FAILING,
+      threads: [],
+      feedback: [{ id: "IC_1", kind: "comment", author: "reviewer", edit_id: "e1" }],
+    }
+    const fetch = fetchFile(dir, "decision-after-dispatch.json", fixture)
+    snapshot(sd, fetch)
+    mark(sd, ["--comment", "IC_1", "--disposition", "dispatched"])
+    mark(sd, ["--check", "CI/test", "--disposition", "dispatched"])
+    expect(snapshot(sd, fetch).counts).toMatchObject({ comments: 0, ci: 0 })
+
+    const grouped = {
+      ...residualFile(dir, "decision-after-dispatch-unused.json", "IC_1", "comment").value,
+      sources: [{ id: "IC_1", kind: "comment" }, { id: "CI/test", kind: "check" }],
+    }
+    const groupedPath = fetchFile(dir, "decision-after-dispatch-residual.json", grouped)
+    mark(sd, ["--disposition", "needs-human", "--residual-file", groupedPath])
+    const parked = snapshot(sd, fetch)
+    expectCurrentDecision(parked.needs_human_residuals, grouped)
+    expect(parked.counts).toMatchObject({ comments: 0, ci: 0 })
+    const parkedState = JSON.parse(readFileSync(path.join(sd, "state.json"), "utf8"))
+    expect(parkedState.feedback.IC_1.disposition).toBe("open")
+    expect(parkedState.ci_dispatched.s1).not.toContain("CI/test")
+
+    markDecisionAnswered(sd, parked.human_decisions[0].decision_id)
+    const answered = snapshot(sd, fetch)
+    expect(answered.actionable.comments.map((item: any) => item.id)).toEqual(["IC_1"])
+    expect(answered.actionable.ci.map((item: any) => item.key)).toEqual(["CI/test"])
   })
 
   test("a check-only human answer reactivates the exact source and clears after consumption", () => {
