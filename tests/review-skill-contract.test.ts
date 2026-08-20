@@ -1371,24 +1371,25 @@ describe("cross-model peer skip legibility", () => {
     expect(dispatch).toMatch(/failed same-route rate-limit retry/)
   })
 
-  // A restricted host sandbox (e.g. a Codex task with network disabled) denies
-  // the spawned peer CLI network/keychain, producing the exact same
-  // `Not logged in` signal as a genuine account logout. The classifier surfaces
-  // that string verbatim, so each cross-model reference must scope an
-  // auth-shaped peer failure to the peer's execution context and forbid the
-  // account-logout / run-login conclusion — otherwise the agent misreports the
-  // user as logged out. This is harness-agnostic prose (no Codex-only
-  // mechanism), so it must hold across code review, doc review, and pov alike.
+  // Authentication is actionable only after the provider-capable boundary is
+  // positively established. Before that boundary a restricted host can produce
+  // the same login-shaped signal as a genuine logout. This condition is
+  // harness-agnostic and must hold across code review, doc review, and pov.
   const authScopeRefs = [
     "skills/ce-code-review/references/cross-model-review.md",
     "skills/ce-doc-review/references/cross-model-review.md",
     "skills/ce-pov/references/cross-model-panel.md",
   ]
   for (const reference of authScopeRefs) {
-    test(`${reference} scopes an auth-shaped peer failure to execution context`, async () => {
+    test(`${reference} classifies auth from the provider-capable boundary`, async () => {
       // Collapse whitespace: ce-pov hard-wraps prose, so the anchor phrases can
       // straddle a line break while the code-review/doc-review bullets do not.
       const src = (await readRepoFile(reference)).replace(/\s+/g, " ")
+      expect(src).toContain(
+        "Attribute an account authentication failure only after provider-capable dispatch is positively established",
+      )
+      expect(src).toContain("login or credential-refresh remediation")
+      expect(src).toContain("Without that proof")
       expect(src).toContain("describes only the peer's execution context")
       expect(src).toContain(
         "never report it as the user's account being logged out",

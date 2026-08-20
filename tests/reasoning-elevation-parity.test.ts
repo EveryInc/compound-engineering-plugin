@@ -43,8 +43,11 @@ describe("reasoning-elevation engine parity", () => {
     const src = await readFile(path.join(PLUGIN_ROOT, CONSUMER_SKILLS[0], ELEVATION_ASSET), "utf8")
 
     expect(src).not.toContain("claude auth status")
+    expect(src).not.toContain("`claude` not authenticated")
     expect(src).toContain("the detached worker's provider-capable call is authoritative")
     expect(src).toContain("an authentication failure there follows Recovery")
+    expect(src).toContain("Once provider-capable dispatch is established")
+    expect(src).toContain("login or credential-refresh remediation")
   })
 
   // Narrow guard: the legacy "fable" token must not return to an always-loaded
