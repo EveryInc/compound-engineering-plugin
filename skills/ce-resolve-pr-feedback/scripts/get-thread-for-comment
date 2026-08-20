@@ -76,4 +76,9 @@ jq -e -n --slurpfile pages "$tmp_threads" --arg cid "$COMMENT_NODE_ID" '
   [$pages[0][].data.repository.pullRequest.reviewThreads.nodes[]
    | select(any(.comments.nodes[]; .id == $cid))]
   | if length == 0 then error("No thread found for comment \($cid)") else .[0] end
+  | . + {
+      root_comment_id: (.comments.nodes[0].url
+        | capture("discussion_r(?<id>[0-9]+)").id
+        | tonumber)
+    }
 '

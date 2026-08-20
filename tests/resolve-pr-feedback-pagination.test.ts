@@ -134,7 +134,10 @@ describe("ce-resolve-pr-feedback scripts paginate GraphQL connections (issue #79
       )
 
       expect(result.status, result.stderr).toBe(0)
-      expect(JSON.parse(result.stdout)).toEqual(thread)
+      expect(JSON.parse(result.stdout)).toEqual({
+        ...thread,
+        root_comment_id: 1,
+      })
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -281,7 +284,7 @@ fi
       // silently dropped the request (#1435 eval). Only a blank body (pc3) is filtered.
       expect(JSON.parse(result.stdout)).toEqual({
         pending_review: "pending-1",
-        review_threads: [{ node: unresolved }],
+        review_threads: [{ node: unresolved, root_comment_id: 1 }],
         pr_comments: [
           { id: "pc1", author: { login: "reviewer" }, body: "top-level note" },
           {

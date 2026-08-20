@@ -29,7 +29,7 @@ if [ -z "$OWNER" ] || [ -z "$REPO" ]; then
     exit 1
 fi
 
-# Output is a JSON object with four keys:
+# Output is a JSON object with these keys:
 #   pending_review   - node ID of the viewer's own unsubmitted (PENDING) review
 #                      on this PR, or null. Replies posted while one exists get
 #                      silently absorbed into that draft and stay invisible
@@ -37,9 +37,9 @@ fi
 #                      reply loop when this is non-null. Costs no extra request:
 #                      the reviews query below already selects `state`, and a
 #                      PENDING review is only visible to its own author.
-#   review_threads   - unresolved inline review threads, edge-wrapped as
-#                      [{ node: { id, isResolved, isOutdated, path, line, ...,
-#                                 comments: { nodes: [...] } } }]
+#   review_threads   - unresolved inline review threads, edge-wrapped with the
+#                      root numeric REST comment ID used for direct replies:
+#                      [{ root_comment_id, node: { id, isResolved, ... } }]
 #   pr_comments      - non-empty top-level PR conversation comments
 #   review_bodies    - non-empty review submission bodies
 #   pr_author        - the PR author's login, or null
@@ -161,7 +161,12 @@ jq -n \
       | select(.state == "PENDING")
       | select(($viewer == null) or (.author.login == $viewer))
       | .id) // null),
-    review_threads: [$unresolved[] | { node: . }],
+    review_threads: [$unresolved[] | {
+      node: .,
+      root_comment_id: (.comments.nodes[0].url
+        | capture("discussion_r(?<id>[0-9]+)").id
+        | tonumber)
+    }],
     pr_comments: [$all_comments[]
       | select((.body // "") | test("^\\s*$") | not)],
     review_bodies: [$all_reviews[]

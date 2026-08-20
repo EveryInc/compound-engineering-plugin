@@ -1,45 +1,57 @@
 #!/usr/bin/env bash
 
-# Replies to a PR review thread. Body is read from stdin to avoid
-# shell escaping issues with markdown (quotes, newlines, etc.).
-#
-# GraphQL rather than REST (`POST pulls/{n}/comments/{id}/replies`) because the
-# surrounding pipeline is thread-node-ID-native: get-pr-comments returns PRRT_
-# IDs and resolveReviewThread has no REST equivalent, so replying by thread ID
-# keeps one ID currency end to end. REST addresses a *comment*, which would mean
-# carrying the thread's root comment databaseId purely for this call. Both
-# produce a real inline threaded reply -- this is not a capability difference.
-#
-# Omitting pullRequestReviewId below means the reply is absorbed into the
-# viewer's PENDING review when one exists, returning success while staying
-# invisible until that draft is submitted. The modes guard against this via
-# get-pr-comments' pending_review key; do not add a reviewId here without one.
+# Replies directly to a PR review thread's root comment. Body is read from
+# stdin to preserve Markdown quotes and newlines. The REST reply endpoint is
+# load-bearing: GraphQL addPullRequestReviewThreadReply can attach the reply to
+# a pending review and return success before the reply is submitted or visible.
 
 set -e
 
-if [ $# -lt 1 ]; then
-    echo "Usage: echo 'reply body' | reply-to-pr-thread THREAD_ID"
-    echo "Example: echo 'Addressed: added null check' | reply-to-pr-thread PRRT_kwDOABC123"
+if [ $# -lt 2 ]; then
+    echo "Usage: reply-to-pr-thread PR_NUMBER ROOT_COMMENT_ID [OWNER/REPO] < reply-body.md"
+    echo "Example: reply-to-pr-thread 123 456789 EveryInc/cora < reply-body.md"
     exit 1
 fi
 
-THREAD_ID=$1
+PR_NUMBER=$1
+ROOT_COMMENT_ID=$2
 BODY=$(cat)
+
+if [ -n "$3" ]; then
+    OWNER=$(echo "$3" | cut -d/ -f1)
+    REPO=$(echo "$3" | cut -d/ -f2)
+else
+    OWNER=$(gh repo view --json owner -q .owner.login 2>/dev/null || true)
+    REPO=$(gh repo view --json name -q .name 2>/dev/null || true)
+fi
+
+if [ -z "$OWNER" ] || [ -z "$REPO" ]; then
+    echo "Error: could not resolve owner/repo. Pass OWNER/REPO as the third argument." >&2
+    exit 1
+fi
+
+case "$PR_NUMBER" in
+    ''|*[!0-9]*) echo "Error: PR_NUMBER must be numeric." >&2; exit 1 ;;
+esac
+
+case "$ROOT_COMMENT_ID" in
+    ''|*[!0-9]*) echo "Error: ROOT_COMMENT_ID must be numeric." >&2; exit 1 ;;
+esac
 
 if [ -z "$BODY" ]; then
     echo "Error: No body provided on stdin."
     exit 1
 fi
 
-gh api graphql -f threadId="$THREAD_ID" -f body="$BODY" -f query='
-mutation ReplyToReviewThread($threadId: ID!, $body: String!) {
-  addPullRequestReviewThreadReply(input: {
-    pullRequestReviewThreadId: $threadId
-    body: $body
-  }) {
-    comment {
-      id
-      url
-    }
-  }
-}'
+gh api --method POST \
+  "repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments/$ROOT_COMMENT_ID/replies" \
+  -f body="$BODY"
+
+PENDING_REVIEW=$(gh api --paginate \
+  "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews" \
+  --jq '.[] | select(.state == "PENDING") | .id')
+
+if [ -n "$PENDING_REVIEW" ]; then
+    echo "Error: a pending review appeared after posting. Stop without resolving the thread; do not submit or discard the review." >&2
+    exit 2
+fi

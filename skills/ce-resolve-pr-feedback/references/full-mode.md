@@ -33,7 +33,7 @@ Returns a JSON object with these keys:
 | Key | Contents | Has file/line? | Resolvable? |
 |-----|----------|---------------|-------------|
 | `pending_review` | Node ID of your own unsubmitted (PENDING) review on this PR, or `null` | n/a | n/a |
-| `review_threads` | Unresolved inline code review threads (includes outdated; each carries its `isOutdated` flag so line drift can be accounted for) | Yes | Yes (GraphQL) |
+| `review_threads` | Unresolved inline code review threads (includes outdated); each wrapper carries `root_comment_id` for REST replies and each node carries its GraphQL thread ID for resolution | Yes | Yes (GraphQL) |
 | `pr_comments` | Top-level PR conversation comments | No | No |
 | `review_bodies` | Review submission bodies with non-empty text | No | No |
 | `pr_author` / `viewer` | The PR author's login and the acting account's login, for judging identity in step 2 | n/a | n/a |
@@ -177,35 +177,46 @@ SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback
 GH_HOST=<derived-host> GH_REPO=OWNER/REPO gh api repos/{owner}/{repo}/pulls/comments/COMMENT_ID --jq .node_id
 GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/get-thread-for-comment" PR_NUMBER COMMENT_NODE_ID OWNER/REPO
 ```
-The returned `id` is the authoritative thread ID to use for reply and resolve. If it differs from what `get-pr-comments` returned, use the one from this script.
+The returned `id` is the authoritative thread ID for resolution, and `root_comment_id` is the numeric ID of the thread's first comment for the REST reply. If the thread ID differs from what `get-pr-comments` returned, use the one from this script.
 
-1. **Reply** using [scripts/reply-to-pr-thread](../scripts/reply-to-pr-thread). If the bundled script is missing, reply with `gh api --method POST repos/{owner}/{repo}/pulls/PR_NUMBER/comments/COMMENT_ID/replies -f body=...` against the thread's first comment — never `gh pr review` or a `/reviews` POST, which open an unsubmitted draft review that swallows this reply and every one after it:
+1. **Reply directly to the root comment over REST** using [scripts/reply-to-pr-thread](../scripts/reply-to-pr-thread). If the bundled script is missing, use the same `POST repos/{owner}/{repo}/pulls/PR_NUMBER/comments/ROOT_COMMENT_ID/replies` endpoint. Do not substitute `addPullRequestReviewThreadReply`, `gh pr review`, or a `/reviews` POST: those operations participate in review-submission state, while a successful reply must be immediately submitted and visible.
 Feed the body through a quoted heredoc, never `echo "..."` or `printf`. A reply is multi-line Markdown (a quote line, a blank line, then the response), and `echo` neither interprets `\n` nor survives a body composed with escape sequences — the reviewer then sees a single run-on line containing literal `\n` characters. The quoted delimiter (`<<'EOF'`) also stops the shell from expanding backticks, `$`, and `!` inside quoted code:
 ```bash
 SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>";
-GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/reply-to-pr-thread" THREAD_ID <<'EOF'
+GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/reply-to-pr-thread" PR_NUMBER ROOT_COMMENT_ID OWNER/REPO <<'EOF'
 > the specific sentence being addressed from the reviewer's comment
 
 Fixed in abc1234 — the lookup now null-checks before dereferencing.
 EOF
 ```
-Check that the returned comment URL contains the correct `OWNER/REPO` and PR number before proceeding.
+The helper exits nonzero if a pending review is visible after the POST. Stop without resolving on that error; do not submit or discard the review. Check that the returned comment URL contains the correct `OWNER/REPO` and PR number before proceeding.
 
-2. **Verify the posted body renders as Markdown** before resolving. Take the numeric ID from the returned URL fragment (`#discussion_r2589700` → `2589700`) and read back what GitHub actually stored:
+2. **Verify the REST-created reply is visible and submitted** before resolving. Take its numeric ID from the returned URL fragment (`#discussion_r2589700` → `2589700`) and read back what GitHub stored:
 ```bash
-GH_HOST=<derived-host> GH_REPO=OWNER/REPO gh api repos/{owner}/{repo}/pulls/comments/COMMENT_ID --jq .body
+GH_HOST=<derived-host> GH_REPO=OWNER/REPO gh api repos/{owner}/{repo}/pulls/comments/REPLY_COMMENT_ID --jq '{body, pull_request_review_id}'
 ```
-The output must show real line breaks. If instead it shows `\n` (or `\n\n`) as literal backslash-n characters inside one line, the body was posted escaped: **do not resolve the thread**. Fix it first by rewriting the body through a heredoc, then re-verify:
+The body must show real line breaks. If instead it shows `\n` (or `\n\n`) as literal backslash-n characters inside one line, the body was posted escaped: **do not resolve the thread**. Fix it first by rewriting the body through a heredoc, then re-verify:
 ```bash
-GH_HOST=<derived-host> GH_REPO=OWNER/REPO gh api --method PATCH repos/{owner}/{repo}/pulls/comments/COMMENT_ID -f body="$(cat <<'EOF'
+GH_HOST=<derived-host> GH_REPO=OWNER/REPO gh api --method PATCH repos/{owner}/{repo}/pulls/comments/REPLY_COMMENT_ID -f body="$(cat <<'EOF'
 > the specific sentence being addressed from the reviewer's comment
 
 Fixed in abc1234 — the lookup now null-checks before dereferencing.
 EOF
 )"
 ```
+If `pull_request_review_id` is non-null, fetch that review and require a state other than `PENDING`; a pending state means the reply is not submitted, regardless of the successful POST response:
+```bash
+GH_HOST=<derived-host> GH_REPO=OWNER/REPO gh api repos/{owner}/{repo}/pulls/PR_NUMBER/reviews/REVIEW_ID --jq .state
+```
 
-3. **Resolve** using [scripts/resolve-pr-thread](../scripts/resolve-pr-thread) (if the bundled script is missing, resolve the thread with `gh api` if supported):
+3. **Re-fetch pending-review state after posting.** This closes the race after the initial fetch and detects a draft created during the reply loop:
+```bash
+SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>";
+GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/get-pr-comments" PR_NUMBER OWNER/REPO | jq -r '.pending_review // empty'
+```
+If this prints an ID, stop without resolving any thread from this reply pass. Report the pending review, but do not submit or discard it.
+
+4. **Resolve** using [scripts/resolve-pr-thread](../scripts/resolve-pr-thread) (if the bundled script is missing, resolve the thread with `gh api` if supported):
 ```bash
 SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>";
 GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/resolve-pr-thread" THREAD_ID
