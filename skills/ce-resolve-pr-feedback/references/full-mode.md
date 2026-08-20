@@ -50,9 +50,13 @@ gh api repos/{owner}/{repo}/pulls/PR_NUMBER/comments
 
 ## 2. Triage: Separate New from Pending
 
-Before processing, classify each piece of feedback as **new** or **already handled**.
+Before processing, reconcile the reply and resolution state of each piece of feedback.
 
-**Review threads**: Read the thread's comments. If there's a substantive reply that acknowledges the concern but defers action (e.g., "need to align on this", "going to think through this", or a reply that presents options without resolving), it's a **pending decision** -- don't re-process. If there's only the original reviewer comment(s) with no substantive response, it's **new**.
+**Review threads**: An ordinarily handled thread is complete only when it has both a visible, submitted substantive reply and authoritative thread resolution. Reconcile those conditions independently:
+
+- A reply that explicitly defers a human choice (e.g., "need to align on this", "going to think through this", or options without a decision) is a **pending decision**. Keep the thread open and do not re-process it.
+- A reply that records a completed fix or reply verdict while the thread is still open is **resolution-pending**. Do not repost the reply or reapply the fix; carry the existing visible reply to step 7 and complete only the missing resolution after pending-review state is empty.
+- A thread without either kind of substantive response is **new**.
 
 **PR comments and review bodies**: These have no resolve mechanism, so they reappear on every run. Apply two filters in order:
 
@@ -63,7 +67,7 @@ The distinction is about content, not who posted what. A deferral from a teammat
 
 **Silent drop.** Non-actionable items are dropped without narration. Do not announce, list, or count dropped items in conversation, the task list, or the step 9 summary. Review-bot wrappers from CodeRabbit, Codex, Gemini Code Assist, and Copilot (bodies like "Here are some automated review suggestions...") commonly appear here -- recognize them by their boilerplate content, drop silently. The fetch layer pre-filters only blank bodies. Every identity and surface — the PR author, CI/status bots such as Codecov, review bots — relies on this content-aware check, so identity reuse or format changes cannot silently hide actionable feedback.
 
-If there are no new items across all feedback types, skip steps 3-8 and go straight to step 9.
+If there are no new or resolution-pending items across all feedback types, skip steps 3-8 and go straight to step 9. If only resolution-pending threads remain, skip steps 3-6 and go straight to step 7.
 
 ## 3. Consolidate & Decide (the legitimacy gate)
 
@@ -161,7 +165,7 @@ git push
 
 ## 7. Reply and Resolve
 
-After the push succeeds, post replies and resolve where applicable. Post for every handled item: fix-list items use the fixer's `reply_text`; reply-list and human-list items use the reply text you composed in step 3. A **class item** carries multiple covered feedback IDs (`feedback_ids`/`feedback_types` from its fixer) — reply to and resolve *every* one, posting the shared `reply_text` on each thread, not just the first; a covered thread left unresolved re-actionizes in the next babysit loop. The mechanism depends on the feedback type.
+After the push succeeds, post replies and resolve where applicable. The done condition for an ordinary review thread is one visible, submitted substantive reply plus authoritative resolution; never repeat a satisfied half of that condition. Post for every newly handled item: fix-list items use the fixer's `reply_text`; reply-list and human-list items use the reply text you composed in step 3. For resolution-pending threads, verify the existing reply is visible and submitted, re-fetch pending-review state, then resolve without reposting or reapplying. A **class item** carries multiple covered feedback IDs (`feedback_ids`/`feedback_types` from its fixer) — reply to and resolve *every* one, posting the shared `reply_text` on each thread, not just the first; a covered thread left unresolved re-actionizes in the next babysit loop. The mechanism depends on the feedback type.
 
 ### Reply format
 

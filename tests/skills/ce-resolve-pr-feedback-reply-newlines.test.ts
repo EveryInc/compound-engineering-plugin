@@ -87,6 +87,13 @@ describe("ce-resolve-pr-feedback reply bodies keep real newlines", () => {
     expect(verifySection).toMatch(/do not resolve/i)
   })
 
+  test("full mode reconciles visible replies and thread resolution independently", () => {
+    expect(FULL_MODE).toMatch(/visible, submitted substantive reply[^.]+authoritative thread resolution/i)
+    expect(FULL_MODE).toMatch(/resolution-pending[\s\S]{0,220}do not repost[^;]+reapply/i)
+    expect(FULL_MODE).toMatch(/only resolution-pending[^.]+skip steps 3-6[^.]+step 7/i)
+    expect(FULL_MODE).toMatch(/verify the existing reply[^.]+re-fetch pending-review state[^.]+resolve without reposting or reapplying/i)
+  })
+
   test("top-level PR comment replies also use a heredoc body", () => {
     const commentBlock = blocks.find((b) => b.includes("gh pr comment"))
     expect(commentBlock).toBeDefined()
