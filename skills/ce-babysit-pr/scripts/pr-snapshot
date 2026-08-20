@@ -1577,6 +1577,7 @@ def _check_observation_identity(check):
     if not isinstance(check, dict):
         return None
     return {
+        "head_sha": check.get("head_sha"),
         "conclusion": check.get("conclusion"),
         "details_url": check.get("details_url"),
         "created_at": check.get("created_at"),
@@ -1673,8 +1674,33 @@ def _source_is_actionable(state, kind, source_id, threads, feedback, checks):
     return False
 
 
+def _migrate_legacy_check_observation(state, source_id, legacy_observations, checks):
+    legacy = legacy_observations.get(source_id)
+    current = _current_source_observation(state, "check", source_id, {}, {}, checks)
+    if (not isinstance(legacy, dict) or not isinstance(current, dict)
+            or current.get("head_sha") != state.get("head_sha")
+            or any(current.get(field) != value for field, value in legacy.items())):
+        return None
+    return current
+
+
+def _retire_legacy_check_suppression(state, residual):
+    if not isinstance(residual, dict) or not isinstance(residual.get("sources"), list):
+        return
+    head = state.get("head_sha")
+    dispatched = state.get("ci_dispatched", {}).get(head)
+    if not isinstance(dispatched, list):
+        return
+    legacy_check_ids = {
+        source.get("id") for source in residual["sources"]
+        if isinstance(source, dict) and source.get("kind") == "check"
+    }
+    state["ci_dispatched"][head] = [
+        key for key in dispatched if key not in legacy_check_ids]
+
+
 def _legacy_decision_records(state, threads, feedback, checks, now):
-    """Migrate complete legacy residuals; incomplete parked sources fail open."""
+    """Replace legacy suppression with exact current decisions; incomplete evidence fails open."""
     candidates = list(state.get("needs_human_residuals") or [])
     candidates.extend(
         record.get("needs_human_residual")
@@ -1684,6 +1710,7 @@ def _legacy_decision_records(state, threads, feedback, checks, now):
     legacy_check_observations = state.get("needs_human_check_observations") or {}
     records, seen = [], set()
     for residual in candidates:
+        _retire_legacy_check_suppression(state, residual)
         if _needs_human_residual_error(residual):
             continue
         identity = _residual_identity(residual)
@@ -1699,7 +1726,8 @@ def _legacy_decision_records(state, threads, feedback, checks, now):
             if isinstance(record, dict) and record.get("acted_identity") is not None:
                 observation = record.get("acted_identity")
             elif kind == "check":
-                observation = legacy_check_observations.get(source_id)
+                observation = _migrate_legacy_check_observation(
+                    state, source_id, legacy_check_observations, checks)
             else:
                 observation = _current_source_observation(
                     state, kind, source_id, threads, feedback, checks)
@@ -1765,7 +1793,7 @@ def _normalize_legacy_source_state(state, threads, feedback):
 
 
 def _reconcile_human_decisions(state, threads, feedback, checks, now):
-    """Keep exact current decisions; activity invalidates, and answers never infer from activity."""
+    """Let canonical decisions alone suppress exact evidence; activity is never an answer."""
     current = state.get("human_decisions")
     if not isinstance(current, list):
         current = _legacy_decision_records(state, threads, feedback, checks, now)

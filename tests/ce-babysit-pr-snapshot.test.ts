@@ -2056,6 +2056,79 @@ print(json.dumps({
     expect(reopenedState.needs_human_check_observations).toBeUndefined()
   })
 
+  test("a same-key failing check on a new head invalidates its old decision", () => {
+    const sd = path.join(dir, "ci-needs-human-new-head")
+    const firstFetch = fetchFile(dir, "ci-needs-human-new-head-1.json", {
+      ...FAILING, threads: [],
+    })
+    snapshot(sd, firstFetch)
+    const residual = residualFile(dir, "ci-new-head-residual.json", "CI/test", "check")
+    mark(sd, ["--disposition", "needs-human", "--residual-file", residual.path])
+
+    expectCurrentDecision(snapshot(sd, firstFetch).needs_human_residuals, residual.value)
+
+    const reopened = snapshot(sd, fetchFile(dir, "ci-needs-human-new-head-2.json", {
+      ...FAILING, head_sha: "s2", threads: [],
+    }))
+    expect(reopened.needs_human_residuals).toEqual([])
+    expect(reopened.actionable.ci.map((item: any) => item.key)).toEqual(["CI/test"])
+  })
+
+  test("legacy check migration transfers suppression to the canonical decision", () => {
+    const sd = path.join(dir, "ci-needs-human-legacy-migration")
+    const fetch = fetchFile(dir, "ci-needs-human-legacy-migration.json", {
+      ...FAILING, threads: [],
+    })
+    snapshot(sd, fetch)
+    const residual = residualFile(dir, "ci-legacy-migration-residual.json", "CI/test", "check")
+    const legacy = readState(sd)
+    delete legacy.human_decisions
+    delete legacy.answered_human_decisions
+    legacy.needs_human_residuals = [residual.value]
+    legacy.needs_human_check_observations = {
+      "CI/test": {
+        conclusion: "FAILURE",
+        details_url: "u",
+        created_at: null,
+        started_at: null,
+        completed_at: null,
+      },
+    }
+    legacy.ci_dispatched = { s1: ["CI/test"] }
+    writeFileSync(path.join(sd, "state.json"), JSON.stringify(legacy))
+
+    const migrated = snapshot(sd, fetch)
+    expectCurrentDecision(migrated.needs_human_residuals, residual.value)
+    expect(migrated.actionable.ci).toEqual([])
+    expect(readState(sd).ci_dispatched.s1).not.toContain("CI/test")
+
+    markDecisionAnswered(sd, migrated.human_decisions[0].decision_id)
+    const answered = snapshot(sd, fetch)
+    expect(answered.actionable.ci.map((item: any) => item.key)).toEqual(["CI/test"])
+    expect(answered.answered_human_decisions).toHaveLength(1)
+
+    const staleSd = path.join(dir, "ci-needs-human-stale-legacy-migration")
+    snapshot(staleSd, fetch)
+    const stale = readState(staleSd)
+    delete stale.human_decisions
+    stale.needs_human_residuals = [residual.value]
+    stale.needs_human_check_observations = {
+      "CI/test": {
+        conclusion: "TIMED_OUT",
+        details_url: "u",
+        created_at: null,
+        started_at: null,
+        completed_at: null,
+      },
+    }
+    stale.ci_dispatched = { s1: ["CI/test"] }
+    writeFileSync(path.join(staleSd, "state.json"), JSON.stringify(stale))
+
+    const failedOpen = snapshot(staleSd, fetch)
+    expect(failedOpen.needs_human_residuals).toEqual([])
+    expect(failedOpen.actionable.ci.map((item: any) => item.key)).toEqual(["CI/test"])
+  })
+
   test("a new legacy status creation on the same head reopens investigation", () => {
     const sd = path.join(dir, "ci-needs-human-legacy-status")
     const legacyFailure = (created_at: string) => ({
