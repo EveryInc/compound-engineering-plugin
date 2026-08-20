@@ -1243,6 +1243,14 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     const observed = snapshot(state, fetchFile(dir, "currency-answer.json", dirty))
     markCurrency(state, observed.branch_currency.key, "claimed")
     markCurrency(state, observed.branch_currency.key, "needs-human", "conflict-v1")
+    const withUnrelatedPark = readState(state)
+    withUnrelatedPark.branch_currency_state.semantic_parks["unrelated-v1"] = {
+      head_sha: "older-head",
+      status: "DIRTY",
+      route: "normal-base",
+      observation_key: "older-dirty-observation",
+    }
+    writeFileSync(path.join(state, "state.json"), JSON.stringify(withUnrelatedPark))
 
     const wrongAnswer = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
       ...persistedInvocationArgs(state), "--currency-key", observed.branch_currency.key,
@@ -1259,9 +1267,16 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       disposition: "open",
       attention: "claim",
       recovery_state: "decision-answered",
-      parked_semantic_fingerprints: [],
+      parked_semantic_fingerprints: ["unrelated-v1"],
     })
-    expect(readState(state).branch_currency_state.semantic_parks).toEqual({})
+    expect(readState(state).branch_currency_state.semantic_parks).toEqual({
+      "unrelated-v1": {
+        head_sha: "older-head",
+        status: "DIRTY",
+        route: "normal-base",
+        observation_key: "older-dirty-observation",
+      },
+    })
   }, 15000)
 
   test("branch currency: a changed observation invalidates the typed residual but retains semantic evidence for inspection", () => {

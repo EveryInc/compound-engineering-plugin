@@ -1275,7 +1275,7 @@ def _apply_branch_currency(state, cur, head, head_changed, now):
     if disposition == DISPOSITION_OPEN:
         inspection_required = (item.get("status") == "DIRTY"
                                and bool(parks)
-                               and item.get("inspection_result") != "changed")
+                               and item.get("inspection_result") not in ("changed", "answered"))
         item["inspection_required"] = inspection_required
         retry_wait_seconds = 0
         retry_not_before = item.get("retry_not_before")
@@ -2765,6 +2765,7 @@ def _mark_branch_currency(args, state, now):
         parks.pop(answered_fingerprint)
         item.pop("semantic_conflict_fingerprint", None)
         _reactivate_currency_item(currency, item)
+        item["inspection_result"] = "answered"
         item["recovery_state"] = "decision-answered"
         state["last_action"] = f"answered currency {key}"
         return
