@@ -1442,7 +1442,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       attention: "claim",
       parked_semantic_fingerprints: [],
     })
-  }, 20000)
+  })
 
   test("branch currency: unresolved claims survive base and expected head movement until reconciled", () => {
     const first = snapshot(state, fetchFile(dir, "currency-key-1.json", currencyFixture()))
