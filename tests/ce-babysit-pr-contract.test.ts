@@ -554,6 +554,8 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     }
     expect(resolverPipeline).toMatch(/thread_urls[^.]{0,180}(every|all)[^.]{0,120}(open|still-open)/i)
     expect(resolverPipeline).toMatch(/leave[^.]{0,100}(thread|threads)[^.]{0,100}open/i)
+    expect(resolverRubric).toContain("sources:")
+    expect(resolverPipeline).toMatch(/sources[^.]{0,180}(every|all)[^.]{0,180}(thread|comment|review)/i)
 
     expect(babysitPipeline).toMatch(/success only when[^.]{0,500}`open_needs_human == 0`/i)
     expect(babysitWatch).toMatch(/success only when[^.]{0,500}`open_needs_human == 0`/i)
@@ -565,6 +567,9 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     }
     expect(babysitTick).toMatch(/immediately[^.]{0,180}`## Needs your decision`/i)
     expect(babysitTick).toMatch(/residual[^.]{0,120}unchanged/i)
+    expect(babysitTick).toContain("--residual-file")
+    expect(babysitTick).toContain("needs_human_residuals")
+    expect(babysitWatch).toContain("needs_human_residuals")
     expect(babysitReport).toContain("## Needs your decision")
     for (const field of NEEDS_HUMAN_RESIDUAL_FIELDS) {
       expect(babysitReport, `babysit report must render '${field}'`).toContain(field)

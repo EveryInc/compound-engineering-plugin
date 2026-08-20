@@ -20,6 +20,22 @@ function fetchFile(dir: string, name: string, obj: unknown): string {
   return p
 }
 
+function residualFile(dir: string, name: string, sourceId: string, kind: "thread" | "comment" | "review"): { path: string; value: any } {
+  const value = {
+    type: "needs-human",
+    sources: [{ id: sourceId, kind }],
+    decision_context: {
+      quoted_feedback: "Choose the intended behavior.",
+      investigation: "Inspected the affected path.",
+      decision_reason: "Both behaviors are plausible.",
+      options: [{ option: "Keep", tradeoff: "Preserves compatibility." }],
+      recommendation: null,
+    },
+    thread_urls: kind === "thread" ? [`https://example.test/thread/${sourceId}`] : [],
+  }
+  return { path: fetchFile(dir, name, value), value }
+}
+
 function persistedInvocationArgs(stateDir: string): string[] {
   if (!existsSync(path.join(stateDir, "state.json"))) return []
   const state = JSON.parse(readFileSync(path.join(stateDir, "state.json"), "utf8"))
@@ -66,8 +82,19 @@ function mark(stateDir: string, args: string[]): void {
   const extra = args.includes("--fetch-file")
     ? []
     : ["--fetch-file", fetchFile(path.dirname(stateDir), "mark-empty.json", { threads: [] })]
+  const needsResidual = args.includes("--disposition")
+    && args[args.indexOf("--disposition") + 1] === "needs-human"
+    && (args.includes("--thread") || args.includes("--comment"))
+    && !args.includes("--residual-file")
+  const sourceId = args.includes("--thread")
+    ? args[args.indexOf("--thread") + 1]!
+    : args[args.indexOf("--comment") + 1]!
+  const kind = args.includes("--thread") ? "thread" : sourceId.startsWith("PRR_") ? "review" : "comment"
+  const residualArgs = needsResidual
+    ? ["--residual-file", residualFile(path.dirname(stateDir), `residual-${sourceId}.json`, sourceId, kind).path]
+    : []
   const r = spawnSync("python3", [SCRIPT, "mark", "--state-dir", stateDir,
-    ...persistedInvocationArgs(stateDir), ...args, ...extra], { encoding: "utf8" })
+    ...persistedInvocationArgs(stateDir), ...args, ...residualArgs, ...extra], { encoding: "utf8" })
   expect(r.status, r.stderr).toBe(0)
 }
 
@@ -1663,6 +1690,29 @@ print(json.dumps({
     const d = snapshot(state, fetchFile(dir, "b.json", replied))
     expect(d.counts.threads).toBe(0) // no re-actionize (the P1 fix)
     expect(d.open_needs_human).toBe(1) // still blocks merge-ready
+  })
+
+  test("needs-human residuals retain stable source identity across resumable ticks", () => {
+    const sd = path.join(dir, "durable-needs-human")
+    snapshot(sd, fetchFile(dir, "durable-1.json", FAILING))
+    const residual = residualFile(dir, "durable-residual.json", "T1", "thread")
+    mark(sd, ["--thread", "T1", "--disposition", "needs-human", "--residual-file", residual.path])
+
+    const replied = { ...FAILING, threads: [{ thread_id: "T1", last_comment_id: "C2", last_comment_at: "t2" }] }
+    expect(snapshot(sd, fetchFile(dir, "durable-2.json", replied)).needs_human_residuals).toEqual([residual.value])
+    const resumed = snapshot(sd, fetchFile(dir, "durable-3.json", replied), ["--start-invocation"])
+    expect(resumed.needs_human_residuals).toEqual([residual.value])
+  })
+
+  test("needs-human marks fail closed without the typed residual payload", () => {
+    const sd = path.join(dir, "missing-needs-human-residual")
+    const fetch = fetchFile(dir, "missing-residual.json", FAILING)
+    snapshot(sd, fetch)
+    const r = spawnSync("python3", [SCRIPT, "mark", "--state-dir", sd,
+      ...persistedInvocationArgs(sd), "--thread", "T1", "--disposition", "needs-human",
+      "--fetch-file", fetch], { encoding: "utf8" })
+    expect(r.status).not.toBe(0)
+    expect(r.stderr).toMatch(/residual-file/i)
   })
 
   test("mark --check silences it; a new head SHA re-actionizes", () => {

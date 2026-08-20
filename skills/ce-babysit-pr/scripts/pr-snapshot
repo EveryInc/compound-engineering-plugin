@@ -18,6 +18,7 @@ Subcommands:
   mark     --state-dir DIR --invocation-id ID --session-started-at TIME
            --invocation-budget-seconds N (--thread ID --disposition needs-human|dispatched
            | --comment ID --disposition needs-human|dispatched | --check KEY)
+           Needs-human thread/comment marks also require --residual-file FILE.
            Record that the agent acted on an item. A `dispatched` thread is
            re-emitted when a later reviewer comment moves its last-comment
            identity past the one we acted on (our own reply does not
@@ -1488,6 +1489,7 @@ def _apply_dispositions(items, id_key, prior, identity_fn=None,
         pri = prior.get(iid, {})
         disposition = pri.get("disposition", DISPOSITION_OPEN)
         acted_identity = pri.get("acted_identity")
+        needs_human_residual = pri.get("needs_human_residual")
         if disposition in reactivate_dispositions and identity_fn is not None:
             current_identity = identity_fn(it)
             if acted_identity is None:
@@ -1495,6 +1497,7 @@ def _apply_dispositions(items, id_key, prior, identity_fn=None,
             elif current_identity != acted_identity:
                 disposition = DISPOSITION_OPEN       # a later human/reviewer reply past our baseline -> reactivate
                 acted_identity = None
+                needs_human_residual = None
         if disposition == DISPOSITION_OPEN:
             actionable.append(it)
         elif disposition == DISPOSITION_NEEDS_HUMAN:
@@ -1502,6 +1505,8 @@ def _apply_dispositions(items, id_key, prior, identity_fn=None,
         rec = {**it, "disposition": disposition}
         if acted_identity is not None:
             rec["acted_identity"] = acted_identity
+        if disposition == DISPOSITION_NEEDS_HUMAN and isinstance(needs_human_residual, dict):
+            rec["needs_human_residual"] = needs_human_residual
         persisted[iid] = rec
     return persisted, actionable, needs_human
 
@@ -1649,6 +1654,15 @@ def diff(state, cur, now=None, advance_trajectory=True):
     needs_human_ids = sorted(
         [k for k, r in new_threads.items() if r.get("disposition") == DISPOSITION_NEEDS_HUMAN]
         + [k for k, r in new_feedback.items() if r.get("disposition") == DISPOSITION_NEEDS_HUMAN])
+    needs_human_residuals, seen_residuals = [], set()
+    for record in list(new_threads.values()) + list(new_feedback.values()):
+        residual = record.get("needs_human_residual")
+        if not isinstance(residual, dict):
+            continue
+        identity = json.dumps(residual, sort_keys=True, separators=(",", ":"))
+        if identity not in seen_residuals:
+            seen_residuals.add(identity)
+            needs_human_residuals.append(residual)
 
     state["head_sha"] = head or state.get("head_sha")
     state["checks"] = new_checks
@@ -1778,6 +1792,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
         "stack_blocker": _stack_blocker(state["pr_chain"]),
         "open_needs_human": open_needs_human,
         "needs_human_ids": needs_human_ids,
+        "needs_human_residuals": needs_human_residuals,
         "actionable": {"threads": actionable_threads, "ci": actionable_ci, "comments": actionable_feedback},
         "counts": {"threads": len(actionable_threads), "ci": len(actionable_ci),
                    "comments": len(actionable_feedback), "needs_human": open_needs_human},
@@ -2660,6 +2675,25 @@ def _mark_branch_currency(args, state, now):
     state["last_action"] = f"{disposition} currency {key}"
 
 
+def _load_needs_human_residual(path, item_id, is_thread):
+    if not path:
+        raise SystemExit("needs-human thread/comment marks require --residual-file")
+    try:
+        with open(path, encoding="utf-8") as f:
+            residual = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"cannot read --residual-file: {exc}")
+    if not isinstance(residual, dict) or residual.get("type") != "needs-human":
+        raise SystemExit("--residual-file must contain one typed needs-human object")
+    expected_kinds = {"thread"} if is_thread else {"comment", "review"}
+    sources = residual.get("sources")
+    if not isinstance(sources, list) or not any(
+            isinstance(source, dict) and source.get("id") == item_id
+            and source.get("kind") in expected_kinds for source in sources):
+        raise SystemExit("--residual-file sources must include the marked item ID and kind")
+    return residual
+
+
 def cmd_mark(args):
     now = _now()
     with locked_state(args.state_dir, args.pr, args.repo, now) as box:
@@ -2693,7 +2727,13 @@ def cmd_mark(args):
             entry["disposition"] = args.disposition
             if args.disposition == DISPOSITION_OPEN:
                 entry.pop("acted_identity", None)   # reopened -> next dispatch/park re-baselines
+                entry.pop("needs_human_residual", None)
             elif args.disposition in (DISPOSITION_DISPATCHED, DISPOSITION_NEEDS_HUMAN):
+                if args.disposition == DISPOSITION_NEEDS_HUMAN:
+                    entry["needs_human_residual"] = _load_needs_human_residual(
+                        args.residual_file, item_id, bool(args.thread))
+                else:
+                    entry.pop("needs_human_residual", None)
                 if args.thread:
                     # our reply moved the thread's last comment, so re-read it now as the baseline.
                     ident = _mark_thread_baseline(item_id, args, state)
@@ -2780,6 +2820,7 @@ def main():
     m.add_argument("--comment", default=None)
     m.add_argument("--fetch-file", default=None)  # reuse the tick's fetch for the at-mark baseline
     m.add_argument("--acted-edit-id", default=None)  # snapshot-time edit_id baseline; read only by needs-human comment reactivation (#1309)
+    m.add_argument("--residual-file", default=None)
     m.add_argument("--currency-key", default=None,
                    help="exact branch-currency observation key emitted by snapshot")
     m.add_argument("--currency-disposition",
