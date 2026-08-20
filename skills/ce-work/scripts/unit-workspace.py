@@ -142,7 +142,6 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--run-id", required=True)
     p.add_argument("--unit-id", required=True)
     p.add_argument("--caller-mode", choices=("interactive", "headless"), required=True)
-    p.add_argument("--confirm-native", action="store_true")
 
     p = sub.add_parser("complete-fallback")
     p.add_argument("--run-id", required=True)

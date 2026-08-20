@@ -385,7 +385,7 @@ describe("ce-work unit workspace controller: abandoned-unit retries and reconcil
     expect(readFileSync(path.join(f.repo, "U-retry-corrected.txt"), "utf8")).toBe("corrected\n")
   })
 
-  test("require blocks headless fallback and needs an explicit interactive choice", () => {
+  test("require falls back on the current harness after an external route terminates", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
     initWithBinding(runs, "run-require", f, "require")
@@ -395,16 +395,14 @@ describe("ce-work unit workspace controller: abandoned-unit retries and reconcil
     terminalizeFakeJob(runs, "run-require", job, "timeout")
     ctl(runs, "resume", "--run-id", "run-require")
 
-    expect(ctl(runs, "claim-fallback", "--run-id", "run-require", "--unit-id", "U", "--caller-mode", "headless").word).toBe("BLOCKED")
-    expect(ctl(runs, "claim-fallback", "--run-id", "run-require", "--unit-id", "U", "--caller-mode", "interactive").word).toBe("CHOICE_REQUIRED")
-    const confirmed = ctl(runs, "claim-fallback", "--run-id", "run-require", "--unit-id", "U", "--caller-mode", "interactive", "--confirm-native")
-    expect(confirmed.word).toBe("FALLBACK_AUTHORIZED")
-    expect(confirmed.body.start_native).toBe(true)
-    expect(confirmed.body.claim).toMatchObject({
+    const fallback = ctl(runs, "claim-fallback", "--run-id", "run-require", "--unit-id", "U", "--caller-mode", "headless")
+    expect(fallback.word).toBe("FALLBACK_AUTHORIZED")
+    expect(fallback.body.start_native).toBe(true)
+    expect(fallback.body.claim).toMatchObject({
       mode: "require",
-      caller_mode: "interactive",
-      confirmed_native: true,
+      caller_mode: "headless",
     })
+    expect(fallback.body.claim).not.toHaveProperty("confirmed_native")
     writeFileSync(path.join(f.repo, "required-native.txt"), "accepted native implementation\n")
     git(f.repo, "add", "required-native.txt")
     git(f.repo, "commit", "-m", "required native implementation")

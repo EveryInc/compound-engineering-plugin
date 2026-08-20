@@ -173,10 +173,6 @@ def _native_completion_commit(unit: dict) -> str | None:
     claim_mode = claim.get("mode")
     if claim_mode not in {"prefer", "require"}:
         return None
-    if claim_mode == "require" and not (
-        claim.get("caller_mode") == "interactive" and claim.get("confirmed_native") is True
-    ):
-        return None
     accepted_head = completion.get("accepted_head")
     base = unit.get("workspace", {}).get("base")
     snapshot = completion.get("snapshot")

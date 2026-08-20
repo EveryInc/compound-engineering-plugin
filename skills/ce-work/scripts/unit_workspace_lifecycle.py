@@ -52,14 +52,7 @@ def unfinished_run(doc: dict, canonical_head: str) -> bool:
         fallback = attempt.get("fallback", {})
         claim = fallback.get("claimed") if isinstance(fallback, dict) else None
         completion = fallback.get("completed") if isinstance(fallback, dict) else None
-        claim_valid = isinstance(claim, dict) and (
-            claim.get("mode") == "prefer"
-            or (
-                claim.get("mode") == "require"
-                and claim.get("caller_mode") == "interactive"
-                and claim.get("confirmed_native") is True
-            )
-        )
+        claim_valid = isinstance(claim, dict) and claim.get("mode") in {"prefer", "require"}
         if not (
             claim_valid
             and isinstance(completion, dict)
@@ -635,19 +628,13 @@ def cmd_claim_fallback(args) -> tuple[str, dict]:
             ):
                 raise Operational("BLOCKED", "native fallback must start from the latest recorded wave head")
         mode = doc.get("binding", {}).get("mode")
-        if mode == "require":
-            if args.caller_mode == "headless":
-                raise Operational("BLOCKED", "required external route terminated; headless callers cannot choose native fallback", {"unit_id": args.unit_id, "reason": reason})
-            if not args.confirm_native:
-                raise Operational("CHOICE_REQUIRED", "required external route terminated; ask whether to continue natively", {"unit_id": args.unit_id, "reason": reason})
-        elif mode != "prefer":
+        if mode not in {"prefer", "require"}:
             raise Operational("REFUSED", f"binding mode {mode!r} does not authorize native fallback")
         claim = {
             "at": now_iso(),
             "reason": reason,
             "caller_mode": args.caller_mode,
             "mode": mode,
-            "confirmed_native": bool(args.confirm_native),
             "canonical_head": claim_snapshot["head"],
         }
         fallback.update({"eligible": False, "reason": reason, "claimed": claim})
@@ -726,10 +713,6 @@ def cmd_complete_fallback(args) -> tuple[str, dict]:
         claim_mode = claim.get("mode")
         if claim_mode not in {"prefer", "require"}:
             raise Operational("REFUSED", "native fallback completion requires an authorized prefer or require claim")
-        if claim_mode == "require" and not (
-            claim.get("caller_mode") == "interactive" and claim.get("confirmed_native") is True
-        ):
-            raise Operational("REFUSED", "require-mode native fallback completion requires explicit interactive confirmation")
         if doc.get("integration_lock") is not None:
             raise Operational("REFUSED", "release the integration lock before completing native fallback")
 

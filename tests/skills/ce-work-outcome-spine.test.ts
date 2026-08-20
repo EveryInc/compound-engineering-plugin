@@ -302,8 +302,10 @@ describe("ce-work cross-model engine contract", () => {
 
     expect(protocol).toContain("Preference-strength")
     expect(protocol).toContain("Requirement-strength")
-    expect(protocol).toContain("automatic or headless")
-    expect(protocol).toContain("must not prompt")
+    expect(protocol).toContain("Cross-model implementation routes are write- and shell-capable")
+    expect(protocol).toContain("Never request broader host permissions")
+    expect(protocol).toContain("current harness and session model without prompting")
+    expect(protocol).toContain("never turns an unavailable route into an error or user-choice gate")
     expect(protocol).toContain("fixed recipient")
     expect(protocol).toContain("every intermediary")
     expect(protocol).toContain("material exposed")
@@ -477,12 +479,11 @@ describe("ce-work cross-model engine contract", () => {
     expect(protocol).toContain("must not redispatch, reapply, recommit, or run either owning tail")
     expect(protocol).toContain("unit-workspace.py` `claim-fallback")
     expect(protocol).toContain("unit-workspace.py` `complete-fallback")
-    expect(protocol).toContain("exactly one native fallback")
     expect(protocol).toContain("FALLBACK_ALREADY_AUTHORIZED")
     expect(protocol).toContain("FALLBACK_COMPLETED")
     expect(protocol).toContain("`RUN_VERIFIED`")
-    expect(protocol).toContain("CHOICE_REQUIRED")
-    expect(protocol).toContain("headless `require` remains blocked")
+    expect(protocol).toContain("The first `prefer` or `require` claim authorizes exactly one fallback")
+    expect(protocol).toContain("never turns an unavailable route into an error or user-choice gate")
     expect(protocol).toContain("exact restoration")
     expect(protocol).toContain("expected post-apply tree and changed-path set")
     expect(protocol).toContain("unknown dirt blocks without destructive restoration")
@@ -592,7 +593,7 @@ describe("ce-work cross-model engine contract", () => {
       "bounded bare-prompt delegation",
       "unclear bare-prompt restraint",
       "host-native matrix",
-      "strict alternate matrix",
+      "required alternate matrix",
       "post-init recipient lock",
       "sibling-clone recovery isolation",
       "plugin-bundled reference load",

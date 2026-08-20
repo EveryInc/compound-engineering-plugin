@@ -72,7 +72,7 @@ work_engine_preferences:
 
 Supported harnesses are `codex`, `claude`, `grok`, and `cursor`. Omitting `model` uses that harness's configured default. Composer is a model family reached through Cursor, so request it with `harness: cursor` and `model: composer`.
 
-`ce-work` walks the list in order and skips an entry equivalent to the current host/default model. A different explicit model in the same harness remains eligible. With `prefer`, an unavailable list falls back to native implementation with disclosure. With `require`, an interactive CE Work run asks before weakening the route, while LFG and other headless callers block.
+`ce-work` walks the list in order and skips an entry equivalent to the current host/default model. A different explicit model in the same harness remains eligible. With either `prefer` or `require`, an unavailable list falls back to native implementation on the current harness and session model with one disclosure. `require` keeps the requested external identity fixed while viable; it never authorizes an unrequested external recipient or turns route unavailability into a blocker.
 
 Current-task wording can select a different route for one run without editing config, such as “use Codex for implementation” or “only use Composer for implementation.” The assignment applies to implementation; the host still owns validation, integration, commits, and the rest of the calling workflow.
 
@@ -82,4 +82,3 @@ Current-task wording can select a different route for one run without editing co
 - Put durable team-wide *instructions* in the project's normal agent-instructions mechanism. Team *defaults* for CE keys may live in `config.yaml`.
 - Prefer per-run instructions for one-off choices.
 - Re-run `/ce-setup` after plugin upgrades to refresh the committed example and diagnose retired or malformed settings.
-
