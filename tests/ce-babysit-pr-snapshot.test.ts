@@ -796,11 +796,12 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       return { sd, fixture, fetch, key: observed.branch_currency.key }
     }
 
-    for (const route of ["explicit", "reconciled"] as const) {
+    for (const route of ["explicit", "reconciled", "head-moved-reconciled"] as const) {
       const current = parkGroupedAmbiguous(route)
       const nextFetch = route === "explicit" ? current.fetch : fetchFile(
-        dir, "currency-grouped-reconciled-2.json", {
+        dir, `currency-grouped-${route}-2.json`, {
           ...current.fixture,
+          ...(route === "head-moved-reconciled" ? { head_sha: "s2" } : {}),
           threads: [{ thread_id: "T1", last_comment_id: "C2", last_comment_at: "t2" }],
         })
       if (route === "explicit") {
@@ -810,6 +811,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
       expect(reopened.needs_human_residuals).toEqual([])
       expect(reopened.actionable.threads.map((item: any) => item.thread_id)).toEqual(["T1"])
       expect(reopened.branch_currency).toMatchObject({
+        key: current.key,
         disposition: "open",
         recovery_state: "ambiguous",
         mutation_requires_answer: true,

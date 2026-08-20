@@ -1230,6 +1230,35 @@ def _detect_unrequested_base_merge(state, cur, head, head_changed, now):
     return fact
 
 
+def _prepare_open_currency_item(state, currency, key, item, now):
+    parks = currency.get("semantic_parks") or {}
+    answer_required = _currency_mutation_requires_answer(state, key, item)
+    inspection_required = (item.get("status") == "DIRTY"
+                           and bool(parks)
+                           and item.get("inspection_result") != "changed"
+                           and not _answered_human_source_matches(
+                               state, "currency", key, _currency_source_observation(item)))
+    item["inspection_required"] = inspection_required
+    retry_wait_seconds = 0
+    retry_not_before = item.get("retry_not_before")
+    if retry_not_before:
+        try:
+            retry_wait_seconds = max(
+                0, int((_parse_iso8601(retry_not_before) - now).total_seconds()))
+        except (ValueError, TypeError):
+            retry_wait_seconds = 0
+    item["retry_wait_seconds"] = retry_wait_seconds
+    if answer_required:
+        item["attention"] = CURRENCY_ATTENTION_DECIDE
+    elif inspection_required:
+        item["attention"] = CURRENCY_ATTENTION_INSPECT
+    elif retry_wait_seconds > 0:
+        item["attention"] = None
+    else:
+        item["attention"] = CURRENCY_ATTENTION_CLAIM
+    item["reconciliation_only"] = False
+
+
 def _apply_branch_currency(state, cur, head, head_changed, now):
     currency = _load_branch_currency_state(state)
     carried_claims = _claimed_currency_items(currency)
@@ -1272,31 +1301,7 @@ def _apply_branch_currency(state, cur, head, head_changed, now):
     item.setdefault("mutation_requires_answer", False)
     disposition = item.get("disposition", DISPOSITION_OPEN)
     if disposition == DISPOSITION_OPEN:
-        answer_required = _currency_mutation_requires_answer(state, key, item)
-        inspection_required = (item.get("status") == "DIRTY"
-                               and bool(parks)
-                               and item.get("inspection_result") != "changed"
-                               and not _answered_human_source_matches(
-                                   state, "currency", key, _currency_source_observation(item)))
-        item["inspection_required"] = inspection_required
-        retry_wait_seconds = 0
-        retry_not_before = item.get("retry_not_before")
-        if retry_not_before:
-            try:
-                retry_wait_seconds = max(
-                    0, int((_parse_iso8601(retry_not_before) - now).total_seconds()))
-            except (ValueError, TypeError):
-                retry_wait_seconds = 0
-        item["retry_wait_seconds"] = retry_wait_seconds
-        if answer_required:
-            item["attention"] = CURRENCY_ATTENTION_DECIDE
-        elif inspection_required:
-            item["attention"] = CURRENCY_ATTENTION_INSPECT
-        elif retry_wait_seconds > 0:
-            item["attention"] = None
-        else:
-            item["attention"] = CURRENCY_ATTENTION_CLAIM
-        item["reconciliation_only"] = False
+        _prepare_open_currency_item(state, currency, key, item, now)
     elif disposition == CURRENCY_CLAIMED:
         _prepare_claimed_currency_item(state, item, cur, head)
     else:
@@ -2072,7 +2077,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
         cur.get("feedback") or [], "id", prior_feedback,
         identity_fn=lambda c: [c.get("edit_id")], reactivate_dispositions=())
     # Reconcile currency before exact decision observations are compared.
-    _apply_branch_currency(state, cur, head, head_changed, now)
+    branch_currency = _apply_branch_currency(state, cur, head, head_changed, now)
     needs_human_residuals, decision_coverage = _reconcile_human_decisions(
         state, new_threads, new_feedback, new_checks, now)
     dispatched = set(state.get("ci_dispatched", {}).get(head, []))
@@ -2156,7 +2161,10 @@ def diff(state, cur, now=None, advance_trajectory=True):
         # (current or a bounded stale-computation degrade), it is not certain, not ready, not landable.
         cur["base"]["identity"] = BASE_REF_MERGEABILITY_PENDING
     state["base"] = cur.get("base")
-    branch_currency = _apply_branch_currency(state, cur, head, head_changed, now)
+    if branch_currency and branch_currency.get("disposition") == DISPOSITION_OPEN:
+        _prepare_open_currency_item(
+            state, _load_branch_currency_state(state), branch_currency["key"],
+            branch_currency, now)
     if branch_currency and ("currency", branch_currency.get("key")) in decision_coverage:
         branch_currency["attention"] = None
 
