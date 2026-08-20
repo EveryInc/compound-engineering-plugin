@@ -214,7 +214,7 @@ describe("ce-commit-push-pr contract", () => {
 
     // Default-on: completion gate, announce, transfer ownership, never ask yes/no.
     expect(content).toMatch(/completion gate/i)
-    expect(content).toMatch(/Auto-hand off by default/i)
+    expect(content).toMatch(/automatic handoff/i)
     expect(content).toMatch(/never ask yes\/no/i)
     // Off is the explicit choice: per-run token + standing config opt-out.
     expect(content).toContain("babysit:off")
@@ -227,6 +227,10 @@ describe("ce-commit-push-pr contract", () => {
     expect(content).toMatch(/fork PRs are drivable/i)
     expect(content).toMatch(/reads state on the \*\*base\*\* repo/i)
     expect(content).toMatch(/pushes fixes to the \*\*head\*\* repo/i)
+    // Opting out disables new monitoring, not an already-returned human decision gate.
+    expect(content).toMatch(/`babysit:off`[^.]{0,240}(does not|must not)[^.]{0,160}(suppress|hide)/i)
+    expect(content).toContain("## Needs your decision")
+    expect(content).toMatch(/needs-human[^.]{0,240}unchanged/i)
   })
 
   test("config template and example keep branding out of ambient configuration", async () => {
@@ -332,7 +336,7 @@ describe("PR concept teaching contract", () => {
       "skills/ce-commit-push-pr/references/apply-and-handoff.md",
     )
 
-    const handoff = content.match(/\*\*Babysit handoff — default on; completion gate\.\*\*[\s\S]+?(?=\n\n)/)?.[0]
+    const handoff = content.match(/\*\*Babysit handoff — default on; completion gate\.\*\*[\s\S]+?(?=\n\nA draft-only stack submit)/)?.[0]
     expect(handoff).toBeDefined()
     // Completion gate: PR URL alone is not done; ce-babysit-pr must own follow-on.
     expect(handoff).toMatch(/not done.+until `ce-babysit-pr` owns/is)

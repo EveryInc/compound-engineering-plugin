@@ -30,6 +30,11 @@ function resolveArmRef(scenario: Scenario, arm: EvalArm): string | null {
 }
 
 function armsFor(scenario: Scenario, requested: Arm): EvalArm[] {
+  if (scenario.post_only) {
+    if (requested === "pre") return []
+    if (requested === "preview") return scenario.preview_ref ? ["preview"] : []
+    return ["post"]
+  }
   if (requested === "pre") return ["pre"]
   if (requested === "post") return ["post"]
   if (requested === "preview") return scenario.preview_ref ? ["preview"] : []
@@ -96,7 +101,7 @@ function main() {
   }
   if (flag("--list")) {
     for (const s of selectedScenarios()) {
-      const ab = s.cohort === "resized" ? "A/B" : "post-only"
+      const ab = s.post_only ? "post-only" : s.cohort === "resized" ? "A/B" : "post-only"
       console.log(`${s.id}\t${s.cohort}\t${ab}\t${s.key_behavior}\t${s.read_only ? "ro" : "live"}`)
     }
     return

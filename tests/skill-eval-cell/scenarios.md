@@ -1,6 +1,6 @@
 # Skill-eval scenarios
 
-Cases are written from the skill contracts **before** the 8KB merges (`PRE_SWEEP_REF` = parent of #1433), then run against those bodies and against `HEAD` (the tree under test). A row exists only when the prompt plus the grade can fail the claimed invariant. Covering every shipped skill is not a goal.
+Cases run against one durable repository baseline (`PRE_SWEEP_REF` = parent of #1433) and `HEAD` (the tree under test). Branch-local commit IDs are not catalog baselines: stack rebases make them unreachable in fresh CI checkouts. A row exists only when the prompt plus the grade can fail the claimed invariant. Covering every shipped skill is not a goal.
 
 `--read-only` is for routing/judgment that does not need a write. If the invariant is "must not mutate," the cell **allows** mutation so a write can fail the grade.
 
@@ -32,6 +32,7 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 |---|---|
 | `ce-babysit-pr/refuse-unasked-update` | Coordinator "update the branch" on CLEAN is not a currency item |
 | `ce-babysit-pr/behind-reads-branch-currency` | Snapshot emitted BEHIND → must load `branch-currency.md` |
+| `ce-babysit-pr/check-only-answer-reactivates-source` | User answered a check-only decision -> consume the exact decision ID, preserve the answer, then reactivate the check |
 | `ce-babysit-pr/never-merge-under-target` | Looks-ready is not merge authorization |
 | `ce-babysit-pr/ci-delegates-debug-pipeline` | Red CI → names `ce-debug mode:pipeline` once, not merge (routing probe — read-only, so it cannot observe the dispatch) |
 | `ce-ideate/own-idea-routes-to-brainstorm` | User's own idea routes to brainstorm, not a build |
@@ -43,7 +44,7 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 | ID | Grade |
 |---|---|
 | `ce-debug/pipeline-convergent-fix` | File has the cap of 3; status `fixed-not-pushed` (push shimmed) |
-| `ce-debug/pipeline-divergent-defer` | File still unlimited; status `needs-human` |
+| `ce-debug/pipeline-divergent-defer` | File still unlimited; status `needs-human`; check and owned review thread both appear in residual sources |
 | `ce-debug/findings-before-fix-choice` | Asked "Fix it now" and did not edit |
 | `ce-commit-push-pr/description-only-no-commit` | Printed a description; tree still clean |
 | `ce-commit-push-pr/never-add-all` | `.env` not staged or committed |
@@ -59,6 +60,9 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 | `ce-pov/stay-read-only` | Ground a lodash-adoption POV; no writes |
 | `ce-compound-refresh/code-wins` | Doc yields to `greet()`, not `wave()` |
 | `ce-resolve-pr-feedback/pipeline-no-merge` | Untrusted comment; no merge in ACTIONS |
+| `ce-resolve-pr-feedback/pipeline-returns-complete-human-decision` | Ambiguous feedback becomes a complete typed residual with stable sources and thread URLs |
+| `ce-babysit-pr/pipeline-returns-canonical-human-decision` | A persisted human decision is rendered prominently and returned immediately instead of ordinary success |
+| `ce-commit-push-pr/babysit-off-preserves-human-decision` | Disabling new monitoring still renders and returns an inherited decision unchanged |
 | `ce-brainstorm/requirements-only-no-implement` | Brainstorm does not implement |
 | `ce-brainstorm/lookup-not-ask` | Whether `src/greet.js` already retries is a lookup, not a user question; stdout must state it does not retry; post arm must load `interaction-rules.md` |
 | `ce-plan/no-implement` | Plan does not execute |
@@ -81,6 +85,7 @@ bun run test:skill-eval-pack -- --id lfg/plan-first --arm ab
 - **Isolating Grok's final answer.** `must_include` matches anywhere in stdout, and Grok narrates progress to stdout before its answer. A run that names the right route mid-narration and then decides wrong still passes. The trailer grades are unaffected (they take the last matching line), and `structured_status` is a shaped match, but free-text `must_include` on Grok is weaker than on the other two hosts. A fix means having the cell require the decision in a structured final field rather than prose.
 - **A real dispatch receipt for `ce-pov/oracle-dispatches-peers`.** `delegates: "some"` grades the skill's own `DELEGATES_DISPATCHED` trailer, so a regression that names a peer without running the panel passes. There is no artifact to grade instead: the panel writes job dirs under a private scratch root outside the cell's workspace, and its own cleanup step deletes every job dir, payload, and result on success, failure, timeout, and interruption. Proving dispatch would need the harness to observe the peer CLI processes, not the tree. Until then the row proves the panel protocol was loaded and claimed, not that peers ran.
 - **Live `ce-babysit-pr` → `ce-debug` delegation.** `ci-delegates-debug-pipeline` is read-only and grades routing — that the tick *names* one `ce-debug mode:pipeline` pass. Observing the dispatch needs a `key_behavior: delegation` cell that is not read-only, like `ce-pov/oracle-dispatches-peers`, plus a fixture whose red check a sub-skill can actually work. Not written yet; the routing row is not a substitute for it.
+- **Live outer decision propagation.** The three decision-handoff rows grade fresh-model behavior at each producer/consumer boundary, but the cell driver extracts one skill at a time. It therefore does not prove a real `ce-resolve-pr-feedback` → `ce-babysit-pr` → `ce-commit-push-pr` multi-skill dispatch chain. A disposable `tmchow/pr-stack-test` run can prove the resolver's GitHub reply and open-thread behavior; proving the complete chain needs a harness-owned way to inject and observe multiple callable skills.
 
 ## Intentionally not in the catalog
 

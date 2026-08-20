@@ -40,7 +40,20 @@ async function readBabysit(): Promise<string> {
 const CEDEBUG_PIPELINE = "skills/ce-debug/references/pipeline-mode.md"
 const CERESOLVE = "skills/ce-resolve-pr-feedback/SKILL.md"
 const CERESOLVE_FULL_MODE = "skills/ce-resolve-pr-feedback/references/full-mode.md"
+const CERESOLVE_PIPELINE = "skills/ce-resolve-pr-feedback/references/pipeline-mode.md"
+const CERESOLVE_RUBRIC = "skills/ce-resolve-pr-feedback/references/evaluation-rubric.md"
+const COMMIT_PUSH_HANDOFF = "skills/ce-commit-push-pr/references/apply-and-handoff.md"
+const LFG_SHIPPING_TAIL = "skills/lfg/references/shipping-tail.md"
 const PR_SNAPSHOT = "skills/ce-babysit-pr/scripts/pr-snapshot"
+
+const NEEDS_HUMAN_RESIDUAL_FIELDS = [
+  "quoted_feedback",
+  "investigation",
+  "decision_reason",
+  "options",
+  "recommendation",
+  "thread_urls",
+]
 
 // ce-debug's pipeline-mode structured return. babysit branches on this exact set (Step 2 step 5)
 // and warns "do not invent infra-retry/stale" — so both the vocabulary and the ban are protocol.
@@ -471,9 +484,10 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
   })
 
   test("mark writes are fenced by the active invocation tuple", async () => {
-    const [babysit, watchLoop, script] = await Promise.all([
+    const [babysit, watchLoop, tick, script] = await Promise.all([
       readBabysit(),
       readRepoFile("skills/ce-babysit-pr/references/watch-loop.md"),
+      readRepoFile("skills/ce-babysit-pr/references/tick.md"),
       readRepoFile(PR_SNAPSHOT),
     ])
     for (const text of [babysit, watchLoop]) {
@@ -481,6 +495,36 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     }
     expect(script).toMatch(/m\.add_argument\("--invocation-id", required=True/)
     expect(script).toMatch(/def cmd_mark\(args\):[\s\S]{0,180}_apply_invocation\(box, args, now\)/)
+
+    const answerStart = tick.indexOf("When the user answers")
+    const answerEnd = tick.indexOf("The next snapshot", answerStart)
+    const answerBlock = tick.slice(answerStart, answerEnd)
+    const command = answerBlock.indexOf('"$PY" "$SKILL_DIR/scripts/pr-snapshot" mark')
+    expect(answerStart).toBeGreaterThan(-1)
+    expect(answerEnd).toBeGreaterThan(answerStart)
+    expect(command).toBeGreaterThan(-1)
+    for (const assignment of [
+      'SKILL_DIR="',
+      'SCRATCH_ROOT="',
+      'STATE_DIR="',
+      'RUN_INVOCATION_ID="',
+      'RUN_STARTED_AT="',
+      'RUN_BUDGET_SECONDS="',
+      'PY="',
+    ]) {
+      const initializedAt = answerBlock.indexOf(assignment)
+      expect(initializedAt, `${assignment} must be initialized in the answer recipe`).toBeGreaterThan(-1)
+      expect(initializedAt, `${assignment} must be initialized before the answer mark`).toBeLessThan(command)
+    }
+    expect(answerBlock).toContain('/tmp/compound-engineering-$(id -u)')
+    expect(answerBlock).toContain('${TMPDIR:-/tmp}/compound-engineering-$(id -u)')
+    expect(answerBlock).toContain('ce-babysit-pr/<host>-<owner>-<repo>-<N>')
+    expect(answerBlock).toContain("for c in python3 python py")
+    expect(answerBlock).toMatch(/read-only prohibits executing[^.]+not rendering/i)
+    expect(answerBlock).toMatch(/complete a read-only envelope[^.]+return the literal command[^.]+sole pending transition/i)
+    expect(answerBlock).toMatch(/exact known values[^.]+explicit placeholders[^.]+invocation metadata[^.]+answer-file path/i)
+    expect(answerBlock).toMatch(/literal `--answer-decision` and `--answer-file` flags/i)
+    expect(answerBlock).toMatch(/prose paraphrase[^.]+in-memory state move[^.]+incomplete/i)
   })
 
   test("blocked approval drains review automatically before a bounded handback", async () => {
@@ -507,8 +551,8 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
       readBabysit(),
       readRepoFile(WATCH_LOOP),
     ])
-    const pipelineStart = babysit.indexOf("2. **Bounded stop, not merge-ready.**")
-    const pipelineEnd = babysit.indexOf("3. **Native residual surfacing", pipelineStart)
+    const pipelineStart = babysit.indexOf("3. **Bounded stop, derived from that set.**")
+    const pipelineEnd = babysit.indexOf("## Pipeline stop", pipelineStart)
     const pipelineDelta = babysit.slice(pipelineStart, pipelineEnd)
 
     for (const text of [babysit, watchLoop]) {
@@ -517,8 +561,78 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     }
     expect(pipelineStart).toBeGreaterThan(-1)
     expect(pipelineEnd).toBeGreaterThan(pipelineStart)
-    expect(pipelineDelta).toMatch(/`all_checks_ok`[\s\S]{0,260}`mergeability_certain`[\s\S]{0,160}`merge_state_status == "CLEAN"`[\s\S]{0,260}`stack_blocker`[\s\S]{0,160}`branch_currency_blocker`[^.]{0,80}(null|clear)/i)
+    expect(babysit).toMatch(/`all_checks_ok`[\s\S]{0,260}`mergeability_certain`[\s\S]{0,160}`merge_state_status == "CLEAN"`[\s\S]{0,260}`stack_blocker`[\s\S]{0,160}`branch_currency_blocker`[^.]{0,80}(null|clear)/i)
     expect(pipelineDelta).toMatch(/open\/claimed\/parked current currency item[^.]{0,240}residual/i)
+  })
+
+  test("needs-human cannot become a successful handoff before its decision payload reaches the coordinator", async () => {
+    const [resolverRubric, resolverPipeline, debugPipeline, babysitPipeline, babysitWatch, babysitTick, babysitSettle, babysitReport, commitPush, lfg] =
+      await Promise.all([
+        readRepoFile(CERESOLVE_RUBRIC),
+        readRepoFile(CERESOLVE_PIPELINE),
+        readRepoFile(CEDEBUG_PIPELINE),
+        readRepoFile("skills/ce-babysit-pr/references/pipeline.md"),
+        readRepoFile(WATCH_LOOP),
+        readRepoFile("skills/ce-babysit-pr/references/tick.md"),
+        readRepoFile("skills/ce-babysit-pr/references/settle.md"),
+        readRepoFile("skills/ce-babysit-pr/references/report.md"),
+        readRepoFile(COMMIT_PUSH_HANDOFF),
+        readRepoFile(LFG_SHIPPING_TAIL),
+      ])
+
+    expect(resolverRubric).toContain('type: "needs-human"')
+    for (const field of NEEDS_HUMAN_RESIDUAL_FIELDS) {
+      expect(resolverRubric, `resolver schema must define '${field}'`).toContain(field)
+      expect(resolverPipeline, `resolver pipeline must return '${field}'`).toContain(field)
+    }
+    expect(resolverPipeline).toMatch(/thread_urls[^.]{0,180}(every|all)[^.]{0,120}(open|still-open)/i)
+    expect(resolverPipeline).toMatch(/leave[^.]{0,100}(thread|threads)[^.]{0,100}open/i)
+    expect(resolverRubric).toContain("sources:")
+    expect(resolverRubric).toMatch(/kind: "[^"]*currency[^"]*"/i)
+    expect(resolverPipeline).toMatch(/sources[^.]{0,180}(every|all)[^.]{0,180}(thread|comment|review)/i)
+    expect(debugPipeline).toContain('"kind": "check"')
+    expect(debugPipeline).toContain('"kind": "thread"')
+    expect(debugPipeline).toContain('"type": "needs-human"')
+    expect(debugPipeline).toMatch(/sources[^.]{0,240}every item[^.]{0,240}owns/i)
+    expect(debugPipeline).toMatch(/thread_urls[^.]{0,180}every owned open thread/i)
+
+    expect(babysitPipeline).toMatch(/success only when[^.]{0,500}`needs_human_residuals`[^.]{0,120}empty/i)
+    expect(babysitWatch).toMatch(/success only when[^.]{0,500}`needs_human_residuals`[^.]{0,120}empty/i)
+    expect(babysitPipeline).toContain('status: "needs-human"')
+    expect(babysitPipeline).toMatch(/residual[^.]{0,120}unchanged/i)
+    for (const text of [babysitPipeline, babysitWatch]) {
+      expect(text).toMatch(/(non-empty|not empty)[^.]{0,80}(canonical )?(set|`needs_human_residuals`)[^.]{0,240}no autonomous work(?: remains)?[^.]{0,240}status: "needs-human"|(canonical )?(set|`needs_human_residuals`)[^.]{0,180}(non-empty|not empty)[^.]{0,240}no autonomous work(?: remains)?[^.]{0,240}status: "needs-human"/i)
+      expect(text).toMatch(/(?:without|never) wait(?:ing)?[^.]{0,160}(human|budget)/i)
+    }
+    expect(babysitTick).toMatch(/immediately[^.]{0,180}`## Needs your decision`/i)
+    expect(babysitTick).toMatch(/preserve it unchanged/i)
+    expect(babysitTick).toContain("--residual-file")
+    expect(babysitTick).toContain("needs_human_residuals")
+    expect(babysitTick).toMatch(/never add a route-specific `needs-human` mark/i)
+    expect(babysitWatch).toContain("needs_human_residuals")
+    expect(babysitWatch).toContain("human_decisions")
+    expect(babysitWatch).toMatch(/observation changing or disappearing[^.]{0,180}invalidates/i)
+    expect(babysitWatch).toMatch(/remote activity[^.]{0,100}never[^.]{0,100}answer/i)
+    expect(babysitWatch).toContain("--answer-decision")
+    expect(babysitWatch).toContain("--answer-file")
+    expect(babysitWatch).toMatch(/legacy parked records[^.]{0,180}fail open/i)
+    expect(babysitWatch).toMatch(/interactive continuous mode[^.]{0,240}standing residual[^.]{0,240}watch continues/i)
+    expect(babysitWatch).not.toMatch(/record each with `mark[^`]*--disposition needs-human`/i)
+    expect(babysitSettle).toMatch(/shared atomic mark/i)
+    expect(babysitSettle).not.toMatch(/`--disposition needs-human`/i)
+    expect(babysitWatch).toMatch(/kind: "currency"/i)
+    expect(babysitReport).toContain("## Needs your decision")
+    for (const field of NEEDS_HUMAN_RESIDUAL_FIELDS) {
+      expect(babysitReport, `babysit report must render '${field}'`).toContain(field)
+    }
+
+    for (const [name, consumer] of [["ce-commit-push-pr", commitPush], ["lfg", lfg]] as const) {
+      expect(consumer, `${name} must render the decision gate`).toContain("## Needs your decision")
+      expect(consumer, `${name} must preserve the typed residual`).toMatch(/needs-human[^.]{0,240}unchanged/i)
+      expect(consumer, `${name} must gate success/DONE on propagation`).toMatch(/before[^.]{0,240}(success|DONE)/i)
+    }
+    expect(lfg).toMatch(/common result gate/i)
+    expect(lfg).toMatch(/whichever handoff produced the result/i)
   })
 
   test("merge identity distinguishes historical base metadata from current-base readiness and branch currency", async () => {
@@ -555,6 +669,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
       expect(text).toMatch(/claimed[^.]{0,180}reconciliation-only/i)
       expect(text).toMatch(/exactly one retry[^.]{0,260}(proven|conclusive)[^.]{0,180}no[- ]mutation[^.]{0,180}backoff/i)
       expect(text).toMatch(/ambiguous[^.]{0,220}never[^.]{0,160}(retry|resubmit)/i)
+      expect(text).toMatch(/terminal currency result[^.]{0,160}no safe autonomous continuation[^.]{0,220}`--residual-file`/i)
     }
     expect(babysit).toMatch(/stale invocation[^.]{0,220}(reject|invalidate)/i)
     expect(babysit).toMatch(/SKILL_DIR=[^\n]+;[^\n]+STATE_DIR=[^\n]+;[^\n]+RUN_INVOCATION_ID=[^\n]+;[^\n]+RUN_STARTED_AT=[^\n]+;[^\n]+RUN_BUDGET_SECONDS=[^\n]+;\n\s*PY=[\s\S]*?"\$PY"[^\n]+--currency-disposition claimed/i)
@@ -610,6 +725,10 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     const [babysit, watchLoop] = await Promise.all([readBabysit(), readRepoFile(WATCH_LOOP)])
     for (const text of [babysit, watchLoop]) {
       expect(text).toMatch(/parked_semantic_fingerprints[\s\S]{0,500}--currency-inspected-fingerprint/i)
+      expect(text).toContain("--answer-decision")
+      expect(text).toContain("--answer-file")
+      expect(text).not.toContain("--currency-answered-fingerprint")
+      expect(text).not.toContain("--currency-answer-file")
       expect(text).toMatch(/unchanged[^.]{0,160}(park|needs-human)[^.]{0,160}(changed|different)[^.]{0,180}(reopen|retire)/i)
       expect(text).toMatch(/manual dependenc/i)
       expect(text).toContain("target-local")
@@ -677,6 +796,8 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(step4).toContain("A run recap at every true stop")
     expect(step4).toMatch(/never from conversation memory alone/)
     expect(step4).toContain("remote record")
+    expect(step4).toMatch(/`ACTIONS` trailer[^.]{0,160}only mutations actually performed or observed this tick/i)
+    expect(step4).toMatch(/planned, next, or pending transitions[^.]{0,160}never count as actions/i)
   })
 })
 

@@ -51,9 +51,13 @@ describe("skill-eval-cell catalog", () => {
 
   test("every scenario skill exists at PRE_SWEEP_REF and POST_SWEEP_REF", () => {
     const missing: string[] = []
-    for (const skill of new Set(SCENARIOS.map((s) => s.skill))) {
-      if (!gitShowExists(PRE_SWEEP_REF, skill)) missing.push(`${skill} missing at ${PRE_SWEEP_REF}`)
-      if (!gitShowExists(POST_SWEEP_REF, skill)) missing.push(`${skill} missing at ${POST_SWEEP_REF}`)
+    for (const scenario of SCENARIOS) {
+      if (!gitShowExists(PRE_SWEEP_REF, scenario.skill)) {
+        missing.push(`${scenario.skill} missing at ${PRE_SWEEP_REF}`)
+      }
+      if (!gitShowExists(POST_SWEEP_REF, scenario.skill)) {
+        missing.push(`${scenario.skill} missing at ${POST_SWEEP_REF}`)
+      }
     }
     expect(missing).toEqual([])
   })
@@ -107,11 +111,15 @@ describe("skill-eval-cell catalog", () => {
     ).sort()
     expect(listed).toEqual(
       [
+        "ce-babysit-pr/check-only-answer-reactivates-source:references/tick.md",
         "ce-babysit-pr/behind-reads-branch-currency:references/branch-currency.md",
+        "ce-babysit-pr/pipeline-returns-canonical-human-decision:references/pipeline.md",
+        "ce-babysit-pr/pipeline-returns-canonical-human-decision:references/report.md",
         "ce-brainstorm/lookup-not-ask:references/interaction-rules.md",
         "ce-brainstorm/verdict-routes-to-pov:references/phase-0.md",
         "ce-brainstorm/write-plan-reads-plan-write:references/plan-write.md",
         "ce-commit-push-pr/description-only-no-commit:references/pr-description-writing.md",
+        "ce-commit-push-pr/babysit-off-preserves-human-decision:references/apply-and-handoff.md",
         "ce-debug/pipeline-convergent-fix:references/pipeline-mode.md",
         "ce-debug/pipeline-divergent-defer:references/pipeline-mode.md",
         "ce-handoff/resume-asks-does-not-act:references/resume.md",
@@ -124,6 +132,8 @@ describe("skill-eval-cell catalog", () => {
         "ce-riffrec-feedback-analysis/quick-notes:references/quick-bug-report.md",
         "ce-riffrec-feedback-analysis/setup-before-recording:references/install-riffrec.md",
         "ce-resolve-pr-feedback/pipeline-no-merge:references/pipeline-mode.md",
+        "ce-resolve-pr-feedback/pipeline-returns-complete-human-decision:references/evaluation-rubric.md",
+        "ce-resolve-pr-feedback/pipeline-returns-complete-human-decision:references/pipeline-mode.md",
         "ce-test-xcode/missing-mcp-stops:references/setup-and-build.md",
         "ce-test-xcode/swiftui-inline-link-fallback:references/test-and-report.md",
         "lfg/plan-first:references/plan-brief.md",
@@ -133,6 +143,16 @@ describe("skill-eval-cell catalog", () => {
 
   test("the 8KB sweep has no in-progress skills left", () => {
     expect(SCENARIOS.filter((s) => s.cohort === "in-progress").map((s) => s.id)).toEqual([])
+  })
+
+  test("feature-only decision rows are explicitly post-only", () => {
+    expect(SCENARIOS.filter((s) => s.post_only).map((s) => s.id).sort()).toEqual([
+      "ce-babysit-pr/check-only-answer-reactivates-source",
+      "ce-babysit-pr/pipeline-returns-canonical-human-decision",
+      "ce-commit-push-pr/babysit-off-preserves-human-decision",
+      "ce-debug/pipeline-divergent-defer",
+      "ce-resolve-pr-feedback/pipeline-returns-complete-human-decision",
+    ])
   })
 
   test("the post arm resolves the working tree, not a commit", () => {

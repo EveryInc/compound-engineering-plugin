@@ -283,15 +283,19 @@ Declined (count): [what was declined and the harm cited]
 Validation: [one line -- e.g., "bun test passed (893/893)" or "bun test passed with pre-existing failure in X noted"; omit when no code changes were committed]
 ```
 
-If any item is `needs-human`, append a decisions section. These are rare but high-signal. Each carries a `decision_context` (composed in step 3, or by a fixer's escalation): what the reviewer said, what was investigated, why it needs a decision, concrete options with tradeoffs, and a lean if any.
+If any item is `needs-human`, append a decisions section. These are rare but high-signal. Each carries the typed residual composed in step 3: quoted feedback, investigation, the reason autonomous action is unsafe or ambiguous, concrete options with tradeoffs, a recommendation if any, and links to every still-open thread it covers.
 
 Present the `decision_context` directly -- it's already structured for the user to decide quickly:
 
 ```
-Needs your input (count):
+## Needs your decision
 
-1. [decision_context -- quoted feedback, investigation findings, why it
-   needs a decision, options with tradeoffs, and the recommendation if any]
+1. [decision_context.quoted_feedback]
+   - Investigated: [decision_context.investigation]
+   - Decision needed: [decision_context.decision_reason]
+   - Options: [decision_context.options, preserving each option and tradeoff]
+   - Recommendation: [decision_context.recommendation, when non-null]
+   - Open threads: [thread_urls]
 ```
 
 The `needs-human` threads already have a natural-sounding acknowledgment reply posted and remain open on the PR.

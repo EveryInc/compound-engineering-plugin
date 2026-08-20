@@ -16,13 +16,16 @@ Subcommands:
            Fetch (or load F), diff against on-disk state, persist the
            observed state atomically, emit the actionable set as JSON.
   mark     --state-dir DIR --invocation-id ID --session-started-at TIME
-           --invocation-budget-seconds N (--thread ID --disposition needs-human|dispatched
-           | --comment ID --disposition needs-human|dispatched | --check KEY)
+           --invocation-budget-seconds N (--thread ID --disposition open|dispatched
+           | --comment ID --disposition open|dispatched | --check KEY
+           | --disposition needs-human --residual-file FILE
+           | --answer-decision ID --answer-file FILE)
+           A residual-only needs-human mark atomically freezes every source observation
+           in FILE under one decision. Sources retain their ordinary dispositions.
            Record that the agent acted on an item. A `dispatched` thread is
            re-emitted when a later reviewer comment moves its last-comment
            identity past the one we acted on (our own reply does not
-           re-trigger); a `needs-human` thread stays parked until an explicit
-           `--disposition open`. A non-thread feedback item never drops out of
+           re-trigger). A non-thread feedback item never drops out of
            the fetch on its own, so `--comment` is the only way to silence a
            handled one. A new head SHA clears dispatched CI checks.
 
@@ -59,12 +62,14 @@ FAILING = {"FAILURE", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAIL
 DISPOSITION_OPEN = "open"
 DISPOSITION_NEEDS_HUMAN = "needs-human"
 DISPOSITION_DISPATCHED = "dispatched"
+NEEDS_HUMAN_SOURCE_KINDS = {"thread", "comment", "review", "check", "currency"}
 CURRENCY_CLAIMED = "claimed"
 CURRENCY_CONFIRMED = "confirmed"
 CURRENCY_OUTCOME_MUTATION_OBSERVED = "mutation-observed"
 CURRENCY_OUTCOME_PROVEN_NO_MUTATION = "proven-no-mutation"
 CURRENCY_OUTCOME_AMBIGUOUS = "ambiguous"
 CURRENCY_ATTENTION_CLAIM = "claim"
+CURRENCY_ATTENTION_DECIDE = "decide"
 CURRENCY_ATTENTION_INSPECT = "inspect"
 CURRENCY_ATTENTION_RECONCILE = "reconcile"
 
@@ -778,8 +783,8 @@ def fetch(pr, repo, light=False):
 
     checks = []
     for c in v.get("statusCheckRollup") or []:
-        # CheckRun entries carry name/status/conclusion/workflowName/detailsUrl.
-        # StatusContext (legacy commit statuses) carry context/state/targetUrl.
+        # CheckRun entries carry startedAt/completedAt; StatusContext (legacy commit statuses)
+        # carry createdAt. Preserve the provider's real creation identity for rerun reconciliation.
         if c.get("__typename") == "StatusContext":
             name = c.get("context") or "status"
             state = (c.get("state") or "").upper()
@@ -788,6 +793,9 @@ def fetch(pr, repo, light=False):
                 "status": "COMPLETED" if state in ("SUCCESS", "FAILURE", "ERROR") else "IN_PROGRESS",
                 "conclusion": {"ERROR": "FAILURE"}.get(state, state) or None,
                 "details_url": c.get("targetUrl"),
+                "created_at": c.get("createdAt"),
+                "started_at": None,
+                "completed_at": None,
             })
         else:
             wf = c.get("workflowName")
@@ -797,6 +805,9 @@ def fetch(pr, repo, light=False):
                 "status": (c.get("status") or "").upper() or "IN_PROGRESS",
                 "conclusion": (c.get("conclusion") or None) and c["conclusion"].upper(),
                 "details_url": c.get("detailsUrl"),
+                "created_at": None,
+                "started_at": c.get("startedAt"),
+                "completed_at": c.get("completedAt"),
             })
 
     owner, name, host = _resolve_repo_ref(repo, v.get("url"))
@@ -986,6 +997,7 @@ def _empty_state(pr, repo, url, now):
         "last_activity_at": created_at, "dead_time_seconds": 0.0,
         "invocation_backstop_seconds": DEFAULT_INVOCATION_BACKSTOP_SECONDS,
         "checks": {}, "threads": {}, "ci_dispatched": {},
+        "human_decisions": [], "answered_human_decisions": [],
         "review_decision": None, "mergeable": None, "merge_state_status": None,
         "review_in_progress": False, "review_signal_count": 0, "review_signal_identities": [],
         "review_signal_seen_on_head": False,
@@ -1016,10 +1028,27 @@ def _load_branch_currency_state(state):
         currency.setdefault(key, value)
     if not isinstance(currency.get("items"), dict):
         currency["items"] = {}
+    for item in currency["items"].values():
+        if isinstance(item, dict) and item.get("requires_decision"):
+            item.setdefault("mutation_requires_answer", True)
     if not isinstance(currency.get("semantic_parks"), dict):
         currency["semantic_parks"] = {}
     state["branch_currency_state"] = currency
     return currency
+
+
+def _reactivate_currency_item(currency, item):
+    """Re-actionize one source without erasing attempt or mutation history."""
+    item["disposition"] = DISPOSITION_OPEN
+    item.pop("claimed_invocation_id", None)
+    item.pop("confirmed_invocation_id", None)
+    item.pop("reconciled_invocation_id", None)
+    item.pop("inspected_semantic_conflict_fingerprint", None)
+    item.pop("inspection_result", None)
+    item.pop("requires_decision", None)
+    item.pop("pending_decision", None)
+    item.pop("answered_decision", None)
+    item["parked_semantic_fingerprints"] = sorted(currency.get("semantic_parks") or {})
 
 
 def _mergeability_certain(mergeable, merge_state_status, base):
@@ -1204,9 +1233,11 @@ def _detect_unrequested_base_merge(state, cur, head, head_changed, now):
 def _apply_branch_currency(state, cur, head, head_changed, now):
     currency = _load_branch_currency_state(state)
     carried_claims = _claimed_currency_items(currency)
+    carried_semantic_parks = dict(currency.get("semantic_parks") or {})
     if head_changed or (currency.get("head_sha") not in (None, head)):
         currency = _empty_branch_currency_state()
         currency["items"] = dict(carried_claims)
+        currency["semantic_parks"] = carried_semantic_parks
         state["branch_currency_state"] = currency
     currency["head_sha"] = head
 
@@ -1229,10 +1260,7 @@ def _apply_branch_currency(state, cur, head, head_changed, now):
     item = items.get(key)
     if not isinstance(item, dict):
         item = {**observation, "disposition": DISPOSITION_OPEN}
-        prior_host_branch_update_capability = None
     else:
-        prior_host_branch_update_capability = item.get(
-            "host_branch_update_capability", "unknown")
         # Refresh non-identity facts without changing an invocation-fenced disposition.
         item.update(observation)
     item["host_branch_update_capability"] = cur.get(
@@ -1241,20 +1269,15 @@ def _apply_branch_currency(state, cur, head, head_changed, now):
     item["parked_semantic_fingerprints"] = sorted(parks)
     item.setdefault("retry_count", 0)
     item.setdefault("mutation_consumed", False)
+    item.setdefault("mutation_requires_answer", False)
     disposition = item.get("disposition", DISPOSITION_OPEN)
-    # A transient capability park is not a durable decision: the unchanged observation becomes
-    # claimable as soon as the host confirms that the branch-update operation is authorized.
-    if (disposition == DISPOSITION_NEEDS_HUMAN
-            and item.get("status") == "BEHIND"
-            and item.get("recovery_state") is None
-            and prior_host_branch_update_capability in (False, "unknown")
-            and item.get("host_branch_update_capability") is True):
-        item["disposition"] = DISPOSITION_OPEN
-        disposition = DISPOSITION_OPEN
     if disposition == DISPOSITION_OPEN:
+        answer_required = _currency_mutation_requires_answer(state, key, item)
         inspection_required = (item.get("status") == "DIRTY"
                                and bool(parks)
-                               and item.get("inspection_result") != "changed")
+                               and item.get("inspection_result") != "changed"
+                               and not _answered_human_source_matches(
+                                   state, "currency", key, _currency_source_observation(item)))
         item["inspection_required"] = inspection_required
         retry_wait_seconds = 0
         retry_not_before = item.get("retry_not_before")
@@ -1265,7 +1288,9 @@ def _apply_branch_currency(state, cur, head, head_changed, now):
             except (ValueError, TypeError):
                 retry_wait_seconds = 0
         item["retry_wait_seconds"] = retry_wait_seconds
-        if inspection_required:
+        if answer_required:
+            item["attention"] = CURRENCY_ATTENTION_DECIDE
+        elif inspection_required:
             item["attention"] = CURRENCY_ATTENTION_INSPECT
         elif retry_wait_seconds > 0:
             item["attention"] = None
@@ -1280,17 +1305,10 @@ def _apply_branch_currency(state, cur, head, head_changed, now):
     items[key] = item
     currency["current_key"] = key
 
-    # Old observations are useful only when they carry an unresolved claim or semantic park. Claims
-    # are never pruned; the small bounded tail applies only to parked base generations.
+    # Old observations are useful only when they carry an unresolved mutation claim.
     retained = {item_key: value for item_key, value in items.items()
                 if item_key == key
-                or value.get("disposition") in (CURRENCY_CLAIMED, DISPOSITION_NEEDS_HUMAN)}
-    if len(retained) > 8:
-        parked_keys = [item_key for item_key, value in retained.items()
-                       if item_key != key
-                       and value.get("disposition") == DISPOSITION_NEEDS_HUMAN]
-        for item_key in parked_keys[:-7]:
-            retained.pop(item_key, None)
+                or value.get("disposition") == CURRENCY_CLAIMED}
     currency["items"] = retained
     return item
 
@@ -1376,7 +1394,8 @@ def _record_check_history(state, head, new_checks):
     tj["check_history"] = {k: v for k, v in hist.items() if tick - v.get("seen_tick", tick) <= CHECK_HISTORY_TTL}
 
 
-def _update_trajectory(state, head, new_checks, new_threads, new_feedback, actionable):
+def _update_trajectory(state, head, new_checks, new_threads, new_feedback, actionable,
+                       decision_coverage=None):
     """Maintain and emit the deterministic trajectory. Coarse by design: check-name-level
     recurrence, backlog trend, cross-stream alternation, no-progress heads. Fine, invariant-
     level judgment (log signatures, nit root-clustering) is the leaf's job, not this script's.
@@ -1422,9 +1441,15 @@ def _update_trajectory(state, head, new_checks, new_threads, new_feedback, actio
     # Only genuinely-OPEN items are unresolved work: a `dispatched` item is handled (a top-level
     # comment never drops out of the fetch, so counting it would keep heads_since_progress climbing
     # forever and falsely trip non-convergence on unrelated later work), and `needs-human` is parked.
-    problem_keys = {f"c:{k}" for k, c in new_checks.items() if c["conclusion"] in FAILING}
-    problem_keys |= {f"t:{tid}" for tid, t in new_threads.items() if t.get("disposition") == DISPOSITION_OPEN}
-    problem_keys |= {f"m:{fid}" for fid, f in new_feedback.items() if f.get("disposition") == DISPOSITION_OPEN}
+    decision_coverage = decision_coverage or set()
+    problem_keys = {f"c:{k}" for k, c in new_checks.items()
+                    if c["conclusion"] in FAILING and ("check", k) not in decision_coverage}
+    problem_keys |= {f"t:{tid}" for tid, t in new_threads.items()
+                     if t.get("disposition") == DISPOSITION_OPEN
+                     and ("thread", tid) not in decision_coverage}
+    problem_keys |= {f"m:{fid}" for fid, f in new_feedback.items()
+                     if f.get("disposition") == DISPOSITION_OPEN
+                     and (f.get("kind", "comment"), fid) not in decision_coverage}
     cleared_something = bool(set(tj.get("problem_keys", [])) - problem_keys)
     open_problems = len(problem_keys)
     minp = tj.get("min_open_problems")
@@ -1455,32 +1480,23 @@ def _update_trajectory(state, head, new_checks, new_threads, new_feedback, actio
 
 
 def _apply_dispositions(items, id_key, prior, identity_fn=None,
-                        reactivate_dispositions=(DISPOSITION_DISPATCHED, DISPOSITION_NEEDS_HUMAN)):
+                        reactivate_dispositions=(DISPOSITION_DISPATCHED,)):
     """Claim->act->confirm dedup for a review stream: an item stays actionable until `mark`
     records a non-open disposition (persisted in prior[id]['disposition']). Returns
-    (persisted_by_id, actionable_list, open_needs_human_count).
+    (persisted_by_id, actionable_list, 0).
 
     When identity_fn is given, an item whose disposition is in `reactivate_dispositions` is
     *reactivated* — set back to open and re-actionized — once its last-comment / edit identity moves
-    past the one we acted on. That acted-on identity is captured lazily on the first tick we observe
-    the item parked, which is *after* our own reply (a fix acknowledgment, or a needs-human
-    `decision_context` reply) has already landed in the fetch — so our reply becomes the baseline
-    and does not re-trigger, while a genuine later comment does. For `needs-human` this is exactly
-    how a **human answering the parked question** (a reviewer reply on the thread, or an edit of the
-    parked top-level comment) re-opens it and wakes the loop, instead of it sitting parked forever;
-    an explicit `mark --disposition open` still forces it too. This is also what stops a
-    dispatched-but-unresolved thread with fresh reviewer activity from being silenced out of
-    counts.threads and letting the merge-ready gate call the PR ready.
+    past the one we acted on. That acted-on identity is captured lazily on the first tick after our
+    own reply, so the reply becomes the baseline and later reviewer activity reopens the item. This
+    stops a dispatched-but-unresolved thread with fresh activity from being silenced.
 
     The feedback stream excludes DISPATCHED from `reactivate_dispositions` deliberately: status
     bots rewrite their comment bodies on every push, so edit-keyed reactivation re-actionized
-    handled bot comments forever and merge-ready could never fire (#1309). A `needs-human`
-    feedback item still reactivates on edit — a human answering by editing their own comment must
-    wake the loop, mirroring the thread semantics. (A bot comment parked `needs-human` can churn
-    open on bot self-edits; that costs a redundant resolve pass, not a stuck loop — merge-ready is
-    blocked by open_needs_human either way.) A brand-new comment is just a new id, always
-    actionable."""
-    persisted, actionable, needs_human = {}, [], 0
+    handled bot comments forever and merge-ready could never fire (#1309). A brand-new comment is
+    a new id and is always actionable. Human decisions are a separate coverage layer below; source
+    dispositions remain ordinary open/dispatched facts."""
+    persisted, actionable = {}, []
     for it in items:
         iid = it.get(id_key)
         if not iid:
@@ -1497,13 +1513,462 @@ def _apply_dispositions(items, id_key, prior, identity_fn=None,
                 acted_identity = None
         if disposition == DISPOSITION_OPEN:
             actionable.append(it)
-        elif disposition == DISPOSITION_NEEDS_HUMAN:
-            needs_human += 1
         rec = {**it, "disposition": disposition}
         if acted_identity is not None:
             rec["acted_identity"] = acted_identity
         persisted[iid] = rec
-    return persisted, actionable, needs_human
+    return persisted, actionable, 0
+
+
+def _needs_human_residual_error(residual):
+    """Return why a residual is malformed, or None when the full contract holds."""
+    if not isinstance(residual, dict) or residual.get("type") != "needs-human":
+        return "must be one typed needs-human object"
+    sources = residual.get("sources")
+    if not isinstance(sources, list) or not sources:
+        return "sources must be a non-empty list"
+    seen_sources = set()
+    for source in sources:
+        if not isinstance(source, dict):
+            return "every source must be an object"
+        source_id, kind = source.get("id"), source.get("kind")
+        if not isinstance(source_id, str) or not source_id.strip():
+            return "every source id must be a non-empty string"
+        if kind not in NEEDS_HUMAN_SOURCE_KINDS:
+            return "every source kind must be thread, comment, review, check, or currency"
+        identity = (kind, source_id)
+        if identity in seen_sources:
+            return "sources must be unique"
+        seen_sources.add(identity)
+
+    context = residual.get("decision_context")
+    if not isinstance(context, dict):
+        return "decision_context must be an object"
+    for field in ("quoted_feedback", "investigation", "decision_reason"):
+        if not isinstance(context.get(field), str) or not context[field].strip():
+            return f"decision_context.{field} must be a non-empty string"
+    options = context.get("options")
+    if not isinstance(options, list) or not options:
+        return "decision_context.options must be a non-empty list"
+    for option in options:
+        if not isinstance(option, dict):
+            return "every decision_context option must be an object"
+        for field in ("option", "tradeoff"):
+            if not isinstance(option.get(field), str) or not option[field].strip():
+                return f"every decision_context option.{field} must be a non-empty string"
+    if "recommendation" not in context:
+        return "decision_context.recommendation is required"
+    recommendation = context.get("recommendation")
+    if recommendation is not None and (
+            not isinstance(recommendation, str) or not recommendation.strip()):
+        return "decision_context.recommendation must be null or a non-empty string"
+
+    thread_urls = residual.get("thread_urls")
+    if not isinstance(thread_urls, list) or any(
+            not isinstance(url, str) or not url.strip() for url in thread_urls):
+        return "thread_urls must be a list of non-empty strings"
+    thread_sources = sum(source["kind"] == "thread" for source in sources)
+    if len(set(thread_urls)) != len(thread_urls) or len(thread_urls) != thread_sources:
+        return "thread_urls must contain exactly one unique URL for every thread source"
+    return None
+
+
+def _residual_identity(residual):
+    return json.dumps(residual, sort_keys=True, separators=(",", ":"))
+
+
+def _source_identity(source):
+    return source.get("kind"), source.get("id")
+
+
+def _check_observation_identity(check):
+    if not isinstance(check, dict):
+        return None
+    return {
+        "head_sha": check.get("head_sha"),
+        "conclusion": check.get("conclusion"),
+        "details_url": check.get("details_url"),
+        "created_at": check.get("created_at"),
+        "started_at": check.get("started_at"),
+        "completed_at": check.get("completed_at"),
+    }
+
+
+def _currency_source_observation(item):
+    if not isinstance(item, dict):
+        return None
+    observation = {
+        "key": item.get("key"),
+        "status": item.get("status"),
+        "semantic_conflict_fingerprint": item.get("semantic_conflict_fingerprint"),
+        "recovery_state": item.get("recovery_state"),
+        "mutation_requires_answer": bool(item.get("mutation_requires_answer", False)),
+    }
+    if item.get("status") == "BEHIND" and item.get("recovery_state") is None:
+        observation["host_branch_update_capability"] = item.get(
+            "host_branch_update_capability")
+    return observation
+
+
+def _current_source_observation(state, kind, source_id, threads, feedback, checks):
+    if kind == "thread":
+        record = threads.get(source_id)
+        return ([record.get("last_comment_id"), record.get("last_comment_at")]
+                if isinstance(record, dict) else None)
+    if kind in ("comment", "review"):
+        record = feedback.get(source_id)
+        if not isinstance(record, dict) or record.get("kind") != kind:
+            return None
+        return [record.get("edit_id")]
+    if kind == "check":
+        record = checks.get(source_id)
+        if not isinstance(record, dict) or record.get("conclusion") not in FAILING:
+            return None
+        return _check_observation_identity(record)
+    if kind == "currency":
+        currency = _load_branch_currency_state(state)
+        if currency.get("current_key") != source_id:
+            return None
+        return _currency_source_observation(currency.get("items", {}).get(source_id))
+    return None
+
+
+def _decision_id(residual, sources):
+    payload = json.dumps(
+        {"residual": residual, "sources": sources}, sort_keys=True, separators=(",", ":"))
+    return f"decision:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
+
+
+def _decision_record(residual, sources, created_at=None):
+    return {
+        "id": _decision_id(residual, sources),
+        "residual": json.loads(json.dumps(residual)),
+        "sources": json.loads(json.dumps(sources)),
+        "created_at": created_at,
+    }
+
+
+def _install_human_decisions(state, decisions):
+    """Install canonical decisions while retaining currency mutation safety independently."""
+    currency = _load_branch_currency_state(state)
+    items = currency.get("items", {})
+    for decision in decisions:
+        if not isinstance(decision, dict):
+            continue
+        sources = decision.get("sources")
+        if not isinstance(sources, list):
+            continue
+        for source in sources:
+            if not isinstance(source, dict) or source.get("kind") != "currency":
+                continue
+            item = items.get(source.get("id"))
+            if isinstance(item, dict):
+                item["mutation_requires_answer"] = True
+            observation = source.get("observation")
+            if isinstance(observation, dict):
+                observation["mutation_requires_answer"] = True
+        if isinstance(decision.get("residual"), dict):
+            decision["id"] = _decision_id(decision["residual"], sources)
+    state["human_decisions"] = decisions
+
+
+def _decision_source_matches(source, kind, source_id, observation):
+    return (isinstance(source, dict) and source.get("kind") == kind
+            and source.get("id") == source_id and source.get("observation") == observation)
+
+
+def _answered_human_source_matches(state, kind, source_id, observation):
+    return any(
+        _decision_source_matches(source, kind, source_id, observation)
+        for decision in state.get("answered_human_decisions") or []
+        if isinstance(decision, dict)
+        for source in decision.get("sources") or []
+    )
+
+
+def _currency_mutation_requires_answer(state, source_id, item):
+    observation = _currency_source_observation(item)
+    return (bool(item.get("mutation_requires_answer"))
+            and not _answered_human_source_matches(
+                state, "currency", source_id, observation))
+
+
+def _source_is_actionable(state, kind, source_id, threads, feedback, checks):
+    if kind == "thread":
+        record = threads.get(source_id)
+        return isinstance(record, dict) and record.get("disposition") == DISPOSITION_OPEN
+    if kind in ("comment", "review"):
+        record = feedback.get(source_id)
+        return (isinstance(record, dict) and record.get("kind") == kind
+                and record.get("disposition") == DISPOSITION_OPEN)
+    if kind == "check":
+        record = checks.get(source_id)
+        head = state.get("head_sha")
+        return (isinstance(record, dict) and record.get("conclusion") in FAILING
+                and source_id not in state.get("ci_dispatched", {}).get(head, []))
+    if kind == "currency":
+        currency = _load_branch_currency_state(state)
+        record = currency.get("items", {}).get(source_id)
+        return (currency.get("current_key") == source_id and isinstance(record, dict)
+                and record.get("disposition") in (DISPOSITION_OPEN, CURRENCY_CLAIMED))
+    return False
+
+
+def _source_can_enter_human_decision(state, kind, source_id, threads, feedback, checks):
+    """Accept exact current evidence even when ordinary dispatch already suppresses it."""
+    if _current_source_observation(state, kind, source_id, threads, feedback, checks) is None:
+        return False
+    if kind != "currency":
+        return True
+    currency = _load_branch_currency_state(state)
+    record = currency.get("items", {}).get(source_id)
+    return (currency.get("current_key") == source_id and isinstance(record, dict)
+            and record.get("disposition") in (DISPOSITION_OPEN, CURRENCY_CLAIMED))
+
+
+def _release_ordinary_suppression_for_decision(state, sources, threads, feedback):
+    """Make canonical decision coverage the sole suppression owner for review and CI."""
+    head = state.get("head_sha")
+    dispatched_checks = state.get("ci_dispatched", {}).get(head)
+    for source in sources:
+        kind, source_id = source.get("kind"), source.get("id")
+        record = (threads.get(source_id) if kind == "thread"
+                  else feedback.get(source_id) if kind in ("comment", "review") else None)
+        if isinstance(record, dict):
+            record["disposition"] = DISPOSITION_OPEN
+            record.pop("acted_identity", None)
+        elif kind == "check" and isinstance(dispatched_checks, list):
+            state["ci_dispatched"][head] = [
+                key for key in state["ci_dispatched"][head] if key != source_id]
+
+
+def _migrate_legacy_check_observation(state, source_id, legacy_observations, checks):
+    legacy = legacy_observations.get(source_id)
+    current = _current_source_observation(state, "check", source_id, {}, {}, checks)
+    if (not isinstance(legacy, dict) or not isinstance(current, dict)
+            or current.get("head_sha") != state.get("head_sha")
+            or any(current.get(field) != value for field, value in legacy.items())):
+        return None
+    return current
+
+
+def _retire_legacy_check_suppression(state, residual):
+    if not isinstance(residual, dict) or not isinstance(residual.get("sources"), list):
+        return
+    head = state.get("head_sha")
+    dispatched = state.get("ci_dispatched", {}).get(head)
+    if not isinstance(dispatched, list):
+        return
+    legacy_check_ids = {
+        source.get("id") for source in residual["sources"]
+        if isinstance(source, dict) and source.get("kind") == "check"
+    }
+    state["ci_dispatched"][head] = [
+        key for key in dispatched if key not in legacy_check_ids]
+
+
+def _legacy_decision_records(state, threads, feedback, checks, now):
+    """Replace legacy suppression with exact current decisions; incomplete evidence fails open."""
+    candidates = list(state.get("needs_human_residuals") or [])
+    candidates.extend(
+        record.get("needs_human_residual")
+        for record in list(threads.values()) + list(feedback.values())
+        if isinstance(record.get("needs_human_residual"), dict)
+    )
+    legacy_check_observations = state.get("needs_human_check_observations") or {}
+    records, seen = [], set()
+    for residual in candidates:
+        _retire_legacy_check_suppression(state, residual)
+        if _needs_human_residual_error(residual):
+            continue
+        identity = _residual_identity(residual)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        sources = []
+        for source in residual["sources"]:
+            kind, source_id = _source_identity(source)
+            observation = None
+            record = (threads.get(source_id) if kind == "thread"
+                      else feedback.get(source_id) if kind in ("comment", "review") else None)
+            if isinstance(record, dict) and record.get("acted_identity") is not None:
+                observation = record.get("acted_identity")
+            elif kind == "check":
+                observation = _migrate_legacy_check_observation(
+                    state, source_id, legacy_check_observations, checks)
+            else:
+                observation = _current_source_observation(
+                    state, kind, source_id, threads, feedback, checks)
+            if observation is None:
+                sources = []
+                break
+            sources.append({"kind": kind, "id": source_id, "observation": observation})
+        if sources:
+            records.append(_decision_record(residual, sources, _iso(now)))
+    return records
+
+
+def _legacy_answered_decision_records(state, threads, feedback, checks):
+    """Preserve only the exact source evidence carried by a legacy answer owner."""
+    records, seen = [], set()
+    currency = _load_branch_currency_state(state)
+    for source_id, item in currency.get("items", {}).items():
+        answered = item.get("answered_decision")
+        if not isinstance(answered, dict):
+            continue
+        residual, answer = answered.get("residual"), answered.get("answer")
+        _retire_legacy_check_suppression(state, residual)
+        if _needs_human_residual_error(residual) or not isinstance(answer, str) or not answer.strip():
+            continue
+        owns_residual = any(
+            _source_identity(source) == ("currency", source_id)
+            for source in residual["sources"])
+        observation = _current_source_observation(
+            state, "currency", source_id, threads, feedback, checks)
+        if not owns_residual or observation is None:
+            continue
+        sources = [{"kind": "currency", "id": source_id, "observation": observation}]
+        record = {
+            **_decision_record(residual, sources, answered.get("recorded_at")),
+            "answer": answer.strip(),
+            "answered_at": answered.get("recorded_at"),
+        }
+        if record["id"] not in seen:
+            seen.add(record["id"])
+            records.append(record)
+    return records
+
+
+def _normalize_legacy_source_state(state, threads, feedback):
+    for records in (threads, feedback):
+        for record in records.values():
+            if record.get("disposition") == DISPOSITION_NEEDS_HUMAN:
+                record["disposition"] = DISPOSITION_OPEN
+            record.pop("needs_human_residual", None)
+            if record.get("disposition") == DISPOSITION_OPEN:
+                record.pop("acted_identity", None)
+    currency = _load_branch_currency_state(state)
+    for item in currency.get("items", {}).values():
+        if item.get("disposition") == DISPOSITION_NEEDS_HUMAN:
+            _reactivate_currency_item(currency, item)
+        item.pop("requires_decision", None)
+        item.pop("pending_decision", None)
+        item.pop("answered_decision", None)
+    state.pop("needs_human_residuals", None)
+    state.pop("needs_human_check_observations", None)
+
+
+def _human_decision_identity(decision):
+    if not isinstance(decision, dict):
+        return None
+    residual, sources = decision.get("residual"), decision.get("sources")
+    if not isinstance(residual, dict) or not isinstance(sources, list):
+        return None
+    return _decision_id(residual, sources)
+
+
+def _replace_human_decisions(
+        state, kept, previous=None, threads=None, feedback=None, checks=None):
+    """Replace canonical decisions and reactivate exact surviving source evidence."""
+    previous = previous if isinstance(previous, list) else state.get("human_decisions")
+    previous = previous if isinstance(previous, list) else []
+    kept_identities = {
+        identity for decision in kept
+        if (identity := _human_decision_identity(decision)) is not None
+    }
+    removed = [
+        decision for decision in previous
+        if (_human_decision_identity(decision) not in kept_identities)
+    ]
+    _install_human_decisions(state, kept)
+
+    threads = threads if isinstance(threads, dict) else state.get("threads", {})
+    feedback = feedback if isinstance(feedback, dict) else state.get("feedback", {})
+    checks = checks if isinstance(checks, dict) else state.get("checks", {})
+    for decision in removed:
+        if not isinstance(decision, dict):
+            continue
+        for source in decision.get("sources") or []:
+            if not isinstance(source, dict):
+                continue
+            kind, source_id = source.get("kind"), source.get("id")
+            current = _current_source_observation(
+                state, kind, source_id, threads, feedback, checks)
+            if current != source.get("observation") or kind != "currency":
+                continue
+            # Review and CI retain ordinary open state; currency has an explicit claim to clear.
+            currency = _load_branch_currency_state(state)
+            item = currency.get("items", {}).get(source_id)
+            if isinstance(item, dict):
+                _reactivate_currency_item(currency, item)
+
+
+def _reconcile_human_decisions(state, threads, feedback, checks, now):
+    """Let canonical decisions alone suppress exact evidence; activity is never an answer."""
+    current = state.get("human_decisions")
+    if not isinstance(current, list):
+        current = _legacy_decision_records(state, threads, feedback, checks, now)
+    elif not current and state.get("needs_human_residuals"):
+        current = _legacy_decision_records(state, threads, feedback, checks, now)
+    _install_human_decisions(state, current)
+    answered = state.get("answered_human_decisions")
+    if not isinstance(answered, list):
+        answered = _legacy_answered_decision_records(
+            state, threads, feedback, checks)
+    elif not answered:
+        answered = _legacy_answered_decision_records(
+            state, threads, feedback, checks)
+    _normalize_legacy_source_state(state, threads, feedback)
+
+    kept, seen = [], set()
+    for decision in current:
+        if not isinstance(decision, dict) or _needs_human_residual_error(decision.get("residual")):
+            continue
+        sources = decision.get("sources")
+        if not isinstance(sources, list) or len(sources) != len(decision["residual"]["sources"]):
+            continue
+        expected = {(source.get("kind"), source.get("id")) for source in sources}
+        if expected != {_source_identity(source) for source in decision["residual"]["sources"]}:
+            continue
+        if not all(
+                source.get("observation") is not None
+                and _current_source_observation(
+                    state, source.get("kind"), source.get("id"), threads, feedback, checks)
+                == source.get("observation")
+                for source in sources):
+            continue
+        normalized = _decision_record(decision["residual"], sources, decision.get("created_at"))
+        if normalized["id"] in seen:
+            continue
+        seen.add(normalized["id"])
+        kept.append(normalized)
+
+    _replace_human_decisions(
+        state, kept, current, threads=threads, feedback=feedback, checks=checks)
+    kept_answers = []
+    for decision in answered:
+        if not isinstance(decision, dict) or not isinstance(decision.get("answer"), str):
+            continue
+        sources = decision.get("sources") or []
+        matching_actionable = any(
+            _current_source_observation(
+                state, source.get("kind"), source.get("id"), threads, feedback, checks)
+            == source.get("observation")
+            and _source_is_actionable(
+                state, source.get("kind"), source.get("id"), threads, feedback, checks)
+            for source in sources if isinstance(source, dict))
+        if matching_actionable:
+            kept_answers.append(decision)
+
+    state["answered_human_decisions"] = kept_answers
+    covered = {
+        (source["kind"], source["id"])
+        for decision in kept for source in decision["sources"]
+    }
+    public = []
+    for decision in kept:
+        public.append(json.loads(json.dumps(decision["residual"])))
+    return public, covered
 
 
 def diff(state, cur, now=None, advance_trajectory=True):
@@ -1568,9 +2033,8 @@ def diff(state, cur, now=None, advance_trajectory=True):
     # `checks_terminal` = every check has finished (none IN_PROGRESS/QUEUED).
     # Duplicate check keys (same workflow/name) are disambiguated with a #n suffix
     # so one never shadows another and silently drops a failing check. ---
-    dispatched = set(state.get("ci_dispatched", {}).get(head, []))
     new_checks = {}
-    actionable_ci = []
+    failing_check_items = {}
     has_failing = False
     checks_terminal = True
     seen_keys = {}
@@ -1581,47 +2045,49 @@ def diff(state, cur, now=None, advance_trajectory=True):
             key = f"{key}#{seen_keys[key]}"
         else:
             seen_keys[key] = 0
-        new_checks[key] = {"name": c["name"], "status": c["status"],
-                           "conclusion": c["conclusion"], "head_sha": head}
+        new_checks[key] = {
+            "name": c["name"], "status": c["status"],
+            "conclusion": c["conclusion"], "head_sha": head,
+            "details_url": c.get("details_url"),
+            "created_at": c.get("created_at"),
+            "started_at": c.get("started_at"),
+            "completed_at": c.get("completed_at"),
+        }
         if c["status"] != "COMPLETED":
             checks_terminal = False
         if c["conclusion"] in FAILING:
             has_failing = True
-            if key not in dispatched:
-                actionable_ci.append({"key": key, "name": c["name"],
-                                      "conclusion": c["conclusion"], "details_url": c["details_url"]})
+            failing_check_items[key] = {
+                "key": key, "name": c["name"], "conclusion": c["conclusion"],
+                "details_url": c["details_url"],
+            }
 
-    # Both review streams share claim->act->confirm dedup (see _apply_dispositions), differing
-    # in how an item leaves the fetch and whether new activity re-opens it:
-    #   - Threads: a resolved thread drops out of the unresolved fetch. A `dispatched` thread that
-    #     is still unresolved is reactivated once its last-comment identity moves past the one we
-    #     acted on (acted_identity) — so a reviewer re-engaging is not silently dropped, yet the
-    #     acting loop's own reply (captured as the baseline on first observation) does not
-    #     re-trigger. Its disappearance is likewise the resolver confirming the dispatched work,
-    #     not fresh review activity; removals of open or `needs-human` threads remain external.
-    #     A `needs-human` thread stays parked (open_needs_human keeps merge-ready from
-    #     firing) until a *human* answers it — a later reply/edit past that same baseline reopens and
-    #     wakes it — or an explicit `mark --disposition open` forces it.
-    #   - Feedback (top-level comments + review bodies): no remote "resolve" exists, so an item
-    #     never drops out on its own — `mark --comment <id>` is the only thing that silences it.
-    #     Reactivation on a body edit is per-disposition: a `dispatched` item is NEVER
-    #     auto-reactivated — status bots (changeset-bot, CodeRabbit, Codecov) rewrite their own
-    #     comment bodies on every push, so edit-keyed reactivation re-actionized handled bot
-    #     comments forever and the merge-ready gate could never fire (#1309) — while a
-    #     `needs-human` item still reactivates on edit, because a human may answer the parked
-    #     question by editing the same comment/review body. New requests otherwise arrive as
-    #     review threads or brand-new comments (new ids), both still actionable; edit_id also
-    #     feeds external_review_moved below, so a dispatched item's edit wakes/extends the settle
-    #     clock without re-actionizing it.
-    # Either stream's open needs-human items feed open_needs_human so the merge-ready gate
-    # refuses to call the PR ready while a human decision is still pending.
-    new_threads, actionable_threads, human_threads = _apply_dispositions(
+    # Review streams keep only ordinary open/dispatched state. Human decisions are a separate
+    # exact-observation coverage layer reconciled below, so a remote edit invalidates a question
+    # but is never mistaken for the user's answer.
+    new_threads, _, _ = _apply_dispositions(
         cur["threads"], "thread_id", prior_threads,
         identity_fn=lambda t: [t.get("last_comment_id"), t.get("last_comment_at")])
-    new_feedback, actionable_feedback, human_feedback = _apply_dispositions(
+    new_feedback, _, _ = _apply_dispositions(
         cur.get("feedback") or [], "id", prior_feedback,
-        identity_fn=lambda c: [c.get("edit_id")],
-        reactivate_dispositions=(DISPOSITION_NEEDS_HUMAN,))
+        identity_fn=lambda c: [c.get("edit_id")], reactivate_dispositions=())
+    # Reconcile currency before exact decision observations are compared.
+    _apply_branch_currency(state, cur, head, head_changed, now)
+    needs_human_residuals, decision_coverage = _reconcile_human_decisions(
+        state, new_threads, new_feedback, new_checks, now)
+    dispatched = set(state.get("ci_dispatched", {}).get(head, []))
+    # Every attention stream is derived from ordinary state minus current decision coverage.
+    actionable_threads = [
+        record for source_id, record in new_threads.items()
+        if record.get("disposition") == DISPOSITION_OPEN
+        and ("thread", source_id) not in decision_coverage]
+    actionable_feedback = [
+        record for source_id, record in new_feedback.items()
+        if record.get("disposition") == DISPOSITION_OPEN
+        and (record.get("kind", "comment"), source_id) not in decision_coverage]
+    actionable_ci = [
+        item for key, item in failing_check_items.items()
+        if key not in dispatched and ("check", key) not in decision_coverage]
     current_thread_activity = {
         item.get("thread_id"): _thread_identity(item)
         for item in cur["threads"] if item.get("thread_id")
@@ -1642,13 +2108,11 @@ def diff(state, cur, now=None, advance_trajectory=True):
         or cur.get("review_decision") != prior_review_decision
         or signal_changed
     )
-    open_needs_human = human_threads + human_feedback
-    # Identities of the currently-parked needs-human items, so the watch can tell an already-
-    # surfaced residual (do not re-wake) from a newly-arrived one (wake) — a parked human decision
-    # must not busy-wake the loop or terminate it.
-    needs_human_ids = sorted(
-        [k for k, r in new_threads.items() if r.get("disposition") == DISPOSITION_NEEDS_HUMAN]
-        + [k for k, r in new_feedback.items() if r.get("disposition") == DISPOSITION_NEEDS_HUMAN])
+    open_needs_human = len(needs_human_residuals)
+    # Compatibility view for consumers that display source identities. The canonical set above,
+    # not this flattened list, owns persistence and stop behavior.
+    needs_human_ids = sorted({
+        source["id"] for residual in needs_human_residuals for source in residual["sources"]})
 
     state["head_sha"] = head or state.get("head_sha")
     state["checks"] = new_checks
@@ -1693,6 +2157,8 @@ def diff(state, cur, now=None, advance_trajectory=True):
         cur["base"]["identity"] = BASE_REF_MERGEABILITY_PENDING
     state["base"] = cur.get("base")
     branch_currency = _apply_branch_currency(state, cur, head, head_changed, now)
+    if branch_currency and ("currency", branch_currency.get("key")) in decision_coverage:
+        branch_currency["attention"] = None
 
     actionable = {"ci": actionable_ci, "threads": actionable_threads, "comments": actionable_feedback}
     if advance_trajectory:
@@ -1703,7 +2169,8 @@ def diff(state, cur, now=None, advance_trajectory=True):
     # _update_trajectory.
     _record_check_history(state, head, new_checks)
     if advance_trajectory:
-        trajectory = _update_trajectory(state, head, new_checks, new_threads, new_feedback, actionable)
+        trajectory = _update_trajectory(
+            state, head, new_checks, new_threads, new_feedback, actionable, decision_coverage)
     else:
         # A watch poll detects change and advances the settle clock, but must NOT roll the rest of the
         # trajectory (tick counter, seen_threads, unresolved_series, heads_since_progress). Advancing
@@ -1778,6 +2245,12 @@ def diff(state, cur, now=None, advance_trajectory=True):
         "stack_blocker": _stack_blocker(state["pr_chain"]),
         "open_needs_human": open_needs_human,
         "needs_human_ids": needs_human_ids,
+        "needs_human_residuals": needs_human_residuals,
+        "human_decisions": [
+            {"decision_id": decision.get("id"), "residual": decision.get("residual")}
+            for decision in state.get("human_decisions", []) if isinstance(decision, dict)
+        ],
+        "answered_human_decisions": state.get("answered_human_decisions", []),
         "actionable": {"threads": actionable_threads, "ci": actionable_ci, "comments": actionable_feedback},
         "counts": {"threads": len(actionable_threads), "ci": len(actionable_ci),
                    "comments": len(actionable_feedback), "needs_human": open_needs_human},
@@ -1813,9 +2286,13 @@ def _change_sig(state):
     # clock (review activity happened) even though it no longer reopens the item (#1309).
     feedback = {fid: (v.get("disposition"), v.get("edit_id"))
                 for fid, v in state.get("feedback", {}).items()}
+    human_decisions = sorted(
+        item.get("id") for item in state.get("human_decisions", [])
+        if isinstance(item, dict))
     currency = _load_branch_currency_state(state)
     current_currency = currency.get("items", {}).get(currency.get("current_key")) or {}
-    return (checks, threads, feedback, state.get("review_decision"), state.get("mergeable"),
+    return (checks, threads, feedback, human_decisions,
+            state.get("review_decision"), state.get("mergeable"),
             state.get("merge_state_status"), state.get("review_in_progress"),
             state.get("review_signal_count"),
             tuple(state.get("review_signal_identities") or []),
@@ -2085,13 +2562,13 @@ def _wake_reason(a, settle_seconds):
     # delay a BEHIND update that will invalidate that work anyway. Claimed observations wake only
     # for reconciliation; confirmed and parked residuals remain quiet.
     if branch_currency.get("attention") in (CURRENCY_ATTENTION_CLAIM,
+                                             CURRENCY_ATTENTION_DECIDE,
                                              CURRENCY_ATTENTION_INSPECT,
                                              CURRENCY_ATTENTION_RECONCILE):
         return "branch-currency"
     if a.get("blocked_external"):
         return "blocked-external"
-    if (a.get("open_needs_human", 0)
-            or branch_currency.get("disposition") == DISPOSITION_NEEDS_HUMAN):
+    if a.get("open_needs_human", 0):
         return "needs-human"         # parked items block ready; surface them
     # merge-ready candidate: green + settled with no fresh review movement. A live 👀 blocks the
     # ordinary 300s settle, but wakes the agent after 900 quiet seconds for the semantic stale-review
@@ -2152,7 +2629,7 @@ def _blocker_sig(a):
         sig.add(("unrequested-base-merge", a["unrequested_base_merge"].get("head")))
     branch_currency = a.get("branch_currency") or {}
     currency_disposition = branch_currency.get("disposition")
-    if (currency_disposition in (CURRENCY_CONFIRMED, DISPOSITION_NEEDS_HUMAN)
+    if (currency_disposition == CURRENCY_CONFIRMED
             or (currency_disposition == CURRENCY_CLAIMED
                 and not branch_currency.get("attention"))):
         sig.add(("currency", branch_currency.get("key"), currency_disposition,
@@ -2508,24 +2985,29 @@ def cmd_watch(args):
         signal.signal(signal.SIGTERM, signal.SIG_IGN if superseded else prior_sigterm)
 
 
-def _mark_thread_baseline(item_id, args, state):
-    """Best-effort current last-comment identity of a thread, captured at mark time so our just-posted
-    reply becomes the acted baseline directly. Without this the baseline is adopted lazily on the next
-    snapshot, so a reviewer reply that races in between the reply and that snapshot would be adopted as
-    the baseline and silently swallowed instead of reactivating the thread. A fetch hiccup falls back
-    to the lazy baseline (acted_identity stays unset)."""
+def _mark_thread_baselines(item_ids, args, state):
+    """Best-effort current identities for every thread covered by one atomic mark."""
+    wanted = set(item_ids)
+    if not wanted:
+        return {}
     try:
         if getattr(args, "fetch_file", None):
-            threads = json.load(open(args.fetch_file)).get("threads", [])
+            with open(args.fetch_file) as f:
+                threads = json.load(f).get("threads", [])
         else:
             owner, name, host = _resolve_repo_ref(args.repo, (state.get("pr") or {}).get("url"))
             threads = fetch_threads(args.pr, owner, name, host)
-        for t in threads:
-            if t.get("thread_id") == item_id:
-                return [t.get("last_comment_id"), t.get("last_comment_at")]
     except (SystemExit, Exception):  # SystemExit (from _run_checked) is not an Exception subclass
-        pass
-    return None
+        return {}
+    return {
+        thread.get("thread_id"): [thread.get("last_comment_id"), thread.get("last_comment_at")]
+        for thread in threads if thread.get("thread_id") in wanted
+    }
+
+
+def _mark_thread_baseline(item_id, args, state):
+    """Compatibility wrapper for an ordinary single-thread dispatched mark."""
+    return _mark_thread_baselines([item_id], args, state).get(item_id)
 
 
 def _mark_branch_currency(args, state, now):
@@ -2564,10 +3046,11 @@ def _mark_branch_currency(args, state, now):
                 item.pop("claimed_invocation_id", None)
                 item.pop("reconciled_invocation_id", None)
             else:
-                item["disposition"] = DISPOSITION_NEEDS_HUMAN
+                item["disposition"] = DISPOSITION_OPEN
                 item["recovery_state"] = "retry-exhausted"
         state["last_action"] = f"{outcome} currency {key}"
-        return
+        return item.get("recovery_state") in (
+            CURRENCY_OUTCOME_AMBIGUOUS, "retry-exhausted")
 
     if inspected_fingerprint:
         if prior != DISPOSITION_OPEN:
@@ -2578,7 +3061,6 @@ def _mark_branch_currency(args, state, now):
         item["inspected_semantic_conflict_fingerprint"] = inspected_fingerprint
         item["inspected_at"] = _iso(now)
         if inspected_fingerprint in parks:
-            item["disposition"] = DISPOSITION_NEEDS_HUMAN
             item["semantic_conflict_fingerprint"] = inspected_fingerprint
             item["recovery_state"] = "semantic-unchanged"
             item["inspection_result"] = "unchanged"
@@ -2586,26 +3068,32 @@ def _mark_branch_currency(args, state, now):
             item["inspection_required"] = False
             item["inspection_result"] = "changed"
             item["recovery_state"] = "semantic-changed"
+            item.pop("semantic_conflict_fingerprint", None)
             # The preview describes the current conflict set for this head. Once it differs, the
             # carried fingerprints are no longer standing residuals and must not tax every later
             # base generation with inspection of stale evidence.
             currency["semantic_parks"] = {}
             item["parked_semantic_fingerprints"] = []
         state["last_action"] = f"inspected currency {key}"
-        return
+        return inspected_fingerprint in parks
 
     disposition = args.currency_disposition
     allowed = {
-        DISPOSITION_OPEN: {DISPOSITION_OPEN, CURRENCY_CLAIMED, DISPOSITION_NEEDS_HUMAN},
-        CURRENCY_CLAIMED: {CURRENCY_CLAIMED, CURRENCY_CONFIRMED, DISPOSITION_NEEDS_HUMAN},
+        DISPOSITION_OPEN: {DISPOSITION_OPEN, CURRENCY_CLAIMED},
+        CURRENCY_CLAIMED: {CURRENCY_CLAIMED, CURRENCY_CONFIRMED},
         CURRENCY_CONFIRMED: {CURRENCY_CONFIRMED, DISPOSITION_OPEN},
-        DISPOSITION_NEEDS_HUMAN: {DISPOSITION_NEEDS_HUMAN, DISPOSITION_OPEN},
     }
     if disposition not in allowed.get(prior, set()):
         raise SystemExit(f"invalid currency transition: {prior} -> {disposition}")
     if (prior == DISPOSITION_OPEN and disposition == CURRENCY_CLAIMED
             and item.get("inspection_required")):
         raise SystemExit("currency claim requires semantic-fingerprint inspection first")
+    if (prior == DISPOSITION_OPEN and disposition == CURRENCY_CLAIMED
+            and _needs_human_source_is_covered(state, key, "currency")):
+        raise SystemExit("currency claim requires the current human decision to be answered")
+    if (prior == DISPOSITION_OPEN and disposition == CURRENCY_CLAIMED
+            and _currency_mutation_requires_answer(state, key, item)):
+        raise SystemExit("currency claim requires an exact human answer")
     if prior == DISPOSITION_OPEN and disposition == CURRENCY_CLAIMED:
         retry_not_before = item.get("retry_not_before")
         if retry_not_before:
@@ -2625,6 +3113,7 @@ def _mark_branch_currency(args, state, now):
         # A repeated claim is deliberately idempotent. It cannot transfer or renew an existing
         # claim; a later invocation must reconcile it and record an explicit outcome.
         if prior == DISPOSITION_OPEN:
+            item["mutation_requires_answer"] = False
             item["claimed_invocation_id"] = state.get("invocation_id")
             item["claimed_at"] = _iso(now)
             item["attempt_number"] = int(item.get("retry_count", 0)) + 1
@@ -2633,81 +3122,269 @@ def _mark_branch_currency(args, state, now):
             item.pop("reconciled_invocation_id", None)
     elif disposition == CURRENCY_CONFIRMED:
         item["confirmed_invocation_id"] = state.get("invocation_id")
-    elif disposition == DISPOSITION_NEEDS_HUMAN:
-        fingerprint = args.semantic_conflict_fingerprint
-        if fingerprint:
+    elif disposition == DISPOSITION_OPEN:
+        _reactivate_currency_item(currency, item)
+    else:
+        item["parked_semantic_fingerprints"] = sorted(currency.get("semantic_parks") or {})
+    state["last_action"] = f"{disposition} currency {key}"
+    return False
+
+
+def _load_needs_human_residual(path, item_id=None, expected_kind=None):
+    if not path:
+        raise SystemExit("needs-human marks require --residual-file")
+    try:
+        with open(path, encoding="utf-8") as f:
+            residual = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"cannot read --residual-file: {exc}")
+    error = _needs_human_residual_error(residual)
+    if error:
+        raise SystemExit(f"invalid --residual-file: {error}")
+    if item_id is not None and not any(
+            source["id"] == item_id and source["kind"] == expected_kind
+            for source in residual["sources"]):
+        raise SystemExit("--residual-file sources must include the marked item ID and kind")
+    return residual
+
+
+def _load_human_answer(path):
+    if not path:
+        raise SystemExit("--answer-decision requires --answer-file")
+    try:
+        with open(path, encoding="utf-8") as f:
+            answer = f.read().strip()
+    except OSError as exc:
+        raise SystemExit(f"cannot read --answer-file: {exc}")
+    if not answer:
+        raise SystemExit("--answer-file must contain the human's answer")
+    return answer
+
+
+def _park_human_decision(state, residual, args, now):
+    """Freeze one complete decision over ordinary source observations, then publish it."""
+    threads = state.get("threads", {})
+    feedback = state.get("feedback", {})
+    checks = state.get("checks", {})
+    decisions = state.setdefault("human_decisions", [])
+    existing = next((
+        decision for decision in decisions
+        if isinstance(decision, dict)
+        and _residual_identity(decision.get("residual")) == _residual_identity(residual)
+    ), None)
+    if existing is not None:
+        _install_human_decisions(state, decisions)
+        return existing
+    covered = {
+        (source.get("kind"), source.get("id"))
+        for decision in decisions if isinstance(decision, dict)
+        for source in decision.get("sources") or [] if isinstance(source, dict)
+    }
+    overlap = covered.intersection(_source_identity(source) for source in residual["sources"])
+    if overlap:
+        raise SystemExit("needs-human source already belongs to another current decision")
+
+    for source in residual["sources"]:
+        kind, source_id = _source_identity(source)
+        if not _source_can_enter_human_decision(
+                state, kind, source_id, threads, feedback, checks):
+            raise SystemExit(f"needs-human source is not current decision evidence: {kind} {source_id}")
+        if kind == "currency" and args.semantic_conflict_fingerprint:
+            currency = _load_branch_currency_state(state)
+            item = currency["items"][source_id]
+            fingerprint = args.semantic_conflict_fingerprint
             item["semantic_conflict_fingerprint"] = fingerprint
             currency.setdefault("semantic_parks", {})[fingerprint] = {
                 "head_sha": item.get("head_sha"),
                 "status": item.get("status"),
                 "route": item.get("route"),
-                "observation_key": key,
+                "observation_key": source_id,
             }
-    elif disposition == DISPOSITION_OPEN:
-        old_fingerprint = item.pop("semantic_conflict_fingerprint", None)
-        if old_fingerprint:
-            currency.setdefault("semantic_parks", {}).pop(old_fingerprint, None)
-        item.pop("claimed_invocation_id", None)
-        item.pop("confirmed_invocation_id", None)
-        item.pop("reconciled_invocation_id", None)
-        item.pop("inspected_semantic_conflict_fingerprint", None)
-        item.pop("inspection_result", None)
-        item["retry_count"] = 0
-        item["mutation_consumed"] = False
-        item.pop("retry_not_before", None)
-        item.pop("recovery_state", None)
-    item["parked_semantic_fingerprints"] = sorted(currency.get("semantic_parks") or {})
-    state["last_action"] = f"{disposition} currency {key}"
+
+    thread_ids = [
+        source["id"] for source in residual["sources"] if source["kind"] == "thread"]
+    thread_baselines = _mark_thread_baselines(thread_ids, args, state)
+    missing_thread_baselines = sorted(set(thread_ids) - set(thread_baselines))
+    if missing_thread_baselines:
+        raise SystemExit(
+            "cannot freeze the post-reply thread observation: "
+            + ", ".join(missing_thread_baselines))
+    sources = []
+    for source in residual["sources"]:
+        kind, source_id = _source_identity(source)
+        if kind == "thread":
+            observation = thread_baselines[source_id]
+        elif kind in ("comment", "review"):
+            observation = _current_source_observation(
+                state, kind, source_id, threads, feedback, checks)
+            if args.comment == source_id and args.acted_edit_id:
+                observation = [args.acted_edit_id]
+        else:
+            observation = _current_source_observation(
+                state, kind, source_id, threads, feedback, checks)
+        if observation is None:
+            raise SystemExit(f"cannot freeze needs-human observation: {kind} {source_id}")
+        sources.append({"kind": kind, "id": source_id, "observation": observation})
+
+    if any(
+            _answered_human_source_matches(
+                state, source["kind"], source["id"], source["observation"])
+            for source in sources):
+        raise SystemExit("source observations already have a recorded human answer")
+    _release_ordinary_suppression_for_decision(state, sources, threads, feedback)
+    decision = _decision_record(residual, sources, _iso(now))
+    if any(item.get("id") == decision["id"] for item in decisions if isinstance(item, dict)):
+        return decision
+    decisions.append(decision)
+    _install_human_decisions(state, decisions)
+    return decision
+
+
+def _invalidate_human_source(state, item_id, kind):
+    kept = [
+        decision for decision in state.get("human_decisions") or []
+        if not any(source.get("id") == item_id and source.get("kind") == kind
+                   for source in decision.get("sources") or [] if isinstance(source, dict))
+    ]
+    _replace_human_decisions(state, kept)
+
+
+def _needs_human_source_is_covered(state, item_id, kind):
+    return any(
+        source.get("id") == item_id and source.get("kind") == kind
+        for decision in state.get("human_decisions") or []
+        if isinstance(decision, dict)
+        for source in decision.get("sources") or []
+        if isinstance(source, dict)
+    )
+
+
+def _answer_human_decision(state, decision_id, answer_file, now):
+    answer = _load_human_answer(answer_file)
+    current = next((
+        decision for decision in state.get("human_decisions") or []
+        if isinstance(decision, dict) and decision.get("id") == decision_id
+    ), None)
+    if current is None:
+        existing = next((
+            decision for decision in state.get("answered_human_decisions") or []
+            if isinstance(decision, dict) and decision.get("id") == decision_id
+        ), None)
+        if existing and existing.get("answer") == answer:
+            return existing
+        raise SystemExit("--answer-decision must name an exact current decision ID")
+    kept = [
+        decision for decision in state.get("human_decisions") or []
+        if not isinstance(decision, dict) or decision.get("id") != decision_id
+    ]
+    _replace_human_decisions(state, kept)
+    answered = {**json.loads(json.dumps(current)), "answer": answer, "answered_at": _iso(now)}
+    state.setdefault("answered_human_decisions", []).append(answered)
+    state["last_action"] = f"answered human decision {decision_id}"
+    return answered
 
 
 def cmd_mark(args):
     now = _now()
+    marked = None
     with locked_state(args.state_dir, args.pr, args.repo, now) as box:
         _apply_invocation(box, args, now)
+        if (args.check or args.thread or args.comment) and args.residual_file \
+                and args.disposition != DISPOSITION_NEEDS_HUMAN:
+            raise SystemExit("--residual-file requires --disposition needs-human for source marks")
+        if (args.disposition == DISPOSITION_NEEDS_HUMAN and not args.residual_file
+                and not (args.check or args.thread or args.comment)):
+            raise SystemExit("needs-human marks require --residual-file")
         state = box["state"]
         # An agent-driven mark is activity: bump the heartbeat (no accumulation) so a long tick
         # that only marks — never snapshots — still never has its active time refunded as dead time.
         if state.get("started_at"):
             _advance_activity(state, now, accumulate=False)
-        if (args.currency_key or args.currency_disposition or args.currency_outcome
+        if args.answer_decision or args.answer_file:
+            if not args.answer_decision or not args.answer_file:
+                raise SystemExit("answer marks require --answer-decision and --answer-file")
+            if (args.currency_key or args.check or args.thread or args.comment
+                    or args.residual_file):
+                raise SystemExit("answer marks cannot be combined with source actions")
+            marked = _answer_human_decision(
+                state, args.answer_decision, args.answer_file, now)
+        elif (args.currency_key or args.currency_disposition or args.currency_outcome
                 or args.currency_inspected_fingerprint):
             actions = sum(bool(value) for value in (
                 args.currency_disposition, args.currency_outcome,
                 args.currency_inspected_fingerprint))
             if not args.currency_key or actions != 1:
                 raise SystemExit("currency marks require --currency-key and exactly one currency action")
-            _mark_branch_currency(args, state, now)
+            decision_required = _mark_branch_currency(args, state, now)
+            if decision_required:
+                residual = _load_needs_human_residual(
+                    args.residual_file, args.currency_key, "currency")
+                marked = _park_human_decision(state, residual, args, now)
+            elif args.residual_file:
+                raise SystemExit(
+                    "--residual-file requires a currency outcome that needs a human decision")
+            if args.currency_disposition == DISPOSITION_OPEN:
+                _invalidate_human_source(state, args.currency_key, "currency")
+            marked = marked or args.currency_key
+        elif args.residual_file and not (args.check or args.thread or args.comment):
+            if args.disposition != DISPOSITION_NEEDS_HUMAN:
+                raise SystemExit("a residual-only mark requires --disposition needs-human")
+            residual = _load_needs_human_residual(args.residual_file)
+            marked = _park_human_decision(state, residual, args, now)
+            state["last_action"] = "needs-human residual"
         elif args.check:
             head = state.get("head_sha")
             if not head:
                 raise SystemExit("mark --check requires a prior snapshot (state has no head_sha)")
             state.setdefault("ci_dispatched", {}).setdefault(head, [])
-            if args.check not in state["ci_dispatched"][head]:
-                state["ci_dispatched"][head].append(args.check)
-            state["last_action"] = f"dispatched check {args.check}"
+            if args.disposition == DISPOSITION_OPEN:
+                _invalidate_human_source(state, args.check, "check")
+                state["ci_dispatched"][head] = [
+                    key for key in state["ci_dispatched"][head] if key != args.check]
+            elif args.disposition == DISPOSITION_NEEDS_HUMAN:
+                residual = _load_needs_human_residual(
+                    args.residual_file, args.check, "check")
+                marked = _park_human_decision(state, residual, args, now)
+            else:
+                if _needs_human_source_is_covered(state, args.check, "check"):
+                    raise SystemExit(
+                        "cannot dispatch a source covered by a current human decision")
+                if args.check not in state["ci_dispatched"][head]:
+                    state["ci_dispatched"][head].append(args.check)
+            state["last_action"] = f"{args.disposition} check {args.check}"
+            marked = marked or args.check
         elif args.thread or args.comment:
             item_id = args.thread or args.comment
             collection, id_field, label = (
                 ("threads", "thread_id", "thread") if args.thread else ("feedback", "id", "comment"))
             entry = state.setdefault(collection, {}).setdefault(item_id, {id_field: item_id})
-            entry["disposition"] = args.disposition
+            kind = "thread" if args.thread else entry.get("kind", "comment")
             if args.disposition == DISPOSITION_OPEN:
+                entry["disposition"] = DISPOSITION_OPEN
+                _invalidate_human_source(state, item_id, kind)
                 entry.pop("acted_identity", None)   # reopened -> next dispatch/park re-baselines
-            elif args.disposition in (DISPOSITION_DISPATCHED, DISPOSITION_NEEDS_HUMAN):
+            elif args.disposition == DISPOSITION_NEEDS_HUMAN:
+                residual = _load_needs_human_residual(
+                    args.residual_file, item_id, kind)
+                marked = _park_human_decision(state, residual, args, now)
+            else:
+                if _needs_human_source_is_covered(state, item_id, kind):
+                    raise SystemExit(
+                        "cannot dispatch a source covered by a current human decision")
+                entry["disposition"] = DISPOSITION_DISPATCHED
                 if args.thread:
                     # our reply moved the thread's last comment, so re-read it now as the baseline.
                     ident = _mark_thread_baseline(item_id, args, state)
                     if ident is not None:
                         entry["acted_identity"] = ident
                 elif args.comment and args.acted_edit_id:
-                    # our reply is a separate top-level comment and never edits THIS one, so the
-                    # snapshot-time edit_id the agent passes is already the correct baseline (no
-                    # fetch). Only a `needs-human` mark ever reads it (dispatched comments no
-                    # longer reactivate on edit, #1309), but storing it unconditionally is
-                    # harmless and closes the answered-by-edit race for parked comments.
                     entry["acted_identity"] = [args.acted_edit_id]
             state["last_action"] = f"{args.disposition} {label} {item_id}"
-    print(json.dumps({"marked": args.currency_key or args.check or args.thread or args.comment}))
+            marked = marked or item_id
+    if isinstance(marked, dict):
+        print(json.dumps({"marked": marked.get("id"), "decision": marked}, indent=2))
+    else:
+        print(json.dumps({"marked": marked}))
 
 
 WATCH_BOOTSTRAP_FLAGS = ("--state-dir", "--invocation-id", "--session-started-at",
@@ -2773,24 +3450,29 @@ def main():
     m.add_argument("--invocation-budget-seconds", type=float, required=True,
                    help="fixed budget emitted by the invocation's first snapshot")
     m.add_argument("--thread", default=None)
-    # `open` re-actionizes a parked thread — the explicit re-open the SKILL prose relies on when a
-    # parked stream's context materially changes (a human pushed, the check universe moved).
+    # `open` cancels a covering decision and returns the source to ordinary actionable state.
     m.add_argument("--disposition", choices=[DISPOSITION_NEEDS_HUMAN, DISPOSITION_DISPATCHED, DISPOSITION_OPEN], default=DISPOSITION_DISPATCHED)
     m.add_argument("--check", default=None)
     m.add_argument("--comment", default=None)
     m.add_argument("--fetch-file", default=None)  # reuse the tick's fetch for the at-mark baseline
-    m.add_argument("--acted-edit-id", default=None)  # snapshot-time edit_id baseline; read only by needs-human comment reactivation (#1309)
+    m.add_argument("--acted-edit-id", default=None)  # snapshot-time identity for a covered comment
+    m.add_argument("--residual-file", default=None)
     m.add_argument("--currency-key", default=None,
                    help="exact branch-currency observation key emitted by snapshot")
     m.add_argument("--currency-disposition",
-                   choices=[DISPOSITION_OPEN, CURRENCY_CLAIMED, CURRENCY_CONFIRMED,
-                            DISPOSITION_NEEDS_HUMAN], default=None)
-    m.add_argument("--semantic-conflict-fingerprint", default=None)
+                   choices=[DISPOSITION_OPEN, CURRENCY_CLAIMED, CURRENCY_CONFIRMED],
+                   default=None)
+    m.add_argument("--semantic-conflict-fingerprint", default=None,
+                   help="semantic conflict identity preserved with a currency decision")
     m.add_argument("--currency-outcome",
                    choices=[CURRENCY_OUTCOME_MUTATION_OBSERVED,
                             CURRENCY_OUTCOME_PROVEN_NO_MUTATION,
                             CURRENCY_OUTCOME_AMBIGUOUS], default=None)
     m.add_argument("--currency-inspected-fingerprint", default=None)
+    m.add_argument("--answer-decision", default=None,
+                   help="exact current decision ID whose human answer is being recorded")
+    m.add_argument("--answer-file", default=None,
+                   help="file containing the human answer to preserve until covered work moves")
     m.set_defaults(func=cmd_mark)
 
     w = sub.add_parser("watch")
