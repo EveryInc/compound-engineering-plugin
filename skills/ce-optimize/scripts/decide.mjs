@@ -104,7 +104,12 @@ function valueBundle(raw) {
 
 function metricBundle(source, name) {
   if (!source) return null
-  for (const raw of [source.metrics?.[name], source.judge?.[name], source.gates?.[name]]) {
+  for (const raw of [
+    source.metrics?.[name],
+    source.judge?.[name],
+    source.diagnostics?.[name],
+    source.gates?.[name],
+  ]) {
     if (raw === undefined) continue
     return valueBundle(raw)
   }

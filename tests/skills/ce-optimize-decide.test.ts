@@ -801,6 +801,17 @@ describe("judge minimum as a comparison floor", () => {
     expect(result.eligible).toBe(false)
   })
 
+  test("canonical log snapshots keep a hard primary stored under diagnostics", () => {
+    const result = decide({
+      spec: hardSpec(),
+      baseline: { gates: { suite_passed: 1 }, diagnostics: { wall_seconds: 10 } },
+      candidate: { gates: { suite_passed: 1 }, diagnostics: { wall_seconds: 9.97 } },
+    })
+    expect(result.decision).toBe("keep")
+    expect(result.eligible).toBe(true)
+    expect(result.improved_objectives).toEqual(["wall_seconds"])
+  })
+
   test("canonical log snapshots keep a judge win stored under judge, not metrics", () => {
     const spec = {
       metric: {
@@ -946,6 +957,8 @@ describe("schema and skill pins", () => {
     expect(LOOP).toContain("the spec as loaded")
     expect(LOOP).toContain("elapsed wall time itself proves the primary cannot win")
     expect(LOOP).toContain("including 125 without that marker")
+    expect(LOOP).toContain("compare that combined snapshot against the updated baseline")
+    expect(LOOP).toContain("only for diffs that were integrated")
     expect(LOOP).toContain("whenever `next_measurement` is not `none`")
     expect(LOOP).not.toContain("confirm` or `add_sample")
     expect(MEASUREMENT).toContain("Spend only the measurement the current decision needs")

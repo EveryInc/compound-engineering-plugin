@@ -97,7 +97,7 @@ The files under `.context/compound-engineering/ce-optimize/<spec-name>/` are loc
 
 ### Parallel isolation, then file-disjoint combines
 
-Each experiment owns a worktree and a branch. Merges are serial. After the winner lands, runners-up that edited completely different files can be combined and scored again, up to a cap. A combo that is not strictly better is reverted and logged as promising alone but neutral or harmful together.
+Each experiment owns a worktree and a branch. Merges are serial. After the winner lands, runners-up that edited completely different files can be combined and scored again, up to a cap. A combo that is not eligible on the re-measurement is reverted and logged as promising alone but neutral or harmful together.
 
 After each batch a strategy digest (categories tried, what worked, what is still untried, current best) steers the next hypotheses. The digest is working state for the loop, not a kept deliverable.
 

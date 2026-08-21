@@ -167,14 +167,14 @@ After all experiments in the batch have been measured:
 4. **Check file-disjoint runners-up** (up to `max_runner_up_merges_per_batch`):
    - For each runner-up that also improved, check file-level disjointness with the kept experiment
    - **File-level disjointness**: two experiments are disjoint if they modified completely different files. Same file = overlapping, even if different lines.
-   - If disjoint: cherry-pick the runner-up onto the new baseline, re-run full measurement
-   - If combined measurement is strictly better: keep the cherry-pick (outcome: `runner_up_kept`), then clean up that runner-up's experiment worktree and branch
+   - If disjoint: cherry-pick the runner-up onto the new baseline, re-run full measurement, and compare that combined snapshot against the updated baseline with `decide.mjs`
+   - Keep the cherry-pick only when that result is eligible and `next_measurement` is `none` (outcome: `runner_up_kept`); then clean up that runner-up's experiment worktree and branch
    - Otherwise: revert the cherry-pick, log as "promising alone but neutral/harmful in combination" (outcome: `runner_up_reverted`), then clean up the runner-up's experiment worktree and branch
    - Stop after first failed combination
 
 5. **Handle deferred deps**: experiments that need unapproved dependencies get outcome `deferred_needs_approval`
 
-6. **Close the rest**: cleanup worktrees. Keep the `decide.mjs` outcome (`reverted`, `inconclusive`, `censored`, `degenerate`) — do not rewrite those to `reverted`.
+6. **Close the rest.** Cleanup worktrees. `kept` and `runner_up_kept` are only for diffs that were integrated. Finalize every other eligible candidate with a non-kept terminal outcome. Leave `inconclusive`, `censored`, and `degenerate` as `decide.mjs` returned them.
 
 ### 3.5 Update State (CP-4)
 
