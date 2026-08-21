@@ -94,7 +94,7 @@ Determine `OUTPUT_FORMAT` before any other phase fires. Output mode is **exclusi
 
 Also resolve `SKIP_SCOPING_CONFIRM` here by the same precedence. `confirm:auto` skips the scoping-synthesis confirmation for this run and `confirm:ask` forces it on; honor an equivalent plain-language instruction the same way ("just write it, don't ask me to confirm" skips; "ask me before writing the plan" asks). Only those two literal values are consumed as a flag — any other `confirm:<value>` stays verbatim in the feature description. Then a preference already in your context, then the first **active (non-commented)** `plan_skip_scoping_confirm:` matching `true` or `false`, then the default of asking. `references/intake.md` owns what the skip does and does not cover, at the gate it applies to.
 
-Also resolve the **model-elevation choice** here, parallel to `OUTPUT_FORMAT`, so it is decided up front rather than at a late, skippable step. Run `references/reasoning-elevation.md`'s Activation resolution (precedence: caller carrier > in-prompt intent > config `plan_model`), reusing the repo root and config reads already done above, and record the result as `MODEL_ELEVATION` (a model alias, or none). This resolves *which* model only; adapter selection and dispatch stay at Phase 5.2, which consumes `MODEL_ELEVATION`. Pipeline / `disable-model-invocation` mode does not disable elevation — it skips only the in-prompt-intent step, so a caller carrier or `plan_model` config still elevates.
+**Model-elevation visibility.** Treat a stripped `plan_model:<alias>` carrier or a surfaced `plan_model` config value as a pending Phase 5.2 input, not a resolved choice. Phase 5.2 resolves the choice from the current conversation, carrier, and config immediately before authoring, so later user intent cannot be lost.
 
 #### 0.1 Resume Existing Plan Work When Appropriate
 
@@ -144,7 +144,7 @@ Read `references/final-review.md` now and follow it. It carries Phase 5.1 (the p
 
 #### 5.2 Write Plan File
 
-**Model elevation.** Before authoring the plan, load `references/reasoning-elevation.md` and follow it, consuming the `MODEL_ELEVATION` choice already resolved at Phase 0.0 rather than re-resolving. It dispatches the interpret-findings-then-author step to that model, with transparent fallback to your session model. When `MODEL_ELEVATION` is none it is a no-op. It runs the same on every harness — do not gate it on the host.
+**Model elevation.** Before authoring the plan, load `references/reasoning-elevation.md`, resolve the choice at this boundary, and follow it. Do not author until activation resolution has completed and any selected dispatch or transparent fallback has settled. When no model is selected it is a no-op. It runs the same on every harness — do not gate it on the host.
 
 **REQUIRED: Write the plan file to disk before presenting any options.** Write it to `<root>/plans/` with the extension `OUTPUT_FORMAT` resolved to, following the naming and atomic-reservation rules in `references/final-review.md`. Both formats continue through `ce-doc-review`; fixes apply in the artifact's native format while preserving its existing structure.
 

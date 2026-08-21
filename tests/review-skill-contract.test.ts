@@ -1414,6 +1414,7 @@ describe("cross-model peer skip legibility", () => {
       expect(src).toContain("authentication is authoritative only after provider-capable dispatch")
       expect(src).not.toContain("installed/authed")
       expect(src).not.toContain("reachable attested-different")
+      expect(src).not.toContain("where the route documents authentication")
     })
   }
 

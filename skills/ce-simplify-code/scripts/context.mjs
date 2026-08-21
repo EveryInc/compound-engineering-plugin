@@ -14,10 +14,9 @@ function git(...args) {
   }
 }
 
-// Model/engine config keys are a deliberate, sometimes paid, user choice about
-// which model does the reasoning-heavy work. Surfacing them here — at the top of
-// every run, in the authoritative context block — makes silently ignoring them
-// essentially impossible. Scalar keys only; a minimal reader avoids a YAML dep.
+// Model/engine config keys are a deliberate, sometimes paid, user choice.
+// Surface their active raw values at the top of every run so a consumer that
+// ignores one is visible. Scalar keys only; a minimal reader avoids a YAML dep.
 const CE_MODEL_KEYS = [
   'plan_model',
   'brainstorm_model',
@@ -44,14 +43,10 @@ function readActiveScalar(file, key) {
   return undefined;
 }
 
-// Surfaces the first active value: config.local.yaml then config.yaml (local
-// overrides repo). Presence-based, not validity-aware — an invalid local value
-// is shown as-is rather than falling through, because per-key valid sets live in
-// each consumer (and model-alias keys have no closed set to check here). Each
-// skill still applies its own ordinary-key validity rule; this line reports what
-// the config files hold. Silent when nothing resolves, so a repo that configures
-// nothing adds no noise.
-function resolvedCeConfig() {
+// Report the first active value: config.local.yaml then config.yaml. This is
+// presence-based, not validity-aware; each consumer still owns final resolution.
+// Silent when none of these keys is active.
+function activeCeConfig() {
   const root = git('rev-parse', '--show-toplevel');
   if (!root) return null;
   const files = [
@@ -65,7 +60,7 @@ function resolvedCeConfig() {
       if (v) { out.push(`${key}=${v}`); break; }
     }
   }
-  return out.length ? 'RESOLVED_CE_CONFIG: ' + out.join(' ') : null;
+  return out.length ? 'ACTIVE_CE_CONFIG: ' + out.join(' ') : null;
 }
 
 function buildResolvedContext() {
@@ -75,7 +70,7 @@ function buildResolvedContext() {
     `branch: ${git('rev-parse', '--abbrev-ref', 'HEAD') || '(not a git repository)'}`,
     `head: ${git('rev-parse', '--short', 'HEAD') || '(none)'}`,
   ];
-  const ceConfig = resolvedCeConfig();
+  const ceConfig = activeCeConfig();
   if (ceConfig) lines.push(ceConfig);
   return lines.join('\n');
 }

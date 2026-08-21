@@ -66,6 +66,7 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 | `ce-brainstorm/requirements-only-no-implement` | Brainstorm does not implement |
 | `ce-brainstorm/lookup-not-ask` | Whether `src/greet.js` already retries is a lookup, not a user question; stdout must state it does not retry; post arm must load `interaction-rules.md` |
 | `ce-plan/no-implement` | Plan does not execute |
+| `ce-plan/config-model-reaches-authoring-gate` | At the authoring boundary, active config-only `plan_model` reaches `reasoning-elevation.md` and resolves transparently before dispatch or write |
 | `ce-work/return-to-caller-no-pr` | Return-to-caller does not open a PR |
 
 ## LFG (merged #1479)

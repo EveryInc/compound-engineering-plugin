@@ -50,6 +50,25 @@ describe("reasoning-elevation engine parity", () => {
     expect(src).toContain("login or credential-refresh remediation")
   })
 
+  test("resolves model intent at the dispatch boundary instead of freezing Phase 0 state", async () => {
+    const src = await readFile(path.join(PLUGIN_ROOT, CONSUMER_SKILLS[0], ELEVATION_ASSET), "utf8")
+    const plan = await readFile(path.join(PLUGIN_ROOT, "ce-plan", "SKILL.md"), "utf8")
+    const approaches = await readFile(
+      path.join(PLUGIN_ROOT, "ce-brainstorm", "references", "approaches.md"),
+      "utf8",
+    )
+
+    expect(src).toContain("immediately before adapter selection")
+    expect(src).toContain("Latest explicit user intent")
+    expect(src).toContain("latest explicit live user intent, then caller carrier, then config")
+    expect(src).toContain("resolution is caller-carrier-then-config")
+    expect(src).not.toContain("MODEL_ELEVATION")
+    expect(plan).toContain("resolve the choice at this boundary")
+    expect(plan).toContain("Do not author until activation resolution has completed")
+    expect(approaches).toContain("resolve the choice at this boundary")
+    expect(approaches).toContain("Do not generate approaches until activation resolution has completed")
+  })
+
   // Narrow guard: the legacy "fable" token must not return to an always-loaded
   // SKILL.md. Model choice now arrives from config or the prompt at runtime, so a
   // hardcoded model name in a SKILL.md hook is a regression — the engine and its

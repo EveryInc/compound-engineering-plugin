@@ -50,7 +50,7 @@ Fires **whenever Phase 0.2 resolved an upstream Product Contract source** — a 
 
 #### 5.2 Write Plan File
 
-SKILL.md owns the model-elevation gate that runs before authoring. The inputs it resolves over are this run's prompt, a stripped `plan_model:<alias>` caller carrier (e.g. passed by LFG, honored even in pipeline mode), and the `plan_model` config key.
+SKILL.md owns the model-elevation gate that runs before authoring. It resolves from the latest explicit user intent in the current conversation, a stripped `plan_model:<alias>` caller carrier (e.g. passed by LFG, honored in pipeline mode), and the `plan_model` config key.
 
 **REQUIRED: Write the plan file to disk before presenting any options.**
 

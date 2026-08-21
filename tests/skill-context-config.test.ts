@@ -4,8 +4,8 @@ import { tmpdir } from "os"
 import path from "path"
 import { afterEach, describe, expect, test } from "bun:test"
 
-// F1: context.mjs surfaces active model/engine config keys as a
-// `RESOLVED_CE_CONFIG:` line at the top of every skill run. The parity test
+// context.mjs surfaces active model/engine config keys as an
+// `ACTIVE_CE_CONFIG:` line at the top of every skill run. The parity test
 // proves the 15 copies are byte-identical; this test proves the reader's
 // behavior. Run the script with cwd set to a throwaway fixture repo — never
 // this checkout — so the repo's own (absent) config cannot leak in.
@@ -33,13 +33,13 @@ function runIn(cwd: string): string {
 }
 
 function ceConfigLine(out: string): string | undefined {
-  return out.split("\n").find((l) => l.startsWith("RESOLVED_CE_CONFIG:"))
+  return out.split("\n").find((l) => l.startsWith("ACTIVE_CE_CONFIG:"))
 }
 
-describe("context.mjs resolved CE config surface", () => {
+describe("context.mjs active CE config surface", () => {
   test("an active key in config.yaml is surfaced", () => {
     const out = runIn(makeRepo({ ".compound-engineering/config.yaml": "plan_model: fable\n" }))
-    expect(ceConfigLine(out)).toBe("RESOLVED_CE_CONFIG: plan_model=fable")
+    expect(ceConfigLine(out)).toBe("ACTIVE_CE_CONFIG: plan_model=fable")
   })
 
   test("a #-commented key is not surfaced", () => {
@@ -54,7 +54,17 @@ describe("context.mjs resolved CE config surface", () => {
         ".compound-engineering/config.yaml": "plan_model: opus\n",
       }),
     )
-    expect(ceConfigLine(out)).toBe("RESOLVED_CE_CONFIG: plan_model=fable")
+    expect(ceConfigLine(out)).toBe("ACTIVE_CE_CONFIG: plan_model=fable")
+  })
+
+  test("reports an active local value without claiming consumer validity", () => {
+    const out = runIn(
+      makeRepo({
+        ".compound-engineering/config.local.yaml": "cross_model_effort: not-a-tier\n",
+        ".compound-engineering/config.yaml": "cross_model_effort: high\n",
+      }),
+    )
+    expect(ceConfigLine(out)).toBe("ACTIVE_CE_CONFIG: cross_model_effort=not-a-tier")
   })
 
   test("multiple active keys all appear on the one line", () => {
@@ -87,14 +97,14 @@ describe("context.mjs resolved CE config surface", () => {
 
   test("a quoted value is unquoted", () => {
     const out = runIn(makeRepo({ ".compound-engineering/config.yaml": 'plan_model: "fable"\n' }))
-    expect(ceConfigLine(out)).toBe("RESOLVED_CE_CONFIG: plan_model=fable")
+    expect(ceConfigLine(out)).toBe("ACTIVE_CE_CONFIG: plan_model=fable")
   })
 
   test("an inline trailing comment is stripped from the value", () => {
     // The [^#\n]+ capture must stop at an inline '#'; a regression that dropped
     // '#' from the exclusion would leak the comment and pass every other case.
     const out = runIn(makeRepo({ ".compound-engineering/config.yaml": "plan_model: fable # note\n" }))
-    expect(ceConfigLine(out)).toBe("RESOLVED_CE_CONFIG: plan_model=fable")
+    expect(ceConfigLine(out)).toBe("ACTIVE_CE_CONFIG: plan_model=fable")
   })
 
   test("an explicitly-empty value is treated as unset (not surfaced)", () => {
@@ -106,6 +116,6 @@ describe("context.mjs resolved CE config surface", () => {
     // trim() must run before the closing-quote strip, or a Windows checkout's
     // trailing \r survives inside a quoted value.
     const out = runIn(makeRepo({ ".compound-engineering/config.yaml": 'plan_model: "fable"\r\n' }))
-    expect(ceConfigLine(out)).toBe("RESOLVED_CE_CONFIG: plan_model=fable")
+    expect(ceConfigLine(out)).toBe("ACTIVE_CE_CONFIG: plan_model=fable")
   })
 })

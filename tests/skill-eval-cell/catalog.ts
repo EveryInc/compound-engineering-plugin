@@ -668,6 +668,27 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
     },
   },
   {
+    id: "ce-plan/config-model-reaches-authoring-gate",
+    post_only: true,
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    fixture: `${FIX}/plan-model-config`,
+    timeout_secs: 180,
+    why: "The original eval assumed the late gate was reached, while a full-plan replacement obscured this one decision behind an unbounded workflow. This cell isolates the authoring boundary; a mechanical guard separately blocks authoring before it settles.",
+    pre_contract:
+      "At the authoring boundary, an active plan_model is resolved before any dispatch or write and its source is transparent.",
+    task: `Use ce-plan for this bounded planning checkpoint. Scope and research are already settled: add an optional uppercase greeting mode while preserving the default behavior. You are at the plan-authoring boundary. Before any model dispatch or artifact write, report the resolved authoring model choice, its source, and whether elevation would fire; then stop. Do not dispatch or write.`,
+    grade: {
+      files_read_post: ["references/reasoning-elevation.md"],
+      must_include: ["ce-eval-unavailable", "config"],
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
     id: "ce-work/requirements-only-stops",
     skill: "ce-work",
     cohort: "resized",
