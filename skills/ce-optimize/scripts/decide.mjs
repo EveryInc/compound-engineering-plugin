@@ -401,6 +401,9 @@ export function decide(input) {
     baselineBundles[primary.name] ?? metricBundle(baseline, primary.name, aggregation, primary.type)
   const primaryComparison = comparisons[primary.name] ?? null
   const eligible = improved.length > 0 && violated.length === 0
+  const allInsideThreshold = required.every(
+    (objective) => comparisons[objective.name]?.verdict === "inconclusive",
+  )
   const sampleCount = Math.min(
     ...required.map((objective) => {
       const fromSamples = candidateBundles[objective.name]?.samples?.length
@@ -411,6 +414,7 @@ export function decide(input) {
 
   if (
     !eligible &&
+    !allInsideThreshold &&
     isFutile({
       ladder,
       direction: primary.direction,
@@ -439,10 +443,6 @@ export function decide(input) {
       if (value == null) return false
       return signedDelta(objective.target, value, objective.direction) >= 0
     })
-
-  const allInsideThreshold = required.every(
-    (objective) => comparisons[objective.name]?.verdict === "inconclusive",
-  )
 
   let decision
   if (eligible) decision = "keep"

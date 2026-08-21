@@ -802,6 +802,46 @@ describe("cost-aware measurement ladder", () => {
     expect(result.improved_objectives).toEqual(["ci_critical_path_seconds"])
   })
 
+  test("elapsed-time futility does not censor a candidate still inside the comparison threshold", () => {
+    const spec = hardSpec({
+      primary: { name: "local_wall_seconds", direction: "minimize", type: "hard" },
+      objectives: [
+        { name: "local_wall_seconds", direction: "minimize", role: "required" },
+        { name: "ci_critical_path_seconds", direction: "minimize", role: "required" },
+      ],
+      stability_mode: "ladder",
+      ladder: {
+        smoke_command: "python tools/eval/measure.py --smoke",
+        exploratory_pairs: 1,
+        confirmation_repeats: 5,
+        futility: { worse_factor: 1.2, after_elapsed_seconds: 415 },
+      },
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: 100, samples: [100] },
+          ci_critical_path_seconds: { aggregate: 100, samples: [100] },
+        },
+      },
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: 100, samples: [100] },
+          ci_critical_path_seconds: { aggregate: 96, samples: [96] },
+        },
+        smoke_passed: true,
+        sample_count: 1,
+        elapsed_seconds: 415,
+      },
+    })
+    expect(result.decision).not.toBe("censored")
+    expect(result.next_measurement).toBe("add_sample")
+  })
+
   test("an elapsed-time futility bound censors an already-noncompetitive live run", () => {
     const result = decide({
       spec: {
