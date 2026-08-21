@@ -325,7 +325,7 @@ required_fields:
                   after_elapsed_seconds:
                     type: number
                     default: null
-                    description: "Censor a still-noncompetitive live run once elapsed time reaches this bound"
+                    description: "Censor a still-noncompetitive live run once elapsed time reaches this bound. When set, must be a positive number."
 
   scope:
     type: object
@@ -495,3 +495,4 @@ validation_rules:
   - "A spec without metric.objectives keeps single-primary acceptance"
   - "comparison.method, when set, must be one of: absolute, relative, paired"
   - "If measurement.stability.mode is 'ladder', exploratory_pairs and confirmation_repeats (or repeat_count) must be positive integers, and confirmation must be at least exploratory_pairs"
+  - "futility.after_elapsed_seconds, when set, must be a positive number"

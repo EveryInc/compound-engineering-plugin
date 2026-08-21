@@ -819,6 +819,23 @@ describe("cost-aware measurement ladder", () => {
     expect(result.decision).toBe("censored")
   })
 
+  test("a nonpositive after_elapsed_seconds bound does not censor a completed measurement", () => {
+    const result = decide({
+      spec: {
+        ...spec,
+        ladder: { ...spec.ladder, futility: { worse_factor: 1.2, after_elapsed_seconds: 0 } },
+      },
+      baseline,
+      candidate: {
+        ...snapshot(BASELINE_WALL),
+        smoke_passed: true,
+        sample_count: 1,
+        elapsed_seconds: 10,
+      },
+    })
+    expect(result.decision).not.toBe("censored")
+  })
+
   test("a first sample with exploratory_pairs above 1 asks for another exploratory sample", () => {
     const spec = hardSpec({
       stability_mode: "ladder",
@@ -1185,6 +1202,7 @@ describe("schema and skill pins", () => {
     expect(SCHEMA).toContain(
       "exploratory_pairs and confirmation_repeats (or repeat_count) must be positive integers",
     )
+    expect(SCHEMA).toContain("futility.after_elapsed_seconds, when set, must be a positive number")
     expect(MEASUREMENT).toContain("every required hard objective")
     expect(SCHEMA).toContain("- ladder")
     expect(SCHEMA).toContain("worse_factor")

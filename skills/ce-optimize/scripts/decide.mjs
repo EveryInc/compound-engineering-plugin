@@ -304,10 +304,12 @@ function isFutile({
   const futility = ladder.futility
   if (!enabled || futility == null || typeof futility !== "object") return false
 
+  const afterElapsed = finiteNumber(futility.after_elapsed_seconds)
   if (
-    futility.after_elapsed_seconds != null &&
+    afterElapsed != null &&
+    afterElapsed > 0 &&
     elapsedSeconds != null &&
-    Number(elapsedSeconds) >= Number(futility.after_elapsed_seconds) &&
+    Number(elapsedSeconds) >= afterElapsed &&
     signedDelta(baselineValue, candidateValue, direction) <= 0
   ) {
     return true
