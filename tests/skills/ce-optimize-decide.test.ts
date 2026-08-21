@@ -382,6 +382,43 @@ describe("multi-objective acceptance", () => {
     expect(result.comparisons.local_wall_seconds.verdict).toBe("regressed")
   })
 
+  test("a negative max_regression bound does not turn an unchanged objective into a violation", () => {
+    const spec = hardSpec({
+      primary: { name: "local_wall_seconds", direction: "minimize", type: "hard" },
+      objectives: [
+        {
+          name: "local_wall_seconds",
+          direction: "minimize",
+          role: "required",
+          max_regression: { type: "relative", value: -0.1 },
+        },
+        { name: "ci_critical_path_seconds", direction: "minimize", role: "required" },
+      ],
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: 100, samples: [100] },
+          ci_critical_path_seconds: { aggregate: 120, samples: [120] },
+        },
+      },
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: 100, samples: [100] },
+          ci_critical_path_seconds: { aggregate: 80, samples: [80] },
+        },
+      },
+    })
+    expect(result.eligible).toBe(true)
+    expect(result.decision).toBe("keep")
+    expect(result.violated_objectives).toEqual([])
+    expect(result.improved_objectives).toEqual(["ci_critical_path_seconds"])
+  })
+
   test("a looser max_regression is the violation bound, not the comparison threshold", () => {
     const spec = hardSpec({
       primary: { name: "local_wall_seconds", direction: "minimize", type: "hard" },
@@ -586,6 +623,26 @@ describe("noise-aware comparison from the observed suite run", () => {
     expect(result.decision).toBe("revert")
     expect(result.improved_objectives).toEqual(["ci_critical_path_seconds"])
     expect(result.violated_objectives).toEqual(["local_wall_seconds"])
+  })
+
+  test("sample-only bundles use the configured aggregation, not always the median", () => {
+    const spec = hardSpec({
+      aggregation: "mean",
+      comparison: { method: "absolute", noise_threshold: 1 },
+    })
+    const result = decide({
+      spec,
+      baseline: {
+        gates: { suite_passed: 1 },
+        metrics: { wall_seconds: { samples: [0, 100, 100] } },
+      },
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: { wall_seconds: { samples: [80, 80, 80] } },
+      },
+    })
+    expect(result.decision).toBe("revert")
+    expect(result.eligible).toBe(false)
   })
 
   test("paired comparison is inconclusive when sample ranges overlap", () => {

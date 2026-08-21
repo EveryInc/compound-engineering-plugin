@@ -92,13 +92,25 @@ function closedResult(fields) {
   }
 }
 
-function valueBundle(raw) {
+function configuredAggregation(value) {
+  return value === "mean" || value === "min" || value === "max" ? value : "median"
+}
+
+function aggregateSamples(samples, method) {
+  if (!samples.length) return null
+  if (method === "mean") return samples.reduce((sum, value) => sum + value, 0) / samples.length
+  if (method === "min") return Math.min(...samples)
+  if (method === "max") return Math.max(...samples)
+  return median(samples)
+}
+
+function valueBundle(raw, aggregation = "median") {
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
     const samples = Array.isArray(raw.samples) ? raw.samples.map(finiteNumber) : []
     if (samples.some((n) => n == null)) return { aggregate: null, samples: [] }
     let aggregate = null
     if (raw.aggregate != null) aggregate = finiteNumber(raw.aggregate)
-    else if (samples.length) aggregate = median(samples)
+    else if (samples.length) aggregate = aggregateSamples(samples, aggregation)
     return { aggregate, samples }
   }
   if (raw != null && typeof raw !== "object") {
@@ -108,7 +120,7 @@ function valueBundle(raw) {
   return null
 }
 
-function metricBundle(source, name) {
+function metricBundle(source, name, aggregation) {
   if (!source) return null
   for (const raw of [
     source.metrics?.[name],
@@ -117,7 +129,7 @@ function metricBundle(source, name) {
     source.gates?.[name],
   ]) {
     if (raw === undefined) continue
-    return valueBundle(raw)
+    return valueBundle(raw, aggregation)
   }
   return null
 }
@@ -138,6 +150,7 @@ function normalizeSpec(spec) {
     comparison,
     ladder: spec.ladder ?? stability.ladder ?? {},
     stability_mode: spec.stability_mode ?? stability.mode,
+    aggregation: configuredAggregation(spec.aggregation ?? stability.aggregation),
     repeat_count: spec.repeat_count ?? stability.repeat_count,
     noise_threshold: spec.noise_threshold ?? stability.noise_threshold,
     minimum_improvement:
@@ -249,9 +262,9 @@ export function compareObjective({
 
   let violated = verdict === "regressed"
   if (maxRegression && verdict !== "improved") {
-    const bound =
-      maxRegression.type === "relative" ? Number(maxRegression.value) * denom : Number(maxRegression.value)
-    if (Number.isFinite(bound)) {
+    const rawBound = Number(maxRegression.value)
+    if (Number.isFinite(rawBound) && rawBound >= 0) {
+      const bound = maxRegression.type === "relative" ? rawBound * denom : rawBound
       violated = -delta > bound
       if (violated) verdict = "regressed"
     }
@@ -347,10 +360,11 @@ export function decide(input) {
   const missing = []
   const candidateBundles = {}
   const baselineBundles = {}
+  const aggregation = spec.aggregation ?? "median"
 
   for (const objective of required) {
-    const base = metricBundle(baseline, objective.name)
-    const cand = metricBundle(candidate, objective.name)
+    const base = metricBundle(baseline, objective.name, aggregation)
+    const cand = metricBundle(candidate, objective.name, aggregation)
     baselineBundles[objective.name] = base
     candidateBundles[objective.name] = cand
     if (!base || base.aggregate == null || !cand || cand.aggregate == null) {
@@ -380,8 +394,8 @@ export function decide(input) {
     })
   }
 
-  const primaryBundle = candidateBundles[primary.name] ?? metricBundle(candidate, primary.name)
-  const baselinePrimary = baselineBundles[primary.name] ?? metricBundle(baseline, primary.name)
+  const primaryBundle = candidateBundles[primary.name] ?? metricBundle(candidate, primary.name, aggregation)
+  const baselinePrimary = baselineBundles[primary.name] ?? metricBundle(baseline, primary.name, aggregation)
   const primaryComparison = comparisons[primary.name] ?? null
   const eligible = improved.length > 0 && violated.length === 0
   const sampleCount = positiveInteger(
