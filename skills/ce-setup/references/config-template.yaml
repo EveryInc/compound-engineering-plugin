@@ -118,7 +118,9 @@
 # `cross_model_model` and `cross_model_effort` pin the model and reasoning
 # effort of whichever peer target runs; unset keeps the skills' editorial
 # mapping. The model must belong to that target's family (an alias such as
-# `fable` or a full id such as `claude-opus-5` for claude; `gpt-*` for codex).
+# `fable` or a full id such as `claude-opus-5` for claude; `gpt-*` for codex,
+# optionally namespace-qualified such as `openai.gpt-5.6-sol` when the codex CLI
+# routes through a non-default `model_provider`).
 # Effort levels: claude low|medium|high|xhigh|max, codex minimal|low|medium|
 # high|xhigh, grok low|medium|high; cursor/composer routes take none. A value
 # the peer cannot honor skips the pass with a stated reason -- never substituted.
