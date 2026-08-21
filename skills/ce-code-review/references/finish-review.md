@@ -238,6 +238,7 @@ Always write run artifacts under the resolved `<run-dir>`:
 - actionable findings list
 - advisory outputs
 - per-agent `{reviewer_name}.json` from Stage 4
+- `adversarial-review-constraints.md` when the cross-model route starts — the host-vetted project review criteria, separate from review data
 - `adversarial-review-brief.md` when the cross-model route starts — the orchestrator's compact semantic divisions, never a copied diff
 - `report.md` — the rendered markdown report exactly as presented to the user (default mode only), so format and numbering stay auditable after the run
 
