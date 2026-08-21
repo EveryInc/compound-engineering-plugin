@@ -159,6 +159,72 @@ describe("multi-objective acceptance", () => {
     expect(result.violated_objectives).toContain("local_wall_seconds")
   })
 
+  test("the primary remains required when objectives omit it", () => {
+    const spec = hardSpec({
+      primary: { name: "local_wall_seconds", direction: "minimize", type: "hard" },
+      objectives: [{ name: "ci_critical_path_seconds", direction: "minimize", role: "required" }],
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: 100, samples: [100] },
+          ci_critical_path_seconds: { aggregate: 120, samples: [120] },
+        },
+      },
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: 150, samples: [150] },
+          ci_critical_path_seconds: { aggregate: 80, samples: [80] },
+        },
+      },
+    })
+    expect(result.eligible).toBe(false)
+    expect(result.decision).toBe("revert")
+    expect(result.violated_objectives).toContain("local_wall_seconds")
+    expect(result.improved_objectives).toEqual(["ci_critical_path_seconds"])
+  })
+
+  test("a looser max_regression is the violation bound, not the comparison threshold", () => {
+    const spec = hardSpec({
+      primary: { name: "local_wall_seconds", direction: "minimize", type: "hard" },
+      objectives: [
+        {
+          name: "local_wall_seconds",
+          direction: "minimize",
+          role: "required",
+          max_regression: { type: "relative", value: 0.1 },
+        },
+        { name: "ci_critical_path_seconds", direction: "minimize", role: "required" },
+      ],
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: 100, samples: [100] },
+          ci_critical_path_seconds: { aggregate: 120, samples: [120] },
+        },
+      },
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: 107, samples: [107] },
+          ci_critical_path_seconds: { aggregate: 80, samples: [80] },
+        },
+      },
+    })
+    expect(result.eligible).toBe(true)
+    expect(result.decision).toBe("keep")
+    expect(result.violated_objectives).toEqual([])
+    expect(result.improved_objectives).toEqual(["ci_critical_path_seconds"])
+  })
+
   test("target_reached requires every declared required target, not only the primary", () => {
     const almost = decide({
       spec,
@@ -305,6 +371,31 @@ describe("cost-aware measurement ladder", () => {
     expect(result.next_measurement).toBe("add_sample")
   })
 
+  test("confirmation samples default to repeat_count when confirmation_repeats is omitted", () => {
+    const spec = hardSpec({
+      stability_mode: "ladder",
+      repeat_count: 3,
+      ladder: {
+        smoke_command: "python tools/eval/measure.py --smoke",
+        exploratory_pairs: 1,
+        futility: { worse_factor: 1.2 },
+      },
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline,
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: { wall_seconds: { aggregate: 300, samples: [298, 300, 301] } },
+        sample_count: 3,
+        smoke_passed: true,
+      },
+    })
+    expect(result.decision).toBe("keep")
+    expect(result.next_measurement).toBe("none")
+  })
+
   test("a confirmed promising candidate becomes a keep after the full protocol", () => {
     const result = decide({
       spec,
@@ -357,6 +448,7 @@ describe("schema and skill pins", () => {
     expect(SCHEMA).toContain("- ladder")
     expect(SCHEMA).toContain("worse_factor")
     expect(SCHEMA).toContain("A spec without metric.objectives keeps single-primary acceptance")
+    expect(SCHEMA).toContain("The primary is always a required comparison")
   })
 
   test("the experiment log schema includes inconclusive and censored outcomes", () => {
@@ -378,6 +470,7 @@ describe("schema and skill pins", () => {
     expect(LOOP).toContain("scripts/decide.mjs")
     expect(MEASUREMENT).toContain("scripts/decide.mjs")
     expect(LOOP).toContain("every declared required target")
+    expect(LOOP).toContain("every required objective value")
     expect(MEASUREMENT).toContain("Spend only the measurement the current decision needs")
   })
 })

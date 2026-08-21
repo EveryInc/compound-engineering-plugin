@@ -107,18 +107,12 @@ Process experiments as they complete — do NOT wait for the entire batch to fin
 
 For each completed experiment, **immediately**:
 
-1. **Run measurement** in the experiment's worktree. Spend only the measurement the current decision needs (see Phase 1): smoke first when `stability.mode` is `ladder` and a smoke command is set; otherwise one exploratory sample; then call `decide.mjs` and follow `next_measurement`. Set `CE_OPTIMIZE_CENSOR_AFTER` on `measure.sh` when the spec declares a futility bound so a live run that is already noncompetitive exits 125 instead of running out the full timeout.
+1. **Run measurement** in the experiment's worktree. Spend only the measurement the current decision needs (see Phase 1): smoke first when `stability.mode` is `ladder` and a smoke command is set; otherwise one exploratory sample. Set `CE_OPTIMIZE_CENSOR_AFTER` on `measure.sh` when the spec declares a futility bound so a live run that is already noncompetitive exits 125 instead of running out the full timeout.
    ```bash
    SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
    bash "$SKILL_DIR/scripts/measure.sh" "<measurement.command>" <timeout_seconds> "<worktree_path>/<measurement.working_directory or .>" <env_vars...>
    ```
-   When mode is `repeat`, keep running `repeat_count` times and aggregating as in Phase 1. When mode is `stable`, run once. After the samples for this stage exist, write a JSON payload (spec comparison/objectives, baseline snapshot, candidate samples) and decide:
-   ```bash
-   SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
-   NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
-   "$NODE" "$SKILL_DIR/scripts/decide.mjs" "<payload.json>"
-   ```
-   Use the script's `decision` and `next_measurement`. Do not keep a candidate while `next_measurement` is still `confirm` or `add_sample`. Record `inconclusive` and `censored` as those outcomes, not as `reverted`.
+   When mode is `repeat`, keep running `repeat_count` times and aggregating as in Phase 1. When mode is `stable`, run once.
 
 2. **Write crash-recovery marker** — immediately after measurement, write `result.yaml` in the experiment worktree containing the raw metrics. This ensures the measurement is recoverable even if the agent crashes before updating the main log.
 
@@ -140,7 +134,13 @@ For each completed experiment, **immediately**:
    - Aggregate scores: compute the configured primary judge field from `metric.judge.scoring.primary` (which should match `metric.primary.name`) plus any `scoring.secondary` values
    - If `singleton_sample > 0`: also dispatch singleton evaluation sub-agents
 
-6. **Compare with `decide.mjs`.** After gates pass, put the hard metrics and any judge scores into the payload (`metric.objectives`, `comparison`, `minimum_improvement` for a judge primary, baseline snapshot, candidate samples). The script owns eligibility, noise, and the ladder next step. Do not re-derive the threshold in prose.
+6. **Compare with `decide.mjs`.** Invoke it only after gates pass and the payload holds every required objective value — hard metrics from measurement, and judge scores when those were collected. Put `comparison`, `repeat_count`, `ladder`, `metric.objectives`, `minimum_improvement` for a judge primary, baseline snapshot, and candidate samples in the payload. The script owns eligibility, noise, and the ladder next step. Do not re-derive the threshold in prose.
+   ```bash
+   SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
+   NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
+   "$NODE" "$SKILL_DIR/scripts/decide.mjs" "<payload.json>"
+   ```
+   Use `decision` and `next_measurement`. If `next_measurement` is `confirm` or `add_sample`, collect that measurement and return through this sequence so the payload stays complete. Do not keep a candidate while `next_measurement` is still `confirm` or `add_sample`. Record `inconclusive` and `censored` as those outcomes, not as `reverted`.
 
 7. **IMMEDIATELY append to experiment log on disk (CP-3)** — do not defer this to batch evaluation. Write the experiment entry (iteration, hypothesis, outcome, metrics, learnings) to `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml` right now. Use `measured` or `promising` while samples are still being collected. Update the outcome to `kept`, `reverted`, `inconclusive`, `censored`, or another terminal state once `next_measurement` is `none`, but the raw metrics are on disk and safe from context compaction.
 

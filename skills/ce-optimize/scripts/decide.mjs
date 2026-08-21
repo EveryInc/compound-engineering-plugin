@@ -105,26 +105,29 @@ function comparisonDefaults(spec) {
 function requiredObjectives(spec) {
   const primary = spec.primary ?? {}
   const listed = Array.isArray(spec.objectives) ? spec.objectives : []
-  const objectives =
-    listed.length === 0
-      ? [
-          {
-            name: primary.name,
-            direction: primary.direction ?? "maximize",
-            role: "required",
-            type: primary.type ?? "hard",
-            target: primary.target ?? null,
-          },
-        ]
-      : listed.map((objective) => ({
-          name: objective.name,
-          direction: objective.direction ?? primary.direction ?? "maximize",
-          role: objective.role ?? "required",
-          type: objective.type ?? "hard",
-          target: objective.target ?? null,
-          max_regression: objective.max_regression ?? null,
-        }))
-  return objectives.filter((objective) => objective.role !== "secondary")
+  const extras = listed
+    .map((objective) => ({
+      name: objective.name,
+      direction: objective.direction ?? primary.direction ?? "maximize",
+      role: objective.role ?? "required",
+      type: objective.type ?? "hard",
+      target: objective.target ?? null,
+      max_regression: objective.max_regression ?? null,
+    }))
+    .filter((objective) => objective.role !== "secondary")
+  if (!primary.name) return extras
+  const listedPrimary = extras.find((objective) => objective.name === primary.name)
+  return [
+    {
+      name: primary.name,
+      direction: listedPrimary?.direction ?? primary.direction ?? "maximize",
+      role: "required",
+      type: listedPrimary?.type ?? primary.type ?? "hard",
+      target: listedPrimary?.target ?? primary.target ?? null,
+      max_regression: listedPrimary?.max_regression ?? null,
+    },
+    ...extras.filter((objective) => objective.name !== primary.name),
+  ]
 }
 
 export function compareObjective({
@@ -169,9 +172,9 @@ export function compareObjective({
   if (maxRegression && verdict !== "improved") {
     const bound =
       maxRegression.type === "relative" ? Number(maxRegression.value) * denom : Number(maxRegression.value)
-    if (Number.isFinite(bound) && -delta > bound) {
-      violated = true
-      verdict = "regressed"
+    if (Number.isFinite(bound)) {
+      violated = -delta > bound
+      if (violated) verdict = "regressed"
     }
   }
 
@@ -240,7 +243,7 @@ export function decide(input) {
   const required = requiredObjectives(spec)
   const ladder = spec.ladder ?? {}
   const ladderEnabled = Boolean(ladder.enabled || spec.stability_mode === "ladder")
-  const confirmationRepeats = Number(ladder.confirmation_repeats ?? 5)
+  const confirmationRepeats = Number(ladder.confirmation_repeats ?? spec.repeat_count ?? 5)
   const exploratoryPairs = Number(ladder.exploratory_pairs ?? 1)
   const sampleCount = Number(candidate.sample_count ?? candidate.metrics?.[primary.name]?.samples?.length ?? 1)
 

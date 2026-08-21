@@ -91,7 +91,8 @@ required_fields:
         type: array
         default: []
         description: >
-          Additional required or secondary hard targets. An experiment is
+          Additional required or secondary hard targets. The primary is always
+          a required comparison, even when this list omits it. An experiment is
           eligible when it improves at least one required objective beyond the
           comparison threshold and does not violate any other required
           objective. Completion via target_reached requires every declared
@@ -128,7 +129,7 @@ required_fields:
               description: "Declared success value for this objective. target_reached requires every required objective that sets this."
             max_regression:
               type: object
-              description: "Optional explicit violation bound. When unset, a comparison-threshold regression is a violation."
+              description: "Optional explicit violation bound. When set, violation uses this bound rather than the comparison threshold, including when the bound is looser. When unset, a comparison-threshold regression is a violation."
               required_children:
                 type:
                   type: enum
@@ -489,6 +490,7 @@ validation_rules:
   - "If metric.primary.type is 'judge' and metric.judge.max_total_cost_usd is null, the user should explicitly approve uncapped spend"
   - "stopping must have at least one non-default criterion or use defaults"
   - "If metric.objectives is set, each objective name must be unique and must match a measurement JSON key"
+  - "The primary is always a required comparison, including when metric.objectives omits it"
   - "If measurement.stability.mode is 'ladder', comparison.method should be relative or paired unless the user explicitly keeps absolute"
   - "A spec without metric.objectives keeps single-primary acceptance"
   - "comparison.method, when set, must be one of: absolute, relative, paired"
