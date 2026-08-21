@@ -962,6 +962,7 @@ describe("schema and skill pins", () => {
     expect(LOOP).toContain("not_selected")
     expect(LOOP).toContain("no working Node runtime on PATH")
     expect(LOOP).toContain("whenever `next_measurement` is not `none`")
+    expect(LOOP).toContain("Write a decide terminal only when `next_measurement` is `none`")
     expect(LOOP).not.toContain("confirm` or `add_sample")
     expect(MEASUREMENT).toContain("Spend only the measurement the current decision needs")
   })
