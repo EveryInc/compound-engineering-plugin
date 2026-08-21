@@ -385,8 +385,8 @@ export function decide(input) {
   const primaryComparison = comparisons[primary.name] ?? null
   const eligible = improved.length > 0 && violated.length === 0
   const sampleCount = positiveInteger(
-    candidate.sample_count,
-    positiveInteger(primaryBundle?.samples?.length, 1),
+    primaryBundle?.samples?.length,
+    positiveInteger(candidate.sample_count, 1),
   )
 
   if (

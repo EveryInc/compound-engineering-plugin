@@ -710,8 +710,11 @@ describe("cost-aware measurement ladder", () => {
       candidate: {
         gates: { suite_passed: 1 },
         metrics: {
-          local_wall_seconds: { aggregate: BASELINE_WALL + 1, samples: [BASELINE_WALL + 1] },
-          ci_critical_path_seconds: { aggregate: 80, samples: [80] },
+          local_wall_seconds: {
+            aggregate: BASELINE_WALL + 1,
+            samples: Array(5).fill(BASELINE_WALL + 1),
+          },
+          ci_critical_path_seconds: { aggregate: 80, samples: Array(5).fill(80) },
         },
         smoke_passed: true,
         sample_count: 5,
@@ -782,10 +785,16 @@ describe("cost-aware measurement ladder", () => {
   })
 
   test("an inconclusive extra sample is terminal before the confirmation budget", () => {
+    const wall = BASELINE_WALL * 0.98
     const result = decide({
       spec,
       baseline,
-      candidate: { ...snapshot(BASELINE_WALL * 0.98), smoke_passed: true, sample_count: 2 },
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: { wall_seconds: { aggregate: wall, samples: [wall, wall] } },
+        sample_count: 2,
+        smoke_passed: true,
+      },
     })
     expect(result.decision).toBe("inconclusive")
     expect(result.next_measurement).toBe("none")
@@ -849,10 +858,34 @@ describe("cost-aware measurement ladder", () => {
     const result = decide({
       spec,
       baseline: snapshot(BASELINE_WALL),
-      candidate: { ...snapshot(300), smoke_passed: true, sample_count: 2 },
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: { wall_seconds: { aggregate: 300, samples: [298, 300] } },
+        sample_count: 2,
+        smoke_passed: true,
+      },
     })
     expect(result.decision).toBe("promising")
     expect(result.next_measurement).toBe("exploratory")
+  })
+
+  test("a declared sample_count larger than the sample array does not skip confirmation", () => {
+    const spec = hardSpec({
+      stability_mode: "ladder",
+      ladder: {
+        smoke_command: "python tools/eval/measure.py --smoke",
+        exploratory_pairs: 1,
+        confirmation_repeats: 5,
+      },
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: snapshot(BASELINE_WALL),
+      candidate: { ...snapshot(300), smoke_passed: true, sample_count: 5 },
+    })
+    expect(result.decision).toBe("promising")
+    expect(result.next_measurement).not.toBe("none")
   })
 
   test("a nonnumeric sample_count does not skip confirmation", () => {
@@ -1111,6 +1144,7 @@ describe("schema and skill pins", () => {
     expect(LOOP).toContain("whenever `next_measurement` is not `none`")
     expect(LOOP).toContain("Write a decide terminal only when `next_measurement` is `none`")
     expect(LOOP).toContain("one log entry per experiment")
+    expect(LOOP).toContain("success proceeds to the first exploratory sample")
     expect(LOOP).not.toContain("confirm` or `add_sample")
     expect(MEASUREMENT).toContain("Spend only the measurement the current decision needs")
     expect(readFileSync(path.join(SKILL_DIR, "references", "wrap-up.md"), "utf8")).toContain(
